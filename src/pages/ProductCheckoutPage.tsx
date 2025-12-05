@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import { motion, AnimatePresence } from 'framer-motion';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import AddressAutocomplete from '@/components/ui/AddressAutocomplete';
-import { Loader2, AlertTriangle, ArrowLeft, CheckCircle } from 'lucide-react';
+import { Loader2, AlertTriangle, ArrowLeft, CheckCircle, Truck, CreditCard, MapPin, User, Check } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 
 import { ApiError, NetworkError, apiFetch, getErrorMessage } from '@/utils/api';
@@ -38,7 +39,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 
-// Esquema de validación para el formulario de checkout
 const checkoutSchema = z.object({
   nombre: z.string().min(3, { message: "El nombre debe tener al menos 3 caracteres." }),
   email: z.string().email({ message: "Ingresa un email válido." }),
@@ -74,6 +74,21 @@ const persistDemoOrder = (snapshot: DemoOrderSnapshot) => {
   }
 };
 
+const fadeInUp = {
+  hidden: { opacity: 0, y: 20 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.5 } }
+};
+
+const staggerContainer = {
+  hidden: { opacity: 1 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.1
+    }
+  }
+};
+
 export default function ProductCheckoutPage() {
   const navigate = useNavigate();
   const { user } = useUser();
@@ -102,12 +117,11 @@ export default function ProductCheckoutPage() {
   const [shippingCoords, setShippingCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [isLocating, setIsLocating] = useState(false);
   const guestDefaults = useMemo(() => loadGuestContact(), []);
-  const [loyaltySummary] = useState(() => getDemoLoyaltySummary());
 
   const catalogPath = buildTenantPath('/productos', effectiveTenantSlug);
   const cartPath = buildTenantPath('/cart', effectiveTenantSlug);
-  const loginPath = buildTenantPath('/login', effectiveTenantSlug);
-  const registerPath = buildTenantPath('/register', effectiveTenantSlug);
+  const loginPath = buildTenantPath('/user/login', effectiveTenantSlug);
+  const registerPath = buildTenantPath('/user/register', effectiveTenantSlug);
 
   const productsApiPath = useMemo(
     () => buildTenantApiPath('/productos', effectiveTenantSlug),
@@ -155,13 +169,11 @@ export default function ProductCheckoutPage() {
     }
   });
 
-  // Pre-rellenar formulario si el usuario está logueado
   useEffect(() => {
     if (user) {
       setValue('nombre', user.name || '');
       setValue('email', user.email || '');
       setValue('telefono', user.telefono || '');
-      // La dirección del perfil podría no ser la de envío, así que la dejamos sin tocar
     }
   }, [user, setValue]);
 
@@ -178,7 +190,7 @@ export default function ProductCheckoutPage() {
     const localItems = getLocalCartProducts();
     if (!localItems.length) {
       toast({
-        title: 'Carrito demo vacío',
+        title: 'Carrito vacío',
         description: 'Agregá productos para finalizar la simulación.',
         variant: 'destructive',
       });
@@ -189,7 +201,6 @@ export default function ProductCheckoutPage() {
     return true;
   }, [catalogPath, navigate]);
 
-  // Cargar ítems del carrito
   useEffect(() => {
     const loadCart = async () => {
       setIsLoadingCart(true);
@@ -248,7 +259,6 @@ export default function ProductCheckoutPage() {
         }
 
         const errorMessage = getErrorMessage(err, 'No se pudo cargar tu carrito.');
-
         if (err instanceof ApiError && err.status === 400 && errorMessage.toLowerCase().includes('tenant')) {
            setCheckoutMode('local');
            loadLocalCart();
@@ -309,7 +319,6 @@ export default function ProductCheckoutPage() {
   );
 
   const hasPointsDeficit = checkoutMode !== 'local' && missingPoints > 0;
-
   const completionLabel = useMemo(
     () => (hasDonations ? 'donación' : pointsTotal > 0 ? 'canje' : 'compra'),
     [hasDonations, pointsTotal],
@@ -317,15 +326,11 @@ export default function ProductCheckoutPage() {
 
   const applyPointsAdjustments = useCallback(async () => {
     if (pointsTotal <= 0) return;
-
     adjustPointsBalance(-pointsTotal);
     try {
       await refreshPointsBalance();
     } catch (err) {
-      console.warn(
-        '[ProductCheckoutPage] No se pudo refrescar el saldo de puntos después de la operación',
-        err,
-      );
+      console.warn('[ProductCheckoutPage] No se pudo refrescar el saldo de puntos', err);
     }
   }, [adjustPointsBalance, pointsTotal, refreshPointsBalance]);
 
@@ -367,28 +372,19 @@ export default function ProductCheckoutPage() {
         puntos: pointsTotal,
       },
       metodo_pago: data.metodoPago,
-      // En el futuro: metodo_pago, metodo_envio, notas, etc.
-      estado: 'pendiente_confirmacion', // Estado inicial del pedido
+      estado: 'pendiente_confirmacion',
     };
 
     try {
       if (requiresAuthForPoints) {
         const warning = 'Inicia sesión para canjear tus puntos.';
         setCheckoutError(warning);
-        toast({
-          title: 'Necesitas iniciar sesión',
-          description: warning,
-          variant: 'destructive',
-        });
         setIsSubmitting(false);
         return;
       }
 
       if (hasPointsDeficit) {
-        const warning = missingPoints
-          ? `Te faltan ${missingPoints} puntos para completar el canje.`
-          : 'No tienes puntos suficientes para completar el canje.';
-        setCheckoutError(warning);
+        setCheckoutError('No tienes puntos suficientes.');
         setIsSubmitting(false);
         return;
       }
@@ -401,12 +397,6 @@ export default function ProductCheckoutPage() {
         clearLocalCart();
         setCartItems([]);
         setOrderPlaced(true);
-        // await applyPointsAdjustments(); // Don't adjust real points in demo
-        toast({
-          title: 'Simulación registrada',
-          description: 'Guardamos tu pedido demo en este navegador.',
-          className: 'bg-green-600 text-white',
-        });
         return;
       }
 
@@ -420,15 +410,6 @@ export default function ProductCheckoutPage() {
         });
         setOrderPlaced(true);
         await applyPointsAdjustments();
-        toast({
-          title: 'Pedido confirmado',
-          description: shouldSkipMp
-            ? 'Registramos tu pedido. Coordinaremos el pago con el vendedor.'
-            : hasDonations
-              ? 'Registramos tus donaciones. Recibirás instrucciones de entrega.'
-              : 'Registramos tu canje de puntos.',
-          className: 'bg-green-600 text-white',
-        });
         return;
       }
 
@@ -446,13 +427,7 @@ export default function ProductCheckoutPage() {
       const estado = typeof preference === 'object' ? preference?.estado : undefined;
       if (estado && String(estado).toLowerCase() === 'confirmado') {
         setOrderPlaced(true);
-        toast({
-          title: 'Pedido confirmado',
-          description: hasDonations
-            ? 'Registramos tus donaciones sin necesidad de pago adicional.'
-            : 'Registramos tu canje de puntos. No necesitas pasar por Mercado Pago.',
-          className: 'bg-green-600 text-white',
-        });
+        await applyPointsAdjustments();
         return;
       }
 
@@ -463,56 +438,22 @@ export default function ProductCheckoutPage() {
       }
 
       setOrderPlaced(true);
-      toast({
-        title: 'Pedido registrado',
-        description: `Guardamos tu ${completionLabel}. Te avisaremos por email si faltan pasos para el pago.`,
-        className: 'bg-green-600 text-white',
-      });
     } catch (err) {
       if (err instanceof ApiError) {
         const code = err.body?.code || err.body?.error_code || err.body?.errorCode;
-
         if (err.status === 401 && code === 'REQUIERE_LOGIN_PUNTOS') {
-          const message = 'Para usar tus puntos tenés que iniciar sesión o registrarte.';
-          setCheckoutError(message);
-          toast({
-            title: 'Inicia sesión para usar puntos',
-            description: message,
-            variant: 'destructive',
-          });
           setShowPointsAuthPrompt(true);
           setIsSubmitting(false);
           return;
         }
-
         if (err.status === 400 && code === 'SALDO_INSUFICIENTE') {
-          const faltan = err.body?.faltan ?? missingPoints;
-          const message = faltan
-            ? `Te faltan ${faltan} puntos para completar este canje.`
-            : 'No tienes puntos suficientes para completar este canje.';
-          setCheckoutError(message);
-          setError(message);
-          toast({
-            title: 'Saldo insuficiente',
-            description: message,
-            variant: 'destructive',
-          });
+          setCheckoutError('Saldo insuficiente de puntos.');
           setIsSubmitting(false);
           return;
         }
       }
-
-      const message = getErrorMessage(
-        err,
-        'No se pudo procesar tu pedido. Intenta nuevamente.',
-      );
-      setError(message);
+      const message = getErrorMessage(err, 'No se pudo procesar tu pedido.');
       setCheckoutError(message);
-      toast({
-        title: 'Error al procesar pedido',
-        description: message,
-        variant: 'destructive',
-      });
     } finally {
       setIsSubmitting(false);
     }
@@ -521,47 +462,56 @@ export default function ProductCheckoutPage() {
   const isDemoMode = checkoutMode === 'local';
 
   const handleViewOrders = useCallback(() => {
-    const destination = buildTenantPath('/perfil/pedidos', effectiveTenantSlug);
+    const destination = buildTenantPath('/portal/pedidos', effectiveTenantSlug);
     if (user) {
       navigate(destination);
       return;
     }
-
-    navigate(loginPath, {
-      state: {
-        redirectTo: destination,
-      },
-    });
+    navigate(loginPath, { state: { redirectTo: destination } });
   }, [navigate, user, effectiveTenantSlug, loginPath]);
 
   if (orderPlaced) {
     const demoSuccess = checkoutMode === 'local';
     return (
       <div className="container mx-auto p-4 md:p-8 flex flex-col items-center justify-center min-h-[calc(100vh-200px)] text-center">
-        <CheckCircle className="h-16 w-16 text-green-500 mb-6" />
-        <h1 className="text-3xl font-bold text-foreground mb-3">
-          {demoSuccess ? '¡Pedido demo guardado!' : '¡Gracias por tu compra!'}
-        </h1>
-        <p className="text-lg text-muted-foreground mb-8">
-          {demoSuccess
-            ? 'Tu simulación quedó registrada en este navegador para mostrar el flujo completo.'
-            : `Tu ${completionLabel} fue recibido y está siendo procesado.`}
-        </p>
-        <div className="flex gap-4 flex-wrap justify-center">
-          <Button onClick={() => navigate(catalogPath)}>Seguir Comprando</Button>
-          <Button variant="outline" onClick={handleViewOrders}>Ver Mis Pedidos</Button>
-        </div>
+        <motion.div
+            initial={{ scale: 0, rotate: -45 }}
+            animate={{ scale: 1, rotate: 0 }}
+            transition={{ type: "spring", stiffness: 260, damping: 20 }}
+            className="mb-8"
+        >
+            <div className="bg-green-100 dark:bg-green-900/30 p-6 rounded-full inline-block">
+                <CheckCircle className="h-20 w-20 text-green-600 dark:text-green-500" />
+            </div>
+        </motion.div>
+
+        <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+        >
+            <h1 className="text-4xl font-extrabold text-foreground mb-4 tracking-tight">
+            {demoSuccess ? '¡Pedido Demo Guardado!' : '¡Excelente!'}
+            </h1>
+            <p className="text-xl text-muted-foreground mb-10 max-w-lg mx-auto">
+            {demoSuccess
+                ? 'La simulación se registró con éxito en este navegador.'
+                : `Hemos recibido tu ${completionLabel}. Te enviamos los detalles a tu correo.`}
+            </p>
+            <div className="flex gap-4 flex-wrap justify-center">
+            <Button size="lg" onClick={() => navigate(catalogPath)} className="shadow-lg">Seguir Comprando</Button>
+            <Button size="lg" variant="outline" onClick={handleViewOrders}>Ver Mis Pedidos</Button>
+            </div>
+        </motion.div>
       </div>
     );
   }
 
   if (isLoadingCart) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)]">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
-        <p className="mt-4 text-muted-foreground">
-          Cargando información del checkout...
-        </p>
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)] animate-pulse">
+        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+        <p className="text-lg font-medium text-muted-foreground">Preprando checkout...</p>
       </div>
     );
   }
@@ -570,562 +520,277 @@ export default function ProductCheckoutPage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)] text-destructive">
         <AlertTriangle className="h-12 w-12 mb-4" />
-        <p className="text-lg font-semibold">Error al cargar el Checkout</p>
-        <p className="mb-4">{error}</p>
+        <p className="text-lg font-semibold mb-4">{error}</p>
         <Button onClick={() => window.location.reload()}>Reintentar</Button>
       </div>
     );
   }
 
-  const pointsAuthDialog = (
-    <Dialog open={showPointsAuthPrompt} onOpenChange={setShowPointsAuthPrompt}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Para usar tus puntos tenés que iniciar sesión</DialogTitle>
-          <DialogDescription>
-            Inicia sesión o regístrate para aplicar tus puntos al pedido. Te llevaremos a
-            la pantalla correspondiente y podrás volver para finalizar el checkout.
-          </DialogDescription>
-        </DialogHeader>
-        <DialogFooter className="flex flex-col sm:flex-row sm:justify-end gap-2">
-          <Button variant="outline" onClick={() => navigate(registerPath)}>
-            Registrarme
-          </Button>
-          <Button onClick={() => navigate(loginPath)}>Iniciar sesión</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-
   return (
-    <div className="container mx-auto p-4 md:p-8">
-      {pointsAuthDialog}
+    <motion.div
+        initial="hidden"
+        animate="visible"
+        variants={staggerContainer}
+        className="container mx-auto p-4 md:p-8 max-w-6xl"
+    >
+      <Dialog open={showPointsAuthPrompt} onOpenChange={setShowPointsAuthPrompt}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Inicia sesión para canjear</DialogTitle>
+            <DialogDescription>
+              Tus puntos están seguros. Solo necesitamos verificar tu cuenta.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex flex-col sm:flex-row sm:justify-end gap-2">
+            <Button variant="outline" onClick={() => navigate(registerPath)}>Registrarme</Button>
+            <Button onClick={() => navigate(loginPath)}>Iniciar sesión</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-      <Button
-        variant="outline"
-        onClick={() => navigate(cartPath)}
-        className="mb-6"
-      >
-        <ArrowLeft className="mr-2 h-4 w-4" /> Volver al Carrito
-      </Button>
+      <motion.div variants={fadeInUp} className="mb-6 flex items-center justify-between">
+         <Button variant="ghost" onClick={() => navigate(cartPath)}>
+            <ArrowLeft className="mr-2 h-4 w-4" /> Volver al Carrito
+         </Button>
+         <div className="hidden sm:block text-sm text-muted-foreground">Paso final</div>
+      </motion.div>
 
-      <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
+      <motion.h1 variants={fadeInUp} className="text-3xl md:text-4xl font-extrabold text-foreground mb-8">
         Finalizar Compra
-      </h1>
+      </motion.h1>
 
-      {!user && (
-        <Alert className="mb-6">
-          <AlertTitle>Completa tus datos</AlertTitle>
-          <AlertDescription>
-            Necesitamos nombre, email y teléfono para confirmar tu {completionLabel}. Si
-            quieres sumar puntos más adelante, inicia sesión.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {isDemoMode && (
-        <Alert className="mb-8">
-          <AlertTitle>Checkout en modo demo</AlertTitle>
-          <AlertDescription>
-            Los pedidos se guardan localmente para mostrar el flujo completo sin requerir
-            credenciales del backend.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {hasPointsDeficit && (
-        <Alert variant="destructive" className="mb-6">
-          <AlertTitle>Saldo de puntos insuficiente</AlertTitle>
-          <AlertDescription>
-            Necesitas {pointsTotal} pts pero tu saldo actual es {pointsBalance} pts. Te
-            faltan {missingPoints} pts para confirmar este pedido.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {requiresAuthForPoints && !hasPointsDeficit && (
-        <Alert variant="destructive" className="mb-6">
-          <AlertTitle>Inicia sesión para canjear puntos</AlertTitle>
-          <AlertDescription>
-            Necesitamos asociar tus puntos a tu cuenta antes de confirmar este pedido.
-            Inicia sesión y vuelve a intentar.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      <form
-        onSubmit={handleSubmit(onSubmit)}
-        className="grid grid-cols-1 lg:grid-cols-3 gap-8"
-      >
+      <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>1. Información de Contacto y Envío</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label htmlFor="nombre">Nombre Completo</Label>
-                <Controller
-                  name="nombre"
-                  control={control}
-                  render={({ field }) => <Input id="nombre" {...field} />}
-                />
-                {errors.nombre && (
-                  <p className="text-sm text-destructive mt-1">
-                    {errors.nombre.message}
-                  </p>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <motion.div variants={fadeInUp}>
+            <Card className="border-l-4 border-l-primary shadow-sm">
+                <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-3">
+                    <div className="bg-primary/10 p-2 rounded-full"><User className="h-5 w-5 text-primary" /></div>
+                    Información de Contacto
+                </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
                 <div>
-                  <Label htmlFor="email">Email</Label>
-                  <Controller
-                    name="email"
+                    <Label htmlFor="nombre">Nombre Completo</Label>
+                    <Controller name="nombre" control={control} render={({ field }) => <Input id="nombre" {...field} className="mt-1.5" />} />
+                    {errors.nombre && <p className="text-sm text-destructive mt-1">{errors.nombre.message}</p>}
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                    <Label htmlFor="email">Email</Label>
+                    <Controller name="email" control={control} render={({ field }) => <Input id="email" type="email" {...field} className="mt-1.5" />} />
+                    {errors.email && <p className="text-sm text-destructive mt-1">{errors.email.message}</p>}
+                    </div>
+                    <div>
+                    <Label htmlFor="telefono">Teléfono</Label>
+                    <Controller name="telefono" control={control} render={({ field }) => <Input id="telefono" {...field} className="mt-1.5" />} />
+                    {errors.telefono && <p className="text-sm text-destructive mt-1">{errors.telefono.message}</p>}
+                    </div>
+                </div>
+                </CardContent>
+            </Card>
+          </motion.div>
+
+          <motion.div variants={fadeInUp}>
+            <Card className="border-l-4 border-l-blue-500 shadow-sm">
+                <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-3">
+                    <div className="bg-blue-500/10 p-2 rounded-full"><MapPin className="h-5 w-5 text-blue-600" /></div>
+                    Entrega
+                </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                 <div>
+                    <Label htmlFor="direccion">Dirección de Envío</Label>
+                    <Controller
+                    name="direccion"
                     control={control}
                     render={({ field }) => (
-                      <Input id="email" type="email" {...field} />
+                        <AddressAutocomplete
+                        onSelect={(address) => field.onChange(address)}
+                        initialValue={field.value}
+                        placeholder="Calle, número, localidad..."
+                        />
                     )}
-                  />
-                  {errors.email && (
-                    <p className="text-sm text-destructive mt-1">
-                      {errors.email.message}
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <Label htmlFor="telefono">Teléfono</Label>
-                  <Controller
-                    name="telefono"
-                    control={control}
-                    render={({ field }) => <Input id="telefono" {...field} />}
-                  />
-                  {errors.telefono && (
-                    <p className="text-sm text-destructive mt-1">
-                      {errors.telefono.message}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <Label htmlFor="direccion">Dirección de Envío</Label>
-                <Controller
-                  name="direccion"
-                  control={control}
-                  render={({ field }) => (
-                    <AddressAutocomplete
-                      onSelect={(address) => field.onChange(address)}
-                      initialValue={field.value}
-                      placeholder="Ingresa tu dirección completa"
                     />
-                  )}
-                />
-                {errors.direccion && (
-                  <p className="text-sm text-destructive mt-1">
-                    {errors.direccion.message}
-                  </p>
-                )}
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="referencias">Referencias para entregar</Label>
-                  <Controller
-                    name="referencias"
-                    control={control}
-                    render={({ field }) => (
-                      <Input
-                        id="referencias"
-                        {...field}
-                        placeholder="Piso, timbre o punto de referencia"
-                      />
-                    )}
-                  />
+                    {errors.direccion && <p className="text-sm text-destructive mt-1">{errors.direccion.message}</p>}
                 </div>
-                <div>
-                  <Label htmlFor="notasEnvio">Notas para el repartidor</Label>
-                  <Controller
-                    name="notasEnvio"
-                    control={control}
-                    render={({ field }) => (
-                      <Input
-                        id="notasEnvio"
-                        {...field}
-                        placeholder="Accesos, horarios, etc."
-                      />
-                    )}
-                  />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                     <div>
+                     <Label>Referencias</Label>
+                     <Controller name="referencias" control={control} render={({ field }) => <Input {...field} placeholder="Piso 2, puerta roja..." className="mt-1.5" />} />
+                     </div>
+                     <div>
+                     <Label>Notas</Label>
+                     <Controller name="notasEnvio" control={control} render={({ field }) => <Input {...field} placeholder="Entregar por la tarde..." className="mt-1.5" />} />
+                     </div>
                 </div>
-              </div>
-              <div className="flex flex-col gap-2">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                  <Label>Ubicación en el mapa</Label>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      if (!navigator.geolocation) {
-                        toast({ title: 'Ubicación no disponible', description: 'Tu navegador no permite obtener la ubicación.', variant: 'destructive' });
-                        return;
-                      }
-                      setIsLocating(true);
-                      navigator.geolocation.getCurrentPosition(
-                        (pos) => {
-                          setIsLocating(false);
-                          setShippingCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-                        },
-                        (err) => {
-                          console.warn('[Checkout] Geolocation error', err);
-                          setIsLocating(false);
-                          toast({ title: 'No pudimos leer tu ubicación', description: 'Ingresá la dirección manualmente.', variant: 'destructive' });
-                        },
-                        { enableHighAccuracy: true, timeout: 8000 }
-                      );
-                    }}
-                  >
-                    {isLocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    {isLocating ? 'Obteniendo ubicación...' : 'Usar mi ubicación'}
-                  </Button>
-                </div>
-                {shippingCoords ? (
-                  <p className="text-sm text-muted-foreground">
-                    Guardaremos las coordenadas para el envío ({shippingCoords.lat.toFixed(5)}, {shippingCoords.lng.toFixed(5)}).
-                    {` `}
-                    <a
-                      className="text-primary underline"
-                      href={`https://www.google.com/maps/search/?api=1&query=${shippingCoords.lat},${shippingCoords.lng}`}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      Ver en Google Maps
-                    </a>
-                  </p>
-                ) : (
-                  <p className="text-sm text-muted-foreground">Podés adjuntar tu ubicación para agilizar la entrega.</p>
-                )}
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="referencias">Referencias para entregar</Label>
-                  <Controller
-                    name="referencias"
-                    control={control}
-                    render={({ field }) => (
-                      <Input
-                        id="referencias"
-                        {...field}
-                        placeholder="Piso, timbre o punto de referencia"
-                      />
-                    )}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="notasEnvio">Notas para el repartidor</Label>
-                  <Controller
-                    name="notasEnvio"
-                    control={control}
-                    render={({ field }) => (
-                      <Input
-                        id="notasEnvio"
-                        {...field}
-                        placeholder="Accesos, horarios, etc."
-                      />
-                    )}
-                  />
-                </div>
-              </div>
-              <div className="flex flex-col gap-2">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                  <Label>Ubicación en el mapa</Label>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      if (!navigator.geolocation) {
-                        toast({ title: 'Ubicación no disponible', description: 'Tu navegador no permite obtener la ubicación.', variant: 'destructive' });
-                        return;
-                      }
-                      setIsLocating(true);
-                      navigator.geolocation.getCurrentPosition(
-                        (pos) => {
-                          setIsLocating(false);
-                          setShippingCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-                        },
-                        (err) => {
-                          console.warn('[Checkout] Geolocation error', err);
-                          setIsLocating(false);
-                          toast({ title: 'No pudimos leer tu ubicación', description: 'Ingresá la dirección manualmente.', variant: 'destructive' });
-                        },
-                        { enableHighAccuracy: true, timeout: 8000 }
-                      );
-                    }}
-                  >
-                    {isLocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    {isLocating ? 'Obteniendo ubicación...' : 'Usar mi ubicación'}
-                  </Button>
-                </div>
-                {shippingCoords ? (
-                  <p className="text-sm text-muted-foreground">
-                    Guardaremos las coordenadas para el envío ({shippingCoords.lat.toFixed(5)}, {shippingCoords.lng.toFixed(5)}).
-                    {` `}
-                    <a
-                      className="text-primary underline"
-                      href={`https://www.google.com/maps/search/?api=1&query=${shippingCoords.lat},${shippingCoords.lng}`}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      Ver en Google Maps
-                    </a>
-                  </p>
-                ) : (
-                  <p className="text-sm text-muted-foreground">Podés adjuntar tu ubicación para agilizar la entrega.</p>
-                )}
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="referencias">Referencias para entregar</Label>
-                  <Controller
-                    name="referencias"
-                    control={control}
-                    render={({ field }) => (
-                      <Input
-                        id="referencias"
-                        {...field}
-                        placeholder="Piso, timbre o punto de referencia"
-                      />
-                    )}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="notasEnvio">Notas para el repartidor</Label>
-                  <Controller
-                    name="notasEnvio"
-                    control={control}
-                    render={({ field }) => (
-                      <Input
-                        id="notasEnvio"
-                        {...field}
-                        placeholder="Accesos, horarios, etc."
-                      />
-                    )}
-                  />
-                </div>
-              </div>
-              <div className="flex flex-col gap-2">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                  <Label>Ubicación en el mapa</Label>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      if (!navigator.geolocation) {
-                        toast({ title: 'Ubicación no disponible', description: 'Tu navegador no permite obtener la ubicación.', variant: 'destructive' });
-                        return;
-                      }
-                      setIsLocating(true);
-                      navigator.geolocation.getCurrentPosition(
-                        (pos) => {
-                          setIsLocating(false);
-                          setShippingCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-                        },
-                        (err) => {
-                          console.warn('[Checkout] Geolocation error', err);
-                          setIsLocating(false);
-                          toast({ title: 'No pudimos leer tu ubicación', description: 'Ingresá la dirección manualmente.', variant: 'destructive' });
-                        },
-                        { enableHighAccuracy: true, timeout: 8000 }
-                      );
-                    }}
-                  >
-                    {isLocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    {isLocating ? 'Obteniendo ubicación...' : 'Usar mi ubicación'}
-                  </Button>
-                </div>
-                {shippingCoords ? (
-                  <p className="text-sm text-muted-foreground">
-                    Guardaremos las coordenadas para el envío ({shippingCoords.lat.toFixed(5)}, {shippingCoords.lng.toFixed(5)}).
-                    {` `}
-                    <a
-                      className="text-primary underline"
-                      href={`https://www.google.com/maps/search/?api=1&query=${shippingCoords.lat},${shippingCoords.lng}`}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      Ver en Google Maps
-                    </a>
-                  </p>
-                ) : (
-                  <p className="text-sm text-muted-foreground">Podés adjuntar tu ubicación para agilizar la entrega.</p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>2. Método de Envío</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <Controller
-                  name="metodoEnvio"
-                  control={control}
-                  render={({ field }) => (
-                    <div className="space-y-2">
-                      <label className="flex items-center gap-3 cursor-pointer">
-                        <input
-                          type="radio"
-                          value="delivery"
-                          checked={field.value === 'delivery'}
-                          onChange={() => field.onChange('delivery')}
-                        />
-                        <div>
-                          <p className="font-medium">Envío a domicilio</p>
-                          <p className="text-sm text-muted-foreground">Coordinamos la entrega con los datos ingresados.</p>
-                        </div>
-                      </label>
-                      <label className="flex items-center gap-3 cursor-pointer">
-                        <input
-                          type="radio"
-                          value="pickup"
-                          checked={field.value === 'pickup'}
-                          onChange={() => field.onChange('pickup')}
-                        />
-                        <div>
-                          <p className="font-medium">Retiro en punto de entrega</p>
-                          <p className="text-sm text-muted-foreground">Te enviaremos la dirección y horario para retirar.</p>
-                        </div>
-                      </label>
-                    </div>
-                  )}
-                />
-              </div>
-            </CardContent>
-          </Card>
+                 <div className="pt-2">
+                     <Label className="mb-2 block">Opciones de Entrega</Label>
+                     <Controller
+                        name="metodoEnvio"
+                        control={control}
+                        render={({ field }) => (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <label className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all ${field.value === 'delivery' ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'hover:bg-muted'}`}>
+                                    <input type="radio" className="mt-1" value="delivery" checked={field.value === 'delivery'} onChange={() => field.onChange('delivery')} />
+                                    <div>
+                                        <span className="font-semibold block">Envío a Domicilio</span>
+                                        <span className="text-xs text-muted-foreground">Te lo llevamos a la puerta.</span>
+                                    </div>
+                                </label>
+                                <label className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all ${field.value === 'pickup' ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'hover:bg-muted'}`}>
+                                    <input type="radio" className="mt-1" value="pickup" checked={field.value === 'pickup'} onChange={() => field.onChange('pickup')} />
+                                    <div>
+                                        <span className="font-semibold block">Retiro en Local</span>
+                                        <span className="text-xs text-muted-foreground">Pasa a buscarlo cuando quieras.</span>
+                                    </div>
+                                </label>
+                            </div>
+                        )}
+                     />
+                 </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>3. Método de Pago</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <Controller
-                  name="metodoPago"
-                  control={control}
-                  render={({ field }) => (
-                    <div className="space-y-2">
-                      <label className="flex items-center gap-3 cursor-pointer">
-                        <input
-                          type="radio"
-                          value="mercado_pago"
-                          checked={field.value === 'mercado_pago'}
-                          onChange={() => field.onChange('mercado_pago')}
-                        />
-                        <div>
-                          <p className="font-medium">Mercado Pago (recomendado)</p>
-                          <p className="text-sm text-muted-foreground">Al confirmar te redirigimos para completar el pago seguro.</p>
+                 <div className="flex justify-end pt-2">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="text-xs"
+                        onClick={() => {
+                            if (!navigator.geolocation) return;
+                            setIsLocating(true);
+                            navigator.geolocation.getCurrentPosition(
+                            (pos) => { setIsLocating(false); setShippingCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }); },
+                            () => { setIsLocating(false); toast({ title: 'Error', description: 'No pudimos leer tu ubicación', variant: 'destructive' }); }
+                            );
+                        }}
+                    >
+                        {isLocating ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <MapPin className="mr-2 h-3 w-3" />}
+                        {shippingCoords ? 'Ubicación Guardada' : 'Adjuntar mi ubicación actual'}
+                    </Button>
+                 </div>
+                </CardContent>
+            </Card>
+          </motion.div>
+
+          <motion.div variants={fadeInUp}>
+            <Card className="border-l-4 border-l-green-500 shadow-sm">
+                <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-3">
+                    <div className="bg-green-500/10 p-2 rounded-full"><CreditCard className="h-5 w-5 text-green-600" /></div>
+                    Pago
+                </CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <Controller
+                    name="metodoPago"
+                    control={control}
+                    render={({ field }) => (
+                        <div className="space-y-3">
+                             <label className={`flex items-center gap-3 p-4 rounded-lg border cursor-pointer transition-all ${field.value === 'mercado_pago' ? 'border-green-500 bg-green-50 dark:bg-green-900/20' : 'hover:bg-muted'}`}>
+                                <div className="flex items-center justify-center h-5 w-5 rounded-full border border-primary shrink-0">
+                                     {field.value === 'mercado_pago' && <div className="h-3 w-3 rounded-full bg-primary" />}
+                                </div>
+                                <input type="radio" className="hidden" value="mercado_pago" checked={field.value === 'mercado_pago'} onChange={() => field.onChange('mercado_pago')} />
+                                <div className="flex-1">
+                                    <span className="font-semibold block text-base">Mercado Pago</span>
+                                    <span className="text-sm text-muted-foreground">Tarjetas, efectivo y dinero en cuenta.</span>
+                                </div>
+                                <img src="https://logotipoz.com/wp-content/uploads/2021/10/version-horizontal-large-logo-mercado-pago.webp" alt="MP" className="h-6 object-contain opacity-80" />
+                            </label>
+
+                             <label className={`flex items-center gap-3 p-4 rounded-lg border cursor-pointer transition-all ${field.value === 'acordar' ? 'border-green-500 bg-green-50 dark:bg-green-900/20' : 'hover:bg-muted'}`}>
+                                <div className="flex items-center justify-center h-5 w-5 rounded-full border border-primary shrink-0">
+                                     {field.value === 'acordar' && <div className="h-3 w-3 rounded-full bg-primary" />}
+                                </div>
+                                <input type="radio" className="hidden" value="acordar" checked={field.value === 'acordar'} onChange={() => field.onChange('acordar')} />
+                                <div>
+                                    <span className="font-semibold block text-base">Acordar con el vendedor</span>
+                                    <span className="text-sm text-muted-foreground">Transferencia o efectivo al retirar.</span>
+                                </div>
+                            </label>
                         </div>
-                      </label>
-                      <label className="flex items-center gap-3 cursor-pointer">
-                        <input
-                          type="radio"
-                          value="acordar"
-                          checked={field.value === 'acordar'}
-                          onChange={() => field.onChange('acordar')}
-                        />
-                        <div>
-                          <p className="font-medium">Acordar con el vendedor</p>
-                          <p className="text-sm text-muted-foreground">Registramos el pedido y coordinamos el pago por otro medio.</p>
-                        </div>
-                      </label>
-                    </div>
-                  )}
-                />
-              </div>
-            </CardContent>
-          </Card>
+                    )}
+                    />
+                </CardContent>
+            </Card>
+          </motion.div>
         </div>
 
-        <div className="lg:col-span-1">
-          <Card className="sticky top-24 shadow-lg">
-            <CardHeader>
-              <CardTitle>Resumen del Pedido</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {cartItems.map((item) => (
-                <div
-                  key={item.id || item.nombre}
-                  className="flex justify-between items-center text-sm"
-                >
-                  <div className="flex-1">
-                    <p className="font-medium text-foreground">
-                      {item.nombre}{' '}
-                      <span className="text-xs text-muted-foreground">
-                        x{item.cantidad}
-                      </span>
-                    </p>
-                    {item.presentacion && (
-                      <p className="text-xs text-muted-foreground">
-                        {item.presentacion}
-                      </p>
-                    )}
-                  </div>
-                  <span className="font-medium text-foreground">
-                    {item.modalidad === 'puntos'
-                      ? `${(item.precio_puntos ?? item.precio_unitario ?? 0) *
-                          item.cantidad} pts`
-                      : item.modalidad === 'donacion'
-                      ? 'Donación'
-                      : formatCurrency(item.precio_unitario * item.cantidad)}
-                  </span>
+        <motion.div variants={fadeInUp} className="lg:col-span-1">
+          <div className="sticky top-24 space-y-4">
+             <Card className="shadow-lg border-primary/20 overflow-hidden">
+                <div className="bg-muted/50 p-4 border-b">
+                    <h3 className="font-bold text-lg">Tu Pedido</h3>
                 </div>
-              ))}
-              <Separator />
-              <div className="flex justify-between text-sm text-muted-foreground">
-                <span>Total en puntos</span>
-                <span>{pointsTotal} pts</span>
-              </div>
-              <div className="flex justify-between text-sm text-muted-foreground">
-                <span>Total en dinero</span>
-                <span>{formatCurrency(subtotal)}</span>
-              </div>
-              {hasDonations && (
-                <p className="text-sm text-muted-foreground">
-                  Incluye donaciones sin costo monetario.
-                </p>
-              )}
-              {checkoutError && (
-                <p className="text-sm text-destructive mt-2">{checkoutError}</p>
-              )}
-              {error && (
-                <p className="text-sm text-destructive mt-2">{error}</p>
-              )}
-            </CardContent>
-            <CardFooter>
-              <Button
-                type="submit"
-                size="lg"
-                className="w-full"
-                disabled={
-                  isSubmitting ||
-                  isLoadingCart ||
-                  cartItems.length === 0 ||
-                  hasPointsDeficit ||
-                  requiresAuthForPoints
-                }
-              >
-                {isSubmitting ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : null}
-                {isSubmitting ? 'Procesando Pedido...' : 'Confirmar Pedido'}
-              </Button>
-            </CardFooter>
-          </Card>
-        </div>
+                <CardContent className="p-0">
+                    <div className="max-h-[300px] overflow-y-auto p-4 space-y-3">
+                        {cartItems.map((item) => (
+                            <div key={item.id || item.nombre} className="flex justify-between items-start text-sm group">
+                                <div>
+                                    <p className="font-medium">{item.nombre}</p>
+                                    <p className="text-xs text-muted-foreground">Cant: {item.cantidad}</p>
+                                </div>
+                                <span className="font-medium whitespace-nowrap">
+                                     {item.modalidad === 'puntos' ? `${(item.precio_puntos ?? 0) * item.cantidad} pts` : formatCurrency(item.precio_unitario * item.cantidad)}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                    <Separator />
+                    <div className="p-4 space-y-2 bg-muted/20">
+                         <div className="flex justify-between text-sm">
+                            <span>Subtotal</span>
+                            <span>{formatCurrency(subtotal)}</span>
+                         </div>
+                         {pointsTotal > 0 && (
+                             <div className="flex justify-between text-sm text-primary font-medium">
+                                <span>Puntos</span>
+                                <span>{pointsTotal} pts</span>
+                             </div>
+                         )}
+                         <Separator className="my-2" />
+                         <div className="flex justify-between text-lg font-bold">
+                            <span>Total</span>
+                            <span>{formatCurrency(subtotal)}</span>
+                         </div>
+                    </div>
+                </CardContent>
+                <CardFooter className="p-4 bg-muted/50 border-t flex flex-col gap-3">
+                     {checkoutError && (
+                        <div className="text-sm text-destructive bg-destructive/10 p-2 rounded w-full text-center">
+                            {checkoutError}
+                        </div>
+                     )}
+                     <Button
+                        type="submit"
+                        size="lg"
+                        className="w-full font-bold shadow-md hover:shadow-lg transition-all"
+                        disabled={isSubmitting || isLoadingCart || hasPointsDeficit}
+                    >
+                        {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
+                        {isSubmitting ? 'Procesando...' : 'Confirmar Pedido'}
+                     </Button>
+                     <p className="text-xs text-center text-muted-foreground">
+                        Al confirmar aceptas nuestros términos y condiciones.
+                     </p>
+                </CardFooter>
+             </Card>
+
+             {isDemoMode && (
+                <Alert className="bg-orange-50 dark:bg-orange-900/10 border-orange-200 text-orange-800 dark:text-orange-200">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>Modo Simulación</AlertTitle>
+                    <AlertDescription className="text-xs">
+                        No se realizará ningún cobro real.
+                    </AlertDescription>
+                </Alert>
+             )}
+          </div>
+        </motion.div>
       </form>
-    </div>
+    </motion.div>
   );
 }

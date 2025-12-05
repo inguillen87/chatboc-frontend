@@ -4,10 +4,10 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Link, useNavigate } from 'react-router-dom';
-import { ProductDetails } from '@/components/product/ProductCard'; // Usar la misma interfaz detallada
+import { ProductDetails } from '@/components/product/ProductCard';
 import { toast } from '@/components/ui/use-toast';
 import { formatCurrency } from '@/utils/currency';
-import { Loader2, ShoppingCart, AlertTriangle, Trash2, PlusCircle, MinusCircle, ArrowLeft } from 'lucide-react';
+import { Loader2, ShoppingCart, AlertTriangle, Trash2, PlusCircle, MinusCircle, ArrowLeft, Package, Sparkles } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { useTenant } from '@/context/TenantContext';
 import {
@@ -28,13 +28,13 @@ import GuestContactDialog, { GuestContactValues } from '@/components/cart/GuestC
 import { loadGuestContact, saveGuestContact } from '@/utils/guestContact';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // Interfaz para el producto en el carrito, extendiendo ProductDetails y añadiendo cantidad
 interface CartItem extends ProductDetails {
   cantidad: number;
   localCartKey?: string;
 }
-
 
 export default function CartPage() {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -123,27 +123,18 @@ export default function CartPage() {
       ]);
 
       const normalizedProducts = normalizeProductsPayload(productsApiData, 'CartPage');
-
       const productMap = buildProductMap(normalizedProducts);
-
       const cartEntries = normalizeCartPayload(cartApiData, 'CartPage');
 
       const populatedCartItems: CartItem[] = cartEntries
         .map(([productName, cantidad]) => {
-          if (cantidad <= 0) {
-            return null;
-          }
-
+          if (cantidad <= 0) return null;
           const productDetail = productMap[productName] ?? {
             id: productName,
             nombre: productName,
             precio_unitario: 0,
           };
-
-          return {
-            ...productDetail,
-            cantidad,
-          };
+          return { ...productDetail, cantidad };
         })
         .filter((item): item is CartItem => item !== null);
 
@@ -160,24 +151,18 @@ export default function CartPage() {
       }
 
     } catch (err) {
-      // Always fallback to local cart on these errors
       if (shouldUseLocalCart(err)) {
         setCartMode('local');
         refreshLocalCart();
         return;
       }
-
       const errorMessage = getErrorMessage(err, 'No se pudo cargar el carrito. Intenta de nuevo.');
-
       if (err instanceof ApiError && err.status === 400 && errorMessage.toLowerCase().includes('tenant')) {
-        // Fallback to local cart if tenant is missing/invalid
         setCartMode('local');
         refreshLocalCart();
         return;
       }
-
       setError(errorMessage);
-      console.error("Error cargando datos del carrito:", err);
     } finally {
       setLoading(false);
     }
@@ -194,7 +179,6 @@ export default function CartPage() {
     const itemToUpdate = cartItems.find(item => item.nombre === productName);
     if (!itemToUpdate) return;
 
-    // Optimistic update
     if (newQuantity <= 0) {
       setCartItems(prevItems => prevItems.filter(item => item.nombre !== productName));
     } else {
@@ -210,7 +194,7 @@ export default function CartPage() {
         const targetKey = itemToUpdate.localCartKey ?? itemToUpdate.id?.toString() ?? productName;
         const updated = setLocalCartItemQuantity(targetKey || productName, newQuantity);
         setCartItems(updated);
-        toast({ description: `Cantidad de ${productName} actualizada en el carrito demo.` });
+        toast({ description: `Cantidad actualizada.` });
         return;
       }
 
@@ -223,20 +207,15 @@ export default function CartPage() {
           body: { nombre: productName, cantidad: newQuantity },
         });
       }
-      // No es necesario llamar a loadCartData() aquí si el backend confirma la acción,
-      // la UI ya está actualizada optimisticamente. Si se quiere re-sincronizar:
-      // await loadCartData();
-      toast({ description: `Cantidad de ${productName} actualizada.`});
+      toast({ description: `Cantidad actualizada.` });
     } catch (err) {
       toast({ title: "Error", description: "No se pudo actualizar la cantidad.", variant: "destructive" });
-      setCartItems(originalItems); // Revertir en caso de error
+      setCartItems(originalItems);
     }
   };
 
   const calculateItemSubtotal = (item: CartItem) => {
-    if (item.modalidad === 'puntos' || item.modalidad === 'donacion') {
-      return 0;
-    }
+    if (item.modalidad === 'puntos' || item.modalidad === 'donacion') return 0;
     if (item.unidades_por_caja && item.unidades_por_caja > 0 && item.precio_por_caja) {
       const cajas = Math.floor(item.cantidad / item.unidades_por_caja);
       const sobrantes = item.cantidad % item.unidades_por_caja;
@@ -271,12 +250,10 @@ export default function CartPage() {
       setShowPointsAuthPrompt(true);
       return;
     }
-
     if (!user) {
       setShowGuestDialog(true);
       return;
     }
-
     navigate(cartCheckoutPath);
   };
 
@@ -288,284 +265,292 @@ export default function CartPage() {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)] p-4 text-muted-foreground">
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)] p-4 text-muted-foreground animate-pulse">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-        <p className="text-lg">Cargando tu carrito...</p>
+        <p className="text-lg font-medium">Cargando tu carrito...</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)] p-4 text-destructive">
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)] p-4 text-destructive text-center">
         <AlertTriangle className="h-12 w-12 mb-4" />
-        <p className="text-lg font-semibold">Ocurrió un error</p>
-        <p>{error}</p>
-        {showAuthCta ? (
-          <div className="flex flex-wrap items-center justify-center gap-3 mt-4">
-            <Button onClick={() => navigate(loginPath)}>Iniciar sesión</Button>
-            <Button variant="outline" onClick={() => navigate(registerPath)}>Registrarme</Button>
-            <Button variant="secondary" asChild>
-              <Link to={catalogPath}>Ver catálogo</Link>
-            </Button>
-          </div>
-        ) : (
-          <Button onClick={loadCartData} className="mt-4">Reintentar</Button>
-        )}
+        <h2 className="text-2xl font-bold mb-2">Ocurrió un error</h2>
+        <p className="text-muted-foreground max-w-md mb-6">{error}</p>
+        <div className="flex gap-4">
+            <Button onClick={loadCartData}>Reintentar</Button>
+            <Button variant="outline" asChild><Link to={catalogPath}>Ir al catálogo</Link></Button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto p-4 md:p-8">
-      <Button variant="outline" onClick={() => navigate(-1)} className="mb-6">
-        <ArrowLeft className="mr-2 h-4 w-4" /> Volver
-      </Button>
-      <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-4">Tu Carrito de Compras</h1>
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4 }}
+      className="container mx-auto p-4 md:p-8 max-w-7xl"
+    >
+      <div className="flex items-center justify-between mb-8">
+        <Button variant="ghost" onClick={() => navigate(-1)} className="hover:bg-accent/50 group">
+          <ArrowLeft className="mr-2 h-4 w-4 group-hover:-translate-x-1 transition-transform" /> Volver
+        </Button>
+        <h1 className="text-3xl md:text-4xl font-extrabold text-foreground tracking-tight">Tu Carrito</h1>
+      </div>
 
       {!user && (
-        <Alert className="mb-6">
-          <AlertTitle>Finaliza con tus datos de contacto</AlertTitle>
+        <Alert className="mb-6 bg-muted/40 border-primary/20">
+          <Package className="h-4 w-4 text-primary" />
+          <AlertTitle className="text-primary font-medium">Finaliza con tus datos</AlertTitle>
           <AlertDescription>
-            Te pediremos nombre, email y teléfono en el siguiente paso para confirmar la compra o donación.
+            Te pediremos tus datos de contacto en el siguiente paso.
           </AlertDescription>
         </Alert>
       )}
 
       {cartMode === 'local' && (
-        <Alert className="mb-6">
-          <AlertTitle>Carrito demo activo</AlertTitle>
+        <Alert className="mb-6 bg-warning/10 border-warning/30 text-warning-foreground">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Modo Demo</AlertTitle>
           <AlertDescription>
-            Tus productos se guardan únicamente en este navegador para que puedas simular la experiencia completa.
+            Tus productos se guardan localmente para simular la experiencia.
           </AlertDescription>
         </Alert>
       )}
 
-      <div className="mb-6 rounded-xl border border-primary/20 bg-gradient-to-r from-primary/5 via-primary/10 to-transparent p-4 shadow-sm">
-        <p className="text-sm uppercase tracking-wide text-primary/80 font-semibold mb-2">Saldo de puntos</p>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-center">
+      {/* Points Summary Card */}
+      <motion.div
+        initial={{ scale: 0.98, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ delay: 0.1 }}
+        className="mb-8 rounded-xl border border-border/60 bg-gradient-to-br from-card to-muted/30 p-5 shadow-sm relative overflow-hidden"
+      >
+        <div className="absolute top-0 right-0 p-4 opacity-5">
+           <Sparkles className="w-24 h-24" />
+        </div>
+        <div className="flex items-center gap-2 mb-4">
+           <Sparkles className="h-5 w-5 text-primary" />
+           <p className="text-sm uppercase tracking-wider font-bold text-muted-foreground">Resumen de Puntos</p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 relative z-10">
           <div>
-            <p className="text-sm text-muted-foreground">Disponible</p>
-            <p className="text-xl font-bold text-primary">
-              {isLoadingPoints ? <Loader2 className="h-4 w-4 animate-spin" /> : `${numberFormatter.format(effectivePointsBalance)} pts`}
+            <p className="text-xs text-muted-foreground font-medium uppercase mb-1">Tu Saldo</p>
+            <p className="text-2xl font-bold text-foreground">
+              {isLoadingPoints ? <Loader2 className="h-5 w-5 animate-spin" /> : `${numberFormatter.format(effectivePointsBalance)} pts`}
             </p>
           </div>
           <div>
-            <p className="text-sm text-muted-foreground">Puntos a usar en este carrito</p>
-            <p className="text-lg font-semibold">{numberFormatter.format(pointsTotal)} pts</p>
+            <p className="text-xs text-muted-foreground font-medium uppercase mb-1">A usar</p>
+            <p className="text-2xl font-bold text-primary">{numberFormatter.format(pointsTotal)} pts</p>
           </div>
           <div>
-            <p className="text-sm text-muted-foreground">Saldo estimado luego del canje</p>
-            <p className={`text-lg font-semibold ${hasPointsDeficit ? 'text-destructive' : ''}`}>
+            <p className="text-xs text-muted-foreground font-medium uppercase mb-1">Restante</p>
+            <p className={`text-2xl font-bold ${hasPointsDeficit ? 'text-destructive' : 'text-green-600'}`}>
               {numberFormatter.format(pointsAfterSubtotal)} pts
             </p>
           </div>
         </div>
-        {hasPointsDeficit && (
-          <p className="text-sm text-destructive mt-2">No tienes puntos suficientes para todos los canjes. Ajusta cantidades o participa en más actividades.</p>
-        )}
-        {!hasPointsDeficit && requiresAuthForPoints && (
-          <p className="text-sm text-destructive mt-2">Inicia sesión para canjear tus puntos antes de finalizar el pedido.</p>
-        )}
-      </div>
 
-      <div className="mb-6">
+        <AnimatePresence>
+            {hasPointsDeficit && (
+            <motion.p initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="text-sm text-destructive mt-3 bg-destructive/10 p-2 rounded-md inline-block">
+                No tienes puntos suficientes. Ajusta tu carrito.
+            </motion.p>
+            )}
+        </AnimatePresence>
+      </motion.div>
+
+      <div className="mb-8">
         <UploadOrderFromFile onCartUpdated={loadCartData} />
       </div>
 
       {cartItems.length === 0 ? (
-        <div className="text-center py-12 bg-card border border-border rounded-lg shadow-sm">
-          <ShoppingCart className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
-          <p className="text-xl text-muted-foreground mb-2">Tu carrito está vacío.</p>
-          <p className="text-sm text-muted-foreground mb-6">Parece que no has agregado nada aún.</p>
-          <Button asChild>
+        <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="text-center py-20 bg-card/50 border border-dashed border-border rounded-xl"
+        >
+          <div className="bg-muted/50 rounded-full w-24 h-24 flex items-center justify-center mx-auto mb-6">
+             <ShoppingCart className="h-10 w-10 text-muted-foreground" />
+          </div>
+          <h3 className="text-2xl font-bold text-foreground mb-2">Tu carrito está vacío</h3>
+          <p className="text-muted-foreground mb-8 max-w-md mx-auto">Explora nuestro catálogo para encontrar productos, beneficios y recompensas increíbles.</p>
+          <Button asChild size="lg" className="rounded-full px-8 shadow-lg shadow-primary/20">
             <Link to={catalogPath}>Explorar Catálogo</Link>
           </Button>
-        </div>
+        </motion.div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
           <div className="lg:col-span-2 space-y-4">
+            <AnimatePresence mode='popLayout'>
             {cartItems.map((item) => (
-              <Card key={item.id || item.nombre} className="flex flex-col sm:flex-row items-center overflow-hidden shadow-sm border-border">
-                <img
-                  src={item.imagen_url || getProductPlaceholderImage(item)}
-                  alt={item.nombre}
-                  loading="lazy"
-                  onError={(event) => {
-                    const fallback = getProductPlaceholderImage(item);
-                    if (event.currentTarget.src !== fallback) {
-                      event.currentTarget.src = fallback;
-                    }
-                  }}
-                  className="w-full sm:w-32 h-32 sm:h-full object-cover"
-                />
-                <CardContent className="p-4 flex-1 flex flex-col sm:flex-row justify-between items-start sm:items-center">
-                  <div className="flex-1 mb-4 sm:mb-0">
-                    <h3 className="font-semibold text-lg text-foreground">{item.nombre}</h3>
-                    {item.modalidad && (
-                      <Badge
-                        variant={item.modalidad === 'donacion' ? 'success' : item.modalidad === 'puntos' ? 'outline' : 'secondary'}
-                        className="mt-1 capitalize"
-                      >
-                        {item.modalidad === 'donacion' ? 'Donación' : item.modalidad === 'puntos' ? 'Canje con puntos' : 'Compra'}
-                      </Badge>
-                    )}
-                    {item.presentacion && item.presentacion !== 'NaN' && (
-                      <p className="text-sm text-muted-foreground">{item.presentacion}</p>
-                    )}
-                    <p className="text-md font-medium text-primary mt-1">{formatCurrency(item.precio_unitario)} c/u</p>
-                    {item.precio_por_caja && item.unidades_por_caja && (
-                      <p className="text-sm text-muted-foreground">
-                        {formatCurrency(item.precio_por_caja)} por {item.unidades_por_caja} unidades
-                      </p>
-                    )}
-                    {item.precio_mayorista && item.cantidad_minima_mayorista && (
-                      <p className="text-sm text-muted-foreground">
-                        Mayorista desde {item.cantidad_minima_mayorista} cajas: {formatCurrency(item.precio_mayorista)}
-                      </p>
-                    )}
-                    {item.promocion_activa && (
-                      <p className="text-sm text-green-600">Promo: {item.promocion_activa}</p>
-                    )}
-                    {item.unidades_por_caja && item.unidades_por_caja > 0 && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {Math.floor(item.cantidad / item.unidades_por_caja)} caja(s) + {item.cantidad % item.unidades_por_caja} unidad(es)
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 w-full sm:w-auto">
-                    <Button variant="outline" size="icon" onClick={() => handleUpdateQuantity(item.nombre, item.cantidad - 1)} disabled={item.cantidad <= 1}>
-                      <MinusCircle className="h-4 w-4" />
+              <motion.div
+                layout
+                key={item.id || item.nombre}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+                transition={{ duration: 0.3 }}
+              >
+                  <Card className="flex flex-col sm:flex-row items-center overflow-hidden border-border/60 hover:border-primary/30 transition-colors group">
+                    <div className="w-full sm:w-32 h-32 sm:h-auto aspect-square bg-muted relative overflow-hidden shrink-0">
+                         <img
+                        src={item.imagen_url || getProductPlaceholderImage(item)}
+                        alt={item.nombre}
+                        loading="lazy"
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.src = getProductPlaceholderImage(item);
+                        }}
+                        />
+                    </div>
+
+                    <CardContent className="p-4 flex-1 flex flex-col sm:flex-row justify-between items-start sm:items-center w-full gap-4">
+                    <div className="flex-1 space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="font-bold text-lg text-foreground leading-tight">{item.nombre}</h3>
+                            {item.modalidad && (
+                            <Badge
+                                variant={item.modalidad === 'donacion' ? 'success' : item.modalidad === 'puntos' ? 'outline' : 'secondary'}
+                                className="capitalize text-[10px] h-5"
+                            >
+                                {item.modalidad === 'donacion' ? 'Donación' : item.modalidad === 'puntos' ? 'Canje' : 'Venta'}
+                            </Badge>
+                            )}
+                        </div>
+
+                        <div className="text-sm text-muted-foreground">
+                            {item.presentacion && item.presentacion !== 'NaN' && <span>{item.presentacion} • </span>}
+                            <span className="font-medium text-foreground">{formatCurrency(item.precio_unitario)}</span>
+                        </div>
+
+                        {item.promocion_activa && (
+                        <p className="text-xs font-semibold text-green-600 bg-green-500/10 px-2 py-0.5 rounded-full inline-block">
+                             {item.promocion_activa}
+                        </p>
+                        )}
+                    </div>
+
+                    <div className="flex items-center gap-1 bg-muted/40 rounded-lg p-1 border border-border/50">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleUpdateQuantity(item.nombre, item.cantidad - 1)} disabled={item.cantidad <= 1}>
+                        <MinusCircle className="h-4 w-4" />
+                        </Button>
+                        <Input
+                        type="number"
+                        value={item.cantidad}
+                        onChange={(e) => {
+                            const val = parseInt(e.target.value);
+                            if (!isNaN(val) && val >= 0) handleUpdateQuantity(item.nombre, val);
+                        }}
+                        className="w-12 h-8 text-center bg-transparent border-none p-0 focus-visible:ring-0"
+                        min="0"
+                        />
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleUpdateQuantity(item.nombre, item.cantidad + 1)}>
+                        <PlusCircle className="h-4 w-4" />
+                        </Button>
+                    </div>
+
+                    <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => handleUpdateQuantity(item.nombre, 0)}>
+                        <Trash2 className="h-4 w-4" />
                     </Button>
-                    <Input
-                      type="number"
-                      value={item.cantidad}
-                      onChange={(e) => {
-                        const newQty = parseInt(e.target.value);
-                        if (!isNaN(newQty) && newQty >= 0) { // Permitir 0 para luego borrar si se quiere
-                           handleUpdateQuantity(item.nombre, newQty);
-                        } else if (e.target.value === "") {
-                           // No hacer nada si está vacío, esperar a que se ingrese un número
-                        }
-                      }}
-                      onBlur={(e) => { // Si se deja vacío y se sale, o es 0, tratar como borrado o 1
-                        const currentQty = parseInt(e.target.value);
-                        if (isNaN(currentQty) || currentQty <= 0) {
-                            handleUpdateQuantity(item.nombre, 0); // Esto lo eliminará
-                        }
-                      }}
-                      className="w-16 h-9 text-center"
-                      min="0"
-                    />
-                    <Button variant="outline" size="icon" onClick={() => handleUpdateQuantity(item.nombre, item.cantidad + 1)}>
-                      <PlusCircle className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive/80" onClick={() => handleUpdateQuantity(item.nombre, 0)}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </CardContent>
-                <CardFooter className="w-full flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-muted/30 border-t">
-                  <span className="text-lg font-semibold text-foreground">Subtotal: {formatCurrency(calculateItemSubtotal(item))}</span>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleUpdateQuantity(item.nombre, item.cantidad + 1)}
-                    >
-                      Añadir 1 unidad
-                    </Button>
-                    {item.unidades_por_caja && item.unidades_por_caja > 0 && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleUpdateQuantity(item.nombre, item.cantidad + item.unidades_por_caja)}
-                      >
-                        Añadir 1 caja
-                      </Button>
-                    )}
-                  </div>
-                </CardFooter>
-              </Card>
+                    </CardContent>
+                </Card>
+              </motion.div>
             ))}
+            </AnimatePresence>
           </div>
 
           <div className="lg:col-span-1">
-            <Card className="shadow-lg border-border">
-              <CardHeader>
-                <CardTitle className="text-2xl">Resumen del Pedido</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex justify-between text-muted-foreground">
-                  <span>Subtotal ({cartItems.reduce((acc, item) => acc + item.cantidad, 0)} items)</span>
-                  <span>{formatCurrency(subtotal)}</span>
-                </div>
-                {/* Aquí podrían ir descuentos, costos de envío en el futuro */}
-                <Separator />
-                <div className="flex justify-between text-sm text-muted-foreground">
-                  <span>Total en puntos</span>
-                  <span>{numberFormatter.format(pointsTotal)} pts</span>
-                </div>
-                <div className="flex justify-between text-sm text-muted-foreground">
-                  <span>Saldo luego del canje</span>
-                  <span className={hasPointsDeficit ? 'text-destructive font-semibold' : ''}>{numberFormatter.format(pointsAfterSubtotal)} pts</span>
-                </div>
-                {donationCount > 0 && (
-                  <div className="text-sm text-muted-foreground">
-                    Incluye {donationCount} ítem(s) de donación sin costo monetario.
-                  </div>
-                )}
-                {requiresAuthForPoints && (
-                  <Alert variant="destructive" className="mt-2">
-                    <AlertTitle>Necesitas iniciar sesión</AlertTitle>
-                    <AlertDescription>
-                      Ingresa con tu cuenta para canjear los productos que usan puntos.
-                    </AlertDescription>
-                  </Alert>
-                )}
-                <Separator />
-                <div className="flex justify-between text-xl font-bold text-foreground">
-                  <span>Total estimado</span>
-                  <span>
-                    {formatCurrency(subtotal)}
-                    {pointsTotal > 0 ? ` + ${numberFormatter.format(pointsTotal)} pts` : ''}
-                  </span>
-                </div>
-              </CardContent>
-              <CardFooter className="flex-col gap-3">
-                <Button
-                  size="lg"
-                  className="w-full bg-primary hover:bg-primary/90"
-                  onClick={handleNavigateToCheckout} // Redirigir a la nueva página de checkout de productos
-                  disabled={hasPointsDeficit || requiresAuthForPoints}
-                >
-                  Continuar Compra
-                </Button>
-                <Button variant="link" asChild className="text-sm text-muted-foreground">
-                  <Link to={catalogPath}>Seguir comprando</Link>
-                </Button>
-              </CardFooter>
-            </Card>
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="sticky top-24"
+            >
+                <Card className="shadow-lg border-primary/10 overflow-hidden">
+                <div className="h-2 bg-gradient-to-r from-primary to-purple-500/50" />
+                <CardHeader>
+                    <CardTitle className="text-xl">Resumen de Cuenta</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="flex justify-between text-muted-foreground text-sm">
+                    <span>Subtotal items</span>
+                    <span>{cartItems.reduce((acc, item) => acc + item.cantidad, 0)} u.</span>
+                    </div>
+
+                    <div className="flex justify-between text-sm font-medium">
+                    <span>Costo monetario</span>
+                    <span>{formatCurrency(subtotal)}</span>
+                    </div>
+
+                    <div className="flex justify-between text-sm font-medium">
+                    <span>Costo en puntos</span>
+                    <span>{numberFormatter.format(pointsTotal)} pts</span>
+                    </div>
+
+                    <Separator className="bg-border/60" />
+
+                    <div className="space-y-1">
+                        <div className="flex justify-between text-lg font-bold text-foreground">
+                        <span>Total</span>
+                        <span>{formatCurrency(subtotal)}</span>
+                        </div>
+                        {pointsTotal > 0 && (
+                             <div className="flex justify-between text-sm text-primary font-medium">
+                                <span>+ Puntos</span>
+                                <span>{numberFormatter.format(pointsTotal)} pts</span>
+                             </div>
+                        )}
+                    </div>
+
+                    {requiresAuthForPoints && (
+                    <div className="bg-destructive/10 text-destructive text-xs p-2 rounded border border-destructive/20">
+                        Inicia sesión para canjear productos con puntos.
+                    </div>
+                    )}
+                </CardContent>
+                <CardFooter className="flex-col gap-3 pt-2 pb-6">
+                    <Button
+                    size="lg"
+                    className="w-full font-bold shadow-lg shadow-primary/20 transition-all hover:scale-[1.02]"
+                    onClick={handleNavigateToCheckout}
+                    disabled={hasPointsDeficit || requiresAuthForPoints}
+                    >
+                        Confirmar Pedido
+                    </Button>
+                    <Button variant="outline" asChild className="w-full border-dashed">
+                         <Link to={catalogPath}>Agregar más productos</Link>
+                    </Button>
+                </CardFooter>
+                </Card>
+            </motion.div>
           </div>
         </div>
       )}
 
       <Dialog open={showPointsAuthPrompt} onOpenChange={setShowPointsAuthPrompt}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Inicia sesión para usar tus puntos</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-primary" />
+                Inicia sesión
+            </DialogTitle>
             <DialogDescription>
-              Para canjear productos con puntos primero debes iniciar sesión o crear una cuenta.
+              Para canjear beneficios y sumar puntos, necesitas una cuenta activa.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="flex flex-col sm:flex-row sm:justify-end gap-2">
-            <Button asChild variant="default">
-              <Link to={loginPath}>Iniciar sesión</Link>
-            </Button>
-            <Button asChild variant="outline">
-              <Link to={registerPath}>Crear cuenta</Link>
-            </Button>
-          </DialogFooter>
+          <div className="flex flex-col gap-3 py-4">
+             <Button asChild size="lg" className="w-full">
+               <Link to={loginPath}>Iniciar sesión</Link>
+             </Button>
+             <Button asChild variant="outline" size="lg" className="w-full">
+               <Link to={registerPath}>Crear cuenta gratis</Link>
+             </Button>
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -577,6 +562,6 @@ export default function CartPage() {
         onLogin={() => navigate(loginPath)}
         onSubmit={handleGuestContactSubmit}
       />
-    </div>
+    </motion.div>
   );
 }

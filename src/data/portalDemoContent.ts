@@ -39,6 +39,7 @@ export type PortalCatalogItem = {
   description: string;
   category: string;
   priceLabel?: string;
+  price?: number; // Added numeric price
   status?: 'available' | 'coming_soon' | 'paused';
   imageUrl?: string;
 };
@@ -153,7 +154,8 @@ export const demoPortalContent: PortalContent = {
       title: 'Seguimiento de pedidos y trámites',
       description: 'Monitorea estados, pagos y entregas con actualizaciones en tiempo real.',
       category: 'gestiones',
-      priceLabel: 'Incluido en tu cuenta',
+      priceLabel: '$ 1,500',
+      price: 1500,
       status: 'available',
       imageUrl: 'https://images.unsplash.com/photo-1520607162513-77705c0f0d4a?auto=format&fit=crop&w=900&q=60',
     },
@@ -162,7 +164,8 @@ export const demoPortalContent: PortalContent = {
       title: 'Recordatorios y notificaciones',
       description: 'Recibe avisos de vencimientos, retiros y eventos importantes en todos tus dispositivos.',
       category: 'avisos',
-      priceLabel: 'Sincronizado',
+      priceLabel: '$ 500',
+      price: 500,
       status: 'available',
       imageUrl: 'https://images.unsplash.com/photo-1499750310107-5fef28a66643?auto=format&fit=crop&w=900&q=60',
     },
