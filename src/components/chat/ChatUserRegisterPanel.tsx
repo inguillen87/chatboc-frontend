@@ -130,8 +130,11 @@ const ChatUserRegisterPanel: React.FC<Props> = ({ onSuccess, onShowLogin, entity
         normalizeEntityToken(entityToken) ||
         normalizeEntityToken(safeLocalStorage.getItem("entityToken"));
 
-      // Fallback: If we still don't have a token, but we are in dev/integration, use a mock one
-      const finalEntityToken = currentEntityToken || "demo-entity-token";
+      // Prioritize the actual entity token if it exists (e.g. from context or URL), otherwise use existing logic
+      const finalEntityToken =
+        (normalizeEntityToken(entityToken) && normalizeEntityToken(entityToken) !== 'demo-entity-token')
+          ? normalizeEntityToken(entityToken)!
+          : (currentEntityToken || "demo-entity-token");
 
       payload.empresa_token = finalEntityToken;
 

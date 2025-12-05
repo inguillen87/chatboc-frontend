@@ -243,6 +243,8 @@ const routes: RouteConfig[] = [
   { path: '/:tenant/cart', element: <CartPage /> },
   { path: '/:tenant/checkout-productos', element: <ProductCheckoutPage /> },
   { path: '/:tenant/pedido/confirmado', element: <OrderConfirmationPage /> },
+  // Missing root integration route
+  { path: '/:tenant/integracion', element: <Integracion />, roles: ['admin'] },
 
   // Generic Tenant Home (Dashboard/Landing) - Must be LAST among tenant routes to avoid swallowing others
   ...withTenantPrefixes('/:tenant', { element: <TenantHomePage /> }),
