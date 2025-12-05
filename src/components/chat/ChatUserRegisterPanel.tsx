@@ -141,6 +141,8 @@ const ChatUserRegisterPanel: React.FC<Props> = ({ onSuccess, onShowLogin, entity
       const anon = safeLocalStorage.getItem("anon_id");
       if (anon) payload.anon_id = anon;
 
+      const currentTenantSlug = resolveTenantSlug();
+
       let data;
       try {
         data = await apiFetch<RegisterResponse | { token: string; user?: RegisterResponse }>("/auth/register", {
@@ -149,6 +151,8 @@ const ChatUserRegisterPanel: React.FC<Props> = ({ onSuccess, onShowLogin, entity
           skipAuth: true,
           sendAnonId: true,
           isWidgetRequest: true,
+          tenantSlug: currentTenantSlug,
+          entityToken: finalEntityToken,
         });
       } catch (apiErr) {
         // Fallback for Demo/Integration when backend is missing or 404s
