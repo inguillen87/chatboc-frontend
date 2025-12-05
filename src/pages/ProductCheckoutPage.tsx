@@ -106,8 +106,12 @@ export default function ProductCheckoutPage() {
 
   const catalogPath = buildTenantPath('/productos', effectiveTenantSlug);
   const cartPath = buildTenantPath('/cart', effectiveTenantSlug);
-  const loginPath = buildTenantPath('/login', effectiveTenantSlug);
-  const registerPath = buildTenantPath('/register', effectiveTenantSlug);
+  // Point to the user login/register to avoid admin login confusion for end users
+  // If Login.tsx is hybrid, /login is fine, but /user/login is explicit.
+  // Given routesConfig maps /:tenant/login to Login.tsx and /:tenant/user/login to UserLogin.tsx
+  // We prefer UserLogin for the portal flow.
+  const loginPath = buildTenantPath('/user/login', effectiveTenantSlug);
+  const registerPath = buildTenantPath('/user/register', effectiveTenantSlug);
 
   const productsApiPath = useMemo(
     () => buildTenantApiPath('/productos', effectiveTenantSlug),
@@ -521,7 +525,8 @@ export default function ProductCheckoutPage() {
   const isDemoMode = checkoutMode === 'local';
 
   const handleViewOrders = useCallback(() => {
-    const destination = buildTenantPath('/perfil/pedidos', effectiveTenantSlug);
+    // Navigate to the user portal orders page
+    const destination = buildTenantPath('/portal/pedidos', effectiveTenantSlug);
     if (user) {
       navigate(destination);
       return;
