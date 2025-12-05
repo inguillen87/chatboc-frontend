@@ -72,6 +72,8 @@ import TenantTicketFormPage from '@/pages/tenant/TenantTicketFormPage';
 import MarketCatalogPage from '@/pages/tenant/market/MarketCatalogPage';
 import MarketProductPage from '@/pages/tenant/market/MarketProductPage';
 import MarketCheckoutPage from '@/pages/tenant/market/MarketCheckoutPage';
+import CreateTenantPage from '@/pages/admin/CreateTenantPage';
+import SuperAdminDashboard from '@/pages/admin/SuperAdminDashboard';
 
 // NUEVAS IMPORTACIONES PARA EL PORTAL DE USUARIO
 // UserPortalLayout no se importa aquí si se usa como Layout Route en App.tsx
@@ -275,6 +277,10 @@ const routes: RouteConfig[] = [
   // Rutas para la gestión de mapeo de catálogos por PYME
   { path: '/admin/pyme/:pymeId/catalog-mappings/new', element: <CatalogMappingPage />, roles: ['admin', 'super_admin'] },
   { path: '/admin/pyme/:pymeId/catalog-mappings/:mappingId', element: <CatalogMappingPage />, roles: ['admin', 'super_admin'] },
+
+  // --- RUTAS DE ADMINISTRACIÓN SAAS ---
+  { path: '/admin/dashboard', element: <SuperAdminDashboard />, roles: ['super_admin'] },
+  { path: '/admin/tenants/new', element: <CreateTenantPage />, roles: ['super_admin'] },
 
   // --- NUEVAS RUTAS PARA EL PORTAL DE USUARIO FINAL (preparadas para Layout Route en App.tsx) ---
   ...userPortalRoutes,
