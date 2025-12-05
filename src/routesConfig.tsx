@@ -114,6 +114,65 @@ const withTenantPrefixesExcept = (
   }));
 };
 
+const userPortalRoutes: RouteConfig[] = [
+  {
+    path: '/portal/dashboard',
+    element: <UserDashboardPage />,
+    userPortal: true,
+    allowGuest: true
+  },
+  {
+    path: '/portal/catalogo',
+    element: <UserCatalogPage />,
+    userPortal: true,
+    allowGuest: true
+  },
+  {
+    path: '/portal/pedidos',
+    element: <UserOrdersPage />,
+    userPortal: true,
+    allowGuest: true
+  },
+  {
+    path: '/portal/noticias',
+    element: <UserNewsPage />,
+    userPortal: true,
+    allowGuest: true,
+  },
+  {
+    path: '/portal/eventos',
+    element: <UserEventsPage />,
+    userPortal: true,
+    allowGuest: true,
+  },
+  {
+    path: '/portal/beneficios',
+    element: <UserBenefitsPage />,
+    userPortal: true,
+    allowGuest: true,
+  },
+  {
+    path: '/portal/encuestas',
+    element: <UserSurveysPage />,
+    userPortal: true,
+    allowGuest: true,
+  },
+  {
+    path: '/portal/cuenta',
+    element: <UserAccountPage />,
+    userPortal: true,
+    allowGuest: true,
+  }
+];
+
+// Generar rutas con prefijo de tenant para el portal
+// Esto permite /:tenant/portal/dashboard, etc.
+const tenantPortalRoutes: RouteConfig[] = userPortalRoutes.map(route => ({
+  ...route,
+  path: `/:tenant${route.path}`,
+}));
+
+
 const routes: RouteConfig[] = [
   { path: '/', element: <Index /> },
   ...withTenantPrefixes('/:tenant', { element: <TenantHomePage /> }),
@@ -137,9 +196,11 @@ const routes: RouteConfig[] = [
       ]
     : []),
   { path: '/register', element: <Register /> },
-  ...withTenantPrefixes('/:tenant/register', { element: <Register /> }),
+  ...withTenantPrefixes('/:tenant/register', { element: <UserRegister /> }),
   { path: '/user/login', element: <UserLogin /> },
+  ...withTenantPrefixes('/:tenant/user/login', { element: <UserLogin /> }),
   { path: '/user/register', element: <UserRegister /> },
+  ...withTenantPrefixes('/:tenant/user/register', { element: <UserRegister /> }),
   { path: '/cuenta', element: <UserAccount /> },
   { path: '/demo', element: <Demo /> },
   { path: '/perfil', element: <Perfil /> },
@@ -216,54 +277,9 @@ const routes: RouteConfig[] = [
   { path: '/admin/pyme/:pymeId/catalog-mappings/:mappingId', element: <CatalogMappingPage />, roles: ['admin', 'super_admin'] },
 
   // --- NUEVAS RUTAS PARA EL PORTAL DE USUARIO FINAL (preparadas para Layout Route en App.tsx) ---
-  {
-    path: '/portal/dashboard',
-    element: <UserDashboardPage />,
-    userPortal: true,
-    allowGuest: true
-  },
-  {
-    path: '/portal/catalogo',
-    element: <UserCatalogPage />,
-    userPortal: true,
-    allowGuest: true
-  },
-  {
-    path: '/portal/pedidos',
-    element: <UserOrdersPage />,
-    userPortal: true,
-    allowGuest: true
-  },
-  {
-    path: '/portal/noticias',
-    element: <UserNewsPage />,
-    userPortal: true,
-    allowGuest: true,
-  },
-  {
-    path: '/portal/eventos',
-    element: <UserEventsPage />,
-    userPortal: true,
-    allowGuest: true,
-  },
-  {
-    path: '/portal/beneficios',
-    element: <UserBenefitsPage />,
-    userPortal: true,
-    allowGuest: true,
-  },
-  {
-    path: '/portal/encuestas',
-    element: <UserSurveysPage />,
-    userPortal: true,
-    allowGuest: true,
-  },
-  {
-    path: '/portal/cuenta',
-    element: <UserAccountPage />,
-    userPortal: true,
-    allowGuest: true,
-  },
+  ...userPortalRoutes,
+  ...tenantPortalRoutes,
+
   { path: '/iframe', element: <Iframe /> },
 ];
 

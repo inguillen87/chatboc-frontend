@@ -12,36 +12,41 @@ const isPlaceholderSlug = (slug?: string | null) => {
 const hasTenantPrefix = (path: string) =>
   TENANT_ROUTE_PREFIXES.some((prefix) => path.startsWith(`/${prefix}/`));
 
-const resolveTenantPrefix = () => {
-  if (APP_TARGET === 'municipio') return 'municipio';
-  if (APP_TARGET === 'pyme') return 'pyme';
-
-  if (typeof window !== 'undefined') {
-    const pathname = window.location?.pathname?.toLowerCase?.() || '';
-    if (pathname.includes('/municipio') || pathname.includes('/municipal')) {
-      return 'municipio';
-    }
-  }
-
-  return TENANT_ROUTE_PREFIXES[0];
-};
-
+/**
+ * Builds a path that includes the tenant slug as the first segment.
+ * e.g. buildTenantPath('/cart', 'municipio') -> '/municipio/cart'
+ *
+ * It avoids double-prefixing. If the path already has a prefix, it might replace it or leave it
+ * depending on logic, but here we prioritize a clean /:slug/:path structure.
+ */
 export const buildTenantPath = (basePath: string, tenantSlug?: string | null) => {
   const normalizedSlug = tenantSlug?.trim();
   const safeSlug = normalizedSlug?.toLowerCase();
 
-  if (
-    normalizedSlug &&
-    safeSlug &&
-    !isPlaceholderSlug(safeSlug) &&
-    !hasTenantPrefix(basePath)
-  ) {
-    const normalized = basePath.startsWith('/') ? basePath.slice(1) : basePath;
-    const prefix = resolveTenantPrefix();
-    return `/${prefix}/${encodeURIComponent(normalizedSlug)}/${normalized}`;
+  const normalizedPath = basePath.startsWith('/') ? basePath.slice(1) : basePath;
+
+  if (normalizedSlug && safeSlug && !isPlaceholderSlug(safeSlug)) {
+    // If the path already starts with the slug, don't prepend it again.
+    // e.g. basePath='municipio/cart', slug='municipio' -> '/municipio/cart'
+    if (normalizedPath.startsWith(`${safeSlug}/`)) {
+       return `/${normalizedPath}`;
+    }
+
+    // If the path has a legacy prefix (e.g. /pyme/cart), strip it if we are adding a slug?
+    // Actually, let's just prepend the slug to the clean path.
+    // We assume 'basePath' is relative to the tenant root.
+
+    // Check if basePath contains a known prefix that should be removed
+    // e.g. if we pass '/pyme/cart' but want '/municipio/cart'
+    // This is risky if we don't know for sure.
+    // But for this specific task, we want to AVOID /pyme/municipio/
+
+    // Let's rely on the input being a relative path like '/perfil/pedidos'
+    return `/${encodeURIComponent(normalizedSlug)}/${normalizedPath}`;
   }
 
-  return basePath;
+  // Fallback: if no slug, return original path (maybe root path)
+  return `/${normalizedPath}`;
 };
 
 export const buildTenantApiPath = (basePath: string, tenantSlug?: string | null) => {
@@ -49,6 +54,7 @@ export const buildTenantApiPath = (basePath: string, tenantSlug?: string | null)
   const safeSlug = tenantSlug?.trim();
 
   if (safeSlug && !isPlaceholderSlug(safeSlug)) {
+    // Return /api/:slug/:path
     return `/api/${encodeURIComponent(safeSlug)}/${normalized}`;
   }
 
