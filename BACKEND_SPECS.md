@@ -1,113 +1,167 @@
 # Backend Specifications for Chatboc User Portal
 
-This document outlines the API endpoints required by the Frontend to fully support the User Portal, Multi-tenant features, and Catalog functionality.
+This document outlines the API endpoints and data structures required to support the "Professional User Portal" features (Dashboard, Catalog, News, Events, Notifications) for the Frontend.
 
-## 1. Tenant Public Information
-These endpoints allow the frontend to load branding, configuration, and tenant identity.
+## 1. Public Tenant Configuration & Widget
+**Endpoint:** `GET /api/public/tenants/:tenantId/widget-config` (or equivalent used by `tenant-info`)
+**Purpose:** Returns public branding, configuration, and enabled features for a specific tenant (municipio or pyme).
 
-*   **GET** `/api/pwa/tenant-info` (or `/api/public/tenant`)
-    *   **Query Params:** `tenant={slug}` or `widget_token={token}`
-    *   **Response:**
-        ```json
-        {
-          "slug": "municipio-godoy-cruz",
-          "nombre": "Municipalidad de Godoy Cruz",
-          "logo_url": "https://...",
-          "tema": {
-             "color_primary": "#3b82f6",
-             "color_secondary": "#10b981"
-          },
-          "tipo": "municipio", // or 'pyme'
-          "descripcion": "Descripción del espacio",
-          "public_base_url": "https://chatboc.ar/municipio-godoy-cruz",
-          "public_cart_url": "https://chatboc.ar/municipio-godoy-cruz/cart",
-          "public_catalog_url": "https://chatboc.ar/municipio-godoy-cruz/productos"
-        }
-        ```
+**Response:**
+```json
+{
+  "slug": "municipio-demo",
+  "name": "Municipio de Demo",
+  "logo_url": "https://...",
+  "theme": {
+    "primaryColor": "#007bff",
+    "secondaryColor": "#6c757d"
+  },
+  "features": {
+    "catalog": true,
+    "news": true,
+    "events": true,
+    "surveys": true
+  },
+  "contact": {
+    "whatsapp": "+54911...",
+    "email": "contacto@municipio.demo"
+  }
+}
+```
 
-## 2. Product Catalog & Cart
-These endpoints drive the `ProductCatalog` and `CartPage`.
+## 2. Portal Content Aggregator
+**Endpoint:** `GET /api/portal/:tenantSlug/content`
+**Purpose:** Aggregates data for the User Dashboard to reduce round-trips. It should return recent news, upcoming events, active notifications, and a summary of user activity.
 
-*   **GET** `/api/:tenant_slug/productos`
-    *   **Response:** List of products.
-        ```json
-        [
-          {
-            "id": 1,
-            "nombre": "Producto Ejemplo",
-            "precio_unitario": 1500,
-            "precio_puntos": 500, // Optional for loyalty
-            "modalidad": "venta", // 'venta', 'puntos', 'donacion'
-            "imagen_url": "https://...",
-            "categoria": "General"
-          }
-        ]
-        ```
+**Headers:**
+- `Authorization`: Bearer <user_token> (Optional, but required for user-specific data like notifications/loyalty)
 
-*   **GET** `/api/:tenant_slug/carrito`
-    *   **Response:** Current user's cart.
-        ```json
-        {
-          "items": [
-            {
-              "id": 1,
-              "name": "Producto Ejemplo",
-              "price": 1500,
-              "quantity": 2,
-              "imageUrl": "..."
-            }
-          ]
-        }
-        ```
+**Response:**
+```json
+{
+  "notifications": [
+    {
+      "id": "n1",
+      "title": "Welcome",
+      "message": "Thanks for registering!",
+      "severity": "info", // info, success, warning, error
+      "actionLabel": "Profile",
+      "actionHref": "/portal/account",
+      "date": "2023-10-27T10:00:00Z"
+    }
+  ],
+  "events": [
+    {
+      "id": "e1",
+      "title": "Community Fair",
+      "date": "2023-11-01T09:00:00Z",
+      "location": "Central Square",
+      "status": "upcoming",
+      "coverUrl": "https://..."
+    }
+  ],
+  "news": [
+    {
+      "id": "news1",
+      "title": "New Recycling Program",
+      "summary": "Learn how to recycle...",
+      "coverUrl": "https://...",
+      "date": "2023-10-25"
+    }
+  ],
+  "catalog": [
+    {
+      "id": "p1",
+      "title": "Cinema Ticket",
+      "category": "beneficios",
+      "price": 500,
+      "imageUrl": "https://..."
+    }
+  ],
+  "activities": [
+    {
+      "id": "ord-123",
+      "description": "Order #123",
+      "type": "Order", // or Claim, Survey
+      "status": "Delivered",
+      "statusType": "success",
+      "date": "2023-10-20"
+    }
+  ],
+  "surveys": [
+    {
+      "id": "s1",
+      "title": "Service Satisfaction",
+      "link": "/portal/surveys/s1"
+    }
+  ],
+  "loyaltySummary": {
+    "points": 120,
+    "level": "Gold",
+    "surveysCompleted": 5,
+    "suggestionsShared": 2,
+    "claimsFiled": 0
+  }
+}
+```
 
-*   **POST** `/api/:tenant_slug/carrito`
-    *   **Body:** `{ "product_id": 1, "quantity": 1 }`
-    *   **Purpose:** Add item to cart.
+## 3. Market & Catalog
+**Endpoint:** `GET /api/:tenantSlug/productos`
+**Purpose:** Returns the product/service catalog.
 
-## 3. User Portal (Authenticated)
-These endpoints serve the dashboard, news, and events.
+**Response:**
+```json
+{
+  "products": [
+    {
+      "id": "1",
+      "name": "Product A",
+      "description": "...",
+      "price": 100.0,
+      "category": "General",
+      "imageUrl": "https://...",
+      "stock": 50
+    }
+  ],
+  "categories": ["General", "Premium"]
+}
+```
 
-*   **GET** `/api/:tenant_slug/public/news` (or `/public/news`)
-    *   **Response:**
-        ```json
-        [
-          {
-            "id": 101,
-            "titulo": "Noticia Importante",
-            "resumen": "Resumen corto...",
-            "cover_url": "https://...",
-            "publicado_at": "2023-10-27T10:00:00Z"
-          }
-        ]
-        ```
+**Endpoint:** `GET /api/:tenantSlug/carrito`
+**Purpose:** Returns the current user's cart.
 
-*   **GET** `/api/:tenant_slug/public/events` (or `/public/events`)
-    *   **Response:**
-        ```json
-        [
-          {
-            "id": 202,
-            "titulo": "Evento Comunitario",
-            "descripcion": "Detalles...",
-            "starts_at": "2023-11-01T15:00:00Z",
-            "cover_url": "https://..."
-          }
-        ]
-        ```
+## 4. News & Events (Detailed)
+**Endpoint:** `GET /api/public/news?tenant=:tenantSlug`
+**Endpoint:** `GET /api/public/events?tenant=:tenantSlug`
+**Purpose:** Returns paginated lists of news and events.
 
-*   **GET** `/api/:tenant_slug/app/me/tenants`
-    *   **Purpose:** List tenants followed by the user.
+## 5. User Registration & Auth
+**Endpoint:** `POST /api/auth/register`
+**Payload:**
+```json
+{
+  "name": "Juan Perez",
+  "email": "juan@example.com",
+  "password": "***",
+  "empresa_token": "token-del-tenant", // Critical for associating user to tenant
+  "telefono": "..."
+}
+```
+**Response:**
+```json
+{
+  "token": "jwt-token",
+  "user": {
+    "id": 1,
+    "name": "Juan Perez",
+    "role": "user",
+    "tenantSlug": "municipio-demo"
+  }
+}
+```
 
-*   **POST** `/api/:tenant_slug/app/me/tenants/follow`
-    *   **Body:** `{ "slug": "target-tenant-slug" }`
-    *   **Purpose:** Follow a tenant.
-
-## 4. Auth & User Profile
-*   **POST** `/api/auth/login` (or `/api/:tenant_slug/auth/login`)
-*   **POST** `/api/auth/register`
-*   **GET** `/api/me` (User profile info)
-
-## 5. Integration Notes
-*   **CORS:** Ensure `Access-Control-Allow-Origin` allows the frontend domain.
-*   **Error Handling:** Return structured errors (e.g., `{ "error_code": "TENANT_NOT_FOUND", "message": "..." }`) with appropriate 4xx status codes.
-*   **HTML Fallback:** Do NOT return `index.html` for API 404s. Ensure API routes always return JSON.
+## Missing / Failing Endpoints Observed
+The following endpoints were observed returning 404 in the logs and need implementation:
+- `/api/public/tenants/...` (Used for initial widget config/tenant info)
+- `/api/municipio/carrito` (Cart management)
+- `/pwa/tenant-info` (Alternative tenant info endpoint)

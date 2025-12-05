@@ -237,8 +237,16 @@ const routes: RouteConfig[] = [
 
   { path: '/', element: <Index /> },
 
+  // Clean URL Support (Root Level Tenant Routes)
+  // Placing these carefully to avoid conflicts, though React Router v6 is smart about specificity.
+  { path: '/:tenant/productos', element: <ProductCatalog /> },
+  { path: '/:tenant/cart', element: <CartPage /> },
+  { path: '/:tenant/checkout-productos', element: <ProductCheckoutPage /> },
+  { path: '/:tenant/pedido/confirmado', element: <OrderConfirmationPage /> },
+
   // Generic Tenant Home (Dashboard/Landing) - Must be LAST among tenant routes to avoid swallowing others
   ...withTenantPrefixes('/:tenant', { element: <TenantHomePage /> }),
+  { path: '/:tenant', element: <TenantHomePage /> }, // Support root level /:slug
 
   // Global Routes
   { path: '/login', element: <Login /> },

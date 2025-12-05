@@ -1,6 +1,6 @@
 import { apiFetch, ApiError } from '@/utils/api';
 import { normalizeEntityToken } from '@/utils/entityToken';
-import { MOCK_EVENTS, MOCK_NEWS, MOCK_TENANT_INFO } from '@/data/mockTenantData';
+import { MOCK_EVENTS, MOCK_NEWS, MOCK_TENANT_INFO, MOCK_JUNIN_TENANT_INFO } from '@/data/mockTenantData';
 import type {
   TenantEventItem,
   TenantNewsItem,
@@ -168,6 +168,11 @@ const normalizeEventItem = (input: unknown): TenantEventItem | null => {
 
 export async function getTenantPublicInfo(slug: string): Promise<TenantPublicInfo> {
   try {
+    // Demo override for Junin
+    if (slug === 'municipio-junin') {
+      return MOCK_JUNIN_TENANT_INFO;
+    }
+
     const response = await apiFetch<unknown>('/public/tenant', {
       tenantSlug: slug,
       skipAuth: true,
@@ -179,6 +184,7 @@ export async function getTenantPublicInfo(slug: string): Promise<TenantPublicInf
     return normalizeTenantInfo(response, slug);
   } catch (error) {
     console.warn(`[API] Failed to fetch public info for ${slug}, using mock data.`, error);
+    if (slug === 'municipio-junin') return MOCK_JUNIN_TENANT_INFO;
     return { ...MOCK_TENANT_INFO, slug, nombre: slug };
   }
 }
@@ -253,6 +259,11 @@ export async function getTenantPublicInfoFlexible(
   const safeWidgetToken = normalizeEntityToken(widgetToken) ?? null;
 
   if (safeSlug) {
+    // Specific override for Junin slug
+    if (safeSlug === 'municipio-junin') {
+      return MOCK_JUNIN_TENANT_INFO;
+    }
+
     try {
       // Prioriza la resolución por slug explícito sin el widget token para evitar cruces de tenant.
       return await resolveTenantInfo({ slug: safeSlug, forceSlug: safeSlug });
@@ -277,6 +288,10 @@ export async function getTenantPublicInfoFlexible(
   }
 
   if (safeWidgetToken) {
+    // Specific override for Junin token
+    if (safeWidgetToken === '1146cb3e-eaef-4230-b54e-1c340ac062d8') {
+      return MOCK_JUNIN_TENANT_INFO;
+    }
     return resolveTenantInfo({ widgetToken: safeWidgetToken });
   }
 

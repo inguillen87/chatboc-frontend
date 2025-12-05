@@ -230,9 +230,9 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
       const info = await getTenantPublicInfoFlexible(slug, token);
       if (activeTenantRequest.current === requestId) {
         setTenant(info);
-        if (!currentSlugRef.current && info.slug) {
-          setCurrentSlug(info.slug);
-          currentSlugRef.current = info.slug;
+        if (info.slug) {
+           setCurrentSlug(info.slug);
+           currentSlugRef.current = info.slug;
         }
       }
     } catch (error) {
@@ -377,6 +377,11 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
     isCurrentTenantFollowed,
     followCurrentTenant,
     unfollowCurrentTenant,
+    setTenantSlug: (slug: string) => {
+        setCurrentSlug(slug);
+        currentSlugRef.current = slug;
+        if (slug) safeLocalStorage.setItem('tenantSlug', slug);
+    }
   }), [
     currentSlug,
     tenant,

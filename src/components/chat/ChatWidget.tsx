@@ -500,7 +500,8 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
   const buildMarketCartUrl = useCallback((slug?: string | null, baseUrl?: string | null) => {
     const safeSlug = slug?.trim();
     if (!safeSlug) return null;
-    const path = `/market/${encodeURIComponent(safeSlug)}/cart`;
+    // Updated to point to the unified Product Catalog route which handles the marketplace experience
+    const path = `/${encodeURIComponent(safeSlug)}/productos`;
 
     try {
       if (baseUrl) {

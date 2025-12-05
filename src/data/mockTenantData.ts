@@ -18,6 +18,22 @@ export const MOCK_TENANT_INFO: TenantPublicInfo = {
   }
 };
 
+export const MOCK_JUNIN_TENANT_INFO: TenantPublicInfo = {
+  slug: 'municipio-junin',
+  nombre: 'Municipalidad de Junín',
+  logo_url: 'https://chatboc-demo-widget-oigs.vercel.app/stickerJuni2.webp',
+  tipo: 'municipio',
+  descripcion: 'Bienvenido al asistente virtual JUNI de la Municipalidad de Junín. Gestión, trámites y servicios.',
+  public_base_url: 'https://chatboc.ar/municipio-junin',
+  public_cart_url: 'https://chatboc.ar/municipio-junin/cart',
+  public_catalog_url: 'https://chatboc.ar/municipio-junin/productos',
+  whatsapp_share_url: 'https://wa.me/?text=Municipalidad%20de%20Junín',
+  tema: {
+    primaryColor: '#006C3F',
+    secondaryColor: '#d4a01a',
+  }
+};
+
 export const MOCK_NEWS: TenantNewsItem[] = [
   {
     id: '1',
