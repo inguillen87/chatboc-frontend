@@ -160,6 +160,22 @@ This document outlines the API endpoints and data structures required to support
 }
 ```
 
+## 6. Multi-Tenant Security & Isolation
+- **Tenant Context:** All non-public endpoints MUST validate the tenant context. Prefer `X-Tenant` header or `tenant_slug` query param.
+- **Roles:** Validate user roles (admin, empleado, user). `403 Forbidden` if unauthorized.
+- **Auth Separation:** Consider `/auth/public/login` vs `/auth/admin/login` to separate logic.
+
+## 7. Payments (MercadoPago)
+**Endpoint:** `POST /api/:tenantSlug/checkout/mercadopago`
+**Purpose:** Initiate MP preference.
+**Response:**
+```json
+{
+  "preferenceId": "...",
+  "initPoint": "https://www.mercadopago.com.ar/..."
+}
+```
+
 ## Missing / Failing Endpoints Observed
 The following endpoints were observed returning 404 in the logs and need implementation:
 - `/api/public/tenants/...` (Used for initial widget config/tenant info)

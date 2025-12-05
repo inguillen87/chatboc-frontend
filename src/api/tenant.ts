@@ -169,7 +169,7 @@ const normalizeEventItem = (input: unknown): TenantEventItem | null => {
 export async function getTenantPublicInfo(slug: string): Promise<TenantPublicInfo> {
   try {
     // Demo override for Junin
-    if (slug === 'municipio-junin') {
+    if (slug === 'municipio-junin' || slug === 'municipalidad-de-junin') {
       return MOCK_JUNIN_TENANT_INFO;
     }
 
@@ -184,7 +184,7 @@ export async function getTenantPublicInfo(slug: string): Promise<TenantPublicInf
     return normalizeTenantInfo(response, slug);
   } catch (error) {
     console.warn(`[API] Failed to fetch public info for ${slug}, using mock data.`, error);
-    if (slug === 'municipio-junin') return MOCK_JUNIN_TENANT_INFO;
+    if (slug === 'municipio-junin' || slug === 'municipalidad-de-junin') return MOCK_JUNIN_TENANT_INFO;
     return { ...MOCK_TENANT_INFO, slug, nombre: slug };
   }
 }
@@ -235,7 +235,7 @@ const resolveTenantInfo = async ({
 
       if (is404) {
         console.warn(`[API] Endpoint ${endpoint} returned 404. Falling back to mock data.`);
-        if (slug === 'municipio-junin' || widgetToken === '1146cb3e-eaef-4230-b54e-1c340ac062d8') {
+        if (slug === 'municipio-junin' || slug === 'municipalidad-de-junin' || widgetToken === '1146cb3e-eaef-4230-b54e-1c340ac062d8') {
            return MOCK_JUNIN_TENANT_INFO;
         }
         // Generic fallback if we have a slug that looks like a tenant
@@ -274,7 +274,7 @@ const resolveTenantInfo = async ({
         return normalizeTenantInfo(legacyResponse, fallbackSlug, forceSlug);
       } catch (tertiaryError) {
          // Final safety net for Iframe loading
-         if (slug === 'municipio-junin' || widgetToken === '1146cb3e-eaef-4230-b54e-1c340ac062d8') {
+         if (slug === 'municipio-junin' || slug === 'municipalidad-de-junin' || widgetToken === '1146cb3e-eaef-4230-b54e-1c340ac062d8') {
             return MOCK_JUNIN_TENANT_INFO;
          }
          // If we are definitely in a widget context (have a token), return mock to avoid white screen
@@ -296,7 +296,7 @@ export async function getTenantPublicInfoFlexible(
 
   if (safeSlug) {
     // Specific override for Junin slug
-    if (safeSlug === 'municipio-junin') {
+    if (safeSlug === 'municipio-junin' || safeSlug === 'municipalidad-de-junin') {
       return MOCK_JUNIN_TENANT_INFO;
     }
 
