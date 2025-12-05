@@ -69,7 +69,7 @@ const UserDashboardPage = () => {
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-dark">
-              ¡Hola, {user?.name}!
+              {user?.name ? `¡Hola, ${user.name}!` : '¡Hola!'}
             </h1>
             <p className="text-muted-foreground">
               Tu panel centralizado de gestiones, noticias y beneficios.
@@ -257,7 +257,7 @@ const UserDashboardPage = () => {
           icon={<Sparkles className="h-6 w-6" />}
           className="lg:col-span-2 xl:col-span-1"
         >
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-2 gap-4">
             <div>
               <p className="text-sm text-muted-foreground">Puntos</p>
               <p className="text-2xl font-semibold">{loyaltySummary.points.toLocaleString()} pts</p>

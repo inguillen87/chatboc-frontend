@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ApiError, NetworkError, apiFetch, getErrorMessage } from '@/utils/api';
+import { ApiError, NetworkError, getErrorMessage } from '@/utils/api';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,10 +11,7 @@ import { Loader2, ShoppingCart, AlertTriangle, Trash2, PlusCircle, MinusCircle, 
 import { Separator } from '@/components/ui/separator';
 import { useTenant } from '@/context/TenantContext';
 import {
-  buildProductMap,
   getProductPlaceholderImage,
-  normalizeCartPayload,
-  normalizeProductsPayload,
 } from '@/utils/cartPayload';
 import { getLocalCartProducts, setLocalCartItemQuantity, setLocalCartSnapshot } from '@/utils/localCart';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -22,15 +19,18 @@ import { getDemoLoyaltySummary } from '@/utils/demoLoyalty';
 import usePointsBalance from '@/hooks/usePointsBalance';
 import UploadOrderFromFile from '@/components/cart/UploadOrderFromFile';
 import { useUser } from '@/hooks/useUser';
-import { buildTenantApiPath, buildTenantPath } from '@/utils/tenantPaths';
+import { buildTenantPath } from '@/utils/tenantPaths';
 import { Badge } from '@/components/ui/badge';
 import GuestContactDialog, { GuestContactValues } from '@/components/cart/GuestContactDialog';
 import { loadGuestContact, saveGuestContact } from '@/utils/guestContact';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { motion, AnimatePresence } from 'framer-motion';
+import { addMarketItem, fetchMarketCart, fetchMarketCatalog, removeMarketItem } from '@/api/market';
+import { MarketCartItem } from '@/types/market';
 
-// Interfaz para el producto en el carrito, extendiendo ProductDetails y añadiendo cantidad
+// Adapting MarketCartItem to the local CartItem interface used in this component
+// ideally we should unify these types, but for now we adapt.
 interface CartItem extends ProductDetails {
   cantidad: number;
   localCartKey?: string;
@@ -55,29 +55,11 @@ export default function CartPage() {
   });
   const [showGuestDialog, setShowGuestDialog] = useState(false);
   const [showPointsAuthPrompt, setShowPointsAuthPrompt] = useState(false);
-  const [showAuthCta, setShowAuthCta] = useState(false);
 
   const catalogPath = buildTenantPath('/productos', effectiveTenantSlug);
   const cartCheckoutPath = buildTenantPath('/checkout-productos', effectiveTenantSlug);
   const loginPath = buildTenantPath('/login', effectiveTenantSlug);
   const registerPath = buildTenantPath('/register', effectiveTenantSlug);
-  const productsApiPath = useMemo(
-    () => buildTenantApiPath('/productos', effectiveTenantSlug),
-    [effectiveTenantSlug],
-  );
-  const cartApiPath = useMemo(
-    () => buildTenantApiPath('/carrito', effectiveTenantSlug),
-    [effectiveTenantSlug],
-  );
-
-  const sharedRequestOptions = useMemo(
-    () => ({
-      suppressPanel401Redirect: true,
-      tenantSlug: effectiveTenantSlug ?? undefined,
-      sendAnonId: true,
-    }) as const,
-    [effectiveTenantSlug],
-  );
 
   const refreshLocalCart = useCallback(() => {
     setCartItems(getLocalCartProducts());
@@ -93,7 +75,7 @@ export default function CartPage() {
 
   const shouldUseLocalCart = (err: unknown) => {
     return (
-      (err instanceof ApiError && [400, 401, 403, 405].includes(err.status)) ||
+      (err instanceof ApiError && [400, 401, 403, 404, 405].includes(err.status)) ||
       err instanceof NetworkError
     );
   };
@@ -101,7 +83,6 @@ export default function CartPage() {
   const loadCartData = useCallback(async () => {
     setLoading(true);
     setError(null);
-    setShowAuthCta(false);
 
     if (cartMode === 'local') {
       refreshLocalCart();
@@ -117,37 +98,33 @@ export default function CartPage() {
     }
 
     try {
-      const [cartApiData, productsApiData] = await Promise.all([
-        apiFetch<unknown>(cartApiPath, sharedRequestOptions),
-        apiFetch<unknown>(productsApiPath, sharedRequestOptions),
-      ]);
+      // Use the centralized API functions
+      const cartResponse = await fetchMarketCart(effectiveTenantSlug);
 
-      const normalizedProducts = normalizeProductsPayload(productsApiData, 'CartPage');
-      const productMap = buildProductMap(normalizedProducts);
-      const cartEntries = normalizeCartPayload(cartApiData, 'CartPage');
-
-      const populatedCartItems: CartItem[] = cartEntries
-        .map(([productName, cantidad]) => {
-          if (cantidad <= 0) return null;
-          const productDetail = productMap[productName] ?? {
-            id: productName,
-            nombre: productName,
-            precio_unitario: 0,
-          };
-          return { ...productDetail, cantidad };
-        })
-        .filter((item): item is CartItem => item !== null);
+      // Convert MarketCartItem[] to CartItem[]
+      const populatedCartItems: CartItem[] = cartResponse.items.map((item: MarketCartItem) => ({
+        id: item.id,
+        nombre: item.name,
+        precio_unitario: item.price ?? 0,
+        precio_puntos: item.points ?? undefined,
+        cantidad: item.quantity,
+        imagen_url: item.imageUrl ?? undefined,
+        modalidad: item.modality ?? undefined,
+        moneda: item.currency ?? undefined,
+      }));
 
       setCartItems(populatedCartItems);
 
+      // Also update local snapshot for redundancy
       if (populatedCartItems.length > 0) {
         setLocalCartSnapshot(populatedCartItems.map((item) => ({ product: item, quantity: item.cantidad })));
       } else {
-        const localSnapshot = getLocalCartProducts();
-        if (localSnapshot.length > 0) {
-          setCartMode('local');
-          setCartItems(localSnapshot);
-        }
+        // If API returns empty, check if we have local items and maybe sync them?
+        // For now, if API is empty, we show empty.
+      }
+
+      if (cartResponse.isDemo) {
+        setCartMode('local');
       }
 
     } catch (err) {
@@ -157,16 +134,11 @@ export default function CartPage() {
         return;
       }
       const errorMessage = getErrorMessage(err, 'No se pudo cargar el carrito. Intenta de nuevo.');
-      if (err instanceof ApiError && err.status === 400 && errorMessage.toLowerCase().includes('tenant')) {
-        setCartMode('local');
-        refreshLocalCart();
-        return;
-      }
       setError(errorMessage);
     } finally {
       setLoading(false);
     }
-  }, [cartApiPath, cartMode, effectiveTenantSlug, productsApiPath, refreshLocalCart, sharedRequestOptions]);
+  }, [cartMode, effectiveTenantSlug, refreshLocalCart]);
 
   useEffect(() => {
     if (!isLoadingTenant) {
@@ -174,9 +146,9 @@ export default function CartPage() {
     }
   }, [isLoadingTenant, loadCartData]);
 
-  const handleUpdateQuantity = async (productName: string, newQuantity: number) => {
+  const handleUpdateQuantity = async (productName: string, newQuantity: number, productId?: string) => {
     const originalItems = [...cartItems];
-    const itemToUpdate = cartItems.find(item => item.nombre === productName);
+    const itemToUpdate = cartItems.find(item => item.nombre === productName); // Fallback to name match
     if (!itemToUpdate) return;
 
     if (newQuantity <= 0) {
@@ -191,21 +163,21 @@ export default function CartPage() {
 
     try {
       if (cartMode === 'local') {
-        const targetKey = itemToUpdate.localCartKey ?? itemToUpdate.id?.toString() ?? productName;
+        const targetKey = productId ?? itemToUpdate.id?.toString() ?? productName;
         const updated = setLocalCartItemQuantity(targetKey || productName, newQuantity);
         setCartItems(updated);
         toast({ description: `Cantidad actualizada.` });
         return;
       }
 
+      if (!effectiveTenantSlug) throw new Error("No tenant context");
+
+      const idToUse = productId ?? itemToUpdate.id ?? productName;
+
       if (newQuantity <= 0) {
-        await apiFetch(cartApiPath, { ...sharedRequestOptions, method: 'DELETE', body: { nombre: productName } });
+        await removeMarketItem(effectiveTenantSlug, idToUse);
       } else {
-        await apiFetch(cartApiPath, {
-          ...sharedRequestOptions,
-          method: 'PUT',
-          body: { nombre: productName, cantidad: newQuantity },
-        });
+        await addMarketItem(effectiveTenantSlug, { productId: idToUse, quantity: newQuantity });
       }
       toast({ description: `Cantidad actualizada.` });
     } catch (err) {
@@ -216,11 +188,7 @@ export default function CartPage() {
 
   const calculateItemSubtotal = (item: CartItem) => {
     if (item.modalidad === 'puntos' || item.modalidad === 'donacion') return 0;
-    if (item.unidades_por_caja && item.unidades_por_caja > 0 && item.precio_por_caja) {
-      const cajas = Math.floor(item.cantidad / item.unidades_por_caja);
-      const sobrantes = item.cantidad % item.unidades_por_caja;
-      return cajas * item.precio_por_caja + sobrantes * item.precio_unitario;
-    }
+    // Simple calculation for now
     return item.precio_unitario * item.cantidad;
   };
 
@@ -237,8 +205,6 @@ export default function CartPage() {
       return sum;
     }, 0);
   }, [cartItems]);
-
-  const donationCount = useMemo(() => cartItems.filter((item) => item.modalidad === 'donacion').length, [cartItems]);
 
   const effectivePointsBalance = cartMode === 'local' ? loyaltySummary.points : pointsBalance;
   const pointsAfterSubtotal = Math.max(effectivePointsBalance - pointsTotal, 0);
@@ -436,7 +402,7 @@ export default function CartPage() {
                     </div>
 
                     <div className="flex items-center gap-1 bg-muted/40 rounded-lg p-1 border border-border/50">
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleUpdateQuantity(item.nombre, item.cantidad - 1)} disabled={item.cantidad <= 1}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleUpdateQuantity(item.nombre, item.cantidad - 1, item.id)} disabled={item.cantidad <= 1}>
                         <MinusCircle className="h-4 w-4" />
                         </Button>
                         <Input
@@ -444,17 +410,17 @@ export default function CartPage() {
                         value={item.cantidad}
                         onChange={(e) => {
                             const val = parseInt(e.target.value);
-                            if (!isNaN(val) && val >= 0) handleUpdateQuantity(item.nombre, val);
+                            if (!isNaN(val) && val >= 0) handleUpdateQuantity(item.nombre, val, item.id);
                         }}
                         className="w-12 h-8 text-center bg-transparent border-none p-0 focus-visible:ring-0"
                         min="0"
                         />
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleUpdateQuantity(item.nombre, item.cantidad + 1)}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleUpdateQuantity(item.nombre, item.cantidad + 1, item.id)}>
                         <PlusCircle className="h-4 w-4" />
                         </Button>
                     </div>
 
-                    <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => handleUpdateQuantity(item.nombre, 0)}>
+                    <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => handleUpdateQuantity(item.nombre, 0, item.id)}>
                         <Trash2 className="h-4 w-4" />
                     </Button>
                     </CardContent>

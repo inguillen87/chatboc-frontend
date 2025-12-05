@@ -1,91 +1,135 @@
-import { useMemo, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { io, Socket } from 'socket.io-client';
-import type { ManagerOptions, SocketOptions } from 'socket.io-client';
+import { useCallback, useEffect, useState } from 'react';
 import { useTenant } from '@/context/TenantContext';
-import { demoPortalContent, PortalContent } from '@/data/portalDemoContent';
-import { getDemoLoyaltySummary } from '@/utils/demoLoyalty';
+import { useUser } from '@/hooks/useUser';
+import { apiFetch } from '@/utils/api';
+import { getDemoPortalContent } from '@/data/portalDemoContent';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
-import { fetchPortalContent, normalizePortalContent, PortalContentDTO } from '@/services/portalContentApi';
-import { getSocketUrl, SOCKET_PATH } from '@/config';
-import { safeOn } from '@/utils/safeOn';
 
-const PORTAL_CACHE_KEY = 'chatboc_portal_cache';
+// Define unified content structure
+export interface PortalNotification {
+  id: string;
+  title: string;
+  message: string;
+  severity?: 'info' | 'success' | 'warning' | 'error';
+  actionLabel?: string;
+  actionHref?: string;
+  date?: string;
+}
 
-const sanitizeSocketPath = (value?: string) => {
-  const normalized = value?.trim().replace(/\/+$|\s+/g, '') || '/socket.io';
-  if (!normalized) return '/socket.io';
-  return normalized.startsWith('/') ? normalized : `/${normalized}`;
-};
+export interface PortalEvent {
+  id: string;
+  title: string;
+  date?: string;
+  location?: string;
+  status?: string; // e.g. 'inscripcion', 'proximo', 'finalizado'
+  description?: string;
+  spots?: number;
+  registered?: number;
+  coverUrl?: string;
+  link?: string;
+}
 
-const resolveSocketUrl = (): string | undefined => {
-  const rawUrl = import.meta.env.VITE_SOCKET_URL || getSocketUrl();
-  if (!rawUrl) {
-    if (typeof window !== 'undefined') {
-      return window.location.origin.replace(/^http/i, 'ws');
-    }
-    return undefined;
-  }
-  let trimmed = rawUrl.trim();
-  if (/^wss?:\/\//i.test(trimmed)) return trimmed;
-  if (/^https?:\/\//i.test(trimmed)) return trimmed.replace(/^http/i, 'ws');
-  return trimmed;
-};
+export interface PortalNews {
+  id: string;
+  title: string;
+  category?: string;
+  date?: string;
+  summary?: string;
+  featured?: boolean;
+  coverUrl?: string;
+  link?: string;
+}
 
-const persistContent = (content: PortalContentDTO) => {
-  try {
-    safeLocalStorage.setItem(PORTAL_CACHE_KEY, JSON.stringify(content));
-  } catch {
-    // Ignore cache write errors
-  }
-};
+export interface PortalCatalogItem {
+  id: string;
+  title: string;
+  description?: string;
+  category?: string; // 'beneficios', 'tramites', 'productos'
+  priceLabel?: string;
+  price?: number;
+  status?: string;
+  imageUrl?: string;
+  link?: string;
+}
 
-const readCachedContent = (): PortalContentDTO | null => {
-  try {
-    const raw = safeLocalStorage.getItem(PORTAL_CACHE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw) as PortalContentDTO;
-  } catch {
-    return null;
-  }
-};
+export interface PortalActivity {
+  id: string;
+  description: string;
+  type?: string;
+  status?: string;
+  statusType?: 'info' | 'success' | 'warning' | 'error';
+  date?: string;
+  link?: string;
+}
 
-const mergePortalContent = (source?: PortalContentDTO | null): PortalContent => {
-  const normalized = normalizePortalContent(source ?? undefined);
+export interface PortalSurvey {
+  id: string;
+  title: string;
+  link?: string;
+}
 
-  return {
-    notifications: normalized.notifications.length ? normalized.notifications : demoPortalContent.notifications,
-    events: normalized.events.length ? normalized.events : demoPortalContent.events,
-    news: normalized.news.length ? normalized.news : demoPortalContent.news,
-    catalog: normalized.catalog.length ? normalized.catalog : demoPortalContent.catalog,
-    activities: normalized.activities.length ? normalized.activities : demoPortalContent.activities,
-    surveys: normalized.surveys.length ? normalized.surveys : demoPortalContent.surveys,
-    loyaltySummary: normalized.loyaltySummary,
-  } satisfies PortalContent;
-};
+export interface PortalLoyaltySummary {
+  points: number;
+  level: string;
+  surveysCompleted: number;
+  suggestionsShared: number;
+  claimsFiled: number;
+}
 
-export const usePortalContent = () => {
+export interface PortalContent {
+  notifications: PortalNotification[];
+  events: PortalEvent[];
+  news: PortalNews[];
+  catalog: PortalCatalogItem[];
+  activities: PortalActivity[];
+  surveys: PortalSurvey[];
+  loyaltySummary: PortalLoyaltySummary | null;
+}
+
+export function usePortalContent() {
   const { currentSlug } = useTenant();
-  const cached = useMemo(() => readCachedContent(), []);
+  const { user } = useUser();
+  const [content, setContent] = useState<PortalContent>(() => getDemoPortalContent());
+  const [isLoading, setIsLoading] = useState(false);
+  const [isDemo, setIsDemo] = useState(false);
+  const [error, setError] = useState<unknown>(null);
 
-  const query = useQuery<PortalContentDTO>({
-    queryKey: ['portal-content', currentSlug],
-    queryFn: ({ signal }) => fetchPortalContent(currentSlug!, signal),
-    enabled: Boolean(currentSlug),
-    staleTime: 5 * 60 * 1000,
-    retry: 1,
-    placeholderData: cached ?? demoPortalContent,
-    onSuccess: (data) => persistContent(data),
-  });
+  const fetchContent = useCallback(async () => {
+    if (!currentSlug) return;
 
-  const content = useMemo(() => {
-    const merged = mergePortalContent(query.data ?? cached ?? demoPortalContent);
-    if (!merged.loyaltySummary) {
-      return { ...merged, loyaltySummary: getDemoLoyaltySummary() };
+    setIsLoading(true);
+    setIsDemo(false);
+    setError(null);
+
+    try {
+      // Intentionally using a generic endpoint that aggregates data
+      const data = await apiFetch<PortalContent>(`/api/portal/${currentSlug}/content`, {
+        tenantSlug: currentSlug,
+        suppressPanel401Redirect: true, // Don't force logout on portal
+      });
+
+      setContent(data);
+    } catch (err: any) {
+      console.warn('Failed to fetch portal content, falling back to demo', err);
+      // Only fallback if not a severe auth error?
+      // Actually for the portal we want resilience.
+      setIsDemo(true);
+      setError(err);
+      // In a real app, we might merge demo data with partial real data if available
+      // but here we just replace it.
+      // We could also check if it's a 404 or 500.
+      setContent(getDemoPortalContent());
+    } finally {
+      setIsLoading(false);
     }
-    return merged;
-  }, [cached, query.data]);
-  const isDemo = query.isPlaceholderData || !query.data;
+  }, [currentSlug]);
+
+  useEffect(() => {
+    // If we have a user and tenant, try to fetch real data
+    if (currentSlug) {
+      fetchContent();
+    }
+  }, [currentSlug, fetchContent, user]); // Refetch if user changes (login/logout)
 
   useEffect(() => {
     if (!currentSlug) return;
@@ -137,9 +181,9 @@ export const usePortalContent = () => {
 
   return {
     content,
+    isLoading,
     isDemo,
-    isLoading: query.isFetching,
-    error: query.error,
-    refetch: query.refetch,
+    error,
+    refetch: fetchContent,
   };
-};
+}

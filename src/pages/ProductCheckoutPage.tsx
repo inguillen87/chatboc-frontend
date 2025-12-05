@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,25 +11,21 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import AddressAutocomplete from '@/components/ui/AddressAutocomplete';
-import { Loader2, AlertTriangle, ArrowLeft, CheckCircle, Truck, CreditCard, MapPin, User, Check } from 'lucide-react';
+import { Loader2, AlertTriangle, ArrowLeft, CheckCircle, CreditCard, MapPin, User, Check } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 
-import { ApiError, NetworkError, apiFetch, getErrorMessage } from '@/utils/api';
+import { ApiError, NetworkError, getErrorMessage } from '@/utils/api';
 import { useUser } from '@/hooks/useUser';
 import { ProductDetails } from '@/components/product/ProductCard';
 import { formatCurrency } from '@/utils/currency';
 import { useTenant } from '@/context/TenantContext';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
-import {
-  buildProductMap,
-  normalizeCartPayload,
-  normalizeProductsPayload,
-} from '@/utils/cartPayload';
 import { getLocalCartProducts, clearLocalCart } from '@/utils/localCart';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import usePointsBalance from '@/hooks/usePointsBalance';
-import { buildTenantApiPath, buildTenantPath } from '@/utils/tenantPaths';
+import { buildTenantPath } from '@/utils/tenantPaths';
 import { loadGuestContact, saveGuestContact } from '@/utils/guestContact';
+import { fetchMarketCart, startMarketCheckout } from '@/api/market';
 import {
   Dialog,
   DialogContent,
@@ -101,7 +97,6 @@ export default function ProductCheckoutPage() {
 
   const {
     points: pointsBalance,
-    isLoading: isLoadingPoints,
     refresh: refreshPointsBalance,
     adjustOptimistic: adjustPointsBalance,
   } = usePointsBalance({ enabled: !!user, tenantSlug: effectiveTenantSlug });
@@ -122,33 +117,7 @@ export default function ProductCheckoutPage() {
   const cartPath = buildTenantPath('/cart', effectiveTenantSlug);
   const loginPath = buildTenantPath('/user/login', effectiveTenantSlug);
   const registerPath = buildTenantPath('/user/register', effectiveTenantSlug);
-
-  const productsApiPath = useMemo(
-    () => buildTenantApiPath('/productos', effectiveTenantSlug),
-    [effectiveTenantSlug],
-  );
-  const cartApiPath = useMemo(
-    () => buildTenantApiPath('/carrito', effectiveTenantSlug),
-    [effectiveTenantSlug],
-  );
-  const checkoutConfirmPath = useMemo(
-    () => buildTenantApiPath('/checkout/confirmar', effectiveTenantSlug),
-    [effectiveTenantSlug],
-  );
-  const checkoutPreferencePath = useMemo(
-    () => buildTenantApiPath('/checkout/crear-preferencia', effectiveTenantSlug),
-    [effectiveTenantSlug],
-  );
-
-  const sharedRequestOptions = useMemo(
-    () =>
-      ({
-        suppressPanel401Redirect: true,
-        tenantSlug: effectiveTenantSlug ?? undefined,
-        sendAnonId: true,
-      }) as const,
-    [effectiveTenantSlug],
-  );
+  const portalOrdersPath = buildTenantPath('/portal/pedidos', effectiveTenantSlug);
 
   const {
     control,
@@ -221,26 +190,9 @@ export default function ProductCheckoutPage() {
       }
 
       try {
-        const [cartApiData, productsApiData] = await Promise.all([
-          apiFetch<unknown>(cartApiPath, sharedRequestOptions),
-          apiFetch<unknown>(productsApiPath, sharedRequestOptions),
-        ]);
+        const cartData = await fetchMarketCart(effectiveTenantSlug);
 
-        const productMap = buildProductMap(
-          normalizeProductsPayload(productsApiData, 'CheckoutPage'),
-        );
-
-        const populatedCartItems: CartItem[] = normalizeCartPayload(
-          cartApiData,
-          'CheckoutPage',
-        )
-          .map(([productName, cantidad]) => {
-            const productDetail = productMap[productName];
-            return productDetail ? { ...productDetail, cantidad } : null;
-          })
-          .filter((item): item is CartItem => item !== null);
-
-        if (populatedCartItems.length === 0) {
+        if (!cartData.items || cartData.items.length === 0) {
           toast({
             title: 'Carrito vacío',
             description: 'No hay productos para finalizar la compra.',
@@ -248,7 +200,21 @@ export default function ProductCheckoutPage() {
           });
           navigate(catalogPath);
         } else {
-          setCartItems(populatedCartItems);
+          // Map MarketCartItem to component's CartItem (ProductDetails + cantidad)
+          // We need to map the fields correctly as MarketCartItem uses 'price' not 'precio_unitario'
+          const mappedItems: CartItem[] = cartData.items.map(item => ({
+            id: item.id,
+            nombre: item.name,
+            descripcion: item.description ?? undefined,
+            precio_unitario: item.price ?? 0,
+            precio_puntos: item.points ?? 0,
+            modalidad: item.modality ?? 'venta',
+            imageUrl: item.imageUrl ?? undefined,
+            cantidad: item.quantity,
+            // Add other fields required by ProductDetails if necessary, defaulting if missing
+            category: item.category ?? undefined,
+          }));
+          setCartItems(mappedItems);
         }
       } catch (err) {
         if (shouldUseLocalCart(err)) {
@@ -273,13 +239,10 @@ export default function ProductCheckoutPage() {
     loadCart();
   }, [
     catalogPath,
-    cartApiPath,
     checkoutMode,
     effectiveTenantSlug,
     loadLocalCart,
     navigate,
-    productsApiPath,
-    sharedRequestOptions,
   ]);
 
   const subtotal = useMemo(() => {
@@ -402,42 +365,39 @@ export default function ProductCheckoutPage() {
 
       const shouldSkipMp = data.metodoPago === 'acordar';
 
-      if (subtotal === 0 || shouldSkipMp) {
-        await apiFetch(checkoutConfirmPath, {
-          ...sharedRequestOptions,
-          method: 'POST',
-          body: pedidoData,
-        });
-        setOrderPlaced(true);
-        await applyPointsAdjustments();
-        return;
-      }
+      if (!effectiveTenantSlug) throw new Error("Falta el ID del comercio");
 
-      const preference = await apiFetch<{
-        init_point?: string;
-        sandbox_init_point?: string;
-        pedido_id?: string | number;
-        estado?: string;
-      }>(checkoutPreferencePath, {
-        ...sharedRequestOptions,
-        method: 'POST',
-        body: pedidoData,
+      const response = await startMarketCheckout(effectiveTenantSlug, {
+        ...pedidoData,
+        items: cartItems.map(item => ({
+          productId: item.id,
+          quantity: item.cantidad
+        })),
+        customer: {
+          ...pedidoData.cliente,
+          name: pedidoData.cliente.nombre,
+          phone: pedidoData.cliente.telefono
+        },
+        shipping: {
+          method: pedidoData.envio.metodo,
+          address: pedidoData.envio.direccion,
+          notes: pedidoData.envio.notas,
+          coordinates: pedidoData.envio.coordenadas
+        },
+        payment: {
+          method: pedidoData.metodo_pago
+        }
       });
 
-      const estado = typeof preference === 'object' ? preference?.estado : undefined;
-      if (estado && String(estado).toLowerCase() === 'confirmado') {
+      if (response.status === 'confirmed' || response.status === 'demo') {
         setOrderPlaced(true);
         await applyPointsAdjustments();
-        return;
+      } else if (response.paymentUrl) {
+         window.location.href = response.paymentUrl;
+      } else {
+         // Fallback if status is unknown but no error thrown
+         setOrderPlaced(true);
       }
-
-      const initPoint = preference?.init_point || preference?.sandbox_init_point;
-      if (initPoint) {
-        window.location.href = initPoint;
-        return;
-      }
-
-      setOrderPlaced(true);
     } catch (err) {
       if (err instanceof ApiError) {
         const code = err.body?.code || err.body?.error_code || err.body?.errorCode;
@@ -461,14 +421,23 @@ export default function ProductCheckoutPage() {
 
   const isDemoMode = checkoutMode === 'local';
 
+  // Lifecycle Redirect Logic
   const handleViewOrders = useCallback(() => {
-    const destination = buildTenantPath('/portal/pedidos', effectiveTenantSlug);
+    // If logged in, go to Portal Orders
     if (user) {
-      navigate(destination);
+      navigate(portalOrdersPath);
       return;
     }
-    navigate(loginPath, { state: { redirectTo: destination } });
-  }, [navigate, user, effectiveTenantSlug, loginPath]);
+    // If guest, go to Login (then to Portal Orders)
+    // Pass 'portal' context to login page via state if needed
+    navigate(loginPath, { state: { redirectTo: portalOrdersPath } });
+  }, [navigate, user, portalOrdersPath, loginPath]);
+
+  const handleContinueShopping = useCallback(() => {
+    // Navigate to Portal Catalog if possible, else just Catalog
+    navigate(buildTenantPath('/portal/catalogo', effectiveTenantSlug) || catalogPath);
+  }, [navigate, effectiveTenantSlug, catalogPath]);
+
 
   if (orderPlaced) {
     const demoSuccess = checkoutMode === 'local';
@@ -495,12 +464,28 @@ export default function ProductCheckoutPage() {
             </h1>
             <p className="text-xl text-muted-foreground mb-10 max-w-lg mx-auto">
             {demoSuccess
-                ? 'La simulación se registró con éxito en este navegador.'
+                ? 'La simulación se registró con éxito en este navegador. Regístrate o inicia sesión para verlo en tu portal.'
                 : `Hemos recibido tu ${completionLabel}. Te enviamos los detalles a tu correo.`}
             </p>
-            <div className="flex gap-4 flex-wrap justify-center">
-            <Button size="lg" onClick={() => navigate(catalogPath)} className="shadow-lg">Seguir Comprando</Button>
-            <Button size="lg" variant="outline" onClick={handleViewOrders}>Ver Mis Pedidos</Button>
+
+            <div className="flex flex-col gap-4 sm:flex-row justify-center items-center">
+                {!user ? (
+                   <>
+                     <Button size="lg" className="w-full sm:w-auto shadow-lg" onClick={() => navigate(registerPath, { state: { redirectTo: portalOrdersPath } })}>
+                        Crear cuenta para seguimiento
+                     </Button>
+                     <Button size="lg" variant="outline" className="w-full sm:w-auto" onClick={handleViewOrders}>
+                        Iniciar Sesión
+                     </Button>
+                   </>
+                ) : (
+                    <Button size="lg" className="w-full sm:w-auto shadow-lg" onClick={handleViewOrders}>
+                        Ir a mis Pedidos
+                    </Button>
+                )}
+                 <Button size="lg" variant="ghost" onClick={handleContinueShopping}>
+                    Volver al inicio
+                 </Button>
             </div>
         </motion.div>
       </div>
