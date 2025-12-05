@@ -1,133 +1,81 @@
+import { MarketCartItem, MarketCartResponse } from '@/types/market';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
-type StoredContact = {
-  name?: string;
-  phone?: string;
-};
+const STORAGE_KEY_PREFIX = 'chatboc_market_cart_';
 
-const CONTACT_KEY_PREFIX = 'market_contact_';
-const CART_KEY_PREFIX = 'market_cart_v1_';
+const getStorageKey = (tenantSlug: string) => `${STORAGE_KEY_PREFIX}${tenantSlug}`;
 
-type StoredCartItem = {
-  id: string;
-  name: string;
-  quantity: number;
-  price?: number | null;
-  points?: number | null;
-  imageUrl?: string | null;
-  currency?: string | null;
-};
-
-export const readStoredCart = (
-  slug: string,
-): { items: StoredCartItem[]; totalAmount: number | null; totalPoints: number | null } => {
+export const readStoredCart = (tenantSlug: string): MarketCartResponse => {
   try {
-    const raw = safeLocalStorage.getItem(`${CART_KEY_PREFIX}${slug}`);
-    if (!raw) return { items: [], totalAmount: null, totalPoints: null };
+    const raw = safeLocalStorage.getItem(getStorageKey(tenantSlug));
+    if (!raw) return { items: [], totalAmount: 0, totalPoints: 0 };
+    return JSON.parse(raw);
+  } catch (error) {
+    console.warn('Failed to read stored cart', error);
+    return { items: [], totalAmount: 0, totalPoints: 0 };
+  }
+};
 
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object') {
-      return { items: [], totalAmount: null, totalPoints: null };
+const saveStoredCart = (tenantSlug: string, cart: MarketCartResponse) => {
+  try {
+    safeLocalStorage.setItem(getStorageKey(tenantSlug), JSON.stringify(cart));
+  } catch (error) {
+    console.warn('Failed to save stored cart', error);
+  }
+};
+
+export const addItemToStoredCart = (
+  tenantSlug: string,
+  newItem: MarketCartItem,
+  quantityToAdd: number = 1
+): MarketCartResponse => {
+  const currentCart = readStoredCart(tenantSlug);
+  const existingItemIndex = currentCart.items.findIndex((item) => item.id === newItem.id);
+
+  let updatedItems = [...currentCart.items];
+
+  if (existingItemIndex >= 0) {
+    updatedItems[existingItemIndex] = {
+      ...updatedItems[existingItemIndex],
+      quantity: updatedItems[existingItemIndex].quantity + quantityToAdd,
+    };
+  } else {
+    updatedItems.push({ ...newItem, quantity: quantityToAdd });
+  }
+
+  const updatedCart = recalculateTotals({ ...currentCart, items: updatedItems });
+  saveStoredCart(tenantSlug, updatedCart);
+  return updatedCart;
+};
+
+export const removeItemFromStoredCart = (
+  tenantSlug: string,
+  productId: string
+): MarketCartResponse => {
+  const currentCart = readStoredCart(tenantSlug);
+  const updatedItems = currentCart.items.filter((item) => item.id !== productId);
+  const updatedCart = recalculateTotals({ ...currentCart, items: updatedItems });
+  saveStoredCart(tenantSlug, updatedCart);
+  return updatedCart;
+};
+
+export const clearStoredCart = (tenantSlug: string): MarketCartResponse => {
+  const emptyCart = { items: [], totalAmount: 0, totalPoints: 0 };
+  saveStoredCart(tenantSlug, emptyCart);
+  return emptyCart;
+};
+
+const recalculateTotals = (cart: MarketCartResponse): MarketCartResponse => {
+  let totalAmount = 0;
+  let totalPoints = 0;
+
+  cart.items.forEach((item) => {
+    if (item.modality === 'puntos' && item.points) {
+      totalPoints += item.points * item.quantity;
+    } else if (item.price) {
+      totalAmount += item.price * item.quantity;
     }
-
-    const items = Array.isArray(parsed.items) ? parsed.items : [];
-    const normalizedItems = items
-      .map((item: any) => ({
-        id: String(item?.id ?? ''),
-        name: typeof item?.name === 'string' ? item.name : 'Producto',
-        quantity: typeof item?.quantity === 'number' ? Math.max(1, item.quantity) : 1,
-        price: typeof item?.price === 'number' ? item.price : null,
-        points: typeof item?.points === 'number' ? item.points : null,
-        imageUrl: typeof item?.imageUrl === 'string' ? item.imageUrl : null,
-        currency: typeof item?.currency === 'string' ? item.currency : null,
-      }))
-      .filter((item: StoredCartItem) => item.id);
-
-    const totalAmount =
-      typeof parsed.totalAmount === 'number' && Number.isFinite(parsed.totalAmount)
-        ? parsed.totalAmount
-        : normalizedItems.reduce((acc, item) => acc + (item.price ?? 0) * item.quantity, 0);
-    const totalPoints =
-      typeof parsed.totalPoints === 'number' && Number.isFinite(parsed.totalPoints)
-        ? parsed.totalPoints
-        : normalizedItems.reduce((acc, item) => acc + (item.points ?? 0) * item.quantity, 0);
-
-    return { items: normalizedItems, totalAmount, totalPoints };
-  } catch (error) {
-    console.warn('[market] No se pudo leer el carrito almacenado', error);
-    return { items: [], totalAmount: null, totalPoints: null };
-  }
-};
-
-export const persistStoredCart = (slug: string, payload: { items: StoredCartItem[]; totalAmount: number | null; totalPoints: number | null }) => {
-  try {
-    safeLocalStorage.setItem(`${CART_KEY_PREFIX}${slug}`, JSON.stringify(payload));
-  } catch (error) {
-    console.warn('[market] No se pudo persistir el carrito local', error);
-  }
-};
-
-export const addItemToStoredCart = (slug: string, item: StoredCartItem, quantity = 1) => {
-  const current = readStoredCart(slug);
-  const itemsMap = new Map<string, StoredCartItem>();
-  current.items.forEach((existing) => itemsMap.set(existing.id, existing));
-
-  const existing = itemsMap.get(item.id);
-  const nextQuantity = (existing?.quantity ?? 0) + Math.max(1, quantity);
-
-  itemsMap.set(item.id, {
-    ...item,
-    quantity: nextQuantity,
   });
 
-  const items = Array.from(itemsMap.values());
-  const totalAmount = items.reduce((acc, currentItem) => acc + (currentItem.price ?? 0) * currentItem.quantity, 0);
-  const totalPoints = items.reduce((acc, currentItem) => acc + (currentItem.points ?? 0) * currentItem.quantity, 0);
-
-  const payload = { items, totalAmount, totalPoints };
-  persistStoredCart(slug, payload);
-  return payload;
-};
-
-export const removeItemFromStoredCart = (slug: string, productId: string) => {
-  const current = readStoredCart(slug);
-  const items = current.items.filter((item) => item.id !== productId);
-
-  const totalAmount = items.reduce((acc, currentItem) => acc + (currentItem.price ?? 0) * currentItem.quantity, 0);
-  const totalPoints = items.reduce((acc, currentItem) => acc + (currentItem.points ?? 0) * currentItem.quantity, 0);
-
-  const payload = { items, totalAmount, totalPoints };
-  persistStoredCart(slug, payload);
-  return payload;
-};
-
-export const clearStoredCart = (slug: string) => {
-  const payload = { items: [], totalAmount: null, totalPoints: null };
-  persistStoredCart(slug, payload);
-  return payload;
-};
-
-export const loadMarketContact = (slug: string): StoredContact => {
-  try {
-    const raw = safeLocalStorage.getItem(`${CONTACT_KEY_PREFIX}${slug}`);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed === 'object') {
-      return {
-        name: typeof parsed.name === 'string' ? parsed.name : undefined,
-        phone: typeof parsed.phone === 'string' ? parsed.phone : undefined,
-      };
-    }
-  } catch (error) {
-    console.warn('[market] No se pudo leer el contacto guardado', error);
-  }
-  return {};
-};
-
-export const saveMarketContact = (slug: string, contact: StoredContact): void => {
-  try {
-    safeLocalStorage.setItem(`${CONTACT_KEY_PREFIX}${slug}`, JSON.stringify(contact));
-  } catch (error) {
-    console.warn('[market] No se pudo persistir el contacto', error);
-  }
+  return { ...cart, totalAmount, totalPoints };
 };

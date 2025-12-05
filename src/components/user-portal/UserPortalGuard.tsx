@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import { Navigate, useLocation, matchPath } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 
 import { useUser } from '@/hooks/useUser';
@@ -27,8 +27,14 @@ const UserPortalGuard: React.FC<Props> = ({ children, allowGuestPaths }) => {
     });
   }, [hasAnyToken, hasAttemptedRefresh, loading, refreshUser, user]);
 
-  const isGuestAllowed = allowGuestPaths?.some((path) => location.pathname.startsWith(path));
+  // Use matchPath to check if current location matches any allowed guest route (handling params like :tenant)
+  const isGuestAllowed = allowGuestPaths?.some((pathPattern) => {
+    const match = matchPath({ path: pathPattern, end: false }, location.pathname);
+    return match;
+  });
+
   const canBypassAuth = isGuestAllowed && !hasAnyToken;
+  console.log('[UserPortalGuard]', { pathname: location.pathname, isGuestAllowed, allowGuestPaths, hasAnyToken, user: !!user });
 
   if (loading && !canBypassAuth) {
     return (
