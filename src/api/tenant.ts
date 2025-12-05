@@ -1,5 +1,6 @@
 import { apiFetch, ApiError } from '@/utils/api';
 import { normalizeEntityToken } from '@/utils/entityToken';
+import { MOCK_EVENTS, MOCK_NEWS, MOCK_TENANT_INFO } from '@/data/mockTenantData';
 import type {
   TenantEventItem,
   TenantNewsItem,
@@ -166,15 +167,20 @@ const normalizeEventItem = (input: unknown): TenantEventItem | null => {
 };
 
 export async function getTenantPublicInfo(slug: string): Promise<TenantPublicInfo> {
-  const response = await apiFetch<unknown>('/public/tenant', {
-    tenantSlug: slug,
-    skipAuth: true,
-    omitCredentials: true,
-    isWidgetRequest: true,
-    omitChatSessionId: true,
-  });
+  try {
+    const response = await apiFetch<unknown>('/public/tenant', {
+      tenantSlug: slug,
+      skipAuth: true,
+      omitCredentials: true,
+      isWidgetRequest: true,
+      omitChatSessionId: true,
+    });
 
-  return normalizeTenantInfo(response, slug);
+    return normalizeTenantInfo(response, slug);
+  } catch (error) {
+    console.warn(`[API] Failed to fetch public info for ${slug}, using mock data.`, error);
+    return { ...MOCK_TENANT_INFO, slug, nombre: slug };
+  }
 }
 
 const PLACEHOLDER_SLUGS = new Set(['iframe', 'embed', 'widget']);
@@ -278,39 +284,49 @@ export async function getTenantPublicInfoFlexible(
 }
 
 export async function listTenantNews(slug: string): Promise<TenantNewsItem[]> {
-  const response = await apiFetch<unknown>('/public/news', {
-    tenantSlug: slug,
-    skipAuth: true,
-    omitCredentials: true,
-    isWidgetRequest: true,
-    omitChatSessionId: true,
-  });
+  try {
+    const response = await apiFetch<unknown>('/public/news', {
+      tenantSlug: slug,
+      skipAuth: true,
+      omitCredentials: true,
+      isWidgetRequest: true,
+      omitChatSessionId: true,
+    });
 
-  if (!Array.isArray(response)) {
-    return [];
+    if (!Array.isArray(response)) {
+      return [];
+    }
+
+    return response
+      .map((item) => normalizeNewsItem(item))
+      .filter((item): item is TenantNewsItem => Boolean(item));
+  } catch (error) {
+     console.warn(`[API] Failed to fetch news for ${slug}, using mock data.`, error);
+     return MOCK_NEWS;
   }
-
-  return response
-    .map((item) => normalizeNewsItem(item))
-    .filter((item): item is TenantNewsItem => Boolean(item));
 }
 
 export async function listTenantEvents(slug: string): Promise<TenantEventItem[]> {
-  const response = await apiFetch<unknown>('/public/events', {
-    tenantSlug: slug,
-    skipAuth: true,
-    omitCredentials: true,
-    isWidgetRequest: true,
-    omitChatSessionId: true,
-  });
+  try {
+    const response = await apiFetch<unknown>('/public/events', {
+      tenantSlug: slug,
+      skipAuth: true,
+      omitCredentials: true,
+      isWidgetRequest: true,
+      omitChatSessionId: true,
+    });
 
-  if (!Array.isArray(response)) {
-    return [];
+    if (!Array.isArray(response)) {
+      return [];
+    }
+
+    return response
+      .map((item) => normalizeEventItem(item))
+      .filter((item): item is TenantEventItem => Boolean(item));
+  } catch (error) {
+    console.warn(`[API] Failed to fetch events for ${slug}, using mock data.`, error);
+    return MOCK_EVENTS;
   }
-
-  return response
-    .map((item) => normalizeEventItem(item))
-    .filter((item): item is TenantEventItem => Boolean(item));
 }
 
 export async function submitTenantTicket(

@@ -11,11 +11,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { Menu as MenuIconLucide, Bell, Settings, LogOut, Building, ChevronDown, Moon, Sun } from 'lucide-react';
+import { Menu as MenuIconLucide, Settings, LogOut, Building, ChevronDown, Moon, Sun } from 'lucide-react';
 import SideNavigationBar from '../navigation/SideNavigationBar';
 import BottomNavigationBar from '../navigation/BottomNavigationBar';
 import { useUser } from '@/hooks/useUser';
 import { usePortalTheme } from '@/hooks/usePortalTheme';
+import { usePortalContent } from '@/hooks/usePortalContent';
+import NotificationCenter from '@/components/user-portal/notifications/NotificationCenter';
 import { Badge } from '@/components/ui/badge';
 
 
@@ -23,7 +25,8 @@ const UserPortalLayout: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
   const { user } = useUser();
-  const [hasNotifications] = useState(true);
+  const { content } = usePortalContent();
+  const notifications = content.notifications ?? [];
   const { toggle, active, setTheme } = usePortalTheme();
 
   const themeLabel = useMemo(() => {
@@ -103,16 +106,11 @@ const UserPortalLayout: React.FC = () => {
               </DropdownMenu>
             </div>
             <div className="relative">
-              <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-primary rounded-full">
-                <Bell className="h-5 w-5" />
-                <span className="sr-only">Notificaciones</span>
-              </Button>
-              {hasNotifications && (
-                <span className="absolute -top-0.5 -right-0.5 flex h-3 w-3">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-destructive opacity-75" />
-                  <span className="relative inline-flex rounded-full h-3 w-3 bg-destructive" />
-                </span>
-              )}
+              <NotificationCenter
+                notifications={notifications}
+                onMarkAsRead={(id) => console.log('Mark read', id)}
+                onClearAll={() => console.log('Clear all')}
+              />
             </div>
 
             <DropdownMenu>
