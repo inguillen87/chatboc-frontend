@@ -22,10 +22,13 @@ import { useUser } from '@/hooks/useUser';
 import { cn } from '@/lib/utils';
 import { usePortalContent } from '@/hooks/usePortalContent';
 import { getDemoLoyaltySummary } from '@/utils/demoLoyalty';
+import { useTenant } from '@/context/TenantContext';
+import { buildTenantPath } from '@/utils/tenantPaths';
 
 const UserDashboardPage = () => {
   const navigate = useNavigate();
   const { user } = useUser();
+  const { currentSlug } = useTenant();
   const { content, isDemo, isLoading, refetch } = usePortalContent();
 
   const getBadgeClasses = (statusType?: string): string => {
@@ -93,7 +96,7 @@ const UserDashboardPage = () => {
         <Button
           size="lg"
           className="w-full py-6 text-base shadow-md hover:shadow-lg font-medium"
-          onClick={() => navigate('/portal/catalogo')}
+          onClick={() => navigate(buildTenantPath('/portal/catalogo', currentSlug))}
         >
           <ShoppingBag className="mr-2 h-5 w-5" /> Ver Catálogo / Trámites
         </Button>
@@ -101,7 +104,7 @@ const UserDashboardPage = () => {
           size="lg"
           variant="secondary"
           className="w-full py-6 text-base shadow-md hover:shadow-lg font-medium"
-          onClick={() => alert('TODO: Navegar a Nuevo Pedido/Reclamo/Trámite')}
+          onClick={() => navigate(buildTenantPath('/reclamos/nuevo', currentSlug))}
         >
           <PlusCircle className="mr-2 h-5 w-5" /> Nueva Gestión
         </Button>
@@ -113,7 +116,7 @@ const UserDashboardPage = () => {
             title="Tus Gestiones Recientes"
             icon={<History className="h-6 w-6" />}
             ctaText="Ver todas mis gestiones"
-            onCtaClick={() => navigate('/portal/pedidos')}
+            onCtaClick={() => navigate(buildTenantPath('/portal/pedidos', currentSlug))}
             className="lg:col-span-2 xl:col-span-2"
           >
             <ul className="space-y-0.5 -mx-2">
@@ -124,7 +127,7 @@ const UserDashboardPage = () => {
                   initial={{ opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
                 >
-                  <Link to={activity.link ?? '/portal/pedidos'} className="flex justify-between items-center w-full">
+                  <Link to={buildTenantPath(activity.link ?? '/portal/pedidos', currentSlug)} className="flex justify-between items-center w-full">
                     <div>
                       <p className="text-sm font-medium text-foreground truncate pr-2 leading-snug">{activity.description}</p>
                       <p className="text-xs text-muted-foreground">
@@ -149,7 +152,7 @@ const UserDashboardPage = () => {
             title="Notificaciones"
             icon={<BellRing className="h-6 w-6" />}
             ctaText="Centro de avisos"
-            onCtaClick={() => navigate('/portal/noticias')}
+            onCtaClick={() => navigate(buildTenantPath('/portal/noticias', currentSlug))}
           >
             <ul className="space-y-3 -mx-2">
               {notifications.slice(0, 3).map((notification) => (
@@ -165,7 +168,7 @@ const UserDashboardPage = () => {
                   <p className="text-sm text-muted-foreground leading-snug">{notification.message}</p>
                   {notification.actionHref && notification.actionLabel && (
                     <Button asChild size="sm" variant="link" className="px-0 h-7 text-primary">
-                      <Link to={notification.actionHref}>{notification.actionLabel}</Link>
+                      <Link to={buildTenantPath(notification.actionHref, currentSlug)}>{notification.actionLabel}</Link>
                     </Button>
                   )}
                 </li>
@@ -179,13 +182,13 @@ const UserDashboardPage = () => {
             title="Novedades y Eventos"
             icon={<Newspaper className="h-6 w-6" />}
             ctaText="Ver todas las novedades"
-            onCtaClick={() => navigate('/portal/noticias')}
+            onCtaClick={() => navigate(buildTenantPath('/portal/noticias', currentSlug))}
             className="xl:col-span-1"
           >
             <ul className="space-y-3 -mx-2">
               {featuredNews.slice(0, 2).map((news) => (
                 <li key={news.id} className="px-2 py-2 hover:bg-muted/50 rounded-md transition-colors">
-                  <Link to={news.link ?? '/portal/noticias'} className="group block">
+                  <Link to={buildTenantPath(news.link ?? '/portal/noticias', currentSlug)} className="group block">
                     {!news.coverUrl ? (
                       <div className="w-full h-24 bg-muted rounded-md mb-2 flex items-center justify-center group-hover:opacity-90 transition-opacity">
                         <ImageOff className="h-10 w-10 text-muted-foreground/70" />
@@ -213,12 +216,12 @@ const UserDashboardPage = () => {
             title="Beneficios para ti"
             icon={<TicketPercent className="h-6 w-6" />}
             ctaText="Ver todos los beneficios"
-            onCtaClick={() => navigate('/portal/beneficios')}
+            onCtaClick={() => navigate(buildTenantPath('/portal/beneficios', currentSlug))}
           >
             <ul className="space-y-3">
               {activeBenefits.slice(0, 1).map((benefit) => (
                 <li key={benefit.id} className="p-3 bg-primary/10 border border-primary/20 rounded-md hover:shadow-md transition-shadow">
-                  <Link to={benefit.id ? `/portal/beneficios/${benefit.id}` : '/portal/beneficios'} className="group block">
+                  <Link to={buildTenantPath(benefit.id ? `/portal/beneficios/${benefit.id}` : '/portal/beneficios', currentSlug)} className="group block">
                     <h4 className="text-sm font-semibold text-primary group-hover:underline mb-0.5 leading-snug">{benefit.title}</h4>
                     <p className="text-xs text-muted-foreground">{benefit.description}</p>
                   </Link>
@@ -241,7 +244,7 @@ const UserDashboardPage = () => {
               </p>
               <Button
                 className="w-full sm:w-auto"
-                onClick={() => navigate(pendingSurveys[0].link ?? '/portal/encuestas')}
+                onClick={() => navigate(buildTenantPath(pendingSurveys[0].link ?? '/portal/encuestas', currentSlug))}
               >
                 <ClipboardList className="mr-2 h-4 w-4" /> Responder ahora
               </Button>

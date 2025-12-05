@@ -1,17 +1,80 @@
-# Backend Requirements for User Portal
+# Backend Requirements for User Portal & Public Site
 
 To fully power the User Portal and ensure synchronization across all channels (WhatsApp, Web Widget, Portal), the backend must provide the following endpoints.
 
-All endpoints should be prefixed with `/api/v1/portal/:tenant_id`.
-The `tenant_id` (or slug) determines the context (Municipality or SME).
+## Base URL Strategy
+- **Public API:** `/api/public/...` (Accessible without auth, scoped by `tenantSlug` query param or URL path)
+- **User Portal API:** `/api/v1/portal/:tenant_id/...` (Requires User Auth Token)
 
-Authentication:
-- Most endpoints require a Bearer Token (JWT) representing the logged-in user.
-- Public endpoints (if any) should still be scoped by `tenant_id`.
+## 1. Public Tenant Data (Landing Page / Widget / Guest Mode)
+These endpoints drive the `TenantHomePage` and the Chat Widget before login.
 
-## 1. Consolidated Content (Dashboard)
-**Endpoint:** `GET /content`
-**Purpose:** Fetches a summary of data for the dashboard to minimize round trips.
+**Endpoint:** `GET /api/public/tenant?tenant_slug=:slug`
+**Purpose:** Basic branding and configuration.
+**Response:**
+```json
+{
+  "slug": "municipio-demo",
+  "nombre": "Municipio Demo",
+  "logo_url": "...",
+  "tipo": "municipio", // or "pyme"
+  "tema": { "primaryColor": "#...", "secondaryColor": "#..." }
+}
+```
+
+**Endpoint:** `GET /api/public/news?tenant_slug=:slug`
+**Purpose:** Latest news for the landing page.
+**Response:** Array of News objects (see Section 3).
+
+**Endpoint:** `GET /api/public/events?tenant_slug=:slug`
+**Purpose:** Upcoming events for the landing page.
+**Response:** Array of Event objects (see Section 4).
+
+**Endpoint:** `GET /api/public/encuestas?tenant_slug=:slug`
+**Purpose:** Active public surveys.
+**Response:** Array of Survey objects.
+
+---
+
+## 2. User Authentication & Registration
+
+**Endpoint:** `POST /api/auth/register`
+**Purpose:** Create a new end-user account associated with a specific tenant.
+**Payload:**
+```json
+{
+  "email": "user@example.com",
+  "password": "securePassword",
+  "nombre": "Juan Perez",
+  "telefono": "12345678",
+  "tenant_slug": "municipio-demo" // CRITICAL: Links user to this tenant
+}
+```
+**Response:** `{ "token": "jwt...", "user": { "id": 1, ... } }`
+
+**Endpoint:** `POST /api/auth/login`
+**Payload:** `{ "email": "...", "password": "...", "tenant_slug": "..." }`
+**Note:** Login should verify the user exists within the context of the requested tenant (or is a global user authorized for it).
+
+---
+
+## 3. Order Processing & Sync
+
+**Endpoint:** `POST /api/v1/portal/:tenant_id/orders`
+**Purpose:** Submit a new order/request (Pedido/Reclamo).
+**Payload:** Standard cart payload (items, totals, shipping info).
+
+**Endpoint:** `GET /api/v1/portal/:tenant_id/orders`
+**Purpose:** List user's history.
+**Response:** Array of orders.
+
+**Important:** If a user creates a "Demo Order" as a guest (stored in local storage), the frontend might prompt them to "Sync" it after registration. The backend should support an endpoint to "Import" or "Claim" a guest order if implemented, OR simply rely on the user re-submitting the cart after login.
+
+---
+
+## 4. User Portal Dashboard (Authenticated)
+**Endpoint:** `GET /api/v1/portal/:tenant_id/content`
+**Purpose:** Fetches a consolidated summary for the user dashboard.
 **Response JSON:**
 ```json
 {
@@ -20,35 +83,15 @@ Authentication:
       "id": "notif_123",
       "title": "Claim Update",
       "message": "Your claim #456 has been resolved.",
-      "severity": "info", // info, warning, success, error
+      "severity": "info",
       "date": "2023-10-27T10:00:00Z",
       "read": false,
       "actionLabel": "View Claim",
       "actionHref": "/portal/pedidos/456"
     }
   ],
-  "news": [
-    {
-      "id": "news_1",
-      "title": "Festival de Jazz",
-      "summary": "Join us for the annual Jazz Festival.",
-      "coverUrl": "https://example.com/image.jpg",
-      "date": "2023-10-28",
-      "category": "Cultura",
-      "featured": true,
-      "link": "/portal/noticias/news_1"
-    }
-  ],
-  "events": [
-    {
-      "id": "evt_1",
-      "title": "Vacunación Antirrábica",
-      "date": "2023-11-01",
-      "location": "Plaza Central",
-      "status": "inscripcion", // inscripcion, proximo, finalizado
-      "coverUrl": "https://example.com/event.jpg"
-    }
-  ],
+  "news": [], // Top 3 news for user
+  "events": [], // Top 3 upcoming events
   "loyaltySummary": {
     "points": 1250,
     "surveysCompleted": 5,
@@ -68,117 +111,44 @@ Authentication:
 }
 ```
 
-## 2. News (Novedades)
-**Endpoint:** `GET /news`
-**Query Params:** `page`, `limit`, `category`
-**Response JSON:**
+## 5. News Structure
 ```json
 {
-  "data": [
-    {
-      "id": "news_1",
-      "title": "Title",
-      "summary": "Short description...",
-      "content": "Full HTML or Markdown content...",
-      "coverUrl": "...",
-      "date": "2023-10-27",
-      "category": "General",
-      "author": "Admin",
-      "featured": false
-    }
-  ],
-  "meta": {
-    "total": 100,
-    "page": 1,
-    "limit": 10
-  }
+  "id": "news_1",
+  "title": "Festival de Jazz",
+  "summary": "Join us for the annual Jazz Festival.",
+  "body": "HTML content...",
+  "cover_url": "https://example.com/image.jpg",
+  "publicado_at": "2023-10-28T10:00:00Z",
+  "tags": ["Cultura", "Eventos"]
 }
 ```
 
-## 3. Events (Eventos)
-**Endpoint:** `GET /events`
-**Query Params:** `page`, `limit`, `status` (upcoming, past)
-**Response JSON:**
+## 6. Events Structure
 ```json
 {
-  "data": [
-    {
-      "id": "evt_1",
-      "title": "Event Title",
-      "description": "Description...",
-      "coverUrl": "...",
-      "date": "2023-11-01T14:00:00Z",
-      "location": "Address or Link",
-      "spots": 100,
-      "registered": 45,
-      "status": "inscripcion",
-      "user_registered": false // true if the current user is signed up
-    }
-  ]
+  "id": "evt_1",
+  "title": "Vacunación Antirrábica",
+  "descripcion": "Description...",
+  "cover_url": "...",
+  "starts_at": "2023-11-01T14:00:00Z",
+  "ends_at": "2023-11-01T18:00:00Z",
+  "lugar": "Plaza Central"
 }
 ```
 
-## 4. Catalog (Catálogo/Trámites)
-**Endpoint:** `GET /catalog`
-**Purpose:** Lists available services, products, or administrative procedures.
-**Response JSON:**
-```json
-{
-  "data": [
-    {
-      "id": "cat_1",
-      "title": "Solicitud de Poda",
-      "description": "Request tree trimming service.",
-      "category": "Servicios Urbanos",
-      "imageUrl": "...",
-      "priceLabel": "Gratuito", // or "$500"
-      "status": "available",
-      "formSchema": {} // Optional: JSON schema for the request form
-    }
-  ]
-}
-```
-
-## 5. Notifications (Centro de Notificaciones)
-**Endpoint:** `GET /notifications`
-**Endpoint:** `POST /notifications/:id/read` (Mark as read)
-
-## 6. User Profile & Loyalty
-**Endpoint:** `GET /profile`
-**Response JSON:**
-```json
-{
-  "id": "user_123",
-  "name": "Juan Perez",
-  "email": "juan@example.com",
-  "points": 1200,
-  "level": "Gold",
-  "preferences": {
-    "notifications_email": true,
-    "notifications_push": false
-  }
-}
-```
-
-## Integration Logic
+## 7. Integration Logic (WhatsApp & Widget)
 - **WhatsApp:** The webhook handler should use the `tenant_id` associated with the phone number to fetch the same News/Events data and serve it via text/interactive messages.
 - **Chat Widget:** The widget embeds the portal or specific flows. It should query these same endpoints using the `tenant_id` from the script tag configuration.
 - **Admin Panel:** Changes made in the Admin Panel (creating news/events) must write to the database tables that back these endpoints.
 
-## 7. Real-time Updates (Socket.IO)
-To ensure the User Portal updates instantly when an Admin posts content, the backend must emit Socket.IO events to the tenant's room.
-
-**Room Name:** `tenant_slug` (e.g., "municipio", "ferreteria")
+## 8. Real-time Updates (Socket.IO)
+**Room Name:** `tenant_slug` (e.g., "municipio")
 
 **Events Emitted:**
-*   `tenant_content_update`: Generic signal that something changed. Payload: `{ "type": "news_update" }`
-*   `news_update`: Signal that news items have changed. Payload: New/Updated Post object.
-*   `events_update`: Signal that events have changed. Payload: New/Updated Post object.
-*   `catalog_update`: Signal that catalog items have changed. Payload: `{}` or Item object.
+*   `tenant_content_update`: Generic signal that something changed.
+*   `news_update`: Signal that news items have changed.
+*   `events_update`: Signal that events have changed.
 
 **Triggers:**
 *   `POST /municipal/posts` (Create/Update News/Events).
-*   `POST /api/admin/market/catalog` (Create Product).
-*   `PUT /api/admin/market/catalog/:id` (Update Product).
-*   `DELETE /api/admin/market/catalog/:id` (Delete Product).
-*   `POST /catalogo/upload` (Bulk Upload).
