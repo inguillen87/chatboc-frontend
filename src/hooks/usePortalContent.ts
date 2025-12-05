@@ -131,6 +131,54 @@ export function usePortalContent() {
     }
   }, [currentSlug, fetchContent, user]); // Refetch if user changes (login/logout)
 
+  useEffect(() => {
+    if (!currentSlug) return;
+
+    let socket: Socket | null = null;
+    let active = true;
+
+    const initSocket = () => {
+      const socketUrl = resolveSocketUrl();
+      const socketPath = sanitizeSocketPath(import.meta.env.VITE_SOCKET_PATH || SOCKET_PATH);
+
+      const socketOptions: Partial<ManagerOptions & SocketOptions> = {
+        transports: ['websocket'],
+        path: socketPath,
+        query: {
+          tenant: currentSlug,
+          tenant_slug: currentSlug,
+          portal_user: 'true',
+        },
+      };
+
+      socket = io(socketUrl ?? undefined, socketOptions);
+
+      safeOn(socket, 'connect', () => {
+        console.log('[Portal] Socket connected');
+      });
+
+      // Listen for content updates from the admin panel
+      const handleUpdate = () => {
+        if (active) {
+          console.log('[Portal] Content update received, refreshing...');
+          void query.refetch();
+        }
+      };
+
+      safeOn(socket, 'tenant_content_update', handleUpdate);
+      safeOn(socket, 'news_update', handleUpdate);
+      safeOn(socket, 'events_update', handleUpdate);
+      safeOn(socket, 'catalog_update', handleUpdate);
+    };
+
+    initSocket();
+
+    return () => {
+      active = false;
+      if (socket) socket.disconnect();
+    };
+  }, [currentSlug, query]);
+
   return {
     content,
     isLoading,

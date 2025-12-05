@@ -151,7 +151,6 @@ export default function CartPage() {
     const itemToUpdate = cartItems.find(item => item.nombre === productName); // Fallback to name match
     if (!itemToUpdate) return;
 
-    // Optimistic update
     if (newQuantity <= 0) {
       setCartItems(prevItems => prevItems.filter(item => item.nombre !== productName));
     } else {
