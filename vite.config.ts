@@ -109,7 +109,8 @@ export default defineConfig(({ mode }) => {
           target: 'https://chatbot-backend-2e14.onrender.com',
           changeOrigin: true,
           secure: false,
-          rewrite: (path) => path.replace(/^\/api/, ''),
+          // Removed the rewrite to ensure /api/ prefix is forwarded to the backend
+          // rewrite: (path) => path.replace(/^\/api/, ''),
         },
         '/socket.io': {
           target: 'wss://chatbot-backend-2e14.onrender.com',

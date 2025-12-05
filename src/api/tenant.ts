@@ -1,5 +1,6 @@
 import { apiFetch, ApiError } from '@/utils/api';
 import { normalizeEntityToken } from '@/utils/entityToken';
+import { MOCK_EVENTS, MOCK_NEWS, MOCK_TENANT_INFO, MOCK_JUNIN_TENANT_INFO } from '@/data/mockTenantData';
 import type {
   TenantEventItem,
   TenantNewsItem,
@@ -166,15 +167,26 @@ const normalizeEventItem = (input: unknown): TenantEventItem | null => {
 };
 
 export async function getTenantPublicInfo(slug: string): Promise<TenantPublicInfo> {
-  const response = await apiFetch<unknown>('/public/tenant', {
-    tenantSlug: slug,
-    skipAuth: true,
-    omitCredentials: true,
-    isWidgetRequest: true,
-    omitChatSessionId: true,
-  });
+  try {
+    // Demo override for Junin
+    if (slug === 'municipio-junin') {
+      return MOCK_JUNIN_TENANT_INFO;
+    }
 
-  return normalizeTenantInfo(response, slug);
+    const response = await apiFetch<unknown>('/public/tenant', {
+      tenantSlug: slug,
+      skipAuth: true,
+      omitCredentials: true,
+      isWidgetRequest: true,
+      omitChatSessionId: true,
+    });
+
+    return normalizeTenantInfo(response, slug);
+  } catch (error) {
+    console.warn(`[API] Failed to fetch public info for ${slug}, using mock data.`, error);
+    if (slug === 'municipio-junin') return MOCK_JUNIN_TENANT_INFO;
+    return { ...MOCK_TENANT_INFO, slug, nombre: slug };
+  }
 }
 
 const PLACEHOLDER_SLUGS = new Set(['iframe', 'embed', 'widget']);
@@ -247,6 +259,11 @@ export async function getTenantPublicInfoFlexible(
   const safeWidgetToken = normalizeEntityToken(widgetToken) ?? null;
 
   if (safeSlug) {
+    // Specific override for Junin slug
+    if (safeSlug === 'municipio-junin') {
+      return MOCK_JUNIN_TENANT_INFO;
+    }
+
     try {
       // Prioriza la resolución por slug explícito sin el widget token para evitar cruces de tenant.
       return await resolveTenantInfo({ slug: safeSlug, forceSlug: safeSlug });
@@ -271,6 +288,10 @@ export async function getTenantPublicInfoFlexible(
   }
 
   if (safeWidgetToken) {
+    // Specific override for Junin token
+    if (safeWidgetToken === '1146cb3e-eaef-4230-b54e-1c340ac062d8') {
+      return MOCK_JUNIN_TENANT_INFO;
+    }
     return resolveTenantInfo({ widgetToken: safeWidgetToken });
   }
 
@@ -278,39 +299,49 @@ export async function getTenantPublicInfoFlexible(
 }
 
 export async function listTenantNews(slug: string): Promise<TenantNewsItem[]> {
-  const response = await apiFetch<unknown>('/public/news', {
-    tenantSlug: slug,
-    skipAuth: true,
-    omitCredentials: true,
-    isWidgetRequest: true,
-    omitChatSessionId: true,
-  });
+  try {
+    const response = await apiFetch<unknown>('/public/news', {
+      tenantSlug: slug,
+      skipAuth: true,
+      omitCredentials: true,
+      isWidgetRequest: true,
+      omitChatSessionId: true,
+    });
 
-  if (!Array.isArray(response)) {
-    return [];
+    if (!Array.isArray(response)) {
+      return [];
+    }
+
+    return response
+      .map((item) => normalizeNewsItem(item))
+      .filter((item): item is TenantNewsItem => Boolean(item));
+  } catch (error) {
+     console.warn(`[API] Failed to fetch news for ${slug}, using mock data.`, error);
+     return MOCK_NEWS;
   }
-
-  return response
-    .map((item) => normalizeNewsItem(item))
-    .filter((item): item is TenantNewsItem => Boolean(item));
 }
 
 export async function listTenantEvents(slug: string): Promise<TenantEventItem[]> {
-  const response = await apiFetch<unknown>('/public/events', {
-    tenantSlug: slug,
-    skipAuth: true,
-    omitCredentials: true,
-    isWidgetRequest: true,
-    omitChatSessionId: true,
-  });
+  try {
+    const response = await apiFetch<unknown>('/public/events', {
+      tenantSlug: slug,
+      skipAuth: true,
+      omitCredentials: true,
+      isWidgetRequest: true,
+      omitChatSessionId: true,
+    });
 
-  if (!Array.isArray(response)) {
-    return [];
+    if (!Array.isArray(response)) {
+      return [];
+    }
+
+    return response
+      .map((item) => normalizeEventItem(item))
+      .filter((item): item is TenantEventItem => Boolean(item));
+  } catch (error) {
+    console.warn(`[API] Failed to fetch events for ${slug}, using mock data.`, error);
+    return MOCK_EVENTS;
   }
-
-  return response
-    .map((item) => normalizeEventItem(item))
-    .filter((item): item is TenantEventItem => Boolean(item));
 }
 
 export async function submitTenantTicket(

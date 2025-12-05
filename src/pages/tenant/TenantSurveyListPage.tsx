@@ -48,7 +48,7 @@ const TenantSurveyListPage = () => {
     return '';
   }, [currentSlug, params.tenant, tenant?.slug]);
 
-  const basePath = slug ? `/t/${encodeURIComponent(slug)}` : null;
+  const basePath = slug ? `/${encodeURIComponent(slug)}` : null;
 
   const surveysQuery = useQuery<PublicSurveyListResult>({
     queryKey: ['tenant-surveys', slug, 'full'],

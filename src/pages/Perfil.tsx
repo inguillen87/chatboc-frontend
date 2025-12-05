@@ -287,7 +287,7 @@ export default function Perfil() {
     [perfil.plan],
   );
   const buildMappingPath = useCallback(
-    (path: string) => (derivedTenantSlug ? `/t/${derivedTenantSlug}${path}` : path),
+    (path: string) => (derivedTenantSlug ? `/${derivedTenantSlug}${path}` : path),
     [derivedTenantSlug],
   );
   const [modoHorario, setModoHorario] = useState("comercial");
@@ -2380,7 +2380,7 @@ export default function Perfil() {
                       className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
                       onClick={() => {
                         const integrationPath = derivedTenantSlug
-                          ? `/t/${derivedTenantSlug}/integracion`
+                          ? `/${derivedTenantSlug}/integracion`
                           : "/integracion";
 
                         navigate(integrationPath);
