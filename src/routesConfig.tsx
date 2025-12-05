@@ -176,18 +176,33 @@ const tenantPortalRoutes: RouteConfig[] = userPortalRoutes.map(route => ({
 
 
 const routes: RouteConfig[] = [
-  { path: '/', element: <Index /> },
-  ...withTenantPrefixes('/:tenant', { element: <TenantHomePage /> }),
-  ...withTenantPrefixes('/:tenant/noticias', { element: <TenantNewsPage /> }),
-  ...withTenantPrefixes('/:tenant/eventos', { element: <TenantEventsPage /> }),
+  // --- SPECIFIC ROUTES FIRST (Priority) ---
+
+  // Cart & Checkout (Tenant) - Must be before generic tenant home
+  ...withTenantPrefixes('/:tenant/cart', { element: <CartPage /> }),
+  ...withTenantPrefixes('/:tenant/productos', { element: <ProductCatalog /> }),
+  ...withTenantPrefixes('/:tenant/checkout-productos', { element: <ProductCheckoutPage /> }),
+  ...withTenantPrefixes('/:tenant/pedido/confirmado', { element: <OrderConfirmationPage /> }),
+
+  // FIX: Short routes for direct access (e.g. /municipio/productos without slug)
+  // This allows the router to match /municipio/productos specifically before /municipio/:tenant (where tenant="productos")
+  ...withTenantPrefixes('/cart', { element: <CartPage /> }),
+  ...withTenantPrefixes('/productos', { element: <ProductCatalog /> }),
+  ...withTenantPrefixes('/checkout-productos', { element: <ProductCheckoutPage /> }),
+  ...withTenantPrefixes('/encuestas', { element: <PublicSurveysIndex /> }),
+
+  // Market specific
   ...withTenantPrefixes('/:tenant/market', { element: <MarketCatalogPage /> }),
   ...withTenantPrefixes('/:tenant/product/:slug', { element: <MarketProductPage /> }),
   ...withTenantPrefixes('/:tenant/checkout', { element: <MarketCheckoutPage /> }),
   ...withTenantPrefixes('/:tenant/market/blueprint', { element: <MarketplaceBlueprintPage /> }),
+
+  // Tenant Portal Sections
+  ...withTenantPrefixes('/:tenant/noticias', { element: <TenantNewsPage /> }),
+  ...withTenantPrefixes('/:tenant/eventos', { element: <TenantEventsPage /> }),
   ...withTenantPrefixes('/:tenant/reclamos/nuevo', { element: <TenantTicketFormPage /> }),
-  ...withTenantPrefixes('/:tenant/pedido/confirmado', { element: <OrderConfirmationPage /> }),
-  { path: '/login', element: <Login /> },
-  ...withTenantPrefixes('/:tenant/login', { element: <Login /> }),
+
+  // Surveys
   ...(FEATURE_ENCUESTAS
     ? [
         { path: '/encuestas', element: <PublicSurveysIndex /> },
@@ -197,8 +212,37 @@ const routes: RouteConfig[] = [
         ...withTenantPrefixes('/:tenant/encuestas/:slug', { element: <TenantSurveyDetailPage /> }),
       ]
     : []),
-  { path: '/register', element: <Register /> },
+
+  // Auth (Tenant)
+  ...withTenantPrefixes('/:tenant/login', { element: <Login /> }),
   ...withTenantPrefixes('/:tenant/register', { element: <UserRegister /> }),
+  ...withTenantPrefixes('/:tenant/user/login', { element: <UserLogin /> }),
+  ...withTenantPrefixes('/:tenant/user/register', { element: <UserRegister /> }),
+
+  // Integrations & Admin (Tenant Scoped)
+  ...withTenantPrefixes('/:tenant/integracion', { element: <Integracion />, roles: ['admin'] }),
+  ...withTenantPrefixes('/:tenant/pedidos', {
+    element: <PedidosPage />,
+    roles: ['admin', 'empleado', 'super_admin'],
+  }),
+  ...withTenantPrefixes('/:tenant/catalog-mappings/new', { element: <CatalogMappingPage />, roles: ['admin', 'super_admin'] }),
+  ...withTenantPrefixes('/:tenant/catalog-mappings/:mappingId', { element: <CatalogMappingPage />, roles: ['admin', 'super_admin'] }),
+
+
+  // --- USER PORTAL ROUTES ---
+  ...userPortalRoutes,
+  ...tenantPortalRoutes,
+
+  // --- GENERIC / FALLBACK ROUTES ---
+
+  { path: '/', element: <Index /> },
+
+  // Generic Tenant Home (Dashboard/Landing) - Must be LAST among tenant routes to avoid swallowing others
+  ...withTenantPrefixes('/:tenant', { element: <TenantHomePage /> }),
+
+  // Global Routes
+  { path: '/login', element: <Login /> },
+  { path: '/register', element: <Register /> },
   { path: '/user/login', element: <UserLogin /> },
   ...withTenantPrefixes('/:tenant/user/login', { element: <UserLogin /> }),
   { path: '/user/register', element: <UserRegister /> },
@@ -214,26 +258,17 @@ const routes: RouteConfig[] = [
   { path: '/chatcrm', element: <ChatCRMPage /> },
   { path: '/opinar', element: <OpinarArPage /> },
   { path: '/integracion', element: <Integracion />, roles: ['admin'] },
-  ...withTenantPrefixes('/:tenant/integracion', { element: <Integracion />, roles: ['admin'] }),
   { path: '/documentacion', element: <Documentacion /> },
   { path: '/faqs', element: <Faqs /> },
   { path: '/productos', element: <ProductCatalog /> },
-  ...withTenantPrefixes('/:tenant/productos', { element: <ProductCatalog /> }),
   { path: '/cart', element: <CartPage /> },
-  ...withTenantPrefixes('/:tenant/cart', { element: <CartPage /> }),
   { path: '/market/blueprint', element: <MarketplaceBlueprintPage /> },
   { path: '/checkout-productos', element: <ProductCheckoutPage /> },
-  ...withTenantPrefixes('/:tenant/checkout-productos', { element: <ProductCheckoutPage /> }),
-  ...withTenantPrefixes('/:tenant/pedido/confirmado', { element: <OrderConfirmationPage /> }),
   { path: '/pedido/confirmado', element: <OrderConfirmationPage /> },
   { path: '/legal/privacy', element: <Privacy /> },
   { path: '/legal/terms', element: <Terms /> },
   { path: '/legal/cookies', element: <Cookies /> },
   { path: '/tickets', element: <TicketsPanel />, roles: ['admin', 'empleado', 'super_admin'] },
-  ...withTenantPrefixes('/:tenant/pedidos', {
-    element: <PedidosPage />,
-    roles: ['admin', 'empleado', 'super_admin'],
-  }),
   { path: '/pedidos', element: <PedidosPage />, roles: ['admin', 'empleado', 'super_admin'] },
   { path: '/usuarios', element: <UsuariosPage />, roles: ['admin', 'empleado', 'super_admin'] },
   { path: '/notifications', element: <NotificationSettings /> },
@@ -270,21 +305,12 @@ const routes: RouteConfig[] = [
   { path: '/estadisticas', element: <EstadisticasPage />, roles: ['admin', 'super_admin'] },
   { path: '/analytics', element: <AnalyticsPage />, roles: ['admin', 'empleado', 'super_admin'] },
   { path: '/perfil/plantillas-respuesta', element: <GestionPlantillasPage />, roles: ['admin', 'empleado', 'super_admin'] },
-  ...withTenantPrefixes('/:tenant/catalog-mappings/new', { element: <CatalogMappingPage />, roles: ['admin', 'super_admin'] }),
-  ...withTenantPrefixes('/:tenant/catalog-mappings/:mappingId', { element: <CatalogMappingPage />, roles: ['admin', 'super_admin'] }),
+
   { path: '/catalog-mappings/new', element: <CatalogMappingPage />, roles: ['admin', 'super_admin'] },
   { path: '/catalog-mappings/:mappingId', element: <CatalogMappingPage />, roles: ['admin', 'super_admin'] },
   // Rutas para la gestión de mapeo de catálogos por PYME
   { path: '/admin/pyme/:pymeId/catalog-mappings/new', element: <CatalogMappingPage />, roles: ['admin', 'super_admin'] },
   { path: '/admin/pyme/:pymeId/catalog-mappings/:mappingId', element: <CatalogMappingPage />, roles: ['admin', 'super_admin'] },
-
-  // --- RUTAS DE ADMINISTRACIÓN SAAS ---
-  { path: '/admin/dashboard', element: <SuperAdminDashboard />, roles: ['super_admin'] },
-  { path: '/admin/tenants/new', element: <CreateTenantPage />, roles: ['super_admin'] },
-
-  // --- NUEVAS RUTAS PARA EL PORTAL DE USUARIO FINAL (preparadas para Layout Route en App.tsx) ---
-  ...userPortalRoutes,
-  ...tenantPortalRoutes,
 
   { path: '/iframe', element: <Iframe /> },
 ];
