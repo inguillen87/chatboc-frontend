@@ -3,7 +3,7 @@
 Este documento resume cómo restaurar la funcionalidad del tenant Junín en entornos de demo o post-rollbacks. Incluye autenticación, configuración, encuestas, catálogo y consideraciones de checkout para mantener la experiencia white-label.
 
 ## Autenticación y migraciones
-- Asegura que el usuario `mauricio@junin.com` exista con rol de municipio y `tenant_slug` igual a `junin`.
+- Asegura que el usuario `mauricio@junin.com` exista con rol de municipio y `tenant_slug` igual a `Junin`.
 - Si `/auth/login` devuelve 401, ejecuta las migraciones/seed que fijan la contraseña de Mauricio y crean el tenant de Junín.
 - Vuelve a cargar el JSON de configuración base (`data/municipios/default/config.json`) en la base de datos si faltan datos de dirección, URLs de chat o catálogos.
 
