@@ -20,7 +20,7 @@ import type { TenantPublicInfo, TenantSummary } from '@/types/tenant';
 import { ApiError, getErrorMessage } from '@/utils/api';
 import { ensureRemoteAnonId } from '@/utils/anonId';
 import { normalizeEntityToken } from '@/utils/entityToken';
-import { TENANT_ROUTE_PREFIXES } from '@/utils/tenantPaths';
+import { TENANT_ROUTE_PREFIXES, TENANT_PLACEHOLDER_SLUGS } from '@/utils/tenantPaths';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
 interface TenantContextValue {
@@ -71,13 +71,12 @@ const DEFAULT_TENANT_CONTEXT: TenantContextValue = {
 };
 
 const TENANT_PATH_REGEX = new RegExp(`^/(?:${TENANT_ROUTE_PREFIXES.join('|')})/([^/]+)`, 'i');
-const PLACEHOLDER_SLUGS = new Set(['iframe', 'embed', 'widget']);
 
 const sanitizeTenantSlug = (slug?: string | null) => {
   if (!slug) return null;
   const normalized = slug.trim();
   if (!normalized) return null;
-  return PLACEHOLDER_SLUGS.has(normalized.toLowerCase()) ? null : normalized;
+  return TENANT_PLACEHOLDER_SLUGS.has(normalized.toLowerCase()) ? null : normalized;
 };
 
 const readTenantFromConfig = (): { slug: string | null; widgetToken: string | null } => {
@@ -231,9 +230,9 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
       const info = await getTenantPublicInfoFlexible(slug, token);
       if (activeTenantRequest.current === requestId) {
         setTenant(info);
-        if (!currentSlugRef.current && info.slug) {
-          setCurrentSlug(info.slug);
-          currentSlugRef.current = info.slug;
+        if (info.slug) {
+           setCurrentSlug(info.slug);
+           currentSlugRef.current = info.slug;
         }
       }
     } catch (error) {
@@ -378,6 +377,11 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
     isCurrentTenantFollowed,
     followCurrentTenant,
     unfollowCurrentTenant,
+    setTenantSlug: (slug: string) => {
+        setCurrentSlug(slug);
+        currentSlugRef.current = slug;
+        if (slug) safeLocalStorage.setItem('tenantSlug', slug);
+    }
   }), [
     currentSlug,
     tenant,

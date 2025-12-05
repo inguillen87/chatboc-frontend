@@ -1,9 +1,10 @@
 import { useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Calendar, Newspaper, ClipboardCheck } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { motion } from 'framer-motion';
 
 import { TenantShell } from '@/components/tenant/TenantShell';
 import { listTenantEvents, listTenantNews } from '@/api/tenant';
@@ -46,7 +47,7 @@ const TenantHomePage = () => {
     return '';
   }, [currentSlug, params.tenant, tenant?.slug]);
 
-  const basePath = slug ? `/t/${encodeURIComponent(slug)}` : null;
+  const basePath = slug ? `/${encodeURIComponent(slug)}` : null;
 
   const newsQuery = useQuery<TenantNewsItem[]>({
     queryKey: ['tenant-news', slug],
@@ -76,10 +77,25 @@ const TenantHomePage = () => {
     return limitItems(surveysQuery.data, 3);
   }, [surveysQuery.data]);
 
+  const container = {
+    hidden: { opacity: 0 },
+    show: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1
+      }
+    }
+  };
+
+  const itemAnim = {
+    hidden: { opacity: 0, y: 20 },
+    show: { opacity: 1, y: 0 }
+  };
+
   return (
     <TenantShell>
       {!slug ? (
-        <Card>
+        <Card className="border-2 border-dashed">
           <CardHeader>
             <CardTitle>Seleccioná un espacio</CardTitle>
           </CardHeader>
@@ -90,12 +106,20 @@ const TenantHomePage = () => {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-8">
+        <motion.div
+          className="grid gap-8"
+          variants={container}
+          initial="hidden"
+          animate="show"
+        >
           <section className="space-y-4">
             <div className="flex items-center justify-between gap-3">
-              <h2 className="text-xl font-semibold">Noticias recientes</h2>
+              <div className="flex items-center gap-2">
+                <Newspaper className="h-5 w-5 text-primary" />
+                <h2 className="text-xl font-semibold">Noticias recientes</h2>
+              </div>
               {basePath ? (
-                <Button asChild variant="ghost" size="sm">
+                <Button asChild variant="ghost" size="sm" className="hover:bg-primary/10 hover:text-primary">
                   <Link to={`${basePath}/noticias`}>Ver todas</Link>
                 </Button>
               ) : null}
@@ -112,21 +136,37 @@ const TenantHomePage = () => {
             ) : newsItems.length ? (
               <div className="grid gap-4 md:grid-cols-3">
                 {newsItems.map((item) => (
-                  <article key={String(item.id)} className="rounded-2xl border bg-background/80 p-4 shadow-sm">
-                    <div className="space-y-2">
-                      {formatDate(item.publicado_at) ? (
-                        <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                          {formatDate(item.publicado_at)}
-                        </p>
-                      ) : null}
-                      <h3 className="text-base font-semibold leading-snug text-foreground">
-                        {item.titulo}
-                      </h3>
-                      {item.resumen ? (
-                        <p className="text-sm text-muted-foreground">{item.resumen}</p>
-                      ) : null}
+                  <motion.article
+                    key={String(item.id)}
+                    variants={itemAnim}
+                    whileHover={{ y: -5, transition: { duration: 0.2 } }}
+                    className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border bg-card text-card-foreground shadow-sm transition-shadow hover:shadow-md"
+                  >
+                    {item.cover_url && (
+                        <div className="aspect-video w-full overflow-hidden">
+                          <img
+                            src={item.cover_url}
+                            alt={item.titulo}
+                            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                          />
+                        </div>
+                    )}
+                    <div className="flex flex-1 flex-col p-4">
+                      <div className="space-y-2">
+                        {formatDate(item.publicado_at) ? (
+                          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                            {formatDate(item.publicado_at)}
+                          </p>
+                        ) : null}
+                        <h3 className="text-lg font-bold leading-tight tracking-tight">
+                          {item.titulo}
+                        </h3>
+                        {item.resumen ? (
+                          <p className="line-clamp-3 text-sm text-muted-foreground">{item.resumen}</p>
+                        ) : null}
+                      </div>
                     </div>
-                  </article>
+                  </motion.article>
                 ))}
               </div>
             ) : (
@@ -138,9 +178,12 @@ const TenantHomePage = () => {
 
           <section className="space-y-4">
             <div className="flex items-center justify-between gap-3">
-              <h2 className="text-xl font-semibold">Próximos eventos</h2>
+              <div className="flex items-center gap-2">
+                <Calendar className="h-5 w-5 text-primary" />
+                <h2 className="text-xl font-semibold">Próximos eventos</h2>
+              </div>
               {basePath ? (
-                <Button asChild variant="ghost" size="sm">
+                <Button asChild variant="ghost" size="sm" className="hover:bg-primary/10 hover:text-primary">
                   <Link to={`${basePath}/eventos`}>Ver calendario</Link>
                 </Button>
               ) : null}
@@ -157,29 +200,45 @@ const TenantHomePage = () => {
             ) : eventItems.length ? (
               <div className="grid gap-4 md:grid-cols-3">
                 {eventItems.map((event) => (
-                  <article key={String(event.id)} className="rounded-2xl border bg-background/80 p-4 shadow-sm">
-                    <div className="space-y-3">
-                      {formatDate(event.starts_at) ? (
-                        <Badge variant="secondary">{formatDate(event.starts_at)}</Badge>
-                      ) : null}
-                      <div className="space-y-1">
-                        <h3 className="text-base font-semibold leading-snug text-foreground">
-                          {event.titulo}
-                        </h3>
-                        {event.descripcion ? (
-                          <p className="text-sm text-muted-foreground line-clamp-3">{event.descripcion}</p>
+                  <motion.article
+                    key={String(event.id)}
+                    variants={itemAnim}
+                    whileHover={{ y: -5, transition: { duration: 0.2 } }}
+                    className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border bg-card text-card-foreground shadow-sm transition-shadow hover:shadow-md"
+                  >
+                    {event.cover_url && (
+                        <div className="aspect-video w-full overflow-hidden">
+                          <img
+                            src={event.cover_url}
+                            alt={event.titulo}
+                            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                          />
+                        </div>
+                    )}
+                    <div className="flex flex-1 flex-col p-4">
+                      <div className="space-y-3">
+                        {formatDate(event.starts_at) ? (
+                          <Badge variant="secondary" className="w-fit">{formatDate(event.starts_at)}</Badge>
+                        ) : null}
+                        <div className="space-y-1">
+                          <h3 className="text-lg font-bold leading-tight tracking-tight">
+                            {event.titulo}
+                          </h3>
+                          {event.descripcion ? (
+                            <p className="line-clamp-2 text-sm text-muted-foreground">{event.descripcion}</p>
+                          ) : null}
+                        </div>
+                        {formatDateTime(event.starts_at) ? (
+                          <p className="text-xs text-muted-foreground font-medium">
+                            {formatDateTime(event.starts_at)}
+                            {event.lugar ? ` · ${event.lugar}` : ''}
+                          </p>
+                        ) : event.lugar ? (
+                          <p className="text-xs text-muted-foreground font-medium">{event.lugar}</p>
                         ) : null}
                       </div>
-                      {formatDateTime(event.starts_at) ? (
-                        <p className="text-xs text-muted-foreground">
-                          {formatDateTime(event.starts_at)}
-                          {event.lugar ? ` · ${event.lugar}` : ''}
-                        </p>
-                      ) : event.lugar ? (
-                        <p className="text-xs text-muted-foreground">{event.lugar}</p>
-                      ) : null}
                     </div>
-                  </article>
+                  </motion.article>
                 ))}
               </div>
             ) : (
@@ -191,9 +250,12 @@ const TenantHomePage = () => {
 
           <section className="space-y-4">
             <div className="flex items-center justify-between gap-3">
-              <h2 className="text-xl font-semibold">Encuestas abiertas</h2>
+              <div className="flex items-center gap-2">
+                <ClipboardCheck className="h-5 w-5 text-primary" />
+                <h2 className="text-xl font-semibold">Encuestas abiertas</h2>
+              </div>
               {basePath ? (
-                <Button asChild variant="ghost" size="sm">
+                <Button asChild variant="ghost" size="sm" className="hover:bg-primary/10 hover:text-primary">
                   <Link to={`${basePath}/encuestas`}>Ver listado</Link>
                 </Button>
               ) : null}
@@ -210,19 +272,26 @@ const TenantHomePage = () => {
             ) : surveyItems.length ? (
               <div className="grid gap-4 md:grid-cols-3">
                 {surveyItems.map((survey) => (
-                  <article key={survey.slug} className="rounded-2xl border bg-background/80 p-4 shadow-sm">
-                    <div className="space-y-2">
-                      <h3 className="text-base font-semibold leading-snug text-foreground">
+                  <motion.article
+                    key={survey.slug}
+                    variants={itemAnim}
+                    whileHover={{ scale: 1.02, transition: { duration: 0.2 } }}
+                    className="flex flex-col justify-between rounded-2xl border bg-card p-5 shadow-sm transition-shadow hover:shadow-md"
+                  >
+                    <div className="space-y-3">
+                      <h3 className="text-lg font-bold leading-tight">
                         {survey.titulo}
                       </h3>
                       {survey.descripcion ? (
-                        <p className="text-sm text-muted-foreground line-clamp-3">{survey.descripcion}</p>
+                        <p className="line-clamp-3 text-sm text-muted-foreground">{survey.descripcion}</p>
                       ) : null}
-                      <Button asChild variant="outline" size="sm">
+                    </div>
+                    <div className="mt-4">
+                      <Button asChild className="w-full" size="sm">
                         <Link to={`${basePath}/encuestas/${survey.slug}`}>Participar</Link>
                       </Button>
                     </div>
-                  </article>
+                  </motion.article>
                 ))}
               </div>
             ) : (
@@ -231,7 +300,7 @@ const TenantHomePage = () => {
               </p>
             )}
           </section>
-        </div>
+        </motion.div>
       )}
     </TenantShell>
   );

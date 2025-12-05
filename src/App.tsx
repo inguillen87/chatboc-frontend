@@ -20,6 +20,7 @@ import useTicketUpdates from "./hooks/useTicketUpdates";
 import { TenantProvider } from "./context/TenantContext";
 import { GOOGLE_CLIENT_ID } from './env';
 import UserPortalLayout from "@/components/user-portal/layout/UserPortalLayout";
+import TokenRedirectWrapper from "@/components/TokenRedirectWrapper";
 
 const queryClient = new QueryClient();
 function AppRoutes() {
@@ -65,10 +66,11 @@ function AppRoutes() {
 
   return (
     <TenantProvider>
-      <Routes>
-        <Route element={<Layout />}>
-          {layoutRoutes.map(({ path, element, roles }) => (
-            <Route
+      <TokenRedirectWrapper>
+        <Routes>
+          <Route element={<Layout />}>
+            {layoutRoutes.map(({ path, element, roles }) => (
+              <Route
               key={path} // La key ya estaba correctamente aquí. No se requieren cambios.
               path={path}
               element={
@@ -78,30 +80,31 @@ function AppRoutes() {
                   element
                 )
               }
-            />
-          ))}
-        </Route>
-        {portalRoutes.length > 0 && (
-          <Route element={<UserPortalGuard allowGuestPaths={guestPortalPaths}><UserPortalLayout /></UserPortalGuard>}>
-            {portalRoutes.map(({ path, element }) => (
-              <Route key={path} path={path} element={element} />
+              />
             ))}
           </Route>
-        )}
-        {standaloneRoutes.map(({ path, element, roles }) => (
-          <Route
-            key={path}
-            path={path}
-            element={roles ? <ProtectedRoute roles={roles}>{element}</ProtectedRoute> : element}
-          />
-        ))}
-        <Route path="*" element={<NotFound />} />
-      </Routes>
+          {portalRoutes.length > 0 && (
+            <Route element={<UserPortalGuard allowGuestPaths={guestPortalPaths}><UserPortalLayout /></UserPortalGuard>}>
+              {portalRoutes.map(({ path, element }) => (
+                <Route key={path} path={path} element={element} />
+              ))}
+            </Route>
+          )}
+          {standaloneRoutes.map(({ path, element, roles }) => (
+            <Route
+              key={path}
+              path={path}
+              element={roles ? <ProtectedRoute roles={roles}>{element}</ProtectedRoute> : element}
+            />
+          ))}
+          <Route path="*" element={<NotFound />} />
+        </Routes>
 
-      {/* Monta el widget global SOLO si no estás en demo/integracion/login/register/iframe */}
-      {!ocultarWidgetGlobalEnApp && (
-        <ChatWidget mode="standalone" defaultOpen={false} />
-      )}
+        {/* Monta el widget global SOLO si no estás en demo/integracion/login/register/iframe */}
+        {!ocultarWidgetGlobalEnApp && (
+          <ChatWidget mode="standalone" defaultOpen={false} />
+        )}
+      </TokenRedirectWrapper>
     </TenantProvider>
   );
 }

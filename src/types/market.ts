@@ -1,62 +1,55 @@
 export interface MarketProduct {
   id: string;
   name: string;
-  description?: string | null;
-  descriptionShort?: string | null;
-  rating?: number | null;
-  ratingCount?: number | null;
-  price?: number | null;
-  points?: number | null;
-  imageUrl?: string | null;
-  category?: string | null;
-  tags?: string[] | null;
-  unit?: string | null;
-  quantity?: number | null;
-  sku?: string | null;
-  brand?: string | null;
-  promoInfo?: string | null;
-  publicUrl?: string | null;
+  description: string | null;
+  descriptionShort: string | null;
+  price: number | null;
+  priceText: string | null;
+  currency: string | null;
+  modality: string | null; // 'venta', 'puntos', 'donacion', etc.
+  points: number | null;
+  imageUrl: string | null;
+  category: string | null;
+  unit: string | null;
+  quantity: number | null; // Available stock
+  sku: string | null;
+  brand: string | null;
+  promoInfo: string | null;
+  publicUrl: string | null;
+  whatsappShareUrl: string | null;
+}
+
+export interface MarketCartItem extends MarketProduct {
+  quantity: number; // Quantity in cart
+}
+
+export interface MarketCartResponse {
+  items: MarketCartItem[];
+  totalAmount: number | null;
+  totalPoints: number | null;
+  cartUrl?: string | null;
   whatsappShareUrl?: string | null;
+  isDemo?: boolean;
 }
 
 export interface MarketCatalogSection {
   title: string;
-  description?: string | null;
-  badge?: string | null;
-  items?: MarketProduct[] | null;
+  description: string | null;
+  badge: string | null;
+  items?: MarketProduct[];
 }
 
 export interface MarketCatalogResponse {
   tenantName?: string;
   tenantLogoUrl?: string;
   products: MarketProduct[];
-  publicCartUrl?: string | null;
-  whatsappShareUrl?: string | null;
+  sections?: MarketCatalogSection[];
+  publicCartUrl: string | null;
+  whatsappShareUrl: string | null;
+  heroImageUrl: string | null;
+  heroSubtitle: string | null;
   isDemo?: boolean;
   demoReason?: string;
-  heroImageUrl?: string | null;
-  heroSubtitle?: string | null;
-  sections?: MarketCatalogSection[];
-}
-
-export interface MarketCartItem {
-  id: string;
-  name: string;
-  quantity: number;
-  price?: number | null;
-  points?: number | null;
-  imageUrl?: string | null;
-  priceText?: string | null;
-  currency?: string | null;
-  modality?: string | null;
-}
-
-export interface MarketCartResponse {
-  items: MarketCartItem[];
-  totalAmount?: number | null;
-  totalPoints?: number | null;
-  availableAmount?: number | null;
-  availablePoints?: number | null;
 }
 
 export interface AddToCartPayload {
@@ -65,11 +58,14 @@ export interface AddToCartPayload {
 }
 
 export interface CheckoutStartPayload {
-  name?: string;
-  phone: string;
+  items: Array<{ id: string; quantity: number }>;
+  customer?: Record<string, any>;
 }
 
 export interface CheckoutStartResponse {
-  status?: string;
+  checkoutUrl?: string;
+  preferenceId?: string;
+  orderId?: string | number;
+  status?: string; // 'pending', 'confirmed', 'demo'
   message?: string;
 }
