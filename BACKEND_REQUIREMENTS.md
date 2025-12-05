@@ -1,154 +1,202 @@
-# Backend Requirements for User Portal & Public Site
+# Backend Requirements for Chatboc Frontend (Updated)
 
-To fully power the User Portal and ensure synchronization across all channels (WhatsApp, Web Widget, Portal), the backend must provide the following endpoints.
+This document outlines the API endpoints and data structures required by the frontend to fully support the User Portal, Multi-tenant features, and Chat Widget.
 
-## Base URL Strategy
-- **Public API:** `/api/public/...` (Accessible without auth, scoped by `tenantSlug` query param or URL path)
-- **User Portal API:** `/api/v1/portal/:tenant_id/...` (Requires User Auth Token)
+## 1. Public Portal Content (Multi-tenant)
 
-## 1. Public Tenant Data (Landing Page / Widget / Guest Mode)
-These endpoints drive the `TenantHomePage` and the Chat Widget before login.
+**Endpoint:** `GET /api/portal/:tenant_slug/content`
 
-**Endpoint:** `GET /api/public/tenant?tenant_slug=:slug`
-**Purpose:** Basic branding and configuration.
+**Purpose:** Provides dynamic content for the user portal dashboard, including notifications, events, news, catalog items, and activities. This allows the frontend to render a personalized and branded experience for each tenant (municipio or pyme).
+
+**Response Body (JSON):**
+
+```json
+{
+  "notifications": [
+    {
+      "id": "string",
+      "title": "string",
+      "message": "string",
+      "severity": "info" | "success" | "warning" | "error",
+      "actionLabel": "string (optional)",
+      "actionHref": "string (optional)",
+      "date": "string (optional)"
+    }
+  ],
+  "events": [
+    {
+      "id": "string",
+      "title": "string",
+      "date": "string",
+      "location": "string",
+      "status": "inscripcion" | "proximo" | "finalizado",
+      "description": "string",
+      "spots": "number (optional)",
+      "registered": "number (optional)",
+      "coverUrl": "string (optional)"
+    }
+  ],
+  "news": [
+    {
+      "id": "string",
+      "title": "string",
+      "category": "string",
+      "date": "string",
+      "summary": "string",
+      "link": "string (optional)",
+      "featured": "boolean (optional)",
+      "coverUrl": "string (optional)"
+    }
+  ],
+  "catalog": [
+    {
+      "id": "string",
+      "title": "string",
+      "description": "string",
+      "category": "string",
+      "priceLabel": "string (optional)",
+      "status": "available" | "coming_soon" | "paused",
+      "imageUrl": "string (optional)"
+    }
+  ],
+  "activities": [
+    {
+      "id": "string",
+      "description": "string",
+      "type": "string",
+      "status": "string (optional)",
+      "statusType": "success" | "warning" | "info" | "error",
+      "date": "string (optional)",
+      "link": "string (optional)"
+    }
+  ],
+  "surveys": [
+    {
+      "id": "string",
+      "title": "string",
+      "link": "string (optional)"
+    }
+  ],
+  "loyaltySummary": {
+     "points": 1250,
+     "surveysCompleted": 5,
+     "suggestionsShared": 2,
+     "claimsFiled": 1,
+     "levelName": "Vecino Activo",
+     "nextLevelPoints": 2000
+  }
+}
+```
+
+**Notes:**
+- If the tenant does not exist, return `404`.
+- The frontend currently falls back to demo data if this endpoint fails or returns empty.
+- `coverUrl` and `imageUrl` should be absolute URLs or relative paths that the frontend can resolve.
+
+## 2. User Authentication & Registration
+
+**Endpoint:** `POST /api/auth/register`
+
+**Purpose:** Registers a new end-user (vecino/cliente).
+
+**Request Body:**
+
+```json
+{
+  "name": "John Doe",
+  "email": "john@example.com",
+  "password": "securePassword123",
+  "telefono": "+1234567890",
+  "acepto_terminos": true,
+  "empresa_token": "ENTITY_TOKEN_OF_TENANT",
+  "anon_id": "OPTIONAL_TRACKING_ID"
+}
+```
+
+**Response Body:**
+
+```json
+{
+  "id": 123,
+  "token": "JWT_TOKEN",
+  "name": "John Doe",
+  "email": "john@example.com",
+  "rol": "user",
+  "tenantSlug": "municipio-demo"
+}
+```
+
+**Notes:**
+- `empresa_token` is crucial for assigning the user to the correct tenant.
+- The backend should handle duplicate emails gracefully (409 Conflict).
+
+## 3. Product Catalog & Cart (Marketplace)
+
+**Endpoint:** `GET /pwa/public/:tenant_slug/productos`
+
+**Purpose:** Retrieves the list of products for the marketplace.
+
+**Response:** List of product objects (id, name, price, image_url, category, etc.).
+
+**Endpoint:** `POST /pwa/public/:tenant_slug/orders`
+
+**Purpose:** Submits an order.
+
+**Request Body:**
+```json
+{
+  "items": [{ "product_id": 1, "quantity": 2 }],
+  "customer_details": { ... },
+  "total": 100.00
+}
+```
+
+## 4. Socket.IO Events (Real-time Updates)
+
+**Namespace:** `/` (or configured path)
+
+**Events to Emit to Client:**
+- `tenant_content_update`: Triggers a refresh of the portal content.
+- `news_update`: Triggers a refresh of news.
+- `events_update`: Triggers a refresh of events.
+- `catalog_update`: Triggers a refresh of the catalog.
+
+**Client Connection Query Params:**
+- `tenant`: `tenant_slug`
+- `portal_user`: `true`
+
+## 5. Tenant Configuration
+
+**Endpoint:** `GET /pwa/tenant-info`
+
+**Query Params:**
+- `slug`: `tenant_slug` (optional if resolving by domain)
+- `domain`: `hostname` (optional)
+
 **Response:**
 ```json
 {
   "slug": "municipio-demo",
   "nombre": "Municipio Demo",
-  "logo_url": "...",
-  "tipo": "municipio", // or "pyme"
-  "tema": { "primaryColor": "#...", "secondaryColor": "#..." }
-}
-```
-
-**Endpoint:** `GET /api/public/news?tenant_slug=:slug`
-**Purpose:** Latest news for the landing page.
-**Response:** Array of News objects (see Section 3).
-
-**Endpoint:** `GET /api/public/events?tenant_slug=:slug`
-**Purpose:** Upcoming events for the landing page.
-**Response:** Array of Event objects (see Section 4).
-
-**Endpoint:** `GET /api/public/encuestas?tenant_slug=:slug`
-**Purpose:** Active public surveys.
-**Response:** Array of Survey objects.
-
----
-
-## 2. User Authentication & Registration
-
-**Endpoint:** `POST /api/auth/register`
-**Purpose:** Create a new end-user account associated with a specific tenant.
-**Payload:**
-```json
-{
-  "email": "user@example.com",
-  "password": "securePassword",
-  "nombre": "Juan Perez",
-  "telefono": "12345678",
-  "tenant_slug": "municipio-demo" // CRITICAL: Links user to this tenant
-}
-```
-**Response:** `{ "token": "jwt...", "user": { "id": 1, ... } }`
-
-**Endpoint:** `POST /api/auth/login`
-**Payload:** `{ "email": "...", "password": "...", "tenant_slug": "..." }`
-**Note:** Login should verify the user exists within the context of the requested tenant (or is a global user authorized for it).
-
----
-
-## 3. Order Processing & Sync
-
-**Endpoint:** `POST /api/v1/portal/:tenant_id/orders`
-**Purpose:** Submit a new order/request (Pedido/Reclamo).
-**Payload:** Standard cart payload (items, totals, shipping info).
-
-**Endpoint:** `GET /api/v1/portal/:tenant_id/orders`
-**Purpose:** List user's history.
-**Response:** Array of orders.
-
-**Important:** If a user creates a "Demo Order" as a guest (stored in local storage), the frontend might prompt them to "Sync" it after registration. The backend should support an endpoint to "Import" or "Claim" a guest order if implemented, OR simply rely on the user re-submitting the cart after login.
-
----
-
-## 4. User Portal Dashboard (Authenticated)
-**Endpoint:** `GET /api/v1/portal/:tenant_id/content`
-**Purpose:** Fetches a consolidated summary for the user dashboard.
-**Response JSON:**
-```json
-{
-  "notifications": [
-    {
-      "id": "notif_123",
-      "title": "Claim Update",
-      "message": "Your claim #456 has been resolved.",
-      "severity": "info",
-      "date": "2023-10-27T10:00:00Z",
-      "read": false,
-      "actionLabel": "View Claim",
-      "actionHref": "/portal/pedidos/456"
-    }
-  ],
-  "news": [], // Top 3 news for user
-  "events": [], // Top 3 upcoming events
-  "loyaltySummary": {
-    "points": 1250,
-    "surveysCompleted": 5,
-    "suggestionsShared": 2,
-    "claimsFiled": 1
+  "tema": {
+    "primaryColor": "#ff0000",
+    "secondaryColor": "#00ff00"
   },
-  "activities": [
-    {
-        "id": "act_1",
-        "type": "RECLAMO",
-        "description": "Poste de luz caído",
-        "date": "03/08/2024",
-        "status": "Recibido",
-        "statusType": "info"
-    }
-  ]
+  "entity_token": "TOKEN_123"
 }
 ```
 
-## 5. News Structure
+## 6. Loyalty & Points (Gamification)
+
+**Endpoint:** `GET /api/loyalty/summary`
+
+**Headers:** `Authorization: Bearer <user_token>`
+
+**Response:**
 ```json
 {
-  "id": "news_1",
-  "title": "Festival de Jazz",
-  "summary": "Join us for the annual Jazz Festival.",
-  "body": "HTML content...",
-  "cover_url": "https://example.com/image.jpg",
-  "publicado_at": "2023-10-28T10:00:00Z",
-  "tags": ["Cultura", "Eventos"]
+  "points": 1200,
+  "level": "Gold",
+  "history": [...]
 }
 ```
-
-## 6. Events Structure
-```json
-{
-  "id": "evt_1",
-  "title": "Vacunación Antirrábica",
-  "descripcion": "Description...",
-  "cover_url": "...",
-  "starts_at": "2023-11-01T14:00:00Z",
-  "ends_at": "2023-11-01T18:00:00Z",
-  "lugar": "Plaza Central"
-}
-```
-
-## 7. Integration Logic (WhatsApp & Widget)
-- **WhatsApp:** The webhook handler should use the `tenant_id` associated with the phone number to fetch the same News/Events data and serve it via text/interactive messages.
-- **Chat Widget:** The widget embeds the portal or specific flows. It should query these same endpoints using the `tenant_id` from the script tag configuration.
-- **Admin Panel:** Changes made in the Admin Panel (creating news/events) must write to the database tables that back these endpoints.
-
-## 8. Real-time Updates (Socket.IO)
-**Room Name:** `tenant_slug` (e.g., "municipio")
-
-**Events Emitted:**
-*   `tenant_content_update`: Generic signal that something changed.
-*   `news_update`: Signal that news items have changed.
-*   `events_update`: Signal that events have changed.
-
-**Triggers:**
-*   `POST /municipal/posts` (Create/Update News/Events).

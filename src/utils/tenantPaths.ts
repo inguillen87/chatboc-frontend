@@ -2,7 +2,38 @@ import { APP_TARGET } from '@/config';
 
 export const TENANT_ROUTE_PREFIXES = ['m', 'market', 't', 'tenant', 'municipio', 'pyme'] as const;
 
-const TENANT_PLACEHOLDER_SLUGS = new Set(['iframe', 'embed', 'widget']);
+export const TENANT_PLACEHOLDER_SLUGS = new Set([
+  'iframe',
+  'embed',
+  'widget',
+  'cart',
+  'productos',
+  'checkout',
+  'checkout-productos',
+  'perfil',
+  'user',
+  'login',
+  'register',
+  'portal',
+  'pedidos',
+  'reclamos',
+  'encuestas',
+  'tickets',
+  'opinar',
+  'integracion',
+  'documentacion',
+  'faqs',
+  'legal',
+  'chat',
+  'chatpos',
+  'chatcrm',
+  'admin',
+  'dashboard',
+  'analytics',
+  'settings',
+  'config',
+  'api'
+]);
 
 const isPlaceholderSlug = (slug?: string | null) => {
   if (!slug) return false;
