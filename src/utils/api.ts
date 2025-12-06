@@ -1,7 +1,7 @@
 // utils/api.ts
 
 import { API_BASE_CANDIDATES, BASE_API_URL, SAME_ORIGIN_PROXY_BASE } from '@/config';
-import { TENANT_ROUTE_PREFIXES } from '@/utils/tenantPaths';
+import { TENANT_ROUTE_PREFIXES, TENANT_PLACEHOLDER_SLUGS as SHARED_PLACEHOLDERS } from '@/utils/tenantPaths';
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import getOrCreateChatSessionId from "@/utils/chatSessionId"; // Import the new function
 import { getIframeToken } from "@/utils/config";
@@ -35,7 +35,12 @@ const parseDebugFlag = (value?: string | null): boolean => {
 };
 
 const TENANT_PATH_REGEX = new RegExp(`^/(?:${TENANT_ROUTE_PREFIXES.join("|")})/([^/]+)`, "i");
-const PLACEHOLDER_SLUGS = new Set(["iframe", "embed", "widget", "tenant"]);
+
+// Merge shared placeholders with API-specific ones
+const PLACEHOLDER_SLUGS = new Set([
+  ...SHARED_PLACEHOLDERS,
+  "public", "auth", "portal", "admin", "pwa", "static", "assets"
+]);
 
 const readTenantFromSubdomain = () => {
   if (typeof window === "undefined") return null;
@@ -123,13 +128,39 @@ const extractTenantFromPath = (rawPath?: string | null): string | null => {
 
   if (!normalizedPath) return null;
 
-  const apiMatch = normalizedPath.match(/^\/api\/([^/?#]+)/i);
-  if (apiMatch?.[1]) return sanitizeTenantSlug(apiMatch[1]);
+  // 1. Specific API patterns (Higher priority)
+  // Matches /api/public/tenants/:slug/...
+  const publicTenantMatch = normalizedPath.match(/^\/api\/public\/tenants\/([^/?#]+)/i);
+  if (publicTenantMatch?.[1]) {
+    const candidate = sanitizeTenantSlug(publicTenantMatch[1]);
+    if (candidate) return candidate;
+  }
 
+  // Matches /api/portal/:slug/...
+  const portalTenantMatch = normalizedPath.match(/^\/api\/portal\/([^/?#]+)/i);
+  if (portalTenantMatch?.[1]) {
+    const candidate = sanitizeTenantSlug(portalTenantMatch[1]);
+    if (candidate) return candidate;
+  }
+
+  // 2. Generic API match
+  // This might match /api/public/... -> 'public' (which is a placeholder)
+  const apiMatch = normalizedPath.match(/^\/api\/([^/?#]+)/i);
+  if (apiMatch?.[1]) {
+    const candidate = sanitizeTenantSlug(apiMatch[1]);
+    // If it's a valid tenant, return it.
+    // If it's a placeholder (like 'public'), we continue to try other patterns.
+    if (candidate) return candidate;
+  }
+
+  // 3. Frontend Routes
   const tenantRouteMatch = normalizedPath.match(
     new RegExp(`^/(?:${TENANT_ROUTE_PREFIXES.join("|")})/([^/?#]+)`, "i"),
   );
-  if (tenantRouteMatch?.[1]) return sanitizeTenantSlug(tenantRouteMatch[1]);
+  if (tenantRouteMatch?.[1]) {
+    const candidate = sanitizeTenantSlug(tenantRouteMatch[1]);
+    if (candidate) return candidate;
+  }
 
   return null;
 };
@@ -205,6 +236,20 @@ export const resolveTenantSlug = (
       safeLocalStorage.setItem("tenantSlug", resolved);
     } catch (error) {
       console.warn("[apiFetch] No se pudo persistir tenantSlug resuelto", error);
+    }
+  } else {
+    // Attempt to recover from entity token if tenant slug resolution failed
+    try {
+        const entityToken = safeLocalStorage.getItem("entityToken") ||
+            (typeof window !== "undefined" && (window as any).CHATBOC_CONFIG?.entityToken);
+
+        // This is a heuristic: if we have an entity token but no slug, we might be in a widget context
+        // where the slug is not yet resolved. We don't have a direct mapping here without an API call,
+        // but we can at least log this state or try to use a stored slug if available.
+        // For now, let's trust that inferTenantSlug covers most cases, but we might want to extend this
+        // to handle widget-specific config scenarios better in the future.
+    } catch (e) {
+        // ignore
     }
   }
 
