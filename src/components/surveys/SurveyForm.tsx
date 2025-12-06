@@ -22,6 +22,7 @@ import {
   type SurveyLocationMetadata,
   type SurveyPublic,
   type SurveyPregunta,
+  type SurveyLiveResults,
 } from '@/types/encuestas';
 import { requestLocation, type PositionCoords } from '@/utils/geolocation';
 import {
@@ -39,6 +40,8 @@ interface SurveyFormProps {
   submitErrorMessage?: string | null;
   submitErrorStatus?: number | null;
   duplicateDetected?: boolean;
+  liveResults?: SurveyLiveResults;
+  showLiveResults?: boolean;
 }
 
 interface AnswerState {
@@ -54,6 +57,8 @@ export const SurveyForm = ({
   submitErrorMessage,
   submitErrorStatus,
   duplicateDetected,
+  liveResults,
+  showLiveResults,
 }: SurveyFormProps) => {
   const initialState = useMemo(() => {
     const state: Record<number, AnswerState> = {};
@@ -599,6 +604,7 @@ export const SurveyForm = ({
                   value={dni}
                   onChange={(event) => setDni(event.target.value)}
                   placeholder="Ingresá tu número de documento"
+                  disabled={showLiveResults}
                 />
               </div>
             )}
@@ -611,12 +617,14 @@ export const SurveyForm = ({
                   value={phone}
                   onChange={(event) => setPhone(event.target.value)}
                   placeholder="Ingresá tu número de teléfono"
+                  disabled={showLiveResults}
                 />
               </div>
             )}
             {identityError && <p className="text-sm text-destructive">{identityError}</p>}
           </div>
         )}
+        {!survey.es_votacion_envivo && (
         <div className="rounded-lg border border-border bg-card/40 p-4 space-y-4">
           <div className="flex flex-col gap-1">
             <p className="text-sm font-medium">Datos demográficos y territoriales (opcional)</p>
@@ -630,6 +638,7 @@ export const SurveyForm = ({
               <Select
                 value={demographics.rangoEtario}
                 onValueChange={(value) => handleDemographicsChange('rangoEtario', value)}
+                disabled={showLiveResults}
               >
                 <SelectTrigger id="survey-age-range">
                   <SelectValue placeholder="Seleccioná tu rango etario" />
@@ -648,6 +657,7 @@ export const SurveyForm = ({
               <Select
                 value={demographics.genero}
                 onValueChange={(value) => handleDemographicsChange('genero', value)}
+                disabled={showLiveResults}
               >
                 <SelectTrigger id="survey-gender">
                   <SelectValue placeholder="Seleccioná una opción" />
@@ -674,6 +684,7 @@ export const SurveyForm = ({
                   handleDemographicsChange('generoDescripcion', value);
                 }}
                 placeholder="Ingresá cómo te identificás"
+                disabled={showLiveResults}
               />
             </div>
           ) : null}
@@ -683,6 +694,7 @@ export const SurveyForm = ({
               <Select
                 value={demographics.nivelEducativo}
                 onValueChange={(value) => handleDemographicsChange('nivelEducativo', value)}
+                disabled={showLiveResults}
               >
                 <SelectTrigger id="survey-education">
                   <SelectValue placeholder="Seleccioná una opción" />
@@ -701,6 +713,7 @@ export const SurveyForm = ({
               <Select
                 value={demographics.situacionLaboral}
                 onValueChange={(value) => handleDemographicsChange('situacionLaboral', value)}
+                disabled={showLiveResults}
               >
                 <SelectTrigger id="survey-employment">
                   <SelectValue placeholder="Seleccioná una opción" />
@@ -722,6 +735,7 @@ export const SurveyForm = ({
               value={demographics.ocupacion ?? ''}
               onChange={(event) => handleDemographicsChange('ocupacion', event.target.value)}
               placeholder="Ej: Comercio minorista, educación, salud"
+              disabled={showLiveResults}
             />
           </div>
           <div className="grid gap-4 md:grid-cols-2">
@@ -732,6 +746,7 @@ export const SurveyForm = ({
                 value={demographics.ubicacion?.pais ?? ''}
                 onChange={(event) => handleLocationFieldChange('pais', event.target.value)}
                 placeholder="Ej: Argentina"
+                disabled={showLiveResults}
               />
             </div>
             <div className="space-y-2">
@@ -741,6 +756,7 @@ export const SurveyForm = ({
                 value={demographics.ubicacion?.provincia ?? ''}
                 onChange={(event) => handleLocationFieldChange('provincia', event.target.value)}
                 placeholder="Ej: Santa Fe"
+                disabled={showLiveResults}
               />
             </div>
           </div>
@@ -752,6 +768,7 @@ export const SurveyForm = ({
                 value={demographics.ubicacion?.ciudad ?? ''}
                 onChange={(event) => handleLocationFieldChange('ciudad', event.target.value)}
                 placeholder="Ej: Rosario"
+                disabled={showLiveResults}
               />
             </div>
             <div className="space-y-2">
@@ -761,6 +778,7 @@ export const SurveyForm = ({
                 value={demographics.ubicacion?.barrio ?? ''}
                 onChange={(event) => handleLocationFieldChange('barrio', event.target.value)}
                 placeholder="Ej: Barrio Centro"
+                disabled={showLiveResults}
               />
             </div>
           </div>
@@ -772,6 +790,7 @@ export const SurveyForm = ({
                 value={demographics.ubicacion?.codigoPostal ?? ''}
                 onChange={(event) => handleLocationFieldChange('codigoPostal', event.target.value)}
                 placeholder="Ej: 2000"
+                disabled={showLiveResults}
               />
             </div>
             <div className="space-y-2">
@@ -781,6 +800,7 @@ export const SurveyForm = ({
                 value={demographics.tiempoResidencia ?? ''}
                 onChange={(event) => handleDemographicsChange('tiempoResidencia', event.target.value)}
                 placeholder="Ej: 5 años"
+                disabled={showLiveResults}
               />
             </div>
           </div>
@@ -792,7 +812,7 @@ export const SurveyForm = ({
               type="button"
               variant="secondary"
               onClick={handleRequestLocation}
-              disabled={geoStatus === 'loading'}
+              disabled={geoStatus === 'loading' || showLiveResults}
             >
               {geoStatus === 'loading' ? 'Obteniendo ubicación…' : 'Usar mi ubicación actual'}
             </Button>
@@ -808,6 +828,7 @@ export const SurveyForm = ({
             </p>
           ) : null}
         </div>
+        )}
         {survey.preguntas.map((pregunta) => (
           <div key={pregunta.id} className="space-y-3 border border-border rounded-lg p-4 bg-card/40">
             <div className="flex flex-col gap-1">
@@ -818,33 +839,81 @@ export const SurveyForm = ({
                 {pregunta.obligatoria ? 'Obligatoria' : 'Opcional'} · Tipo: {pregunta.tipo}
               </p>
             </div>
-            {pregunta.tipo === 'opcion_unica' && (
+            {(pregunta.tipo === 'opcion_unica' || pregunta.tipo === 'rating_emoji') && (
               <RadioGroup
                 value={(answers[pregunta.id]?.opcionIds?.[0] ?? '').toString()}
                 onValueChange={(value) => handleRadioChange(pregunta, value)}
-                className="space-y-2"
+                className={pregunta.tipo === 'rating_emoji' ? "flex flex-wrap gap-4 justify-center py-4" : "space-y-2"}
               >
-                {pregunta.opciones?.map((opcion) => (
-                  <Label
-                    key={opcion.id}
-                    htmlFor={`preg-${pregunta.id}-opc-${opcion.id}`}
-                    className="flex items-center gap-3 rounded-md border border-border/70 bg-background px-3 py-2 transition hover:border-primary"
-                  >
-                    <RadioGroupItem id={`preg-${pregunta.id}-opc-${opcion.id}`} value={opcion.id.toString()} />
-                    <span>{opcion.texto}</span>
-                  </Label>
-                ))}
+                {pregunta.opciones?.map((opcion) => {
+                  // Live results calculation
+                  const questionStats = showLiveResults && liveResults?.preguntas?.[String(pregunta.id)];
+                  const optionStats = questionStats?.opciones?.find((opt) => opt.id === opcion.id);
+                  const totalVotes = questionStats?.opciones?.reduce((acc, curr) => acc + curr.votos, 0) || 0;
+                  const percent = totalVotes > 0 && optionStats ? Math.round((optionStats.votos / totalVotes) * 100) : 0;
+
+                  return (
+                    <Label
+                      key={opcion.id}
+                      htmlFor={`preg-${pregunta.id}-opc-${opcion.id}`}
+                      className={
+                        pregunta.tipo === 'rating_emoji'
+                          ? "flex flex-col items-center gap-2 cursor-pointer p-4 rounded-xl border-2 border-transparent hover:bg-accent/50 transition-all [&:has([data-state=checked])]:border-primary [&:has([data-state=checked])]:bg-primary/5"
+                          : "flex items-center gap-3 rounded-md border border-border/70 bg-background px-3 py-2 transition hover:border-primary relative overflow-hidden"
+                      }
+                    >
+                      {pregunta.tipo !== 'rating_emoji' && (
+                        <RadioGroupItem id={`preg-${pregunta.id}-opc-${opcion.id}`} value={opcion.id.toString()} className="z-10" />
+                      )}
+
+                      {pregunta.tipo === 'rating_emoji' && (
+                         <div className="sr-only">
+                           <RadioGroupItem id={`preg-${pregunta.id}-opc-${opcion.id}`} value={opcion.id.toString()} />
+                         </div>
+                      )}
+
+                      <span className={pregunta.tipo === 'rating_emoji' ? "text-4xl select-none" : "z-10 relative"}>
+                        {opcion.texto}
+                      </span>
+
+                      {showLiveResults && pregunta.tipo !== 'rating_emoji' && (
+                        <div
+                          className="absolute left-0 top-0 bottom-0 bg-primary/10 transition-all duration-500"
+                          style={{ width: `${percent}%` }}
+                        />
+                      )}
+
+                      {showLiveResults && pregunta.tipo !== 'rating_emoji' && (
+                        <span className="ml-auto text-xs font-bold z-10 text-muted-foreground">
+                            {percent}% ({optionStats?.votos || 0})
+                        </span>
+                      )}
+
+                      {showLiveResults && pregunta.tipo === 'rating_emoji' && (
+                         <div className="text-sm font-bold mt-1 text-muted-foreground">
+                             {percent}%
+                         </div>
+                      )}
+                    </Label>
+                  );
+                })}
               </RadioGroup>
             )}
             {pregunta.tipo === 'multiple' && (
               <div className="flex flex-col gap-2">
                 {pregunta.opciones?.map((opcion) => {
                   const checked = answers[pregunta.id]?.opcionIds?.includes(opcion.id) ?? false;
+                  // Live results calculation
+                  const questionStats = showLiveResults && liveResults?.preguntas?.[String(pregunta.id)];
+                  const optionStats = questionStats?.opciones?.find((opt) => opt.id === opcion.id);
+                  const totalVotes = questionStats?.opciones?.reduce((acc, curr) => acc + curr.votos, 0) || 0;
+                  const percent = totalVotes > 0 && optionStats ? Math.round((optionStats.votos / totalVotes) * 100) : 0;
+
                   return (
                     <Label
                       key={opcion.id}
                       htmlFor={`preg-${pregunta.id}-opc-${opcion.id}`}
-                      className="flex items-center gap-3 rounded-md border border-border/70 bg-background px-3 py-2 transition hover:border-primary"
+                      className="flex items-center gap-3 rounded-md border border-border/70 bg-background px-3 py-2 transition hover:border-primary relative overflow-hidden"
                     >
                       <Checkbox
                         id={`preg-${pregunta.id}-opc-${opcion.id}`}
@@ -852,8 +921,22 @@ export const SurveyForm = ({
                         onCheckedChange={(state) =>
                           handleCheckboxToggle(pregunta, opcion.id, state === true)
                         }
+                        className="z-10"
                       />
-                      <span>{opcion.texto}</span>
+                      <span className="z-10 relative">{opcion.texto}</span>
+
+                      {showLiveResults && (
+                        <div
+                          className="absolute left-0 top-0 bottom-0 bg-primary/10 transition-all duration-500"
+                          style={{ width: `${percent}%` }}
+                        />
+                      )}
+
+                      {showLiveResults && (
+                        <span className="ml-auto text-xs font-bold z-10 text-muted-foreground">
+                            {percent}% ({optionStats?.votos || 0})
+                        </span>
+                      )}
                     </Label>
                   );
                 })}

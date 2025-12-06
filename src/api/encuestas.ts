@@ -6,6 +6,7 @@ import {
   PublicResponsePayload,
   SurveyAdmin,
   SurveyAnalyticsFilters,
+  SurveyComment,
   SurveyDraftPayload,
   SurveyHeatmapPoint,
   SurveyListResponse,
@@ -190,6 +191,12 @@ const normalizePreguntaTipo = (value: unknown): PreguntaTipo => {
     case 'open_text':
     case 'open_texto':
       return 'abierta';
+    case 'rating':
+    case 'rating_emoji':
+    case 'emoji':
+    case 'estrellas':
+    case 'stars':
+      return 'rating_emoji';
     default:
       return 'opcion_unica';
   }
@@ -415,7 +422,38 @@ export const postPublicResponse = (
     body: payload,
     omitCredentials: true,
     isWidgetRequest: true,
+    omitChatSessionId: true,
+    tenantSlug,
+    baseUrlOverride: PUBLIC_SURVEY_API_BASE,
+    omitEntityToken: true,
+  });
+
+export const getSurveyComments = (
+  slug: string,
+  tenantSlug?: string,
+  limit = 50,
+  offset = 0,
+): Promise<SurveyComment[]> =>
+  apiFetch(`/public/encuestas/${slug}/comentarios?limit=${limit}&offset=${offset}`, {
     skipAuth: true,
+    omitCredentials: true,
+    isWidgetRequest: true,
+    omitChatSessionId: true,
+    tenantSlug,
+    baseUrlOverride: PUBLIC_SURVEY_API_BASE,
+    omitEntityToken: true,
+  });
+
+export const postSurveyComment = (
+  slug: string,
+  payload: { texto: string; nombre?: string },
+  tenantSlug?: string,
+): Promise<SurveyComment> =>
+  apiFetch(`/public/encuestas/${slug}/comentarios`, {
+    method: 'POST',
+    body: payload,
+    omitCredentials: true,
+    isWidgetRequest: true,
     omitChatSessionId: true,
     tenantSlug,
     baseUrlOverride: PUBLIC_SURVEY_API_BASE,

@@ -1,5 +1,5 @@
 export type SurveyTipo = 'opinion' | 'votacion' | 'sondeo' | 'planificacion';
-export type PreguntaTipo = 'opcion_unica' | 'multiple' | 'abierta';
+export type PreguntaTipo = 'opcion_unica' | 'multiple' | 'abierta' | 'rating_emoji';
 
 export interface SurveyPreguntaOpcion {
   id: number;
@@ -36,6 +36,22 @@ export interface SurveyChannelAsset {
   [key: string]: unknown;
 }
 
+export interface SurveyLiveOptionResult {
+  id: number;
+  texto: string;
+  votos: number;
+}
+
+export interface SurveyLiveQuestionResult {
+  tipo: string;
+  opciones: SurveyLiveOptionResult[];
+}
+
+export interface SurveyLiveResults {
+  total_respuestas: number;
+  preguntas: Record<string, SurveyLiveQuestionResult>;
+}
+
 export interface SurveyPublic {
   id?: number;
   slug: string;
@@ -60,7 +76,24 @@ export interface SurveyPublic {
   difusion?: Record<string, unknown>;
   assets?: Record<string, unknown>;
   branding?: Record<string, unknown>;
+
+  // New fields for Live Voting
+  es_votacion_envivo?: boolean;
+  mostrar_resultados_envivo?: boolean;
+  permitir_comentarios?: boolean;
+  puntos_recompensa?: number;
+  resultados_envivo?: SurveyLiveResults;
+
   [key: string]: unknown;
+}
+
+export interface SurveyComment {
+  id: number;
+  texto: string;
+  nombre_autor?: string | null;
+  fecha: string;
+  user_id?: number | null;
+  anon_id?: string | null;
 }
 
 export type SurveyLocationPrecision = 'gps' | 'manual' | 'estimada';
@@ -144,6 +177,11 @@ export interface SurveyDraftPayload {
       valor?: string;
     }>;
   }>;
+
+  es_votacion_envivo?: boolean;
+  mostrar_resultados_envivo?: boolean;
+  permitir_comentarios?: boolean;
+  puntos_recompensa?: number;
 }
 
 export interface SurveyListResponse {
