@@ -141,12 +141,20 @@ const ChatUserLoginPanel: React.FC<Props> = ({ onSuccess, onShowRegister, entity
       payload.empresa_token = currentEntityToken;
       const anon = safeLocalStorage.getItem("anon_id");
       if (anon) payload.anon_id = anon;
+
+      const currentTenantSlug = resolveTenantSlug();
+
+      if (currentTenantSlug) {
+        payload.tenant_slug = currentTenantSlug;
+      }
+
       const data = await apiFetch<LoginResponse | { token: string; user?: LoginResponse }>("/auth/login", {
         method: "POST",
         body: payload,
         sendAnonId: true,
-        sendEntityToken: true,
         isWidgetRequest: true,
+        tenantSlug: currentTenantSlug,
+        entityToken: currentEntityToken,
       });
 
       const token = (data as any)?.token;

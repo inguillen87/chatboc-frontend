@@ -85,7 +85,6 @@ const Index = () => {
           <ComingSoonSection />
         </section>
       </main>
-      {showWidget && <ChatWidget mode="standalone" defaultOpen={false} />}
     </>
   );
 };
