@@ -144,6 +144,10 @@ const ChatUserLoginPanel: React.FC<Props> = ({ onSuccess, onShowRegister, entity
 
       const currentTenantSlug = resolveTenantSlug();
 
+      if (currentTenantSlug) {
+        payload.tenant_slug = currentTenantSlug;
+      }
+
       const data = await apiFetch<LoginResponse | { token: string; user?: LoginResponse }>("/auth/login", {
         method: "POST",
         body: payload,

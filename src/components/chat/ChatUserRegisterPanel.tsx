@@ -143,6 +143,11 @@ const ChatUserRegisterPanel: React.FC<Props> = ({ onSuccess, onShowLogin, entity
 
       const currentTenantSlug = resolveTenantSlug();
 
+      // Ensure tenant slug is explicitly sent in the payload
+      if (currentTenantSlug) {
+        payload.tenant_slug = currentTenantSlug;
+      }
+
       let data;
       try {
         data = await apiFetch<RegisterResponse | { token: string; user?: RegisterResponse }>("/auth/register", {
