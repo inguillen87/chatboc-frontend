@@ -68,7 +68,8 @@ export default function InternalUsers() {
     try {
       // Fetch employees
       const employeesData = await apiFetch<InternalUser[]>(
-        `/api/admin/tenants/${tenantSlug}/employees`
+        `/api/admin/employees`,
+        { tenantSlug }
       ).catch(err => {
          // Fallback if the endpoint structure returns { employees: [...] }
          if (err instanceof ApiError) throw err;
@@ -77,7 +78,8 @@ export default function InternalUsers() {
 
       // Fetch categories
       const categoriesData = await apiFetch<Category[]>(
-        `/api/admin/tenants/${tenantSlug}/ticket-categories`
+        `/api/admin/tenants/${tenantSlug}/ticket-categories`,
+        { tenantSlug }
       ).catch(() => []);
 
       // Adjust if response is wrapped
@@ -190,9 +192,10 @@ export default function InternalUsers() {
            // Wait, prompt has conflicting info?
            // Section 8.1 says "PUT /api/admin/tenants/<slug>/employees/<id>"
            // Section 3.1 lists POST endpoints.
-           // I'll try the PUT /api/admin/tenants/<slug>/employees/<id> as it matches the "Editar" description in 8.1.
-           await apiFetch(`/api/admin/tenants/${tenantSlug}/employees/${editingUser.id}`, {
+           // We switch to /api/admin/employees/:id to match POST /api/admin/employees convention
+           await apiFetch(`/api/admin/employees/${editingUser.id}`, {
                method: 'PUT',
+               headers: { 'X-Tenant': tenantSlug },
                body: payload
            });
        } catch (innerErr) {

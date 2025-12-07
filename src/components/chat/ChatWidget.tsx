@@ -17,13 +17,13 @@ const ChatPanel = React.lazy(() => import("./ChatPanel"));
 import ReadingRuler from "./ReadingRuler";
 import type { Prefs } from "./AccessibilityToggle";
 import { useCartCount } from "@/hooks/useCartCount";
-import { buildTenantNavigationUrl } from "@/utils/tenantPaths";
+import { buildTenantNavigationUrl, TENANT_PLACEHOLDER_SLUGS as SHARED_PLACEHOLDERS } from "@/utils/tenantPaths";
 import { TenantProvider, useTenant, useTenantContextPresence } from "@/context/TenantContext";
 import { MemoryRouter, useInRouterContext } from "react-router-dom";
 import { toast } from "sonner";
 import { tenantService } from "@/services/tenantService";
 
-const PLACEHOLDER_SLUGS = new Set(["iframe", "embed", "widget", "default"]);
+const PLACEHOLDER_SLUGS = new Set([...SHARED_PLACEHOLDERS, "default"]);
 
 const sanitizeTenantSlug = (slug?: string | null) => {
   if (!slug) return null;
@@ -262,23 +262,7 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
 
       if (segments[0]) {
         const maybeSlug = decodeURIComponent(segments[0]);
-        const reserved = new Set([
-          'login',
-          'register',
-          'productos',
-          'cart',
-          'checkout-productos',
-          'checkout',
-          'portal',
-          'widget',
-          'admin',
-          'iframe',
-          'embed',
-        ]);
-
-        if (!reserved.has(maybeSlug)) {
-          return sanitizeTenantSlug(maybeSlug);
-        }
+        return sanitizeTenantSlug(maybeSlug);
       }
     } catch (error) {
       console.warn('No se pudo resolver tenant_slug desde la URL', error);
