@@ -11,6 +11,7 @@ import GoogleLoginButton from "@/components/auth/GoogleLoginButton";
 import { isPasskeySupported, loginPasskey } from "@/services/passkeys";
 import { useTenant } from "@/context/TenantContext";
 import { buildTenantPath } from "@/utils/tenantPaths";
+import { normalizeRole } from "@/utils/roles";
 
 // Asegúrate de que esta interfaz refleje EXACTAMENTE lo que tu backend devuelve en /auth/login
 interface LoginResponse {
@@ -21,6 +22,9 @@ interface LoginResponse {
   plan: string;
   tipo_chat?: 'pyme' | 'municipio';
   entityToken?: string;
+  rol?: string;
+  tenantSlug?: string;
+  tenant_slug?: string;
 }
 
 const Login = () => {
@@ -33,6 +37,18 @@ const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isPasskeyAvailable, setIsPasskeyAvailable] = useState(false);
   const [isPasskeyLoading, setIsPasskeyLoading] = useState(false);
+
+  const getStoredRole = useCallback((): string | undefined => {
+    try {
+      const storedUser = safeLocalStorage.getItem("user");
+      if (storedUser) {
+        return JSON.parse(storedUser)?.rol as string | undefined;
+      }
+    } catch {
+      return undefined;
+    }
+    return undefined;
+  }, []);
 
   const navigateToTenantCatalog = useCallback(
     (tenantSlug?: string | null) => {
@@ -80,7 +96,13 @@ const Login = () => {
       }
 
       await refreshUser();
-      navigateToTenantCatalog(responseTenantSlug);
+      const normalizedRole = normalizeRole(data.rol || getStoredRole());
+
+      if (["admin", "super_admin", "empleado"].includes(normalizedRole)) {
+        navigate("/perfil");
+      } else {
+        navigateToTenantCatalog(responseTenantSlug);
+      }
 
     } catch (err) {
       if (err instanceof ApiError) {
@@ -117,7 +139,13 @@ const Login = () => {
         safeLocalStorage.setItem("tenantSlug", responseTenantSlug);
       }
       await refreshUser();
-      navigateToTenantCatalog(responseTenantSlug);
+      const normalizedRole = normalizeRole((result as any)?.rol || getStoredRole());
+
+      if (["admin", "super_admin", "empleado"].includes(normalizedRole)) {
+        navigate("/perfil");
+      } else {
+        navigateToTenantCatalog(responseTenantSlug);
+      }
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "No se pudo iniciar sesión con Passkey.";
