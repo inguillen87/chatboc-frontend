@@ -1,16 +1,28 @@
 import React, { useEffect } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
+import { Outlet, useLocation, useSearchParams } from 'react-router-dom';
 import Navbar from './Navbar';
 import Footer from './Footer';
 import ScrollToTopButton from '../ui/ScrollToTopButton';
 
 const Layout = () => {
   const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const isEmbed = searchParams.get('mode') === 'embed';
 
   // Scroll al top cada vez que cambias de ruta
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [location.pathname]);
+
+  if (isEmbed) {
+    return (
+      <div className="flex flex-col min-h-screen bg-transparent">
+        <main className="flex-1 w-full">
+          <Outlet />
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col min-h-screen bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 transition-colors duration-300">
