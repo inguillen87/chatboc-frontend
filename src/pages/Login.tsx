@@ -80,7 +80,21 @@ const Login = () => {
       }
 
       await refreshUser();
-      navigateToTenantCatalog(responseTenantSlug);
+
+      const rawUser = safeLocalStorage.getItem("user");
+      let isAdmin = false;
+      if (rawUser) {
+        const parsed = JSON.parse(rawUser);
+        if (parsed?.rol === "admin" || parsed?.rol === "superadmin" || parsed?.rol === "empleado") {
+          isAdmin = true;
+        }
+      }
+
+      if (isAdmin) {
+        navigate(buildTenantPath("/admin", responseTenantSlug));
+      } else {
+        navigateToTenantCatalog(responseTenantSlug);
+      }
 
     } catch (err) {
       if (err instanceof ApiError) {
@@ -117,7 +131,21 @@ const Login = () => {
         safeLocalStorage.setItem("tenantSlug", responseTenantSlug);
       }
       await refreshUser();
-      navigateToTenantCatalog(responseTenantSlug);
+
+      const rawUser = safeLocalStorage.getItem("user");
+      let isAdmin = false;
+      if (rawUser) {
+        const parsed = JSON.parse(rawUser);
+        if (parsed?.rol === "admin" || parsed?.rol === "superadmin" || parsed?.rol === "empleado") {
+          isAdmin = true;
+        }
+      }
+
+      if (isAdmin) {
+        navigate(buildTenantPath("/admin", responseTenantSlug));
+      } else {
+        navigateToTenantCatalog(responseTenantSlug);
+      }
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "No se pudo iniciar sesión con Passkey.";
