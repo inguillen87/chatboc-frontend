@@ -61,30 +61,63 @@ export default function InternalUsers() {
     [user]
   );
 
+  const tenantAwareFetch = useCallback(
+    async <T,>(paths: string[], options: Parameters<typeof apiFetch>[1] = {}) => {
+      let lastError: unknown = null;
+      for (const path of paths) {
+        try {
+          return await apiFetch<T>(path, { ...options, tenantSlug });
+        } catch (err: any) {
+          lastError = err;
+          if (err instanceof ApiError && err.status === 404) {
+            continue;
+          }
+          throw err;
+        }
+      }
+      throw lastError ?? new Error('No se pudo completar la solicitud.');
+    },
+    [tenantSlug]
+  );
+
   const fetchData = useCallback(async () => {
     if (!tenantSlug) return;
     setLoading(true);
     setError(null);
     try {
-      // Fetch employees
-      const employeesData = await apiFetch<InternalUser[]>(
-        `/api/admin/employees`,
-        { tenantSlug }
+      // Fetch employees (tenant-scoped preferred, fallback to legacy)
+      const employeesData = await tenantAwareFetch<InternalUser[] | EmployeesResponse>(
+        tenantSlug
+          ? [
+              `/api/admin/tenants/${tenantSlug}/employees`,
+              `/api/admin/employees`,
+            ]
+          : ['/api/admin/employees']
       ).catch(err => {
          // Fallback if the endpoint structure returns { employees: [...] }
          if (err instanceof ApiError) throw err;
-         return [];
+         return [] as InternalUser[];
       });
 
-      // Fetch categories
-      const categoriesData = await apiFetch<Category[]>(
-        `/api/admin/tenants/${tenantSlug}/ticket-categories`,
-        { tenantSlug }
-      ).catch(() => []);
+      // Extract employees and categories if included in the response
+      const list = Array.isArray(employeesData)
+        ? employeesData
+        : (employeesData as any).employees || [];
 
-      // Adjust if response is wrapped
-      const list = Array.isArray(employeesData) ? employeesData : (employeesData as any).employees || [];
-      const cats = Array.isArray(categoriesData) ? categoriesData : (categoriesData as any).ticket_categories || [];
+      let cats: Category[] = Array.isArray((employeesData as any)?.ticket_categories)
+        ? ((employeesData as any).ticket_categories as Category[])
+        : [];
+
+      // Fetch categories if they were not bundled with employees
+      if (cats.length === 0) {
+        const categoriesData = await tenantAwareFetch<Category[] | EmployeesResponse>([
+          `/api/admin/tenants/${tenantSlug}/ticket-categories`,
+        ]).catch(() => [] as Category[]);
+
+        cats = Array.isArray(categoriesData)
+          ? categoriesData
+          : ((categoriesData as any).ticket_categories as Category[]) || [];
+      }
 
       setEmployees(list);
       setCategories(cats);
@@ -94,7 +127,7 @@ export default function InternalUsers() {
     } finally {
       setLoading(false);
     }
-  }, [tenantSlug]);
+  }, [tenantSlug, tenantAwareFetch]);
 
   useEffect(() => {
     if (tenantSlug) {
@@ -119,13 +152,21 @@ export default function InternalUsers() {
         categories: categoriaIds
       };
 
-      await apiFetch('/api/admin/employees', {
-        method: 'POST',
-        headers: {
-          'X-Tenant': tenantSlug
-        },
-        body: payload
-      });
+      await tenantAwareFetch(
+        tenantSlug
+          ? [
+              `/api/admin/tenants/${tenantSlug}/employees`,
+              '/api/admin/employees',
+            ]
+          : ['/api/admin/employees'],
+        {
+          method: 'POST',
+          headers: {
+            'X-Tenant': tenantSlug
+          },
+          body: payload
+        }
+      );
 
       toast.success("Empleado creado correctamente.");
       fetchData();
@@ -164,18 +205,34 @@ export default function InternalUsers() {
 
     try {
        // Update roles
-       await apiFetch(`/api/admin/employees/${editingUser.id}/roles`, {
+       await tenantAwareFetch(
+         tenantSlug
+           ? [
+               `/api/admin/tenants/${tenantSlug}/employees/${editingUser.id}/roles`,
+               `/api/admin/employees/${editingUser.id}/roles`,
+             ]
+           : [`/api/admin/employees/${editingUser.id}/roles`],
+         {
            method: 'POST',
            headers: { 'X-Tenant': tenantSlug },
-           body: { roles: editRoles } // Assuming backend accepts list or single role
-       });
+           body: { roles: editRoles },
+         }
+       );
 
        // Update categories
-       await apiFetch(`/api/admin/employees/${editingUser.id}/categories`, {
+       await tenantAwareFetch(
+         tenantSlug
+           ? [
+               `/api/admin/tenants/${tenantSlug}/employees/${editingUser.id}/categories`,
+               `/api/admin/employees/${editingUser.id}/categories`,
+             ]
+           : [`/api/admin/employees/${editingUser.id}/categories`],
+         {
            method: 'POST',
            headers: { 'X-Tenant': tenantSlug },
-           body: { category_ids: editCategoriaIds }
-       });
+           body: { category_ids: editCategoriaIds },
+         }
+       );
 
        // Update basic info (if endpoint exists, assuming PUT /api/admin/employees/:id)
        // Note: The prompt didn't explicitly specify a basic info update endpoint
@@ -193,11 +250,19 @@ export default function InternalUsers() {
            // Section 8.1 says "PUT /api/admin/tenants/<slug>/employees/<id>"
            // Section 3.1 lists POST endpoints.
            // We switch to /api/admin/employees/:id to match POST /api/admin/employees convention
-           await apiFetch(`/api/admin/employees/${editingUser.id}`, {
+           await tenantAwareFetch(
+             tenantSlug
+               ? [
+                   `/api/admin/tenants/${tenantSlug}/employees/${editingUser.id}`,
+                   `/api/admin/employees/${editingUser.id}`,
+                 ]
+               : [`/api/admin/employees/${editingUser.id}`],
+             {
                method: 'PUT',
                headers: { 'X-Tenant': tenantSlug },
-               body: payload
-           });
+               body: payload,
+             }
+           );
        } catch (innerErr) {
            console.warn("Update info failed", innerErr);
        }

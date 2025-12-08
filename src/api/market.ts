@@ -60,9 +60,11 @@ export async function fetchMarketCart(tenantSlug: string): Promise<MarketCartRes
       omitChatSessionId: true,
     });
   } catch (error) {
-    if (error instanceof ApiError && (error.status === 404 || error.status === 401)) {
-       // Return empty demo cart on error to allow local cart logic to take over
-       return mockCartResponse();
+    if (error instanceof ApiError) {
+      // Return empty demo cart on auth, not found or server failures so the UI can continue with local cart logic
+      if ([401, 403, 404].includes(error.status) || error.status >= 500) {
+        return mockCartResponse();
+      }
     }
     throw error;
   }
