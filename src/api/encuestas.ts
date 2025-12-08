@@ -98,6 +98,10 @@ const shouldRetryAdminRequest = (error: unknown) => {
       return true;
     }
 
+    if (error.status === 401 || error.status === 403) {
+      return true;
+    }
+
     if (error.status >= 500) {
       return true;
     }
@@ -558,8 +562,14 @@ const normalizeSurveyListResponse = (payload: unknown): SurveyListResponse => {
   return { data: [] };
 };
 
-export const adminListSurveys = async (params?: QueryParams): Promise<SurveyListResponse> => {
-  const rawResponse = await callAdminSurveyEndpoint<SurveyListResponse | SurveyAdmin[]>(buildQueryString(params));
+export const adminListSurveys = async (
+  params?: QueryParams,
+  options?: ApiFetchOptions,
+): Promise<SurveyListResponse> => {
+  const rawResponse = await callAdminSurveyEndpoint<SurveyListResponse | SurveyAdmin[]>(
+    buildQueryString(params),
+    options,
+  );
   const normalized = normalizeSurveyListResponse(rawResponse);
   if (!Array.isArray(normalized.data)) {
     return normalized;
@@ -571,35 +581,46 @@ export const adminListSurveys = async (params?: QueryParams): Promise<SurveyList
   };
 };
 
-export const adminCreateSurvey = async (payload: SurveyDraftPayload): Promise<SurveyAdmin> => {
+export const adminCreateSurvey = async (
+  payload: SurveyDraftPayload,
+  options?: ApiFetchOptions,
+): Promise<SurveyAdmin> => {
   const survey = await callAdminSurveyEndpoint<SurveyAdmin>('', {
     method: 'POST',
     body: payload,
+    ...options,
   });
   return normalizeSurveyPreguntas(survey);
 };
 
-export const adminUpdateSurvey = async (id: number, payload: SurveyDraftPayload): Promise<SurveyAdmin> => {
+export const adminUpdateSurvey = async (
+  id: number,
+  payload: SurveyDraftPayload,
+  options?: ApiFetchOptions,
+): Promise<SurveyAdmin> => {
   const survey = await callAdminSurveyEndpoint<SurveyAdmin>(`${id}`, {
     method: 'PUT',
     body: payload,
+    ...options,
   });
   return normalizeSurveyPreguntas(survey);
 };
 
-export const adminDeleteSurvey = (id: number): Promise<void> =>
+export const adminDeleteSurvey = (id: number, options?: ApiFetchOptions): Promise<void> =>
   callAdminSurveyEndpoint(`${id}`, {
     method: 'DELETE',
+    ...options,
   });
 
-export const adminGetSurvey = async (id: number): Promise<SurveyAdmin> => {
-  const survey = await callAdminSurveyEndpoint<SurveyAdmin>(`${id}`);
+export const adminGetSurvey = async (id: number, options?: ApiFetchOptions): Promise<SurveyAdmin> => {
+  const survey = await callAdminSurveyEndpoint<SurveyAdmin>(`${id}`, options);
   return normalizeSurveyPreguntas(survey);
 };
 
-export const adminPublishSurvey = async (id: number): Promise<SurveyAdmin> => {
+export const adminPublishSurvey = async (id: number, options?: ApiFetchOptions): Promise<SurveyAdmin> => {
   const survey = await callAdminSurveyEndpoint<SurveyAdmin>(`${id}/publicar`, {
     method: 'POST',
+    ...options,
   });
   return normalizeSurveyPreguntas(survey);
 };
