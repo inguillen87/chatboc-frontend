@@ -148,6 +148,12 @@ const ChatUserLoginPanel: React.FC<Props> = ({ onSuccess, onShowRegister, entity
         payload.tenant_slug = currentTenantSlug;
       }
 
+      // Explicitly send X-Tenant header for login to ensure correct context binding if applicable
+      const headers: Record<string, string> = {};
+      if (currentTenantSlug) {
+        headers['X-Tenant'] = currentTenantSlug;
+      }
+
       const data = await apiFetch<LoginResponse | { token: string; user?: LoginResponse }>("/auth/login", {
         method: "POST",
         body: payload,
