@@ -583,8 +583,10 @@ export async function apiFetch<T>(
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  if (effectiveTenantSlug) {
-    headers["X-Tenant"] = effectiveTenantSlug;
+  // Ensure X-Tenant is sent if we have a resolved tenant, even if not explicitly passed
+  const headerTenant = effectiveTenantSlug || resolvedTenantSlug;
+  if (headerTenant) {
+    headers["X-Tenant"] = headerTenant;
   }
   // Si el endpoint necesita identificar usuario anónimo, mandá siempre el header "Anon-Id"
   if (((!token && anonId) || sendAnonId) && anonId) {
