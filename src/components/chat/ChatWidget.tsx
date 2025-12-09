@@ -378,6 +378,20 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
   const [proactiveMessage, setProactiveMessage] = useState<string | null>(null);
   const [showProactiveBubble, setShowProactiveBubble] = useState(false);
   const [proactiveCycle, setProactiveCycle] = useState(0);
+
+  // Landing Page Demo Force Open Logic
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.pathname === '/' && !safeLocalStorage.getItem('landing_demo_bubble_shown')) {
+       // Force a proactive bubble on the landing page to grab attention
+       const timer = setTimeout(() => {
+           setProactiveMessage("¡Hola! 👋 ¿Querés probar una demo interactiva?");
+           setShowProactiveBubble(true);
+           if (!muted) playProactiveSound();
+           safeLocalStorage.setItem('landing_demo_bubble_shown', '1');
+       }, 3000);
+       return () => clearTimeout(timer);
+    }
+  }, []);
   const [selectedRubro, setSelectedRubro] = useState<string | null>(() => extractRubroKey(initialRubro) ?? null);
   const [pendingRedirect, setPendingRedirect] = useState<"cart" | "market" | null>(null);
   const [authTokenState, setAuthTokenState] = useState<string | null>(() =>
