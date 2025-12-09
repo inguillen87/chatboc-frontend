@@ -85,11 +85,14 @@ export async function fetchMarketCatalog(tenantSlug: string): Promise<MarketCata
 }
 
 export async function addMarketItem(tenantSlug: string, payload: AddToCartPayload): Promise<MarketCartResponse> {
+  // Ensure we send the correct Content-Type and handle the response correctly
   return await apiFetch<MarketCartResponse>(`/api/${tenantSlug}/carrito`, {
     method: 'POST',
     body: payload,
     tenantSlug,
     omitChatSessionId: true,
+    // Explicitly request session persistence if needed by the backend
+    headers: { 'X-Persist-Session': 'true' }
   });
 }
 
