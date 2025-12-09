@@ -198,7 +198,19 @@ const resolveTenantBootstrap = (
     return { slug: storedSlug, widgetToken: null };
   }
 
-  return { slug: sanitizeTenantSlug(readTenantFromSubdomain()), widgetToken: null };
+  const subdomain = sanitizeTenantSlug(readTenantFromSubdomain());
+  if (subdomain) {
+    return { slug: subdomain, widgetToken: null };
+  }
+
+  // Fallback for public landing page demos (Chatboc.ar root)
+  // If we are on the landing page or generic paths without a tenant, default to 'municipio'
+  // so the public cart and widget work as a demo.
+  if (pathname === '/' || pathname === '/cart' || pathname === '/productos' || pathname === '/demo') {
+      return { slug: 'municipio', widgetToken: null };
+  }
+
+  return { slug: null, widgetToken: null };
 };
 
 export const TenantProvider = ({ children }: { children: ReactNode }) => {
