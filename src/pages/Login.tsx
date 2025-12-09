@@ -63,10 +63,20 @@ const Login = () => {
     setError("");
     setIsLoading(true);
 
+    const storedSlug = safeLocalStorage.getItem("tenantSlug");
+    const effectiveSlug = currentSlug || storedSlug;
+
+    const payload: any = { email, password };
+    if (effectiveSlug) {
+      payload.tenant_slug = effectiveSlug;
+      payload.tenant = effectiveSlug;
+    }
+
     try {
       const data = await apiFetch<LoginResponse>("/auth/login", {
         method: "POST",
-        body: { email, password },
+        body: payload,
+        tenantSlug: effectiveSlug || undefined,
       });
 
       safeLocalStorage.setItem("authToken", data.token);
