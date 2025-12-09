@@ -35,7 +35,7 @@ function AppRoutes() {
 
   // Ahora el array soporta rutas exactas y subrutas tipo "/integracion/preview"
   const rutasSinWidget = [
-    '/',
+    // '/', // ENABLE WIDGET ON LANDING PAGE
     "/iframe",
     "/login",
     "/register",
