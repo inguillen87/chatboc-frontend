@@ -76,6 +76,8 @@ const ADMIN_SURVEY_BASE_PATHS = [
   '/municipal/encuestas',
   '/admin/surveys',
   '/municipal/surveys/admin',
+  // Fallback to explicit tenant paths if generic ones fail
+  '/api/admin/encuestas',
 ] as const;
 
 const joinAdminPath = (base: string, suffix?: string) => {
@@ -94,6 +96,9 @@ const shouldRetryAdminRequest = (error: unknown) => {
       return true;
     }
 
+    // Retry 403/404 because we might be hitting a tenant-scoped endpoint
+    // that the current token isn't authorized for in that specific way,
+    // but a generic admin endpoint might work with X-Tenant.
     if (error.status === 404 || error.status === 405) {
       return true;
     }

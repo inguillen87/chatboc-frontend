@@ -86,6 +86,8 @@ export default function InternalUsers() {
     setError(null);
     try {
       // Fetch employees (tenant-scoped preferred, fallback to legacy)
+      // Note: If /api/admin/tenants/:slug/employees returns 403, we should fallback to global endpoint
+      // assuming the token has permissions but maybe not via the tenant-scoped path if routing is strict.
       const employeesData = await tenantAwareFetch<InternalUser[] | EmployeesResponse>(
         tenantSlug
           ? [
@@ -93,7 +95,22 @@ export default function InternalUsers() {
               `/api/admin/employees`,
             ]
           : ['/api/admin/employees']
-      ).catch(err => {
+      ).catch(async (err) => {
+         if (err instanceof ApiError && (err.status === 403 || err.status === 404)) {
+            // Try explicit fallback to non-tenant path if not already tried implicitly
+            if (tenantSlug) {
+                try {
+                    return await apiFetch<InternalUser[] | EmployeesResponse>('/api/admin/employees', {
+                        tenantSlug,
+                        headers: { 'X-Tenant': tenantSlug }
+                    });
+                } catch (fallbackErr) {
+                    throw fallbackErr;
+                }
+            }
+         }
+         throw err;
+      }).catch(err => {
          // Fallback if the endpoint structure returns { employees: [...] }
          if (err instanceof ApiError) throw err;
          return [] as InternalUser[];
