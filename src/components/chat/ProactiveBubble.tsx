@@ -34,7 +34,7 @@ const ProactiveBubble: React.FC<ProactiveBubbleProps> = ({
       }}
     >
       <div
-        className="relative bg-primary text-primary-foreground px-4 py-3 rounded-lg shadow-lg font-semibold"
+        className="relative bg-primary text-primary-foreground px-4 py-3 rounded-lg shadow-lg font-semibold transition-colors duration-300"
         style={{
             boxShadow: 'var(--shadow)',
             animation: 'pulse-shadow 3s ease-in-out infinite',
@@ -42,7 +42,7 @@ const ProactiveBubble: React.FC<ProactiveBubbleProps> = ({
       >
         <span className="block">{message}</span>
         <div
-          className="absolute left-full top-1/2 -translate-y-1/2 w-0 h-0"
+          className="absolute left-full top-1/2 -translate-y-1/2 w-0 h-0 transition-colors duration-300"
           style={{
             borderTop: '10px solid transparent',
             borderBottom: '10px solid transparent',

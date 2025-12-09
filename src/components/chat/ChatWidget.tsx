@@ -103,6 +103,13 @@ const PROACTIVE_MESSAGES = [
   "¿Tenés consultas? ¡Preguntame!",
 ];
 
+const LANDING_PROACTIVE_MESSAGES = [
+  "¡Hola! 👋 ¿Querés probar una demo interactiva?",
+  "Probá nuestro asistente inteligente gratis 🤖",
+  "Descubrí cómo automatizar tus ventas 🚀",
+  "¿Hablamos? Estoy acá para ayudarte 😊"
+];
+
 const LS_KEY = "chatboc_accessibility";
 
 const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
@@ -379,19 +386,39 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
   const [showProactiveBubble, setShowProactiveBubble] = useState(false);
   const [proactiveCycle, setProactiveCycle] = useState(0);
 
-  // Landing Page Demo Force Open Logic
+  // Landing Page Demo Force Open Logic (Enhanced with multiple messages)
   useEffect(() => {
-    if (typeof window !== 'undefined' && window.location.pathname === '/' && !safeLocalStorage.getItem('landing_demo_bubble_shown')) {
-       // Force a proactive bubble on the landing page to grab attention
+    const isLanding = typeof window !== 'undefined' && window.location.pathname === '/';
+    if (!isLanding) return;
+
+    if (!safeLocalStorage.getItem('landing_demo_bubble_shown')) {
+       // Initial force show
        const timer = setTimeout(() => {
-           setProactiveMessage("¡Hola! 👋 ¿Querés probar una demo interactiva?");
+           setProactiveMessage(LANDING_PROACTIVE_MESSAGES[0]);
            setShowProactiveBubble(true);
            if (!muted) playProactiveSound();
            safeLocalStorage.setItem('landing_demo_bubble_shown', '1');
        }, 3000);
        return () => clearTimeout(timer);
+    } else if (!isOpen) {
+        // Rotate messages on landing page if already shown once but closed
+        const cycleTimer = setInterval(() => {
+            if (isOpen || showProactiveBubble) return;
+            const nextIdx = (proactiveCycle + 1) % LANDING_PROACTIVE_MESSAGES.length;
+            setProactiveMessage(LANDING_PROACTIVE_MESSAGES[nextIdx]);
+            setShowProactiveBubble(true);
+            if (!muted) playProactiveSound(); // Optional: maybe too noisy to repeat sound?
+
+            // Auto hide after some seconds
+            setTimeout(() => {
+                setShowProactiveBubble(false);
+                setProactiveCycle(prev => prev + 1);
+            }, 6000);
+        }, 20000); // Check every 20s
+
+        return () => clearInterval(cycleTimer);
     }
-  }, []);
+  }, [isOpen, showProactiveBubble, proactiveCycle, muted]);
   const [selectedRubro, setSelectedRubro] = useState<string | null>(() => extractRubroKey(initialRubro) ?? null);
   const [pendingRedirect, setPendingRedirect] = useState<"cart" | "market" | null>(null);
   const [authTokenState, setAuthTokenState] = useState<string | null>(() =>
