@@ -83,14 +83,20 @@ const Login = () => {
 
       const rawUser = safeLocalStorage.getItem("user");
       let isAdmin = false;
+      let isSuperAdmin = false;
       if (rawUser) {
         const parsed = JSON.parse(rawUser);
-        if (parsed?.rol === "admin" || parsed?.rol === "superadmin" || parsed?.rol === "empleado") {
+        if (parsed?.rol === "super_admin" || parsed?.rol === "superadmin") {
+          isSuperAdmin = true;
+        }
+        if (parsed?.rol === "admin" || parsed?.rol === "superadmin" || parsed?.rol === "empleado" || parsed?.rol === "super_admin") {
           isAdmin = true;
         }
       }
 
-      if (isAdmin) {
+      if (isSuperAdmin) {
+        navigate("/superadmin");
+      } else if (isAdmin) {
         navigate(buildTenantPath("/perfil", responseTenantSlug));
       } else {
         navigateToTenantCatalog(responseTenantSlug);
@@ -134,14 +140,20 @@ const Login = () => {
 
       const rawUser = safeLocalStorage.getItem("user");
       let isAdmin = false;
+      let isSuperAdmin = false;
       if (rawUser) {
         const parsed = JSON.parse(rawUser);
-        if (parsed?.rol === "admin" || parsed?.rol === "superadmin" || parsed?.rol === "empleado") {
+        if (parsed?.rol === "super_admin" || parsed?.rol === "superadmin") {
+          isSuperAdmin = true;
+        }
+        if (parsed?.rol === "admin" || parsed?.rol === "superadmin" || parsed?.rol === "empleado" || parsed?.rol === "super_admin") {
           isAdmin = true;
         }
       }
 
-      if (isAdmin) {
+      if (isSuperAdmin) {
+        navigate("/superadmin");
+      } else if (isAdmin) {
         navigate(buildTenantPath("/perfil", responseTenantSlug));
       } else {
         navigateToTenantCatalog(responseTenantSlug);

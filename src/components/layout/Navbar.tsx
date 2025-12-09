@@ -18,6 +18,8 @@ import {
   Tag,
   ScrollText,
   Layout,
+  UserCog,
+  Database,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -61,6 +63,7 @@ const Navbar: React.FC = () => {
       { to: "/tickets", label: "Tickets", icon: TicketIcon },
       { to: "/pedidos", label: "Pedidos", icon: ClipboardList },
       { to: "/usuarios", label: "Usuarios", icon: Users },
+      { to: "/empleados", label: "Empleados", icon: UserCog },
     ];
 
     if (isMunicipal) {
@@ -74,6 +77,11 @@ const Navbar: React.FC = () => {
     });
 
     links.push({ to: "/logs", label: "Logs", icon: ScrollText });
+
+    if (userRole === "super_admin" || userRole === "superadmin") {
+      links.push({ to: "/superadmin", label: "Super Admin", icon: Database });
+    }
+
     links.push({ to: buildTenantPath("/", currentSlug), label: "Ver Portal", icon: Layout });
 
     return links;
