@@ -148,6 +148,12 @@ const ChatUserRegisterPanel: React.FC<Props> = ({ onSuccess, onShowLogin, entity
         payload.tenant_slug = currentTenantSlug;
       }
 
+      // Explicitly send X-Tenant header for registration to ensure correct context binding
+      const headers: Record<string, string> = {};
+      if (currentTenantSlug) {
+        headers['X-Tenant'] = currentTenantSlug;
+      }
+
       let data;
       try {
         data = await apiFetch<RegisterResponse | { token: string; user?: RegisterResponse }>("/auth/register", {
