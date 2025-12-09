@@ -33,6 +33,7 @@ export interface ProductDetails {
   modalidad?: 'venta' | 'puntos' | 'donacion' | string | null;
   instrucciones_entrega?: string | null;
   origen?: 'api' | 'demo';
+  disponible?: boolean;
 }
 
 export interface AddToCartOptions {

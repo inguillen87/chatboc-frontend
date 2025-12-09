@@ -40,6 +40,7 @@ const mockCatalogResponse = (): MarketCatalogResponse => {
     promoInfo: p.promocion_activa ?? null,
     publicUrl: null,
     whatsappShareUrl: null,
+    disponible: true,
   }));
 
   return {

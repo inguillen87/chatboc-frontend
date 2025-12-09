@@ -42,7 +42,8 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
     setIsDemo(false);
     fetchMarketCatalog(tenantSlug)
       .then((response) => {
-        setProducts(response?.products ?? []);
+        const availableProducts = (response?.products ?? []).filter(p => p.disponible !== false);
+        setProducts(availableProducts);
         setIsDemo(Boolean(response?.isDemo));
         setShareMeta({
           publicCartUrl: response?.publicCartUrl ?? null,

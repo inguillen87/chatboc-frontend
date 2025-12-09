@@ -17,6 +17,7 @@ export interface MarketProduct {
   promoInfo: string | null;
   publicUrl: string | null;
   whatsappShareUrl: string | null;
+  disponible?: boolean;
 }
 
 export interface MarketCartItem extends MarketProduct {

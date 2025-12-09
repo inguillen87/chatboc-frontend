@@ -253,7 +253,8 @@ export default function MarketCartPage() {
   const fallbackCatalog = useMemo(() => buildDemoMarketCatalog(tenantSlug).catalog, [tenantSlug]);
   const catalogData = catalogQuery.data ?? (catalogQuery.isError ? fallbackCatalog : undefined);
   const catalogProducts: MarketProduct[] = catalogData?.products ?? [];
-  const cartItems: MarketCartItem[] = cartQuery.data?.items ?? [];
+  const rawCatalogProducts: MarketProduct[] = catalogData?.products ?? [];
+  const catalogProducts = useMemo(() => rawCatalogProducts.filter(p => p.disponible !== false), [rawCatalogProducts]);
   const catalogServerError = catalogQuery.error instanceof ApiError && catalogQuery.error.status >= 500;
   const cartServerError = cartQuery.error instanceof ApiError && cartQuery.error.status >= 500;
   const catalogErrorMessage = catalogServerError
