@@ -91,7 +91,7 @@ const Login = () => {
       }
 
       if (isAdmin) {
-        navigate(buildTenantPath("/admin", responseTenantSlug));
+        navigate(buildTenantPath("/perfil", responseTenantSlug));
       } else {
         navigateToTenantCatalog(responseTenantSlug);
       }
@@ -142,7 +142,7 @@ const Login = () => {
       }
 
       if (isAdmin) {
-        navigate(buildTenantPath("/admin", responseTenantSlug));
+        navigate(buildTenantPath("/perfil", responseTenantSlug));
       } else {
         navigateToTenantCatalog(responseTenantSlug);
       }

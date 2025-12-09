@@ -17,6 +17,7 @@ import {
   ShoppingCart,
   Tag,
   ScrollText,
+  Layout,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -73,9 +74,10 @@ const Navbar: React.FC = () => {
     });
 
     links.push({ to: "/logs", label: "Logs", icon: ScrollText });
+    links.push({ to: buildTenantPath("/", currentSlug), label: "Ver Portal", icon: Layout });
 
     return links;
-  }, [analyticsPath, isAdminLike, isMunicipal]);
+  }, [analyticsPath, isAdminLike, isMunicipal, currentSlug]);
   const storedUserRaw = useMemo(
     () => (isLoggedIn ? safeLocalStorage.getItem("user") : null),
     [isLoggedIn],

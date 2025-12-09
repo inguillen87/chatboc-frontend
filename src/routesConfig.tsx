@@ -251,6 +251,7 @@ const routes: RouteConfig[] = [
   { path: '/:tenant', element: <TenantHomePage /> }, // Support root level /:slug
 
   // Global Routes
+  { path: '/admin', element: <Navigate to="/perfil" replace /> },
   { path: '/login', element: <Login /> },
   { path: '/register', element: <Register /> },
   { path: '/user/login', element: <UserLogin /> },

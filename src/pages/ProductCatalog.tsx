@@ -20,6 +20,8 @@ import { useUser } from '@/hooks/useUser';
 import { buildTenantApiPath, buildTenantPath } from '@/utils/tenantPaths';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 
 export default function ProductCatalog() {
   const [allProducts, setAllProducts] = useState<ProductDetails[]>([]);
@@ -62,6 +64,10 @@ export default function ProductCatalog() {
   );
   const shouldShowDemoLoyalty = catalogSource === 'fallback' || cartMode === 'local';
   const shouldShowLiveLoyalty = !shouldShowDemoLoyalty && !!user;
+  const isAdmin = useMemo(() => {
+    const r = user?.rol?.toLowerCase();
+    return r === 'admin' || r === 'super_admin' || r === 'empleado';
+  }, [user?.rol]);
 
   const sharedRequestOptions = useMemo(
     () => ({
@@ -135,9 +141,14 @@ export default function ProductCatalog() {
 
     apiFetch<unknown>(productsApiPath, sharedRequestOptions)
       .then((data) => {
-        const normalized = normalizeProductsPayload(data, 'ProductCatalog').map((item) =>
-          enhanceProductDetails({ ...item, origen: 'api' as const }),
-        );
+          let normalized = normalizeProductsPayload(data, 'ProductCatalog')
+            .map((item) => enhanceProductDetails({ ...item, origen: 'api' as const }));
+
+          // Admins see all products (to manage them), public only sees available ones
+          if (!isAdmin) {
+             normalized = normalized.filter((item) => item.disponible !== false);
+          }
+
         if (normalized.length === 0) {
           activateDemoCatalog();
         } else {
@@ -198,6 +209,30 @@ export default function ProductCatalog() {
       ...Array.from(unique.entries()).map(([value, label]) => ({ value, label })),
     ];
   }, [allProducts]);
+
+  const handleToggleAvailability = async (product: ProductDetails) => {
+    if (!effectiveTenantSlug || !product.id) return;
+    const newStatus = !product.disponible;
+    const originalProducts = [...allProducts];
+
+    // Optimistic update
+    setAllProducts(prev => prev.map(p => p.id === product.id ? { ...p, disponible: newStatus } : p));
+
+    try {
+        // Use PUT to update the product. Assuming generic product update endpoint.
+        await apiFetch(`/api/${effectiveTenantSlug}/productos/${product.id}`, {
+            method: 'PUT',
+            body: { disponible: newStatus },
+            tenantSlug: effectiveTenantSlug
+        });
+        toast({ title: "Producto actualizado", description: `Disponibilidad cambiada a: ${newStatus ? 'Disponible' : 'No disponible'}` });
+    } catch (err) {
+        // Revert on error
+        setAllProducts(originalProducts);
+        toast({ variant: "destructive", title: "Error", description: "No se pudo actualizar el producto." });
+        console.error("Failed to toggle availability", err);
+    }
+  };
 
   const handleAddToCart = async (product: ProductDetails, options: AddToCartOptions) => {
     const isPointsProduct = (product.modalidad ?? '').toString().toLowerCase() === 'puntos';
@@ -457,11 +492,26 @@ export default function ProductCatalog() {
       {filteredProducts.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {filteredProducts.map((product) => (
-            <ProductCard
-              key={product.id}
-              product={product}
-              onAddToCart={handleAddToCart}
-            />
+            <div key={product.id} className="relative group">
+                {isAdmin && (
+                    <div className="absolute top-2 right-2 z-10 bg-background/90 p-1.5 rounded-full border shadow-sm flex items-center gap-2">
+                        <Label htmlFor={`avail-${product.id}`} className="sr-only">Disponible</Label>
+                        <Switch
+                            id={`avail-${product.id}`}
+                            checked={product.disponible !== false}
+                            onCheckedChange={() => handleToggleAvailability(product)}
+                            className="scale-75"
+                        />
+                        <span className="text-[10px] font-semibold text-muted-foreground uppercase">{product.disponible === false ? 'Oculto' : 'Visible'}</span>
+                    </div>
+                )}
+                <div className={product.disponible === false ? 'opacity-60 grayscale' : ''}>
+                    <ProductCard
+                    product={product}
+                    onAddToCart={handleAddToCart}
+                    />
+                </div>
+            </div>
           ))}
         </div>
       ) : (
