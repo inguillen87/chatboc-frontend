@@ -1,38 +1,38 @@
 import React from 'react';
-import { MessageSquareText, Users, ShoppingBag, Vote, BarChart2, Map } from 'lucide-react';
+import { MessageSquareText, Users, ShoppingBag, Gift, BarChart2, Map } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 
 const solutionFeatures = [
   {
-    icon: <Vote className="h-10 w-10 text-primary" />,
-    title: "Participación Ciudadana en Tiempo Real",
-    description: "Realiza encuestas y votaciones en vivo (estilo YouTube). Involucra a la comunidad en decisiones clave con transparencia y rapidez."
+    icon: <MessageSquareText className="h-10 w-10 text-primary" />,
+    title: "Agentes IA Inteligentes",
+    description: "No son chatbots estáticos. Son Agentes que entienden el contexto, responden naturalmente y guían al usuario sin necesidad de flujos rígidos."
   },
   {
     icon: <ShoppingBag className="h-10 w-10 text-primary" />,
-    title: "Marketplace para Municipios y Comercios",
-    description: "Crea tu propio mercado digital. Permite que comercios locales ofrezcan productos y servicios, fomentando la economía local desde una plataforma unificada."
+    title: "Marketplace Automático",
+    description: "Sube tu catálogo y listo. La plataforma genera tu tienda online automáticamente, permitiendo a comercios vender y a vecinos comprar en minutos."
+  },
+  {
+    icon: <Gift className="h-10 w-10 text-primary" />,
+    title: "Participación y Recompensas",
+    description: "Fomenta la participación ciudadana. Los usuarios suman puntos por votar o interactuar, que luego pueden canjear por vouchers o beneficios."
   },
   {
     icon: <Map className="h-10 w-10 text-primary" />,
-    title: "Mapas de Calor y Geolocalización",
-    description: "Visualiza dónde están los problemas y las oportunidades. Detecta zonas de alta demanda o incidencia con mapas de calor interactivos."
+    title: "Mapas de Calor y Territorio",
+    description: "Visualiza la actividad en tiempo real. Detecta zonas de mayor demanda, reclamos o ventas con mapas de calor interactivos y precisos."
   },
   {
     icon: <BarChart2 className="h-10 w-10 text-primary" />,
-    title: "Analíticas Inteligentes y Métricas",
-    description: "Toma decisiones basadas en datos. Paneles de control avanzados que te muestran tendencias, satisfacción y comportamiento de usuarios al instante."
-  },
-  {
-    icon: <MessageSquareText className="h-10 w-10 text-primary" />,
-    title: "Chatbots IA y Atención 24/7",
-    description: "Automatiza la atención al vecino y al cliente. Asistentes virtuales que entienden lenguaje natural y resuelven consultas en cualquier momento."
+    title: "Analíticas y Dashboards",
+    description: "Todo lo que necesitas ver en un solo lugar. Métricas claras de satisfacción, tiempos de respuesta y engagement para Gobiernos y Pymes."
   },
   {
     icon: <Users className="h-10 w-10 text-primary" />,
-    title: "CRM y Gestión de Relaciones",
-    description: "Centraliza la información de tus ciudadanos o clientes. Segmenta, comunica y construye relaciones duraderas con una visión 360°."
+    title: "CRM y Gestión Integral",
+    description: "Centraliza cada interacción. Gestiona perfiles de vecinos o clientes, historial de consultas y segmentación avanzada sin esfuerzo."
   }
 ];
 
@@ -44,10 +44,10 @@ const SolutionSection = () => {
       <div className="container px-4 mx-auto">
         <div className="text-center max-w-3xl mx-auto mb-12 md:mb-16">
           <h2 className="text-3xl md:text-4xl font-bold mb-4 text-dark">
-            Todo lo que necesitas para conectar y crecer
+            Potencia real, sin complicaciones
           </h2>
           <p className="text-lg text-muted-foreground">
-            Desde la participación ciudadana hasta el impulso del comercio local. Una suite completa de herramientas digitales para la era moderna.
+            Una suite completa que combina Inteligencia Artificial, comercio local y participación ciudadana. Todo integrado, todo funcionando desde el primer día.
           </p>
         </div>
 
@@ -80,7 +80,7 @@ const SolutionSection = () => {
             className="shadow-lg hover:shadow-xl transition-shadow"
             onClick={() => navigate('/demo')}
           >
-            <Vote className="mr-2 h-5 w-5" /> Probar Votación en Vivo
+            <MessageSquareText className="mr-2 h-5 w-5" /> Probar Agente IA
           </Button>
         </div>
       </div>

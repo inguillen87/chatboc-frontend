@@ -1,32 +1,32 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
-import { Store, Vote, BarChart3, Rocket, ArrowRight } from "lucide-react";
+import { UploadCloud, Bot, Rocket, BarChart3, ArrowRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 const newSteps = [
   {
     number: "1",
-    icon: <Store className="h-7 w-7 text-primary" />,
-    title: "Crea tu Espacio Digital",
-    description: "Configura tu perfil de Municipio o Empresa en minutos. Sube tu logo, define tus colores y lanza tu Marketplace local o Portal de Servicios."
+    icon: <UploadCloud className="h-7 w-7 text-primary" />,
+    title: "Sube tu Información",
+    description: "Carga tus normativas, catálogos de productos o servicios. No necesitas configurar flujos complejos; simplemente entréganos tus datos."
   },
   {
     number: "2",
-    icon: <Vote className="h-7 w-7 text-primary" />,
-    title: "Lanza Participación en Vivo",
-    description: "Crea tu primera encuesta o votación. Invita a la comunidad a participar en tiempo real desde sus móviles, con resultados instantáneos."
+    icon: <Bot className="h-7 w-7 text-primary" />,
+    title: "Nuestra IA hace el Trabajo",
+    description: "La plataforma procesa tu información automáticamente, crea tu Base de Conocimiento y genera tu Marketplace o Portal de Servicios al instante."
   },
   {
     number: "3",
-    icon: <BarChart3 className="h-7 w-7 text-primary" />,
-    title: "Visualiza y Analiza",
-    description: "Accede al panel de control. Observa los mapas de calor de actividad, las tendencias de voto y las métricas de consumo en tu mercado local."
+    icon: <Rocket className="h-7 w-7 text-primary" />,
+    title: "Listo para Usar",
+    description: "Tu Agente IA y tu Mercado Digital están activos. Sin configuraciones técnicas, menús complicados ni pérdidas de tiempo. Todo llave en mano."
   },
   {
     number: "4",
-    icon: <Rocket className="h-7 w-7 text-primary" />,
-    title: "Actúa y Crece",
-    description: "Usa los insights para tomar decisiones. Mejora servicios, impulsa ofertas comerciales y mantén a tu comunidad conectada y satisfecha."
+    icon: <BarChart3 className="h-7 w-7 text-primary" />,
+    title: "Visualiza Resultados",
+    description: "Accede a tu Dashboard con Mapas de Calor, métricas de participación y estadísticas de ventas. Toma decisiones basadas en datos reales."
   }
 ];
 
@@ -38,10 +38,10 @@ const HowItWorksSection = () => {
       <div className="container px-4 mx-auto">
         <div className="text-center max-w-3xl mx-auto mb-12 md:mb-16">
           <h2 className="text-3xl md:text-4xl font-bold mb-4 text-dark">
-            Transformación Digital en 4 Pasos
+            Sin complicaciones técnicas, todo listo para ti
           </h2>
           <p className="text-lg text-muted-foreground">
-            Sin instalaciones complejas ni largas esperas. Nuestra plataforma está lista para usar y diseñada para generar impacto desde el primer día.
+            Olvídate de configurar "flujos" o menús interminables como en otras plataformas. Nosotros nos diferenciamos por darte una solución terminada y automática.
           </p>
         </div>
 
@@ -57,7 +57,6 @@ const HowItWorksSection = () => {
                 {index < newSteps.length - 1 && (
                   <div className="w-px h-full bg-border absolute mt-14" style={{ height: 'calc(100% + 2.5rem)' }} />
                 )}
-                {/* Fix for visual connector line if needed, simplified above */}
               </div>
               <div className="bg-card text-card-foreground p-6 rounded-lg border border-border shadow-lg flex-grow hover:shadow-xl transition-shadow duration-300">
                 <div className="flex items-center mb-3 gap-3">
