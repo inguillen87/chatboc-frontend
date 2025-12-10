@@ -386,39 +386,60 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
   const [showProactiveBubble, setShowProactiveBubble] = useState(false);
   const [proactiveCycle, setProactiveCycle] = useState(0);
 
-  // Landing Page Demo Force Open Logic (Enhanced with multiple messages)
+  // Proactive Bubble Logic: Supports both Landing Page Demo (Local) and Backend Configured Messages (Remote)
   useEffect(() => {
+    // 1. Determine messages source
+    let messages = PROACTIVE_MESSAGES;
     const isLanding = typeof window !== 'undefined' && window.location.pathname === '/';
-    if (!isLanding) return;
 
-    if (!safeLocalStorage.getItem('landing_demo_bubble_shown')) {
-       // Initial force show
+    // Priority: Backend Config > Landing Page Defaults > Generic Defaults
+    if (entityInfo?.cta_messages && Array.isArray(entityInfo.cta_messages) && entityInfo.cta_messages.length > 0) {
+        messages = entityInfo.cta_messages;
+    } else if (entityInfo?.proactive_messages && Array.isArray(entityInfo.proactive_messages) && entityInfo.proactive_messages.length > 0) {
+        messages = entityInfo.proactive_messages;
+    } else if (isLanding) {
+        messages = LANDING_PROACTIVE_MESSAGES;
+    }
+
+    // 2. Initial Force Show (Only for landing or if specifically configured to force show)
+    // We use a sessionStorage key so it resets per session, or localStorage if persistent across visits is desired.
+    // The previous implementation used 'landing_demo_bubble_shown' in localStorage.
+
+    const shouldForceShow = isLanding || (entityInfo?.force_proactive === true);
+
+    if (shouldForceShow && !safeLocalStorage.getItem('proactive_bubble_shown_v2')) {
        const timer = setTimeout(() => {
-           setProactiveMessage(LANDING_PROACTIVE_MESSAGES[0]);
+           setProactiveMessage(messages[0]);
            setShowProactiveBubble(true);
            if (!muted) playProactiveSound();
-           safeLocalStorage.setItem('landing_demo_bubble_shown', '1');
+           safeLocalStorage.setItem('proactive_bubble_shown_v2', '1');
        }, 3000);
        return () => clearTimeout(timer);
-    } else if (!isOpen) {
-        // Rotate messages on landing page if already shown once but closed
+    }
+
+    // 3. Cycling Logic (If closed)
+    if (!isOpen && messages.length > 0) {
         const cycleTimer = setInterval(() => {
             if (isOpen || showProactiveBubble) return;
-            const nextIdx = (proactiveCycle + 1) % LANDING_PROACTIVE_MESSAGES.length;
-            setProactiveMessage(LANDING_PROACTIVE_MESSAGES[nextIdx]);
-            setShowProactiveBubble(true);
-            if (!muted) playProactiveSound(); // Optional: maybe too noisy to repeat sound?
 
-            // Auto hide after some seconds
-            setTimeout(() => {
-                setShowProactiveBubble(false);
-                setProactiveCycle(prev => prev + 1);
-            }, 6000);
+            // If on landing page or if backend provided custom messages, we cycle them.
+            // Otherwise, we might not want to spam generic messages on every page.
+            if (isLanding || (entityInfo?.cta_messages?.length > 0)) {
+                const nextIdx = (proactiveCycle + 1) % messages.length;
+                setProactiveMessage(messages[nextIdx]);
+                setShowProactiveBubble(true);
+                if (!muted) playProactiveSound();
+
+                setTimeout(() => {
+                    setShowProactiveBubble(false);
+                    setProactiveCycle(prev => prev + 1);
+                }, 6000);
+            }
         }, 20000); // Check every 20s
 
         return () => clearInterval(cycleTimer);
     }
-  }, [isOpen, showProactiveBubble, proactiveCycle, muted]);
+  }, [isOpen, showProactiveBubble, proactiveCycle, muted, entityInfo]);
   const [selectedRubro, setSelectedRubro] = useState<string | null>(() => extractRubroKey(initialRubro) ?? null);
   const [pendingRedirect, setPendingRedirect] = useState<"cart" | "market" | null>(null);
   const [authTokenState, setAuthTokenState] = useState<string | null>(() =>
@@ -763,6 +784,9 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
 
     setIsOpen((prevIsOpen) => {
       const nextIsOpen = !prevIsOpen;
+      if (!nextIsOpen) {
+          safeLocalStorage.setItem('widget_manually_closed', '1');
+      }
       if (nextIsOpen && !muted) {
         playOpenSound();
       }
@@ -790,6 +814,12 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
     return () => clearTimeout(delay);
   }, [ctaMessage, isOpen, showProactiveBubble]);
 
+
+  useEffect(() => {
+    if (entityInfo?.default_open && !isOpen && !safeLocalStorage.getItem('widget_manually_closed')) {
+        setIsOpen(true);
+    }
+  }, [entityInfo, isOpen]);
 
   useEffect(() => {
     async function fetchEntityProfile() {
