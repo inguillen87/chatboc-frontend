@@ -1,57 +1,55 @@
 import React from 'react';
-// Actualizar iconos según los nuevos problemas
-import { Clock, Repeat, FileSearch, Brain, BarChartBig, UserSearch } from 'lucide-react'; // Cambiado UserCog a UserSearch
+import { Ghost, Store, SearchX, LineChart, Megaphone, Activity } from 'lucide-react';
 
-// Lista de problemas actualizada y reenfocada
 const problemsData = [
   {
-    icon: <Clock className="h-8 w-8 text-primary" />, // Usar color primario de la paleta
-    title: "Respuestas Lentas, Usuarios Frustrados",
-    description: "Ciudadanos y clientes esperan ayuda al instante. Las demoras o la falta de atención 24/7 generan insatisfacción y pérdida de confianza.",
-    comment: "Chatboc IA ofrece atención inmediata 24/7, resolviendo dudas y guiando a los usuarios, incluso fuera de horario."
+    icon: <Ghost className="h-8 w-8 text-primary" />,
+    title: "Comunidad Desconectada",
+    description: "Los ciudadanos sienten que no son escuchados. La falta de canales directos de participación genera apatía y desconfianza en la gestión.",
+    comment: "Con nuestras herramientas de Votación en Vivo, la participación es visible, inmediata y transparente."
   },
   {
-    icon: <Repeat className="h-8 w-8 text-primary" />,
-    title: "Equipos Saturados por Consultas Repetitivas",
-    description: "Tu personal invierte horas respondiendo las mismas preguntas, desviando tiempo valioso de tareas estratégicas o casos complejos.",
-    comment: "Automatiza hasta el 80% de las consultas frecuentes. Libera a tu equipo para que se enfoque en lo que realmente importa."
+    icon: <Store className="h-8 w-8 text-primary" />,
+    title: "Economía Local Invisible",
+    description: "Los pequeños comercios luchan por tener presencia digital. Sin un marketplace unificado, el consumo se fuga a grandes plataformas externas.",
+    comment: "Crea un Mercado Digital local donde cada comercio tenga su espacio y venda a sus vecinos fácilmente."
   },
   {
-    icon: <FileSearch className="h-8 w-8 text-primary" />,
-    title: "Información Dispersa, Procesos Complicados",
-    description: "Para los usuarios, encontrar datos o entender trámites puede ser un laberinto. Para ti, un desafío de comunicación constante.",
-    comment: "Centraliza el conocimiento. Sube tus documentos y normativas; nuestro IA guiará a los usuarios con lenguaje natural."
+    icon: <SearchX className="h-8 w-8 text-primary" />,
+    title: "Gestión a Ciegas",
+    description: "Tomar decisiones sin datos es arriesgado. Sin métricas claras ni mapas de calor, es difícil saber dónde invertir recursos o esfuerzos.",
+    comment: "Nuestros Mapas de Calor y Analíticas te muestran exactamente qué pasa y dónde, en tiempo real."
   },
   {
-    icon: <Brain className="h-8 w-8 text-primary" />,
-    title: "Falta de Personalización Real a Escala",
-    description: "Brindar una experiencia verdaderamente adaptada a cada ciudadano o cliente es un reto logístico con alto volumen de interacciones.",
-    comment: "La IA de Chatboc entiende el contexto y el historial, permitiendo interacciones personalizadas que mejoran la satisfacción."
+    icon: <Megaphone className="h-8 w-8 text-primary" />,
+    title: "Comunicación Unidireccional",
+    description: "Los canales tradicionales solo emiten información. No hay diálogo real ni escucha activa de las necesidades del ciudadano o cliente.",
+    comment: "Chatbots IA y Encuestas transforman el monólogo en un diálogo constructivo y constante."
   },
   {
-    icon: <UserSearch className="h-8 w-8 text-primary" />, // Cambiado aquí
-    title: "Dificultad para Conocer y Segmentar Usuarios",
-    description: "Entender las necesidades específicas de diferentes grupos de ciudadanos o clientes es clave para ofrecer un servicio proactivo y relevante.",
-    comment: "Nuestro CRM te permite registrar y segmentar perfiles detallados, facilitando campañas y comunicaciones dirigidas."
+    icon: <LineChart className="h-8 w-8 text-primary" />,
+    title: "Oportunidades Perdidas",
+    description: "Sin herramientas de seguimiento (CRM), las solicitudes se pierden y las oportunidades de venta o mejora de servicio se desvanecen.",
+    comment: "Centraliza cada interacción. Seguimiento automático para que ningún vecino o cliente quede sin respuesta."
   },
   {
-    icon: <BarChartBig className="h-8 w-8 text-primary" />,
-    title: "Gestión Ineficiente, Oportunidades Perdidas",
-    description: "La dificultad para rastrear solicitudes, medir la satisfacción o identificar cuellos de botella impide optimizar los servicios y la atención.",
-    comment: "El CRM y los paneles analíticos te dan una visión 360° del rendimiento para una mejora continua de la experiencia."
+    icon: <Activity className="h-8 w-8 text-primary" />,
+    title: "Lentitud en la Respuesta",
+    description: "Los procesos burocráticos o manuales son lentos. La gente espera inmediatez digital que las herramientas antiguas no pueden dar.",
+    comment: "Automatización e IA para respuestas instantáneas. Eficiencia que se siente."
   }
 ];
 
 const ProblemsSection = () => {
   return (
-    <section id="problemas" className="py-16 md:py-24 bg-light text-foreground"> {/* Usar bg-light para alternar secciones */}
+    <section id="problemas" className="py-16 md:py-24 bg-light text-foreground">
       <div className="container px-4 mx-auto">
         <div className="text-center mb-12 md:mb-16 max-w-3xl mx-auto">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4 text-dark"> {/* Usar text-dark para contraste en bg-light */}
-            ¿Tu Organización Enfrenta Estos Desafíos?
+          <h2 className="text-3xl md:text-4xl font-bold mb-4 text-dark">
+            Desafíos Reales, Soluciones Modernas
           </h2>
           <p className="text-lg text-muted-foreground">
-            Tanto ciudadanos como clientes esperan hoy una comunicación ágil y soluciones efectivas. Chatboc potencia a municipios y empresas para ofrecer experiencias de usuario excepcionales, de forma eficiente y personalizada.
+            La brecha entre las instituciones/comercios y las personas nunca ha sido tan evidente. Es hora de cerrar esa brecha con tecnología que acerca.
           </p>
         </div>
 
@@ -59,14 +57,16 @@ const ProblemsSection = () => {
           {problemsData.map((problem, index) => (
             <div
               key={index}
-              className="bg-card text-card-foreground p-6 rounded-lg border border-border shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col" // Usar rounded-lg, shadow-lg, flex-col
+              className="bg-card text-card-foreground p-6 rounded-lg border border-border shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col"
             >
-              <div className="flex-shrink-0 mb-5 flex items-center justify-center w-12 h-12 rounded-full bg-primary/10"> {/* Icono con fondo primario suave */}
+              <div className="flex-shrink-0 mb-5 flex items-center justify-center w-12 h-12 rounded-full bg-primary/10">
                 {problem.icon}
               </div>
               <h3 className="text-xl font-semibold mb-3 text-dark">{problem.title}</h3>
-              <p className="text-muted-foreground mb-4 flex-grow">{problem.description}</p> {/* flex-grow para alinear comentarios */}
-              <p className="text-sm text-primary font-medium">{problem.comment}</p> {/* Comentario con color primario */}
+              <p className="text-muted-foreground mb-4 flex-grow">{problem.description}</p>
+              <p className="text-sm text-primary font-medium border-t border-border pt-3 mt-auto">
+                {problem.comment}
+              </p>
             </div>
           ))}
         </div>

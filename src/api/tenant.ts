@@ -116,6 +116,9 @@ const normalizeTenantInfo = (
       coerceString(payload.whatsapp_share_url) ??
       coerceString(payload.whatsappShareUrl) ??
       null,
+    cta_messages: Array.isArray(payload.cta_messages) ? (payload.cta_messages as any[]) : undefined,
+    theme_config: isRecord(payload.theme_config) ? (payload.theme_config as any) : undefined,
+    default_open: Boolean(payload.default_open),
   };
 };
 

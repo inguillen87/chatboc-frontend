@@ -458,9 +458,35 @@ export async function apiFetch<T>(
       }
     }
   }
-  const anonId = safeLocalStorage.getItem("anon_id");
   const shouldAttachChatSession = !omitChatSessionId;
   const chatSessionId = shouldAttachChatSession ? getOrCreateChatSessionId() : null; // Get or create the chat session ID
+
+  // Helper to ensure a persistent anonymous ID for cart/session stability
+  const getOrCreateAnonId = (): string => {
+    let id = safeLocalStorage.getItem("chatboc_anon_id");
+    if (!id) {
+      // Migrate legacy key if present
+      const legacy = safeLocalStorage.getItem("anon_id");
+      if (legacy) {
+        id = legacy;
+      } else {
+        // Generate UUID v4
+        if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+          id = crypto.randomUUID();
+        } else {
+          // Fallback UUID generator
+          id = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+            var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+          });
+        }
+      }
+      safeLocalStorage.setItem("chatboc_anon_id", id);
+    }
+    return id;
+  };
+
+  const anonId = getOrCreateAnonId();
 
   const appendTenantQueryParams = (rawPath: string, slug: string | null) => {
     if (!slug) return rawPath;
@@ -588,10 +614,13 @@ export async function apiFetch<T>(
   if (headerTenant) {
     headers["X-Tenant"] = headerTenant;
   }
-  // Si el endpoint necesita identificar usuario anónimo, mandá siempre el header "Anon-Id"
-  if (((!token && anonId) || sendAnonId) && anonId) {
-    headers["Anon-Id"] = anonId;
+  // Always send X-Anon-Id for session persistence, prioritizing the new key
+  if (anonId) {
     headers["X-Anon-Id"] = anonId;
+    // Keep legacy header for backward compatibility if needed, but usage is deprecated
+    if (!token || sendAnonId) {
+       headers["Anon-Id"] = anonId;
+    }
   }
   if (effectiveEntityToken && !omitEntityToken) {
     headers["X-Entity-Token"] = effectiveEntityToken;
