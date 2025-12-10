@@ -17,11 +17,13 @@ const HeroSection = () => {
               <span
                 className="bg-gradient-to-r from-primary via-blue-500 to-cyan-500 text-transparent bg-clip-text"
               >
-                Revoluciona
-              </span> la Participación y el Comercio Local
+                Conectamos
+              </span> Gobiernos y Empresas con sus Comunidades
             </h1>
             <p className="text-lg sm:text-xl text-muted-foreground mb-8">
-              Potencia tu Municipio o Empresa con <strong>Marketplaces</strong> digitales, <strong>Votación en tiempo real</strong>, <strong>Mapas de calor</strong> y Chatbots IA. Conecta de verdad con tu comunidad.
+              Creamos <strong>Agentes IA</strong> que entienden y resuelven, no simples chatbots.
+              <br className="hidden md:block" />
+              Una plataforma <strong>SaaS "llave en mano"</strong>: sube tu catálogo o normativa y obtén tu Marketplace o Portal de Servicios listo para usar. Sin configuraciones técnicas complejas.
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 mb-6">
@@ -43,7 +45,7 @@ const HeroSection = () => {
             </div>
 
             <p className="text-sm text-muted-foreground text-center lg:text-left">
-              Analíticas inteligentes para decisiones basadas en datos reales.
+              Incluye Mapas de Calor, Puntos de Recompensa y Analíticas avanzadas.
             </p>
           </div>
 
@@ -55,13 +57,13 @@ const HeroSection = () => {
                   <ChatbocLogoAnimated size={36} />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-base text-foreground">Asistente Ciudadano</h3>
+                  <h3 className="font-semibold text-base text-foreground">Agente IA Inteligente</h3>
                   <p className="text-xs text-muted-foreground">Potenciado por Chatboc IA</p>
                 </div>
                 <div className="ml-auto">
                   <span className="inline-flex items-center px-2.5 py-1 bg-success/10 text-success text-xs font-medium rounded-full">
                     <span className="w-2 h-2 bg-success rounded-full mr-1.5" />
-                    En vivo
+                    En línea
                   </span>
                 </div>
               </div>
@@ -70,28 +72,29 @@ const HeroSection = () => {
                 <div className="flex">
                   <div className="bg-primary/10 text-primary-dark p-3 rounded-lg rounded-bl-none max-w-[85%]">
                     <p className="font-medium text-primary">Vecino:</p>
-                    ¡Hola! Quiero participar en la votación del presupuesto.
+                    Hola, ¿cómo puedo participar en la votación del presupuesto participativo?
                   </div>
                 </div>
                 <div className="flex justify-end">
                   <div className="bg-muted text-foreground p-3 rounded-lg rounded-br-none max-w-[85%]">
-                    <p className="font-medium text-foreground">Asistente IA:</p>
-                    ¡Excelente! Estamos votando en tiempo real. Opciones para tu zona:
-                    <br/>1. 🌳 Mejora de Plaza Central
-                    <br/>2. 💡 Nuevas Luminarias LED
-                    <br/>¿Cuál prefieres?
+                    <p className="font-medium text-foreground">Agente IA:</p>
+                    ¡Hola! 👋 Es muy fácil. La votación está abierta y puedes elegir los proyectos para tu barrio.
+                    <br/><br/>
+                    Ingresa a la <strong>Planilla de Votación</strong> aquí para ver las opciones y registrar tu voto de forma segura:
+                    <br/>
+                    <span className="text-primary underline cursor-pointer">🔗 Acceder al Formulario de Votación</span>
                   </div>
                 </div>
                 <div className="flex">
                   <div className="bg-primary/10 text-primary-dark p-3 rounded-lg rounded-bl-none max-w-[85%]">
                     <p className="font-medium text-primary">Vecino:</p>
-                    Elijo la opción 1.
+                    Genial, ¿y sumo puntos por participar?
                   </div>
                 </div>
                 <div className="flex justify-end">
                   <div className="bg-muted text-foreground p-3 rounded-lg rounded-br-none max-w-[85%]">
-                    <p className="font-medium text-foreground">Asistente IA:</p>
-                    ¡Voto registrado! 🗳️ Gracias por ser parte del cambio. También puedes ver los resultados en vivo en el portal.
+                    <p className="font-medium text-foreground">Agente IA:</p>
+                    ¡Exacto! 🎁 Al completar la votación sumarás <strong>50 Puntos Ciudadanos</strong> que podrás canjear por beneficios en comercios locales adheridos.
                   </div>
                 </div>
               </div>
@@ -99,7 +102,7 @@ const HeroSection = () => {
               <div className="mt-4 flex">
                 <input
                   type="text"
-                  placeholder="Escribe tu mensaje..."
+                  placeholder="Escribe tu consulta..."
                   className="flex-1 border border-input bg-background text-foreground rounded-l-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                 />
                 <Button variant="default" size="icon" className="rounded-l-none">

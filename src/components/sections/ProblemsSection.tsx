@@ -1,42 +1,42 @@
 import React from 'react';
-import { Ghost, Store, SearchX, LineChart, Megaphone, Activity } from 'lucide-react';
+import { Ghost, Store, SearchX, LineChart, MessageSquareX, Sliders } from 'lucide-react';
 
 const problemsData = [
   {
     icon: <Ghost className="h-8 w-8 text-primary" />,
     title: "Comunidad Desconectada",
-    description: "Los ciudadanos sienten que no son escuchados. La falta de canales directos de participación genera apatía y desconfianza en la gestión.",
-    comment: "Con nuestras herramientas de Votación en Vivo, la participación es visible, inmediata y transparente."
+    description: "Los ciudadanos sienten que no son escuchados. La falta de canales directos y modernos genera apatía y desconfianza.",
+    comment: "Con nuestra plataforma, la participación es real, transparente y premiada con puntos."
+  },
+  {
+    icon: <Sliders className="h-8 w-8 text-primary" />,
+    title: "Configuraciones Técnicas Complejas",
+    description: "Otras herramientas (como ManyChat) te obligan a diseñar flujos complicados y perder horas configurando menús.",
+    comment: "Nosotros te damos la solución llave en mano. Sube tus datos y la IA hace el resto."
   },
   {
     icon: <Store className="h-8 w-8 text-primary" />,
     title: "Economía Local Invisible",
-    description: "Los pequeños comercios luchan por tener presencia digital. Sin un marketplace unificado, el consumo se fuga a grandes plataformas externas.",
-    comment: "Crea un Mercado Digital local donde cada comercio tenga su espacio y venda a sus vecinos fácilmente."
+    description: "Los pequeños comercios no tienen herramientas digitales propias y pierden ventas frente a grandes plataformas.",
+    comment: "Generamos Marketplaces locales automáticamente para que cada comercio tenga su tienda en minutos."
   },
   {
     icon: <SearchX className="h-8 w-8 text-primary" />,
     title: "Gestión a Ciegas",
-    description: "Tomar decisiones sin datos es arriesgado. Sin métricas claras ni mapas de calor, es difícil saber dónde invertir recursos o esfuerzos.",
-    comment: "Nuestros Mapas de Calor y Analíticas te muestran exactamente qué pasa y dónde, en tiempo real."
+    description: "Sin datos claros, mapas de calor o métricas de satisfacción, es imposible tomar decisiones acertadas.",
+    comment: "Nuestros Dashboards con Mapas de Calor te muestran la realidad de tu gestión al instante."
   },
   {
-    icon: <Megaphone className="h-8 w-8 text-primary" />,
-    title: "Comunicación Unidireccional",
-    description: "Los canales tradicionales solo emiten información. No hay diálogo real ni escucha activa de las necesidades del ciudadano o cliente.",
-    comment: "Chatbots IA y Encuestas transforman el monólogo en un diálogo constructivo y constante."
+    icon: <MessageSquareX className="h-8 w-8 text-primary" />,
+    title: "Chatbots 'Tontos' y Rígidos",
+    description: "Los bots tradicionales solo siguen guiones y frustran al usuario cuando se salen del libreto.",
+    comment: "Nuestros Agentes IA entienden el lenguaje natural y resuelven problemas reales sin scripts."
   },
   {
     icon: <LineChart className="h-8 w-8 text-primary" />,
     title: "Oportunidades Perdidas",
-    description: "Sin herramientas de seguimiento (CRM), las solicitudes se pierden y las oportunidades de venta o mejora de servicio se desvanecen.",
-    comment: "Centraliza cada interacción. Seguimiento automático para que ningún vecino o cliente quede sin respuesta."
-  },
-  {
-    icon: <Activity className="h-8 w-8 text-primary" />,
-    title: "Lentitud en la Respuesta",
-    description: "Los procesos burocráticos o manuales son lentos. La gente espera inmediatez digital que las herramientas antiguas no pueden dar.",
-    comment: "Automatización e IA para respuestas instantáneas. Eficiencia que se siente."
+    description: "Sin un CRM integrado, las solicitudes y los clientes potenciales se pierden en el olvido.",
+    comment: "Centraliza y gestiona cada interacción para que ningún vecino o cliente quede sin respuesta."
   }
 ];
 
@@ -46,10 +46,10 @@ const ProblemsSection = () => {
       <div className="container px-4 mx-auto">
         <div className="text-center mb-12 md:mb-16 max-w-3xl mx-auto">
           <h2 className="text-3xl md:text-4xl font-bold mb-4 text-dark">
-            Desafíos Reales, Soluciones Modernas
+            Desafíos Reales, Solución Integral
           </h2>
           <p className="text-lg text-muted-foreground">
-            La brecha entre las instituciones/comercios y las personas nunca ha sido tan evidente. Es hora de cerrar esa brecha con tecnología que acerca.
+            Entendemos los problemas de gobiernos y pymes en LATAM. Por eso creamos una plataforma que resuelve, no que complica.
           </p>
         </div>
 
