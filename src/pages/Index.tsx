@@ -7,6 +7,7 @@ import SolutionSection from '@/components/sections/SolutionSection';
 import HowItWorksSection from '@/components/sections/HowItWorksSection';
 import PricingSection from '@/components/sections/PricingSection';
 import TargetSection from '@/components/sections/TargetSection';
+import DemoShowcaseSection from '@/components/sections/DemoShowcaseSection';
 import TestimonialsSection from '@/components/sections/TestimonialsSection'; // Descomentado
 import CtaSection from '@/components/sections/CtaSection';
 import ComingSoonSection from '@/components/sections/ComingSoonSection';
@@ -71,6 +72,9 @@ const Index = () => {
         </section>
         <section id="publico-objetivo"> {/* Renombrado el id para consistencia si es necesario */}
           <TargetSection />
+        </section>
+        <section id="demos">
+          <DemoShowcaseSection />
         </section>
         <section id="testimonios"> {/* Descomentado y añadido */}
           <TestimonialsSection />
