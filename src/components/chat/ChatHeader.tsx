@@ -108,11 +108,11 @@ const ChatHeader: React.FC<Props> = ({
             />
           )}
         </div>
-        <div className="ml-1 flex flex-col leading-tight">
-          <span className="font-extrabold text-base tracking-wide" style={{ letterSpacing: ".02em" }}>
+        <div className="ml-1 flex flex-col leading-tight min-w-0 max-w-[140px] sm:max-w-[180px]">
+          <span className="font-extrabold text-base tracking-wide truncate block" style={{ letterSpacing: ".02em" }}>
             {title || 'Chatboc'}
           </span>
-          <span className="text-xs text-primary-foreground/80" style={{ fontWeight: 500 }}>
+          <span className="text-xs text-primary-foreground/80 truncate block" style={{ fontWeight: 500 }}>
             {subtitle || 'Asistente Virtual'}
           </span>
         </div>
