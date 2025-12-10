@@ -262,6 +262,8 @@ const routes: RouteConfig[] = [
   { path: '/cuenta', element: <UserAccount /> },
   { path: '/demo', element: <Demo /> },
   { path: '/demo/:slug', element: <DemoLandingPage /> },
+  { path: '/soluciones/gobierno', element: <Navigate to="/demo/municipio" replace /> },
+  { path: '/soluciones/empresas', element: <Navigate to="/demo" replace /> },
   { path: '/perfil', element: <Perfil /> },
   { path: '/perfil/pedidos', element: <Navigate to="/portal/pedidos" replace /> },
   { path: '/chat', element: <ChatPage /> },

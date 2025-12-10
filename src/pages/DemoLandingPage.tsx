@@ -62,7 +62,7 @@ const DemoLandingPage = () => {
   const [tenant, setTenant] = useState<TenantPublicInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { setTenant: setContextTenant } = useTenant();
+  const { setTenantSlug } = useTenant();
 
   useEffect(() => {
     if (!slug) {
@@ -79,7 +79,9 @@ const DemoLandingPage = () => {
 
             // Important: Set the tenant in the global context so the ChatWidget picks it up
             // This ensures the widget uses the correct slug for its API calls
-            setContextTenant(data);
+            if (data.slug) {
+                setTenantSlug(data.slug);
+            }
 
             // Force widget to open via custom event or just relying on `default_open` in config
             // Ideally, we'd update the context to trigger open, but the widget reads `default_open` from config.
@@ -93,7 +95,7 @@ const DemoLandingPage = () => {
     };
 
     loadDemo();
-  }, [slug, navigate, setContextTenant]);
+  }, [slug, navigate, setTenantSlug]);
 
   if (loading) {
       return (
