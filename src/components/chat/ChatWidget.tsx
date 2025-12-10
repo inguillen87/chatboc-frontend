@@ -392,11 +392,16 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
     let messages = PROACTIVE_MESSAGES;
     const isLanding = typeof window !== 'undefined' && window.location.pathname === '/';
 
-    // Priority: Backend Config > Landing Page Defaults > Generic Defaults
-    if (entityInfo?.cta_messages && Array.isArray(entityInfo.cta_messages) && entityInfo.cta_messages.length > 0) {
+    // Priority: Backend Config (interaction.cta_messages) > Landing Page Defaults > Generic Defaults
+    const backendMessages = entityInfo?.interaction?.cta_messages;
+    if (backendMessages && Array.isArray(backendMessages) && backendMessages.length > 0) {
+        // Backend sends objects or strings? The user said "array de objetos"
+        // We handle both for robustness
+        messages = backendMessages.map((msg: any) => typeof msg === 'string' ? msg : msg.text || msg.message || "");
+        messages = messages.filter(m => m.trim().length > 0);
+    } else if (entityInfo?.cta_messages && Array.isArray(entityInfo.cta_messages)) {
+        // Fallback to previous implementation if root level
         messages = entityInfo.cta_messages;
-    } else if (entityInfo?.proactive_messages && Array.isArray(entityInfo.proactive_messages) && entityInfo.proactive_messages.length > 0) {
-        messages = entityInfo.proactive_messages;
     } else if (isLanding) {
         messages = LANDING_PROACTIVE_MESSAGES;
     }
