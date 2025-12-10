@@ -386,22 +386,48 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
   const [showProactiveBubble, setShowProactiveBubble] = useState(false);
   const [proactiveCycle, setProactiveCycle] = useState(0);
 
+  // Apply Theme Config
+  useEffect(() => {
+    if (entityInfo?.theme_config) {
+      try {
+        const root = document.documentElement;
+        const mode = entityInfo.theme_config.mode;
+        const isDark = mode === 'dark' || (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        const theme = isDark ? entityInfo.theme_config.dark : entityInfo.theme_config.light;
+
+        if (theme) {
+          Object.entries(theme).forEach(([key, value]) => {
+            if (key === 'primary') root.style.setProperty('--primary', value as string);
+            if (key === 'secondary') root.style.setProperty('--secondary', value as string);
+            if (key === 'background') root.style.setProperty('--background', value as string);
+            if (key === 'text') root.style.setProperty('--foreground', value as string);
+          });
+        }
+      } catch (e) {
+        console.warn("Error applying theme config:", e);
+      }
+    }
+  }, [entityInfo]);
+
   // Proactive Bubble Logic: Supports both Landing Page Demo (Local) and Backend Configured Messages (Remote)
   useEffect(() => {
     // 1. Determine messages source
     let messages = PROACTIVE_MESSAGES;
     const isLanding = typeof window !== 'undefined' && window.location.pathname === '/';
 
-    // Priority: Backend Config (interaction.cta_messages) > Landing Page Defaults > Generic Defaults
-    const backendMessages = entityInfo?.interaction?.cta_messages;
+    // Priority: Backend Config (interaction.cta_messages OR top-level cta_messages) > Landing Page Defaults > Generic Defaults
+    let backendMessages = entityInfo?.cta_messages;
+
+    // Normalize cta_messages
+    if (!backendMessages && entityInfo?.interaction?.cta_messages) {
+      backendMessages = entityInfo.interaction.cta_messages;
+    }
+
     if (backendMessages && Array.isArray(backendMessages) && backendMessages.length > 0) {
         // Backend sends objects or strings? The user said "array de objetos"
         // We handle both for robustness
         messages = backendMessages.map((msg: any) => typeof msg === 'string' ? msg : msg.text || msg.message || "");
         messages = messages.filter(m => m.trim().length > 0);
-    } else if (entityInfo?.cta_messages && Array.isArray(entityInfo.cta_messages)) {
-        // Fallback to previous implementation if root level
-        messages = entityInfo.cta_messages;
     } else if (isLanding) {
         messages = LANDING_PROACTIVE_MESSAGES;
     }
@@ -414,9 +440,11 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
 
     if (shouldForceShow && !safeLocalStorage.getItem('proactive_bubble_shown_v2')) {
        const timer = setTimeout(() => {
-           setProactiveMessage(messages[0]);
-           setShowProactiveBubble(true);
-           if (!muted) playProactiveSound();
+           if (messages.length > 0) {
+             setProactiveMessage(messages[0]);
+             setShowProactiveBubble(true);
+             if (!muted) playProactiveSound();
+           }
            safeLocalStorage.setItem('proactive_bubble_shown_v2', '1');
        }, 3000);
        return () => clearTimeout(timer);
@@ -429,7 +457,7 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
 
             // If on landing page or if backend provided custom messages, we cycle them.
             // Otherwise, we might not want to spam generic messages on every page.
-            if (isLanding || (entityInfo?.cta_messages?.length > 0)) {
+            if (isLanding || (backendMessages && backendMessages.length > 0)) {
                 const nextIdx = (proactiveCycle + 1) % messages.length;
                 setProactiveMessage(messages[nextIdx]);
                 setShowProactiveBubble(true);
