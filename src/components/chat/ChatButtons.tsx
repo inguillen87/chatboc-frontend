@@ -107,7 +107,15 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
             return;
         }
 
-        // Priority 4: Handle URL navigation
+        // Priority 4: Handle URL navigation (or type: 'url')
+        if (boton.type === 'url' && boton.url) {
+             const resolvedUrl = resolveUrl(boton.url);
+             if (resolvedUrl) {
+                 openExternalLink(resolvedUrl);
+             }
+             return;
+        }
+
         const resolvedUrl = boton.url ? resolveUrl(boton.url) : undefined;
 
         if (resolvedUrl) {

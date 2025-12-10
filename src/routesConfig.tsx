@@ -74,6 +74,7 @@ import MarketProductPage from '@/pages/tenant/market/MarketProductPage';
 import MarketCheckoutPage from '@/pages/tenant/market/MarketCheckoutPage';
 import CreateTenantPage from '@/pages/admin/CreateTenantPage';
 import SuperAdminDashboard from '@/pages/admin/SuperAdminDashboard';
+import DemoLandingPage from '@/pages/DemoLandingPage';
 
 // NUEVAS IMPORTACIONES PARA EL PORTAL DE USUARIO
 // UserPortalLayout no se importa aquí si se usa como Layout Route en App.tsx
@@ -260,6 +261,7 @@ const routes: RouteConfig[] = [
   ...withTenantPrefixes('/:tenant/user/register', { element: <UserRegister /> }),
   { path: '/cuenta', element: <UserAccount /> },
   { path: '/demo', element: <Demo /> },
+  { path: '/demo/:slug', element: <DemoLandingPage /> },
   { path: '/perfil', element: <Perfil /> },
   { path: '/perfil/pedidos', element: <Navigate to="/portal/pedidos" replace /> },
   { path: '/chat', element: <ChatPage /> },
