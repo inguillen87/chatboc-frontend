@@ -19,7 +19,10 @@ export interface Rubro {
 }
 
 export const fetchRubros = async (): Promise<Rubro[]> => {
-  return await apiFetch<Rubro[]>('/rubros/');
+  return await apiFetch<Rubro[]>('/rubros/', {
+    omitTenant: true,
+    skipAuth: true,
+  });
 };
 
 // Helper to build the tree from the flat list
