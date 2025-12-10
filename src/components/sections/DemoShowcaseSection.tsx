@@ -32,7 +32,7 @@ const DemoCard = ({ item }: { item: Rubro }) => {
   if (!item.demo) return null; // Should be a leaf node with demo info
 
   const handleDemoClick = () => {
-    window.location.href = `/${item.demo?.slug}`;
+    window.location.href = `/demo/${item.demo?.slug}`;
   };
 
   return (
