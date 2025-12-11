@@ -112,6 +112,10 @@ const LANDING_PROACTIVE_MESSAGES = [
 
 const LS_KEY = "chatboc_accessibility";
 
+const SafeAnimatePresence: React.FC<AnimatePresenceProps> = ({ children = null, ...rest } = { children: null }) => {
+  return <AnimatePresence {...rest}>{children}</AnimatePresence>;
+};
+
 const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
   mode = "standalone",
   defaultOpen = false,
@@ -1236,10 +1240,6 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
   }
 
   return null;
-};
-
-const SafeAnimatePresence: React.FC<AnimatePresenceProps> = ({ children = null, ...rest } = { children: null }) => {
-  return <AnimatePresence {...rest}>{children}</AnimatePresence>;
 };
 
 const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
