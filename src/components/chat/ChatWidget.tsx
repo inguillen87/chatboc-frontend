@@ -411,36 +411,30 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
 
   // Proactive Bubble Logic: Supports both Landing Page Demo (Local) and Backend Configured Messages (Remote)
   useEffect(() => {
-    // 1. Determine messages source
     let messages = PROACTIVE_MESSAGES;
     const isLanding = typeof window !== 'undefined' && window.location.pathname === '/';
 
     // Priority: Backend Config (interaction.cta_messages OR top-level cta_messages) > Landing Page Defaults > Generic Defaults
     let backendMessages = entityInfo?.cta_messages;
 
-    // Normalize cta_messages
     if (!backendMessages && entityInfo?.interaction?.cta_messages) {
       backendMessages = entityInfo.interaction.cta_messages;
     }
 
     if (backendMessages && Array.isArray(backendMessages) && backendMessages.length > 0) {
-        // Backend sends objects or strings? The user said "array de objetos"
-        // We handle both for robustness
         messages = backendMessages.map((msg: any) => typeof msg === 'string' ? msg : msg.text || msg.message || "");
         messages = messages.filter(m => m.trim().length > 0);
     } else if (isLanding) {
         messages = LANDING_PROACTIVE_MESSAGES;
     }
 
-    // 2. Initial Force Show (Only for landing or if specifically configured to force show)
-    // We use a sessionStorage key so it resets per session, or localStorage if persistent across visits is desired.
-    // The previous implementation used 'landing_demo_bubble_shown' in localStorage.
+    if (messages.length === 0) return;
 
+    // Initial Force Show
     const shouldForceShow = isLanding || (entityInfo?.force_proactive === true);
-
     if (shouldForceShow && !safeLocalStorage.getItem('proactive_bubble_shown_v2')) {
        const timer = setTimeout(() => {
-           if (messages.length > 0) {
+           if (!isOpen) {
              setProactiveMessage(messages[0]);
              setShowProactiveBubble(true);
              if (!muted) playProactiveSound();
@@ -450,29 +444,77 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
        return () => clearTimeout(timer);
     }
 
-    // 3. Cycling Logic (If closed)
-    if (!isOpen && messages.length > 0) {
-        const cycleTimer = setInterval(() => {
-            if (isOpen || showProactiveBubble) return;
+    // Cycling Logic
+    // If backendMessages are present (Custom CTAs), we want continuous rotation
+    const hasCustomMessages = !!(backendMessages && backendMessages.length > 0);
 
-            // If on landing page or if backend provided custom messages, we cycle them.
-            // Otherwise, we might not want to spam generic messages on every page.
-            if (isLanding || (backendMessages && backendMessages.length > 0)) {
+    // Interval duration: 6s for custom rotation, 20s for standard cycle
+    const intervalTime = hasCustomMessages ? 6000 : 20000;
+
+    const cycleTimer = setInterval(() => {
+        if (isOpen) return;
+
+        if (hasCustomMessages) {
+            // Continuous rotation logic
+            // If visible, rotate text. If hidden, show next.
+            const nextIdx = (proactiveCycle + 1) % messages.length;
+            setProactiveMessage(messages[nextIdx]);
+            setProactiveCycle(nextIdx);
+
+            if (!showProactiveBubble) {
+                setShowProactiveBubble(true);
+                if (!muted) playProactiveSound();
+            }
+        } else {
+            // Legacy/Landing behavior: Intermittent
+            if (showProactiveBubble) return; // Don't interrupt if currently showing
+
+            if (isLanding) {
                 const nextIdx = (proactiveCycle + 1) % messages.length;
                 setProactiveMessage(messages[nextIdx]);
                 setShowProactiveBubble(true);
                 if (!muted) playProactiveSound();
+                setProactiveCycle(nextIdx);
 
+                // Auto hide after 6s for intermittent style
                 setTimeout(() => {
                     setShowProactiveBubble(false);
-                    setProactiveCycle(prev => prev + 1);
                 }, 6000);
             }
-        }, 20000); // Check every 20s
+        }
+    }, intervalTime);
 
-        return () => clearInterval(cycleTimer);
-    }
+    return () => clearInterval(cycleTimer);
   }, [isOpen, showProactiveBubble, proactiveCycle, muted, entityInfo]);
+
+  // Handle CTA Click
+  const handleProactiveClick = useCallback(() => {
+      // Find current message object if available to trigger action
+      // For now, standard toggleChat.
+      // Future: parse action from message if it's an object in `cta_messages`
+
+      let backendMessages = entityInfo?.cta_messages || entityInfo?.interaction?.cta_messages;
+      if (backendMessages && Array.isArray(backendMessages) && backendMessages.length > 0) {
+          const currentMsgObj = backendMessages[proactiveCycle % backendMessages.length];
+          if (currentMsgObj && typeof currentMsgObj === 'object' && currentMsgObj.action) {
+              setIsOpen(true);
+              // We need a way to pass this action to the ChatPanel.
+              // For now, we open the chat. The ChatPanel init logic might need to read a "pending action"
+              // or we wait for user to type.
+              // Requirement says: "open the widget and immediately send the action to the chat."
+              // We can use a ref or state passed to ChatPanel, OR dispatch an event.
+              // Let's use sessionStorage as a simple bridge or a new prop.
+              safeLocalStorage.setItem('pending_widget_action', JSON.stringify({
+                  action: currentMsgObj.action,
+                  payload: currentMsgObj.payload
+              }));
+              // Force view refresh?
+              return;
+          }
+      }
+
+      toggleChat();
+  }, [toggleChat, entityInfo, proactiveCycle]);
   const [selectedRubro, setSelectedRubro] = useState<string | null>(() => extractRubroKey(initialRubro) ?? null);
   const [pendingRedirect, setPendingRedirect] = useState<"cart" | "market" | null>(null);
   const [authTokenState, setAuthTokenState] = useState<string | null>(() =>
@@ -1157,7 +1199,7 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
             >
               <ProactiveBubble
                 message={proactiveMessage || ""}
-                onClick={toggleChat}
+                onClick={handleProactiveClick}
                 visible={showProactiveBubble && !showCta}
                 logoUrl={headerLogoUrl || customLauncherLogoUrl || entityInfo?.logo_url || (isDarkMode ? '/chatbocar.png' : '/chatbocar2.png')}
                 logoAnimation={logoAnimation}
