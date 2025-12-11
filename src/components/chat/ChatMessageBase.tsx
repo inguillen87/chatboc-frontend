@@ -24,6 +24,7 @@ import { User as UserIcon, ExternalLink } from "lucide-react";
 import { getInitials, cn } from "@/lib/utils";
 import UserAvatarAnimated from "./UserAvatarAnimated";
 import { Badge } from "@/components/ui/badge";
+import InteractiveMenu from "./InteractiveMenu";
 
 type RawAttachment = {
   url: string;
@@ -657,6 +658,7 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
   );
 
   const showStructuredContent = !!(message.structuredContent && message.structuredContent.length > 0);
+  const showMenuSections = !!((message.menu_sections && message.menu_sections.length > 0) || message.interactive_list);
   const showPosts = !!(message.posts && message.posts.length > 0);
   const showSocialLinks = message.socialLinks && Object.keys(message.socialLinks).length > 0;
   const now = new Date();
@@ -738,6 +740,23 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
               {/* Si hay texto Y contenido estructurado, el texto puede ser una introducción */}
               {textAndListBlock && !showAttachmentOrMap && !audioSrc && textAndListBlock}
               <StructuredContentDisplay items={message.structuredContent!} />
+            </>
+          )}
+
+          {/* Interactive Menus / Lists */}
+          {showMenuSections && (
+            <>
+                {/* Intro text if present */}
+                {textAndListBlock && !showAttachmentOrMap && !audioSrc && !showStructuredContent && textAndListBlock}
+                <InteractiveMenu
+                    sections={message.menu_sections}
+                    config={message.interactive_list}
+                    onSelect={(item) => onButtonClick({
+                        text: item.title,
+                        action: 'interactive_list_reply',
+                        payload: { id: item.id }
+                    })}
+                />
             </>
           )}
 

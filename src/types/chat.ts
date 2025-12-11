@@ -57,6 +57,23 @@ export interface Post {
   youtube?: string;
 }
 
+export interface MenuRow {
+  id: string;
+  title: string;
+  description?: string;
+}
+
+export interface MenuSection {
+  title?: string;
+  rows: MenuRow[];
+}
+
+export interface InteractiveListConfig {
+  buttonLabel: string;
+  title?: string; // Title for the list/modal header
+  sections: MenuSection[];
+}
+
 // Define cómo es un objeto Mensaje
 export interface Message {
   id: number | string; // Identificador único del mensaje
@@ -66,6 +83,8 @@ export interface Message {
   origen?: 'chat' | 'email'; // Nuevo campo para diferenciar el origen del mensaje
   botones?: Boton[]; // Array de botones interactivos asociados al mensaje (si los hay)
   categorias?: Categoria[]; // Array de categorías con botones (formato anidado para acordeones)
+  menu_sections?: MenuSection[]; // Sections for structured menus
+  interactive_list?: InteractiveListConfig; // Config for opening a list in a drawer/modal
   query?: string; // La consulta original del usuario que generó esta respuesta (opcional)
   isError?: boolean; // Indica si el mensaje representa un estado de error
   ticketId?: number; // Ticket asociado cuando el backend crea uno
