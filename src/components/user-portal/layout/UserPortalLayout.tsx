@@ -15,6 +15,7 @@ import { Menu as MenuIconLucide, Settings, LogOut, Building, ChevronDown, Moon, 
 import SideNavigationBar from '../navigation/SideNavigationBar';
 import BottomNavigationBar from '../navigation/BottomNavigationBar';
 import { useUser } from '@/hooks/useUser';
+import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { usePortalTheme } from '@/hooks/usePortalTheme';
 import { usePortalContent } from '@/hooks/usePortalContent';
 import NotificationCenter from '@/components/user-portal/notifications/NotificationCenter';
@@ -24,7 +25,7 @@ import { Badge } from '@/components/ui/badge';
 const UserPortalLayout: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
-  const { user } = useUser();
+  const { user, setUser } = useUser();
   const { content } = usePortalContent();
   const notifications = content.notifications ?? [];
   const { toggle, active, setTheme } = usePortalTheme();
@@ -42,8 +43,22 @@ const UserPortalLayout: React.FC = () => {
 
   const handleLogout = () => {
     console.log("Cerrar Sesión");
-    // TODO: Lógica de logout real: limpiar tokens, redirigir
-    navigate('/login');
+
+    // Limpiar tokens y sesión
+    safeLocalStorage.removeItem('authToken');
+    safeLocalStorage.removeItem('chatAuthToken');
+    safeLocalStorage.removeItem('user');
+
+    // Actualizar contexto
+    setUser(null);
+
+    // Redirigir
+    const tenantSlug = user?.tenantSlug;
+    if (tenantSlug) {
+      navigate(`/${tenantSlug}/user/login`);
+    } else {
+      navigate('/login');
+    }
   };
 
   return (
@@ -163,7 +178,7 @@ const UserPortalLayout: React.FC = () => {
                   </Button>
                 </SheetTrigger>
                 <SheetContent side="right" className="w-72 p-0">
-                  <SideNavigationBar onLinkClick={() => setMobileMenuOpen(false)} />
+                  <SideNavigationBar onLinkClick={() => setMobileMenuOpen(false)} onLogout={handleLogout} />
                 </SheetContent>
               </Sheet>
             </div>
@@ -174,7 +189,7 @@ const UserPortalLayout: React.FC = () => {
       <div className="flex flex-1 pt-16 md:pt-0"> {/* pt-16 en mobile para compensar navbar fijo */}
         {/* Menú Lateral (Desktop) */}
         <div className="hidden md:block md:fixed md:top-16 md:left-0 md:h-[calc(100vh-4rem)] md:z-30 shadow-md">
-            <SideNavigationBar />
+            <SideNavigationBar onLogout={handleLogout} />
         </div>
 
         {/* Contenido Principal */}

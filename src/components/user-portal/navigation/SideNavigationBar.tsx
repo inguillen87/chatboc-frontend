@@ -29,16 +29,22 @@ const accountNavItems: SideNavItem[] = [
 interface SideNavigationBarProps {
   onLinkClick?: () => void;
   isCollapsed?: boolean;
+  onLogout?: () => void;
 }
 
-const SideNavigationBar: React.FC<SideNavigationBarProps> = ({ onLinkClick, isCollapsed = false }) => {
+const SideNavigationBar: React.FC<SideNavigationBarProps> = ({ onLinkClick, isCollapsed = false, onLogout }) => {
   const navigate = useNavigate();
 
   const handleLogout = () => {
     console.log("Cerrar Sesión desde SideNav");
     if (onLinkClick) onLinkClick();
-    // TODO: Lógica de logout real: limpiar tokens, redirigir
-    navigate('/login');
+
+    if (onLogout) {
+      onLogout();
+    } else {
+      // Fallback si no se provee función de logout
+      navigate('/login');
+    }
   };
 
   const navLinkClasses = ({ isActive }: { isActive: boolean }) =>
