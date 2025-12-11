@@ -318,6 +318,12 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     if (!tenant?.tema || typeof document === 'undefined') return;
 
+    // Skip theme injection on the main landing page to preserve SaaS branding
+    // unless we are explicitly in a demo or tenant route
+    if (location.pathname === '/' && tenant.slug === 'municipio') {
+        return;
+    }
+
     const theme = tenant.tema as Record<string, unknown>;
     const root = document.documentElement;
     const colorEntries = Object.entries(theme)
@@ -330,7 +336,7 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       colorEntries.forEach(([key]) => root.style.removeProperty(`--${key}`));
     };
-  }, [tenant?.tema]);
+  }, [tenant?.tema, location.pathname, tenant.slug]);
 
   const refreshFollowedTenants = useCallback(async () => {
     setIsLoadingFollowedTenants(true);

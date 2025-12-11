@@ -2,42 +2,140 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Loader2, ArrowRight, MessageSquare, ShoppingBag, BarChart2, Store } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Loader2, ArrowRight, MessageSquare, ShoppingBag, BarChart2, Store, Smartphone, FileText, PieChart, Users, CheckCircle2 } from 'lucide-react';
 import { getTenantPublicInfoFlexible } from '@/api/tenant';
 import type { TenantPublicInfo } from '@/types/tenant';
-import ChatbocLogoAnimated from '@/components/chat/ChatbocLogoAnimated';
 import { useTenant } from '@/context/TenantContext';
+import { safeLocalStorage } from "@/utils/safeLocalStorage";
 
-// Simple Hero Component for the Demo Page
+// --- Components for Visual Enhancement ---
+
+const MockDashboard = () => (
+    <div className="bg-background border rounded-lg shadow-xl overflow-hidden text-left relative z-10 w-full max-w-4xl mx-auto transform transition-transform hover:scale-[1.01] duration-500">
+        <div className="bg-muted border-b p-3 flex items-center gap-2">
+            <div className="flex gap-1.5">
+                <div className="w-3 h-3 rounded-full bg-red-400/80"></div>
+                <div className="w-3 h-3 rounded-full bg-amber-400/80"></div>
+                <div className="w-3 h-3 rounded-full bg-green-400/80"></div>
+            </div>
+            <div className="ml-4 text-xs text-muted-foreground font-mono bg-background/50 px-2 py-0.5 rounded">chatboc.ar/admin/dashboard</div>
+        </div>
+        <div className="p-6 grid gap-6 md:grid-cols-3 bg-card/50">
+             {/* Stat Cards */}
+             <div className="bg-background p-4 rounded-lg border shadow-sm">
+                 <div className="flex justify-between items-start mb-2">
+                     <span className="text-sm text-muted-foreground">Conversaciones (Hoy)</span>
+                     <MessageSquare className="w-4 h-4 text-primary" />
+                 </div>
+                 <div className="text-2xl font-bold">142</div>
+                 <div className="text-xs text-green-600 flex items-center mt-1"><ArrowRight className="w-3 h-3 rotate-[-45deg] mr-1" /> +12% vs ayer</div>
+             </div>
+             <div className="bg-background p-4 rounded-lg border shadow-sm">
+                 <div className="flex justify-between items-start mb-2">
+                     <span className="text-sm text-muted-foreground">Pedidos / Trámites</span>
+                     <FileText className="w-4 h-4 text-primary" />
+                 </div>
+                 <div className="text-2xl font-bold">28</div>
+                 <div className="text-xs text-green-600 flex items-center mt-1"><ArrowRight className="w-3 h-3 rotate-[-45deg] mr-1" /> 5 pendientes</div>
+             </div>
+             <div className="bg-background p-4 rounded-lg border shadow-sm">
+                 <div className="flex justify-between items-start mb-2">
+                     <span className="text-sm text-muted-foreground">Satisfacción</span>
+                     <Users className="w-4 h-4 text-primary" />
+                 </div>
+                 <div className="text-2xl font-bold">4.8/5</div>
+                 <div className="text-xs text-muted-foreground mt-1">Basado en 56 encuestas</div>
+             </div>
+
+             {/* Chart Area Mock */}
+             <div className="md:col-span-2 bg-background p-4 rounded-lg border shadow-sm h-48 flex items-center justify-center relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-t from-primary/5 to-transparent"></div>
+                 <div className="flex items-end gap-2 w-full h-32 px-4 justify-between">
+                     {[40, 65, 55, 80, 50, 90, 75].map((h, i) => (
+                         <div key={i} className="w-full bg-primary/20 hover:bg-primary/40 transition-colors rounded-t-sm" style={{ height: `${h}%` }}></div>
+                     ))}
+                 </div>
+                 <span className="absolute top-3 left-4 text-xs font-medium">Actividad Semanal</span>
+             </div>
+
+             {/* Recent Activity List */}
+             <div className="bg-background p-4 rounded-lg border shadow-sm h-48 overflow-hidden">
+                 <h4 className="text-xs font-semibold mb-3">Últimas Interacciones</h4>
+                 <div className="space-y-3">
+                     {[1, 2, 3].map((_, i) => (
+                         <div key={i} className="flex gap-3 items-center">
+                             <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-[10px]">User</div>
+                             <div className="flex-1">
+                                 <div className="h-2 w-24 bg-muted rounded mb-1"></div>
+                                 <div className="h-1.5 w-16 bg-muted/50 rounded"></div>
+                             </div>
+                         </div>
+                     ))}
+                 </div>
+             </div>
+        </div>
+    </div>
+);
+
 const DemoHero = ({ tenant }: { tenant: TenantPublicInfo }) => {
   return (
-    <div className="bg-muted/30 py-16 md:py-24 border-b border-border/50">
-      <div className="container mx-auto px-4 text-center">
-        <div className="flex justify-center mb-6">
-           {tenant.logo_url ? (
-               <img src={tenant.logo_url} alt={tenant.nombre} className="h-20 w-auto object-contain" />
-           ) : (
-               <div className="h-20 w-20 bg-primary/10 rounded-full flex items-center justify-center text-primary">
-                  <Store className="h-10 w-10" />
-               </div>
-           )}
+    <div className="relative bg-gradient-to-b from-background via-muted/20 to-background pt-24 pb-32 overflow-hidden">
+      {/* Abstract Background Shapes */}
+      <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
+          <div className="absolute top-[-10%] right-[-5%] w-96 h-96 bg-primary/5 rounded-full blur-3xl"></div>
+          <div className="absolute bottom-[10%] left-[-5%] w-72 h-72 bg-blue-500/5 rounded-full blur-3xl"></div>
+      </div>
+
+      <div className="container mx-auto px-4 text-center relative z-10">
+        <div className="flex justify-center mb-8">
+           <div className="relative group">
+                {/* Glow effect behind logo */}
+                <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full scale-110 group-hover:scale-125 transition-transform duration-500"></div>
+                {tenant.logo_url ? (
+                    <img src={tenant.logo_url} alt={tenant.nombre} className="h-24 w-24 md:h-28 md:w-28 object-contain relative z-10 drop-shadow-sm" />
+                ) : (
+                    <div className="h-24 w-24 bg-background border-2 border-primary/20 rounded-full flex items-center justify-center text-primary relative z-10 shadow-lg">
+                        <Store className="h-10 w-10" />
+                    </div>
+                )}
+           </div>
         </div>
-        <h1 className="text-4xl font-bold mb-4 tracking-tight text-foreground">
-          Demo: {tenant.nombre}
+
+        <Badge variant="outline" className="mb-6 px-4 py-1.5 border-primary/20 text-primary bg-primary/5 text-sm backdrop-blur-sm">
+            Entorno de Demostración Interactivo
+        </Badge>
+
+        <h1 className="text-4xl md:text-6xl font-extrabold mb-6 tracking-tight text-foreground leading-tight">
+          {tenant.nombre}
+          <span className="block text-primary mt-2 text-2xl md:text-4xl font-semibold opacity-90">
+             Potenciado por Agentes IA
+          </span>
         </h1>
-        <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-8">
-            {tenant.descripcion || "Explora cómo nuestra IA transforma la experiencia de usuarios y clientes en este sector."}
+
+        <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed">
+            {tenant.descripcion || "Esta es una simulación real de cómo nuestra tecnología automatiza la atención, ventas y procesos en este sector."}
         </p>
-        <div className="flex justify-center gap-4">
-            <Button size="lg" className="shadow-lg" onClick={() => document.querySelector('.chatboc-toggle-btn')?.dispatchEvent(new MouseEvent('click', { bubbles: true }))}>
-                <MessageSquare className="mr-2 h-5 w-5" /> Probar Agente IA
+
+        <div className="flex flex-col sm:flex-row justify-center gap-4 mb-16">
+            <Button size="lg" className="h-12 px-8 text-base shadow-lg hover:shadow-primary/20 hover:scale-105 transition-all duration-300"
+                    onClick={() => document.querySelector('.chatboc-toggle-btn')?.dispatchEvent(new MouseEvent('click', { bubbles: true }))}>
+                <MessageSquare className="mr-2 h-5 w-5" /> Iniciar Chat Demo
             </Button>
             {tenant.public_catalog_url && (
-                <Button variant="outline" size="lg" onClick={() => window.location.href = tenant.public_catalog_url!}>
-                    <ShoppingBag className="mr-2 h-5 w-5" /> Ver Catálogo
+                <Button variant="outline" size="lg" className="h-12 px-8 text-base border-primary/20 hover:bg-primary/5"
+                        onClick={() => window.location.href = tenant.public_catalog_url!}>
+                    <ShoppingBag className="mr-2 h-5 w-5" /> Explorar Catálogo
                 </Button>
             )}
+        </div>
+
+        {/* Floating Mock UI Element to show "Back Office" value */}
+        <div className="mt-8 perspective-1000">
+             <div className="text-sm font-medium text-muted-foreground mb-4 flex items-center justify-center gap-2">
+                <BarChart2 className="w-4 h-4" /> Lo que tú ves como administrador
+             </div>
+             <MockDashboard />
         </div>
       </div>
     </div>
@@ -45,13 +143,13 @@ const DemoHero = ({ tenant }: { tenant: TenantPublicInfo }) => {
 };
 
 const FeatureCard = ({ icon, title, desc }: { icon: React.ReactNode, title: string, desc: string }) => (
-    <Card className="border-border shadow-sm hover:shadow-md transition-shadow">
+    <Card className="border-border/50 bg-card/50 backdrop-blur-sm shadow-sm hover:shadow-md hover:border-primary/30 transition-all duration-300 h-full">
         <CardHeader>
-            <div className="mb-2 p-2 bg-primary/10 w-fit rounded-lg text-primary">{icon}</div>
-            <CardTitle className="text-lg">{title}</CardTitle>
+            <div className="mb-4 p-3 bg-primary/10 w-fit rounded-xl text-primary ring-1 ring-primary/20">{icon}</div>
+            <CardTitle className="text-xl">{title}</CardTitle>
         </CardHeader>
         <CardContent>
-            <CardDescription className="text-base">{desc}</CardDescription>
+            <CardDescription className="text-base leading-relaxed">{desc}</CardDescription>
         </CardContent>
     </Card>
 );
@@ -64,6 +162,16 @@ const DemoLandingPage = () => {
   const [error, setError] = useState<string | null>(null);
   const { setTenantSlug } = useTenant();
 
+  // Reset logic to prevent context bleeding between demos
+  useEffect(() => {
+    // 1. Clear chat session storage to avoid "Welcome to Clinic" when visiting "Municipality"
+    safeLocalStorage.removeItem("chatboc_chat_session_id");
+    safeLocalStorage.removeItem("chatboc_thread_id");
+
+    // 2. Force widget reload if necessary (by dispatching a custom event the widget listens to, or relying on key change)
+    // For now, removing session_id is the most critical step as the backend uses it to retrieve history.
+  }, [slug]);
+
   useEffect(() => {
     if (!slug) {
         navigate('/demo');
@@ -73,19 +181,22 @@ const DemoLandingPage = () => {
     const loadDemo = async () => {
         try {
             setLoading(true);
-            // Fetch public info which includes widget config, theme, etc.
             const data = await getTenantPublicInfoFlexible(slug);
             setTenant(data);
 
-            // Important: Set the tenant in the global context so the ChatWidget picks it up
-            // This ensures the widget uses the correct slug for its API calls
+            // Set global tenant context
             if (data.slug) {
                 setTenantSlug(data.slug);
             }
 
-            // Force widget to open via custom event or just relying on `default_open` in config
-            // Ideally, we'd update the context to trigger open, but the widget reads `default_open` from config.
-            // If the config returned by backend has default_open: true, it handles itself.
+            // Auto-open widget after a short delay for better UX
+            setTimeout(() => {
+                const widgetBtn = document.querySelector('.chatboc-toggle-btn');
+                if (widgetBtn && !document.querySelector('.chatboc-widget-window')) {
+                    widgetBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+                }
+            }, 1500);
+
         } catch (err) {
             console.error("Failed to load demo:", err);
             setError("No pudimos cargar la demo solicitada. Verifica el nombre o intenta más tarde.");
@@ -100,8 +211,8 @@ const DemoLandingPage = () => {
   if (loading) {
       return (
           <div className="min-h-screen flex flex-col items-center justify-center bg-background">
-              <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
-              <p className="text-muted-foreground">Cargando experiencia...</p>
+              <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+              <p className="text-muted-foreground text-lg animate-pulse">Configurando entorno de demostración...</p>
           </div>
       );
   }
@@ -109,49 +220,100 @@ const DemoLandingPage = () => {
   if (error || !tenant) {
       return (
           <div className="min-h-screen flex flex-col items-center justify-center bg-background px-4 text-center">
+              <div className="bg-destructive/10 p-4 rounded-full mb-4 text-destructive">
+                  <Store className="h-8 w-8" />
+              </div>
               <h1 className="text-2xl font-bold mb-2">Algo salió mal</h1>
-              <p className="text-muted-foreground mb-6">{error || "Demo no encontrada"}</p>
-              <Button onClick={() => navigate('/')}>Volver al Inicio</Button>
+              <p className="text-muted-foreground mb-6 max-w-md">{error || "Demo no encontrada"}</p>
+              <Button onClick={() => navigate('/')} variant="outline">Volver al Inicio</Button>
           </div>
       );
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col">
+    <div className="min-h-screen bg-background text-foreground flex flex-col font-sans">
       <DemoHero tenant={tenant} />
 
-      <main className="flex-grow container mx-auto px-4 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+      <main className="flex-grow container mx-auto px-4 py-20">
+        <div className="text-center max-w-3xl mx-auto mb-16">
+            <h2 className="text-3xl font-bold mb-4">Tecnología Transparente</h2>
+            <p className="text-muted-foreground text-lg">
+                Mientras tus usuarios interactúan con el chat, tu panel de control se actualiza en tiempo real.
+            </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-24">
             <FeatureCard
-                icon={<MessageSquare className="h-6 w-6" />}
-                title="Atención 24/7"
-                desc="El Agente IA responde consultas frecuentes, toma pedidos y resuelve reclamos en cualquier momento."
+                icon={<Smartphone className="h-6 w-6" />}
+                title="Omnicanalidad Real"
+                desc="El mismo asistente atiende en Web, WhatsApp, Instagram y Telegram. Una sola configuración, múltiples canales."
             />
              <FeatureCard
-                icon={<ShoppingBag className="h-6 w-6" />}
-                title="Catálogo Integrado"
-                desc="Los productos y servicios se sincronizan automáticamente. Vende y reserva sin intervención manual."
+                icon={<PieChart className="h-6 w-6" />}
+                title="Métricas de Negocio"
+                desc="No solo medimos mensajes, medimos resultados: ventas cerradas, turnos agendados y reclamos resueltos."
             />
              <FeatureCard
-                icon={<BarChart2 className="h-6 w-6" />}
-                title="Datos en Tiempo Real"
-                desc="Cada interacción alimenta tu dashboard. Visualiza qué buscan tus clientes y cómo mejorar."
+                icon={<CheckCircle2 className="h-6 w-6" />}
+                title="Autonomía Total"
+                desc="El agente aprende de tu documentación y catálogo. Responde preguntas complejas sin intervención humana."
             />
         </div>
 
-        <div className="mt-16 text-center bg-card border border-border rounded-xl p-8 shadow-sm">
-            <h2 className="text-2xl font-bold mb-4">¿Te gustaría tener esto en tu organización?</h2>
-            <p className="text-muted-foreground mb-6 max-w-2xl mx-auto">
-                Implementa esta misma tecnología en minutos. Sin código, sin configuraciones complejas.
-            </p>
-            <Button size="lg" variant="default" onClick={() => navigate('/register')}>
-                Crear mi Espacio Gratis <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
+        <div className="relative bg-primary/5 rounded-3xl p-8 md:p-12 overflow-hidden border border-primary/10">
+             <div className="absolute top-0 right-0 -mt-16 -mr-16 w-64 h-64 bg-primary/10 rounded-full blur-3xl"></div>
+
+             <div className="relative z-10 grid md:grid-cols-2 gap-12 items-center">
+                 <div>
+                    <h2 className="text-3xl font-bold mb-6">¿Listo para transformar tu {tenant.tipo === 'municipio' ? 'gestión pública' : 'negocio'}?</h2>
+                    <ul className="space-y-4 mb-8">
+                        {[
+                            'Configuración en menos de 5 minutos',
+                            'Prueba gratuita sin tarjeta de crédito',
+                            'Soporte técnico prioritario',
+                            'Integración con tus sistemas actuales'
+                        ].map((item, i) => (
+                            <li key={i} className="flex items-center gap-3">
+                                <CheckCircle2 className="w-5 h-5 text-primary" />
+                                <span>{item}</span>
+                            </li>
+                        ))}
+                    </ul>
+                    <Button size="lg" className="h-14 px-8 text-lg shadow-xl hover:shadow-primary/25 transition-all" onClick={() => navigate('/register')}>
+                        Crear mi Cuenta Gratis <ArrowRight className="ml-2 h-5 w-5" />
+                    </Button>
+                 </div>
+                 <div className="relative h-64 md:h-full min-h-[300px] bg-background rounded-xl border shadow-lg flex items-center justify-center p-8 text-center">
+                     <div className="space-y-4 max-w-xs mx-auto">
+                        <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center text-primary mx-auto mb-4">
+                            <Store className="w-8 h-8" />
+                        </div>
+                        <h3 className="font-semibold text-xl">Tu Panel de Control</h3>
+                        <p className="text-sm text-muted-foreground">
+                            Visualiza todas las conversaciones, gestiona tu catálogo y analiza el rendimiento de tu agente desde un solo lugar.
+                        </p>
+                        <Button variant="outline" size="sm" className="w-full">Ver Demo del Panel</Button>
+                     </div>
+                 </div>
+             </div>
         </div>
       </main>
 
-      <footer className="py-8 border-t border-border text-center text-sm text-muted-foreground">
-        <p>© {new Date().getFullYear()} Chatboc - Plataforma de Agentes IA</p>
+      <footer className="py-12 border-t border-border bg-muted/20 text-center">
+        <div className="container mx-auto px-4">
+            <div className="flex items-center justify-center gap-2 mb-4 opacity-80">
+                <div className="h-8 w-8 bg-primary/20 rounded-lg flex items-center justify-center text-primary">
+                    <Store className="h-5 w-5" />
+                </div>
+                <span className="font-bold text-lg">Chatboc</span>
+            </div>
+            <p className="text-sm text-muted-foreground mb-8 max-w-lg mx-auto">
+                La plataforma líder de Agentes IA para Gobiernos y Empresas en Latinoamérica.
+            </p>
+            <div className="text-xs text-muted-foreground/60">
+                © {new Date().getFullYear()} Chatboc Technologies. Todos los derechos reservados.
+            </div>
+        </div>
       </footer>
     </div>
   );
