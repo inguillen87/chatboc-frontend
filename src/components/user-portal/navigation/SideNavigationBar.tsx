@@ -4,6 +4,8 @@ import {
   LayoutDashboard, ShoppingBag, Archive, ListChecks, Newspaper, CalendarDays,
   Gift, TicketPercent, MessageSquareQuote, ClipboardEdit, Settings2, LogOut
 } from 'lucide-react';
+import { useUser } from '@/hooks/useUser';
+import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
 interface SideNavItem {
   path: string;
@@ -33,12 +35,26 @@ interface SideNavigationBarProps {
 
 const SideNavigationBar: React.FC<SideNavigationBarProps> = ({ onLinkClick, isCollapsed = false }) => {
   const navigate = useNavigate();
+  const { user, setUser } = useUser();
 
   const handleLogout = () => {
-    console.log("Cerrar Sesión desde SideNav");
+    // Clear tokens and user data
+    safeLocalStorage.removeItem('user');
+    safeLocalStorage.removeItem('authToken');
+    safeLocalStorage.removeItem('chatAuthToken');
+    safeLocalStorage.removeItem('entityToken');
+
+    // Update context
+    setUser(null);
+
     if (onLinkClick) onLinkClick();
-    // TODO: Lógica de logout real: limpiar tokens, redirigir
-    navigate('/login');
+
+    // Redirect based on tenant context
+    if (user?.tenantSlug) {
+      navigate(`/${user.tenantSlug}/user/login`);
+    } else {
+      navigate('/login');
+    }
   };
 
   const navLinkClasses = ({ isActive }: { isActive: boolean }) =>
