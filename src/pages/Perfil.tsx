@@ -579,6 +579,8 @@ export default function Perfil() {
   interface MappingConfig {
     id: string; // o number, según tu backend
     name: string;
+    is_default?: boolean;
+    isDefault?: boolean;
     // Podríamos añadir más detalles si fueran necesarios en la lista, como fileType o ultimaModificacion
   }
   const [mappingConfigs, setMappingConfigs] = useState<MappingConfig[]>([]);
@@ -1114,6 +1116,84 @@ export default function Perfil() {
     setAnalysisEngine(null);
   };
 
+  const processFileWithMapping = async (fileToProcess: File, mappingId: string, mappingName?: string) => {
+    setLoadingCatalogo(true);
+    setResultadoCatalogo(null);
+    const entityType = isPyme ? 'pymes' : 'municipal';
+
+    try {
+      if (!user?.id) {
+        setResultadoCatalogo({ message: "Usuario no identificado.", type: "error" });
+        return;
+      }
+      const formData = new FormData();
+      formData.append("file", fileToProcess);
+      formData.append("mappingId", mappingId);
+
+      const processingResult = await apiFetch<any>(`/${entityType}/${user?.id}/process-catalog-file`, {
+        method: "POST",
+        body: formData,
+      });
+
+      const vectorMetadata: Record<string, unknown> = {
+        fileSize: fileToProcess.size,
+        mimeType: fileToProcess.type,
+      };
+
+      if (analysisEngine) {
+        vectorMetadata.aiEngine = analysisEngine;
+      }
+      if (typeof analysisConfidence === 'number') {
+        vectorMetadata.aiConfidence = analysisConfidence;
+      }
+      if (analysisSource) {
+        vectorMetadata.aiSource = analysisSource;
+      }
+      if (analysisSummary) {
+        vectorMetadata.aiSummary = analysisSummary;
+      }
+      if (analysisWarnings.length > 0) {
+        vectorMetadata.aiWarnings = analysisWarnings;
+      }
+      if (parsedColumns.length > 0) {
+        vectorMetadata.detectedColumns = parsedColumns;
+      }
+      if (previewRecords.length > 0) {
+        vectorMetadata.previewRows = previewRecords.slice(0, 3);
+      }
+
+      try {
+        const vectorResult = await triggerCatalogVectorSync({
+          pymeId: user!.id,
+          mappingId: mappingId,
+          sourceFileName: fileToProcess.name,
+          metadata: vectorMetadata,
+        });
+        setVectorSyncStatus(vectorResult);
+      } catch (vectorErr) {
+        toast({
+          variant: 'destructive',
+          title: 'Catálogo procesado con advertencias',
+          description: getErrorMessage(vectorErr, 'Se subió el archivo pero no se pudo sincronizar con Qdrant.'),
+        });
+      }
+
+      setResultadoCatalogo({
+        message: processingResult.mensaje || "¡Catálogo subido, procesado y enviado al vector store!",
+        type: "success",
+      });
+      setArchivo(null);
+      setIsMappingModalOpen(false);
+      refreshVectorSyncStatus();
+
+    } catch (err) {
+      const errorMessage = getErrorMessage(err, "Ocurrió un error en el proceso.");
+      setResultadoCatalogo({ message: errorMessage, type: "error" });
+    } finally {
+      setLoadingCatalogo(false);
+    }
+  };
+
   const handleSubirArchivo = async () => {
     if (!archivo) {
       setResultadoCatalogo({
@@ -1149,16 +1229,22 @@ export default function Perfil() {
         }
     }
 
-    // TODO: Implementar lógica para elegir mapeo predeterminado o único
-    // Por ahora, si no hay mapeos, o si hay más de uno y no hay predeterminado,
-    // redirigimos a la creación de mapeo con el archivo.
-    const shouldGoToMappingPage = configs.length === 0; // Simplificación: siempre ir si no hay mapeos.
-                                                        // Futuro: ir si hay >1 y ninguno es default, o si el usuario elige configurar.
+    // Lógica para elegir mapeo predeterminado o único
+    let selectedMapping: MappingConfig | undefined;
 
-    if (shouldGoToMappingPage) {
-      // En lugar de redirigir, ahora abrimos el modal.
+    if (configs.length === 1) {
+      selectedMapping = configs[0];
+    } else if (configs.length > 1) {
+      selectedMapping = configs.find(c => c.is_default || c.isDefault);
+    }
+
+    if (selectedMapping) {
+      // Si encontramos un mapeo adecuado, procesamos directamente
+      await processFileWithMapping(archivo, selectedMapping.id, selectedMapping.name);
+    } else {
+      // Si no hay mapeos o hay ambigüedad sin default, abrimos el modal para crear o configurar
       setIsMappingModalOpen(true);
-      // El resto de la lógica (parseo, etc.) se manejará dentro del modal y sus funciones.
+      setLoadingCatalogo(false);
     }
   };
 
@@ -1315,73 +1401,13 @@ export default function Perfil() {
       toast({ title: "Paso 1/2: Formato guardado", description: `Se guardó la configuración "${mappingName}".` });
 
       // 2. Ahora, procesar el archivo usando este nuevo mapeo
-      // (Esta parte sigue siendo hipotética hasta que el backend la implemente por completo)
-      const formData = new FormData();
-      formData.append("file", archivo);
-      formData.append("mappingId", savedMapping.id);
-
-      const processingResult = await apiFetch<any>(`/${entityType}/${user.id}/process-catalog-file`, {
-        method: "POST",
-        body: formData,
-      });
-
-      const vectorMetadata: Record<string, unknown> = {
-        fileSize: archivo.size,
-        mimeType: archivo.type,
-      };
-
-      if (analysisEngine) {
-        vectorMetadata.aiEngine = analysisEngine;
-      }
-      if (typeof analysisConfidence === 'number') {
-        vectorMetadata.aiConfidence = analysisConfidence;
-      }
-      if (analysisSource) {
-        vectorMetadata.aiSource = analysisSource;
-      }
-      if (analysisSummary) {
-        vectorMetadata.aiSummary = analysisSummary;
-      }
-      if (analysisWarnings.length > 0) {
-        vectorMetadata.aiWarnings = analysisWarnings;
-      }
-      if (parsedColumns.length > 0) {
-        vectorMetadata.detectedColumns = parsedColumns;
-      }
-      if (previewRecords.length > 0) {
-        vectorMetadata.previewRows = previewRecords.slice(0, 3);
-      }
-
-      try {
-        const vectorResult = await triggerCatalogVectorSync({
-          pymeId: user.id,
-          mappingId: savedMapping.id,
-          sourceFileName: archivo.name,
-          metadata: vectorMetadata,
-        });
-        setVectorSyncStatus(vectorResult);
-      } catch (vectorErr) {
-        toast({
-          variant: 'destructive',
-          title: 'Catálogo procesado con advertencias',
-          description: getErrorMessage(vectorErr, 'Se subió el archivo pero no se pudo sincronizar con Qdrant.'),
-        });
-      }
-
-      setResultadoCatalogo({
-        message: processingResult.mensaje || "¡Catálogo subido, procesado y enviado al vector store!",
-        type: "success",
-      });
-      setArchivo(null);
-      setIsMappingModalOpen(false);
-      refreshVectorSyncStatus();
+      await processFileWithMapping(archivo, savedMapping.id, mappingName);
 
     } catch (err) {
       const errorMessage = getErrorMessage(err, "Ocurrió un error en el proceso.");
       setResultadoCatalogo({ message: errorMessage, type: "error" });
-      // Mantener el modal abierto en caso de error para que el usuario pueda reintentar o cancelar.
-    } finally {
       setLoadingCatalogo(false);
+      // Mantener el modal abierto en caso de error para que el usuario pueda reintentar o cancelar.
     }
   };
 
