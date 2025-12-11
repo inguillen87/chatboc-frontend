@@ -6,62 +6,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, Building2, ShoppingBag, Stethoscope, Store, Loader2, ChevronRight, Factory, Heart, Briefcase } from 'lucide-react';
-import { fetchRubros, buildRubroTree, Rubro } from '@/api/rubros';
-
-// Fallback Mock Data mirroring the backend structure (padre_id)
-// Structure: Root -> Level 1 -> Level 2 (Tenant)
-const FALLBACK_RUBROS_FLAT: Rubro[] = [
-  // --- ROOTS ---
-  { id: 1, nombre: "Municipios y Gobierno", clave: "municipios_root", padre_id: null },
-  { id: 2, nombre: "Locales Comerciales", clave: "comerciales_root", padre_id: null },
-
-  // --- LEVEL 1: Municipios ---
-  { id: 11, nombre: "Municipios", padre_id: 1 },
-  // --- LEVEL 2: Tenants (Municipios) ---
-  { id: 101, nombre: "Municipio Inteligente", padre_id: 11, demo: { id: 101, slug: "municipio", nombre: "Municipio Inteligente", descripcion: "Trámites, reclamos y turismo." } },
-
-  // --- LEVEL 1: Locales Comerciales ---
-
-  // Alimentación y Bebidas
-  { id: 21, nombre: "Alimentación y Bebidas", padre_id: 2 },
-  { id: 201, nombre: "Almacén de Barrio", padre_id: 21, demo: { id: 201, slug: "almacen", nombre: "Almacén Demo", descripcion: "Pedidos por foto y stock." } },
-  { id: 204, nombre: "Bodega Boutique", padre_id: 21, demo: { id: 204, slug: "bodega", nombre: "Bodega Demo", descripcion: "Vinos, catas y envíos." } },
-  { id: 205, nombre: "Kiosco 24hs", padre_id: 21, demo: { id: 205, slug: "almacen", nombre: "Kiosco Demo", descripcion: "Snacks y bebidas." } }, // Reusing almacen slug for generic demo
-  { id: 206, nombre: "Gastronomía", padre_id: 21, demo: { id: 206, slug: "bodega", nombre: "Restaurante Demo", descripcion: "Reservas y menú digital." } }, // Reusing bodega slug for generic demo
-
-  // Retail y Comercios
-  { id: 22, nombre: "Retail y Comercios", padre_id: 2 },
-  { id: 202, nombre: "Ferretería Técnica", padre_id: 22, demo: { id: 202, slug: "ferreteria", nombre: "Ferretería Demo", descripcion: "Asesoramiento y catálogo." } },
-  { id: 203, nombre: "Tienda de Ropa", padre_id: 22, demo: { id: 203, slug: "local_comercial_general", nombre: "Tienda de Ropa Demo", descripcion: "Moda, talles y reservas." } },
-
-  // Servicios Profesionales (Moving to root or keeping as sub? Prompt implies hierarchy under separate heads)
-  // Let's stick to the prompt structure.
-  // Prompt: Servicios Profesionales under Locales Comerciales? Or separate?
-  // Prompt says:
-  // * Locales Comerciales
-  //    * ...
-  //    * Servicios Profesionales
-  // So it is a Level 1 under Locales Comerciales in the prompt text.
-  { id: 23, nombre: "Servicios Profesionales", padre_id: 2 },
-  { id: 302, nombre: "Logística y Transporte", padre_id: 23, demo: { id: 302, slug: "ferreteria", nombre: "Logística Demo", descripcion: "Seguimiento y cotizaciones." } }, // Using generic slug
-  { id: 303, nombre: "Seguros y Riesgos", padre_id: 23, demo: { id: 303, slug: "medico_general", nombre: "Seguros Demo", descripcion: "Pólizas y siniestros." } },
-  { id: 304, nombre: "Fintech y Banca", padre_id: 23, demo: { id: 304, slug: "medico_general", nombre: "Fintech Demo", descripcion: "Atención al cliente 24/7." } },
-  { id: 305, nombre: "Inmobiliaria", padre_id: 23, demo: { id: 305, slug: "medico_general", nombre: "Inmobiliaria Demo", descripcion: "Propiedades y citas." } },
-  { id: 306, nombre: "Energía e Industria", padre_id: 23, demo: { id: 306, slug: "ferreteria", nombre: "Industria Demo", descripcion: "Soporte técnico y ventas." } },
-
-  // Salud y Bienestar (Under Locales Comerciales per prompt? Or separate? Prompt list is indented under Locales Comerciales)
-  { id: 24, nombre: "Salud y Bienestar", padre_id: 2 },
-  { id: 301, nombre: "Salud y Medicina", padre_id: 24, demo: { id: 301, slug: "medico_general", nombre: "Clínica Demo", descripcion: "Turnos y consultas." } },
-  { id: 307, nombre: "Farmacia", padre_id: 24, demo: { id: 307, slug: "almacen", nombre: "Farmacia Demo", descripcion: "Recetas y envíos." } },
-
-  // Producción e Industria (Level 1)
-  { id: 25, nombre: "Producción e Industria", padre_id: 2 },
-];
+import { getRubrosHierarchy } from '@/api/rubros';
+import { Rubro } from '@/types/rubro';
 
 const categoryIcons: Record<string, React.ReactNode> = {
   municipios_root: <Building2 className="w-5 h-5" />,
   comerciales_root: <Store className="w-5 h-5" />,
-  // Mapping level 1 icons based on name containment
   "Alimentación y Bebidas": <ShoppingBag className="w-4 h-4" />,
   "Salud y Bienestar": <Heart className="w-4 h-4" />,
   "Servicios Profesionales": <Briefcase className="w-4 h-4" />,
@@ -71,7 +21,6 @@ const categoryIcons: Record<string, React.ReactNode> = {
 
 const getIconForCategory = (cat: Rubro) => {
     if (cat.clave && categoryIcons[cat.clave]) return categoryIcons[cat.clave];
-    // Fallback based on name match
     const found = Object.keys(categoryIcons).find(k => cat.nombre.includes(k));
     if (found) return categoryIcons[found];
     return <Store className="w-4 h-4" />;
@@ -95,7 +44,6 @@ const DemoCard = ({ item }: { item: Rubro }) => {
         <CardDescription className="text-sm line-clamp-2">{item.demo.descripcion || "Demo interactiva disponible 24/7."}</CardDescription>
       </CardHeader>
       <CardContent className="flex-grow pt-0">
-         {/* Optional content space */}
       </CardContent>
       <CardFooter className="pt-0">
         <Button variant="ghost" size="sm" className="w-full justify-between group-hover:bg-primary group-hover:text-primary-foreground text-xs h-8">
@@ -107,7 +55,6 @@ const DemoCard = ({ item }: { item: Rubro }) => {
 };
 
 const SubCategorySection = ({ category }: { category: Rubro }) => {
-  // This renders Level 1 Category -> Level 2 Grid
   if (!category.subrubros || category.subrubros.length === 0) return null;
 
   return (
@@ -134,15 +81,10 @@ const DemoShowcaseSection = () => {
   useEffect(() => {
     const initData = async () => {
       try {
-        const data = await fetchRubros();
-        if (!data || data.length === 0) {
-            setTree(buildRubroTree(FALLBACK_RUBROS_FLAT));
-        } else {
-            setTree(buildRubroTree(data));
-        }
+        const data = await getRubrosHierarchy();
+        setTree(data);
       } catch (error) {
-        console.warn("Using fallback demo data due to fetch error", error);
-        setTree(buildRubroTree(FALLBACK_RUBROS_FLAT));
+        console.error("Error loading demo hierarchy", error);
       } finally {
         setLoading(false);
       }
@@ -158,7 +100,6 @@ const DemoShowcaseSection = () => {
       );
   }
 
-  // Ensure we have roots
   const rootCategories = tree;
   const defaultValue = rootCategories.length > 0 ? String(rootCategories[0].id) : undefined;
 
@@ -179,13 +120,13 @@ const DemoShowcaseSection = () => {
 
         {rootCategories.length > 0 && (
             <Tabs defaultValue={defaultValue} className="w-full max-w-6xl mx-auto">
-                <div className="flex justify-center mb-8">
-                    <TabsList className="h-auto p-1 bg-background/50 backdrop-blur-sm border shadow-sm rounded-full">
+                <div className="flex justify-center mb-8 overflow-x-auto pb-4 md:pb-0">
+                    <TabsList className="h-auto p-1 bg-background/50 backdrop-blur-sm border shadow-sm rounded-full flex-wrap justify-center">
                         {rootCategories.map((root) => (
                             <TabsTrigger
                                 key={root.id}
                                 value={String(root.id)}
-                                className="rounded-full px-6 py-2.5 text-sm md:text-base data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all"
+                                className="rounded-full px-6 py-2.5 text-sm md:text-base data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all whitespace-nowrap"
                             >
                                 <div className="flex items-center gap-2">
                                     {getIconForCategory(root)}
@@ -197,7 +138,7 @@ const DemoShowcaseSection = () => {
                 </div>
 
                 {rootCategories.map((root) => (
-                    <TabsContent key={root.id} value={String(root.id)} className="animate-in fade-in-50 zoom-in-95 duration-300">
+                    <TabsContent key={root.id} value={String(root.id)} className="animate-in fade-in-50 zoom-in-95 duration-300 focus-visible:ring-0">
                         <div className="space-y-8 bg-background/40 p-6 rounded-3xl border border-white/20 shadow-sm">
                             {root.subrubros && root.subrubros.length > 0 ? (
                                 root.subrubros.map(level1 => (

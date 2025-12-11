@@ -10,7 +10,7 @@ import ChatInput, { ChatInputHandle } from "./ChatInput";
 import ScrollToBottomButton from "@/components/ui/ScrollToBottomButton";
 import { useChatLogic } from "@/hooks/useChatLogic";
 import PersonalDataForm from './PersonalDataForm';
-import { Rubro } from "./RubroSelector";
+import { Rubro } from '@/types/rubro';
 import { Message } from "@/types/chat";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { extractRubroKey, extractRubroLabel } from "@/utils/rubros";
@@ -20,6 +20,7 @@ import RubroSelector from "./RubroSelector";
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import TicketMap from "@/components/TicketMap";
 import { apiFetch, getErrorMessage } from "@/utils/api";
+import { getRubrosHierarchy } from "@/api/rubros";
 import { useUser } from "@/hooks/useUser";
 import { useBusinessHours } from "@/hooks/useBusinessHours";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,7 @@ import { resetChatSessionId } from "@/utils/chatSessionId";
 
 const PENDING_TICKET_KEY = 'pending_ticket_id';
 const PENDING_GPS_KEY = 'pending_gps';
+const PENDING_WIDGET_ACTION = 'pending_widget_action';
 
 const FRASES_DIRECCION = [
   "indicame la dirección", "necesito la dirección", "ingresa la dirección",
@@ -124,6 +126,29 @@ const ChatPanel = ({
     selectedRubro: resolvedSelectedRubro,
   });
 
+  // Check for pending widget action from CTA bubble
+  useEffect(() => {
+    const pendingAction = safeLocalStorage.getItem(PENDING_WIDGET_ACTION);
+    if (pendingAction) {
+      safeLocalStorage.removeItem(PENDING_WIDGET_ACTION);
+      try {
+        const actionData = JSON.parse(pendingAction);
+        if (actionData && actionData.action) {
+          // Allow slight delay for component initialization
+          setTimeout(() => {
+            handleSend({
+                text: actionData.text || actionData.action, // Fallback text if just action
+                action: actionData.action,
+                payload: actionData.payload
+            });
+          }, 500);
+        }
+      } catch (e) {
+        console.error("Error parsing pending widget action", e);
+      }
+    }
+  }, [handleSend]);
+
   const rubrosEnabled = tipoChat === 'pyme';
   const [rubros, setRubros] = useState<Rubro[]>([]);
   const [isLoadingRubros, setIsLoadingRubros] = useState(false);
@@ -133,9 +158,10 @@ const ChatPanel = ({
   const loadRubros = useCallback(() => {
     setIsLoadingRubros(true);
     setRubrosError(null);
-    apiFetch<Rubro[]>("/rubros/", { skipAuth: true, isWidgetRequest: true })
+    getRubrosHierarchy()
       .then((data) => {
         if (Array.isArray(data)) {
+          // getRubrosHierarchy already returns the tree
           setRubros(data);
         } else {
           setRubros([]);
@@ -184,7 +210,7 @@ const ChatPanel = ({
     if (!rubrosEnabled) {
       return;
     }
-    if (!localRubro) {
+    if (localRubro) {
       return;
     }
     if (lastInitializedRubro.current === localRubro) {

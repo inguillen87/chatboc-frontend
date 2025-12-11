@@ -1,22 +1,7 @@
 
 import { apiFetch } from '@/utils/api';
-
-export interface TenantDemoSummary {
-  id: number;
-  slug: string;
-  nombre: string;
-  descripcion?: string;
-}
-
-export interface Rubro {
-  id: number;
-  nombre: string;
-  clave?: string;
-  padre_id?: number | null;
-  demo?: TenantDemoSummary | null;
-  // Subrubros will be populated recursively by the frontend helper
-  subrubros?: Rubro[];
-}
+import { DEMO_HIERARCHY } from '@/data/demoHierarchy';
+import { Rubro } from '@/types/rubro';
 
 export const fetchRubros = async (): Promise<Rubro[]> => {
   return await apiFetch<Rubro[]>('/rubros/', {
@@ -46,4 +31,23 @@ export const buildRubroTree = (flatRubros: Rubro[]): Rubro[] => {
   });
 
   return roots;
+};
+
+// Returns the enforced hierarchy for demos.
+// In the future, this can merge real API data (e.g., availability) into the static structure.
+// For now, it returns the static structure to ensure "Clean & Organized" presentation.
+export const getRubrosHierarchy = async (): Promise<Rubro[]> => {
+    try {
+        // We attempt to fetch to see if we can get real status/availability if the backend supported it
+        // But for now, we strictly prefer the Clean Hierarchy.
+        // If we needed to map legacy backend items to this hierarchy, we would do it here.
+
+        // const backendData = await fetchRubros();
+        // ... mapping logic ...
+
+        return DEMO_HIERARCHY;
+    } catch (error) {
+        console.warn("Error fetching rubros, using fallback hierarchy", error);
+        return DEMO_HIERARCHY;
+    }
 };

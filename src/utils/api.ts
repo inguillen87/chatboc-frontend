@@ -344,7 +344,7 @@ interface ApiFetchOptions {
 
 /**
  * Helper centralizado para todas las llamadas a la API.
- * Soporta autenticación JWT y modo anónimo vía header "Anon-Id".
+ * Soporta autenticación JWT y modo anónimo vía header "X-Anon-Id".
  * Elimina el uso de anon_id como query param (profesional).
  */
 export async function apiFetch<T>(
@@ -528,17 +528,6 @@ export async function apiFetch<T>(
 
   const isAbsolutePath = /^https?:\/\//i.test(path);
   const normalizedPath = isAbsolutePath ? path : path.replace(/^\/+/, "");
-
-  // Only append tenant query params if we have a resolved slug AND we are not omitting tenant.
-  // resolvedTenantSlug is null if omitTenant is true (see logic above: const resolvedTenantSlug = omitTenant ? null : ...)
-  // So if omitTenant is passed, resolvedTenantSlug is null, and appendTenantQueryParams returns rawPath.
-  // BUT: The bug might be that 'resolvedTenantSlug' is null, but we might pick it up from 'tenantSlug' prop?
-  // Let's look at: const resolvedTenantSlug = omitTenant ? null : ...
-  // This seems correct. If omitTenant is true, resolvedTenantSlug is null.
-  // appendTenantQueryParams(..., null) returns rawPath.
-  // So why did the log show query params?
-  // Ah, maybe the 'path' argument PASSED to apiFetch ALREADY had them?
-  // Or 'tenantSlug' option was passed explicitly?
 
   const normalizedPathWithTenant = appendTenantQueryParams(
     normalizedPath,
