@@ -489,6 +489,9 @@ export async function apiFetch<T>(
   const anonId = getOrCreateAnonId();
 
   const appendTenantQueryParams = (rawPath: string, slug: string | null) => {
+    // If omitTenant is true, we should NOT append any tenant params, regardless of slug existence.
+    // However, this helper is called before we fully decide on 'omitTenant' inside the main logic flow
+    // which is confusing. Let's fix the call site instead.
     if (!slug) return rawPath;
 
     try {
@@ -525,6 +528,18 @@ export async function apiFetch<T>(
 
   const isAbsolutePath = /^https?:\/\//i.test(path);
   const normalizedPath = isAbsolutePath ? path : path.replace(/^\/+/, "");
+
+  // Only append tenant query params if we have a resolved slug AND we are not omitting tenant.
+  // resolvedTenantSlug is null if omitTenant is true (see logic above: const resolvedTenantSlug = omitTenant ? null : ...)
+  // So if omitTenant is passed, resolvedTenantSlug is null, and appendTenantQueryParams returns rawPath.
+  // BUT: The bug might be that 'resolvedTenantSlug' is null, but we might pick it up from 'tenantSlug' prop?
+  // Let's look at: const resolvedTenantSlug = omitTenant ? null : ...
+  // This seems correct. If omitTenant is true, resolvedTenantSlug is null.
+  // appendTenantQueryParams(..., null) returns rawPath.
+  // So why did the log show query params?
+  // Ah, maybe the 'path' argument PASSED to apiFetch ALREADY had them?
+  // Or 'tenantSlug' option was passed explicitly?
+
   const normalizedPathWithTenant = appendTenantQueryParams(
     normalizedPath,
     resolvedTenantSlug,
