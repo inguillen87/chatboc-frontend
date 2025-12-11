@@ -1,7 +1,7 @@
 import "../index.css";
 import { createRoot } from 'react-dom/client';
 import React, { useEffect, useState } from "react";
-import ChatWidget from "../components/chat/ChatWidget";
+import ChatWidgetComponent from "../components/chat/ChatWidget";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import ErrorBoundary from '../components/ErrorBoundary';
 import { MemoryRouter, useInRouterContext } from "react-router-dom";
@@ -198,8 +198,8 @@ const Iframe = () => {
       ? `${window.location.pathname}${window.location.search}`
       : '/';
 
-  const ChatWidgetComponent = () => (
-    <ChatWidget
+  const ChatWidgetRender = () => (
+    <ChatWidgetComponent
       mode="iframe"
       ownerToken={entityToken || undefined}
       defaultOpen={widgetParams.defaultOpen}
@@ -224,7 +224,7 @@ const Iframe = () => {
 
   const widgetTree = (
     <TenantProvider>
-      <ChatWidgetComponent />
+      <ChatWidgetRender />
     </TenantProvider>
   );
 
