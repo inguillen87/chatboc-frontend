@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Button } from '@/components/ui/button';
@@ -11,10 +11,21 @@ interface RubroSelectorProps {
 }
 
 const RubroSelector: React.FC<RubroSelectorProps> = ({ rubros, onSelect }) => {
+  // Deduplicate rubros based on ID and Name to avoid UI clutter
+  const uniqueRubros = useMemo(() => {
+    const seen = new Set<string>();
+    return rubros.filter(r => {
+      const key = `${r.id}-${r.nombre}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [rubros]);
+
   return (
     <div className="h-full min-h-0 overflow-y-auto pr-1">
       <Accordion type="single" collapsible className="w-full space-y-2">
-        {rubros.map((root) => (
+        {uniqueRubros.map((root) => (
           <AccordionItem key={root.id} value={String(root.id)} className="border rounded-xl px-2">
             <AccordionTrigger className="capitalize text-base font-semibold py-3 hover:no-underline px-1">
                 {root.nombre}

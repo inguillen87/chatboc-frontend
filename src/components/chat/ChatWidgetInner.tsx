@@ -12,8 +12,6 @@ import { useUser } from "@/hooks/useUser";
 import { apiFetch, getErrorMessage } from "@/utils/api";
 import { playOpenSound, playProactiveSound } from "@/utils/sounds";
 import ProactiveBubble from "./ProactiveBubble";
-const ChatHeader = React.lazy(() => import("./ChatHeader"));
-const ChatPanel = React.lazy(() => import("./ChatPanel"));
 import ReadingRuler from "./ReadingRuler";
 import type { Prefs } from "./AccessibilityToggle";
 import { useCartCount } from "@/hooks/useCartCount";
@@ -21,6 +19,13 @@ import { buildTenantNavigationUrl, TENANT_PLACEHOLDER_SLUGS as SHARED_PLACEHOLDE
 import { useTenant } from "@/context/TenantContext";
 import { toast } from "sonner";
 import { tenantService } from "@/services/tenantService";
+
+const ChatHeader = React.lazy(() => import("./ChatHeader"));
+const ChatPanel = React.lazy(() => import("./ChatPanel"));
+const ChatUserRegisterPanel = React.lazy(() => import("./ChatUserRegisterPanel"));
+const ChatUserLoginPanel = React.lazy(() => import("./ChatUserLoginPanel"));
+const ChatUserPanel = React.lazy(() => import("./ChatUserPanel"));
+const EntityInfoPanel = React.lazy(() => import("./EntityInfoPanel"));
 
 const PLACEHOLDER_SLUGS = new Set([...SHARED_PLACEHOLDERS, "default"]);
 
@@ -34,11 +39,6 @@ const sanitizeTenantSlug = (slug?: string | null) => {
 
   return trimmed;
 };
-
-const ChatUserRegisterPanel = React.lazy(() => import("./ChatUserRegisterPanel"));
-const ChatUserLoginPanel = React.lazy(() => import("./ChatUserLoginPanel"));
-const ChatUserPanel = React.lazy(() => import("./ChatUserPanel"));
-const EntityInfoPanel = React.lazy(() => import("./EntityInfoPanel"));
 
 const readTenantFromScripts = (): string | null => {
   if (typeof document === "undefined") return null;
@@ -378,6 +378,10 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
     }
   }, [ownerToken]);
 
+  const [authTokenState, setAuthTokenState] = useState<string | null>(() =>
+    safeLocalStorage.getItem("authToken") || safeLocalStorage.getItem("chatAuthToken"),
+  );
+
   useEffect(() => {
     setAuthTokenState(
       safeLocalStorage.getItem("authToken") || safeLocalStorage.getItem("chatAuthToken"),
@@ -412,12 +416,12 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
     }
   }, [entityInfo]);
 
-  // Proactive Bubble Logic: Supports both Landing Page Demo (Local) and Backend Configured Messages (Remote)
+  // Proactive Bubble Logic
   useEffect(() => {
     let messages = PROACTIVE_MESSAGES;
     const isLanding = typeof window !== 'undefined' && window.location.pathname === '/';
 
-    // Priority: Backend Config (interaction.cta_messages OR top-level cta_messages) > Landing Page Defaults > Generic Defaults
+    // Priority: Backend Config > Landing Page Defaults > Generic Defaults
     let backendMessages = entityInfo?.cta_messages;
 
     if (!backendMessages && entityInfo?.interaction?.cta_messages) {
@@ -448,18 +452,13 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
     }
 
     // Cycling Logic
-    // If backendMessages are present (Custom CTAs), we want continuous rotation
     const hasCustomMessages = !!(backendMessages && backendMessages.length > 0);
-
-    // Interval duration: 6s for custom rotation, 20s for standard cycle
     const intervalTime = hasCustomMessages ? 6000 : 20000;
 
     const cycleTimer = setInterval(() => {
         if (isOpen) return;
 
         if (hasCustomMessages) {
-            // Continuous rotation logic
-            // If visible, rotate text. If hidden, show next.
             const nextIdx = (proactiveCycle + 1) % messages.length;
             setProactiveMessage(messages[nextIdx]);
             setProactiveCycle(nextIdx);
@@ -469,8 +468,7 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
                 if (!muted) playProactiveSound();
             }
         } else {
-            // Legacy/Landing behavior: Intermittent
-            if (showProactiveBubble) return; // Don't interrupt if currently showing
+            if (showProactiveBubble) return;
 
             if (isLanding) {
                 const nextIdx = (proactiveCycle + 1) % messages.length;
@@ -479,7 +477,6 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
                 if (!muted) playProactiveSound();
                 setProactiveCycle(nextIdx);
 
-                // Auto hide after 6s for intermittent style
                 setTimeout(() => {
                     setShowProactiveBubble(false);
                 }, 6000);
@@ -490,10 +487,7 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
     return () => clearInterval(cycleTimer);
   }, [isOpen, showProactiveBubble, proactiveCycle, muted, entityInfo]);
 
-  // Handle CTA Click
   const handleProactiveClick = useCallback(() => {
-      // Find current message object if available to trigger action
-
       let backendMessages = entityInfo?.cta_messages || entityInfo?.interaction?.cta_messages;
       if (backendMessages && Array.isArray(backendMessages) && backendMessages.length > 0) {
           const currentMsgObj = backendMessages[proactiveCycle % backendMessages.length];
@@ -510,11 +504,9 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
 
       toggleChat();
   }, [toggleChat, entityInfo, proactiveCycle]);
+
   const [selectedRubro, setSelectedRubro] = useState<string | null>(() => extractRubroKey(initialRubro) ?? null);
   const [pendingRedirect, setPendingRedirect] = useState<"cart" | "market" | null>(null);
-  const [authTokenState, setAuthTokenState] = useState<string | null>(() =>
-    safeLocalStorage.getItem("authToken") || safeLocalStorage.getItem("chatAuthToken"),
-  );
   const cartCount = useCartCount();
   const entityDefaultRubro = useMemo(() => {
     if (!entityInfo) return null;
@@ -616,7 +608,6 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
   const buildMarketCartUrl = useCallback((slug?: string | null, baseUrl?: string | null) => {
     const safeSlug = slug?.trim();
     if (!safeSlug) return null;
-    // Updated to point to the unified Product Catalog route which handles the marketplace experience
     const path = `/${encodeURIComponent(safeSlug)}/productos`;
 
     try {
@@ -847,7 +838,6 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
   }, [widgetId]);
 
   const toggleChat = useCallback(() => {
-    // Ensure AudioContext is resumed on user gesture, especially for the first click
     if (typeof window !== "undefined" && window.AudioContext && window.AudioContext.state === "suspended") {
       window.AudioContext.resume();
     }
@@ -860,8 +850,8 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
       if (nextIsOpen && !muted) {
         playOpenSound();
       }
-      if (nextIsOpen) { // If opening chat
-        setShowProactiveBubble(false); // Hide proactive bubble
+      if (nextIsOpen) {
+        setShowProactiveBubble(false);
         if (proactiveMessageTimeoutRef.current) clearTimeout(proactiveMessageTimeoutRef.current);
         if (hideProactiveBubbleTimeoutRef.current) clearTimeout(hideProactiveBubbleTimeoutRef.current);
       }
@@ -893,7 +883,6 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
 
   useEffect(() => {
     async function fetchEntityProfile() {
-      // Priority 1: explicit tenant slug
       if (resolvedTenantSlug) {
         setProfileLoading(true);
         setProfileError(null);
@@ -954,7 +943,6 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
         return;
       }
 
-      // Wait until the token is resolved before deciding what to do.
       if (ownerToken === undefined) {
         setProfileLoading(false);
         return;
@@ -992,7 +980,6 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
     fetchEntityProfile();
   }, [ownerToken, resolvedTenantSlug]);
 
-  // Fallback to avoid indefinite loading spinner if the profile request hangs
   useEffect(() => {
     if (!isProfileLoading) return;
     const timeout = setTimeout(() => {
