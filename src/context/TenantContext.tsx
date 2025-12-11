@@ -242,7 +242,7 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
       const info = await getTenantPublicInfoFlexible(slug, token);
       if (activeTenantRequest.current === requestId) {
         setTenant(info);
-        if (info.slug) {
+        if (info?.slug) {
            setCurrentSlug(info.slug);
            currentSlugRef.current = info.slug;
         }
@@ -320,11 +320,11 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
 
     // Skip theme injection on the main landing page to preserve SaaS branding
     // unless we are explicitly in a demo or tenant route
-    if (location.pathname === '/' && tenant.slug === 'municipio') {
+    if (location.pathname === '/' && tenant?.slug === 'municipio') {
         return;
     }
 
-    const theme = tenant.tema as Record<string, unknown>;
+    const theme = tenant?.tema as Record<string, unknown> || {};
     const root = document.documentElement;
     const colorEntries = Object.entries(theme)
       .filter(([key, value]) => typeof value === 'string' && key.toLowerCase().includes('color')) as [string, string][];
@@ -336,7 +336,7 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       colorEntries.forEach(([key]) => root.style.removeProperty(`--${key}`));
     };
-  }, [tenant?.tema, location.pathname, tenant.slug]);
+  }, [tenant?.tema, location.pathname, tenant?.slug]);
 
   const refreshFollowedTenants = useCallback(async () => {
     setIsLoadingFollowedTenants(true);
