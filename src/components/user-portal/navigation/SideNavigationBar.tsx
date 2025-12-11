@@ -31,9 +31,10 @@ const accountNavItems: SideNavItem[] = [
 interface SideNavigationBarProps {
   onLinkClick?: () => void;
   isCollapsed?: boolean;
+  onLogout?: () => void;
 }
 
-const SideNavigationBar: React.FC<SideNavigationBarProps> = ({ onLinkClick, isCollapsed = false }) => {
+const SideNavigationBar: React.FC<SideNavigationBarProps> = ({ onLinkClick, isCollapsed = false, onLogout }) => {
   const navigate = useNavigate();
   const { user, setUser } = useUser();
 
