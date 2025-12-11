@@ -14,12 +14,12 @@ const FALLBACK_RUBROS_FLAT: Rubro[] = [
   { id: 3, nombre: "Servicios Profesionales", clave: "servicios", padre_id: null },
 
   // Subcategorías / Tenants
-  { id: 101, nombre: "Municipio Inteligente (Junín)", padre_id: 1, demo: { id: 101, slug: "municipio", nombre: "Municipio Inteligente", descripcion: "Trámites, reclamos y turismo." } },
-  { id: 201, nombre: "Almacén de Barrio", padre_id: 2, demo: { id: 201, slug: "almacen", nombre: "ByM Almacén", descripcion: "Pedidos por foto y stock." } },
-  { id: 202, nombre: "Ferretería Técnica", padre_id: 2, demo: { id: 202, slug: "ferreteria", nombre: "ProObra Ferretería", descripcion: "Asesoramiento y catálogo." } },
-  { id: 203, nombre: "Tienda de Ropa", padre_id: 2, demo: { id: 203, slug: "local_comercial_general", nombre: "Moda Urbana", descripcion: "Moda, talles y reservas." } },
-  { id: 204, nombre: "Bodega Boutique", padre_id: 2, demo: { id: 204, slug: "bodega", nombre: "Bodega Cuatro Fincas", descripcion: "Vinos, catas y envíos." } },
-  { id: 301, nombre: "Clínica Médica", padre_id: 3, demo: { id: 301, slug: "medico_general", nombre: "Clínica Horizonte", descripcion: "Turnos y consultas." } },
+  { id: 101, nombre: "Municipio Inteligente", padre_id: 1, demo: { id: 101, slug: "municipio", nombre: "Municipio Inteligente", descripcion: "Trámites, reclamos y turismo." } },
+  { id: 201, nombre: "Almacén de Barrio", padre_id: 2, demo: { id: 201, slug: "almacen", nombre: "Almacén Demo", descripcion: "Pedidos por foto y stock." } },
+  { id: 202, nombre: "Ferretería Técnica", padre_id: 2, demo: { id: 202, slug: "ferreteria", nombre: "Ferretería Demo", descripcion: "Asesoramiento y catálogo." } },
+  { id: 203, nombre: "Tienda de Ropa", padre_id: 2, demo: { id: 203, slug: "local_comercial_general", nombre: "Tienda de Ropa Demo", descripcion: "Moda, talles y reservas." } },
+  { id: 204, nombre: "Bodega Boutique", padre_id: 2, demo: { id: 204, slug: "bodega", nombre: "Bodega Demo", descripcion: "Vinos, catas y envíos." } },
+  { id: 301, nombre: "Clínica Médica", padre_id: 3, demo: { id: 301, slug: "medico_general", nombre: "Clínica Demo", descripcion: "Turnos y consultas." } },
 ];
 
 const categoryIcons: Record<string, React.ReactNode> = {

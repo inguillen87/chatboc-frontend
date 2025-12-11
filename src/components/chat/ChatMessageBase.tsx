@@ -36,30 +36,40 @@ type RawAttachment = {
   thumbnailUrl?: string;
 };
 
-function normalizeAttachment(msg: any): RawAttachment | null {
+function normalizeAttachments(msg: any): RawAttachment[] {
+  const results: RawAttachment[] = [];
+
   if (msg?.attachmentInfo && msg.attachmentInfo.url && msg.attachmentInfo.name) {
     const a = msg.attachmentInfo;
-    return {
+    results.push({
       url: a.url,
       name: a.name,
       mimeType: a.mimeType || a.mime_type,
       size: a.size,
       thumbUrl: a.thumbUrl || a.thumb_url || a.thumbnail_url || a.thumbnailUrl,
-    };
+    });
   }
-  if (Array.isArray(msg?.attachments) && msg.attachments.length > 0) {
-    const first = msg.attachments[0];
-    if (first?.url && (first?.name || first?.filename)) {
-      return {
-        url: first.url,
-        name: first.name || first.filename,
-        mimeType: first.mimeType || first.mime_type,
-        size: first.size,
-        thumbUrl: first.thumbUrl || first.thumb_url || first.thumbnail_url || first.thumbnailUrl,
-      };
-    }
+
+  const attachmentsList = msg?.attachments || msg?.adjuntos;
+
+  if (Array.isArray(attachmentsList) && attachmentsList.length > 0) {
+    attachmentsList.forEach((att: any) => {
+      if (att?.url && (att?.name || att?.filename)) {
+        // Avoid duplicates if attachmentInfo was already added and matches
+        const isDuplicate = results.some(r => r.url === att.url);
+        if (!isDuplicate) {
+          results.push({
+            url: att.url,
+            name: att.name || att.filename,
+            mimeType: att.mimeType || att.mime_type,
+            size: att.size,
+            thumbUrl: att.thumbUrl || att.thumb_url || att.thumbnail_url || att.thumbnailUrl,
+          });
+        }
+      }
+    });
   }
-  return null;
+  return results;
 }
 
 const LINK_LABEL_MAX_LENGTH = 48;
@@ -605,31 +615,32 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
     }
   };
 
-  let processedAttachmentInfo: AttachmentInfo | null = null;
+  const normalizedAttachments = normalizeAttachments(message);
+  let processedAttachments: AttachmentInfo[] = [];
 
-  const normalized = normalizeAttachment(message);
-  if (normalized) {
-    processedAttachmentInfo = deriveAttachmentInfo(
-      normalized.url,
-      normalized.name,
-      normalized.mimeType,
-      normalized.size,
-      normalized.thumbUrl
+  if (normalizedAttachments.length > 0) {
+    processedAttachments = normalizedAttachments.map(att =>
+      deriveAttachmentInfo(att.url, att.name, att.mimeType, att.size, att.thumbUrl)
     );
   } else if (message.mediaUrl && isBot) {
-    // Esto es para mediaUrl en mensajes de bot, no relevante para adjuntos de usuario ahora mismo
-    processedAttachmentInfo = deriveAttachmentInfo(message.mediaUrl, message.mediaUrl.split('/').pop() || "archivo_adjunto");
+     processedAttachments.push(deriveAttachmentInfo(message.mediaUrl, message.mediaUrl.split('/').pop() || "archivo_adjunto"));
   }
+
+  // Separate audio from other attachments to use AudioPlayer
+  // If multiple audios, maybe we render multiple players? For now, let's pick the first valid audio source.
+  const audioAttachment = processedAttachments.find(a => a.type === 'audio');
 
   const audioSrc = useMemo(() => {
     if (message.audioUrl) {
       return message.audioUrl;
     }
-    if (processedAttachmentInfo?.type === 'audio') {
-      return processedAttachmentInfo.url;
+    if (audioAttachment) {
+      return audioAttachment.url;
     }
     return null;
-  }, [message.audioUrl, processedAttachmentInfo]);
+  }, [message.audioUrl, audioAttachment]);
+
+  const nonAudioAttachments = processedAttachments.filter(a => a.type !== 'audio');
 
   const bubbleBaseClass = isBot ? "chat-bubble-bot" : "chat-bubble-user";
   let bubbleStyleClass = "";
@@ -641,7 +652,7 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
 
   // Determinar si se muestra la sección de adjuntos/mapa o el contenido estructurado
   const showAttachmentOrMap = !!(
-    (processedAttachmentInfo && processedAttachmentInfo.type !== 'audio' && (processedAttachmentInfo.type !== 'other' || !!processedAttachmentInfo.extension)) ||
+    (nonAudioAttachments.length > 0) ||
     message.locationData
   );
 
@@ -696,12 +707,29 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
 
           {/* Mostrar adjunto o mapa (no audio) */}
           {showAttachmentOrMap && (
-              <AttachmentPreview
-                message={message} // Pasamos el mensaje completo para que AttachmentPreview decida
-                attachmentInfo={processedAttachmentInfo}
-                // Si hay adjunto pero también texto, el texto puede ser un caption o fallback
-                fallbackText={cleanedHtml && !showStructuredContent && !audioSrc ? cleanedHtml : undefined}
-              />
+            <div className="flex flex-col gap-2">
+               {nonAudioAttachments.map((att, idx) => (
+                  <AttachmentPreview
+                    key={`${att.url}-${idx}`}
+                    message={message}
+                    attachmentInfo={att}
+                    // Si hay adjunto pero también texto, el texto puede ser un caption o fallback
+                    // Only show caption on first attachment to avoid repetition? Or allow repetition if meaningful?
+                    // Typically caption applies to the set. Let's put it on the first one or separate it.
+                    // For now, let's put it on the first one if we are in this block.
+                    fallbackText={idx === 0 && cleanedHtml && !showStructuredContent && !audioSrc ? cleanedHtml : undefined}
+                  />
+               ))}
+
+               {/* Fallback for Map if no attachments but location data exists */}
+               {(!nonAudioAttachments.length && message.locationData) && (
+                 <AttachmentPreview
+                    message={message}
+                    attachmentInfo={null}
+                    fallbackText={cleanedHtml && !showStructuredContent && !audioSrc ? cleanedHtml : undefined}
+                 />
+               )}
+            </div>
           )}
 
           {/* Mostrar contenido estructurado */}

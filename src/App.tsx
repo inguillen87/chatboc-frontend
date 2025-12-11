@@ -21,10 +21,33 @@ import { TenantProvider } from "./context/TenantContext";
 import { GOOGLE_CLIENT_ID } from './env';
 import UserPortalLayout from "@/components/user-portal/layout/UserPortalLayout";
 import TokenRedirectWrapper from "@/components/TokenRedirectWrapper";
+import { apiFetch } from "@/utils/api";
 
 const queryClient = new QueryClient();
 function AppRoutes() {
   const location = useLocation();
+
+  // Ensure persistent anonymous session on app load
+  React.useEffect(() => {
+    // This triggers the internal getOrCreateAnonId logic within apiFetch context or utils
+    // Accessing the util directly if possible, or just ensuring headers are set on next request.
+    // Since getOrCreateAnonId is internal to api.ts (not exported), we rely on apiFetch
+    // or we can import the header generation logic if we export it.
+    // However, the requirement is "On first app load... generate...".
+    // api.ts already does this lazily. To be explicit:
+    try {
+       // We trigger a "no-op" or just let the lazy load happen on first actual request.
+       // But to be compliant with "On first app load", we can force it here:
+       const anonId = localStorage.getItem('chatboc_anon_id');
+       if (!anonId) {
+           if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+               localStorage.setItem('chatboc_anon_id', crypto.randomUUID());
+           }
+       }
+    } catch (e) {
+       console.warn("Failed to initialize anon session", e);
+    }
+  }, []);
   useTicketUpdates();
 
   const layoutExcludedPaths = ['/iframe'];

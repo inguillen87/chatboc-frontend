@@ -872,23 +872,44 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
 
           // Let's try to fetch from new service if we have a slug
           if (resolvedTenantSlug) {
-             const publicConfig = await tenantService.getPublicWidgetConfig(resolvedTenantSlug);
-             // Transform to match entityInfo structure expected by component
-             const info = {
-                 ...publicConfig,
-                 nombre_empresa: publicConfig.tenant_name || publicConfig.name, // adapting fields
-                 logo_url: publicConfig.logo_url || publicConfig.avatar_url,
-                 // Add other mappings as necessary based on what `getPublicWidgetConfig` returns
-                 // and what `entityInfo` expects.
-                 // For now, if we are in legacy mode (ownerToken), we use /perfil.
-                 // If we have tenantSlug, we might want to switch.
-             };
-             // Merging with existing logic might be tricky without full backend response shape knowlege.
-             // But let's at least support the new flow if tenantSlug is present.
-          }
+             try {
+                const publicConfig = await tenantService.getPublicWidgetConfig(resolvedTenantSlug);
+                // Transform to match entityInfo structure expected by component
+                const info = {
+                    ...publicConfig,
+                    nombre_empresa: publicConfig.tenant_name || publicConfig.name || publicConfig.nombre,
+                    logo_url: publicConfig.logo_url || publicConfig.avatar_url,
+                    cta_messages: publicConfig.cta_messages,
+                    theme_config: publicConfig.theme_config,
+                    default_open: publicConfig.default_open,
+                    // Ensure we map other necessary fields that ChatPanel might use
+                    slug: resolvedTenantSlug,
+                    tipo_chat: publicConfig.tipo_chat || (publicConfig.type === 'municipio' ? 'municipio' : 'pyme')
+                };
 
-          // Fallback to existing /perfil if we have ownerToken
-          if (ownerToken) {
+                setEntityInfo(info);
+                if (info.tipo_chat) {
+                    setResolvedTipoChat(info.tipo_chat === 'municipio' ? 'municipio' : 'pyme');
+                }
+             } catch (err) {
+                console.warn("Failed to fetch public widget config, falling back to ownerToken if available", err);
+                 // Fallback to existing /perfil if we have ownerToken
+                  if (ownerToken) {
+                     const data = await apiFetch<any>("/perfil", {
+                      entityToken: ownerToken,
+                      isWidgetRequest: true,
+                    });
+                    if (data && typeof data.esPublico === "boolean") {
+                      setResolvedTipoChat(data.esPublico ? "municipio" : "pyme");
+                    } else if (data && data.tipo_chat) {
+                      setResolvedTipoChat(data.tipo_chat === "municipio" ? "municipio" : "pyme");
+                    }
+                    setEntityInfo(data);
+                  } else {
+                      setProfileError("No se pudo cargar la configuración.");
+                  }
+             }
+          } else if (ownerToken) {
              const data = await apiFetch<any>("/perfil", {
               entityToken: ownerToken,
               isWidgetRequest: true,
