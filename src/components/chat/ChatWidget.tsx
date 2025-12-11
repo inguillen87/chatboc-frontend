@@ -490,25 +490,17 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
   // Handle CTA Click
   const handleProactiveClick = useCallback(() => {
       // Find current message object if available to trigger action
-      // For now, standard toggleChat.
-      // Future: parse action from message if it's an object in `cta_messages`
 
       let backendMessages = entityInfo?.cta_messages || entityInfo?.interaction?.cta_messages;
       if (backendMessages && Array.isArray(backendMessages) && backendMessages.length > 0) {
           const currentMsgObj = backendMessages[proactiveCycle % backendMessages.length];
           if (currentMsgObj && typeof currentMsgObj === 'object' && currentMsgObj.action) {
               setIsOpen(true);
-              // We need a way to pass this action to the ChatPanel.
-              // For now, we open the chat. The ChatPanel init logic might need to read a "pending action"
-              // or we wait for user to type.
-              // Requirement says: "open the widget and immediately send the action to the chat."
-              // We can use a ref or state passed to ChatPanel, OR dispatch an event.
-              // Let's use sessionStorage as a simple bridge or a new prop.
               safeLocalStorage.setItem('pending_widget_action', JSON.stringify({
                   action: currentMsgObj.action,
-                  payload: currentMsgObj.payload
+                  payload: currentMsgObj.payload,
+                  text: currentMsgObj.text || currentMsgObj.message
               }));
-              // Force view refresh?
               return;
           }
       }
@@ -903,20 +895,9 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
         setProfileLoading(true);
         setProfileError(null);
         try {
-          // If we have a tenant slug, we use the public config endpoint or the /perfil endpoint with context.
-          // Since the prompt asks for "GET /api/public/tenants/<tenant_slug>/widget-config" for public widget,
-          // let's try to use that first if possible, or stick to /perfil if we need more internal info.
-          // However, existing logic uses /perfil. Let's see if we can use tenantService here.
-
-          // Actually, let's keep it simple and use what we have, but prioritize the new public endpoint if available
-          // OR adapt /perfil to return what we need.
-          // The prompt says: "GET /api/public/tenants/<tenant_slug>/widget-config".
-
-          // Let's try to fetch from new service if we have a slug
           if (resolvedTenantSlug) {
              try {
                 const publicConfig = await tenantService.getPublicWidgetConfig(resolvedTenantSlug);
-                // Transform to match entityInfo structure expected by component
                 const info = {
                     ...publicConfig,
                     nombre_empresa: publicConfig.tenant_name || publicConfig.name || publicConfig.nombre,
@@ -924,7 +905,6 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
                     cta_messages: publicConfig.cta_messages,
                     theme_config: publicConfig.theme_config,
                     default_open: publicConfig.default_open,
-                    // Ensure we map other necessary fields that ChatPanel might use
                     slug: resolvedTenantSlug,
                     tipo_chat: publicConfig.tipo_chat || (publicConfig.type === 'municipio' ? 'municipio' : 'pyme')
                 };
@@ -935,7 +915,6 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
                 }
              } catch (err) {
                 console.warn("Failed to fetch public widget config, falling back to ownerToken if available", err);
-                 // Fallback to existing /perfil if we have ownerToken
                   if (ownerToken) {
                      const data = await apiFetch<any>("/perfil", {
                       entityToken: ownerToken,
@@ -966,7 +945,6 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
         } catch (e) {
           console.error("ChatWidget: Error al obtener el perfil de la entidad:", e);
           setEntityInfo(null);
-          // Don't set error if we can fallback to defaults or if it's just a missing token
         } finally {
           setProfileLoading(false);
         }
@@ -1258,40 +1236,6 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
   }
 
   return null;
-};
-
-const SafeAnimatePresence: React.FC<AnimatePresenceProps> = ({ children = null, ...rest } = { children: null }) => {
-  return <AnimatePresence {...rest}>{children}</AnimatePresence>;
-};
-
-const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
-  const tenantContext = useTenantContextPresence();
-  const isInRouter = useInRouterContext();
-
-  const initialEntry = useMemo(() => {
-    if (typeof window === "undefined") return "/";
-    return `${window.location.pathname}${window.location.search}`;
-  }, []);
-
-  if (!tenantContext) {
-    const widgetTree = (
-      <TenantProvider>
-        <ChatWidgetInner {...props} />
-      </TenantProvider>
-    );
-
-    if (isInRouter) {
-      return widgetTree;
-    }
-
-    return (
-      <MemoryRouter initialEntries={[initialEntry]}>
-        {widgetTree}
-      </MemoryRouter>
-    );
-  }
-
-  return <ChatWidgetInner {...props} />;
 };
 
 export default ChatWidget;

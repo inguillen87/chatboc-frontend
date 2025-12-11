@@ -2,13 +2,8 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Button } from '@/components/ui/button';
-
-export interface Rubro {
-  id: number;
-  nombre: string;
-  clave?: string;
-  subrubros?: Rubro[];
-}
+import { ChevronRight } from 'lucide-react';
+import { Rubro } from '@/types/rubro';
 
 interface RubroSelectorProps {
   rubros: Rubro[];
@@ -18,35 +13,76 @@ interface RubroSelectorProps {
 const RubroSelector: React.FC<RubroSelectorProps> = ({ rubros, onSelect }) => {
   return (
     <div className="h-full min-h-0 overflow-y-auto pr-1">
-      <Accordion type="multiple" className="w-full space-y-1">
-        {rubros.map((rubro) => (
-          <AccordionItem key={rubro.id} value={String(rubro.id)}>
-            <AccordionTrigger className="capitalize">{rubro.nombre}</AccordionTrigger>
-            <AccordionContent>
-              {Array.isArray(rubro.subrubros) && rubro.subrubros.length > 0 ? (
-                <div className="flex flex-wrap justify-center gap-2 pt-2">
-                  {rubro.subrubros.map((sub) => (
-                    <motion.div key={sub.id} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                      <Button
-                        variant="secondary"
-                        className="rounded-xl shadow"
-                        onClick={() => onSelect(sub)}
-                      >
-                        {sub.nombre}
-                      </Button>
-                    </motion.div>
+      <Accordion type="single" collapsible className="w-full space-y-2">
+        {rubros.map((root) => (
+          <AccordionItem key={root.id} value={String(root.id)} className="border rounded-xl px-2">
+            <AccordionTrigger className="capitalize text-base font-semibold py-3 hover:no-underline px-1">
+                {root.nombre}
+            </AccordionTrigger>
+            <AccordionContent className="pb-3 pt-1">
+              {/* Level 1: Subcategories */}
+              {Array.isArray(root.subrubros) && root.subrubros.length > 0 ? (
+                <div className="space-y-4">
+                  {root.subrubros.map((level1) => (
+                    <div key={level1.id} className="space-y-2">
+                        {/* Only show header if it has children (Level 2 items) */}
+                        {level1.subrubros && level1.subrubros.length > 0 ? (
+                            <>
+                                <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider pl-1 border-b pb-1 mb-2">
+                                    {level1.nombre}
+                                </h4>
+                                <div className="grid grid-cols-1 gap-2">
+                                    {level1.subrubros.map((level2) => (
+                                        level2.demo ? (
+                                            <motion.div key={level2.id} whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }}>
+                                                <Button
+                                                    variant="secondary"
+                                                    className="w-full justify-between h-auto py-2 px-3 bg-secondary/50 hover:bg-secondary border border-transparent hover:border-primary/20 text-left whitespace-normal rounded-lg"
+                                                    onClick={() => onSelect(level2)}
+                                                >
+                                                    <div className="flex flex-col items-start gap-0.5">
+                                                        <span className="font-medium text-sm">{level2.demo.nombre || level2.nombre}</span>
+                                                        {level2.demo.descripcion && (
+                                                            <span className="text-[10px] text-muted-foreground line-clamp-1 font-normal">
+                                                                {level2.demo.descripcion}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <ChevronRight className="h-4 w-4 text-muted-foreground/50" />
+                                                </Button>
+                                            </motion.div>
+                                        ) : null
+                                    ))}
+                                </div>
+                            </>
+                        ) : level1.demo ? (
+                            // Direct Level 1 Item (no subcategories, just a demo itself)
+                            <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }}>
+                                <Button
+                                    variant="secondary"
+                                    className="w-full justify-between h-auto py-2 px-3 bg-secondary/50 hover:bg-secondary border border-transparent hover:border-primary/20 text-left whitespace-normal rounded-lg"
+                                    onClick={() => onSelect(level1)}
+                                >
+                                    <div className="flex flex-col items-start gap-0.5">
+                                        <span className="font-medium text-sm">{level1.demo.nombre || level1.nombre}</span>
+                                        {level1.demo.descripcion && (
+                                            <span className="text-[10px] text-muted-foreground line-clamp-1 font-normal">
+                                                {level1.demo.descripcion}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <ChevronRight className="h-4 w-4 text-muted-foreground/50" />
+                                </Button>
+                            </motion.div>
+                        ) : null}
+                    </div>
                   ))}
                 </div>
               ) : (
-                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="pt-2">
-                  <Button
-                    variant="secondary"
-                    className="rounded-xl shadow"
-                    onClick={() => onSelect(rubro)}
-                  >
-                    {rubro.nombre}
-                  </Button>
-                </motion.div>
+                // Fallback for roots without subcategories (direct items?)
+                <div className="text-sm text-muted-foreground p-2">
+                    No hay opciones disponibles.
+                </div>
               )}
             </AccordionContent>
           </AccordionItem>
