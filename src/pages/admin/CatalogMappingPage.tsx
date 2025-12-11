@@ -103,6 +103,7 @@ const CatalogMappingPage: React.FC = () => {
   const [userColumns, setUserColumns] = useState<string[]>([]);
   const [currentMappings, setCurrentMappings] = useState<Record<string, string | null>>({});
   const [suggestedMappingsCache, setSuggestedMappingsCache] = useState<Record<string, string | null>>({});
+  const [similarityScores, setSimilarityScores] = useState<Record<string, number>>({});
 
   const [systemFields] = useState<SystemField[]>(DEFAULT_SYSTEM_FIELDS);
 
@@ -162,6 +163,7 @@ const CatalogMappingPage: React.FC = () => {
       setUserColumns([]);
       setCurrentMappings({});
       setSuggestedMappingsCache({});
+      setSimilarityScores({});
       setExcelSheetName('');
       setAvailableSheetNames([]);
       setPreviewRecords([]);
@@ -189,6 +191,7 @@ const CatalogMappingPage: React.FC = () => {
       setUserColumns([]); // Reset columns until parsed
       setCurrentMappings({}); // Reset mappings
       setSuggestedMappingsCache({});
+      setSimilarityScores({});
       setPreviewRecords([]);
       setAnalysisSummary(null);
       setAnalysisWarnings([]);
@@ -364,14 +367,20 @@ const CatalogMappingPage: React.FC = () => {
         const suggestions = suggestMappings(headers, systemFields);
         const newMappings: Record<string, string | null> = {};
         const newSuggestedCache: Record<string, string | null> = {};
+        const newSimilarityScores: Record<string, number> = {};
+
         suggestions.forEach(s => {
           newMappings[s.systemFieldKey] = s.userColumn;
           if (s.userColumn) {
             newSuggestedCache[s.systemFieldKey] = s.userColumn;
+            if (s.similarity !== undefined) {
+              newSimilarityScores[s.systemFieldKey] = s.similarity;
+            }
           }
         });
         setCurrentMappings(newMappings);
         setSuggestedMappingsCache(newSuggestedCache);
+        setSimilarityScores(newSimilarityScores);
         toast({ title: "Encabezados procesados y mapeos sugeridos." });
       } else {
         toast({ variant: "destructive", title: "Advertencia", description: "No se encontraron encabezados/columnas en el archivo con la configuración actual." });
@@ -724,7 +733,7 @@ const CatalogMappingPage: React.FC = () => {
                   selectedValue={currentMappings[field.key] || null}
                   onMappingChange={handleMappingChange}
                   isSuggested={!!suggestedMappingsCache[field.key] && currentMappings[field.key] === suggestedMappingsCache[field.key]}
-                  // similarity={0} // TODO: Could pass similarity score if stored from suggestMappings
+                  similarity={similarityScores[field.key]}
                 />
               ))}
             </div>
