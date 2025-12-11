@@ -1238,4 +1238,38 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
   return null;
 };
 
+const SafeAnimatePresence: React.FC<AnimatePresenceProps> = ({ children = null, ...rest } = { children: null }) => {
+  return <AnimatePresence {...rest}>{children}</AnimatePresence>;
+};
+
+const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
+  const tenantContext = useTenantContextPresence();
+  const isInRouter = useInRouterContext();
+
+  const initialEntry = useMemo(() => {
+    if (typeof window === "undefined") return "/";
+    return `${window.location.pathname}${window.location.search}`;
+  }, []);
+
+  if (!tenantContext) {
+    const widgetTree = (
+      <TenantProvider>
+        <ChatWidgetInner {...props} />
+      </TenantProvider>
+    );
+
+    if (isInRouter) {
+      return widgetTree;
+    }
+
+    return (
+      <MemoryRouter initialEntries={[initialEntry]}>
+        {widgetTree}
+      </MemoryRouter>
+    );
+  }
+
+  return <ChatWidgetInner {...props} />;
+};
+
 export default ChatWidget;
