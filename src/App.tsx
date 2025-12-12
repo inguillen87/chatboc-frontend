@@ -67,7 +67,6 @@ function AppRoutes() {
     "/cuenta",
     '/chat',
     "/integracion",
-    "/demo"
   ];
 
   // Detecta rutas de integración como segmento, incluso con prefijos de tenant (ej: /t/slug/integracion)

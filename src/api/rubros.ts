@@ -44,25 +44,31 @@ export const buildRubroTree = (flatRubros: Rubro[]): Rubro[] => {
   return roots;
 };
 
+const treeHasDemos = (nodes: Rubro[]): boolean => {
+  return nodes.some((node) =>
+    Boolean(node.demo) || (node.subrubros ? treeHasDemos(node.subrubros) : false),
+  );
+};
+
 export const getRubrosHierarchy = async (): Promise<Rubro[]> => {
-    try {
-        const backendData = await fetchRubros();
+  try {
+    const backendData = await fetchRubros();
 
-        if (Array.isArray(backendData) && backendData.length > 0) {
-            // Build the tree from the backend data
-            const tree = buildRubroTree(backendData);
+    if (Array.isArray(backendData) && backendData.length > 0) {
+      // Build the tree from the backend data
+      const tree = buildRubroTree(backendData);
 
-            // If the tree is empty despite having data (e.g. all orphans with invalid parents), fallback
-            if (tree.length > 0) {
-                return tree;
-            }
-        }
-
-        // If backend returns empty or invalid, fallback to demo hierarchy
-        console.warn("Backend rubros empty or invalid, using fallback hierarchy");
-        return DEMO_HIERARCHY;
-    } catch (error) {
-        console.warn("Error fetching rubros, using fallback hierarchy", error);
-        return DEMO_HIERARCHY;
+      // If backend returns items but no demos, fallback to the static demo hierarchy
+      if (tree.length > 0 && treeHasDemos(tree)) {
+        return tree;
+      }
     }
+
+    // If backend returns empty or invalid, fallback to demo hierarchy
+    console.warn("Backend rubros empty or invalid, using fallback hierarchy");
+    return DEMO_HIERARCHY;
+  } catch (error) {
+    console.warn("Error fetching rubros, using fallback hierarchy", error);
+    return DEMO_HIERARCHY;
+  }
 };
