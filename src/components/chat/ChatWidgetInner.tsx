@@ -5,13 +5,12 @@ import { getCurrentTipoChat } from "@/utils/tipoChat";
 import { cn } from "@/lib/utils";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { extractRubroKey } from "@/utils/rubros";
-import getOrCreateAnonId from "@/utils/anonId";
+import { getOrCreateAnonId } from "@/utils/anonIdGenerator";
 import { motion, AnimatePresence } from "framer-motion";
 import type { AnimatePresenceProps } from "framer-motion";
 import { useUser } from "@/hooks/useUser";
 import { apiFetch, getErrorMessage } from "@/utils/api";
 import { playOpenSound, playProactiveSound } from "@/utils/sounds";
-import ProactiveBubble from "./ProactiveBubble";
 import ReadingRuler from "./ReadingRuler";
 import type { Prefs } from "./AccessibilityToggle";
 import { useCartCount } from "@/hooks/useCartCount";
@@ -26,8 +25,11 @@ const ChatUserRegisterPanel = React.lazy(() => import("./ChatUserRegisterPanel")
 const ChatUserLoginPanel = React.lazy(() => import("./ChatUserLoginPanel"));
 const ChatUserPanel = React.lazy(() => import("./ChatUserPanel"));
 const EntityInfoPanel = React.lazy(() => import("./EntityInfoPanel"));
+const ProactiveBubble = React.lazy(() => import("./ProactiveBubble"));
 
-const PLACEHOLDER_SLUGS = new Set([...SHARED_PLACEHOLDERS, "default"]);
+// Use a getter to access the Set safely, though strictly it should be initialized by import time.
+// This defensive pattern avoids top-level access if the module is in a partial state.
+const getPlaceholderSlugs = () => new Set([...(SHARED_PLACEHOLDERS || []), "default"]);
 
 const sanitizeTenantSlug = (slug?: string | null) => {
   if (!slug) return null;
@@ -35,7 +37,7 @@ const sanitizeTenantSlug = (slug?: string | null) => {
   if (!trimmed) return null;
 
   const lowered = trimmed.toLowerCase();
-  if (PLACEHOLDER_SLUGS.has(lowered)) return null;
+  if (getPlaceholderSlugs().has(lowered)) return null;
 
   return trimmed;
 };
@@ -1165,13 +1167,13 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
               key="chatboc-panel-closed"
               className="relative w-full h-full"
             >
-              <ProactiveBubble
-                message={proactiveMessage || ""}
-                onClick={handleProactiveClick}
-                visible={showProactiveBubble && !showCta}
-                logoUrl={headerLogoUrl || customLauncherLogoUrl || entityInfo?.logo_url || (isDarkMode ? '/chatbocar.png' : '/chatbocar2.png')}
-                logoAnimation={logoAnimation}
-              />
+              <Suspense fallback={null}>
+                  <ProactiveBubble
+                    message={proactiveMessage || ""}
+                    onClick={handleProactiveClick}
+                    visible={showProactiveBubble && !showCta}
+                  />
+              </Suspense>
               {showCta && ctaMessage && !showProactiveBubble && (
                 <motion.div
                   key="chatboc-cta"
