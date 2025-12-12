@@ -30,7 +30,7 @@ const ProactiveBubble = React.lazy(() => import("./ProactiveBubble"));
 // Lazy initialization to avoid TDZ (Temporal Dead Zone) issues if imports are not fully ready
 let _lazyPlaceholderSlugs: Set<string> | null = null;
 
-const getPlaceholderSlugsSet = () => {
+function getPlaceholderSlugsSet() {
   if (_lazyPlaceholderSlugs) return _lazyPlaceholderSlugs;
   try {
     const shared = TENANT_PLACEHOLDER_SLUGS ? Array.from(TENANT_PLACEHOLDER_SLUGS) : [];
@@ -44,9 +44,9 @@ const getPlaceholderSlugsSet = () => {
     _lazyPlaceholderSlugs = new Set(["default"]);
   }
   return _lazyPlaceholderSlugs;
-};
+}
 
-const sanitizeTenantSlug = (slug?: string | null) => {
+function sanitizeTenantSlug(slug?: string | null) {
   if (!slug) return null;
   const trimmed = slug.trim();
   if (!trimmed) return null;
@@ -55,9 +55,9 @@ const sanitizeTenantSlug = (slug?: string | null) => {
   if (getPlaceholderSlugsSet().has(lowered)) return null;
 
   return trimmed;
-};
+}
 
-const readTenantFromScripts = (): string | null => {
+function readTenantFromScripts(): string | null {
   if (typeof document === "undefined") return null;
 
   const scripts = Array.from(document.querySelectorAll("script"));
@@ -75,9 +75,9 @@ const readTenantFromScripts = (): string | null => {
   }
 
   return null;
-};
+}
 
-const readTenantFromSubdomain = (): string | null => {
+function readTenantFromSubdomain(): string | null {
   if (typeof window === "undefined") return null;
   const host = window.location.hostname;
   if (!host || host === "localhost") return null;
@@ -88,6 +88,26 @@ const readTenantFromSubdomain = (): string | null => {
   const candidate = segments[0];
   if (!candidate || ["www", "app", "panel"].includes(candidate.toLowerCase())) return null;
   return candidate;
+}
+
+const PROACTIVE_MESSAGES = [
+  "¿Necesitas ayuda?",
+  "¿Querés hacer una sugerencia?",
+  "¿Tenés un reclamo?",
+  "¿Tenés consultas? ¡Preguntame!",
+];
+
+const LANDING_PROACTIVE_MESSAGES = [
+  "¡Hola! 👋 ¿Querés probar una demo interactiva?",
+  "Probá nuestro asistente inteligente gratis 🤖",
+  "Descubrí cómo automatizar tus ventas 🚀",
+  "¿Hablamos? Estoy acá para ayudarte 😊"
+];
+
+const LS_KEY = "chatboc_accessibility";
+
+const SafeAnimatePresence: React.FC<AnimatePresenceProps> = ({ children = null, ...rest } = { children: null }) => {
+  return <AnimatePresence {...rest}>{children}</AnimatePresence>;
 };
 
 export interface ChatWidgetProps {
@@ -112,27 +132,7 @@ export interface ChatWidgetProps {
   tenantSlug?: string;
 }
 
-const PROACTIVE_MESSAGES = [
-  "¿Necesitas ayuda?",
-  "¿Querés hacer una sugerencia?",
-  "¿Tenés un reclamo?",
-  "¿Tenés consultas? ¡Preguntame!",
-];
-
-const LANDING_PROACTIVE_MESSAGES = [
-  "¡Hola! 👋 ¿Querés probar una demo interactiva?",
-  "Probá nuestro asistente inteligente gratis 🤖",
-  "Descubrí cómo automatizar tus ventas 🚀",
-  "¿Hablamos? Estoy acá para ayudarte 😊"
-];
-
-const LS_KEY = "chatboc_accessibility";
-
-const SafeAnimatePresence: React.FC<AnimatePresenceProps> = ({ children = null, ...rest } = { children: null }) => {
-  return <AnimatePresence {...rest}>{children}</AnimatePresence>;
-};
-
-const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
+function ChatWidgetInner({
   mode = "standalone",
   defaultOpen = false,
   initialView = 'chat',
@@ -153,7 +153,7 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
   welcomeTitle,
   welcomeSubtitle,
   tenantSlug: explicitTenantSlug,
-}) => {
+}: ChatWidgetProps) {
   const proactiveMessageTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const hideProactiveBubbleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isDarkMode = useDarkMode();
