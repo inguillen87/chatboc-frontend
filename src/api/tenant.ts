@@ -212,10 +212,6 @@ const resolveTenantInfo = async ({
   widgetToken,
   forceSlug,
 }: TenantResolveOptions): Promise<TenantPublicInfo> => {
-  if (slug === 'municipio') {
-    return { ...MOCK_TENANT_INFO, slug: 'municipio', nombre: 'Municipio Demo' };
-  }
-
   const params = new URLSearchParams();
   if (slug) params.set('tenant', slug);
   if (widgetToken) params.set('widget_token', widgetToken);
@@ -234,14 +230,16 @@ const resolveTenantInfo = async ({
         sendAnonId: true,
       });
     } catch (error) {
-      // Critical fix: If the widget config endpoint is 404 or 401, we MUST fallback to mock data
+      // Critical fix: If the widget config endpoint is 404, we MUST fallback to mock data
       // to allow the iframe to render.
-      const statusCode = error instanceof ApiError ? error.status : null;
-      const is404 = statusCode === 404;
-      const is401 = statusCode === 401;
+      // We check if the request was for widget-config (often used for initial load) or generic info
+      const isWidgetConfig = endpoint.includes('widget-config');
+      const is404 = error instanceof ApiError && error.status === 404;
+      // Also catch 500 errors to prevent backend crashes from breaking the frontend widget
+      const is500 = error instanceof ApiError && error.status === 500;
 
-      if (is404 || is401) {
-        console.warn(`[API] Endpoint ${endpoint} returned ${statusCode}. Falling back to mock data.`);
+      if (is404 || is500) {
+        console.warn(`[API] Endpoint ${endpoint} returned ${error.status}. Falling back to mock data.`);
         if (slug === 'municipio-junin' || slug === 'municipalidad-de-junin' || widgetToken === '1146cb3e-eaef-4230-b54e-1c340ac062d8') {
            return MOCK_JUNIN_TENANT_INFO;
         }
@@ -302,10 +300,6 @@ export async function getTenantPublicInfoFlexible(
   const safeWidgetToken = normalizeEntityToken(widgetToken) ?? null;
 
   if (safeSlug) {
-    if (safeSlug === 'municipio') {
-      return { ...MOCK_TENANT_INFO, slug: 'municipio', nombre: 'municipio' };
-    }
-
     // Specific override for Junin slug
     if (safeSlug === 'municipio-junin' || safeSlug === 'municipalidad-de-junin') {
       return MOCK_JUNIN_TENANT_INFO;
