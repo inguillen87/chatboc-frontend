@@ -3,6 +3,7 @@ import { apiFetch } from '@/utils/api';
 import { DEMO_HIERARCHY } from '@/data/demoHierarchy';
 import { Rubro } from '@/types/rubro';
 
+// Fetch rubros from the backend, including tenant-scoped hierarchy if available
 export const fetchRubros = async (): Promise<Rubro[]> => {
   return await apiFetch<Rubro[]>('/rubros/', {
     omitTenant: true,
@@ -10,12 +11,14 @@ export const fetchRubros = async (): Promise<Rubro[]> => {
   });
 };
 
-// Helper to build the tree from the flat list
+// Helper to build the tree from the flat list returned by the backend
 export const buildRubroTree = (flatRubros: Rubro[]): Rubro[] => {
+  if (!Array.isArray(flatRubros)) return [];
+
   const map = new Map<number, Rubro>();
   const roots: Rubro[] = [];
 
-  // Initialize map
+  // Initialize map and ensure subrubros array exists
   flatRubros.forEach(r => {
     map.set(r.id, { ...r, subrubros: [] });
   });
@@ -23,9 +26,17 @@ export const buildRubroTree = (flatRubros: Rubro[]): Rubro[] => {
   // Build tree
   flatRubros.forEach(r => {
     const node = map.get(r.id)!;
+    // Only process if it hasn't been added as a child already (though data is flat, so we iterate once)
+    // We rely on padre_id to determine structure.
+
     if (r.padre_id && map.has(r.padre_id)) {
-      map.get(r.padre_id)!.subrubros!.push(node);
+      const parent = map.get(r.padre_id)!;
+      // Prevent duplicates in parent if backend sends redundant data
+      if (!parent.subrubros?.some(child => child.id === node.id)) {
+        parent.subrubros!.push(node);
+      }
     } else {
+      // It's a root
       roots.push(node);
     }
   });
@@ -33,18 +44,22 @@ export const buildRubroTree = (flatRubros: Rubro[]): Rubro[] => {
   return roots;
 };
 
-// Returns the enforced hierarchy for demos.
-// In the future, this can merge real API data (e.g., availability) into the static structure.
-// For now, it returns the static structure to ensure "Clean & Organized" presentation.
 export const getRubrosHierarchy = async (): Promise<Rubro[]> => {
     try {
-        // We attempt to fetch to see if we can get real status/availability if the backend supported it
-        // But for now, we strictly prefer the Clean Hierarchy.
-        // If we needed to map legacy backend items to this hierarchy, we would do it here.
+        const backendData = await fetchRubros();
 
-        // const backendData = await fetchRubros();
-        // ... mapping logic ...
+        if (Array.isArray(backendData) && backendData.length > 0) {
+            // Build the tree from the backend data
+            const tree = buildRubroTree(backendData);
 
+            // If the tree is empty despite having data (e.g. all orphans with invalid parents), fallback
+            if (tree.length > 0) {
+                return tree;
+            }
+        }
+
+        // If backend returns empty or invalid, fallback to demo hierarchy
+        console.warn("Backend rubros empty or invalid, using fallback hierarchy");
         return DEMO_HIERARCHY;
     } catch (error) {
         console.warn("Error fetching rubros, using fallback hierarchy", error);

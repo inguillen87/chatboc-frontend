@@ -11,15 +11,26 @@ interface RubroSelectorProps {
 }
 
 const RubroSelector: React.FC<RubroSelectorProps> = ({ rubros, onSelect }) => {
-  // Deduplicate rubros based on ID and Name to avoid UI clutter
+  // Deduplicate and merge rubros based on Name to handle backend fragmentation
   const uniqueRubros = useMemo(() => {
-    const seen = new Set<string>();
-    return rubros.filter(r => {
-      const key = `${r.id}-${r.nombre}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
+    const mergedMap = new Map<string, Rubro>();
+
+    rubros.forEach(r => {
+        const key = r.nombre.trim().toLowerCase();
+        if (mergedMap.has(key)) {
+            // Merge subrubros if existing
+            const existing = mergedMap.get(key)!;
+            const newSubs = r.subrubros || [];
+            const existingSubs = existing.subrubros || [];
+
+            // Simple merge of subrubros
+            existing.subrubros = [...existingSubs, ...newSubs];
+        } else {
+            mergedMap.set(key, { ...r });
+        }
     });
+
+    return Array.from(mergedMap.values());
   }, [rubros]);
 
   return (

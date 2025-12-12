@@ -4,6 +4,7 @@ import { API_BASE_CANDIDATES, BASE_API_URL, SAME_ORIGIN_PROXY_BASE } from '@/con
 import { TENANT_ROUTE_PREFIXES, TENANT_PLACEHOLDER_SLUGS as SHARED_PLACEHOLDERS } from '@/utils/tenantPaths';
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import getOrCreateChatSessionId from "@/utils/chatSessionId"; // Import the new function
+import { getOrCreateAnonId } from "@/utils/anonIdGenerator";
 import { getIframeToken } from "@/utils/config";
 
 export class NetworkError extends Error {
@@ -460,31 +461,6 @@ export async function apiFetch<T>(
   }
   const shouldAttachChatSession = !omitChatSessionId;
   const chatSessionId = shouldAttachChatSession ? getOrCreateChatSessionId() : null; // Get or create the chat session ID
-
-  // Helper to ensure a persistent anonymous ID for cart/session stability
-  const getOrCreateAnonId = (): string => {
-    let id = safeLocalStorage.getItem("chatboc_anon_id");
-    if (!id) {
-      // Migrate legacy key if present
-      const legacy = safeLocalStorage.getItem("anon_id");
-      if (legacy) {
-        id = legacy;
-      } else {
-        // Generate UUID v4
-        if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-          id = crypto.randomUUID();
-        } else {
-          // Fallback UUID generator
-          id = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-            var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
-            return v.toString(16);
-          });
-        }
-      }
-      safeLocalStorage.setItem("chatboc_anon_id", id);
-    }
-    return id;
-  };
 
   const anonId = getOrCreateAnonId();
 
