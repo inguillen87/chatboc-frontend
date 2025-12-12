@@ -2,12 +2,7 @@ import React, { useMemo, Suspense } from "react";
 import { TenantProvider, useTenantContextPresence } from "@/context/TenantContext";
 import { MemoryRouter, useInRouterContext } from "react-router-dom";
 
-// Lazy load ChatWidgetInner to avoid circular dependency in entry point
-const ChatWidgetInner = React.lazy(() => import("./ChatWidgetInner"));
-
-// Duplicate props interface to avoid importing it from Inner (which might cause cycle)
-// or move props to a separate types file. For now, we trust the import.
-import type { ChatWidgetProps } from "./ChatWidgetInner";
+import ChatWidgetInner, { type ChatWidgetProps } from "./ChatWidgetInner";
 
 const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
   const tenantContext = useTenantContextPresence();
@@ -29,7 +24,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
     const widgetTree = (
       <TenantProvider>
         <Suspense fallback={loader}>
-           <ChatWidgetInner {...props} />
+          <ChatWidgetInner {...props} />
         </Suspense>
       </TenantProvider>
     );
@@ -47,7 +42,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
 
   return (
     <Suspense fallback={loader}>
-        <ChatWidgetInner {...props} />
+      <ChatWidgetInner {...props} />
     </Suspense>
   );
 };

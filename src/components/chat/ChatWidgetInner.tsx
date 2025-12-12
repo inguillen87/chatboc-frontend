@@ -14,7 +14,7 @@ import { playOpenSound, playProactiveSound } from "@/utils/sounds";
 import ReadingRuler from "./ReadingRuler";
 import type { Prefs } from "./AccessibilityToggle";
 import { useCartCount } from "@/hooks/useCartCount";
-import { buildTenantNavigationUrl, TENANT_PLACEHOLDER_SLUGS as SHARED_PLACEHOLDERS } from "@/utils/tenantPaths";
+import { buildTenantNavigationUrl, TENANT_PLACEHOLDER_SLUGS } from "@/utils/tenantPaths";
 import { useTenant } from "@/context/TenantContext";
 import { toast } from "sonner";
 import { tenantService } from "@/services/tenantService";
@@ -27,9 +27,18 @@ const ChatUserPanel = React.lazy(() => import("./ChatUserPanel"));
 const EntityInfoPanel = React.lazy(() => import("./EntityInfoPanel"));
 const ProactiveBubble = React.lazy(() => import("./ProactiveBubble"));
 
-// Use a getter to access the Set safely, though strictly it should be initialized by import time.
-// This defensive pattern avoids top-level access if the module is in a partial state.
-const getPlaceholderSlugs = () => new Set([...(SHARED_PLACEHOLDERS || []), "default"]);
+// Snapshot placeholder slugs at module load to avoid referencing an undefined identifier in edge
+// bundling/circular-import scenarios. The extra "default" sentinel keeps the previous fallback
+// behaviour without relying on runtime initialization order.
+const PLACEHOLDER_SLUGS_SET: Set<string> = (() => {
+  try {
+    const shared = TENANT_PLACEHOLDER_SLUGS ? Array.from(TENANT_PLACEHOLDER_SLUGS) : [];
+    return new Set([...shared, "default"]);
+  } catch (error) {
+    console.warn("[ChatWidgetInner] Placeholder slugs not ready, using defaults", error);
+    return new Set(["default"]);
+  }
+})();
 
 const sanitizeTenantSlug = (slug?: string | null) => {
   if (!slug) return null;
@@ -37,7 +46,7 @@ const sanitizeTenantSlug = (slug?: string | null) => {
   if (!trimmed) return null;
 
   const lowered = trimmed.toLowerCase();
-  if (getPlaceholderSlugs().has(lowered)) return null;
+  if (PLACEHOLDER_SLUGS_SET.has(lowered)) return null;
 
   return trimmed;
 };
