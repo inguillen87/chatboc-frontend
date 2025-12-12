@@ -19,6 +19,26 @@ import { useTenant } from "@/context/TenantContext";
 import { toast } from "sonner";
 import { tenantService } from "@/services/tenantService";
 
+const PROACTIVE_MESSAGES = [
+  "¿Necesitas ayuda?",
+  "¿Querés hacer una sugerencia?",
+  "¿Tenés un reclamo?",
+  "¿Tenés consultas? ¡Preguntame!",
+];
+
+const LANDING_PROACTIVE_MESSAGES = [
+  "¡Hola! 👋 ¿Querés probar una demo interactiva?",
+  "Probá nuestro asistente inteligente gratis 🤖",
+  "Descubrí cómo automatizar tus ventas 🚀",
+  "¿Hablamos? Estoy acá para ayudarte 😊"
+];
+
+const LS_KEY = "chatboc_accessibility";
+
+function SafeAnimatePresence({ children = null, ...rest }: AnimatePresenceProps = { children: null }) {
+  return <AnimatePresence {...rest}>{children}</AnimatePresence>;
+}
+
 const ChatHeader = React.lazy(() => import("./ChatHeader"));
 const ChatPanel = React.lazy(() => import("./ChatPanel"));
 const ChatUserRegisterPanel = React.lazy(() => import("./ChatUserRegisterPanel"));
@@ -89,26 +109,6 @@ function readTenantFromSubdomain(): string | null {
   if (!candidate || ["www", "app", "panel"].includes(candidate.toLowerCase())) return null;
   return candidate;
 }
-
-const PROACTIVE_MESSAGES = [
-  "¿Necesitas ayuda?",
-  "¿Querés hacer una sugerencia?",
-  "¿Tenés un reclamo?",
-  "¿Tenés consultas? ¡Preguntame!",
-];
-
-const LANDING_PROACTIVE_MESSAGES = [
-  "¡Hola! 👋 ¿Querés probar una demo interactiva?",
-  "Probá nuestro asistente inteligente gratis 🤖",
-  "Descubrí cómo automatizar tus ventas 🚀",
-  "¿Hablamos? Estoy acá para ayudarte 😊"
-];
-
-const LS_KEY = "chatboc_accessibility";
-
-const SafeAnimatePresence: React.FC<AnimatePresenceProps> = ({ children = null, ...rest } = { children: null }) => {
-  return <AnimatePresence {...rest}>{children}</AnimatePresence>;
-};
 
 export interface ChatWidgetProps {
   mode?: "standalone" | "iframe" | "script";
