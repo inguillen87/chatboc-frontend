@@ -61,6 +61,9 @@ const LOCAL_PLACEHOLDER_SLUGS = new Set([
   "default"
 ]);
 
+// Defensive alias to prevent ReferenceError if stale code exists in build artifacts
+const PLACEHOLDER_SLUGS_SET = LOCAL_PLACEHOLDER_SLUGS;
+
 const PROACTIVE_MESSAGES = [
   "¿Necesitas ayuda?",
   "¿Querés hacer una sugerencia?",
@@ -106,31 +109,46 @@ function getPlaceholderSlugsSet() {
 }
 
 function sanitizeTenantSlug(slug?: string | null) {
-  if (!slug) return null;
-  const trimmed = slug.trim();
-  if (!trimmed) return null;
+  try {
+    if (!slug) return null;
+    const trimmed = slug.trim();
+    if (!trimmed) return null;
 
-  const lowered = trimmed.toLowerCase();
-  if (getPlaceholderSlugsSet().has(lowered)) return null;
+    const lowered = trimmed.toLowerCase();
 
-  return trimmed;
+    // Explicitly use local constant first to avoid function overhead/potential TDZ in weird contexts
+    if (LOCAL_PLACEHOLDER_SLUGS.has(lowered)) return null;
+
+    // Fallback to helper
+    const set = getPlaceholderSlugsSet();
+    if (set && set.has(lowered)) return null;
+
+    return trimmed;
+  } catch (e) {
+    console.warn("Error sanitizing tenant slug", e);
+    return null;
+  }
 }
 
 function readTenantFromScripts(): string | null {
   if (typeof document === "undefined") return null;
 
-  const scripts = Array.from(document.querySelectorAll("script"));
-  for (const script of scripts) {
-    const dataset = (script as HTMLScriptElement).dataset;
-    if (!dataset) continue;
+  try {
+    const scripts = Array.from(document.querySelectorAll("script"));
+    for (const script of scripts) {
+      const dataset = (script as HTMLScriptElement).dataset;
+      if (!dataset) continue;
 
-    const slug =
-      dataset.tenant?.trim() ||
-      dataset.tenantSlug?.trim() ||
-      dataset.tenant_slug?.trim() ||
-      null;
+      const slug =
+        dataset.tenant?.trim() ||
+        dataset.tenantSlug?.trim() ||
+        dataset.tenant_slug?.trim() ||
+        null;
 
-    if (slug) return slug;
+      if (slug) return slug;
+    }
+  } catch (e) {
+    console.warn("Error reading tenant from scripts", e);
   }
 
   return null;
@@ -138,15 +156,20 @@ function readTenantFromScripts(): string | null {
 
 function readTenantFromSubdomain(): string | null {
   if (typeof window === "undefined") return null;
-  const host = window.location.hostname;
-  if (!host || host === "localhost") return null;
+  try {
+    const host = window.location.hostname;
+    if (!host || host === "localhost") return null;
 
-  const segments = host.split(".");
-  if (segments.length < 2) return null;
+    const segments = host.split(".");
+    if (segments.length < 2) return null;
 
-  const candidate = segments[0];
-  if (!candidate || ["www", "app", "panel"].includes(candidate.toLowerCase())) return null;
-  return candidate;
+    const candidate = segments[0];
+    if (!candidate || ["www", "app", "panel"].includes(candidate.toLowerCase())) return null;
+    return candidate;
+  } catch (e) {
+    console.warn("Error reading tenant from subdomain", e);
+    return null;
+  }
 }
 
 function ChatWidgetInner({
@@ -196,14 +219,8 @@ function ChatWidgetInner({
   const [isProfileLoading, setProfileLoading] = useState(true);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [requireCatalogAuth, setRequireCatalogAuth] = useState(false);
-  const [duplicateInstance] = useState(() => {
-    if (typeof window === "undefined") return false;
-    if ((window as any).__chatbocWidgetMounted) {
-      return true;
-    }
-    (window as any).__chatbocWidgetMounted = true;
-    return false;
-  });
+
+  const [duplicateInstance, setDuplicateInstance] = useState(false);
 
   const [isMobileView, setIsMobileView] = useState(
     typeof window !== "undefined" && window.innerWidth < 640
@@ -227,14 +244,21 @@ function ChatWidgetInner({
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (duplicateInstance) return;
 
+    // Check if another widget is already mounted on the window
+    if ((window as any).__chatbocWidgetMounted) {
+      setDuplicateInstance(true);
+      return;
+    }
+
+    // Mark as mounted
+    (window as any).__chatbocWidgetMounted = true;
+
+    // Cleanup on unmount
     return () => {
-      if ((window as any).__chatbocWidgetMounted) {
-        delete (window as any).__chatbocWidgetMounted;
-      }
+      delete (window as any).__chatbocWidgetMounted;
     };
-  }, [duplicateInstance]);
+  }, []);
 
   if (duplicateInstance) {
     return null;
@@ -525,6 +549,28 @@ function ChatWidgetInner({
 
     return () => clearInterval(cycleTimer);
   }, [isOpen, showProactiveBubble, proactiveCycle, muted, entityInfo]);
+
+  const toggleChat = useCallback(() => {
+    if (typeof window !== "undefined" && window.AudioContext && window.AudioContext.state === "suspended") {
+      window.AudioContext.resume();
+    }
+
+    setIsOpen((prevIsOpen) => {
+      const nextIsOpen = !prevIsOpen;
+      if (!nextIsOpen) {
+          safeLocalStorage.setItem('widget_manually_closed', '1');
+      }
+      if (nextIsOpen && !muted) {
+        playOpenSound();
+      }
+      if (nextIsOpen) {
+        setShowProactiveBubble(false);
+        if (proactiveMessageTimeoutRef.current) clearTimeout(proactiveMessageTimeoutRef.current);
+        if (hideProactiveBubbleTimeoutRef.current) clearTimeout(hideProactiveBubbleTimeoutRef.current);
+      }
+      return nextIsOpen;
+    });
+  }, [isOpen, muted]);
 
   const handleProactiveClick = useCallback(() => {
       let backendMessages = entityInfo?.cta_messages || entityInfo?.interaction?.cta_messages;
@@ -876,27 +922,7 @@ function ChatWidgetInner({
     return () => window.removeEventListener("message", handleMessage);
   }, [widgetId]);
 
-  const toggleChat = useCallback(() => {
-    if (typeof window !== "undefined" && window.AudioContext && window.AudioContext.state === "suspended") {
-      window.AudioContext.resume();
-    }
-
-    setIsOpen((prevIsOpen) => {
-      const nextIsOpen = !prevIsOpen;
-      if (!nextIsOpen) {
-          safeLocalStorage.setItem('widget_manually_closed', '1');
-      }
-      if (nextIsOpen && !muted) {
-        playOpenSound();
-      }
-      if (nextIsOpen) {
-        setShowProactiveBubble(false);
-        if (proactiveMessageTimeoutRef.current) clearTimeout(proactiveMessageTimeoutRef.current);
-        if (hideProactiveBubbleTimeoutRef.current) clearTimeout(hideProactiveBubbleTimeoutRef.current);
-      }
-      return nextIsOpen;
-    });
-  }, [isOpen, muted]);
+  // toggleChat was here, causing TDZ for handleProactiveClick
 
   useEffect(() => {
     if (!ctaMessage || isOpen || showProactiveBubble) {
