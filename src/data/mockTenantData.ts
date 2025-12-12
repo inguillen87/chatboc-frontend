@@ -1,6 +1,6 @@
 
 import { TenantEventItem, TenantNewsItem, TenantPublicInfo, TenantSummary } from '@/types/tenant';
-import { PublicSurveyListResult } from '@/api/encuestas';
+import type { PublicSurveyListResult } from '@/api/encuestas';
 
 export const MOCK_TENANT_INFO: TenantPublicInfo = {
   slug: 'demo-municipio',
