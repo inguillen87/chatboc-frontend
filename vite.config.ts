@@ -133,7 +133,14 @@ export default defineConfig(({ mode }) => {
         output: {
           entryFileNames: `assets/[name].js`,
           chunkFileNames: `assets/[name].js`,
-          assetFileNames: `assets/[name].[ext]`
+          assetFileNames: `assets/[name].[ext]`,
+          // Favor var declarations in emitted chunks to avoid TDZ crashes in
+          // the iframe bundle when vendor helpers are referenced before
+          // initialization.
+          preferConst: false,
+          generatedCode: {
+            constBindings: false,
+          },
         }
       },
     },
