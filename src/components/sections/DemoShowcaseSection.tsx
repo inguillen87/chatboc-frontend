@@ -81,7 +81,7 @@ const DemoShowcaseSection = () => {
   useEffect(() => {
     const initData = async () => {
       try {
-        const data = await getRubrosHierarchy();
+        const data = await getRubrosHierarchy({ allowDemoAugmentation: true });
         setTree(data);
       } catch (error) {
         console.error("Error loading demo hierarchy", error);

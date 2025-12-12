@@ -6,6 +6,14 @@ import { Rubro } from '@/types/rubro';
 const treeHasDemos = (nodes: Rubro[]): boolean =>
   nodes.some((node) => Boolean(node.demo) || (node.subrubros && treeHasDemos(node.subrubros)));
 
+type RubroHierarchyOptions = {
+  /**
+   * When true, append the static demo hierarchy to the backend tree if no nodes expose demo metadata.
+   * Defaults to false to keep tenant rubros untouched in production contexts.
+   */
+  allowDemoAugmentation?: boolean;
+};
+
 // Fetch rubros from the backend, including tenant-scoped hierarchy if available
 export const fetchRubros = async (): Promise<Rubro[]> => {
   return await apiFetch<Rubro[]>('/rubros/', {
@@ -47,7 +55,11 @@ export const buildRubroTree = (flatRubros: Rubro[]): Rubro[] => {
   return roots;
 };
 
-export const getRubrosHierarchy = async (): Promise<Rubro[]> => {
+export const getRubrosHierarchy = async (
+  options: RubroHierarchyOptions = {},
+): Promise<Rubro[]> => {
+  const { allowDemoAugmentation = false } = options;
+
   try {
     const backendData = await fetchRubros();
 
@@ -64,8 +76,8 @@ export const getRubrosHierarchy = async (): Promise<Rubro[]> => {
       return DEMO_HIERARCHY;
     }
 
-    // Preserve backend data; append demos only when backend rubros don't expose demo nodes
-    if (!treeHasDemos(tree)) {
+    // Preserve backend data; append demos only when explicitly allowed and backend rubros don't expose demo nodes
+    if (allowDemoAugmentation && !treeHasDemos(tree)) {
       const mergedRoots = [...tree];
       const existingRootKeys = new Set(
         mergedRoots.map((root) => root.clave || root.nombre.toLowerCase()),
