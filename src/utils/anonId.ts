@@ -22,7 +22,7 @@ export async function ensureRemoteAnonId(options?: { tenantSlug?: string | null;
   if (options?.tenantSlug) searchParams.set('tenant', options.tenantSlug);
   if (options?.widgetToken) searchParams.set('widget_token', options.widgetToken);
 
-  if (options?.tenantSlug === 'municipio' && !options?.widgetToken) {
+  if (options?.tenantSlug === 'municipio') {
     persistAnonCookie(existing);
     return existing;
   }

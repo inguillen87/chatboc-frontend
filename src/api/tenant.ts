@@ -212,6 +212,10 @@ const resolveTenantInfo = async ({
   widgetToken,
   forceSlug,
 }: TenantResolveOptions): Promise<TenantPublicInfo> => {
+  if (slug === 'municipio') {
+    return { ...MOCK_TENANT_INFO, slug: 'municipio', nombre: 'Municipio Demo' };
+  }
+
   const params = new URLSearchParams();
   if (slug) params.set('tenant', slug);
   if (widgetToken) params.set('widget_token', widgetToken);

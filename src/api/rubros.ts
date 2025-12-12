@@ -3,6 +3,9 @@ import { apiFetch } from '@/utils/api';
 import { DEMO_HIERARCHY } from '@/data/demoHierarchy';
 import { Rubro } from '@/types/rubro';
 
+const treeHasDemos = (nodes: Rubro[]): boolean =>
+  nodes.some((node) => Boolean(node.demo) || (node.subrubros && treeHasDemos(node.subrubros)));
+
 // Fetch rubros from the backend, including tenant-scoped hierarchy if available
 export const fetchRubros = async (): Promise<Rubro[]> => {
   return await apiFetch<Rubro[]>('/rubros/', {
@@ -53,8 +56,24 @@ export const getRubrosHierarchy = async (): Promise<Rubro[]> => {
       const tree = buildRubroTree(backendData);
 
       if (tree.length > 0) {
-        // Preserve backend data; use demo hierarchy only when backend is empty/invalid
-        return tree;
+        // Preserve backend data; append demos if backend tree has no demo nodes
+        if (treeHasDemos(tree)) {
+          return tree;
+        }
+
+        const mergedRoots = [...tree];
+        const existingRootKeys = new Set(
+          mergedRoots.map((root) => root.clave || root.nombre.toLowerCase()),
+        );
+
+        DEMO_HIERARCHY.forEach((demoRoot) => {
+          const key = demoRoot.clave || demoRoot.nombre.toLowerCase();
+          if (!existingRootKeys.has(key)) {
+            mergedRoots.push(demoRoot);
+          }
+        });
+
+        return mergedRoots;
       }
     }
 
