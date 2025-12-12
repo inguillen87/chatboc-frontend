@@ -170,6 +170,7 @@ const ChatPanel = ({
     getRubrosHierarchy({
       tenantSlug: resolvedTenantSlug ?? undefined,
       isWidgetRequest: widgetContext,
+      allowDemoAugmentation: widgetContext,
     })
       .then((data) => {
         if (Array.isArray(data)) {
