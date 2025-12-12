@@ -526,6 +526,28 @@ function ChatWidgetInner({
     return () => clearInterval(cycleTimer);
   }, [isOpen, showProactiveBubble, proactiveCycle, muted, entityInfo]);
 
+  const toggleChat = useCallback(() => {
+    if (typeof window !== "undefined" && window.AudioContext && window.AudioContext.state === "suspended") {
+      window.AudioContext.resume();
+    }
+
+    setIsOpen((prevIsOpen) => {
+      const nextIsOpen = !prevIsOpen;
+      if (!nextIsOpen) {
+          safeLocalStorage.setItem('widget_manually_closed', '1');
+      }
+      if (nextIsOpen && !muted) {
+        playOpenSound();
+      }
+      if (nextIsOpen) {
+        setShowProactiveBubble(false);
+        if (proactiveMessageTimeoutRef.current) clearTimeout(proactiveMessageTimeoutRef.current);
+        if (hideProactiveBubbleTimeoutRef.current) clearTimeout(hideProactiveBubbleTimeoutRef.current);
+      }
+      return nextIsOpen;
+    });
+  }, [muted]);
+
   const handleProactiveClick = useCallback(() => {
       let backendMessages = entityInfo?.cta_messages || entityInfo?.interaction?.cta_messages;
       if (backendMessages && Array.isArray(backendMessages) && backendMessages.length > 0) {
@@ -875,28 +897,6 @@ function ChatWidgetInner({
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
   }, [widgetId]);
-
-  const toggleChat = useCallback(() => {
-    if (typeof window !== "undefined" && window.AudioContext && window.AudioContext.state === "suspended") {
-      window.AudioContext.resume();
-    }
-
-    setIsOpen((prevIsOpen) => {
-      const nextIsOpen = !prevIsOpen;
-      if (!nextIsOpen) {
-          safeLocalStorage.setItem('widget_manually_closed', '1');
-      }
-      if (nextIsOpen && !muted) {
-        playOpenSound();
-      }
-      if (nextIsOpen) {
-        setShowProactiveBubble(false);
-        if (proactiveMessageTimeoutRef.current) clearTimeout(proactiveMessageTimeoutRef.current);
-        if (hideProactiveBubbleTimeoutRef.current) clearTimeout(hideProactiveBubbleTimeoutRef.current);
-      }
-      return nextIsOpen;
-    });
-  }, [isOpen, muted]);
 
   useEffect(() => {
     if (!ctaMessage || isOpen || showProactiveBubble) {
