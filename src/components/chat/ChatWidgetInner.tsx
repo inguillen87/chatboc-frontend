@@ -27,24 +27,23 @@ const ChatUserPanel = React.lazy(() => import("./ChatUserPanel"));
 const EntityInfoPanel = React.lazy(() => import("./EntityInfoPanel"));
 const ProactiveBubble = React.lazy(() => import("./ProactiveBubble"));
 
-const SHARED_PLACEHOLDERS = TENANT_PLACEHOLDER_SLUGS;
+// Lazy initialization to avoid TDZ (Temporal Dead Zone) issues if imports are not fully ready
+let _lazyPlaceholderSlugs: Set<string> | null = null;
 
-// Merge shared placeholders with API-specific ones
-const PLACEHOLDER_SLUGS_SET = new Set([
-  ...SHARED_PLACEHOLDERS,
-  "public", "auth", "portal", "admin", "pwa", "static", "assets", "default"
-]);
-
-// Use a getter to access the Set safely, though strictly it should be initialized by import time.
-// This defensive pattern avoids top-level access if the module is in a partial state.
-const getPlaceholderSlugs = () => {
+const getPlaceholderSlugsSet = () => {
+  if (_lazyPlaceholderSlugs) return _lazyPlaceholderSlugs;
   try {
-    const shared = SHARED_PLACEHOLDERS ? Array.from(SHARED_PLACEHOLDERS) : [];
-    return new Set([...shared, "default"]);
+    const shared = TENANT_PLACEHOLDER_SLUGS ? Array.from(TENANT_PLACEHOLDER_SLUGS) : [];
+    _lazyPlaceholderSlugs = new Set([
+      ...shared,
+      "public", "auth", "portal", "admin", "pwa", "static", "assets", "default"
+    ]);
   } catch (error) {
     console.warn("[ChatWidgetInner] Placeholder slugs not ready, using defaults", error);
-    return new Set(["default"]);
+    // Fallback to minimal set to prevent crash
+    _lazyPlaceholderSlugs = new Set(["default"]);
   }
+  return _lazyPlaceholderSlugs;
 };
 
 const sanitizeTenantSlug = (slug?: string | null) => {
@@ -53,7 +52,7 @@ const sanitizeTenantSlug = (slug?: string | null) => {
   if (!trimmed) return null;
 
   const lowered = trimmed.toLowerCase();
-  if (PLACEHOLDER_SLUGS_SET.has(lowered)) return null;
+  if (getPlaceholderSlugsSet().has(lowered)) return null;
 
   return trimmed;
 };
