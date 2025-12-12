@@ -3,11 +3,37 @@ import { apiFetch } from '@/utils/api';
 import { DEMO_HIERARCHY } from '@/data/demoHierarchy';
 import { Rubro } from '@/types/rubro';
 
+const treeHasDemos = (nodes: Rubro[]): boolean =>
+  nodes.some((node) => Boolean(node.demo) || (node.subrubros && treeHasDemos(node.subrubros)));
+
+type RubroHierarchyOptions = {
+  /**
+   * When true, append the static demo hierarchy to the backend tree if no nodes expose demo metadata.
+   * Defaults to false to keep tenant rubros untouched in production contexts.
+   */
+  allowDemoAugmentation?: boolean;
+  /**
+   * Tenant slug to scope the hierarchy. Needed for widget contexts where the tenant
+   * cannot be inferred automatically.
+   */
+  tenantSlug?: string | null;
+  /**
+   * Whether the request originates from the widget/iframe context. Prevents leaking
+   * panel credentials.
+   */
+  isWidgetRequest?: boolean;
+};
+
 // Fetch rubros from the backend, including tenant-scoped hierarchy if available
-export const fetchRubros = async (): Promise<Rubro[]> => {
-  return await apiFetch<Rubro[]>('/rubros/', {
-    omitTenant: true,
+export const fetchRubros = async (
+  options: Pick<RubroHierarchyOptions, "tenantSlug" | "isWidgetRequest"> = {},
+): Promise<Rubro[]> => {
+  const { tenantSlug, isWidgetRequest } = options;
+
+  return await apiFetch<Rubro[]>("/rubros/", {
     skipAuth: true,
+    tenantSlug: tenantSlug ?? undefined,
+    isWidgetRequest: isWidgetRequest ?? false,
   });
 };
 
@@ -44,25 +70,71 @@ export const buildRubroTree = (flatRubros: Rubro[]): Rubro[] => {
   return roots;
 };
 
-export const getRubrosHierarchy = async (): Promise<Rubro[]> => {
-    try {
-        const backendData = await fetchRubros();
+export const getRubrosHierarchy = async (
+  options: RubroHierarchyOptions = {},
+): Promise<Rubro[]> => {
+  const {
+    allowDemoAugmentation = false,
+    tenantSlug = null,
+    isWidgetRequest = false,
+  } = options;
 
-        if (Array.isArray(backendData) && backendData.length > 0) {
-            // Build the tree from the backend data
-            const tree = buildRubroTree(backendData);
+  try {
+    const backendData = await fetchRubros({ tenantSlug, isWidgetRequest });
 
-            // If the tree is empty despite having data (e.g. all orphans with invalid parents), fallback
-            if (tree.length > 0) {
-                return tree;
-            }
+    if (!Array.isArray(backendData) || backendData.length === 0) {
+      console.warn("Backend rubros empty or invalid, using fallback hierarchy");
+      return DEMO_HIERARCHY;
+    }
+
+    // Build the tree from the backend data
+    const tree = buildRubroTree(backendData);
+
+    if (tree.length === 0) {
+      console.warn("Backend rubros produced no tree, using fallback hierarchy");
+      return DEMO_HIERARCHY;
+    }
+
+    // Preserve backend data; append demos only when explicitly allowed and backend rubros don't expose demo nodes
+    if (allowDemoAugmentation && !treeHasDemos(tree)) {
+      const mergedRoots = tree.map((root) => ({ ...root, subrubros: root.subrubros ?? [] }));
+
+      DEMO_HIERARCHY.forEach((demoRoot) => {
+        const key = demoRoot.clave || demoRoot.nombre.toLowerCase();
+        const existingRootIndex = mergedRoots.findIndex(
+          (root) => (root.clave || root.nombre.toLowerCase()) === key,
+        );
+
+        if (existingRootIndex === -1) {
+          mergedRoots.push(demoRoot);
+          return;
         }
 
-        // If backend returns empty or invalid, fallback to demo hierarchy
-        console.warn("Backend rubros empty or invalid, using fallback hierarchy");
-        return DEMO_HIERARCHY;
-    } catch (error) {
-        console.warn("Error fetching rubros, using fallback hierarchy", error);
-        return DEMO_HIERARCHY;
+        const existingRoot = mergedRoots[existingRootIndex];
+        const existingChildKeys = new Set(
+          (existingRoot.subrubros ?? []).map((child) => child.clave || child.nombre.toLowerCase()),
+        );
+
+        const augmentedChildren = [
+          ...(existingRoot.subrubros ?? []),
+          ...(demoRoot.subrubros ?? []).filter((child) => {
+            const childKey = child.clave || child.nombre.toLowerCase();
+            return !existingChildKeys.has(childKey);
+          }),
+        ];
+
+        mergedRoots[existingRootIndex] = {
+          ...existingRoot,
+          subrubros: augmentedChildren,
+        };
+      });
+
+      return mergedRoots;
     }
+
+    return tree;
+  } catch (error) {
+    console.warn("Error fetching rubros, using fallback hierarchy", error);
+    return DEMO_HIERARCHY;
+  }
 };
