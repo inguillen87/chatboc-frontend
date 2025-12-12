@@ -570,7 +570,7 @@ function ChatWidgetInner({
       }
       return nextIsOpen;
     });
-  }, [isOpen, muted]);
+  }, [muted]);
 
   const handleProactiveClick = useCallback(() => {
       let backendMessages = entityInfo?.cta_messages || entityInfo?.interaction?.cta_messages;
