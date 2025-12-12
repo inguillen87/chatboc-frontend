@@ -19,6 +19,9 @@ import { useTenant } from "@/context/TenantContext";
 import { toast } from "sonner";
 import { tenantService } from "@/services/tenantService";
 import { ChatWidgetProps } from "./types";
+import baseStylesUrl from "@/index.css?url";
+import inlineBaseStyles from "@/index.css?inline";
+import { ALL_TOKEN_KEYS, DEFAULT_DARK_TOKENS, DEFAULT_LIGHT_TOKENS } from "@/theme/defaultTokens";
 
 const LOCAL_PLACEHOLDER_SLUGS = new Set([
   'iframe',
@@ -174,6 +177,7 @@ function ChatWidgetInner({
   const proactiveMessageTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const hideProactiveBubbleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isDarkMode = useDarkMode();
+  const widgetRootRef = useRef<HTMLDivElement | null>(null);
 
   const [isOpen, setIsOpen] = useState(() => {
     if (mode !== 'standalone' && typeof defaultOpen === 'string') {
@@ -432,11 +436,56 @@ function ChatWidgetInner({
   const [showProactiveBubble, setShowProactiveBubble] = useState(false);
   const [proactiveCycle, setProactiveCycle] = useState(0);
 
+  // Ensure base styles are available in script/standalone embeds so the widget
+  // preserves its colors, animations and tooltips even when the host page
+  // doesn't load the app stylesheet.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+
+    const head = document.head;
+
+    if (!head.querySelector('link[data-chatboc-base-styles]') && baseStylesUrl) {
+      const linkTag = document.createElement('link');
+      linkTag.rel = 'stylesheet';
+      linkTag.href = baseStylesUrl;
+      linkTag.dataset.chatbocBaseStyles = 'true';
+      head.appendChild(linkTag);
+    }
+
+    if (!head.querySelector('style[data-chatboc-inline-base]') && inlineBaseStyles) {
+      const styleTag = document.createElement('style');
+      styleTag.dataset.chatbocInlineBase = 'true';
+      styleTag.textContent = inlineBaseStyles;
+      head.appendChild(styleTag);
+    }
+  }, []);
+
+  // Ensure the widget has a full palette of CSS variables regardless of host page theme
+  useEffect(() => {
+    const root = widgetRootRef.current;
+    if (!root) return;
+
+    const prefersDarkFromConfig = entityInfo?.theme_config?.mode === 'dark';
+    const prefersSystem = entityInfo?.theme_config?.mode === 'system';
+    const prefersDark = prefersDarkFromConfig || (prefersSystem ? isDarkMode : isDarkMode);
+    const tokenSet = prefersDark ? DEFAULT_DARK_TOKENS : DEFAULT_LIGHT_TOKENS;
+
+    ALL_TOKEN_KEYS.forEach((key) => {
+      const fallbackValue = tokenSet[key] ?? DEFAULT_LIGHT_TOKENS[key] ?? "";
+      if (fallbackValue) {
+        root.style.setProperty(key, fallbackValue);
+      }
+    });
+
+    root.classList.toggle('dark', prefersDark);
+  }, [isDarkMode, entityInfo?.theme_config]);
+
   // Apply Theme Config
   useEffect(() => {
     if (entityInfo?.theme_config) {
       try {
-        const root = document.documentElement;
+        const root = widgetRootRef.current;
+        if (!root) return;
         const mode = entityInfo.theme_config.mode;
         const isDark = mode === 'dark' || (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
         const theme = isDark ? entityInfo.theme_config.dark : entityInfo.theme_config.light;
@@ -525,6 +574,28 @@ function ChatWidgetInner({
 
     return () => clearInterval(cycleTimer);
   }, [isOpen, showProactiveBubble, proactiveCycle, muted, entityInfo]);
+
+  const toggleChat = useCallback(() => {
+    if (typeof window !== "undefined" && window.AudioContext && window.AudioContext.state === "suspended") {
+      window.AudioContext.resume();
+    }
+
+    setIsOpen((prevIsOpen) => {
+      const nextIsOpen = !prevIsOpen;
+      if (!nextIsOpen) {
+          safeLocalStorage.setItem('widget_manually_closed', '1');
+      }
+      if (nextIsOpen && !muted) {
+        playOpenSound();
+      }
+      if (nextIsOpen) {
+        setShowProactiveBubble(false);
+        if (proactiveMessageTimeoutRef.current) clearTimeout(proactiveMessageTimeoutRef.current);
+        if (hideProactiveBubbleTimeoutRef.current) clearTimeout(hideProactiveBubbleTimeoutRef.current);
+      }
+      return nextIsOpen;
+    });
+  }, [muted]);
 
   const handleProactiveClick = useCallback(() => {
       let backendMessages = entityInfo?.cta_messages || entityInfo?.interaction?.cta_messages;
@@ -876,28 +947,6 @@ function ChatWidgetInner({
     return () => window.removeEventListener("message", handleMessage);
   }, [widgetId]);
 
-  const toggleChat = useCallback(() => {
-    if (typeof window !== "undefined" && window.AudioContext && window.AudioContext.state === "suspended") {
-      window.AudioContext.resume();
-    }
-
-    setIsOpen((prevIsOpen) => {
-      const nextIsOpen = !prevIsOpen;
-      if (!nextIsOpen) {
-          safeLocalStorage.setItem('widget_manually_closed', '1');
-      }
-      if (nextIsOpen && !muted) {
-        playOpenSound();
-      }
-      if (nextIsOpen) {
-        setShowProactiveBubble(false);
-        if (proactiveMessageTimeoutRef.current) clearTimeout(proactiveMessageTimeoutRef.current);
-        if (hideProactiveBubbleTimeoutRef.current) clearTimeout(hideProactiveBubbleTimeoutRef.current);
-      }
-      return nextIsOpen;
-    });
-  }, [isOpen, muted]);
-
   useEffect(() => {
     if (!ctaMessage || isOpen || showProactiveBubble) {
       setShowCta(false);
@@ -1099,6 +1148,7 @@ function ChatWidgetInner({
         data-owner-token={ownerToken}
         data-tipo-chat={tipoChat}
         data-initial-rubro={initialRubro}
+        ref={widgetRootRef}
         className={cn(
           "chatboc-container flex flex-col",
           mode === "standalone"
