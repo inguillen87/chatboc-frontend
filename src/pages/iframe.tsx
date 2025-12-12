@@ -1,4 +1,5 @@
 import "../index.css";
+import inlineBaseStyles from "../index.css?inline";
 import { createRoot } from 'react-dom/client';
 import React, { useEffect, useState } from "react";
 import ChatWidgetComponent from "../components/chat/ChatWidget";
@@ -15,6 +16,23 @@ import { GOOGLE_CLIENT_ID } from '@/env';
 import { tenantService } from '@/services/tenantService';
 
 registerExtensionNoiseFilters();
+
+// Ensure styles are present even when the iframe bundle is loaded without an
+// accompanying HTML that injects the extracted CSS file. Inlining avoids the
+// widget rendering without colors, animations, or tooltips when host pages
+// only import the JS entry.
+if (typeof document !== "undefined") {
+  const hasInlineStyles = document.querySelector(
+    "style[data-chatboc-inline-base]"
+  );
+
+  if (!hasInlineStyles) {
+    const styleTag = document.createElement("style");
+    styleTag.setAttribute("data-chatboc-inline-base", "true");
+    styleTag.textContent = inlineBaseStyles;
+    document.head.appendChild(styleTag);
+  }
+}
 
 const DEFAULTS = {
   openWidth: "460px",
