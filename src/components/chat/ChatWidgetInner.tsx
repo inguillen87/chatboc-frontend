@@ -14,10 +14,51 @@ import { playOpenSound, playProactiveSound } from "@/utils/sounds";
 import ReadingRuler from "./ReadingRuler";
 import type { Prefs } from "./AccessibilityToggle";
 import { useCartCount } from "@/hooks/useCartCount";
-import { buildTenantNavigationUrl, TENANT_PLACEHOLDER_SLUGS } from "@/utils/tenantPaths";
+import { buildTenantNavigationUrl } from "@/utils/tenantPaths";
 import { useTenant } from "@/context/TenantContext";
 import { toast } from "sonner";
 import { tenantService } from "@/services/tenantService";
+
+const LOCAL_PLACEHOLDER_SLUGS = new Set([
+  'iframe',
+  'embed',
+  'widget',
+  'cart',
+  'productos',
+  'checkout',
+  'checkout-productos',
+  'perfil',
+  'user',
+  'login',
+  'register',
+  'portal',
+  'pedidos',
+  'reclamos',
+  'encuestas',
+  'tickets',
+  'opinar',
+  'integracion',
+  'documentacion',
+  'faqs',
+  'legal',
+  'chat',
+  'chatpos',
+  'chatcrm',
+  'admin',
+  'dashboard',
+  'analytics',
+  'settings',
+  'config',
+  'api',
+  "public",
+  "auth",
+  "portal",
+  "admin",
+  "pwa",
+  "static",
+  "assets",
+  "default"
+]);
 
 const PROACTIVE_MESSAGES = [
   "¿Necesitas ayuda?",
@@ -53,11 +94,8 @@ let _lazyPlaceholderSlugs: Set<string> | null = null;
 function getPlaceholderSlugsSet() {
   if (_lazyPlaceholderSlugs) return _lazyPlaceholderSlugs;
   try {
-    const shared = TENANT_PLACEHOLDER_SLUGS ? Array.from(TENANT_PLACEHOLDER_SLUGS) : [];
-    _lazyPlaceholderSlugs = new Set([
-      ...shared,
-      "public", "auth", "portal", "admin", "pwa", "static", "assets", "default"
-    ]);
+    const shared = LOCAL_PLACEHOLDER_SLUGS ? Array.from(LOCAL_PLACEHOLDER_SLUGS) : [];
+    _lazyPlaceholderSlugs = new Set([...shared]);
   } catch (error) {
     console.warn("[ChatWidgetInner] Placeholder slugs not ready, using defaults", error);
     // Fallback to minimal set to prevent crash
