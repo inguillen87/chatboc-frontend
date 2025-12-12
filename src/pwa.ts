@@ -56,9 +56,10 @@ export const setupPWA = () => {
       });
     },
     onOfflineReady() {
-      toast('Listo para usar sin conexión', {
-        description: 'Guardamos los recursos principales para que sigas trabajando offline.',
-      });
+      // Suppress annoying offline message in demo contexts
+      // toast('Listo para usar sin conexión', {
+      //   description: 'Guardamos los recursos principales para que sigas trabajando offline.',
+      // });
     },
   });
 };

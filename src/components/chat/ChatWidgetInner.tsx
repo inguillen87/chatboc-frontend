@@ -63,9 +63,6 @@ const LOCAL_PLACEHOLDER_SLUGS = new Set([
   "default"
 ]);
 
-// Defensive alias to prevent ReferenceError if stale code exists in build artifacts
-const PLACEHOLDER_SLUGS_SET = LOCAL_PLACEHOLDER_SLUGS;
-
 const PROACTIVE_MESSAGES = [
   "¿Necesitas ayuda?",
   "¿Querés hacer una sugerencia?",
@@ -816,12 +813,15 @@ function ChatWidgetInner({
   }, [openWidth, viewport.width, initialPosition.right]);
 
   const finalOpenHeight = useMemo(() => {
+    if (mode === 'iframe') {
+        return openHeight;
+    }
     const desired = parseInt(openHeight, 10);
     const max = viewport.height - (initialPosition.bottom || 0) - 16;
     return !isNaN(desired) && viewport.height
       ? `${Math.min(desired, max)}px`
       : openHeight;
-  }, [openHeight, viewport.height, initialPosition.bottom]);
+  }, [openHeight, viewport.height, initialPosition.bottom, mode]);
 
   const finalClosedWidth = closedWidth;
   const finalClosedHeight = closedHeight;
@@ -977,16 +977,40 @@ function ChatWidgetInner({
                   if (is500 || !ownerToken) {
                      // Force load mock data to prevent white screen
                      const mockData = resolvedTenantSlug.includes('junin') ? MOCK_JUNIN_TENANT_INFO : MOCK_TENANT_INFO;
+
+                     // Construct theme config from legacy mock 'tema' if needed
+                     const themeConfig = mockData.theme_config || (mockData.tema ? {
+                        mode: 'light',
+                        light: {
+                            primary: mockData.tema.primaryColor,
+                            secondary: mockData.tema.secondaryColor,
+                            background: '#ffffff',
+                            foreground: '#0f172a',
+                        },
+                        dark: {
+                            primary: mockData.tema.primaryColor,
+                            secondary: mockData.tema.secondaryColor,
+                             background: '#020617',
+                            foreground: '#f8fafc',
+                        }
+                     } : undefined);
+
                      const info = {
                         ...mockData,
-                        nombre_empresa: mockData.nombre,
-                        logo_url: mockData.logo_url,
-                        cta_messages: mockData.cta_messages,
-                        theme_config: mockData.theme_config,
-                        default_open: mockData.default_open,
+                        // Branding Priority: Props > Mock
+                        nombre_empresa: welcomeTitle || mockData.nombre,
+                        // Ensure logo_url reflects props if provided
+                        logo_url: headerLogoUrl || customLauncherLogoUrl || mockData.logo_url,
+
+                        // Ensure CTA messages from props are used if available
+                        cta_messages: ctaMessage ? [{ text: ctaMessage }] : mockData.cta_messages,
+
+                        theme_config: themeConfig,
+                        default_open: (typeof defaultOpen === 'boolean') ? defaultOpen : mockData.default_open,
                         slug: resolvedTenantSlug,
-                        tipo_chat: mockData.tipo === 'municipio' ? 'municipio' : 'pyme'
+                        tipo_chat: tipoChat || (mockData.tipo === 'municipio' ? 'municipio' : 'pyme')
                      };
+
                      setEntityInfo(info);
                      if (info.tipo_chat) {
                          setResolvedTipoChat(info.tipo_chat === 'municipio' ? 'municipio' : 'pyme');
