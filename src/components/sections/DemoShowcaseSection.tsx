@@ -78,22 +78,11 @@ const DemoShowcaseSection = () => {
   const [tree, setTree] = useState<Rubro[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const hasDemoNodes = (nodes: Rubro[]): boolean =>
-    nodes.some((node) => node.demo || (node.subrubros && hasDemoNodes(node.subrubros)));
-
   useEffect(() => {
     const initData = async () => {
       try {
-        const data = await getRubrosHierarchy({ allowDemoAugmentation: true });
-
-        if (Array.isArray(data) && data.length > 0 && hasDemoNodes(data)) {
-          setTree(data);
-        } else {
-          // Hard fallback to the static demo hierarchy so demos remain visible
-          // even if the backend omits demo metadata.
-          const { DEMO_HIERARCHY } = await import('@/data/demoHierarchy');
-          setTree(DEMO_HIERARCHY);
-        }
+        const data = await getRubrosHierarchy();
+        setTree(data);
       } catch (error) {
         console.error("Error loading demo hierarchy", error);
       } finally {

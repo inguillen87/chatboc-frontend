@@ -22,11 +22,6 @@ export async function ensureRemoteAnonId(options?: { tenantSlug?: string | null;
   if (options?.tenantSlug) searchParams.set('tenant', options.tenantSlug);
   if (options?.widgetToken) searchParams.set('widget_token', options.widgetToken);
 
-  if (options?.tenantSlug === 'municipio') {
-    persistAnonCookie(existing);
-    return existing;
-  }
-
   try {
     const response = await apiFetch<{ anon_id?: string; anonId?: string }>(
       `/api/pwa/anon-id${searchParams.toString() ? `?${searchParams.toString()}` : ''}`,
