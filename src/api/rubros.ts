@@ -95,8 +95,8 @@ export const getRubrosHierarchy = async (
       return DEMO_HIERARCHY;
     }
 
-    // Preserve backend data; append demos only when explicitly allowed and backend rubros don't expose demo nodes
-    if (allowDemoAugmentation && !treeHasDemos(tree)) {
+    // Preserve backend data; append demos when explicitly allowed so demo cards always stay available
+    if (allowDemoAugmentation) {
       const mergedRoots = tree.map((root) => ({ ...root, subrubros: root.subrubros ?? [] }));
 
       DEMO_HIERARCHY.forEach((demoRoot) => {

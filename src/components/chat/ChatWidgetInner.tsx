@@ -21,6 +21,7 @@ import { tenantService } from "@/services/tenantService";
 import { ChatWidgetProps } from "./types";
 import baseStylesUrl from "@/index.css?url";
 import inlineBaseStyles from "@/index.css?inline";
+import { ALL_TOKEN_KEYS, DEFAULT_DARK_TOKENS, DEFAULT_LIGHT_TOKENS } from "@/theme/defaultTokens";
 
 const LOCAL_PLACEHOLDER_SLUGS = new Set([
   'iframe',
@@ -483,6 +484,26 @@ function ChatWidgetInner({
     }
   }, []);
 
+  // Ensure the widget has a full palette of CSS variables regardless of host page theme
+  useEffect(() => {
+    const root = widgetRootRef.current;
+    if (!root) return;
+
+    const prefersDarkFromConfig = entityInfo?.theme_config?.mode === 'dark';
+    const prefersSystem = entityInfo?.theme_config?.mode === 'system';
+    const prefersDark = prefersDarkFromConfig || (prefersSystem ? isDarkMode : isDarkMode);
+    const tokenSet = prefersDark ? DEFAULT_DARK_TOKENS : DEFAULT_LIGHT_TOKENS;
+
+    ALL_TOKEN_KEYS.forEach((key) => {
+      const fallbackValue = tokenSet[key] ?? DEFAULT_LIGHT_TOKENS[key] ?? "";
+      if (fallbackValue) {
+        root.style.setProperty(key, fallbackValue);
+      }
+    });
+
+    root.classList.toggle('dark', prefersDark);
+  }, [isDarkMode, entityInfo?.theme_config]);
+
   // Apply Theme Config
   useEffect(() => {
     if (entityInfo?.theme_config) {
@@ -598,7 +619,7 @@ function ChatWidgetInner({
       }
       return nextIsOpen;
     });
-  }, [isOpen, muted]);
+  }, [muted]);
 
   const handleProactiveClick = useCallback(() => {
       let backendMessages = entityInfo?.cta_messages || entityInfo?.interaction?.cta_messages;
@@ -949,8 +970,6 @@ function ChatWidgetInner({
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
   }, [widgetId]);
-
-  // toggleChat was here, causing TDZ for handleProactiveClick
 
   useEffect(() => {
     if (!ctaMessage || isOpen || showProactiveBubble) {
