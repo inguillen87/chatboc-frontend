@@ -58,9 +58,14 @@ export const getRubrosHierarchy = async (): Promise<Rubro[]> => {
       // Build the tree from the backend data
       const tree = buildRubroTree(backendData);
 
-      // If backend returns items but no demos, fallback to the static demo hierarchy
-      if (tree.length > 0 && treeHasDemos(tree)) {
-        return tree;
+      if (tree.length > 0) {
+        // Preserve backend data; append demo hierarchy only when missing demo nodes
+        if (treeHasDemos(tree)) {
+          return tree;
+        }
+
+        console.warn("Backend rubros have no demos, appending static demo hierarchy");
+        return [...tree, ...DEMO_HIERARCHY];
       }
     }
 
