@@ -52,6 +52,22 @@ export const getRubrosHierarchy = async (): Promise<Rubro[]> => {
             // Build the tree from the backend data
             const tree = buildRubroTree(backendData);
 
+            // Ensure "Municipios" is present in the tree if backend missed it
+            // Backend logs suggest it might be returning partial data
+            const hasMunicipio = tree.some(root =>
+                root.nombre.toLowerCase().includes('municipio') ||
+                root.clave === 'municipios_root' ||
+                root.id === 1
+            );
+
+            if (!hasMunicipio) {
+                const demoMunicipios = DEMO_HIERARCHY.find(d => d.id === 1 || d.clave === 'municipios_root');
+                if (demoMunicipios) {
+                    // Prepend to ensure it's first
+                    tree.unshift(demoMunicipios);
+                }
+            }
+
             // If the tree is empty despite having data (e.g. all orphans with invalid parents), fallback
             if (tree.length > 0) {
                 return tree;
