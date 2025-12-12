@@ -14,7 +14,7 @@ import { playOpenSound, playProactiveSound } from "@/utils/sounds";
 import ReadingRuler from "./ReadingRuler";
 import type { Prefs } from "./AccessibilityToggle";
 import { useCartCount } from "@/hooks/useCartCount";
-import { buildTenantNavigationUrl, TENANT_PLACEHOLDER_SLUGS as SHARED_PLACEHOLDERS } from "@/utils/tenantPaths";
+import { buildTenantNavigationUrl } from "@/utils/tenantPaths";
 import { useTenant } from "@/context/TenantContext";
 import { toast } from "sonner";
 import { tenantService } from "@/services/tenantService";
@@ -45,7 +45,7 @@ const sanitizeTenantSlug = (slug?: string | null) => {
   if (!trimmed) return null;
 
   const lowered = trimmed.toLowerCase();
-  if (getPlaceholderSlugs().has(lowered)) return null;
+  if (PLACEHOLDER_SLUGS_SET.has(lowered)) return null;
 
   return trimmed;
 };
@@ -136,7 +136,8 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
   openHeight = "680px",
   closedWidth = "100px",
   closedHeight = "100px",
-  tipoChat = getCurrentTipoChat(),
+  // REMOVE call to getCurrentTipoChat() here. Handled in useState.
+  tipoChat,
   initialPosition = { bottom: 32, right: 32 },
   ctaMessage,
   customLauncherLogoUrl,
@@ -162,7 +163,11 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
   });
   const [view, setView] = useState<'chat' | 'register' | 'login' | 'user' | 'info'>(initialView);
   const { user } = useUser();
-  const [resolvedTipoChat, setResolvedTipoChat] = useState<'pyme' | 'municipio'>(tipoChat);
+  const [resolvedTipoChat, setResolvedTipoChat] = useState<'pyme' | 'municipio'>(() => {
+    // If prop is provided, use it. Otherwise, derive it.
+    // This avoids calling getCurrentTipoChat() at top-level execution time if passed as default param.
+    return tipoChat || getCurrentTipoChat();
+  });
   const [entityInfo, setEntityInfo] = useState<any | null>(null);
   const [isProfileLoading, setProfileLoading] = useState(true);
   const [profileError, setProfileError] = useState<string | null>(null);
