@@ -12,13 +12,28 @@ type RubroHierarchyOptions = {
    * Defaults to false to keep tenant rubros untouched in production contexts.
    */
   allowDemoAugmentation?: boolean;
+  /**
+   * Tenant slug to scope the hierarchy. Needed for widget contexts where the tenant
+   * cannot be inferred automatically.
+   */
+  tenantSlug?: string | null;
+  /**
+   * Whether the request originates from the widget/iframe context. Prevents leaking
+   * panel credentials.
+   */
+  isWidgetRequest?: boolean;
 };
 
 // Fetch rubros from the backend, including tenant-scoped hierarchy if available
-export const fetchRubros = async (): Promise<Rubro[]> => {
-  return await apiFetch<Rubro[]>('/rubros/', {
-    omitTenant: true,
+export const fetchRubros = async (
+  options: Pick<RubroHierarchyOptions, "tenantSlug" | "isWidgetRequest"> = {},
+): Promise<Rubro[]> => {
+  const { tenantSlug, isWidgetRequest } = options;
+
+  return await apiFetch<Rubro[]>("/rubros/", {
     skipAuth: true,
+    tenantSlug: tenantSlug ?? undefined,
+    isWidgetRequest: isWidgetRequest ?? false,
   });
 };
 
@@ -58,10 +73,14 @@ export const buildRubroTree = (flatRubros: Rubro[]): Rubro[] => {
 export const getRubrosHierarchy = async (
   options: RubroHierarchyOptions = {},
 ): Promise<Rubro[]> => {
-  const { allowDemoAugmentation = false } = options;
+  const {
+    allowDemoAugmentation = false,
+    tenantSlug = null,
+    isWidgetRequest = false,
+  } = options;
 
   try {
-    const backendData = await fetchRubros();
+    const backendData = await fetchRubros({ tenantSlug, isWidgetRequest });
 
     if (!Array.isArray(backendData) || backendData.length === 0) {
       console.warn("Backend rubros empty or invalid, using fallback hierarchy");
