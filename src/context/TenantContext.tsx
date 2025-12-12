@@ -20,8 +20,41 @@ import type { TenantPublicInfo, TenantSummary } from '@/types/tenant';
 import { ApiError, getErrorMessage } from '@/utils/api';
 import { ensureRemoteAnonId } from '@/utils/anonId';
 import { normalizeEntityToken } from '@/utils/entityToken';
-import { TENANT_ROUTE_PREFIXES, TENANT_PLACEHOLDER_SLUGS } from '@/utils/tenantPaths';
+import { TENANT_ROUTE_PREFIXES } from '@/utils/tenantPaths';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
+
+const LOCAL_PLACEHOLDER_SLUGS = new Set([
+  'iframe',
+  'embed',
+  'widget',
+  'cart',
+  'productos',
+  'checkout',
+  'checkout-productos',
+  'perfil',
+  'user',
+  'login',
+  'register',
+  'portal',
+  'pedidos',
+  'reclamos',
+  'encuestas',
+  'tickets',
+  'opinar',
+  'integracion',
+  'documentacion',
+  'faqs',
+  'legal',
+  'chat',
+  'chatpos',
+  'chatcrm',
+  'admin',
+  'dashboard',
+  'analytics',
+  'settings',
+  'config',
+  'api'
+]);
 
 interface TenantContextValue {
   currentSlug: string | null;
@@ -76,7 +109,7 @@ const sanitizeTenantSlug = (slug?: string | null) => {
   if (!slug) return null;
   const normalized = slug.trim();
   if (!normalized) return null;
-  return TENANT_PLACEHOLDER_SLUGS.has(normalized.toLowerCase()) ? null : normalized;
+  return LOCAL_PLACEHOLDER_SLUGS.has(normalized.toLowerCase()) ? null : normalized;
 };
 
 const readTenantFromConfig = (): { slug: string | null; widgetToken: string | null } => {
