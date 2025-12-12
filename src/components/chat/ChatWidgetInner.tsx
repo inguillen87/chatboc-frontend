@@ -14,7 +14,7 @@ import { playOpenSound, playProactiveSound } from "@/utils/sounds";
 import ReadingRuler from "./ReadingRuler";
 import type { Prefs } from "./AccessibilityToggle";
 import { useCartCount } from "@/hooks/useCartCount";
-import { buildTenantNavigationUrl } from "@/utils/tenantPaths";
+import { buildTenantNavigationUrl, TENANT_PLACEHOLDER_SLUGS } from "@/utils/tenantPaths";
 import { useTenant } from "@/context/TenantContext";
 import { toast } from "sonner";
 import { tenantService } from "@/services/tenantService";
@@ -26,6 +26,14 @@ const ChatUserLoginPanel = React.lazy(() => import("./ChatUserLoginPanel"));
 const ChatUserPanel = React.lazy(() => import("./ChatUserPanel"));
 const EntityInfoPanel = React.lazy(() => import("./EntityInfoPanel"));
 const ProactiveBubble = React.lazy(() => import("./ProactiveBubble"));
+
+const SHARED_PLACEHOLDERS = TENANT_PLACEHOLDER_SLUGS;
+
+// Merge shared placeholders with API-specific ones
+const PLACEHOLDER_SLUGS_SET = new Set([
+  ...SHARED_PLACEHOLDERS,
+  "public", "auth", "portal", "admin", "pwa", "static", "assets", "default"
+]);
 
 // Use a getter to access the Set safely, though strictly it should be initialized by import time.
 // This defensive pattern avoids top-level access if the module is in a partial state.
