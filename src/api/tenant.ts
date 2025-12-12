@@ -230,14 +230,14 @@ const resolveTenantInfo = async ({
         sendAnonId: true,
       });
     } catch (error) {
-      // Critical fix: If the widget config endpoint is 404, we MUST fallback to mock data
+      // Critical fix: If the widget config endpoint is 404 or 401, we MUST fallback to mock data
       // to allow the iframe to render.
-      // We check if the request was for widget-config (often used for initial load) or generic info
-      const isWidgetConfig = endpoint.includes('widget-config');
-      const is404 = error instanceof ApiError && error.status === 404;
+      const statusCode = error instanceof ApiError ? error.status : null;
+      const is404 = statusCode === 404;
+      const is401 = statusCode === 401;
 
-      if (is404) {
-        console.warn(`[API] Endpoint ${endpoint} returned 404. Falling back to mock data.`);
+      if (is404 || is401) {
+        console.warn(`[API] Endpoint ${endpoint} returned ${statusCode}. Falling back to mock data.`);
         if (slug === 'municipio-junin' || slug === 'municipalidad-de-junin' || widgetToken === '1146cb3e-eaef-4230-b54e-1c340ac062d8') {
            return MOCK_JUNIN_TENANT_INFO;
         }

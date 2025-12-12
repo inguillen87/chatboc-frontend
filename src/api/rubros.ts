@@ -44,12 +44,6 @@ export const buildRubroTree = (flatRubros: Rubro[]): Rubro[] => {
   return roots;
 };
 
-const treeHasDemos = (nodes: Rubro[]): boolean => {
-  return nodes.some((node) =>
-    Boolean(node.demo) || (node.subrubros ? treeHasDemos(node.subrubros) : false),
-  );
-};
-
 export const getRubrosHierarchy = async (): Promise<Rubro[]> => {
   try {
     const backendData = await fetchRubros();
@@ -59,13 +53,8 @@ export const getRubrosHierarchy = async (): Promise<Rubro[]> => {
       const tree = buildRubroTree(backendData);
 
       if (tree.length > 0) {
-        // Preserve backend data; append demo hierarchy only when missing demo nodes
-        if (treeHasDemos(tree)) {
-          return tree;
-        }
-
-        console.warn("Backend rubros have no demos, appending static demo hierarchy");
-        return [...tree, ...DEMO_HIERARCHY];
+        // Preserve backend data; use demo hierarchy only when backend is empty/invalid
+        return tree;
       }
     }
 
