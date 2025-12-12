@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import ChatHeader from "./ChatHeader";
@@ -30,6 +30,7 @@ import { safeOn, assertEventSource } from "@/utils/safeOn";
 import { Loader2 } from "lucide-react";
 import { getInitialMunicipioContext } from "@/utils/contexto_municipio";
 import { resetChatSessionId } from "@/utils/chatSessionId";
+import { useTenant } from "@/context/TenantContext";
 
 const PENDING_TICKET_KEY = 'pending_ticket_id';
 const PENDING_GPS_KEY = 'pending_gps';
@@ -103,11 +104,18 @@ const ChatPanel = ({
   const [userTyping, setUserTyping] = useState(false);
   const { isLiveChatEnabled, horariosAtencion } = useBusinessHours(propEntityToken);
   const socketRef = useRef<SocketIOClient.Socket | null>(null);
+  const { tenant, currentSlug } = useTenant();
 
   const skipAuth = mode === 'script';
   const normalizedPropRubro = extractRubroKey(selectedRubro);
   const [localRubro, setLocalRubro] = useState<string | null>(() => normalizedPropRubro ?? null);
   const resolvedSelectedRubro = localRubro ?? normalizedPropRubro ?? null;
+  const resolvedTenantSlug = useMemo(() => {
+    const stored = safeLocalStorage.getItem("tenantSlug");
+    const storedSlug = typeof stored === "string" && stored.trim() ? stored.trim() : null;
+
+    return tenant?.slug || currentSlug || storedSlug || null;
+  }, [currentSlug, tenant?.slug]);
   const {
     messages,
     isTyping,
@@ -158,7 +166,11 @@ const ChatPanel = ({
   const loadRubros = useCallback(() => {
     setIsLoadingRubros(true);
     setRubrosError(null);
-    getRubrosHierarchy()
+    const widgetContext = mode === "iframe" || mode === "script";
+    getRubrosHierarchy({
+      tenantSlug: resolvedTenantSlug ?? undefined,
+      isWidgetRequest: widgetContext,
+    })
       .then((data) => {
         if (Array.isArray(data)) {
           // getRubrosHierarchy already returns the tree
@@ -174,7 +186,7 @@ const ChatPanel = ({
       .finally(() => {
         setIsLoadingRubros(false);
       });
-  }, []);
+  }, [mode, resolvedTenantSlug]);
 
 
   useEffect(() => {
