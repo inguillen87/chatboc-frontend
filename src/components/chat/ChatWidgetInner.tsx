@@ -19,6 +19,67 @@ import { useTenant } from "@/context/TenantContext";
 import { toast } from "sonner";
 import { tenantService } from "@/services/tenantService";
 
+const LOCAL_PLACEHOLDER_SLUGS = new Set([
+  'iframe',
+  'embed',
+  'widget',
+  'cart',
+  'productos',
+  'checkout',
+  'checkout-productos',
+  'perfil',
+  'user',
+  'login',
+  'register',
+  'portal',
+  'pedidos',
+  'reclamos',
+  'encuestas',
+  'tickets',
+  'opinar',
+  'integracion',
+  'documentacion',
+  'faqs',
+  'legal',
+  'chat',
+  'chatpos',
+  'chatcrm',
+  'admin',
+  'dashboard',
+  'analytics',
+  'settings',
+  'config',
+  'api',
+  "public",
+  "auth",
+  "portal",
+  "admin",
+  "pwa",
+  "static",
+  "assets",
+  "default"
+]);
+
+const PROACTIVE_MESSAGES = [
+  "¿Necesitas ayuda?",
+  "¿Querés hacer una sugerencia?",
+  "¿Tenés un reclamo?",
+  "¿Tenés consultas? ¡Preguntame!",
+];
+
+const LANDING_PROACTIVE_MESSAGES = [
+  "¡Hola! 👋 ¿Querés probar una demo interactiva?",
+  "Probá nuestro asistente inteligente gratis 🤖",
+  "Descubrí cómo automatizar tus ventas 🚀",
+  "¿Hablamos? Estoy acá para ayudarte 😊"
+];
+
+const LS_KEY = "chatboc_accessibility";
+
+function SafeAnimatePresence({ children = null, ...rest }: AnimatePresenceProps = { children: null }) {
+  return <AnimatePresence {...rest}>{children}</AnimatePresence>;
+}
+
 const ChatHeader = React.lazy(() => import("./ChatHeader"));
 const ChatPanel = React.lazy(() => import("./ChatPanel"));
 const ChatUserRegisterPanel = React.lazy(() => import("./ChatUserRegisterPanel"));
@@ -40,7 +101,7 @@ const PLACEHOLDER_SLUGS_SET: Set<string> = (() => {
   }
 })();
 
-const sanitizeTenantSlug = (slug?: string | null) => {
+function sanitizeTenantSlug(slug?: string | null) {
   if (!slug) return null;
   const trimmed = slug.trim();
   if (!trimmed) return null;
@@ -49,9 +110,9 @@ const sanitizeTenantSlug = (slug?: string | null) => {
   if (PLACEHOLDER_SLUGS_SET.has(lowered)) return null;
 
   return trimmed;
-};
+}
 
-const readTenantFromScripts = (): string | null => {
+function readTenantFromScripts(): string | null {
   if (typeof document === "undefined") return null;
 
   const scripts = Array.from(document.querySelectorAll("script"));
@@ -69,9 +130,9 @@ const readTenantFromScripts = (): string | null => {
   }
 
   return null;
-};
+}
 
-const readTenantFromSubdomain = (): string | null => {
+function readTenantFromSubdomain(): string | null {
   if (typeof window === "undefined") return null;
   const host = window.location.hostname;
   if (!host || host === "localhost") return null;
@@ -82,7 +143,7 @@ const readTenantFromSubdomain = (): string | null => {
   const candidate = segments[0];
   if (!candidate || ["www", "app", "panel"].includes(candidate.toLowerCase())) return null;
   return candidate;
-};
+}
 
 export interface ChatWidgetProps {
   mode?: "standalone" | "iframe" | "script";
@@ -106,27 +167,7 @@ export interface ChatWidgetProps {
   tenantSlug?: string;
 }
 
-const PROACTIVE_MESSAGES = [
-  "¿Necesitas ayuda?",
-  "¿Querés hacer una sugerencia?",
-  "¿Tenés un reclamo?",
-  "¿Tenés consultas? ¡Preguntame!",
-];
-
-const LANDING_PROACTIVE_MESSAGES = [
-  "¡Hola! 👋 ¿Querés probar una demo interactiva?",
-  "Probá nuestro asistente inteligente gratis 🤖",
-  "Descubrí cómo automatizar tus ventas 🚀",
-  "¿Hablamos? Estoy acá para ayudarte 😊"
-];
-
-const LS_KEY = "chatboc_accessibility";
-
-const SafeAnimatePresence: React.FC<AnimatePresenceProps> = ({ children = null, ...rest } = { children: null }) => {
-  return <AnimatePresence {...rest}>{children}</AnimatePresence>;
-};
-
-const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
+function ChatWidgetInner({
   mode = "standalone",
   defaultOpen = false,
   initialView = 'chat',
@@ -146,7 +187,7 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
   welcomeTitle,
   welcomeSubtitle,
   tenantSlug: explicitTenantSlug,
-}) => {
+}: ChatWidgetProps) {
   const proactiveMessageTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const hideProactiveBubbleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isDarkMode = useDarkMode();
