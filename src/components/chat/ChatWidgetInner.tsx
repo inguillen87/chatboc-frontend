@@ -137,7 +137,7 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
   openHeight = "680px",
   closedWidth = "100px",
   closedHeight = "100px",
-  tipoChat = getCurrentTipoChat(),
+  tipoChat,
   initialPosition = { bottom: 32, right: 32 },
   ctaMessage,
   customLauncherLogoUrl,
@@ -163,7 +163,9 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
   });
   const [view, setView] = useState<'chat' | 'register' | 'login' | 'user' | 'info'>(initialView);
   const { user } = useUser();
-  const [resolvedTipoChat, setResolvedTipoChat] = useState<'pyme' | 'municipio'>(tipoChat);
+  const [resolvedTipoChat, setResolvedTipoChat] = useState<'pyme' | 'municipio'>(() => {
+    return tipoChat || getCurrentTipoChat();
+  });
   const [entityInfo, setEntityInfo] = useState<any | null>(null);
   const [isProfileLoading, setProfileLoading] = useState(true);
   const [profileError, setProfileError] = useState<string | null>(null);
