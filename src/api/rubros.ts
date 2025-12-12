@@ -78,16 +78,36 @@ export const getRubrosHierarchy = async (
 
     // Preserve backend data; append demos only when explicitly allowed and backend rubros don't expose demo nodes
     if (allowDemoAugmentation && !treeHasDemos(tree)) {
-      const mergedRoots = [...tree];
-      const existingRootKeys = new Set(
-        mergedRoots.map((root) => root.clave || root.nombre.toLowerCase()),
-      );
+      const mergedRoots = tree.map((root) => ({ ...root, subrubros: root.subrubros ?? [] }));
 
       DEMO_HIERARCHY.forEach((demoRoot) => {
         const key = demoRoot.clave || demoRoot.nombre.toLowerCase();
-        if (!existingRootKeys.has(key)) {
+        const existingRootIndex = mergedRoots.findIndex(
+          (root) => (root.clave || root.nombre.toLowerCase()) === key,
+        );
+
+        if (existingRootIndex === -1) {
           mergedRoots.push(demoRoot);
+          return;
         }
+
+        const existingRoot = mergedRoots[existingRootIndex];
+        const existingChildKeys = new Set(
+          (existingRoot.subrubros ?? []).map((child) => child.clave || child.nombre.toLowerCase()),
+        );
+
+        const augmentedChildren = [
+          ...(existingRoot.subrubros ?? []),
+          ...(demoRoot.subrubros ?? []).filter((child) => {
+            const childKey = child.clave || child.nombre.toLowerCase();
+            return !existingChildKeys.has(childKey);
+          }),
+        ];
+
+        mergedRoots[existingRootIndex] = {
+          ...existingRoot,
+          subrubros: augmentedChildren,
+        };
       });
 
       return mergedRoots;
