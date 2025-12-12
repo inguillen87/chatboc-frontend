@@ -51,35 +51,37 @@ export const getRubrosHierarchy = async (): Promise<Rubro[]> => {
   try {
     const backendData = await fetchRubros();
 
-    if (Array.isArray(backendData) && backendData.length > 0) {
-      // Build the tree from the backend data
-      const tree = buildRubroTree(backendData);
-
-      if (tree.length > 0) {
-        // Preserve backend data; append demos if backend tree has no demo nodes
-        if (treeHasDemos(tree)) {
-          return tree;
-        }
-
-        const mergedRoots = [...tree];
-        const existingRootKeys = new Set(
-          mergedRoots.map((root) => root.clave || root.nombre.toLowerCase()),
-        );
-
-        DEMO_HIERARCHY.forEach((demoRoot) => {
-          const key = demoRoot.clave || demoRoot.nombre.toLowerCase();
-          if (!existingRootKeys.has(key)) {
-            mergedRoots.push(demoRoot);
-          }
-        });
-
-        return mergedRoots;
-      }
+    if (!Array.isArray(backendData) || backendData.length === 0) {
+      console.warn("Backend rubros empty or invalid, using fallback hierarchy");
+      return DEMO_HIERARCHY;
     }
 
-    // If backend returns empty or invalid, fallback to demo hierarchy
-    console.warn("Backend rubros empty or invalid, using fallback hierarchy");
-    return DEMO_HIERARCHY;
+    // Build the tree from the backend data
+    const tree = buildRubroTree(backendData);
+
+    if (tree.length === 0) {
+      console.warn("Backend rubros produced no tree, using fallback hierarchy");
+      return DEMO_HIERARCHY;
+    }
+
+    // Preserve backend data; append demos only when backend rubros don't expose demo nodes
+    if (!treeHasDemos(tree)) {
+      const mergedRoots = [...tree];
+      const existingRootKeys = new Set(
+        mergedRoots.map((root) => root.clave || root.nombre.toLowerCase()),
+      );
+
+      DEMO_HIERARCHY.forEach((demoRoot) => {
+        const key = demoRoot.clave || demoRoot.nombre.toLowerCase();
+        if (!existingRootKeys.has(key)) {
+          mergedRoots.push(demoRoot);
+        }
+      });
+
+      return mergedRoots;
+    }
+
+    return tree;
   } catch (error) {
     console.warn("Error fetching rubros, using fallback hierarchy", error);
     return DEMO_HIERARCHY;
