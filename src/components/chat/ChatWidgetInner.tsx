@@ -14,7 +14,7 @@ import { playOpenSound, playProactiveSound } from "@/utils/sounds";
 import ReadingRuler from "./ReadingRuler";
 import type { Prefs } from "./AccessibilityToggle";
 import { useCartCount } from "@/hooks/useCartCount";
-import { buildTenantNavigationUrl } from "@/utils/tenantPaths";
+import { buildTenantNavigationUrl, TENANT_PLACEHOLDER_SLUGS } from "@/utils/tenantPaths";
 import { useTenant } from "@/context/TenantContext";
 import { toast } from "sonner";
 import { tenantService } from "@/services/tenantService";
@@ -88,21 +88,18 @@ const ChatUserPanel = React.lazy(() => import("./ChatUserPanel"));
 const EntityInfoPanel = React.lazy(() => import("./EntityInfoPanel"));
 const ProactiveBubble = React.lazy(() => import("./ProactiveBubble"));
 
-// Lazy initialization to avoid TDZ (Temporal Dead Zone) issues if imports are not fully ready
-let _lazyPlaceholderSlugs: Set<string> | null = null;
-
-function getPlaceholderSlugsSet() {
-  if (_lazyPlaceholderSlugs) return _lazyPlaceholderSlugs;
+// Snapshot placeholder slugs at module load to avoid referencing an undefined identifier in edge
+// bundling/circular-import scenarios. The extra "default" sentinel keeps the previous fallback
+// behaviour without relying on runtime initialization order.
+const PLACEHOLDER_SLUGS_SET: Set<string> = (() => {
   try {
-    const shared = LOCAL_PLACEHOLDER_SLUGS ? Array.from(LOCAL_PLACEHOLDER_SLUGS) : [];
-    _lazyPlaceholderSlugs = new Set([...shared]);
+    const shared = TENANT_PLACEHOLDER_SLUGS ? Array.from(TENANT_PLACEHOLDER_SLUGS) : [];
+    return new Set([...shared, "default"]);
   } catch (error) {
     console.warn("[ChatWidgetInner] Placeholder slugs not ready, using defaults", error);
-    // Fallback to minimal set to prevent crash
-    _lazyPlaceholderSlugs = new Set(["default"]);
+    return new Set(["default"]);
   }
-  return _lazyPlaceholderSlugs;
-}
+})();
 
 function sanitizeTenantSlug(slug?: string | null) {
   if (!slug) return null;
@@ -110,7 +107,7 @@ function sanitizeTenantSlug(slug?: string | null) {
   if (!trimmed) return null;
 
   const lowered = trimmed.toLowerCase();
-  if (getPlaceholderSlugsSet().has(lowered)) return null;
+  if (PLACEHOLDER_SLUGS_SET.has(lowered)) return null;
 
   return trimmed;
 }
@@ -181,7 +178,6 @@ function ChatWidgetInner({
   openHeight = "680px",
   closedWidth = "100px",
   closedHeight = "100px",
-  // REMOVE call to getCurrentTipoChat() here. Handled in useState.
   tipoChat,
   initialPosition = { bottom: 32, right: 32 },
   ctaMessage,
@@ -209,8 +205,6 @@ function ChatWidgetInner({
   const [view, setView] = useState<'chat' | 'register' | 'login' | 'user' | 'info'>(initialView);
   const { user } = useUser();
   const [resolvedTipoChat, setResolvedTipoChat] = useState<'pyme' | 'municipio'>(() => {
-    // If prop is provided, use it. Otherwise, derive it.
-    // This avoids calling getCurrentTipoChat() at top-level execution time if passed as default param.
     return tipoChat || getCurrentTipoChat();
   });
   const [entityInfo, setEntityInfo] = useState<any | null>(null);
