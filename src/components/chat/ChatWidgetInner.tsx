@@ -29,7 +29,15 @@ const ProactiveBubble = React.lazy(() => import("./ProactiveBubble"));
 
 // Use a getter to access the Set safely, though strictly it should be initialized by import time.
 // This defensive pattern avoids top-level access if the module is in a partial state.
-const getPlaceholderSlugs = () => new Set([...(SHARED_PLACEHOLDERS || []), "default"]);
+const getPlaceholderSlugs = () => {
+  try {
+    const shared = SHARED_PLACEHOLDERS ? Array.from(SHARED_PLACEHOLDERS) : [];
+    return new Set([...shared, "default"]);
+  } catch (error) {
+    console.warn("[ChatWidgetInner] Placeholder slugs not ready, using defaults", error);
+    return new Set(["default"]);
+  }
+};
 
 const sanitizeTenantSlug = (slug?: string | null) => {
   if (!slug) return null;
