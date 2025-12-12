@@ -5,7 +5,7 @@ import type { PublicSurveyListResult } from '@/api/encuestas';
 export const MOCK_TENANT_INFO: TenantPublicInfo = {
   slug: 'demo-municipio',
   nombre: 'Municipio Demo',
-  logo_url: 'https://cdn-icons-png.flaticon.com/512/2301/2301129.png',
+  logo_url: '/chatbocar2.png',
   tipo: 'municipio',
   descripcion: 'Bienvenido al portal oficial de su municipio. Gestión, noticias y servicios en un solo lugar.',
   public_base_url: 'https://chatboc.ar/demo-municipio',
