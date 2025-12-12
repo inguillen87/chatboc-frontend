@@ -298,6 +298,10 @@ export async function getTenantPublicInfoFlexible(
   const safeWidgetToken = normalizeEntityToken(widgetToken) ?? null;
 
   if (safeSlug) {
+    if (safeSlug === 'municipio') {
+      return { ...MOCK_TENANT_INFO, slug: 'municipio', nombre: 'municipio' };
+    }
+
     // Specific override for Junin slug
     if (safeSlug === 'municipio-junin' || safeSlug === 'municipalidad-de-junin') {
       return MOCK_JUNIN_TENANT_INFO;
