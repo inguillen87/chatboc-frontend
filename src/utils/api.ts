@@ -1,7 +1,7 @@
 // utils/api.ts
 
 import { API_BASE_CANDIDATES, BASE_API_URL, SAME_ORIGIN_PROXY_BASE } from '@/config';
-import { TENANT_ROUTE_PREFIXES, TENANT_PLACEHOLDER_SLUGS as SHARED_PLACEHOLDERS } from '@/utils/tenantPaths';
+import { TENANT_ROUTE_PREFIXES } from '@/utils/tenantPaths';
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import getOrCreateChatSessionId from "@/utils/chatSessionId"; // Import the new function
 import { getOrCreateAnonId } from "@/utils/anonIdGenerator";
@@ -37,9 +37,42 @@ const parseDebugFlag = (value?: string | null): boolean => {
 
 const TENANT_PATH_REGEX = new RegExp(`^/(?:${TENANT_ROUTE_PREFIXES.join("|")})/([^/]+)`, "i");
 
+const LOCAL_PLACEHOLDER_SLUGS = new Set([
+  'iframe',
+  'embed',
+  'widget',
+  'cart',
+  'productos',
+  'checkout',
+  'checkout-productos',
+  'perfil',
+  'user',
+  'login',
+  'register',
+  'portal',
+  'pedidos',
+  'reclamos',
+  'encuestas',
+  'tickets',
+  'opinar',
+  'integracion',
+  'documentacion',
+  'faqs',
+  'legal',
+  'chat',
+  'chatpos',
+  'chatcrm',
+  'admin',
+  'dashboard',
+  'analytics',
+  'settings',
+  'config',
+  'api'
+]);
+
 // Merge shared placeholders with API-specific ones
 const PLACEHOLDER_SLUGS = new Set([
-  ...SHARED_PLACEHOLDERS,
+  ...LOCAL_PLACEHOLDER_SLUGS,
   "public", "auth", "portal", "admin", "pwa", "static", "assets"
 ]);
 
