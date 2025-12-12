@@ -1,6 +1,7 @@
 // utils/api.ts
 
 import { API_BASE_CANDIDATES, BASE_API_URL, SAME_ORIGIN_PROXY_BASE } from '@/config';
+import { MOCK_TENANT_INFO } from '@/data/mockTenantData';
 import { TENANT_ROUTE_PREFIXES } from '@/utils/tenantPaths';
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import getOrCreateChatSessionId from "@/utils/chatSessionId"; // Import the new function
@@ -449,6 +450,18 @@ export async function apiFetch<T>(
     : treatAsWidget && tenantSlug === undefined
       ? null
       : resolveTenantSlug(tenantSlug, path);
+
+  // Demo safeguard: avoid hitting protected endpoints for the default demo tenant
+  if (resolvedTenantSlug === 'municipio') {
+    if (path.startsWith('/api/pwa/tenant-info')) {
+      return { ...MOCK_TENANT_INFO, slug: 'municipio', nombre: 'Municipio Demo' } as T;
+    }
+
+    if (path.startsWith('/api/pwa/anon-id')) {
+      const anonId = getOrCreateAnonId();
+      return { anon_id: anonId } as unknown as T;
+    }
+  }
   const panelToken = safeLocalStorage.getItem("authToken");
   const chatToken = safeLocalStorage.getItem("chatAuthToken");
   let storedRole: string | null = null;
