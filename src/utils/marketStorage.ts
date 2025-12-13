@@ -16,7 +16,7 @@ export const readStoredCart = (tenantSlug: string): MarketCartResponse => {
   }
 };
 
-const saveStoredCart = (tenantSlug: string, cart: MarketCartResponse) => {
+export const saveStoredCart = (tenantSlug: string, cart: MarketCartResponse) => {
   try {
     safeLocalStorage.setItem(getStorageKey(tenantSlug), JSON.stringify(cart));
   } catch (error) {

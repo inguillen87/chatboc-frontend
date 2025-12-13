@@ -214,6 +214,8 @@ function ChatWidgetInner({
 
   const isEmbedded = mode !== "standalone";
 
+  const widgetRef = useRef<HTMLDivElement | null>(null);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     const globalAny = window as any;
@@ -459,10 +461,10 @@ function ChatWidgetInner({
 
         if (theme) {
           Object.entries(theme).forEach(([key, value]) => {
-            if (key === 'primary') root.style.setProperty('--primary', value as string);
-            if (key === 'secondary') root.style.setProperty('--secondary', value as string);
-            if (key === 'background') root.style.setProperty('--background', value as string);
-            if (key === 'text') root.style.setProperty('--foreground', value as string);
+            if (key === 'primary') applyVar('--primary', value as string);
+            if (key === 'secondary') applyVar('--secondary', value as string);
+            if (key === 'background') applyVar('--background', value as string);
+            if (key === 'text') applyVar('--foreground', value as string);
           });
         }
       } catch (e) {
@@ -472,10 +474,10 @@ function ChatWidgetInner({
 
     // Then, override primary/secondary colors if explicitly passed via props (URL/Iframe)
     if (primaryColor) {
-        root.style.setProperty('--primary', hexToHsl(primaryColor));
+        applyVar('--primary', hexToHsl(primaryColor));
     }
     if (accentColor) {
-        root.style.setProperty('--secondary', hexToHsl(accentColor));
+        applyVar('--secondary', hexToHsl(accentColor));
     }
 
   }, [entityInfo, primaryColor, accentColor, mode]);
@@ -838,6 +840,34 @@ function ChatWidgetInner({
   const closedWidthPx = parseInt(finalClosedWidth.replace('px', ''), 10);
   const calculatedLogoSize = Math.floor(closedWidthPx * logoSizeFactor);
 
+  const containerStyle: React.CSSProperties = useMemo(() => {
+    if (mode === "standalone") {
+      const base: React.CSSProperties = {
+        bottom: `${initialPosition.bottom}px`,
+        right: `${initialPosition.right}px`,
+        zIndex: 999999,
+      };
+      return {
+        ...base,
+        width: isOpen ? finalOpenWidth : finalClosedWidth,
+        height: isOpen ? finalOpenHeight : finalClosedHeight,
+      };
+    }
+    if (mode === "iframe") {
+      return { width: '100%', height: '100%' };
+    }
+    return {};
+  }, [
+    finalClosedHeight,
+    finalClosedWidth,
+    finalOpenHeight,
+    finalOpenWidth,
+    initialPosition.bottom,
+    initialPosition.right,
+    isOpen,
+    mode,
+  ]);
+
   const commonPanelStyles = cn("chat-root bg-card border shadow-lg", "flex flex-col overflow-hidden");
   const commonButtonStyles = cn(
     "rounded-full flex items-center justify-center",
@@ -1109,22 +1139,11 @@ function ChatWidgetInner({
     return () => clearTimeout(timeout);
   }, [isProfileLoading]);
 
-  const containerStyle: React.CSSProperties = useMemo(() => {
-    if (mode === "standalone") {
-      return {
-        bottom: `${initialPosition.bottom}px`,
-        right: `${initialPosition.right}px`,
-        zIndex: 999999,
-      };
-    }
-    return {};
-  }, [mode, initialPosition.bottom, initialPosition.right]);
-
   const panelAnimation = {
-    initial: { opacity: 0, scale: 0.9, y: 20 },
-    animate: { opacity: 1, scale: 1, y: 0 },
-    exit: { opacity: 0, scale: 0.9, y: 20 },
-    transition: { type: "spring", stiffness: 350, damping: 25 },
+    initial: { opacity: 0, scale: 0.94, y: 60, originY: 1, originX: 1 },
+    animate: { opacity: 1, scale: 1, y: 0, originY: 1, originX: 1 },
+    exit: { opacity: 0, scale: 0.94, y: 60, originY: 1, originX: 1 },
+    transition: { type: "spring", stiffness: 280, damping: 24 },
   };
 
   const buttonAnimation = {
@@ -1163,6 +1182,7 @@ function ChatWidgetInner({
             : "w-full h-full"
         )}
         style={containerStyle}
+        ref={widgetRef}
       >
         {isOpen && a11yPrefs.dyslexia && <ReadingRuler />}
         {isProfileLoading ? (
@@ -1180,7 +1200,14 @@ function ChatWidgetInner({
             <motion.div
               key="chatboc-panel-open"
               className={cn(commonPanelStyles, "w-full h-full shadow-xl")}
-              style={{ borderRadius: isMobileView ? "0" : "16px", background: "hsl(var(--card))" }}
+              style={{
+                borderRadius: isMobileView ? "0" : "16px",
+                background: "hsl(var(--card))",
+                width: "100%",
+                height: "100%",
+                transformOrigin: isMobileView ? "center" : "bottom right",
+                boxShadow: "0 28px 80px rgba(0,0,0,0.2)",
+              }}
               {...panelAnimation}
             >
               {(view === "register" || view === "login" || view === "user" || view === "info") && (
