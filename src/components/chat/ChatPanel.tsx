@@ -321,7 +321,16 @@ const ChatPanel = ({
     ]
   );
 
-  const showRubroSelector = rubrosEnabled && !localRubro;
+  // If we have a tenantSlug or entityToken, we are in a specific context, so we force-disable the selector
+  // unless explicitly required (which shouldn't happen for single-tenant mode).
+  // Actually, 'rubrosEnabled' is true for 'pyme', false for 'municipio'.
+  // If tipoChat is 'municipio', rubrosEnabled is false, so showRubroSelector is false.
+  // If tipoChat is 'pyme' (which might be default if detection fails), rubrosEnabled is true.
+  // We need to ensure that if tenantSlug is present, we consider it "bound" to that tenant.
+  // However, a 'pyme' tenant might still have rubros? No, usually a single pyme is a specific business.
+  // The 'directory' mode is when we are at the aggregator level.
+  // If tenantSlug is present, we assume it's a specific entity.
+  const showRubroSelector = rubrosEnabled && !localRubro && !tenantSlug && !propEntityToken;
 
   const handlePersonalDataSubmit = (data: { nombre: string; email: string; telefono: string; dni: string; }) => {
     const normalizedName = data?.nombre?.trim();
@@ -606,7 +615,7 @@ const ChatPanel = ({
         logoAnimation={logoAnimation}
         onA11yChange={onA11yChange}
       />
-      {onCart && (
+      {onCart && tipoChat === 'pyme' && (
         <div className="px-2 sm:px-4 pt-2">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center rounded-xl border bg-muted/40 px-3 py-3">
             <div className="text-sm text-muted-foreground flex-1">
