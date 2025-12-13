@@ -3,11 +3,11 @@ import { Rubro } from '@/types/rubro';
 // Defined static hierarchy for Demos
 // This structure forces a clean layout regardless of backend fragmentation
 export const DEMO_HIERARCHY: Rubro[] = [
-  // --- ROOT 1: Sector Público ---
+  // --- ROOT 1: Soluciones para Sector Público (Antes Municipios y Gobierno) ---
   {
     id: 1,
-    nombre: "Sector Público",
-    clave: "publico_root",
+    nombre: "Soluciones para Sector Público",
+    clave: "municipios_root",
     padre_id: null,
     subrubros: [
       {
@@ -45,11 +45,11 @@ export const DEMO_HIERARCHY: Rubro[] = [
     ],
   },
 
-  // --- ROOT 2: Empresas ---
+  // --- ROOT 2: Soluciones para Empresas (Antes Locales Comerciales) ---
   {
     id: 2,
-    nombre: "Empresas",
-    clave: "empresas_root",
+    nombre: "Soluciones para Empresas",
+    clave: "comerciales_root",
     padre_id: null,
     subrubros: [
       {
