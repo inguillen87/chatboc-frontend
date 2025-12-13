@@ -11,9 +11,11 @@ import { Rubro } from '@/types/rubro';
 import { DEMO_HIERARCHY } from '@/data/demoHierarchy';
 
 const categoryIcons: Record<string, React.ReactNode> = {
-  municipios_root: <Building2 className="w-5 h-5" />,
-  comerciales_root: <Store className="w-5 h-5" />,
-  "Alimentación y Bebidas": <ShoppingBag className="w-4 h-4" />,
+  publico_root: <Building2 className="w-5 h-5" />,
+  empresas_root: <Briefcase className="w-5 h-5" />,
+  "Gobiernos locales": <Building2 className="w-4 h-4" />,
+  "Atención ciudadana": <Heart className="w-4 h-4" />,
+  "Alimentos y Bebidas": <ShoppingBag className="w-4 h-4" />,
   "Salud y Bienestar": <Heart className="w-4 h-4" />,
   "Servicios Profesionales": <Briefcase className="w-4 h-4" />,
   "Producción e Industria": <Factory className="w-4 h-4" />,
