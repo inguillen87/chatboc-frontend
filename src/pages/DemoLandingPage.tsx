@@ -1,84 +1,22 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, ArrowRight, MessageSquare, ShoppingBag, BarChart2, Store, Smartphone, FileText, PieChart, Users, CheckCircle2 } from 'lucide-react';
+import { Loader2, ArrowRight, MessageSquare, ShoppingBag, BarChart2, Store, Smartphone, FileText, PieChart, Users, CheckCircle2, QrCode } from 'lucide-react';
 import { getTenantPublicInfoFlexible } from '@/api/tenant';
 import type { TenantPublicInfo } from '@/types/tenant';
 import { useTenant } from '@/context/TenantContext';
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
+import { DashboardPreview } from '@/components/demo/DashboardPreview';
+import ProductCatalog from '@/pages/ProductCatalog';
+import { MarketCartProvider } from '@/context/MarketCartContext';
 
 // --- Components for Visual Enhancement ---
 
-const MockDashboard = () => (
-    <div className="bg-background border rounded-lg shadow-xl overflow-hidden text-left relative z-10 w-full max-w-4xl mx-auto transform transition-transform hover:scale-[1.01] duration-500">
-        <div className="bg-muted border-b p-3 flex items-center gap-2">
-            <div className="flex gap-1.5">
-                <div className="w-3 h-3 rounded-full bg-red-400/80"></div>
-                <div className="w-3 h-3 rounded-full bg-amber-400/80"></div>
-                <div className="w-3 h-3 rounded-full bg-green-400/80"></div>
-            </div>
-            <div className="ml-4 text-xs text-muted-foreground font-mono bg-background/50 px-2 py-0.5 rounded">chatboc.ar/admin/dashboard</div>
-        </div>
-        <div className="p-6 grid gap-6 md:grid-cols-3 bg-card/50">
-             {/* Stat Cards */}
-             <div className="bg-background p-4 rounded-lg border shadow-sm">
-                 <div className="flex justify-between items-start mb-2">
-                     <span className="text-sm text-muted-foreground">Conversaciones (Hoy)</span>
-                     <MessageSquare className="w-4 h-4 text-primary" />
-                 </div>
-                 <div className="text-2xl font-bold">142</div>
-                 <div className="text-xs text-green-600 flex items-center mt-1"><ArrowRight className="w-3 h-3 rotate-[-45deg] mr-1" /> +12% vs ayer</div>
-             </div>
-             <div className="bg-background p-4 rounded-lg border shadow-sm">
-                 <div className="flex justify-between items-start mb-2">
-                     <span className="text-sm text-muted-foreground">Pedidos / Trámites</span>
-                     <FileText className="w-4 h-4 text-primary" />
-                 </div>
-                 <div className="text-2xl font-bold">28</div>
-                 <div className="text-xs text-green-600 flex items-center mt-1"><ArrowRight className="w-3 h-3 rotate-[-45deg] mr-1" /> 5 pendientes</div>
-             </div>
-             <div className="bg-background p-4 rounded-lg border shadow-sm">
-                 <div className="flex justify-between items-start mb-2">
-                     <span className="text-sm text-muted-foreground">Satisfacción</span>
-                     <Users className="w-4 h-4 text-primary" />
-                 </div>
-                 <div className="text-2xl font-bold">4.8/5</div>
-                 <div className="text-xs text-muted-foreground mt-1">Basado en 56 encuestas</div>
-             </div>
-
-             {/* Chart Area Mock */}
-             <div className="md:col-span-2 bg-background p-4 rounded-lg border shadow-sm h-48 flex items-center justify-center relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-t from-primary/5 to-transparent"></div>
-                 <div className="flex items-end gap-2 w-full h-32 px-4 justify-between">
-                     {[40, 65, 55, 80, 50, 90, 75].map((h, i) => (
-                         <div key={i} className="w-full bg-primary/20 hover:bg-primary/40 transition-colors rounded-t-sm" style={{ height: `${h}%` }}></div>
-                     ))}
-                 </div>
-                 <span className="absolute top-3 left-4 text-xs font-medium">Actividad Semanal</span>
-             </div>
-
-             {/* Recent Activity List */}
-             <div className="bg-background p-4 rounded-lg border shadow-sm h-48 overflow-hidden">
-                 <h4 className="text-xs font-semibold mb-3">Últimas Interacciones</h4>
-                 <div className="space-y-3">
-                     {[1, 2, 3].map((_, i) => (
-                         <div key={i} className="flex gap-3 items-center">
-                             <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-[10px]">User</div>
-                             <div className="flex-1">
-                                 <div className="h-2 w-24 bg-muted rounded mb-1"></div>
-                                 <div className="h-1.5 w-16 bg-muted/50 rounded"></div>
-                             </div>
-                         </div>
-                     ))}
-                 </div>
-             </div>
-        </div>
-    </div>
-);
-
 const DemoHero = ({ tenant }: { tenant: TenantPublicInfo }) => {
+  const isMunicipio = tenant.tipo === 'municipio';
+
   return (
     <div className="relative bg-gradient-to-b from-background via-muted/20 to-background pt-24 pb-32 overflow-hidden">
       {/* Abstract Background Shapes */}
@@ -103,13 +41,13 @@ const DemoHero = ({ tenant }: { tenant: TenantPublicInfo }) => {
         </div>
 
         <Badge variant="outline" className="mb-6 px-4 py-1.5 border-primary/20 text-primary bg-primary/5 text-sm backdrop-blur-sm">
-            Entorno de Demostración Interactivo
+            {isMunicipio ? 'Soluciones para Gobierno' : 'Soluciones para Empresas'}
         </Badge>
 
         <h1 className="text-4xl md:text-6xl font-extrabold mb-6 tracking-tight text-foreground leading-tight">
           {tenant.nombre}
           <span className="block text-primary mt-2 text-2xl md:text-4xl font-semibold opacity-90">
-             Potenciado por Agentes IA
+             {isMunicipio ? 'Participación Ciudadana e IA' : 'Automatización de Ventas con IA'}
           </span>
         </h1>
 
@@ -122,20 +60,26 @@ const DemoHero = ({ tenant }: { tenant: TenantPublicInfo }) => {
                     onClick={() => document.querySelector('.chatboc-toggle-btn')?.dispatchEvent(new MouseEvent('click', { bubbles: true }))}>
                 <MessageSquare className="mr-2 h-5 w-5" /> Iniciar Chat Demo
             </Button>
-            {tenant.public_catalog_url && (
+            {isMunicipio ? (
+                 <Button variant="outline" size="lg" className="h-12 px-8 text-base border-primary/20 hover:bg-primary/5"
+                    onClick={() => document.getElementById('demo-interactive-section')?.scrollIntoView({ behavior: 'smooth' })}>
+                    <Users className="mr-2 h-5 w-5" /> Participación Ciudadana
+                </Button>
+            ) : (
                 <Button variant="outline" size="lg" className="h-12 px-8 text-base border-primary/20 hover:bg-primary/5"
-                        onClick={() => window.location.href = tenant.public_catalog_url!}>
+                        onClick={() => document.getElementById('demo-interactive-section')?.scrollIntoView({ behavior: 'smooth' })}>
                     <ShoppingBag className="mr-2 h-5 w-5" /> Explorar Catálogo
                 </Button>
             )}
         </div>
 
-        {/* Floating Mock UI Element to show "Back Office" value */}
-        <div className="mt-8 perspective-1000">
+        {/* Dashboard Preview */}
+        <div className="mt-8 perspective-1000 max-w-4xl mx-auto">
              <div className="text-sm font-medium text-muted-foreground mb-4 flex items-center justify-center gap-2">
-                <BarChart2 className="w-4 h-4" /> Lo que tú ves como administrador
+                <BarChart2 className="w-4 h-4" />
+                Vista previa del {isMunicipio ? 'Panel de Gobierno' : 'Panel de Control'}
              </div>
-             <MockDashboard />
+             <DashboardPreview type={isMunicipio ? 'municipio' : 'pyme'} tenantName={tenant.nombre} />
         </div>
       </div>
     </div>
@@ -259,6 +203,75 @@ const DemoLandingPage = () => {
                 desc="El agente aprende de tu documentación y catálogo. Responde preguntas complejas sin intervención humana."
             />
         </div>
+
+        {/* Interactive Ecosystem Section */}
+        <section id="demo-interactive-section" className="mb-24 scroll-mt-24">
+            <div className="text-center mb-12">
+                 <Badge variant="secondary" className="mb-3">Experiencia del Usuario</Badge>
+                 <h2 className="text-3xl font-bold mb-4">
+                     {tenant.tipo === 'municipio' ? 'Participación Ciudadana en Acción' : 'Tu Catálogo Digital Inteligente'}
+                 </h2>
+                 <p className="text-muted-foreground max-w-2xl mx-auto">
+                     {tenant.tipo === 'municipio'
+                        ? 'Así ven tus vecinos las encuestas y servicios digitales. Pruébalo ahora mismo.'
+                        : 'Tus clientes pueden navegar, comprar y pagar sin salir del chat. Integración total con WhatsApp.'}
+                 </p>
+            </div>
+
+            <div className="bg-card border rounded-3xl overflow-hidden shadow-sm">
+                {tenant.tipo === 'municipio' ? (
+                    // Government / Survey Mock
+                    <div className="grid md:grid-cols-2">
+                        <div className="p-8 md:p-12 flex flex-col justify-center bg-muted/30">
+                             <h3 className="text-2xl font-bold mb-4">Presupuesto Participativo 2024</h3>
+                             <p className="text-muted-foreground mb-6">
+                                 Ejemplo real de votación ciudadana. Los vecinos eligen qué obras priorizar en su barrio mediante un formulario simple y seguro.
+                             </p>
+                             <div className="bg-background rounded-xl p-6 shadow-sm border max-w-md w-full mx-auto md:mx-0">
+                                 <div className="space-y-4">
+                                     <div className="space-y-2">
+                                         <label className="text-sm font-medium">¿Qué obra priorizarías?</label>
+                                         <div className="space-y-2">
+                                             {['Mejoras en Plazas', 'Nuevas Luminarias LED', 'Cámaras de Seguridad'].map((opt, i) => (
+                                                 <div key={i} className="flex items-center space-x-2 border p-3 rounded-lg hover:bg-muted cursor-pointer transition-colors">
+                                                     <div className="w-4 h-4 rounded-full border border-primary"></div>
+                                                     <span className="text-sm">{opt}</span>
+                                                 </div>
+                                             ))}
+                                         </div>
+                                     </div>
+                                     <Button className="w-full">Enviar Voto (Demo)</Button>
+                                 </div>
+                             </div>
+                        </div>
+                        <div className="bg-primary/5 p-8 md:p-12 flex items-center justify-center">
+                             <div className="text-center max-w-sm">
+                                 <QrCode className="w-32 h-32 mx-auto text-primary mb-6 opacity-80" />
+                                 <h4 className="font-semibold mb-2">Escanea para probar en tu móvil</h4>
+                                 <p className="text-sm text-muted-foreground">
+                                     Los vecinos pueden acceder escaneando un QR en la vía pública o mediante un link de WhatsApp.
+                                 </p>
+                             </div>
+                        </div>
+                    </div>
+                ) : (
+                    // Retail / Catalog Embed
+                    <div className="min-h-[600px] border-t relative">
+                        {tenant.slug ? (
+                            <MarketCartProvider tenantSlug={tenant.slug}>
+                                <div className="h-full bg-muted/10 p-4">
+                                    <ProductCatalog tenantSlug={tenant.slug} isDemoMode={true} />
+                                </div>
+                            </MarketCartProvider>
+                        ) : (
+                            <div className="flex items-center justify-center h-full p-12 text-muted-foreground">
+                                Catálogo no disponible en esta demo.
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
+        </section>
 
         <div className="relative bg-primary/5 rounded-3xl p-8 md:p-12 overflow-hidden border border-primary/10">
              <div className="absolute top-0 right-0 -mt-16 -mr-16 w-64 h-64 bg-primary/10 rounded-full blur-3xl"></div>

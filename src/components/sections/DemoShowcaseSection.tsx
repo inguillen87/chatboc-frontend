@@ -12,6 +12,8 @@ import { Rubro } from '@/types/rubro';
 const categoryIcons: Record<string, React.ReactNode> = {
   municipios_root: <Building2 className="w-5 h-5" />,
   comerciales_root: <Store className="w-5 h-5" />,
+  "Soluciones para Sector Público": <Building2 className="w-5 h-5" />,
+  "Soluciones para Empresas": <Store className="w-5 h-5" />,
   "Alimentación y Bebidas": <ShoppingBag className="w-4 h-4" />,
   "Salud y Bienestar": <Heart className="w-4 h-4" />,
   "Servicios Profesionales": <Briefcase className="w-4 h-4" />,

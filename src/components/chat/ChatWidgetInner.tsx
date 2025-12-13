@@ -441,6 +441,13 @@ function ChatWidgetInner({
     // 1. Backend provided theme config (entityInfo.theme_config) - Apply BASE theme (bg, text)
     // 2. URL/Prop provided colors (primaryColor, accentColor) - OVERRIDE primary/secondary
 
+    // Avoid polluting global styles if on main landing page and running as a widget
+    // We only apply this if we are in iframe/embed mode OR if we are on a specific tenant page
+    // If we are on the root landing page, we should preserve the landing page's branding
+    if (typeof window !== 'undefined' && window.location.pathname === '/' && mode === 'standalone') {
+        return;
+    }
+
     const root = document.documentElement;
 
     // First, apply the base theme from entity config (if available) to ensure background/text are correct
@@ -471,7 +478,7 @@ function ChatWidgetInner({
         root.style.setProperty('--secondary', hexToHsl(accentColor));
     }
 
-  }, [entityInfo, primaryColor, accentColor]);
+  }, [entityInfo, primaryColor, accentColor, mode]);
 
   // Proactive Bubble Logic
   useEffect(() => {
@@ -815,8 +822,13 @@ function ChatWidgetInner({
     }
     const desired = parseInt(openHeight, 10);
     const max = viewport.height - (initialPosition.bottom || 0) - 16;
+
+    // Ensure it doesn't exceed 85vh to prevent going off-screen (top)
+    const maxHeightVh = viewport.height * 0.85;
+    const effectiveMax = Math.min(max, maxHeightVh);
+
     return !isNaN(desired) && viewport.height
-      ? `${Math.min(desired, max)}px`
+      ? `${Math.min(desired, effectiveMax)}px`
       : openHeight;
   }, [openHeight, viewport.height, initialPosition.bottom, mode]);
 

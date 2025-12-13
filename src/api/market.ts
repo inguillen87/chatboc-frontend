@@ -8,15 +8,36 @@ import {
   CheckoutStartPayload
 } from '@/types/market';
 import { DEFAULT_PUBLIC_PRODUCTS } from '@/data/defaultProducts';
+import { safeLocalStorage } from '@/utils/safeLocalStorage';
+
+// Local storage key for demo cart persistence
+const DEMO_CART_KEY = 'chatboc_demo_cart_v2';
+
+// Helper to load local demo cart
+const loadLocalDemoCart = (): MarketCartResponse => {
+  try {
+    const stored = safeLocalStorage.getItem(DEMO_CART_KEY);
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch (e) {
+    console.warn("Failed to load local demo cart", e);
+  }
+  return { items: [], totalAmount: 0, totalPoints: 0, isDemo: true };
+};
+
+// Helper to save local demo cart
+const saveLocalDemoCart = (cart: MarketCartResponse) => {
+  try {
+    safeLocalStorage.setItem(DEMO_CART_KEY, JSON.stringify(cart));
+  } catch (e) {
+    console.warn("Failed to save local demo cart", e);
+  }
+};
 
 // Helper to mock a cart response from default products
 const mockCartResponse = (): MarketCartResponse => {
-  return {
-    items: [],
-    totalAmount: 0,
-    totalPoints: 0,
-    isDemo: true,
-  };
+  return loadLocalDemoCart();
 };
 
 // Helper to mock catalog response
@@ -85,15 +106,52 @@ export async function fetchMarketCatalog(tenantSlug: string): Promise<MarketCata
 }
 
 export async function addMarketItem(tenantSlug: string, payload: AddToCartPayload): Promise<MarketCartResponse> {
-  // Ensure we send the correct Content-Type and handle the response correctly
-  return await apiFetch<MarketCartResponse>(`/api/${tenantSlug}/carrito`, {
-    method: 'POST',
-    body: payload,
-    tenantSlug,
-    omitChatSessionId: true,
-    // Explicitly request session persistence if needed by the backend
-    headers: { 'X-Persist-Session': 'true' }
-  });
+  try {
+      // Ensure we send the correct Content-Type and handle the response correctly
+      return await apiFetch<MarketCartResponse>(`/api/${tenantSlug}/carrito`, {
+        method: 'POST',
+        body: payload,
+        tenantSlug,
+        omitChatSessionId: true,
+        // Explicitly request session persistence if needed by the backend
+        headers: { 'X-Persist-Session': 'true' }
+      });
+  } catch (error) {
+     if (error instanceof ApiError && ([401, 403, 404].includes(error.status) || error.status >= 500)) {
+        // Fallback to local demo cart logic
+        const currentCart = loadLocalDemoCart();
+        const product = DEFAULT_PUBLIC_PRODUCTS.find(p => String(p.id) === payload.productId);
+
+        if (product) {
+            const existingItemIndex = currentCart.items.findIndex(i => i.id === payload.productId);
+            const price = typeof product.precio_unitario === 'number' ? product.precio_unitario : 0;
+            const qty = payload.quantity || 1;
+
+            if (existingItemIndex >= 0) {
+                currentCart.items[existingItemIndex].quantity += qty;
+            } else {
+                currentCart.items.push({
+                    id: String(product.id),
+                    name: product.nombre,
+                    price: price,
+                    quantity: qty,
+                    imageUrl: product.imagen_url || null,
+                    currency: 'ARS',
+                    points: product.precio_puntos || null,
+                    priceText: null
+                });
+            }
+
+            // Recalculate totals
+            currentCart.totalAmount = currentCart.items.reduce((sum, item) => sum + ((item.price || 0) * item.quantity), 0);
+            currentCart.totalPoints = currentCart.items.reduce((sum, item) => sum + ((item.points || 0) * item.quantity), 0);
+
+            saveLocalDemoCart(currentCart);
+            return currentCart;
+        }
+     }
+     throw error;
+  }
 }
 
 export async function removeMarketItem(tenantSlug: string, itemId: string): Promise<MarketCartResponse> {

@@ -76,6 +76,24 @@ const Checkout = () => {
         Solicitar activación por WhatsApp
       </Button>
 
+      {/* Hidden button for demo flow simulation */}
+      <Button
+         variant="outline"
+         className="mt-4 w-full"
+         onClick={() => {
+            const path = window.location.pathname;
+            const slug = path.split('/')[2]; // /demo/:slug/checkout
+            if (slug) {
+                // If in demo mode, redirect to portal after "purchase"
+                window.location.href = `/demo/${slug}/portal`;
+            } else {
+                 navigate("/perfil");
+            }
+         }}
+      >
+        Simular Compra (Demo)
+      </Button>
+
       <p className="text-xs text-muted-foreground mt-3">
         También podés escribirnos a info@chatboc.ar
       </p>
