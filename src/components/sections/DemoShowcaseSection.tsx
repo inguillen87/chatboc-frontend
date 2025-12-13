@@ -8,11 +8,14 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowRight, Building2, ShoppingBag, Stethoscope, Store, Loader2, ChevronRight, Factory, Heart, Briefcase } from 'lucide-react';
 import { getRubrosHierarchy } from '@/api/rubros';
 import { Rubro } from '@/types/rubro';
+import { DEMO_HIERARCHY } from '@/data/demoHierarchy';
 
 const categoryIcons: Record<string, React.ReactNode> = {
-  municipios_root: <Building2 className="w-5 h-5" />,
-  comerciales_root: <Store className="w-5 h-5" />,
-  "Alimentación y Bebidas": <ShoppingBag className="w-4 h-4" />,
+  publico_root: <Building2 className="w-5 h-5" />,
+  empresas_root: <Briefcase className="w-5 h-5" />,
+  "Gobiernos locales": <Building2 className="w-4 h-4" />,
+  "Atención ciudadana": <Heart className="w-4 h-4" />,
+  "Alimentos y Bebidas": <ShoppingBag className="w-4 h-4" />,
   "Salud y Bienestar": <Heart className="w-4 h-4" />,
   "Servicios Profesionales": <Briefcase className="w-4 h-4" />,
   "Producción e Industria": <Factory className="w-4 h-4" />,
@@ -75,16 +78,21 @@ const SubCategorySection = ({ category }: { category: Rubro }) => {
 };
 
 const DemoShowcaseSection = () => {
-  const [tree, setTree] = useState<Rubro[]>([]);
+  const [tree, setTree] = useState<Rubro[]>(DEMO_HIERARCHY);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const initData = async () => {
       try {
         const data = await getRubrosHierarchy();
-        setTree(data);
+        if (Array.isArray(data) && data.length > 0) {
+          setTree(data);
+        } else {
+          setTree(DEMO_HIERARCHY);
+        }
       } catch (error) {
         console.error("Error loading demo hierarchy", error);
+        setTree(DEMO_HIERARCHY);
       } finally {
         setLoading(false);
       }
