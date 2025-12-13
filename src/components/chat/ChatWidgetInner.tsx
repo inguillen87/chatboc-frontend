@@ -214,6 +214,8 @@ function ChatWidgetInner({
 
   const isEmbedded = mode !== "standalone";
 
+  const widgetRef = useRef<HTMLDivElement | null>(null);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     const globalAny = window as any;
@@ -441,7 +443,16 @@ function ChatWidgetInner({
     // 1. Backend provided theme config (entityInfo.theme_config) - Apply BASE theme (bg, text)
     // 2. URL/Prop provided colors (primaryColor, accentColor) - OVERRIDE primary/secondary
 
-    const root = document.documentElement;
+    const target = widgetRef.current;
+    if (!target) return;
+
+    const appliedVars: string[] = [];
+
+    const applyVar = (name: string, value?: string) => {
+      if (!value) return;
+      target.style.setProperty(name, value);
+      appliedVars.push(name);
+    };
 
     // First, apply the base theme from entity config (if available) to ensure background/text are correct
     if (entityInfo?.theme_config) {
@@ -452,10 +463,10 @@ function ChatWidgetInner({
 
         if (theme) {
           Object.entries(theme).forEach(([key, value]) => {
-            if (key === 'primary') root.style.setProperty('--primary', value as string);
-            if (key === 'secondary') root.style.setProperty('--secondary', value as string);
-            if (key === 'background') root.style.setProperty('--background', value as string);
-            if (key === 'text') root.style.setProperty('--foreground', value as string);
+            if (key === 'primary') applyVar('--primary', value as string);
+            if (key === 'secondary') applyVar('--secondary', value as string);
+            if (key === 'background') applyVar('--background', value as string);
+            if (key === 'text') applyVar('--foreground', value as string);
           });
         }
       } catch (e) {
@@ -465,11 +476,15 @@ function ChatWidgetInner({
 
     // Then, override primary/secondary colors if explicitly passed via props (URL/Iframe)
     if (primaryColor) {
-        root.style.setProperty('--primary', hexToHsl(primaryColor));
+        applyVar('--primary', hexToHsl(primaryColor));
     }
     if (accentColor) {
-        root.style.setProperty('--secondary', hexToHsl(accentColor));
+        applyVar('--secondary', hexToHsl(accentColor));
     }
+
+    return () => {
+      appliedVars.forEach((name) => target.style.removeProperty(name));
+    };
 
   }, [entityInfo, primaryColor, accentColor]);
 
@@ -1151,6 +1166,7 @@ function ChatWidgetInner({
             : "w-full h-full"
         )}
         style={containerStyle}
+        ref={widgetRef}
       >
         {isOpen && a11yPrefs.dyslexia && <ReadingRuler />}
         {isProfileLoading ? (
