@@ -61,6 +61,7 @@ const findCategoryFromEmoji = (text: string): string | undefined => {
 interface UseChatLogicOptions {
   tipoChat: 'pyme' | 'municipio';
   entityToken?: string;
+  tenantSlug?: string | null;
   tokenKey?: string;
   skipAuth?: boolean;
   selectedRubro?: string | null;
@@ -69,6 +70,7 @@ interface UseChatLogicOptions {
 export function useChatLogic({
   tipoChat,
   entityToken: propToken,
+  tenantSlug,
   tokenKey = 'authToken',
   skipAuth = false,
   selectedRubro = null,
@@ -168,6 +170,7 @@ export function useChatLogic({
           method: 'POST',
           skipAuth,
           isWidgetRequest: true,
+          tenantSlug: tenantSlug,
           body: {
             pregunta: '',
             action: 'initial_greeting',
@@ -197,7 +200,7 @@ export function useChatLogic({
         setIsTyping(false);
       }
     },
-    [contexto, selectedRubro, skipAuth, tipoChat]
+    [contexto, selectedRubro, skipAuth, tipoChat, tenantSlug]
   );
 
   const initializeConversationRef = useRef(initializeConversation);
@@ -883,8 +886,8 @@ export function useChatLogic({
   };
 
   useEffect(() => {
-    if (!entityToken) {
-      console.log("useChatLogic: No entityToken, socket connection deferred.");
+    if (!entityToken && !tenantSlug) {
+      console.log("useChatLogic: No entityToken and no tenantSlug, socket connection deferred.");
       return;
     }
     if (!tipoChat) {
@@ -899,6 +902,7 @@ export function useChatLogic({
     console.log("useChatLogic: Initializing socket", {
       socketUrl,
       entityToken,
+      tenantSlug,
       hasUserToken: !!userAuthToken
     });
 
@@ -908,7 +912,8 @@ export function useChatLogic({
       path: SOCKET_PATH,
       auth: {
         ...(userAuthToken && { token: userAuthToken }), // Prioritize user JWT for auth
-        entityToken: entityToken // Pass entity token for context
+        entityToken: entityToken, // Pass entity token for context
+        tenantSlug: tenantSlug // Pass tenant slug if entity token is missing (public tenant)
       }
     });
 
@@ -957,7 +962,7 @@ export function useChatLogic({
       socket.off?.('disconnect', handleDisconnect);
       socket.disconnect();
     };
-}, [entityToken, tipoChat, skipAuth, tokenKey]);
+}, [entityToken, tenantSlug, tipoChat, skipAuth, tokenKey]);
 
   useEffect(() => {
     if (contexto.estado_conversacion === 'confirmando_reclamo' && !activeTicketId) {
@@ -1181,6 +1186,7 @@ export function useChatLogic({
         body: requestBody,
         skipAuth,
         isWidgetRequest: true,
+        tenantSlug: tenantSlug,
       });
       console.log('useChatLogic: Backend response', response);
       processBotPayload(response, {
@@ -1192,7 +1198,7 @@ export function useChatLogic({
       setMessages(prev => [...prev, { id: generateClientMessageId(), text: errorMsg, isBot: true, timestamp: new Date(), isError: true }]);
       setIsTyping(false);
     }
-  }, [contexto, activeTicketId, isTyping, isAnonimo, currentClaimIdempotencyKey, tipoChat]);
+  }, [contexto, activeTicketId, isTyping, isAnonimo, currentClaimIdempotencyKey, tipoChat, tenantSlug]);
 
   return {
     messages,

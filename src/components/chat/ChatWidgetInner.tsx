@@ -1220,6 +1220,7 @@ function ChatWidgetInner({
                     mode={mode}
                     widgetId={widgetId}
                     entityToken={ownerToken}
+                    tenantSlug={resolvedTenantSlug}
                     openWidth={finalOpenWidth}
                     openHeight={finalOpenHeight}
                     onClose={toggleChat}

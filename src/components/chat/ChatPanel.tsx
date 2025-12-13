@@ -52,6 +52,7 @@ interface ChatPanelProps {
   mode?: "standalone" | "iframe" | "script";
   widgetId?: string;
   entityToken?: string;
+  tenantSlug?: string | null;
   onClose?: () => void;
   tipoChat: "pyme" | "municipio";
   onRequireAuth?: () => void;
@@ -86,6 +87,7 @@ const ChatPanel = ({
   onRubroSelect,
   mode,
   entityToken: propEntityToken,
+  tenantSlug,
   cartCount,
   headerLogoUrl,
   welcomeTitle,
@@ -122,6 +124,7 @@ const ChatPanel = ({
   } = useChatLogic({
     tipoChat: tipoChat,
     entityToken: propEntityToken,
+    tenantSlug,
     skipAuth,
     selectedRubro: resolvedSelectedRubro,
   });
