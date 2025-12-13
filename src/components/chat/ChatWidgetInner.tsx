@@ -22,6 +22,8 @@ import { ChatWidgetProps } from "./types";
 import { MOCK_TENANT_INFO, MOCK_JUNIN_TENANT_INFO } from "@/data/mockTenantData";
 import { hexToHsl } from "@/utils/color";
 
+// LOCAL_PLACEHOLDER_SLUGS is used to prevent the widget from treating reserved paths as tenant slugs.
+// We also alias it to PLACEHOLDER_SLUGS_SET just in case some stale build/import relies on that name.
 const LOCAL_PLACEHOLDER_SLUGS = new Set([
   'iframe',
   'embed',
@@ -62,6 +64,7 @@ const LOCAL_PLACEHOLDER_SLUGS = new Set([
   "assets",
   "default"
 ]);
+const PLACEHOLDER_SLUGS_SET = LOCAL_PLACEHOLDER_SLUGS;
 
 const PROACTIVE_MESSAGES = [
   "¿Necesitas ayuda?",
@@ -328,6 +331,12 @@ function ChatWidgetInner({
       currentSlug,
       tenant?.slug,
     ];
+
+    // Explicitly check global config if available
+    if (typeof window !== "undefined") {
+        const cfg = (window as any).CHATBOC_CONFIG || {};
+        candidates.push(cfg.tenant, cfg.tenantSlug, cfg.tenant_slug);
+    }
 
     for (const candidate of candidates) {
       const sanitized = sanitizeTenantSlug(candidate);
