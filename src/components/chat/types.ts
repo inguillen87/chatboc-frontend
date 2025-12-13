@@ -18,4 +18,6 @@ export interface ChatWidgetProps {
   welcomeTitle?: string;
   welcomeSubtitle?: string;
   tenantSlug?: string;
+  primaryColor?: string;
+  accentColor?: string;
 }

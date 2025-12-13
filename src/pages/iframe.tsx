@@ -219,6 +219,8 @@ const Iframe = () => {
       welcomeTitle={widgetParams.welcomeTitle}
       welcomeSubtitle={widgetParams.welcomeSubtitle}
       tenantSlug={widgetParams.tenantSlug}
+      primaryColor={widgetParams.primaryColor}
+      accentColor={widgetParams.accentColor}
     />
   );
 

@@ -52,23 +52,54 @@ export const getRubrosHierarchy = async (): Promise<Rubro[]> => {
             // Build the tree from the backend data
             const tree = buildRubroTree(backendData);
 
-            // Ensure "Municipios" is present in the tree if backend missed it
-            // Backend logs suggest it might be returning partial data
-            const hasMunicipio = tree.some(root =>
+            // Ensure "Municipios" (ID 1) is present and has children
+            const municipioNodeIndex = tree.findIndex(root =>
                 root.nombre.toLowerCase().includes('municipio') ||
                 root.clave === 'municipios_root' ||
                 root.id === 1
             );
 
-            if (!hasMunicipio) {
-                const demoMunicipios = DEMO_HIERARCHY.find(d => d.id === 1 || d.clave === 'municipios_root');
+            const demoMunicipios = DEMO_HIERARCHY.find(d => d.id === 1 || d.clave === 'municipios_root');
+
+            if (municipioNodeIndex === -1) {
+                // Completely missing, inject demo
                 if (demoMunicipios) {
-                    // Prepend to ensure it's first
                     tree.unshift(demoMunicipios);
+                }
+            } else {
+                // Exists, check if empty
+                const existingNode = tree[municipioNodeIndex];
+                if (!existingNode.subrubros || existingNode.subrubros.length === 0) {
+                     if (demoMunicipios && demoMunicipios.subrubros) {
+                         existingNode.subrubros = demoMunicipios.subrubros;
+                     }
                 }
             }
 
-            // If the tree is empty despite having data (e.g. all orphans with invalid parents), fallback
+            // Ensure "Locales Comerciales" (ID 2) is present and has children
+            const comercialesNodeIndex = tree.findIndex(root =>
+                root.nombre.toLowerCase().includes('comerciales') ||
+                root.clave === 'comerciales_root' ||
+                root.id === 2
+            );
+
+            const demoComerciales = DEMO_HIERARCHY.find(d => d.id === 2 || d.clave === 'comerciales_root');
+
+            if (comercialesNodeIndex === -1) {
+                // Completely missing, inject demo
+                if (demoComerciales) {
+                    tree.push(demoComerciales);
+                }
+            } else {
+                 // Exists, check if empty
+                const existingNode = tree[comercialesNodeIndex];
+                if (!existingNode.subrubros || existingNode.subrubros.length === 0) {
+                     if (demoComerciales && demoComerciales.subrubros) {
+                         existingNode.subrubros = demoComerciales.subrubros;
+                     }
+                }
+            }
+
             if (tree.length > 0) {
                 return tree;
             }

@@ -91,22 +91,6 @@ const ChatUserPanel = React.lazy(() => import("./ChatUserPanel"));
 const EntityInfoPanel = React.lazy(() => import("./EntityInfoPanel"));
 const ProactiveBubble = React.lazy(() => import("./ProactiveBubble"));
 
-// Lazy initialization to avoid TDZ (Temporal Dead Zone) issues if imports are not fully ready
-let _lazyPlaceholderSlugs: Set<string> | null = null;
-
-function getPlaceholderSlugsSet() {
-  if (_lazyPlaceholderSlugs) return _lazyPlaceholderSlugs;
-  try {
-    const shared = LOCAL_PLACEHOLDER_SLUGS ? Array.from(LOCAL_PLACEHOLDER_SLUGS) : [];
-    _lazyPlaceholderSlugs = new Set([...shared]);
-  } catch (error) {
-    console.warn("[ChatWidgetInner] Placeholder slugs not ready, using defaults", error);
-    // Fallback to minimal set to prevent crash
-    _lazyPlaceholderSlugs = new Set(["default"]);
-  }
-  return _lazyPlaceholderSlugs;
-}
-
 function sanitizeTenantSlug(slug?: string | null) {
   try {
     if (!slug) return null;
@@ -115,12 +99,7 @@ function sanitizeTenantSlug(slug?: string | null) {
 
     const lowered = trimmed.toLowerCase();
 
-    // Explicitly use local constant first to avoid function overhead/potential TDZ in weird contexts
     if (LOCAL_PLACEHOLDER_SLUGS.has(lowered)) return null;
-
-    // Fallback to helper
-    const set = getPlaceholderSlugsSet();
-    if (set && set.has(lowered)) return null;
 
     return trimmed;
   } catch (e) {
@@ -182,7 +161,6 @@ function ChatWidgetInner({
   openHeight = "680px",
   closedWidth = "100px",
   closedHeight = "100px",
-  // REMOVE call to getCurrentTipoChat() here. Handled in useState.
   tipoChat,
   initialPosition = { bottom: 32, right: 32 },
   ctaMessage,
@@ -192,6 +170,8 @@ function ChatWidgetInner({
   welcomeTitle,
   welcomeSubtitle,
   tenantSlug: explicitTenantSlug,
+  primaryColor,
+  accentColor,
 }: ChatWidgetProps) {
   const proactiveMessageTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const hideProactiveBubbleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -210,8 +190,6 @@ function ChatWidgetInner({
   const [view, setView] = useState<'chat' | 'register' | 'login' | 'user' | 'info'>(initialView);
   const { user } = useUser();
   const [resolvedTipoChat, setResolvedTipoChat] = useState<'pyme' | 'municipio'>(() => {
-    // If prop is provided, use it. Otherwise, derive it.
-    // This avoids calling getCurrentTipoChat() at top-level execution time if passed as default param.
     return tipoChat || getCurrentTipoChat();
   });
   const [entityInfo, setEntityInfo] = useState<any | null>(null);
@@ -244,22 +222,17 @@ function ChatWidgetInner({
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    // Check if another widget is already mounted on the window
     if ((window as any).__chatbocWidgetMounted) {
       setDuplicateInstance(true);
       return;
     }
 
-    // Mark as mounted
     (window as any).__chatbocWidgetMounted = true;
 
-    // Cleanup on unmount
     return () => {
       delete (window as any).__chatbocWidgetMounted;
     };
   }, []);
-
-  // Removed early return here to avoid Hook Violation (React Error #300)
 
   const derivedEntityTitle =
     (typeof entityInfo?.nombre_empresa === "string" && entityInfo.nombre_empresa.trim()) ||
@@ -285,8 +258,8 @@ function ChatWidgetInner({
     (typeof entityInfo?.slogan === "string" && entityInfo.slogan.trim()) ||
     "";
 
-  const headerTitle = isEmbedded ? derivedEntityTitle : welcomeTitle;
-  const headerSubtitle = isEmbedded ? derivedEntitySubtitle : welcomeSubtitle;
+  const headerTitle = isEmbedded ? (welcomeTitle || derivedEntityTitle) : welcomeTitle;
+  const headerSubtitle = isEmbedded ? (welcomeSubtitle || derivedEntitySubtitle) : welcomeSubtitle;
 
   const tenantSlugFromEntity = useMemo(() => {
     const candidates = [
@@ -455,9 +428,15 @@ function ChatWidgetInner({
 
   // Apply Theme Config
   useEffect(() => {
+    // Priority:
+    // 1. Backend provided theme config (entityInfo.theme_config) - Apply BASE theme (bg, text)
+    // 2. URL/Prop provided colors (primaryColor, accentColor) - OVERRIDE primary/secondary
+
+    const root = document.documentElement;
+
+    // First, apply the base theme from entity config (if available) to ensure background/text are correct
     if (entityInfo?.theme_config) {
       try {
-        const root = document.documentElement;
         const mode = entityInfo.theme_config.mode;
         const isDark = mode === 'dark' || (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
         const theme = isDark ? entityInfo.theme_config.dark : entityInfo.theme_config.light;
@@ -474,7 +453,16 @@ function ChatWidgetInner({
         console.warn("Error applying theme config:", e);
       }
     }
-  }, [entityInfo]);
+
+    // Then, override primary/secondary colors if explicitly passed via props (URL/Iframe)
+    if (primaryColor) {
+        root.style.setProperty('--primary', hexToHsl(primaryColor));
+    }
+    if (accentColor) {
+        root.style.setProperty('--secondary', hexToHsl(accentColor));
+    }
+
+  }, [entityInfo, primaryColor, accentColor]);
 
   // Proactive Bubble Logic
   useEffect(() => {
@@ -955,11 +943,12 @@ function ChatWidgetInner({
                 const publicConfig = await tenantService.getPublicWidgetConfig(resolvedTenantSlug);
                 const info = {
                     ...publicConfig,
-                    nombre_empresa: publicConfig.tenant_name || publicConfig.name || publicConfig.nombre,
-                    logo_url: publicConfig.logo_url || publicConfig.avatar_url,
-                    cta_messages: publicConfig.cta_messages,
+                    // Priority Merge: Props > Backend Config
+                    nombre_empresa: welcomeTitle || publicConfig.tenant_name || publicConfig.name || publicConfig.nombre,
+                    logo_url: headerLogoUrl || customLauncherLogoUrl || publicConfig.logo_url || publicConfig.avatar_url,
+                    cta_messages: ctaMessage ? [{ text: ctaMessage }] : publicConfig.cta_messages,
                     theme_config: publicConfig.theme_config,
-                    default_open: publicConfig.default_open,
+                    default_open: (typeof defaultOpen === 'boolean') ? defaultOpen : publicConfig.default_open,
                     slug: resolvedTenantSlug,
                     tipo_chat: publicConfig.tipo_chat || (publicConfig.type === 'municipio' ? 'municipio' : 'pyme')
                 };
