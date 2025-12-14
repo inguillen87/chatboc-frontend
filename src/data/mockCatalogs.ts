@@ -1,0 +1,318 @@
+import { MarketProduct } from '@/types/market';
+
+export const MOCK_CATALOGS: Record<string, MarketProduct[]> = {
+  bodega: [
+    {
+        id: "v101",
+        nombre: "Malbec Reserva 2020",
+        descripcion: "Vino tinto intenso, con notas de frutos rojos y madera. Ideal para carnes.",
+        precio_unitario: 5500,
+        imagen_url: "https://images.unsplash.com/photo-1584916201218-f4242ceb4809?auto=format&fit=crop&q=80&w=600",
+        modalidad: "venta",
+        categoria: "Vinos Tintos",
+    },
+    {
+        id: "v102",
+        nombre: "Chardonnay Roble",
+        descripcion: "Blanco estructurado con paso por barrica. Fresco y elegante.",
+        precio_unitario: 4800,
+        imagen_url: "https://images.unsplash.com/photo-1572569878853-29497d391307?auto=format&fit=crop&q=80&w=600",
+        modalidad: "venta",
+        categoria: "Vinos Blancos",
+    },
+    {
+        id: "v103",
+        nombre: "Cabernet Sauvignon",
+        descripcion: "Tinto con cuerpo, especiado y complejo. Crianza de 12 meses.",
+        precio_unitario: 6200,
+        imagen_url: "https://images.unsplash.com/photo-1559563362-c667ba5f5480?auto=format&fit=crop&q=80&w=600",
+        modalidad: "venta",
+        categoria: "Vinos Tintos",
+    },
+    {
+        id: "v104",
+        nombre: "Espumante Extra Brut",
+        descripcion: "Burbujas finas, fresco y frutal. Método Champenoise.",
+        precio_unitario: 7500,
+        imagen_url: "https://images.unsplash.com/photo-1598155523122-38423bb4d6c1?auto=format&fit=crop&q=80&w=600",
+        modalidad: "venta",
+        categoria: "Espumantes",
+    },
+    {
+        id: "v105",
+        nombre: "Caja Degustación x6",
+        descripcion: "Selección de nuestras mejores etiquetas. Envío gratis.",
+        precio_unitario: 28000,
+        imagen_url: "https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?auto=format&fit=crop&q=80&w=600",
+        modalidad: "venta",
+        categoria: "Promociones",
+    },
+  ],
+  ferreteria: [
+    {
+        id: "f201",
+        nombre: "Taladro Percutor Inalámbrico",
+        descripcion: "18V, dos baterías incluidas. Ideal para hogar y obra.",
+        precio_unitario: 125000,
+        imagen_url: "https://images.unsplash.com/photo-1504148455328-c376907d081c?auto=format&fit=crop&q=80&w=600",
+        modalidad: "venta",
+        categoria: "Herramientas Eléctricas",
+    },
+    {
+        id: "f202",
+        nombre: "Set de Destornilladores Pro",
+        descripcion: "Juego de 12 piezas con punta magnética y mango ergonómico.",
+        precio_unitario: 18500,
+        imagen_url: "https://images.unsplash.com/photo-1581147036324-c17ac41dfa6c?auto=format&fit=crop&q=80&w=600",
+        modalidad: "venta",
+        categoria: "Herramientas Manuales",
+    },
+     {
+        id: "f203",
+        nombre: "Lámpara LED 9W Pack x10",
+        descripcion: "Luz cálida o fría. Ahorro de energía garantizado.",
+        precio_unitario: 15000,
+        imagen_url: "https://images.unsplash.com/photo-1543857182-68106299b6b2?auto=format&fit=crop&q=80&w=600",
+        modalidad: "venta",
+        categoria: "Iluminación",
+    }
+  ],
+  almacen: [
+    {
+        id: "a301",
+        nombre: "Yerba Mate Premium 1kg",
+        descripcion: "Estacionamiento natural por 24 meses. Sabor suave.",
+        precio_unitario: 3200,
+        imagen_url: "https://images.unsplash.com/photo-1565257008-01761e3b6245?auto=format&fit=crop&q=80&w=600",
+        modalidad: "venta",
+        categoria: "Almacén",
+    },
+    {
+        id: "a302",
+        nombre: "Combo Desayuno",
+        descripcion: "Café molido + 2 paquetes de galletitas + Mermelada.",
+        precio_unitario: 8500,
+        imagen_url: "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&q=80&w=600",
+        modalidad: "venta",
+        categoria: "Promociones",
+    }
+  ],
+  kiosco: [
+    {
+        id: "k001",
+        nombre: "Alfajor de Chocolate Premium",
+        descripcion: "Relleno de dulce de leche, bañado en chocolate.",
+        precio_unitario: 1200,
+        imagen_url: "https://images.unsplash.com/photo-1558961363-fa8fdf82db35?auto=format&fit=crop&q=80&w=600",
+        modalidad: "venta",
+        categoria: "Golosinas",
+    },
+    {
+        id: "k002",
+        nombre: "Bebida Gaseosa 500ml",
+        descripcion: "Variedad de sabores. Fría.",
+        precio_unitario: 1500,
+        imagen_url: "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?auto=format&fit=crop&q=80&w=600",
+        modalidad: "venta",
+        categoria: "Bebidas",
+    }
+  ],
+  farmacia: [
+     {
+        id: "ph401",
+        nombre: "Protector Solar FPS 50",
+        descripcion: "Toque seco, ideal para rostro. Protección alta.",
+        precio_unitario: 14000,
+        imagen_url: "https://images.unsplash.com/photo-1556228720-1987df2a4229?auto=format&fit=crop&q=80&w=600",
+        modalidad: "venta",
+        categoria: "Cuidado Personal",
+    },
+    {
+        id: "ph402",
+        nombre: "Multivitamínico Energy",
+        descripcion: "Suplemento dietario con vitaminas y minerales. 30 comprimidos.",
+        precio_unitario: 9800,
+        imagen_url: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&q=80&w=600",
+        modalidad: "venta",
+        categoria: "Suplementos",
+    }
+  ],
+  restaurante: [
+    {
+        id: "r501",
+        nombre: "Menú Ejecutivo del Día",
+        descripcion: "Plato principal + bebida + postre. Opción vegetariana disponible.",
+        precio_unitario: 12000,
+        imagen_url: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&q=80&w=600",
+        modalidad: "venta",
+        categoria: "Almuerzos",
+    },
+    {
+        id: "r502",
+        nombre: "Hamburguesa Doble Cheddar",
+        descripcion: "Medallones caseros, panceta y papas rústicas.",
+        precio_unitario: 9500,
+        imagen_url: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&q=80&w=600",
+        modalidad: "venta",
+        categoria: "Cena",
+    },
+    {
+        id: "r503",
+        nombre: "Reserva Mesa para 2",
+        descripcion: "Seña para confirmar reserva. Se descuenta del total.",
+        precio_unitario: 5000,
+        imagen_url: "https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?auto=format&fit=crop&q=80&w=600",
+        modalidad: "venta",
+        categoria: "Reservas",
+    }
+  ],
+  tienda: [
+    {
+        id: "t601",
+        nombre: "Remera Básica Algodón",
+        descripcion: "100% algodón premium. Varios colores.",
+        precio_unitario: 15000,
+        imagen_url: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&q=80&w=600",
+        modalidad: "venta",
+        categoria: "Indumentaria",
+    },
+    {
+        id: "t602",
+        nombre: "Jean Clásico Slim Fit",
+        descripcion: "Denim elastizado. Calce perfecto.",
+        precio_unitario: 45000,
+        imagen_url: "https://images.unsplash.com/photo-1542272454315-4c01d7abdf4a?auto=format&fit=crop&q=80&w=600",
+        modalidad: "venta",
+        categoria: "Pantalones",
+    },
+    {
+        id: "t603",
+        nombre: "Zapatillas Urbanas",
+        descripcion: "Comodidad y estilo para todos los días.",
+        precio_unitario: 65000,
+        imagen_url: "https://images.unsplash.com/photo-1549298916-b41d501d3772?auto=format&fit=crop&q=80&w=600",
+        modalidad: "venta",
+        categoria: "Calzado",
+    }
+  ],
+  logistica: [
+    {
+        id: "l701",
+        nombre: "Servicio de Flete Local",
+        descripcion: "Transporte de carga liviana dentro del radio urbano.",
+        precio_unitario: 25000,
+        imagen_url: "https://images.unsplash.com/photo-1601625152962-6018320ada36?auto=format&fit=crop&q=80&w=600",
+        modalidad: "venta",
+        categoria: "Transporte",
+    },
+    {
+        id: "l702",
+        nombre: "Mudanza Estándar",
+        descripcion: "Camión mediano + 2 ayudantes. Hasta 4 horas.",
+        precio_unitario: 150000,
+        imagen_url: "https://images.unsplash.com/photo-1600518464441-9154a4dea21b?auto=format&fit=crop&q=80&w=600",
+        modalidad: "venta",
+        categoria: "Mudanzas",
+    }
+  ],
+  seguros: [
+    {
+        id: "s801",
+        nombre: "Seguro Automotor Todo Riesgo",
+        descripcion: "Cobertura completa con franquicia reducida. Cotización mensual.",
+        precio_unitario: 35000,
+        imagen_url: "https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?auto=format&fit=crop&q=80&w=600",
+        modalidad: "venta",
+        categoria: "Automotor",
+    },
+    {
+        id: "s802",
+        nombre: "Seguro de Hogar e Incendio",
+        descripcion: "Protegé tu casa contra robos, incendio y daños.",
+        precio_unitario: 12000,
+        imagen_url: "https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&q=80&w=600",
+        modalidad: "venta",
+        categoria: "Hogar",
+    }
+  ],
+  fintech: [
+    {
+        id: "b901",
+        nombre: "Suscripción Cuenta Premium",
+        descripcion: "Acceso a inversiones exclusivas y tarjeta black.",
+        precio_unitario: 5000,
+        imagen_url: "https://images.unsplash.com/photo-1563013544-824ae1b704d3?auto=format&fit=crop&q=80&w=600",
+        modalidad: "venta",
+        categoria: "Suscripciones",
+    },
+    {
+        id: "b902",
+        nombre: "Asesoría Financiera Personalizada",
+        descripcion: "Reunión con experto en inversiones.",
+        precio_unitario: 0,
+        imagen_url: "https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&q=80&w=600",
+        modalidad: "venta",
+        categoria: "Servicios",
+    }
+  ],
+  inmobiliaria: [
+    {
+        id: "i1001",
+        nombre: "Reserva de Propiedad",
+        descripcion: "Seña para retirar la propiedad de venta momentáneamente.",
+        precio_unitario: 100000,
+        imagen_url: "https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&q=80&w=600",
+        modalidad: "venta",
+        categoria: "Ventas",
+    },
+    {
+        id: "i1002",
+        nombre: "Tasación Profesional",
+        descripcion: "Informe detallado del valor de mercado de tu inmueble.",
+        precio_unitario: 25000,
+        imagen_url: "https://images.unsplash.com/photo-1582407947304-fd86f028f716?auto=format&fit=crop&q=80&w=600",
+        modalidad: "venta",
+        categoria: "Servicios",
+    }
+  ],
+  industria: [
+    {
+        id: "in1101",
+        nombre: "Kit de Seguridad Industrial",
+        descripcion: "Casco, guantes, gafas y chaleco reflectivo.",
+        precio_unitario: 45000,
+        imagen_url: "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&q=80&w=600",
+        modalidad: "venta",
+        categoria: "Seguridad",
+    },
+    {
+        id: "in1102",
+        nombre: "Insumos de Mantenimiento",
+        descripcion: "Pack de lubricantes y repuestos básicos.",
+        precio_unitario: 80000,
+        imagen_url: "https://images.unsplash.com/photo-1581093458791-9f3c3900df4b?auto=format&fit=crop&q=80&w=600",
+        modalidad: "venta",
+        categoria: "Mantenimiento",
+    }
+  ],
+  clinica: [
+    {
+        id: "c1201",
+        nombre: "Consulta Médica Particular",
+        descripcion: "Atención primaria o derivación a especialista.",
+        precio_unitario: 15000,
+        imagen_url: "https://images.unsplash.com/photo-1666214280557-f1b5022eb634?auto=format&fit=crop&q=80&w=600",
+        modalidad: "venta",
+        categoria: "Consultas",
+    },
+    {
+        id: "c1202",
+        nombre: "Chequeo General Anual",
+        descripcion: "Análisis de laboratorio, ECG y control clínico.",
+        precio_unitario: 45000,
+        imagen_url: "https://images.unsplash.com/photo-1579684385180-1ea55f9f8986?auto=format&fit=crop&q=80&w=600",
+        modalidad: "venta",
+        categoria: "Estudios",
+    }
+  ]
+};

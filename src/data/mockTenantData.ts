@@ -1,4 +1,3 @@
-
 import { TenantEventItem, TenantNewsItem, TenantPublicInfo, TenantSummary } from '@/types/tenant';
 import type { PublicSurveyListResult } from '@/api/encuestas';
 
@@ -32,6 +31,146 @@ export const MOCK_JUNIN_TENANT_INFO: TenantPublicInfo = {
     primaryColor: '#006C3F',
     secondaryColor: '#d4a01a',
   }
+};
+
+export const getFallbackTenantInfo = (slug: string | null | undefined, token?: string | null): TenantPublicInfo => {
+    const s = slug || 'demo-tenant';
+
+    // Detailed mocks for specific demos
+    if (s.includes('bodega')) {
+        return {
+            ...MOCK_TENANT_INFO,
+            slug: s,
+            nombre: 'Bodega Demo',
+            tipo: 'pyme',
+            descripcion: 'Vinos de autor, catas y envíos a todo el país.',
+            logo_url: 'https://cdn-icons-png.flaticon.com/512/920/920583.png', // Wine bottle & glass icon
+            tema: { primaryColor: '#722F37', secondaryColor: '#A52A2A' } // Wine colors
+        };
+    }
+    if (s.includes('ferreteria')) {
+        return {
+            ...MOCK_TENANT_INFO,
+            slug: s,
+            nombre: 'Ferretería Demo',
+            tipo: 'pyme',
+            descripcion: 'Herramientas profesionales y asesoramiento técnico.',
+            logo_url: 'https://cdn-icons-png.flaticon.com/512/1037/1037970.png', // Hammer/Wrench icon
+            tema: { primaryColor: '#F97316', secondaryColor: '#475569' } // Orange/Slate
+        };
+    }
+    if (s.includes('almacen') || s.includes('kiosco')) {
+        return {
+            ...MOCK_TENANT_INFO,
+            slug: s,
+            nombre: 'Almacén Demo',
+            tipo: 'pyme',
+            descripcion: 'Todo lo que necesitás para tu hogar, cerca de vos.',
+            logo_url: 'https://cdn-icons-png.flaticon.com/512/3081/3081986.png', // Groceries icon
+            tema: { primaryColor: '#16A34A', secondaryColor: '#FCD34D' }
+        };
+    }
+    if (s.includes('farmacia')) {
+        return {
+            ...MOCK_TENANT_INFO,
+            slug: s,
+            nombre: 'Farmacia Demo',
+            tipo: 'pyme',
+            descripcion: 'Salud y bienestar. Envíos a domicilio.',
+            logo_url: 'https://cdn-icons-png.flaticon.com/512/3022/3022588.png', // Medical cross/pill icon
+            tema: { primaryColor: '#06B6D4', secondaryColor: '#10B981' }
+        };
+    }
+    if (s.includes('restaurante') || s.includes('gastronomia')) {
+        return {
+            ...MOCK_TENANT_INFO,
+            slug: s,
+            nombre: 'Restaurante Demo',
+            tipo: 'pyme',
+            descripcion: 'Sabores únicos. Reservas y delivery.',
+            logo_url: 'https://cdn-icons-png.flaticon.com/512/3448/3448609.png', // Chef hat/Cutlery
+            tema: { primaryColor: '#DC2626', secondaryColor: '#FBBF24' }
+        };
+    }
+    if (s.includes('tienda') || s.includes('ropa') || s.includes('local_comercial')) {
+        return {
+            ...MOCK_TENANT_INFO,
+            slug: s,
+            nombre: 'Tienda de Ropa Demo',
+            tipo: 'pyme',
+            descripcion: 'Moda y estilo. Nueva colección disponible.',
+            logo_url: 'https://cdn-icons-png.flaticon.com/512/3159/3159614.png', // Shopping bag/shirt
+            tema: { primaryColor: '#EC4899', secondaryColor: '#8B5CF6' }
+        };
+    }
+    if (s.includes('logistica') || s.includes('transporte')) {
+        return {
+            ...MOCK_TENANT_INFO,
+            slug: s,
+            nombre: 'Logística Demo',
+            tipo: 'pyme',
+            descripcion: 'Tu carga en movimiento. Envíos seguros.',
+            logo_url: 'https://cdn-icons-png.flaticon.com/512/759/759238.png', // Truck icon
+            tema: { primaryColor: '#2563EB', secondaryColor: '#64748B' }
+        };
+    }
+    if (s.includes('seguros')) {
+        return {
+            ...MOCK_TENANT_INFO,
+            slug: s,
+            nombre: 'Seguros Demo',
+            tipo: 'pyme',
+            descripcion: 'Tranquilidad para vos y tu familia.',
+            logo_url: 'https://cdn-icons-png.flaticon.com/512/2966/2966334.png', // Shield icon
+            tema: { primaryColor: '#4F46E5', secondaryColor: '#A5B4FC' }
+        };
+    }
+    if (s.includes('fintech') || s.includes('banca')) {
+        return {
+            ...MOCK_TENANT_INFO,
+            slug: s,
+            nombre: 'Fintech Demo',
+            tipo: 'pyme',
+            descripcion: 'Tus finanzas, simplificadas.',
+            logo_url: 'https://cdn-icons-png.flaticon.com/512/2830/2830284.png', // Wallet/Coin icon
+            tema: { primaryColor: '#7C3AED', secondaryColor: '#C4B5FD' }
+        };
+    }
+    if (s.includes('inmobiliaria')) {
+        return {
+            ...MOCK_TENANT_INFO,
+            slug: s,
+            nombre: 'Inmobiliaria Demo',
+            tipo: 'pyme',
+            descripcion: 'Encontrá tu lugar en el mundo.',
+            logo_url: 'https://cdn-icons-png.flaticon.com/512/602/602182.png', // House icon
+            tema: { primaryColor: '#059669', secondaryColor: '#6EE7B7' }
+        };
+    }
+    if (s.includes('industria') || s.includes('energia')) {
+        return {
+            ...MOCK_TENANT_INFO,
+            slug: s,
+            nombre: 'Industria Demo',
+            tipo: 'pyme',
+            descripcion: 'Soluciones integrales para tu empresa.',
+            logo_url: 'https://cdn-icons-png.flaticon.com/512/1541/1541413.png', // Factory icon
+            tema: { primaryColor: '#475569', secondaryColor: '#94A3B8' }
+        };
+    }
+    if (s.includes('clinica') || s.includes('medico') || s.includes('salud')) {
+        return {
+            ...MOCK_TENANT_INFO,
+            slug: s,
+            nombre: 'Clínica Demo',
+            tipo: 'pyme',
+            descripcion: 'Cuidamos tu salud. Turnos online.',
+            logo_url: 'https://cdn-icons-png.flaticon.com/512/2966/2966327.png', // Stethoscope icon
+            tema: { primaryColor: '#0EA5E9', secondaryColor: '#7DD3FC' }
+        };
+    }
+
+    return { ...MOCK_TENANT_INFO, slug: s, nombre: s === 'demo-tenant' ? 'Demo Tenant' : s };
 };
 
 export const MOCK_NEWS: TenantNewsItem[] = [

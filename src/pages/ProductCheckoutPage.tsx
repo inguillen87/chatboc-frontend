@@ -471,11 +471,12 @@ export default function ProductCheckoutPage() {
             <div className="flex flex-col gap-4 sm:flex-row justify-center items-center">
                 {!user ? (
                    <>
-                     <Button size="lg" className="w-full sm:w-auto shadow-lg" onClick={() => navigate(registerPath, { state: { redirectTo: portalOrdersPath } })}>
-                        Crear cuenta para seguimiento
+                     {/* Prioritize direct portal access for demos to avoid friction */}
+                     <Button size="lg" className="w-full sm:w-auto shadow-lg" onClick={handleViewOrders}>
+                        Ver mi Pedido en el Portal
                      </Button>
-                     <Button size="lg" variant="outline" className="w-full sm:w-auto" onClick={handleViewOrders}>
-                        Iniciar Sesión
+                     <Button size="lg" variant="outline" className="w-full sm:w-auto" onClick={() => navigate(registerPath, { state: { redirectTo: portalOrdersPath } })}>
+                        Crear cuenta para seguimiento
                      </Button>
                    </>
                 ) : (

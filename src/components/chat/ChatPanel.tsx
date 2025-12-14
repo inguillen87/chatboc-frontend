@@ -71,6 +71,8 @@ interface ChatPanelProps {
   logoAnimation?: string;
   onA11yChange?: (p: Prefs) => void;
   a11yPrefs?: Prefs;
+  openWidth?: string;
+  openHeight?: string;
 }
 
 const ChatPanel = ({
@@ -513,16 +515,31 @@ const ChatPanel = ({
   );
 
   useEffect(() => {
-    if (chatContainerRef.current) {
-      const { scrollHeight, scrollTop, clientHeight } = chatContainerRef.current;
-      const atBottom = scrollHeight - scrollTop - clientHeight < 100;
-      if (atBottom) {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-        setShowScrollDown(false);
-      } else {
-        setShowScrollDown(true);
-      }
-    }
+    // Always attempt to scroll to bottom on new messages, specially if content is dynamic.
+    // Use a small timeout to allow layout to settle (e.g. images loading)
+    const timer = setTimeout(() => {
+        if (chatContainerRef.current) {
+            const { scrollHeight, scrollTop, clientHeight } = chatContainerRef.current;
+            // More aggressive auto-scroll: if user is not VERY far up (e.g. 250px), scroll down.
+            // But only if we are not manually paused.
+            // Actually, let's just use the visibility of ScrollToBottomButton as a proxy for "manual scroll up".
+            // If showScrollDown is true, user scrolled up. We should NOT auto scroll unless it's my own message.
+
+            // However, typical behavior is: if I am at bottom, stay at bottom. If I am up, stay up (and show badge).
+            const atBottom = scrollHeight - scrollTop - clientHeight < 250;
+            const isShort = messages.length < 5;
+
+            // If we are already at bottom OR it's a short conversation, force scroll.
+            // If we are NOT at bottom, do nothing (user sees notification badge on button).
+            if (atBottom || isShort) {
+                messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+                setShowScrollDown(false);
+            } else {
+                setShowScrollDown(true);
+            }
+        }
+    }, 100);
+    return () => clearTimeout(timer);
   }, [messages]);
 
   useEffect(() => {
@@ -530,6 +547,7 @@ const ChatPanel = ({
     if (!container) return;
     const onScroll = () => {
       const { scrollHeight, scrollTop, clientHeight } = container;
+      // Define tolerance for "at bottom"
       const atBottom = scrollHeight - scrollTop - clientHeight < 100;
       setShowScrollDown(!atBottom);
     };

@@ -8,6 +8,7 @@ import {
   CheckoutStartPayload
 } from '@/types/market';
 import { DEFAULT_PUBLIC_PRODUCTS } from '@/data/defaultProducts';
+import { MOCK_CATALOGS } from '@/data/mockCatalogs';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
 // Local storage key for demo cart persistence
@@ -41,8 +42,18 @@ const mockCartResponse = (): MarketCartResponse => {
 };
 
 // Helper to mock catalog response
-const mockCatalogResponse = (): MarketCatalogResponse => {
-  const products = DEFAULT_PUBLIC_PRODUCTS.map(p => ({
+const mockCatalogResponse = (tenantSlug?: string): MarketCatalogResponse => {
+  let sourceProducts = DEFAULT_PUBLIC_PRODUCTS;
+
+  if (tenantSlug) {
+      // Find matching mock catalog key
+      const key = Object.keys(MOCK_CATALOGS).find(k => tenantSlug.includes(k));
+      if (key) {
+          sourceProducts = MOCK_CATALOGS[key];
+      }
+  }
+
+  const products = sourceProducts.map(p => ({
     id: String(p.id),
     name: p.nombre,
     description: p.descripcion ?? null,
@@ -101,7 +112,7 @@ export async function fetchMarketCatalog(tenantSlug: string): Promise<MarketCata
     });
   } catch (error) {
     console.warn(`[MarketAPI] Failed to fetch catalog for ${tenantSlug}, using mock.`, error);
-    return mockCatalogResponse();
+    return mockCatalogResponse(tenantSlug);
   }
 }
 
@@ -120,7 +131,19 @@ export async function addMarketItem(tenantSlug: string, payload: AddToCartPayloa
      if (error instanceof ApiError && ([401, 403, 404].includes(error.status) || error.status >= 500)) {
         // Fallback to local demo cart logic
         const currentCart = loadLocalDemoCart();
-        const product = DEFAULT_PUBLIC_PRODUCTS.find(p => String(p.id) === payload.productId);
+
+        let product = DEFAULT_PUBLIC_PRODUCTS.find(p => String(p.id) === payload.productId);
+
+        // Fallback to mock catalogs search if not in default
+        if (!product) {
+            for (const key in MOCK_CATALOGS) {
+                const found = MOCK_CATALOGS[key].find(p => String(p.id) === payload.productId);
+                if (found) {
+                    product = found;
+                    break;
+                }
+            }
+        }
 
         if (product) {
             const existingItemIndex = currentCart.items.findIndex(i => i.id === payload.productId);
