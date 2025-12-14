@@ -1124,10 +1124,10 @@ function ChatWidgetInner({
   }, [mode, initialPosition.bottom, initialPosition.right]);
 
   const panelAnimation = {
-    initial: { opacity: 0, scale: 0.9, y: 20 },
-    animate: { opacity: 1, scale: 1, y: 0 },
-    exit: { opacity: 0, scale: 0.9, y: 20 },
-    transition: { type: "spring", stiffness: 350, damping: 25 },
+    initial: { opacity: 0, scale: 0.5, y: 100, originY: 1 },
+    animate: { opacity: 1, scale: 1, y: 0, originY: 1 },
+    exit: { opacity: 0, scale: 0.5, y: 100, originY: 1 },
+    transition: { type: "spring", stiffness: 350, damping: 30 },
   };
 
   const buttonAnimation = {
