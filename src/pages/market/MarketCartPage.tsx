@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Copy, Loader2, MessageCircle, QrCode, Search, Share2, ShoppingBag, Sparkles, Tag } from 'lucide-react';
@@ -16,8 +16,8 @@ import {
   removeMarketItem,
   startMarketCheckout,
 } from '@/api/market';
-import { MarketCartItem, MarketCartResponse, MarketProduct } from '@/types/market';
-import { loadMarketContact, readStoredCart, saveMarketContact, saveStoredCart } from '@/utils/marketStorage';
+import { MarketCartItem, MarketProduct } from '@/types/market';
+import { loadMarketContact, saveMarketContact } from '@/utils/marketStorage';
 import { toast } from '@/components/ui/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { useUser } from '@/hooks/useUser';
@@ -87,38 +87,6 @@ export default function MarketCartPage() {
     enabled: Boolean(tenantSlug),
   });
 
-  const [localCart, setLocalCart] = useState<MarketCartResponse>(() => readStoredCart(tenantSlug));
-
-  useEffect(() => {
-    setLocalCart(readStoredCart(tenantSlug));
-  }, [tenantSlug]);
-
-  useEffect(() => {
-    if (cartQuery.data?.items?.length) {
-      setLocalCart(cartQuery.data);
-      saveStoredCart(tenantSlug, cartQuery.data);
-    }
-  }, [cartQuery.data, tenantSlug]);
-
-  const persistCart = useCallback(
-    (cart: MarketCartResponse) => {
-      setLocalCart(cart);
-      saveStoredCart(tenantSlug, cart);
-      queryClient.setQueryData(['marketCart', tenantSlug], cart);
-    },
-    [queryClient, tenantSlug],
-  );
-
-  const effectiveCart = useMemo(() => {
-    const fetched = cartQuery.data;
-    if (fetched?.items?.length) return fetched;
-    if (!fetched && localCart.items.length) return localCart;
-    if (fetched && !fetched.items.length && localCart.items.length) {
-      return { ...localCart, isDemo: fetched.isDemo ?? localCart.isDemo };
-    }
-    return fetched ?? localCart;
-  }, [cartQuery.data, localCart]);
-
   const shareUrl = useMemo(() => {
     const backendUrl = cartQuery.data?.cartUrl ?? catalogQuery.data?.publicCartUrl;
     if (backendUrl) return backendUrl;
@@ -147,7 +115,7 @@ export default function MarketCartPage() {
   const addMutation = useMutation({
     mutationFn: (productId: string) => addMarketItem(tenantSlug, { productId, quantity: 1 }),
     onSuccess: (data) => {
-      persistCart(data);
+      queryClient.setQueryData(['marketCart', tenantSlug], data);
       toast({
         title: 'Agregado al carrito',
         description: 'Actualizamos tu carrito.',
@@ -165,7 +133,7 @@ export default function MarketCartPage() {
   const removeMutation = useMutation({
     mutationFn: (productId: string) => removeMarketItem(tenantSlug, productId),
     onSuccess: (data) => {
-      persistCart(data);
+      queryClient.setQueryData(['marketCart', tenantSlug], data);
       toast({
         title: 'Producto quitado',
         description: 'Actualizamos tu carrito.',
@@ -183,7 +151,7 @@ export default function MarketCartPage() {
   const clearMutation = useMutation({
     mutationFn: () => clearMarketCart(tenantSlug),
     onSuccess: (data) => {
-      persistCart(data);
+      queryClient.setQueryData(['marketCart', tenantSlug], data);
     },
     onError: () => {
       toast({
@@ -247,7 +215,7 @@ export default function MarketCartPage() {
   const handleCheckout = () => {
     const resolvedName = contact.name ?? userName;
     const phone = contact.phone?.trim() ?? normalizedUserPhone;
-    if (!effectiveCart?.items?.length) {
+    if (!cartQuery.data?.items.length) {
       toast({
         title: 'Tu carrito está vacío',
         description: 'Agrega productos para continuar.',
@@ -284,11 +252,9 @@ export default function MarketCartPage() {
 
   const fallbackCatalog = useMemo(() => buildDemoMarketCatalog(tenantSlug).catalog, [tenantSlug]);
   const catalogData = catalogQuery.data ?? (catalogQuery.isError ? fallbackCatalog : undefined);
+  const catalogProducts: MarketProduct[] = catalogData?.products ?? [];
   const rawCatalogProducts: MarketProduct[] = catalogData?.products ?? [];
-  const catalogProducts = useMemo(
-    () => rawCatalogProducts.filter((p) => p.disponible !== false),
-    [rawCatalogProducts],
-  );
+  const catalogProducts = useMemo(() => rawCatalogProducts.filter(p => p.disponible !== false), [rawCatalogProducts]);
   const catalogServerError = catalogQuery.error instanceof ApiError && catalogQuery.error.status >= 500;
   const cartServerError = cartQuery.error instanceof ApiError && cartQuery.error.status >= 500;
   const catalogErrorMessage = catalogServerError
@@ -383,12 +349,6 @@ export default function MarketCartPage() {
   const buildSectionSubtitle = (product: MarketProduct): string | null =>
     product.category ?? product.descriptionShort ?? product.description ?? null;
 
-  const cartItems = effectiveCart?.items ?? [];
-  const cartTotals = {
-    amount: effectiveCart?.totalAmount ?? 0,
-    points: effectiveCart?.totalPoints ?? 0,
-  };
-
   const itemsCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
   const hasSession = useMemo(() => {
     const authToken = getValidStoredToken('authToken');
@@ -423,11 +383,11 @@ export default function MarketCartPage() {
   }, [activeCategory, catalogProducts, searchTerm]);
 
   const derivedAmount = useMemo(() => {
-    if (effectiveCart?.totalAmount !== undefined && effectiveCart?.totalAmount !== null) {
-      return effectiveCart.totalAmount;
+    if (cartQuery.data?.totalAmount !== undefined && cartQuery.data?.totalAmount !== null) {
+      return cartQuery.data.totalAmount;
     }
     return cartItems.reduce((acc, item) => acc + (item.price ?? 0) * item.quantity, 0);
-  }, [cartItems, effectiveCart?.totalAmount]);
+  }, [cartItems, cartQuery.data?.totalAmount]);
 
   const isUpdatingCart = addMutation.isPending || removeMutation.isPending || clearMutation.isPending;
 
@@ -742,8 +702,8 @@ export default function MarketCartPage() {
           <div className="lg:sticky lg:top-24">
             <CartSummary
               items={cartItems}
-              totalAmount={cartTotals.amount}
-              totalPoints={cartTotals.points}
+              totalAmount={cartQuery.data?.totalAmount}
+              totalPoints={cartQuery.data?.totalPoints}
               onCheckout={handleCheckout}
               isSubmitting={checkoutMutation.isPending}
               onRemoveItem={(productId) => removeMutation.mutate(productId)}
