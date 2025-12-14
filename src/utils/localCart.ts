@@ -2,7 +2,8 @@ import type { ProductDetails } from '@/components/product/ProductCard';
 import { enhanceProductDetails } from '@/utils/cartPayload';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
-const LOCAL_CART_KEY = 'chatboc_demo_cart';
+// Unified key with market.ts to ensure persistence across sessions
+const LOCAL_CART_KEY = 'chatboc_demo_cart_v2';
 export const CART_EVENT_NAME = 'chatboc:cart-updated';
 
 interface StoredCartEntry {
@@ -75,6 +76,22 @@ const readEntries = (): StoredCartEntry[] => {
       return [];
     }
     const parsed = JSON.parse(raw);
+    // If we are migrating from old structure (MarketCartResponse object instead of array)
+    if (!Array.isArray(parsed) && parsed.items && Array.isArray(parsed.items)) {
+         return parsed.items.map((item: any) => ({
+             key: String(item.id),
+             quantity: item.quantity,
+             product: {
+                 id: item.id,
+                 nombre: item.name,
+                 precio_unitario: item.price,
+                 imagen_url: item.imageUrl,
+                 precio_puntos: item.points
+             } as ProductDetails,
+             updatedAt: Date.now()
+         }));
+    }
+
     if (!Array.isArray(parsed)) {
       return [];
     }
