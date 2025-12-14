@@ -108,6 +108,7 @@ const DemoLandingPage = () => {
   const [events, setEvents] = useState<TenantEventItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+    const [demoVote, setDemoVote] = useState<string | null>(null);
   const { setTenantSlug } = useTenant();
 
   // Reset logic to prevent context bleeding between demos
@@ -296,20 +297,35 @@ const DemoLandingPage = () => {
                                  Ejemplo real de votación ciudadana. Los vecinos eligen qué obras priorizar en su barrio mediante un formulario simple y seguro.
                              </p>
                              <div className="bg-background rounded-xl p-6 shadow-sm border max-w-md w-full mx-auto md:mx-0">
-                                 <div className="space-y-4">
-                                     <div className="space-y-2">
-                                         <label className="text-sm font-medium">¿Qué obra priorizarías?</label>
-                                         <div className="space-y-2">
-                                             {['Mejoras en Plazas', 'Nuevas Luminarias LED', 'Cámaras de Seguridad'].map((opt, i) => (
-                                                 <div key={i} className="flex items-center space-x-2 border p-3 rounded-lg hover:bg-muted cursor-pointer transition-colors">
-                                                     <div className="w-4 h-4 rounded-full border border-primary"></div>
-                                                     <span className="text-sm">{opt}</span>
-                                                 </div>
-                                             ))}
-                                         </div>
+                                 {demoVote ? (
+                                     <div className="text-center py-8">
+                                         <CheckCircle2 className="w-16 h-16 text-green-500 mx-auto mb-4" />
+                                         <h4 className="text-xl font-bold mb-2">¡Voto Registrado!</h4>
+                                         <p className="text-muted-foreground text-sm">
+                                             Gracias por participar. En un entorno real, esto actualiza el panel de gestión en tiempo real.
+                                         </p>
+                                         <Button variant="ghost" size="sm" className="mt-4" onClick={() => setDemoVote(null)}>Votar de nuevo</Button>
                                      </div>
-                                     <Button className="w-full">Enviar Voto (Demo)</Button>
-                                 </div>
+                                 ) : (
+                                     <div className="space-y-4">
+                                         <div className="space-y-2">
+                                             <label className="text-sm font-medium">¿Qué obra priorizarías?</label>
+                                             <div className="space-y-2">
+                                                 {['Mejoras en Plazas', 'Nuevas Luminarias LED', 'Cámaras de Seguridad'].map((opt) => (
+                                                     <div
+                                                        key={opt}
+                                                        className="flex items-center space-x-3 border p-3 rounded-lg hover:bg-muted cursor-pointer transition-colors"
+                                                        onClick={() => setDemoVote(opt)}
+                                                     >
+                                                         <div className={`w-4 h-4 rounded-full border ${demoVote === opt ? 'border-primary bg-primary' : 'border-muted-foreground'}`}></div>
+                                                         <span className="text-sm">{opt}</span>
+                                                     </div>
+                                                 ))}
+                                             </div>
+                                         </div>
+                                         <Button className="w-full" disabled={!demoVote} onClick={() => setDemoVote('submitted')}>Enviar Voto (Demo)</Button>
+                                     </div>
+                                 )}
                              </div>
                         </div>
                         <div className="bg-primary/5 p-8 md:p-12 flex items-center justify-center">

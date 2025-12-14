@@ -179,6 +179,7 @@ function ChatWidgetInner({
   const proactiveMessageTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const hideProactiveBubbleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isDarkMode = useDarkMode();
+  const widgetContainerRef = useRef<HTMLDivElement>(null);
 
   const [isOpen, setIsOpen] = useState(() => {
     if (mode !== 'standalone' && typeof defaultOpen === 'string') {
@@ -449,20 +450,24 @@ function ChatWidgetInner({
     }
 
     const root = document.documentElement;
+    const target = mode === 'standalone' ? widgetContainerRef.current : root;
 
     // First, apply the base theme from entity config (if available) to ensure background/text are correct
     if (entityInfo?.theme_config) {
       try {
-        const mode = entityInfo.theme_config.mode;
-        const isDark = mode === 'dark' || (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        const modeTheme = entityInfo.theme_config.mode;
+        const isDark = modeTheme === 'dark' || (modeTheme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
         const theme = isDark ? entityInfo.theme_config.dark : entityInfo.theme_config.light;
 
         if (theme) {
           Object.entries(theme).forEach(([key, value]) => {
-            if (key === 'primary') root.style.setProperty('--primary', value as string);
-            if (key === 'secondary') root.style.setProperty('--secondary', value as string);
-            if (key === 'background') root.style.setProperty('--background', value as string);
-            if (key === 'text') root.style.setProperty('--foreground', value as string);
+            // Apply only to the widget container if standalone, or global root if iframe
+             if (target) {
+                if (key === 'primary') target.style.setProperty('--primary', value as string);
+                if (key === 'secondary') target.style.setProperty('--secondary', value as string);
+                if (key === 'background') target.style.setProperty('--background', value as string);
+                if (key === 'text') target.style.setProperty('--foreground', value as string);
+             }
           });
         }
       } catch (e) {
@@ -475,10 +480,9 @@ function ChatWidgetInner({
     // to prevent breaking the landing page styles. The widget container itself will handle scoped styles via inline styles or class isolation if needed.
     // However, ShadCN components rely on CSS variables.
     // If we are in 'iframe' mode, it's safe to set on root.
-    if (mode === 'iframe') {
-        if (primaryColor) root.style.setProperty('--primary', hexToHsl(primaryColor));
-        if (accentColor) root.style.setProperty('--secondary', hexToHsl(accentColor));
-    }
+    if (primaryColor && target) target.style.setProperty('--primary', hexToHsl(primaryColor));
+    if (accentColor && target) target.style.setProperty('--secondary', hexToHsl(accentColor));
+
 
   }, [entityInfo, primaryColor, accentColor, mode]);
 
@@ -819,10 +823,22 @@ function ChatWidgetInner({
   }, [openWidth, viewport.width, initialPosition.right]);
 
   const finalOpenHeight = useMemo(() => {
-    if (mode === 'iframe') {
-        return openHeight;
-    }
+    // Determine the desired height
     const desired = parseInt(openHeight, 10);
+    const heightToUse = isNaN(desired) ? 680 : desired;
+
+    if (mode === 'iframe') {
+        // Even in iframe mode, we should respect the viewport height to avoid scrolling issues in the host
+        // However, the iframe itself is resized by the host script.
+        // We just return the desired height so the host knows how big to make the iframe.
+        // But if the viewport is small (mobile), we want to be full screen or max-height.
+        if (typeof window !== 'undefined' && window.innerHeight) {
+            // Cap at window height to be safe
+             return `${Math.min(heightToUse, window.innerHeight)}px`;
+        }
+        return `${heightToUse}px`;
+    }
+
     const max = viewport.height - (initialPosition.bottom || 0) - 16;
 
     // Ensure it doesn't exceed 85vh to prevent going off-screen (top)
@@ -830,9 +846,9 @@ function ChatWidgetInner({
     const effectiveMax = Math.min(max, maxHeightVh);
 
     // If "chatito chiquito" issue persists, ensure we default to a reasonable minimum if openHeight is invalid
-    const heightToUse = (!isNaN(desired) && viewport.height) ? Math.min(desired, effectiveMax) : parseInt(openHeight, 10) || 600;
+    const finalHeight = (viewport.height) ? Math.min(heightToUse, effectiveMax) : heightToUse;
 
-    return `${heightToUse}px`;
+    return `${finalHeight}px`;
   }, [openHeight, viewport.height, initialPosition.bottom, mode]);
 
   const finalClosedWidth = closedWidth;
@@ -1124,9 +1140,9 @@ function ChatWidgetInner({
   }, [mode, initialPosition.bottom, initialPosition.right]);
 
   const panelAnimation = {
-    initial: { opacity: 0, scale: 0.5, y: 100, originY: 1 },
+    initial: { opacity: 0, scale: 0.95, y: 20, originY: 1 },
     animate: { opacity: 1, scale: 1, y: 0, originY: 1 },
-    exit: { opacity: 0, scale: 0.5, y: 100, originY: 1 },
+    exit: { opacity: 0, scale: 0.95, y: 20, originY: 1 },
     transition: { type: "spring", stiffness: 350, damping: 30 },
   };
 
@@ -1152,6 +1168,7 @@ function ChatWidgetInner({
   if (mode === "standalone" || mode === "iframe") {
     return (
       <div
+        ref={widgetContainerRef}
         data-testid="chat-widget"
         data-mode={mode}
         data-default-open={defaultOpen}

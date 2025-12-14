@@ -131,9 +131,16 @@ const UserOrdersPage = () => {
           )}
 
           {demoOrders && !hasDemoOrders && (
-            <p className="text-muted-foreground text-sm">
-              Aún no tienes pedidos de prueba guardados. Finaliza una compra en modo demo para ver el historial aquí.
-            </p>
+            <div className="text-center py-8 bg-muted/20 rounded-lg">
+                <ShoppingBag className="mx-auto h-12 w-12 text-muted-foreground/50 mb-3" />
+                <h3 className="text-lg font-medium text-foreground">Aún no hay pedidos</h3>
+                <p className="text-muted-foreground text-sm max-w-sm mx-auto mb-4">
+                    Cuando realices compras en modo demo, aparecerán aquí para que veas cómo funciona el seguimiento.
+                </p>
+                <Button variant="outline" size="sm" asChild>
+                    <a href="/demo">Ir a la Demo</a>
+                </Button>
+            </div>
           )}
 
           {hasDemoOrders && (

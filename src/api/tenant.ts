@@ -1,6 +1,6 @@
 import { apiFetch, ApiError } from '@/utils/api';
 import { normalizeEntityToken } from '@/utils/entityToken';
-import { MOCK_EVENTS, MOCK_NEWS, MOCK_TENANT_INFO, MOCK_JUNIN_TENANT_INFO } from '@/data/mockTenantData';
+import { MOCK_EVENTS, MOCK_NEWS, MOCK_TENANT_INFO, MOCK_JUNIN_TENANT_INFO, getFallbackTenantInfo } from '@/data/mockTenantData';
 import type {
   TenantEventItem,
   TenantNewsItem,
@@ -188,6 +188,12 @@ export async function getTenantPublicInfo(slug: string): Promise<TenantPublicInf
   } catch (error) {
     console.warn(`[API] Failed to fetch public info for ${slug}, using mock data.`, error);
     if (slug === 'municipio-junin' || slug === 'municipalidad-de-junin') return MOCK_JUNIN_TENANT_INFO;
+
+    // Check specific fallbacks
+    if (['bodega', 'ferreteria', 'almacen', 'kiosco', 'farmacia', 'restaurante', 'tienda', 'logistica', 'seguros', 'fintech', 'inmobiliaria', 'industria', 'clinica', 'medico', 'local_comercial'].some(k => slug.includes(k))) {
+       return getFallbackTenantInfo(slug);
+    }
+
     return { ...MOCK_TENANT_INFO, slug, nombre: slug };
   }
 }
@@ -245,7 +251,7 @@ const resolveTenantInfo = async ({
         }
         // Generic fallback if we have a slug that looks like a tenant
         if (slug || widgetToken) {
-           return { ...MOCK_TENANT_INFO, slug: slug ?? 'demo-tenant', nombre: slug ?? 'Demo Tenant' };
+           return getFallbackTenantInfo(slug, widgetToken);
         }
       }
       throw error;
@@ -284,7 +290,7 @@ const resolveTenantInfo = async ({
          }
          // If we are definitely in a widget context (have a token), return mock to avoid white screen
          if (widgetToken) {
-            return { ...MOCK_TENANT_INFO, slug: slug || 'demo-widget', nombre: 'Demo Widget' };
+            return getFallbackTenantInfo(slug, widgetToken);
          }
          throw tertiaryError;
       }
@@ -303,6 +309,11 @@ export async function getTenantPublicInfoFlexible(
     // Specific override for Junin slug
     if (safeSlug === 'municipio-junin' || safeSlug === 'municipalidad-de-junin') {
       return MOCK_JUNIN_TENANT_INFO;
+    }
+
+    // Mock detection for specific demos to avoid 404 latency and ensure content
+    if (['bodega', 'almacen', 'ferreteria', 'farmacia', 'restaurante', 'tienda', 'logistica', 'seguros', 'fintech', 'inmobiliaria', 'industria', 'clinica', 'medico', 'local_comercial'].some(k => safeSlug.includes(k))) {
+        return getFallbackTenantInfo(safeSlug);
     }
 
     try {

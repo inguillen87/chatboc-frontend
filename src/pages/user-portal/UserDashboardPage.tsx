@@ -28,7 +28,7 @@ import { buildTenantPath } from '@/utils/tenantPaths';
 const UserDashboardPage = () => {
   const navigate = useNavigate();
   const { user } = useUser();
-  const { currentSlug } = useTenant();
+  const { currentSlug, tenant } = useTenant();
   const { content, isDemo, isLoading, refetch } = usePortalContent();
 
   const getBadgeClasses = (statusType?: string): string => {
@@ -78,6 +78,10 @@ const UserDashboardPage = () => {
     show: { opacity: 1, y: 0 }
   };
 
+  // Determine Tenant Type for Conditional UI
+  const isMunicipio = tenant?.tipo === 'municipio';
+  const isPyme = !isMunicipio;
+
   return (
     <motion.div
       className="flex flex-col gap-6 md:gap-8"
@@ -92,7 +96,7 @@ const UserDashboardPage = () => {
               {user?.name ? `¡Hola, ${user.name}!` : '¡Hola!'}
             </h1>
             <p className="text-muted-foreground">
-              Tu panel centralizado de gestiones, noticias y beneficios.
+              {isMunicipio ? 'Tu portal ciudadano: gestión, noticias y servicios.' : 'Tu panel de cliente: pedidos, puntos y novedades.'}
             </p>
             {isDemo && (
               <div className="mt-2 inline-flex items-center gap-2 text-xs text-muted-foreground bg-muted/60 px-3 py-1 rounded-full">
@@ -113,58 +117,76 @@ const UserDashboardPage = () => {
       </motion.div>
 
       <motion.div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6" variants={itemVariants}>
-        <Button
-          size="lg"
-          className="w-full py-6 text-base shadow-md hover:shadow-lg font-medium transition-all hover:-translate-y-0.5"
-          onClick={() => navigate(buildTenantPath('/portal/catalogo', currentSlug))}
-        >
-          <ShoppingBag className="mr-2 h-5 w-5" /> Ver Catálogo / Trámites
-        </Button>
+        {isPyme && (
+            <Button
+              size="lg"
+              className="w-full py-6 text-base shadow-md hover:shadow-lg font-medium transition-all hover:-translate-y-0.5"
+              onClick={() => navigate(buildTenantPath('/portal/catalogo', currentSlug))}
+            >
+              <ShoppingBag className="mr-2 h-5 w-5" /> Ver Catálogo / Tienda
+            </Button>
+        )}
+        {isMunicipio && (
+            <Button
+              size="lg"
+              className="w-full py-6 text-base shadow-md hover:shadow-lg font-medium transition-all hover:-translate-y-0.5"
+              onClick={() => navigate(buildTenantPath('/portal/tramites', currentSlug))} // Assuming /portal/tramites exists or maps to something
+            >
+              <ClipboardList className="mr-2 h-5 w-5" /> Iniciar Trámite
+            </Button>
+        )}
+
         <Button
           size="lg"
           variant="secondary"
           className="w-full py-6 text-base shadow-md hover:shadow-lg font-medium transition-all hover:-translate-y-0.5"
           onClick={() => navigate(buildTenantPath('/reclamos/nuevo', currentSlug))}
         >
-          <PlusCircle className="mr-2 h-5 w-5" /> Nueva Gestión
+          <PlusCircle className="mr-2 h-5 w-5" /> {isMunicipio ? 'Nuevo Reclamo' : 'Nueva Consulta'}
         </Button>
       </motion.div>
 
       <motion.div className="grid gap-6 md:gap-8 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3" variants={containerVariants}>
-        {activities.length > 0 && (
-          <motion.div variants={itemVariants} className="lg:col-span-2 xl:col-span-2">
+        {/* Recent Activity / Orders / Claims */}
+        <motion.div variants={itemVariants} className="lg:col-span-2 xl:col-span-2">
             <SummaryCard
-              title="Tus Gestiones Recientes"
+              title={isMunicipio ? "Tus Reclamos y Solicitudes" : "Tus Pedidos Recientes"}
               icon={<History className="h-6 w-6" />}
-              ctaText="Ver todas mis gestiones"
-              onCtaClick={() => navigate(buildTenantPath('/portal/pedidos', currentSlug))}
+              ctaText={isMunicipio ? "Ver historial de reclamos" : "Ver todos mis pedidos"}
+              onCtaClick={() => navigate(buildTenantPath(isMunicipio ? '/portal/reclamos' : '/portal/pedidos', currentSlug))}
             >
-              <ul className="space-y-0.5 -mx-2">
-                {activities.slice(0, 3).map((activity) => (
-                  <motion.li
-                    key={activity.id}
-                    className="px-2 py-2 hover:bg-muted/50 rounded-md transition-colors"
-                  >
-                    <Link to={buildTenantPath(activity.link ?? '/portal/pedidos', currentSlug)} className="flex justify-between items-center w-full">
-                      <div>
-                        <p className="text-sm font-medium text-foreground truncate pr-2 leading-snug">{activity.description}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {activity.type}
-                          {activity.date ? ` · ${activity.date}` : ''}
-                        </p>
-                      </div>
-                      {activity.status && (
-                        <Badge className={cn('text-xs whitespace-nowrap ml-2', getBadgeClasses(activity.statusType))}>
-                          {activity.status}
-                        </Badge>
-                      )}
-                    </Link>
-                  </motion.li>
-                ))}
-              </ul>
+              {activities.length > 0 ? (
+                  <ul className="space-y-0.5 -mx-2">
+                    {activities.slice(0, 3).map((activity) => (
+                      <motion.li
+                        key={activity.id}
+                        className="px-2 py-2 hover:bg-muted/50 rounded-md transition-colors"
+                      >
+                        <Link to={buildTenantPath(activity.link ?? '/portal/pedidos', currentSlug)} className="flex justify-between items-center w-full">
+                          <div>
+                            <p className="text-sm font-medium text-foreground truncate pr-2 leading-snug">{activity.description}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {activity.type}
+                              {activity.date ? ` · ${activity.date}` : ''}
+                            </p>
+                          </div>
+                          {activity.status && (
+                            <Badge className={cn('text-xs whitespace-nowrap ml-2', getBadgeClasses(activity.statusType))}>
+                              {activity.status}
+                            </Badge>
+                          )}
+                        </Link>
+                      </motion.li>
+                    ))}
+                  </ul>
+              ) : (
+                  <div className="text-center py-6 text-muted-foreground text-sm">
+                      <p>No tienes {isMunicipio ? 'reclamos' : 'pedidos'} recientes.</p>
+                      {isDemo && <p className="text-xs mt-1">(En modo demo, realiza una acción en el chat para verla aquí)</p>}
+                  </div>
+              )}
             </SummaryCard>
-          </motion.div>
-        )}
+        </motion.div>
 
         {notifications.length > 0 && (
           <motion.div variants={itemVariants}>
@@ -233,61 +255,80 @@ const UserDashboardPage = () => {
           </motion.div>
         )}
 
-        {activeBenefits.length > 0 && (
-          <motion.div variants={itemVariants}>
-            <SummaryCard
-              title="Beneficios para ti"
-              icon={<TicketPercent className="h-6 w-6" />}
-              ctaText="Ver todos los beneficios"
-              onCtaClick={() => navigate(buildTenantPath('/portal/beneficios', currentSlug))}
-            >
-              <ul className="space-y-3">
-                {activeBenefits.slice(0, 1).map((benefit) => (
-                  <li key={benefit.id} className="p-3 bg-primary/10 border border-primary/20 rounded-md hover:shadow-md transition-shadow">
-                    <Link to={buildTenantPath(benefit.id ? `/portal/beneficios/${benefit.id}` : '/portal/beneficios', currentSlug)} className="group block">
-                      <h4 className="text-sm font-semibold text-primary group-hover:underline mb-0.5 leading-snug">{benefit.title}</h4>
-                      <p className="text-xs text-muted-foreground">{benefit.description}</p>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </SummaryCard>
-          </motion.div>
+        {/* Benefits Section - Primarily for Pyme/Retail */}
+        {isPyme && (
+            <motion.div variants={itemVariants}>
+                <SummaryCard
+                title="Beneficios para ti"
+                icon={<TicketPercent className="h-6 w-6" />}
+                ctaText="Ver todos los beneficios"
+                onCtaClick={() => navigate(buildTenantPath('/portal/beneficios', currentSlug))}
+                >
+                {activeBenefits.length > 0 ? (
+                    <ul className="space-y-3">
+                        {activeBenefits.slice(0, 1).map((benefit) => (
+                        <li key={benefit.id} className="p-3 bg-primary/10 border border-primary/20 rounded-md hover:shadow-md transition-shadow">
+                            <Link to={buildTenantPath(benefit.id ? `/portal/beneficios/${benefit.id}` : '/portal/beneficios', currentSlug)} className="group block">
+                            <h4 className="text-sm font-semibold text-primary group-hover:underline mb-0.5 leading-snug">{benefit.title}</h4>
+                            <p className="text-xs text-muted-foreground">{benefit.description}</p>
+                            </Link>
+                        </li>
+                        ))}
+                    </ul>
+                ) : (
+                    <p className="text-sm text-muted-foreground">No tienes beneficios activos por el momento.</p>
+                )}
+                </SummaryCard>
+            </motion.div>
         )}
 
-        {pendingSurveys.length > 0 && (
-          <motion.div variants={itemVariants}>
+        {/* Surveys Section - Relevant for both but critical for Muni */}
+        <motion.div variants={itemVariants}>
             <SummaryCard
               title="Tu opinión importa"
               icon={<MessageSquareQuote className="h-6 w-6" />}
             >
-              <div className="flex flex-col items-center text-center gap-3">
-                <p className="text-sm text-muted-foreground">
-                  {pendingSurveys.length === 1
-                    ? `Tienes una encuesta pendiente: "${pendingSurveys[0].title}"`
-                    : `Tienes ${pendingSurveys.length} encuestas pendientes.`}
-                </p>
-                <Button
-                  className="w-full sm:w-auto"
-                  onClick={() => navigate(buildTenantPath(pendingSurveys[0].link ?? '/portal/encuestas', currentSlug))}
-                >
-                  <ClipboardList className="mr-2 h-4 w-4" /> Responder ahora
-                </Button>
-              </div>
+              {pendingSurveys.length > 0 ? (
+                  <div className="flex flex-col items-center text-center gap-3">
+                    <p className="text-sm text-muted-foreground">
+                      {pendingSurveys.length === 1
+                        ? `Tienes una encuesta pendiente: "${pendingSurveys[0].title}"`
+                        : `Tienes ${pendingSurveys.length} encuestas pendientes.`}
+                    </p>
+                    <Button
+                      className="w-full sm:w-auto"
+                      onClick={() => navigate(buildTenantPath(pendingSurveys[0].link ?? '/portal/encuestas', currentSlug))}
+                    >
+                      <ClipboardList className="mr-2 h-4 w-4" /> Responder ahora
+                    </Button>
+                  </div>
+              ) : (
+                  <div className="text-center py-4">
+                      <p className="text-sm text-muted-foreground">No hay encuestas activas.</p>
+                  </div>
+              )}
             </SummaryCard>
-          </motion.div>
-        )}
+        </motion.div>
 
+        {/* Participation Stats - Adaptive columns */}
         <motion.div variants={itemVariants} className="lg:col-span-2 xl:col-span-1">
           <SummaryCard
             title="Tu participación"
             icon={<Sparkles className="h-6 w-6" />}
           >
             <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-muted-foreground">Puntos</p>
-                <p className="text-2xl font-semibold">{loyaltySummary.points.toLocaleString()} pts</p>
-              </div>
+              {isPyme && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Puntos</p>
+                    <p className="text-2xl font-semibold">{loyaltySummary.points.toLocaleString()} pts</p>
+                  </div>
+              )}
+              {isMunicipio && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Reclamos</p>
+                    <p className="text-2xl font-semibold">{loyaltySummary.claimsFiled}</p>
+                  </div>
+              )}
               <div>
                 <p className="text-sm text-muted-foreground">Encuestas</p>
                 <p className="text-2xl font-semibold">{loyaltySummary.surveysCompleted}</p>
@@ -295,10 +336,6 @@ const UserDashboardPage = () => {
               <div>
                 <p className="text-sm text-muted-foreground">Sugerencias</p>
                 <p className="text-2xl font-semibold">{loyaltySummary.suggestionsShared}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Reclamos</p>
-                <p className="text-2xl font-semibold">{loyaltySummary.claimsFiled}</p>
               </div>
             </div>
           </SummaryCard>
