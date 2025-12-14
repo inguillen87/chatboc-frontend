@@ -73,9 +73,9 @@ const Index = () => {
         <section id="publico-objetivo"> {/* Renombrado el id para consistencia si es necesario */}
           <TargetSection />
         </section>
-        <section id="demos">
+        <div id="demos-wrapper">
           <DemoShowcaseSection />
-        </section>
+        </div>
         <section id="testimonios"> {/* Descomentado y añadido */}
           <TestimonialsSection />
         </section>

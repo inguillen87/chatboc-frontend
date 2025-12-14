@@ -471,11 +471,13 @@ function ChatWidgetInner({
     }
 
     // Then, override primary/secondary colors if explicitly passed via props (URL/Iframe)
-    if (primaryColor) {
-        root.style.setProperty('--primary', hexToHsl(primaryColor));
-    }
-    if (accentColor) {
-        root.style.setProperty('--secondary', hexToHsl(accentColor));
+    // Note: We avoid setting these on 'root' globally if we are in standalone mode on the main landing page,
+    // to prevent breaking the landing page styles. The widget container itself will handle scoped styles via inline styles or class isolation if needed.
+    // However, ShadCN components rely on CSS variables.
+    // If we are in 'iframe' mode, it's safe to set on root.
+    if (mode === 'iframe') {
+        if (primaryColor) root.style.setProperty('--primary', hexToHsl(primaryColor));
+        if (accentColor) root.style.setProperty('--secondary', hexToHsl(accentColor));
     }
 
   }, [entityInfo, primaryColor, accentColor, mode]);
@@ -827,9 +829,10 @@ function ChatWidgetInner({
     const maxHeightVh = viewport.height * 0.85;
     const effectiveMax = Math.min(max, maxHeightVh);
 
-    return !isNaN(desired) && viewport.height
-      ? `${Math.min(desired, effectiveMax)}px`
-      : openHeight;
+    // If "chatito chiquito" issue persists, ensure we default to a reasonable minimum if openHeight is invalid
+    const heightToUse = (!isNaN(desired) && viewport.height) ? Math.min(desired, effectiveMax) : parseInt(openHeight, 10) || 600;
+
+    return `${heightToUse}px`;
   }, [openHeight, viewport.height, initialPosition.bottom, mode]);
 
   const finalClosedWidth = closedWidth;
