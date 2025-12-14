@@ -3,9 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, ArrowRight, MessageSquare, ShoppingBag, BarChart2, Store, Smartphone, FileText, PieChart, Users, CheckCircle2, QrCode } from 'lucide-react';
-import { getTenantPublicInfoFlexible } from '@/api/tenant';
-import type { TenantPublicInfo } from '@/types/tenant';
+import { Loader2, ArrowRight, MessageSquare, ShoppingBag, BarChart2, Store, Smartphone, PieChart, CheckCircle2, QrCode, Users, Calendar, Newspaper, ArrowUpRight } from 'lucide-react';
+import { getTenantPublicInfoFlexible, listTenantNews, listTenantEvents } from '@/api/tenant';
+import type { TenantPublicInfo, TenantNewsItem, TenantEventItem } from '@/types/tenant';
 import { useTenant } from '@/context/TenantContext';
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { DashboardPreview } from '@/components/demo/DashboardPreview';
@@ -79,7 +79,9 @@ const DemoHero = ({ tenant }: { tenant: TenantPublicInfo }) => {
                 <BarChart2 className="w-4 h-4" />
                 Vista previa del {isMunicipio ? 'Panel de Gobierno' : 'Panel de Control'}
              </div>
-             <DashboardPreview type={isMunicipio ? 'municipio' : 'pyme'} tenantName={tenant.nombre} />
+             <div className="h-[300px] w-full">
+                <DashboardPreview type={isMunicipio ? 'municipio' : 'pyme'} tenantName={tenant.nombre} />
+             </div>
         </div>
       </div>
     </div>
@@ -102,6 +104,8 @@ const DemoLandingPage = () => {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
   const [tenant, setTenant] = useState<TenantPublicInfo | null>(null);
+  const [news, setNews] = useState<TenantNewsItem[]>([]);
+  const [events, setEvents] = useState<TenantEventItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { setTenantSlug } = useTenant();
@@ -125,12 +129,21 @@ const DemoLandingPage = () => {
     const loadDemo = async () => {
         try {
             setLoading(true);
+            // Fetch basic tenant info
             const data = await getTenantPublicInfoFlexible(slug);
             setTenant(data);
 
-            // Set global tenant context
+            // Fetch dynamic content
             if (data.slug) {
                 setTenantSlug(data.slug);
+
+                // Parallel fetch for news and events
+                const [newsData, eventsData] = await Promise.all([
+                    listTenantNews(data.slug).catch(() => []),
+                    listTenantEvents(data.slug).catch(() => [])
+                ]);
+                setNews(newsData);
+                setEvents(eventsData);
             }
 
             // Auto-open widget after a short delay for better UX
@@ -174,6 +187,8 @@ const DemoLandingPage = () => {
       );
   }
 
+  const hasContent = news.length > 0 || events.length > 0;
+
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col font-sans">
       <DemoHero tenant={tenant} />
@@ -203,6 +218,59 @@ const DemoLandingPage = () => {
                 desc="El agente aprende de tu documentación y catálogo. Responde preguntas complejas sin intervención humana."
             />
         </div>
+
+        {/* Dynamic Content Section (If Available) */}
+        {hasContent && (
+            <section className="mb-24">
+                <div className="text-center mb-12">
+                    <Badge variant="secondary" className="mb-3">Portal de {tenant.tipo === 'municipio' ? 'Vecinos' : 'Clientes'}</Badge>
+                    <h2 className="text-3xl font-bold mb-4">Últimas Novedades en {tenant.nombre}</h2>
+                    <p className="text-muted-foreground">Contenido real generado automáticamente por la plataforma.</p>
+                </div>
+
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {news.map((item) => (
+                        <Card key={item.id} className="hover:shadow-md transition-shadow cursor-pointer overflow-hidden border-border/50">
+                            {item.cover_url && (
+                                <div className="h-48 w-full bg-muted relative">
+                                    <img src={item.cover_url} alt={item.titulo} className="w-full h-full object-cover" />
+                                    <div className="absolute top-2 right-2 bg-background/90 backdrop-blur px-2 py-1 rounded text-xs font-semibold">Noticia</div>
+                                </div>
+                            )}
+                            <CardHeader>
+                                <CardTitle className="line-clamp-2 text-lg">{item.titulo}</CardTitle>
+                                <CardDescription className="line-clamp-3">{item.resumen}</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <Button variant="link" className="p-0 h-auto text-primary">Leer más <ArrowUpRight className="ml-1 w-3 h-3" /></Button>
+                            </CardContent>
+                        </Card>
+                    ))}
+                    {events.map((item) => (
+                        <Card key={item.id} className="hover:shadow-md transition-shadow cursor-pointer overflow-hidden border-border/50">
+                             {item.cover_url && (
+                                <div className="h-48 w-full bg-muted relative">
+                                    <img src={item.cover_url} alt={item.titulo} className="w-full h-full object-cover" />
+                                    <div className="absolute top-2 right-2 bg-background/90 backdrop-blur px-2 py-1 rounded text-xs font-semibold flex items-center gap-1">
+                                        <Calendar className="w-3 h-3" /> Evento
+                                    </div>
+                                </div>
+                            )}
+                            <CardHeader>
+                                <CardTitle className="line-clamp-2 text-lg">{item.titulo}</CardTitle>
+                                <CardDescription className="flex items-center gap-2 mt-1">
+                                    <Calendar className="w-4 h-4 opacity-70" />
+                                    {item.starts_at ? new Date(item.starts_at).toLocaleDateString() : 'Próximamente'}
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <Button variant="link" className="p-0 h-auto text-primary">Ver detalles <ArrowUpRight className="ml-1 w-3 h-3" /></Button>
+                            </CardContent>
+                        </Card>
+                    ))}
+                </div>
+            </section>
+        )}
 
         {/* Interactive Ecosystem Section */}
         <section id="demo-interactive-section" className="mb-24 scroll-mt-24">

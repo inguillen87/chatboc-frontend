@@ -165,6 +165,25 @@ const userPortalRoutes: RouteConfig[] = [
     element: <UserAccountPage />,
     userPortal: true,
     allowGuest: true,
+  },
+  // Added required generic routes for navigation fallbacks
+  {
+    path: '/noticias/eventos',
+    element: <UserEventsPage />,
+    userPortal: true,
+    allowGuest: true
+  },
+  {
+    path: '/noticias/encuestas',
+    element: <UserSurveysPage />,
+    userPortal: true,
+    allowGuest: true
+  },
+  {
+    path: '/municipio/reclamos/nuevo',
+    element: <TenantTicketFormPage />,
+    userPortal: true,
+    allowGuest: true
   }
 ];
 

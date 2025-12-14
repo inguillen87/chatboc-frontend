@@ -2,7 +2,7 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 // Nuevos iconos representativos
-import { Landmark, Briefcase, CheckCircle, ArrowRight } from 'lucide-react';
+import { Landmark, Briefcase, CheckCircle, ArrowRight, Calendar } from 'lucide-react';
 
 const TargetSection = () => {
   const navigate = useNavigate();
@@ -22,6 +22,11 @@ const TargetSection = () => {
     "Mejora tangible de la eficiencia operativa.",
     "Construcción de relaciones duraderas y leales con clientes.",
   ];
+
+  const handleConsultingClick = () => {
+    // Redirect to external booking link
+    window.open("https://calendly.com/chatboc/demo", "_blank");
+  };
 
   return (
     <section id="publico-objetivo" className="py-16 md:py-24 bg-background text-foreground"> {/* Fondo alterno si es necesario */}
@@ -97,9 +102,9 @@ const TargetSection = () => {
           <Button
             size="lg"
             className="shadow-lg hover:shadow-xl transition-shadow"
-            onClick={() => navigate('/contacto')} // CTA General
+            onClick={handleConsultingClick}
           >
-            Agenda una Consultoría Personalizada
+            <Calendar className="mr-2 h-4 w-4" /> Agenda una Consultoría Personalizada
           </Button>
         </div>
       </div>

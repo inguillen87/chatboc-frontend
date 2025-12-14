@@ -2,6 +2,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { ArrowRight, MessageSquare, FileText, Users, BarChart2, TrendingUp, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 
 export const DashboardPreview = ({ type, tenantName }: { type: 'municipio' | 'pyme', tenantName: string }) => {
     return (
