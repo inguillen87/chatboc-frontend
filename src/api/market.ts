@@ -93,11 +93,6 @@ const mockCatalogResponse = (tenantSlug?: string): MarketCatalogResponse => {
 };
 
 export async function fetchMarketCart(tenantSlug: string): Promise<MarketCartResponse> {
-  // Force local cart for demo tenants to avoid backend errors
-  if (isDemoTenant(tenantSlug)) {
-    return mockCartResponse();
-  }
-
   try {
     return await apiFetch<MarketCartResponse>(`/api/${tenantSlug}/carrito`, {
       tenantSlug,
@@ -176,11 +171,6 @@ export async function addMarketItem(tenantSlug: string, payload: AddToCartPayloa
         }
         throw new Error('Producto demo no encontrado');
   };
-
-  // Force local cart for demo tenants
-  if (isDemoTenant(tenantSlug)) {
-    return addToLocalCart();
-  }
 
   try {
       // Ensure we send the correct Content-Type and handle the response correctly
