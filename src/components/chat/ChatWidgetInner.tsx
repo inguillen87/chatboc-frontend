@@ -214,6 +214,7 @@ function ChatWidgetInner({
   );
 
   const isEmbedded = mode !== "standalone";
+  const isLandingPage = typeof window !== 'undefined' && window.location.pathname === '/';
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1253,7 +1254,7 @@ function ChatWidgetInner({
                     mode={mode}
                     widgetId={widgetId}
                     entityToken={ownerToken}
-                    tenantSlug={resolvedTenantSlug}
+                    tenantSlug={(isLandingPage && resolvedTenantSlug === 'municipio') ? null : resolvedTenantSlug}
                     openWidth={finalOpenWidth}
                     openHeight={finalOpenHeight}
                     onClose={toggleChat}

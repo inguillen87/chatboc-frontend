@@ -36,6 +36,13 @@ const saveLocalDemoCart = (cart: MarketCartResponse) => {
   }
 };
 
+const DEMO_KEYWORDS = ['bodega', 'ferreteria', 'almacen', 'kiosco', 'farmacia', 'restaurante', 'tienda', 'logistica', 'seguros', 'fintech', 'inmobiliaria', 'industria', 'clinica', 'medico', 'local_comercial'];
+
+const isDemoTenant = (slug: string) => {
+  if (slug === 'municipio' || slug === 'demo-municipio') return true;
+  return DEMO_KEYWORDS.some(k => slug.includes(k));
+};
+
 // Helper to mock a cart response from default products
 const mockCartResponse = (): MarketCartResponse => {
   return loadLocalDemoCart();
@@ -86,6 +93,11 @@ const mockCatalogResponse = (tenantSlug?: string): MarketCatalogResponse => {
 };
 
 export async function fetchMarketCart(tenantSlug: string): Promise<MarketCartResponse> {
+  // Force local cart for demo tenants to avoid backend errors
+  if (isDemoTenant(tenantSlug)) {
+    return mockCartResponse();
+  }
+
   try {
     return await apiFetch<MarketCartResponse>(`/api/${tenantSlug}/carrito`, {
       tenantSlug,
@@ -95,7 +107,8 @@ export async function fetchMarketCart(tenantSlug: string): Promise<MarketCartRes
   } catch (error) {
     if (error instanceof ApiError) {
       // Return empty demo cart on auth, not found or server failures so the UI can continue with local cart logic
-      if ([401, 403, 404].includes(error.status) || error.status >= 500) {
+      // Also catch 400 which happens when sending mock product IDs
+      if ([400, 401, 403, 404].includes(error.status) || error.status >= 500) {
         return mockCartResponse();
       }
     }
@@ -117,18 +130,7 @@ export async function fetchMarketCatalog(tenantSlug: string): Promise<MarketCata
 }
 
 export async function addMarketItem(tenantSlug: string, payload: AddToCartPayload): Promise<MarketCartResponse> {
-  try {
-      // Ensure we send the correct Content-Type and handle the response correctly
-      return await apiFetch<MarketCartResponse>(`/api/${tenantSlug}/carrito`, {
-        method: 'POST',
-        body: payload,
-        tenantSlug,
-        omitChatSessionId: true,
-        // Explicitly request session persistence if needed by the backend
-        headers: { 'X-Persist-Session': 'true' }
-      });
-  } catch (error) {
-     if (error instanceof ApiError && ([401, 403, 404].includes(error.status) || error.status >= 500)) {
+  const addToLocalCart = () => {
         // Fallback to local demo cart logic
         const currentCart = loadLocalDemoCart();
 
@@ -172,6 +174,27 @@ export async function addMarketItem(tenantSlug: string, payload: AddToCartPayloa
             saveLocalDemoCart(currentCart);
             return currentCart;
         }
+        throw new Error('Producto demo no encontrado');
+  };
+
+  // Force local cart for demo tenants
+  if (isDemoTenant(tenantSlug)) {
+    return addToLocalCart();
+  }
+
+  try {
+      // Ensure we send the correct Content-Type and handle the response correctly
+      return await apiFetch<MarketCartResponse>(`/api/${tenantSlug}/carrito`, {
+        method: 'POST',
+        body: payload,
+        tenantSlug,
+        omitChatSessionId: true,
+        // Explicitly request session persistence if needed by the backend
+        headers: { 'X-Persist-Session': 'true' }
+      });
+  } catch (error) {
+     if (error instanceof ApiError && ([400, 401, 403, 404].includes(error.status) || error.status >= 500)) {
+        return addToLocalCart();
      }
      throw error;
   }
