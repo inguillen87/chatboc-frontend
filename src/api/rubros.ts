@@ -109,6 +109,7 @@ export const getRubrosHierarchy = async (): Promise<Rubro[]> => {
         console.warn("Backend rubros empty or invalid, using fallback hierarchy");
         return DEMO_HIERARCHY;
     } catch (error) {
+        // If error is 404 or network, use DEMO_HIERARCHY
         console.warn("Error fetching rubros, using fallback hierarchy", error);
         return DEMO_HIERARCHY;
     }

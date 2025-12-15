@@ -846,10 +846,11 @@ function ChatWidgetInner({
     const effectiveMax = Math.min(max, maxHeightVh);
 
     // If "chatito chiquito" issue persists, ensure we default to a reasonable minimum if openHeight is invalid
-    const finalHeight = (viewport.height) ? Math.min(heightToUse, effectiveMax) : heightToUse;
+    // If calculating against viewport, make sure we at least respect the requested height if viewport is weirdly small (unless mobile)
+    const finalHeight = (viewport.height && !isMobileView) ? Math.min(heightToUse, effectiveMax) : (isMobileView ? viewport.height : heightToUse);
 
     return `${finalHeight}px`;
-  }, [openHeight, viewport.height, initialPosition.bottom, mode]);
+  }, [openHeight, viewport.height, initialPosition.bottom, mode, isMobileView]);
 
   const finalClosedWidth = closedWidth;
   const finalClosedHeight = closedHeight;

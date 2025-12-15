@@ -10,6 +10,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { useTenant } from '@/context/TenantContext';
 import { DEFAULT_PUBLIC_PRODUCTS } from '@/data/defaultProducts';
+import { DEMO_CATALOGS as MOCK_CATALOGS } from '@/data/mockCatalogs';
 import { enhanceProductDetails, normalizeProductsPayload } from '@/utils/cartPayload';
 import { addProductToLocalCart } from '@/utils/localCart';
 import useCartCount from '@/hooks/useCartCount';
@@ -22,8 +23,14 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { addMarketItem } from '@/api/market'; // Import centralized function
 
-export default function ProductCatalog() {
+interface ProductCatalogProps {
+  tenantSlug?: string;
+  isDemoMode?: boolean;
+}
+
+export default function ProductCatalog({ tenantSlug: propTenantSlug, isDemoMode }: ProductCatalogProps) {
   const [allProducts, setAllProducts] = useState<ProductDetails[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<ProductDetails[]>([]);
   const [loading, setLoading] = useState(true);
@@ -39,8 +46,8 @@ export default function ProductCatalog() {
   const { user } = useUser();
   const cartCount = useCartCount();
   const effectiveTenantSlug = useMemo(
-    () => currentSlug ?? user?.tenantSlug ?? safeLocalStorage.getItem('tenantSlug') ?? null,
-    [currentSlug, user?.tenantSlug],
+    () => propTenantSlug ?? currentSlug ?? user?.tenantSlug ?? safeLocalStorage.getItem('tenantSlug') ?? null,
+    [propTenantSlug, currentSlug, user?.tenantSlug],
   );
   const { points: pointsBalance, requiresAuth: pointsRequireAuth, error: pointsError } = usePointsBalance({
     enabled: !!user,
@@ -58,10 +65,7 @@ export default function ProductCatalog() {
     () => buildTenantApiPath('/productos', effectiveTenantSlug),
     [effectiveTenantSlug],
   );
-  const cartApiPath = useMemo(
-    () => buildTenantApiPath('/carrito', effectiveTenantSlug),
-    [effectiveTenantSlug],
-  );
+
   const shouldShowDemoLoyalty = catalogSource === 'fallback' || cartMode === 'local';
   const shouldShowLiveLoyalty = !shouldShowDemoLoyalty && !!user;
   const isAdmin = useMemo(() => {
@@ -85,27 +89,35 @@ export default function ProductCatalog() {
     );
   };
 
-  const addProductLocally = (product: ProductDetails, options: AddToCartOptions) => {
-    const unitsPerCase = product.unidades_por_caja && product.unidades_por_caja > 0
-      ? product.unidades_por_caja
-      : 1;
-    const quantity = Math.max(1, Math.floor(options.quantity));
-    const mode = options.mode === 'case' && product.precio_por_caja && product.unidades_por_caja
-      ? 'case'
-      : 'unit';
-    const totalUnits = mode === 'case' ? quantity * unitsPerCase : quantity;
-    addProductToLocalCart(product, totalUnits);
-    toast({
-      title: '✅ Producto agregado',
-      description: `${product.nombre} se agregó al carrito en modo invitado (${quantity} ${mode === 'case' ? 'cajas' : 'unidades'}). Escribe “Ver carrito” para revisarlo.`,
-    });
-  };
-
   const activateDemoCatalog = () => {
     setCatalogSource('fallback');
     setCartMode('local');
-    setAllProducts(DEFAULT_PUBLIC_PRODUCTS);
-    setFilteredProducts(DEFAULT_PUBLIC_PRODUCTS);
+    let sourceProducts = DEFAULT_PUBLIC_PRODUCTS;
+
+    if (effectiveTenantSlug) {
+        // Find matching mock catalog key
+        const key = Object.keys(MOCK_CATALOGS).find(k => effectiveTenantSlug.includes(k));
+
+        if (key) {
+            sourceProducts = MOCK_CATALOGS[key].map(p => ({
+                id: String(p.id),
+                nombre: p.name,
+                descripcion: p.description ?? null,
+                precio_unitario: typeof p.price === 'number' ? p.price : parseFloat(String(p.price || 0)),
+                modalidad: p.modality ?? 'venta',
+                precio_puntos: p.points ?? null,
+                imagen_url: p.image ?? null,
+                categoria: p.category ?? null,
+                marca: p.brand ?? null,
+                promocion_activa: p.promoInfo ?? null,
+                disponible: true,
+                origen: 'demo' as const
+            }));
+        }
+    }
+
+    setAllProducts(sourceProducts);
+    setFilteredProducts(sourceProducts);
     setError(null);
     setHasDemoModalities(false);
   };
@@ -133,6 +145,17 @@ export default function ProductCatalog() {
   useEffect(() => {
     setLoading(true);
     setError(null);
+
+    // If demo mode is explicitly enabled and we have a matching mock, load it immediately
+    if (isDemoMode && effectiveTenantSlug) {
+        const key = Object.keys(MOCK_CATALOGS).find(k => effectiveTenantSlug.includes(k));
+        if (key) {
+            activateDemoCatalog();
+            setLoading(false);
+            return;
+        }
+    }
+
     if (!effectiveTenantSlug) {
       activateDemoCatalog();
       setLoading(false);
@@ -243,43 +266,24 @@ export default function ProductCatalog() {
       return;
     }
 
-    try {
-      const unitsPerCase = product.unidades_por_caja && product.unidades_por_caja > 0
+    const unitsPerCase = product.unidades_por_caja && product.unidades_por_caja > 0
         ? product.unidades_por_caja
         : 1;
 
-      const quantity = Math.max(1, Math.floor(options.quantity));
-      const mode = options.mode === 'case' && product.precio_por_caja && product.unidades_por_caja
+    const quantity = Math.max(1, Math.floor(options.quantity));
+    const mode = options.mode === 'case' && product.precio_por_caja && product.unidades_por_caja
         ? 'case'
         : 'unit';
 
-      const totalUnits = mode === 'case' ? quantity * unitsPerCase : quantity;
+    const totalUnits = mode === 'case' ? quantity * unitsPerCase : quantity;
+    const quantityLabel = `${quantity} ${mode === 'case' ? 'caja(s)' : 'unidad(es)'}`;
 
-      const quantityLabel = `${quantity} ${mode === 'case' ? 'caja(s)' : 'unidad(es)'}`;
-
-      const persistLocalCart = () => addProductToLocalCart(product, totalUnits);
+    try {
       const isDemoProduct = product.origen === 'demo';
-      const shouldUseLocalCart = cartMode === 'local' || isDemoProduct;
-
-      const payload: Record<string, unknown> = {
-        nombre: product.nombre,
-        cantidad: totalUnits,
-        modo_compra: mode,
-        precio_unitario: Number(product.precio_unitario) || 0,
-        modalidad: product.modalidad ?? 'venta',
-        precio_puntos: product.precio_puntos ?? undefined,
-      };
-
-      if (mode === 'case') {
-        payload['cantidad_cajas'] = quantity;
-        payload['unidades_por_caja'] = unitsPerCase;
-        if (product.precio_por_caja) {
-          payload['precio_por_caja'] = Number(product.precio_por_caja) || undefined;
-        }
-      }
+      const shouldUseLocalCart = cartMode === 'local' || isDemoProduct || !effectiveTenantSlug;
 
       if (shouldUseLocalCart) {
-        persistLocalCart();
+        addProductToLocalCart(product, totalUnits);
         toast({
           title: '✅ Producto agregado',
           description: `${product.nombre} se guardó en tu carrito (${quantityLabel}). Escribe “Ver carrito” o usa el botón para continuar.`,
@@ -287,34 +291,30 @@ export default function ProductCatalog() {
         return;
       }
 
-      persistLocalCart();
+      // Use centralized API function which handles correct payload and 400/fallback internally
+      if (effectiveTenantSlug) {
+          await addMarketItem(effectiveTenantSlug, {
+              productId: String(product.id),
+              quantity: totalUnits
+          });
+          toast({
+            title: "✅ Producto agregado",
+            description: `${product.nombre} agregado al carrito. Escribe “Ver carrito” para continuar o toca el ícono de carrito.`,
+            className: "bg-green-500 text-white",
+          });
+      }
 
-      // El backend actual espera 'nombre' y 'cantidad'.
-      // Si los nombres no son únicos, esto debería cambiar a product.id o product.sku
-      await apiFetch(cartApiPath, {
-        ...sharedRequestOptions,
-        method: 'POST',
-        body: payload,
-      });
-      toast({
-        title: "✅ Producto agregado",
-        description: `${product.nombre} agregado al carrito. Escribe “Ver carrito” para continuar o toca el ícono de carrito.`,
-        className: "bg-green-500 text-white",
-      });
     } catch (err) {
+      // Fallback handled by addMarketItem implicitly by returning local cart if API fails with 40x
+      // But if it throws completely, we catch here.
+      // Check if the error suggests we should switch to local mode
       if (shouldUseDemoCatalog(err)) {
         setCartMode('local');
-        if (cartMode === 'api') {
-          toast({
+        addProductToLocalCart(product, totalUnits);
+        toast({
             title: 'Modo demo activo',
             description: `${product.nombre} se guardó en tu carrito local (${quantityLabel}).`,
-          });
-        } else {
-          toast({
-            title: 'Modo demo activo',
-            description: `${product.nombre} se guardó en tu carrito (${quantityLabel}).`,
-          });
-        }
+        });
         return;
       }
 
