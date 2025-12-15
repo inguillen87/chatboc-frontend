@@ -45,7 +45,13 @@ export const getFallbackTenantInfo = (slug: string | null | undefined, token?: s
             tipo: 'pyme',
             descripcion: 'Vinos de autor, catas y envíos a todo el país.',
             logo_url: 'https://cdn-icons-png.flaticon.com/512/920/920583.png', // Wine bottle & glass icon
-            tema: { primaryColor: '#722F37', secondaryColor: '#A52A2A' } // Wine colors
+            tema: { primaryColor: '#722F37', secondaryColor: '#A52A2A' }, // Wine colors
+            cta_messages: [
+                { text: "¿Buscas un vino para una ocasión especial?", action: "recomendar_vino" },
+                { text: "Consultá nuestros horarios de cata", action: "horarios_cata" },
+                { text: "Hacemos envíos a todo el país 🍷", action: "envios" }
+            ],
+            default_open: true
         };
     }
     if (s.includes('ferreteria')) {
@@ -56,7 +62,13 @@ export const getFallbackTenantInfo = (slug: string | null | undefined, token?: s
             tipo: 'pyme',
             descripcion: 'Herramientas profesionales y asesoramiento técnico.',
             logo_url: 'https://cdn-icons-png.flaticon.com/512/1037/1037970.png', // Hammer/Wrench icon
-            tema: { primaryColor: '#F97316', secondaryColor: '#475569' } // Orange/Slate
+            tema: { primaryColor: '#F97316', secondaryColor: '#475569' }, // Orange/Slate
+            cta_messages: [
+                { text: "¿Necesitás herramientas para tu proyecto?", action: "buscar_herramienta" },
+                { text: "Asesoramiento técnico inmediato", action: "asesoramiento" },
+                { text: "Pedí tu presupuesto por aquí", action: "presupuesto" }
+            ],
+            default_open: true
         };
     }
     if (s.includes('almacen') || s.includes('kiosco')) {
@@ -67,7 +79,12 @@ export const getFallbackTenantInfo = (slug: string | null | undefined, token?: s
             tipo: 'pyme',
             descripcion: 'Todo lo que necesitás para tu hogar, cerca de vos.',
             logo_url: 'https://cdn-icons-png.flaticon.com/512/3081/3081986.png', // Groceries icon
-            tema: { primaryColor: '#16A34A', secondaryColor: '#FCD34D' }
+            tema: { primaryColor: '#16A34A', secondaryColor: '#FCD34D' },
+            cta_messages: [
+                { text: "Hacé tu pedido y te lo llevamos 🛒", action: "hacer_pedido" },
+                { text: "Consultá precios y ofertas", action: "ofertas" }
+            ],
+            default_open: true
         };
     }
     if (s.includes('farmacia')) {

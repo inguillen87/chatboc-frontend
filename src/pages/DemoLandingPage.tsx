@@ -11,11 +11,13 @@ import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { DashboardPreview } from '@/components/demo/DashboardPreview';
 import ProductCatalog from '@/pages/ProductCatalog';
 import { MarketCartProvider } from '@/context/MarketCartContext';
+import { VotingWidget } from '@/components/demo/VotingWidget';
+import { ContextualSurvey } from '@/components/demo/ContextualSurvey';
 
 // --- Components for Visual Enhancement ---
 
 const DemoHero = ({ tenant }: { tenant: TenantPublicInfo }) => {
-  const isMunicipio = tenant.tipo === 'municipio';
+  const isMunicipio = tenant.tipo === 'municipio' || tenant.slug === 'municipio' || tenant.slug === 'demo-municipio';
 
   return (
     <div className="relative bg-gradient-to-b from-background via-muted/20 to-background pt-24 pb-32 overflow-hidden">
@@ -189,6 +191,7 @@ const DemoLandingPage = () => {
   }
 
   const hasContent = news.length > 0 || events.length > 0;
+  const isMunicipio = tenant.tipo === 'municipio' || tenant.slug === 'municipio' || tenant.slug === 'demo-municipio';
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col font-sans">
@@ -224,7 +227,7 @@ const DemoLandingPage = () => {
         {hasContent && (
             <section className="mb-24">
                 <div className="text-center mb-12">
-                    <Badge variant="secondary" className="mb-3">Portal de {tenant.tipo === 'municipio' ? 'Vecinos' : 'Clientes'}</Badge>
+                    <Badge variant="secondary" className="mb-3">Portal de {isMunicipio ? 'Vecinos' : 'Clientes'}</Badge>
                     <h2 className="text-3xl font-bold mb-4">Últimas Novedades en {tenant.nombre}</h2>
                     <p className="text-muted-foreground">Contenido real generado automáticamente por la plataforma.</p>
                 </div>
@@ -278,17 +281,17 @@ const DemoLandingPage = () => {
             <div className="text-center mb-12">
                  <Badge variant="secondary" className="mb-3">Experiencia del Usuario</Badge>
                  <h2 className="text-3xl font-bold mb-4">
-                     {tenant.tipo === 'municipio' ? 'Participación Ciudadana en Acción' : 'Tu Catálogo Digital Inteligente'}
+                     {isMunicipio ? 'Participación Ciudadana en Acción' : 'Tu Catálogo Digital Inteligente'}
                  </h2>
                  <p className="text-muted-foreground max-w-2xl mx-auto">
-                     {tenant.tipo === 'municipio'
+                     {isMunicipio
                         ? 'Así ven tus vecinos las encuestas y servicios digitales. Pruébalo ahora mismo.'
                         : 'Tus clientes pueden navegar, comprar y pagar sin salir del chat. Integración total con WhatsApp.'}
                  </p>
             </div>
 
             <div className="bg-card border rounded-3xl overflow-hidden shadow-sm">
-                {tenant.tipo === 'municipio' ? (
+                {isMunicipio ? (
                     // Government / Survey Mock
                     <div className="grid md:grid-cols-2">
                         <div className="p-8 md:p-12 flex flex-col justify-center bg-muted/30">
@@ -297,35 +300,11 @@ const DemoLandingPage = () => {
                                  Ejemplo real de votación ciudadana. Los vecinos eligen qué obras priorizar en su barrio mediante un formulario simple y seguro.
                              </p>
                              <div className="bg-background rounded-xl p-6 shadow-sm border max-w-md w-full mx-auto md:mx-0">
-                                 {demoVote ? (
-                                     <div className="text-center py-8">
-                                         <CheckCircle2 className="w-16 h-16 text-green-500 mx-auto mb-4" />
-                                         <h4 className="text-xl font-bold mb-2">¡Voto Registrado!</h4>
-                                         <p className="text-muted-foreground text-sm">
-                                             Gracias por participar. En un entorno real, esto actualiza el panel de gestión en tiempo real.
-                                         </p>
-                                         <Button variant="ghost" size="sm" className="mt-4" onClick={() => setDemoVote(null)}>Votar de nuevo</Button>
-                                     </div>
-                                 ) : (
-                                     <div className="space-y-4">
-                                         <div className="space-y-2">
-                                             <label className="text-sm font-medium">¿Qué obra priorizarías?</label>
-                                             <div className="space-y-2">
-                                                 {['Mejoras en Plazas', 'Nuevas Luminarias LED', 'Cámaras de Seguridad'].map((opt) => (
-                                                     <div
-                                                        key={opt}
-                                                        className="flex items-center space-x-3 border p-3 rounded-lg hover:bg-muted cursor-pointer transition-colors"
-                                                        onClick={() => setDemoVote(opt)}
-                                                     >
-                                                         <div className={`w-4 h-4 rounded-full border ${demoVote === opt ? 'border-primary bg-primary' : 'border-muted-foreground'}`}></div>
-                                                         <span className="text-sm">{opt}</span>
-                                                     </div>
-                                                 ))}
-                                             </div>
-                                         </div>
-                                         <Button className="w-full" disabled={!demoVote} onClick={() => setDemoVote('submitted')}>Enviar Voto (Demo)</Button>
-                                     </div>
-                                 )}
+                                 <VotingWidget
+                                    question="¿Qué obra priorizarías en tu barrio?"
+                                    yesLabel="Nuevas Luminarias LED"
+                                    noLabel="Mejoras en Plazas"
+                                 />
                              </div>
                         </div>
                         <div className="bg-primary/5 p-8 md:p-12 flex items-center justify-center">
@@ -340,18 +319,30 @@ const DemoLandingPage = () => {
                     </div>
                 ) : (
                     // Retail / Catalog Embed
-                    <div className="min-h-[600px] border-t relative">
-                        {tenant.slug ? (
-                            <MarketCartProvider tenantSlug={tenant.slug}>
-                                <div className="h-full bg-muted/10 p-4">
-                                    <ProductCatalog tenantSlug={tenant.slug} isDemoMode={true} />
+                    <div className="min-h-[600px] border-t relative grid grid-cols-1 lg:grid-cols-3">
+                        <div className="lg:col-span-2 border-r border-border/50">
+                            {tenant.slug ? (
+                                <MarketCartProvider tenantSlug={tenant.slug}>
+                                    <div className="h-full bg-muted/10 p-4">
+                                        <ProductCatalog tenantSlug={tenant.slug} isDemoMode={true} />
+                                    </div>
+                                </MarketCartProvider>
+                            ) : (
+                                <div className="flex items-center justify-center h-full p-12 text-muted-foreground">
+                                    Catálogo no disponible en esta demo.
                                 </div>
-                            </MarketCartProvider>
-                        ) : (
-                            <div className="flex items-center justify-center h-full p-12 text-muted-foreground">
-                                Catálogo no disponible en esta demo.
+                            )}
+                        </div>
+                        <div className="p-6 bg-background flex flex-col justify-center items-center text-center">
+                            <div className="mb-6">
+                                <Badge variant="outline" className="mb-2">Feedback de Clientes</Badge>
+                                <h4 className="font-semibold text-lg">Encuestas Contextuales</h4>
+                                <p className="text-sm text-muted-foreground mt-1">
+                                    Captura datos valiosos después de cada compra o interacción.
+                                </p>
                             </div>
-                        )}
+                            <ContextualSurvey />
+                        </div>
                     </div>
                 )}
             </div>
@@ -362,7 +353,7 @@ const DemoLandingPage = () => {
 
              <div className="relative z-10 grid md:grid-cols-2 gap-12 items-center">
                  <div>
-                    <h2 className="text-3xl font-bold mb-6">¿Listo para transformar tu {tenant.tipo === 'municipio' ? 'gestión pública' : 'negocio'}?</h2>
+                    <h2 className="text-3xl font-bold mb-6">¿Listo para transformar tu {isMunicipio ? 'gestión pública' : 'negocio'}?</h2>
                     <ul className="space-y-4 mb-8">
                         {[
                             'Configuración en menos de 5 minutos',

@@ -8,7 +8,7 @@ import {
   CheckoutStartPayload
 } from '@/types/market';
 import { DEFAULT_PUBLIC_PRODUCTS } from '@/data/defaultProducts';
-import { MOCK_CATALOGS } from '@/data/mockCatalogs';
+import { DEMO_CATALOGS as MOCK_CATALOGS } from '@/data/mockCatalogs';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
 // Local storage key for demo cart persistence

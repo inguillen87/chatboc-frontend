@@ -103,7 +103,7 @@ const DEFAULT_TENANT_CONTEXT: TenantContextValue = {
   unfollowCurrentTenant: async () => {},
 };
 
-const TENANT_PATH_REGEX = new RegExp(`^/(?:${TENANT_ROUTE_PREFIXES.join('|')})/([^/]+)`, 'i');
+const TENANT_PATH_REGEX = new RegExp(`^/(?:${TENANT_ROUTE_PREFIXES.join('|')}|demo)/([^/]+)`, 'i');
 
 const sanitizeTenantSlug = (slug?: string | null) => {
   if (!slug) return null;
@@ -143,6 +143,17 @@ const extractSlugFromLocation = (pathname: string, search: string): string | nul
       console.warn('[TenantContext] No se pudo decodificar el slug de la URL', error);
       return match[1];
     }
+  }
+
+  // Handle direct tenant paths (e.g. /bodega/productos)
+  // We exclude reserved prefixes
+  const segments = pathname.split('/').filter(Boolean);
+  if (segments.length > 0) {
+      const potentialSlug = segments[0];
+      const reserved = new Set([...LOCAL_PLACEHOLDER_SLUGS, ...TENANT_ROUTE_PREFIXES, 'demo']);
+      if (!reserved.has(potentialSlug.toLowerCase())) {
+          return sanitizeTenantSlug(potentialSlug);
+      }
   }
 
   if (search) {
