@@ -24,7 +24,7 @@ import { getRubrosHierarchy } from "@/api/rubros";
 import { useUser } from "@/hooks/useUser";
 import { useBusinessHours } from "@/hooks/useBusinessHours";
 import { Button } from "@/components/ui/button";
-import io from 'socket.io-client';
+import { io } from 'socket.io-client';
 import { getSocketUrl, SOCKET_PATH } from "@/config";
 import { safeOn, assertEventSource } from "@/utils/safeOn";
 import { Loader2 } from "lucide-react";

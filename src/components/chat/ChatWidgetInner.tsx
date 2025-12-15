@@ -20,7 +20,7 @@ import { toast } from "sonner";
 import { tenantService } from "@/services/tenantService";
 import { ChatWidgetProps } from "./types";
 import { MOCK_TENANT_INFO, MOCK_JUNIN_TENANT_INFO } from "@/data/mockTenantData";
-import { hexToHsl } from "@/utils/color";
+import { hexToHsl, getContrastColorHsl } from "@/utils/color";
 
 // LOCAL_PLACEHOLDER_SLUGS is used to prevent the widget from treating reserved paths as tenant slugs.
 // We also alias it to PLACEHOLDER_SLUGS_SET just in case some stale build/import relies on that name.
@@ -464,7 +464,11 @@ function ChatWidgetInner({
           Object.entries(theme).forEach(([key, value]) => {
             // Apply only to the widget container if standalone, or global root if iframe
              if (target) {
-                if (key === 'primary') target.style.setProperty('--primary', value as string);
+                if (key === 'primary') {
+                    target.style.setProperty('--primary', value as string);
+                    // Assume value is HSL or can be converted. If from theme config, it might already be HSL?
+                    // Usually theme config has raw colors. Assuming HSL for now as per ShadCN convention.
+                }
                 if (key === 'secondary') target.style.setProperty('--secondary', value as string);
                 if (key === 'background') target.style.setProperty('--background', value as string);
                 if (key === 'text') target.style.setProperty('--foreground', value as string);
@@ -481,8 +485,14 @@ function ChatWidgetInner({
     // to prevent breaking the landing page styles. The widget container itself will handle scoped styles via inline styles or class isolation if needed.
     // However, ShadCN components rely on CSS variables.
     // If we are in 'iframe' mode, it's safe to set on root.
-    if (primaryColor && target) target.style.setProperty('--primary', hexToHsl(primaryColor));
-    if (accentColor && target) target.style.setProperty('--secondary', hexToHsl(accentColor));
+    if (primaryColor && target) {
+        target.style.setProperty('--primary', hexToHsl(primaryColor));
+        target.style.setProperty('--primary-foreground', getContrastColorHsl(primaryColor));
+    }
+    if (accentColor && target) {
+        target.style.setProperty('--secondary', hexToHsl(accentColor));
+        target.style.setProperty('--secondary-foreground', getContrastColorHsl(accentColor));
+    }
 
 
   }, [entityInfo, primaryColor, accentColor, mode]);
