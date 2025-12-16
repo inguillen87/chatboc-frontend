@@ -532,7 +532,8 @@ const ChatPanel = ({
 
             // If we are already at bottom OR it's a short conversation OR the message is brand new, force scroll.
             if (atBottom || isShort || isVeryRecent) {
-                messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+                // Use 'auto' instead of 'smooth' to ensure reliable scrolling in iframes and prevent layout jumps
+                messagesEndRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
                 setShowScrollDown(false);
             } else {
                 setShowScrollDown(true);

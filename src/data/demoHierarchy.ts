@@ -35,8 +35,8 @@ export const DEMO_HIERARCHY: Rubro[] = [
         subrubros: [
           { id: 201, nombre: "Almacén de Barrio", padre_id: 21, demo: { id: 201, slug: "almacen", nombre: "Almacén Demo", descripcion: "Pedidos por foto y stock." } },
           { id: 204, nombre: "Bodega Boutique", padre_id: 21, demo: { id: 204, slug: "bodega", nombre: "Bodega Demo", descripcion: "Vinos, catas y envíos." } },
-          { id: 205, nombre: "Kiosco 24hs", padre_id: 21, demo: { id: 205, slug: "almacen", nombre: "Kiosco Demo", descripcion: "Snacks y bebidas." } },
-          { id: 206, nombre: "Gastronomía", padre_id: 21, demo: { id: 206, slug: "bodega", nombre: "Restaurante Demo", descripcion: "Reservas y menú digital." } }
+          { id: 205, nombre: "Kiosco 24hs", padre_id: 21, demo: { id: 205, slug: "kiosco", nombre: "Kiosco Demo", descripcion: "Snacks y bebidas." } },
+          { id: 206, nombre: "Gastronomía", padre_id: 21, demo: { id: 206, slug: "restaurante", nombre: "Restaurante Demo", descripcion: "Reservas y menú digital." } }
         ]
       },
       {
@@ -45,7 +45,7 @@ export const DEMO_HIERARCHY: Rubro[] = [
         padre_id: 2,
         subrubros: [
            { id: 202, nombre: "Ferretería Técnica", padre_id: 22, demo: { id: 202, slug: "ferreteria", nombre: "Ferretería Demo", descripcion: "Asesoramiento y catálogo." } },
-           { id: 203, nombre: "Tienda de Ropa", padre_id: 22, demo: { id: 203, slug: "local_comercial_general", nombre: "Tienda de Ropa Demo", descripcion: "Moda, talles y reservas." } }
+           { id: 203, nombre: "Tienda de Ropa", padre_id: 22, demo: { id: 203, slug: "tienda_ropa", nombre: "Tienda de Ropa Demo", descripcion: "Moda, talles y reservas." } }
         ]
       },
       {
@@ -53,11 +53,11 @@ export const DEMO_HIERARCHY: Rubro[] = [
         nombre: "Servicios Profesionales",
         padre_id: 2,
         subrubros: [
-          { id: 302, nombre: "Logística y Transporte", padre_id: 23, demo: { id: 302, slug: "ferreteria", nombre: "Logística Demo", descripcion: "Seguimiento y cotizaciones." } },
-          { id: 303, nombre: "Seguros y Riesgos", padre_id: 23, demo: { id: 303, slug: "medico_general", nombre: "Seguros Demo", descripcion: "Pólizas y siniestros." } },
-          { id: 304, nombre: "Fintech y Banca", padre_id: 23, demo: { id: 304, slug: "medico_general", nombre: "Fintech Demo", descripcion: "Atención al cliente 24/7." } },
-          { id: 305, nombre: "Inmobiliaria", padre_id: 23, demo: { id: 305, slug: "medico_general", nombre: "Inmobiliaria Demo", descripcion: "Propiedades y citas." } },
-          { id: 306, nombre: "Energía e Industria", padre_id: 23, demo: { id: 306, slug: "ferreteria", nombre: "Industria Demo", descripcion: "Soporte técnico y ventas." } }
+          { id: 302, nombre: "Logística y Transporte", padre_id: 23, demo: { id: 302, slug: "logistica", nombre: "Logística Demo", descripcion: "Seguimiento y cotizaciones." } },
+          { id: 303, nombre: "Seguros y Riesgos", padre_id: 23, demo: { id: 303, slug: "seguros", nombre: "Seguros Demo", descripcion: "Pólizas y siniestros." } },
+          { id: 304, nombre: "Fintech y Banca", padre_id: 23, demo: { id: 304, slug: "fintech", nombre: "Fintech Demo", descripcion: "Atención al cliente 24/7." } },
+          { id: 305, nombre: "Inmobiliaria", padre_id: 23, demo: { id: 305, slug: "inmobiliaria", nombre: "Inmobiliaria Demo", descripcion: "Propiedades y citas." } },
+          { id: 306, nombre: "Energía e Industria", padre_id: 23, demo: { id: 306, slug: "industria", nombre: "Industria Demo", descripcion: "Soporte técnico y ventas." } }
         ]
       },
       {
@@ -65,8 +65,8 @@ export const DEMO_HIERARCHY: Rubro[] = [
         nombre: "Salud y Bienestar",
         padre_id: 2,
         subrubros: [
-          { id: 301, nombre: "Salud y Medicina", padre_id: 24, demo: { id: 301, slug: "medico_general", nombre: "Clínica Demo", descripcion: "Turnos y consultas." } },
-          { id: 307, nombre: "Farmacia", padre_id: 24, demo: { id: 307, slug: "almacen", nombre: "Farmacia Demo", descripcion: "Recetas y envíos." } }
+          { id: 301, nombre: "Salud y Medicina", padre_id: 24, demo: { id: 301, slug: "clinica", nombre: "Clínica Demo", descripcion: "Turnos y consultas." } },
+          { id: 307, nombre: "Farmacia", padre_id: 24, demo: { id: 307, slug: "farmacia", nombre: "Farmacia Demo", descripcion: "Recetas y envíos." } }
         ]
       }
     ]

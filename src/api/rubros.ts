@@ -49,7 +49,14 @@ export const buildRubroTree = (flatRubros: Rubro[]): Rubro[] => {
 
 export const getRubrosHierarchy = async (): Promise<Rubro[]> => {
     try {
-        const backendData = await fetchRubros();
+        let backendData: Rubro[] = [];
+        try {
+            backendData = await fetchRubros();
+        } catch (e) {
+            console.warn("Backend rubros fetch failed, using fallback hierarchy", e);
+            // Don't return yet, proceed to merge logic with empty data (which triggers full fallback)
+            backendData = [];
+        }
 
         // If backend returns data, try to merge it.
         // Even if array is present, it might be incomplete.
@@ -88,16 +95,18 @@ export const getRubrosHierarchy = async (): Promise<Rubro[]> => {
                  }
             }
 
-            // Final check: if tree is still "empty" (e.g. backend sent [] and logic above failed for some reason), fallback.
-            if (tree.length > 0) {
-                return tree;
+            // Final check: if tree is still "empty" or missing key roots, just fallback to full DEMO_HIERARCHY
+            if (tree.length === 0) {
+                return DEMO_HIERARCHY;
             }
+
+            return tree;
         }
 
-        console.warn("Backend rubros empty or invalid, using fallback hierarchy");
+        console.warn("Backend rubros invalid format, using fallback hierarchy");
         return DEMO_HIERARCHY;
     } catch (error) {
-        console.warn("Error fetching rubros, using fallback hierarchy", error);
+        console.warn("Error processing rubros hierarchy, using fallback hierarchy", error);
         return DEMO_HIERARCHY;
     }
 };
