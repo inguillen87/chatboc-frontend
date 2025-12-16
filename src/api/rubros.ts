@@ -36,8 +36,11 @@ export const buildRubroTree = (flatRubros: Rubro[]): Rubro[] => {
         parent.subrubros!.push(node);
       }
     } else {
-      // It's a root
-      roots.push(node);
+      // It's a root or orphan
+      // Only push to roots if it doesn't have a parent in the map.
+      if (!r.padre_id || !map.has(r.padre_id)) {
+           roots.push(node);
+      }
     }
   });
 
@@ -48,68 +51,52 @@ export const getRubrosHierarchy = async (): Promise<Rubro[]> => {
     try {
         const backendData = await fetchRubros();
 
-        if (Array.isArray(backendData) && backendData.length > 0) {
-            // Build the tree from the backend data
+        // If backend returns data, try to merge it.
+        // Even if array is present, it might be incomplete.
+        if (Array.isArray(backendData)) {
             const tree = buildRubroTree(backendData);
 
-            // Ensure "Municipios" (ID 1) is present and has children
-            const municipioNodeIndex = tree.findIndex(root =>
-                root.nombre.toLowerCase().includes('municipio') ||
-                root.clave === 'municipios_root' ||
-                root.id === 1
+            // 1. Ensure "Soluciones para Sector Público" (ID 1) exists
+            let municipioNode = tree.find(root =>
+                root.id === 1 || root.clave === 'municipios_root'
             );
 
-            const demoMunicipios = DEMO_HIERARCHY.find(d => d.id === 1 || d.clave === 'municipios_root');
+            const demoMunicipios = DEMO_HIERARCHY.find(d => d.id === 1);
 
-            if (municipioNodeIndex === -1) {
-                // Completely missing, inject demo
-                if (demoMunicipios) {
-                    tree.unshift(demoMunicipios);
-                }
-            } else {
-                // Exists, check if empty
-                const existingNode = tree[municipioNodeIndex];
-                if (!existingNode.subrubros || existingNode.subrubros.length === 0) {
-                     if (demoMunicipios && demoMunicipios.subrubros) {
-                         existingNode.subrubros = demoMunicipios.subrubros;
-                     }
+            if (!municipioNode && demoMunicipios) {
+                // If totally missing, add the demo one
+                tree.unshift(JSON.parse(JSON.stringify(demoMunicipios)));
+            } else if (municipioNode && demoMunicipios) {
+                // If exists, merge children if missing
+                if (!municipioNode.subrubros || municipioNode.subrubros.length === 0) {
+                     municipioNode.subrubros = JSON.parse(JSON.stringify(demoMunicipios.subrubros));
                 }
             }
 
-            // Ensure "Locales Comerciales" (ID 2) is present and has children
-            const comercialesNodeIndex = tree.findIndex(root =>
-                root.nombre.toLowerCase().includes('comerciales') ||
-                root.clave === 'comerciales_root' ||
-                root.id === 2
+            // 2. Ensure "Soluciones para Empresas" (ID 2) exists
+            let comercialesNode = tree.find(root =>
+                root.id === 2 || root.clave === 'comerciales_root'
             );
 
-            const demoComerciales = DEMO_HIERARCHY.find(d => d.id === 2 || d.clave === 'comerciales_root');
+            const demoComerciales = DEMO_HIERARCHY.find(d => d.id === 2);
 
-            if (comercialesNodeIndex === -1) {
-                // Completely missing, inject demo
-                if (demoComerciales) {
-                    tree.push(demoComerciales);
-                }
-            } else {
-                 // Exists, check if empty
-                const existingNode = tree[comercialesNodeIndex];
-                if (!existingNode.subrubros || existingNode.subrubros.length === 0) {
-                     if (demoComerciales && demoComerciales.subrubros) {
-                         existingNode.subrubros = demoComerciales.subrubros;
-                     }
-                }
+            if (!comercialesNode && demoComerciales) {
+                tree.push(JSON.parse(JSON.stringify(demoComerciales)));
+            } else if (comercialesNode && demoComerciales) {
+                 if (!comercialesNode.subrubros || comercialesNode.subrubros.length === 0) {
+                     comercialesNode.subrubros = JSON.parse(JSON.stringify(demoComerciales.subrubros));
+                 }
             }
 
+            // Final check: if tree is still "empty" (e.g. backend sent [] and logic above failed for some reason), fallback.
             if (tree.length > 0) {
                 return tree;
             }
         }
 
-        // If backend returns empty or invalid, fallback to demo hierarchy
         console.warn("Backend rubros empty or invalid, using fallback hierarchy");
         return DEMO_HIERARCHY;
     } catch (error) {
-        // If error is 404 or network, use DEMO_HIERARCHY
         console.warn("Error fetching rubros, using fallback hierarchy", error);
         return DEMO_HIERARCHY;
     }

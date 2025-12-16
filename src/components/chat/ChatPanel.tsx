@@ -528,17 +528,20 @@ const ChatPanel = ({
             // However, typical behavior is: if I am at bottom, stay at bottom. If I am up, stay up (and show badge).
             const atBottom = scrollHeight - scrollTop - clientHeight < 250;
             const isShort = messages.length < 5;
+            const isVeryRecent = messages.length > 0 && (Date.now() - new Date(messages[messages.length - 1].timestamp).getTime() < 1000);
 
-            // If we are already at bottom OR it's a short conversation, force scroll.
-            // If we are NOT at bottom, do nothing (user sees notification badge on button).
-            if (atBottom || isShort) {
+            // If we are already at bottom OR it's a short conversation OR the message is brand new, force scroll.
+            if (atBottom || isShort || isVeryRecent) {
                 messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
                 setShowScrollDown(false);
             } else {
                 setShowScrollDown(true);
             }
+        } else {
+            // Fallback if ref is not ready yet (e.g. iframe initial render)
+            messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
         }
-    }, 100);
+    }, 150); // Increased timeout slightly for iframe rendering
     return () => clearTimeout(timer);
   }, [messages]);
 

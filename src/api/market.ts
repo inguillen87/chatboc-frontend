@@ -1,4 +1,4 @@
-import { apiFetch, ApiError } from '@/utils/api';
+import { apiFetch, ApiError, NetworkError } from '@/utils/api';
 import {
   MarketCartResponse,
   MarketCatalogResponse,
@@ -100,10 +100,11 @@ export async function fetchMarketCart(tenantSlug: string): Promise<MarketCartRes
       omitChatSessionId: true,
     });
   } catch (error) {
-    if (error instanceof ApiError) {
+    if (error instanceof ApiError || error instanceof NetworkError) {
       // Return empty demo cart on auth, not found or server failures so the UI can continue with local cart logic
       // Also catch 400 which happens when sending mock product IDs
-      if ([400, 401, 403, 404].includes(error.status) || error.status >= 500) {
+      const status = (error as any).status;
+      if (!status || [400, 401, 403, 404].includes(status) || status >= 500) {
         return mockCartResponse();
       }
     }
@@ -183,7 +184,8 @@ export async function addMarketItem(tenantSlug: string, payload: AddToCartPayloa
         headers: { 'X-Persist-Session': 'true' }
       });
   } catch (error) {
-     if (error instanceof ApiError && ([400, 401, 403, 404].includes(error.status) || error.status >= 500)) {
+     const status = (error as any).status;
+     if ((error instanceof ApiError || error instanceof NetworkError) && (!status || [400, 401, 403, 404].includes(status) || status >= 500)) {
         return addToLocalCart();
      }
      throw error;
@@ -191,18 +193,37 @@ export async function addMarketItem(tenantSlug: string, payload: AddToCartPayloa
 }
 
 export async function removeMarketItem(tenantSlug: string, itemId: string): Promise<MarketCartResponse> {
-  return await apiFetch<MarketCartResponse>(`/api/${tenantSlug}/carrito/${itemId}`, {
-    method: 'DELETE',
-    tenantSlug,
-    omitChatSessionId: true,
-  });
+  try {
+      return await apiFetch<MarketCartResponse>(`/api/${tenantSlug}/carrito/${itemId}`, {
+        method: 'DELETE',
+        tenantSlug,
+        omitChatSessionId: true,
+      });
+  } catch (error) {
+      // Local Cart fallback
+      const currentCart = loadLocalDemoCart();
+      const newItems = currentCart.items.filter(i => i.id !== itemId);
+      currentCart.items = newItems;
+      currentCart.totalAmount = currentCart.items.reduce((sum, item) => sum + ((item.price || 0) * item.quantity), 0);
+      currentCart.totalPoints = currentCart.items.reduce((sum, item) => sum + ((item.points || 0) * item.quantity), 0);
+      saveLocalDemoCart(currentCart);
+      return currentCart;
+  }
 }
 
 export async function startMarketCheckout(tenantSlug: string, payload: CheckoutStartPayload): Promise<CheckoutStartResponse> {
-  return await apiFetch<CheckoutStartResponse>(`/api/${tenantSlug}/checkout`, {
-    method: 'POST',
-    body: payload,
-    tenantSlug,
-    omitChatSessionId: true,
-  });
+  try {
+      return await apiFetch<CheckoutStartResponse>(`/api/${tenantSlug}/checkout`, {
+        method: 'POST',
+        body: payload,
+        tenantSlug,
+        omitChatSessionId: true,
+      });
+  } catch (error) {
+      // If server checkout fails, treat as demo success if tenant is known demo
+      if (isDemoTenant(tenantSlug) || (error as any)?.status === 404) {
+          return { status: 'demo' };
+      }
+      throw error;
+  }
 }

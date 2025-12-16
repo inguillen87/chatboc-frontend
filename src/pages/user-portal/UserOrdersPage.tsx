@@ -137,9 +137,29 @@ const UserOrdersPage = () => {
                 <p className="text-muted-foreground text-sm max-w-sm mx-auto mb-4">
                     Cuando realices compras en modo demo, aparecerán aquí para que veas cómo funciona el seguimiento.
                 </p>
-                <Button variant="outline" size="sm" asChild>
-                    <a href="/demo">Ir a la Demo</a>
-                </Button>
+                <div className="flex gap-2 justify-center">
+                    <Button variant="outline" size="sm" asChild>
+                        <a href="/demo">Ir a la Demo</a>
+                    </Button>
+                    {/* Add fallback demo data button for testing */}
+                    <Button variant="ghost" size="sm" onClick={() => {
+                        const dummyOrder: DemoOrderSnapshot = {
+                            createdAt: new Date().toISOString(),
+                            payload: {
+                                estado: 'entregado',
+                                metodo_envio: 'delivery',
+                                contacto: { nombre: 'Usuario Demo', direccion: 'Calle Falsa 123' },
+                                items: [{ nombre_producto: 'Producto Ejemplo', cantidad: 1, precio_unitario: 1500, modalidad: 'venta' }],
+                                totales: { dinero: 1500, puntos: 150 }
+                            }
+                        };
+                        const current = parseDemoOrders();
+                        safeLocalStorage.setItem('chatboc_demo_orders', JSON.stringify([dummyOrder, ...current]));
+                        setDemoOrders([dummyOrder, ...current]);
+                    }}>
+                        Generar Pedido de Prueba
+                    </Button>
+                </div>
             </div>
           )}
 
