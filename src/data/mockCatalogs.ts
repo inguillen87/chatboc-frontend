@@ -282,7 +282,7 @@ export const DEMO_CATALOGS: Record<string, MarketProduct[]> = {
       disponible: true
     }
   ],
-  "tienda-de-ropa": [
+  tienda: [
       {
       id: "t1",
       name: "Camiseta Algodón Premium",
@@ -320,6 +320,50 @@ export const DEMO_CATALOGS: Record<string, MarketProduct[]> = {
       unit: "unidad",
       sku: "JEA-SLI-FIT",
       brand: "Tienda Demo",
+      promoInfo: null,
+      publicUrl: null,
+      whatsappShareUrl: null,
+      disponible: true
+    }
+  ],
+  kiosco: [
+    {
+      id: "k1",
+      name: "Alfajor Chocolate",
+      description: "Relleno de dulce de leche con baño de repostería.",
+      price: 1200,
+      priceText: "$1.200",
+      currency: "ARS",
+      imageUrl: "https://images.unsplash.com/photo-1558961363-fa8fdf82db35?auto=format&fit=crop&q=80&w=400",
+      category: "Golosinas",
+      quantity: 50,
+      modality: "venta",
+      points: null,
+      descriptionShort: "Alfajor",
+      unit: "unidad",
+      sku: "ALF-CHO",
+      brand: "Kiosco Demo",
+      promoInfo: null,
+      publicUrl: null,
+      whatsappShareUrl: null,
+      disponible: true
+    },
+    {
+      id: "k2",
+      name: "Agua Mineral 500ml",
+      description: "Sin gas. Botella personal.",
+      price: 1000,
+      priceText: "$1.000",
+      currency: "ARS",
+      imageUrl: "https://images.unsplash.com/photo-1616118132534-381148898bb4?auto=format&fit=crop&q=80&w=400",
+      category: "Bebidas",
+      quantity: 100,
+      modality: "venta",
+      points: null,
+      descriptionShort: "Agua 500ml",
+      unit: "unidad",
+      sku: "AGU-500",
+      brand: "Kiosco Demo",
       promoInfo: null,
       publicUrl: null,
       whatsappShareUrl: null,
