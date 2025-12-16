@@ -1,137 +1,329 @@
-// Mock Catalogs for Demo Tenants
-// Professional, high-quality data for various industries
+import { MarketProduct } from "@/types/market";
 
-const IMAGES = {
-  bodega: {
-    malbec: "https://images.unsplash.com/photo-1584916201218-f4242ceb4809?auto=format&fit=crop&q=80&w=400",
-    cabernet: "https://images.unsplash.com/photo-1559563362-c667ba5f5480?auto=format&fit=crop&q=80&w=400",
-    chardonnay: "https://images.unsplash.com/photo-1572569666069-42512f718816?auto=format&fit=crop&q=80&w=400"
-  },
-  ferreteria: {
-    taladro: "https://images.unsplash.com/photo-1504148455328-c376907d081c?auto=format&fit=crop&q=80&w=400",
-    destornilladores: "https://images.unsplash.com/photo-1530124566582-a618bc2615dc?auto=format&fit=crop&q=80&w=400",
-    lijadora: "https://images.unsplash.com/photo-1616423640778-28d1b53229bd?auto=format&fit=crop&q=80&w=400"
-  },
-  almacen: {
-    yerba: "https://images.unsplash.com/photo-1565258700208-c8a514d02633?auto=format&fit=crop&q=80&w=400",
-    aceite: "https://images.unsplash.com/photo-1474979266404-7caddbed77a8?auto=format&fit=crop&q=80&w=400",
-    cafe: "https://images.unsplash.com/photo-1559056199-641a0ac8b55e?auto=format&fit=crop&q=80&w=400"
-  },
-  farmacia: {
-    vitaminas: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&q=80&w=400",
-    crema: "https://images.unsplash.com/photo-1615397349754-cfa2066a298e?auto=format&fit=crop&q=80&w=400",
-    termometro: "https://images.unsplash.com/photo-1584036561566-baf8f5f1b144?auto=format&fit=crop&q=80&w=400"
-  },
-  restaurante: {
-    hamburguesa: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&q=80&w=400",
-    pizza: "https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&q=80&w=400",
-    ensalada: "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&q=80&w=400"
-  },
-  ropa: {
-    camisa: "https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&q=80&w=400",
-    jeans: "https://images.unsplash.com/photo-1542272617-08f086303294?auto=format&fit=crop&q=80&w=400",
-    zapatillas: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&q=80&w=400"
-  },
-  logistica: {
-    envio_express: "https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&q=80&w=400",
-    almacenaje: "https://images.unsplash.com/photo-1553413077-190dd305871c?auto=format&fit=crop&q=80&w=400",
-    tracking: "https://images.unsplash.com/photo-1566576912902-1dcd47eb7952?auto=format&fit=crop&q=80&w=400"
-  },
-  seguros: {
-    auto: "https://images.unsplash.com/photo-1568605117036-5fe5e7bab0b7?auto=format&fit=crop&q=80&w=400",
-    hogar: "https://images.unsplash.com/photo-1560518883-ce09059ee971?auto=format&fit=crop&q=80&w=400",
-    vida: "https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&q=80&w=400"
-  },
-  inmobiliaria: {
-    depto: "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&q=80&w=400",
-    casa: "https://images.unsplash.com/photo-1568605114967-8130f3a36994?auto=format&fit=crop&q=80&w=400",
-    oficina: "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=400"
-  },
-  clinica: {
-    consulta: "https://images.unsplash.com/photo-1666214280557-f1b5022eb634?auto=format&fit=crop&q=80&w=400",
-    analisis: "https://images.unsplash.com/photo-1579684385127-1ef15d508118?auto=format&fit=crop&q=80&w=400",
-    telemedicina: "https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&q=80&w=400"
-  }
-};
-
-export const BODEGA_PRODUCTS = [
-  { id: "wine-1", name: "Malbec Reserva 2020", description: "Vino tinto de gran cuerpo, notas a frutos rojos. Crianza 12 meses.", price: 4500, image: IMAGES.bodega.malbec, category: "Vinos Tintos", stock: 50 },
-  { id: "wine-2", name: "Cabernet Sauvignon", description: "Equilibrado y elegante, ideal para carnes.", price: 4200, image: IMAGES.bodega.cabernet, category: "Vinos Tintos", stock: 45 },
-  { id: "wine-3", name: "Chardonnay Orgánico", description: "Blanco fresco y frutado, certificado orgánico.", price: 3800, image: IMAGES.bodega.chardonnay, category: "Vinos Blancos", stock: 30 }
-];
-
-export const FERRETERIA_PRODUCTS = [
-  { id: "tool-1", name: "Taladro Percutor 600W", description: "Ideal para trabajos hogareños. Incluye maletín.", price: 45000, image: IMAGES.ferreteria.taladro, category: "Herramientas Eléctricas", stock: 10 },
-  { id: "tool-2", name: "Set Destornilladores", description: "Juego de 6 piezas punta magnética.", price: 8500, image: IMAGES.ferreteria.destornilladores, category: "Herramientas Manuales", stock: 25 },
-  { id: "tool-3", name: "Lijadora Orbital", description: "Potente motor de 200W, diseño ergonómico.", price: 32000, image: IMAGES.ferreteria.lijadora, category: "Herramientas Eléctricas", stock: 5 }
-];
-
-export const ALMACEN_PRODUCTS = [
-  { id: "food-1", name: "Yerba Mate Premium 1kg", description: "Estacionamiento natural por 24 meses.", price: 3500, image: IMAGES.almacen.yerba, category: "Almacén", stock: 100 },
-  { id: "food-2", name: "Aceite de Oliva Extra", description: "Primera prensada en frío, acidez < 0.5%.", price: 8900, image: IMAGES.almacen.aceite, category: "Aceites", stock: 40 },
-  { id: "food-3", name: "Café en Grano Tostado", description: "Blend de la casa, 100% arábica.", price: 6500, image: IMAGES.almacen.cafe, category: "Cafetería", stock: 30 }
-];
-
-export const FARMACIA_PRODUCTS = [
-  { id: "farma-1", name: "Multivitamínico Plus", description: "Energía y defensas. 30 comprimidos.", price: 5200, image: IMAGES.farmacia.vitaminas, category: "Suplementos", stock: 20 },
-  { id: "farma-2", name: "Crema Hidratante Facial", description: "Dermatológicamente testeada. 50g.", price: 8500, image: IMAGES.farmacia.crema, category: "Dermocosmética", stock: 15 },
-  { id: "farma-3", name: "Termómetro Digital", description: "Medición rápida y precisa con alarma.", price: 3500, image: IMAGES.farmacia.termometro, category: "Accesorios", stock: 50 }
-];
-
-export const RESTAURANTE_PRODUCTS = [
-  { id: "resto-1", name: "Hamburguesa Gourmet", description: "Doble carne, cheddar, panceta y cebolla caramelizada.", price: 6500, image: IMAGES.restaurante.hamburguesa, category: "Hamburguesas", stock: 100 },
-  { id: "resto-2", name: "Pizza Napolitana", description: "Muzzarella, tomate natural, ajo y albahaca.", price: 5800, image: IMAGES.restaurante.pizza, category: "Pizzas", stock: 50 },
-  { id: "resto-3", name: "Ensalada César", description: "Lechuga, croutons, parmesano y aderezo especial.", price: 4200, image: IMAGES.restaurante.ensalada, category: "Ensaladas", stock: 30 }
-];
-
-export const ROPA_PRODUCTS = [
-  { id: "ropa-1", name: "Camisa Oxford Blanca", description: "Algodón 100%, corte regular fit.", price: 28000, image: IMAGES.ropa.camisa, category: "Camisas", stock: 20 },
-  { id: "ropa-2", name: "Jean Clásico Azul", description: "Denim de alta calidad, tiro medio.", price: 35000, image: IMAGES.ropa.jeans, category: "Pantalones", stock: 25 },
-  { id: "ropa-3", name: "Zapatillas Urbanas", description: "Comodidad para el día a día. Cuero ecológico.", price: 45000, image: IMAGES.ropa.zapatillas, category: "Calzado", stock: 15 }
-];
-
-export const LOGISTICA_PRODUCTS = [
-  { id: "log-1", name: "Envío Express AMBA", description: "Entrega en el día para paquetes hasta 5kg.", price: 4500, image: IMAGES.logistica.envio_express, category: "Envíos", stock: 999 },
-  { id: "log-2", name: "Almacenaje por m3", description: "Depósito seguro mensual por metro cúbico.", price: 15000, image: IMAGES.logistica.almacenaje, category: "Depósito", stock: 50 },
-  { id: "log-3", name: "Servicio de Tracking", description: "Seguimiento satelital en tiempo real.", price: 2500, image: IMAGES.logistica.tracking, category: "Tecnología", stock: 999 }
-];
-
-export const SEGUROS_PRODUCTS = [
-  { id: "seg-1", name: "Seguro Automotor Full", description: "Cobertura todo riesgo con franquicia.", price: 25000, image: IMAGES.seguros.auto, category: "Automotor", stock: 999 },
-  { id: "seg-2", name: "Seguro de Hogar", description: "Protección contra incendio, robo y daños.", price: 8500, image: IMAGES.seguros.hogar, category: "Hogar", stock: 999 },
-  { id: "seg-3", name: "Seguro de Vida", description: "Tranquilidad para tu familia. Capital asegurado flexible.", price: 5000, image: IMAGES.seguros.vida, category: "Personas", stock: 999 }
-];
-
-export const INMOBILIARIA_PRODUCTS = [
-  { id: "inmo-1", name: "Departamento 2 Ambientes", description: "Alquiler temporal. Palermo Hollywood.", price: 450000, image: IMAGES.inmobiliaria.depto, category: "Alquileres", stock: 1 },
-  { id: "inmo-2", name: "Casa en Barrio Cerrado", description: "Venta. 4 dormitorios, piscina y jardín.", price: 250000, image: IMAGES.inmobiliaria.casa, category: "Ventas", stock: 1, currency: "USD" },
-  { id: "inmo-3", name: "Oficina Corporativa", description: "Alquiler. Centro empresarial, 150m2.", price: 850000, image: IMAGES.inmobiliaria.oficina, category: "Comercial", stock: 2 }
-];
-
-export const CLINICA_PRODUCTS = [
-  { id: "clin-1", name: "Consulta Médica", description: "Atención primaria con especialistas.", price: 8000, image: IMAGES.clinica.consulta, category: "Consultas", stock: 999 },
-  { id: "clin-2", name: "Chequeo General", description: "Laboratorio completo + ECG + Consulta.", price: 25000, image: IMAGES.clinica.analisis, category: "Estudios", stock: 999 },
-  { id: "clin-3", name: "Videoconsulta", description: "Atención médica remota inmediata.", price: 6000, image: IMAGES.clinica.telemedicina, category: "Telemedicina", stock: 999 }
-];
-
-export const DEMO_CATALOGS: Record<string, any[]> = {
-  bodega: BODEGA_PRODUCTS,
-  ferreteria: FERRETERIA_PRODUCTS,
-  almacen: ALMACEN_PRODUCTS,
-  kiosco: ALMACEN_PRODUCTS,
-  farmacia: FARMACIA_PRODUCTS,
-  restaurante: RESTAURANTE_PRODUCTS,
-  gastronomia: RESTAURANTE_PRODUCTS,
-  ropa: ROPA_PRODUCTS,
-  tienda: ROPA_PRODUCTS,
-  logistica: LOGISTICA_PRODUCTS,
-  transporte: LOGISTICA_PRODUCTS,
-  seguros: SEGUROS_PRODUCTS,
-  inmobiliaria: INMOBILIARIA_PRODUCTS,
-  clinica: CLINICA_PRODUCTS,
-  medico: CLINICA_PRODUCTS,
-  salud: CLINICA_PRODUCTS,
-  // Fallbacks for similar categories
-  fintech: SEGUROS_PRODUCTS, // Placeholder
-  industria: LOGISTICA_PRODUCTS // Placeholder
+export const DEMO_CATALOGS: Record<string, MarketProduct[]> = {
+  bodega: [
+    {
+      id: "b1",
+      name: "Malbec Reserva 2020",
+      description: "Vino tinto de gran cuerpo, con notas de ciruela y vainilla. Crianza de 12 meses en roble francés.",
+      price: 4500,
+      priceText: "$4.500",
+      currency: "ARS",
+      imageUrl: "https://images.unsplash.com/photo-1584916201218-f4242ceb4809?auto=format&fit=crop&q=80&w=400",
+      category: "Vinos Tintos",
+      quantity: 50,
+      modality: "venta",
+      points: null,
+      descriptionShort: "Malbec Reserva",
+      unit: "unidad",
+      sku: "MAL-RES-20",
+      brand: "Bodega Demo",
+      promoInfo: null,
+      publicUrl: null,
+      whatsappShareUrl: null,
+      disponible: true
+    },
+    {
+      id: "b2",
+      name: "Chardonnay Orgánico",
+      description: "Blanco fresco y frutado, certificado orgánico. Ideal para acompañar pescados.",
+      price: 3200,
+      priceText: "$3.200",
+      currency: "ARS",
+      imageUrl: "https://images.unsplash.com/photo-1559563362-c667ba5f5480?auto=format&fit=crop&q=80&w=400",
+      category: "Vinos Blancos",
+      quantity: 30,
+      modality: "venta",
+      points: null,
+      descriptionShort: "Chardonnay Org.",
+      unit: "unidad",
+      sku: "CHA-ORG-21",
+      brand: "Bodega Demo",
+      promoInfo: null,
+      publicUrl: null,
+      whatsappShareUrl: null,
+      disponible: true
+    },
+    {
+      id: "b3",
+      name: "Caja Degustación (6 u.)",
+      description: "Selección especial del enólogo. Incluye 2 Malbec, 2 Cabernet y 2 Blancos.",
+      price: 21000,
+      priceText: "$21.000",
+      currency: "ARS",
+      imageUrl: "https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?auto=format&fit=crop&q=80&w=400",
+      category: "Sets",
+      quantity: 15,
+      modality: "venta",
+      points: null,
+      descriptionShort: "Caja Degustación",
+      unit: "caja",
+      sku: "BOX-DEG-01",
+      brand: "Bodega Demo",
+      promoInfo: "Envío Gratis",
+      publicUrl: null,
+      whatsappShareUrl: null,
+      disponible: true
+    },
+    {
+      id: "b4",
+      name: "Cata Guiada para 2",
+      description: "Experiencia presencial de 90 minutos con sommelier. Incluye maridaje.",
+      price: 15000,
+      priceText: "$15.000",
+      currency: "ARS",
+      imageUrl: "https://images.unsplash.com/photo-1516594915697-87eb3b1c14ea?auto=format&fit=crop&q=80&w=400",
+      category: "Experiencias",
+      quantity: 100,
+      modality: "venta",
+      points: null,
+      descriptionShort: "Cata x2",
+      unit: "ticket",
+      sku: "EXP-CATA-02",
+      brand: "Bodega Demo",
+      promoInfo: null,
+      publicUrl: null,
+      whatsappShareUrl: null,
+      disponible: true
+    }
+  ],
+  ferreteria: [
+    {
+      id: "f1",
+      name: "Taladro Percutor 13mm",
+      description: "Potencia 650W, velocidad variable y reversible. Incluye maletín y set de mechas.",
+      price: 85000,
+      priceText: "$85.000",
+      currency: "ARS",
+      imageUrl: "https://images.unsplash.com/photo-1504148455328-c376907d081c?auto=format&fit=crop&q=80&w=400",
+      category: "Herramientas Eléctricas",
+      quantity: 12,
+      modality: "venta",
+      points: null,
+      descriptionShort: "Taladro 13mm",
+      unit: "unidad",
+      sku: "TAL-650W",
+      brand: "Ferretería Demo",
+      promoInfo: null,
+      publicUrl: null,
+      whatsappShareUrl: null,
+      disponible: true
+    },
+    {
+      id: "f2",
+      name: "Set Destornilladores Pro",
+      description: "Juego de 10 piezas punta magnética. Mango ergonómico antideslizante.",
+      price: 12500,
+      priceText: "$12.500",
+      currency: "ARS",
+      imageUrl: "https://images.unsplash.com/photo-1581147036324-c17ac41dfa6c?auto=format&fit=crop&q=80&w=400",
+      category: "Herramientas Manuales",
+      quantity: 45,
+      modality: "venta",
+      points: null,
+      descriptionShort: "Set Destornilladores",
+      unit: "set",
+      sku: "SET-DEST-10",
+      brand: "Ferretería Demo",
+      promoInfo: null,
+      publicUrl: null,
+      whatsappShareUrl: null,
+      disponible: true
+    },
+    {
+      id: "f3",
+      name: "Escalera Aluminio 5 Peldaños",
+      description: "Liviana y resistente. Soporta hasta 150kg. Altura trabajo 2.5m.",
+      price: 42000,
+      priceText: "$42.000",
+      currency: "ARS",
+      imageUrl: "https://images.unsplash.com/photo-1521405924368-64c5b8d2d906?auto=format&fit=crop&q=80&w=400",
+      category: "Construcción",
+      quantity: 8,
+      modality: "venta",
+      points: null,
+      descriptionShort: "Escalera 5P",
+      unit: "unidad",
+      sku: "ESC-ALU-05",
+      brand: "Ferretería Demo",
+      promoInfo: null,
+      publicUrl: null,
+      whatsappShareUrl: null,
+      disponible: true
+    },
+    {
+      id: "f4",
+      name: "Lámpara LED 9W (Pack x4)",
+      description: "Luz cálida o fría. Ahorro 85% energía. Vida útil 25.000hs.",
+      price: 5500,
+      priceText: "$5.500",
+      currency: "ARS",
+      imageUrl: "https://images.unsplash.com/photo-1494438639946-1ebd1d20bf85?auto=format&fit=crop&q=80&w=400",
+      category: "Iluminación",
+      quantity: 100,
+      modality: "venta",
+      points: null,
+      descriptionShort: "Pack LED 9W",
+      unit: "pack",
+      sku: "LED-9W-X4",
+      brand: "Ferretería Demo",
+      promoInfo: "Oferta",
+      publicUrl: null,
+      whatsappShareUrl: null,
+      disponible: true
+    }
+  ],
+  almacen: [
+    {
+      id: "a1",
+      name: "Yerba Mate 1kg",
+      description: "Elaborada con palo, estacionamiento natural. Sabor suave y duradero.",
+      price: 2500,
+      priceText: "$2.500",
+      currency: "ARS",
+      imageUrl: "https://images.unsplash.com/photo-1597318181409-cf64d0b5d8a2?auto=format&fit=crop&q=80&w=400",
+      category: "Almacén",
+      quantity: 200,
+      modality: "venta",
+      points: null,
+      descriptionShort: "Yerba 1kg",
+      unit: "unidad",
+      sku: "YER-1KG",
+      brand: "Almacén Demo",
+      promoInfo: null,
+      publicUrl: null,
+      whatsappShareUrl: null,
+      disponible: true
+    },
+    {
+      id: "a2",
+      name: "Aceite Girasol 1.5L",
+      description: "Puro girasol, alto oleico. Ideal para cocinar y condimentar.",
+      price: 1800,
+      priceText: "$1.800",
+      currency: "ARS",
+      imageUrl: "https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?auto=format&fit=crop&q=80&w=400",
+      category: "Aceites",
+      quantity: 150,
+      modality: "venta",
+      points: null,
+      descriptionShort: "Aceite 1.5L",
+      unit: "botella",
+      sku: "ACE-GIR-15",
+      brand: "Almacén Demo",
+      promoInfo: null,
+      publicUrl: null,
+      whatsappShareUrl: null,
+      disponible: true
+    },
+    {
+      id: "a3",
+      name: "Pack Gaseosa Cola 2.25L (x2)",
+      description: "Oferta especial llevando 2 unidades. Sabor original.",
+      price: 3500,
+      priceText: "$3.500",
+      currency: "ARS",
+      imageUrl: "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?auto=format&fit=crop&q=80&w=400",
+      category: "Bebidas",
+      quantity: 80,
+      modality: "venta",
+      points: null,
+      descriptionShort: "Cola x2",
+      unit: "pack",
+      sku: "COL-225-X2",
+      brand: "Almacén Demo",
+      promoInfo: "2x1",
+      publicUrl: null,
+      whatsappShareUrl: null,
+      disponible: true
+    }
+  ],
+  clinica: [
+    {
+      id: "c1",
+      name: "Consulta Medicina General",
+      description: "Atención primaria para adultos y niños. Modalidad presencial.",
+      price: 5000,
+      priceText: "$5.000",
+      currency: "ARS",
+      imageUrl: "https://images.unsplash.com/photo-1666214280557-f1b5022eb634?auto=format&fit=crop&q=80&w=400",
+      category: "Consultas",
+      quantity: 100,
+      modality: "venta",
+      points: null,
+      descriptionShort: "Consulta",
+      unit: "turno",
+      sku: "CON-MED-GEN",
+      brand: "Clínica Demo",
+      promoInfo: null,
+      publicUrl: null,
+      whatsappShareUrl: null,
+      disponible: true
+    },
+    {
+      id: "c2",
+      name: "Chequeo Anual Completo",
+      description: "Incluye análisis de laboratorio, ECG y consulta clínica.",
+      price: 25000,
+      priceText: "$25.000",
+      currency: "ARS",
+      imageUrl: "https://images.unsplash.com/photo-1579684385127-1ef15d508118?auto=format&fit=crop&q=80&w=400",
+      category: "Estudios",
+      quantity: 50,
+      modality: "venta",
+      points: null,
+      descriptionShort: "Chequeo",
+      unit: "pack",
+      sku: "CHE-ANU-COM",
+      brand: "Clínica Demo",
+      promoInfo: null,
+      publicUrl: null,
+      whatsappShareUrl: null,
+      disponible: true
+    }
+  ],
+  "tienda-de-ropa": [
+      {
+      id: "t1",
+      name: "Camiseta Algodón Premium",
+      description: "100% algodón peinado. Disponible en varios colores.",
+      price: 12000,
+      priceText: "$12.000",
+      currency: "ARS",
+      imageUrl: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&q=80&w=400",
+      category: "Remeras",
+      quantity: 100,
+      modality: "venta",
+      points: null,
+      descriptionShort: "Remera Premium",
+      unit: "unidad",
+      sku: "REM-ALG-PRE",
+      brand: "Tienda Demo",
+      promoInfo: null,
+      publicUrl: null,
+      whatsappShareUrl: null,
+      disponible: true
+    },
+    {
+      id: "t2",
+      name: "Jean Slim Fit",
+      description: "Denim elastizado, corte moderno. Talles del 38 al 48.",
+      price: 35000,
+      priceText: "$35.000",
+      currency: "ARS",
+      imageUrl: "https://images.unsplash.com/photo-1542272454315-4c01d7abdf4a?auto=format&fit=crop&q=80&w=400",
+      category: "Pantalones",
+      quantity: 60,
+      modality: "venta",
+      points: null,
+      descriptionShort: "Jean Slim",
+      unit: "unidad",
+      sku: "JEA-SLI-FIT",
+      brand: "Tienda Demo",
+      promoInfo: null,
+      publicUrl: null,
+      whatsappShareUrl: null,
+      disponible: true
+    }
+  ]
 };

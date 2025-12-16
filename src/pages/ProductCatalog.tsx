@@ -2,10 +2,10 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ApiError, NetworkError, apiFetch, getErrorMessage } from '@/utils/api';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
-import ProductCard, { AddToCartOptions, ProductDetails } from '@/components/product/ProductCard'; // Importar ProductCard y su interfaz
+import ProductCard, { AddToCartOptions, ProductDetails } from '@/components/product/ProductCard';
 import { toast } from '@/components/ui/use-toast';
 import { Input } from '@/components/ui/input';
-import { Loader2, ShoppingCart, AlertTriangle, Search } from 'lucide-react'; // Icons
+import { Loader2, ShoppingCart, AlertTriangle, Search } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { useTenant } from '@/context/TenantContext';
@@ -23,7 +23,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { addMarketItem } from '@/api/market'; // Import centralized function
+import { addMarketItem } from '@/api/market';
 
 interface ProductCatalogProps {
   tenantSlug?: string;
@@ -90,36 +90,43 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug, isDemoMode 
   };
 
   const activateDemoCatalog = () => {
-    setCatalogSource('fallback');
-    setCartMode('local');
-    let sourceProducts = DEFAULT_PUBLIC_PRODUCTS;
+    try {
+        setCatalogSource('fallback');
+        setCartMode('local');
+        let sourceProducts = DEFAULT_PUBLIC_PRODUCTS;
 
-    if (effectiveTenantSlug) {
-        // Find matching mock catalog key
-        const key = Object.keys(MOCK_CATALOGS).find(k => effectiveTenantSlug.includes(k));
+        if (effectiveTenantSlug) {
+            // Find matching mock catalog key
+            const key = Object.keys(MOCK_CATALOGS).find(k => effectiveTenantSlug.includes(k));
 
-        if (key) {
-            sourceProducts = MOCK_CATALOGS[key].map(p => ({
-                id: String(p.id),
-                nombre: p.name,
-                descripcion: p.description ?? null,
-                precio_unitario: typeof p.price === 'number' ? p.price : parseFloat(String(p.price || 0)),
-                modalidad: p.modality ?? 'venta',
-                precio_puntos: p.points ?? null,
-                imagen_url: p.image ?? null,
-                categoria: p.category ?? null,
-                marca: p.brand ?? null,
-                promocion_activa: p.promoInfo ?? null,
-                disponible: true,
-                origen: 'demo' as const
-            }));
+            if (key) {
+                sourceProducts = MOCK_CATALOGS[key].map(p => ({
+                    id: String(p.id),
+                    nombre: p.name,
+                    descripcion: p.description ?? null,
+                    precio_unitario: typeof p.price === 'number' ? p.price : parseFloat(String(p.price || 0)),
+                    modalidad: p.modality ?? 'venta',
+                    precio_puntos: p.points ?? null,
+                    imagen_url: p.imageUrl ?? null,
+                    categoria: p.category ?? null,
+                    marca: p.brand ?? null,
+                    promocion_activa: p.promoInfo ?? null,
+                    disponible: true,
+                    origen: 'demo' as const
+                }));
+            }
         }
-    }
 
-    setAllProducts(sourceProducts);
-    setFilteredProducts(sourceProducts);
-    setError(null);
-    setHasDemoModalities(false);
+        setAllProducts(sourceProducts);
+        setFilteredProducts(sourceProducts);
+        setError(null);
+        setHasDemoModalities(false);
+    } catch (e) {
+        console.error("Error loading demo catalog", e);
+        // Safe fallback
+        setAllProducts(DEFAULT_PUBLIC_PRODUCTS);
+        setFilteredProducts(DEFAULT_PUBLIC_PRODUCTS);
+    }
   };
 
   const mergeWithDemoModalities = (products: ProductDetails[]) => {
@@ -184,7 +191,7 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug, isDemoMode 
         }
       })
       .catch((err: any) => {
-        if (shouldUseDemoCatalog(err)) {
+        if (shouldUseDemoCatalog(err) || (err instanceof ApiError && err.status === 404)) {
           activateDemoCatalog();
           return;
         }

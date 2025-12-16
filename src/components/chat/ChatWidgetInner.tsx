@@ -1146,6 +1146,7 @@ function ChatWidgetInner({
         bottom: `${initialPosition.bottom}px`,
         right: `${initialPosition.right}px`,
         zIndex: 999999,
+        transition: 'width 0.3s ease, height 0.3s ease, bottom 0.3s ease, right 0.3s ease',
       };
     }
     return {};

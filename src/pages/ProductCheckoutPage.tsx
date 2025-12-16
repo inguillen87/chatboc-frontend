@@ -472,7 +472,7 @@ export default function ProductCheckoutPage() {
                 {!user ? (
                    <>
                      {/* Prioritize direct portal access for demos to avoid friction */}
-                     <Button size="lg" className="w-full sm:w-auto shadow-lg" onClick={handleViewOrders}>
+                     <Button size="lg" className="w-full sm:w-auto shadow-lg bg-primary hover:bg-primary/90" onClick={handleViewOrders}>
                         Ver pedido en el Portal
                      </Button>
                      <Button size="lg" variant="outline" className="w-full sm:w-auto" onClick={() => navigate(registerPath, { state: { redirectTo: portalOrdersPath } })}>
