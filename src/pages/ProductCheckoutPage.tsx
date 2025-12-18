@@ -193,6 +193,15 @@ export default function ProductCheckoutPage() {
         const cartData = await fetchMarketCart(effectiveTenantSlug);
 
         if (!cartData.items || cartData.items.length === 0) {
+          // Fallback: If API returns empty but we have local items, rely on local items
+          const localItems = getLocalCartProducts();
+          if (localItems.length > 0) {
+             setCheckoutMode('local');
+             setCartItems(localItems);
+             setIsLoadingCart(false);
+             return;
+          }
+
           toast({
             title: 'Carrito vacío',
             description: 'No hay productos para finalizar la compra.',

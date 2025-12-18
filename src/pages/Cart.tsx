@@ -119,8 +119,14 @@ export default function CartPage() {
       if (populatedCartItems.length > 0) {
         setLocalCartSnapshot(populatedCartItems.map((item) => ({ product: item, quantity: item.cantidad })));
       } else {
-        // If API returns empty, check if we have local items and maybe sync them?
-        // For now, if API is empty, we show empty.
+        // Fallback: If API returns empty but we have local items, rely on local items (Demo/Persistence Fallback)
+        const localItems = getLocalCartProducts();
+        if (localItems.length > 0) {
+           setCartMode('local');
+           setCartItems(localItems);
+           setLoading(false);
+           return;
+        }
       }
 
       if (cartResponse.isDemo) {
