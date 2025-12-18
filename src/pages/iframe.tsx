@@ -34,6 +34,17 @@ const Iframe = () => {
   const isInRouter = useInRouterContext();
 
   useEffect(() => {
+    // Add iframe-mode class for transparent background
+    document.documentElement.classList.add('iframe-mode');
+    document.body.classList.add('iframe-mode');
+
+    return () => {
+      document.documentElement.classList.remove('iframe-mode');
+      document.body.classList.remove('iframe-mode');
+    };
+  }, []);
+
+  useEffect(() => {
     const initializeWidget = async () => {
       const cfg = getChatbocConfig();
       const urlParams = new URLSearchParams(window.location.search);
