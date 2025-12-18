@@ -2243,8 +2243,9 @@ export const getTicketStats = async (
         if (errorCode === 'HTML_PAYLOAD') {
           continue;
         }
-        if (error instanceof ApiError && error.status === 404) {
-          continue;
+        if (error instanceof ApiError) {
+          if (error.status === 404) continue;
+          if (error.message && error.message.includes('Respuesta inesperada')) continue;
         }
         throw error;
       }
@@ -2342,8 +2343,9 @@ export const getHeatmapDataset = async (
         if (errorCode === 'HTML_PAYLOAD') {
           continue;
         }
-        if (error instanceof ApiError && error.status === 404) {
-          continue;
+        if (error instanceof ApiError) {
+          if (error.status === 404) continue;
+          if (error.message && error.message.includes('Respuesta inesperada')) continue;
         }
         throw error;
       }
