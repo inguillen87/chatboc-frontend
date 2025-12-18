@@ -30,104 +30,117 @@
 
 @layer base {
   :root {
-    --primary-dark: 217 100% 30%;
+    /* Zinc/Slate Palette - Light Mode */
     --background: 0 0% 100%;
-    --foreground: 224 71.4% 4.1%;
+    --foreground: 240 10% 3.9%;
 
     --card: 0 0% 100%;
-    --card-foreground: 224 71.4% 4.1%;
+    --card-foreground: 240 10% 3.9%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 224 71.4% 4.1%;
+    --popover-foreground: 240 10% 3.9%;
 
-    --primary: 217 100% 50%; /* #007AFF - Propuesta Jules (ajustado para mayor saturación) */
-    --primary-foreground: 210 20% 98%;
+    --primary: 221 83% 53%; /* Bright Blue #2563EB (Tailwind Blue-600) for better contrast */
+    --primary-foreground: 210 40% 98%;
 
-    --secondary: 220 14.3% 95.9%;
-    --secondary-foreground: 220.9 39.3% 11%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
 
-    --muted: 220 14.3% 95.9%;
-    --muted-foreground: 210 9% 45%; /* #6c757d - Gris neutro para texto secundario (propuesta Jules) */
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
 
-    --accent: 220 14.3% 95.9%;
-    --accent-foreground: 220.9 39.3% 11%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
 
     --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 20% 98%;
+    --destructive-foreground: 0 0% 98%;
 
-    --success: 134 61% 41%; /* #28a745 - Verde (propuesta Jules) */
-    --success-foreground: 0 0% 100%; /* Blanco */
+    --success: 142 76% 36%; /* Green-600 */
+    --success-foreground: 355 100% 100%;
 
-    --warning: 45 100% 51%; /* #ffc107 - Amarillo (propuesta Jules) */
-    --warning-foreground: 0 0% 0%; /* Negro o gris muy oscuro */
+    --warning: 38 92% 50%; /* Amber-500 */
+    --warning-foreground: 48 96% 89%;
 
-    --border: 220 13% 91%;
-    --input: 0 0% 98%;
-    --ring: 217 91.2% 59.8%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 221 83% 53%;
 
-    --radius: 0.25rem; /* Propuesta Jules - más nítido */
+    --radius: 0.5rem;
 
     /* Sidebar specific colors for light mode */
-    --sidebar-background: 0 0% 97%;
-    --sidebar-foreground: 224 71.4% 4.1%;
-    --sidebar-primary: 217 100% 50%;
-    --sidebar-primary-foreground: 210 20% 98%;
-    --sidebar-accent: 220 14.3% 93%;
-    --sidebar-accent-foreground: 220.9 39.3% 11%;
-    --sidebar-border: 220 13% 88%;
+    --sidebar-background: 240 5% 96%; /* Slightly darker than main bg */
+    --sidebar-foreground: 240 10% 3.9%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
     --sidebar-ring: 217 91.2% 59.8%;
   }
 
   .dark {
-    --primary-dark: 217 91.2% 59.8%;
-    --background: 220 15% 10%;
-    --foreground: 210 30% 95%;
+    /* Zinc/Slate Palette - Dark Mode */
+    --background: 240 10% 3.9%; /* Zinc 950 */
+    --foreground: 0 0% 98%;
 
-    --card: 220 15% 13%;
-    --card-foreground: 210 30% 95%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
 
-    --popover: 220 15% 8%;
-    --popover-foreground: 210 30% 95%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
 
-    --primary: 217 91.2% 59.8%; /* Vibrant blue, same as light mode for consistency */
-    --primary-foreground: 210 20% 98%;
+    --primary: 217 91% 60%; /* Lighter Blue for Dark Mode */
+    --primary-foreground: 222.2 47.4% 11.2%;
 
-    --secondary: 220 15% 20%;
-    --secondary-foreground: 210 30% 90%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
 
-    --muted: 220 15% 20%;
-    --muted-foreground: 215 15% 60%; /* Ajustado para mayor contraste con el --secondary-foreground */
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
 
-    --accent: 220 15% 20%;
-    --accent-foreground: 210 30% 90%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
 
-    --destructive: 0 72.2% 50.6%;
-    --destructive-foreground: 210 20% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
 
-    --success: 134 61% 41%; /* Mantenemos el mismo verde */
-    --success-foreground: 0 0% 100%;
+    --success: 142 70% 29%;
+    --success-foreground: 0 0% 98%;
 
-    --warning: 45 100% 51%; /* Mantenemos el mismo amarillo */
-    --warning-foreground: 0 0% 0%;
+    --warning: 48 96% 89%;
+    --warning-foreground: 38 92% 50%;
 
-    --border: 220 15% 25%;
-    --input: 220 15% 16%;
-    --ring: 217 91.2% 59.8%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 240 4.9% 83.9%;
 
     /* Sidebar specific colors for dark mode */
-    --sidebar-background: 220 15% 8%;
-    --sidebar-foreground: 210 30% 90%;
-    --sidebar-primary: 217 91.2% 59.8%; /* Ajustado para coincidir con el primario general del dark mode */
-    --sidebar-primary-foreground: 210 20% 98%;
-    --sidebar-accent: 220 15% 18%;
-    --sidebar-accent-foreground: 210 30% 90%;
-    --sidebar-border: 220 15% 22%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217 91.2% 59.8%;
   }
 
   html {
     scroll-behavior: smooth;
   }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', sans-serif;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
 
 @keyframes pulse {
   0% {
@@ -142,23 +155,12 @@
     opacity: 0;
   }
 }
-  * {
-    @apply border-border;
-  }
-  body {
-    @apply bg-background text-foreground;
-    font-family: 'Inter', sans-serif; /* Simplificado a Inter */
-    line-height: 1.6; /* Slightly increased line height for better readability */
-    -webkit-font-smoothing: antialiased; /* Safari & Chrome */
-    -moz-osx-font-smoothing: grayscale; /* Firefox */
-  }
-}
 
 .pac-target-input {
   background-color: hsl(var(--input)) !important;
   color: hsl(var(--foreground)) !important;
   border: 1px solid hsl(var(--border)) !important;
-  border-radius: var(--radius) !important; /* Usar la variable de radius */
+  border-radius: var(--radius) !important;
   padding: 0.5rem 0.75rem !important;
   font-size: 1rem !important;
   transition: background 0.2s;
@@ -171,26 +173,34 @@
 .pac-container {
   background: hsl(var(--card)) !important;
   color: hsl(var(--foreground)) !important;
-  border-radius: var(--radius) !important; /* Usar la variable de radius */
+  border-radius: var(--radius) !important;
   z-index: 999999 !important;
+  border: 1px solid hsl(var(--border)) !important;
 }
 .pac-item {
   color: inherit !important;
   background: transparent !important;
-  border-radius: calc(var(--radius) - 2px) !important; /* Ligeramente menor para items internos */
+  border-radius: calc(var(--radius) - 2px) !important;
   padding: 0.4rem 1rem !important;
 }
 .pac-item:hover {
   background: hsl(var(--accent)) !important;
 }
+
+/* Scoped transparency for iframe/widget mode */
+html.iframe-mode,
+html.iframe-mode body,
+html.iframe-mode #root,
+html.iframe-mode #__next,
+html.iframe-mode #app {
+  background: transparent !important;
+}
+
 html,
 body,
 #root,
 #__next,
 #app {
-  background: transparent !important;
-  margin: 0;
-  padding: 0;
   width: 100%;
   min-width: 100%;
   min-height: 100dvh;
@@ -200,9 +210,10 @@ body,
 
 @media (max-width: 639px) {
   body {
-    padding-bottom: 6rem; /* espacio para el widget flotante */
+    padding-bottom: 6rem;
   }
 }
+
 @keyframes pulse-subtle {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.8; }
@@ -213,7 +224,8 @@ body,
 
 @layer utilities {
   .text-primary-dark {
-    color: hsl(var(--primary-dark));
+    color: hsl(var(--primary));
+    filter: brightness(0.8);
   }
 }
 
