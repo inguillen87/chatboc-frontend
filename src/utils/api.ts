@@ -84,7 +84,11 @@ const LOCAL_PLACEHOLDER_SLUGS = new Set([
   'landing',
   'incidents',
   'stats',
-  'market'
+  'market',
+  'whatsapp',
+  'telegram',
+  'instagram',
+  'facebook'
 ]);
 
 // Merge shared placeholders with API-specific ones
