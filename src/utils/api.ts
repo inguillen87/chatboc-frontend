@@ -67,7 +67,24 @@ const LOCAL_PLACEHOLDER_SLUGS = new Set([
   'analytics',
   'settings',
   'config',
-  'api'
+  'api',
+  'estadisticas',
+  'empleados',
+  'municipal',
+  'pyme',
+  'logs',
+  'consultas',
+  'presupuestos',
+  'recordatorios',
+  'historial',
+  'usuarios',
+  'soluciones',
+  'demo',
+  'home',
+  'landing',
+  'incidents',
+  'stats',
+  'market'
 ]);
 
 // Merge shared placeholders with API-specific ones
