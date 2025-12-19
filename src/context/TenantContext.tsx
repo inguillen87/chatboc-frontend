@@ -367,9 +367,13 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
     const colorEntries = Object.entries(theme)
       .filter(([key, value]) => typeof value === 'string' && key.toLowerCase().includes('color')) as [string, string][];
 
-    // Skip theme injection on the main landing page to preserve SaaS branding
-    // and avoid widget/theme config bleeding into the marketing site.
-    if (location.pathname === '/') {
+    const isTenantRoute =
+      Boolean(tenant?.slug && location.pathname.startsWith(`/${tenant.slug}`)) ||
+      TENANT_ROUTE_PREFIXES.some((prefix) => location.pathname.startsWith(`/${prefix}/`));
+
+    // Skip theme injection on the landing/marketing pages to preserve SaaS branding
+    // and avoid widget/theme config bleeding into the public site.
+    if (!isTenantRoute) {
       colorEntries.forEach(([key]) => root.style.removeProperty(`--${key}`));
       return;
     }
