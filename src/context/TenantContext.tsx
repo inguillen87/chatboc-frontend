@@ -363,9 +363,9 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
     if (!tenant?.tema || typeof document === 'undefined') return;
 
     // Skip theme injection on the main landing page to preserve SaaS branding
-    // unless we are explicitly in a demo or tenant route
-    if (location.pathname === '/' && tenant?.slug === 'municipio') {
-        return;
+    // and avoid widget/theme config bleeding into the marketing site.
+    if (location.pathname === '/') {
+      return;
     }
 
     const theme = tenant?.tema as Record<string, unknown> || {};
