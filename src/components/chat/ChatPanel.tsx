@@ -658,7 +658,7 @@ const ChatPanel = ({
           </div>
         </div>
       )}
-      <div ref={chatContainerRef} className="flex-1 p-2 sm:p-4 min-h-0 flex flex-col gap-3 overflow-y-auto justify-end">
+      <div ref={chatContainerRef} className="flex-1 p-2 sm:p-4 min-h-0 flex flex-col gap-3 overflow-y-auto">
         {messages.map((msg) => (
           <ChatMessage
             key={`${msg.id}-${a11yPrefs?.simplified ? "s" : "f"}`}
