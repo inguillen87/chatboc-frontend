@@ -446,12 +446,13 @@ function ChatWidgetInner({
     // Avoid polluting global styles if on main landing page and running as a widget
     // We only apply this if we are in iframe/embed mode OR if we are on a specific tenant page
     // If we are on the root landing page, we should preserve the landing page's branding
-    if (typeof window !== 'undefined' && window.location.pathname === '/' && mode === 'standalone') {
+    if (typeof window !== 'undefined' && window.location.pathname === '/' && (mode === 'standalone' || mode === 'script')) {
         return;
     }
 
     const root = document.documentElement;
-    const target = mode === 'standalone' ? widgetContainerRef.current : root;
+    const shouldScopeToContainer = mode === 'standalone' || mode === 'script';
+    const target = shouldScopeToContainer ? widgetContainerRef.current : root;
 
     // First, apply the base theme from entity config (if available) to ensure background/text are correct
     if (entityInfo?.theme_config) {
