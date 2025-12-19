@@ -323,15 +323,6 @@ const ChatPanel = ({
     ]
   );
 
-  // If we have a tenantSlug or entityToken, we are in a specific context, so we force-disable the selector
-  // unless explicitly required (which shouldn't happen for single-tenant mode).
-  // Actually, 'rubrosEnabled' is true for 'pyme', false for 'municipio'.
-  // If tipoChat is 'municipio', rubrosEnabled is false, so showRubroSelector is false.
-  // If tipoChat is 'pyme' (which might be default if detection fails), rubrosEnabled is true.
-  // We need to ensure that if tenantSlug is present, we consider it "bound" to that tenant.
-  // However, a 'pyme' tenant might still have rubros? No, usually a single pyme is a specific business.
-  // The 'directory' mode is when we are at the aggregator level.
-  // If tenantSlug is present, we assume it's a specific entity.
   const showRubroSelector = rubrosEnabled && !localRubro && !tenantSlug && !propEntityToken;
 
   const handlePersonalDataSubmit = (data: { nombre: string; email: string; telefono: string; dni: string; }) => {
@@ -442,7 +433,6 @@ const ChatPanel = ({
       }
 
       if (normalized === "subastas" || normalized === "subasta") {
-        // Subastas is not yet supported, so avoid dispatching an internal action for it.
         return;
       }
 
@@ -508,41 +498,23 @@ const ChatPanel = ({
         chatInputHandleRef.current?.openFilePicker();
         return;
       }
-
-      // For other actions, the backend request was already sent. No extra handling needed.
     },
     [handleSend, onShowLogin, onShowRegister, onCart, toast]
   );
 
   useEffect(() => {
-    // Always attempt to scroll to bottom on new messages, specially if content is dynamic.
-    // Use a small timeout to allow layout to settle (e.g. images loading)
+    // Scroll to bottom logic
     const timer = setTimeout(() => {
         if (chatContainerRef.current) {
-            const { scrollHeight, scrollTop, clientHeight } = chatContainerRef.current;
-            // More aggressive auto-scroll: if user is not VERY far up (e.g. 250px), scroll down.
-            // But only if we are not manually paused.
-            // Actually, let's just use the visibility of ScrollToBottomButton as a proxy for "manual scroll up".
-            // If showScrollDown is true, user scrolled up. We should NOT auto scroll unless it's my own message.
-
-            // However, typical behavior is: if I am at bottom, stay at bottom. If I am up, stay up (and show badge).
-            const atBottom = scrollHeight - scrollTop - clientHeight < 250;
-            const isShort = messages.length < 5;
-            const isVeryRecent = messages.length > 0 && (Date.now() - new Date(messages[messages.length - 1].timestamp).getTime() < 1000);
-
-            // If we are already at bottom OR it's a short conversation OR the message is brand new, force scroll.
-            if (atBottom || isShort || isVeryRecent) {
-                // Use 'auto' instead of 'smooth' to ensure reliable scrolling in iframes and prevent layout jumps
-                messagesEndRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
-                setShowScrollDown(false);
-            } else {
-                setShowScrollDown(true);
-            }
-        } else {
-            // Fallback if ref is not ready yet (e.g. iframe initial render)
+            // We always try to scroll to bottom when messages update
             messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+
+            // Check if we are at bottom to manage scroll button visibility
+            const { scrollHeight, scrollTop, clientHeight } = chatContainerRef.current;
+            const atBottom = scrollHeight - scrollTop - clientHeight < 200;
+            setShowScrollDown(!atBottom);
         }
-    }, 150); // Increased timeout slightly for iframe rendering
+    }, 150);
     return () => clearTimeout(timer);
   }, [messages]);
 
@@ -551,7 +523,6 @@ const ChatPanel = ({
     if (!container) return;
     const onScroll = () => {
       const { scrollHeight, scrollTop, clientHeight } = container;
-      // Define tolerance for "at bottom"
       const atBottom = scrollHeight - scrollTop - clientHeight < 100;
       setShowScrollDown(!atBottom);
     };
@@ -567,7 +538,7 @@ const ChatPanel = ({
     return (
       <div
         className={cn(
-          "chat-root flex h-full w-full flex-col bg-card text-card-foreground overflow-hidden relative",
+          "chat-root flex h-full w-full flex-col bg-background text-foreground overflow-hidden relative", // Changed bg-card to bg-background
           isMobile ? undefined : "rounded-[inherit]",
         )}
       >
@@ -585,7 +556,7 @@ const ChatPanel = ({
           onA11yChange={onA11yChange}
         />
         <div className="flex-1 overflow-hidden px-4 pb-4">
-          <div className="mx-auto flex h-full max-h-[calc(100vh-160px)] w-full max-w-sm flex-col rounded-2xl border border-border bg-background/90 p-6 text-center shadow-lg">
+          <div className="mx-auto flex h-full max-h-[calc(100vh-160px)] w-full max-w-sm flex-col rounded-2xl border border-border bg-background/95 p-6 text-center shadow-lg"> {/* Slightly transparent background */}
             <img
               src="/chatboc_logo_clean_transparent.png"
               alt="Chatboc"
@@ -611,7 +582,6 @@ const ChatPanel = ({
               </div>
             ) : (
               <div className="min-h-0 flex-1 overflow-hidden pt-2">
-                {/* Always attempt to render RubroSelector if not loading/error, passing rubros (even if empty, RubroSelector handles it or we rely on fallback inside selector if needed, but current logic handles 0 length in ternary above if strictly empty). Wait, actually we want to force render if there are items OR if we trust the selector to show something. The outer condition checked rubros.length > 0. Let's make it more robust. */}
                 {rubros.length > 0 ? (
                     <RubroSelector rubros={rubros} onSelect={handleRubroSelection} />
                 ) : (
@@ -626,7 +596,7 @@ const ChatPanel = ({
   }
 
   return (
-    <div className={cn("chat-root flex flex-col w-full h-full bg-card text-card-foreground overflow-hidden relative", isMobile ? undefined : "rounded-[inherit]")}>
+    <div className={cn("chat-root flex flex-col w-full h-full bg-background text-foreground overflow-hidden relative", isMobile ? undefined : "rounded-[inherit]")}> {/* Changed bg-card to bg-background */}
       <ChatHeader
         onClose={onClose}
         onProfile={onOpenUserPanel}
@@ -659,6 +629,7 @@ const ChatPanel = ({
         </div>
       )}
       <div ref={chatContainerRef} className="flex-1 p-2 sm:p-4 min-h-0 flex flex-col gap-3 overflow-y-auto">
+        <div className="flex-1" /> {/* Spacer to push messages down */}
         {messages.map((msg) => (
           <ChatMessage
             key={`${msg.id}-${a11yPrefs?.simplified ? "s" : "f"}`}
@@ -678,7 +649,7 @@ const ChatPanel = ({
         <div ref={messagesEndRef} />
       </div>
       <ScrollToBottomButton target={chatContainerRef.current} />
-      <div className="w-full bg-card px-3 py-2 border-t min-w-0">
+      <div className="w-full bg-background px-3 py-2 border-t min-w-0"> {/* Ensure bg-background here too */}
         {!activeTicketId && (
             isLiveChatEnabled ? (
               <Button onClick={handleLiveChatRequest} className="w-full mb-2">

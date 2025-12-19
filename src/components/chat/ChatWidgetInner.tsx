@@ -870,7 +870,7 @@ function ChatWidgetInner({
   const closedWidthPx = parseInt(finalClosedWidth.replace('px', ''), 10);
   const calculatedLogoSize = Math.floor(closedWidthPx * logoSizeFactor);
 
-  const commonPanelStyles = cn("chat-root bg-card border shadow-lg", "flex flex-col overflow-hidden");
+  const commonPanelStyles = cn("chat-root bg-card border shadow-lg", "flex flex-col overflow-hidden"); // bg-card is fine here as container, internal panel handles bg-background now.
   const commonButtonStyles = cn(
     "rounded-full flex items-center justify-center",
     "bg-primary text-primary-foreground hover:bg-primary/90",

@@ -58,8 +58,8 @@ const RubroSelector: React.FC<RubroSelectorProps> = ({ rubros, onSelect }) => {
                                         level2.demo ? (
                                             <motion.div key={level2.id} whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }}>
                                                 <Button
-                                                    variant="secondary"
-                                                    className="w-full justify-between h-auto py-2 px-3 bg-secondary/50 hover:bg-secondary border border-transparent hover:border-primary/20 text-left whitespace-normal rounded-lg"
+                                                    variant="ghost" // Changed from secondary to ghost for transparency/cleaner look
+                                                    className="w-full justify-between h-auto py-2 px-3 hover:bg-accent border border-transparent text-left whitespace-normal rounded-lg"
                                                     onClick={() => onSelect(level2)}
                                                 >
                                                     <div className="flex flex-col items-start gap-0.5">
@@ -81,8 +81,8 @@ const RubroSelector: React.FC<RubroSelectorProps> = ({ rubros, onSelect }) => {
                             // Direct Level 1 Item (no subcategories, just a demo itself)
                             <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }}>
                                 <Button
-                                    variant="secondary"
-                                    className="w-full justify-between h-auto py-2 px-3 bg-secondary/50 hover:bg-secondary border border-transparent hover:border-primary/20 text-left whitespace-normal rounded-lg"
+                                    variant="ghost" // Changed from secondary to ghost
+                                    className="w-full justify-between h-auto py-2 px-3 hover:bg-accent border border-transparent text-left whitespace-normal rounded-lg"
                                     onClick={() => onSelect(level1)}
                                 >
                                     <div className="flex flex-col items-start gap-0.5">

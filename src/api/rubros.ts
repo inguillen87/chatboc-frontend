@@ -26,18 +26,12 @@ export const buildRubroTree = (flatRubros: Rubro[]): Rubro[] => {
   // Build tree
   flatRubros.forEach(r => {
     const node = map.get(r.id)!;
-    // Only process if it hasn't been added as a child already (though data is flat, so we iterate once)
-    // We rely on padre_id to determine structure.
-
     if (r.padre_id && map.has(r.padre_id)) {
       const parent = map.get(r.padre_id)!;
-      // Prevent duplicates in parent if backend sends redundant data
       if (!parent.subrubros?.some(child => child.id === node.id)) {
         parent.subrubros!.push(node);
       }
     } else {
-      // It's a root or orphan
-      // Only push to roots if it doesn't have a parent in the map.
       if (!r.padre_id || !map.has(r.padre_id)) {
            roots.push(node);
       }
@@ -47,6 +41,33 @@ export const buildRubroTree = (flatRubros: Rubro[]): Rubro[] => {
   return roots;
 };
 
+// Recursive merge function to blend DEMO_HIERARCHY into the fetched tree
+const mergeRubrosRecursively = (target: Rubro[], source: Rubro[]) => {
+    source.forEach(sourceItem => {
+        // Try to find a match in target by ID, Clave, or roughly by Name
+        let match = target.find(t =>
+            t.id === sourceItem.id ||
+            (t.clave && sourceItem.clave && t.clave === sourceItem.clave) ||
+            (!t.padre_id && t.nombre === sourceItem.nombre) // Loose match for roots
+        );
+
+        if (match) {
+            // If item exists, merge subrubros
+            if (sourceItem.subrubros && sourceItem.subrubros.length > 0) {
+                if (!match.subrubros) match.subrubros = [];
+                mergeRubrosRecursively(match.subrubros, sourceItem.subrubros);
+            }
+            // Also merge demo data if missing in target
+            if (sourceItem.demo && !match.demo) {
+                match.demo = sourceItem.demo;
+            }
+        } else {
+            // If item does not exist, add it (deeply copied to avoid mutations)
+            target.push(JSON.parse(JSON.stringify(sourceItem)));
+        }
+    });
+};
+
 export const getRubrosHierarchy = async (): Promise<Rubro[]> => {
     try {
         let backendData: Rubro[] = [];
@@ -54,57 +75,21 @@ export const getRubrosHierarchy = async (): Promise<Rubro[]> => {
             backendData = await fetchRubros();
         } catch (e) {
             console.warn("Backend rubros fetch failed, using fallback hierarchy", e);
-            // Don't return yet, proceed to merge logic with empty data (which triggers full fallback)
             backendData = [];
         }
 
-        // If backend returns data, try to merge it.
-        // Even if array is present, it might be incomplete.
-        if (Array.isArray(backendData)) {
-            const tree = buildRubroTree(backendData);
+        // Build tree from backend data
+        let tree = Array.isArray(backendData) ? buildRubroTree(backendData) : [];
 
-            // 1. Ensure "Soluciones para Sector Público" (ID 1) exists
-            let municipioNode = tree.find(root =>
-                root.id === 1 || root.clave === 'municipios_root'
-            );
+        // Deep merge DEMO_HIERARCHY into the tree
+        // This ensures that even if backend returns partial data (e.g. only Publico root but no children),
+        // we fill in the missing demo children.
+        mergeRubrosRecursively(tree, DEMO_HIERARCHY);
 
-            const demoMunicipios = DEMO_HIERARCHY.find(d => d.id === 1);
+        // Sort roots by ID to maintain order (Publico=1, Empresas=2)
+        tree.sort((a, b) => a.id - b.id);
 
-            if (!municipioNode && demoMunicipios) {
-                // If totally missing, add the demo one
-                tree.unshift(JSON.parse(JSON.stringify(demoMunicipios)));
-            } else if (municipioNode && demoMunicipios) {
-                // If exists, merge children if missing
-                if (!municipioNode.subrubros || municipioNode.subrubros.length === 0) {
-                     municipioNode.subrubros = JSON.parse(JSON.stringify(demoMunicipios.subrubros));
-                }
-            }
-
-            // 2. Ensure "Soluciones para Empresas" (ID 2) exists
-            let comercialesNode = tree.find(root =>
-                root.id === 2 || root.clave === 'comerciales_root'
-            );
-
-            const demoComerciales = DEMO_HIERARCHY.find(d => d.id === 2);
-
-            if (!comercialesNode && demoComerciales) {
-                tree.push(JSON.parse(JSON.stringify(demoComerciales)));
-            } else if (comercialesNode && demoComerciales) {
-                 if (!comercialesNode.subrubros || comercialesNode.subrubros.length === 0) {
-                     comercialesNode.subrubros = JSON.parse(JSON.stringify(demoComerciales.subrubros));
-                 }
-            }
-
-            // Final check: if tree is still "empty" or missing key roots, just fallback to full DEMO_HIERARCHY
-            if (tree.length === 0) {
-                return DEMO_HIERARCHY;
-            }
-
-            return tree;
-        }
-
-        console.warn("Backend rubros invalid format, using fallback hierarchy");
-        return DEMO_HIERARCHY;
+        return tree;
     } catch (error) {
         console.warn("Error processing rubros hierarchy, using fallback hierarchy", error);
         return DEMO_HIERARCHY;
