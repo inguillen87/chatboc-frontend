@@ -6,6 +6,20 @@ import { Order, Cart, Ticket, PortalContent, IntegrationStatus } from '@/types/u
  * All methods require an explicit tenantSlug to ensure context isolation.
  */
 export const apiClient = {
+  // Legacy generic methods for backward compatibility
+  get: async <T>(url: string, options?: any): Promise<T> => {
+    return apiFetch<T>(url, { method: 'GET', ...options });
+  },
+  post: async <T>(url: string, body?: any, options?: any): Promise<T> => {
+    return apiFetch<T>(url, { method: 'POST', body, ...options });
+  },
+  put: async <T>(url: string, body?: any, options?: any): Promise<T> => {
+    return apiFetch<T>(url, { method: 'PUT', body, ...options });
+  },
+  delete: async <T>(url: string, options?: any): Promise<T> => {
+    return apiFetch<T>(url, { method: 'DELETE', ...options });
+  },
+
   // --- Portal Methods ---
 
   getPortalContent: async (tenantSlug: string): Promise<PortalContent> => {
@@ -57,6 +71,13 @@ export const apiClient = {
   },
 
   adminGetIntegrations: async (tenantSlug: string): Promise<IntegrationStatus[]> => {
-    return apiFetch<IntegrationStatus[]>(`/api/admin/tenants/${tenantSlug}/integrations`, { tenantSlug });
+      // Backend returns Object { "MercadoLibre": {...} }, we must transform to Array
+      const rawData = await apiFetch<Record<string, any>>(`/api/admin/tenants/${tenantSlug}/integrations`, { tenantSlug });
+
+      return Object.entries(rawData).map(([provider, details]) => ({
+          provider: provider.toLowerCase() as any,
+          connected: details.connected,
+          lastSync: details.lastSync
+      }));
   },
 };
