@@ -34,10 +34,10 @@ const HowItWorksSection = () => {
   const navigate = useNavigate();
 
   return (
-    <section id="como-funciona" className="py-16 md:py-24 bg-light text-foreground">
+    <section id="como-funciona" className="py-16 md:py-24 bg-muted text-foreground">
       <div className="container px-4 mx-auto">
         <div className="text-center max-w-3xl mx-auto mb-12 md:mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4 text-dark">
+          <h2 className="text-3xl md:text-4xl font-bold mb-4 text-foreground">
             Sin complicaciones técnicas, todo listo para ti
           </h2>
           <p className="text-lg text-muted-foreground">
@@ -61,7 +61,7 @@ const HowItWorksSection = () => {
               <div className="bg-card text-card-foreground p-6 rounded-lg border border-border shadow-lg flex-grow hover:shadow-xl transition-shadow duration-300">
                 <div className="flex items-center mb-3 gap-3">
                    <div className="p-2 bg-primary/5 rounded-full">{step.icon}</div>
-                   <h3 className="text-xl font-semibold text-dark">{step.title}</h3>
+                   <h3 className="text-xl font-semibold text-foreground">{step.title}</h3>
                 </div>
                 <p className="text-muted-foreground">{step.description}</p>
               </div>

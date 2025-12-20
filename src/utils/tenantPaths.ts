@@ -32,7 +32,32 @@ export const TENANT_PLACEHOLDER_SLUGS = new Set([
   'analytics',
   'settings',
   'config',
-  'api'
+  'api',
+  'estadisticas',
+  'empleados',
+  'municipal',
+  'pyme',
+  'logs',
+  'consultas',
+  'presupuestos',
+  'recordatorios',
+  'historial',
+  'usuarios',
+  'soluciones',
+  'demo',
+  'home',
+  'landing',
+  'incidents',
+  'stats',
+  'market',
+  'whatsapp',
+  'telegram',
+  'instagram',
+  'facebook',
+  'mapas',
+  'ticket',
+  'tickets',
+  'admin'
 ]);
 
 const isPlaceholderSlug = (slug?: string | null) => {

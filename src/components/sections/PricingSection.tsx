@@ -66,7 +66,7 @@ const PricingSection = () => {
   const navigate = useNavigate();
 
   return (
-    <section id="precios" className="py-16 md:py-24 bg-light text-foreground"> {/* Alternar fondo */}
+    <section id="precios" className="py-16 md:py-24 bg-muted text-foreground"> {/* Alternar fondo */}
       <div className="container px-4 mx-auto">
         <div className="text-center max-w-3xl mx-auto mb-12 md:mb-16">
           <div className="inline-block p-3 mb-4 bg-primary/10 rounded-lg">

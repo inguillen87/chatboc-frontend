@@ -88,7 +88,11 @@ const LOCAL_PLACEHOLDER_SLUGS = new Set([
   'whatsapp',
   'telegram',
   'instagram',
-  'facebook'
+  'facebook',
+  'mapas',
+  'ticket',
+  'tickets',
+  'admin'
 ]);
 
 // Merge shared placeholders with API-specific ones
