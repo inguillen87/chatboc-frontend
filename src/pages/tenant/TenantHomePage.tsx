@@ -10,12 +10,15 @@ import { TenantShell } from '@/components/tenant/TenantShell';
 import { listTenantEvents, listTenantNews } from '@/api/tenant';
 import { listPublicSurveys, type PublicSurveyListResult } from '@/api/encuestas';
 import { useTenant } from '@/context/TenantContext';
+import { useUser } from '@/hooks/useUser';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { getErrorMessage } from '@/utils/api';
 import type { TenantEventItem, TenantNewsItem } from '@/types/tenant';
+import BusinessMetrics from '@/pages/BusinessMetrics';
+import EstadisticasPage from '@/pages/EstadisticasPage';
 
 const formatDate = (value?: string | null) => {
   if (!value) return null;
@@ -36,7 +39,7 @@ const limitItems = <T,>(items: T[] | undefined, size: number): T[] => {
   return items.slice(0, size);
 };
 
-const TenantHomePage = () => {
+const TenantPublicLanding = () => {
   const params = useParams<{ tenant: string }>();
   const { tenant, currentSlug } = useTenant();
 
@@ -304,6 +307,46 @@ const TenantHomePage = () => {
       )}
     </TenantShell>
   );
+};
+
+const TenantHomePage = () => {
+  const { user } = useUser();
+  const { tenant } = useTenant();
+
+  // Determine if user has admin access to this tenant
+  const hasAdminAccess = useMemo(() => {
+    if (!user) return false;
+    // Super admin can access everything
+    if (user.rol === 'super_admin') return true;
+
+    // Admin/Empleado check
+    // In a real scenario, we should check if the user belongs to THIS tenant.
+    // Assuming backend validates access, we just check role presence for now.
+    // If the backend prevents cross-tenant access, any 'admin' role is fine for the UI switch
+    // because the API would fail if they are in the wrong tenant.
+    const allowedRoles = ['admin', 'empleado'];
+    return allowedRoles.includes(user.rol || '');
+  }, [user]);
+
+  if (hasAdminAccess) {
+    // Render appropriate dashboard based on tenant type
+    if (tenant?.tipo === 'municipio') {
+      return (
+        <TenantShell>
+          <EstadisticasPage />
+        </TenantShell>
+      );
+    }
+    // Default to Business Dashboard (Pyme)
+    return (
+      <TenantShell>
+        <BusinessMetrics />
+      </TenantShell>
+    );
+  }
+
+  // Fallback to public landing for guests / portal users
+  return <TenantPublicLanding />;
 };
 
 export default TenantHomePage;

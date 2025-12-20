@@ -23,7 +23,8 @@ import Privacy from '@/pages/legal/Privacy';
 import Terms from '@/pages/legal/Terms';
 import Cookies from '@/pages/legal/Cookies';
 import TicketsPanel from '@/pages/TicketsPanel';
-import PedidosPage from '@/pages/PedidosPage';
+import PedidosPage from '@/pages/pyme/pedidos/PedidosPage';
+import IntegracionesPage from '@/pages/pyme/integraciones/IntegracionesPage';
 import UsuariosPage from '@/pages/UsuariosPage';
 import { TENANT_ROUTE_PREFIXES } from '@/utils/tenantPaths';
 import ProductCatalog from '@/pages/ProductCatalog';
@@ -222,6 +223,11 @@ const routes: RouteConfig[] = [
   ...withTenantPrefixes('/:tenant/eventos', { element: <TenantEventsPage /> }),
   ...withTenantPrefixes('/:tenant/reclamos/nuevo', { element: <TenantTicketFormPage /> }),
 
+  // Explicit aliases to match user mental model
+  ...withTenantPrefixes('/:tenant/reclamos', { element: <TicketsPanel />, roles: ['admin', 'empleado', 'super_admin'] }),
+  ...withTenantPrefixes('/:tenant/tickets', { element: <TicketsPanel />, roles: ['admin', 'empleado', 'super_admin'] }),
+  ...withTenantPrefixes('/:tenant/pedidos', { element: <PedidosPage />, roles: ['admin', 'empleado', 'super_admin'] }),
+
   // Surveys
   ...(FEATURE_ENCUESTAS
     ? [
@@ -240,11 +246,7 @@ const routes: RouteConfig[] = [
   ...withTenantPrefixes('/:tenant/user/register', { element: <UserRegister /> }),
 
   // Integrations & Admin (Tenant Scoped)
-  ...withTenantPrefixes('/:tenant/integracion', { element: <Integracion />, roles: ['admin'] }),
-  ...withTenantPrefixes('/:tenant/pedidos', {
-    element: <PedidosPage />,
-    roles: ['admin', 'empleado', 'super_admin'],
-  }),
+  ...withTenantPrefixes('/:tenant/integracion', { element: <IntegracionesPage />, roles: ['admin'] }),
   ...withTenantPrefixes('/:tenant/catalog-mappings/new', { element: <CatalogMappingPage />, roles: ['admin', 'super_admin'] }),
   ...withTenantPrefixes('/:tenant/catalog-mappings/:mappingId', { element: <CatalogMappingPage />, roles: ['admin', 'super_admin'] }),
 
@@ -264,7 +266,7 @@ const routes: RouteConfig[] = [
   { path: '/:tenant/checkout-productos', element: <ProductCheckoutPage /> },
   { path: '/:tenant/pedido/confirmado', element: <OrderConfirmationPage /> },
   // Missing root integration route
-  { path: '/:tenant/integracion', element: <Integracion />, roles: ['admin'] },
+  { path: '/:tenant/integracion', element: <IntegracionesPage />, roles: ['admin'] },
 
   // Generic Tenant Home (Dashboard/Landing) - Must be LAST among tenant routes to avoid swallowing others
   ...withTenantPrefixes('/:tenant', { element: <TenantHomePage /> }),
