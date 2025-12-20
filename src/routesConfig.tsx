@@ -222,6 +222,11 @@ const routes: RouteConfig[] = [
   ...withTenantPrefixes('/:tenant/eventos', { element: <TenantEventsPage /> }),
   ...withTenantPrefixes('/:tenant/reclamos/nuevo', { element: <TenantTicketFormPage /> }),
 
+  // Explicit aliases to match user mental model
+  ...withTenantPrefixes('/:tenant/reclamos', { element: <TicketsPanel />, roles: ['admin', 'empleado', 'super_admin'] }),
+  ...withTenantPrefixes('/:tenant/tickets', { element: <TicketsPanel />, roles: ['admin', 'empleado', 'super_admin'] }),
+  ...withTenantPrefixes('/:tenant/pedidos', { element: <PedidosPage />, roles: ['admin', 'empleado', 'super_admin'] }),
+
   // Surveys
   ...(FEATURE_ENCUESTAS
     ? [

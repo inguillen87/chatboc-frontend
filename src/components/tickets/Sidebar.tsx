@@ -6,6 +6,7 @@ import { Search, FileDown } from 'lucide-react';
 import { useDebounce } from '@/hooks/useDebounce';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import TicketListItem from './TicketListItem';
+import { useTenant } from '@/context/TenantContext';
 import { useTickets } from '@/context/TicketContext';
 import { exportToPdf, exportToExcel, exportAllToPdf } from '@/services/exportService';
 import {
@@ -25,6 +26,7 @@ interface SidebarProps {
 const ITEMS_PER_PAGE = 10;
 
 const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
+  const { tenant } = useTenant();
   const { tickets, ticketsByCategory, selectedTicket, selectTicket } = useTickets();
   const [searchTerm, setSearchTerm] = React.useState('');
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
@@ -181,7 +183,9 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
     >
       <div className="p-4 space-y-4">
         <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold">Tickets</h1>
+          <h1 className="text-2xl font-bold">
+            {tenant?.tipo === 'municipio' ? 'Reclamos' : 'Tickets'}
+          </h1>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm">
