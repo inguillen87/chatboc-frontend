@@ -43,7 +43,7 @@ const SolutionSection = () => {
     <section id="solucion" className="py-16 md:py-24 bg-background text-foreground">
       <div className="container px-4 mx-auto">
         <div className="text-center max-w-3xl mx-auto mb-12 md:mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4 text-dark">
+          <h2 className="text-3xl md:text-4xl font-bold mb-4 text-foreground">
             Potencia real, sin complicaciones
           </h2>
           <p className="text-lg text-muted-foreground">
@@ -60,7 +60,7 @@ const SolutionSection = () => {
               <div className="mb-5 flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 text-primary">
                 {feature.icon}
               </div>
-              <h3 className="text-xl font-semibold mb-3 text-dark">{feature.title}</h3>
+              <h3 className="text-xl font-semibold mb-3 text-foreground">{feature.title}</h3>
               <p className="text-muted-foreground text-sm">{feature.description}</p>
             </div>
           ))}

@@ -189,11 +189,22 @@
 
 /* Scoped transparency for iframe/widget mode */
 html.iframe-mode,
-html.iframe-mode body,
+html.iframe-mode body {
+  background: transparent !important;
+}
+
 html.iframe-mode #root,
 html.iframe-mode #__next,
 html.iframe-mode #app {
+  /* Only force transparent if we are sure we are in iframe mode */
+  /* This prevents the root div from having a background if it was set elsewhere */
   background: transparent !important;
+}
+
+/* Ensure background color is reapplied if NOT in iframe mode */
+/* This is a safeguard against class leakage */
+html:not(.iframe-mode) body {
+    background-color: hsl(var(--background));
 }
 
 html,

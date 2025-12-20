@@ -515,34 +515,43 @@ const ChatPanel = ({
   );
 
   useEffect(() => {
-    // Always attempt to scroll to bottom on new messages, specially if content is dynamic.
+    // FORCE SCROLL ON NEW MESSAGE
     // Use a small timeout to allow layout to settle (e.g. images loading)
     const timer = setTimeout(() => {
         if (chatContainerRef.current) {
             const { scrollHeight, scrollTop, clientHeight } = chatContainerRef.current;
-            // More aggressive auto-scroll: if user is not VERY far up (e.g. 250px), scroll down.
-            // But only if we are not manually paused.
-            // Actually, let's just use the visibility of ScrollToBottomButton as a proxy for "manual scroll up".
-            // If showScrollDown is true, user scrolled up. We should NOT auto scroll unless it's my own message.
 
-            // However, typical behavior is: if I am at bottom, stay at bottom. If I am up, stay up (and show badge).
-            const atBottom = scrollHeight - scrollTop - clientHeight < 250;
-            const isShort = messages.length < 5;
-            const isVeryRecent = messages.length > 0 && (Date.now() - new Date(messages[messages.length - 1].timestamp).getTime() < 1000);
+            // Check if we are "close enough" to the bottom OR if it's the very first render/messages
+            // We increase the threshold to 300px to be more aggressive
+            const isCloseToBottom = scrollHeight - scrollTop - clientHeight < 300;
+            const isShortConversation = messages.length <= 3;
+            const isLatestMessageMine = !messages[messages.length - 1]?.isBot;
 
-            // If we are already at bottom OR it's a short conversation OR the message is brand new, force scroll.
-            if (atBottom || isShort || isVeryRecent) {
-                // Use 'auto' instead of 'smooth' to ensure reliable scrolling in iframes and prevent layout jumps
-                messagesEndRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
+            // Always scroll if:
+            // 1. We are close to bottom
+            // 2. It's a short conversation (initial load)
+            // 3. The user just sent a message (we want to see our own message)
+            if (isCloseToBottom || isShortConversation || isLatestMessageMine) {
+                // Use 'auto' behavior to prevent layout trashing in iframes
+                if (messagesEndRef.current) {
+                   messagesEndRef.current.scrollIntoView({ behavior: "auto", block: "end" });
+                }
+                // Double check via container scrollTop for robustness
+                if (chatContainerRef.current) {
+                    chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+                }
                 setShowScrollDown(false);
             } else {
+                // User is scrolled up reading history
                 setShowScrollDown(true);
             }
         } else {
-            // Fallback if ref is not ready yet (e.g. iframe initial render)
-            messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+            // Fallback if ref is not ready yet
+             if (messagesEndRef.current) {
+                messagesEndRef.current.scrollIntoView({ behavior: "auto", block: "end" });
+             }
         }
-    }, 150); // Increased timeout slightly for iframe rendering
+    }, 100);
     return () => clearTimeout(timer);
   }, [messages]);
 

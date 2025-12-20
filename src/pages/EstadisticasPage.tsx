@@ -1025,7 +1025,7 @@ export default function EstadisticasPage() {
           description="Tendencia mensual de creación de casos"
         >
           {timeline.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <AreaChart data={timeline}>
                 <defs>
                   <linearGradient id={timelineGradientId} x1="0" y1="0" x2="0" y2="1">
@@ -1058,7 +1058,7 @@ export default function EstadisticasPage() {
           description="Proporción de tickets por etapa del flujo"
         >
           {statusBreakdown.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <RadialBarChart
                 data={statusBreakdown.map((item, index) => ({
                   name: item.label,
@@ -1091,7 +1091,7 @@ export default function EstadisticasPage() {
           description="Conoce qué canales concentran las interacciones"
         >
           {channelBreakdown.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <BarChart data={channelBreakdown}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border) / 0.35)" />
                 <XAxis dataKey="label" tick={{ fill: 'hsl(var(--muted-foreground))' }} />

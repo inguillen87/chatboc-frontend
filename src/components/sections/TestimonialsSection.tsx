@@ -44,10 +44,10 @@ const testimonialsData = [
 
 const TestimonialsSection = () => {
   return (
-    <section id="testimonios" className="py-16 md:py-24 bg-light text-foreground">
+    <section id="testimonios" className="py-16 md:py-24 bg-muted text-foreground">
       <div className="container px-4 mx-auto">
         <div className="text-center max-w-3xl mx-auto mb-12 md:mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4 text-dark">
+          <h2 className="text-3xl md:text-4xl font-bold mb-4 text-foreground">
             Organizaciones que Ya Transforman su Comunicación
           </h2>
           <p className="text-lg text-muted-foreground">
@@ -78,7 +78,7 @@ const TestimonialsSection = () => {
                   </AvatarFallback>
                 </Avatar>
                 <div>
-                  <h4 className="font-semibold text-base md:text-lg text-dark">{testimonial.organizationName}</h4>
+                  <h4 className="font-semibold text-base md:text-lg text-foreground">{testimonial.organizationName}</h4>
                   <p className="text-sm text-muted-foreground">— {testimonial.authorName}</p>
                 </div>
               </div>
