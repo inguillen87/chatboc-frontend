@@ -1,32 +1,62 @@
 import { apiFetch } from '@/utils/api';
+import { Order, Cart, Ticket, PortalContent, IntegrationStatus } from '@/types/unified';
 
 /**
- * Lightweight HTTP client wrapper for marketplace endpoints.
- * It delegates URL resolution and tenant detection to the shared apiFetch helper
- * to reuse its proxy detection, CORS fallbacks, and multi-base retry logic.
+ * Standardized API Client for Tenant-Aware fetching.
+ * All methods require an explicit tenantSlug to ensure context isolation.
  */
-const normalizePath = (path: string): string => (path.startsWith('/') ? path : `/${path}`);
-
-const withTenant = (path: string, tenantSlug?: string | null) => {
-  if (!tenantSlug) return normalizePath(path);
-
-  const normalizedPath = normalizePath(path);
-  const tenantPrefix = `/municipio/${encodeURIComponent(tenantSlug)}`;
-
-  if (normalizedPath.startsWith('/api/')) return normalizedPath;
-  if (normalizedPath.startsWith('/municipio/')) return normalizedPath;
-  if (normalizedPath.startsWith('/public/')) return `/api${normalizedPath}`.replace(/^\/api\/api/, '/api');
-
-  return `/api${tenantPrefix}${normalizedPath}`.replace(/^\/api\/api/, '/api');
-};
-
 export const apiClient = {
-  get: <T = any>(path: string, tenantSlug?: string | null) =>
-    apiFetch<T>(withTenant(path, tenantSlug), { method: 'GET', tenantSlug }),
-  post: <T = any>(path: string, body?: unknown, tenantSlug?: string | null) =>
-    apiFetch<T>(withTenant(path, tenantSlug), { method: 'POST', body, tenantSlug }),
-  put: <T = any>(path: string, body?: unknown, tenantSlug?: string | null) =>
-    apiFetch<T>(withTenant(path, tenantSlug), { method: 'PUT', body, tenantSlug }),
-  delete: <T = any>(path: string, tenantSlug?: string | null) =>
-    apiFetch<T>(withTenant(path, tenantSlug), { method: 'DELETE', tenantSlug }),
+  // --- Portal Methods ---
+
+  getPortalContent: async (tenantSlug: string): Promise<PortalContent> => {
+    return apiFetch<PortalContent>(`/api/v1/portal/${tenantSlug}/content`, { tenantSlug });
+  },
+
+  listOrders: async (tenantSlug: string): Promise<Order[]> => {
+    return apiFetch<Order[]>(`/api/v1/portal/${tenantSlug}/orders`, { tenantSlug });
+  },
+
+  listTickets: async (tenantSlug: string): Promise<Ticket[]> => {
+    return apiFetch<Ticket[]>(`/api/v1/portal/${tenantSlug}/tickets`, { tenantSlug });
+  },
+
+  // --- Market Methods ---
+
+  getCart: async (tenantSlug: string): Promise<Cart> => {
+    return apiFetch<Cart>(`/api/market/${tenantSlug}/cart`, { tenantSlug });
+  },
+
+  addToCart: async (tenantSlug: string, productId: string | number, quantity: number): Promise<Cart> => {
+    return apiFetch<Cart>(`/api/market/${tenantSlug}/cart/add`, {
+      method: 'POST',
+      body: { productId, quantity },
+      tenantSlug,
+    });
+  },
+
+  startCheckout: async (tenantSlug: string, payload: any): Promise<any> => {
+    return apiFetch<any>(`/api/market/${tenantSlug}/checkout/start`, {
+      method: 'POST',
+      body: payload,
+      tenantSlug,
+    });
+  },
+
+  // --- Admin Methods ---
+
+  adminListOrders: async (tenantSlug: string): Promise<Order[]> => {
+    return apiFetch<Order[]>(`/api/admin/tenants/${tenantSlug}/pedidos`, { tenantSlug });
+  },
+
+  adminUpdateOrder: async (tenantSlug: string, orderId: string | number, status: string): Promise<Order> => {
+    return apiFetch<Order>(`/api/admin/tenants/${tenantSlug}/pedidos/${orderId}`, {
+      method: 'PUT',
+      body: { status },
+      tenantSlug,
+    });
+  },
+
+  adminGetIntegrations: async (tenantSlug: string): Promise<IntegrationStatus[]> => {
+    return apiFetch<IntegrationStatus[]>(`/api/admin/tenants/${tenantSlug}/integrations`, { tenantSlug });
+  },
 };
