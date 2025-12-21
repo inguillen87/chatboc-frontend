@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { formatCurrency } from '@/utils/currency';
 import { getProductPlaceholderImage } from '@/utils/cartPayload';
-import { ShoppingCart } from 'lucide-react';
+import { ShoppingCart, ExternalLink } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Interfaz detallada del producto
@@ -34,6 +34,9 @@ export interface ProductDetails {
   instrucciones_entrega?: string | null;
   origen?: 'api' | 'demo';
   disponible?: boolean;
+  // Mirror Catalog fields
+  checkout_type?: 'mercadolibre' | 'tiendanube' | 'chatboc' | null;
+  external_url?: string | null;
 }
 
 export interface AddToCartOptions {
@@ -68,6 +71,8 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
     precio_mayorista,
     cantidad_minima_mayorista,
     modalidad: modalidadRaw,
+    checkout_type,
+    external_url,
   } = product;
 
   const modalidad = typeof modalidadRaw === 'string' ? modalidadRaw.toLowerCase() : 'venta';
@@ -118,6 +123,8 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
     setAddedFeedback(true);
     setTimeout(() => setAddedFeedback(false), 900);
   };
+
+  const isExternalCheckout = (checkout_type === 'mercadolibre' || checkout_type === 'tiendanube') && external_url;
 
   return (
     <Card className="relative flex flex-col justify-between w-full max-w-sm bg-card rounded-lg shadow-md hover:shadow-xl transition-shadow duration-300 overflow-hidden">
@@ -221,7 +228,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
       </CardContent>
 
       <CardFooter className="p-4 flex flex-col gap-3 border-t">
-        {!isDonation && (
+        {!isDonation && !isExternalCheckout && (
           <div className="flex flex-wrap gap-2">
             <Button
               variant={mode === 'unit' ? 'default' : 'outline'}
@@ -245,40 +252,53 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
           </div>
         )}
 
-        <div className="flex items-center gap-2">
-          <Input
-            type="number"
-            min={1}
-            value={quantity}
-            onChange={(event) => {
-              const next = Number(event.target.value);
-              if (!Number.isFinite(next) || next <= 0) {
-                setQuantity(1);
-                return;
-              }
-              setQuantity(Math.floor(next));
-            }}
-            className="w-20"
-          />
-          <MotionButton
-            size="sm"
-            onClick={handleAddToCartClick}
-            disabled={stock_disponible === 0}
-            className="flex-1"
-            whileTap={{ scale: 0.96 }}
-            whileHover={{ scale: 1.01 }}
-            animate={addedFeedback ? { scale: [1, 1.05, 1], transition: { duration: 0.3 } } : undefined}
-          >
-            <ShoppingCart className="mr-2 h-4 w-4" />
-            {isDonation
-              ? 'Donar este ítem'
-              : isPoints
-                ? `Canjear${pointsValue ? ` (${pointsValue} pts)` : ''}`
-                : mode === 'case'
-                  ? 'Agregar cajas'
-                  : 'Agregar'}
-          </MotionButton>
-        </div>
+        {isExternalCheckout ? (
+           <Button
+             className="w-full"
+             variant={checkout_type === 'mercadolibre' ? 'secondary' : 'default'}
+             asChild
+           >
+             <a href={external_url || '#'} target="_blank" rel="noopener noreferrer">
+                {checkout_type === 'mercadolibre' ? 'Comprar en Mercado Libre' : 'Comprar en Tienda Online'}
+                <ExternalLink className="ml-2 h-4 w-4" />
+             </a>
+           </Button>
+        ) : (
+          <div className="flex items-center gap-2">
+            <Input
+              type="number"
+              min={1}
+              value={quantity}
+              onChange={(event) => {
+                const next = Number(event.target.value);
+                if (!Number.isFinite(next) || next <= 0) {
+                  setQuantity(1);
+                  return;
+                }
+                setQuantity(Math.floor(next));
+              }}
+              className="w-20"
+            />
+            <MotionButton
+              size="sm"
+              onClick={handleAddToCartClick}
+              disabled={stock_disponible === 0}
+              className="flex-1"
+              whileTap={{ scale: 0.96 }}
+              whileHover={{ scale: 1.01 }}
+              animate={addedFeedback ? { scale: [1, 1.05, 1], transition: { duration: 0.3 } } : undefined}
+            >
+              <ShoppingCart className="mr-2 h-4 w-4" />
+              {isDonation
+                ? 'Donar este ítem'
+                : isPoints
+                  ? `Canjear${pointsValue ? ` (${pointsValue} pts)` : ''}`
+                  : mode === 'case'
+                    ? 'Agregar cajas'
+                    : 'Agregar'}
+            </MotionButton>
+          </div>
+        )}
       </CardFooter>
     </Card>
   );

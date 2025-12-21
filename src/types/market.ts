@@ -18,6 +18,9 @@ export interface MarketProduct {
   publicUrl: string | null;
   whatsappShareUrl: string | null;
   disponible?: boolean;
+  // Mirror Catalog fields
+  checkout_type?: 'mercadolibre' | 'tiendanube' | 'chatboc' | null;
+  external_url?: string | null;
 }
 
 export interface MarketCartItem extends MarketProduct {
