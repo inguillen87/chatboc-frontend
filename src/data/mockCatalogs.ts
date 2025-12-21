@@ -23,6 +23,30 @@ export const DEMO_CATALOGS: Record<string, MarketProduct[]> = {
       whatsappShareUrl: null,
       disponible: true
     },
+    // New Mirror Catalog Test Item
+    {
+      id: "b-ml-1",
+      name: "Pack Malbec (Mercado Libre)",
+      description: "Pack especial venta exclusiva en ML. Envío gratis.",
+      price: 25000,
+      priceText: "$25.000",
+      currency: "ARS",
+      imageUrl: "https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?auto=format&fit=crop&q=80&w=400",
+      category: "Ofertas Web",
+      quantity: 10,
+      modality: "venta",
+      points: null,
+      descriptionShort: "Pack ML",
+      unit: "pack",
+      sku: "ML-PACK-01",
+      brand: "Bodega Demo",
+      promoInfo: "Exclusivo Online",
+      publicUrl: null,
+      whatsappShareUrl: null,
+      disponible: true,
+      checkout_type: "mercadolibre",
+      external_url: "https://mercadolibre.com.ar"
+    },
     {
       id: "b2",
       name: "Chardonnay Orgánico",

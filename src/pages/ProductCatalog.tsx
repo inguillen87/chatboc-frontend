@@ -112,7 +112,9 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug, isDemoMode 
                     marca: p.brand ?? null,
                     promocion_activa: p.promoInfo ?? null,
                     disponible: true,
-                    origen: 'demo' as const
+                    origen: 'demo' as const,
+                    checkout_type: p.checkout_type,
+                    external_url: p.external_url
                 }));
             }
         }
