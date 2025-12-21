@@ -74,6 +74,14 @@ export const apiClient = {
     return apiFetch<Order[]>(`/api/admin/tenants/${tenantSlug}/orders`, { tenantSlug });
   },
 
+  adminCreateOrder: async (tenantSlug: string, payload: any): Promise<Order> => {
+    return apiFetch<Order>(`/api/admin/tenants/${tenantSlug}/orders`, {
+      method: 'POST',
+      body: payload,
+      tenantSlug,
+    });
+  },
+
   adminUpdateOrder: async (tenantSlug: string, orderId: string | number, status: string): Promise<Order> => {
     return apiFetch<Order>(`/api/admin/tenants/${tenantSlug}/orders/${orderId}`, {
       method: 'PUT',
@@ -102,5 +110,17 @@ export const apiClient = {
       method: 'POST',
       tenantSlug
     });
-  }
+  },
+
+  adminGetNotificationSettings: async (tenantSlug: string): Promise<any> => {
+    return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/notifications`, { tenantSlug });
+  },
+
+  adminUpdateNotificationSettings: async (tenantSlug: string, settings: any): Promise<any> => {
+    return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/notifications`, {
+      method: 'PUT',
+      body: settings,
+      tenantSlug,
+    });
+  },
 };
