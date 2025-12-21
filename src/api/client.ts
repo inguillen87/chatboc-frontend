@@ -1,5 +1,5 @@
 import { apiFetch } from '@/utils/api';
-import { Order, Cart, Ticket, PortalContent, IntegrationStatus } from '@/types/unified';
+import { Order, Cart, Ticket, PortalContent, IntegrationStatus, PortalLoyaltySummary } from '@/types/unified';
 
 /**
  * Standardized API Client for Tenant-Aware fetching.
@@ -34,6 +34,18 @@ export const apiClient = {
     return apiFetch<Ticket[]>(`/api/v1/portal/${tenantSlug}/tickets`, { tenantSlug });
   },
 
+  getLoyalty: async (tenantSlug: string): Promise<PortalLoyaltySummary> => {
+    return apiFetch<PortalLoyaltySummary>(`/api/v1/portal/${tenantSlug}/loyalty`, { tenantSlug });
+  },
+
+  redeemBenefit: async (tenantSlug: string, benefitId: string): Promise<any> => {
+    return apiFetch<any>(`/api/v1/portal/${tenantSlug}/redeem`, {
+      method: 'POST',
+      body: { benefitId },
+      tenantSlug,
+    });
+  },
+
   // --- Market Methods ---
 
   getCart: async (tenantSlug: string): Promise<Cart> => {
@@ -59,11 +71,11 @@ export const apiClient = {
   // --- Admin Methods ---
 
   adminListOrders: async (tenantSlug: string): Promise<Order[]> => {
-    return apiFetch<Order[]>(`/api/admin/tenants/${tenantSlug}/pedidos`, { tenantSlug });
+    return apiFetch<Order[]>(`/api/admin/tenants/${tenantSlug}/orders`, { tenantSlug });
   },
 
   adminUpdateOrder: async (tenantSlug: string, orderId: string | number, status: string): Promise<Order> => {
-    return apiFetch<Order>(`/api/admin/tenants/${tenantSlug}/pedidos/${orderId}`, {
+    return apiFetch<Order>(`/api/admin/tenants/${tenantSlug}/orders/${orderId}`, {
       method: 'PUT',
       body: { status },
       tenantSlug,
@@ -71,13 +83,24 @@ export const apiClient = {
   },
 
   adminGetIntegrations: async (tenantSlug: string): Promise<IntegrationStatus[]> => {
-      // Backend returns Object { "MercadoLibre": {...} }, we must transform to Array
-      const rawData = await apiFetch<Record<string, any>>(`/api/admin/tenants/${tenantSlug}/integrations`, { tenantSlug });
+    // Backend returns Object { "MercadoLibre": {...} }, we must transform to Array
+    const rawData = await apiFetch<Record<string, any>>(`/api/admin/tenants/${tenantSlug}/integrations`, { tenantSlug });
 
-      return Object.entries(rawData).map(([provider, details]) => ({
-          provider: provider.toLowerCase() as any,
-          connected: details.connected,
-          lastSync: details.lastSync
-      }));
+    return Object.entries(rawData).map(([provider, details]) => ({
+      provider: provider.toLowerCase() as any,
+      connected: details.connected,
+      lastSync: details.lastSync
+    }));
   },
+
+  adminConnectIntegration: async (tenantSlug: string, type: string): Promise<{ url: string }> => {
+    return apiFetch<{ url: string }>(`/api/admin/tenants/${tenantSlug}/integrations/${type}/connect`, { tenantSlug });
+  },
+
+  adminSyncIntegration: async (tenantSlug: string, type: string): Promise<any> => {
+    return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/integrations/${type}/sync`, {
+      method: 'POST',
+      tenantSlug
+    });
+  }
 };

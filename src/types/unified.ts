@@ -109,12 +109,30 @@ export interface PortalSurvey {
   link?: string;
 }
 
+export interface LoyaltyTransaction {
+  id: string;
+  description: string;
+  points: number;
+  date: string;
+  type: 'earned' | 'redeemed';
+}
+
+export interface LoyaltyReward {
+  id: string;
+  title: string;
+  cost: number;
+  type: string;
+  description?: string;
+}
+
 export interface PortalLoyaltySummary {
   points: number;
   level: string;
   surveysCompleted: number;
   suggestionsShared: number;
   claimsFiled: number;
+  transactions?: LoyaltyTransaction[];
+  availableRewards?: LoyaltyReward[];
 }
 
 export interface PortalContent {
