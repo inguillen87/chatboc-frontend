@@ -76,6 +76,7 @@ import MarketCheckoutPage from '@/pages/tenant/market/MarketCheckoutPage';
 import CreateTenantPage from '@/pages/admin/CreateTenantPage';
 import SuperAdminDashboard from '@/pages/admin/SuperAdminDashboard';
 import DemoLandingPage from '@/pages/DemoLandingPage';
+import SmartPedidosWrapper from '@/pages/SmartPedidosWrapper';
 
 // NUEVAS IMPORTACIONES PARA EL PORTAL DE USUARIO
 // UserPortalLayout no se importa aquí si se usa como Layout Route en App.tsx
@@ -226,7 +227,7 @@ const routes: RouteConfig[] = [
   // Explicit aliases to match user mental model
   ...withTenantPrefixes('/:tenant/reclamos', { element: <TicketsPanel />, roles: ['admin', 'empleado', 'super_admin'] }),
   ...withTenantPrefixes('/:tenant/tickets', { element: <TicketsPanel />, roles: ['admin', 'empleado', 'super_admin'] }),
-  ...withTenantPrefixes('/:tenant/pedidos', { element: <PedidosPage />, roles: ['admin', 'empleado', 'super_admin'] }),
+  ...withTenantPrefixes('/:tenant/pedidos', { element: <SmartPedidosWrapper />, roles: ['admin', 'empleado', 'super_admin'] }),
 
   // Surveys
   ...(FEATURE_ENCUESTAS
@@ -305,7 +306,7 @@ const routes: RouteConfig[] = [
   { path: '/legal/terms', element: <Terms /> },
   { path: '/legal/cookies', element: <Cookies /> },
   { path: '/tickets', element: <TicketsPanel />, roles: ['admin', 'empleado', 'super_admin'] },
-  { path: '/pedidos', element: <PedidosPage />, roles: ['admin', 'empleado', 'super_admin'] },
+  { path: '/pedidos', element: <SmartPedidosWrapper />, roles: ['admin', 'empleado', 'super_admin'] },
   { path: '/usuarios', element: <UsuariosPage />, roles: ['admin', 'empleado', 'super_admin'] },
   { path: '/notifications', element: <NotificationSettings /> },
   { path: '/ticket', element: <TicketLookup /> },

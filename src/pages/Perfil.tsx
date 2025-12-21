@@ -1807,17 +1807,6 @@ export default function Perfil() {
                           {perfil.plan !== "full" && perfil.plan !== "pro" && (
                             <div className="space-y-2 mt-3">
                               <Button
-                                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
-                                onClick={() =>
-                                  window.open(
-                                    "https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=2c9380849764e81a01976585767f0040",
-                                    "_blank",
-                                  )
-                                }
-                              >
-                                Mejorar a PRO ($65.000/mes)
-                              </Button>
-                              <Button
                                 className="w-full bg-accent hover:bg-accent/90 text-accent-foreground font-semibold"
                                 onClick={() =>
                                   window.open(
@@ -1826,7 +1815,18 @@ export default function Perfil() {
                                   )
                                 }
                               >
-                                Mejorar a FULL ($95.000/mes)
+                                Mejorar a FULL ($350.000/mes)
+                              </Button>
+                              <Button
+                                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
+                                onClick={() =>
+                                  window.open(
+                                    "https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=2c9380849764e81a01976585767f0040",
+                                    "_blank",
+                                  )
+                                }
+                              >
+                                Mejorar a PRO ($300.000/mes)
                               </Button>
                             </div>
                           )}
@@ -1890,17 +1890,6 @@ export default function Perfil() {
                   {perfil.plan !== "full" && perfil.plan !== "pro" && (
                     <div className="space-y-2 mt-3">
                       <Button
-                        className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
-                        onClick={() =>
-                          window.open(
-                            "https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=2c9380849764e81a01976585767f0040",
-                            "_blank",
-                          )
-                        }
-                      >
-                        Mejorar a PRO ($65.000/mes)
-                      </Button>
-                      <Button
                         className="w-full bg-accent hover:bg-accent/90 text-accent-foreground font-semibold"
                         onClick={() =>
                           window.open(
@@ -1909,7 +1898,18 @@ export default function Perfil() {
                           )
                         }
                       >
-                        Mejorar a FULL ($95.000/mes)
+                        Mejorar a FULL ($350.000/mes)
+                      </Button>
+                      <Button
+                        className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
+                        onClick={() =>
+                          window.open(
+                            "https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=2c9380849764e81a01976585767f0040",
+                            "_blank",
+                          )
+                        }
+                      >
+                        Mejorar a PRO ($300.000/mes)
                       </Button>
                     </div>
                   )}

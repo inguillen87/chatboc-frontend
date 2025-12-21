@@ -11,7 +11,7 @@ const Checkout = () => {
   const planInfo = {
     pro: {
       title: "Plan Pro",
-      price: "$65.000 / mes",
+      price: "$300.000 / mes",
       benefits: [
         "Hasta 250 preguntas e interacciones personalizadas por mes",
         "Entrenamiento optimizado para el rubro de tu empresa",
@@ -25,7 +25,7 @@ const Checkout = () => {
     },
     full: {
       title: "Plan Full",
-      price: "$95.000 / mes",
+      price: "$350.000 / mes",
       benefits: [
         "Consultas ilimitadas sin tope de mensajes",
         "Automatización completa de respuestas, seguimientos y derivaciones",
