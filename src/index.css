@@ -203,6 +203,11 @@ html.iframe-mode #app {
   background: transparent !important;
 }
 
+/* Ensure the chatboc-container (and its children) have a solid background when inside iframe-mode */
+html.iframe-mode .chatboc-container .chat-root {
+  background-color: hsl(var(--card)) !important;
+}
+
 /* Ensure background color is reapplied if NOT in iframe mode */
 /* This is a safeguard against class leakage */
 html:not(.iframe-mode) body {
