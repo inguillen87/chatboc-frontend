@@ -5,11 +5,14 @@ import { Order } from '@/types/unified';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Loader2, Package, Truck, CheckCircle, XCircle, Search, ShoppingBag, MessageCircle, Globe, ExternalLink } from 'lucide-react';
+import { Loader2, Package, Truck, CheckCircle, XCircle, Search, ShoppingBag, MessageCircle, Globe, ExternalLink, Plus } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { toast } from 'sonner';
 
 const STATUS_MAP: Record<string, { label: string; color: string; icon: any }> = {
   nuevo: { label: 'Nuevo', color: 'bg-blue-100 text-blue-800', icon: Package },
@@ -41,6 +44,11 @@ const PedidosPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [channelFilter, setChannelFilter] = useState<string>('all');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+
+  // Manual Order State
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [createLoading, setCreateLoading] = useState(false);
+  const [newItem, setNewItem] = useState({ contact_name: '', product_name: '', price: '', quantity: '1' });
 
   useEffect(() => {
     if (currentSlug) {
@@ -88,6 +96,37 @@ const PedidosPage = () => {
     }
   };
 
+  const handleCreateOrder = async () => {
+      if (!currentSlug) return;
+      if (!newItem.contact_name || !newItem.product_name || !newItem.price) {
+          toast.error("Complete los campos obligatorios");
+          return;
+      }
+
+      setCreateLoading(true);
+      try {
+          const payload = {
+              contact_name: newItem.contact_name,
+              items: [{
+                  name: newItem.product_name,
+                  price: parseFloat(newItem.price),
+                  quantity: parseInt(newItem.quantity) || 1
+              }]
+          };
+
+          await apiClient.adminCreateOrder(currentSlug, payload);
+          toast.success("Pedido creado correctamente");
+          setIsCreateOpen(false);
+          setNewItem({ contact_name: '', product_name: '', price: '', quantity: '1' });
+          loadOrders(); // Refresh list
+      } catch (error) {
+          console.error("Create order failed", error);
+          toast.error("Error al crear el pedido");
+      } finally {
+          setCreateLoading(false);
+      }
+  };
+
   const filteredOrders = orders.filter(o => {
     const matchesSearch = o.id.toString().includes(searchTerm) ||
                           o.items.some(i => i.name.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -103,7 +142,66 @@ const PedidosPage = () => {
           <p className="text-muted-foreground">Centraliza tus ventas de Mercado Libre, Tienda Nube y WhatsApp.</p>
         </div>
 
-        <div className="flex gap-2 w-full md:w-auto">
+        <div className="flex gap-2 w-full md:w-auto flex-wrap">
+            <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+                <DialogTrigger asChild>
+                    <Button>
+                        <Plus className="mr-2 h-4 w-4" /> Crear Pedido
+                    </Button>
+                </DialogTrigger>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Crear Pedido Manual</DialogTitle>
+                        <DialogDescription>Registra una venta realizada por fuera de la plataforma.</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-2">
+                        <div className="space-y-2">
+                            <Label>Nombre del Cliente</Label>
+                            <Input
+                                value={newItem.contact_name}
+                                onChange={e => setNewItem({...newItem, contact_name: e.target.value})}
+                                placeholder="Juan Pérez"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Producto</Label>
+                            <Input
+                                value={newItem.product_name}
+                                onChange={e => setNewItem({...newItem, product_name: e.target.value})}
+                                placeholder="Producto ejemplo"
+                            />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label>Precio Unitario</Label>
+                                <Input
+                                    type="number"
+                                    value={newItem.price}
+                                    onChange={e => setNewItem({...newItem, price: e.target.value})}
+                                    placeholder="0.00"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Cantidad</Label>
+                                <Input
+                                    type="number"
+                                    value={newItem.quantity}
+                                    onChange={e => setNewItem({...newItem, quantity: e.target.value})}
+                                    placeholder="1"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsCreateOpen(false)}>Cancelar</Button>
+                        <Button onClick={handleCreateOrder} disabled={createLoading}>
+                            {createLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
+                            Crear
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
             <div className="relative flex-1 md:w-64">
                 <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input

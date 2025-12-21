@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Loader2, RefreshCw, ExternalLink, CheckCircle2, AlertCircle, MessageSquare, Send } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { toast } from 'sonner';
 
 const INTEGRATION_LOGOS: Record<string, string> = {
   mercadolibre: "https://http2.mlstatic.com/frontend-assets/ml-web-navigation/ui-navigation/5.21.22/mercadolibre/logo__large_plus.png",
@@ -23,6 +24,7 @@ const IntegracionesPage = () => {
   const [integrations, setIntegrations] = useState<IntegrationStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState<string | null>(null);
+  const [savingSettings, setSavingSettings] = useState(false);
 
   // Notification Settings State
   const [ownerPhone, setOwnerPhone] = useState('');
@@ -34,12 +36,26 @@ const IntegracionesPage = () => {
   useEffect(() => {
     if (currentSlug) {
       loadIntegrations();
-      // Mock loading settings
-      setOwnerPhone('5491112345678');
-      setTelegramChatId('123456789');
-      setNotifyTelegram(true);
+      loadSettings();
     }
   }, [currentSlug]);
+
+  const loadSettings = async () => {
+    try {
+      if (!currentSlug) return;
+      const settings = await apiClient.adminGetNotificationSettings(currentSlug);
+      if (settings) {
+        setOwnerPhone(settings.owner_phone || '');
+        setTelegramChatId(settings.telegram_chat_id || '');
+        setNotifyWhatsapp(settings.notification_settings?.whatsapp ?? false);
+        setNotifyTelegram(settings.notification_settings?.telegram ?? false);
+        setNotifyEmail(settings.notification_settings?.email ?? true);
+      }
+    } catch (error) {
+      console.error('Error loading settings:', error);
+      // Don't show error toast on load, just log it. Maybe default to empty state.
+    }
+  };
 
   const loadIntegrations = async () => {
     setLoading(true);
@@ -75,9 +91,11 @@ const IntegracionesPage = () => {
       } else {
           // Fallback if no URL returned (e.g. backend not ready)
           console.warn('No redirect URL returned');
+          toast.error("No se pudo iniciar la conexión.");
       }
     } catch (error) {
         console.error('Connection failed:', error);
+        toast.error("Error al conectar con la plataforma.");
     }
   };
 
@@ -86,18 +104,37 @@ const IntegracionesPage = () => {
     setSyncing(provider);
     try {
        await apiClient.adminSyncIntegration(currentSlug, provider);
+       toast.success("Sincronización iniciada correctamente.");
        // Refresh list to update sync time
        await loadIntegrations();
     } catch (error) {
       console.error('Sync failed', error);
+      toast.error("Error al sincronizar.");
     } finally {
       setSyncing(null);
     }
   };
 
-  const handleSaveNotifications = () => {
-      // Logic to save notification settings to backend
-      alert('Configuración guardada correctamente.');
+  const handleSaveNotifications = async () => {
+      if (!currentSlug) return;
+      setSavingSettings(true);
+      try {
+        await apiClient.adminUpdateNotificationSettings(currentSlug, {
+            owner_phone: ownerPhone,
+            telegram_chat_id: telegramChatId,
+            notification_settings: {
+                whatsapp: notifyWhatsapp,
+                telegram: notifyTelegram,
+                email: notifyEmail
+            }
+        });
+        toast.success('Configuración guardada correctamente.');
+      } catch (error) {
+          console.error('Failed to save settings', error);
+          toast.error('No se pudo guardar la configuración.');
+      } finally {
+          setSavingSettings(false);
+      }
   };
 
   if (loading) return <div className="flex h-96 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
@@ -272,7 +309,10 @@ const IntegracionesPage = () => {
                     </div>
                 </CardContent>
                 <div className="p-6 pt-0 flex justify-end">
-                    <Button onClick={handleSaveNotifications}>Guardar Cambios</Button>
+                    <Button onClick={handleSaveNotifications} disabled={savingSettings}>
+                        {savingSettings ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : null}
+                        Guardar Cambios
+                    </Button>
                 </div>
              </Card>
         </section>
