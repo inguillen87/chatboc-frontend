@@ -1,7 +1,7 @@
 // Contenido COMPLETO y CORREGIDO para: Login.tsx
 
 import React, { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { apiFetch, ApiError } from "@/utils/api";
@@ -25,6 +25,7 @@ interface LoginResponse {
 
 const Login = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { refreshUser } = useUser();
   const { currentSlug } = useTenant();
   const [email, setEmail] = useState("");
@@ -33,6 +34,9 @@ const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isPasskeyAvailable, setIsPasskeyAvailable] = useState(false);
   const [isPasskeyLoading, setIsPasskeyLoading] = useState(false);
+
+  // Check if this is the global login page (/login) or a tenant login page (/:slug/login)
+  const isGlobalLogin = location.pathname === '/login' || location.pathname === '/login/';
 
   const navigateToTenantCatalog = useCallback(
     (tenantSlug?: string | null) => {
@@ -64,6 +68,11 @@ const Login = () => {
     setIsLoading(true);
 
     const storedSlug = safeLocalStorage.getItem("tenantSlug");
+    // Only use the slug for login context if we are NOT on the global login page
+    // OR if we want to support implicit context login even on global page (sticky session).
+    // Usually, login API handles finding the user regardless of tenant slug sent,
+    // unless it's a specific tenant user.
+    // Let's keep existing logic but be mindful.
     const effectiveSlug = currentSlug || storedSlug;
 
     const payload: any = { email, password };
@@ -177,6 +186,10 @@ const Login = () => {
     }
   };
 
+  // Determine the registration target path
+  // If global login, force /register. If tenant login, use currentSlug.
+  const registerTarget = isGlobalLogin ? '/register' : buildTenantPath("/register", currentSlug);
+
   return (
     <div className="min-h-[calc(100vh-80px)] flex items-center justify-center px-4 bg-gradient-to-br from-background via-card to-muted text-foreground">
       <div className="w-full max-w-md bg-card p-8 rounded-xl shadow-xl border border-border">
@@ -211,7 +224,7 @@ const Login = () => {
         </form>
         <div className="text-center text-sm text-muted-foreground mt-4">
           ¿No tenés cuenta?{" "}
-          <button onClick={() => navigate(buildTenantPath("/register", currentSlug))} className="text-primary hover:underline">
+          <button onClick={() => navigate(registerTarget)} className="text-primary hover:underline">
             Registrate
           </button>
         </div>

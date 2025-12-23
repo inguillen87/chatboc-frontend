@@ -2,11 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { apiFetch, ApiError } from '@/utils/api';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { useUser } from '@/hooks/useUser';
 import GoogleLoginButton from '@/components/auth/GoogleLoginButton';
 import { isPasskeySupported, registerPasskey } from '@/services/passkeys';
+import { useTenant } from '@/context/TenantContext';
+import { buildTenantPath } from '@/utils/tenantPaths';
 
 interface Rubro { id: number; nombre: string; }
 interface RegisterResponse {
@@ -19,7 +21,9 @@ interface RegisterResponse {
 
 const Register = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { refreshUser } = useUser();
+  const { currentSlug } = useTenant();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -31,6 +35,10 @@ const Register = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isPasskeyAvailable, setIsPasskeyAvailable] = useState(false);
   const [isPasskeyLoading, setIsPasskeyLoading] = useState(false);
+
+  // Determine if we are on global /register or tenant-scoped
+  const isGlobalRegister = location.pathname === '/register' || location.pathname === '/register/';
+  const loginTarget = isGlobalRegister ? '/login' : buildTenantPath("/login", currentSlug);
 
   useEffect(() => {
     const fetchRubros = async () => {
@@ -185,7 +193,7 @@ const Register = () => {
         </form>
         <div className="text-center text-sm mt-4 text-muted-foreground">
           ¿Ya tenés cuenta?{' '}
-          <button onClick={() => navigate('/login')} className="text-primary hover:underline">Iniciar sesión</button>
+          <button onClick={() => navigate(loginTarget)} className="text-primary hover:underline">Iniciar sesión</button>
         </div>
       </div>
     </div>
