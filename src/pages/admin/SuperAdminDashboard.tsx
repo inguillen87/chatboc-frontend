@@ -1,49 +1,37 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { apiFetch, getErrorMessage } from '@/utils/api';
+import { apiClient } from '@/api/client';
 import useRequireRole from '@/hooks/useRequireRole';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { Plus, Edit, ArrowUpCircle } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Plus } from 'lucide-react';
 import { toast } from 'sonner';
-
-interface TenantSummary {
-  id: number;
-  slug: string;
-  nombre: string;
-  tipo: 'municipio' | 'pyme';
-  plan: string;
-  status: 'active' | 'inactive';
-  created_at: string;
-}
+import { Tenant } from '@/types/superAdmin';
+import { TenantTable } from '@/components/admin/TenantTable';
+import { TenantModal } from '@/components/admin/TenantModal';
+import { safeLocalStorage } from '@/utils/safeLocalStorage';
+import { buildTenantPath } from '@/utils/tenantPaths';
 
 export default function SuperAdminDashboard() {
   useRequireRole(['super_admin']);
   const navigate = useNavigate();
-  const [tenants, setTenants] = useState<TenantSummary[]>([]);
+  const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+
+  // Modal State
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingTenant, setEditingTenant] = useState<Tenant | null>(null);
 
   const fetchTenants = async () => {
     setLoading(true);
     try {
-      const data = await apiFetch<TenantSummary[]>('/api/admin/tenants');
-      setTenants(data);
+      const data = await apiClient.superAdminListTenants(1, 100); // Fetch all for now, add pagination later if needed
+      setTenants(data.tenants);
+      setTotal(data.total);
     } catch (error) {
-      console.warn("Failed to fetch tenants, using mock data for demonstration if API fails");
-      // Mock data for UI development/verification since backend might not exist yet
-      setTenants([
-        { id: 1, slug: 'junin', nombre: 'Municipalidad de Junín', tipo: 'municipio', plan: 'full', status: 'active', created_at: '2023-01-01' },
-        { id: 2, slug: 'demo-pyme', nombre: 'Pyme Demo', tipo: 'pyme', plan: 'free', status: 'active', created_at: '2023-05-15' },
-      ]);
+      console.error("Failed to fetch tenants", error);
+      toast.error("Error al cargar tenants. Verificá tu conexión.");
     } finally {
       setLoading(false);
     }
@@ -53,77 +41,94 @@ export default function SuperAdminDashboard() {
     fetchTenants();
   }, []);
 
-  const handleUpgrade = (tenant: TenantSummary) => {
-      // Future implementation: Open modal to change plan
-      toast.info(`Upgrade functionality for ${tenant.nombre} coming soon.`);
+  const handleCreate = () => {
+    setEditingTenant(null);
+    setIsModalOpen(true);
+  };
+
+  const handleEdit = (tenant: Tenant) => {
+    setEditingTenant(tenant);
+    setIsModalOpen(true);
+  };
+
+  const handleImpersonate = async (tenant: Tenant) => {
+    try {
+      const { token, redirect_url } = await apiClient.superAdminImpersonate(tenant.slug);
+
+      // Store token and redirect
+      safeLocalStorage.setItem('authToken', token);
+
+      // We need to reload/redirect to apply the new auth context
+      // Assuming redirect_url is relative to app root (e.g. /portal/slug/admin)
+      // Or if it's a full URL.
+      // Usually it's better to navigate within SPA if possible, but impersonation might change user context drastically.
+
+      // Check if redirect_url includes tenant prefix
+      const target = redirect_url || buildTenantPath('/', tenant.slug);
+
+      toast.success(`Accediendo a ${tenant.nombre}...`);
+
+      // Allow toast to show
+      setTimeout(() => {
+          window.location.href = target;
+      }, 1000);
+
+    } catch (error) {
+        console.error(error);
+        toast.error("Falló el acceso como admin.");
+    }
+  };
+
+  const handleToggleStatus = async (tenant: Tenant) => {
+    try {
+        if (tenant.is_active) {
+            await apiClient.superAdminDeactivateTenant(tenant.slug);
+            toast.success("Tenant desactivado.");
+        } else {
+            await apiClient.superAdminActivateTenant(tenant.slug);
+            toast.success("Tenant reactivado.");
+        }
+        fetchTenants();
+    } catch (error) {
+        console.error(error);
+        toast.error("Error al cambiar estado.");
+    }
   };
 
   return (
-    <div className="container mx-auto py-10 px-4">
-      <div className="flex justify-between items-center mb-8">
+    <div className="container mx-auto py-10 px-4 max-w-7xl space-y-8">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-primary">Super Admin Dashboard</h1>
-          <p className="text-muted-foreground">Gestión centralizada de Tenants (Municipios y Pymes)</p>
+          <h1 className="text-3xl font-bold text-primary tracking-tight">Super Admin</h1>
+          <p className="text-muted-foreground mt-1">Gestión centralizada de Tenants y Plataforma.</p>
         </div>
-        <Button onClick={() => navigate('/admin/tenants/new')}>
+        <Button onClick={handleCreate} className="shadow-lg">
           <Plus className="mr-2 h-4 w-4" /> Nuevo Tenant
         </Button>
       </div>
 
-      <Card>
+      <Card className="border-muted/60 shadow-sm">
         <CardHeader>
-          <CardTitle>Tenants Registrados</CardTitle>
+          <CardTitle>Tenants ({total})</CardTitle>
+          <CardDescription>Listado completo de municipios y pymes registrados en la plataforma.</CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nombre</TableHead>
-                <TableHead>Slug</TableHead>
-                <TableHead>Tipo</TableHead>
-                <TableHead>Plan</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead className="text-right">Acciones</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-4">Cargando...</TableCell>
-                </TableRow>
-              ) : tenants.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-4">No hay tenants registrados.</TableCell>
-                </TableRow>
-              ) : (
-                tenants.map((tenant) => (
-                  <TableRow key={tenant.id}>
-                    <TableCell className="font-medium">{tenant.nombre}</TableCell>
-                    <TableCell>{tenant.slug}</TableCell>
-                    <TableCell className="capitalize">{tenant.tipo}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="capitalize">{tenant.plan}</Badge>
-                    </TableCell>
-                    <TableCell>
-                        <Badge variant={tenant.status === 'active' ? 'default' : 'secondary'}>
-                            {tenant.status}
-                        </Badge>
-                    </TableCell>
-                    <TableCell className="text-right space-x-2">
-                      <Button variant="ghost" size="icon" onClick={() => navigate(`/integracion?tenant=${tenant.slug}`)} title="Configurar">
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleUpgrade(tenant)} title="Cambiar Plan">
-                        <ArrowUpCircle className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+          <TenantTable
+            tenants={tenants}
+            loading={loading}
+            onEdit={handleEdit}
+            onImpersonate={handleImpersonate}
+            onToggleStatus={handleToggleStatus}
+          />
         </CardContent>
       </Card>
+
+      <TenantModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSuccess={fetchTenants}
+        tenantToEdit={editingTenant}
+      />
     </div>
   );
 }

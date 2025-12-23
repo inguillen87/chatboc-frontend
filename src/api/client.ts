@@ -1,5 +1,6 @@
 import { apiFetch } from '@/utils/api';
 import { Order, Cart, Ticket, PortalContent, IntegrationStatus, PortalLoyaltySummary } from '@/types/unified';
+import { Tenant, CreateTenantDTO, UpdateTenantDTO } from '@/types/superAdmin';
 
 /**
  * Standardized API Client for Tenant-Aware fetching.
@@ -123,4 +124,46 @@ export const apiClient = {
       tenantSlug,
     });
   },
+
+  // --- Super Admin Methods ---
+
+  superAdminListTenants: async (page = 1, perPage = 20): Promise<{ tenants: Tenant[], total: number }> => {
+    return apiFetch<{ tenants: Tenant[], total: number }>(`/api/admin/tenants?page=${page}&per_page=${perPage}`);
+  },
+
+  superAdminCreateTenant: async (data: CreateTenantDTO): Promise<Tenant> => {
+    return apiFetch<Tenant>('/api/admin/tenants', {
+      method: 'POST',
+      body: data,
+    });
+  },
+
+  superAdminGetTenant: async (slug: string): Promise<Tenant> => {
+    return apiFetch<Tenant>(`/api/admin/tenants/${slug}`);
+  },
+
+  superAdminUpdateTenant: async (slug: string, data: UpdateTenantDTO): Promise<Tenant> => {
+    return apiFetch<Tenant>(`/api/admin/tenants/${slug}`, {
+      method: 'PUT',
+      body: data,
+    });
+  },
+
+  superAdminDeactivateTenant: async (slug: string): Promise<void> => {
+    return apiFetch<void>(`/api/admin/tenants/${slug}`, {
+      method: 'DELETE',
+    });
+  },
+
+  superAdminActivateTenant: async (slug: string): Promise<void> => {
+    return apiFetch<void>(`/api/admin/tenants/${slug}/activate`, {
+      method: 'POST',
+    });
+  },
+
+  superAdminImpersonate: async (slug: string): Promise<{ token: string; redirect_url: string }> => {
+    return apiFetch<{ token: string; redirect_url: string }>(`/api/admin/tenants/${slug}/impersonate`, {
+      method: 'POST',
+    });
+  }
 };
