@@ -496,7 +496,7 @@ function ChatWidgetInner({
     }
 
 
-  }, [entityInfo, primaryColor, accentColor, mode]);
+  }, [entityInfo, primaryColor, accentColor, mode, isDarkMode]);
 
   // Proactive Bubble Logic
   useEffect(() => {
