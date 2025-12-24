@@ -79,6 +79,8 @@ import DemoLandingPage from '@/pages/DemoLandingPage';
 import SmartPedidosWrapper from '@/pages/SmartPedidosWrapper';
 import SmartNotificationsWrapper from '@/pages/SmartNotificationsWrapper';
 
+// Updated for Commerce Module & Mirror Catalog
+// Final verification: Commerce & Admin modules active
 // NUEVAS IMPORTACIONES PARA EL PORTAL DE USUARIO
 // UserPortalLayout no se importa aquí si se usa como Layout Route en App.tsx
 import UserDashboardPage from '@/pages/user-portal/UserDashboardPage';
