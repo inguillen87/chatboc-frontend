@@ -94,14 +94,26 @@ export default function ProductCard({ product, onAdd, isAdding }: ProductCardPro
 
       <CardFooter className="mt-auto flex flex-col gap-2 border-t bg-card/50 p-4">
         <div className="grid w-full grid-cols-2 gap-2">
-          <Button
-            className="w-full"
-            onClick={() => onAdd(product.id)}
-            disabled={isAdding}
-          >
-            <ShoppingBag className="mr-2 h-4 w-4" />
-            {isAdding ? 'Agregando…' : 'Agregar'}
-          </Button>
+          {(product.checkout_type === 'mercadolibre' || product.checkout_type === 'tiendanube') && product.external_url ? (
+            <Button
+              className="w-full bg-yellow-600 hover:bg-yellow-700 text-white"
+              asChild
+            >
+              <a href={product.external_url} target="_blank" rel="noopener noreferrer">
+                {product.checkout_type === 'mercadolibre' ? 'Comprar en ML' : 'Ver en Tienda'}
+                <ExternalLink className="ml-2 h-4 w-4" />
+              </a>
+            </Button>
+          ) : (
+            <Button
+              className="w-full"
+              onClick={() => onAdd(product.id)}
+              disabled={isAdding}
+            >
+              <ShoppingBag className="mr-2 h-4 w-4" />
+              {isAdding ? 'Agregando…' : 'Agregar'}
+            </Button>
+          )}
           <Button
             className="w-full"
             variant="outline"
