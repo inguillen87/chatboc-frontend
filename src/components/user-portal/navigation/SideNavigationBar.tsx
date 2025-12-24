@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
-  LayoutDashboard, ShoppingBag, Archive, ListChecks, Newspaper, CalendarDays,
-  Gift, TicketPercent, MessageSquareQuote, ClipboardEdit, Settings2, LogOut
+  LayoutDashboard, ShoppingBag, ListChecks, Newspaper, CalendarDays,
+  TicketPercent, MessageSquareQuote, Settings2, LogOut, ClipboardList, AlertCircle
 } from 'lucide-react';
 import { useUser } from '@/hooks/useUser';
+import { useTenant } from '@/context/TenantContext';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
 interface SideNavItem {
@@ -13,16 +14,6 @@ interface SideNavItem {
   icon: React.ReactNode;
   exact?: boolean;
 }
-
-const mainNavItems: SideNavItem[] = [
-  { path: '/portal/dashboard', label: 'Inicio', icon: <LayoutDashboard className="h-5 w-5" />, exact: true },
-  { path: '/portal/catalogo', label: 'Catálogo', icon: <ShoppingBag className="h-5 w-5" /> },
-  { path: '/portal/pedidos', label: 'Mis Gestiones', icon: <ListChecks className="h-5 w-5" /> },
-  { path: '/portal/noticias', label: 'Novedades', icon: <Newspaper className="h-5 w-5" /> },
-  { path: '/portal/eventos', label: 'Eventos', icon: <CalendarDays className="h-5 w-5" /> },
-  { path: '/portal/beneficios', label: 'Beneficios', icon: <TicketPercent className="h-5 w-5" /> },
-  { path: '/portal/encuestas', label: 'Encuestas', icon: <MessageSquareQuote className="h-5 w-5" /> },
-];
 
 const accountNavItems: SideNavItem[] = [
   { path: '/portal/cuenta', label: 'Mi Cuenta', icon: <Settings2 className="h-5 w-5" /> },
@@ -37,6 +28,48 @@ interface SideNavigationBarProps {
 const SideNavigationBar: React.FC<SideNavigationBarProps> = ({ onLinkClick, isCollapsed = false, onLogout }) => {
   const navigate = useNavigate();
   const { user, setUser } = useUser();
+  const { tenant } = useTenant();
+
+  const isMunicipio = tenant?.tipo === 'municipio';
+
+  const mainNavItems: SideNavItem[] = useMemo(() => [
+    {
+      path: '/portal/dashboard',
+      label: 'Inicio',
+      icon: <LayoutDashboard className="h-5 w-5" />,
+      exact: true
+    },
+    {
+      path: '/portal/catalogo',
+      label: isMunicipio ? 'Trámites' : 'Catálogo',
+      icon: isMunicipio ? <ClipboardList className="h-5 w-5" /> : <ShoppingBag className="h-5 w-5" />
+    },
+    {
+      path: isMunicipio ? '/portal/reclamos' : '/portal/pedidos',
+      label: isMunicipio ? 'Mis Reclamos' : 'Mis Pedidos',
+      icon: isMunicipio ? <AlertCircle className="h-5 w-5" /> : <ListChecks className="h-5 w-5" />
+    },
+    {
+      path: '/portal/noticias',
+      label: 'Novedades',
+      icon: <Newspaper className="h-5 w-5" />
+    },
+    {
+      path: '/portal/eventos',
+      label: 'Eventos',
+      icon: <CalendarDays className="h-5 w-5" />
+    },
+    {
+      path: '/portal/beneficios',
+      label: 'Beneficios',
+      icon: <TicketPercent className="h-5 w-5" />
+    },
+    {
+      path: '/portal/encuestas',
+      label: 'Encuestas',
+      icon: <MessageSquareQuote className="h-5 w-5" />
+    },
+  ], [isMunicipio]);
 
   const handleLogout = () => {
     // Clear tokens and user data
