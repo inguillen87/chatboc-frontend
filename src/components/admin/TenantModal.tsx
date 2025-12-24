@@ -26,6 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tenant, CreateTenantDTO, UpdateTenantDTO } from '@/types/superAdmin';
 import { apiClient } from '@/api/client';
 import { toast } from 'sonner';
@@ -38,13 +39,25 @@ const createSchema = z.object({
   tipo: z.enum(['municipio', 'pyme']),
   plan: z.enum(['free', 'pro', 'full', 'enterprise']),
   email_admin: z.string().email('Email inválido'),
-  whatsapp_sender_id: z.string().optional(),
 });
 
 const updateSchema = z.object({
   nombre: z.string().min(2, 'El nombre es requerido'),
   plan: z.enum(['free', 'pro', 'full', 'enterprise']),
-  whatsapp_sender_id: z.string().optional(),
+});
+
+const adminUserSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(6),
+  name: z.string().min(2)
+});
+
+const resetPasswordSchema = z.object({
+  password: z.string().min(6)
+});
+
+const whatsappSchema = z.object({
+  number: z.string().min(10)
 });
 
 interface TenantModalProps {
@@ -57,32 +70,39 @@ interface TenantModalProps {
 export function TenantModal({ isOpen, onClose, onSuccess, tenantToEdit }: TenantModalProps) {
   const [loading, setLoading] = useState(false);
   const isEditing = !!tenantToEdit;
+  const [activeTab, setActiveTab] = useState("general");
 
   const form = useForm<z.infer<typeof createSchema> | z.infer<typeof updateSchema>>({
     resolver: zodResolver(isEditing ? updateSchema : createSchema),
     defaultValues: isEditing ? {
       nombre: tenantToEdit.nombre,
       plan: tenantToEdit.plan as any,
-      whatsapp_sender_id: tenantToEdit.whatsapp_sender_id || '',
     } : {
       nombre: '',
       slug: '',
       tipo: 'pyme',
       plan: 'pro',
       email_admin: '',
-      whatsapp_sender_id: '',
     },
   });
 
-  // Reset form when opening for create/edit
+  // User Management Forms
+  const userForm = useForm<z.infer<typeof adminUserSchema>>({ resolver: zodResolver(adminUserSchema) });
+  const resetPassForm = useForm<z.infer<typeof resetPasswordSchema>>({ resolver: zodResolver(resetPasswordSchema) });
+  const whatsappForm = useForm<z.infer<typeof whatsappSchema>>({
+      resolver: zodResolver(whatsappSchema),
+      defaultValues: { number: tenantToEdit?.whatsapp_sender_id || '' }
+  });
+
+  // Reset forms when opening
   React.useEffect(() => {
     if (isOpen) {
         if (tenantToEdit) {
             form.reset({
                 nombre: tenantToEdit.nombre,
                 plan: tenantToEdit.plan as any,
-                whatsapp_sender_id: tenantToEdit.whatsapp_sender_id || '',
             });
+            whatsappForm.reset({ number: tenantToEdit.whatsapp_sender_id || '' });
         } else {
             form.reset({
                 nombre: '',
@@ -90,13 +110,13 @@ export function TenantModal({ isOpen, onClose, onSuccess, tenantToEdit }: Tenant
                 tipo: 'pyme',
                 plan: 'pro',
                 email_admin: '',
-                whatsapp_sender_id: '',
             });
         }
+        setActiveTab("general");
     }
-  }, [isOpen, tenantToEdit, form]);
+  }, [isOpen, tenantToEdit, form, whatsappForm]);
 
-  const onSubmit = async (values: any) => {
+  const onSubmitGeneral = async (values: any) => {
     setLoading(true);
     try {
       if (isEditing && tenantToEdit) {
@@ -116,134 +136,256 @@ export function TenantModal({ isOpen, onClose, onSuccess, tenantToEdit }: Tenant
     }
   };
 
+  const onSubmitUser = async (values: any) => {
+      if (!tenantToEdit) return;
+      setLoading(true);
+      try {
+          await apiClient.superAdminCreateAdminUser(tenantToEdit.slug, values);
+          toast.success("Usuario administrador creado");
+          userForm.reset();
+      } catch (error) {
+          toast.error("Error al crear usuario");
+      } finally {
+          setLoading(false);
+      }
+  };
+
+  const onSubmitResetPass = async (values: any) => {
+      if (!tenantToEdit) return;
+      setLoading(true);
+      try {
+          await apiClient.superAdminResetPassword(tenantToEdit.slug, values);
+          toast.success("Contraseña restablecida");
+          resetPassForm.reset();
+      } catch (error) {
+          toast.error("Error al restablecer contraseña");
+      } finally {
+          setLoading(false);
+      }
+  };
+
+  const onSubmitWhatsapp = async (values: any) => {
+      if (!tenantToEdit) return;
+      setLoading(true);
+      try {
+          await apiClient.superAdminUpdateWhatsapp(tenantToEdit.slug, values);
+          toast.success("WhatsApp configurado");
+          onSuccess(); // Refresh to update list state if needed
+      } catch (error) {
+          toast.error("Error al configurar WhatsApp");
+      } finally {
+          setLoading(false);
+      }
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
-          <DialogTitle>{isEditing ? 'Editar Tenant' : 'Nuevo Tenant'}</DialogTitle>
+          <DialogTitle>{isEditing ? `Editar: ${tenantToEdit.nombre}` : 'Nuevo Tenant'}</DialogTitle>
         </DialogHeader>
 
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        {isEditing ? (
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+                <TabsList className="grid w-full grid-cols-3">
+                    <TabsTrigger value="general">General</TabsTrigger>
+                    <TabsTrigger value="users">Usuarios</TabsTrigger>
+                    <TabsTrigger value="integrations">Integraciones</TabsTrigger>
+                </TabsList>
 
-            <FormField
-              control={form.control}
-              name="nombre"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Nombre</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Nombre del Cliente" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                {/* TAB 1: GENERAL */}
+                <TabsContent value="general" className="space-y-4 py-4">
+                    <Form {...form}>
+                        <form onSubmit={form.handleSubmit(onSubmitGeneral)} className="space-y-4">
+                            <FormField
+                                control={form.control}
+                                name="nombre"
+                                render={({ field }) => (
+                                    <FormItem>
+                                    <FormLabel>Nombre</FormLabel>
+                                    <FormControl><Input {...field} /></FormControl>
+                                    <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name="plan"
+                                render={({ field }) => (
+                                    <FormItem>
+                                    <FormLabel>Plan</FormLabel>
+                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                        <FormControl><SelectTrigger><SelectValue placeholder="Seleccionar plan" /></SelectTrigger></FormControl>
+                                        <SelectContent>
+                                        <SelectItem value="free">Gratis</SelectItem>
+                                        <SelectItem value="pro">Pro</SelectItem>
+                                        <SelectItem value="full">Full</SelectItem>
+                                        <SelectItem value="enterprise">Enterprise</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <div className="flex justify-end pt-2">
+                                <Button type="submit" disabled={loading}>
+                                    {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                    Guardar Cambios
+                                </Button>
+                            </div>
+                        </form>
+                    </Form>
+                </TabsContent>
 
-            {!isEditing && (
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="slug"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Slug</FormLabel>
-                      <FormControl>
-                        <Input placeholder="cliente-slug" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                {/* TAB 2: USUARIOS */}
+                <TabsContent value="users" className="space-y-6 py-4">
+                    <div className="space-y-4 border p-4 rounded-md">
+                        <h3 className="font-medium text-sm">Crear Nuevo Admin</h3>
+                        <Form {...userForm}>
+                            <form onSubmit={userForm.handleSubmit(onSubmitUser)} className="space-y-3">
+                                <div className="grid grid-cols-2 gap-2">
+                                    <FormField control={userForm.control} name="name" render={({ field }) => (
+                                        <FormItem><FormControl><Input placeholder="Nombre" {...field} /></FormControl><FormMessage/></FormItem>
+                                    )} />
+                                    <FormField control={userForm.control} name="email" render={({ field }) => (
+                                        <FormItem><FormControl><Input placeholder="Email" {...field} /></FormControl><FormMessage/></FormItem>
+                                    )} />
+                                </div>
+                                <FormField control={userForm.control} name="password" render={({ field }) => (
+                                    <FormItem><FormControl><Input type="password" placeholder="Contraseña" {...field} /></FormControl><FormMessage/></FormItem>
+                                )} />
+                                <Button size="sm" type="submit" disabled={loading}>Crear Usuario</Button>
+                            </form>
+                        </Form>
+                    </div>
 
-                <FormField
-                  control={form.control}
-                  name="tipo"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Tipo</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Seleccionar tipo" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="pyme">Pyme</SelectItem>
-                          <SelectItem value="municipio">Municipio</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-            )}
+                    <div className="space-y-4 border p-4 rounded-md bg-muted/20">
+                        <h3 className="font-medium text-sm">Restablecer Contraseña (Admin Principal)</h3>
+                        <Form {...resetPassForm}>
+                            <form onSubmit={resetPassForm.handleSubmit(onSubmitResetPass)} className="flex gap-2 items-end">
+                                <div className="flex-1">
+                                    <FormField control={resetPassForm.control} name="password" render={({ field }) => (
+                                        <FormItem><FormControl><Input type="password" placeholder="Nueva contraseña" {...field} /></FormControl><FormMessage/></FormItem>
+                                    )} />
+                                </div>
+                                <Button size="sm" variant="secondary" type="submit" disabled={loading}>Resetear</Button>
+                            </form>
+                        </Form>
+                    </div>
+                </TabsContent>
 
-            <div className="grid grid-cols-2 gap-4">
-                <FormField
-                control={form.control}
-                name="plan"
-                render={({ field }) => (
-                    <FormItem>
-                    <FormLabel>Plan</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                        <SelectTrigger>
-                            <SelectValue placeholder="Seleccionar plan" />
-                        </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                        <SelectItem value="free">Gratis</SelectItem>
-                        <SelectItem value="pro">Pro</SelectItem>
-                        <SelectItem value="full">Full</SelectItem>
-                        <SelectItem value="enterprise">Enterprise</SelectItem>
-                        </SelectContent>
-                    </Select>
-                    <FormMessage />
-                    </FormItem>
-                )}
-                />
-                 <FormField
+                {/* TAB 3: INTEGRACIONES */}
+                <TabsContent value="integrations" className="space-y-4 py-4">
+                    <Form {...whatsappForm}>
+                        <form onSubmit={whatsappForm.handleSubmit(onSubmitWhatsapp)} className="space-y-4">
+                            <FormField
+                                control={whatsappForm.control}
+                                name="number"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Número de WhatsApp (Sender ID)</FormLabel>
+                                        <FormControl>
+                                            <Input placeholder="+54911..." {...field} />
+                                        </FormControl>
+                                        <p className="text-xs text-muted-foreground">Debe incluir código de país (ej: +549...)</p>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <div className="flex justify-end">
+                                <Button type="submit" disabled={loading}>Guardar Integración</Button>
+                            </div>
+                        </form>
+                    </Form>
+                </TabsContent>
+            </Tabs>
+        ) : (
+            // CREATE MODE (Single Form)
+            <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmitGeneral)} className="space-y-4">
+                    <FormField
                     control={form.control}
-                    name="whatsapp_sender_id"
+                    name="nombre"
                     render={({ field }) => (
                         <FormItem>
-                        <FormLabel>WhatsApp Sender (Opcional)</FormLabel>
-                        <FormControl>
-                            <Input placeholder="whatsapp:+123456789" {...field} />
-                        </FormControl>
+                        <FormLabel>Nombre</FormLabel>
+                        <FormControl><Input placeholder="Nombre del Cliente" {...field} /></FormControl>
                         <FormMessage />
                         </FormItem>
                     )}
-                />
-            </div>
-
-            {!isEditing && (
-              <FormField
-                control={form.control}
-                name="email_admin"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email del Administrador</FormLabel>
-                    <FormControl>
-                      <Input type="email" placeholder="admin@cliente.com" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            )}
-
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
-              <Button type="submit" disabled={loading}>
-                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {isEditing ? 'Guardar Cambios' : 'Crear Tenant'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
+                    />
+                    <div className="grid grid-cols-2 gap-4">
+                        <FormField
+                        control={form.control}
+                        name="slug"
+                        render={({ field }) => (
+                            <FormItem>
+                            <FormLabel>Slug</FormLabel>
+                            <FormControl><Input placeholder="cliente-slug" {...field} /></FormControl>
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                        />
+                        <FormField
+                        control={form.control}
+                        name="tipo"
+                        render={({ field }) => (
+                            <FormItem>
+                            <FormLabel>Tipo</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl><SelectTrigger><SelectValue placeholder="Seleccionar" /></SelectTrigger></FormControl>
+                                <SelectContent>
+                                <SelectItem value="pyme">Pyme</SelectItem>
+                                <SelectItem value="municipio">Municipio</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                        />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <FormField
+                        control={form.control}
+                        name="plan"
+                        render={({ field }) => (
+                            <FormItem>
+                            <FormLabel>Plan</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl><SelectTrigger><SelectValue placeholder="Seleccionar" /></SelectTrigger></FormControl>
+                                <SelectContent>
+                                <SelectItem value="free">Gratis</SelectItem>
+                                <SelectItem value="pro">Pro</SelectItem>
+                                <SelectItem value="full">Full</SelectItem>
+                                <SelectItem value="enterprise">Enterprise</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="email_admin"
+                            render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Email Admin</FormLabel>
+                                <FormControl><Input type="email" placeholder="admin@cliente.com" {...field} /></FormControl>
+                                <FormMessage />
+                            </FormItem>
+                            )}
+                        />
+                    </div>
+                    <DialogFooter>
+                        <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
+                        <Button type="submit" disabled={loading}>
+                            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Crear Tenant
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </Form>
+        )}
       </DialogContent>
     </Dialog>
   );
