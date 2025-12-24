@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
-import UserOrdersPage from './UserOrdersPage';
+import UserClaimsPage from './UserClaimsPage';
 import { TenantProvider } from '@/context/TenantContext';
 import { vi } from 'vitest';
 
@@ -13,27 +13,23 @@ vi.mock('@/hooks/useUser', () => ({
 // Mock API Client to return empty list so component uses fallback
 vi.mock('@/api/client', () => ({
   apiClient: {
-    listOrders: vi.fn().mockResolvedValue([]), // Return empty to trigger fallback
+    listTickets: vi.fn().mockResolvedValue([]), // Return empty
   }
 }));
 
-describe('UserOrdersPage', () => {
-  it('renders orders page and fallback data', async () => {
+describe('UserClaimsPage', () => {
+  it('renders claims page and empty state', async () => {
     render(
       <BrowserRouter>
         <TenantProvider>
-          <UserOrdersPage />
+          <UserClaimsPage />
         </TenantProvider>
       </BrowserRouter>
     );
 
     await waitFor(() => {
-        expect(screen.getByText(/Mis Pedidos/i)).toBeInTheDocument();
-    });
-
-    // Check for fallback item
-    await waitFor(() => {
-        expect(screen.getByText(/Taladro Percutor/i)).toBeInTheDocument();
+        expect(screen.getByText(/Mis Reclamos y Solicitudes/i)).toBeInTheDocument();
+        expect(screen.getByText(/No tenés reclamos registrados aún/i)).toBeInTheDocument();
     });
   });
 });

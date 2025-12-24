@@ -165,5 +165,27 @@ export const apiClient = {
     return apiFetch<{ token: string; redirect_url: string }>(`/api/admin/tenants/${slug}/impersonate`, {
       method: 'POST',
     });
+  },
+
+  // User & Integration Management
+  superAdminCreateAdminUser: async (slug: string, payload: any): Promise<any> => {
+    return apiFetch<any>(`/api/admin/tenants/${slug}/admin-user`, {
+      method: 'POST',
+      body: payload
+    });
+  },
+
+  superAdminResetPassword: async (slug: string, payload: any): Promise<any> => {
+    return apiFetch<any>(`/api/admin/tenants/${slug}/password`, {
+      method: 'PUT',
+      body: payload
+    });
+  },
+
+  superAdminUpdateWhatsapp: async (slug: string, payload: any): Promise<any> => {
+    return apiFetch<any>(`/api/admin/tenants/${slug}/whatsapp`, {
+      method: 'PUT',
+      body: payload
+    });
   }
 };

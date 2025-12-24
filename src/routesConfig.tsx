@@ -77,12 +77,14 @@ import CreateTenantPage from '@/pages/admin/CreateTenantPage';
 import SuperAdminDashboard from '@/pages/admin/SuperAdminDashboard';
 import DemoLandingPage from '@/pages/DemoLandingPage';
 import SmartPedidosWrapper from '@/pages/SmartPedidosWrapper';
+import SmartNotificationsWrapper from '@/pages/SmartNotificationsWrapper';
 
 // NUEVAS IMPORTACIONES PARA EL PORTAL DE USUARIO
 // UserPortalLayout no se importa aquí si se usa como Layout Route en App.tsx
 import UserDashboardPage from '@/pages/user-portal/UserDashboardPage';
 import UserCatalogPage from '@/pages/user-portal/UserCatalogPage';
 import UserOrdersPage from '@/pages/user-portal/UserOrdersPage';
+import UserClaimsPage from '@/pages/user-portal/UserClaimsPage';
 import UserNewsPage from '@/pages/user-portal/UserNewsPage';
 import UserEventsPage from '@/pages/user-portal/UserEventsPage';
 import UserBenefitsPage from '@/pages/user-portal/UserBenefitsPage';
@@ -135,6 +137,12 @@ const userPortalRoutes: RouteConfig[] = [
   {
     path: '/portal/pedidos',
     element: <UserOrdersPage />,
+    userPortal: true,
+    allowGuest: true
+  },
+  {
+    path: '/portal/reclamos',
+    element: <UserClaimsPage />,
     userPortal: true,
     allowGuest: true
   },
@@ -228,6 +236,8 @@ const routes: RouteConfig[] = [
   ...withTenantPrefixes('/:tenant/reclamos', { element: <TicketsPanel />, roles: ['admin', 'empleado', 'super_admin'] }),
   ...withTenantPrefixes('/:tenant/tickets', { element: <TicketsPanel />, roles: ['admin', 'empleado', 'super_admin'] }),
   ...withTenantPrefixes('/:tenant/pedidos', { element: <SmartPedidosWrapper />, roles: ['admin', 'empleado', 'super_admin'] }),
+  ...withTenantPrefixes('/:tenant/notificaciones', { element: <SmartNotificationsWrapper />, roles: ['admin', 'empleado', 'super_admin'] }),
+  ...withTenantPrefixes('/:tenant/categorias', { element: <CategoryManagementPage />, roles: ['admin', 'super_admin'] }),
 
   // Surveys
   ...(FEATURE_ENCUESTAS
