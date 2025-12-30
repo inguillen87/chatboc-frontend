@@ -100,7 +100,7 @@ export default function ProductCard({ product, onAdd, isAdding }: ProductCardPro
               asChild
             >
               <a href={product.external_url} target="_blank" rel="noopener noreferrer">
-                {product.checkout_type === 'mercadolibre' ? 'Comprar en ML' : 'Ver en Tienda'}
+                {product.checkout_type === 'mercadolibre' ? 'Ver en MercadoLibre' : 'Ver en Tienda'}
                 <ExternalLink className="ml-2 h-4 w-4" />
               </a>
             </Button>

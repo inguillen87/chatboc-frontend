@@ -78,6 +78,7 @@ import SuperAdminDashboard from '@/pages/admin/SuperAdminDashboard';
 import DemoLandingPage from '@/pages/DemoLandingPage';
 import SmartPedidosWrapper from '@/pages/SmartPedidosWrapper';
 import SmartNotificationsWrapper from '@/pages/SmartNotificationsWrapper';
+import OrderTrackingPage from '@/pages/pyme/pedidos/OrderTrackingPage';
 
 // Updated for Commerce Module & Mirror Catalog
 // Final verification: Commerce & Admin modules active
@@ -278,6 +279,8 @@ const routes: RouteConfig[] = [
   { path: '/:tenant/cart', element: <CartPage /> },
   { path: '/:tenant/checkout-productos', element: <ProductCheckoutPage /> },
   { path: '/:tenant/pedido/confirmado', element: <OrderConfirmationPage /> },
+  // Public Order Tracking
+  { path: '/pyme/pedidos/:nro_pedido', element: <OrderTrackingPage /> },
   // Missing root integration route
   { path: '/:tenant/integracion', element: <IntegracionesPage />, roles: ['admin'] },
 
