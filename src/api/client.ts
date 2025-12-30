@@ -7,6 +7,7 @@ import { Tenant, CreateTenantDTO, UpdateTenantDTO } from '@/types/superAdmin';
  * All methods require an explicit tenantSlug to ensure context isolation.
  */
 export const apiClient = {
+  // Updated endpoints for Commerce module
   // Legacy generic methods for backward compatibility
   get: async <T>(url: string, options?: any): Promise<T> => {
     return apiFetch<T>(url, { method: 'GET', ...options });
