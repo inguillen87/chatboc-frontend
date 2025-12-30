@@ -7,6 +7,7 @@ import {
   CheckoutStartResponse,
   CheckoutStartPayload
 } from '@/types/market';
+import { PublicOrderTrackingResponse } from '@/types/tracking';
 import { DEFAULT_PUBLIC_PRODUCTS } from '@/data/defaultProducts';
 import { DEMO_CATALOGS as MOCK_CATALOGS } from '@/data/mockCatalogs';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
@@ -99,6 +100,47 @@ const mockCatalogResponse = (tenantSlug?: string): MarketCatalogResponse => {
     heroImageUrl: null,
     heroSubtitle: null,
     isDemo: true,
+  };
+};
+
+// Mock function for fetchPublicOrder
+const mockPublicOrderResponse = (ticketNumber: string): PublicOrderTrackingResponse => {
+  return {
+    id: 12345,
+    nro_pedido: ticketNumber,
+    estado: 'en_proceso',
+    asunto: 'Pedido de Prueba',
+    monto_total: 49500.0,
+    fecha_creacion: new Date().toISOString(),
+    nombre_cliente: 'Cliente Demo',
+    email_cliente: 'demo@example.com',
+    telefono_cliente: '+5491112345678',
+    direccion: 'Calle Falsa 123, CABA',
+    detalles: [
+      {
+        nombre_producto: 'Producto Demo 1',
+        cantidad: 2,
+        precio_unitario_original: 15000.0,
+        subtotal_con_descuento: 30000.0,
+        moneda: 'ARS',
+        sku: 'DEMO-001'
+      },
+      {
+        nombre_producto: 'Producto Demo 2',
+        cantidad: 1,
+        precio_unitario_original: 19500.0,
+        subtotal_con_descuento: 19500.0,
+        moneda: 'ARS',
+        sku: 'DEMO-002'
+      }
+    ],
+    pyme_nombre: 'Tienda Demo',
+    tenant_slug: 'tienda-demo',
+    tenant_logo: null,
+    tenant_theme: {
+      primaryColor: '#2563eb',
+      secondaryColor: '#ffffff'
+    }
   };
 };
 
@@ -241,5 +283,20 @@ export async function startMarketCheckout(tenantSlug: string, payload: CheckoutS
           return { status: 'demo' };
       }
       throw error;
+  }
+}
+
+export async function fetchPublicOrder(ticketNumber: string): Promise<PublicOrderTrackingResponse> {
+  try {
+    return await apiFetch<PublicOrderTrackingResponse>(`/api/public/pyme/pedidos/${ticketNumber}`, {
+      skipAuth: true
+    });
+  } catch (error) {
+    // Robust mock fallback for all errors if it's a DEMO ticket
+    if (ticketNumber.startsWith('PED-') || ticketNumber.startsWith('DEMO')) {
+         console.warn("Falling back to mock order for demo/error", error);
+         return mockPublicOrderResponse(ticketNumber);
+    }
+    throw error;
   }
 }
