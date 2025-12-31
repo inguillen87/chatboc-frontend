@@ -94,13 +94,23 @@ export default function ProductCard({ product, onAdd, isAdding }: ProductCardPro
 
       <CardFooter className="mt-auto flex flex-col gap-2 border-t bg-card/50 p-4">
         <div className="grid w-full grid-cols-2 gap-2">
-          {(product.checkout_type === 'mercadolibre' || product.checkout_type === 'tiendanube') && product.external_url ? (
+          {product.checkout_type === 'mercadolibre' && product.external_url ? (
             <Button
-              className="w-full bg-yellow-600 hover:bg-yellow-700 text-white"
+              className="w-full bg-[#FFE600] hover:bg-[#FDD835] text-[#2D3277] font-semibold transition-all hover:scale-105 hover:shadow-md"
               asChild
             >
               <a href={product.external_url} target="_blank" rel="noopener noreferrer">
-                {product.checkout_type === 'mercadolibre' ? 'Ver en MercadoLibre' : 'Ver en Tienda'}
+                Ver en ML
+                <ExternalLink className="ml-2 h-4 w-4" />
+              </a>
+            </Button>
+          ) : product.checkout_type === 'tiendanube' && product.external_url ? (
+            <Button
+              className="w-full bg-[#2D3277] hover:bg-[#1E2150] text-white font-semibold transition-all hover:scale-105 hover:shadow-md"
+              asChild
+            >
+              <a href={product.external_url} target="_blank" rel="noopener noreferrer">
+                Ver en Tienda
                 <ExternalLink className="ml-2 h-4 w-4" />
               </a>
             </Button>

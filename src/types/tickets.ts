@@ -99,8 +99,9 @@ export interface TicketTimelineResponse {
 
 export interface Ticket {
   id: number;
+  tenant_id?: number; // Added for Pyme support
   tipo: 'municipio' | 'pyme';
-  nro_ticket: string;
+  nro_ticket: string; // For Pyme this is a string representation of an Integer
   asunto: string;
   estado: TicketStatus;
   fecha: string; // ISO format

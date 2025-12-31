@@ -126,6 +126,26 @@ export const apiClient = {
     });
   },
 
+  adminGetTicketCategories: async (tenantSlug: string): Promise<any[]> => {
+    return apiFetch<any[]>(`/api/admin/tenants/${tenantSlug}/ticket-categories`, { tenantSlug });
+  },
+
+  adminImportCatalog: async (tenantSlug: string, formData: FormData): Promise<any> => {
+    // Note: apiFetch handles JSON body by default. For FormData, we need to handle it carefully or pass specific options.
+    // However, apiFetch wrapper might try to JSON.stringify body.
+    // Let's assume apiFetch detects FormData or we bypass it if needed.
+    // Standard fetch with body=FormData works.
+    // We'll use skipAuth if needed but here we need admin auth.
+    return apiFetch<any>(`/api/admin/catalogo/importar`, {
+      method: 'POST',
+      body: formData,
+      tenantSlug,
+      // Headers for FormData are usually auto-set by browser (Content-Type: multipart/form-data; boundary=...)
+      // If apiFetch sets Content-Type to application/json, we need to unset it.
+      headers: {}, // Force empty headers to let browser set Content-Type
+    });
+  },
+
   // --- Super Admin Methods ---
 
   superAdminListTenants: async (page = 1, perPage = 20): Promise<{ tenants: Tenant[], total: number }> => {

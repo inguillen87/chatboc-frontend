@@ -8,6 +8,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import TicketListItem from './TicketListItem';
 import { useTenant } from '@/context/TenantContext';
 import { useTickets } from '@/context/TicketContext';
+import { apiClient } from '@/api/client';
 import { exportToPdf, exportToExcel, exportAllToPdf } from '@/services/exportService';
 import {
   DropdownMenu,
@@ -32,7 +33,22 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
   const [visibleCounts, setVisibleCounts] = React.useState<{ [key: string]: number }>({});
   const [openCategories, setOpenCategories] = React.useState<string[]>([]);
+  const [backendCategories, setBackendCategories] = React.useState<string[]>([]);
   const previousOpenCategoriesRef = React.useRef<string[] | null>(null);
+
+  React.useEffect(() => {
+    const fetchCategories = async () => {
+      if (tenant?.slug) {
+        try {
+          const cats = await apiClient.adminGetTicketCategories(tenant.slug);
+          setBackendCategories(cats.map((c: any) => c.nombre));
+        } catch (e) {
+          console.error("Failed to load ticket categories", e);
+        }
+      }
+    };
+    fetchCategories();
+  }, [tenant?.slug]);
 
   const selectedCategory = React.useMemo(() => {
     if (!selectedTicket) {
@@ -49,13 +65,24 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
   }, [selectedTicket]);
 
   const filteredTicketsByCategory = React.useMemo(() => {
+    const baseCategories = { ...ticketsByCategory };
+
+    // Ensure all backend categories exist even if empty
+    backendCategories.forEach(cat => {
+        if (!baseCategories[cat]) {
+            baseCategories[cat] = [];
+        }
+    });
+
     if (!debouncedSearchTerm) {
-      return ticketsByCategory;
+      return baseCategories;
     }
     const filtered: { [key: string]: any[] } = {};
     const term = debouncedSearchTerm.toLowerCase();
-    for (const category in ticketsByCategory) {
-      const tickets = ticketsByCategory[category].filter((ticket) => {
+
+    // Iterate over merged categories
+    for (const category in baseCategories) {
+      const tickets = baseCategories[category].filter((ticket) => {
         const fields = [
           ticket.asunto,
           ticket.display_name,
@@ -80,7 +107,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
       }
     }
     return filtered;
-  }, [ticketsByCategory, debouncedSearchTerm]);
+  }, [ticketsByCategory, backendCategories, debouncedSearchTerm]);
 
   React.useEffect(() => {
     const newVisibleCounts: { [key: string]: number } = {};
