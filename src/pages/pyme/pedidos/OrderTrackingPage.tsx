@@ -48,6 +48,12 @@ export default function OrderTrackingPage() {
     };
 
     loadOrder();
+
+    // Cleanup theme on unmount
+    return () => {
+      const root = document.documentElement;
+      root.style.removeProperty('--primary');
+    };
   }, [nro_pedido]);
 
   if (loading) {

@@ -76,7 +76,7 @@ import { cn } from "@/lib/utils";
 import TicketsPanel from '@/pages/TicketsPanel';
 import EstadisticasPage from '@/pages/EstadisticasPage';
 import UsuariosPage from '@/pages/UsuariosPage';
-import PedidosPage from '@/pages/PedidosPage';
+import SmartPedidosWrapper from '@/pages/SmartPedidosWrapper';
 import InternalUsers from '@/pages/InternalUsers';
 import IncidentsMap from '@/pages/IncidentsMap';
 import { getTicketStats, getHeatmapPoints, HeatmapDataset } from "@/services/statsService";
@@ -1482,8 +1482,8 @@ export default function Perfil() {
       <Tabs defaultValue="perfil" className="w-full max-w-6xl mx-auto">
         <TabsList className="grid w-full grid-cols-5 sm:grid-cols-7">
           <TabsTrigger value="perfil">Perfil</TabsTrigger>
-          <TabsTrigger value="tickets">Tickets</TabsTrigger>
-          <TabsTrigger value="pedidos">Pedidos</TabsTrigger>
+          <TabsTrigger value="tickets">{esMunicipio ? 'Reclamos' : 'Tickets'}</TabsTrigger>
+          <TabsTrigger value="pedidos">{esMunicipio ? 'Gestión' : 'Ventas'}</TabsTrigger>
           <TabsTrigger value="estadisticas">Estadísticas</TabsTrigger>
           <TabsTrigger value="usuarios">Usuarios</TabsTrigger>
           {isStaff && <TabsTrigger value="empleados">Empleados</TabsTrigger>}
@@ -2458,7 +2458,7 @@ export default function Perfil() {
           <EstadisticasPage />
         </TabsContent>
         <TabsContent value="pedidos">
-          <PedidosPage />
+          <SmartPedidosWrapper />
         </TabsContent>
         <TabsContent value="usuarios">
           <UsuariosPage />

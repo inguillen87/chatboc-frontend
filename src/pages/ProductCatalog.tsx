@@ -24,6 +24,8 @@ import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { addMarketItem } from '@/api/market';
+import { apiClient } from '@/api/client';
+import { UploadCloud } from 'lucide-react';
 
 interface ProductCatalogProps {
   tenantSlug?: string;
@@ -42,6 +44,9 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug, isDemoMode 
   const [cartMode, setCartMode] = useState<'api' | 'local'>('api');
   const [hasDemoModalities, setHasDemoModalities] = useState(false);
   const [loyaltySummary] = useState(() => getDemoLoyaltySummary());
+  const [isImportOpen, setIsImportOpen] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importLoading, setImportLoading] = useState(false);
   const { currentSlug } = useTenant();
   const { user } = useUser();
   const cartCount = useCartCount();
@@ -266,6 +271,27 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug, isDemoMode 
     }
   };
 
+  const handleImportCatalog = async () => {
+    if (!effectiveTenantSlug || !importFile) return;
+    setImportLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append('archivo', importFile);
+
+      await apiClient.adminImportCatalog(effectiveTenantSlug, formData);
+      toast({ title: "Importación exitosa", description: "El catálogo se ha actualizado correctamente." });
+      setIsImportOpen(false);
+      setImportFile(null);
+      // Reload page to reflect changes
+      window.location.reload();
+    } catch (error) {
+      console.error('Import failed', error);
+      toast({ variant: "destructive", title: "Error de importación", description: "No se pudo procesar el archivo. Verifique el formato." });
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
   const handleAddToCart = async (product: ProductDetails, options: AddToCartOptions) => {
     const isPointsProduct = (product.modalidad ?? '').toString().toLowerCase() === 'puntos';
 
@@ -375,17 +401,43 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug, isDemoMode 
       <header className="mb-8">
         <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
           <h1 className="text-3xl md:text-4xl font-bold text-foreground">Nuestro Catálogo</h1>
-          <Button asChild variant="outline" className="w-full sm:w-auto relative">
-            <Link to={cartPath} className="inline-flex items-center">
-              <ShoppingCart className="mr-2 h-4 w-4" />
-              Ver Carrito
-              {cartCount > 0 && (
-                <span className="ml-2 inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded-full bg-primary text-primary-foreground text-xs px-2">
-                  {cartCount}
-                </span>
-              )}
-            </Link>
-          </Button>
+          <div className="flex gap-2 w-full sm:w-auto">
+            {isAdmin && (
+              <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
+                <Button variant="outline" onClick={() => setIsImportOpen(true)}>
+                  <UploadCloud className="mr-2 h-4 w-4" /> Importar
+                </Button>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Importar Catálogo</DialogTitle>
+                    <DialogDescription>Sube un archivo CSV o Excel para actualizar tus productos masivamente.</DialogDescription>
+                  </DialogHeader>
+                  <div className="grid w-full max-w-sm items-center gap-1.5 py-4">
+                    <Label htmlFor="catalog-file">Archivo</Label>
+                    <Input id="catalog-file" type="file" onChange={(e) => setImportFile(e.target.files?.[0] || null)} />
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsImportOpen(false)}>Cancelar</Button>
+                    <Button onClick={handleImportCatalog} disabled={!importFile || importLoading}>
+                      {importLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                      Importar
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            )}
+            <Button asChild variant="outline" className="w-full sm:w-auto relative">
+              <Link to={cartPath} className="inline-flex items-center">
+                <ShoppingCart className="mr-2 h-4 w-4" />
+                Ver Carrito
+                {cartCount > 0 && (
+                  <span className="ml-2 inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded-full bg-primary text-primary-foreground text-xs px-2">
+                    {cartCount}
+                  </span>
+                )}
+              </Link>
+            </Button>
+          </div>
         </div>
         {(catalogSource === 'fallback' || cartMode === 'local' || hasDemoModalities) && (
           <div className="flex flex-wrap gap-2 mb-4">
