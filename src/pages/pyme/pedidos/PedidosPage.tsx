@@ -135,11 +135,11 @@ const PedidosPage = () => {
   });
 
   return (
-    <div className="container mx-auto p-6 space-y-6 h-[calc(100vh-4rem)] flex flex-col">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 flex-none">
+    <div className="container mx-auto p-4 md:p-6 space-y-4 md:space-y-6 h-[calc(100vh-4rem)] flex flex-col">
+      <div className={`flex flex-col md:flex-row justify-between items-start md:items-center gap-4 flex-none ${selectedOrder ? 'hidden md:flex' : ''}`}>
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Gestión de Pedidos</h1>
-          <p className="text-muted-foreground">Centraliza tus ventas de Mercado Libre, Tienda Nube y WhatsApp.</p>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Gestión de Pedidos</h1>
+          <p className="text-sm md:text-base text-muted-foreground">Centraliza tus ventas de Mercado Libre, Tienda Nube y WhatsApp.</p>
         </div>
 
         <div className="flex gap-2 w-full md:w-auto flex-wrap">
@@ -225,9 +225,9 @@ const PedidosPage = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 flex-1 min-h-0">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 flex-1 min-h-0 relative">
         {/* Order List */}
-        <div className="md:col-span-1 overflow-y-auto pr-2 space-y-3">
+        <div className={`md:col-span-1 overflow-y-auto pr-2 space-y-3 ${selectedOrder ? 'hidden md:block' : 'block'}`}>
           {loading ? (
              <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin text-primary"/></div>
           ) : (
@@ -275,13 +275,18 @@ const PedidosPage = () => {
         </div>
 
         {/* Order Detail */}
-        <div className="md:col-span-2 h-full min-h-0 flex flex-col">
+        <div className={`md:col-span-2 h-full min-h-0 flex flex-col ${!selectedOrder ? 'hidden md:flex' : 'flex'}`}>
            {selectedOrder ? (
              <Card className="h-full flex flex-col border-muted/60 shadow-md">
                <CardHeader className="border-b bg-muted/20 py-4 flex-none">
                  <div className="flex justify-between items-center">
                    <div className="flex flex-col">
-                        <CardTitle className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 mb-1 md:hidden">
+                            <Button variant="ghost" size="sm" className="h-8 px-2 -ml-2" onClick={() => setSelectedOrder(null)}>
+                                ← Volver
+                            </Button>
+                        </div>
+                        <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
                             Pedido #{selectedOrder.id}
                             {(selectedOrder as any).externalId && (
                                 <Badge variant="outline" className="text-xs font-normal font-mono">

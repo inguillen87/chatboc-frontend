@@ -206,6 +206,15 @@ html.iframe-mode #app {
 /* Ensure the chatboc-container (and its children) have a solid background when inside iframe-mode */
 html.iframe-mode .chatboc-container .chat-root {
   background-color: hsl(var(--card)) !important;
+  color: hsl(var(--card-foreground)) !important;
+}
+
+/* Force opacity on inputs/textareas inside the widget to prevent transparency bleed-through */
+html.iframe-mode .chatboc-container input,
+html.iframe-mode .chatboc-container textarea {
+  background-color: hsl(var(--input)) !important;
+  color: hsl(var(--foreground)) !important;
+  opacity: 1 !important;
 }
 
 /* Ensure background color is reapplied if NOT in iframe mode */
