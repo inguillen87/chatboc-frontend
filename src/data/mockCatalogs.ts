@@ -1,6 +1,50 @@
 import { MarketProduct } from "@/types/market";
 
 export const DEMO_CATALOGS: Record<string, MarketProduct[]> = {
+  servill: [
+    {
+      id: "t1",
+      name: "Camiseta Algodón Premium",
+      description: "100% algodón peinado. Disponible en varios colores.",
+      price: 12000,
+      priceText: "$12.000",
+      currency: "ARS",
+      imageUrl: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&q=80&w=400",
+      category: "Remeras",
+      quantity: 100,
+      modality: "venta",
+      points: null,
+      descriptionShort: "Remera Premium",
+      unit: "unidad",
+      sku: "REM-ALG-PRE",
+      brand: "Servill",
+      promoInfo: null,
+      publicUrl: null,
+      whatsappShareUrl: null,
+      disponible: true
+    },
+    {
+      id: "t2",
+      name: "Jean Slim Fit",
+      description: "Denim elastizado, corte moderno. Talles del 38 al 48.",
+      price: 35000,
+      priceText: "$35.000",
+      currency: "ARS",
+      imageUrl: "https://images.unsplash.com/photo-1542272454315-4c01d7abdf4a?auto=format&fit=crop&q=80&w=400",
+      category: "Pantalones",
+      quantity: 60,
+      modality: "venta",
+      points: null,
+      descriptionShort: "Jean Slim",
+      unit: "unidad",
+      sku: "JEA-SLI-FIT",
+      brand: "Servill",
+      promoInfo: null,
+      publicUrl: null,
+      whatsappShareUrl: null,
+      disponible: true
+    }
+  ],
   bodega: [
     {
       id: "b1",
