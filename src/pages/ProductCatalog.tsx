@@ -412,9 +412,37 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug, isDemoMode 
                     <DialogTitle>Importar Catálogo</DialogTitle>
                     <DialogDescription>Sube un archivo CSV o Excel para actualizar tus productos masivamente.</DialogDescription>
                   </DialogHeader>
-                  <div className="grid w-full max-w-sm items-center gap-1.5 py-4">
-                    <Label htmlFor="catalog-file">Archivo</Label>
-                    <Input id="catalog-file" type="file" onChange={(e) => setImportFile(e.target.files?.[0] || null)} />
+                  <div className="grid w-full items-center gap-4 py-4">
+                    <div
+                      className={`
+                        border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer
+                        ${importFile ? 'border-primary bg-primary/5' : 'border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/30'}
+                      `}
+                      onClick={() => document.getElementById('catalog-file')?.click()}
+                    >
+                      <div className="flex flex-col items-center gap-3">
+                        <div className="p-3 bg-background rounded-full shadow-sm border">
+                          <UploadCloud className={`h-6 w-6 ${importFile ? 'text-primary' : 'text-muted-foreground'}`} />
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-sm font-medium text-foreground">
+                            {importFile ? importFile.name : "Hacé click para seleccionar un archivo"}
+                          </p>
+                          {!importFile && (
+                            <p className="text-xs text-muted-foreground">
+                              Soporta CSV, Excel (.xlsx, .xls)
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <Input
+                        id="catalog-file"
+                        type="file"
+                        className="hidden"
+                        accept=".csv, .xlsx, .xls"
+                        onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+                      />
+                    </div>
                   </div>
                   <DialogFooter>
                     <Button variant="outline" onClick={() => setIsImportOpen(false)}>Cancelar</Button>
