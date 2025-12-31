@@ -6,7 +6,7 @@ export interface SmartHintResult {
 export function extractSmartHint(text: string): SmartHintResult {
   if (!text) return { cleanText: "", hint: null };
 
-  const hintPrefixes = ["💡 Tip:", "💡 Consejo:", "Tip:", "Consejo:", "Sugerencia:"];
+  const hintPrefixes = ["💡 Tip:", "💡 Consejo:", "Tip:", "Consejo:", "Sugerencia:", "💡"];
   const lines = text.split('\n');
   let hint: string | null = null;
   const cleanLines: string[] = [];
