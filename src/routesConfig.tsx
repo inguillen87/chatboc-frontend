@@ -53,7 +53,7 @@ import CatalogMappingPage from '@/pages/admin/CatalogMappingPage';
 import CategoryManagementPage from '@/pages/admin/CategoryManagementPage';
 import OpinarArPage from '@/pages/OpinarArPage';
 import EstadisticasPage from '@/pages/EstadisticasPage';
-import Iframe from '@/pages/iframe';
+import Iframe from '@/pages/IframePage';
 import AnalyticsPage from '@/pages/analytics/AnalyticsPage';
 import MarketCartPage from '@/pages/market/MarketCartPage';
 import MarketplaceBlueprintPage from '@/pages/market/MarketplaceBlueprintPage';
