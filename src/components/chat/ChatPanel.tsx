@@ -523,8 +523,8 @@ const ChatPanel = ({
             const { scrollHeight, scrollTop, clientHeight } = chatContainerRef.current;
 
             // Check if we are "close enough" to the bottom OR if it's the very first render/messages
-            // We increase the threshold to 300px to be more aggressive
-            const isCloseToBottom = scrollHeight - scrollTop - clientHeight < 300;
+            // We increase the threshold to 500px to be more aggressive (solving "lost messages")
+            const isCloseToBottom = scrollHeight - scrollTop - clientHeight < 500;
             const isShortConversation = messages.length <= 3;
             const isLatestMessageMine = !messages[messages.length - 1]?.isBot;
 

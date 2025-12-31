@@ -160,8 +160,8 @@ function ChatWidgetInner({
   widgetId = "chatboc-widget-iframe",
   ownerToken,
   initialRubro,
-  openWidth = "460px",
-  openHeight = "680px",
+  openWidth = "480px",
+  openHeight = "750px",
   closedWidth = "100px",
   closedHeight = "100px",
   tipoChat,
@@ -838,7 +838,7 @@ function ChatWidgetInner({
   const finalOpenHeight = useMemo(() => {
     // Determine the desired height
     const desired = parseInt(openHeight, 10);
-    const heightToUse = isNaN(desired) ? 680 : desired;
+    const heightToUse = isNaN(desired) ? 750 : desired;
 
     if (mode === 'iframe') {
         // Even in iframe mode, we should respect the viewport height to avoid scrolling issues in the host
@@ -852,14 +852,16 @@ function ChatWidgetInner({
         return `${heightToUse}px`;
     }
 
+    // In Standalone mode (Landing page), use aggressive height
     const max = viewport.height - (initialPosition.bottom || 0) - 16;
 
-    // Ensure it doesn't exceed 85vh to prevent going off-screen (top)
-    const maxHeightVh = viewport.height * 0.85;
+    // Ensure it doesn't exceed 90vh (increased from 85vh) to allow more vertical space
+    const maxHeightVh = viewport.height * 0.90;
     const effectiveMax = Math.min(max, maxHeightVh);
 
     // If "chatito chiquito" issue persists, ensure we default to a reasonable minimum if openHeight is invalid
     // If calculating against viewport, make sure we at least respect the requested height if viewport is weirdly small (unless mobile)
+    // UPDATE: To solve "chatito chiquito", we prioritize the larger size if space permits.
     const finalHeight = (viewport.height && !isMobileView) ? Math.min(heightToUse, effectiveMax) : (isMobileView ? viewport.height : heightToUse);
 
     return `${finalHeight}px`;
@@ -1147,12 +1149,14 @@ function ChatWidgetInner({
       return {
         bottom: `${initialPosition.bottom}px`,
         right: `${initialPosition.right}px`,
+        width: isOpen ? finalOpenWidth : finalClosedWidth,
+        height: isOpen ? finalOpenHeight : finalClosedHeight,
         zIndex: 999999,
         transition: 'width 0.3s ease, height 0.3s ease, bottom 0.3s ease, right 0.3s ease',
       };
     }
     return {};
-  }, [mode, initialPosition.bottom, initialPosition.right]);
+  }, [mode, initialPosition.bottom, initialPosition.right, isOpen, finalOpenWidth, finalOpenHeight, finalClosedWidth, finalClosedHeight]);
 
   const panelAnimation = {
     initial: { opacity: 0, scale: 0.95, y: 20, originY: 1 },
