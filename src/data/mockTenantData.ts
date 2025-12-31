@@ -109,11 +109,11 @@ export const getFallbackTenantInfo = (slug: string | null | undefined, token?: s
             tema: { primaryColor: '#DC2626', secondaryColor: '#FBBF24' }
         };
     }
-    if (s.includes('tienda') || s.includes('ropa') || s.includes('local_comercial')) {
+    if (s.includes('tienda') || s.includes('ropa') || s.includes('local_comercial') || s.includes('servill')) {
         return {
             ...MOCK_TENANT_INFO,
             slug: s,
-            nombre: 'Tienda de Ropa Demo',
+            nombre: 'Servill Indumentaria',
             tipo: 'pyme',
             descripcion: 'Moda y estilo. Nueva colección disponible.',
             logo_url: 'https://cdn-icons-png.flaticon.com/512/3159/3159614.png', // Shopping bag/shirt

@@ -95,8 +95,8 @@
       ds.widget_token ||
       "demo-anon",
     defaultOpen: ds.defaultOpen === "true",
-    width: normalizeLength(ds.width, "460px"),
-    height: normalizeLength(ds.height, "680px"),
+    width: normalizeLength(ds.width, "480px"),
+    height: normalizeLength(ds.height, "750px"),
     closedWidth: normalizeLength(ds.closedWidth, "72px"),
     closedHeight: normalizeLength(ds.closedHeight, "72px"),
     bottom: normalizeLength(ds.bottom, "20px"),
@@ -216,4 +216,3 @@
 
   window.addEventListener("resize", () => applyDims(lastDims));
 })();
-
