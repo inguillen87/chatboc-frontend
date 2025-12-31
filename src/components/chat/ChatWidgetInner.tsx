@@ -451,8 +451,9 @@ function ChatWidgetInner({
     }
 
     const root = document.documentElement;
-    const shouldScopeToContainer = mode === 'standalone' || mode === 'script';
-    const target = shouldScopeToContainer ? widgetContainerRef.current : root;
+    // Strictly scope to container unless we are in full-page iframe mode.
+    // This prevents the widget from polluting the host page's global styles (like dark mode background).
+    const target = (mode === 'iframe') ? root : widgetContainerRef.current;
 
     // First, apply the base theme from entity config (if available) to ensure background/text are correct
     if (entityInfo?.theme_config) {
