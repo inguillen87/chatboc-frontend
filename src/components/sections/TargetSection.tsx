@@ -25,7 +25,7 @@ const TargetSection = () => {
 
   const handleConsultingClick = () => {
     // Redirect to external booking link
-    window.open("https://calendly.com/chatboc/demo", "_blank");
+    window.open("https://calendly.com/chatboc", "_blank");
   };
 
   return (
