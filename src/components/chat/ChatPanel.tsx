@@ -27,9 +27,10 @@ import { Button } from "@/components/ui/button";
 import { io } from 'socket.io-client';
 import { getSocketUrl, SOCKET_PATH } from "@/config";
 import { safeOn, assertEventSource } from "@/utils/safeOn";
-import { Loader2 } from "lucide-react";
+import { Loader2, X, Lightbulb } from "lucide-react";
 import { getInitialMunicipioContext } from "@/utils/contexto_municipio";
 import { resetChatSessionId } from "@/utils/chatSessionId";
+import { extractSmartHint } from "@/utils/smartHints";
 
 const PENDING_TICKET_KEY = 'pending_ticket_id';
 const PENDING_GPS_KEY = 'pending_gps';
@@ -572,6 +573,23 @@ const ChatPanel = ({
     onCart?.("market");
   }, [onCart]);
 
+  // Smart Features Logic
+  const lastMessage = messages[messages.length - 1];
+  const lastUserMessage = [...messages].reverse().find(m => !m.isBot); // Safe find last user message
+  const [smartHint, setSmartHint] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (lastMessage?.isBot) {
+      const { hint } = extractSmartHint(lastMessage.text);
+      if (hint) {
+        setSmartHint(hint);
+      }
+    }
+  }, [lastMessage]);
+
+  const isAnalyzingImage = isTyping && lastUserMessage?.attachmentInfo?.type === 'image';
+  const typingText = isAnalyzingImage ? "Analizando imagen..." : undefined;
+
   if (showRubroSelector) {
     return (
       <div
@@ -682,13 +700,24 @@ const ChatPanel = ({
           />
         ))}
         {isTyping && (
-          <TypingIndicator logoUrl={headerLogoUrl} logoAnimation={logoAnimation} />
+          <TypingIndicator logoUrl={headerLogoUrl} logoAnimation={logoAnimation} text={typingText} />
         )}
         {userTyping && <UserTypingIndicator />}
         <div ref={messagesEndRef} />
       </div>
       <ScrollToBottomButton target={chatContainerRef.current} />
-      <div className="w-full bg-card px-3 py-2 border-t min-w-0">
+      <div className="w-full bg-card px-3 py-2 border-t min-w-0 relative">
+        {smartHint && (
+           <div className="absolute bottom-full left-0 w-full px-4 pb-2 z-10">
+              <div className="bg-amber-50 text-amber-900 p-3 rounded-lg shadow-md flex justify-between items-start gap-2 text-sm border border-amber-200 animate-in slide-in-from-bottom-2 fade-in">
+                 <div className="flex gap-2">
+                    <Lightbulb className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+                    <span>{smartHint}</span>
+                 </div>
+                 <button onClick={() => setSmartHint(null)} className="text-amber-500 hover:text-amber-700 p-0.5"><X size={14}/></button>
+              </div>
+           </div>
+        )}
         {!activeTicketId && (
             isLiveChatEnabled ? (
               <Button onClick={handleLiveChatRequest} className="w-full mb-2">

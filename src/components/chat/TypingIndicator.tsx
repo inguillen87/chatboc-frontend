@@ -5,6 +5,7 @@ import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 interface TypingIndicatorProps {
   logoUrl?: string;
   logoAnimation?: string;
+  text?: string;
 }
 
 const DEFAULT_PRIMARY = "217 100% 50%";
@@ -14,7 +15,7 @@ const primaryColorValue = (alpha?: number) =>
     ? `hsl(var(--primary, ${DEFAULT_PRIMARY}) / ${alpha})`
     : `hsl(var(--primary, ${DEFAULT_PRIMARY}))`;
 
-const TypingIndicator: React.FC<TypingIndicatorProps> = ({ logoUrl, logoAnimation }) => {
+const TypingIndicator: React.FC<TypingIndicatorProps> = ({ logoUrl, logoAnimation, text }) => {
   const avatarStyle: React.CSSProperties = {
     background: primaryColorValue(0.15),
     border: `1px solid ${primaryColorValue(0.35)}`,
@@ -76,26 +77,31 @@ const TypingIndicator: React.FC<TypingIndicatorProps> = ({ logoUrl, logoAnimatio
         transition={{ duration: 0.3, ease: "easeOut" }}
       >
         <span aria-hidden className="absolute block pointer-events-none" style={tailStyle} />
-        <div className="flex items-end gap-1 h-6">
-          {[0, 1, 2].map((i) => (
-            <motion.span
-              key={i}
-              className="block w-2 h-2 rounded-full"
-              style={dotStyle}
-              initial={{ y: 0, opacity: 0.6 }}
-              animate={{
-                y: [0, -5, 0],
-                opacity: [0.6, 1, 0.6],
-              }}
-              transition={{
-                duration: 0.85,
-                delay: i * 0.18,
-                repeat: Infinity,
-                repeatType: "loop",
-                ease: "easeInOut",
-              }}
-            />
-          ))}
+        <div className="flex items-end gap-2 h-6">
+          <div className="flex items-end gap-1 h-full pb-1">
+            {[0, 1, 2].map((i) => (
+              <motion.span
+                key={i}
+                className="block w-2 h-2 rounded-full"
+                style={dotStyle}
+                initial={{ y: 0, opacity: 0.6 }}
+                animate={{
+                  y: [0, -5, 0],
+                  opacity: [0.6, 1, 0.6],
+                }}
+                transition={{
+                  duration: 0.85,
+                  delay: i * 0.18,
+                  repeat: Infinity,
+                  repeatType: "loop",
+                  ease: "easeInOut",
+                }}
+              />
+            ))}
+          </div>
+          {text && (
+            <span className="text-xs font-medium opacity-80 self-center pb-0.5 ml-1">{text}</span>
+          )}
         </div>
       </motion.div>
     </div>

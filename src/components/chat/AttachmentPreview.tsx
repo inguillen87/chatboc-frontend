@@ -1,5 +1,5 @@
 // src/components/chat/AttachmentPreview.tsx
-import React from 'react';
+import React, { Suspense } from 'react';
 import {
   File as FileIcon,
   FileDown,
@@ -11,11 +11,11 @@ import {
   FileVideo,
   FileCode,
   FileImage,
-  Presentation, // Replaced FilePresentation
-  FileJson2, // Added (Lucide has FileJson2)
-  FileQuestion, // Added for 'other'
-  Download, // Added for explicit download button if needed elsewhere
-  Loader2, // For uploading indicator
+  Presentation,
+  FileJson2,
+  FileQuestion,
+  Download,
+  Loader2,
 } from 'lucide-react';
 import type { AttachmentInfo } from '@/utils/attachment';
 import sanitizeMessageHtml from '@/utils/sanitizeMessageHtml';
@@ -30,6 +30,10 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+
+// Lazy load MapLibreMap to avoid heavy bundle on initial load
+const MapLibreMap = React.lazy(() => import('@/components/MapLibreMap'));
 
 interface Props {
   message: Message; 
@@ -38,34 +42,51 @@ interface Props {
 }
 
 const AttachmentPreview: React.FC<Props> = ({ message, attachmentInfo, fallbackText }) => {
-  // Acceder a locationData de forma segura, message puede no estar siempre si solo se pasa attachmentInfo (aunque el plan es pasar message)
   const locationData = message?.locationData;
-
-  // No realizar logging en producción para evitar ruido en consola.
 
   if (locationData && typeof locationData.lat === 'number' && typeof locationData.lon === 'number') {
     const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${locationData.lat},${locationData.lon}`;
+
     return (
-      <a
-        href={googleMapsUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex items-center gap-2 text-blue-500 underline hover:opacity-80 font-medium"
-      >
-        <MapPin className="w-5 h-5 flex-shrink-0 text-blue-600" />
-        <span>{locationData.name || locationData.address || 'Ver Ubicación en Mapa'}</span>
-      </a>
+      <div className="w-full max-w-[280px] rounded-xl overflow-hidden border border-border shadow-sm bg-card my-1">
+        <div className="h-32 w-full relative bg-muted">
+          <Suspense fallback={<div className="w-full h-full flex items-center justify-center bg-muted text-muted-foreground"><Loader2 className="w-5 h-5 animate-spin" /></div>}>
+             <MapLibreMap
+                center={[locationData.lon, locationData.lat]}
+                marker={[locationData.lon, locationData.lat]}
+                initialZoom={14}
+                className="w-full h-full"
+                showHeatmap={false}
+             />
+          </Suspense>
+        </div>
+        <div className="p-3 bg-card">
+            {locationData.address && (
+                <p className="text-xs text-muted-foreground mb-2 line-clamp-2">
+                    {locationData.address}
+                </p>
+            )}
+            <Button
+                variant="outline"
+                size="sm"
+                className="w-full h-8 text-xs gap-2"
+                onClick={() => window.open(googleMapsUrl, '_blank')}
+            >
+                <MapPin className="w-3 h-3" />
+                Cómo llegar
+            </Button>
+        </div>
+      </div>
     );
   }
 
   if (attachmentInfo && attachmentInfo.url) {
     const { url, name: filename, type: attachmentType, size, isUploading } = attachmentInfo;
-    // Sanear el fallbackText solo una vez si existe
     const sanitizedFallbackHtml = fallbackText ? sanitizeMessageHtml(fallbackText) : null;
 
     const renderDownloadLink = (displayText = filename, showIcon = false) => (
       <a
-        href={isUploading ? '#' : url} // Don't allow download if uploading
+        href={isUploading ? '#' : url}
         download={isUploading ? undefined : filename}
         onClick={isUploading ? (e) => e.preventDefault() : undefined}
         className={cn(
@@ -202,7 +223,6 @@ const AttachmentPreview: React.FC<Props> = ({ message, attachmentInfo, fallbackT
       );
     }
 
-    // Generic file types
     let IconComponent: React.ElementType = FileQuestion;
     switch (attachmentType) {
       case 'spreadsheet':
@@ -212,13 +232,11 @@ const AttachmentPreview: React.FC<Props> = ({ message, attachmentInfo, fallbackT
         IconComponent = FileText;
         break;
       case 'presentation':
-        IconComponent = Presentation; // Replaced FilePresentation
+        IconComponent = Presentation;
         break;
       case 'archive':
         IconComponent = FileArchive;
         break;
-      // Los casos 'audio' y 'video' no deberían llegar aquí si tienen previews.
-      // Se dejan por si acaso el attachmentType es audio/video pero no se pudo generar preview.
       case 'audio':
         IconComponent = FileAudio;
         break;
@@ -234,7 +252,7 @@ const AttachmentPreview: React.FC<Props> = ({ message, attachmentInfo, fallbackT
       case 'json':
         IconComponent = FileJson2;
         break;
-      default: // 'other' o tipos no manejados explícitamente arriba
+      default:
         IconComponent = FileQuestion;
     }
     
@@ -273,7 +291,6 @@ const AttachmentPreview: React.FC<Props> = ({ message, attachmentInfo, fallbackT
     );
   }
 
-  // Si solo hay fallbackText (y no es ubicación ni adjunto válido)
   if (fallbackText) {
     const sanitizedFallbackHtml = sanitizeMessageHtml(fallbackText);
     return (
