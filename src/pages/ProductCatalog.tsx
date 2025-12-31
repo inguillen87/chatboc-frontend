@@ -274,20 +274,53 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug, isDemoMode 
   const handleImportCatalog = async () => {
     if (!effectiveTenantSlug || !importFile) return;
     setImportLoading(true);
+    const toastId = toast.loading("Subiendo catálogo...", { description: "Por favor espere." });
+
     try {
       const formData = new FormData();
       formData.append('archivo', importFile);
 
       await apiClient.adminImportCatalog(effectiveTenantSlug, formData);
-      toast({ title: "Importación exitosa", description: "El catálogo se ha actualizado correctamente." });
+
+      toast.loading("Procesando y actualizando IA...", { id: toastId, description: "Esto puede tomar unos momentos." });
       setIsImportOpen(false);
       setImportFile(null);
-      // Reload page to reflect changes
-      window.location.reload();
+
+      // Poll for completion
+      const pollInterval = setInterval(async () => {
+          try {
+              const statusData = await apiClient.adminGetCatalogSyncStatus(effectiveTenantSlug);
+              const pct = Math.round(statusData.progress * 100);
+
+              if (statusData.status === 'completed') {
+                  clearInterval(pollInterval);
+                  setImportLoading(false);
+                  toast.success("Catálogo actualizado", { id: toastId, description: "La búsqueda inteligente está lista." });
+                  setTimeout(() => window.location.reload(), 1500);
+              } else if (statusData.status === 'failed' || statusData.status === 'error') {
+                  clearInterval(pollInterval);
+                  setImportLoading(false);
+                  toast.error("Error en procesamiento", { id: toastId, description: statusData.message || "Ocurrió un error." });
+              } else {
+                  toast.loading(`Actualizando IA (${pct}%)...`, { id: toastId });
+              }
+          } catch (e) {
+              console.warn("Poll error", e);
+          }
+      }, 2000);
+
+      // Safety timeout (5 minutes)
+      setTimeout(() => {
+          clearInterval(pollInterval);
+          if (importLoading) {
+             setImportLoading(false);
+             toast.dismiss(toastId);
+          }
+      }, 300000);
+
     } catch (error) {
       console.error('Import failed', error);
-      toast({ variant: "destructive", title: "Error de importación", description: "No se pudo procesar el archivo. Verifique el formato." });
-    } finally {
+      toast.error("Error de subida", { id: toastId, description: "No se pudo subir el archivo." });
       setImportLoading(false);
     }
   };
