@@ -25,6 +25,7 @@ import { getInitials, cn } from "@/lib/utils";
 import UserAvatarAnimated from "./UserAvatarAnimated";
 import { Badge } from "@/components/ui/badge";
 import InteractiveMenu from "./InteractiveMenu";
+import { extractSmartHint } from "@/utils/smartHints";
 
 type RawAttachment = {
   url: string;
@@ -490,7 +491,8 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
   const isBot = message.isBot;
 
   const safeText = typeof message.text === "string" && message.text !== "NaN" ? message.text : "";
-  const sanitizedHtml = sanitizeMessageHtml(safeText);
+  const { cleanText } = extractSmartHint(safeText);
+  const sanitizedHtml = sanitizeMessageHtml(cleanText);
   const linkifiedHtml = useMemo(() => (isBot ? autoLinkifyHtml(sanitizedHtml) : sanitizedHtml), [isBot, sanitizedHtml]);
   const { cleanedHtml, linkButtons } = useMemo(() => {
     if (!isBot) {
@@ -552,7 +554,7 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
     });
   }, [isBot, derivedLinkButtons, resolveUrl]);
 
-  const plainText = useMemo(() => safeText.replace(/<[^>]+>/g, ""), [safeText]);
+  const plainText = useMemo(() => cleanText.replace(/<[^>]+>/g, ""), [cleanText]);
   const simplified = useMemo(() => simplify(plainText), [plainText]);
   const [simple, setSimple] = useState<boolean>(() => {
     try {

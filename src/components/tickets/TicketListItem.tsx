@@ -54,7 +54,7 @@ const getInitials = (name: string) => {
             <h4 className="text-sm font-semibold truncate" title={ticket.display_name}>
               {ticket.display_name}
             </h4>
-            <p className="text-xs text-muted-foreground">{ticket.nro_ticket}</p>
+            <p className="text-xs text-muted-foreground truncate max-w-[140px]">{ticket.nro_ticket}</p>
           </div>
         </div>
         <div className="flex flex-col items-end gap-2">
