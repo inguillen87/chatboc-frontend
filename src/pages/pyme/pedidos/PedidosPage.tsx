@@ -37,6 +37,17 @@ const CHANNEL_LABELS: Record<string, string> = {
   web: "Web Propia"
 };
 
+const normalizeOrders = (raw: unknown): Order[] => {
+  if (Array.isArray(raw)) return raw;
+
+  if (raw && typeof raw === 'object') {
+    const candidate = (raw as any).orders ?? (raw as any).results;
+    if (Array.isArray(candidate)) return candidate;
+  }
+
+  return [];
+};
+
 const PedidosPage = () => {
   const { currentSlug } = useTenant();
   const [orders, setOrders] = useState<Order[]>([]);
@@ -61,11 +72,13 @@ const PedidosPage = () => {
     try {
       if (!currentSlug) return;
       const data = await apiClient.adminListOrders(currentSlug);
+      const normalized = normalizeOrders(data);
+
       // Ensure we have some data for demo if empty
-      if (data.length === 0) {
-         setOrders(MOCK_ORDERS);
+      if (normalized.length === 0) {
+        setOrders(MOCK_ORDERS);
       } else {
-         setOrders(data);
+        setOrders(normalized);
       }
     } catch (error) {
       console.error('Error loading orders:', error);
@@ -77,10 +90,14 @@ const PedidosPage = () => {
 
   const handleStatusChange = async (orderId: string | number, newStatus: string) => {
     if (!currentSlug) return;
+    const currentOrders = Array.isArray(orders) ? orders : [];
+
     try {
       await apiClient.adminUpdateOrder(currentSlug, orderId, newStatus);
       // Optimistic update
-      const updatedOrders = orders.map(o => o.id === orderId ? { ...o, status: newStatus as any } : o);
+      const updatedOrders = currentOrders.map(o =>
+        o.id === orderId ? { ...o, status: newStatus as any } : o,
+      );
       setOrders(updatedOrders);
       if (selectedOrder && selectedOrder.id === orderId) {
         setSelectedOrder({ ...selectedOrder, status: newStatus as any });
@@ -88,7 +105,9 @@ const PedidosPage = () => {
     } catch (error) {
       console.error('Failed to update status', error);
       // Still update UI for demo purposes
-      const updatedOrders = orders.map(o => o.id === orderId ? { ...o, status: newStatus as any } : o);
+      const updatedOrders = currentOrders.map(o =>
+        o.id === orderId ? { ...o, status: newStatus as any } : o,
+      );
       setOrders(updatedOrders);
       if (selectedOrder && selectedOrder.id === orderId) {
         setSelectedOrder({ ...selectedOrder, status: newStatus as any });
@@ -97,39 +116,42 @@ const PedidosPage = () => {
   };
 
   const handleCreateOrder = async () => {
-      if (!currentSlug) return;
-      if (!newItem.contact_name || !newItem.product_name || !newItem.price) {
-          toast.error("Complete los campos obligatorios");
-          return;
-      }
+    if (!currentSlug) return;
+    if (!newItem.contact_name || !newItem.product_name || !newItem.price) {
+      toast.error("Complete los campos obligatorios");
+      return;
+    }
 
-      setCreateLoading(true);
-      try {
-          const payload = {
-              contact_name: newItem.contact_name,
-              items: [{
-                  name: newItem.product_name,
-                  price: parseFloat(newItem.price),
-                  quantity: parseInt(newItem.quantity) || 1
-              }]
-          };
+    setCreateLoading(true);
+    try {
+      const payload = {
+        contact_name: newItem.contact_name,
+        items: [{
+          name: newItem.product_name,
+          price: parseFloat(newItem.price),
+          quantity: parseInt(newItem.quantity) || 1,
+        }],
+      };
 
-          await apiClient.adminCreateOrder(currentSlug, payload);
-          toast.success("Pedido creado correctamente");
-          setIsCreateOpen(false);
-          setNewItem({ contact_name: '', product_name: '', price: '', quantity: '1' });
-          loadOrders(); // Refresh list
-      } catch (error) {
-          console.error("Create order failed", error);
-          toast.error("Error al crear el pedido");
-      } finally {
-          setCreateLoading(false);
-      }
+      await apiClient.adminCreateOrder(currentSlug, payload);
+      toast.success("Pedido creado correctamente");
+      setIsCreateOpen(false);
+      setNewItem({ contact_name: '', product_name: '', price: '', quantity: '1' });
+      loadOrders(); // Refresh list
+    } catch (error) {
+      console.error("Create order failed", error);
+      toast.error("Error al crear el pedido");
+    } finally {
+      setCreateLoading(false);
+    }
   };
 
-  const filteredOrders = orders.filter(o => {
-    const matchesSearch = o.id.toString().includes(searchTerm) ||
-                          o.items.some(i => i.name.toLowerCase().includes(searchTerm.toLowerCase()));
+  const safeOrders = Array.isArray(orders) ? orders : [];
+
+  const filteredOrders = safeOrders.filter(o => {
+    const matchesSearch =
+      o.id.toString().includes(searchTerm) ||
+      o.items.some(i => i.name.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesChannel = channelFilter === 'all' || (o as any).channel === channelFilter;
     return matchesSearch && matchesChannel;
   });
