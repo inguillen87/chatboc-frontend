@@ -84,14 +84,6 @@ export const apiClient = {
     });
   },
 
-  adminUpdateOrder: async (tenantSlug: string, orderId: string | number, status: string): Promise<Order> => {
-    return apiFetch<Order>(`/api/admin/tenants/${tenantSlug}/orders/${orderId}`, {
-      method: 'PUT',
-      body: { status },
-      tenantSlug,
-    });
-  },
-
   adminGetIntegrations: async (tenantSlug: string): Promise<IntegrationStatus[]> => {
     // Backend returns Object { "MercadoLibre": {...} }, we must transform to Array
     const rawData = await apiFetch<Record<string, any>>(`/api/admin/tenants/${tenantSlug}/integrations`, { tenantSlug });
@@ -159,6 +151,14 @@ export const apiClient = {
   superAdminCreateTenant: async (data: CreateTenantDTO): Promise<Tenant> => {
     return apiFetch<Tenant>('/api/admin/tenants', {
       method: 'POST',
+      body: data,
+    });
+  },
+
+  adminUpdateOrder: async (tenantSlug: string, orderId: number, data: { status: string }) => {
+    return apiFetch<Order>(`/admin/tenants/${tenantSlug}/orders/${orderId}`, {
+      method: 'PUT',
+      tenantSlug,
       body: data,
     });
   },
