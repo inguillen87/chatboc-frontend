@@ -25,7 +25,7 @@ function shouldIgnore(message: string | null | undefined): boolean {
 }
 
 function isExtensionUrl(url: string | null | undefined): boolean {
-  if (!url) return false;
+  if (typeof url !== 'string' || !url) return false;
   return EXTENSION_PROTOCOLS.some((protocol) => url.startsWith(protocol));
 }
 
@@ -40,22 +40,31 @@ export function registerExtensionNoiseFilters(): () => void {
   }
 
   const handleError = (event: ErrorEvent) => {
-    const errorMessage = extractMessage(event.error ?? event.message);
-    const fromExtension = isExtensionUrl(event.filename) || isExtensionUrl(event.error?.stack);
+    try {
+      const errorMessage = extractMessage(event.error ?? event.message);
+      const fromExtension = isExtensionUrl(event.filename) || isExtensionUrl((event.error as any)?.stack);
 
-    if (fromExtension || shouldIgnore(errorMessage)) {
-      event.preventDefault?.();
-      event.stopImmediatePropagation?.();
-      return false;
+      if (fromExtension || shouldIgnore(errorMessage)) {
+        event.preventDefault?.();
+        event.stopImmediatePropagation?.();
+        return false;
+      }
+    } catch (error) {
+      // Never let the noise filter crash the app – swallow unexpected shapes.
+      console.error('registerExtensionNoiseFilters error handler failed', error);
     }
     return undefined;
   };
 
   const handleRejection = (event: PromiseRejectionEvent) => {
-    const reasonMessage = extractMessage(event.reason);
-    if (shouldIgnore(reasonMessage)) {
-      event.preventDefault?.();
-      event.stopImmediatePropagation?.();
+    try {
+      const reasonMessage = extractMessage(event.reason);
+      if (shouldIgnore(reasonMessage)) {
+        event.preventDefault?.();
+        event.stopImmediatePropagation?.();
+      }
+    } catch (error) {
+      console.error('registerExtensionNoiseFilters rejection handler failed', error);
     }
   };
 
