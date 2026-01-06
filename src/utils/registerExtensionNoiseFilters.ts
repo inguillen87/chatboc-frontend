@@ -4,6 +4,8 @@ const KNOWN_EXTENSION_PATTERNS = [
   /This document requires 'TrustedScript' assignment/i,
 ];
 
+const EXTENSION_PROTOCOLS = ['chrome-extension://', 'moz-extension://', 'safari-extension://'];
+
 function extractMessage(value: unknown): string {
   if (typeof value === 'string') {
     return value;
@@ -22,6 +24,11 @@ function shouldIgnore(message: string | null | undefined): boolean {
   return KNOWN_EXTENSION_PATTERNS.some((pattern) => pattern.test(message));
 }
 
+function isExtensionUrl(url: string | null | undefined): boolean {
+  if (!url) return false;
+  return EXTENSION_PROTOCOLS.some((protocol) => url.startsWith(protocol));
+}
+
 export function registerExtensionNoiseFilters(): () => void {
   if (typeof window === 'undefined') {
     return () => {};
@@ -34,7 +41,9 @@ export function registerExtensionNoiseFilters(): () => void {
 
   const handleError = (event: ErrorEvent) => {
     const errorMessage = extractMessage(event.error ?? event.message);
-    if (shouldIgnore(errorMessage)) {
+    const fromExtension = isExtensionUrl(event.filename) || isExtensionUrl(event.error?.stack);
+
+    if (fromExtension || shouldIgnore(errorMessage)) {
       event.preventDefault?.();
       event.stopImmediatePropagation?.();
       return false;
