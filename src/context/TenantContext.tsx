@@ -248,9 +248,13 @@ const resolveTenantBootstrap = (
   }
 
   // Fallback for public landing page demos (Chatboc.ar root)
-  // If we are on the landing page or generic paths without a tenant, default to 'municipio'
-  // so the public cart and widget work as a demo.
-  if (pathname === '/' || pathname === '/cart' || pathname === '/productos' || pathname === '/demo') {
+  // If we are on the landing page or generic paths without a tenant AND without an active session,
+  // default to 'municipio' so the public cart and widget work as a demo.
+  // Logged-in users should not be forced into the demo tenant.
+  const hasAuthSession = Boolean(
+    safeLocalStorage.getItem('authToken') || safeLocalStorage.getItem('chatAuthToken'),
+  );
+  if (!hasAuthSession && (pathname === '/' || pathname === '/cart' || pathname === '/productos' || pathname === '/demo')) {
       return { slug: 'municipio', widgetToken: null };
   }
 
