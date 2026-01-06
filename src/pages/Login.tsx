@@ -48,6 +48,16 @@ const Login = () => {
     [currentSlug, navigate],
   );
 
+  const navigateToTenantProfile = useCallback(
+    (tenantSlug?: string | null) => {
+      const storedSlug = safeLocalStorage.getItem("tenantSlug");
+      const fallbackSlug = tenantSlug?.toString()?.trim() || currentSlug || storedSlug || null;
+      const target = buildTenantPath("/perfil", fallbackSlug);
+      navigate(target);
+    },
+    [currentSlug, navigate],
+  );
+
   useEffect(() => {
     let mounted = true;
     isPasskeySupported()
@@ -101,6 +111,9 @@ const Login = () => {
       await refreshUser();
 
       const rawUser = safeLocalStorage.getItem("user");
+      const parsedUser = rawUser ? JSON.parse(rawUser) : null;
+      const resolvedTenantSlug = responseTenantSlug || parsedUser?.tenantSlug || parsedUser?.tenant_slug;
+      const resolvedTipoChat = data.tipo_chat || parsedUser?.tipo_chat;
       let isAdmin = false;
       let isSuperAdmin = false;
       if (rawUser) {
@@ -116,9 +129,11 @@ const Login = () => {
       if (isSuperAdmin) {
         navigate("/superadmin");
       } else if (isAdmin) {
-        navigate(buildTenantPath("/perfil", responseTenantSlug));
+        navigate(buildTenantPath("/perfil", resolvedTenantSlug));
+      } else if (resolvedTipoChat === "pyme") {
+        navigateToTenantProfile(resolvedTenantSlug);
       } else {
-        navigateToTenantCatalog(responseTenantSlug);
+        navigateToTenantCatalog(resolvedTenantSlug);
       }
 
     } catch (err) {
