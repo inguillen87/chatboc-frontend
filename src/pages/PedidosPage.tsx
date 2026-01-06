@@ -89,7 +89,7 @@ const PedidoCard: FC<{ pedido: Pedido; onSelect: (p: Pedido) => void; selected: 
   );
 };
 
-const PedidoDetail: FC<{ pedido: Pedido; onClose: () => void; timezone: string; locale: string }> = ({ pedido, onClose, timezone, locale }) => {
+const PedidoDetail: FC<{ pedido: Pedido; onClose: () => void; onStatusChange: (newStatus: string) => void; timezone: string; locale: string }> = ({ pedido, onClose, onStatusChange, timezone, locale }) => {
   return (
     <div className="bg-card rounded-lg p-4 border border-border shadow-md mt-2">
       <div className="flex justify-between items-center mb-3">
@@ -104,6 +104,23 @@ const PedidoDetail: FC<{ pedido: Pedido; onClose: () => void; timezone: string; 
         <p><strong>Teléfono:</strong> {pedido.telefono_cliente || 'N/A'}</p>
         <p><strong>Fecha:</strong> {fmtAR(pedido.fecha_creacion)}</p>
         <p><strong>Rubro:</strong> <span className="capitalize">{pedido.rubro}</span></p>
+      </div>
+      <div className="mt-4">
+        <Select
+          defaultValue={pedido.estado}
+          onValueChange={(value) => onStatusChange(value)}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Cambiar estado" />
+          </SelectTrigger>
+          <SelectContent>
+            {Object.entries(PEDIDO_ESTADOS_INFO).map(([status, { label }]) => (
+              <SelectItem key={status} value={status}>
+                {label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       {pedido.detalles && pedido.detalles.length > 0 && (
         <div className="mb-4">
@@ -182,6 +199,7 @@ const PedidoCategoryAccordion: FC<{
                       <PedidoDetail
                         pedido={pedido}
                         onClose={() => onSelect(pedido)}
+                        onStatusChange={(newStatus) => handleStatusChange(pedido.id, newStatus)}
                         timezone={timezone}
                         locale={locale}
                       />
@@ -312,6 +330,21 @@ export default function PedidosPage() {
 
   const handleSelectPedido = (pedido: Pedido) => {
     setSelectedPedidoId((id) => (id === pedido.id ? null : pedido.id));
+  };
+
+  const handleStatusChange = async (pedidoId: number, newStatus: string) => {
+    const tenantSlug = safeLocalStorage.getItem('tenantSlug');
+    if (!tenantSlug) {
+      setError('No se pudo identificar al tenant.');
+      return;
+    }
+
+    try {
+      await apiClient.adminUpdateOrder(tenantSlug, pedidoId, { status: newStatus });
+      fetchPedidos(); // Re-fetch all pedidos to reflect the change
+    } catch (err) {
+      setError(getErrorMessage(err, 'Error al actualizar el estado del pedido.'));
+    }
   };
 
   if (error) {

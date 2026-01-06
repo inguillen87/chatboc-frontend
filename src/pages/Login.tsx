@@ -14,13 +14,16 @@ import { buildTenantPath } from "@/utils/tenantPaths";
 
 // Asegúrate de que esta interfaz refleje EXACTAMENTE lo que tu backend devuelve en /auth/login
 interface LoginResponse {
-  id: number;
   token: string;
-  name: string;
-  email: string;
-  plan: string;
-  tipo_chat?: 'pyme' | 'municipio';
+  user: {
+    id: number;
+    email: string;
+    name: string;
+    rol: string;
+    tenant_slug: string;
+  };
   entityToken?: string;
+  tipo_chat?: 'pyme' | 'municipio';
 }
 
 const Login = () => {
@@ -103,7 +106,7 @@ const Login = () => {
         safeLocalStorage.setItem("entityToken", data.entityToken);
       }
 
-      const responseTenantSlug = (data as any)?.tenantSlug || (data as any)?.tenant_slug;
+      const responseTenantSlug = data.user?.tenant_slug;
       if (responseTenantSlug) {
         safeLocalStorage.setItem("tenantSlug", responseTenantSlug);
       }
@@ -112,7 +115,7 @@ const Login = () => {
 
       const rawUser = safeLocalStorage.getItem("user");
       const parsedUser = rawUser ? JSON.parse(rawUser) : null;
-      const resolvedTenantSlug = responseTenantSlug || parsedUser?.tenantSlug || parsedUser?.tenant_slug;
+      const resolvedTenantSlug = responseTenantSlug || parsedUser?.tenant_slug;
       const resolvedTipoChat = data.tipo_chat || parsedUser?.tipo_chat;
       let isAdmin = false;
       let isSuperAdmin = false;
