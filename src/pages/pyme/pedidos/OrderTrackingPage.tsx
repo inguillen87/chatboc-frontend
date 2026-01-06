@@ -40,6 +40,19 @@ export default function OrderTrackingPage() {
       try {
         setLoading(true);
         const data = await fetchPublicOrder(nro_pedido);
+
+        // Defensive check for 'detalles' field
+        if (typeof data.detalles === 'string') {
+          try {
+            data.detalles = JSON.parse(data.detalles);
+          } catch (e) {
+            console.error('Failed to parse order details string:', e);
+            data.detalles = []; // Fallback to an empty array on parse error
+          }
+        } else if (!Array.isArray(data.detalles)) {
+          data.detalles = []; // Ensure it's always an array
+        }
+
         setOrder(data);
 
         // Apply theme if available
