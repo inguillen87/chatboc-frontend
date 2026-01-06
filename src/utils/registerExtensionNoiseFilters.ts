@@ -4,6 +4,8 @@ const KNOWN_EXTENSION_PATTERNS = [
   /This document requires 'TrustedScript' assignment/i,
 ];
 
+const EXTENSION_PROTOCOLS = ['chrome-extension://', 'moz-extension://', 'safari-extension://'];
+
 function extractMessage(value: unknown): string {
   if (typeof value === 'string') {
     return value;
@@ -22,6 +24,11 @@ function shouldIgnore(message: string | null | undefined): boolean {
   return KNOWN_EXTENSION_PATTERNS.some((pattern) => pattern.test(message));
 }
 
+function isExtensionUrl(url: string | null | undefined): boolean {
+  if (typeof url !== 'string' || !url) return false;
+  return EXTENSION_PROTOCOLS.some((protocol) => url.startsWith(protocol));
+}
+
 export function registerExtensionNoiseFilters(): () => void {
   if (typeof window === 'undefined') {
     return () => {};
@@ -33,20 +40,31 @@ export function registerExtensionNoiseFilters(): () => void {
   }
 
   const handleError = (event: ErrorEvent) => {
-    const errorMessage = extractMessage(event.error ?? event.message);
-    if (shouldIgnore(errorMessage)) {
-      event.preventDefault?.();
-      event.stopImmediatePropagation?.();
-      return false;
+    try {
+      const errorMessage = extractMessage(event.error ?? event.message);
+      const fromExtension = isExtensionUrl(event.filename) || isExtensionUrl((event.error as any)?.stack);
+
+      if (fromExtension || shouldIgnore(errorMessage)) {
+        event.preventDefault?.();
+        event.stopImmediatePropagation?.();
+        return false;
+      }
+    } catch (error) {
+      // Never let the noise filter crash the app – swallow unexpected shapes.
+      console.error('registerExtensionNoiseFilters error handler failed', error);
     }
     return undefined;
   };
 
   const handleRejection = (event: PromiseRejectionEvent) => {
-    const reasonMessage = extractMessage(event.reason);
-    if (shouldIgnore(reasonMessage)) {
-      event.preventDefault?.();
-      event.stopImmediatePropagation?.();
+    try {
+      const reasonMessage = extractMessage(event.reason);
+      if (shouldIgnore(reasonMessage)) {
+        event.preventDefault?.();
+        event.stopImmediatePropagation?.();
+      }
+    } catch (error) {
+      console.error('registerExtensionNoiseFilters rejection handler failed', error);
     }
   };
 
