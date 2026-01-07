@@ -51,15 +51,9 @@ const Login = () => {
     [currentSlug, navigate],
   );
 
-  const navigateToTenantProfile = useCallback(
-    (tenantSlug?: string | null) => {
-      const storedSlug = safeLocalStorage.getItem("tenantSlug");
-      const fallbackSlug = tenantSlug?.toString()?.trim() || currentSlug || storedSlug || null;
-      const target = buildTenantPath("/perfil", fallbackSlug);
-      navigate(target);
-    },
-    [currentSlug, navigate],
-  );
+  const navigateToTenantProfile = useCallback(() => {
+    navigate("/perfil");
+  }, [navigate]);
 
   useEffect(() => {
     let mounted = true;
@@ -115,7 +109,8 @@ const Login = () => {
 
       const rawUser = safeLocalStorage.getItem("user");
       const parsedUser = rawUser ? JSON.parse(rawUser) : null;
-      const resolvedTenantSlug = responseTenantSlug || parsedUser?.tenant_slug;
+      const resolvedTenantSlug =
+        responseTenantSlug || parsedUser?.tenantSlug || parsedUser?.tenant_slug;
       const resolvedTipoChat = data.tipo_chat || parsedUser?.tipo_chat;
       let isAdmin = false;
       let isSuperAdmin = false;
@@ -132,9 +127,9 @@ const Login = () => {
       if (isSuperAdmin) {
         navigate("/superadmin");
       } else if (isAdmin) {
-        navigate(buildTenantPath("/perfil", resolvedTenantSlug));
+        navigateToTenantProfile();
       } else if (resolvedTipoChat === "pyme") {
-        navigateToTenantProfile(resolvedTenantSlug);
+        navigateToTenantProfile();
       } else {
         navigateToTenantCatalog(resolvedTenantSlug);
       }
@@ -191,7 +186,7 @@ const Login = () => {
       if (isSuperAdmin) {
         navigate("/superadmin");
       } else if (isAdmin) {
-        navigate(buildTenantPath("/perfil", responseTenantSlug));
+        navigate("/perfil");
       } else {
         navigateToTenantCatalog(responseTenantSlug);
       }
@@ -237,7 +232,7 @@ const Login = () => {
                 {isPasskeyLoading ? "Verificando Passkey..." : "Entrar con Passkey"}
               </Button>
             )}
-            <GoogleLoginButton className="w-full" onLoggedIn={() => navigateToTenantCatalog()} />
+          <GoogleLoginButton className="w-full" onLoggedIn={() => navigateToTenantCatalog()} />
           </div>
         </form>
         <div className="text-center text-sm text-muted-foreground mt-4">
