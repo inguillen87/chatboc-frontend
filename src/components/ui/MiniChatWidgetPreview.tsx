@@ -21,13 +21,14 @@ const MiniChatWidgetPreview: React.FC = () => {
   const { user } = useUser();
   const [config, setConfig] = useState<WidgetPreviewConfig | null>(null);
 
-  const effectiveSlug = useMemo(
-    () =>
-      currentSlug ||
-      user?.tenantSlug ||
-      safeLocalStorage.getItem('tenantSlug'),
-    [currentSlug, user?.tenantSlug],
-  );
+  const effectiveSlug = useMemo(() => {
+    const storedSlug = safeLocalStorage.getItem('tenantSlug');
+    const userSlug = user?.tenantSlug;
+    if (currentSlug?.startsWith('admin-') && userSlug) {
+      return userSlug;
+    }
+    return userSlug || currentSlug || storedSlug;
+  }, [currentSlug, user?.tenantSlug]);
 
   useEffect(() => {
     let isMounted = true;

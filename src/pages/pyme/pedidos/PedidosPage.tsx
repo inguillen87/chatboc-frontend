@@ -64,13 +64,14 @@ const PedidosPage = () => {
   const [createLoading, setCreateLoading] = useState(false);
   const [newItem, setNewItem] = useState({ contact_name: '', product_name: '', price: '', quantity: '1' });
 
-  const effectiveSlug = useMemo(
-    () =>
-      currentSlug ||
-      user?.tenantSlug ||
-      safeLocalStorage.getItem('tenantSlug'),
-    [currentSlug, user?.tenantSlug],
-  );
+  const effectiveSlug = useMemo(() => {
+    const storedSlug = safeLocalStorage.getItem('tenantSlug');
+    const userSlug = user?.tenantSlug;
+    if (currentSlug?.startsWith('admin-') && userSlug) {
+      return userSlug;
+    }
+    return userSlug || currentSlug || storedSlug;
+  }, [currentSlug, user?.tenantSlug]);
 
   useEffect(() => {
     if (effectiveSlug) {
