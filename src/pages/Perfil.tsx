@@ -278,9 +278,10 @@ export default function Perfil() {
 
     return null;
   }, [perfil, storedTenantSlug, user]);
+  const normalizedRole = normalizeRole(user?.rol);
   const isAdminUser = useMemo(
-    () => (user?.rol || "").toLowerCase() === "admin",
-    [user?.rol],
+    () => normalizedRole === "admin" || normalizedRole === "super_admin",
+    [normalizedRole],
   );
   const isProOrFullPlan = useMemo(
     () => perfil.plan === "pro" || perfil.plan === "full",
@@ -312,7 +313,6 @@ export default function Perfil() {
   const [geocodingError, setGeocodingError] = useState<string | null>(null);
   const geocodeAbortRef = useRef<AbortController | null>(null);
   const [isMapLoading, setIsMapLoading] = useState(true);
-  const normalizedRole = normalizeRole(user?.rol);
   const isStaff = normalizedRole === 'admin' || normalizedRole === 'empleado';
   const canViewAnalytics =
     isStaff || user?.tipo_chat === 'pyme' || user?.tipo_chat === 'municipio';
@@ -636,6 +636,8 @@ export default function Perfil() {
       }
       const resolvedPlan =
         data?.tenant?.plan ?? data?.tenant_plan ?? data?.tenantPlan ?? data?.plan ?? "gratis";
+      const normalizedPlan =
+        typeof resolvedPlan === "string" ? resolvedPlan.trim().toLowerCase() : "gratis";
       setPerfil((prev) => ({
         ...prev,
         nombre_empresa: data.nombre_empresa || "",
@@ -647,7 +649,7 @@ export default function Perfil() {
         latitud,
         longitud,
         link_web: data.link_web || "",
-        plan: resolvedPlan,
+        plan: normalizedPlan,
         preguntas_usadas: data.preguntas_usadas ?? 0,
         limite_preguntas: data.limite_preguntas ?? 100,
         rubro: data.rubro?.toLowerCase() || "",

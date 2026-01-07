@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useTenant } from '@/context/TenantContext';
 import { apiClient } from '@/api/client';
 import { Order } from '@/types/unified';
@@ -13,6 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
+import { useUser } from '@/hooks/useUser';
+import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
 const STATUS_MAP: Record<string, { label: string; color: string; icon: any }> = {
   nuevo: { label: 'Nuevo', color: 'bg-blue-100 text-blue-800', icon: Package },
@@ -50,6 +52,7 @@ const normalizeOrders = (raw: unknown): Order[] => {
 
 const PedidosPage = () => {
   const { currentSlug } = useTenant();
+  const { user } = useUser();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -61,17 +64,25 @@ const PedidosPage = () => {
   const [createLoading, setCreateLoading] = useState(false);
   const [newItem, setNewItem] = useState({ contact_name: '', product_name: '', price: '', quantity: '1' });
 
+  const effectiveSlug = useMemo(
+    () =>
+      currentSlug ||
+      user?.tenantSlug ||
+      safeLocalStorage.getItem('tenantSlug'),
+    [currentSlug, user?.tenantSlug],
+  );
+
   useEffect(() => {
-    if (currentSlug) {
+    if (effectiveSlug) {
       loadOrders();
     }
-  }, [currentSlug]);
+  }, [effectiveSlug]);
 
   const loadOrders = async () => {
     setLoading(true);
     try {
-      if (!currentSlug) return;
-      const data = await apiClient.adminListOrders(currentSlug);
+      if (!effectiveSlug) return;
+      const data = await apiClient.adminListOrders(effectiveSlug);
       const normalized = normalizeOrders(data);
       setOrders(normalized);
     } catch (error) {
@@ -83,11 +94,11 @@ const PedidosPage = () => {
   };
 
   const handleStatusChange = async (orderId: string | number, newStatus: string) => {
-    if (!currentSlug) return;
+    if (!effectiveSlug) return;
     const currentOrders = Array.isArray(orders) ? orders : [];
 
     try {
-      await apiClient.adminUpdateOrder(currentSlug, orderId, { status: newStatus });
+      await apiClient.adminUpdateOrder(effectiveSlug, orderId, { status: newStatus });
       // Optimistic update
       const updatedOrders = currentOrders.map(o =>
         o.id === orderId ? { ...o, status: newStatus as any } : o,
@@ -110,7 +121,7 @@ const PedidosPage = () => {
   };
 
   const handleCreateOrder = async () => {
-    if (!currentSlug) return;
+    if (!effectiveSlug) return;
     if (!newItem.contact_name || !newItem.product_name || !newItem.price) {
       toast.error("Complete los campos obligatorios");
       return;
@@ -127,7 +138,7 @@ const PedidosPage = () => {
         }],
       };
 
-      await apiClient.adminCreateOrder(currentSlug, payload);
+      await apiClient.adminCreateOrder(effectiveSlug, payload);
       toast.success("Pedido creado correctamente");
       setIsCreateOpen(false);
       setNewItem({ contact_name: '', product_name: '', price: '', quantity: '1' });

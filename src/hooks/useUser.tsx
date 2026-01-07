@@ -193,11 +193,13 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const resolvedPlan =
         data?.tenant?.plan ?? data?.tenant_plan ?? data?.tenantPlan ?? data?.plan ?? 'free';
+      const normalizedPlan =
+        typeof resolvedPlan === 'string' ? resolvedPlan.trim().toLowerCase() : 'free';
       const updated: UserData = {
         id: data.id,
         name: data.name,
         email: data.email,
-        plan: resolvedPlan,
+        plan: normalizedPlan,
         rubro: rubroNorm,
         nombre_empresa: data.nombre_empresa,
         logo_url: data.logo_url,
