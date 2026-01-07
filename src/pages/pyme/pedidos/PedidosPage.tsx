@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useTenant } from '@/context/TenantContext';
 import { apiClient } from '@/api/client';
 import { Order } from '@/types/unified';
@@ -13,6 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
+import { useUser } from '@/hooks/useUser';
+import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
 const STATUS_MAP: Record<string, { label: string; color: string; icon: any }> = {
   nuevo: { label: 'Nuevo', color: 'bg-blue-100 text-blue-800', icon: Package },
@@ -50,6 +52,7 @@ const normalizeOrders = (raw: unknown): Order[] => {
 
 const PedidosPage = () => {
   const { currentSlug } = useTenant();
+  const { user } = useUser();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -61,39 +64,41 @@ const PedidosPage = () => {
   const [createLoading, setCreateLoading] = useState(false);
   const [newItem, setNewItem] = useState({ contact_name: '', product_name: '', price: '', quantity: '1' });
 
+  const effectiveSlug = useMemo(
+    () =>
+      currentSlug ||
+      user?.tenantSlug ||
+      safeLocalStorage.getItem('tenantSlug'),
+    [currentSlug, user?.tenantSlug],
+  );
+
   useEffect(() => {
-    if (currentSlug) {
+    if (effectiveSlug) {
       loadOrders();
     }
-  }, [currentSlug]);
+  }, [effectiveSlug]);
 
   const loadOrders = async () => {
     setLoading(true);
     try {
-      if (!currentSlug) return;
-      const data = await apiClient.adminListOrders(currentSlug);
+      if (!effectiveSlug) return;
+      const data = await apiClient.adminListOrders(effectiveSlug);
       const normalized = normalizeOrders(data);
-
-      // Ensure we have some data for demo if empty
-      if (normalized.length === 0) {
-        setOrders(MOCK_ORDERS);
-      } else {
-        setOrders(normalized);
-      }
+      setOrders(normalized);
     } catch (error) {
       console.error('Error loading orders:', error);
-      setOrders(MOCK_ORDERS); // Fallback
+      setOrders([]);
     } finally {
       setLoading(false);
     }
   };
 
   const handleStatusChange = async (orderId: string | number, newStatus: string) => {
-    if (!currentSlug) return;
+    if (!effectiveSlug) return;
     const currentOrders = Array.isArray(orders) ? orders : [];
 
     try {
-      await apiClient.adminUpdateOrder(currentSlug, orderId, newStatus);
+      await apiClient.adminUpdateOrder(effectiveSlug, orderId, { status: newStatus });
       // Optimistic update
       const updatedOrders = currentOrders.map(o =>
         o.id === orderId ? { ...o, status: newStatus as any } : o,
@@ -116,7 +121,7 @@ const PedidosPage = () => {
   };
 
   const handleCreateOrder = async () => {
-    if (!currentSlug) return;
+    if (!effectiveSlug) return;
     if (!newItem.contact_name || !newItem.product_name || !newItem.price) {
       toast.error("Complete los campos obligatorios");
       return;
@@ -133,7 +138,7 @@ const PedidosPage = () => {
         }],
       };
 
-      await apiClient.adminCreateOrder(currentSlug, payload);
+      await apiClient.adminCreateOrder(effectiveSlug, payload);
       toast.success("Pedido creado correctamente");
       setIsCreateOpen(false);
       setNewItem({ contact_name: '', product_name: '', price: '', quantity: '1' });
@@ -147,11 +152,17 @@ const PedidosPage = () => {
   };
 
   const safeOrders = Array.isArray(orders) ? orders : [];
+  const statusOptions = ['confirmed', 'in_progress', 'shipped', 'delivered', 'cancelled'];
+  const detailStatusOptions = selectedOrder
+    ? statusOptions.includes(selectedOrder.status)
+      ? statusOptions
+      : [selectedOrder.status, ...statusOptions]
+    : statusOptions;
 
   const filteredOrders = safeOrders.filter(o => {
     const matchesSearch =
       o.id.toString().includes(searchTerm) ||
-      o.items.some(i => i.name.toLowerCase().includes(searchTerm.toLowerCase()));
+      (o.items ?? []).some(i => i.name.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesChannel = channelFilter === 'all' || (o as any).channel === channelFilter;
     return matchesSearch && matchesChannel;
   });
@@ -256,6 +267,7 @@ const PedidosPage = () => {
             filteredOrders.map(order => {
               const ChannelIcon = CHANNEL_ICONS[(order as any).channel] || Globe;
               const isSelected = selectedOrder?.id === order.id;
+              const orderItems = order.items ?? [];
 
               return (
                 <Card
@@ -282,7 +294,7 @@ const PedidosPage = () => {
                                 {format(new Date(order.created_at), "d MMM, HH:mm", { locale: es })}
                             </div>
                             <div className="text-xs text-muted-foreground mt-1">
-                                {order.items.length} items • {(order as any).customerName || 'Cliente Final'}
+                                {orderItems.length} items • {(order as any).customerName || 'Cliente Final'}
                             </div>
                         </div>
                         <div className="font-bold text-lg">
@@ -333,27 +345,24 @@ const PedidosPage = () => {
                </CardHeader>
 
                <CardContent className="p-6 space-y-6 overflow-y-auto flex-1">
-                  {/* Status Actions */}
                   <div className="flex flex-wrap items-center gap-3 p-4 bg-muted/30 rounded-lg border">
                     <span className="text-sm font-medium">Estado actual:</span>
                     <Badge className={`text-sm px-3 py-1 ${STATUS_MAP[selectedOrder.status]?.color}`}>
                         {STATUS_MAP[selectedOrder.status]?.label || selectedOrder.status}
                     </Badge>
                     <div className="flex-1" />
-                    <div className="flex gap-2">
-                        {selectedOrder.status === 'nuevo' && (
-                            <Button size="sm" onClick={() => handleStatusChange(selectedOrder.id, 'confirmed')}>Confirmar</Button>
-                        )}
-                        {selectedOrder.status === 'confirmed' && (
-                            <Button size="sm" onClick={() => handleStatusChange(selectedOrder.id, 'shipped')}>Marcar Despachado</Button>
-                        )}
-                        {selectedOrder.status === 'shipped' && (
-                            <Button size="sm" onClick={() => handleStatusChange(selectedOrder.id, 'delivered')}>Marcar Entregado</Button>
-                        )}
-                        {selectedOrder.status !== 'cancelled' && selectedOrder.status !== 'delivered' && (
-                             <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => handleStatusChange(selectedOrder.id, 'cancelled')}>Cancelar</Button>
-                        )}
-                    </div>
+                    <Select value={selectedOrder.status} onValueChange={(value) => handleStatusChange(selectedOrder.id, value)}>
+                      <SelectTrigger className="w-[180px]">
+                        <SelectValue placeholder="Cambiar estado" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {detailStatusOptions.map((status) => (
+                          <SelectItem key={status} value={status}>
+                            {STATUS_MAP[status]?.label || status}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   <div className="grid md:grid-cols-2 gap-6">
@@ -389,7 +398,7 @@ const PedidosPage = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {selectedOrder.items.map((item, idx) => (
+                        {(selectedOrder.items ?? []).map((item, idx) => (
                           <tr key={idx} className="border-t last:border-0">
                             <td className="p-3">
                                 <div className="font-medium">{item.name}</div>
@@ -436,48 +445,4 @@ const PedidosPage = () => {
 };
 
 // Mock Data for Demo
-const MOCK_ORDERS: any[] = [
-    {
-        id: "2000149922",
-        channel: "mercadolibre",
-        status: "nuevo",
-        total: 45900,
-        created_at: new Date().toISOString(),
-        customerName: "Juan Pérez",
-        customerPhone: "+5491155556666",
-        externalId: "ML-4829102",
-        externalUrl: "https://mercadolibre.com.ar",
-        items: [
-            { name: "Taladro Percutor 700w", quantity: 1, price: 45900, sku: "TAL-001" }
-        ],
-        notes: "El cliente preguntó si viene con maletín."
-    },
-    {
-        id: "1055",
-        channel: "whatsapp",
-        status: "confirmed",
-        total: 12500,
-        created_at: new Date(Date.now() - 3600000).toISOString(),
-        customerName: "Maria Rodriguez",
-        customerPhone: "+5491144443333",
-        items: [
-            { name: "Set de Mechas x10", quantity: 1, price: 8500, sku: "MEC-10" },
-            { name: "Cinta Métrica 5m", quantity: 1, price: 4000, sku: "CIN-05" }
-        ],
-        notes: "Pide factura A."
-    },
-    {
-        id: "TN-9921",
-        channel: "tiendanube",
-        status: "shipped",
-        total: 120000,
-        created_at: new Date(Date.now() - 86400000).toISOString(),
-        customerName: "Empresa Constructora SA",
-        externalId: "TN-9921",
-        items: [
-            { name: "Lijadora Orbital", quantity: 2, price: 60000, sku: "LIJ-PRO" }
-        ]
-    }
-];
-
 export default PedidosPage;

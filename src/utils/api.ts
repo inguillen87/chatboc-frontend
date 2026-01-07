@@ -469,7 +469,19 @@ export async function apiFetch<T>(
   })();
 
   const treatAsWidget = isWidgetRequest ?? (isWidgetContext && isLikelyWidgetEnvironment);
-  const resolvedTenantSlug = omitTenant
+  const shouldOmitTenantByPath = (() => {
+    const normalizedForTenant = path.replace(/^\/+/, "").toLowerCase();
+    return (
+      normalizedForTenant === "me" ||
+      normalizedForTenant.startsWith("me/") ||
+      normalizedForTenant.startsWith("me?") ||
+      normalizedForTenant === "api/me" ||
+      normalizedForTenant.startsWith("api/me/") ||
+      normalizedForTenant.startsWith("api/me?")
+    );
+  })();
+  const shouldOmitTenantForRequest = omitTenant || shouldOmitTenantByPath;
+  const resolvedTenantSlug = shouldOmitTenantForRequest
     ? null
     : treatAsWidget && tenantSlug === undefined
       ? null
