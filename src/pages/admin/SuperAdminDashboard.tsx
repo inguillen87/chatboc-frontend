@@ -12,12 +12,6 @@ import { TenantModal } from '@/components/admin/TenantModal';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { buildTenantPath } from '@/utils/tenantPaths';
 
-// Mock Data for Demo/Development since backend might not have data yet
-const MOCK_TENANTS: Tenant[] = [
-    { id: 1, slug: 'junin', nombre: 'Municipalidad de Junín', tipo: 'municipio', plan: 'full', status: 'active', is_active: true, created_at: '2023-01-01', owner_email: 'admin@junin.gov.ar' },
-    { id: 2, slug: 'demo-pyme', nombre: 'Pyme Demo', tipo: 'pyme', plan: 'free', status: 'active', is_active: true, created_at: '2023-05-15', owner_email: 'dueño@pyme.com' },
-];
-
 export default function SuperAdminDashboard() {
   useRequireRole(['super_admin']);
   const navigate = useNavigate();
@@ -32,21 +26,14 @@ export default function SuperAdminDashboard() {
   const fetchTenants = async () => {
     setLoading(true);
     try {
-      // Try to fetch from API
       const data = await apiClient.superAdminListTenants(1, 100);
-      if (data.tenants && data.tenants.length > 0) {
-          setTenants(data.tenants);
-          setTotal(data.total);
-      } else {
-          // Fallback to mock if empty response (dev mode)
-          setTenants(MOCK_TENANTS);
-          setTotal(MOCK_TENANTS.length);
-      }
+      setTenants(Array.isArray(data.tenants) ? data.tenants : []);
+      setTotal(typeof data.total === 'number' ? data.total : 0);
     } catch (error) {
-      console.warn("Failed to fetch tenants, using mock data", error);
-      // Fallback to mock on error (dev mode)
-      setTenants(MOCK_TENANTS);
-      setTotal(MOCK_TENANTS.length);
+      console.warn("Failed to fetch tenants", error);
+      setTenants([]);
+      setTotal(0);
+      toast.error("No se pudieron cargar los tenants.");
     } finally {
       setLoading(false);
     }
