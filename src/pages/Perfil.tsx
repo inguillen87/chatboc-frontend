@@ -610,7 +610,7 @@ export default function Perfil() {
     setError(null);
     setMensaje(null);
     try {
-      const data = await apiFetch<any>("/me"); // Usa apiFetch, que maneja el token
+      const data = await apiFetch<any>("/me", { omitTenant: true }); // Usa apiFetch, que maneja el token
 
       const latitud = parseCoordinate(data.latitud ?? data.lat);
       const longitud = parseCoordinate(data.longitud ?? data.lng);

@@ -96,6 +96,7 @@ const Login = () => {
         method: "POST",
         body: payload,
         tenantSlug: effectiveSlug || undefined,
+        omitTenant: isGlobalLogin,
       });
 
       safeLocalStorage.setItem("authToken", data.token);
