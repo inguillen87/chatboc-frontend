@@ -80,7 +80,10 @@ const Login = () => {
     // Usually, login API handles finding the user regardless of tenant slug sent,
     // unless it's a specific tenant user.
     // Let's keep existing logic but be mindful.
-    const effectiveSlug = currentSlug || storedSlug;
+    const effectiveSlug = isGlobalLogin ? null : currentSlug || storedSlug;
+    if (isGlobalLogin && storedSlug) {
+      safeLocalStorage.removeItem("tenantSlug");
+    }
 
     const payload: any = { email, password };
     if (effectiveSlug) {

@@ -242,10 +242,17 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
+  const lastRefreshTokenRef = React.useRef<string | null>(null);
+
   useEffect(() => {
     const token =
       getValidStoredToken('authToken') ||
       getValidStoredToken('chatAuthToken');
+    if (token && token !== lastRefreshTokenRef.current) {
+      lastRefreshTokenRef.current = token;
+      refreshUser();
+      return;
+    }
     if (token && (!user || !user.rubro)) {
       refreshUser();
     }
