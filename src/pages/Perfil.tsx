@@ -634,6 +634,8 @@ export default function Perfil() {
             typeof h.cerrado === "boolean" ? h.cerrado : idx === 5 || idx === 6,
         }));
       }
+      const resolvedPlan =
+        data?.tenant?.plan ?? data?.tenant_plan ?? data?.tenantPlan ?? data?.plan ?? "gratis";
       setPerfil((prev) => ({
         ...prev,
         nombre_empresa: data.nombre_empresa || "",
@@ -645,7 +647,7 @@ export default function Perfil() {
         latitud,
         longitud,
         link_web: data.link_web || "",
-        plan: data.plan || "gratis",
+        plan: resolvedPlan,
         preguntas_usadas: data.preguntas_usadas ?? 0,
         limite_preguntas: data.limite_preguntas ?? 100,
         rubro: data.rubro?.toLowerCase() || "",
