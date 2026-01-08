@@ -148,11 +148,10 @@ const PedidoCategoryAccordion: FC<{
   isOpen: boolean;
   onToggle: () => void;
   onSelect: (p: Pedido) => void;
-  onStatusChange: (pedidoId: number, status: string) => void;
   selectedPedidoId: number | null;
   timezone: string;
   locale: string;
-}> = ({ estado, pedidos, isOpen, onToggle, onSelect, onStatusChange, selectedPedidoId, timezone, locale }) => (
+}> = ({ estado, pedidos, isOpen, onToggle, onSelect, selectedPedidoId, timezone, locale }) => (
   <motion.div layout className="bg-card border border-border rounded-xl shadow-md overflow-hidden" initial={{ borderRadius: 12 }}>
     <motion.header
       layout
@@ -201,7 +200,7 @@ const PedidoCategoryAccordion: FC<{
                       <PedidoDetail
                         pedido={pedido}
                         onClose={() => onSelect(pedido)}
-                        onStatusChange={(newStatus) => onStatusChange(pedido.id, newStatus)}
+                        onStatusChange={(newStatus) => handleStatusChange(pedido.id, newStatus)}
                         timezone={timezone}
                         locale={locale}
                       />
@@ -392,7 +391,6 @@ export default function PedidosPage() {
               isOpen={openCategories.has(estado)}
               onToggle={() => toggleCategory(estado)}
               onSelect={handleSelectPedido}
-              onStatusChange={handleStatusChange}
               selectedPedidoId={selectedPedidoId}
               timezone={timezone}
               locale={locale}

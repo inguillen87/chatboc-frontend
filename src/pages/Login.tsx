@@ -51,9 +51,15 @@ const Login = () => {
     [currentSlug, navigate],
   );
 
-  const navigateToTenantProfile = useCallback(() => {
-    navigate("/perfil");
-  }, [navigate]);
+  const navigateToTenantProfile = useCallback(
+    (tenantSlug?: string | null) => {
+      const storedSlug = safeLocalStorage.getItem("tenantSlug");
+      const fallbackSlug = tenantSlug?.toString()?.trim() || currentSlug || storedSlug || null;
+      const target = buildTenantPath("/perfil", fallbackSlug);
+      navigate(target);
+    },
+    [currentSlug, navigate],
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -80,10 +86,7 @@ const Login = () => {
     // Usually, login API handles finding the user regardless of tenant slug sent,
     // unless it's a specific tenant user.
     // Let's keep existing logic but be mindful.
-    const effectiveSlug = isGlobalLogin ? null : currentSlug || storedSlug;
-    if (isGlobalLogin && storedSlug) {
-      safeLocalStorage.removeItem("tenantSlug");
-    }
+    const effectiveSlug = currentSlug || storedSlug;
 
     const payload: any = { email, password };
     if (effectiveSlug) {
@@ -96,7 +99,6 @@ const Login = () => {
         method: "POST",
         body: payload,
         tenantSlug: effectiveSlug || undefined,
-        omitTenant: isGlobalLogin,
       });
 
       safeLocalStorage.setItem("authToken", data.token);
@@ -113,8 +115,7 @@ const Login = () => {
 
       const rawUser = safeLocalStorage.getItem("user");
       const parsedUser = rawUser ? JSON.parse(rawUser) : null;
-      const resolvedTenantSlug =
-        responseTenantSlug || parsedUser?.tenantSlug || parsedUser?.tenant_slug;
+      const resolvedTenantSlug = responseTenantSlug || parsedUser?.tenant_slug;
       const resolvedTipoChat = data.tipo_chat || parsedUser?.tipo_chat;
       let isAdmin = false;
       let isSuperAdmin = false;
@@ -131,9 +132,9 @@ const Login = () => {
       if (isSuperAdmin) {
         navigate("/superadmin");
       } else if (isAdmin) {
-        navigateToTenantProfile();
+        navigate(buildTenantPath("/perfil", resolvedTenantSlug));
       } else if (resolvedTipoChat === "pyme") {
-        navigateToTenantProfile();
+        navigateToTenantProfile(resolvedTenantSlug);
       } else {
         navigateToTenantCatalog(resolvedTenantSlug);
       }
@@ -190,7 +191,7 @@ const Login = () => {
       if (isSuperAdmin) {
         navigate("/superadmin");
       } else if (isAdmin) {
-        navigate("/perfil");
+        navigate(buildTenantPath("/perfil", responseTenantSlug));
       } else {
         navigateToTenantCatalog(responseTenantSlug);
       }
@@ -236,7 +237,7 @@ const Login = () => {
                 {isPasskeyLoading ? "Verificando Passkey..." : "Entrar con Passkey"}
               </Button>
             )}
-          <GoogleLoginButton className="w-full" onLoggedIn={() => navigateToTenantCatalog()} />
+            <GoogleLoginButton className="w-full" onLoggedIn={() => navigateToTenantCatalog()} />
           </div>
         </form>
         <div className="text-center text-sm text-muted-foreground mt-4">

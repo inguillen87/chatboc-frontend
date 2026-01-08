@@ -260,7 +260,7 @@ const routes: RouteConfig[] = [
   ...withTenantPrefixes('/:tenant/user/register', { element: <UserRegister /> }),
 
   // Integrations & Admin (Tenant Scoped)
-  ...withTenantPrefixes('/:tenant/integracion', { element: <IntegracionesPage />, roles: ['admin', 'admin_pyme'] }),
+  ...withTenantPrefixes('/:tenant/integracion', { element: <IntegracionesPage />, roles: ['admin'] }),
   ...withTenantPrefixes('/:tenant/catalog-mappings/new', { element: <CatalogMappingPage />, roles: ['admin', 'super_admin'] }),
   ...withTenantPrefixes('/:tenant/catalog-mappings/:mappingId', { element: <CatalogMappingPage />, roles: ['admin', 'super_admin'] }),
 
@@ -282,7 +282,7 @@ const routes: RouteConfig[] = [
   // Public Order Tracking
   { path: '/pyme/pedidos/:nro_pedido', element: <OrderTrackingPage /> },
   // Missing root integration route
-  { path: '/:tenant/integracion', element: <IntegracionesPage />, roles: ['admin', 'admin_pyme'] },
+  { path: '/:tenant/integracion', element: <IntegracionesPage />, roles: ['admin'] },
 
   // Generic Tenant Home (Dashboard/Landing) - Must be LAST among tenant routes to avoid swallowing others
   ...withTenantPrefixes('/:tenant', { element: <TenantHomePage /> }),
@@ -309,7 +309,7 @@ const routes: RouteConfig[] = [
   { path: '/chatpos', element: <ChatPosPage /> },
   { path: '/chatcrm', element: <ChatCRMPage /> },
   { path: '/opinar', element: <OpinarArPage /> },
-  { path: '/integracion', element: <Integracion />, roles: ['admin', 'admin_pyme'] },
+  { path: '/integracion', element: <Integracion />, roles: ['admin'] },
   { path: '/documentacion', element: <Documentacion /> },
   { path: '/faqs', element: <Faqs /> },
   { path: '/productos', element: <ProductCatalog /> },
