@@ -93,7 +93,7 @@ const PedidosPage = () => {
     const currentOrders = Array.isArray(orders) ? orders : [];
 
     try {
-      await apiClient.adminUpdateOrder(currentSlug, orderId, newStatus);
+      await apiClient.adminUpdateOrder(currentSlug, orderId, { status: newStatus });
       // Optimistic update
       const updatedOrders = currentOrders.map(o =>
         o.id === orderId ? { ...o, status: newStatus as any } : o,
