@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, FC } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { apiFetch, getErrorMessage } from '@/utils/api';
+import { getErrorMessage } from '@/utils/api';
 import { apiClient } from '@/api/client';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { Button } from '@/components/ui/button';
@@ -283,20 +283,25 @@ export default function PedidosPage() {
   };
 
   const fetchPedidos = useCallback(async () => {
+    const tenantSlug = safeLocalStorage.getItem('tenantSlug');
+    if (!tenantSlug) {
+      setError('No se pudo identificar al tenant para cargar los pedidos.');
+      setIsLoading(false);
+      return;
+    }
+
     try {
-      const data = await apiFetch<Pedido[]>('/pedidos');
+      const data = await apiClient.adminListOrders(tenantSlug);
       if (Array.isArray(data)) {
         const categorized = data.reduce<CategorizedPedidos>((acc, p) => {
           acc[p.estado] = acc[p.estado] ? [...acc[p.estado], p] : [p];
           return acc;
         }, {});
         setCategorizedPedidos(categorized);
-        // Move this line inside the if-block to ensure 'categorized' is defined
         setOpenCategories(new Set(Object.keys(categorized).filter((e) => !['satisfecho', 'cancelado'].includes(e))));
       } else {
         console.error('Error: La respuesta de la API de pedidos no es un array', data);
         setCategorizedPedidos({});
-        // Also handle the 'else' case by setting open categories to empty
         setOpenCategories(new Set());
       }
     } catch (err) {

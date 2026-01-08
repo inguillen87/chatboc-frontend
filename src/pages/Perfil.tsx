@@ -649,7 +649,7 @@ export default function Perfil() {
         latitud,
         longitud,
         link_web: data.link_web || "",
-        plan: normalizedPlan,
+        plan: data.tenant?.plan || data.plan || "gratis",
         preguntas_usadas: data.preguntas_usadas ?? 0,
         limite_preguntas: data.limite_preguntas ?? 100,
         rubro: data.rubro?.toLowerCase() || "",
