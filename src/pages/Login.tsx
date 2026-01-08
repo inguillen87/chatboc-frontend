@@ -80,76 +80,56 @@ const Login = () => {
     setError("");
     setIsLoading(true);
 
+    // Extract tenant from the path directly, which is more reliable on login page
+    const pathSegments = location.pathname.split('/').filter(Boolean);
+    const slugFromPath = (pathSegments.length > 0 && pathSegments[0] !== 'login') ? pathSegments[0] : null;
+
     const storedSlug = safeLocalStorage.getItem("tenantSlug");
-    // Only use the slug for login context if we are NOT on the global login page
-    // OR if we want to support implicit context login even on global page (sticky session).
-    // Usually, login API handles finding the user regardless of tenant slug sent,
-    // unless it's a specific tenant user.
-    // Let's keep existing logic but be mindful.
-    const effectiveSlug = currentSlug || storedSlug;
+    const effectiveSlug = slugFromPath || currentSlug || storedSlug;
 
     const payload: any = { email, password };
     if (effectiveSlug) {
       payload.tenant_slug = effectiveSlug;
-      payload.tenant = effectiveSlug;
     }
 
     try {
-      const data = await apiFetch<LoginResponse>("/auth/login", {
+      // Always use the admin login endpoint for this component.
+      const data = await apiFetch<LoginResponse>("/auth/admin/login", {
         method: "POST",
         body: payload,
-        tenantSlug: effectiveSlug || undefined,
       });
 
       safeLocalStorage.setItem("authToken", data.token);
-      if (data.entityToken) {
-        safeLocalStorage.setItem("entityToken", data.entityToken);
-      }
 
+      // The backend now reliably returns the correct tenant_slug inside the user object.
       const responseTenantSlug = data.user?.tenant_slug;
+
       if (responseTenantSlug) {
         safeLocalStorage.setItem("tenantSlug", responseTenantSlug);
       }
 
-      await refreshUser();
+      await refreshUser(); // This will fetch user details and store them
 
+      // After refreshUser, the user object in localStorage is updated.
       const rawUser = safeLocalStorage.getItem("user");
-      const parsedUser = rawUser ? JSON.parse(rawUser) : null;
-      const resolvedTenantSlug = responseTenantSlug || parsedUser?.tenant_slug;
-      const resolvedTipoChat = data.tipo_chat || parsedUser?.tipo_chat;
-      let isAdmin = false;
-      let isSuperAdmin = false;
-      if (rawUser) {
-        const parsed = JSON.parse(rawUser);
-        if (parsed?.rol === "super_admin" || parsed?.rol === "superadmin") {
-          isSuperAdmin = true;
-        }
-        if (parsed?.rol === "admin" || parsed?.rol === "superadmin" || parsed?.rol === "empleado" || parsed?.rol === "super_admin") {
-          isAdmin = true;
-        }
-      }
+      const parsedUser = rawUser ? JSON.parse(rawUser) : {};
 
-      if (isSuperAdmin) {
+      const resolvedTenantSlug = responseTenantSlug || parsedUser.tenant_slug;
+
+      // Redirect based on role.
+      if (parsedUser.rol === "super_admin") {
         navigate("/superadmin");
-      } else if (isAdmin) {
-        navigate(buildTenantPath("/perfil", resolvedTenantSlug));
-      } else if (resolvedTipoChat === "pyme") {
-        navigateToTenantProfile(resolvedTenantSlug);
+      } else if (["admin", "tenant_admin", "admin_pyme", "empleado"].includes(parsedUser.rol)) {
+        // For any kind of admin or employee, redirect to their tenant's profile.
+        navigate(`/${resolvedTenantSlug}/perfil`);
       } else {
-        navigateToTenantCatalog(resolvedTenantSlug);
+        // Fallback for other roles, though this page is for admins.
+        navigate(buildTenantPath("/", resolvedTenantSlug));
       }
 
     } catch (err) {
       if (err instanceof ApiError) {
-        if (err.status === 401) {
-          setError(err.body?.error || "Credenciales inválidas.");
-        } else if (err.status === 404 || err.status === 405) {
-          setError(
-            "El servicio de autenticación no está disponible en este momento. Intentalo nuevamente más tarde.",
-          );
-        } else {
-          setError(err.body?.error || "No se pudo procesar la solicitud de inicio de sesión.");
-        }
+        setError(err.body?.error || "Credenciales inválidas o error en el servidor.");
       } else {
         setError("No se pudo conectar con el servidor.");
       }
