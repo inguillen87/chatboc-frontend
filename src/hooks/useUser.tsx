@@ -114,7 +114,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!activeToken) return;
     setLoading(true);
     try {
-      const data = await apiFetch<any>('/me');
+      const data = await apiFetch<any>('/me', { omitTenant: true });
       const rubroNorm = parseRubro(data.rubro) || '';
       if (!data.tipo_chat) {
         console.warn('tipo_chat faltante en respuesta de /me');
@@ -191,11 +191,15 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         persistEntityToken(normalizedEntityToken);
       }
 
+      const resolvedPlan =
+        data?.tenant?.plan ?? data?.tenant_plan ?? data?.tenantPlan ?? data?.plan ?? 'free';
+      const normalizedPlan =
+        typeof resolvedPlan === 'string' ? resolvedPlan.trim().toLowerCase() : 'free';
       const updated: UserData = {
         id: data.id,
         name: data.name,
         email: data.email,
-        plan: data.plan || 'free',
+        plan: normalizedPlan,
         rubro: rubroNorm,
         nombre_empresa: data.nombre_empresa,
         logo_url: data.logo_url,
@@ -240,10 +244,17 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
+  const lastRefreshTokenRef = React.useRef<string | null>(null);
+
   useEffect(() => {
     const token =
       getValidStoredToken('authToken') ||
       getValidStoredToken('chatAuthToken');
+    if (token && token !== lastRefreshTokenRef.current) {
+      lastRefreshTokenRef.current = token;
+      refreshUser();
+      return;
+    }
     if (token && (!user || !user.rubro)) {
       refreshUser();
     }

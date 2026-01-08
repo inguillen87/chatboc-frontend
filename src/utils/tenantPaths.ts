@@ -28,6 +28,7 @@ export const TENANT_PLACEHOLDER_SLUGS = new Set([
   'chatpos',
   'chatcrm',
   'admin',
+  'superadmin',
   'dashboard',
   'analytics',
   'settings',
