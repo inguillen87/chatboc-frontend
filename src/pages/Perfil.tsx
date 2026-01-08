@@ -645,7 +645,7 @@ export default function Perfil() {
         latitud,
         longitud,
         link_web: data.link_web || "",
-        plan: data.tenant?.plan || data.plan || "gratis",
+        plan: data.tenant?.plan || "gratis",
         preguntas_usadas: data.preguntas_usadas ?? 0,
         limite_preguntas: data.limite_preguntas ?? 100,
         rubro: data.rubro?.toLowerCase() || "",
