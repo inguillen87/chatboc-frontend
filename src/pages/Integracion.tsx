@@ -170,122 +170,123 @@ const Integracion = () => {
         </Button>
       </header>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 h-auto">
-          <TabsTrigger value="general" className="py-3">
-            <Layout className="mr-2 h-4 w-4" /> General
-          </TabsTrigger>
-          <TabsTrigger value="whatsapp" className="py-3">
-            <Phone className="mr-2 h-4 w-4" /> WhatsApp
-          </TabsTrigger>
-          <TabsTrigger value="widget" className="py-3">
-            <MessageCircle className="mr-2 h-4 w-4" /> Widget
-          </TabsTrigger>
-          <TabsTrigger value="menus" className="py-3">
-            <MenuIcon className="mr-2 h-4 w-4" /> Menús
-          </TabsTrigger>
-          <TabsTrigger value="contacts" className="py-3">
-            <LinkIcon className="mr-2 h-4 w-4" /> Contactos
-          </TabsTrigger>
-        </TabsList>
+      {(config.tenant.plan === 'pro' || config.tenant.plan === 'full') ? (
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+          <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 h-auto">
+            <TabsTrigger value="general" className="py-3">
+              <Layout className="mr-2 h-4 w-4" /> General
+            </TabsTrigger>
+            <TabsTrigger value="whatsapp" className="py-3">
+              <Phone className="mr-2 h-4 w-4" /> WhatsApp
+            </TabsTrigger>
+            <TabsTrigger value="widget" className="py-3">
+              <MessageCircle className="mr-2 h-4 w-4" /> Widget
+            </TabsTrigger>
+            <TabsTrigger value="menus" className="py-3">
+              <MenuIcon className="mr-2 h-4 w-4" /> Menús
+            </TabsTrigger>
+            <TabsTrigger value="contacts" className="py-3">
+              <LinkIcon className="mr-2 h-4 w-4" /> Contactos
+            </TabsTrigger>
+          </TabsList>
 
-        {/* --- GENERAL TAB --- */}
-        <TabsContent value="general">
-          <Card>
-            <CardHeader>
-              <CardTitle>Información del Tenant</CardTitle>
-              <CardDescription>Datos básicos de la organización.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Nombre / Razón Social</Label>
-                  <Input
-                    value={config.tenant.nombre}
-                    onChange={(e) => handleSave("tenant", { nombre: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Slug (Identificador)</Label>
-                  <Input value={config.tenant.slug} disabled className="bg-muted" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Tipo</Label>
-                  <Input value={config.tenant.tipo} disabled className="bg-muted" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Plan</Label>
-                  <Input value={config.tenant.plan} disabled className="bg-muted" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Color Primario</Label>
-                  <div className="flex gap-2">
-                     <Input
-                        type="color"
-                        className="w-12 p-1"
-                        value={config.tenant.color_primario || "#000000"}
-                        onChange={(e) => handleSave("tenant", { color_primario: e.target.value })}
-                     />
-                     <Input
-                        value={config.tenant.color_primario || ""}
-                        onChange={(e) => handleSave("tenant", { color_primario: e.target.value })}
-                     />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                    <Label>Logo URL</Label>
+          {/* --- GENERAL TAB --- */}
+          <TabsContent value="general">
+            <Card>
+              <CardHeader>
+                <CardTitle>Información del Tenant</CardTitle>
+                <CardDescription>Datos básicos de la organización.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Nombre / Razón Social</Label>
                     <Input
-                        value={config.tenant.logo_url || ""}
-                        onChange={(e) => handleSave("tenant", { logo_url: e.target.value })}
+                      value={config.tenant.nombre}
+                      onChange={(e) => handleSave("tenant", { nombre: e.target.value })}
                     />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* --- WHATSAPP TAB --- */}
-        <TabsContent value="whatsapp">
-          <Card>
-            <CardHeader>
-              <CardTitle>Configuración de WhatsApp</CardTitle>
-              <CardDescription>Gestiona el número asignado a tu cuenta.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {config.whatsapp?.has_number ? (
-                <div className="rounded-md border bg-green-50 p-4 dark:bg-green-900/20">
-                  <div className="flex items-center gap-2 text-green-700 dark:text-green-300">
-                    <Check className="h-5 w-5" />
-                    <span className="font-semibold">Número Asignado Correctamente</span>
                   </div>
-                  <div className="mt-4 grid gap-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Número:</span>
-                      <span className="font-mono">{config.whatsapp.phone_number}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Sender ID:</span>
-                      <span className="font-mono">{config.whatsapp.sender_id}</span>
+                  <div className="space-y-2">
+                    <Label>Slug (Identificador)</Label>
+                    <Input value={config.tenant.slug} disabled className="bg-muted" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Tipo</Label>
+                    <Input value={config.tenant.tipo} disabled className="bg-muted" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Plan</Label>
+                    <Input value={config.tenant.plan} disabled className="bg-muted" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Color Primario</Label>
+                    <div className="flex gap-2">
+                       <Input
+                          type="color"
+                          className="w-12 p-1"
+                          value={config.tenant.color_primario || "#000000"}
+                          onChange={(e) => handleSave("tenant", { color_primario: e.target.value })}
+                       />
+                       <Input
+                          value={config.tenant.color_primario || ""}
+                          onChange={(e) => handleSave("tenant", { color_primario: e.target.value })}
+                       />
                     </div>
                   </div>
+                  <div className="space-y-2">
+                      <Label>Logo URL</Label>
+                      <Input
+                          value={config.tenant.logo_url || ""}
+                          onChange={(e) => handleSave("tenant", { logo_url: e.target.value })}
+                      />
+                  </div>
                 </div>
-              ) : (
-                <div className="rounded-md border bg-yellow-50 p-4 dark:bg-yellow-900/20">
-                  <p className="text-yellow-800 dark:text-yellow-200 mb-4">
-                    Tu organización aún no tiene un número de WhatsApp oficial asignado.
-                  </p>
-                  <Button onClick={handleAssignWhatsapp}>
-                    Asignar número automáticamente
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-        {/* --- WIDGET TAB --- */}
-        <TabsContent value="widget">
-           <div className="grid gap-6 md:grid-cols-2">
+          {/* --- WHATSAPP TAB --- */}
+          <TabsContent value="whatsapp">
+            <Card>
+              <CardHeader>
+                <CardTitle>Configuración de WhatsApp</CardTitle>
+                <CardDescription>Gestiona el número asignado a tu cuenta.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {config.whatsapp?.has_number ? (
+                  <div className="rounded-md border bg-green-50 p-4 dark:bg-green-900/20">
+                    <div className="flex items-center gap-2 text-green-700 dark:text-green-300">
+                      <Check className="h-5 w-5" />
+                      <span className="font-semibold">Número Asignado Correctamente</span>
+                    </div>
+                    <div className="mt-4 grid gap-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Número:</span>
+                        <span className="font-mono">{config.whatsapp.phone_number}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Sender ID:</span>
+                        <span className="font-mono">{config.whatsapp.sender_id}</span>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-md border bg-yellow-50 p-4 dark:bg-yellow-900/20">
+                    <p className="text-yellow-800 dark:text-yellow-200 mb-4">
+                      Tu organización aún no tiene un número de WhatsApp oficial asignado.
+                    </p>
+                    <Button onClick={handleAssignWhatsapp}>
+                      Asignar número automáticamente
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* --- WIDGET TAB --- */}
+          <TabsContent value="widget">
+            <div className="grid gap-6 md:grid-cols-2">
               <Card>
                  <CardHeader>
                     <CardTitle>Personalización del Widget</CardTitle>
@@ -316,83 +317,131 @@ const Integracion = () => {
               </Card>
 
               <Card>
-                  <CardHeader>
-                      <CardTitle>Código de Integración</CardTitle>
-                      <CardDescription>Copia y pega este código en tu sitio web.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                      <div className="rounded-md bg-muted p-4 font-mono text-xs overflow-x-auto">
-                          {generateEmbedCode("script")}
-                      </div>
-                      <Button className="w-full" onClick={() => copiarCodigo("script")}>
-                          {copiado === "script" ? <Check className="mr-2 h-4 w-4"/> : <Copy className="mr-2 h-4 w-4"/>}
-                          Copiar Script (Recomendado)
-                      </Button>
-                      <div className="rounded-md bg-muted p-4 font-mono text-xs overflow-x-auto mt-4">
-                          {generateEmbedCode("iframe")}
-                      </div>
-                      <Button variant="outline" className="w-full" onClick={() => copiarCodigo("iframe")}>
-                          {copiado === "iframe" ? <Check className="mr-2 h-4 w-4"/> : <Copy className="mr-2 h-4 w-4"/>}
-                          Copiar Iframe
-                      </Button>
-                  </CardContent>
+                <CardHeader>
+                    <CardTitle>Código de Integración</CardTitle>
+                    <CardDescription>Copia y pega este código en tu sitio web.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="rounded-md bg-muted p-4 font-mono text-xs overflow-x-auto">
+                        {generateEmbedCode("script")}
+                    </div>
+                    <Button className="w-full" onClick={() => copiarCodigo("script")}>
+                        {copiado === "script" ? <Check className="mr-2 h-4 w-4"/> : <Copy className="mr-2 h-4 w-4"/>}
+                        Copiar Script (Recomendado)
+                    </Button>
+                    <div className="rounded-md bg-muted p-4 font-mono text-xs overflow-x-auto mt-4">
+                        {generateEmbedCode("iframe")}
+                    </div>
+                    <Button variant="outline" className="w-full" onClick={() => copiarCodigo("iframe")}>
+                        {copiado === "iframe" ? <Check className="mr-2 h-4 w-4"/> : <Copy className="mr-2 h-4 w-4"/>}
+                        Copiar Iframe
+                    </Button>
+                </CardContent>
               </Card>
-           </div>
-        </TabsContent>
-
-        {/* --- MENUS TAB --- */}
-        <TabsContent value="menus">
-          <MenuBuilder
-            value={getMenuConfig()}
-            onChange={(newMenu) => handleSave("configs", { menu: { default: newMenu } })}
-          />
-        </TabsContent>
-
-        {/* --- CONTACTS TAB --- */}
-        <TabsContent value="contacts">
-            <div className="grid gap-6 md:grid-cols-2">
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Información de Contacto</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="space-y-2">
-                            <Label>Teléfono</Label>
-                            <Input
-                                value={getContactsConfig().telefono || ""}
-                                onChange={(e) => handleSave("configs", { contacts: { default: { ...getContactsConfig(), telefono: e.target.value } } })}
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label>WhatsApp (Humano)</Label>
-                            <Input
-                                value={getContactsConfig().whatsapp_humano || ""}
-                                onChange={(e) => handleSave("configs", { contacts: { default: { ...getContactsConfig(), whatsapp_humano: e.target.value } } })}
-                            />
-                        </div>
-                         <div className="space-y-2">
-                            <Label>Email</Label>
-                            <Input
-                                value={getContactsConfig().email || ""}
-                                onChange={(e) => handleSave("configs", { contacts: { default: { ...getContactsConfig(), email: e.target.value } } })}
-                            />
-                        </div>
-                    </CardContent>
-                </Card>
-
-                {/* Future implementation: Links builder */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Links y Trámites</CardTitle>
-                        <CardDescription>Próximamente: Editor de enlaces directos.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <p className="text-muted-foreground text-sm">Esta funcionalidad estará disponible en la próxima actualización.</p>
-                    </CardContent>
-                </Card>
             </div>
-        </TabsContent>
-      </Tabs>
+          </TabsContent>
+
+          {/* --- MENUS TAB --- */}
+          <TabsContent value="menus">
+            <MenuBuilder
+              value={getMenuConfig()}
+              onChange={(newMenu) => handleSave("configs", { menu: { default: newMenu } })}
+            />
+          </TabsContent>
+
+          {/* --- CONTACTS TAB --- */}
+          <TabsContent value="contacts">
+              <div className="grid gap-6 md:grid-cols-2">
+                  <Card>
+                      <CardHeader>
+                          <CardTitle>Información de Contacto</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                          <div className="space-y-2">
+                              <Label>Teléfono</Label>
+                              <Input
+                                  value={getContactsConfig().telefono || ""}
+                                  onChange={(e) => handleSave("configs", { contacts: { default: { ...getContactsConfig(), telefono: e.target.value } } })}
+                              />
+                          </div>
+                          <div className="space-y-2">
+                              <Label>WhatsApp (Humano)</Label>
+                              <Input
+                                  value={getContactsConfig().whatsapp_humano || ""}
+                                  onChange={(e) => handleSave("configs", { contacts: { default: { ...getContactsConfig(), whatsapp_humano: e.target.value } } })}
+                              />
+                          </div>
+                           <div className="space-y-2">
+                              <Label>Email</Label>
+                              <Input
+                                  value={getContactsConfig().email || ""}
+                                  onChange={(e) => handleSave("configs", { contacts: { default: { ...getContactsConfig(), email: e.target.value } } })}
+                              />
+                          </div>
+                      </CardContent>
+                  </Card>
+
+                  {/* Future implementation: Links builder */}
+                  <Card>
+                      <CardHeader>
+                          <CardTitle>Links y Trámites</CardTitle>
+                          <CardDescription>Próximamente: Editor de enlaces directos.</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                          <p className="text-muted-foreground text-sm">Esta funcionalidad estará disponible en la próxima actualización.</p>
+                      </CardContent>
+                  </Card>
+              </div>
+          </TabsContent>
+        </Tabs>
+      ) : (
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Información del Tenant</CardTitle>
+              <CardDescription>Datos básicos de la organización.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Nombre / Razón Social</Label>
+                  <Input value={config.tenant.nombre} disabled className="bg-muted" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Plan</Label>
+                  <Input value={config.tenant.plan} disabled className="bg-muted" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+                <CardTitle>Código de Integración</CardTitle>
+                <CardDescription>Copia y pega este código en tu sitio web.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div className="rounded-md bg-muted p-4 font-mono text-xs overflow-x-auto">
+                    {generateEmbedCode("script")}
+                </div>
+                <Button className="w-full" onClick={() => copiarCodigo("script")}>
+                    {copiado === "script" ? <Check className="mr-2 h-4 w-4"/> : <Copy className="mr-2 h-4 w-4"/>}
+                    Copiar Script (Recomendado)
+                </Button>
+            </CardContent>
+          </Card>
+          <Card className="border-primary">
+            <CardHeader>
+              <CardTitle>Mejora tu Plan</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center text-muted-foreground p-8">
+                <p>Mejora tu plan a PRO o FULL para acceder a la personalización del widget, menús interactivos, integración con WhatsApp y mucho más.</p>
+                <Button className="mt-4" onClick={() => navigate(`/${tenantSlug}/perfil`)}>Ver Planes</Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 };

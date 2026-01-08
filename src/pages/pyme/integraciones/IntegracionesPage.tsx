@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTenant } from '@/context/TenantContext';
 import { apiClient } from '@/api/client';
 import { IntegrationStatus } from '@/types/unified';
@@ -12,8 +12,6 @@ import { Separator } from '@/components/ui/separator';
 import { Loader2, RefreshCw, ExternalLink, CheckCircle2, AlertCircle, MessageSquare, Send } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { toast } from 'sonner';
-import { useUser } from '@/hooks/useUser';
-import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
 const INTEGRATION_LOGOS: Record<string, string> = {
   mercadolibre: "https://http2.mlstatic.com/frontend-assets/ml-web-navigation/ui-navigation/5.21.22/mercadolibre/logo__large_plus.png",
@@ -23,7 +21,6 @@ const INTEGRATION_LOGOS: Record<string, string> = {
 
 const IntegracionesPage = () => {
   const { currentSlug } = useTenant();
-  const { user } = useUser();
   const [integrations, setIntegrations] = useState<IntegrationStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState<string | null>(null);
@@ -36,26 +33,17 @@ const IntegracionesPage = () => {
   const [notifyTelegram, setNotifyTelegram] = useState(false);
   const [notifyEmail, setNotifyEmail] = useState(true);
 
-  const effectiveSlug = useMemo(() => {
-    const storedSlug = safeLocalStorage.getItem('tenantSlug');
-    const userSlug = user?.tenantSlug;
-    if (currentSlug?.startsWith('admin-') && userSlug) {
-      return userSlug;
-    }
-    return userSlug || currentSlug || storedSlug;
-  }, [currentSlug, user?.tenantSlug]);
-
   useEffect(() => {
-    if (effectiveSlug) {
+    if (currentSlug) {
       loadIntegrations();
       loadSettings();
     }
-  }, [effectiveSlug]);
+  }, [currentSlug]);
 
   const loadSettings = async () => {
     try {
-      if (!effectiveSlug) return;
-      const settings = await apiClient.adminGetNotificationSettings(effectiveSlug);
+      if (!currentSlug) return;
+      const settings = await apiClient.adminGetNotificationSettings(currentSlug);
       if (settings) {
         setOwnerPhone(settings.owner_phone || '');
         setTelegramChatId(settings.telegram_chat_id || '');
@@ -72,8 +60,8 @@ const IntegracionesPage = () => {
   const loadIntegrations = async () => {
     setLoading(true);
     try {
-      if (!effectiveSlug) return;
-      const data = await apiClient.adminGetIntegrations(effectiveSlug);
+      if (!currentSlug) return;
+      const data = await apiClient.adminGetIntegrations(currentSlug);
       setIntegrations(data);
     } catch (error) {
       console.error('Error loading integrations:', error);
@@ -89,9 +77,9 @@ const IntegracionesPage = () => {
   };
 
   const handleConnect = async (provider: string) => {
-    if (!effectiveSlug) return;
+    if (!currentSlug) return;
     try {
-      const response = await apiClient.adminConnectIntegration(effectiveSlug, provider);
+      const response = await apiClient.adminConnectIntegration(currentSlug, provider);
       // The backend should return an auth URL
       if (response.url) {
         const width = 600;
@@ -112,10 +100,10 @@ const IntegracionesPage = () => {
   };
 
   const handleSync = async (provider: string) => {
-    if (!effectiveSlug) return;
+    if (!currentSlug) return;
     setSyncing(provider);
     try {
-       await apiClient.adminSyncIntegration(effectiveSlug, provider);
+       await apiClient.adminSyncIntegration(currentSlug, provider);
        toast.success("Sincronización iniciada correctamente.");
        // Refresh list to update sync time
        await loadIntegrations();
@@ -128,10 +116,10 @@ const IntegracionesPage = () => {
   };
 
   const handleSaveNotifications = async () => {
-      if (!effectiveSlug) return;
+      if (!currentSlug) return;
       setSavingSettings(true);
       try {
-        await apiClient.adminUpdateNotificationSettings(effectiveSlug, {
+        await apiClient.adminUpdateNotificationSettings(currentSlug, {
             owner_phone: ownerPhone,
             telegram_chat_id: telegramChatId,
             notification_settings: {
