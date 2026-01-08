@@ -73,16 +73,10 @@ const PedidosPage = () => {
       if (!currentSlug) return;
       const data = await apiClient.adminListOrders(currentSlug);
       const normalized = normalizeOrders(data);
-
-      // Ensure we have some data for demo if empty
-      if (normalized.length === 0) {
-        setOrders(MOCK_ORDERS);
-      } else {
-        setOrders(normalized);
-      }
+      setOrders(normalized);
     } catch (error) {
       console.error('Error loading orders:', error);
-      setOrders(MOCK_ORDERS); // Fallback
+      setOrders([]); // Fallback to empty array on error
     } finally {
       setLoading(false);
     }
@@ -151,7 +145,7 @@ const PedidosPage = () => {
   const filteredOrders = safeOrders.filter(o => {
     const matchesSearch =
       o.id.toString().includes(searchTerm) ||
-      o.items.some(i => i.name.toLowerCase().includes(searchTerm.toLowerCase()));
+      (o.items || []).some(i => i.name.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesChannel = channelFilter === 'all' || (o as any).channel === channelFilter;
     return matchesSearch && matchesChannel;
   });
@@ -434,50 +428,5 @@ const PedidosPage = () => {
     </div>
   );
 };
-
-// Mock Data for Demo
-const MOCK_ORDERS: any[] = [
-    {
-        id: "2000149922",
-        channel: "mercadolibre",
-        status: "nuevo",
-        total: 45900,
-        created_at: new Date().toISOString(),
-        customerName: "Juan Pérez",
-        customerPhone: "+5491155556666",
-        externalId: "ML-4829102",
-        externalUrl: "https://mercadolibre.com.ar",
-        items: [
-            { name: "Taladro Percutor 700w", quantity: 1, price: 45900, sku: "TAL-001" }
-        ],
-        notes: "El cliente preguntó si viene con maletín."
-    },
-    {
-        id: "1055",
-        channel: "whatsapp",
-        status: "confirmed",
-        total: 12500,
-        created_at: new Date(Date.now() - 3600000).toISOString(),
-        customerName: "Maria Rodriguez",
-        customerPhone: "+5491144443333",
-        items: [
-            { name: "Set de Mechas x10", quantity: 1, price: 8500, sku: "MEC-10" },
-            { name: "Cinta Métrica 5m", quantity: 1, price: 4000, sku: "CIN-05" }
-        ],
-        notes: "Pide factura A."
-    },
-    {
-        id: "TN-9921",
-        channel: "tiendanube",
-        status: "shipped",
-        total: 120000,
-        created_at: new Date(Date.now() - 86400000).toISOString(),
-        customerName: "Empresa Constructora SA",
-        externalId: "TN-9921",
-        items: [
-            { name: "Lijadora Orbital", quantity: 2, price: 60000, sku: "LIJ-PRO" }
-        ]
-    }
-];
 
 export default PedidosPage;
