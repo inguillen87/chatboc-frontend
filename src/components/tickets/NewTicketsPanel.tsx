@@ -235,10 +235,15 @@ const NewTicketsPanel: React.FC = () => {
     )
   }
 
+  const panelCardClass = cn(
+    'relative flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden rounded-3xl border border-border/70 bg-card/90 shadow-2xl backdrop-blur-md',
+    isMobile && 'h-[calc(100dvh-8rem)]',
+  );
+
   return (
-    <Card className="relative flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden rounded-3xl border border-border/70 bg-card/90 shadow-2xl backdrop-blur-md">
+    <Card className={panelCardClass}>
       {isMobile ? (
-        <div className="flex h-full min-h-0 flex-col">
+        <div className="flex h-full min-h-0 flex-1 flex-col">
           <div className="border-b border-border/70 bg-card/80 px-3 py-2 shadow-sm">
             <div className="grid grid-cols-3 gap-2">
               <button
