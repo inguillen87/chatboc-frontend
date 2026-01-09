@@ -120,8 +120,8 @@ const Login = () => {
       if (parsedUser.rol === "super_admin") {
         navigate("/superadmin");
       } else if (["admin", "tenant_admin", "admin_pyme", "empleado"].includes(parsedUser.rol)) {
-        // For any kind of admin or employee, redirect to their tenant's profile.
-        navigate(`/${resolvedTenantSlug}/perfil`);
+        // For any kind of admin or employee, redirect to the global profile route.
+        navigate("/perfil");
       } else {
         // Fallback for other roles, though this page is for admins.
         navigate(buildTenantPath("/", resolvedTenantSlug));
@@ -171,7 +171,7 @@ const Login = () => {
       if (isSuperAdmin) {
         navigate("/superadmin");
       } else if (isAdmin) {
-        navigate(buildTenantPath("/perfil", responseTenantSlug));
+        navigate("/perfil");
       } else {
         navigateToTenantCatalog(responseTenantSlug);
       }
