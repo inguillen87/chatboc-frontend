@@ -10,7 +10,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import type { AnimatePresenceProps } from "framer-motion";
 import { useUser } from "@/hooks/useUser";
 import { apiFetch, getErrorMessage } from "@/utils/api";
-import { playOpenSound, playProactiveSound } from "@/utils/sounds";
 import ReadingRuler from "./ReadingRuler";
 import type { Prefs } from "./AccessibilityToggle";
 import { useCartCount } from "@/hooks/useCartCount";
@@ -527,7 +526,6 @@ function ChatWidgetInner({
            if (!isOpen) {
              setProactiveMessage(messages[0]);
              setShowProactiveBubble(true);
-             if (!muted) playProactiveSound();
            }
            safeLocalStorage.setItem('proactive_bubble_shown_v2', '1');
        }, 3000);
@@ -548,7 +546,6 @@ function ChatWidgetInner({
 
             if (!showProactiveBubble) {
                 setShowProactiveBubble(true);
-                if (!muted) playProactiveSound();
             }
         } else {
             if (showProactiveBubble) return;
@@ -557,7 +554,6 @@ function ChatWidgetInner({
                 const nextIdx = (proactiveCycle + 1) % messages.length;
                 setProactiveMessage(messages[nextIdx]);
                 setShowProactiveBubble(true);
-                if (!muted) playProactiveSound();
                 setProactiveCycle(nextIdx);
 
                 setTimeout(() => {
@@ -568,7 +564,7 @@ function ChatWidgetInner({
     }, intervalTime);
 
     return () => clearInterval(cycleTimer);
-  }, [isOpen, showProactiveBubble, proactiveCycle, muted, entityInfo]);
+  }, [isOpen, showProactiveBubble, proactiveCycle, entityInfo]);
 
   const toggleChat = useCallback(() => {
     if (typeof window !== "undefined" && window.AudioContext && window.AudioContext.state === "suspended") {
@@ -580,9 +576,7 @@ function ChatWidgetInner({
       if (!nextIsOpen) {
           safeLocalStorage.setItem('widget_manually_closed', '1');
       }
-      if (nextIsOpen && !muted) {
-        playOpenSound();
-      }
+      
       if (nextIsOpen) {
         setShowProactiveBubble(false);
         if (proactiveMessageTimeoutRef.current) clearTimeout(proactiveMessageTimeoutRef.current);
@@ -590,7 +584,7 @@ function ChatWidgetInner({
       }
       return nextIsOpen;
     });
-  }, [isOpen, muted]);
+  }, [isOpen]);
 
   const handleProactiveClick = useCallback(() => {
       let backendMessages = entityInfo?.cta_messages || entityInfo?.interaction?.cta_messages;
@@ -934,7 +928,7 @@ function ChatWidgetInner({
       const nextMessage = PROACTIVE_MESSAGES[proactiveCycle % PROACTIVE_MESSAGES.length];
       setProactiveMessage(nextMessage);
       setShowProactiveBubble(true);
-      if (!muted) playProactiveSound();
+      
       safeLocalStorage.setItem("proactive_bubble_session_shown", "1");
 
       hideProactiveBubbleTimeoutRef.current = setTimeout(() => {
@@ -948,7 +942,7 @@ function ChatWidgetInner({
       if (proactiveMessageTimeoutRef.current) clearTimeout(proactiveMessageTimeoutRef.current);
       if (hideProactiveBubbleTimeoutRef.current) clearTimeout(hideProactiveBubbleTimeoutRef.current);
     };
-  }, [isOpen, muted, proactiveCycle, mode]);
+  }, [isOpen, proactiveCycle, mode]);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
