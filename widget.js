@@ -367,6 +367,8 @@
     const forceLoad = script.getAttribute("data-force") === "true";
     const widgetIdAttr = (script.getAttribute("data-widget-id") || "").trim();
     const domainAttr = (script.getAttribute("data-domain") || "").trim();
+    const shadowDomAttr = (script.getAttribute("data-shadow-dom") || "").trim().toLowerCase();
+    const useShadowDom = shadowDomAttr === "true" || shadowDomAttr === "1" || shadowDomAttr === "yes";
 
     let allowedDomainOrigin = "";
     if (domainAttr) {
@@ -410,8 +412,13 @@
           `[data-chatboc-widget-id="${resolvedWidgetId.replace(/"/g, "\\\"")}"]`
         )
       : null;
+    const existingShadowHost = resolvedWidgetId
+      ? document.querySelector(
+          `[data-chatboc-widget-host="${resolvedWidgetId.replace(/"/g, "\\\"")}"]`
+        )
+      : null;
 
-    if ((existingById || existingContainer) && !forceLoad) {
+    if ((existingById || existingContainer || existingShadowHost) && !forceLoad) {
       console.warn("Chatboc widget: ya existe un widget montado en la página. Se evita duplicar.");
       return;
     }
@@ -607,7 +614,26 @@
           widgetContainer.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)";
         }
       });
-      document.body.appendChild(widgetContainer);
+      let shadowHost = null;
+      const supportsShadowDom =
+        typeof HTMLElement !== "undefined" &&
+        typeof HTMLElement.prototype.attachShadow === "function";
+
+      if (useShadowDom && !supportsShadowDom) {
+        console.warn("Chatboc widget: Shadow DOM no soportado en este navegador, se usa DOM normal.");
+      }
+
+      if (useShadowDom && supportsShadowDom) {
+        shadowHost = document.createElement("div");
+        shadowHost.className = "chatboc-widget-host";
+        shadowHost.setAttribute("data-chatboc-widget-host", resolvedWidgetId);
+        shadowHost.style.all = "initial";
+        document.body.appendChild(shadowHost);
+        const shadowRoot = shadowHost.attachShadow({ mode: "open" });
+        shadowRoot.appendChild(widgetContainer);
+      } else {
+        document.body.appendChild(widgetContainer);
+      }
 
       const logoImg = document.createElement("img");
       logoImg.id = `chatboc-logo-${iframeId}`;
@@ -826,6 +852,7 @@
         widgetContainer.removeEventListener("mousedown", dragStart);
         widgetContainer.removeEventListener("touchstart", dragStart);
         widgetContainer?.remove();
+        shadowHost?.remove();
         registryKeys.forEach((key) => delete registry[key]);
         unsubscribeAuth?.();
         window.removeEventListener(TOKEN_EVENT_NAME, tokenEventHandler);
