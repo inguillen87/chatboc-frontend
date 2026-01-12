@@ -9,14 +9,14 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Edit, LogIn, Power, PowerOff } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Edit, LogIn, MoreVertical, Power, PowerOff, UserPlus, KeyRound, MessageSquare } from 'lucide-react';
 import { Tenant } from '@/types/superAdmin';
-import { format } from 'date-fns';
 
 interface TenantTableProps {
   tenants: Tenant[];
   loading: boolean;
-  onEdit: (tenant: Tenant) => void;
+  onEdit: (tenant: Tenant, tab?: "general" | "users" | "integrations") => void;
   onImpersonate: (tenant: Tenant) => void;
   onToggleStatus: (tenant: Tenant) => void;
 }
@@ -35,48 +35,41 @@ export function TenantTable({ tenants, loading, onEdit, onImpersonate, onToggleS
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Nombre</TableHead>
+            <TableHead>ID</TableHead>
             <TableHead>Slug</TableHead>
+            <TableHead>Nombre</TableHead>
             <TableHead>Tipo</TableHead>
             <TableHead>Plan</TableHead>
-            <TableHead>Admin</TableHead>
-            <TableHead>Creado</TableHead>
             <TableHead>Estado</TableHead>
+            <TableHead>Email Admin</TableHead>
             <TableHead className="text-right">Acciones</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {tenants.map((tenant) => (
             <TableRow key={tenant.id}>
-              <TableCell className="font-medium">{tenant.nombre}</TableCell>
+              <TableCell className="font-mono text-xs">{tenant.id}</TableCell>
               <TableCell className="font-mono text-xs">{tenant.slug}</TableCell>
+              <TableCell className="font-medium">{tenant.nombre}</TableCell>
               <TableCell>
                 <Badge variant="outline" className="capitalize">{tenant.tipo}</Badge>
               </TableCell>
               <TableCell>
                 <Badge variant="secondary" className="capitalize">{tenant.plan}</Badge>
               </TableCell>
-              <TableCell className="text-sm text-muted-foreground max-w-[150px] truncate" title={tenant.owner_email}>
-                {tenant.owner_email || '-'}
-              </TableCell>
-              <TableCell className="text-sm">
-                {tenant.created_at ? format(new Date(tenant.created_at), 'dd/MM/yyyy') : '-'}
-              </TableCell>
               <TableCell>
-                <Badge variant={tenant.is_active ? 'success' : 'destructive'}>
+                <Badge
+                  variant={tenant.is_active ? 'secondary' : 'destructive'}
+                  className={tenant.is_active ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : undefined}
+                >
                   {tenant.is_active ? 'Activo' : 'Inactivo'}
                 </Badge>
               </TableCell>
+              <TableCell className="text-sm text-muted-foreground max-w-[180px] truncate" title={tenant.owner_email}>
+                {tenant.owner_email || '-'}
+              </TableCell>
               <TableCell className="text-right">
                 <div className="flex justify-end gap-2">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => onEdit(tenant)}
-                    title="Editar"
-                  >
-                    <Edit className="h-4 w-4" />
-                  </Button>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -86,15 +79,36 @@ export function TenantTable({ tenants, loading, onEdit, onImpersonate, onToggleS
                   >
                     <LogIn className="h-4 w-4" />
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => onToggleStatus(tenant)}
-                    title={tenant.is_active ? "Desactivar" : "Activar"}
-                    className={tenant.is_active ? "text-destructive hover:text-destructive hover:bg-destructive/10" : "text-green-600 hover:text-green-600 hover:bg-green-50"}
-                  >
-                    {tenant.is_active ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}
-                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" title="Más acciones">
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-56">
+                      <DropdownMenuItem onSelect={() => onEdit(tenant, "general")}>
+                        <Edit className="mr-2 h-4 w-4" />
+                        Editar / Plan
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => onEdit(tenant, "users")} disabled={Boolean(tenant.owner_email)}>
+                        <UserPlus className="mr-2 h-4 w-4" />
+                        Crear admin
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => onEdit(tenant, "users")}>
+                        <KeyRound className="mr-2 h-4 w-4" />
+                        Resetear contraseña
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => onEdit(tenant, "integrations")}>
+                        <MessageSquare className="mr-2 h-4 w-4" />
+                        Configurar WhatsApp
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onSelect={() => onToggleStatus(tenant)}>
+                        {tenant.is_active ? <PowerOff className="mr-2 h-4 w-4" /> : <Power className="mr-2 h-4 w-4" />}
+                        {tenant.is_active ? "Desactivar" : "Activar"}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </TableCell>
             </TableRow>

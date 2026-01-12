@@ -23,6 +23,7 @@ export default function SuperAdminDashboard() {
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTenant, setEditingTenant] = useState<Tenant | null>(null);
+  const [modalTab, setModalTab] = useState<"general" | "users" | "integrations">("general");
 
   const fetchTenants = async () => {
     setLoading(true);
@@ -48,11 +49,13 @@ export default function SuperAdminDashboard() {
 
   const handleCreate = () => {
     setEditingTenant(null);
+    setModalTab("general");
     setIsModalOpen(true);
   };
 
-  const handleEdit = (tenant: Tenant) => {
+  const handleEdit = (tenant: Tenant, tab: "general" | "users" | "integrations" = "general") => {
     setEditingTenant(tenant);
+    setModalTab(tab);
     setIsModalOpen(true);
   };
 
@@ -66,9 +69,10 @@ export default function SuperAdminDashboard() {
 
       toast.success(`Accediendo a ${tenant.nombre}...`);
 
-      setTimeout(() => {
-          window.location.href = target;
-      }, 1000);
+      const newTab = window.open(target, '_blank', 'noopener,noreferrer');
+      if (!newTab) {
+        window.location.href = target;
+      }
 
     } catch (error) {
         console.error(error);
@@ -78,13 +82,8 @@ export default function SuperAdminDashboard() {
 
   const handleToggleStatus = async (tenant: Tenant) => {
     try {
-        if (tenant.is_active) {
-            await apiClient.superAdminDeactivateTenant(tenant.slug);
-            toast.success("Tenant desactivado.");
-        } else {
-            await apiClient.superAdminActivateTenant(tenant.slug);
-            toast.success("Tenant reactivado.");
-        }
+        await apiClient.superAdminUpdateTenant(tenant.slug, { is_active: !tenant.is_active });
+        toast.success(tenant.is_active ? "Tenant desactivado." : "Tenant reactivado.");
         fetchTenants();
     } catch (error) {
         console.error(error);
@@ -129,6 +128,7 @@ export default function SuperAdminDashboard() {
         onClose={() => setIsModalOpen(false)}
         onSuccess={fetchTenants}
         tenantToEdit={editingTenant}
+        initialTab={modalTab}
       />
     </div>
   );

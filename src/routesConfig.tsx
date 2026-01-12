@@ -365,6 +365,7 @@ const routes: RouteConfig[] = [
   { path: '/admin/pyme/:pymeId/catalog-mappings/:mappingId', element: <CatalogMappingPage />, roles: ['admin', 'super_admin'] },
 
   { path: '/superadmin', element: <SuperAdminDashboard />, roles: ['super_admin'] },
+  { path: '/admin/tenants', element: <SuperAdminDashboard />, roles: ['super_admin'] },
   { path: '/empleados', element: <InternalUsers />, roles: ['admin', 'super_admin', 'tenant_admin'] },
 
   { path: '/iframe', element: <Iframe /> },

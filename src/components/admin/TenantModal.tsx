@@ -27,7 +27,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Tenant, CreateTenantDTO, UpdateTenantDTO } from '@/types/superAdmin';
+import { Switch } from '@/components/ui/switch';
+import { Tenant } from '@/types/superAdmin';
 import { apiClient } from '@/api/client';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
@@ -44,6 +45,7 @@ const createSchema = z.object({
 const updateSchema = z.object({
   nombre: z.string().min(2, 'El nombre es requerido'),
   plan: z.enum(['free', 'pro', 'full', 'enterprise']),
+  is_active: z.boolean(),
 });
 
 const adminUserSchema = z.object({
@@ -65,9 +67,10 @@ interface TenantModalProps {
   onClose: () => void;
   onSuccess: () => void;
   tenantToEdit?: Tenant | null;
+  initialTab?: "general" | "users" | "integrations";
 }
 
-export function TenantModal({ isOpen, onClose, onSuccess, tenantToEdit }: TenantModalProps) {
+export function TenantModal({ isOpen, onClose, onSuccess, tenantToEdit, initialTab = "general" }: TenantModalProps) {
   const [loading, setLoading] = useState(false);
   const isEditing = !!tenantToEdit;
   const [activeTab, setActiveTab] = useState("general");
@@ -77,6 +80,7 @@ export function TenantModal({ isOpen, onClose, onSuccess, tenantToEdit }: Tenant
     defaultValues: isEditing ? {
       nombre: tenantToEdit.nombre,
       plan: tenantToEdit.plan as any,
+      is_active: tenantToEdit.is_active,
     } : {
       nombre: '',
       slug: '',
@@ -101,6 +105,7 @@ export function TenantModal({ isOpen, onClose, onSuccess, tenantToEdit }: Tenant
             form.reset({
                 nombre: tenantToEdit.nombre,
                 plan: tenantToEdit.plan as any,
+                is_active: tenantToEdit.is_active,
             });
             whatsappForm.reset({ number: tenantToEdit.whatsapp_sender_id || '' });
         } else {
@@ -112,9 +117,9 @@ export function TenantModal({ isOpen, onClose, onSuccess, tenantToEdit }: Tenant
                 email_admin: '',
             });
         }
-        setActiveTab("general");
+        setActiveTab(initialTab);
     }
-  }, [isOpen, tenantToEdit, form, whatsappForm]);
+  }, [isOpen, tenantToEdit, form, whatsappForm, initialTab]);
 
   const onSubmitGeneral = async (values: any) => {
     setLoading(true);
@@ -224,6 +229,21 @@ export function TenantModal({ isOpen, onClose, onSuccess, tenantToEdit }: Tenant
                                         </SelectContent>
                                     </Select>
                                     <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name="is_active"
+                                render={({ field }) => (
+                                    <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                                        <div>
+                                            <FormLabel className="text-sm">Estado</FormLabel>
+                                            <p className="text-xs text-muted-foreground">Define si el tenant está activo.</p>
+                                        </div>
+                                        <FormControl>
+                                            <Switch checked={field.value} onCheckedChange={field.onChange} />
+                                        </FormControl>
                                     </FormItem>
                                 )}
                             />
