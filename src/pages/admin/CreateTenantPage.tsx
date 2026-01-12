@@ -12,7 +12,7 @@ import { CreateTenantPayload } from '@/types/TenantConfig';
 import useRequireRole from '@/hooks/useRequireRole';
 
 export default function CreateTenantPage() {
-  useRequireRole(['super_admin', 'platform_admin']); // Adjust roles as needed
+  useRequireRole(['super_admin']);
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<CreateTenantPayload>({
