@@ -118,7 +118,7 @@ const Integracion = () => {
       const tenant = config.tenant.slug;
 
       if (type === "script") {
-          return `<script src="${widgetScriptUrl}" data-tenant="${tenant}"></script>`;
+          return `<script src="${widgetScriptUrl}" data-tenant="${tenant}" data-shadow-dom="true"></script>`;
       } else {
           return `<iframe src="${base}/iframe?tenant=${tenant}" style="border:none; position:fixed; bottom:20px; right:20px; z-index:9999; width:400px; height:600px;"></iframe>`;
       }

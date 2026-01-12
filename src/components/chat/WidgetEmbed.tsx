@@ -66,7 +66,7 @@ const WidgetEmbed = ({ token }: { token: string }) => {
   const tenantAttrs = tenantSlug
     ? ` data-tenant="${tenantSlug}" data-tenant-slug="${tenantSlug}"`
     : "";
-  const embedCode = `<script async src="${widgetScriptUrl}" data-api-base="${apiBase}" data-owner-token="${token}" data-endpoint="${tipoChat}" data-default-open="false" data-width="460px" data-height="680px" data-closed-width="112px" data-closed-height="112px" data-bottom="20px" data-right="20px"${tenantAttrs}></script>`;
+  const embedCode = `<script async src="${widgetScriptUrl}" data-api-base="${apiBase}" data-owner-token="${token}" data-endpoint="${tipoChat}" data-default-open="false" data-width="460px" data-height="680px" data-closed-width="112px" data-closed-height="112px" data-bottom="20px" data-right="20px" data-shadow-dom="true"${tenantAttrs}></script>`;
 
   const copiar = () => {
     navigator.clipboard.writeText(embedCode)
