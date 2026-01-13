@@ -8,6 +8,12 @@ import {
   CheckoutStartPayload
 } from '@/types/market';
 import { PublicOrderTrackingResponse } from '@/types/tracking';
+
+export interface CatalogSearchFilters {
+  en_promocion?: boolean;
+  con_stock?: boolean;
+  precio_max?: number;
+}
 import { DEFAULT_PUBLIC_PRODUCTS } from '@/data/defaultProducts';
 import { DEMO_CATALOGS as MOCK_CATALOGS } from '@/data/mockCatalogs';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
@@ -173,6 +179,31 @@ export async function fetchMarketCatalog(tenantSlug: string): Promise<MarketCata
     });
   } catch (error) {
     console.warn(`[MarketAPI] Failed to fetch catalog for ${tenantSlug}, using mock.`, error);
+    return mockCatalogResponse(tenantSlug);
+  }
+}
+
+export async function searchMarketCatalog(
+  tenantSlug: string,
+  query: string,
+  filters: CatalogSearchFilters = {}
+): Promise<MarketCatalogResponse> {
+  const queryParams = new URLSearchParams({ q: query });
+  if (filters.en_promocion) queryParams.set('en_promocion', 'true');
+  if (filters.con_stock) queryParams.set('con_stock', 'true');
+  if (filters.precio_max) queryParams.set('precio_max', String(filters.precio_max));
+
+  try {
+    return await apiFetch<MarketCatalogResponse>(`/api/${tenantSlug}/catalogo/buscar?${queryParams.toString()}`, {
+      tenantSlug,
+      suppressPanel401Redirect: true,
+      omitChatSessionId: true,
+    });
+  } catch (error) {
+    console.warn(`[MarketAPI] Failed to search catalog for ${tenantSlug}, falling back to full catalog fetch or mock.`, error);
+    // Fallback: fetch full catalog and filter client-side? Or just return mock?
+    // Given the instructions imply backend logic upgrade, we might just fail gracefully or use mock.
+    // Let's use mockCatalogResponse as fallback for now to keep consistency.
     return mockCatalogResponse(tenantSlug);
   }
 }

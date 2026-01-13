@@ -142,7 +142,8 @@
   container.id = containerId;
   document.body.appendChild(container);
 
-  const shadow = container.attachShadow({ mode: "open" });
+  const useShadow = script ? script.getAttribute("data-shadow-dom") !== "false" : true;
+  const root = useShadow ? container.attachShadow({ mode: "open" }) : container;
 
   const iframe = document.createElement("iframe");
   iframe.id = iframeId;
@@ -164,28 +165,36 @@
   ].join(" ");
 
   const style = document.createElement("style");
-  style.textContent = `
-    :host {
-      position: fixed;
-      bottom: ${cfg.bottom};
-      right: ${cfg.right};
-      width: ${cfg.closedWidth};
-      height: ${cfg.closedHeight};
-      z-index: 2147483647;
-      border: none;
-      background: transparent;
-      overflow: visible;
-      transition: width 0.3s ease, height 0.3s ease;
-    }
+  const cssContent = `
+    position: fixed;
+    bottom: ${cfg.bottom};
+    right: ${cfg.right};
+    width: ${cfg.closedWidth};
+    height: ${cfg.closedHeight};
+    z-index: 2147483647;
+    border: none;
+    background: transparent;
+    overflow: visible;
+    transition: width 0.3s ease, height 0.3s ease;
   `;
 
-  shadow.appendChild(style);
-  shadow.appendChild(iframe);
+  if (useShadow) {
+    style.textContent = `
+    :host {
+      ${cssContent}
+    }
+  `;
+    root.appendChild(style);
+  } else {
+    container.style.cssText = cssContent;
+  }
+
+  root.appendChild(iframe);
 
   let lastDims = { width: cfg.closedWidth, height: cfg.closedHeight };
 
   function applyDims(dims) {
-    const host = shadow.host;
+    const host = useShadow ? root.host : container;
     const desiredWidth = parseInt(dims.width, 10);
     const rightOffset = parseInt(cfg.right, 10);
     const maxWidth = window.innerWidth - (isNaN(rightOffset) ? 20 : rightOffset);
