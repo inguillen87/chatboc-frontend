@@ -171,7 +171,11 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
       </CardHeader>
 
       <CardContent className="p-4 flex-grow">
-        <CardTitle className="text-lg font-semibold text-foreground mb-1 truncate" title={nombre}>
+        <CardTitle
+            className="text-lg font-semibold text-foreground mb-1 truncate"
+            title={nombre}
+            data-testid="product-title"
+        >
           {nombre}
         </CardTitle>
 

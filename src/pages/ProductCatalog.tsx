@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import ProductCard, { AddToCartOptions, ProductDetails } from '@/components/product/ProductCard';
 import { toast } from '@/components/ui/use-toast';
 import { Input } from '@/components/ui/input';
-import { Loader2, ShoppingCart, AlertTriangle, Search } from 'lucide-react';
+import { Loader2, ShoppingCart, AlertTriangle, Search, Filter } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { useTenant } from '@/context/TenantContext';
@@ -40,6 +40,12 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug, isDemoMode 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('todos');
   const [selectedModality, setSelectedModality] = useState<'todos' | 'venta' | 'puntos' | 'donacion'>('todos');
+
+  // New Filters
+  const [filterPromo, setFilterPromo] = useState(false);
+  const [filterStock, setFilterStock] = useState(false);
+  const [filterMaxPrice, setFilterMaxPrice] = useState('');
+
   const [catalogSource, setCatalogSource] = useState<'api' | 'fallback'>('api');
   const [cartMode, setCartMode] = useState<'api' | 'local'>('api');
   const [hasDemoModalities, setHasDemoModalities] = useState(false);
@@ -226,10 +232,15 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug, isDemoMode 
         selectedModality === 'todos' ||
         modality === selectedModality;
 
-      return matchesSearch && matchesCategory && matchesModality;
+      // New Filters Logic
+      const matchesPromo = !filterPromo || !!product.promocion_activa;
+      const matchesStock = !filterStock || (product.stock_disponible ?? 0) > 0;
+      const matchesPrice = !filterMaxPrice || product.precio_unitario <= Number(filterMaxPrice);
+
+      return matchesSearch && matchesCategory && matchesModality && matchesPromo && matchesStock && matchesPrice;
     });
     setFilteredProducts(filtered);
-  }, [searchTerm, allProducts, selectedCategory, selectedModality]);
+  }, [searchTerm, allProducts, selectedCategory, selectedModality, filterPromo, filterStock, filterMaxPrice]);
 
   const categories = useMemo(() => {
     const unique = new Map<string, string>();
@@ -577,6 +588,38 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug, isDemoMode 
             className="w-full pl-10 pr-4 py-2 text-base rounded-md border-border focus:ring-primary focus:border-primary"
           />
         </div>
+
+        {/* --- NEW FILTERS UI START --- */}
+        <div className="flex flex-wrap gap-4 items-center mt-4 p-3 bg-muted/20 rounded-lg border border-border/40">
+           <div className="flex items-center gap-2 text-sm text-muted-foreground font-medium">
+             <Filter className="h-4 w-4" /> Filtros:
+           </div>
+
+           {/* Price Filter */}
+           <div className="flex items-center gap-2">
+              <Input
+                  type="number"
+                  placeholder="Precio máx."
+                  value={filterMaxPrice}
+                  onChange={(e) => setFilterMaxPrice(e.target.value)}
+                  className="w-32 h-9 text-sm"
+              />
+           </div>
+
+           {/* Promo Filter */}
+           <div className="flex items-center space-x-2 bg-card px-3 py-1.5 rounded-md border shadow-sm">
+              <Switch id="filter-promo" checked={filterPromo} onCheckedChange={setFilterPromo} />
+              <Label htmlFor="filter-promo" className="cursor-pointer text-sm">En Oferta</Label>
+           </div>
+
+           {/* Stock Filter */}
+           <div className="flex items-center space-x-2 bg-card px-3 py-1.5 rounded-md border shadow-sm">
+              <Switch id="filter-stock" checked={filterStock} onCheckedChange={setFilterStock} />
+              <Label htmlFor="filter-stock" className="cursor-pointer text-sm">Con Stock</Label>
+           </div>
+        </div>
+        {/* --- NEW FILTERS UI END --- */}
+
         {categories.length > 1 && (
           <Tabs value={selectedCategory} onValueChange={setSelectedCategory} className="mt-4">
             <TabsList className="flex flex-wrap justify-start gap-2 bg-transparent p-0">

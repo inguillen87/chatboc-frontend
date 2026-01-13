@@ -41,7 +41,7 @@ export function TenantTable({ tenants, loading, onEdit, onImpersonate, onToggleS
             <TableHead>Tipo</TableHead>
             <TableHead>Plan</TableHead>
             <TableHead>Estado</TableHead>
-            <TableHead>Email Admin</TableHead>
+            <TableHead>Email Propietario</TableHead>
             <TableHead className="text-right">Acciones</TableHead>
           </TableRow>
         </TableHeader>
