@@ -16,6 +16,10 @@ import { User as UserIcon } from "lucide-react";
 import { getInitials } from "@/lib/utils"; // Importar getInitials
 import { useDateSettings } from "@/hooks/useDateSettings";
 
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { preprocessMarkdown } from "@/utils/markdownPreprocessor";
+
 const messageVariants = {
   initial: (isBot: boolean) => ({
     opacity: 0,
@@ -116,7 +120,8 @@ const ChatMessagePyme = React.forwardRef<HTMLDivElement, ChatMessageProps>( (
   const isBot = message.isBot; // Define isBot here for use in variants and logic
 
   const safeText = typeof message.text === "string" && message.text !== "NaN" ? message.text : "";
-  const sanitizedHtml = sanitizeMessageHtml(safeText);
+  const sanitizedHtml = sanitizeMessageHtml(safeText); // Kept for attachment fallback compatibility
+  const processedText = preprocessMarkdown(safeText);
   const { timezone, locale } = useDateSettings();
 
   let processedAttachmentInfo: AttachmentInfo | null = null;
@@ -171,11 +176,21 @@ const ChatMessagePyme = React.forwardRef<HTMLDivElement, ChatMessageProps>( (
                 fallbackText={(!processedAttachmentInfo && !message.locationData) ? sanitizedHtml : undefined}
               />
             ) : (
-            sanitizedHtml && (
-              <span
-                className="prose dark:prose-invert max-w-none text-sm font-medium leading-relaxed [&_p]:my-1 [&_a]:text-primary [&_a:hover]:underline"
-                dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
-              />
+            processedText && (
+              <div className="prose dark:prose-invert max-w-none text-sm font-medium leading-relaxed [&_p]:my-1 [&_a]:text-primary [&_a:hover]:underline">
+                 <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                        table: ({node, ...props}) => <div className="overflow-x-auto my-2"><table className="w-full text-xs border-collapse" {...props} /></div>,
+                        thead: ({node, ...props}) => <thead className="bg-muted/50" {...props} />,
+                        th: ({node, ...props}) => <th className="border p-2 text-left font-semibold" {...props} />,
+                        td: ({node, ...props}) => <td className="border p-2" {...props} />,
+                        a: ({node, ...props}) => <a target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-semibold" {...props} />
+                    }}
+                 >
+                     {processedText}
+                 </ReactMarkdown>
+              </div>
             )
           )}
           {message.timestamp && (
