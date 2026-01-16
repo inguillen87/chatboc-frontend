@@ -164,6 +164,24 @@ export async function fetchMarketCart(tenantSlug: string): Promise<MarketCartRes
   }
 }
 
+export async function searchCatalog(tenantSlug: string, query: string, filters: {
+    en_promocion?: boolean;
+    con_stock?: boolean;
+    precio_max?: number;
+} = {}): Promise<any> {
+  const params = new URLSearchParams();
+  params.append('q', query);
+  if (filters.en_promocion) params.append('en_promocion', 'true');
+  if (filters.con_stock) params.append('con_stock', 'true');
+  if (filters.precio_max) params.append('precio_max', String(filters.precio_max));
+
+  return await apiFetch<any>(`/api/${tenantSlug}/catalogo/buscar?${params.toString()}`, {
+      tenantSlug,
+      suppressPanel401Redirect: true,
+      omitChatSessionId: true
+  });
+}
+
 export async function fetchMarketCatalog(tenantSlug: string): Promise<MarketCatalogResponse> {
   try {
     return await apiFetch<MarketCatalogResponse>(`/api/${tenantSlug}/productos`, {
