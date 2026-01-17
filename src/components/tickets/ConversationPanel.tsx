@@ -11,7 +11,6 @@ import DetailsPanel from './DetailsPanel';
 import { AnimatePresence, motion } from 'framer-motion';
 import PredefinedMessagesModal from './PredefinedMessagesModal';
 import useSpeechRecognition from '@/hooks/useSpeechRecognition';
-import { usePusher } from '@/hooks/usePusher';
 import { useSocket } from '@/context/SocketContext';
 import { safeOn } from '@/utils/safeOn';
 import {
@@ -164,8 +163,6 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   const [attachmentPreview, setAttachmentPreview] = useState<{ file: File; previewUrl: string } | null>(null);
   const { user } = useUser();
   const { supported, listening, transcript, start, stop } = useSpeechRecognition();
-  const channelName = selectedTicket ? `ticket-${selectedTicket.tipo}-${selectedTicket.id}` : null;
-  const channel = usePusher(channelName);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const statusOptions = ALLOWED_TICKET_STATUSES;
   const lastMessage = useMemo(() => (messages.length > 0 ? messages[messages.length - 1] : null), [messages]);
@@ -261,55 +258,39 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     fetchMessages();
   }, [selectedTicket]);
 
-  useEffect(() => {
-    if (channel) {
-      const callback = (newMessage: TicketMessage) => {
-        setMessages(prevMessages => {
-            if (prevMessages.find(m => m.id === newMessage.id)) {
-                return prevMessages;
-            }
-            return [...prevMessages, adaptTicketMessageToChatMessage(newMessage, selectedTicket!)];
-        });
-      };
-      channel.bind('nuevo-mensaje', callback);
-
-      return () => {
-        channel.unbind('nuevo-mensaje', callback);
-      }
-    }
-  }, [channel, selectedTicket]);
-
   const { socket } = useSocket();
+
   useEffect(() => {
     if (!socket || !selectedTicket) return;
 
+    // Join the ticket-specific room if the backend requires it
+    // Based on user feedback: "Socket join por tenant/ticket"
+    // We emit an event to join the room. The event name is hypothetical or generic 'join'.
+    // If the backend handles 'subscribe_ticket_updates' globally for the tenant, this might be redundant but safe.
+    socket.emit('join', { room: `ticket-${selectedTicket.tipo}-${selectedTicket.id}` });
+
     const handleNewComment = (data: any) => {
        // Check if the comment belongs to the current ticket
-       // The event payload structure depends on the backend.
-       // Based on useTicketUpdates/TicketContext: { ticket_id: ..., comment: ... }
        if (data.ticket_id === selectedTicket.id && data.comment) {
            const newMsg = data.comment;
-           // Adapt to TicketMessage format if necessary, or directly to ChatMessageData
-           // Assuming data.comment matches the structure returned by getMessages somewhat
 
-           // We construct a pseudo-TicketMessage from the comment data
            const ticketMessage: TicketMessage = {
                id: newMsg.id,
                content: newMsg.comentario || newMsg.mensaje || newMsg.text,
                timestamp: newMsg.fecha || new Date().toISOString(),
-               author: (newMsg.es_admin || newMsg.esAdmin) ? 'agent' : 'user',
-               attachments: newMsg.attachments || newMsg.archivos_adjuntos,
-               // Add other fields as needed
+               author: (newMsg.es_admin || newMsg.esAdmin || newMsg.isAdmin) ? 'agent' : 'user',
+               attachments: newMsg.attachments || newMsg.archivos_adjuntos || newMsg.archivo_adjunto ? [newMsg.archivo_adjunto] : [],
            };
 
            setMessages(prevMessages => {
-               if (prevMessages.find(m => m.id === ticketMessage.id)) {
+               // Evitar duplicados si el mensaje ya existe (por optimismo o retransmisión)
+               if (prevMessages.some(m => m.id === ticketMessage.id)) {
                    return prevMessages;
                }
+               // Si hay un mensaje optimista pendiente (id temporal grande), podríamos reemplazarlo aquí
+               // pero simple deduplicación es un buen comienzo.
                return [...prevMessages, adaptTicketMessageToChatMessage(ticketMessage, selectedTicket)];
            });
-
-           // Scroll to bottom handled by other useEffect
        }
     };
 
@@ -317,6 +298,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
 
     return () => {
         socket.off('new_comment', handleNewComment);
+        socket.emit('leave', { room: `ticket-${selectedTicket.tipo}-${selectedTicket.id}` });
     };
   }, [socket, selectedTicket]);
 
