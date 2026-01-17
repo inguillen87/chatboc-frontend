@@ -55,10 +55,22 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
       return null;
     }
 
+    // Check for "Solicitudes" category match first if we want it to be sticky
+    // But logic below relies on status primarily.
+
     const status = normalizeTicketStatus(selectedTicket.estado);
 
     if (status === 'resuelto') {
       return 'Resueltos';
+    }
+
+    // Special handling for call requests
+    if (
+        selectedTicket.categoria?.toLowerCase().includes('llamada') ||
+        selectedTicket.categoria?.toLowerCase().includes('telefonica') ||
+        selectedTicket.asunto?.toLowerCase().includes('solicitud de llamada')
+    ) {
+        return 'Solicitudes';
     }
 
     return selectedTicket.categoria || 'General';
@@ -66,6 +78,29 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
 
   const filteredTicketsByCategory = React.useMemo(() => {
     const baseCategories = { ...ticketsByCategory };
+
+    // Add explicit "Solicitudes" category if not present
+    if (!baseCategories['Solicitudes']) {
+        baseCategories['Solicitudes'] = [];
+    }
+
+    // Move potential call requests to "Solicitudes" bucket or duplicate them there?
+    // Let's create a derived view. We iterate all tickets to find call requests.
+    // NOTE: ticketsByCategory only groups by main category. We need to look at ALL tickets.
+
+    // We can iterate over all tickets in the context to populate "Solicitudes"
+    const allTicketsFlat = Object.values(ticketsByCategory).flat();
+    const uniqueTickets = Array.from(new Map(allTicketsFlat.map(t => [t.id, t])).values());
+
+    const solicitudTickets = uniqueTickets.filter(t =>
+        (t.categoria?.toLowerCase().includes('llamada') ||
+         t.categoria?.toLowerCase().includes('telefonica') ||
+         t.asunto?.toLowerCase().includes('solicitud de llamada')) &&
+         normalizeTicketStatus(t.estado) !== 'resuelto'
+    );
+
+    baseCategories['Solicitudes'] = solicitudTickets;
+
 
     // Ensure all backend categories exist even if empty
     backendCategories.forEach(cat => {

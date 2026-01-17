@@ -650,10 +650,10 @@ export const sendMessage = async (
 ): Promise<any> => {
     try {
         let body: any;
+        let isFormData = false;
 
         // La lógica de botones parece crear un tipo de mensaje interactivo muy específico
-        // que puede ser mutuamente excluyente con los adjuntos. Se mantiene la lógica
-        // pero la ruta principal ahora es para mensajes estándar con texto y/o adjuntos.
+        // que puede ser mutuamente excluyente con los adjuntos.
         if (buttons && buttons.length > 0) {
             const interactiveMessage: InteractiveMessage = {
                 type: 'interactive',
@@ -664,9 +664,17 @@ export const sendMessage = async (
                 },
             };
             body = interactiveMessage;
+        } else if (attachmentInfo && attachmentInfo.file instanceof File) {
+             // Si attachmentInfo tiene un objeto File real (inyectado desde el UI), usamos FormData
+             // para cumplir con la guía de integración (multipart/form-data)
+             const formData = new FormData();
+             formData.append('comentario', comentario || ' ');
+             formData.append('archivos', attachmentInfo.file);
+             body = formData;
+             isFormData = true;
         } else {
-            // Cuerpo de mensaje estándar.
-            // El backend espera `attachment_info`
+            // Cuerpo de mensaje estándar JSON.
+            // El backend espera `attachment_info` si ya tenemos la URL/meta
             body = {
                 comentario: comentario || (attachmentInfo ? ' ' : ''),
                 ...(attachmentInfo && { attachment_info: attachmentInfo }),
@@ -675,8 +683,9 @@ export const sendMessage = async (
 
         const response = await apiFetch(`/tickets/${tipo}/${ticketId}/responder`, {
             method: 'POST',
-            // apiFetch se encargará de stringify el objeto body si es un JSON
             body: body,
+            // Si es FormData, apiFetch o el navegador manejarán el Content-Type.
+            // apiFetch usualmente detecta FormData y no setea 'Content-Type: application/json'
         });
         return response;
     } catch (error) {

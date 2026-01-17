@@ -11,7 +11,8 @@ import DetailsPanel from './DetailsPanel';
 import { AnimatePresence, motion } from 'framer-motion';
 import PredefinedMessagesModal from './PredefinedMessagesModal';
 import useSpeechRecognition from '@/hooks/useSpeechRecognition';
-import { usePusher } from '@/hooks/usePusher';
+import { useSocket } from '@/context/SocketContext';
+import { safeOn } from '@/utils/safeOn';
 import {
   getTicketMessages,
   requestTicketHistoryEmail,
@@ -162,8 +163,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   const [attachmentPreview, setAttachmentPreview] = useState<{ file: File; previewUrl: string } | null>(null);
   const { user } = useUser();
   const { supported, listening, transcript, start, stop } = useSpeechRecognition();
-  const channelName = selectedTicket ? `ticket-${selectedTicket.tipo}-${selectedTicket.id}` : null;
-  const channel = usePusher(channelName);
+  const { socket } = useSocket();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const statusOptions = ALLOWED_TICKET_STATUSES;
   const lastMessage = useMemo(() => (messages.length > 0 ? messages[messages.length - 1] : null), [messages]);
@@ -260,22 +260,52 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   }, [selectedTicket]);
 
   useEffect(() => {
-    if (channel) {
-      const callback = (newMessage: TicketMessage) => {
-        setMessages(prevMessages => {
-            if (prevMessages.find(m => m.id === newMessage.id)) {
-                return prevMessages;
-            }
-            return [...prevMessages, adaptTicketMessageToChatMessage(newMessage, selectedTicket!)];
-        });
-      };
-      channel.bind('nuevo-mensaje', callback);
+    if (!socket || !selectedTicket) return;
 
-      return () => {
-        channel.unbind('nuevo-mensaje', callback);
+    // Join room logic could be handled by server based on subscribe_ticket_updates from SocketContext
+    // or explicit join here if needed.
+    // Assuming global subscription covers it for now as per SocketContext implementation.
+
+    const handleNewComment = (data: any) => {
+      // Check if the comment belongs to the current ticket
+      if (data.ticket_id === selectedTicket.id || data.ticketId === selectedTicket.id) {
+          const rawMsg = data.comment || data.mensaje;
+          // Normalize if needed, though adaptTicketMessageToChatMessage expects a specific structure
+          // We might need to map the incoming socket payload to TicketMessage structure
+          const normalizedMsg: TicketMessage = {
+              id: rawMsg.id,
+              author: rawMsg.es_admin ? 'agent' : 'user',
+              content: rawMsg.comentario || rawMsg.texto || rawMsg.content,
+              timestamp: rawMsg.fecha || new Date().toISOString(),
+              attachments: rawMsg.archivo_adjunto ? [rawMsg.archivo_adjunto] : undefined,
+              agentName: rawMsg.nombre_agente
+          };
+
+          setMessages(prevMessages => {
+              if (prevMessages.find(m => m.id === normalizedMsg.id)) {
+                  return prevMessages;
+              }
+              return [...prevMessages, adaptTicketMessageToChatMessage(normalizedMsg, selectedTicket!)];
+          });
       }
-    }
-  }, [channel, selectedTicket]);
+    };
+
+    const handleTicketUpdate = (data: any) => {
+       if (data.ticket_id === selectedTicket.id || data.ticketId === selectedTicket.id) {
+           if (data.estado) {
+               updateTicket(selectedTicket.id, { estado: data.estado });
+           }
+       }
+    };
+
+    safeOn(socket, 'new_comment', handleNewComment);
+    safeOn(socket, 'ticket_update', handleTicketUpdate);
+
+    return () => {
+      socket.off('new_comment', handleNewComment);
+      socket.off('ticket_update', handleTicketUpdate);
+    };
+  }, [socket, selectedTicket, updateTicket]);
 
   const scrollToBottom = useCallback(() => {
     if (scrollAreaRef.current) {
