@@ -18,6 +18,7 @@ import { DateSettingsProvider } from "./hooks/useDateSettings";
 import { UserProvider } from "./hooks/useUser";
 import useTicketUpdates from "./hooks/useTicketUpdates";
 import { TenantProvider } from "./context/TenantContext";
+import { SocketProvider } from "./context/SocketContext";
 import { GOOGLE_CLIENT_ID } from './env';
 import UserPortalLayout from "@/components/user-portal/layout/UserPortalLayout";
 import TokenRedirectWrapper from "@/components/TokenRedirectWrapper";
@@ -89,9 +90,10 @@ function AppRoutes() {
 
   return (
     <TenantProvider>
-      <TokenRedirectWrapper>
-        <Routes>
-          <Route element={<Layout />}>
+      <SocketProvider>
+        <TokenRedirectWrapper>
+          <Routes>
+            <Route element={<Layout />}>
             {layoutRoutes.map(({ path, element, roles }) => (
               <Route
               key={path} // La key ya estaba correctamente aquí. No se requieren cambios.
@@ -123,11 +125,12 @@ function AppRoutes() {
           <Route path="*" element={<NotFound />} />
         </Routes>
 
-        {/* Monta el widget global SOLO si no estás en demo/integracion/login/register/iframe */}
-        {!ocultarWidgetGlobalEnApp && (
-          <ChatWidget mode="standalone" defaultOpen={false} />
-        )}
-      </TokenRedirectWrapper>
+          {/* Monta el widget global SOLO si no estás en demo/integracion/login/register/iframe */}
+          {!ocultarWidgetGlobalEnApp && (
+            <ChatWidget mode="standalone" defaultOpen={false} />
+          )}
+        </TokenRedirectWrapper>
+      </SocketProvider>
     </TenantProvider>
   );
 }

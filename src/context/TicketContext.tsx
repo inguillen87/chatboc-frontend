@@ -289,8 +289,44 @@ export const TicketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
   }, [selectedTicket]);
 
+  const handleNewTicketSocket = useCallback((data: any) => {
+    // Optimistic update: Prepend the new ticket to the list without fetching
+    // Data normalization logic similar to fetchTickets
+
+    // Safety check
+    if (!data || !data.id) {
+        fetchTickets(); // Fallback
+        return;
+    }
+
+    const assignedAgent = normalizeAssignedAgent(data);
+    const normalizedTicket = {
+        ...data,
+        categoria: mapToKnownCategory(data.categoria, data.categories),
+        assignedAgent,
+        assignedAgentId:
+            data.assignedAgentId ||
+            data.assigned_agent_id ||
+            data.assigned_user_id ||
+            (assignedAgent ? assignedAgent.id : undefined),
+    } as Ticket;
+
+    // Apply user filters
+    const filtered = filterTicketsForUser([normalizedTicket]);
+
+    if (filtered.length > 0) {
+        setTickets(prev => {
+            // Avoid duplicates
+            if (prev.some(t => t.id === normalizedTicket.id)) {
+                return prev;
+            }
+            return [filtered[0], ...prev];
+        });
+    }
+  }, [filterTicketsForUser, fetchTickets]);
+
   useTicketUpdates({
-    onNewTicket: fetchTickets,
+    onNewTicket: handleNewTicketSocket,
     onNewComment: (data) => {
       updateTicket(data.ticketId, { estado: data.estado });
     },

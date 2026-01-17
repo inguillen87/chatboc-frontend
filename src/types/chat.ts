@@ -111,6 +111,7 @@ export interface Message {
     type?: string; // Tipo de adjunto derivado (image, pdf, audio, etc.)
     extension?: string; // Extensión de archivo normalizada
     isUploading?: boolean; // Marca si el adjunto está en proceso de subida
+    file?: File; // Objeto File original para subidas multipart/form-data
   };
 
   // Campos para contenido estructurado y personalización de la UI
