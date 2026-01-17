@@ -177,6 +177,33 @@ export async function fetchMarketCatalog(tenantSlug: string): Promise<MarketCata
   }
 }
 
+export interface SearchCatalogParams {
+  query: string;
+  en_promocion?: boolean;
+  con_stock?: boolean;
+  precio_max?: number;
+}
+
+export async function searchCatalog(tenantSlug: string, params: SearchCatalogParams): Promise<MarketCatalogResponse> {
+  const queryParams = new URLSearchParams({
+    q: params.query,
+    ...(params.en_promocion && { en_promocion: 'true' }),
+    ...(params.con_stock && { con_stock: 'true' }),
+    ...(params.precio_max && { precio_max: String(params.precio_max) }),
+  });
+
+  try {
+    return await apiFetch<MarketCatalogResponse>(`/api/${tenantSlug}/catalogo/buscar?${queryParams.toString()}`, {
+      tenantSlug,
+      suppressPanel401Redirect: true,
+      omitChatSessionId: true,
+    });
+  } catch (error) {
+    console.warn(`[MarketAPI] Failed to search catalog for ${tenantSlug}`, error);
+    return mockCatalogResponse(tenantSlug); // Fallback to full catalog or empty
+  }
+}
+
 export async function addMarketItem(tenantSlug: string, payload: AddToCartPayload): Promise<MarketCartResponse> {
   const addToLocalCart = () => {
         // Fallback to local demo cart logic

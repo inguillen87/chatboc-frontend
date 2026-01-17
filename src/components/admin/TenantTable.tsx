@@ -66,7 +66,13 @@ export function TenantTable({ tenants, loading, onEdit, onImpersonate, onToggleS
                 </Badge>
               </TableCell>
               <TableCell className="text-sm text-muted-foreground max-w-[180px] truncate" title={tenant.owner_email}>
-                {tenant.owner_email || '-'}
+                {tenant.owner_email ? (
+                  <a href={`mailto:${tenant.owner_email}`} className="hover:underline hover:text-primary">
+                    {tenant.owner_email}
+                  </a>
+                ) : (
+                  '-'
+                )}
               </TableCell>
               <TableCell className="text-right">
                 <div className="flex justify-end gap-2">
