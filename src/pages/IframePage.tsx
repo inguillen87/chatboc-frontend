@@ -65,6 +65,24 @@ const IframePage = () => {
         document.documentElement.style.setProperty("--accent", hexToHsl(accentColorHex));
       }
 
+      // Handle Theme Config (Dark/Light Mode)
+      if (fetchedConfig.theme_config) {
+        try {
+          // theme_config could be a JSON string or object depending on backend
+          const themeConfig = typeof fetchedConfig.theme_config === 'string'
+            ? JSON.parse(fetchedConfig.theme_config)
+            : fetchedConfig.theme_config;
+
+          if (themeConfig.mode === 'dark') {
+            document.documentElement.classList.add('dark');
+          } else if (themeConfig.mode === 'light') {
+            document.documentElement.classList.remove('dark');
+          }
+        } catch (e) {
+          console.warn("Error parsing theme_config", e);
+        }
+      }
+
       const rawEntityToken =
         urlParams.get("entityToken") ||
         urlParams.get("ownerToken") ||
