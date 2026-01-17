@@ -163,7 +163,6 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   const [attachmentPreview, setAttachmentPreview] = useState<{ file: File; previewUrl: string } | null>(null);
   const { user } = useUser();
   const { supported, listening, transcript, start, stop } = useSpeechRecognition();
-  const { socket } = useSocket();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const statusOptions = ALLOWED_TICKET_STATUSES;
   const lastMessage = useMemo(() => (messages.length > 0 ? messages[messages.length - 1] : null), [messages]);
@@ -259,53 +258,49 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     fetchMessages();
   }, [selectedTicket]);
 
+  const { socket } = useSocket();
+
   useEffect(() => {
     if (!socket || !selectedTicket) return;
 
-    // Join room logic could be handled by server based on subscribe_ticket_updates from SocketContext
-    // or explicit join here if needed.
-    // Assuming global subscription covers it for now as per SocketContext implementation.
+    // Join the ticket-specific room if the backend requires it
+    // Based on user feedback: "Socket join por tenant/ticket"
+    // We emit an event to join the room. The event name is hypothetical or generic 'join'.
+    // If the backend handles 'subscribe_ticket_updates' globally for the tenant, this might be redundant but safe.
+    socket.emit('join', { room: `ticket-${selectedTicket.tipo}-${selectedTicket.id}` });
 
     const handleNewComment = (data: any) => {
-      // Check if the comment belongs to the current ticket
-      if (data.ticket_id === selectedTicket.id || data.ticketId === selectedTicket.id) {
-          const rawMsg = data.comment || data.mensaje;
-          // Normalize if needed, though adaptTicketMessageToChatMessage expects a specific structure
-          // We might need to map the incoming socket payload to TicketMessage structure
-          const normalizedMsg: TicketMessage = {
-              id: rawMsg.id,
-              author: rawMsg.es_admin ? 'agent' : 'user',
-              content: rawMsg.comentario || rawMsg.texto || rawMsg.content,
-              timestamp: rawMsg.fecha || new Date().toISOString(),
-              attachments: rawMsg.archivo_adjunto ? [rawMsg.archivo_adjunto] : undefined,
-              agentName: rawMsg.nombre_agente
-          };
+       // Check if the comment belongs to the current ticket
+       if (data.ticket_id === selectedTicket.id && data.comment) {
+           const newMsg = data.comment;
 
-          setMessages(prevMessages => {
-              if (prevMessages.find(m => m.id === normalizedMsg.id)) {
-                  return prevMessages;
-              }
-              return [...prevMessages, adaptTicketMessageToChatMessage(normalizedMsg, selectedTicket!)];
-          });
-      }
-    };
+           const ticketMessage: TicketMessage = {
+               id: newMsg.id,
+               content: newMsg.comentario || newMsg.mensaje || newMsg.text,
+               timestamp: newMsg.fecha || new Date().toISOString(),
+               author: (newMsg.es_admin || newMsg.esAdmin || newMsg.isAdmin) ? 'agent' : 'user',
+               attachments: newMsg.attachments || newMsg.archivos_adjuntos || newMsg.archivo_adjunto ? [newMsg.archivo_adjunto] : [],
+           };
 
-    const handleTicketUpdate = (data: any) => {
-       if (data.ticket_id === selectedTicket.id || data.ticketId === selectedTicket.id) {
-           if (data.estado) {
-               updateTicket(selectedTicket.id, { estado: data.estado });
-           }
+           setMessages(prevMessages => {
+               // Evitar duplicados si el mensaje ya existe (por optimismo o retransmisión)
+               if (prevMessages.some(m => m.id === ticketMessage.id)) {
+                   return prevMessages;
+               }
+               // Si hay un mensaje optimista pendiente (id temporal grande), podríamos reemplazarlo aquí
+               // pero simple deduplicación es un buen comienzo.
+               return [...prevMessages, adaptTicketMessageToChatMessage(ticketMessage, selectedTicket)];
+           });
        }
     };
 
     safeOn(socket, 'new_comment', handleNewComment);
-    safeOn(socket, 'ticket_update', handleTicketUpdate);
 
     return () => {
-      socket.off('new_comment', handleNewComment);
-      socket.off('ticket_update', handleTicketUpdate);
+        socket.off('new_comment', handleNewComment);
+        socket.emit('leave', { room: `ticket-${selectedTicket.tipo}-${selectedTicket.id}` });
     };
-  }, [socket, selectedTicket, updateTicket]);
+  }, [socket, selectedTicket]);
 
   const scrollToBottom = useCallback(() => {
     if (scrollAreaRef.current) {
@@ -344,123 +339,16 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     let attachmentData: AttachmentInfo | undefined = payload?.attachmentInfo;
 
     if (attachmentPreview) {
-      toast.info("Subiendo archivo...");
-      const formData = new FormData();
-      formData.append('file', attachmentPreview.file);
-
-      try {
-        const response = await apiFetch<UploadResponse>('/archivos/upload/chat_attachment', {
-          method: 'POST',
-          body: formData,
-        });
-        const normalized = normalizeUploadResponse(response);
-        const responsePayload =
-          response && typeof response === 'object'
-            ? (response as UploadResponsePayload)
-            : undefined;
-        const fallbackRawUrl =
-          coalesceString(
-            responsePayload?.url,
-            responsePayload?.attachmentUrl,
-            responsePayload?.attachment_url,
-            responsePayload?.fileUrl,
-            responsePayload?.file_url,
-            responsePayload?.archivo_url,
-            responsePayload?.public_url,
-            responsePayload?.publicUrl,
-            responsePayload?.secure_url,
-            responsePayload?.fallbackUrl,
-            responsePayload?.fallback_url,
-            responsePayload?.fallbackPublicUrl,
-            responsePayload?.fallback_public_url,
-            responsePayload?.local_url,
-            responsePayload?.localUrl,
-            responsePayload?.local_path,
-            responsePayload?.localPath,
-            responsePayload?.local_relative_path,
-            responsePayload?.localRelativePath,
-            responsePayload?.storage_path,
-            responsePayload?.storagePath,
-            responsePayload?.storage_url,
-            responsePayload?.storageUrl,
-            responsePayload?.static_url,
-            responsePayload?.staticUrl,
-            responsePayload?.relative_url,
-            responsePayload?.relativeUrl,
-            responsePayload?.full_path,
-            responsePayload?.fullPath,
-            responsePayload?.public_path,
-            responsePayload?.publicPath,
-            responsePayload?.path,
-            responsePayload?.web_path,
-            responsePayload?.webPath,
-            typeof response === 'string' ? response : undefined,
-          );
-        const uploadedUrlCandidate =
-          normalized.url ||
-          (fallbackRawUrl
-            ? normalizeUploadResponse(fallbackRawUrl).url || fallbackRawUrl
-            : undefined);
-
-        const uploadedUrl =
-          uploadedUrlCandidate
-            ? ensureAbsoluteUrl(uploadedUrlCandidate) ?? uploadedUrlCandidate
-            : undefined;
-
-        if (!uploadedUrl) {
-          throw new Error('La respuesta del servidor no incluyó la URL del archivo subido.');
-        }
-
-        const originalFile = attachmentPreview.file;
-        const uploadedName =
-          normalized.name ||
-          coalesceString(
-            responsePayload?.name,
-            responsePayload?.filename,
-            responsePayload?.fileName,
-          ) ||
-          originalFile.name;
-        const uploadedMime =
-          normalized.mimeType ||
-          coalesceString(
-            responsePayload?.mimeType,
-            responsePayload?.mime_type,
-          ) ||
-          originalFile.type;
-        const uploadedSize =
-          normalized.size ??
-          coalesceNumber(responsePayload?.size, responsePayload?.fileSize) ??
-          originalFile.size;
-        const uploadedThumbCandidate =
-          normalized.thumbUrl ||
-          coalesceString(
-            responsePayload?.thumbUrl,
-            responsePayload?.thumb_url,
-            responsePayload?.thumbnailUrl,
-            responsePayload?.thumbnail_url,
-          );
-        const resolvedThumb =
-          uploadedThumbCandidate
-            ? ensureAbsoluteUrl(uploadedThumbCandidate) ?? uploadedThumbCandidate
-            : undefined;
-
-        attachmentData = {
-          url: uploadedUrl,
-          ...(resolvedThumb ? { thumbUrl: resolvedThumb } : {}),
-          name: uploadedName,
-          mimeType: uploadedMime,
-          size: uploadedSize,
-        };
-        toast.success("Archivo subido con éxito.");
-      } catch (error) {
-        console.error("Error uploading file:", error);
-        toast.error("Error al subir el archivo.");
-        setAttachmentPreview(null); // Clear preview on error
-        setIsSending(false);
-        return;
-      }
+      // Create local preview attachment data for optimistic update
+      // We don't have the real URL yet, but we have the blob URL from the preview
+      attachmentData = {
+        name: attachmentPreview.file.name,
+        url: attachmentPreview.previewUrl, // Use blob URL for immediate display
+        mimeType: attachmentPreview.file.type,
+        size: attachmentPreview.file.size,
+        isUploading: true, // Optional: UI could show a spinner on the image
+      };
     }
-
 
     // Optimistic update
     const optimisticMessage: ChatMessageData = {
@@ -472,15 +360,14 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     };
     setMessages(prev => [...prev, optimisticMessage]);
     setMessage('');
-    setAttachmentPreview(null);
-
+    setAttachmentPreview(null); // Clear input immediately
 
     try {
       await sendMessage(
         selectedTicket.id,
         selectedTicket.tipo,
         text,
-        attachmentData,
+        attachmentPreview ? [attachmentPreview.file] : undefined, // Send raw file
         payload?.action
           ? [{ type: 'reply', reply: { id: payload.action, title: payload.action } }]
           : undefined,

@@ -289,46 +289,36 @@ export const TicketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
   }, [selectedTicket]);
 
-  const handleNewTicketSocket = useCallback((data: any) => {
-    // Optimistic update: Prepend the new ticket to the list without fetching
-    // Data normalization logic similar to fetchTickets
-
-    // Safety check
-    if (!data || !data.id) {
-        fetchTickets(); // Fallback
-        return;
-    }
-
-    const assignedAgent = normalizeAssignedAgent(data);
-    const normalizedTicket = {
-        ...data,
-        categoria: mapToKnownCategory(data.categoria, data.categories),
-        assignedAgent,
-        assignedAgentId:
-            data.assignedAgentId ||
-            data.assigned_agent_id ||
-            data.assigned_user_id ||
-            (assignedAgent ? assignedAgent.id : undefined),
-    } as Ticket;
-
-    // Apply user filters
-    const filtered = filterTicketsForUser([normalizedTicket]);
-
-    if (filtered.length > 0) {
-        setTickets(prev => {
-            // Avoid duplicates
-            if (prev.some(t => t.id === normalizedTicket.id)) {
-                return prev;
-            }
-            return [filtered[0], ...prev];
-        });
-    }
-  }, [filterTicketsForUser, fetchTickets]);
-
   useTicketUpdates({
-    onNewTicket: handleNewTicketSocket,
+    onNewTicket: (data) => {
+      // Optimistic addition if we have enough data, otherwise fetch
+      if (data && data.ticket && typeof data.ticket === 'object') {
+        const newTicket = {
+            ...data.ticket,
+            categoria: mapToKnownCategory(data.ticket.categoria, data.ticket.categories),
+            // Default fields if missing
+            estado: data.ticket.estado || 'nuevo',
+            priority: data.ticket.priority || 'medium',
+        } as Ticket;
+
+        // Check if filter allows it
+        const filtered = filterTicketsForUser([newTicket]);
+        if (filtered.length > 0) {
+            setTickets(prev => [filtered[0], ...prev]);
+            return;
+        }
+      }
+      fetchTickets();
+    },
     onNewComment: (data) => {
-      updateTicket(data.ticketId, { estado: data.estado });
+      // Si la data incluye cambios de estado u otros campos del ticket, actualizarlos
+      if (data && data.ticket_id) {
+          const updates: Partial<Ticket> = {};
+          if (data.estado) updates.estado = data.estado;
+          if (Object.keys(updates).length > 0) {
+            updateTicket(data.ticket_id, updates);
+          }
+      }
     },
   });
 

@@ -55,22 +55,10 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
       return null;
     }
 
-    // Check for "Solicitudes" category match first if we want it to be sticky
-    // But logic below relies on status primarily.
-
     const status = normalizeTicketStatus(selectedTicket.estado);
 
     if (status === 'resuelto') {
       return 'Resueltos';
-    }
-
-    // Special handling for call requests
-    if (
-        selectedTicket.categoria?.toLowerCase().includes('llamada') ||
-        selectedTicket.categoria?.toLowerCase().includes('telefonica') ||
-        selectedTicket.asunto?.toLowerCase().includes('solicitud de llamada')
-    ) {
-        return 'Solicitudes';
     }
 
     return selectedTicket.categoria || 'General';
@@ -79,28 +67,10 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
   const filteredTicketsByCategory = React.useMemo(() => {
     const baseCategories = { ...ticketsByCategory };
 
-    // Add explicit "Solicitudes" category if not present
-    if (!baseCategories['Solicitudes']) {
-        baseCategories['Solicitudes'] = [];
-    }
-
-    // Move potential call requests to "Solicitudes" bucket or duplicate them there?
-    // Let's create a derived view. We iterate all tickets to find call requests.
-    // NOTE: ticketsByCategory only groups by main category. We need to look at ALL tickets.
-
-    // We can iterate over all tickets in the context to populate "Solicitudes"
-    const allTicketsFlat = Object.values(ticketsByCategory).flat();
-    const uniqueTickets = Array.from(new Map(allTicketsFlat.map(t => [t.id, t])).values());
-
-    const solicitudTickets = uniqueTickets.filter(t =>
-        (t.categoria?.toLowerCase().includes('llamada') ||
-         t.categoria?.toLowerCase().includes('telefonica') ||
-         t.asunto?.toLowerCase().includes('solicitud de llamada')) &&
-         normalizeTicketStatus(t.estado) !== 'resuelto'
-    );
-
-    baseCategories['Solicitudes'] = solicitudTickets;
-
+    // Agrupar 'solicitudes de llamada' si existen en una categoría específica o inferida
+    // Si el ticket tiene un tipo especial o prefijo, se podría mover aquí.
+    // Por ahora, asumimos que vienen como categoría 'Solicitud de Llamada' desde el backend
+    // o las agrupamos manualmente si detectamos el patrón.
 
     // Ensure all backend categories exist even if empty
     backendCategories.forEach(cat => {
@@ -108,6 +78,49 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
             baseCategories[cat] = [];
         }
     });
+
+    // Crear grupo explícito para Solicitudes si no existe, o renombrarlo si es necesario
+    // Detectamos tickets que parezcan solicitudes de llamada en otras categorías
+    const callRequestTerms = ['solicitud de llamada', 'solicito llamada', 'pedir llamada', 'llamarme'];
+    const callRequests: any[] = [];
+
+    // Si ya existe la categoría, usémosla como base
+    if (baseCategories['Solicitudes de Llamada']) {
+        callRequests.push(...baseCategories['Solicitudes de Llamada']);
+        delete baseCategories['Solicitudes de Llamada']; // Lo reinsertaremos después
+    }
+
+    // Buscar en otras categorías
+    Object.keys(baseCategories).forEach(cat => {
+        const remainingTickets: any[] = [];
+        baseCategories[cat].forEach(ticket => {
+            const subject = (ticket.asunto || '').toLowerCase();
+            const content = (ticket.mensaje || '').toLowerCase(); // Dependiendo de la estructura del ticket
+
+            if (callRequestTerms.some(term => subject.includes(term) || content.includes(term))) {
+                callRequests.push(ticket);
+            } else {
+                remainingTickets.push(ticket);
+            }
+        });
+        baseCategories[cat] = remainingTickets;
+    });
+
+    // Si encontramos solicitudes, las agregamos como categoría prioritaria (al principio si es posible, o simplemente la agregamos)
+    if (callRequests.length > 0) {
+        // Podemos insertarlo al principio creando un nuevo objeto
+        const newCategories = { 'Solicitudes de Llamada': callRequests, ...baseCategories };
+        // Asignar de nuevo a baseCategories (que es const, así que mejor retornamos newCategories)
+        // Pero baseCategories es una copia local de ticketsByCategory, así que podemos mutar o reasignar referencias.
+        // Dado que filteredTicketsByCategory retorna un objeto, retornaremos el nuevo objeto aquí.
+        // Sin embargo, filteredTicketsByCategory se construye iterativamente abajo con el término de búsqueda.
+        // Así que aquí solo estamos manipulando la "base" antes del filtro de búsqueda.
+        // Ah, filteredTicketsByCategory es el useMemo completo.
+        // Modifiquemos la lógica para retornar newCategories filtrado después.
+
+        // Re-inject into baseCategories for the search logic below to work on it
+        baseCategories['Solicitudes de Llamada'] = callRequests;
+    }
 
     if (!debouncedSearchTerm) {
       return baseCategories;

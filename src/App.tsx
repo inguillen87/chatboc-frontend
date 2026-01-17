@@ -18,7 +18,7 @@ import { DateSettingsProvider } from "./hooks/useDateSettings";
 import { UserProvider } from "./hooks/useUser";
 import useTicketUpdates from "./hooks/useTicketUpdates";
 import { TenantProvider } from "./context/TenantContext";
-import { SocketProvider } from "./context/SocketContext";
+import { SocketProvider } from "@/context/SocketContext";
 import { GOOGLE_CLIENT_ID } from './env';
 import UserPortalLayout from "@/components/user-portal/layout/UserPortalLayout";
 import TokenRedirectWrapper from "@/components/TokenRedirectWrapper";
@@ -92,36 +92,48 @@ function AppRoutes() {
     <TokenRedirectWrapper>
       <Routes>
         <Route element={<Layout />}>
-        {layoutRoutes.map(({ path, element, roles }) => (
-          <Route
-          key={path} // La key ya estaba correctamente aquí. No se requieren cambios.
-          path={path}
-          element={
-            roles ? (
-              <ProtectedRoute roles={roles}>{element}</ProtectedRoute>
-            ) : (
-              element
-            )
-          }
-          />
-        ))}
-      </Route>
-      {portalRoutes.length > 0 && (
-        <Route element={<UserPortalGuard allowGuestPaths={guestPortalPaths}><UserPortalLayout /></UserPortalGuard>}>
-          {portalRoutes.map(({ path, element }) => (
-            <Route key={path} path={path} element={element} />
+          {layoutRoutes.map(({ path, element, roles }) => (
+            <Route
+              key={path} // La key ya estaba correctamente aquí. No se requieren cambios.
+              path={path}
+              element={
+                roles ? (
+                  <ProtectedRoute roles={roles}>{element}</ProtectedRoute>
+                ) : (
+                  element
+                )
+              }
+            />
           ))}
         </Route>
-      )}
-      {standaloneRoutes.map(({ path, element, roles }) => (
-        <Route
-          key={path}
-          path={path}
-          element={roles ? <ProtectedRoute roles={roles}>{element}</ProtectedRoute> : element}
-        />
-      ))}
-      <Route path="*" element={<NotFound />} />
-    </Routes>
+        {portalRoutes.length > 0 && (
+          <Route
+            element={
+              <UserPortalGuard allowGuestPaths={guestPortalPaths}>
+                <UserPortalLayout />
+              </UserPortalGuard>
+            }
+          >
+            {portalRoutes.map(({ path, element }) => (
+              <Route key={path} path={path} element={element} />
+            ))}
+          </Route>
+        )}
+        {standaloneRoutes.map(({ path, element, roles }) => (
+          <Route
+            key={path}
+            path={path}
+            element={
+              roles ? (
+                <ProtectedRoute roles={roles}>{element}</ProtectedRoute>
+              ) : (
+                element
+              )
+            }
+          />
+        ))}
+        <Route path="*" element={<NotFound />} />
+      </Routes>
 
       {/* Monta el widget global SOLO si no estás en demo/integracion/login/register/iframe */}
       {!ocultarWidgetGlobalEnApp && (
@@ -138,16 +150,18 @@ const App = () => {
         <Toaster />
         <UserProvider>
           <DateSettingsProvider>
-            <BrowserRouter future={{
-              v7_startTransition: true,
-              v7_relativeSplatPath: true
-            }}>
-              <TenantProvider>
-                <SocketProvider>
+            <SocketProvider>
+              <BrowserRouter
+                future={{
+                  v7_startTransition: true,
+                  v7_relativeSplatPath: true,
+                }}
+              >
+                <TenantProvider>
                   <AppRoutes />
-                </SocketProvider>
-              </TenantProvider>
-            </BrowserRouter>
+                </TenantProvider>
+              </BrowserRouter>
+            </SocketProvider>
           </DateSettingsProvider>
         </UserProvider>
       </TooltipProvider>
