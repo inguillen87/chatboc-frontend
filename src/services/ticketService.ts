@@ -645,16 +645,23 @@ export const sendMessage = async (
     ticketId: number,
     tipo: 'municipio' | 'pyme',
     comentario: string,
-    attachmentInfo?: AttachmentInfo,
+    files?: File[],
     buttons?: Button[]
 ): Promise<any> => {
     try {
         let body: any;
-        let isFormData = false;
 
-        // La lógica de botones parece crear un tipo de mensaje interactivo muy específico
-        // que puede ser mutuamente excluyente con los adjuntos.
-        if (buttons && buttons.length > 0) {
+        // Si hay archivos, usamos FormData obligatoriamente
+        if (files && files.length > 0) {
+            const formData = new FormData();
+            formData.append('comentario', comentario || ' '); // El backend puede requerir que no esté vacío si hay adjuntos
+            files.forEach((file) => {
+                formData.append('archivos', file);
+            });
+            body = formData;
+        }
+        // Si hay botones, usamos el formato JSON interactivo (asumiendo que no se mezclan con archivos)
+        else if (buttons && buttons.length > 0) {
             const interactiveMessage: InteractiveMessage = {
                 type: 'interactive',
                 interactive: {
@@ -664,25 +671,19 @@ export const sendMessage = async (
                 },
             };
             body = interactiveMessage;
-        } else {
-             // Always use FormData for standard messages (text and/or files)
-             // to comply with the backend requirement: "Content-Type: multipart/form-data"
-             const formData = new FormData();
-             formData.append('comentario', comentario || ' ');
-
-             if (attachmentInfo && attachmentInfo.file instanceof File) {
-                 formData.append('archivos', attachmentInfo.file);
-             }
-
-             body = formData;
-             isFormData = true;
+        }
+        // Si es solo texto, usamos FormData para evitar problemas con el backend
+        // que espera multipart/form-data según la guía, aunque JSON podría funcionar en algunos casos.
+        // La instrucción es "always use FormData".
+        else {
+            const formData = new FormData();
+            formData.append('comentario', comentario);
+            body = formData;
         }
 
         const response = await apiFetch(`/tickets/${tipo}/${ticketId}/responder`, {
             method: 'POST',
             body: body,
-            // Si es FormData, apiFetch o el navegador manejarán el Content-Type.
-            // apiFetch usualmente detecta FormData y no setea 'Content-Type: application/json'
         });
         return response;
     } catch (error) {
