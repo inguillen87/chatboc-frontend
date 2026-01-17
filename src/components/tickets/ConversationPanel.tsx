@@ -344,121 +344,15 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     let attachmentData: AttachmentInfo | undefined = payload?.attachmentInfo;
 
     if (attachmentPreview) {
-      toast.info("Subiendo archivo...");
-      const formData = new FormData();
-      formData.append('file', attachmentPreview.file);
-
-      try {
-        const response = await apiFetch<UploadResponse>('/archivos/upload/chat_attachment', {
-          method: 'POST',
-          body: formData,
-        });
-        const normalized = normalizeUploadResponse(response);
-        const responsePayload =
-          response && typeof response === 'object'
-            ? (response as UploadResponsePayload)
-            : undefined;
-        const fallbackRawUrl =
-          coalesceString(
-            responsePayload?.url,
-            responsePayload?.attachmentUrl,
-            responsePayload?.attachment_url,
-            responsePayload?.fileUrl,
-            responsePayload?.file_url,
-            responsePayload?.archivo_url,
-            responsePayload?.public_url,
-            responsePayload?.publicUrl,
-            responsePayload?.secure_url,
-            responsePayload?.fallbackUrl,
-            responsePayload?.fallback_url,
-            responsePayload?.fallbackPublicUrl,
-            responsePayload?.fallback_public_url,
-            responsePayload?.local_url,
-            responsePayload?.localUrl,
-            responsePayload?.local_path,
-            responsePayload?.localPath,
-            responsePayload?.local_relative_path,
-            responsePayload?.localRelativePath,
-            responsePayload?.storage_path,
-            responsePayload?.storagePath,
-            responsePayload?.storage_url,
-            responsePayload?.storageUrl,
-            responsePayload?.static_url,
-            responsePayload?.staticUrl,
-            responsePayload?.relative_url,
-            responsePayload?.relativeUrl,
-            responsePayload?.full_path,
-            responsePayload?.fullPath,
-            responsePayload?.public_path,
-            responsePayload?.publicPath,
-            responsePayload?.path,
-            responsePayload?.web_path,
-            responsePayload?.webPath,
-            typeof response === 'string' ? response : undefined,
-          );
-        const uploadedUrlCandidate =
-          normalized.url ||
-          (fallbackRawUrl
-            ? normalizeUploadResponse(fallbackRawUrl).url || fallbackRawUrl
-            : undefined);
-
-        const uploadedUrl =
-          uploadedUrlCandidate
-            ? ensureAbsoluteUrl(uploadedUrlCandidate) ?? uploadedUrlCandidate
-            : undefined;
-
-        if (!uploadedUrl) {
-          throw new Error('La respuesta del servidor no incluyó la URL del archivo subido.');
-        }
-
-        const originalFile = attachmentPreview.file;
-        const uploadedName =
-          normalized.name ||
-          coalesceString(
-            responsePayload?.name,
-            responsePayload?.filename,
-            responsePayload?.fileName,
-          ) ||
-          originalFile.name;
-        const uploadedMime =
-          normalized.mimeType ||
-          coalesceString(
-            responsePayload?.mimeType,
-            responsePayload?.mime_type,
-          ) ||
-          originalFile.type;
-        const uploadedSize =
-          normalized.size ??
-          coalesceNumber(responsePayload?.size, responsePayload?.fileSize) ??
-          originalFile.size;
-        const uploadedThumbCandidate =
-          normalized.thumbUrl ||
-          coalesceString(
-            responsePayload?.thumbUrl,
-            responsePayload?.thumb_url,
-            responsePayload?.thumbnailUrl,
-            responsePayload?.thumbnail_url,
-          );
-        const resolvedThumb =
-          uploadedThumbCandidate
-            ? ensureAbsoluteUrl(uploadedThumbCandidate) ?? uploadedThumbCandidate
-            : undefined;
-
+        // Direct upload via sendMessage (handled by FormData in ticketService)
+        // We prepare attachmentInfo with the File object but no URL yet.
         attachmentData = {
-          url: uploadedUrl,
-          ...(resolvedThumb ? { thumbUrl: resolvedThumb } : {}),
-          name: uploadedName,
-          mimeType: uploadedMime,
-          size: uploadedSize,
+            name: attachmentPreview.file.name,
+            mimeType: attachmentPreview.file.type,
+            size: attachmentPreview.file.size,
+            url: '', // Temporary empty URL
+            file: attachmentPreview.file // The actual file to upload
         };
-        toast.success("Archivo subido con éxito.");
-      } catch (error) {
-        console.error("Error uploading file:", error);
-        toast.error("Error al subir el archivo.");
-        setAttachmentPreview(null); // Clear preview on error
-        setIsSending(false);
-        return;
-      }
     }
 
 

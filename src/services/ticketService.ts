@@ -664,21 +664,18 @@ export const sendMessage = async (
                 },
             };
             body = interactiveMessage;
-        } else if (attachmentInfo && attachmentInfo.file instanceof File) {
-             // Si attachmentInfo tiene un objeto File real (inyectado desde el UI), usamos FormData
-             // para cumplir con la guía de integración (multipart/form-data)
+        } else {
+             // Always use FormData for standard messages (text and/or files)
+             // to comply with the backend requirement: "Content-Type: multipart/form-data"
              const formData = new FormData();
              formData.append('comentario', comentario || ' ');
-             formData.append('archivos', attachmentInfo.file);
+
+             if (attachmentInfo && attachmentInfo.file instanceof File) {
+                 formData.append('archivos', attachmentInfo.file);
+             }
+
              body = formData;
              isFormData = true;
-        } else {
-            // Cuerpo de mensaje estándar JSON.
-            // El backend espera `attachment_info` si ya tenemos la URL/meta
-            body = {
-                comentario: comentario || (attachmentInfo ? ' ' : ''),
-                ...(attachmentInfo && { attachment_info: attachmentInfo }),
-            };
         }
 
         const response = await apiFetch(`/tickets/${tipo}/${ticketId}/responder`, {
