@@ -89,49 +89,45 @@ function AppRoutes() {
   }, [ocultarWidgetGlobalEnApp]);
 
   return (
-    <TenantProvider>
-      <SocketProvider>
-        <TokenRedirectWrapper>
-          <Routes>
-            <Route element={<Layout />}>
-            {layoutRoutes.map(({ path, element, roles }) => (
-              <Route
-              key={path} // La key ya estaba correctamente aquí. No se requieren cambios.
-              path={path}
-              element={
-                roles ? (
-                  <ProtectedRoute roles={roles}>{element}</ProtectedRoute>
-                ) : (
-                  element
-                )
-              }
-              />
-            ))}
-          </Route>
-          {portalRoutes.length > 0 && (
-            <Route element={<UserPortalGuard allowGuestPaths={guestPortalPaths}><UserPortalLayout /></UserPortalGuard>}>
-              {portalRoutes.map(({ path, element }) => (
-                <Route key={path} path={path} element={element} />
-              ))}
-            </Route>
-          )}
-          {standaloneRoutes.map(({ path, element, roles }) => (
-            <Route
-              key={path}
-              path={path}
-              element={roles ? <ProtectedRoute roles={roles}>{element}</ProtectedRoute> : element}
-            />
+    <TokenRedirectWrapper>
+      <Routes>
+        <Route element={<Layout />}>
+        {layoutRoutes.map(({ path, element, roles }) => (
+          <Route
+          key={path} // La key ya estaba correctamente aquí. No se requieren cambios.
+          path={path}
+          element={
+            roles ? (
+              <ProtectedRoute roles={roles}>{element}</ProtectedRoute>
+            ) : (
+              element
+            )
+          }
+          />
+        ))}
+      </Route>
+      {portalRoutes.length > 0 && (
+        <Route element={<UserPortalGuard allowGuestPaths={guestPortalPaths}><UserPortalLayout /></UserPortalGuard>}>
+          {portalRoutes.map(({ path, element }) => (
+            <Route key={path} path={path} element={element} />
           ))}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        </Route>
+      )}
+      {standaloneRoutes.map(({ path, element, roles }) => (
+        <Route
+          key={path}
+          path={path}
+          element={roles ? <ProtectedRoute roles={roles}>{element}</ProtectedRoute> : element}
+        />
+      ))}
+      <Route path="*" element={<NotFound />} />
+    </Routes>
 
-          {/* Monta el widget global SOLO si no estás en demo/integracion/login/register/iframe */}
-          {!ocultarWidgetGlobalEnApp && (
-            <ChatWidget mode="standalone" defaultOpen={false} />
-          )}
-        </TokenRedirectWrapper>
-      </SocketProvider>
-    </TenantProvider>
+      {/* Monta el widget global SOLO si no estás en demo/integracion/login/register/iframe */}
+      {!ocultarWidgetGlobalEnApp && (
+        <ChatWidget mode="standalone" defaultOpen={false} />
+      )}
+    </TokenRedirectWrapper>
   );
 }
 
@@ -146,7 +142,11 @@ const App = () => {
               v7_startTransition: true,
               v7_relativeSplatPath: true
             }}>
-              <AppRoutes />
+              <TenantProvider>
+                <SocketProvider>
+                  <AppRoutes />
+                </SocketProvider>
+              </TenantProvider>
             </BrowserRouter>
           </DateSettingsProvider>
         </UserProvider>
