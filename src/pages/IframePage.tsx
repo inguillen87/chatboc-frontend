@@ -52,6 +52,15 @@ const IframePage = () => {
           const publicConfig = await tenantService.getPublicWidgetConfig(tenantSlug);
           fetchedConfig = publicConfig || {};
           setTenantConfig(fetchedConfig);
+
+          // Handle Dark/Light mode from theme_config
+          if (fetchedConfig.theme_config?.mode === 'dark') {
+            document.documentElement.classList.add('dark');
+          } else {
+            // Ensure we don't persist dark mode if switching tenants or configs, though this runs once per iframe load
+            document.documentElement.classList.remove('dark');
+          }
+
         } catch (e) {
           console.warn("Could not fetch tenant widget config", e);
         }
