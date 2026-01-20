@@ -58,6 +58,8 @@ const findCategoryFromEmoji = (text: string): string | undefined => {
   return Object.entries(EMOJI_CATEGORY_MAP).find(([emoji]) => text.includes(emoji))?.[1];
 };
 
+const LIVE_CHAT_STATUSES = new Set(['esperando_agente_en_vivo', 'en_vivo']);
+
 interface UseChatLogicOptions {
   tipoChat: 'pyme' | 'municipio';
   entityToken?: string;
@@ -81,6 +83,8 @@ export function useChatLogic({
   const [isTyping, setIsTyping] = useState(false);
   const [contexto, setContexto] = useState<MunicipioContext>(() => getInitialMunicipioContext());
   const [activeTicketId, setActiveTicketId] = useState<number | null>(null);
+  const [liveChatTicketId, setLiveChatTicketId] = useState<number | null>(null);
+  const [liveChatStatus, setLiveChatStatus] = useState<string | null>(null);
   const [currentClaimIdempotencyKey, setCurrentClaimIdempotencyKey] = useState<string | null>(null);
   const messagesRef = useRef<Message[]>([]);
 
@@ -141,6 +145,8 @@ export function useChatLogic({
       if (options?.resetMessages) {
         setMessages([]);
         setActiveTicketId(null);
+        setLiveChatTicketId(null);
+        setLiveChatStatus(null);
         seenMessageFingerprintsRef.current.clear();
       }
 
@@ -327,6 +333,17 @@ export function useChatLogic({
 
     const normalizedMessages: Message[] = [];
 
+    const normalizeStatusCandidate = (value: unknown) => {
+      if (typeof value !== 'string' && typeof value !== 'number') {
+        return '';
+      }
+      return value
+        .toString()
+        .trim()
+        .toLowerCase()
+        .replace(/[\s-]+/g, '_');
+    };
+
     asArray.forEach((data: any) => {
       if (!data || typeof data !== 'object') {
         return;
@@ -481,6 +498,20 @@ export function useChatLogic({
       }
 
       const ticketCandidate = data.ticket_id ?? data.ticketId ?? data.ticket?.id;
+      const statusCandidate = pickFirstString(
+        data.status,
+        data.estado,
+        data.ticket?.status,
+        data.ticket?.estado,
+        data.ticket_status,
+      );
+      const normalizedStatus = normalizeStatusCandidate(statusCandidate);
+      const hasLiveChatMeta = Boolean(
+        data.live_chat ||
+          data.liveChat ||
+          data.metadata?.live_chat ||
+          data.metadata?.liveChat,
+      );
       let ticketId: number | undefined;
       if (typeof ticketCandidate === 'number' && Number.isFinite(ticketCandidate)) {
         ticketId = ticketCandidate;
@@ -488,6 +519,18 @@ export function useChatLogic({
         const parsed = Number.parseInt(ticketCandidate, 10);
         if (Number.isFinite(parsed)) {
           ticketId = parsed;
+        }
+      }
+
+      if (normalizedStatus) {
+        const shouldMarkLiveChat =
+          LIVE_CHAT_STATUSES.has(normalizedStatus) ||
+          (normalizedStatus === 'en_proceso' && (liveChatTicketId || hasLiveChatMeta));
+        if (shouldMarkLiveChat) {
+          setLiveChatStatus(normalizedStatus);
+          if (ticketId) {
+            setLiveChatTicketId(ticketId);
+          }
         }
       }
 
@@ -1144,6 +1187,7 @@ export function useChatLogic({
         contexto_previo: updatedContext,
         tipo_chat: tipoChatFinal,
         ...(rubro && { rubro_clave: rubro }),
+        ...(liveChatTicketId ? { ticket_id: liveChatTicketId, tipo_ticket: tipoChatFinal } : {}),
         ...(attachmentInfo && { attachment_info: attachmentInfo }),
         ...(location && { location: location }),
         ...(resolvedAction && { action: resolvedAction }),
@@ -1198,13 +1242,27 @@ export function useChatLogic({
       setMessages(prev => [...prev, { id: generateClientMessageId(), text: errorMsg, isBot: true, timestamp: new Date(), isError: true }]);
       setIsTyping(false);
     }
-  }, [contexto, activeTicketId, isTyping, isAnonimo, currentClaimIdempotencyKey, tipoChat, tenantSlug]);
+  }, [
+    contexto,
+    activeTicketId,
+    liveChatTicketId,
+    isTyping,
+    isAnonimo,
+    currentClaimIdempotencyKey,
+    tipoChat,
+    tenantSlug,
+  ]);
+
+  const isLiveChatActive = liveChatTicketId !== null;
 
   return {
     messages,
     isTyping,
     handleSend,
     activeTicketId,
+    liveChatTicketId,
+    liveChatStatus,
+    isLiveChatActive,
     setMessages,
     setContexto,
     setActiveTicketId,

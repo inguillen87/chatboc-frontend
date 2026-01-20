@@ -1,7 +1,15 @@
 import { useState, useEffect } from 'react';
 import { apiFetch } from '@/utils/api';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
-import { Horario } from '@/types/tickets';
+interface LiveChatSchedule {
+  enabled?: boolean;
+  available?: boolean;
+  description?: string;
+  days?: string[];
+  start_time?: string;
+  end_time?: string;
+  timezone?: string;
+}
 
 interface BusinessHours {
   isLiveChatEnabled: boolean;
@@ -18,30 +26,34 @@ export const useBusinessHours = (entityToken?: string): BusinessHours => {
     const fetchProfile = async () => {
       try {
         const authToken = safeLocalStorage.getItem('authToken');
-        let profile: any = null;
 
-        if (authToken) {
-          profile = await apiFetch<any>('/auth/profile');
-        } else if (entityToken) {
-          profile = await apiFetch<any>('/perfil', { skipAuth: true, entityToken });
-        } else {
-          return; // No token available; do not fetch
+        if (!authToken && !entityToken) {
+          return;
         }
 
-        if (profile && profile.horario) {
-          const { start_hour, end_hour } = profile.horario as Horario;
-          if (typeof start_hour === 'number' && typeof end_hour === 'number') {
-            const now = new Date();
-            const currentHour = now.getHours();
-            const isLiveChatEnabled = currentHour >= start_hour && currentHour < end_hour;
-            const horariosAtencion = `Lunes a Viernes de ${start_hour}:00 a ${end_hour}:00`;
+        const schedule = await apiFetch<LiveChatSchedule>('/live-chat/schedule', {
+          skipAuth: !authToken,
+          entityToken,
+        });
 
-            setBusinessHours({
-              isLiveChatEnabled,
-              horariosAtencion,
-            });
-          }
-        }
+        const description =
+          typeof schedule?.description === 'string' && schedule.description.trim()
+            ? schedule.description.trim()
+            : (() => {
+                const days = Array.isArray(schedule?.days)
+                  ? schedule.days.filter((day) => typeof day === 'string' && day.trim())
+                  : [];
+                const start = typeof schedule?.start_time === 'string' ? schedule.start_time.trim() : '';
+                const end = typeof schedule?.end_time === 'string' ? schedule.end_time.trim() : '';
+                const timeRange = [start, end].filter(Boolean).join(' - ');
+                const parts = [days.length ? days.join(', ') : '', timeRange].filter(Boolean);
+                return parts.join(' ');
+              })();
+
+        setBusinessHours({
+          isLiveChatEnabled: Boolean(schedule?.enabled && schedule?.available),
+          horariosAtencion: description,
+        });
       } catch (error) {
         console.error('Error fetching profile:', error);
       }

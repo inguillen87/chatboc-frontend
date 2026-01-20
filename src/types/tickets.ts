@@ -1,6 +1,14 @@
 import { Boton, StructuredContentItem } from './chat';
 
-export type TicketStatus = 'nuevo' | 'abierto' | 'en-espera' | 'resuelto' | 'cerrado' | 'en_proceso';
+export type TicketStatus =
+  | 'nuevo'
+  | 'abierto'
+  | 'en-espera'
+  | 'resuelto'
+  | 'cerrado'
+  | 'en_proceso'
+  | 'esperando_agente_en_vivo'
+  | 'en_vivo';
 export type TicketPriority = 'baja' | 'media' | 'alta' | 'urgente';
 
 export interface Horario {
