@@ -300,3 +300,24 @@ export async function fetchPublicOrder(ticketNumber: string): Promise<PublicOrde
     throw error;
   }
 }
+
+export async function searchCatalog(
+  tenantSlug: string,
+  params: {
+    query: string;
+    en_promocion?: boolean;
+    con_stock?: boolean;
+    precio_max?: number;
+  }
+): Promise<any> {
+  const queryParams = new URLSearchParams();
+  queryParams.set('q', params.query);
+  if (params.en_promocion) queryParams.set('en_promocion', 'true');
+  if (params.con_stock) queryParams.set('con_stock', 'true');
+  if (params.precio_max) queryParams.set('precio_max', String(params.precio_max));
+
+  return await apiFetch<any>(`/catalogo/buscar?${queryParams.toString()}`, {
+    tenantSlug,
+    suppressPanel401Redirect: true,
+  });
+}

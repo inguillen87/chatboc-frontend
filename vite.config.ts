@@ -142,6 +142,8 @@ export default defineConfig(({ mode }) => {
       environment: 'jsdom',
       setupFiles: './tests/setup.ts',
       css: false,
+      include: ['**/*.test.{ts,tsx,js,jsx,cjs,mjs}'],
+      exclude: ['node_modules', 'dist', '.idea', '.git', '.cache', '**/*.spec.ts'],
       alias: {
         '@': path.resolve(__dirname, './src'),
         'server': path.resolve(__dirname, './server'),
