@@ -336,8 +336,8 @@ if (typeof window !== "undefined") {
       DEFAULT_Z_INDEX: "9999",
       DEFAULT_INITIAL_BOTTOM: "24px",
       DEFAULT_INITIAL_RIGHT: "24px",
-      DEFAULT_OPEN_WIDTH: "420px",
-      DEFAULT_OPEN_HEIGHT: "720px",
+      DEFAULT_OPEN_WIDTH: "460px",
+      DEFAULT_OPEN_HEIGHT: "760px",
       DEFAULT_CLOSED_WIDTH: "56px",
       DEFAULT_CLOSED_HEIGHT: "56px",
       MOBILE_BREAKPOINT_PX: 640,
@@ -456,6 +456,8 @@ if (typeof window !== "undefined") {
       return { width: `${size}px`, height: `${size}px` };
     };
     const normalizedClosedDims = normalizeClosedDims(WIDGET_DIMENSIONS.CLOSED);
+    const closedSizePx = parsePx(normalizedClosedDims.width || normalizedClosedDims.height);
+    const closedRadius = closedSizePx ? `${Math.ceil(closedSizePx / 2)}px` : "999px";
 
     const initialBottom = script.getAttribute("data-bottom") || SCRIPT_CONFIG.DEFAULT_INITIAL_BOTTOM;
     const initialRight = script.getAttribute("data-right") || SCRIPT_CONFIG.DEFAULT_INITIAL_RIGHT;
@@ -528,7 +530,7 @@ if (typeof window !== "undefined") {
         width: currentDims.width,
         height: currentDims.height,
         zIndex: zIndexBase.toString(),
-        borderRadius: "999px",
+        borderRadius: closedRadius,
         boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
         transition: "transform 0.2s ease, box-shadow 0.2s ease, width 0.3s ease, height 0.3s ease, border-radius 0.3s ease",
         overflow: "hidden",
@@ -537,6 +539,7 @@ if (typeof window !== "undefined") {
         justifyContent: "center",
         background: defaultOpen ? "transparent" : primaryColor,
         cursor: defaultOpen ? "default" : "pointer",
+        aspectRatio: "1 / 1",
       });
 
       widgetContainer.addEventListener("mouseenter", () => {
@@ -699,6 +702,7 @@ if (typeof window !== "undefined") {
               cursor: "default",
               right: isMobile ? "0" : initialRight,
               left: isMobile ? "0" : "auto",
+              aspectRatio: "auto",
             };
             if (isMobile) {
               style.bottom = "env(safe-area-inset-bottom)";
@@ -710,13 +714,14 @@ if (typeof window !== "undefined") {
             const style = {
               width: newDims.width,
               height: newDims.height,
-              borderRadius: "999px",
+              borderRadius: closedRadius,
               boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
               background: primaryColor,
               cursor: "pointer",
               right: initialRight,
               left: "auto",
               bottom: initialBottom,
+              aspectRatio: "1 / 1",
             };
             Object.assign(widgetContainer.style, style);
             logoImg.style.opacity = "1";
@@ -729,10 +734,11 @@ if (typeof window !== "undefined") {
           Object.assign(widgetContainer.style, {
             width: dims.width,
             height: dims.height,
-            borderRadius: "999px",
+            borderRadius: closedRadius,
             boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
             background: primaryColor,
             cursor: "pointer",
+            aspectRatio: "1 / 1",
           });
           logoImg.style.opacity = "1";
         }
@@ -747,6 +753,7 @@ if (typeof window !== "undefined") {
             boxShadow: "0 8px 40px rgba(0, 0, 0, 0.2)",
             background: "transparent",
             cursor: "default",
+            aspectRatio: "auto",
           });
           logoImg.style.opacity = "0";
         }

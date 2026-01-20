@@ -318,8 +318,8 @@
       DEFAULT_Z_INDEX: "9999",
       DEFAULT_INITIAL_BOTTOM: "24px",
       DEFAULT_INITIAL_RIGHT: "24px",
-      DEFAULT_OPEN_WIDTH: "420px",
-      DEFAULT_OPEN_HEIGHT: "720px",
+      DEFAULT_OPEN_WIDTH: "460px",
+      DEFAULT_OPEN_HEIGHT: "760px",
       DEFAULT_CLOSED_WIDTH: "56px",
       DEFAULT_CLOSED_HEIGHT: "56px",
       MOBILE_BREAKPOINT_PX: 640,
@@ -503,6 +503,8 @@
       return { width: `${size}px`, height: `${size}px` };
     };
     const normalizedClosedDims = normalizeClosedDims(WIDGET_DIMENSIONS.CLOSED);
+    const closedSizePx = parsePx(normalizedClosedDims.width || normalizedClosedDims.height);
+    const closedRadius = closedSizePx ? `${Math.ceil(closedSizePx / 2)}px` : "999px";
 
     const positionAttr = (script.getAttribute("data-position") || "bottom-right").toLowerCase();
     const isBottom = !positionAttr.includes("top");
@@ -597,7 +599,7 @@
         width: currentDims.width,
         height: currentDims.height,
         zIndex: zIndexBase.toString(),
-        borderRadius: "999px",
+        borderRadius: closedRadius,
         boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
         transition: "transform 0.2s ease, box-shadow 0.2s ease, width 0.3s ease, height 0.3s ease, border-radius 0.3s ease",
         overflow: "hidden",
@@ -606,6 +608,7 @@
         justifyContent: "center",
         background: defaultOpen ? "transparent" : primaryColor,
         cursor: defaultOpen ? "default" : "pointer",
+        aspectRatio: "1 / 1",
       });
 
       widgetContainer.addEventListener("mouseenter", () => {
@@ -787,6 +790,7 @@
               cursor: "default",
               right: isMobile ? "0" : initialRight,
               left: isMobile ? "0" : "auto",
+              aspectRatio: "auto",
             };
             if (isMobile) {
               style.bottom = "env(safe-area-inset-bottom)";
@@ -801,7 +805,7 @@
             Object.assign(widgetContainer.style, {
               width: newDims.width,
               height: newDims.height,
-              borderRadius: "999px",
+              borderRadius: closedRadius,
               boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
               background: primaryColor,
               cursor: "pointer",
@@ -812,6 +816,7 @@
               right: initialRight,
               top: "auto",
               left: "auto",
+              aspectRatio: "1 / 1",
             });
             logoImg.style.opacity = "1";
           }
@@ -830,6 +835,7 @@
           right: isMobile ? "0" : initialRight,
           left: isMobile ? "0" : "auto",
           background: "transparent",
+          aspectRatio: "auto",
         };
         if (isMobile) {
           style.bottom = "env(safe-area-inset-bottom)";
