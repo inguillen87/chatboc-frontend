@@ -57,6 +57,7 @@
   const containerId = 'chatboc-widget-root';
 
   const ds = script ? script.dataset : {};
+  const useShadowDom = ds.shadowDom !== "false";
 
   const normalizeLength = (value, fallback) => {
     if (typeof value !== "string") return fallback;
@@ -142,7 +143,16 @@
   container.id = containerId;
   document.body.appendChild(container);
 
-  const shadow = container.attachShadow({ mode: "open" });
+  let targetContainer;
+  let selector;
+
+  if (useShadowDom) {
+    targetContainer = container.attachShadow({ mode: "open" });
+    selector = ":host";
+  } else {
+    targetContainer = container;
+    selector = "#" + containerId;
+  }
 
   const iframe = document.createElement("iframe");
   iframe.id = iframeId;
@@ -165,7 +175,7 @@
 
   const style = document.createElement("style");
   style.textContent = `
-    :host {
+    ${selector} {
       position: fixed;
       bottom: ${cfg.bottom};
       right: ${cfg.right};
@@ -179,13 +189,13 @@
     }
   `;
 
-  shadow.appendChild(style);
-  shadow.appendChild(iframe);
+  targetContainer.appendChild(style);
+  targetContainer.appendChild(iframe);
 
   let lastDims = { width: cfg.closedWidth, height: cfg.closedHeight };
 
   function applyDims(dims) {
-    const host = shadow.host;
+    const host = useShadowDom ? targetContainer.host : container;
     const desiredWidth = parseInt(dims.width, 10);
     const rightOffset = parseInt(cfg.right, 10);
     const maxWidth = window.innerWidth - (isNaN(rightOffset) ? 20 : rightOffset);
