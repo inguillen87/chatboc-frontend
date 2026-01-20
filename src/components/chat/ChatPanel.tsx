@@ -118,6 +118,8 @@ const ChatPanel = ({
     isTyping,
     handleSend,
     activeTicketId,
+    liveChatTicketId,
+    isLiveChatActive,
     setMessages,
     setContexto,
     setActiveTicketId,
@@ -351,7 +353,7 @@ const ChatPanel = ({
   }, []);
 
   useEffect(() => {
-    if (activeTicketId) {
+    if (isLiveChatActive && liveChatTicketId) {
       const socketUrl =
         typeof getSocketUrl === "function"
           ? getSocketUrl()
@@ -375,7 +377,7 @@ const ChatPanel = ({
       const socket = io(socketUrl, { path: SOCKET_PATH });
       socketRef.current = socket;
 
-      const room = `ticket_${tipoChat}_${activeTicketId}`;
+      const room = `ticket_${tipoChat}_${liveChatTicketId}`;
       socket.emit('join', { room });
 
       const handleIncoming = (data: any) => {
@@ -399,7 +401,7 @@ const ChatPanel = ({
         socket?.disconnect?.();
       };
     }
-  }, [activeTicketId, tipoChat, setMessages]);
+  }, [isLiveChatActive, liveChatTicketId, tipoChat, setMessages]);
 
   const handleLiveChatRequest = () => {
     handleSend({

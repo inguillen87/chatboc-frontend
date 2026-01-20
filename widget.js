@@ -601,7 +601,7 @@
         width: currentDims.width,
         height: currentDims.height,
         zIndex: zIndexBase.toString(),
-        borderRadius: "50%",
+        borderRadius: closedRadius,
         boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
         transition: "transform 0.2s ease, box-shadow 0.2s ease, width 0.3s ease, height 0.3s ease, border-radius 0.3s ease",
         overflow: "hidden",
@@ -811,7 +811,7 @@
             Object.assign(widgetContainer.style, {
               width: newDims.width,
               height: newDims.height,
-              borderRadius: "50%",
+              borderRadius: closedRadius,
               boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
               background: primaryColor,
               cursor: "pointer",

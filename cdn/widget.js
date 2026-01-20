@@ -532,7 +532,7 @@ if (typeof window !== "undefined") {
         width: currentDims.width,
         height: currentDims.height,
         zIndex: zIndexBase.toString(),
-        borderRadius: "50%",
+        borderRadius: closedRadius,
         boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
         transition: "transform 0.2s ease, box-shadow 0.2s ease, width 0.3s ease, height 0.3s ease, border-radius 0.3s ease",
         overflow: "hidden",
@@ -720,7 +720,7 @@ if (typeof window !== "undefined") {
             const style = {
               width: newDims.width,
               height: newDims.height,
-              borderRadius: "50%",
+              borderRadius: closedRadius,
               boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
               background: primaryColor,
               cursor: "pointer",
@@ -743,7 +743,7 @@ if (typeof window !== "undefined") {
           Object.assign(widgetContainer.style, {
             width: dims.width,
             height: dims.height,
-            borderRadius: "50%",
+            borderRadius: closedRadius,
             boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
             background: primaryColor,
             cursor: "pointer",
