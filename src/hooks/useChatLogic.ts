@@ -1144,6 +1144,7 @@ export function useChatLogic({
         contexto_previo: updatedContext,
         tipo_chat: tipoChatFinal,
         ...(rubro && { rubro_clave: rubro }),
+        ...(activeTicketId ? { ticket_id: activeTicketId, tipo_ticket: tipoChatFinal } : {}),
         ...(attachmentInfo && { attachment_info: attachmentInfo }),
         ...(location && { location: location }),
         ...(resolvedAction && { action: resolvedAction }),
