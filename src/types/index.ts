@@ -2,7 +2,14 @@
 
 // Tipos relacionados con Tickets, movidos y consolidados desde TicketsPanel.tsx
 
-export type TicketStatus = "nuevo" | "en_proceso" | "derivado" | "resuelto" | "cerrado" | "esperando_agente_en_vivo";
+export type TicketStatus =
+  | "nuevo"
+  | "en_proceso"
+  | "derivado"
+  | "resuelto"
+  | "cerrado"
+  | "esperando_agente_en_vivo"
+  | "en_vivo";
 export type SlaStatus = "on_track" | "nearing_sla" | "breached" | null;
 export type PriorityStatus = "low" | "medium" | "high" | null;
 
