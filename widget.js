@@ -318,8 +318,8 @@
       DEFAULT_Z_INDEX: "9999",
       DEFAULT_INITIAL_BOTTOM: "24px",
       DEFAULT_INITIAL_RIGHT: "24px",
-      DEFAULT_OPEN_WIDTH: "380px",
-      DEFAULT_OPEN_HEIGHT: "680px",
+      DEFAULT_OPEN_WIDTH: "420px",
+      DEFAULT_OPEN_HEIGHT: "720px",
       DEFAULT_CLOSED_WIDTH: "56px",
       DEFAULT_CLOSED_HEIGHT: "56px",
       MOBILE_BREAKPOINT_PX: 640,
@@ -494,6 +494,15 @@
         height: script.getAttribute("data-closed-height") || SCRIPT_CONFIG.DEFAULT_CLOSED_HEIGHT,
       },
     };
+    const parsePx = (val) => parseInt(val, 10) || 0;
+    const normalizeClosedDims = (base) => {
+      const widthPx = parsePx(base.width);
+      const heightPx = parsePx(base.height);
+      const size = widthPx && heightPx ? Math.max(widthPx, heightPx) : widthPx || heightPx;
+      if (!size) return base;
+      return { width: `${size}px`, height: `${size}px` };
+    };
+    const normalizedClosedDims = normalizeClosedDims(WIDGET_DIMENSIONS.CLOSED);
 
     const positionAttr = (script.getAttribute("data-position") || "bottom-right").toLowerCase();
     const isBottom = !positionAttr.includes("top");
@@ -537,8 +546,6 @@
 
       let unsubscribeAuth = null;
 
-      const parsePx = (val) => parseInt(val, 10) || 0;
-
       function computeResponsiveDims(base, isOpen) {
         const isMobile = window.innerWidth < SCRIPT_CONFIG.MOBILE_BREAKPOINT_PX;
         if (isOpen && isMobile) {
@@ -549,7 +556,7 @@
         }
         if (isMobile) {
           // Closed on mobile
-          return WIDGET_DIMENSIONS.CLOSED;
+          return normalizedClosedDims;
         }
         // Desktop: ensure widget fits within viewport when open
         if (isOpen) {
@@ -571,7 +578,7 @@
 
       let currentDims = iframeIsCurrentlyOpen
         ? computeResponsiveDims(WIDGET_DIMENSIONS.OPEN, true)
-        : WIDGET_DIMENSIONS.CLOSED;
+        : normalizedClosedDims;
 
       const widgetContainer = document.createElement("div");
       widgetContainer.id = `chatboc-widget-container-${iframeId}`;
@@ -590,14 +597,14 @@
         width: currentDims.width,
         height: currentDims.height,
         zIndex: zIndexBase.toString(),
-        borderRadius: "50%",
+        borderRadius: "999px",
         boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
         transition: "transform 0.2s ease, box-shadow 0.2s ease, width 0.3s ease, height 0.3s ease, border-radius 0.3s ease",
         overflow: "hidden",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: defaultOpen ? "white" : primaryColor,
+        background: defaultOpen ? "transparent" : primaryColor,
         cursor: defaultOpen ? "default" : "pointer",
       });
 
@@ -680,8 +687,8 @@
       iframeSrc.searchParams.set("tipo_chat", tipoChat);
       iframeSrc.searchParams.set("openWidth", WIDGET_DIMENSIONS.OPEN.width);
       iframeSrc.searchParams.set("openHeight", WIDGET_DIMENSIONS.OPEN.height);
-      iframeSrc.searchParams.set("closedWidth", WIDGET_DIMENSIONS.CLOSED.width);
-      iframeSrc.searchParams.set("closedHeight", WIDGET_DIMENSIONS.CLOSED.height);
+      iframeSrc.searchParams.set("closedWidth", normalizedClosedDims.width);
+      iframeSrc.searchParams.set("closedHeight", normalizedClosedDims.height);
       if (theme) iframeSrc.searchParams.set("theme", theme);
       if (rubroAttr) iframeSrc.searchParams.set("rubro", rubroAttr);
       if (finalCta) iframeSrc.searchParams.set("ctaMessage", finalCta);
@@ -765,7 +772,7 @@
         if (event.data?.type === "chatboc-state-change" && event.data.widgetId === iframeId) {
           iframeIsCurrentlyOpen = event.data.isOpen;
           const newDims = computeResponsiveDims(
-            iframeIsCurrentlyOpen ? WIDGET_DIMENSIONS.OPEN : WIDGET_DIMENSIONS.CLOSED,
+            iframeIsCurrentlyOpen ? WIDGET_DIMENSIONS.OPEN : normalizedClosedDims,
             iframeIsCurrentlyOpen
           );
           const isMobile = window.innerWidth <= SCRIPT_CONFIG.MOBILE_BREAKPOINT_PX;
@@ -775,7 +782,7 @@
               height: newDims.height,
               borderRadius: isMobile ? "16px 16px 0 0" : "16px",
               boxShadow: "0 8px 40px rgba(0, 0, 0, 0.2)",
-              background: "white",
+              background: "transparent",
               transform: "scale(1)",
               cursor: "default",
               right: isMobile ? "0" : initialRight,
@@ -794,7 +801,7 @@
             Object.assign(widgetContainer.style, {
               width: newDims.width,
               height: newDims.height,
-              borderRadius: "50%",
+              borderRadius: "999px",
               boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
               background: primaryColor,
               cursor: "pointer",
@@ -822,6 +829,7 @@
           borderRadius: isMobile ? "0" : "16px",
           right: isMobile ? "0" : initialRight,
           left: isMobile ? "0" : "auto",
+          background: "transparent",
         };
         if (isMobile) {
           style.bottom = "env(safe-area-inset-bottom)";
