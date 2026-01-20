@@ -505,6 +505,8 @@
     const normalizedClosedDims = normalizeClosedDims(WIDGET_DIMENSIONS.CLOSED);
     const closedSizePx = parsePx(normalizedClosedDims.width || normalizedClosedDims.height);
     const closedRadius = closedSizePx ? `${Math.ceil(closedSizePx / 2)}px` : "999px";
+    const closedClipPath = "circle(50% at 50% 50%)";
+    const openClipPath = "inset(0 round 16px)";
 
     const positionAttr = (script.getAttribute("data-position") || "bottom-right").toLowerCase();
     const isBottom = !positionAttr.includes("top");
@@ -609,7 +611,10 @@
         background: defaultOpen ? "transparent" : primaryColor,
         cursor: defaultOpen ? "default" : "pointer",
         aspectRatio: "1 / 1",
+        clipPath: closedClipPath,
       });
+      widgetContainer.style.setProperty("border-radius", closedRadius, "important");
+      widgetContainer.style.setProperty("clip-path", closedClipPath, "important");
 
       widgetContainer.addEventListener("mouseenter", () => {
         if (!iframeIsCurrentlyOpen) {
@@ -791,6 +796,7 @@
               right: isMobile ? "0" : initialRight,
               left: isMobile ? "0" : "auto",
               aspectRatio: "auto",
+              clipPath: isMobile ? "inset(0 round 16px 16px 0 0)" : openClipPath,
             };
             if (isMobile) {
               style.bottom = "env(safe-area-inset-bottom)";
@@ -817,7 +823,10 @@
               top: "auto",
               left: "auto",
               aspectRatio: "1 / 1",
+              clipPath: closedClipPath,
             });
+            widgetContainer.style.setProperty("border-radius", closedRadius, "important");
+            widgetContainer.style.setProperty("clip-path", closedClipPath, "important");
             logoImg.style.opacity = "1";
           }
         }
@@ -836,6 +845,7 @@
           left: isMobile ? "0" : "auto",
           background: "transparent",
           aspectRatio: "auto",
+          clipPath: isMobile ? "inset(0)" : openClipPath,
         };
         if (isMobile) {
           style.bottom = "env(safe-area-inset-bottom)";

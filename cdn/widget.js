@@ -458,6 +458,8 @@ if (typeof window !== "undefined") {
     const normalizedClosedDims = normalizeClosedDims(WIDGET_DIMENSIONS.CLOSED);
     const closedSizePx = parsePx(normalizedClosedDims.width || normalizedClosedDims.height);
     const closedRadius = closedSizePx ? `${Math.ceil(closedSizePx / 2)}px` : "999px";
+    const closedClipPath = "circle(50% at 50% 50%)";
+    const openClipPath = "inset(0 round 16px)";
 
     const initialBottom = script.getAttribute("data-bottom") || SCRIPT_CONFIG.DEFAULT_INITIAL_BOTTOM;
     const initialRight = script.getAttribute("data-right") || SCRIPT_CONFIG.DEFAULT_INITIAL_RIGHT;
@@ -540,7 +542,10 @@ if (typeof window !== "undefined") {
         background: defaultOpen ? "transparent" : primaryColor,
         cursor: defaultOpen ? "default" : "pointer",
         aspectRatio: "1 / 1",
+        clipPath: closedClipPath,
       });
+      widgetContainer.style.setProperty("border-radius", closedRadius, "important");
+      widgetContainer.style.setProperty("clip-path", closedClipPath, "important");
 
       widgetContainer.addEventListener("mouseenter", () => {
         if (!iframeIsCurrentlyOpen) {
@@ -703,6 +708,7 @@ if (typeof window !== "undefined") {
               right: isMobile ? "0" : initialRight,
               left: isMobile ? "0" : "auto",
               aspectRatio: "auto",
+              clipPath: isMobile ? "inset(0 round 16px 16px 0 0)" : openClipPath,
             };
             if (isMobile) {
               style.bottom = "env(safe-area-inset-bottom)";
@@ -722,8 +728,11 @@ if (typeof window !== "undefined") {
               left: "auto",
               bottom: initialBottom,
               aspectRatio: "1 / 1",
+              clipPath: closedClipPath,
             };
             Object.assign(widgetContainer.style, style);
+            widgetContainer.style.setProperty("border-radius", closedRadius, "important");
+            widgetContainer.style.setProperty("clip-path", closedClipPath, "important");
             logoImg.style.opacity = "1";
           }
         }
@@ -739,7 +748,10 @@ if (typeof window !== "undefined") {
             background: primaryColor,
             cursor: "pointer",
             aspectRatio: "1 / 1",
+            clipPath: closedClipPath,
           });
+          widgetContainer.style.setProperty("border-radius", closedRadius, "important");
+          widgetContainer.style.setProperty("clip-path", closedClipPath, "important");
           logoImg.style.opacity = "1";
         }
 
@@ -754,6 +766,7 @@ if (typeof window !== "undefined") {
             background: "transparent",
             cursor: "default",
             aspectRatio: "auto",
+            clipPath: window.innerWidth <= SCRIPT_CONFIG.MOBILE_BREAKPOINT_PX ? "inset(0 round 16px 16px 0 0)" : openClipPath,
           });
           logoImg.style.opacity = "0";
         }
@@ -785,6 +798,7 @@ if (typeof window !== "undefined") {
         Object.assign(widgetContainer.style, {
           width: dims.width,
           height: dims.height,
+          clipPath: iframeIsCurrentlyOpen ? openClipPath : closedClipPath,
         });
       }
 
