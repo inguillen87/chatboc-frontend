@@ -57,6 +57,13 @@ const IframePage = () => {
         }
       }
 
+      // Apply theme config (dark mode)
+      if (fetchedConfig.theme_config?.mode === 'dark') {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+
       // Priority: URL Param > Fetched Config > Local Config > Default
       const primaryColorHex = urlParams.get("primaryColor") || fetchedConfig.primary_color || cfg.primaryColor || "#007aff";
       document.documentElement.style.setProperty("--primary", hexToHsl(primaryColorHex));
