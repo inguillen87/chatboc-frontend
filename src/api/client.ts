@@ -1,6 +1,7 @@
 import { apiFetch } from '@/utils/api';
 import { Order, Cart, Ticket, PortalContent, IntegrationStatus, PortalLoyaltySummary } from '@/types/unified';
 import { Tenant, CreateTenantDTO, UpdateTenantDTO } from '@/types/superAdmin';
+import { WhatsappExternalNumberPayload, WhatsappNumberCreatePayload, WhatsappNumberInventoryItem, WhatsappNumberStatus } from '@/types/whatsapp';
 
 /**
  * Standardized API Client for Tenant-Aware fetching.
@@ -212,5 +213,49 @@ export const apiClient = {
       method: 'PUT',
       body: payload
     });
-  }
+  },
+
+  superAdminListWhatsappNumbers: async (filters?: { status?: WhatsappNumberStatus; tenant_slug?: string; prefix?: string }): Promise<{ numbers: WhatsappNumberInventoryItem[]; total?: number }> => {
+    const params = new URLSearchParams();
+    if (filters?.status) params.append('status', filters.status);
+    if (filters?.tenant_slug) params.append('tenant_slug', filters.tenant_slug);
+    if (filters?.prefix) params.append('prefix', filters.prefix);
+    const suffix = params.toString();
+    return apiFetch<{ numbers: WhatsappNumberInventoryItem[]; total?: number }>(`/api/admin/whatsapp/numbers${suffix ? `?${suffix}` : ''}`);
+  },
+
+  superAdminCreateWhatsappNumber: async (payload: WhatsappNumberCreatePayload): Promise<any> => {
+    return apiFetch<any>('/api/admin/whatsapp/numbers', {
+      method: 'POST',
+      body: payload,
+    });
+  },
+
+  superAdminReserveWhatsappNumber: async (payload: { number_id: string | number; tenant_slug?: string | null }): Promise<any> => {
+    return apiFetch<any>('/api/admin/whatsapp/numbers/reserve', {
+      method: 'POST',
+      body: payload,
+    });
+  },
+
+  superAdminReleaseWhatsappNumber: async (payload: { number_id: string | number }): Promise<any> => {
+    return apiFetch<any>('/api/admin/whatsapp/numbers/release', {
+      method: 'POST',
+      body: payload,
+    });
+  },
+
+  superAdminAssignWhatsappNumber: async (payload: { number_id: string | number; tenant_slug: string }): Promise<any> => {
+    return apiFetch<any>('/api/admin/whatsapp/numbers/assign', {
+      method: 'POST',
+      body: payload,
+    });
+  },
+
+  superAdminRegisterExternalWhatsappNumber: async (payload: WhatsappExternalNumberPayload): Promise<any> => {
+    return apiFetch<any>('/api/admin/whatsapp/numbers/register', {
+      method: 'POST',
+      body: payload,
+    });
+  },
 };
