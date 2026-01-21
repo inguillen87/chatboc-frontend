@@ -7,8 +7,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { Tenant } from '@/types/superAdmin';
+import { WhatsappNumberInventoryItem } from '@/types/whatsapp';
 import { TenantTable } from '@/components/admin/TenantTable';
 import { TenantModal } from '@/components/admin/TenantModal';
+import { WhatsappInventoryPanel } from '@/components/admin/WhatsappInventoryPanel';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { buildTenantPath } from '@/utils/tenantPaths';
 
@@ -19,6 +21,9 @@ export default function SuperAdminDashboard() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [whatsappNumbers, setWhatsappNumbers] = useState<WhatsappNumberInventoryItem[]>([]);
+  const [whatsappLoading, setWhatsappLoading] = useState(true);
+  const [whatsappError, setWhatsappError] = useState<string | null>(null);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -43,9 +48,92 @@ export default function SuperAdminDashboard() {
     }
   };
 
+  const fetchWhatsappNumbers = async () => {
+    setWhatsappLoading(true);
+    setWhatsappError(null);
+    try {
+      const data = await apiClient.superAdminListWhatsappNumbers();
+      setWhatsappNumbers(data.numbers || []);
+    } catch (error) {
+      console.error("Failed to fetch WhatsApp numbers", error);
+      setWhatsappError("No se pudieron cargar los números de WhatsApp.");
+      toast.error("Error al cargar números de WhatsApp.");
+      setWhatsappNumbers([]);
+    } finally {
+      setWhatsappLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchTenants();
+    fetchWhatsappNumbers();
   }, []);
+
+  const handleReserveNumber = async (id: string | number) => {
+    try {
+      await apiClient.superAdminReserveWhatsappNumber(id);
+      toast.success("Número reservado.");
+      fetchWhatsappNumbers();
+    } catch (error) {
+      console.error(error);
+      toast.error("No se pudo reservar el número.");
+    }
+  };
+
+  const handleReleaseNumber = async (id: string | number) => {
+    try {
+      await apiClient.superAdminReleaseWhatsappNumber(id);
+      toast.success("Número liberado.");
+      fetchWhatsappNumbers();
+    } catch (error) {
+      console.error(error);
+      toast.error("No se pudo liberar el número.");
+    }
+  };
+
+  const handleAssignNumber = async (id: string | number, tenantSlug: string) => {
+    try {
+      await apiClient.superAdminAssignWhatsappNumber(id, tenantSlug);
+      toast.success("Número asignado.");
+      fetchWhatsappNumbers();
+    } catch (error) {
+      console.error(error);
+      toast.error("No se pudo asignar el número.");
+    }
+  };
+
+  const handleVerifyNumber = async (id: string | number, payload: { phone_number: string; sender_id: string; token: string }) => {
+    try {
+      await apiClient.superAdminVerifyWhatsappNumber(id, payload);
+      toast.success("Número validado.");
+      fetchWhatsappNumbers();
+    } catch (error) {
+      console.error(error);
+      toast.error("No se pudo validar el número.");
+    }
+  };
+
+  const handleRequestNumber = async (payload: { prefix?: string | null; city?: string | null; state?: string | null }) => {
+    try {
+      await apiClient.superAdminRequestWhatsappNumber(payload);
+      toast.success("Solicitud enviada.");
+      fetchWhatsappNumbers();
+    } catch (error) {
+      console.error(error);
+      toast.error("No se pudo solicitar el número.");
+    }
+  };
+
+  const handleRegisterExternal = async (payload: { phone_number: string; sender_id: string; token: string }) => {
+    try {
+      await apiClient.superAdminRegisterExternalWhatsappNumber(payload);
+      toast.success("Número externo registrado.");
+      fetchWhatsappNumbers();
+    } catch (error) {
+      console.error(error);
+      toast.error("No se pudo registrar el número externo.");
+    }
+  };
 
   const handleCreate = () => {
     setEditingTenant(null);
@@ -129,6 +217,20 @@ export default function SuperAdminDashboard() {
         onSuccess={fetchTenants}
         tenantToEdit={editingTenant}
         initialTab={modalTab}
+      />
+
+      <WhatsappInventoryPanel
+        numbers={whatsappNumbers}
+        tenants={tenants}
+        loading={whatsappLoading}
+        error={whatsappError}
+        onRefresh={fetchWhatsappNumbers}
+        onReserve={handleReserveNumber}
+        onRelease={handleReleaseNumber}
+        onAssign={handleAssignNumber}
+        onVerify={handleVerifyNumber}
+        onRequestNumber={handleRequestNumber}
+        onRegisterExternal={handleRegisterExternal}
       />
     </div>
   );

@@ -1,6 +1,7 @@
 import { apiFetch } from '@/utils/api';
 import { Order, Cart, Ticket, PortalContent, IntegrationStatus, PortalLoyaltySummary } from '@/types/unified';
 import { Tenant, CreateTenantDTO, UpdateTenantDTO } from '@/types/superAdmin';
+import { WhatsappExternalNumberPayload, WhatsappNumberInventoryItem, WhatsappNumberRequestPayload } from '@/types/whatsapp';
 
 /**
  * Standardized API Client for Tenant-Aware fetching.
@@ -212,5 +213,49 @@ export const apiClient = {
       method: 'PUT',
       body: payload
     });
-  }
+  },
+
+  superAdminListWhatsappNumbers: async (): Promise<{ numbers: WhatsappNumberInventoryItem[] }> => {
+    return apiFetch<{ numbers: WhatsappNumberInventoryItem[] }>('/api/admin/whatsapp/numbers');
+  },
+
+  superAdminReserveWhatsappNumber: async (id: string | number): Promise<any> => {
+    return apiFetch<any>(`/api/admin/whatsapp/numbers/${id}/reserve`, {
+      method: 'POST',
+    });
+  },
+
+  superAdminReleaseWhatsappNumber: async (id: string | number): Promise<any> => {
+    return apiFetch<any>(`/api/admin/whatsapp/numbers/${id}/release`, {
+      method: 'POST',
+    });
+  },
+
+  superAdminAssignWhatsappNumber: async (id: string | number, tenantSlug: string): Promise<any> => {
+    return apiFetch<any>(`/api/admin/whatsapp/numbers/${id}/assign`, {
+      method: 'POST',
+      body: { tenant_slug: tenantSlug },
+    });
+  },
+
+  superAdminVerifyWhatsappNumber: async (id: string | number, payload: WhatsappExternalNumberPayload): Promise<any> => {
+    return apiFetch<any>(`/api/admin/whatsapp/numbers/${id}/verify`, {
+      method: 'POST',
+      body: payload,
+    });
+  },
+
+  superAdminRequestWhatsappNumber: async (payload: WhatsappNumberRequestPayload): Promise<any> => {
+    return apiFetch<any>('/api/admin/whatsapp/numbers/request', {
+      method: 'POST',
+      body: payload,
+    });
+  },
+
+  superAdminRegisterExternalWhatsappNumber: async (payload: WhatsappExternalNumberPayload): Promise<any> => {
+    return apiFetch<any>('/api/admin/whatsapp/numbers/external', {
+      method: 'POST',
+      body: payload,
+    });
+  },
 };

@@ -17,6 +17,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -25,6 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Separator } from "@/components/ui/separator";
 import {
   Check,
   Settings,
@@ -38,6 +40,7 @@ import {
   Copy
 } from "lucide-react";
 import { TenantConfigBundle } from "@/types/TenantConfig";
+import { WhatsappNumberInventoryItem } from "@/types/whatsapp";
 import { tenantService } from "@/services/tenantService";
 import MenuBuilder from "@/components/tenant/MenuBuilder";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -50,6 +53,17 @@ const Integracion = () => {
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState("general");
   const [copiado, setCopiado] = useState<"iframe" | "script" | null>(null);
+  const [whatsappNumbers, setWhatsappNumbers] = useState<WhatsappNumberInventoryItem[]>([]);
+  const [whatsappNumbersLoading, setWhatsappNumbersLoading] = useState(false);
+  const [whatsappNumbersError, setWhatsappNumbersError] = useState<string | null>(null);
+  const [selectedWhatsappNumber, setSelectedWhatsappNumber] = useState<string>("");
+  const [requestPayload, setRequestPayload] = useState({ prefix: "", city: "", state: "" });
+  const [externalNumberPayload, setExternalNumberPayload] = useState({ phone_number: "", sender_id: "", token: "" });
+  const [verificationChecklist, setVerificationChecklist] = useState({
+    business: false,
+    meta: false,
+    template: false,
+  });
 
   const tenantSlug = useMemo(() => resolveTenantSlug(user?.tenantSlug || (user as any)?.tenant_slug), [user]);
 
@@ -67,11 +81,33 @@ const Integracion = () => {
     }
   }, [tenantSlug]);
 
+  const loadWhatsappNumbers = useCallback(async () => {
+    if (!tenantSlug) return;
+    setWhatsappNumbersLoading(true);
+    setWhatsappNumbersError(null);
+    try {
+      const data = await tenantService.listWhatsappNumbers(tenantSlug);
+      setWhatsappNumbers(data.numbers || []);
+    } catch (error) {
+      console.error("Failed to load WhatsApp numbers", error);
+      setWhatsappNumbersError("No se pudieron cargar los números disponibles.");
+      setWhatsappNumbers([]);
+    } finally {
+      setWhatsappNumbersLoading(false);
+    }
+  }, [tenantSlug]);
+
   useEffect(() => {
     if (!userLoading && tenantSlug) {
       loadConfig();
     }
   }, [userLoading, tenantSlug, loadConfig]);
+
+  useEffect(() => {
+    if (activeTab === "whatsapp") {
+      loadWhatsappNumbers();
+    }
+  }, [activeTab, loadWhatsappNumbers]);
 
   const handleSave = async (section: keyof TenantConfigBundle | "configs", data: any) => {
     if (!tenantSlug || !config) return;
@@ -110,6 +146,57 @@ const Integracion = () => {
       toast.error("No hay números disponibles o ocurrió un error");
     }
   };
+
+  const handleAssignFromInventory = async () => {
+    if (!tenantSlug || !selectedWhatsappNumber) return;
+    try {
+      await tenantService.assignWhatsappNumberFromInventory(tenantSlug, selectedWhatsappNumber);
+      toast.success("Número asignado desde inventario.");
+      loadConfig();
+      loadWhatsappNumbers();
+    } catch (error) {
+      console.error(error);
+      toast.error("No se pudo asignar el número seleccionado.");
+    }
+  };
+
+  const handleRequestWhatsappNumber = async () => {
+    if (!tenantSlug) return;
+    try {
+      await tenantService.requestWhatsappNumber(tenantSlug, requestPayload);
+      toast.success("Solicitud enviada.");
+      setRequestPayload({ prefix: "", city: "", state: "" });
+      loadWhatsappNumbers();
+    } catch (error) {
+      console.error(error);
+      toast.error("No se pudo solicitar un nuevo número.");
+    }
+  };
+
+  const handleRegisterExternalNumber = async () => {
+    if (!tenantSlug) return;
+    try {
+      await tenantService.registerExternalWhatsappNumber(tenantSlug, externalNumberPayload);
+      toast.success("Número externo registrado.");
+      setExternalNumberPayload({ phone_number: "", sender_id: "", token: "" });
+      loadConfig();
+    } catch (error) {
+      console.error(error);
+      toast.error("No se pudo registrar el número externo.");
+    }
+  };
+
+  const availableNumberGroups = useMemo(() => {
+    return whatsappNumbers.filter((item) => item.status === "available").reduce<Record<string, WhatsappNumberInventoryItem[]>>((acc, item) => {
+      const labelParts = [item.city, item.state, item.prefix].filter(Boolean);
+      const key = labelParts.length ? labelParts.join(" · ") : "Zona sin definir";
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(item);
+      return acc;
+    }, {});
+  }, [whatsappNumbers]);
+
+  const isVerificationReady = verificationChecklist.business && verificationChecklist.meta && verificationChecklist.template;
 
   const generateEmbedCode = (type: "script" | "iframe") => {
       if (!config) return "";
@@ -280,6 +367,183 @@ const Integracion = () => {
                     </Button>
                   </div>
                 )}
+
+                <Separator />
+
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="text-lg font-semibold text-foreground">Onboarding Self-Serve</h3>
+                    <p className="text-sm text-muted-foreground">Elegí cómo activar tu canal de WhatsApp en tres pasos.</p>
+                  </div>
+
+                  <div className="rounded-lg border p-4 space-y-4">
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <h4 className="font-semibold text-foreground">Paso 1 · Elegí un número</h4>
+                        <p className="text-xs text-muted-foreground">Seleccioná un número disponible por zona.</p>
+                      </div>
+                      <Button variant="outline" size="sm" onClick={loadWhatsappNumbers} disabled={whatsappNumbersLoading}>
+                        <RefreshCw className={`mr-2 h-4 w-4 ${whatsappNumbersLoading ? 'animate-spin' : ''}`} />
+                        Actualizar
+                      </Button>
+                    </div>
+
+                    {whatsappNumbersError && (
+                      <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+                        {whatsappNumbersError}
+                      </div>
+                    )}
+
+                    {whatsappNumbersLoading ? (
+                      <div className="text-sm text-muted-foreground">Cargando números disponibles...</div>
+                    ) : Object.keys(availableNumberGroups).length === 0 ? (
+                      <div className="text-sm text-muted-foreground">No hay números disponibles por ahora.</div>
+                    ) : (
+                      <div className="grid gap-3 md:grid-cols-2">
+                        {Object.entries(availableNumberGroups).map(([label, entries]) => (
+                          <div key={label} className="rounded-md border p-3 space-y-2">
+                            <div className="text-sm font-semibold text-foreground">{label}</div>
+                            <div className="space-y-2">
+                              {entries.map((entry) => (
+                                <label
+                                  key={String(entry.id)}
+                                  className="flex items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted/40"
+                                >
+                                  <span className="font-mono">{entry.phone_number}</span>
+                                  <input
+                                    type="radio"
+                                    name="whatsapp-number"
+                                    className="h-4 w-4 accent-primary"
+                                    checked={selectedWhatsappNumber === String(entry.id)}
+                                    onChange={() => setSelectedWhatsappNumber(String(entry.id))}
+                                  />
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="flex flex-wrap gap-2">
+                      <Button onClick={handleAssignFromInventory} disabled={!selectedWhatsappNumber}>
+                        Asignar número elegido
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={handleRequestWhatsappNumber}
+                        disabled={!requestPayload.prefix && !requestPayload.city && !requestPayload.state}
+                      >
+                        Pedir nuevo número
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border p-4 space-y-4">
+                    <div>
+                      <h4 className="font-semibold text-foreground">Paso 2 · Verificación</h4>
+                      <p className="text-xs text-muted-foreground">Si usás un número propio, completá la validación en Meta.</p>
+                    </div>
+
+                    <div className="grid gap-3 md:grid-cols-3">
+                      <div className="space-y-2">
+                        <Label>Número propio</Label>
+                        <Input
+                          value={externalNumberPayload.phone_number}
+                          onChange={(event) => setExternalNumberPayload((prev) => ({ ...prev, phone_number: event.target.value }))}
+                          placeholder="Ej: +54 9 261 123 456"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Sender ID</Label>
+                        <Input
+                          value={externalNumberPayload.sender_id}
+                          onChange={(event) => setExternalNumberPayload((prev) => ({ ...prev, sender_id: event.target.value }))}
+                          placeholder="Sender ID"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Token</Label>
+                        <Input
+                          value={externalNumberPayload.token}
+                          onChange={(event) => setExternalNumberPayload((prev) => ({ ...prev, token: event.target.value }))}
+                          placeholder="Token de Meta"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid gap-2 md:grid-cols-3">
+                      <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Checkbox
+                          checked={verificationChecklist.business}
+                          onCheckedChange={(checked) => setVerificationChecklist((prev) => ({ ...prev, business: Boolean(checked) }))}
+                        />
+                        Empresa verificada en Meta Business Manager.
+                      </label>
+                      <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Checkbox
+                          checked={verificationChecklist.meta}
+                          onCheckedChange={(checked) => setVerificationChecklist((prev) => ({ ...prev, meta: Boolean(checked) }))}
+                        />
+                        Número aprobado como remitente oficial.
+                      </label>
+                      <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Checkbox
+                          checked={verificationChecklist.template}
+                          onCheckedChange={(checked) => setVerificationChecklist((prev) => ({ ...prev, template: Boolean(checked) }))}
+                        />
+                        Plantillas iniciales revisadas.
+                      </label>
+                    </div>
+
+                    <Button
+                      variant="outline"
+                      onClick={handleRegisterExternalNumber}
+                      disabled={!isVerificationReady || !externalNumberPayload.phone_number || !externalNumberPayload.sender_id || !externalNumberPayload.token}
+                    >
+                      Ya verifiqué en Meta
+                    </Button>
+                  </div>
+
+                  <div className="rounded-lg border p-4 space-y-4">
+                    <div>
+                      <h4 className="font-semibold text-foreground">Paso 3 · Confirmación y activación</h4>
+                      <p className="text-xs text-muted-foreground">Validá la solicitud y activá el canal cuando esté listo.</p>
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-3">
+                      <div className="space-y-2">
+                        <Label>Prefijo sugerido</Label>
+                        <Input
+                          value={requestPayload.prefix}
+                          onChange={(event) => setRequestPayload((prev) => ({ ...prev, prefix: event.target.value }))}
+                          placeholder="Ej: +54 261"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Ciudad</Label>
+                        <Input
+                          value={requestPayload.city}
+                          onChange={(event) => setRequestPayload((prev) => ({ ...prev, city: event.target.value }))}
+                          placeholder="Ciudad"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Provincia / Estado</Label>
+                        <Input
+                          value={requestPayload.state}
+                          onChange={(event) => setRequestPayload((prev) => ({ ...prev, state: event.target.value }))}
+                          placeholder="Provincia"
+                        />
+                      </div>
+                    </div>
+                    <Button
+                      onClick={handleRequestWhatsappNumber}
+                      disabled={!requestPayload.prefix && !requestPayload.city && !requestPayload.state}
+                    >
+                      Confirmar solicitud
+                    </Button>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
