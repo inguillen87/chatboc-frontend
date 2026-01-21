@@ -191,11 +191,17 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         persistEntityToken(normalizedEntityToken);
       }
 
+      const resolvedPlan =
+        data.plan ||
+        data.tenant?.plan ||
+        data.tenant_plan ||
+        'free';
+
       const updated: UserData = {
         id: data.id,
         name: data.name,
         email: data.email,
-        plan: data.plan || 'free',
+        plan: resolvedPlan,
         rubro: rubroNorm,
         nombre_empresa: data.nombre_empresa,
         logo_url: data.logo_url,

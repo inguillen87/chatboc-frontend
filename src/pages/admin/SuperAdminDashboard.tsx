@@ -4,11 +4,24 @@ import { apiClient } from '@/api/client';
 import useRequireRole from '@/hooks/useRequireRole';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { Tenant } from '@/types/superAdmin';
+import { WhatsappNumberInventoryItem } from '@/types/whatsapp';
 import { TenantTable } from '@/components/admin/TenantTable';
 import { TenantModal } from '@/components/admin/TenantModal';
+import { WhatsappInventoryPanel } from '@/components/admin/WhatsappInventoryPanel';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { buildTenantPath } from '@/utils/tenantPaths';
 
@@ -19,11 +32,18 @@ export default function SuperAdminDashboard() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [whatsappNumbers, setWhatsappNumbers] = useState<WhatsappNumberInventoryItem[]>([]);
+  const [whatsappLoading, setWhatsappLoading] = useState(true);
+  const [whatsappError, setWhatsappError] = useState<string | null>(null);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTenant, setEditingTenant] = useState<Tenant | null>(null);
   const [modalTab, setModalTab] = useState<"general" | "users" | "integrations">("general");
+  const [purgeTenant, setPurgeTenant] = useState<Tenant | null>(null);
+  const [purgeOpen, setPurgeOpen] = useState(false);
+  const [purgeConfirmed, setPurgeConfirmed] = useState(false);
+  const [purgeUsers, setPurgeUsers] = useState(true);
 
   const fetchTenants = async () => {
     setLoading(true);
@@ -43,9 +63,81 @@ export default function SuperAdminDashboard() {
     }
   };
 
+  const fetchWhatsappNumbers = async () => {
+    setWhatsappLoading(true);
+    setWhatsappError(null);
+    try {
+      const data = await apiClient.superAdminListWhatsappNumbers();
+      setWhatsappNumbers(data.numbers || []);
+    } catch (error) {
+      console.error("Failed to fetch WhatsApp numbers", error);
+      setWhatsappError("No se pudieron cargar los números de WhatsApp.");
+      toast.error("Error al cargar números de WhatsApp.");
+      setWhatsappNumbers([]);
+    } finally {
+      setWhatsappLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchTenants();
+    fetchWhatsappNumbers();
   }, []);
+
+  const handleReserveNumber = async (payload: { number_id: string | number; tenant_slug?: string | null }) => {
+    try {
+      await apiClient.superAdminReserveWhatsappNumber(payload);
+      toast.success("Número reservado.");
+      fetchWhatsappNumbers();
+    } catch (error) {
+      console.error(error);
+      toast.error("No se pudo reservar el número.");
+    }
+  };
+
+  const handleReleaseNumber = async (payload: { number_id: string | number }) => {
+    try {
+      await apiClient.superAdminReleaseWhatsappNumber(payload);
+      toast.success("Número liberado.");
+      fetchWhatsappNumbers();
+    } catch (error) {
+      console.error(error);
+      toast.error("No se pudo liberar el número.");
+    }
+  };
+
+  const handleAssignNumber = async (payload: { number_id: string | number; tenant_slug: string }) => {
+    try {
+      await apiClient.superAdminAssignWhatsappNumber(payload);
+      toast.success("Número asignado.");
+      fetchWhatsappNumbers();
+    } catch (error) {
+      console.error(error);
+      toast.error("No se pudo asignar el número.");
+    }
+  };
+
+  const handleCreateNumber = async (payload: { phone_number: string; sender_id: string; status?: string; tenant_slug?: string | null }) => {
+    try {
+      await apiClient.superAdminCreateWhatsappNumber(payload);
+      toast.success("Número creado.");
+      fetchWhatsappNumbers();
+    } catch (error) {
+      console.error(error);
+      toast.error("No se pudo crear el número.");
+    }
+  };
+
+  const handleRegisterExternal = async (payload: { number: string; sender_id: string; status?: string; tenant_slug?: string | null }) => {
+    try {
+      await apiClient.superAdminRegisterExternalWhatsappNumber(payload);
+      toast.success("Número externo registrado.");
+      fetchWhatsappNumbers();
+    } catch (error) {
+      console.error(error);
+      toast.error("No se pudo registrar el número externo.");
+    }
+  };
 
   const handleCreate = () => {
     setEditingTenant(null);
@@ -91,6 +183,27 @@ export default function SuperAdminDashboard() {
     }
   };
 
+  const handlePurge = (tenant: Tenant) => {
+    setPurgeTenant(tenant);
+    setPurgeConfirmed(false);
+    setPurgeUsers(true);
+    setPurgeOpen(true);
+  };
+
+  const handleConfirmPurge = async () => {
+    if (!purgeTenant || !purgeConfirmed) return;
+    try {
+      await apiClient.superAdminPurgeTenant(purgeTenant.slug, { confirm: true, purge_users: purgeUsers });
+      toast.success("Tenant eliminado definitivamente.");
+      setPurgeOpen(false);
+      setPurgeTenant(null);
+      fetchTenants();
+    } catch (error) {
+      console.error(error);
+      toast.error("No se pudo eliminar el tenant.");
+    }
+  };
+
   return (
     <div className="container mx-auto py-10 px-4 max-w-7xl space-y-8">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -118,6 +231,7 @@ export default function SuperAdminDashboard() {
               onEdit={handleEdit}
               onImpersonate={handleImpersonate}
               onToggleStatus={handleToggleStatus}
+              onPurge={handlePurge}
             />
           )}
         </CardContent>
@@ -130,6 +244,46 @@ export default function SuperAdminDashboard() {
         tenantToEdit={editingTenant}
         initialTab={modalTab}
       />
+
+      <WhatsappInventoryPanel
+        numbers={whatsappNumbers}
+        tenants={tenants}
+        loading={whatsappLoading}
+        error={whatsappError}
+        onRefresh={fetchWhatsappNumbers}
+        onReserve={handleReserveNumber}
+        onRelease={handleReleaseNumber}
+        onAssign={handleAssignNumber}
+        onCreateNumber={handleCreateNumber}
+        onRegisterExternal={handleRegisterExternal}
+      />
+
+      <AlertDialog open={purgeOpen} onOpenChange={setPurgeOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar tenant definitivamente</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción elimina el tenant y sus datos asociados. Confirmá para continuar.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-3">
+            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Checkbox checked={purgeConfirmed} onCheckedChange={(checked) => setPurgeConfirmed(Boolean(checked))} />
+              Confirmo que quiero eliminar este tenant.
+            </label>
+            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Checkbox checked={purgeUsers} onCheckedChange={(checked) => setPurgeUsers(Boolean(checked))} />
+              Eliminar usuarios asociados.
+            </label>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmPurge} disabled={!purgeConfirmed}>
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
