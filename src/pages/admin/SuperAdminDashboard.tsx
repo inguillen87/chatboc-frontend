@@ -69,9 +69,9 @@ export default function SuperAdminDashboard() {
     fetchWhatsappNumbers();
   }, []);
 
-  const handleReserveNumber = async (id: string | number) => {
+  const handleReserveNumber = async (payload: { number_id: string | number; tenant_slug?: string | null }) => {
     try {
-      await apiClient.superAdminReserveWhatsappNumber(id);
+      await apiClient.superAdminReserveWhatsappNumber(payload);
       toast.success("Número reservado.");
       fetchWhatsappNumbers();
     } catch (error) {
@@ -80,9 +80,9 @@ export default function SuperAdminDashboard() {
     }
   };
 
-  const handleReleaseNumber = async (id: string | number) => {
+  const handleReleaseNumber = async (payload: { number_id: string | number }) => {
     try {
-      await apiClient.superAdminReleaseWhatsappNumber(id);
+      await apiClient.superAdminReleaseWhatsappNumber(payload);
       toast.success("Número liberado.");
       fetchWhatsappNumbers();
     } catch (error) {
@@ -91,9 +91,9 @@ export default function SuperAdminDashboard() {
     }
   };
 
-  const handleAssignNumber = async (id: string | number, tenantSlug: string) => {
+  const handleAssignNumber = async (payload: { number_id: string | number; tenant_slug: string }) => {
     try {
-      await apiClient.superAdminAssignWhatsappNumber(id, tenantSlug);
+      await apiClient.superAdminAssignWhatsappNumber(payload);
       toast.success("Número asignado.");
       fetchWhatsappNumbers();
     } catch (error) {
@@ -102,29 +102,18 @@ export default function SuperAdminDashboard() {
     }
   };
 
-  const handleVerifyNumber = async (id: string | number, payload: { phone_number: string; sender_id: string; token: string }) => {
+  const handleCreateNumber = async (payload: { phone_number: string; sender_id: string; status?: string; tenant_slug?: string | null }) => {
     try {
-      await apiClient.superAdminVerifyWhatsappNumber(id, payload);
-      toast.success("Número validado.");
+      await apiClient.superAdminCreateWhatsappNumber(payload);
+      toast.success("Número creado.");
       fetchWhatsappNumbers();
     } catch (error) {
       console.error(error);
-      toast.error("No se pudo validar el número.");
+      toast.error("No se pudo crear el número.");
     }
   };
 
-  const handleRequestNumber = async (payload: { prefix?: string | null; city?: string | null; state?: string | null }) => {
-    try {
-      await apiClient.superAdminRequestWhatsappNumber(payload);
-      toast.success("Solicitud enviada.");
-      fetchWhatsappNumbers();
-    } catch (error) {
-      console.error(error);
-      toast.error("No se pudo solicitar el número.");
-    }
-  };
-
-  const handleRegisterExternal = async (payload: { phone_number: string; sender_id: string; token: string }) => {
+  const handleRegisterExternal = async (payload: { number: string; sender_id: string; status?: string; tenant_slug?: string | null }) => {
     try {
       await apiClient.superAdminRegisterExternalWhatsappNumber(payload);
       toast.success("Número externo registrado.");
@@ -228,8 +217,7 @@ export default function SuperAdminDashboard() {
         onReserve={handleReserveNumber}
         onRelease={handleReleaseNumber}
         onAssign={handleAssignNumber}
-        onVerify={handleVerifyNumber}
-        onRequestNumber={handleRequestNumber}
+        onCreateNumber={handleCreateNumber}
         onRegisterExternal={handleRegisterExternal}
       />
     </div>

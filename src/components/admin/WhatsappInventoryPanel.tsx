@@ -9,7 +9,7 @@ import { Separator } from '@/components/ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { RefreshCw } from 'lucide-react';
 import { Tenant } from '@/types/superAdmin';
-import { WhatsappExternalNumberPayload, WhatsappNumberInventoryItem, WhatsappNumberRequestPayload, WhatsappNumberStatus } from '@/types/whatsapp';
+import { WhatsappExternalNumberPayload, WhatsappNumberCreatePayload, WhatsappNumberInventoryItem, WhatsappNumberStatus } from '@/types/whatsapp';
 
 interface WhatsappInventoryPanelProps {
   numbers: WhatsappNumberInventoryItem[];
@@ -17,11 +17,10 @@ interface WhatsappInventoryPanelProps {
   loading: boolean;
   error: string | null;
   onRefresh: () => void;
-  onReserve: (id: string | number) => void;
-  onRelease: (id: string | number) => void;
-  onAssign: (id: string | number, tenantSlug: string) => void;
-  onVerify: (id: string | number, payload: WhatsappExternalNumberPayload) => void;
-  onRequestNumber: (payload: WhatsappNumberRequestPayload) => void;
+  onReserve: (payload: { number_id: string | number; tenant_slug?: string | null }) => void;
+  onRelease: (payload: { number_id: string | number }) => void;
+  onAssign: (payload: { number_id: string | number; tenant_slug: string }) => void;
+  onCreateNumber: (payload: WhatsappNumberCreatePayload) => void;
   onRegisterExternal: (payload: WhatsappExternalNumberPayload) => void;
 }
 
@@ -30,6 +29,7 @@ const STATUS_LABELS: Record<WhatsappNumberStatus, { label: string; variant: 'def
   reserved: { label: 'Reservado', variant: 'outline' },
   assigned: { label: 'Asignado', variant: 'default' },
   verified: { label: 'Verificado', variant: 'secondary' },
+  disabled: { label: 'Deshabilitado', variant: 'destructive' },
 };
 
 const buildZoneLabel = (entry: WhatsappNumberInventoryItem) => {
@@ -46,18 +46,22 @@ export const WhatsappInventoryPanel = ({
   onReserve,
   onRelease,
   onAssign,
-  onVerify,
-  onRequestNumber,
+  onCreateNumber,
   onRegisterExternal,
 }: WhatsappInventoryPanelProps) => {
   const [assignTargets, setAssignTargets] = useState<Record<string, string>>({});
-  const [requestForm, setRequestForm] = useState<WhatsappNumberRequestPayload>({ prefix: '', city: '', state: '' });
-  const [verificationForm, setVerificationForm] = useState<WhatsappExternalNumberPayload>({
+  const [createForm, setCreateForm] = useState<WhatsappNumberCreatePayload>({
     phone_number: '',
     sender_id: '',
-    token: '',
+    status: 'available',
+    tenant_slug: '',
   });
-  const [verifyTargetId, setVerifyTargetId] = useState<string>('');
+  const [verificationForm, setVerificationForm] = useState<WhatsappExternalNumberPayload>({
+    number: '',
+    sender_id: '',
+    status: 'verified',
+    tenant_slug: '',
+  });
 
   const tenantOptions = useMemo(() => tenants.filter((tenant) => tenant.status === 'active' || tenant.is_active), [tenants]);
 
@@ -65,13 +69,8 @@ export const WhatsappInventoryPanel = ({
     const key = String(id);
     const target = assignTargets[key];
     if (target) {
-      onAssign(id, target);
+      onAssign({ number_id: id, tenant_slug: target });
     }
-  };
-
-  const handleVerify = () => {
-    if (!verifyTargetId) return;
-    onVerify(verifyTargetId, verificationForm);
   };
 
   return (
@@ -127,12 +126,12 @@ export const WhatsappInventoryPanel = ({
                           <Badge variant={status.variant}>{status.label}</Badge>
                         </TableCell>
                         <TableCell>
-                          {number.tenant_name || number.tenant_slug || '—'}
+                          {number.tenant_nombre || number.tenant_slug || '—'}
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-wrap items-center justify-end gap-2">
                             {number.status === 'available' && (
-                              <Button size="sm" variant="outline" onClick={() => onReserve(number.id)}>
+                              <Button size="sm" variant="outline" onClick={() => onReserve({ number_id: number.id, tenant_slug: number.tenant_slug })}>
                                 Reservar
                               </Button>
                             )}
@@ -159,7 +158,7 @@ export const WhatsappInventoryPanel = ({
                               </div>
                             )}
                             {(number.status === 'assigned' || number.status === 'reserved' || number.status === 'verified') && (
-                              <Button size="sm" variant="ghost" onClick={() => onRelease(number.id)}>
+                              <Button size="sm" variant="ghost" onClick={() => onRelease({ number_id: number.id })}>
                                 Liberar
                               </Button>
                             )}
@@ -179,40 +178,76 @@ export const WhatsappInventoryPanel = ({
         <div className="grid gap-6 md:grid-cols-2">
           <div className="space-y-4">
             <div>
-              <h3 className="text-sm font-semibold text-foreground">Solicitar nuevo número</h3>
-              <p className="text-xs text-muted-foreground">Crea nuevos números en Twilio para sumar stock al inventario.</p>
+              <h3 className="text-sm font-semibold text-foreground">Crear número</h3>
+              <p className="text-xs text-muted-foreground">Registra un número nuevo en Twilio para el inventario.</p>
             </div>
-            <div className="grid gap-3 md:grid-cols-3">
+            <div className="grid gap-3 md:grid-cols-2">
               <div className="space-y-2">
-                <Label>Prefijo</Label>
+                <Label>Número</Label>
                 <Input
-                  value={requestForm.prefix || ''}
-                  onChange={(event) => setRequestForm((prev) => ({ ...prev, prefix: event.target.value }))}
-                  placeholder="Ej: +54 261"
+                  value={createForm.phone_number}
+                  onChange={(event) => setCreateForm((prev) => ({ ...prev, phone_number: event.target.value }))}
+                  placeholder="Ej: +549261555111"
                 />
               </div>
               <div className="space-y-2">
-                <Label>Ciudad</Label>
+                <Label>Sender ID</Label>
                 <Input
-                  value={requestForm.city || ''}
-                  onChange={(event) => setRequestForm((prev) => ({ ...prev, city: event.target.value }))}
-                  placeholder="Ciudad"
+                  value={createForm.sender_id}
+                  onChange={(event) => setCreateForm((prev) => ({ ...prev, sender_id: event.target.value }))}
+                  placeholder="whatsapp:+549261555111"
                 />
               </div>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
               <div className="space-y-2">
-                <Label>Provincia / Estado</Label>
-                <Input
-                  value={requestForm.state || ''}
-                  onChange={(event) => setRequestForm((prev) => ({ ...prev, state: event.target.value }))}
-                  placeholder="Estado"
-                />
+                <Label>Tenant (opcional)</Label>
+                <Select
+                  value={createForm.tenant_slug || ''}
+                  onValueChange={(value) => setCreateForm((prev) => ({ ...prev, tenant_slug: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Asignar a tenant" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Sin asignar</SelectItem>
+                    {tenantOptions.map((tenant) => (
+                      <SelectItem key={tenant.slug} value={tenant.slug}>
+                        {tenant.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Estado inicial</Label>
+                <Select
+                  value={createForm.status || 'available'}
+                  onValueChange={(value) => setCreateForm((prev) => ({ ...prev, status: value as WhatsappNumberStatus }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar estado" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="available">Disponible</SelectItem>
+                    <SelectItem value="reserved">Reservado</SelectItem>
+                    <SelectItem value="assigned">Asignado</SelectItem>
+                    <SelectItem value="verified">Verificado</SelectItem>
+                    <SelectItem value="disabled">Deshabilitado</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             <Button
-              onClick={() => onRequestNumber(requestForm)}
-              disabled={!requestForm.prefix && !requestForm.city && !requestForm.state}
+              onClick={() =>
+                onCreateNumber({
+                  ...createForm,
+                  tenant_slug: createForm.tenant_slug ? createForm.tenant_slug : null,
+                })
+              }
+              disabled={!createForm.phone_number || !createForm.sender_id}
             >
-              Solicitar número
+              Crear número
             </Button>
           </div>
 
@@ -225,9 +260,9 @@ export const WhatsappInventoryPanel = ({
               <div className="space-y-2">
                 <Label>Número</Label>
                 <Input
-                  value={verificationForm.phone_number}
-                  onChange={(event) => setVerificationForm((prev) => ({ ...prev, phone_number: event.target.value }))}
-                  placeholder="Ej: +54 9 261 123 456"
+                  value={verificationForm.number}
+                  onChange={(event) => setVerificationForm((prev) => ({ ...prev, number: event.target.value }))}
+                  placeholder="Ej: +549261555111"
                 />
               </div>
               <div className="space-y-2">
@@ -239,23 +274,19 @@ export const WhatsappInventoryPanel = ({
                 />
               </div>
               <div className="space-y-2">
-                <Label>Token</Label>
-                <Input
-                  value={verificationForm.token}
-                  onChange={(event) => setVerificationForm((prev) => ({ ...prev, token: event.target.value }))}
-                  placeholder="Token de Meta"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Aplicar verificación a</Label>
-                <Select value={verifyTargetId} onValueChange={setVerifyTargetId}>
+                <Label>Tenant</Label>
+                <Select
+                  value={verificationForm.tenant_slug || ''}
+                  onValueChange={(value) => setVerificationForm((prev) => ({ ...prev, tenant_slug: value }))}
+                >
                   <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar número" />
+                    <SelectValue placeholder="Asignar a tenant" />
                   </SelectTrigger>
                   <SelectContent>
-                    {numbers.map((number) => (
-                      <SelectItem key={String(number.id)} value={String(number.id)}>
-                        {number.phone_number}
+                    <SelectItem value="">Sin asignar</SelectItem>
+                    {tenantOptions.map((tenant) => (
+                      <SelectItem key={tenant.slug} value={tenant.slug}>
+                        {tenant.nombre}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -265,14 +296,13 @@ export const WhatsappInventoryPanel = ({
             <div className="flex flex-wrap gap-2">
               <Button
                 variant="outline"
-                onClick={() => onRegisterExternal(verificationForm)}
-                disabled={!verificationForm.phone_number || !verificationForm.sender_id || !verificationForm.token}
-              >
-                Registrar externo
-              </Button>
-              <Button
-                onClick={handleVerify}
-                disabled={!verifyTargetId || !verificationForm.sender_id || !verificationForm.token}
+                onClick={() =>
+                  onRegisterExternal({
+                    ...verificationForm,
+                    tenant_slug: verificationForm.tenant_slug ? verificationForm.tenant_slug : null,
+                  })
+                }
+                disabled={!verificationForm.number || !verificationForm.sender_id}
               >
                 Validar
               </Button>

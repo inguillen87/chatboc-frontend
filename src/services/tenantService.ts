@@ -1,6 +1,6 @@
 import { apiFetch } from "@/utils/api";
 import { CreateTenantPayload, CreateTenantResponse, TenantConfigBundle } from "@/types/TenantConfig";
-import { WhatsappExternalNumberPayload, WhatsappNumberInventoryItem, WhatsappNumberRequestPayload } from "@/types/whatsapp";
+import { WhatsappExternalNumberPayload, WhatsappNumberCreatePayload, WhatsappNumberInventoryItem } from "@/types/whatsapp";
 
 const BASE_URL = "/api/admin/tenants";
 const PUBLIC_BASE_URL = "/api/public/tenants";
@@ -31,26 +31,27 @@ export const tenantService = {
   },
 
   listWhatsappNumbers: async (slug: string): Promise<{ numbers: WhatsappNumberInventoryItem[] }> => {
-    return apiFetch<{ numbers: WhatsappNumberInventoryItem[] }>(`${BASE_URL}/${slug}/whatsapp/numbers`);
+    return apiFetch<{ numbers: WhatsappNumberInventoryItem[] }>(`/api/admin/whatsapp/numbers?status=available&tenant_slug=${slug}`);
   },
 
   assignWhatsappNumberFromInventory: async (slug: string, numberId: string | number): Promise<any> => {
-    return apiFetch<any>(`${BASE_URL}/${slug}/whatsapp/numbers/${numberId}/assign`, {
+    return apiFetch<any>('/api/admin/whatsapp/numbers/assign', {
       method: "POST",
+      body: { number_id: numberId, tenant_slug: slug },
     });
   },
 
-  requestWhatsappNumber: async (slug: string, payload: WhatsappNumberRequestPayload): Promise<any> => {
-    return apiFetch<any>(`${BASE_URL}/${slug}/whatsapp/numbers/request`, {
+  createWhatsappNumber: async (payload: WhatsappNumberCreatePayload): Promise<any> => {
+    return apiFetch<any>('/api/admin/whatsapp/numbers', {
       method: "POST",
       body: payload,
     });
   },
 
   registerExternalWhatsappNumber: async (slug: string, payload: WhatsappExternalNumberPayload): Promise<any> => {
-    return apiFetch<any>(`${BASE_URL}/${slug}/whatsapp/numbers/external`, {
+    return apiFetch<any>('/api/admin/whatsapp/numbers/register', {
       method: "POST",
-      body: payload,
+      body: { ...payload, tenant_slug: slug },
     });
   },
 

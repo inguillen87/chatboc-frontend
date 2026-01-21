@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { apiFetch, ApiError, resolveTenantSlug } from "@/utils/api";
+import { resolveTenantSlug } from "@/utils/api";
 import { useUser } from "@/hooks/useUser";
 import {
   Card,
@@ -43,7 +43,6 @@ import { TenantConfigBundle } from "@/types/TenantConfig";
 import { WhatsappNumberInventoryItem } from "@/types/whatsapp";
 import { tenantService } from "@/services/tenantService";
 import MenuBuilder from "@/components/tenant/MenuBuilder";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const Integracion = () => {
   const navigate = useNavigate();
@@ -57,8 +56,8 @@ const Integracion = () => {
   const [whatsappNumbersLoading, setWhatsappNumbersLoading] = useState(false);
   const [whatsappNumbersError, setWhatsappNumbersError] = useState<string | null>(null);
   const [selectedWhatsappNumber, setSelectedWhatsappNumber] = useState<string>("");
-  const [requestPayload, setRequestPayload] = useState({ prefix: "", city: "", state: "" });
-  const [externalNumberPayload, setExternalNumberPayload] = useState({ phone_number: "", sender_id: "", token: "" });
+  const [createPayload, setCreatePayload] = useState({ phone_number: "", sender_id: "" });
+  const [externalNumberPayload, setExternalNumberPayload] = useState({ number: "", sender_id: "" });
   const [verificationChecklist, setVerificationChecklist] = useState({
     business: false,
     meta: false,
@@ -160,12 +159,17 @@ const Integracion = () => {
     }
   };
 
-  const handleRequestWhatsappNumber = async () => {
+  const handleCreateWhatsappNumber = async () => {
     if (!tenantSlug) return;
     try {
-      await tenantService.requestWhatsappNumber(tenantSlug, requestPayload);
-      toast.success("Solicitud enviada.");
-      setRequestPayload({ prefix: "", city: "", state: "" });
+      await tenantService.createWhatsappNumber({
+        phone_number: createPayload.phone_number,
+        sender_id: createPayload.sender_id,
+        status: "assigned",
+        tenant_slug: tenantSlug,
+      });
+      toast.success("Número solicitado.");
+      setCreatePayload({ phone_number: "", sender_id: "" });
       loadWhatsappNumbers();
     } catch (error) {
       console.error(error);
@@ -176,9 +180,12 @@ const Integracion = () => {
   const handleRegisterExternalNumber = async () => {
     if (!tenantSlug) return;
     try {
-      await tenantService.registerExternalWhatsappNumber(tenantSlug, externalNumberPayload);
+      await tenantService.registerExternalWhatsappNumber(tenantSlug, {
+        ...externalNumberPayload,
+        status: "verified",
+      });
       toast.success("Número externo registrado.");
-      setExternalNumberPayload({ phone_number: "", sender_id: "", token: "" });
+      setExternalNumberPayload({ number: "", sender_id: "" });
       loadConfig();
     } catch (error) {
       console.error(error);
@@ -431,8 +438,8 @@ const Integracion = () => {
                       </Button>
                       <Button
                         variant="outline"
-                        onClick={handleRequestWhatsappNumber}
-                        disabled={!requestPayload.prefix && !requestPayload.city && !requestPayload.state}
+                        onClick={handleCreateWhatsappNumber}
+                        disabled={!createPayload.phone_number || !createPayload.sender_id}
                       >
                         Pedir nuevo número
                       </Button>
@@ -449,9 +456,9 @@ const Integracion = () => {
                       <div className="space-y-2">
                         <Label>Número propio</Label>
                         <Input
-                          value={externalNumberPayload.phone_number}
-                          onChange={(event) => setExternalNumberPayload((prev) => ({ ...prev, phone_number: event.target.value }))}
-                          placeholder="Ej: +54 9 261 123 456"
+                          value={externalNumberPayload.number}
+                          onChange={(event) => setExternalNumberPayload((prev) => ({ ...prev, number: event.target.value }))}
+                          placeholder="Ej: +549261555111"
                         />
                       </div>
                       <div className="space-y-2">
@@ -460,14 +467,6 @@ const Integracion = () => {
                           value={externalNumberPayload.sender_id}
                           onChange={(event) => setExternalNumberPayload((prev) => ({ ...prev, sender_id: event.target.value }))}
                           placeholder="Sender ID"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Token</Label>
-                        <Input
-                          value={externalNumberPayload.token}
-                          onChange={(event) => setExternalNumberPayload((prev) => ({ ...prev, token: event.target.value }))}
-                          placeholder="Token de Meta"
                         />
                       </div>
                     </div>
@@ -499,7 +498,7 @@ const Integracion = () => {
                     <Button
                       variant="outline"
                       onClick={handleRegisterExternalNumber}
-                      disabled={!isVerificationReady || !externalNumberPayload.phone_number || !externalNumberPayload.sender_id || !externalNumberPayload.token}
+                      disabled={!isVerificationReady || !externalNumberPayload.number || !externalNumberPayload.sender_id}
                     >
                       Ya verifiqué en Meta
                     </Button>
@@ -512,33 +511,25 @@ const Integracion = () => {
                     </div>
                     <div className="grid gap-3 md:grid-cols-3">
                       <div className="space-y-2">
-                        <Label>Prefijo sugerido</Label>
+                        <Label>Número</Label>
                         <Input
-                          value={requestPayload.prefix}
-                          onChange={(event) => setRequestPayload((prev) => ({ ...prev, prefix: event.target.value }))}
-                          placeholder="Ej: +54 261"
+                          value={createPayload.phone_number}
+                          onChange={(event) => setCreatePayload((prev) => ({ ...prev, phone_number: event.target.value }))}
+                          placeholder="Ej: +549261555111"
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label>Ciudad</Label>
+                        <Label>Sender ID</Label>
                         <Input
-                          value={requestPayload.city}
-                          onChange={(event) => setRequestPayload((prev) => ({ ...prev, city: event.target.value }))}
-                          placeholder="Ciudad"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Provincia / Estado</Label>
-                        <Input
-                          value={requestPayload.state}
-                          onChange={(event) => setRequestPayload((prev) => ({ ...prev, state: event.target.value }))}
-                          placeholder="Provincia"
+                          value={createPayload.sender_id}
+                          onChange={(event) => setCreatePayload((prev) => ({ ...prev, sender_id: event.target.value }))}
+                          placeholder="whatsapp:+549261555111"
                         />
                       </div>
                     </div>
                     <Button
-                      onClick={handleRequestWhatsappNumber}
-                      disabled={!requestPayload.prefix && !requestPayload.city && !requestPayload.state}
+                      onClick={handleCreateWhatsappNumber}
+                      disabled={!createPayload.phone_number || !createPayload.sender_id}
                     >
                       Confirmar solicitud
                     </Button>
