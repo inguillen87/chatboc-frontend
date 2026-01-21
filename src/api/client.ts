@@ -181,6 +181,13 @@ export const apiClient = {
     });
   },
 
+  superAdminPurgeTenant: async (slug: string, payload: { confirm: boolean; purge_users?: boolean }): Promise<any> => {
+    return apiFetch<any>(`/api/admin/tenants/${slug}/purge`, {
+      method: 'DELETE',
+      body: payload,
+    });
+  },
+
   superAdminActivateTenant: async (slug: string): Promise<void> => {
     return apiFetch<void>(`/api/admin/tenants/${slug}/activate`, {
       method: 'POST',

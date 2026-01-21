@@ -10,7 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Edit, LogIn, MoreVertical, Power, PowerOff, UserPlus, KeyRound, MessageSquare } from 'lucide-react';
+import { Edit, LogIn, MoreVertical, Power, PowerOff, UserPlus, KeyRound, MessageSquare, Trash2 } from 'lucide-react';
 import { Tenant } from '@/types/superAdmin';
 
 interface TenantTableProps {
@@ -19,9 +19,10 @@ interface TenantTableProps {
   onEdit: (tenant: Tenant, tab?: "general" | "users" | "integrations") => void;
   onImpersonate: (tenant: Tenant) => void;
   onToggleStatus: (tenant: Tenant) => void;
+  onPurge: (tenant: Tenant) => void;
 }
 
-export function TenantTable({ tenants, loading, onEdit, onImpersonate, onToggleStatus }: TenantTableProps) {
+export function TenantTable({ tenants, loading, onEdit, onImpersonate, onToggleStatus, onPurge }: TenantTableProps) {
   if (loading) {
     return <div className="p-8 text-center text-muted-foreground">Cargando tenants...</div>;
   }
@@ -106,6 +107,13 @@ export function TenantTable({ tenants, loading, onEdit, onImpersonate, onToggleS
                       <DropdownMenuItem onSelect={() => onToggleStatus(tenant)}>
                         {tenant.is_active ? <PowerOff className="mr-2 h-4 w-4" /> : <Power className="mr-2 h-4 w-4" />}
                         {tenant.is_active ? "Desactivar" : "Activar"}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onSelect={() => onPurge(tenant)}
+                        className="text-destructive focus:text-destructive"
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Eliminar definitivamente
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>

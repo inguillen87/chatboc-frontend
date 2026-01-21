@@ -4,6 +4,17 @@ import { apiClient } from '@/api/client';
 import useRequireRole from '@/hooks/useRequireRole';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { Tenant } from '@/types/superAdmin';
@@ -29,6 +40,10 @@ export default function SuperAdminDashboard() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTenant, setEditingTenant] = useState<Tenant | null>(null);
   const [modalTab, setModalTab] = useState<"general" | "users" | "integrations">("general");
+  const [purgeTenant, setPurgeTenant] = useState<Tenant | null>(null);
+  const [purgeOpen, setPurgeOpen] = useState(false);
+  const [purgeConfirmed, setPurgeConfirmed] = useState(false);
+  const [purgeUsers, setPurgeUsers] = useState(true);
 
   const fetchTenants = async () => {
     setLoading(true);
@@ -168,6 +183,27 @@ export default function SuperAdminDashboard() {
     }
   };
 
+  const handlePurge = (tenant: Tenant) => {
+    setPurgeTenant(tenant);
+    setPurgeConfirmed(false);
+    setPurgeUsers(true);
+    setPurgeOpen(true);
+  };
+
+  const handleConfirmPurge = async () => {
+    if (!purgeTenant || !purgeConfirmed) return;
+    try {
+      await apiClient.superAdminPurgeTenant(purgeTenant.slug, { confirm: true, purge_users: purgeUsers });
+      toast.success("Tenant eliminado definitivamente.");
+      setPurgeOpen(false);
+      setPurgeTenant(null);
+      fetchTenants();
+    } catch (error) {
+      console.error(error);
+      toast.error("No se pudo eliminar el tenant.");
+    }
+  };
+
   return (
     <div className="container mx-auto py-10 px-4 max-w-7xl space-y-8">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -195,6 +231,7 @@ export default function SuperAdminDashboard() {
               onEdit={handleEdit}
               onImpersonate={handleImpersonate}
               onToggleStatus={handleToggleStatus}
+              onPurge={handlePurge}
             />
           )}
         </CardContent>
@@ -220,6 +257,33 @@ export default function SuperAdminDashboard() {
         onCreateNumber={handleCreateNumber}
         onRegisterExternal={handleRegisterExternal}
       />
+
+      <AlertDialog open={purgeOpen} onOpenChange={setPurgeOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar tenant definitivamente</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción elimina el tenant y sus datos asociados. Confirmá para continuar.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-3">
+            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Checkbox checked={purgeConfirmed} onCheckedChange={(checked) => setPurgeConfirmed(Boolean(checked))} />
+              Confirmo que quiero eliminar este tenant.
+            </label>
+            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Checkbox checked={purgeUsers} onCheckedChange={(checked) => setPurgeUsers(Boolean(checked))} />
+              Eliminar usuarios asociados.
+            </label>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmPurge} disabled={!purgeConfirmed}>
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
