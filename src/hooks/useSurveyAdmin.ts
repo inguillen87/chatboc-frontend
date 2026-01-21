@@ -7,6 +7,7 @@ import {
   adminGetSurvey,
   adminListSurveys,
   adminPublishSurvey,
+  adminSeedSurvey,
   adminUpdateSurvey,
 } from '@/api/encuestas';
 import type { SurveyAdmin, SurveyDraftPayload, SurveyListResponse } from '@/types/encuestas';
@@ -29,9 +30,11 @@ interface UseSurveyAdminResult {
   saveSurvey: (payload: SurveyDraftPayload) => Promise<SurveyAdmin>;
   createSurvey: (payload: SurveyDraftPayload) => Promise<SurveyAdmin>;
   publishSurvey: (id?: number) => Promise<SurveyAdmin>;
+  seedSurvey: (id: number, cantidad: number) => Promise<{ creadas: number }>;
   deleteSurvey: (id: number) => Promise<void>;
   isSaving: boolean;
   isPublishing: boolean;
+  isSeeding: boolean;
   isDeleting: boolean;
   refetchSurvey: () => Promise<SurveyAdmin | undefined>;
   refetchList: () => Promise<SurveyListResponse | undefined>;
@@ -96,6 +99,15 @@ export function useSurveyAdmin(options: UseSurveyAdminOptions = {}): UseSurveyAd
     },
   });
 
+  const seedMutation = useMutation({
+    mutationFn: async ({ id, cantidad }: { id: number; cantidad: number }) => {
+      const result = await adminSeedSurvey(id, { cantidad }, adminRequestOptions);
+      await queryClient.invalidateQueries({ queryKey: ['survey-admin', id] });
+      await queryClient.invalidateQueries({ queryKey: ['survey-admin-list'] });
+      return result;
+    },
+  });
+
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
       await adminDeleteSurvey(id, adminRequestOptions);
@@ -114,9 +126,11 @@ export function useSurveyAdmin(options: UseSurveyAdminOptions = {}): UseSurveyAd
     saveSurvey: async (payload: SurveyDraftPayload) => saveMutation.mutateAsync(payload),
     createSurvey: async (payload: SurveyDraftPayload) => createMutation.mutateAsync(payload),
     publishSurvey: async (id?: number) => publishMutation.mutateAsync({ id }),
+    seedSurvey: async (id: number, cantidad: number) => seedMutation.mutateAsync({ id, cantidad }),
     deleteSurvey: async (id: number) => deleteMutation.mutateAsync(id),
     isSaving: saveMutation.isPending || createMutation.isPending,
     isPublishing: publishMutation.isPending,
+    isSeeding: seedMutation.isPending,
     isDeleting: deleteMutation.isPending,
     refetchSurvey: async () => {
       const result = await surveyQuery.refetch();

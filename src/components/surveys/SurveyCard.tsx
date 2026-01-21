@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { CalendarDays, BarChart3, Edit, LinkIcon, Send, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import { SeedButton } from '@/components/surveys/SeedButton';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -26,6 +27,8 @@ interface SurveyCardProps {
   onCopyLink?: () => void;
   onDelete?: () => Promise<void> | void;
   deleting?: boolean;
+  onSeed?: () => Promise<void>;
+  seeding?: boolean;
 }
 
 const formatDate = (value?: string) =>
@@ -47,6 +50,8 @@ export const SurveyCard = ({
   onCopyLink,
   onDelete,
   deleting,
+  onSeed,
+  seeding,
 }: SurveyCardProps) => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
@@ -98,6 +103,9 @@ export const SurveyCard = ({
           <Button variant="ghost" size="sm" onClick={onCopyLink} className="inline-flex items-center gap-2">
             <LinkIcon className="h-4 w-4" /> Copiar link
           </Button>
+        )}
+        {onSeed && (
+          <SeedButton onSeed={onSeed} loading={seeding} surveyTitle={survey.titulo} />
         )}
         {onDelete ? (
           <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

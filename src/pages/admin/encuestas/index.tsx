@@ -12,10 +12,11 @@ import SectionErrorBoundary from '@/components/errors/SectionErrorBoundary';
 
 const AdminSurveysIndex = () => {
   const navigate = useNavigate();
-  const { surveys, isLoadingList, listError, publishSurvey, deleteSurvey, isPublishing, isDeleting, refetchList } =
+  const { surveys, isLoadingList, listError, publishSurvey, deleteSurvey, seedSurvey, isPublishing, isDeleting, isSeeding, refetchList } =
     useSurveyAdmin();
   const [publishingId, setPublishingId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [seedingId, setSeedingId] = useState<number | null>(null);
 
   const handlePublish = async (survey: SurveyAdmin) => {
     try {
@@ -65,6 +66,27 @@ const AdminSurveysIndex = () => {
     }
   };
 
+  const handleSeed = async (survey: SurveyAdmin) => {
+    try {
+      setSeedingId(survey.id);
+      const result = await seedSurvey(survey.id, 100);
+      toast({
+        title: 'Datos generados',
+        description: `Se agregaron ${result.creadas} respuestas de prueba.`
+      });
+      // Optionally refresh analytics data if needed, but refetchList might not be enough if it doesn't return analytics counts
+      await refetchList();
+    } catch (error) {
+      toast({
+        title: 'Error al generar datos',
+        description: String((error as Error)?.message ?? error),
+        variant: 'destructive',
+      });
+    } finally {
+      setSeedingId(null);
+    }
+  };
+
   const items = surveys?.data ?? [];
 
   return (
@@ -103,6 +125,8 @@ const AdminSurveysIndex = () => {
               onCopyLink={survey.estado === 'publicada' ? () => handleCopyLink(survey) : undefined}
               onDelete={() => handleDelete(survey)}
               deleting={isDeleting && deletingId === survey.id}
+              onSeed={() => handleSeed(survey)}
+              seeding={isSeeding && seedingId === survey.id}
             />
           ))}
           {!items.length && (
