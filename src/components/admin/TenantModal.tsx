@@ -125,7 +125,9 @@ export function TenantModal({ isOpen, onClose, onSuccess, tenantToEdit, initialT
     setLoading(true);
     try {
       if (isEditing && tenantToEdit) {
-        await apiClient.superAdminUpdateTenant(tenantToEdit.slug, values);
+        // Enforce strict payload: only plan and is_active
+        const { plan, is_active } = values;
+        await apiClient.superAdminUpdateTenant(tenantToEdit.slug, { plan, is_active });
         toast.success('Tenant actualizado correctamente');
       } else {
         await apiClient.superAdminCreateTenant(values);
@@ -208,7 +210,7 @@ export function TenantModal({ isOpen, onClose, onSuccess, tenantToEdit, initialT
                                 render={({ field }) => (
                                     <FormItem>
                                     <FormLabel>Nombre</FormLabel>
-                                    <FormControl><Input {...field} /></FormControl>
+                                    <FormControl><Input {...field} disabled={isEditing} /></FormControl>
                                     <FormMessage />
                                     </FormItem>
                                 )}

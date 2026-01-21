@@ -164,6 +164,32 @@ export async function fetchMarketCart(tenantSlug: string): Promise<MarketCartRes
   }
 }
 
+export interface SearchCatalogParams {
+  query?: string;
+  en_promocion?: boolean;
+  con_stock?: boolean;
+  precio_max?: number;
+}
+
+export async function searchCatalog(tenantSlug: string, params: SearchCatalogParams): Promise<MarketCatalogResponse> {
+  const queryParams = new URLSearchParams();
+  if (params.query) queryParams.append('q', params.query);
+  if (params.en_promocion) queryParams.append('en_promocion', 'true');
+  if (params.con_stock) queryParams.append('con_stock', 'true');
+  if (params.precio_max) queryParams.append('precio_max', params.precio_max.toString());
+
+  try {
+    return await apiFetch<MarketCatalogResponse>(`/api/${tenantSlug}/catalogo/buscar?${queryParams.toString()}`, {
+      tenantSlug,
+      suppressPanel401Redirect: true,
+      omitChatSessionId: true,
+    });
+  } catch (error) {
+     console.warn(`[MarketAPI] Failed to search catalog for ${tenantSlug}`, error);
+     throw error;
+  }
+}
+
 export async function fetchMarketCatalog(tenantSlug: string): Promise<MarketCatalogResponse> {
   try {
     return await apiFetch<MarketCatalogResponse>(`/api/${tenantSlug}/productos`, {
