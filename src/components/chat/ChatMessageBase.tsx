@@ -1,12 +1,14 @@
 // src/components/chat/ChatMessageBase.tsx
 import React, { useState, useMemo } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { Boton, Message, SendPayload, StructuredContentItem } from "@/types/chat";
 import ChatButtons from "./ChatButtons";
 import CategorizedButtons from "./CategorizedButtons";
 import AudioPlayer from "./AudioPlayer";
 import { motion } from "framer-motion";
 import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
-import sanitizeMessageHtml from "@/utils/sanitizeMessageHtml";
+import sanitizeMessageHtml from "@/utils/sanitizeMessageHtml"; // Still used for list items if they contain HTML
 import { simplify } from "@/lib/simplify";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import AttachmentPreview from "./AttachmentPreview";
@@ -23,7 +25,6 @@ import { useUser } from "@/hooks/useUser";
 import { User as UserIcon, ExternalLink } from "lucide-react";
 import { getInitials, cn } from "@/lib/utils";
 import UserAvatarAnimated from "./UserAvatarAnimated";
-import { Badge } from "@/components/ui/badge";
 import InteractiveMenu from "./InteractiveMenu";
 import { extractSmartHint } from "@/utils/smartHints";
 
@@ -74,19 +75,37 @@ function normalizeAttachments(msg: any): RawAttachment[] {
   return results;
 }
 
-const LINK_LABEL_MAX_LENGTH = 48;
-const FALLBACK_URL_BASE = "https://chatboc.local";
-const URL_TEXT_REGEX = /((?:https?:\/\/|www\.)[^\s<>"]+)/gi;
+// Helper to preprocess markdown (e.g. converting phone numbers to links)
+const preprocessMarkdown = (text: string): string => {
+  if (!text) return "";
 
-const createDomParser = () => {
-  if (typeof window !== "undefined" && typeof window.DOMParser !== "undefined") {
-    return new window.DOMParser();
-  }
-  if (typeof DOMParser !== "undefined") {
-    return new DOMParser();
-  }
-  return null;
+  // Regex for phone numbers (avoiding negative lookbehind for Safari compatibility)
+  // Group 1: Existing wa.me links (to skip)
+  // Group 2: Full match of (boundary + phone)
+  // Group 3: Boundary character (start of string or non-alphanumeric)
+  // Group 4: The phone number itself
+  const phonePattern = "(?:\\+?\\d{1,3}[-.\\s]?)?(?:\\(?\\d{2,4}\\)?[-.\\s]?){2,}\\d{3,4}";
+  const regex = new RegExp(`(https:\\/\\/wa\\.me\\/\\S+)|((^|[^a-zA-Z0-9])(${phonePattern})(?!\\d))`, 'g');
+
+  let processed = text.replace(regex, (match, existingLink, fullGroup2, boundary, rawNumber) => {
+     if (existingLink) return match;
+
+     // Validation/Cleanup
+     const sanitizedNumber = rawNumber.replace(/[^\d]/g, '');
+     if (sanitizedNumber.length < 9) return match;
+
+     const hadPlus = rawNumber.includes('+');
+     let fullNumber = sanitizedNumber;
+     if (!hadPlus) fullNumber = `54${sanitizedNumber}`;
+
+     const prefix = boundary || "";
+     return `${prefix}[${rawNumber}](https://wa.me/${fullNumber})`;
+  });
+
+  return processed;
 };
+
+const FALLBACK_URL_BASE = "https://chatboc.local";
 
 const normaliseUrlForKey = (url: string) => {
   try {
@@ -152,93 +171,6 @@ const stableSerialize = (value: unknown): string => {
   }
 };
 
-const normalizeUrlFromText = (raw: string): string => {
-  const trimmed = raw.trim();
-  if (!trimmed) return trimmed;
-  const cleaned = trimmed.replace(/[),.]+$/, "");
-
-  if (/^https?:\/\//i.test(cleaned)) return cleaned;
-  if (/^www\./i.test(cleaned)) return `https://${cleaned}`;
-
-  return cleaned;
-};
-
-const autoLinkifyHtml = (html: string): string => {
-  if (!html) return html;
-
-  URL_TEXT_REGEX.lastIndex = 0;
-
-  const parser = createDomParser();
-  if (!parser) {
-    return html.replace(URL_TEXT_REGEX, (match) => {
-      const normalized = normalizeUrlFromText(match);
-      return `<a href="${normalized}">${match}</a>`;
-    });
-  }
-
-  try {
-    const doc = parser.parseFromString(`<div>${html}</div>`, "text/html");
-    const container = doc.body.firstElementChild as HTMLElement | null;
-    if (!container) return html;
-
-    const walker = doc.createTreeWalker(container, NodeFilter.SHOW_TEXT);
-    const nodesToProcess: Text[] = [];
-
-    while (walker.nextNode()) {
-      const node = walker.currentNode as Text;
-      URL_TEXT_REGEX.lastIndex = 0;
-      if (node?.nodeValue && URL_TEXT_REGEX.test(node.nodeValue)) {
-        nodesToProcess.push(node);
-      }
-    }
-
-    nodesToProcess.forEach((textNode) => {
-      const original = textNode.nodeValue || "";
-      const fragment = doc.createDocumentFragment();
-      let lastIndex = 0;
-
-      URL_TEXT_REGEX.lastIndex = 0;
-      original.replace(URL_TEXT_REGEX, (match, _group, offset) => {
-        if (offset > lastIndex) {
-          fragment.appendChild(doc.createTextNode(original.slice(lastIndex, offset)));
-        }
-
-        const anchor = doc.createElement("a");
-        const normalized = normalizeUrlFromText(match);
-        anchor.setAttribute("href", normalized);
-        anchor.setAttribute("target", "_blank");
-        anchor.setAttribute("rel", "noopener noreferrer");
-        anchor.textContent = match;
-        fragment.appendChild(anchor);
-
-        lastIndex = offset + match.length;
-        return match;
-      });
-
-      if (lastIndex < original.length) {
-        fragment.appendChild(doc.createTextNode(original.slice(lastIndex)));
-      }
-
-      textNode.replaceWith(fragment);
-    });
-
-    return container.innerHTML;
-  } catch {
-    return html;
-  }
-};
-
-const describeUrl = (href?: string | null) => {
-  if (!href) return { hostname: "", path: "" };
-  try {
-    const parsed = new URL(href, href.startsWith("http") ? undefined : FALLBACK_URL_BASE);
-    const hostname = parsed.hostname.replace(/^www\./i, "");
-    const path = parsed.pathname === "/" ? "" : parsed.pathname;
-    return { hostname, path };
-  } catch {
-    return { hostname: href, path: "" };
-  }
-};
 
 const buttonKey = (button: Boton): string => {
   const keyParts: string[] = [];
@@ -274,76 +206,6 @@ const buttonKey = (button: Boton): string => {
   return keyParts.join("|");
 };
 
-const formatLinkLabel = (rawText: string | null | undefined, href: string): string => {
-  const normalizedHref = href?.trim?.() ?? "";
-  const cleanedText = rawText?.replace(/\s+/g, " ")?.trim() ?? "";
-
-  const textLooksLikeUrl = cleanedText.length > 0 &&
-    cleanedText.replace(/\/?$/, "").toLowerCase() === normalizedHref.replace(/\/?$/, "").toLowerCase();
-
-  let candidate = cleanedText || normalizedHref;
-
-  if (!cleanedText || cleanedText.length > LINK_LABEL_MAX_LENGTH || textLooksLikeUrl) {
-    try {
-      const url = new URL(normalizedHref, normalizedHref.startsWith("http") ? undefined : FALLBACK_URL_BASE);
-      const hostname = url.hostname.replace(/^www\./i, "");
-      const firstSegment = url.pathname.split("/").filter(Boolean)[0];
-      candidate = firstSegment ? `${hostname} / ${firstSegment}` : hostname || normalizedHref;
-    } catch {
-      candidate = cleanedText || normalizedHref;
-    }
-  }
-
-  if (candidate.length > LINK_LABEL_MAX_LENGTH) {
-    return `${candidate.slice(0, LINK_LABEL_MAX_LENGTH - 3)}…`;
-  }
-
-  return candidate;
-};
-
-const extractLinkButtons = (
-  html: string
-): { cleanedHtml: string; linkButtons: Boton[] } => {
-  if (!html) {
-    return { cleanedHtml: "", linkButtons: [] };
-  }
-
-  const parser = createDomParser();
-  if (!parser) {
-    return { cleanedHtml: html, linkButtons: [] };
-  }
-
-  try {
-    const doc = parser.parseFromString(`<div>${html}</div>`, "text/html");
-    const container = doc.body.firstElementChild as HTMLElement | null;
-    if (!container) {
-      return { cleanedHtml: html, linkButtons: [] };
-    }
-
-    const anchors = Array.from(container.querySelectorAll("a"));
-    const derivedButtons: Boton[] = [];
-
-    anchors.forEach((anchor) => {
-      const href = anchor.getAttribute("href");
-      if (!href) {
-        return;
-      }
-      const label = formatLinkLabel(anchor.textContent, href);
-      derivedButtons.push({ texto: label, url: href });
-      const replacement = doc.createElement("span");
-      replacement.textContent = label;
-      replacement.className = "chat-link-placeholder";
-      anchor.replaceWith(replacement);
-    });
-
-    return {
-      cleanedHtml: container.innerHTML,
-      linkButtons: derivedButtons,
-    };
-  } catch {
-    return { cleanedHtml: html, linkButtons: [] };
-  }
-};
 
 // --- Avatares (reutilizados de ChatMessagePyme/Municipio) ---
 const AvatarBot: React.FC<{ isTyping: boolean; logoUrl?: string; logoAnimation?: string }> = ({
@@ -492,14 +354,8 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
 
   const safeText = typeof message.text === "string" && message.text !== "NaN" ? message.text : "";
   const { cleanText } = extractSmartHint(safeText);
-  const sanitizedHtml = sanitizeMessageHtml(cleanText);
-  const linkifiedHtml = useMemo(() => (isBot ? autoLinkifyHtml(sanitizedHtml) : sanitizedHtml), [isBot, sanitizedHtml]);
-  const { cleanedHtml, linkButtons } = useMemo(() => {
-    if (!isBot) {
-      return { cleanedHtml: sanitizedHtml, linkButtons: [] as Boton[] };
-    }
-    return extractLinkButtons(linkifiedHtml);
-  }, [isBot, sanitizedHtml, linkifiedHtml]);
+  // Preprocess for phone numbers etc, before Markdown rendering
+  const processedText = useMemo(() => isBot ? preprocessMarkdown(cleanText) : cleanText, [isBot, cleanText]);
 
   const { currentSlug } = useTenant();
 
@@ -508,54 +364,31 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
     [currentSlug],
   );
 
-  const { combinedButtons, derivedLinkButtons } = useMemo(() => {
+  const { combinedButtons } = useMemo(() => {
+    // Only use existing buttons, no longer extracting from text
     const existing = Array.isArray(message.botones) ? message.botones : [];
-    if (!linkButtons.length) {
-      return {
-        combinedButtons: existing,
-        derivedLinkButtons: [] as Boton[],
-      };
-    }
 
     const seen = new Set<string>();
     const combined: Boton[] = [];
-    const derivedOnly: Boton[] = [];
 
-    const register = (button: Boton, isDerived: boolean) => {
+    const register = (button: Boton) => {
       if (!button) return;
       const key = buttonKey(button);
       if (seen.has(key)) return;
       seen.add(key);
       combined.push(button);
-      if (isDerived) {
-        derivedOnly.push(button);
-      }
     };
 
-    existing.forEach((btn) => register(btn, false));
-    linkButtons.forEach((btn) => register(btn, true));
+    existing.forEach((btn) => register(btn));
 
-    return { combinedButtons: combined, derivedLinkButtons: derivedOnly };
-  }, [message.botones, linkButtons]);
+    return { combinedButtons: combined };
+  }, [message.botones]);
 
-  const linkPreviews = useMemo(() => {
-    if (!isBot || derivedLinkButtons.length === 0) return [] as Array<Boton & {
-      resolvedUrl?: string;
-      prettyLabel: string;
-      meta: { hostname: string; path: string };
-    }>;
-
-    return derivedLinkButtons.map((btn) => {
-      const resolvedUrl = resolveUrl(btn.url);
-      const prettyLabel = formatLinkLabel(btn.texto, resolvedUrl || btn.url || "");
-      const meta = describeUrl(resolvedUrl || btn.url);
-
-      return { ...btn, resolvedUrl, prettyLabel, meta };
-    });
-  }, [isBot, derivedLinkButtons, resolveUrl]);
-
-  const plainText = useMemo(() => cleanText.replace(/<[^>]+>/g, ""), [cleanText]);
-  const simplified = useMemo(() => simplify(plainText), [plainText]);
+  // Use simplified text logic based on the raw text (stripped of markdown/html if possible,
+  // but for now passing the markdown might be okay-ish or we try to strip it).
+  // simplify() might need plain text.
+  // ReactMarkdown doesn't give us plain text easily.
+  // We'll trust simplify() to handle it or just pass cleanText.
   const [simple, setSimple] = useState<boolean>(() => {
     try {
       const p = JSON.parse(safeLocalStorage.getItem("chatboc_accessibility") || "{}");
@@ -565,16 +398,55 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
     }
   });
 
+  // Calculate simplified version
+  const simplifiedText = useMemo(() => {
+      // Remove basic markdown symbols for simplified view if possible
+      // This is a rough approximation
+      const noMarkdown = cleanText.replace(/(\*\*|__)(.*?)\1/g, "$2") // Bold
+                                  .replace(/(\*|_)(.*?)\1/g, "$2") // Italic
+                                  .replace(/\[(.*?)\]\(.*?\)/g, "$1") // Links
+                                  .replace(/<[^>]+>/g, ""); // HTML
+      return simplify(noMarkdown);
+  }, [cleanText]);
+
   const renderText = simple ? (
-    <pre className="whitespace-pre-wrap text-justify max-w-none text-sm mb-2 chat-message">{simplified}</pre>
+    <pre className="whitespace-pre-wrap text-justify max-w-none text-sm mb-2 chat-message font-sans">{simplifiedText}</pre>
   ) : (
-    <div
-      className="whitespace-pre-wrap text-justify max-w-none text-sm [&_p]:my-0 mb-2 chat-message"
-      dangerouslySetInnerHTML={{ __html: cleanedHtml }}
-    />
+    <div className="prose dark:prose-invert max-w-none text-sm mb-2 chat-message break-words [&>p]:my-1 [&>p:first-child]:mt-0 [&>p:last-child]:mb-0">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          a: ({ node, ...props }) => (
+            <a
+              {...props}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-400 hover:text-blue-300 underline"
+              onClick={(e) => {
+                  // If we want to capture clicks or track, do it here
+              }}
+            />
+          ),
+          table: ({ node, ...props }) => (
+              <div className="overflow-x-auto my-2 border rounded border-white/10">
+                  <table {...props} className="min-w-full divide-y divide-white/10" />
+              </div>
+          ),
+          thead: ({ node, ...props }) => <thead {...props} className="bg-white/5" />,
+          tbody: ({ node, ...props }) => <tbody {...props} className="divide-y divide-white/10" />,
+          tr: ({ node, ...props }) => <tr {...props} />,
+          th: ({ node, ...props }) => <th {...props} className="px-3 py-2 text-left text-xs font-medium text-white/70 uppercase tracking-wider" />,
+          td: ({ node, ...props }) => <td {...props} className="px-3 py-2 whitespace-normal text-sm" />,
+          ul: ({ node, ...props }) => <ul {...props} className="list-disc pl-4 space-y-1 my-2" />,
+          ol: ({ node, ...props }) => <ol {...props} className="list-decimal pl-4 space-y-1 my-2" />,
+        }}
+      >
+        {processedText}
+      </ReactMarkdown>
+    </div>
   );
 
-  const textBlock = cleanedHtml
+  const textBlock = processedText
     ? isBot
       ? (
           <>
@@ -604,19 +476,12 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
   ) : null;
 
   const textAndListBlock =
-    (cleanedHtml || listBlock) ? (
+    (processedText || listBlock) ? (
       <>
-        {cleanedHtml && textBlock}
+        {processedText && textBlock}
         {listBlock}
       </>
     ) : null;
-
-  const handleOpenLink = (url?: string | null) => {
-    const resolved = resolveUrl(url || undefined);
-    if (resolved) {
-      openExternalLink(resolved);
-    }
-  };
 
   const normalizedAttachments = normalizeAttachments(message);
   let processedAttachments: AttachmentInfo[] = [];
@@ -685,9 +550,6 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
         .slice(0, 6)
     : [];
 
-  // Display hint puede usarse para aplicar un contenedor especial alrededor del mensaje, o pasar a MessageBubble
-  // Por ahora, lo mantendremos simple.
-
   return (
     <motion.div
       ref={ref}
@@ -717,11 +579,7 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
                     key={`${att.url}-${idx}`}
                     message={message}
                     attachmentInfo={att}
-                    // Si hay adjunto pero también texto, el texto puede ser un caption o fallback
-                    // Only show caption on first attachment to avoid repetition? Or allow repetition if meaningful?
-                    // Typically caption applies to the set. Let's put it on the first one or separate it.
-                    // For now, let's put it on the first one if we are in this block.
-                    fallbackText={idx === 0 && cleanedHtml && !showStructuredContent && !audioSrc ? cleanedHtml : undefined}
+                    fallbackText={idx === 0 && processedText && !showStructuredContent && !audioSrc ? processedText : undefined}
                   />
                ))}
 
@@ -730,7 +588,7 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
                  <AttachmentPreview
                     message={message}
                     attachmentInfo={null}
-                    fallbackText={cleanedHtml && !showStructuredContent && !audioSrc ? cleanedHtml : undefined}
+                    fallbackText={processedText && !showStructuredContent && !audioSrc ? processedText : undefined}
                  />
                )}
             </div>
@@ -780,32 +638,9 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
             </div>
           )}
 
-          {linkPreviews.length > 0 && (
-            <div className="mt-3 space-y-2">
-              {linkPreviews.map((preview) => (
-                <button
-                  key={`${buttonKey(preview)}-preview`}
-                  onClick={() => handleOpenLink(preview.resolvedUrl || preview.url)}
-                  className="w-full text-left rounded-xl border border-white/15 bg-white/5 hover:bg-white/10 transition-all px-3 py-2 shadow-sm"
-                >
-                  <div className="flex items-center justify-between gap-2 text-sm font-semibold text-white">
-                    <span className="line-clamp-1">{preview.prettyLabel}</span>
-                    <ExternalLink size={14} className="shrink-0 text-blue-100" />
-                  </div>
-                  {(preview.meta.hostname || preview.meta.path) && (
-                    <p className="mt-1 text-xs text-white/70 break-all">
-                      {preview.meta.hostname}
-                      {preview.meta.path && ` · ${preview.meta.path}`}
-                    </p>
-                  )}
-                </button>
-              ))}
-            </div>
-          )}
-
           {showSocialLinks && <SocialLinks links={message.socialLinks!} />}
 
-          {/* Botones (categorized or flat) */}
+          {/* Botones */}
           {isBot && message.categorias && message.categorias.length > 0 ? (
             <>
               <CategorizedButtons
@@ -813,9 +648,9 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
                 onButtonClick={onButtonClick}
                 onInternalAction={onInternalAction}
               />
-              {derivedLinkButtons.length > 0 && (
-                <ChatButtons
-                  botones={derivedLinkButtons}
+              {combinedButtons.length > 0 && (
+                 <ChatButtons
+                  botones={combinedButtons}
                   onButtonClick={onButtonClick}
                   onInternalAction={onInternalAction}
                 />
