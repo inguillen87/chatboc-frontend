@@ -66,8 +66,17 @@ export function TenantTable({ tenants, loading, onEdit, onImpersonate, onToggleS
                   {tenant.is_active ? 'Activo' : 'Inactivo'}
                 </Badge>
               </TableCell>
-              <TableCell className="text-sm text-muted-foreground max-w-[180px] truncate" title={tenant.owner_email}>
-                {tenant.owner_email || '-'}
+              <TableCell className="text-sm max-w-[180px] truncate" title={tenant.owner_email}>
+                {tenant.owner_email ? (
+                  <a
+                    href={`mailto:${tenant.owner_email}`}
+                    className="text-muted-foreground hover:text-primary hover:underline transition-colors"
+                  >
+                    {tenant.owner_email}
+                  </a>
+                ) : (
+                  <span className="text-muted-foreground">-</span>
+                )}
               </TableCell>
               <TableCell className="text-right">
                 <div className="flex justify-end gap-2">
