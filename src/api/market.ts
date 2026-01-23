@@ -9,6 +9,12 @@ import {
 } from '@/types/market';
 import { PublicOrderTrackingResponse } from '@/types/tracking';
 import { DEFAULT_PUBLIC_PRODUCTS } from '@/data/defaultProducts';
+
+export interface SearchCatalogFilters {
+  en_promocion?: boolean;
+  con_stock?: boolean;
+  precio_max?: number;
+}
 import { DEMO_CATALOGS as MOCK_CATALOGS } from '@/data/mockCatalogs';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
@@ -174,6 +180,32 @@ export async function fetchMarketCatalog(tenantSlug: string): Promise<MarketCata
   } catch (error) {
     console.warn(`[MarketAPI] Failed to fetch catalog for ${tenantSlug}, using mock.`, error);
     return mockCatalogResponse(tenantSlug);
+  }
+}
+
+export async function searchCatalog(tenantSlug: string, query: string, filters?: SearchCatalogFilters): Promise<MarketCatalogResponse> {
+  const params = new URLSearchParams();
+  params.append('q', query);
+  if (filters?.en_promocion) params.append('en_promocion', 'true');
+  if (filters?.con_stock) params.append('con_stock', 'true');
+  if (filters?.precio_max) params.append('precio_max', filters.precio_max.toString());
+
+  try {
+    return await apiFetch<MarketCatalogResponse>(`/api/${tenantSlug}/catalogo/buscar?${params.toString()}`, {
+      tenantSlug,
+      suppressPanel401Redirect: true,
+      omitChatSessionId: true,
+    });
+  } catch (error) {
+    console.warn(`[MarketAPI] Failed to search catalog for ${tenantSlug}`, error);
+    // Return empty result on error instead of full mock catalog, as search is specific
+    return {
+      products: [],
+      publicCartUrl: null,
+      whatsappShareUrl: null,
+      heroImageUrl: null,
+      heroSubtitle: null,
+    };
   }
 }
 
