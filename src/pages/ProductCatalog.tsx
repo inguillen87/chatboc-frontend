@@ -23,9 +23,10 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { addMarketItem } from '@/api/market';
+import { addMarketItem, searchCatalog } from '@/api/market';
 import { apiClient } from '@/api/client';
 import { UploadCloud } from 'lucide-react';
+import { useDebounce } from '@/hooks/useDebounce';
 
 interface ProductCatalogProps {
   tenantSlug?: string;
@@ -33,11 +34,15 @@ interface ProductCatalogProps {
 }
 
 export default function ProductCatalog({ tenantSlug: propTenantSlug, isDemoMode }: ProductCatalogProps) {
+  const [fullCatalog, setFullCatalog] = useState<ProductDetails[]>([]);
   const [allProducts, setAllProducts] = useState<ProductDetails[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<ProductDetails[]>([]);
   const [loading, setLoading] = useState(true);
+  const [backendSearchLoading, setBackendSearchLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearchTerm = useDebounce(searchTerm, 500);
+  const [isBackendSearchResult, setIsBackendSearchResult] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('todos');
   const [selectedModality, setSelectedModality] = useState<'todos' | 'venta' | 'puntos' | 'donacion'>('todos');
   const [catalogSource, setCatalogSource] = useState<'api' | 'fallback'>('api');
@@ -124,6 +129,7 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug, isDemoMode 
             }
         }
 
+        setFullCatalog(sourceProducts);
         setAllProducts(sourceProducts);
         setFilteredProducts(sourceProducts);
         setError(null);
@@ -131,6 +137,7 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug, isDemoMode 
     } catch (e) {
         console.error("Error loading demo catalog", e);
         // Safe fallback
+        setFullCatalog(DEFAULT_PUBLIC_PRODUCTS);
         setAllProducts(DEFAULT_PUBLIC_PRODUCTS);
         setFilteredProducts(DEFAULT_PUBLIC_PRODUCTS);
     }
@@ -193,6 +200,7 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug, isDemoMode 
           setCatalogSource('api');
           setCartMode('api');
           setHasDemoModalities(added);
+          setFullCatalog(withDemo);
           setAllProducts(withDemo);
           setFilteredProducts(withDemo);
         }
@@ -208,14 +216,69 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug, isDemoMode 
   }, [effectiveTenantSlug, productsApiPath, sharedRequestOptions]);
 
   useEffect(() => {
+    const performSearch = async () => {
+      if (!effectiveTenantSlug) return;
+
+      const trimmedTerm = debouncedSearchTerm.trim();
+      if (!trimmedTerm) {
+        setAllProducts(fullCatalog);
+        setIsBackendSearchResult(false);
+        return;
+      }
+
+      // If we are in demo/fallback mode, we stick to local filtering of the demo catalog
+      if (catalogSource === 'fallback') {
+        setIsBackendSearchResult(false);
+        // allProducts is already fullCatalog or set locally, no API call
+        return;
+      }
+
+      setBackendSearchLoading(true);
+      try {
+        // Backend search
+        const result = await searchCatalog(effectiveTenantSlug, trimmedTerm);
+        let normalized = normalizeProductsPayload(result, 'ProductCatalog')
+          .map((item) => enhanceProductDetails({ ...item, origen: 'api' as const }));
+
+        if (!isAdmin) {
+            normalized = normalized.filter((item) => item.disponible !== false);
+        }
+
+        // We do NOT merge demo modalities (points/donation) into search results typically,
+        // unless we want them to appear in search. For now, let's keep it clean.
+        // Or if we want consistency, we can merge them if they match the term?
+        // Simpler to just show what backend returns.
+
+        setAllProducts(normalized);
+        setIsBackendSearchResult(true);
+      } catch (err) {
+        console.error("Backend search failed", err);
+        // Fallback to local search on full catalog
+        setAllProducts(fullCatalog);
+        setIsBackendSearchResult(false);
+      } finally {
+        setBackendSearchLoading(false);
+      }
+    };
+
+    performSearch();
+  }, [debouncedSearchTerm, effectiveTenantSlug, fullCatalog, catalogSource, isAdmin]);
+
+  useEffect(() => {
     const lowercasedFilter = searchTerm.toLowerCase();
     const normalizedCategory = selectedCategory.trim().toLowerCase();
     const filtered = allProducts.filter(product => {
-      const matchesSearch =
-        product.nombre.toLowerCase().includes(lowercasedFilter) ||
-        (product.descripcion && product.descripcion.toLowerCase().includes(lowercasedFilter)) ||
-        (product.categoria && product.categoria.toLowerCase().includes(lowercasedFilter)) ||
-        (product.marca && product.marca.toLowerCase().includes(lowercasedFilter));
+      // If results come from backend, they are already filtered by text/relevance.
+      // However, for local fallback or refining, we might still check.
+      // If isBackendSearchResult is true, we trust the backend returned matches.
+      const matchesSearch = isBackendSearchResult
+        ? true
+        : (
+            product.nombre.toLowerCase().includes(lowercasedFilter) ||
+            (product.descripcion && product.descripcion.toLowerCase().includes(lowercasedFilter)) ||
+            (product.categoria && product.categoria.toLowerCase().includes(lowercasedFilter)) ||
+            (product.marca && product.marca.toLowerCase().includes(lowercasedFilter))
+        );
 
       const matchesCategory =
         normalizedCategory === 'todos' ||
@@ -229,7 +292,7 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug, isDemoMode 
       return matchesSearch && matchesCategory && matchesModality;
     });
     setFilteredProducts(filtered);
-  }, [searchTerm, allProducts, selectedCategory, selectedModality]);
+  }, [searchTerm, allProducts, selectedCategory, selectedModality, isBackendSearchResult]);
 
   const categories = useMemo(() => {
     const unique = new Map<string, string>();
@@ -568,7 +631,11 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug, isDemoMode 
           </div>
         )}
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+          {backendSearchLoading ? (
+            <Loader2 className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground animate-spin" />
+          ) : (
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+          )}
           <Input
             type="text"
             placeholder="Buscar productos por nombre, descripción, categoría..."

@@ -138,11 +138,18 @@
 
   const iframeSrc = `${cfg.host}${cfg.iframePath}?${qs.toString()}`;
 
+  const useShadow = script?.getAttribute("data-shadow-dom") !== "false";
+
   const container = document.createElement("div");
   container.id = containerId;
   document.body.appendChild(container);
 
-  const shadow = container.attachShadow({ mode: "open" });
+  let target;
+  if (useShadow) {
+    target = container.attachShadow({ mode: "open" });
+  } else {
+    target = container;
+  }
 
   const iframe = document.createElement("iframe");
   iframe.id = iframeId;
@@ -164,7 +171,7 @@
   ].join(" ");
 
   const style = document.createElement("style");
-  style.textContent = `
+  let cssContent = `
     :host {
       position: fixed;
       bottom: ${cfg.bottom};
@@ -179,13 +186,19 @@
     }
   `;
 
-  shadow.appendChild(style);
-  shadow.appendChild(iframe);
+  if (!useShadow) {
+    cssContent = cssContent.replace(/:host/g, "#" + containerId);
+  }
+
+  style.textContent = cssContent;
+
+  target.appendChild(style);
+  target.appendChild(iframe);
 
   let lastDims = { width: cfg.closedWidth, height: cfg.closedHeight };
 
   function applyDims(dims) {
-    const host = shadow.host;
+    const host = useShadow ? target.host : container;
     const desiredWidth = parseInt(dims.width, 10);
     const rightOffset = parseInt(cfg.right, 10);
     const maxWidth = window.innerWidth - (isNaN(rightOffset) ? 20 : rightOffset);
