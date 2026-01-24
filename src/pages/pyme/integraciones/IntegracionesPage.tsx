@@ -9,9 +9,10 @@ import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
-import { Loader2, RefreshCw, ExternalLink, CheckCircle2, AlertCircle, MessageSquare, Send } from 'lucide-react';
+import { Loader2, RefreshCw, ExternalLink, CheckCircle2, AlertCircle, MessageSquare, Send, Tags, Eye } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { toast } from 'sonner';
+import WidgetPreview from '@/components/chat/WidgetPreview';
 
 const INTEGRATION_LOGOS: Record<string, string> = {
   mercadolibre: "https://http2.mlstatic.com/frontend-assets/ml-web-navigation/ui-navigation/5.21.22/mercadolibre/logo__large_plus.png",
@@ -93,9 +94,16 @@ const IntegracionesPage = () => {
           console.warn('No redirect URL returned');
           toast.error("No se pudo iniciar la conexión.");
       }
-    } catch (error) {
+    } catch (error: any) {
         console.error('Connection failed:', error);
-        toast.error("Error al conectar con la plataforma.");
+        const status = error?.status || error?.response?.status;
+        if (status === 403) {
+            toast.error("Plan Requerido", { description: "Actualizá tu plan para acceder a esta integración." });
+        } else if (status === 503) {
+            toast.error("Plataforma no configurada", { description: "Esta integración está en mantenimiento." });
+        } else {
+            toast.error("Error al conectar con la plataforma.");
+        }
     }
   };
 
@@ -148,6 +156,31 @@ const IntegracionesPage = () => {
         </p>
       </div>
 
+      {currentSlug && (
+        <section>
+          <div className="flex items-center gap-2 mb-4">
+             <h2 className="text-xl font-semibold">Vista Previa</h2>
+             <Badge variant="secondary"><Eye className="h-3 w-3 mr-1"/> En Vivo</Badge>
+          </div>
+          <div className="grid md:grid-cols-2 gap-6">
+             <div className="space-y-4">
+               <p className="text-sm text-muted-foreground">
+                 Así se ve tu asistente virtual en tu sitio web. Podes personalizar el color y los mensajes desde la configuración general.
+               </p>
+               {/* Could add controls here later */}
+             </div>
+             <div className="h-[500px] w-full max-w-sm mx-auto md:mx-0">
+               <WidgetPreview
+                  tenantSlug={currentSlug}
+                  className="h-full w-full rounded-3xl border-4 border-slate-200 shadow-2xl"
+                  defaultOpen={true}
+               />
+             </div>
+          </div>
+          <Separator className="my-8" />
+        </section>
+      )}
+
       <div className="grid gap-8">
         {/* Marketplace Integrations Section */}
         <section className="space-y-4">
@@ -192,6 +225,12 @@ const IntegracionesPage = () => {
                        <div className="flex flex-col gap-3 w-full md:w-auto">
                          {integration.connected ? (
                            <>
+                              {(integration.provider === 'mercadolibre' || integration.provider === 'tiendanube') && (
+                                <Button variant="outline" size="sm" className="w-full md:w-32 justify-start md:justify-center">
+                                  <Tags className="mr-2 h-4 w-4" />
+                                  Mapeo
+                                </Button>
+                              )}
                               <Button
                                 variant="outline"
                                 size="sm"

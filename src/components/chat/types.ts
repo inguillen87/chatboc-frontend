@@ -1,5 +1,5 @@
 export interface ChatWidgetProps {
-  mode?: "standalone" | "iframe" | "script";
+  mode?: "standalone" | "iframe" | "script" | "preview";
   initialPosition?: { bottom: number; right: number };
   defaultOpen?: boolean;
   initialView?: 'chat' | 'register' | 'login' | 'user' | 'info';

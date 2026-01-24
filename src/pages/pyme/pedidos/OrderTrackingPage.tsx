@@ -56,7 +56,7 @@ export default function OrderTrackingPage() {
         setOrder(data);
 
         // Apply theme if available
-        if (data.tenant_theme) {
+        if (data.tenant_theme && data.tenant_theme.primaryColor) {
           const root = document.documentElement;
           root.style.setProperty('--primary', data.tenant_theme.primaryColor);
           // Assuming secondaryColor might be used for backgrounds or accents,
