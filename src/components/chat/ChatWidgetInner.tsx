@@ -452,7 +452,7 @@ function ChatWidgetInner({
     const root = document.documentElement;
     // Strictly scope to container unless we are in full-page iframe mode.
     // This prevents the widget from polluting the host page's global styles (like dark mode background).
-    const target = (mode === 'iframe') ? root : widgetContainerRef.current;
+    const target = (mode === 'iframe' && mode !== 'preview') ? root : widgetContainerRef.current;
 
     // First, apply the base theme from entity config (if available) to ensure background/text are correct
     if (entityInfo?.theme_config) {
@@ -511,7 +511,11 @@ function ChatWidgetInner({
     }
 
     if (backendMessages && Array.isArray(backendMessages) && backendMessages.length > 0) {
-        messages = backendMessages.map((msg: any) => typeof msg === 'string' ? msg : msg.text || msg.message || "");
+        messages = backendMessages.map((msg: any) => {
+          if (!msg) return "";
+          if (typeof msg === 'string') return msg;
+          return msg.text || msg.message || "";
+        });
         messages = messages.filter(m => m.trim().length > 0);
     } else if (isLanding) {
         messages = LANDING_PROACTIVE_MESSAGES;
@@ -876,7 +880,7 @@ function ChatWidgetInner({
 
   const sendStateMessageToParent = useCallback(
     (open: boolean) => {
-      if (mode === "iframe" && typeof window !== "undefined" && window.parent !== window && widgetId) {
+      if (mode === "iframe" && mode !== "preview" && typeof window !== "undefined" && window.parent !== window && widgetId) {
         const dims = open
           ? { width: openWidth, height: openHeight }
           : { width: finalClosedWidth, height: finalClosedHeight };
@@ -891,7 +895,7 @@ function ChatWidgetInner({
   );
 
   useEffect(() => {
-    if (mode === "iframe" && typeof window !== "undefined" && window.parent !== window && widgetId) {
+    if (mode === "iframe" && mode !== "preview" && typeof window !== "undefined" && window.parent !== window && widgetId) {
       window.parent.postMessage({ type: "chatboc-ready", widgetId }, "*");
     }
   }, [mode, widgetId]);
@@ -1149,6 +1153,17 @@ function ChatWidgetInner({
         transition: 'width 0.3s ease, height 0.3s ease, bottom 0.3s ease, right 0.3s ease',
       };
     }
+    if (mode === "preview") {
+      return {
+        width: '100%',
+        height: '100%',
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        overflow: 'hidden',
+        zIndex: 10
+      };
+    }
     return {};
   }, [mode, initialPosition.bottom, initialPosition.right, isOpen, finalOpenWidth, finalOpenHeight, finalClosedWidth, finalClosedHeight]);
 
@@ -1178,7 +1193,7 @@ function ChatWidgetInner({
     return null;
   }
 
-  if (mode === "standalone" || mode === "iframe") {
+  if (mode === "standalone" || mode === "iframe" || mode === "preview") {
     return (
       <div
         ref={widgetContainerRef}
