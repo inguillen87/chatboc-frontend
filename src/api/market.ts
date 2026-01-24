@@ -164,6 +164,27 @@ export async function fetchMarketCart(tenantSlug: string): Promise<MarketCartRes
   }
 }
 
+export async function searchMarketCatalog(
+  tenantSlug: string,
+  query: string,
+  filters?: { en_promocion?: boolean; con_stock?: boolean; precio_max?: number }
+): Promise<MarketCatalogResponse> {
+  const params = new URLSearchParams();
+  if (query) params.append('q', query);
+  if (filters?.en_promocion) params.append('en_promocion', 'true');
+  if (filters?.con_stock) params.append('con_stock', 'true');
+  if (filters?.precio_max) params.append('precio_max', String(filters.precio_max));
+
+  // The endpoint might be /catalogo/buscar or /productos/buscar.
+  // Based on prompt: "/catalogo/buscar"
+  // We prepend /api/{tenantSlug} as standard convention in this file.
+  return await apiFetch<MarketCatalogResponse>(`/api/${tenantSlug}/catalogo/buscar?${params.toString()}`, {
+    tenantSlug,
+    suppressPanel401Redirect: true,
+    omitChatSessionId: true,
+  });
+}
+
 export async function fetchMarketCatalog(tenantSlug: string): Promise<MarketCatalogResponse> {
   try {
     return await apiFetch<MarketCatalogResponse>(`/api/${tenantSlug}/productos`, {
