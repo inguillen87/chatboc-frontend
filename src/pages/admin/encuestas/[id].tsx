@@ -41,7 +41,8 @@ const SurveyDetailPage = () => {
     try {
       const result = await apiFetch<{ message: string }>(`/admin/encuestas/${surveyId}/seed-demo`, {
         method: 'POST',
-        body: {}
+        body: {},
+        omitEntityToken: true
       });
       toast({ title: "Seeding complete", description: result.message });
     } catch (error) {

@@ -1139,6 +1139,7 @@ export default function Perfil() {
       const processingResult = await apiFetch<any>(`/${entityType}/${user?.id}/process-catalog-file`, {
         method: "POST",
         body: formData,
+        omitEntityToken: true,
       });
 
       const vectorMetadata: Record<string, unknown> = {
@@ -1402,6 +1403,7 @@ export default function Perfil() {
       const savedMapping = await apiFetch<any>(`/${entityType}/${user.id}/catalog-mappings`, {
         method: 'POST',
         body: configToSave,
+        omitEntityToken: true,
       });
 
       toast({ title: "Paso 1/2: Formato guardado", description: `Se guardó la configuración "${mappingName}".` });
@@ -1424,6 +1426,7 @@ export default function Perfil() {
     try {
       await apiFetch<void>(`/${entityType}/${user.id}/catalog-mappings/${mappingToDelete.id}`, {
         method: 'DELETE',
+        omitEntityToken: true,
       });
       toast({
         title: "Configuración eliminada",

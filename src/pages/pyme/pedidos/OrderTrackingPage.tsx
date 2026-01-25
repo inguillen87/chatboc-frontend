@@ -55,12 +55,15 @@ export default function OrderTrackingPage() {
 
         setOrder(data);
 
-        // Apply theme if available
-        if (data.tenant_theme && data.tenant_theme.primaryColor) {
+        // Apply theme if available (Defensive handling for JSON string or object)
+        let theme = data.tenant_theme;
+        if (typeof theme === 'string') {
+             try { theme = JSON.parse(theme); } catch (e) { console.warn('Failed to parse tenant_theme', e); }
+        }
+
+        if (theme && typeof theme === 'object' && theme.primaryColor) {
           const root = document.documentElement;
-          root.style.setProperty('--primary', data.tenant_theme.primaryColor);
-          // Assuming secondaryColor might be used for backgrounds or accents,
-          // but relying on primary for main branding is safer.
+          root.style.setProperty('--primary', theme.primaryColor);
         }
       } catch (err) {
         console.error('Failed to load order', err);

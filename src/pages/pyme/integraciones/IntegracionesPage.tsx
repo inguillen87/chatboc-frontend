@@ -13,6 +13,13 @@ import { Loader2, RefreshCw, ExternalLink, CheckCircle2, AlertCircle, MessageSqu
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { toast } from 'sonner';
 import WidgetPreview from '@/components/chat/WidgetPreview';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 const INTEGRATION_LOGOS: Record<string, string> = {
   mercadolibre: "https://http2.mlstatic.com/frontend-assets/ml-web-navigation/ui-navigation/5.21.22/mercadolibre/logo__large_plus.png",
@@ -26,6 +33,8 @@ const IntegracionesPage = () => {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState<string | null>(null);
   const [savingSettings, setSavingSettings] = useState(false);
+  const [mappingOpen, setMappingOpen] = useState(false);
+  const [selectedMappingProvider, setSelectedMappingProvider] = useState<string | null>(null);
 
   // Notification Settings State
   const [ownerPhone, setOwnerPhone] = useState('');
@@ -226,7 +235,15 @@ const IntegracionesPage = () => {
                          {integration.connected ? (
                            <>
                               {(integration.provider === 'mercadolibre' || integration.provider === 'tiendanube') && (
-                                <Button variant="outline" size="sm" className="w-full md:w-32 justify-start md:justify-center">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="w-full md:w-32 justify-start md:justify-center"
+                                  onClick={() => {
+                                    setSelectedMappingProvider(integration.provider);
+                                    setMappingOpen(true);
+                                  }}
+                                >
                                   <Tags className="mr-2 h-4 w-4" />
                                   Mapeo
                                 </Button>
@@ -364,6 +381,49 @@ const IntegracionesPage = () => {
            Las sincronizaciones masivas de catálogo pueden demorar unos minutos. Te notificaremos cuando el proceso termine.
         </AlertDescription>
       </Alert>
+
+      <Dialog open={mappingOpen} onOpenChange={setMappingOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="capitalize">Mapeo de Atributos: {selectedMappingProvider}</DialogTitle>
+            <DialogDescription>
+              Estado de vinculación de categorías y atributos con la plataforma externa.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+             <div className="border rounded-md p-4 space-y-4">
+                <div className="flex justify-between items-center text-sm font-medium border-b pb-2">
+                   <span>Categoría Local</span>
+                   <span className="text-muted-foreground">→</span>
+                   <span>Categoría Externa</span>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center text-sm">
+                    <span>Remeras</span>
+                    <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50 flex items-center gap-1">
+                      <CheckCircle2 className="h-3 w-3" /> Ropa y Accesorios
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span>Pantalones</span>
+                    <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50 flex items-center gap-1">
+                      <CheckCircle2 className="h-3 w-3" /> Pantalones
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span>Zapatillas</span>
+                    <Badge variant="outline" className="text-yellow-600 border-yellow-200 bg-yellow-50 flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3" /> Pendiente
+                    </Badge>
+                  </div>
+                </div>
+             </div>
+             <p className="text-xs text-muted-foreground text-center">
+               El mapeo se actualiza automáticamente con cada sincronización.
+             </p>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
