@@ -510,6 +510,10 @@ function ChatWidgetInner({
       backendMessages = entityInfo.interaction.cta_messages;
     }
 
+    if (backendMessages && !Array.isArray(backendMessages)) {
+      backendMessages = [];
+    }
+
     if (backendMessages && Array.isArray(backendMessages) && backendMessages.length > 0) {
         messages = backendMessages.map((msg: any) => {
           if (!msg) return "";
@@ -1000,8 +1004,8 @@ function ChatWidgetInner({
                     // Priority Merge: Props > Backend Config
                     nombre_empresa: welcomeTitle || publicConfig.tenant_name || publicConfig.name || publicConfig.nombre,
                     logo_url: headerLogoUrl || customLauncherLogoUrl || publicConfig.logo_url || publicConfig.avatar_url,
-                    cta_messages: ctaMessage ? [{ text: ctaMessage }] : publicConfig.cta_messages,
-                    theme_config: publicConfig.theme_config,
+                    cta_messages: ctaMessage ? [{ text: ctaMessage }] : (Array.isArray(publicConfig.cta_messages) ? publicConfig.cta_messages : []),
+                    theme_config: publicConfig.theme_config || {},
                     default_open: (typeof defaultOpen === 'boolean') ? defaultOpen : publicConfig.default_open,
                     slug: resolvedTenantSlug,
                     tipo_chat: publicConfig.tipo_chat || (publicConfig.type === 'municipio' ? 'municipio' : 'pyme')
