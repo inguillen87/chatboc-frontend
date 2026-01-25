@@ -13,6 +13,7 @@ export interface MunicipalPostFilters {
   fromDate?: string;
   toDate?: string;
   tipoPost?: MunicipalPostType;
+  enabled?: boolean;
 }
 
 export interface MunicipalPostsPagination {
@@ -140,6 +141,7 @@ const normalizeFilters = (
 export function useMunicipalPosts(
   initialFilters?: MunicipalPostFilters,
 ): UseMunicipalPostsResult {
+  const enabled = initialFilters?.enabled ?? true;
   const initial = normalizeFilters(initialFilters, initialFilters?.limit ?? 20);
   const [filters, setFiltersState] = useState<NormalizedFilters>(initial);
   const [posts, setPosts] = useState<Post[]>([]);
@@ -180,6 +182,7 @@ export function useMunicipalPosts(
       try {
         const query = buildQueryString(nextFilters);
         const data = await apiFetch<Post[]>(`/municipal/posts${query}`, {
+          omitEntityToken: true,
           onResponse: (response) => {
             headerMeta = readPaginationHeaders(response.headers, nextFilters);
           },
@@ -284,9 +287,11 @@ export function useMunicipalPosts(
   }, [fetchPosts, filters]);
 
   useEffect(() => {
-    void fetchPosts(initial, { append: false });
+    if (enabled) {
+      void fetchPosts(initial, { append: false });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [enabled]);
 
   return {
     posts,
