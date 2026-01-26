@@ -125,7 +125,12 @@ export function TenantModal({ isOpen, onClose, onSuccess, tenantToEdit, initialT
     setLoading(true);
     try {
       if (isEditing && tenantToEdit) {
-        await apiClient.superAdminUpdateTenant(tenantToEdit.slug, values);
+        // Strictly limit payload for update to ensure compliance
+        const payload = {
+            plan: values.plan,
+            is_active: values.is_active
+        };
+        await apiClient.superAdminUpdateTenant(tenantToEdit.slug, payload);
         toast.success('Tenant actualizado correctamente');
       } else {
         await apiClient.superAdminCreateTenant(values);
