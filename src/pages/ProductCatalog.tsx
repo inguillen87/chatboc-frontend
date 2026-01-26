@@ -23,9 +23,10 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { addMarketItem } from '@/api/market';
+import { addMarketItem, searchMarketCatalog } from '@/api/market';
 import { apiClient } from '@/api/client';
 import { UploadCloud } from 'lucide-react';
+import { useDebounce } from '@/hooks/useDebounce';
 
 interface ProductCatalogProps {
   tenantSlug?: string;
@@ -35,12 +36,18 @@ interface ProductCatalogProps {
 export default function ProductCatalog({ tenantSlug: propTenantSlug, isDemoMode }: ProductCatalogProps) {
   const [allProducts, setAllProducts] = useState<ProductDetails[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<ProductDetails[]>([]);
+  const [searchResults, setSearchResults] = useState<ProductDetails[] | null>(null);
   const [loading, setLoading] = useState(true);
+  const [searchLoading, setSearchLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('todos');
   const [selectedModality, setSelectedModality] = useState<'todos' | 'venta' | 'puntos' | 'donacion'>('todos');
+  const [promoFilter, setPromoFilter] = useState(false);
+  const [stockFilter, setStockFilter] = useState(false);
   const [catalogSource, setCatalogSource] = useState<'api' | 'fallback'>('api');
+
+  const debouncedSearchTerm = useDebounce(searchTerm, 500);
   const [cartMode, setCartMode] = useState<'api' | 'local'>('api');
   const [hasDemoModalities, setHasDemoModalities] = useState(false);
   const [loyaltySummary] = useState(() => getDemoLoyaltySummary());
@@ -207,20 +214,78 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug, isDemoMode 
       .finally(() => setLoading(false));
   }, [effectiveTenantSlug, productsApiPath, sharedRequestOptions]);
 
+  // Backend Search Effect
   useEffect(() => {
+    const performSearch = async () => {
+      // If we have a search term or specific filters, use backend search
+      if ((debouncedSearchTerm.trim().length > 0 || promoFilter || stockFilter) && effectiveTenantSlug) {
+        setSearchLoading(true);
+        try {
+          const response = await searchMarketCatalog(effectiveTenantSlug, debouncedSearchTerm, {
+            en_promocion: promoFilter,
+            con_stock: stockFilter
+          });
+
+          let results: ProductDetails[] = [];
+          if (response && response.products) {
+            results = normalizeProductsPayload(response.products, 'ProductCatalog')
+              .map((item) => enhanceProductDetails({ ...item, origen: 'api' as const }));
+          }
+
+          if (!isAdmin) {
+             results = results.filter((item) => item.disponible !== false);
+          }
+
+          setSearchResults(results);
+        } catch (e) {
+          console.error("Search failed", e);
+          // On error, we might fallback to local filtering if we have products,
+          // or just show empty results. For now, let's reset to null to fallback to local
+          // BUT only if we have products loaded. If not, it stays empty.
+          // Actually, if search fails, showing nothing is safer than showing wrong stuff.
+          setSearchResults([]);
+        } finally {
+          setSearchLoading(false);
+        }
+      } else {
+        // Reset search results when conditions are cleared
+        setSearchResults(null);
+      }
+    };
+
+    performSearch();
+  }, [debouncedSearchTerm, promoFilter, stockFilter, effectiveTenantSlug, isAdmin]);
+
+  // Combined Filtering Effect (Local + Search Results)
+  useEffect(() => {
+    // Determine the source: searchResults (if active) or allProducts
+    const sourceProducts = searchResults !== null ? searchResults : allProducts;
+
+    // If using search results, we don't need to re-filter by text locally,
+    // but we SHOULD still respect category and modality filters to refine the view.
+    // However, if searchResults is null (local mode), we MUST filter by text.
+
+    const isSearchActive = searchResults !== null;
     const lowercasedFilter = searchTerm.toLowerCase();
     const normalizedCategory = selectedCategory.trim().toLowerCase();
-    const filtered = allProducts.filter(product => {
-      const matchesSearch =
-        product.nombre.toLowerCase().includes(lowercasedFilter) ||
-        (product.descripcion && product.descripcion.toLowerCase().includes(lowercasedFilter)) ||
-        (product.categoria && product.categoria.toLowerCase().includes(lowercasedFilter)) ||
-        (product.marca && product.marca.toLowerCase().includes(lowercasedFilter));
 
+    const filtered = sourceProducts.filter(product => {
+      // 1. Text Search (only if NOT using backend search results)
+      const matchesSearch = isSearchActive
+        ? true
+        : (
+          product.nombre.toLowerCase().includes(lowercasedFilter) ||
+          (product.descripcion && product.descripcion.toLowerCase().includes(lowercasedFilter)) ||
+          (product.categoria && product.categoria.toLowerCase().includes(lowercasedFilter)) ||
+          (product.marca && product.marca.toLowerCase().includes(lowercasedFilter))
+        );
+
+      // 2. Category Filter
       const matchesCategory =
         normalizedCategory === 'todos' ||
         (!!product.categoria && product.categoria.toLowerCase() === normalizedCategory);
 
+      // 3. Modality Filter
       const modality = (product.modalidad ?? 'venta').toLowerCase();
       const matchesModality =
         selectedModality === 'todos' ||
@@ -229,7 +294,7 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug, isDemoMode 
       return matchesSearch && matchesCategory && matchesModality;
     });
     setFilteredProducts(filtered);
-  }, [searchTerm, allProducts, selectedCategory, selectedModality]);
+  }, [searchResults, allProducts, searchTerm, selectedCategory, selectedModality]);
 
   const categories = useMemo(() => {
     const unique = new Map<string, string>();
@@ -571,12 +636,29 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug, isDemoMode 
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
           <Input
             type="text"
-            placeholder="Buscar productos por nombre, descripción, categoría..."
+            placeholder="Buscar productos..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2 text-base rounded-md border-border focus:ring-primary focus:border-primary"
           />
+          {searchLoading && (
+             <div className="absolute right-3 top-1/2 -translate-y-1/2">
+               <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+             </div>
+          )}
         </div>
+
+        <div className="flex flex-wrap gap-4 mt-4 items-center">
+            <div className="flex items-center space-x-2">
+                <Switch id="promo-filter" checked={promoFilter} onCheckedChange={setPromoFilter} />
+                <Label htmlFor="promo-filter">En Oferta</Label>
+            </div>
+            <div className="flex items-center space-x-2">
+                <Switch id="stock-filter" checked={stockFilter} onCheckedChange={setStockFilter} />
+                <Label htmlFor="stock-filter">Solo Stock</Label>
+            </div>
+        </div>
+
         {categories.length > 1 && (
           <Tabs value={selectedCategory} onValueChange={setSelectedCategory} className="mt-4">
             <TabsList className="flex flex-wrap justify-start gap-2 bg-transparent p-0">

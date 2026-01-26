@@ -142,7 +142,14 @@
   container.id = containerId;
   document.body.appendChild(container);
 
-  const shadow = container.attachShadow({ mode: "open" });
+  const useShadowDom = ds.shadowDom !== "false";
+  let root;
+
+  if (useShadowDom) {
+    root = container.attachShadow({ mode: "open" });
+  } else {
+    root = container;
+  }
 
   const iframe = document.createElement("iframe");
   iframe.id = iframeId;
@@ -163,9 +170,10 @@
     "allow-downloads",
   ].join(" ");
 
+  const selector = useShadowDom ? ':host' : '#' + containerId;
   const style = document.createElement("style");
   style.textContent = `
-    :host {
+    ${selector} {
       position: fixed;
       bottom: ${cfg.bottom};
       right: ${cfg.right};
@@ -179,13 +187,13 @@
     }
   `;
 
-  shadow.appendChild(style);
-  shadow.appendChild(iframe);
+  root.appendChild(style);
+  root.appendChild(iframe);
 
   let lastDims = { width: cfg.closedWidth, height: cfg.closedHeight };
 
   function applyDims(dims) {
-    const host = shadow.host;
+    const host = useShadowDom ? root.host : container;
     const desiredWidth = parseInt(dims.width, 10);
     const rightOffset = parseInt(cfg.right, 10);
     const maxWidth = window.innerWidth - (isNaN(rightOffset) ? 20 : rightOffset);
