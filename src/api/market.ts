@@ -164,6 +164,31 @@ export async function fetchMarketCart(tenantSlug: string): Promise<MarketCartRes
   }
 }
 
+export interface SearchCatalogFilters {
+  en_promocion?: boolean;
+  con_stock?: boolean;
+  precio_max?: number;
+}
+
+export async function searchCatalog(
+  tenantSlug: string,
+  query: string,
+  filters: SearchCatalogFilters = {}
+): Promise<any> {
+  const params = new URLSearchParams();
+  if (query) params.append('q', query);
+  if (filters.en_promocion) params.append('en_promocion', 'true');
+  if (filters.con_stock) params.append('con_stock', 'true');
+  if (filters.precio_max) params.append('precio_max', String(filters.precio_max));
+
+  // Try to use the tenant-scoped endpoint if possible, otherwise fallback to generic
+  return apiFetch(`/api/${tenantSlug}/catalogo/buscar?${params.toString()}`, {
+    tenantSlug,
+    suppressPanel401Redirect: true,
+    omitChatSessionId: true,
+  });
+}
+
 export async function fetchMarketCatalog(tenantSlug: string): Promise<MarketCatalogResponse> {
   try {
     return await apiFetch<MarketCatalogResponse>(`/api/${tenantSlug}/productos`, {
