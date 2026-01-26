@@ -73,3 +73,10 @@ export interface CheckoutStartResponse {
   status?: string; // 'pending', 'confirmed', 'demo'
   message?: string;
 }
+
+export interface SearchCatalogPayload {
+  query?: string;
+  en_promocion?: boolean;
+  con_stock?: boolean;
+  precio_max?: number;
+}
