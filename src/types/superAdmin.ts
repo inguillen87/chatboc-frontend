@@ -7,7 +7,7 @@ export interface Tenant {
   status: 'active' | 'inactive';
   is_active: boolean;
   created_at: string;
-  owner_email?: string;
+  owner_email: string;
   whatsapp_sender_id?: string;
 }
 

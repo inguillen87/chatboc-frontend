@@ -125,7 +125,12 @@ export function TenantModal({ isOpen, onClose, onSuccess, tenantToEdit, initialT
     setLoading(true);
     try {
       if (isEditing && tenantToEdit) {
-        await apiClient.superAdminUpdateTenant(tenantToEdit.slug, values);
+        // Strictly limit payload to allowed fields
+        const payload = {
+            plan: values.plan,
+            is_active: values.is_active
+        };
+        await apiClient.superAdminUpdateTenant(tenantToEdit.slug, payload);
         toast.success('Tenant actualizado correctamente');
       } else {
         await apiClient.superAdminCreateTenant(values);
@@ -208,7 +213,7 @@ export function TenantModal({ isOpen, onClose, onSuccess, tenantToEdit, initialT
                                 render={({ field }) => (
                                     <FormItem>
                                     <FormLabel>Nombre</FormLabel>
-                                    <FormControl><Input {...field} /></FormControl>
+                                    <FormControl><Input {...field} disabled={true} title="El nombre no se puede editar" /></FormControl>
                                     <FormMessage />
                                     </FormItem>
                                 )}
