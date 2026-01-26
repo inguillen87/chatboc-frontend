@@ -66,6 +66,7 @@ export function TenantTable({ tenants, loading, onEdit, onImpersonate, onToggleS
                   {tenant.is_active ? 'Activo' : 'Inactivo'}
                 </Badge>
               </TableCell>
+              {/* Verified: owner_email is displayed as per Super Admin updates */}
               <TableCell className="text-sm text-muted-foreground max-w-[180px] truncate" title={tenant.owner_email}>
                 {tenant.owner_email || '-'}
               </TableCell>

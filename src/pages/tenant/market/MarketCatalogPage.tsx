@@ -6,11 +6,15 @@ import { MarketCartProvider, useMarketCart } from '@/context/MarketCartContext';
 import type { MarketCatalogResponse, MarketProduct } from '@/types/market';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { fetchMarketCatalog } from '@/api/market';
-import { Copy, MessageCircle, QrCode, ShoppingBag } from 'lucide-react';
+import { fetchMarketCatalog, searchCatalog } from '@/api/market';
+import { Copy, MessageCircle, QrCode, ShoppingBag, Search } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { buildDemoMarketCatalog } from '@/data/marketDemo';
+import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+import { useDebounce } from '@/hooks/useDebounce';
 
 function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
   const [products, setProducts] = useState<MarketProduct[]>([]);
@@ -20,6 +24,16 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
   const [shareMeta, setShareMeta] = useState<Pick<MarketCatalogResponse, 'publicCartUrl' | 'whatsappShareUrl'> | null>(
     null,
   );
+
+  // Search & Filter State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [promoFilter, setPromoFilter] = useState(false);
+  const [stockFilter, setStockFilter] = useState(false);
+  const [priceMax, setPriceMax] = useState('');
+
+  const debouncedQuery = useDebounce(searchQuery, 500);
+  const debouncedPrice = useDebounce(priceMax, 500);
+
   const { addItem, isLoading: isCartLoading } = useMarketCart();
   const shareUrl = useMemo(() => {
     if (shareMeta?.publicCartUrl) return shareMeta.publicCartUrl;
@@ -40,9 +54,23 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
     setIsLoading(true);
     setError(null);
     setIsDemo(false);
-    fetchMarketCatalog(tenantSlug)
+
+    const isFiltering = debouncedQuery || promoFilter || stockFilter || debouncedPrice;
+    const promise = isFiltering
+      ? searchCatalog(tenantSlug, {
+          query: debouncedQuery,
+          en_promocion: promoFilter,
+          con_stock: stockFilter,
+          precio_max: debouncedPrice !== '' ? Number(debouncedPrice) : undefined
+        })
+      : fetchMarketCatalog(tenantSlug);
+
+    promise
       .then((response) => {
-        const availableProducts = (response?.products ?? []).filter(p => p.disponible !== false);
+        // Apply client-side availability filter only for default fetch.
+        // For search, trust the backend filters.
+        const rawProducts = response?.products ?? [];
+        const availableProducts = isFiltering ? rawProducts : rawProducts.filter(p => p.disponible !== false);
         setProducts(availableProducts);
         setIsDemo(Boolean(response?.isDemo));
         setShareMeta({
@@ -51,6 +79,8 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
         });
       })
       .catch((err) => {
+        // Fallback to demo only on initial load or if meaningful error handling strategy exists
+        // For search, maybe we just show empty or error, but here we keep existing behavior
         const demo = buildDemoMarketCatalog(tenantSlug).catalog;
         setProducts(demo.products);
         setIsDemo(true);
@@ -58,7 +88,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
         setError(err instanceof Error ? err.message : 'No se pudo cargar el catálogo en vivo. Mostramos una demo.');
       })
       .finally(() => setIsLoading(false));
-  }, [tenantSlug]);
+  }, [tenantSlug, debouncedQuery, promoFilter, stockFilter, debouncedPrice]);
 
   const emptyState = !isLoading && products.length === 0;
 
@@ -108,6 +138,42 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
           {isDemo ? <Badge variant="secondary">Demo</Badge> : null}
         </div>
       </header>
+
+      {/* Search & Filters */}
+      <div className="flex flex-col gap-4 rounded-lg border p-4 shadow-sm">
+        <div className="flex items-center gap-2">
+           <div className="relative flex-1">
+             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+             <Input
+               placeholder="Buscar productos..."
+               value={searchQuery}
+               onChange={(e) => setSearchQuery(e.target.value)}
+               className="pl-9"
+             />
+           </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-6">
+          <div className="flex items-center space-x-2">
+            <Checkbox id="promo" checked={promoFilter} onCheckedChange={(c) => setPromoFilter(!!c)} />
+            <Label htmlFor="promo" className="cursor-pointer">En Promoción</Label>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Checkbox id="stock" checked={stockFilter} onCheckedChange={(c) => setStockFilter(!!c)} />
+            <Label htmlFor="stock" className="cursor-pointer">Solo con Stock</Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Label htmlFor="price" className="whitespace-nowrap">Precio Máximo:</Label>
+            <Input
+              id="price"
+              type="number"
+              placeholder="0"
+              value={priceMax}
+              onChange={(e) => setPriceMax(e.target.value)}
+              className="w-24 h-8"
+            />
+          </div>
+        </div>
+      </div>
 
       {isDemo ? (
         <Alert>
