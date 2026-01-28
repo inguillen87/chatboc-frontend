@@ -67,6 +67,7 @@ export function TenantTable({ tenants, loading, onEdit, onImpersonate, onToggleS
                 </Badge>
               </TableCell>
               <TableCell className="text-sm text-muted-foreground max-w-[180px] truncate" title={tenant.owner_email}>
+                {/* Displays owner email for quick contact */}
                 {tenant.owner_email || '-'}
               </TableCell>
               <TableCell className="text-right">

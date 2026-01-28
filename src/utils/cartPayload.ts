@@ -2,7 +2,7 @@ import type { ProductDetails } from '@/components/product/ProductCard';
 
 export type CartEntryTuple = [productName: string, quantity: number];
 
-const PRODUCT_LIST_KEYS = ['items', 'productos', 'data', 'results', 'list'];
+const PRODUCT_LIST_KEYS = ['items', 'productos', 'data', 'results', 'list', 'products'];
 const CART_LIST_KEYS = ['items', 'cart', 'data', 'productos', 'list'];
 
 const isRecord = (value: unknown): value is Record<string, unknown> => {

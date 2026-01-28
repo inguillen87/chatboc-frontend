@@ -8,6 +8,13 @@ import {
   CheckoutStartPayload
 } from '@/types/market';
 import { PublicOrderTrackingResponse } from '@/types/tracking';
+
+export interface SearchCatalogPayload {
+  query?: string;
+  en_promocion?: boolean;
+  con_stock?: boolean;
+  precio_max?: number;
+}
 import { DEFAULT_PUBLIC_PRODUCTS } from '@/data/defaultProducts';
 import { DEMO_CATALOGS as MOCK_CATALOGS } from '@/data/mockCatalogs';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
@@ -173,6 +180,25 @@ export async function fetchMarketCatalog(tenantSlug: string): Promise<MarketCata
     });
   } catch (error) {
     console.warn(`[MarketAPI] Failed to fetch catalog for ${tenantSlug}, using mock.`, error);
+    return mockCatalogResponse(tenantSlug);
+  }
+}
+
+export async function searchCatalog(tenantSlug: string, payload: SearchCatalogPayload): Promise<MarketCatalogResponse> {
+  const params = new URLSearchParams();
+  if (payload.query) params.append('q', payload.query);
+  if (payload.en_promocion) params.append('en_promocion', 'true');
+  if (payload.con_stock) params.append('con_stock', 'true');
+  if (payload.precio_max) params.append('precio_max', String(payload.precio_max));
+
+  try {
+    return await apiFetch<MarketCatalogResponse>(`/api/${tenantSlug}/catalogo/buscar?${params.toString()}`, {
+      tenantSlug,
+      suppressPanel401Redirect: true,
+      omitChatSessionId: true,
+    });
+  } catch (error) {
+    console.warn(`[MarketAPI] Failed to search catalog for ${tenantSlug}, using mock.`, error);
     return mockCatalogResponse(tenantSlug);
   }
 }
