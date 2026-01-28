@@ -23,9 +23,10 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { addMarketItem } from '@/api/market';
+import { addMarketItem, searchCatalog } from '@/api/market';
 import { apiClient } from '@/api/client';
 import { UploadCloud } from 'lucide-react';
+import { useDebounce } from '@/hooks/useDebounce';
 
 interface ProductCatalogProps {
   tenantSlug?: string;
@@ -35,9 +36,11 @@ interface ProductCatalogProps {
 export default function ProductCatalog({ tenantSlug: propTenantSlug, isDemoMode }: ProductCatalogProps) {
   const [allProducts, setAllProducts] = useState<ProductDetails[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<ProductDetails[]>([]);
+  const [serverSearchResults, setServerSearchResults] = useState<ProductDetails[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearchTerm = useDebounce(searchTerm, 500);
   const [selectedCategory, setSelectedCategory] = useState('todos');
   const [selectedModality, setSelectedModality] = useState<'todos' | 'venta' | 'puntos' | 'donacion'>('todos');
   const [catalogSource, setCatalogSource] = useState<'api' | 'fallback'>('api');
@@ -208,10 +211,38 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug, isDemoMode 
   }, [effectiveTenantSlug, productsApiPath, sharedRequestOptions]);
 
   useEffect(() => {
+    if (!debouncedSearchTerm || !effectiveTenantSlug || catalogSource === 'fallback') {
+      setServerSearchResults(null);
+      return;
+    }
+
+    const search = async () => {
+      setLoading(true);
+      try {
+        const res = await searchCatalog(effectiveTenantSlug, { query: debouncedSearchTerm });
+        const normalized = normalizeProductsPayload(res, 'ProductCatalog')
+          .map((item) => enhanceProductDetails({ ...item, origen: 'api' as const }));
+        setServerSearchResults(normalized);
+      } catch (e) {
+        console.warn("Search failed, falling back to local filtering", e);
+        setServerSearchResults(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+    search();
+  }, [debouncedSearchTerm, effectiveTenantSlug, catalogSource]);
+
+  useEffect(() => {
     const lowercasedFilter = searchTerm.toLowerCase();
     const normalizedCategory = selectedCategory.trim().toLowerCase();
-    const filtered = allProducts.filter(product => {
-      const matchesSearch =
+
+    // Use server results if available (and search term matches), otherwise fallback to allProducts
+    const source = (serverSearchResults && debouncedSearchTerm) ? serverSearchResults : allProducts;
+    const applyTextFilter = !serverSearchResults;
+
+    const filtered = source.filter(product => {
+      const matchesSearch = !applyTextFilter ||
         product.nombre.toLowerCase().includes(lowercasedFilter) ||
         (product.descripcion && product.descripcion.toLowerCase().includes(lowercasedFilter)) ||
         (product.categoria && product.categoria.toLowerCase().includes(lowercasedFilter)) ||
@@ -229,7 +260,7 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug, isDemoMode 
       return matchesSearch && matchesCategory && matchesModality;
     });
     setFilteredProducts(filtered);
-  }, [searchTerm, allProducts, selectedCategory, selectedModality]);
+  }, [searchTerm, allProducts, selectedCategory, selectedModality, serverSearchResults, debouncedSearchTerm]);
 
   const categories = useMemo(() => {
     const unique = new Map<string, string>();
