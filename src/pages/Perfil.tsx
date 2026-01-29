@@ -81,13 +81,14 @@ import InternalUsers from '@/pages/InternalUsers';
 import IncidentsMap from '@/pages/IncidentsMap';
 import { getTicketStats, getHeatmapPoints, HeatmapDataset } from "@/services/statsService";
 import AnalyticsHeatmap from "@/components/analytics/Heatmap";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import MiniChatWidgetPreview from "@/components/ui/MiniChatWidgetPreview"; // Importar el nuevo componente
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import { useUser } from "@/hooks/useUser";
 import { normalizeRole } from "@/utils/roles";
 import { useMunicipalPosts } from "@/hooks/useMunicipalPosts";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
+import { TENANT_ROUTE_PREFIXES } from "@/utils/tenantPaths";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
 import { apiFetch, getErrorMessage, ApiError } from "@/utils/api"; // Importa apiFetch y getErrorMessage
 import { toLocalISOString } from "@/utils/fecha";
@@ -286,9 +287,15 @@ export default function Perfil() {
     () => perfil.plan === "pro" || perfil.plan === "full",
     [perfil.plan],
   );
+  const location = useLocation();
+  const tenantPrefix = useMemo(() => {
+    const currentPath = location.pathname ?? "";
+    return TENANT_ROUTE_PREFIXES.find((prefix) => currentPath.startsWith(`/${prefix}/`)) ?? null;
+  }, [location.pathname]);
   const buildMappingPath = useCallback(
-    (path: string) => (derivedTenantSlug ? `/${derivedTenantSlug}${path}` : path),
-    [derivedTenantSlug],
+    (path: string) =>
+      tenantPrefix && derivedTenantSlug ? `/${tenantPrefix}/${derivedTenantSlug}${path}` : path,
+    [derivedTenantSlug, tenantPrefix],
   );
   const [modoHorario, setModoHorario] = useState("comercial");
   const [archivo, setArchivo] = useState<File | null>(null); // Tipado para archivo
@@ -1142,6 +1149,8 @@ export default function Perfil() {
         method: "POST",
         body: formData,
         omitEntityToken: true,
+        suppressPanel401Redirect: true,
+        preserveAuthOn401: true,
       });
 
       const vectorMetadata: Record<string, unknown> = {
@@ -1278,22 +1287,24 @@ export default function Perfil() {
         const isStructured = ['csv', 'txt', 'xls', 'xlsx'].includes(fileType);
         const shouldUseAi = options.forceAi || !isStructured;
 
-          if (shouldUseAi) {
-            if (!user?.id) {
-              throw new Error('Necesitamos el identificador de tu cuenta para ejecutar el análisis inteligente.');
-            }
-            const entityType = isPyme ? 'pymes' : 'municipal';
+        if (shouldUseAi) {
+          if (!user?.id) {
+            throw new Error('Necesitamos el identificador de tu cuenta para ejecutar el análisis inteligente.');
+          }
+          const entityType = isPyme ? 'pymes' : 'municipal';
 
-            const preview = await requestDocumentPreview({
-              entityId: user.id,
-              entityType,
-              file: fileToParse,
-              options: {
-                hasHeaders: true,
-                skipRows: 0,
-                useAi: true,
-              },
-            });
+          const preview = await requestDocumentPreview({
+            entityId: user.id,
+            entityType,
+            file: fileToParse,
+            options: {
+              hasHeaders: true,
+              skipRows: 0,
+              useAi: true,
+              aiProvider: 'openai',
+              fallbackProviders: ['docai'],
+            },
+          });
 
           const normalizedHeaders = (preview.columns ?? []).map((header, index) =>
             typeof header === 'string' && header.trim()

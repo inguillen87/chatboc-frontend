@@ -7,6 +7,8 @@ export interface DocumentPreviewOptions {
   delimiter?: string;
   useAi?: boolean;
   locale?: string;
+  aiProvider?: string;
+  fallbackProviders?: string[];
 }
 
 export interface DocumentPreviewMetadata {
