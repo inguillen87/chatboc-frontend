@@ -28,6 +28,11 @@ export interface ProductDetails {
   precio_por_caja?: number | null;
   unidades_por_caja?: number | null;
   promocion_activa?: string | null;
+  promocion_info?: string | null;
+  precio_texto?: string | null;
+  moneda?: string | null;
+  talles?: string[] | null;
+  colores?: string[] | null;
   precio_mayorista?: number | null;
   cantidad_minima_mayorista?: number | null;
   modalidad?: 'venta' | 'puntos' | 'donacion' | string | null;

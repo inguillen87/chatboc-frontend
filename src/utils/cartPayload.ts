@@ -350,6 +350,8 @@ const normalizeProductRecord = (raw: Record<string, unknown>, index: number): Pr
       ? raw.category
       : null;
   const modalidad = normalizeModalidad(raw.modalidad ?? raw.tipo ?? raw.mode ?? null);
+  const rawTalles = raw.talles ?? raw.sizes;
+  const rawColores = raw.colores ?? raw.colors;
   const flexiblePrice = parseFlexiblePrice((raw as Record<string, any>).precio_flexible ?? (raw as Record<string, any>).precioFlexible ?? (raw as Record<string, any>).flexible_price);
 
   const base: ProductDetails = {
@@ -363,6 +365,8 @@ const normalizeProductRecord = (raw: Record<string, unknown>, index: number): Pr
     precio_unitario: Number(raw.precio_unitario ?? raw.precio ?? raw.price ?? flexiblePrice.unitPrice ?? 0) || 0,
     precio_puntos: toNullableNumber(raw.precio_puntos ?? raw.puntos ?? raw.points ?? flexiblePrice.unitPrice),
     precio_anterior: toNullableNumber(raw.precio_anterior ?? raw.precioAnterior ?? raw.previous_price),
+    precio_texto: typeof raw.precio_texto === 'string' ? raw.precio_texto : undefined,
+    moneda: typeof raw.moneda === 'string' ? raw.moneda : undefined,
     imagen_url: normalizeImageUrl(
       (raw.imagen_url as string | null | undefined) ??
       (raw.imagen as string | null | undefined) ??
@@ -387,9 +391,12 @@ const normalizeProductRecord = (raw: Record<string, unknown>, index: number): Pr
       : typeof raw.promocion_info === 'string'
         ? raw.promocion_info
         : undefined,
+    promocion_info: typeof raw.promocion_info === 'string' ? raw.promocion_info : undefined,
     precio_mayorista: toNullableNumber(raw.precio_mayorista ?? raw.wholesale_price),
     cantidad_minima_mayorista: toNullableNumber(raw.cantidad_minima_mayorista ?? raw.wholesale_min_qty),
     modalidad,
+    talles: Array.isArray(rawTalles) ? rawTalles.filter((item): item is string => typeof item === 'string') : undefined,
+    colores: Array.isArray(rawColores) ? rawColores.filter((item): item is string => typeof item === 'string') : undefined,
     checkout_type: (raw.checkout_type ?? raw.checkoutType) as ProductDetails['checkout_type'],
     external_url: typeof raw.external_url === 'string'
       ? raw.external_url
