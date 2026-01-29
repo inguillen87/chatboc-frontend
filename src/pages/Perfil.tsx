@@ -1142,6 +1142,7 @@ export default function Perfil() {
         method: "POST",
         body: formData,
         omitEntityToken: true,
+        suppressPanel401Redirect: true,
       });
 
       const vectorMetadata: Record<string, unknown> = {
