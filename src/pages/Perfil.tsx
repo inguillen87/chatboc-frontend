@@ -81,13 +81,14 @@ import InternalUsers from '@/pages/InternalUsers';
 import IncidentsMap from '@/pages/IncidentsMap';
 import { getTicketStats, getHeatmapPoints, HeatmapDataset } from "@/services/statsService";
 import AnalyticsHeatmap from "@/components/analytics/Heatmap";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import MiniChatWidgetPreview from "@/components/ui/MiniChatWidgetPreview"; // Importar el nuevo componente
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import { useUser } from "@/hooks/useUser";
 import { normalizeRole } from "@/utils/roles";
 import { useMunicipalPosts } from "@/hooks/useMunicipalPosts";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
+import { TENANT_ROUTE_PREFIXES } from "@/utils/tenantPaths";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
 import { apiFetch, getErrorMessage, ApiError } from "@/utils/api"; // Importa apiFetch y getErrorMessage
 import { toLocalISOString } from "@/utils/fecha";
@@ -101,7 +102,6 @@ import MapLibreMap from "@/components/MapLibreMap";
 import {
   CatalogVectorSyncStatus,
   fetchCatalogVectorSyncStatus,
-  triggerCatalogVectorSync,
 } from '@/services/catalogService';
 import { requestDocumentPreview } from '@/services/documentIntelligenceService';
 import {
@@ -286,9 +286,15 @@ export default function Perfil() {
     () => perfil.plan === "pro" || perfil.plan === "full",
     [perfil.plan],
   );
+  const location = useLocation();
+  const tenantPrefix = useMemo(() => {
+    const currentPath = location.pathname ?? "";
+    return TENANT_ROUTE_PREFIXES.find((prefix) => currentPath.startsWith(`/${prefix}/`)) ?? null;
+  }, [location.pathname]);
   const buildMappingPath = useCallback(
-    (path: string) => (derivedTenantSlug ? `/${derivedTenantSlug}${path}` : path),
-    [derivedTenantSlug],
+    (path: string) =>
+      tenantPrefix && derivedTenantSlug ? `/${tenantPrefix}/${derivedTenantSlug}${path}` : path,
+    [derivedTenantSlug, tenantPrefix],
   );
   const [modoHorario, setModoHorario] = useState("comercial");
   const [archivo, setArchivo] = useState<File | null>(null); // Tipado para archivo
@@ -1135,57 +1141,16 @@ export default function Perfil() {
         return;
       }
       const formData = new FormData();
-      formData.append("file", fileToProcess);
+      formData.append("file", fileToProcess, fileToProcess.name);
       formData.append("mappingId", mappingId);
 
       const processingResult = await apiFetch<any>(`/${entityType}/${user?.id}/process-catalog-file`, {
         method: "POST",
         body: formData,
         omitEntityToken: true,
+        suppressPanel401Redirect: true,
+        preserveAuthOn401: true,
       });
-
-      const vectorMetadata: Record<string, unknown> = {
-        fileSize: fileToProcess.size,
-        mimeType: fileToProcess.type,
-      };
-
-      if (analysisEngine) {
-        vectorMetadata.aiEngine = analysisEngine;
-      }
-      if (typeof analysisConfidence === 'number') {
-        vectorMetadata.aiConfidence = analysisConfidence;
-      }
-      if (analysisSource) {
-        vectorMetadata.aiSource = analysisSource;
-      }
-      if (analysisSummary) {
-        vectorMetadata.aiSummary = analysisSummary;
-      }
-      if (analysisWarnings.length > 0) {
-        vectorMetadata.aiWarnings = analysisWarnings;
-      }
-      if (parsedColumns.length > 0) {
-        vectorMetadata.detectedColumns = parsedColumns;
-      }
-      if (previewRecords.length > 0) {
-        vectorMetadata.previewRows = previewRecords.slice(0, 3);
-      }
-
-      try {
-        const vectorResult = await triggerCatalogVectorSync({
-          pymeId: user!.id,
-          mappingId: mappingId,
-          sourceFileName: fileToProcess.name,
-          metadata: vectorMetadata,
-        });
-        setVectorSyncStatus(vectorResult);
-      } catch (vectorErr) {
-        toast({
-          variant: 'destructive',
-          title: 'Catálogo procesado con advertencias',
-          description: getErrorMessage(vectorErr, 'Se subió el archivo pero no se pudo sincronizar con Qdrant.'),
-        });
-      }
 
       setResultadoCatalogo({
         message: processingResult.mensaje || "¡Catálogo subido, procesado y enviado al vector store!",
@@ -1278,22 +1243,24 @@ export default function Perfil() {
         const isStructured = ['csv', 'txt', 'xls', 'xlsx'].includes(fileType);
         const shouldUseAi = options.forceAi || !isStructured;
 
-          if (shouldUseAi) {
-            if (!user?.id) {
-              throw new Error('Necesitamos el identificador de tu cuenta para ejecutar el análisis inteligente.');
-            }
-            const entityType = isPyme ? 'pymes' : 'municipal';
+        if (shouldUseAi) {
+          if (!user?.id) {
+            throw new Error('Necesitamos el identificador de tu cuenta para ejecutar el análisis inteligente.');
+          }
+          const entityType = isPyme ? 'pymes' : 'municipal';
 
-            const preview = await requestDocumentPreview({
-              entityId: user.id,
-              entityType,
-              file: fileToParse,
-              options: {
-                hasHeaders: true,
-                skipRows: 0,
-                useAi: true,
-              },
-            });
+          const preview = await requestDocumentPreview({
+            entityId: user.id,
+            entityType,
+            file: fileToParse,
+            options: {
+              hasHeaders: true,
+              skipRows: 0,
+              useAi: true,
+              aiProvider: 'openai',
+              fallbackProviders: ['docai'],
+            },
+          });
 
           const normalizedHeaders = (preview.columns ?? []).map((header, index) =>
             typeof header === 'string' && header.trim()

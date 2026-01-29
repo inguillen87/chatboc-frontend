@@ -339,13 +339,19 @@ const normalizeProductRecord = (raw: Record<string, unknown>, index: number): Pr
     ? raw.presentacion
     : typeof raw.presentation === 'string'
       ? raw.presentation
-      : null;
+      : typeof raw.quantityLabel === 'string'
+        ? raw.quantityLabel
+        : typeof raw.quantity_label === 'string'
+          ? raw.quantity_label
+          : null;
   const categoria = typeof raw.categoria === 'string'
     ? raw.categoria
     : typeof raw.category === 'string'
       ? raw.category
       : null;
   const modalidad = normalizeModalidad(raw.modalidad ?? raw.tipo ?? raw.mode ?? null);
+  const rawTalles = raw.talles ?? raw.sizes;
+  const rawColores = raw.colores ?? raw.colors;
   const flexiblePrice = parseFlexiblePrice((raw as Record<string, any>).precio_flexible ?? (raw as Record<string, any>).precioFlexible ?? (raw as Record<string, any>).flexible_price);
 
   const base: ProductDetails = {
@@ -359,21 +365,44 @@ const normalizeProductRecord = (raw: Record<string, unknown>, index: number): Pr
     precio_unitario: Number(raw.precio_unitario ?? raw.precio ?? raw.price ?? flexiblePrice.unitPrice ?? 0) || 0,
     precio_puntos: toNullableNumber(raw.precio_puntos ?? raw.puntos ?? raw.points ?? flexiblePrice.unitPrice),
     precio_anterior: toNullableNumber(raw.precio_anterior ?? raw.precioAnterior ?? raw.previous_price),
+    precio_texto: typeof raw.precio_texto === 'string' ? raw.precio_texto : undefined,
+    moneda: typeof raw.moneda === 'string' ? raw.moneda : undefined,
     imagen_url: normalizeImageUrl(
       (raw.imagen_url as string | null | undefined) ??
       (raw.imagen as string | null | undefined) ??
       (raw.image as string | null | undefined),
     ),
     stock_disponible: toNullableNumber(raw.stock_disponible ?? raw.stock ?? raw.inventory),
-    unidad_medida: typeof raw.unidad_medida === 'string' ? raw.unidad_medida : undefined,
+    unidad_medida: typeof raw.unidad_medida === 'string'
+      ? raw.unidad_medida
+      : typeof raw.unidad === 'string'
+        ? raw.unidad
+        : typeof raw.unit === 'string'
+          ? raw.unit
+          : undefined,
     sku: typeof raw.sku === 'string' ? raw.sku : undefined,
     marca: typeof raw.marca === 'string' ? raw.marca : undefined,
-    precio_por_caja: toNullableNumber(raw.precio_por_caja ?? raw.precio_caja ?? raw.caja_precio),
+    precio_por_caja: toNullableNumber(
+      raw.precio_por_caja ?? raw.precio_pack ?? raw.precio_caja ?? raw.caja_precio,
+    ),
     unidades_por_caja: toNullableNumber(raw.unidades_por_caja ?? raw.caja_unidades ?? raw.units_per_case),
-    promocion_activa: typeof raw.promocion_activa === 'string' ? raw.promocion_activa : undefined,
+    promocion_activa: typeof raw.promocion_activa === 'string'
+      ? raw.promocion_activa
+      : typeof raw.promocion_info === 'string'
+        ? raw.promocion_info
+        : undefined,
+    promocion_info: typeof raw.promocion_info === 'string' ? raw.promocion_info : undefined,
     precio_mayorista: toNullableNumber(raw.precio_mayorista ?? raw.wholesale_price),
     cantidad_minima_mayorista: toNullableNumber(raw.cantidad_minima_mayorista ?? raw.wholesale_min_qty),
     modalidad,
+    talles: Array.isArray(rawTalles) ? rawTalles.filter((item): item is string => typeof item === 'string') : undefined,
+    colores: Array.isArray(rawColores) ? rawColores.filter((item): item is string => typeof item === 'string') : undefined,
+    checkout_type: (raw.checkout_type ?? raw.checkoutType) as ProductDetails['checkout_type'],
+    external_url: typeof raw.external_url === 'string'
+      ? raw.external_url
+      : typeof raw.externalUrl === 'string'
+        ? raw.externalUrl
+        : null,
   };
 
   return sanitizeProductPricing(base);
