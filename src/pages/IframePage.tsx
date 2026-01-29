@@ -60,6 +60,17 @@ const IframePage = () => {
       // Priority: URL Param > Fetched Config > Local Config > Default
       const primaryColorHex = urlParams.get("primaryColor") || fetchedConfig.primary_color || cfg.primaryColor || "#007aff";
       document.documentElement.style.setProperty("--primary", hexToHsl(primaryColorHex));
+
+      // Handle Theme Config (Dark Mode)
+      const themeConfig = fetchedConfig.theme_config || {};
+      const urlMode = urlParams.get("mode");
+      const mode = urlMode || themeConfig.mode || 'light';
+
+      if (mode === 'dark') {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
       const accentColorHex = urlParams.get("accentColor") || fetchedConfig.secondary_color || cfg.accentColor || "";
       if (accentColorHex) {
         document.documentElement.style.setProperty("--accent", hexToHsl(accentColorHex));
