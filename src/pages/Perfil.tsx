@@ -102,7 +102,6 @@ import MapLibreMap from "@/components/MapLibreMap";
 import {
   CatalogVectorSyncStatus,
   fetchCatalogVectorSyncStatus,
-  triggerCatalogVectorSync,
 } from '@/services/catalogService';
 import { requestDocumentPreview } from '@/services/documentIntelligenceService';
 import {
@@ -1152,49 +1151,6 @@ export default function Perfil() {
         suppressPanel401Redirect: true,
         preserveAuthOn401: true,
       });
-
-      const vectorMetadata: Record<string, unknown> = {
-        fileSize: fileToProcess.size,
-        mimeType: fileToProcess.type,
-      };
-
-      if (analysisEngine) {
-        vectorMetadata.aiEngine = analysisEngine;
-      }
-      if (typeof analysisConfidence === 'number') {
-        vectorMetadata.aiConfidence = analysisConfidence;
-      }
-      if (analysisSource) {
-        vectorMetadata.aiSource = analysisSource;
-      }
-      if (analysisSummary) {
-        vectorMetadata.aiSummary = analysisSummary;
-      }
-      if (analysisWarnings.length > 0) {
-        vectorMetadata.aiWarnings = analysisWarnings;
-      }
-      if (parsedColumns.length > 0) {
-        vectorMetadata.detectedColumns = parsedColumns;
-      }
-      if (previewRecords.length > 0) {
-        vectorMetadata.previewRows = previewRecords.slice(0, 3);
-      }
-
-      try {
-        const vectorResult = await triggerCatalogVectorSync({
-          pymeId: user!.id,
-          mappingId: mappingId,
-          sourceFileName: fileToProcess.name,
-          metadata: vectorMetadata,
-        });
-        setVectorSyncStatus(vectorResult);
-      } catch (vectorErr) {
-        toast({
-          variant: 'destructive',
-          title: 'Catálogo procesado con advertencias',
-          description: getErrorMessage(vectorErr, 'Se subió el archivo pero no se pudo sincronizar con Qdrant.'),
-        });
-      }
 
       setResultadoCatalogo({
         message: processingResult.mensaje || "¡Catálogo subido, procesado y enviado al vector store!",
