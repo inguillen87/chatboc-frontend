@@ -54,7 +54,7 @@ export async function requestDocumentPreview({
   }
 
   const formData = new FormData();
-  formData.append('file', file);
+  formData.append('file', file, file.name);
   formData.append('options', JSON.stringify(options));
 
   return apiFetch<DocumentPreviewResponse>(`/${entityType}/${entityId}/document-intelligence/preview`, {

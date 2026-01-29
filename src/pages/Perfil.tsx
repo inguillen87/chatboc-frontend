@@ -1142,7 +1142,7 @@ export default function Perfil() {
         return;
       }
       const formData = new FormData();
-      formData.append("file", fileToProcess);
+      formData.append("file", fileToProcess, fileToProcess.name);
       formData.append("mappingId", mappingId);
 
       const processingResult = await apiFetch<any>(`/${entityType}/${user?.id}/process-catalog-file`, {
