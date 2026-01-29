@@ -357,6 +357,11 @@ interface ApiFetchOptions {
    * Useful for optional data fetches that should gracefully handle an unauthenticated state.
    */
   suppressPanel401Redirect?: boolean;
+  /**
+   * When true, preserves auth tokens on 401 responses.
+   * Useful for upload flows where we want to surface the error without clearing session state.
+   */
+  preserveAuthOn401?: boolean;
   sendAnonId?: boolean;
   entityToken?: string | null;
   cache?: RequestCache;
@@ -415,6 +420,7 @@ export async function apiFetch<T>(
     body,
     skipAuth,
     suppressPanel401Redirect,
+    preserveAuthOn401,
     sendAnonId,
     entityToken,
     cache,
@@ -896,9 +902,13 @@ export async function apiFetch<T>(
       // Para el widget, el manejo es diferente, no queremos redirigir toda la página.
       // Simplemente lanzamos el error para que el componente que hizo la llamada lo maneje.
       if (tokenSource === "authToken") {
-        safeLocalStorage.removeItem("authToken");
+        if (!preserveAuthOn401) {
+          safeLocalStorage.removeItem("authToken");
+        }
       } else if (tokenSource === "chatAuthToken") {
-        safeLocalStorage.removeItem("chatAuthToken");
+        if (!preserveAuthOn401) {
+          safeLocalStorage.removeItem("chatAuthToken");
+        }
       }
 
       throw new ApiError(

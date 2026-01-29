@@ -28,6 +28,11 @@ export interface ProductDetails {
   precio_por_caja?: number | null;
   unidades_por_caja?: number | null;
   promocion_activa?: string | null;
+  promocion_info?: string | null;
+  precio_texto?: string | null;
+  moneda?: string | null;
+  talles?: string[] | null;
+  colores?: string[] | null;
   precio_mayorista?: number | null;
   cantidad_minima_mayorista?: number | null;
   modalidad?: 'venta' | 'puntos' | 'donacion' | string | null;
@@ -68,6 +73,8 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
     precio_por_caja,
     unidades_por_caja,
     promocion_activa,
+    precio_texto,
+    moneda,
     precio_mayorista,
     cantidad_minima_mayorista,
     modalidad: modalidadRaw,
@@ -89,6 +96,10 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
   const stockText = typeof stock_disponible === 'number'
     ? `${stock_disponible} ${unidad_medida || 'disponible(s)'}`
     : (stock_disponible === null || stock_disponible === undefined) ? null : 'No disponible';
+  const currency = moneda || 'ARS';
+  const unitPriceLabel = precio_texto && precio_texto.trim()
+    ? precio_texto
+    : formatCurrency(precio_unitario, currency);
 
   const [mode, setMode] = useState<'unit' | 'case'>(
     precio_por_caja && unidades_por_caja ? 'case' : 'unit'
@@ -99,13 +110,13 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
 
   const casePriceLabel = useMemo(() => {
     if (!precio_por_caja || !unidades_por_caja) return null;
-    return `${formatCurrency(precio_por_caja)} por ${unidades_por_caja} unidades`;
+    return `${formatCurrency(precio_por_caja, currency)} por ${unidades_por_caja} unidades`;
   }, [precio_por_caja, unidades_por_caja]);
 
   const wholesaleLabel = useMemo(() => {
     if (!precio_mayorista || !cantidad_minima_mayorista) return null;
-    return `Mayorista: ${formatCurrency(precio_mayorista)} (mín. ${cantidad_minima_mayorista} ${cantidad_minima_mayorista === 1 ? 'caja' : 'cajas'})`;
-  }, [precio_mayorista, cantidad_minima_mayorista]);
+    return `Mayorista: ${formatCurrency(precio_mayorista, currency)} (mín. ${cantidad_minima_mayorista} ${cantidad_minima_mayorista === 1 ? 'caja' : 'cajas'})`;
+  }, [cantidad_minima_mayorista, currency, precio_mayorista]);
 
   const placeholderImage = useMemo(() => getProductPlaceholderImage(product), [product]);
   const [imageSrc, setImageSrc] = useState<string | null>(product.imagen_url ?? placeholderImage);
@@ -215,11 +226,11 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
           ) : (
             <>
               <p className="text-xl font-bold text-primary">
-                {formatCurrency(precio_unitario)}
+                {unitPriceLabel}
               </p>
               {precio_anterior && precio_anterior > precio_unitario && (
                 <span className="text-xs text-muted-foreground line-through">
-                  {formatCurrency(precio_anterior)}
+                  {formatCurrency(precio_anterior, currency)}
                 </span>
               )}
             </>
@@ -236,7 +247,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
               onClick={() => setMode('unit')}
               disabled={!precio_unitario && !isPoints}
             >
-              {isPoints ? `${pointsValue ?? 0} pts` : `${formatCurrency(precio_unitario)} c/u`}
+              {isPoints ? `${pointsValue ?? 0} pts` : `${unitPriceLabel} c/u`}
             </Button>
             {precio_por_caja && unidades_por_caja && (
               <Button
@@ -246,7 +257,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
               >
                 {isPoints && pointsValue
                   ? `${pointsValue * (unidades_por_caja || 1)} pts caja`
-                  : `${formatCurrency(precio_por_caja)} caja`}
+                  : `${formatCurrency(precio_por_caja, currency)} caja`}
               </Button>
             )}
           </div>
