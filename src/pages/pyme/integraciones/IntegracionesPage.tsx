@@ -13,13 +13,16 @@ import { Loader2, RefreshCw, ExternalLink, CheckCircle2, AlertCircle, MessageSqu
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { toast } from 'sonner';
 import WidgetPreview from '@/components/chat/WidgetPreview';
+import CatalogUploadWizard from '@/components/catalog/CatalogUploadWizard';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
+import { FileSpreadsheet, ArrowRight } from 'lucide-react';
 
 const INTEGRATION_LOGOS: Record<string, string> = {
   mercadolibre: "https://http2.mlstatic.com/frontend-assets/ml-web-navigation/ui-navigation/5.21.22/mercadolibre/logo__large_plus.png",
@@ -34,6 +37,7 @@ const IntegracionesPage = () => {
   const [syncing, setSyncing] = useState<string | null>(null);
   const [savingSettings, setSavingSettings] = useState(false);
   const [mappingOpen, setMappingOpen] = useState(false);
+  const [uploadOpen, setUploadOpen] = useState(false);
   const [selectedMappingProvider, setSelectedMappingProvider] = useState<string | null>(null);
 
   // Notification Settings State
@@ -191,6 +195,34 @@ const IntegracionesPage = () => {
       )}
 
       <div className="grid gap-8">
+        {/* Catalog Import Section */}
+        <section className="space-y-4">
+            <h2 className="text-xl font-semibold">Gestión de Catálogo</h2>
+            <Card>
+                <div className="p-6 flex flex-col md:flex-row items-center gap-6">
+                    <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-blue-50 border border-blue-100">
+                        <FileSpreadsheet className="h-8 w-8 text-blue-600" />
+                    </div>
+                    <div className="flex-1 space-y-1 text-center md:text-left">
+                        <h3 className="font-semibold text-lg">Importación Masiva</h3>
+                        <p className="text-sm text-muted-foreground">
+                            Actualizá tus productos subiendo un archivo Excel o CSV. Detectamos automáticamente columnas y precios.
+                        </p>
+                    </div>
+                    <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
+                        <DialogTrigger asChild>
+                            <Button className="w-full md:w-auto">
+                                Iniciar Asistente <ArrowRight className="ml-2 h-4 w-4"/>
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto sm:max-w-[800px]">
+                           <CatalogUploadWizard onSuccess={() => setUploadOpen(false)} />
+                        </DialogContent>
+                    </Dialog>
+                </div>
+            </Card>
+        </section>
+
         {/* Marketplace Integrations Section */}
         <section className="space-y-4">
              <h2 className="text-xl font-semibold">Plataformas de Venta</h2>
