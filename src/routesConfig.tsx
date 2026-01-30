@@ -51,6 +51,7 @@ import OrderConfirmationPage from '@/pages/OrderConfirmation';
 import GestionPlantillasPage from '@/pages/GestionPlantillasPage';
 import CatalogMappingPage from '@/pages/admin/CatalogMappingPage';
 import CategoryManagementPage from '@/pages/admin/CategoryManagementPage';
+import CatalogManagementPage from '@/pages/admin/CatalogManagementPage';
 import OpinarArPage from '@/pages/OpinarArPage';
 import EstadisticasPage from '@/pages/EstadisticasPage';
 import Iframe from '@/pages/IframePage';
@@ -263,6 +264,7 @@ const routes: RouteConfig[] = [
   ...withTenantPrefixes('/:tenant/integracion', { element: <IntegracionesPage />, roles: ['admin'] }),
   ...withTenantPrefixes('/:tenant/catalog-mappings/new', { element: <CatalogMappingPage />, roles: ['admin', 'super_admin'] }),
   ...withTenantPrefixes('/:tenant/catalog-mappings/:mappingId', { element: <CatalogMappingPage />, roles: ['admin', 'super_admin'] }),
+  ...withTenantPrefixes('/:tenant/admin/catalog', { element: <CatalogManagementPage />, roles: ['admin', 'super_admin', 'empleado'] }),
 
 
   // --- USER PORTAL ROUTES ---
@@ -358,6 +360,7 @@ const routes: RouteConfig[] = [
   { path: '/analytics', element: <AnalyticsPage />, roles: ['admin', 'empleado', 'super_admin'] },
   { path: '/perfil/plantillas-respuesta', element: <GestionPlantillasPage />, roles: ['admin', 'empleado', 'super_admin'] },
 
+  { path: '/admin/catalog', element: <CatalogManagementPage />, roles: ['admin', 'super_admin', 'empleado'] },
   { path: '/catalog-mappings/new', element: <CatalogMappingPage />, roles: ['admin', 'super_admin'] },
   { path: '/catalog-mappings/:mappingId', element: <CatalogMappingPage />, roles: ['admin', 'super_admin'] },
   // Rutas para la gestión de mapeo de catálogos por PYME

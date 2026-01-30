@@ -217,6 +217,9 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
         {promocion_activa && (
           <Badge variant="success" className="mt-2">{promocion_activa}</Badge>
         )}
+        {promocion_info && !promocion_activa && (
+          <Badge variant="secondary" className="mt-2">{promocion_info}</Badge>
+        )}
 
         <div className="mt-3">
           {isDonation ? (
