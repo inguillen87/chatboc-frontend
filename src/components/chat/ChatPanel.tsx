@@ -106,7 +106,7 @@ const ChatPanel = ({
   const chatInputHandleRef = useRef<ChatInputHandle>(null);
   const [showScrollDown, setShowScrollDown] = useState(false);
   const [userTyping, setUserTyping] = useState(false);
-  const { isLiveChatEnabled, horariosAtencion } = useBusinessHours(propEntityToken);
+  const { isLiveChatEnabled, horariosAtencion } = useBusinessHours(propEntityToken, tenantSlug);
   const socketRef = useRef<SocketIOClient.Socket | null>(null);
 
   const skipAuth = mode === 'script';

@@ -2,6 +2,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 
+// Mock the API and storage
 vi.mock('../src/utils/api', () => ({
   apiFetch: vi.fn(),
 }));
@@ -21,7 +22,7 @@ describe('useBusinessHours', () => {
     vi.clearAllMocks();
   });
 
-  it('calls /auth/profile when auth token exists', async () => {
+  it('calls /live-chat/schedule when auth token exists but no tenantSlug', async () => {
     (safeLocalStorage.getItem as any).mockImplementation((key: string) =>
       key === 'authToken' ? 'token123' : null
     );
@@ -29,19 +30,39 @@ describe('useBusinessHours', () => {
     renderHook(() => useBusinessHours());
 
     await waitFor(() => {
-      expect(apiFetch).toHaveBeenCalledWith('/auth/profile');
+      expect(apiFetch).toHaveBeenCalledWith('/live-chat/schedule', {
+        skipAuth: false,
+        entityToken: undefined,
+        tenantSlug: undefined
+      });
     });
   });
 
-  it('calls /perfil with entity token when auth token missing', async () => {
-    (safeLocalStorage.getItem as any).mockImplementation((key: string) =>
-      key === 'entityToken' ? 'entity123' : null
-    );
+  it('calls /live-chat/schedule with entity token when auth token missing and no tenantSlug', async () => {
+    (safeLocalStorage.getItem as any).mockImplementation((key: string) => null);
 
     renderHook(() => useBusinessHours('entity123'));
 
     await waitFor(() => {
-      expect(apiFetch).toHaveBeenCalledWith('/perfil', { skipAuth: true, entityToken: 'entity123' });
+      expect(apiFetch).toHaveBeenCalledWith('/live-chat/schedule', {
+        skipAuth: true,
+        entityToken: 'entity123',
+        tenantSlug: undefined
+      });
+    });
+  });
+
+  it('calls /api/demo/live-chat/schedule when tenantSlug is provided', async () => {
+    (safeLocalStorage.getItem as any).mockImplementation((key: string) => null);
+
+    renderHook(() => useBusinessHours(undefined, 'demo'));
+
+    await waitFor(() => {
+      expect(apiFetch).toHaveBeenCalledWith('/api/demo/live-chat/schedule', {
+        skipAuth: true,
+        entityToken: undefined,
+        tenantSlug: 'demo'
+      });
     });
   });
 });

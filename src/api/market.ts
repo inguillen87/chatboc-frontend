@@ -286,15 +286,16 @@ export async function removeMarketItem(tenantSlug: string, itemId: string): Prom
 
 export async function startMarketCheckout(tenantSlug: string, payload: CheckoutStartPayload): Promise<CheckoutStartResponse> {
   try {
-      return await apiFetch<CheckoutStartResponse>(`/api/${tenantSlug}/checkout`, {
+      return await apiFetch<CheckoutStartResponse>(`/api/market/${tenantSlug}/checkout/start`, {
         method: 'POST',
         body: payload,
         tenantSlug,
         omitChatSessionId: true,
       });
   } catch (error) {
+      console.error("Error starting checkout:", error);
       // If server checkout fails, treat as demo success if tenant is known demo
-      if (isDemoTenant(tenantSlug) || (error as any)?.status === 404 || (error as any)?.status >= 500) {
+      if (isDemoTenant(tenantSlug)) {
           return { status: 'demo' };
       }
       throw error;
