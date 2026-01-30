@@ -345,6 +345,35 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onSuccess }) 
                     </Table>
                  </div>
                  <p className="text-xs text-center text-muted-foreground">Mostrando primeras 5 filas como vista previa.</p>
+
+                 {/* Visual Product Card Preview */}
+                 {previewData.preview_items[0] && (
+                     <div className="mt-6 bg-slate-50 p-6 rounded-lg border">
+                         <h4 className="text-sm font-semibold mb-4 text-center">Así se verá tu producto</h4>
+                         <div className="flex justify-center">
+                             <div className="w-64 bg-white rounded-lg shadow-md overflow-hidden border">
+                                 <div className="h-32 bg-gray-200 flex items-center justify-center text-gray-400">
+                                     <FileSpreadsheet className="h-10 w-10" />
+                                 </div>
+                                 <div className="p-4">
+                                     <h3 className="font-bold truncate">{previewData.preview_items[0][mapping['nombre'] || 'nombre'] || 'Nombre del Producto'}</h3>
+                                     <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                                         {previewData.preview_items[0][mapping['descripcion'] || 'descripcion'] || 'Descripción corta del producto...'}
+                                     </p>
+                                     <div className="mt-3 flex items-center justify-between">
+                                         <span className="font-bold text-primary">
+                                             ${previewData.preview_items[0][mapping['precio'] || 'precio'] || '1000'}
+                                         </span>
+                                         <span className="text-xs bg-slate-100 px-2 py-1 rounded text-slate-600">Stock: {previewData.preview_items[0][mapping['stock'] || 'stock'] || '10'}</span>
+                                     </div>
+                                 </div>
+                             </div>
+                         </div>
+                         <p className="text-xs text-center text-muted-foreground mt-4">
+                             Nota: La imagen se generará automáticamente si no se detecta una URL válida.
+                         </p>
+                     </div>
+                 )}
             </div>
         )}
 

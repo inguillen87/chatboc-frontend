@@ -20,4 +20,5 @@ export interface ChatWidgetProps {
   tenantSlug?: string;
   primaryColor?: string;
   accentColor?: string;
+  botName?: string;
 }
