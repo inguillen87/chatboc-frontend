@@ -83,12 +83,13 @@ export default function CatalogUploadWizard({ onComplete, onCancel }: CatalogUpl
       }
 
       setStep(2);
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
+      const errorMessage = error?.message || error?.body?.message || "Could not process the catalog file. Please check the format.";
       toast({
         variant: "destructive",
         title: "Error analyzing file",
-        description: "Could not process the catalog file. Please check the format.",
+        description: errorMessage,
       });
     } finally {
       setLoading(false);
@@ -105,18 +106,30 @@ export default function CatalogUploadWizard({ onComplete, onCancel }: CatalogUpl
         mapping_override: Object.keys(mapping).length > 0 ? mapping : undefined
       };
 
-      await apiClient.adminConfirmCatalog(currentSlug, payload);
+      const result = await apiClient.adminConfirmCatalog(currentSlug, payload);
+
       setStep(3);
-      toast({
-        title: "Success",
-        description: "Catalog is being processed in the background.",
-      });
-    } catch (error) {
+
+      if (result.status === 'partial_success' || (result.warnings && result.warnings.length > 0)) {
+          const warningMsg = result.message || "Some items were skipped.";
+          toast({
+            variant: "warning",
+            title: "Import Completed with Warnings",
+            description: warningMsg,
+          });
+      } else {
+          toast({
+            title: "Success",
+            description: "Catalog is being processed in the background.",
+          });
+      }
+    } catch (error: any) {
       console.error(error);
+      const errorMessage = error?.message || error?.body?.message || "Something went wrong during final processing.";
       toast({
         variant: "destructive",
         title: "Error confirming import",
-        description: "Something went wrong during final processing.",
+        description: errorMessage,
       });
     } finally {
       setLoading(false);
