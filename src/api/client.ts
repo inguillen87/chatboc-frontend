@@ -152,6 +152,21 @@ export const apiClient = {
       });
   },
 
+  adminListProducts: async (tenantSlug: string, filters?: Record<string, any>): Promise<any[]> => {
+      const params = new URLSearchParams(filters);
+      return apiFetch<any[]>(`/api/catalog?${params.toString()}`, {
+          tenantSlug
+      });
+  },
+
+  adminUpdateProduct: async (tenantSlug: string, productId: string | number, data: any): Promise<any> => {
+      return apiFetch<any>(`/api/catalog/${productId}`, {
+          method: 'PUT',
+          body: data,
+          tenantSlug
+      });
+  },
+
   adminGetCatalogSyncStatus: async (tenantSlug: string): Promise<{ status: string; progress: number; message?: string }> => {
     return apiFetch<{ status: string; progress: number; message?: string }>(`/api/pymes/${tenantSlug}/catalog-vector-sync/status`, { tenantSlug });
   },

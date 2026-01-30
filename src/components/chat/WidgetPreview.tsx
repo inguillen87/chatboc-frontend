@@ -10,6 +10,9 @@ interface WidgetPreviewProps {
   primaryColor?: string;
   accentColor?: string;
   ctaMessage?: string;
+  botName?: string;
+  logoUrl?: string;
+  welcomeMessage?: string;
 }
 
 const WidgetPreview: React.FC<WidgetPreviewProps> = ({
@@ -18,7 +21,10 @@ const WidgetPreview: React.FC<WidgetPreviewProps> = ({
   defaultOpen = true,
   primaryColor,
   accentColor,
-  ctaMessage
+  ctaMessage,
+  botName,
+  logoUrl,
+  welcomeMessage,
 }) => {
   return (
     <Card className={cn("relative overflow-hidden border-2 border-muted shadow-xl bg-slate-50 dark:bg-slate-900", className)}>
@@ -32,6 +38,10 @@ const WidgetPreview: React.FC<WidgetPreviewProps> = ({
             primaryColor={primaryColor}
             accentColor={accentColor}
             ctaMessage={ctaMessage}
+            botName={botName}
+            headerLogoUrl={logoUrl}
+            welcomeTitle={botName}
+            welcomeSubtitle={welcomeMessage}
          />
       </div>
     </Card>

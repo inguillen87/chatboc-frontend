@@ -221,6 +221,12 @@ const PRODUCT_IMAGE_FALLBACKS: PlaceholderTheme[] = [
     emoji: '🤝',
     colors: { bg: '#f43f5e', accent: '#3f0b1b', text: '#ffe4e6' },
   },
+  {
+    keywords: ['vino', 'malbec', 'cabernet', 'syrah', 'merlot', 'botella', 'bodega', 'tinto', 'blanco', 'rosado'],
+    label: 'Bodega',
+    emoji: '🍷',
+    colors: { bg: '#701a75', accent: '#4a044e', text: '#fdf4ff' },
+  },
 ];
 
 const DEFAULT_PLACEHOLDER_THEME: PlaceholderTheme = {
