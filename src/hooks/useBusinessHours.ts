@@ -16,7 +16,7 @@ interface BusinessHours {
   horariosAtencion: string;
 }
 
-export const useBusinessHours = (entityToken?: string): BusinessHours => {
+export const useBusinessHours = (entityToken?: string, tenantSlug?: string | null): BusinessHours => {
   const [businessHours, setBusinessHours] = useState<BusinessHours>({
     isLiveChatEnabled: false,
     horariosAtencion: '',
@@ -27,13 +27,18 @@ export const useBusinessHours = (entityToken?: string): BusinessHours => {
       try {
         const authToken = safeLocalStorage.getItem('authToken');
 
-        if (!authToken && !entityToken) {
+        if (!authToken && !entityToken && !tenantSlug) {
           return;
         }
 
-        const schedule = await apiFetch<LiveChatSchedule>('/live-chat/schedule', {
+        const path = tenantSlug
+          ? `/api/${tenantSlug}/live-chat/schedule`
+          : '/live-chat/schedule';
+
+        const schedule = await apiFetch<LiveChatSchedule>(path, {
           skipAuth: !authToken,
           entityToken,
+          tenantSlug
         });
 
         const description =

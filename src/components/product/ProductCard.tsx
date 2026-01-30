@@ -73,6 +73,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
     precio_por_caja,
     unidades_por_caja,
     promocion_activa,
+    promocion_info,
     precio_texto,
     moneda,
     precio_mayorista,
