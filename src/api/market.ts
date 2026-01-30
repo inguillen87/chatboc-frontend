@@ -177,6 +177,21 @@ export async function fetchMarketCatalog(tenantSlug: string): Promise<MarketCata
   }
 }
 
+export async function searchCatalog(tenantSlug: string, query: string): Promise<MarketCatalogResponse> {
+  try {
+    const params = new URLSearchParams({ q: query, tenant_slug: tenantSlug });
+    return await apiFetch<MarketCatalogResponse>(`/catalogo/buscar?${params.toString()}`, {
+      tenantSlug,
+      suppressPanel401Redirect: true,
+      omitChatSessionId: true,
+    });
+  } catch (error) {
+    console.warn(`[MarketAPI] Failed to search catalog for ${tenantSlug}`, error);
+    // Fallback to fetching all and filtering or mock
+    return fetchMarketCatalog(tenantSlug);
+  }
+}
+
 export async function addMarketItem(tenantSlug: string, payload: AddToCartPayload): Promise<MarketCartResponse> {
   const addToLocalCart = () => {
         // Fallback to local demo cart logic

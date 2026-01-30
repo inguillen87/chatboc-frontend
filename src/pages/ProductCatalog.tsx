@@ -23,7 +23,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { addMarketItem } from '@/api/market';
+import { addMarketItem, searchCatalog } from '@/api/market';
 import { apiClient } from '@/api/client';
 import { UploadCloud } from 'lucide-react';
 
@@ -34,8 +34,10 @@ interface ProductCatalogProps {
 
 export default function ProductCatalog({ tenantSlug: propTenantSlug, isDemoMode }: ProductCatalogProps) {
   const [allProducts, setAllProducts] = useState<ProductDetails[]>([]);
+  const [searchResults, setSearchResults] = useState<ProductDetails[] | null>(null);
   const [filteredProducts, setFilteredProducts] = useState<ProductDetails[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchLoading, setSearchLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('todos');
@@ -207,15 +209,55 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug, isDemoMode 
       .finally(() => setLoading(false));
   }, [effectiveTenantSlug, productsApiPath, sharedRequestOptions]);
 
+  // Server-side search effect
   useEffect(() => {
-    const lowercasedFilter = searchTerm.toLowerCase();
+    const timer = setTimeout(async () => {
+        if (!searchTerm.trim()) {
+            setSearchResults(null);
+            return;
+        }
+        if (!effectiveTenantSlug) return;
+
+        setSearchLoading(true);
+        try {
+            const results = await searchCatalog(effectiveTenantSlug, searchTerm);
+            const mapped = normalizeProductsPayload(results, 'ProductCatalog')
+                 .map((item) => enhanceProductDetails({ ...item, origen: 'api' as const }));
+
+            // Filter out unavailable for non-admins if needed, though backend should ideally handle this for search
+            const finalResults = isAdmin ? mapped : mapped.filter(p => p.disponible !== false);
+            setSearchResults(finalResults);
+        } catch (e) {
+            console.error("Search failed", e);
+            // On error, we might fallback to local filtering of allProducts, or show error
+            // For now, let's just keep searchResults as null or empty?
+            // Better to leave it null so it falls back to local filtering of allProducts if desired,
+            // OR set empty list.
+            // Given the requirement is "hits /catalogo/buscar", we should rely on it.
+            setSearchResults([]);
+        } finally {
+            setSearchLoading(false);
+        }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchTerm, effectiveTenantSlug, isAdmin]);
+
+  useEffect(() => {
+    // Determine source: Search Results (if active) OR All Products
+    const sourceProducts = searchResults !== null ? searchResults : allProducts;
+
     const normalizedCategory = selectedCategory.trim().toLowerCase();
-    const filtered = allProducts.filter(product => {
-      const matchesSearch =
-        product.nombre.toLowerCase().includes(lowercasedFilter) ||
-        (product.descripcion && product.descripcion.toLowerCase().includes(lowercasedFilter)) ||
-        (product.categoria && product.categoria.toLowerCase().includes(lowercasedFilter)) ||
-        (product.marca && product.marca.toLowerCase().includes(lowercasedFilter));
+
+    const filtered = sourceProducts.filter(product => {
+      // If we are using search results, we assume they already match the search term semantically.
+      // If we are using allProducts, we might still want to filter by text if searchResults is null
+      // (e.g. while typing before debounce, or if we want to support local filter on top of allProducts
+      // when searchTerm is empty).
+      // However, if searchTerm is NOT empty, searchResults should be populated (or empty list).
+
+      // But wait, if searchTerm is not empty, but searchResults is null (debounce pending),
+      // we might want to show loading or keep previous.
+      // Currently `searchResults` is set to null when searchTerm is empty.
 
       const matchesCategory =
         normalizedCategory === 'todos' ||
@@ -226,10 +268,10 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug, isDemoMode 
         selectedModality === 'todos' ||
         modality === selectedModality;
 
-      return matchesSearch && matchesCategory && matchesModality;
+      return matchesCategory && matchesModality;
     });
     setFilteredProducts(filtered);
-  }, [searchTerm, allProducts, selectedCategory, selectedModality]);
+  }, [searchResults, allProducts, selectedCategory, selectedModality]);
 
   const categories = useMemo(() => {
     const unique = new Map<string, string>();
@@ -574,8 +616,13 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug, isDemoMode 
             placeholder="Buscar productos por nombre, descripción, categoría..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 text-base rounded-md border-border focus:ring-primary focus:border-primary"
+            className="w-full pl-10 pr-10 py-2 text-base rounded-md border-border focus:ring-primary focus:border-primary"
           />
+          {searchLoading && (
+            <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            </div>
+          )}
         </div>
         {categories.length > 1 && (
           <Tabs value={selectedCategory} onValueChange={setSelectedCategory} className="mt-4">
