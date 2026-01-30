@@ -27,6 +27,8 @@ export default function CatalogManagementPage() {
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [stockFilter, setStockFilter] = useState('all');
   const [varietalFilter, setVarietalFilter] = useState('all');
+  const [minPrice, setMinPrice] = useState('');
+  const [maxPrice, setMaxPrice] = useState('');
 
   // Inline Editing
   const [editingId, setEditingId] = useState<string | number | null>(null);
@@ -91,12 +93,16 @@ export default function CatalogManagementPage() {
           ? (p.stock_disponible ?? 0) > 0
           : (p.stock_disponible ?? 0) <= 0;
 
+      const price = p.precio_unitario || 0;
+      const matchMinPrice = !minPrice || price >= Number(minPrice);
+      const matchMaxPrice = !maxPrice || price <= Number(maxPrice);
+
       // Winery specific filter logic
       const matchVarietal = varietalFilter === 'all' || p.categoria === varietalFilter; // Simplified for now
 
-      return matchSearch && matchCategory && matchStock && matchVarietal;
+      return matchSearch && matchCategory && matchStock && matchVarietal && matchMinPrice && matchMaxPrice;
     });
-  }, [products, searchTerm, categoryFilter, stockFilter, varietalFilter]);
+  }, [products, searchTerm, categoryFilter, stockFilter, varietalFilter, minPrice, maxPrice]);
 
   const startEditing = (product: ProductDetails) => {
     setEditingId(product.id);
@@ -205,6 +211,23 @@ export default function CatalogManagementPage() {
             </SelectContent>
           </Select>
         )}
+        <div className="flex gap-2 items-center">
+            <Input
+                type="number"
+                placeholder="Min Price"
+                value={minPrice}
+                onChange={e => setMinPrice(e.target.value)}
+                className="w-24"
+            />
+            <span className="text-muted-foreground">-</span>
+            <Input
+                type="number"
+                placeholder="Max Price"
+                value={maxPrice}
+                onChange={e => setMaxPrice(e.target.value)}
+                className="w-24"
+            />
+        </div>
       </div>
 
       {/* Table */}
