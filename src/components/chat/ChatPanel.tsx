@@ -387,6 +387,7 @@ const ChatPanel = ({
           isBot: data.es_admin, // Agent messages are treated as "bot" for styling
           timestamp: new Date(data.fecha || Date.now()),
           origen: data.origen,
+          audioUrl: data.audio_url,
         };
         setMessages(prevMessages => [...prevMessages, newMessage]);
       };

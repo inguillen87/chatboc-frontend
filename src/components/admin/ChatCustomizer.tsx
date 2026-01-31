@@ -52,9 +52,14 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       setLogoFile(file);
-      // Create local preview URL
-      const url = URL.createObjectURL(file);
-      handleChange('logoUrl', url);
+
+      // Convert to Base64 for persistence
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64 = reader.result as string;
+        handleChange('logoUrl', base64);
+      };
+      reader.readAsDataURL(file);
     }
   };
 

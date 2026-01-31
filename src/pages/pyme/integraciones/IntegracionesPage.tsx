@@ -18,7 +18,7 @@ import { es } from 'date-fns/locale';
 import WidgetPreview from '@/components/chat/WidgetPreview';
 import ChatCustomizer from '@/components/admin/ChatCustomizer';
 import OrderDispatchSettings from '@/components/admin/OrderDispatchSettings';
-import CatalogUploadWizard from '@/components/catalog/CatalogUploadWizard';
+import ImportWizard from '@/components/catalog/ImportWizard';
 import ChannelPreview from '@/components/integrations/ChannelPreview';
 import {
   Dialog,
@@ -218,7 +218,12 @@ const IntegracionesPage = () => {
                                     </Button>
                                 </DialogTrigger>
                                 <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto sm:max-w-[800px]">
-                                   <CatalogUploadWizard onSuccess={() => setUploadOpen(false)} />
+                                   {/* Passing current tenant ID if available, using 0 as fallback or needing int */}
+                                   {/* We might need to fetch the ID or use the slug if the service supports it */}
+                                   <ImportWizard
+                                        tenantId={0} // TODO: Pass correct numeric ID if available in context
+                                        onComplete={() => setUploadOpen(false)}
+                                   />
                                 </DialogContent>
                             </Dialog>
                         </div>

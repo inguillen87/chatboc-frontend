@@ -189,7 +189,7 @@ export const apiClient = {
     });
   },
 
-  adminUpdateOrder: async (tenantSlug: string, orderId: number, data: { status: string }) => {
+  adminUpdateOrder: async (tenantSlug: string, orderId: string | number, data: { status: string }) => {
     return apiFetch<Order>(`/api/admin/tenants/${tenantSlug}/orders/${orderId}`, {
       method: 'PUT',
       tenantSlug,

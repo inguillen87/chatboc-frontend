@@ -637,8 +637,14 @@ function ChatWidgetInner({
           }
       }
 
-      toggleChat();
-  }, [toggleChat, entityInfo, proactiveCycle]);
+      // Ensure toggleChat opens the chat if closed
+      setIsOpen(true); // Explicitly open instead of toggle to be safe
+
+      if (proactiveMessageTimeoutRef.current) clearTimeout(proactiveMessageTimeoutRef.current);
+      if (hideProactiveBubbleTimeoutRef.current) clearTimeout(hideProactiveBubbleTimeoutRef.current);
+      setShowProactiveBubble(false);
+
+  }, [entityInfo, proactiveCycle]);
 
   const [selectedRubro, setSelectedRubro] = useState<string | null>(() => extractRubroKey(initialRubro) ?? null);
   const [pendingRedirect, setPendingRedirect] = useState<"cart" | "market" | null>(null);
@@ -1190,9 +1196,12 @@ function ChatWidgetInner({
         height: isOpen ? finalOpenHeight : finalClosedHeight,
         zIndex: 999999,
         transition: 'width 0.3s ease, height 0.3s ease, bottom 0.3s ease, right 0.3s ease',
-        // Ensure we control the transform to avoid backend injections breaking layout
+        // FORCE NONE ON MOBILE TO PREVENT BACKEND INJECTION ISSUES
         transform: isMobileView ? 'none' : undefined
       };
+
+      // Specifically override if backend sends scale via other means, though 'style' prop usually wins over external CSS classes unless !important
+      // But if backend injects inline style via JS, we need to ensure this React render wins.
 
       return baseStyle;
     }
@@ -1208,7 +1217,7 @@ function ChatWidgetInner({
       };
     }
     return {};
-  }, [mode, initialPosition.bottom, initialPosition.right, isOpen, finalOpenWidth, finalOpenHeight, finalClosedWidth, finalClosedHeight]);
+  }, [mode, initialPosition.bottom, initialPosition.right, isOpen, finalOpenWidth, finalOpenHeight, finalClosedWidth, finalClosedHeight, isMobileView]);
 
   const panelAnimation = {
     initial: { opacity: 0, scale: 0.95, y: 20, originY: 1 },
