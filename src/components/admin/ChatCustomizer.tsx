@@ -11,6 +11,8 @@ import WidgetPreview from '@/components/chat/WidgetPreview';
 import { useTenant } from '@/context/TenantContext';
 import { toast } from 'sonner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { apiClient } from '@/api/client';
+import { useDebounce } from '@/hooks/useDebounce'; // Assuming this hook exists, or I will implement a local one
 
 interface ChatCustomizerProps {
   initialConfig?: any;
@@ -36,16 +38,67 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
   const { currentSlug } = useTenant();
   const [config, setConfig] = useState(initialConfig || DEFAULT_THEME);
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [logoFile, setLogoFile] = useState<File | null>(null);
 
+  // Debounce logic
+  const [debouncedConfig, setDebouncedConfig] = useState(config);
+
   useEffect(() => {
-    if (initialConfig) {
-      setConfig({ ...DEFAULT_THEME, ...initialConfig });
-    }
-  }, [initialConfig]);
+    const timer = setTimeout(() => {
+      setDebouncedConfig(config);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [config]);
+
+  // Load initial data if not provided
+  useEffect(() => {
+    const loadTheme = async () => {
+      if (!currentSlug) return;
+      if (initialConfig) {
+        setConfig({ ...DEFAULT_THEME, ...initialConfig });
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const themeData = await apiClient.getChatTheme(currentSlug);
+        if (themeData) {
+           // Adapt API response to local config format
+           // Expected API structure: { theme_config: {...}, bot_name, ... }
+           // We map it back to flat structure
+           const flatConfig = {
+               primaryColor: themeData.theme_config?.light?.primary || DEFAULT_THEME.primaryColor,
+               accentColor: themeData.theme_config?.light?.secondary || DEFAULT_THEME.accentColor,
+               fontFamily: themeData.theme_config?.font_family || DEFAULT_THEME.fontFamily,
+               animation: themeData.theme_config?.animation || DEFAULT_THEME.animation,
+               borderRadius: themeData.theme_config?.border_radius ?? DEFAULT_THEME.borderRadius,
+               userMsgColor: themeData.theme_config?.light?.foreground || DEFAULT_THEME.userMsgColor,
+               chatBackground: themeData.theme_config?.light?.background || DEFAULT_THEME.chatBackground,
+               botName: themeData.bot_name || DEFAULT_THEME.botName,
+               welcomeMessage: themeData.welcome_message || DEFAULT_THEME.welcomeMessage,
+               ctaMessage: themeData.cta_messages?.[0] || DEFAULT_THEME.ctaMessage,
+               showLogo: themeData.show_logo ?? DEFAULT_THEME.showLogo,
+               logoUrl: themeData.logo_url || DEFAULT_THEME.logoUrl,
+           };
+           setConfig(flatConfig);
+           // Also update debounced to avoid immediate save trigger
+           setDebouncedConfig(flatConfig);
+        }
+      } catch (error) {
+        console.error("Failed to load chat theme", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadTheme();
+  }, [currentSlug, initialConfig]);
 
   const handleChange = (field: string, value: any) => {
     setConfig(prev => ({ ...prev, [field]: value }));
+    setHasUnsavedChanges(true);
   };
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -63,64 +116,60 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
     }
   };
 
-  const handleSave = async () => {
+  const constructPayload = (cfg: typeof DEFAULT_THEME) => ({
+      theme_config: {
+          mode: 'light',
+          light: {
+              primary: cfg.primaryColor,
+              secondary: cfg.accentColor,
+              background: cfg.chatBackground,
+              foreground: cfg.userMsgColor
+          },
+          font_family: cfg.fontFamily,
+          animation: cfg.animation,
+          border_radius: cfg.borderRadius
+      },
+      cta_messages: [cfg.ctaMessage],
+      bot_name: cfg.botName,
+      welcome_message: cfg.welcomeMessage,
+      logo_url: cfg.logoUrl,
+      show_logo: cfg.showLogo
+  });
+
+  const performSave = async (cfg: typeof DEFAULT_THEME, isAutoSave = false) => {
+    if (!currentSlug) return;
     setSaving(true);
     try {
+      const payload = constructPayload(cfg);
+
       if (onSave) {
-          await onSave(config);
-      } else if (currentSlug) {
-          // Updated to use the correct endpoint per integration guide: PUT /widget-settings
-          // Since we are in the admin panel context, we should use a tenant-scoped endpoint or global if intended.
-          // The guide says `PUT /widget-settings`. We'll assume a new method in apiClient or direct apiFetch.
-          // Using direct apiFetch to match the guide exactly, adjusting for tenant prefix if necessary.
-          // Since the guide is general, but we are in a tenant context (currentSlug), we should probably target
-          // `/api/admin/tenants/${currentSlug}/widget-settings` OR send the payload structure expected.
-          // The payload structure is { theme_config: ..., cta_messages: ... }
-          // My config state is flat. I need to restructure it to match the payload.
-
-          const payload = {
-              theme_config: {
-                  mode: 'light', // Defaulting or derived
-                  light: {
-                      primary: config.primaryColor,
-                      secondary: config.accentColor,
-                      background: config.chatBackground,
-                      foreground: config.userMsgColor // Mapping loosely, should verify
-                  },
-                  font_family: config.fontFamily,
-                  animation: config.animation,
-                  border_radius: config.borderRadius
-              },
-              cta_messages: [config.ctaMessage],
-              bot_name: config.botName,
-              welcome_message: config.welcomeMessage,
-              logo_url: config.logoUrl,
-              show_logo: config.showLogo
-          };
-
-          // Using existing notification/settings endpoint as proxy if dedicated widget-settings not available in client
-          // OR calling the endpoint specified in the guide if valid.
-          // Let's stick to the apiClient method we used but ensure the payload structure is what the backend expects for widget_settings
-          // if we are wrapping it.
-          // The previous code sent `widget_settings: config`. If backend expects that, good.
-          // If backend expects the payload from the guide at `/widget-settings`, we should use that.
-
-          // Let's try to be robust: If we are admin, we likely update via the admin API.
-          await apiClient.adminUpdateNotificationSettings(currentSlug, {
-              widget_settings: payload
-          });
-
+          await onSave(cfg);
       } else {
-          await new Promise(r => setTimeout(r, 1000));
+          await apiClient.updateChatTheme(currentSlug, payload);
       }
-      toast.success("Personalización guardada correctamente.");
+
+      if (!isAutoSave) {
+          toast.success("Personalización guardada correctamente.");
+      }
+      setHasUnsavedChanges(false);
     } catch (error) {
       console.error("Save failed", error);
-      toast.error("Error al guardar la personalización.");
+      if (!isAutoSave) {
+          toast.error("Error al guardar la personalización.");
+      }
     } finally {
       setSaving(false);
     }
   };
+
+  const handleManualSave = () => performSave(config, false);
+
+  // Auto-save effect
+  useEffect(() => {
+    if (hasUnsavedChanges) {
+        performSave(debouncedConfig, true);
+    }
+  }, [debouncedConfig]);
 
   return (
     <div className="grid lg:grid-cols-2 gap-8">

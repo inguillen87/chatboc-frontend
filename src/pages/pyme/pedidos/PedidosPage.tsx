@@ -369,7 +369,7 @@ const PedidosPage = () => {
                    </div>
                    <div className="flex gap-2">
                       <Button size="sm" variant="outline" onClick={() => window.print()}>Imprimir</Button>
-                      <Button size="sm">Contactar Cliente</Button>
+                      <Button size="sm" onClick={() => navigate(`/${currentSlug}/pedidos/${selectedOrder.id}`)}>Ver Detalle Completo</Button>
                    </div>
                  </div>
                </CardHeader>

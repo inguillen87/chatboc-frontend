@@ -17,8 +17,9 @@ const OrderDispatchSettings = () => {
   // Settings
   const [dispatchEmail, setDispatchEmail] = useState('');
   const [dispatchPhone, setDispatchPhone] = useState('');
-  const [notifyEmail, setNotifyEmail] = useState(true);
-  const [notifyWhatsapp, setNotifyWhatsapp] = useState(true);
+  const [sendBuyerEmail, setSendBuyerEmail] = useState(true);
+  const [sendDispatchEmail, setSendDispatchEmail] = useState(true);
+  const [sendDispatchWhatsapp, setSendDispatchWhatsapp] = useState(true);
 
   useEffect(() => {
     if (currentSlug) {
@@ -30,16 +31,18 @@ const OrderDispatchSettings = () => {
     setLoading(true);
     try {
         if (!currentSlug) return;
-        const settings = await apiClient.adminGetNotificationSettings(currentSlug);
-        if (settings) {
-            setDispatchEmail(settings.dispatch_email || '');
-            setDispatchPhone(settings.dispatch_phone || '');
-            // Fallback to notification_settings structure if specific fields are missing
-            setNotifyEmail(settings.notification_settings?.dispatch_email ?? true);
-            setNotifyWhatsapp(settings.notification_settings?.dispatch_whatsapp ?? true);
+        // Using getFulfillmentConfig as per new plan
+        const settings = await apiClient.getFulfillmentConfig(currentSlug);
+        if (settings && settings.tenant) {
+            setDispatchEmail(settings.tenant.dispatch_email || '');
+            setDispatchPhone(settings.tenant.dispatch_phone || '');
+            setSendBuyerEmail(settings.tenant.send_buyer_email ?? true);
+            setSendDispatchEmail(settings.tenant.send_dispatch_email ?? true);
+            setSendDispatchWhatsapp(settings.tenant.send_dispatch_whatsapp ?? true);
         }
     } catch (error) {
         console.error("Failed to load dispatch settings", error);
+        // Fallback: don't break UI, just leave defaults or empty
     } finally {
         setLoading(false);
     }
@@ -49,21 +52,16 @@ const OrderDispatchSettings = () => {
     if (!currentSlug) return;
     setSaving(true);
     try {
-        // Reuse adminUpdateNotificationSettings as the endpoint for all notification related configs
-        // We assume the backend accepts arbitrary keys or we structure it inside `notification_settings`
-        // For now, let's send both top-level and nested to be safe/future-proof
-        await apiClient.adminUpdateNotificationSettings(currentSlug, {
-            dispatch_email: dispatchEmail,
-            dispatch_phone: dispatchPhone,
-            notification_settings: {
-                dispatch_email: notifyEmail,
-                dispatch_whatsapp: notifyWhatsapp,
-                // Preserve existing settings if we had full state, but since we don't,
-                // we rely on backend MERGE behavior or we fetch-merge-save.
-                // adminUpdateNotificationSettings usually merges top-level fields.
-                // Let's rely on standard practice.
+        const payload = {
+            tenant: {
+                dispatch_email: dispatchEmail,
+                dispatch_phone: dispatchPhone,
+                send_buyer_email: sendBuyerEmail,
+                send_dispatch_email: sendDispatchEmail,
+                send_dispatch_whatsapp: sendDispatchWhatsapp
             }
-        });
+        };
+        await apiClient.updateFulfillmentConfig(currentSlug, payload);
         toast.success("Configuración de despacho guardada.");
     } catch (error) {
         console.error("Save failed", error);
@@ -86,33 +84,43 @@ const OrderDispatchSettings = () => {
             </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-            <div className="grid md:grid-cols-2 gap-6">
+            <div className="space-y-4">
+                <div className="flex items-center justify-between border-b pb-4">
+                    <div className="space-y-0.5">
+                        <Label className="text-base">Notificar al Comprador</Label>
+                        <p className="text-xs text-muted-foreground">Enviar email de confirmación automático al cliente.</p>
+                    </div>
+                    <Switch checked={sendBuyerEmail} onCheckedChange={setSendBuyerEmail} />
+                </div>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-6 pt-2">
                 <div className="space-y-4">
                     <div className="flex items-center justify-between">
                         <Label className="flex items-center gap-2"><Mail className="h-4 w-4"/> Email de Depósito</Label>
-                        <Switch checked={notifyEmail} onCheckedChange={setNotifyEmail} />
+                        <Switch checked={sendDispatchEmail} onCheckedChange={setSendDispatchEmail} />
                     </div>
                     <Input
                         placeholder="deposito@ejemplo.com"
                         value={dispatchEmail}
                         onChange={e => setDispatchEmail(e.target.value)}
-                        disabled={!notifyEmail}
+                        disabled={!sendDispatchEmail}
                     />
-                    <p className="text-xs text-muted-foreground">Se enviará un PDF con el detalle del pedido.</p>
+                    <p className="text-xs text-muted-foreground">Se enviará un PDF con el detalle del pedido para preparar.</p>
                 </div>
 
                 <div className="space-y-4">
                     <div className="flex items-center justify-between">
                         <Label className="flex items-center gap-2"><MessageSquare className="h-4 w-4"/> WhatsApp Logística</Label>
-                        <Switch checked={notifyWhatsapp} onCheckedChange={setNotifyWhatsapp} />
+                        <Switch checked={sendDispatchWhatsapp} onCheckedChange={setSendDispatchWhatsapp} />
                     </div>
                     <Input
                         placeholder="54911..."
                         value={dispatchPhone}
                         onChange={e => setDispatchPhone(e.target.value)}
-                        disabled={!notifyWhatsapp}
+                        disabled={!sendDispatchWhatsapp}
                     />
-                    <p className="text-xs text-muted-foreground">Se enviará un mensaje automático con el link de gestión.</p>
+                    <p className="text-xs text-muted-foreground">Se enviará un aviso inmediato al equipo de preparación.</p>
                 </div>
             </div>
         </CardContent>
