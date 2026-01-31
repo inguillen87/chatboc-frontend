@@ -73,8 +73,9 @@ export const apiClient = {
 
   // --- Admin Methods ---
 
-  adminListOrders: async (tenantSlug: string): Promise<Order[]> => {
-    return apiFetch<Order[]>(`/api/admin/tenants/${tenantSlug}/orders`, { tenantSlug });
+  adminListOrders: async (tenantSlug: string, filters?: Record<string, any>): Promise<Order[]> => {
+    const params = new URLSearchParams(filters);
+    return apiFetch<Order[]>(`/api/admin/tenants/${tenantSlug}/orders?${params.toString()}`, { tenantSlug });
   },
 
   adminGetOrder: async (tenantSlug: string, orderId: string | number): Promise<Order> => {

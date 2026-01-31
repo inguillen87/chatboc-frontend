@@ -688,6 +688,8 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
   // Display hint puede usarse para aplicar un contenedor especial alrededor del mensaje, o pasar a MessageBubble
   // Por ahora, lo mantendremos simple.
 
+  const isHandover = message.action === 'agent_handover' || message.text?.includes('Derivando a un representante');
+
   return (
     <motion.div
       ref={ref}
@@ -697,13 +699,20 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
       <div className={`flex items-end gap-2 ${isBot ? "" : "flex-row-reverse"}`}>
         {isBot && <AvatarBot isTyping={isTyping} logoUrl={botLogoUrl} logoAnimation={logoAnimation} />}
 
-        <MessageBubble className={cn(bubbleBaseClass, bubbleStyleClass, message.isError && "bg-destructive/20 border border-destructive/50")}>
+        <MessageBubble className={cn(bubbleBaseClass, bubbleStyleClass, message.isError && "bg-destructive/20 border border-destructive/50", isHandover && "bg-yellow-50 border-yellow-200")}>
           {/* Icono de error */}
           {message.isError && (
             <div className="flex items-center gap-2 mb-2 text-destructive">
               <UserIcon size={16} className="text-destructive" />
               <span className="font-semibold">Error</span>
             </div>
+          )}
+
+          {isHandover && (
+             <div className="flex items-center gap-2 mb-2 text-yellow-800 text-xs font-semibold uppercase tracking-wide">
+                <span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"/>
+                Conectando con un humano...
+             </div>
           )}
 
           {/* Prioridad al texto si no hay otros contenidos especiales */}

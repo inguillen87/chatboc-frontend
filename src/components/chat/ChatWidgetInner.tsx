@@ -981,7 +981,15 @@ function ChatWidgetInner({
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
-      if (!event.data || event.data.widgetId !== widgetId) return;
+      if (!event.data) return;
+      // Allow generic OPEN_CHAT even if widgetId doesn't match perfectly if it's a global signal
+      if (event.data === "OPEN_CHAT" || event.data.type === "OPEN_CHAT") {
+          setIsOpen(true);
+          return;
+      }
+
+      if (event.data.widgetId !== widgetId) return;
+
       if (event.data.type === "TOGGLE_CHAT") {
         setIsOpen(event.data.isOpen);
       } else if (event.data.type === "SET_VIEW") {
@@ -1175,7 +1183,7 @@ function ChatWidgetInner({
 
   const containerStyle: React.CSSProperties = useMemo(() => {
     if (mode === "standalone") {
-      return {
+      const baseStyle = {
         bottom: `${initialPosition.bottom}px`,
         right: `${initialPosition.right}px`,
         width: isOpen ? finalOpenWidth : finalClosedWidth,
@@ -1183,6 +1191,12 @@ function ChatWidgetInner({
         zIndex: 999999,
         transition: 'width 0.3s ease, height 0.3s ease, bottom 0.3s ease, right 0.3s ease',
       };
+
+      // Force reset scale on mobile to avoid double-scaling if backend injects it
+      if (isMobileView) {
+          return { ...baseStyle, transform: 'none' };
+      }
+      return baseStyle;
     }
     if (mode === "preview") {
       return {

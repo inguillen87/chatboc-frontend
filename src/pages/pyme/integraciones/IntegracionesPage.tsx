@@ -116,7 +116,11 @@ const IntegracionesPage = () => {
     } catch (error: any) {
         console.error('Connection failed:', error);
         const status = error?.status || error?.response?.status;
-        if (status === 403) {
+        const data = error?.response?.data || error?.data;
+
+        if (status === 422 && data?.message) {
+             toast.error("Error de configuración", { description: data.message });
+        } else if (status === 403) {
             toast.error("Plan Requerido", { description: "Actualizá tu plan para acceder a esta integración." });
         } else if (status === 503) {
             toast.error("Plataforma no configurada", { description: "Esta integración está en mantenimiento." });
