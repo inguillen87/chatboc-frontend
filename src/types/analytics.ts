@@ -12,12 +12,21 @@ export interface AnalyticsEvent {
 }
 
 export interface AnalyticsSummary {
-  total_interactions: number;
-  active_users: number;
-  avg_response_time: number; // seconds
-  conversion_rate?: number; // for pyme
+  kpis: {
+    total_interactions: number;
+    active_users: number;
+    avg_response_time_s: number;
+    conversion_rate?: number;
+    backlog_open?: number;
+    sla_breaches?: number;
+  };
   top_categories: { category: string; count: number }[];
   volume_by_day: { date: string; count: number }[];
   heatmap_points: { lat: number; lng: number; weight: number }[];
-  ai_insights: string[];
+  insights: {
+    text: string;
+    severity?: 'low' | 'medium' | 'high';
+    confidence?: number;
+    tags?: string[];
+  }[];
 }

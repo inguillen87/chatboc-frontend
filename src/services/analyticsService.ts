@@ -1,249 +1,51 @@
+import { AnalyticsSummary } from '@/types/analytics';
 import { apiFetch } from '@/utils/api';
 
-export type AnalyticsContext = 'municipio' | 'pyme' | 'operaciones' | string;
+const USE_MOCK = true;
 
-export interface AnalyticsFiltersPayload {
-  tenantId: string;
-  from: string;
-  to: string;
-  canal?: string[];
-  categoria?: string[];
-  estado?: string[];
-  agente?: string[];
-  zona?: string[];
-  etiquetas?: string[];
-  metric?: string;
-  group?: string | null;
-  dimension?: string;
-  subject?: string;
-  bbox?: [number, number, number, number] | null;
-  context?: AnalyticsContext;
-  search?: string | null;
-}
-
-function buildQuery(params: AnalyticsFiltersPayload): string {
-  const query = new URLSearchParams();
-  query.set('tenant_id', params.tenantId);
-  query.set('from', params.from);
-  query.set('to', params.to);
-  if (params.context) {
-    query.set('context', params.context);
-  }
-  const multi = [
-    ['canal', params.canal],
-    ['categoria', params.categoria],
-    ['estado', params.estado],
-    ['agente', params.agente],
-    ['zona', params.zona],
-    ['etiquetas', params.etiquetas],
-  ] as const;
-  multi.forEach(([key, value]) => {
-    if (value && value.length) {
-      query.set(key, value.join(','));
-    }
-  });
-  if (params.metric) query.set('metric', params.metric);
-  if (params.group) query.set('group', params.group);
-  if (params.dimension) query.set('dimension', params.dimension);
-  if (params.subject) query.set('subject', params.subject);
-  if (params.search) query.set('search', params.search);
-  if (params.bbox) {
-    query.set('bbox', params.bbox.join(','));
-  }
-  return query.toString();
-}
-
-export interface SummaryResponse {
-  generatedAt: string;
-  tenantId: string;
-  totals: {
-    tickets: number;
-    abiertos: number;
-    backlog: number;
-    adjuntos: number;
-  };
-  sla: {
-    ack: { p50: number; p90: number; p95: number };
-    resolve: { p50: number; p90: number; p95: number };
-  };
-  efficiency: {
-    firstContact: number;
-    reopenRate: number;
-    automationRate: number;
-  };
-  volume: {
-    perDay: { date: string; value: number }[];
-    byChannel: { label: string; value: number }[];
-    byCategory: { label: string; value: number }[];
-    byZone: { label: string; value: number }[];
-  };
-  quality: {
-    byType: { label: string; average: number; responses: number }[];
-    byAgent: { label: string; average: number; responses: number }[];
-  };
-  pyme: {
-    totalOrders: number;
-    ticketMedio: number;
-    ingresos: { date: string; value: number }[];
-    topProductos: { label: string; value: number }[];
-    conversion: number;
-    recurrencia: { d30: number; d60: number; d90: number };
-    horasPico: { hour: number; value: number }[];
-    canales: { label: string; value: number }[];
-    modalidades?: { label: string; value: number }[];
-    funnel?: { etapa: string; valor: number }[];
-    plantillas: {
-      plantilla: string;
-      envios: number;
-      respuestas: number;
-      bloqueos: number;
-      ctr: number;
-    }[];
-  };
-}
-
-export interface TimeseriesResponse {
-  metric: string;
-  group: string | null;
-  series: { date: string; value: number; breakdown?: Record<string, number> }[];
-}
-
-export interface BreakdownResponse {
-  dimension: string;
-  items: { label: string; value: number }[];
-}
-
-export interface HeatmapServiceStats {
-  average: number;
-  p50: number;
-  p90: number;
-  p95: number;
-}
-
-export interface HeatmapCell {
-  cellId: string;
-  tenant_id: string;
-  count: number;
-  weight: number;
-  centroid_lat: number;
-  centroid_lon: number;
-  breakdown: Record<string, number>;
-  severity_breakdown?: Record<string, number>;
-  status_breakdown?: Record<string, number>;
-  last_ticket_at?: string | null;
-  response_minutes?: HeatmapServiceStats;
-  resolution_minutes?: HeatmapServiceStats;
-}
-
-export interface HeatmapHotspot {
-  cellId: string;
-  count: number;
-  weight: number;
-  centroid: [number, number];
-  breakdown: Record<string, number>;
-  severity_breakdown?: Record<string, number>;
-  status_breakdown?: Record<string, number>;
-  last_ticket_at?: string | null;
-}
-
-export interface HeatmapMetadataItem {
-  label: string;
-  count: number;
-  percentage: number;
-}
-
-export interface HeatmapMetadata {
-  totals: {
-    tickets: number;
-    geocoded: number;
-    missing: number;
-    coverage: number;
-  };
-  intensity: {
-    totalWeight: number;
-    averageWeight: number;
-  };
-  categories: HeatmapMetadataItem[];
-  severity: HeatmapMetadataItem[];
-  status: HeatmapMetadataItem[];
-  recency: HeatmapMetadataItem[];
-  serviceLevels: {
-    responseMinutes: HeatmapServiceStats;
-    resolutionMinutes: HeatmapServiceStats;
-  };
-}
-
-export interface HeatmapResponse {
-  cells: HeatmapCell[];
-  hotspots: HeatmapHotspot[];
-  chronic: { zone: string; weeks: { week: string; count: number }[] }[];
-  metadata?: HeatmapMetadata;
-}
-
-export interface PointsResponse {
-  points: { cellId: string; lat: number; lon: number; categoria: string; estado: string }[];
-}
-
-export interface TopResponse {
-  subject: string;
-  items: { label: string; value: number }[];
-}
-
-export interface OperationsResponse {
-  abiertos: number;
-  slaBreaches: number;
-  automated: number;
-  agingBuckets: Record<string, number>;
-  agents: { agente: string; abiertos: number; tiempoMedio: number; satisfaccion: number }[];
-}
-
-export interface CohortsResponse {
-  cohorts: { cohort: string; pedidos: number; ingresos: number }[];
-}
-
-export interface TemplatesResponse {
-  templates: {
-    plantilla: string;
-    envios: number;
-    respuestas: number;
-    bloqueos: number;
-    ctr: number;
-  }[];
-}
-
-export interface FilterCatalogResponse {
-  canales: string[];
-  categorias: string[];
-  estados: string[];
-  agentes: string[];
-  zonas: string[];
-  etiquetas: string[];
-  tenants?: string[];
-  defaultTenantId?: string;
-  defaultContext?: AnalyticsContext;
-  contexts?: AnalyticsContext[];
-}
-
-async function fetcher<T>(endpoint: string, filters: AnalyticsFiltersPayload): Promise<T> {
-  const qs = buildQuery(filters);
-  return apiFetch<T>(`analytics/${endpoint}?${qs}`);
-}
-
-export const analyticsService = {
-  summary: (filters: AnalyticsFiltersPayload) => fetcher<SummaryResponse>('summary', filters),
-  timeseries: (filters: AnalyticsFiltersPayload) =>
-    fetcher<TimeseriesResponse>('timeseries', filters),
-  breakdown: (filters: AnalyticsFiltersPayload) =>
-    fetcher<BreakdownResponse>('breakdown', filters),
-  heatmap: (filters: AnalyticsFiltersPayload) => fetcher<HeatmapResponse>('tickets/heatmap', filters),
-  points: (filters: AnalyticsFiltersPayload) => fetcher<PointsResponse>('geo/points', filters),
-  top: (filters: AnalyticsFiltersPayload) => fetcher<TopResponse>('top', filters),
-  operations: (filters: AnalyticsFiltersPayload) =>
-    fetcher<OperationsResponse>('operations', filters),
-  cohorts: (filters: AnalyticsFiltersPayload) => fetcher<CohortsResponse>('cohorts', filters),
-  templates: (filters: AnalyticsFiltersPayload) =>
-    fetcher<TemplatesResponse>('whatsapp/templates', filters),
-  filters: (filters: AnalyticsFiltersPayload) => fetcher<FilterCatalogResponse>('filters', filters),
+const MOCK_SUMMARY: AnalyticsSummary = {
+  kpis: {
+    total_interactions: 1250,
+    active_users: 320,
+    avg_response_time_s: 45,
+    conversion_rate: 12.5,
+    backlog_open: 15,
+    sla_breaches: 3
+  },
+  top_categories: [
+    { category: 'Consultas Generales', count: 450 },
+    { category: 'Soporte Técnico', count: 320 },
+    { category: 'Ventas', count: 210 },
+    { category: 'Reclamos', count: 150 },
+  ],
+  volume_by_day: Array.from({ length: 7 }, (_, i) => ({
+    date: new Date(Date.now() - (6 - i) * 86400000).toLocaleDateString('es-AR', { weekday: 'short' }),
+    count: Math.floor(Math.random() * 200) + 50,
+  })),
+  heatmap_points: Array.from({ length: 20 }, () => ({
+    lat: -34.6037 + (Math.random() - 0.5) * 0.1,
+    lng: -58.3816 + (Math.random() - 0.5) * 0.1,
+    weight: Math.floor(Math.random() * 10) + 1,
+  })),
+  insights: [
+    { text: "Pico de consultas sobre 'Horarios' el lunes a las 10am.", severity: 'medium', confidence: 85, tags: ['Patrones'] },
+    { text: "Aumento del 15% en conversión vía WhatsApp.", severity: 'low', confidence: 92, tags: ['Tendencia'] },
+    { text: "Categoría 'Reclamos' redujo su tiempo de resolución un 20%.", severity: 'low', confidence: 78, tags: ['Performance'] }
+  ]
 };
 
-export type { AnalyticsFiltersPayload as AnalyticsFilters };
+export const analyticsService = {
+  getSummary: async (tenantSlug: string, timeRange: string): Promise<AnalyticsSummary> => {
+    if (USE_MOCK) {
+      return new Promise((resolve) => setTimeout(() => resolve(MOCK_SUMMARY), 800));
+    }
+    // TODO: Connect to real backend
+    // return apiFetch(`/api/analytics/summary?tenant=${tenantSlug}&range=${timeRange}`);
+    return MOCK_SUMMARY;
+  },
+
+  getHeatmap: async (tenantSlug: string, timeRange: string) => {
+      // Stub for dedicated heatmap endpoint if split
+      return [];
+  }
+};
