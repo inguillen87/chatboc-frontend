@@ -119,6 +119,7 @@ const ImportWizard: React.FC<Props> = ({ tenantId, onComplete }) => {
                             <th className="p-2 text-left font-medium text-gray-600">Nombre</th>
                             <th className="p-2 text-left font-medium text-gray-600 w-32">Precio</th>
                             <th className="p-2 text-left font-medium text-gray-600 w-32">SKU</th>
+                            <th className="p-2 text-left font-medium text-gray-600 w-40">Categoría</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -161,6 +162,27 @@ const ImportWizard: React.FC<Props> = ({ tenantId, onComplete }) => {
                                     }}
                                     className="h-8 border-transparent hover:border-input focus:border-input bg-transparent text-gray-500 font-mono text-xs"
                                   />
+                                </td>
+                                <td className="p-2">
+                                    <Select
+                                        value={item.category || "General"}
+                                        onValueChange={(val) => {
+                                            const newItems = [...preview.items_preview];
+                                            newItems[idx] = { ...item, category: val };
+                                            setPreview({ ...preview, items_preview: newItems });
+                                        }}
+                                    >
+                                        <SelectTrigger className="h-8 border-transparent hover:border-input focus:border-input bg-transparent">
+                                            <SelectValue placeholder="Categoría" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="General">General</SelectItem>
+                                            <SelectItem value="Indumentaria">Indumentaria</SelectItem>
+                                            <SelectItem value="Calzado">Calzado</SelectItem>
+                                            <SelectItem value="Accesorios">Accesorios</SelectItem>
+                                            <SelectItem value="Hogar">Hogar</SelectItem>
+                                        </SelectContent>
+                                    </Select>
                                 </td>
                             </tr>
                         ))}

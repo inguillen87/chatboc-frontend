@@ -32,6 +32,7 @@ const DEFAULT_THEME = {
   ctaMessage: '¿Tenés alguna duda?',
   showLogo: true,
   logoUrl: '',
+  mode: 'light', // light or dark
 };
 
 const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }) => {
@@ -81,6 +82,7 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
                ctaMessage: themeData.cta_messages?.[0] || DEFAULT_THEME.ctaMessage,
                showLogo: themeData.show_logo ?? DEFAULT_THEME.showLogo,
                logoUrl: themeData.logo_url || DEFAULT_THEME.logoUrl,
+               mode: themeData.theme_config?.mode || DEFAULT_THEME.mode,
            };
            setConfig(flatConfig);
            // Also update debounced to avoid immediate save trigger
@@ -118,12 +120,19 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
 
   const constructPayload = (cfg: typeof DEFAULT_THEME) => ({
       theme_config: {
-          mode: 'light',
+          mode: cfg.mode,
           light: {
               primary: cfg.primaryColor,
               secondary: cfg.accentColor,
               background: cfg.chatBackground,
               foreground: cfg.userMsgColor
+          },
+          // Basic dark mode map just reusing colors or defaults (expand as needed)
+          dark: {
+              primary: cfg.primaryColor,
+              secondary: cfg.accentColor,
+              background: '#1a1a1a',
+              foreground: '#ffffff'
           },
           font_family: cfg.fontFamily,
           animation: cfg.animation,
@@ -181,6 +190,17 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
                 <CardDescription>Personalizá los colores y estilo del chat.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+                <div className="flex items-center justify-between p-2 border rounded mb-4">
+                    <Label htmlFor="dark-mode" className="flex items-center gap-2">
+                         Modo Oscuro
+                    </Label>
+                    <Switch
+                        id="dark-mode"
+                        checked={config.mode === 'dark'}
+                        onCheckedChange={(checked) => handleChange('mode', checked ? 'dark' : 'light')}
+                    />
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                         <Label>Color Primario</Label>

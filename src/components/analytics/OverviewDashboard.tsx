@@ -1,6 +1,7 @@
 import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid } from 'recharts';
+import { BarChart3, Zap, ArrowUpRight, ArrowDownRight, Clock, Users } from 'lucide-react';
 import { AnalyticsSummary } from '../../services/analyticsService';
 
 interface Props {
@@ -10,37 +11,60 @@ interface Props {
 }
 
 const OverviewDashboard: React.FC<Props> = ({ data, showSla, showConversion }) => {
-  const { kpis, volume_by_day, top_categories } = data;
+  const { kpis } = data;
 
   return (
     <div className="space-y-6">
-      {/* KPI Cards */}
+      {/* KPI Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Interacciones Totales</CardTitle>
+            <CardTitle className="text-sm font-medium">Interacciones</CardTitle>
+            <BarChart3 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{kpis.total_interactions}</div>
+            <p className="text-xs text-muted-foreground flex items-center mt-1">
+              <ArrowUpRight className="h-3 w-3 text-green-500 mr-1" />
+              Total del periodo
+            </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Usuarios Activos</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{kpis.active_users}</div>
+            <p className="text-xs text-muted-foreground mt-1">Usuarios únicos</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Tiempo Respuesta</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{kpis.avg_response_time_s}s</div>
+            <p className="text-xs text-muted-foreground flex items-center mt-1">
+              <ArrowDownRight className="h-3 w-3 text-green-500 mr-1" />
+              Promedio
+            </p>
           </CardContent>
         </Card>
 
         {showConversion && (
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Tasa de Conversión</CardTitle>
+              <CardTitle className="text-sm font-medium">Conversión</CardTitle>
+              <Zap className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{kpis.conversion_rate}%</div>
+              <div className="text-2xl font-bold">{kpis.conversion_rate || 0}%</div>
+              <p className="text-xs text-muted-foreground mt-1">De chat a venta</p>
             </CardContent>
           </Card>
         )}
@@ -48,56 +72,52 @@ const OverviewDashboard: React.FC<Props> = ({ data, showSla, showConversion }) =
         {showSla && (
            <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Backlog Abierto</CardTitle>
+              <CardTitle className="text-sm font-medium">Tickets Abiertos</CardTitle>
+              <Zap className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{kpis.backlog_open}</div>
+              <div className="text-2xl font-bold">{kpis.backlog_open || 0}</div>
+              <p className="text-xs text-muted-foreground mt-1 text-yellow-600">
+                 {kpis.sla_breaches || 0} fuera de SLA
+              </p>
             </CardContent>
           </Card>
         )}
       </div>
 
       {/* Charts Row */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+        <Card className="col-span-4">
           <CardHeader>
             <CardTitle>Volumen Diario</CardTitle>
           </CardHeader>
-          <CardContent className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={volume_by_day}>
-                <XAxis dataKey="date" fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis fontSize={12} tickLine={false} axisLine={false} />
+          <CardContent className="pl-2">
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={data.volume_by_day}>
+                <XAxis dataKey="date" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
+                <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
                 <Tooltip />
-                <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-              </BarChart>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
+                <Line type="monotone" dataKey="count" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
+              </LineChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="col-span-3">
           <CardHeader>
             <CardTitle>Top Categorías</CardTitle>
+            <CardDescription>Temas más frecuentes</CardDescription>
           </CardHeader>
-          <CardContent className="h-[300px]">
-             <div className="space-y-4">
-                {top_categories.map((cat, idx) => (
-                  <div key={idx} className="flex items-center">
-                    <div className="w-full flex-1">
-                        <div className="flex items-center justify-between mb-1">
-                            <span className="text-sm font-medium">{cat.category}</span>
-                            <span className="text-sm text-muted-foreground">{cat.count}</span>
-                        </div>
-                        <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
-                            <div
-                                className="h-full bg-primary"
-                                style={{ width: `${(cat.count / Math.max(...top_categories.map(c=>c.count))) * 100}%` }}
-                            />
-                        </div>
-                    </div>
-                  </div>
-                ))}
-             </div>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={data.top_categories} layout="vertical" margin={{ top: 0, right: 30, left: 40, bottom: 0 }}>
+                <XAxis type="number" hide />
+                <YAxis dataKey="category" type="category" width={100} tick={{ fontSize: 12 }} />
+                <Tooltip cursor={{ fill: 'transparent' }} />
+                <Bar dataKey="count" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} barSize={24} />
+              </BarChart>
+            </ResponsiveContainer>
           </CardContent>
         </Card>
       </div>
