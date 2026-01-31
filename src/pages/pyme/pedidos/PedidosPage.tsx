@@ -460,6 +460,25 @@ const PedidosPage = () => {
                       </div>
                   </div>
 
+                  {/* Timeline (Mock) */}
+                  <div className="space-y-4 pt-4 border-t">
+                      <h3 className="text-sm font-medium">Historial de Eventos</h3>
+                      <div className="space-y-4 ml-2 border-l-2 border-muted pl-4">
+                          <div className="relative">
+                              <div className="absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full bg-primary ring-4 ring-background" />
+                              <p className="text-sm font-medium">Pedido Creado</p>
+                              <p className="text-xs text-muted-foreground">{format(new Date(selectedOrder.created_at), "d MMM, HH:mm", { locale: es })}</p>
+                          </div>
+                          {selectedOrder.status !== 'nuevo' && (
+                              <div className="relative">
+                                  <div className="absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full bg-muted-foreground/30 ring-4 ring-background" />
+                                  <p className="text-sm font-medium">Estado actualizado a {selectedOrder.status}</p>
+                                  <p className="text-xs text-muted-foreground">Hace un momento</p>
+                              </div>
+                          )}
+                      </div>
+                  </div>
+
                </CardContent>
              </Card>
            ) : (

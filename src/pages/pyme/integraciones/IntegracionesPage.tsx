@@ -262,12 +262,18 @@ const IntegracionesPage = () => {
                                    {integration.provider === 'tiendanube' && "Importá tu catálogo automáticamente y centralizá la gestión de pedidos."}
                                    {integration.provider === 'whatsapp' && "Enviá notificaciones automáticas y gestioná conversaciones con múltiples agentes."}
                                  </p>
-                                 {integration.lastSync && (
-                                    <div className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
-                                        <CheckCircle2 className="h-3 w-3 text-green-600" />
-                                        <span>
+                                 {integration.lastSync ? (
+                                    <div className="flex items-center gap-2 mt-2">
+                                        <Badge variant="outline" className="text-xs font-normal border-green-200 bg-green-50 text-green-700 gap-1 pl-1">
+                                            <CheckCircle2 className="h-3 w-3" />
                                             Sincronizado {formatDistanceToNow(new Date(integration.lastSync), { addSuffix: true, locale: es })}
-                                        </span>
+                                        </Badge>
+                                    </div>
+                                 ) : (
+                                    <div className="flex items-center gap-2 mt-2">
+                                        <Badge variant="outline" className="text-xs font-normal text-muted-foreground">
+                                            Sin sincronización reciente
+                                        </Badge>
                                     </div>
                                  )}
                                </div>
