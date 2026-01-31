@@ -13,6 +13,7 @@ interface WidgetPreviewProps {
   botName?: string;
   logoUrl?: string;
   welcomeMessage?: string;
+  logoAnimation?: string;
 }
 
 const WidgetPreview: React.FC<WidgetPreviewProps> = ({
@@ -25,6 +26,7 @@ const WidgetPreview: React.FC<WidgetPreviewProps> = ({
   botName,
   logoUrl,
   welcomeMessage,
+  logoAnimation,
 }) => {
   return (
     <Card className={cn("relative overflow-hidden border-2 border-muted shadow-xl bg-slate-50 dark:bg-slate-900", className)}>
@@ -42,6 +44,7 @@ const WidgetPreview: React.FC<WidgetPreviewProps> = ({
             headerLogoUrl={logoUrl}
             welcomeTitle={botName}
             welcomeSubtitle={welcomeMessage}
+            logoAnimation={logoAnimation}
          />
       </div>
     </Card>

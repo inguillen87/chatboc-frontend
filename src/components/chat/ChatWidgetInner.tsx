@@ -878,7 +878,6 @@ function ChatWidgetInner({
   const commonPanelStyles = cn("chat-root bg-card border shadow-lg", "flex flex-col overflow-hidden");
   const commonButtonStyles = cn(
     "rounded-full flex items-center justify-center",
-    "bg-primary text-primary-foreground hover:bg-primary/90",
     "shadow-lg"
   );
 
@@ -1342,7 +1341,9 @@ function ChatWidgetInner({
                 )}
                 style={{
                   borderRadius: "50%",
-                  background: "var(--primary, #2563eb)",
+                  // Ensure we use the dynamic 'primary' color if set, else fallback
+                  backgroundColor: "var(--primary, #2563eb)",
+                  color: "var(--primary-foreground, #ffffff)",
                   boxShadow: "0 6px 24px 0 rgba(0,0,0,0.15)",
                 }}
                 {...buttonAnimation}

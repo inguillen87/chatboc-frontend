@@ -407,45 +407,102 @@ const IntegracionesPage = () => {
       )}
 
       <Dialog open={mappingOpen} onOpenChange={setMappingOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto sm:max-w-[800px]">
           <DialogHeader>
-            <DialogTitle className="capitalize">Mapeo de Atributos: {selectedMappingProvider}</DialogTitle>
+            <DialogTitle className="capitalize">Mapeo de {selectedMappingProvider}</DialogTitle>
             <DialogDescription>
-              Estado de vinculación de categorías y atributos con la plataforma externa.
+              Verifica cómo se verán tus productos importados en la plataforma.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-             <div className="border rounded-md p-4 space-y-4">
-                <div className="flex justify-between items-center text-sm font-medium border-b pb-2">
-                   <span>Categoría Local</span>
-                   <span className="text-muted-foreground">→</span>
-                   <span>Categoría Externa</span>
-                </div>
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center text-sm">
-                    <span>Remeras</span>
-                    <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50 flex items-center gap-1">
-                      <CheckCircle2 className="h-3 w-3" /> Ropa y Accesorios
-                    </Badge>
+
+          <Tabs defaultValue="categories" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="categories">Categorías</TabsTrigger>
+                  <TabsTrigger value="preview">Vista Previa de Productos</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="categories" className="space-y-4 py-4">
+                 <div className="border rounded-md p-4 space-y-4">
+                    <div className="flex justify-between items-center text-sm font-medium border-b pb-2">
+                       <span>Categoría Local</span>
+                       <span className="text-muted-foreground">→</span>
+                       <span>Categoría Externa</span>
+                    </div>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center text-sm">
+                        <span>Remeras</span>
+                        <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50 flex items-center gap-1">
+                          <CheckCircle2 className="h-3 w-3" /> Ropa y Accesorios
+                        </Badge>
+                      </div>
+                      <div className="flex justify-between items-center text-sm">
+                        <span>Pantalones</span>
+                        <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50 flex items-center gap-1">
+                          <CheckCircle2 className="h-3 w-3" /> Pantalones
+                        </Badge>
+                      </div>
+                      <div className="flex justify-between items-center text-sm">
+                        <span>Zapatillas</span>
+                        <Badge variant="outline" className="text-yellow-600 border-yellow-200 bg-yellow-50 flex items-center gap-1">
+                          <AlertCircle className="h-3 w-3" /> Pendiente
+                        </Badge>
+                      </div>
+                    </div>
+                 </div>
+                 <p className="text-xs text-muted-foreground text-center">
+                   El mapeo se actualiza automáticamente con cada sincronización.
+                 </p>
+              </TabsContent>
+
+              <TabsContent value="preview" className="py-4 space-y-6">
+                  <div className="flex flex-col md:flex-row gap-6 justify-center items-start">
+                      {/* Original Product Mock */}
+                      <Card className="w-64 opacity-70 border-dashed">
+                          <CardHeader className="p-4 pb-2">
+                              <CardTitle className="text-sm text-muted-foreground">Original (MercadoLibre)</CardTitle>
+                          </CardHeader>
+                          <CardContent className="p-4 space-y-2">
+                              <div className="h-32 bg-gray-100 rounded flex items-center justify-center text-xs text-gray-400">Imagen Original</div>
+                              <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                              <div className="h-3 bg-gray-100 rounded w-1/2"></div>
+                              <div className="h-4 bg-gray-200 rounded w-1/4 mt-2"></div>
+                          </CardContent>
+                      </Card>
+
+                      <ArrowRight className="h-6 w-6 text-muted-foreground self-center rotate-90 md:rotate-0" />
+
+                      {/* Mapped Preview */}
+                      <div className="w-64 bg-white rounded-lg shadow-md overflow-hidden border border-primary/20 ring-4 ring-primary/5">
+                           <div className="bg-primary/10 px-3 py-1 text-xs font-semibold text-primary text-center border-b border-primary/10">
+                               Así se verá en tu catálogo
+                           </div>
+                           <div className="h-32 bg-slate-50 flex items-center justify-center text-primary/40">
+                               <FileSpreadsheet className="h-10 w-10" />
+                           </div>
+                           <div className="p-4">
+                               <h3 className="font-bold truncate">Zapatillas Deportivas</h3>
+                               <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                                   Ideal para running, suela amortiguada. Color Negro.
+                               </p>
+                               <div className="mt-3 flex items-center justify-between">
+                                   <span className="font-bold text-primary">
+                                       $45.000
+                                   </span>
+                                   <Badge variant="secondary" className="scale-75 origin-right">Stock: 12</Badge>
+                               </div>
+                           </div>
+                      </div>
                   </div>
-                  <div className="flex justify-between items-center text-sm">
-                    <span>Pantalones</span>
-                    <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50 flex items-center gap-1">
-                      <CheckCircle2 className="h-3 w-3" /> Pantalones
-                    </Badge>
-                  </div>
-                  <div className="flex justify-between items-center text-sm">
-                    <span>Zapatillas</span>
-                    <Badge variant="outline" className="text-yellow-600 border-yellow-200 bg-yellow-50 flex items-center gap-1">
-                      <AlertCircle className="h-3 w-3" /> Pendiente
-                    </Badge>
-                  </div>
-                </div>
-             </div>
-             <p className="text-xs text-muted-foreground text-center">
-               El mapeo se actualiza automáticamente con cada sincronización.
-             </p>
-          </div>
+
+                  <Alert className="bg-blue-50 border-blue-200 text-blue-900">
+                      <CheckCircle2 className="h-4 w-4 text-blue-600" />
+                      <AlertTitle>Todo listo</AlertTitle>
+                      <AlertDescription className="text-xs">
+                          Detectamos correctamente el nombre, precio y stock. La imagen se importará en alta resolución.
+                      </AlertDescription>
+                  </Alert>
+              </TabsContent>
+          </Tabs>
         </DialogContent>
       </Dialog>
     </div>
