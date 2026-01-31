@@ -10,13 +10,16 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, RefreshCw, ExternalLink, CheckCircle2, AlertCircle, MessageSquare, Send, Tags, Eye, Palette } from 'lucide-react';
+import { Loader2, RefreshCw, ExternalLink, CheckCircle2, AlertCircle, MessageSquare, Send, Tags, Eye, Palette, Link2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { toast } from 'sonner';
+import { formatDistanceToNow } from 'date-fns';
+import { es } from 'date-fns/locale';
 import WidgetPreview from '@/components/chat/WidgetPreview';
 import ChatCustomizer from '@/components/admin/ChatCustomizer';
 import OrderDispatchSettings from '@/components/admin/OrderDispatchSettings';
 import CatalogUploadWizard from '@/components/catalog/CatalogUploadWizard';
+import ChannelPreview from '@/components/integrations/ChannelPreview';
 import {
   Dialog,
   DialogContent,
@@ -249,11 +252,23 @@ const IntegracionesPage = () => {
                                    {integration.provider === 'whatsapp' && "Enviá notificaciones automáticas y gestioná conversaciones con múltiples agentes."}
                                  </p>
                                  {integration.lastSync && (
-                                    <div className="text-xs text-muted-foreground flex items-center gap-1">
+                                    <div className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
                                         <CheckCircle2 className="h-3 w-3 text-green-600" />
-                                        Sincronizado: {new Date(integration.lastSync).toLocaleString()}
+                                        <span>
+                                            Sincronizado {formatDistanceToNow(new Date(integration.lastSync), { addSuffix: true, locale: es })}
+                                        </span>
                                     </div>
                                  )}
+                               </div>
+
+                               {/* Channel Preview Hover/Column */}
+                               <div className="hidden lg:block w-64 shrink-0 mx-4">
+                                   <div className="scale-75 origin-center transform transition-transform hover:scale-90 duration-300">
+                                       <ChannelPreview
+                                            channel={integration.provider as any}
+                                            product={integration.provider === 'mercadolibre' ? { name: 'Zapatillas Running', price: '$45.000' } : undefined}
+                                       />
+                                   </div>
                                </div>
 
                                <div className="flex flex-col gap-3 w-full md:w-auto">
@@ -281,19 +296,24 @@ const IntegracionesPage = () => {
                                         className="w-full md:w-32"
                                       >
                                          {syncing === integration.provider ? (
-                                           <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                           <>
+                                             <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                             Sincronizando...
+                                           </>
                                          ) : (
-                                           <RefreshCw className="h-4 w-4 mr-2" />
+                                           <>
+                                             <RefreshCw className="h-4 w-4 mr-2" />
+                                             Sincronizar
+                                           </>
                                          )}
-                                         Sincronizar
                                       </Button>
                                       <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive w-full md:w-32">
                                         Desconectar
                                       </Button>
                                    </>
                                  ) : (
-                                   <Button onClick={() => handleConnect(integration.provider)} className="w-full md:w-32">
-                                     Conectar
+                                   <Button onClick={() => handleConnect(integration.provider)} className="w-full md:w-32 bg-primary/90 hover:bg-primary">
+                                     <Link2 className="mr-2 h-4 w-4" /> Conectar
                                    </Button>
                                  )}
                                </div>

@@ -174,6 +174,10 @@ function ChatWidgetInner({
   tenantSlug: explicitTenantSlug,
   primaryColor,
   accentColor,
+  userMsgColor,
+  chatBackground,
+  borderRadius,
+  fontFamily,
 }: ChatWidgetProps) {
   const proactiveMessageTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const hideProactiveBubbleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -495,8 +499,32 @@ function ChatWidgetInner({
         target.style.setProperty('--secondary-foreground', getContrastColorHsl(accentColor));
     }
 
+    // Additional Customizations
+    if (target) {
+        if (userMsgColor) {
+             target.style.setProperty('--user-msg-bg', userMsgColor);
+             target.style.setProperty('--user-msg-fg', getContrastColorHsl(userMsgColor));
+        }
+        if (chatBackground) {
+             target.style.setProperty('--chat-bg', chatBackground);
+        }
+        if (borderRadius !== undefined) {
+             target.style.setProperty('--radius', `${borderRadius}px`);
+        }
+        if (fontFamily) {
+             // Basic font mapping or direct usage
+             let fontStack = 'Inter, sans-serif';
+             if (fontFamily === 'Roboto') fontStack = 'Roboto, sans-serif';
+             if (fontFamily === 'Montserrat') fontStack = 'Montserrat, sans-serif';
+             if (fontFamily === 'Open Sans') fontStack = '"Open Sans", sans-serif';
 
-  }, [entityInfo, primaryColor, accentColor, mode, isDarkMode]);
+             target.style.setProperty('--font-sans', fontStack);
+             // Also force on body/container just in case
+             target.style.fontFamily = fontStack;
+        }
+    }
+
+  }, [entityInfo, primaryColor, accentColor, userMsgColor, chatBackground, borderRadius, fontFamily, mode, isDarkMode]);
 
   // Proactive Bubble Logic
   useEffect(() => {
@@ -1231,7 +1259,10 @@ function ChatWidgetInner({
             <motion.div
               key="chatboc-panel-open"
               className={cn(commonPanelStyles, "w-full h-full shadow-xl")}
-              style={{ borderRadius: isMobileView ? "0" : "16px", background: "hsl(var(--card))" }}
+              style={{
+                  borderRadius: isMobileView ? "0" : (borderRadius !== undefined ? `${borderRadius}px` : "16px"),
+                  background: chatBackground || "hsl(var(--card))"
+              }}
               {...panelAnimation}
             >
               {(view === "register" || view === "login" || view === "user" || view === "info") && (

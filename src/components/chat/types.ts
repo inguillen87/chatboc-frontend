@@ -20,6 +20,9 @@ export interface ChatWidgetProps {
   tenantSlug?: string;
   primaryColor?: string;
   accentColor?: string;
+  userMsgColor?: string;
+  chatBackground?: string;
+  borderRadius?: number;
   botName?: string;
-  logoAnimation?: string;
+  fontFamily?: string;
 }

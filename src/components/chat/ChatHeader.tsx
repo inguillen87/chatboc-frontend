@@ -92,21 +92,15 @@ const ChatHeader: React.FC<Props> = ({
       {/* Logo y nombre sin cuadrado */}
       <div className="flex items-center gap-2 sm:gap-3"> {/* Reduced gap for mobile */}
         <div className="flex items-center justify-center w-10 h-10">
-          {logoUrl ? (
-            <img
-              src={logoUrl}
-              alt="Logo"
-              style={{ width: 32, height: 32, borderRadius: "50%", animation: logoAnimation || undefined }}
-            />
-          ) : (
-            <ChatbocLogoAnimated
-              size={32}
-              smiling={isTyping}
-              movingEyes={isTyping}
-              blinking
-              pulsing
-            />
-          )}
+          <ChatbocLogoAnimated
+            src={logoUrl}
+            size={32}
+            smiling={isTyping}
+            movingEyes={isTyping}
+            blinking
+            pulsing
+            animation={logoAnimation}
+          />
         </div>
         <div className="ml-1 flex flex-col leading-tight min-w-0 overflow-hidden">
           <span className="font-extrabold text-base tracking-wide whitespace-nowrap overflow-hidden text-ellipsis block" style={{ letterSpacing: ".02em" }}>

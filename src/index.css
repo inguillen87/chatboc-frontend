@@ -1,5 +1,8 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Lexend&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -7,10 +10,14 @@
 
 @layer components {
   .chat-bubble-user {
-    @apply bg-primary text-primary-foreground rounded-lg p-3 max-w-xs sm:max-w-md break-words shadow-md;
+    @apply rounded-lg p-3 max-w-xs sm:max-w-md break-words shadow-md;
+    background-color: var(--user-msg-bg, hsl(var(--primary)));
+    color: var(--user-msg-fg, hsl(var(--primary-foreground)));
   }
   .chat-bubble-bot {
-    @apply bg-secondary text-secondary-foreground rounded-lg p-3 max-w-xs sm:max-w-md break-words shadow-md border border-primary/20;
+    @apply rounded-lg p-3 max-w-xs sm:max-w-md break-words shadow-md border border-primary/20;
+    background-color: var(--bot-msg-bg, hsl(var(--secondary)));
+    color: var(--bot-msg-fg, hsl(var(--secondary-foreground)));
   }
   .chat-container {
     @apply flex flex-col gap-4 p-4;
@@ -268,7 +275,7 @@ body,
 }
 
 .chat-root {
-  font-family: var(--chat-font, system-ui);
+  font-family: var(--font-sans, var(--chat-font, system-ui));
 }
 
 .chat-message {
@@ -335,4 +342,20 @@ body,
 @keyframes pulse-shadow {
   0%,100% { box-shadow: var(--shadow); }
   50% { box-shadow: 0 0 20px rgba(0,108,63,.4); }
+}
+
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(-25%);
+    animation-timing-function: cubic-bezier(0.8, 0, 1, 1);
+  }
+  50% {
+    transform: translateY(0);
+    animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
+  }
+}
+
+@keyframes fade-in {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
 }
