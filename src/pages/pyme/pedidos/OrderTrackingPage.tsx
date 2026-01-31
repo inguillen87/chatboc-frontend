@@ -61,9 +61,13 @@ export default function OrderTrackingPage() {
              try { theme = JSON.parse(theme); } catch (e) { console.warn('Failed to parse tenant_theme', e); }
         }
 
-        if (theme && typeof theme === 'object' && theme.primaryColor) {
+        if (theme && typeof theme === 'object') {
           const root = document.documentElement;
-          root.style.setProperty('--primary', theme.primaryColor);
+          if (theme.primaryColor) root.style.setProperty('--primary', theme.primaryColor);
+          // Apply branding if available
+          if (theme.logoUrl) {
+             // Logic to update logo if element exists, or state
+          }
         }
       } catch (err) {
         console.error('Failed to load order', err);
@@ -296,9 +300,14 @@ export default function OrderTrackingPage() {
         {/* Footer */}
         <div className="text-center text-sm text-gray-500 space-y-2 pb-8">
           <p>¿Necesitas ayuda con tu pedido?</p>
-          <Button variant="link" className="text-primary hover:text-primary/80 p-0 h-auto font-medium">
-            Contactar a Soporte <ArrowRight className="ml-1 h-3 w-3" />
-          </Button>
+          <div className="flex justify-center gap-4">
+              <Button variant="link" className="text-primary hover:text-primary/80 p-0 h-auto font-medium">
+                Contactar a Soporte <ArrowRight className="ml-1 h-3 w-3" />
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
+                Ver estado completo
+              </Button>
+          </div>
         </div>
 
       </motion.div>

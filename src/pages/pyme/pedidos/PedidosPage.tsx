@@ -460,22 +460,22 @@ const PedidosPage = () => {
                       </div>
                   </div>
 
-                  {/* Timeline (Mock) */}
+                  {/* Timeline (Mock Data Structure) */}
                   <div className="space-y-4 pt-4 border-t">
                       <h3 className="text-sm font-medium">Historial de Eventos</h3>
                       <div className="space-y-4 ml-2 border-l-2 border-muted pl-4">
-                          <div className="relative">
-                              <div className="absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full bg-primary ring-4 ring-background" />
-                              <p className="text-sm font-medium">Pedido Creado</p>
-                              <p className="text-xs text-muted-foreground">{format(new Date(selectedOrder.created_at), "d MMM, HH:mm", { locale: es })}</p>
-                          </div>
-                          {selectedOrder.status !== 'nuevo' && (
-                              <div className="relative">
-                                  <div className="absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full bg-muted-foreground/30 ring-4 ring-background" />
-                                  <p className="text-sm font-medium">Estado actualizado a {selectedOrder.status}</p>
-                                  <p className="text-xs text-muted-foreground">Hace un momento</p>
+                          {[
+                              { status: 'created', label: 'Pedido Creado', date: selectedOrder.created_at, active: true },
+                              { status: 'confirmed', label: 'Confirmado por tienda', date: null, active: ['confirmed', 'paid', 'shipped', 'delivered'].includes(selectedOrder.status) },
+                              { status: 'shipped', label: 'Enviado', date: null, active: ['shipped', 'delivered'].includes(selectedOrder.status) },
+                              { status: 'delivered', label: 'Entregado', date: null, active: ['delivered'].includes(selectedOrder.status) }
+                          ].map((step, idx) => (
+                              <div key={idx} className={`relative ${step.active ? '' : 'opacity-50'}`}>
+                                  <div className={`absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full ring-4 ring-background ${step.active ? 'bg-primary' : 'bg-muted'}`} />
+                                  <p className="text-sm font-medium">{step.label}</p>
+                                  {step.date && <p className="text-xs text-muted-foreground">{format(new Date(step.date), "d MMM, HH:mm", { locale: es })}</p>}
                               </div>
-                          )}
+                          ))}
                       </div>
                   </div>
 
