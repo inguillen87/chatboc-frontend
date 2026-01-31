@@ -116,6 +116,7 @@ const ImportWizard: React.FC<Props> = ({ tenantId, onComplete }) => {
                 <table className="w-full text-sm">
                     <thead className="bg-gray-100 sticky top-0 z-10">
                         <tr>
+                            <th className="p-2 text-left font-medium text-gray-600 w-16">Img</th>
                             <th className="p-2 text-left font-medium text-gray-600">Nombre</th>
                             <th className="p-2 text-left font-medium text-gray-600 w-32">Precio</th>
                             <th className="p-2 text-left font-medium text-gray-600 w-32">SKU</th>
@@ -125,6 +126,15 @@ const ImportWizard: React.FC<Props> = ({ tenantId, onComplete }) => {
                     <tbody>
                         {preview.items_preview.map((item, idx) => (
                             <tr key={idx} className="border-b hover:bg-gray-50 group">
+                                <td className="p-2">
+                                    <div className="h-10 w-10 bg-gray-100 rounded overflow-hidden flex items-center justify-center border">
+                                        {item.image_url ? (
+                                            <img src={item.image_url} alt="" className="h-full w-full object-cover" />
+                                        ) : (
+                                            <span className="text-[8px] text-gray-400">N/A</span>
+                                        )}
+                                    </div>
+                                </td>
                                 <td className="p-2">
                                   <Input
                                     value={item.nombre}

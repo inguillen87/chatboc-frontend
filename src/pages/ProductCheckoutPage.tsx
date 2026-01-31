@@ -567,18 +567,18 @@ export default function ProductCheckoutPage() {
                 <CardContent className="space-y-4">
                 <div>
                     <Label htmlFor="nombre">Nombre Completo</Label>
-                    <Controller name="nombre" control={control} render={({ field }) => <Input id="nombre" {...field} className="mt-1.5" />} />
+                    <Controller name="nombre" control={control} render={({ field }) => <Input id="nombre" autoComplete="name" {...field} className="mt-1.5" />} />
                     {errors.nombre && <p className="text-sm text-destructive mt-1">{errors.nombre.message}</p>}
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                     <Label htmlFor="email">Email</Label>
-                    <Controller name="email" control={control} render={({ field }) => <Input id="email" type="email" {...field} className="mt-1.5" />} />
+                    <Controller name="email" control={control} render={({ field }) => <Input id="email" type="email" autoComplete="email" {...field} className="mt-1.5" />} />
                     {errors.email && <p className="text-sm text-destructive mt-1">{errors.email.message}</p>}
                     </div>
                     <div>
                     <Label htmlFor="telefono">Teléfono</Label>
-                    <Controller name="telefono" control={control} render={({ field }) => <Input id="telefono" {...field} className="mt-1.5" />} />
+                    <Controller name="telefono" control={control} render={({ field }) => <Input id="telefono" autoComplete="tel" {...field} className="mt-1.5" />} />
                     {errors.telefono && <p className="text-sm text-destructive mt-1">{errors.telefono.message}</p>}
                     </div>
                 </div>
