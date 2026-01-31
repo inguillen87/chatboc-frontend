@@ -26,6 +26,7 @@ import UserAvatarAnimated from "./UserAvatarAnimated";
 import { Badge } from "@/components/ui/badge";
 import InteractiveMenu from "./InteractiveMenu";
 import { extractSmartHint } from "@/utils/smartHints";
+import ProductCard from "@/components/product/ProductCard";
 
 type RawAttachment = {
   url: string;
@@ -662,6 +663,7 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
   const showStructuredContent = !!(message.structuredContent && message.structuredContent.length > 0);
   const showMenuSections = !!((message.menu_sections && message.menu_sections.length > 0) || message.interactive_list);
   const showPosts = !!(message.posts && message.posts.length > 0);
+  const showProductCards = !!((message.data?.cart_summary || message.data?.catalogo) && Array.isArray(message.data?.cart_summary || message.data?.catalogo));
   const showSocialLinks = message.socialLinks && Object.keys(message.socialLinks).length > 0;
   const now = new Date();
   const postsToShow = showPosts
@@ -688,7 +690,7 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
   // Display hint puede usarse para aplicar un contenedor especial alrededor del mensaje, o pasar a MessageBubble
   // Por ahora, lo mantendremos simple.
 
-  const isHandover = message.action === 'agent_handover' || message.text?.includes('Derivando a un representante');
+  const isHandover = message.action === 'agent_handover' || message.text?.includes('Derivando a un representante') || !!message.ticket_id;
 
   return (
     <motion.div
@@ -711,12 +713,12 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
           {isHandover && (
              <div className="flex items-center gap-2 mb-2 text-yellow-800 text-xs font-semibold uppercase tracking-wide">
                 <span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"/>
-                Conectando con un humano...
+                {message.ticket_id ? `Ticket #${message.ticket_id} Creado` : 'Conectando con un humano...'}
              </div>
           )}
 
           {/* Prioridad al texto si no hay otros contenidos especiales */}
-          {!showAttachmentOrMap && !showStructuredContent && !audioSrc && textAndListBlock}
+          {!showAttachmentOrMap && !showStructuredContent && !audioSrc && !showProductCards && textAndListBlock}
 
           {/* Mostrar adjunto o mapa (no audio) */}
           {showAttachmentOrMap && (
@@ -778,6 +780,27 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
               {textAndListBlock}
               <AudioPlayer src={audioSrc} />
             </>
+          )}
+
+          {/* Product Cards (Catalog/Cart) */}
+          {showProductCards && (
+            <div className="mt-2 flex flex-col gap-3">
+               {textAndListBlock}
+               <div className="flex gap-2 overflow-x-auto pb-2 snap-x">
+                  {((message.data?.cart_summary || message.data?.catalogo) as any[]).map((prod: any, i: number) => (
+                      <div key={i} className="min-w-[200px] max-w-[240px] snap-center">
+                          <ProductCard
+                             product={prod}
+                             onAddToCart={(p, opts) => onButtonClick({
+                                 text: `Agregar ${p.nombre}`,
+                                 action: 'add_to_cart',
+                                 payload: { productId: p.id, quantity: opts.quantity }
+                             })}
+                          />
+                      </div>
+                  ))}
+               </div>
+            </div>
           )}
 
           {/* Render Event/News Posts */}

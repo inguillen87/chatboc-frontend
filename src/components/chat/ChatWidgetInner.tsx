@@ -1190,12 +1190,10 @@ function ChatWidgetInner({
         height: isOpen ? finalOpenHeight : finalClosedHeight,
         zIndex: 999999,
         transition: 'width 0.3s ease, height 0.3s ease, bottom 0.3s ease, right 0.3s ease',
+        // Ensure we control the transform to avoid backend injections breaking layout
+        transform: isMobileView ? 'none' : undefined
       };
 
-      // Force reset scale on mobile to avoid double-scaling if backend injects it
-      if (isMobileView) {
-          return { ...baseStyle, transform: 'none' };
-      }
       return baseStyle;
     }
     if (mode === "preview") {

@@ -91,6 +91,7 @@ const PedidosPage = () => {
       // Since I can't change client.ts signature here without deviating, I'll rely on client.get if needed or just ensuring NO client-side filtering hides them.
 
       // Updated: Passing explicit status filter to include all relevant states
+      // We explicitly request 'all' to prevent backend from filtering out pending/created orders by default
       const data = await apiClient.adminListOrders(currentSlug, { status: 'all' });
       const normalized = normalizeOrders(data);
       setOrders(normalized);

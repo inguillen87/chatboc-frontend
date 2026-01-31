@@ -21,6 +21,8 @@ const CatalogManagementPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [stockFilter, setStockFilter] = useState('all');
+  const [minPrice, setMinPrice] = useState('');
+  const [maxPrice, setMaxPrice] = useState('');
   const [uploadOpen, setUploadOpen] = useState(false);
 
   // Inline Edit State
@@ -107,9 +109,13 @@ const CatalogManagementPage = () => {
       const matchesStock = stockFilter === 'all' ||
                            (stockFilter === 'in_stock' ? (stock > 0 || stock === 'Consultar') : (stock === 0));
 
+      const price = parseFloat(p.price || p.precio_unitario || 0);
+      const matchesPrice = (!minPrice || price >= parseFloat(minPrice)) &&
+                           (!maxPrice || price <= parseFloat(maxPrice));
+
       const matchesVarietal = !isWinery || varietalFilter === 'all' || varietal === varietalFilter;
 
-      return matchesSearch && matchesCategory && matchesStock && matchesVarietal;
+      return matchesSearch && matchesCategory && matchesStock && matchesVarietal && matchesPrice;
   });
 
   return (
@@ -146,6 +152,22 @@ const CatalogManagementPage = () => {
                         className="pl-8"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                </div>
+                <div className="flex items-center gap-2">
+                    <Input
+                        placeholder="Min $"
+                        className="w-[90px]"
+                        type="number"
+                        value={minPrice}
+                        onChange={(e) => setMinPrice(e.target.value)}
+                    />
+                    <Input
+                        placeholder="Max $"
+                        className="w-[90px]"
+                        type="number"
+                        value={maxPrice}
+                        onChange={(e) => setMaxPrice(e.target.value)}
                     />
                 </div>
                 <Select value={categoryFilter} onValueChange={setCategoryFilter}>
