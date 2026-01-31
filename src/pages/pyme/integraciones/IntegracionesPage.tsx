@@ -174,11 +174,11 @@ const IntegracionesPage = () => {
 
       {currentSlug && (
         <Tabs defaultValue="integrations" className="space-y-8">
-            <TabsList className="w-full justify-start border-b rounded-none h-auto p-0 bg-transparent gap-6">
-                <TabsTrigger value="integrations" className="data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none border-b-2 border-transparent rounded-none px-0 py-3 font-semibold text-muted-foreground data-[state=active]:text-foreground">
+            <TabsList className="w-full justify-start border-b rounded-none h-auto p-0 bg-transparent gap-6 overflow-x-auto flex-nowrap shrink-0">
+                <TabsTrigger value="integrations" className="data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none border-b-2 border-transparent rounded-none px-0 py-3 font-semibold text-muted-foreground data-[state=active]:text-foreground whitespace-nowrap">
                     Integraciones
                 </TabsTrigger>
-                <TabsTrigger value="customization" className="data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none border-b-2 border-transparent rounded-none px-0 py-3 font-semibold text-muted-foreground data-[state=active]:text-foreground">
+                <TabsTrigger value="customization" className="data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none border-b-2 border-transparent rounded-none px-0 py-3 font-semibold text-muted-foreground data-[state=active]:text-foreground whitespace-nowrap">
                     Apariencia del Chat
                 </TabsTrigger>
             </TabsList>
