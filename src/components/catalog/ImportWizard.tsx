@@ -112,21 +112,56 @@ const ImportWizard: React.FC<Props> = ({ tenantId, onComplete }) => {
                 </Alert>
             )}
 
-            <div className="border rounded-md max-h-64 overflow-y-auto">
+            <div className="border rounded-md max-h-96 overflow-y-auto">
                 <table className="w-full text-sm">
-                    <thead className="bg-gray-100 sticky top-0">
+                    <thead className="bg-gray-100 sticky top-0 z-10">
                         <tr>
-                            <th className="p-2 text-left">Nombre</th>
-                            <th className="p-2 text-left">Precio</th>
-                            <th className="p-2 text-left">SKU</th>
+                            <th className="p-2 text-left font-medium text-gray-600">Nombre</th>
+                            <th className="p-2 text-left font-medium text-gray-600 w-32">Precio</th>
+                            <th className="p-2 text-left font-medium text-gray-600 w-32">SKU</th>
                         </tr>
                     </thead>
                     <tbody>
                         {preview.items_preview.map((item, idx) => (
-                            <tr key={idx} className="border-b">
-                                <td className="p-2">{item.nombre}</td>
-                                <td className="p-2">${item.precio}</td>
-                                <td className="p-2 text-gray-500">{item.sku || '-'}</td>
+                            <tr key={idx} className="border-b hover:bg-gray-50 group">
+                                <td className="p-2">
+                                  <Input
+                                    value={item.nombre}
+                                    onChange={(e) => {
+                                      const newItems = [...preview.items_preview];
+                                      newItems[idx] = { ...item, nombre: e.target.value };
+                                      setPreview({ ...preview, items_preview: newItems });
+                                    }}
+                                    className="h-8 border-transparent hover:border-input focus:border-input bg-transparent"
+                                  />
+                                </td>
+                                <td className="p-2">
+                                  <div className="relative">
+                                    <span className="absolute left-2 top-1.5 text-xs text-gray-500">$</span>
+                                    <Input
+                                      type="number"
+                                      value={item.precio}
+                                      onChange={(e) => {
+                                        const newItems = [...preview.items_preview];
+                                        newItems[idx] = { ...item, precio: e.target.value };
+                                        setPreview({ ...preview, items_preview: newItems });
+                                      }}
+                                      className="h-8 pl-5 border-transparent hover:border-input focus:border-input bg-transparent"
+                                    />
+                                  </div>
+                                </td>
+                                <td className="p-2">
+                                  <Input
+                                    value={item.sku || ''}
+                                    placeholder="Auto-gen"
+                                    onChange={(e) => {
+                                      const newItems = [...preview.items_preview];
+                                      newItems[idx] = { ...item, sku: e.target.value };
+                                      setPreview({ ...preview, items_preview: newItems });
+                                    }}
+                                    className="h-8 border-transparent hover:border-input focus:border-input bg-transparent text-gray-500 font-mono text-xs"
+                                  />
+                                </td>
                             </tr>
                         ))}
                     </tbody>
@@ -155,10 +190,19 @@ const ImportWizard: React.FC<Props> = ({ tenantId, onComplete }) => {
         {step === 2 && (
             <>
                 <Button variant="outline" onClick={() => setStep(1)}>Atrás</Button>
-                <Button onClick={handleCommit} disabled={loading}>
-                    {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Confirmar e Importar
-                </Button>
+                <div className="space-x-2">
+                   <Button variant="ghost" onClick={() => {
+                      // Reset changes (optional feature, just reload preview logic if implemented)
+                      // For now just allow cancelling
+                      setStep(1);
+                   }}>
+                     Cancelar
+                   </Button>
+                   <Button onClick={handleCommit} disabled={loading}>
+                      {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Confirmar {preview?.items_preview.length} items
+                   </Button>
+                </div>
             </>
         )}
 

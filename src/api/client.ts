@@ -298,4 +298,30 @@ export const apiClient = {
       body: payload,
     });
   },
+
+  // --- Widget & Theme Methods ---
+
+  getChatTheme: async (tenantSlug: string): Promise<any> => {
+    return apiFetch<any>(`/api/chat-theme`, { tenantSlug });
+  },
+
+  updateChatTheme: async (tenantSlug: string, data: any): Promise<any> => {
+    return apiFetch<any>(`/api/chat-theme`, {
+      method: 'PUT',
+      body: data,
+      tenantSlug
+    });
+  },
+
+  getFulfillmentConfig: async (tenantSlug: string): Promise<any> => {
+    return apiFetch<any>(`/api/fulfillment-config`, { tenantSlug });
+  },
+
+  updateFulfillmentConfig: async (tenantSlug: string, data: any): Promise<any> => {
+    return apiFetch<any>(`/api/fulfillment-config`, {
+      method: 'PUT',
+      body: data,
+      tenantSlug
+    });
+  },
 };
