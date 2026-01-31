@@ -118,8 +118,10 @@ const IntegracionesPage = () => {
         const status = error?.status || error?.response?.status;
         const data = error?.response?.data || error?.data;
 
-        if (status === 422 && data?.message) {
-             toast.error("Error de configuración", { description: data.message });
+        if (status === 422) {
+             // Handle explicit backend error messages (e.g., "platform_not_configured")
+             const msg = data?.message || data?.error || "Error de configuración en la plataforma.";
+             toast.error("No se pudo conectar", { description: msg });
         } else if (status === 403) {
             toast.error("Plan Requerido", { description: "Actualizá tu plan para acceder a esta integración." });
         } else if (status === 503) {
