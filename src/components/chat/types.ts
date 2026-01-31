@@ -21,4 +21,5 @@ export interface ChatWidgetProps {
   primaryColor?: string;
   accentColor?: string;
   botName?: string;
+  logoAnimation?: string;
 }

@@ -6,10 +6,11 @@ import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Palette, MessageSquare, Image, Upload } from 'lucide-react';
+import { Loader2, Palette, MessageSquare, Image, Upload, Sparkles, Type } from 'lucide-react';
 import WidgetPreview from '@/components/chat/WidgetPreview';
 import { useTenant } from '@/context/TenantContext';
 import { toast } from 'sonner';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface ChatCustomizerProps {
   initialConfig?: any;
@@ -20,6 +21,7 @@ const DEFAULT_THEME = {
   primaryColor: '#007aff',
   accentColor: '#005bb5',
   fontFamily: 'Inter',
+  animation: 'pulse', // none, pulse, bounce, fade
   borderRadius: '1rem',
   botName: 'Asistente Virtual',
   welcomeMessage: '¡Hola! ¿En qué puedo ayudarte hoy?',
@@ -117,6 +119,37 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
                                 className="font-mono"
                             />
                         </div>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 pt-2">
+                    <div className="space-y-2">
+                        <Label className="flex items-center gap-2"><Sparkles className="h-4 w-4 text-muted-foreground"/> Animación</Label>
+                        <Select value={config.animation} onValueChange={(v) => handleChange('animation', v)}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Seleccionar..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="none">Ninguna</SelectItem>
+                                <SelectItem value="pulse">Latido (Pulse)</SelectItem>
+                                <SelectItem value="bounce">Rebote (Bounce)</SelectItem>
+                                <SelectItem value="fade">Aparición (Fade)</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="space-y-2">
+                        <Label className="flex items-center gap-2"><Type className="h-4 w-4 text-muted-foreground"/> Tipografía</Label>
+                        <Select value={config.fontFamily} onValueChange={(v) => handleChange('fontFamily', v)}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Seleccionar..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="Inter">Inter (Estándar)</SelectItem>
+                                <SelectItem value="Roboto">Roboto</SelectItem>
+                                <SelectItem value="Montserrat">Montserrat</SelectItem>
+                                <SelectItem value="Open Sans">Open Sans</SelectItem>
+                            </SelectContent>
+                        </Select>
                     </div>
                 </div>
             </CardContent>
@@ -222,6 +255,7 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
                 botName={config.botName}
                 logoUrl={config.logoUrl}
                 welcomeMessage={config.welcomeMessage}
+                logoAnimation={config.animation}
              />
         </div>
       </div>
