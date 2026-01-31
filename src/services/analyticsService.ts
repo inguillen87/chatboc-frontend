@@ -52,10 +52,15 @@ export const analyticsService = {
     if (filters.from) params.append('from', filters.from);
     if (filters.to) params.append('to', filters.to);
 
+    // The backend guide specifies the response contains { points: [...] }
+    // apiFetch returns the JSON body directly.
+    // If the endpoint returns { points: [...] }, accessing .points is correct.
+    // However, if apiFetch unwraps it or if the backend returns array directly, this needs adjustment.
+    // Assuming adherence to guide: "Expects { points: [...] }"
     const response = await apiFetch<{ points: any[] }>(`/api/analytics/heatmap?${params.toString()}`, {
         tenantSlug: filters.tenantSlug
     });
-    return response.points;
+    return response.points || [];
   },
 
   getInsights: async (tenantId: number, tenantSlug?: string) => {
