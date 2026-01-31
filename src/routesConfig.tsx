@@ -360,6 +360,7 @@ const routes: RouteConfig[] = [
   { path: '/municipal/incidents', element: <EstadisticasPage />, roles: ['admin', 'super_admin'] },
   { path: '/estadisticas', element: <EstadisticasPage />, roles: ['admin', 'super_admin'] },
   { path: '/analytics', element: <AnalyticsPage />, roles: ['admin', 'empleado', 'super_admin'] },
+  ...withTenantPrefixes('/:tenant/analytics', { element: <AnalyticsPage />, roles: ['admin', 'empleado', 'super_admin'] }),
   { path: '/perfil/plantillas-respuesta', element: <GestionPlantillasPage />, roles: ['admin', 'empleado', 'super_admin'] },
 
   { path: '/admin/catalog', element: <CatalogManagementPage />, roles: ['admin', 'super_admin', 'empleado'] },
