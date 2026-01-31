@@ -22,7 +22,9 @@ const DEFAULT_THEME = {
   accentColor: '#005bb5',
   fontFamily: 'Inter',
   animation: 'pulse', // none, pulse, bounce, fade
-  borderRadius: '1rem',
+  borderRadius: 16,
+  userMsgColor: '#005bb5',
+  chatBackground: '#ffffff',
   botName: 'Asistente Virtual',
   welcomeMessage: '¡Hola! ¿En qué puedo ayudarte hoy?',
   ctaMessage: '¿Tenés alguna duda?',
@@ -59,14 +61,16 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
   const handleSave = async () => {
     setSaving(true);
     try {
-      // If there's a file, we'd upload it first, but for now we simulate passing the config
-      // In a real app, upload logo -> get URL -> update config -> save config
       if (onSave) {
           await onSave(config);
+      } else if (currentSlug) {
+          // Default persistence logic if onSave not provided but context is available
+          await apiClient.adminUpdateNotificationSettings(currentSlug, {
+              widget_settings: config
+          });
       } else {
-          // Simulate API call
+          // Fallback simulation
           await new Promise(r => setTimeout(r, 1000));
-          console.log("Saved config:", config);
       }
       toast.success("Personalización guardada correctamente.");
     } catch (error) {
@@ -119,6 +123,57 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
                                 className="font-mono"
                             />
                         </div>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 pt-2">
+                    <div className="space-y-2">
+                        <Label>Color Burbuja Usuario</Label>
+                        <div className="flex gap-2">
+                            <Input
+                                type="color"
+                                value={config.userMsgColor || config.accentColor}
+                                onChange={(e) => handleChange('userMsgColor', e.target.value)}
+                                className="w-12 h-10 p-1 cursor-pointer"
+                            />
+                            <Input
+                                value={config.userMsgColor || config.accentColor}
+                                onChange={(e) => handleChange('userMsgColor', e.target.value)}
+                                className="font-mono"
+                            />
+                        </div>
+                    </div>
+                    <div className="space-y-2">
+                        <Label>Fondo del Chat</Label>
+                        <div className="flex gap-2">
+                            <Input
+                                type="color"
+                                value={config.chatBackground || '#ffffff'}
+                                onChange={(e) => handleChange('chatBackground', e.target.value)}
+                                className="w-12 h-10 p-1 cursor-pointer"
+                            />
+                            <Input
+                                value={config.chatBackground || '#ffffff'}
+                                onChange={(e) => handleChange('chatBackground', e.target.value)}
+                                className="font-mono"
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                <div className="space-y-4 pt-2">
+                    <div className="space-y-2">
+                        <div className="flex justify-between">
+                            <Label>Redondeo de Bordes (Radius)</Label>
+                            <span className="text-sm text-muted-foreground">{config.borderRadius}px</span>
+                        </div>
+                        <Slider
+                            value={[config.borderRadius]}
+                            min={0}
+                            max={24}
+                            step={2}
+                            onValueChange={(val) => handleChange('borderRadius', val[0])}
+                        />
                     </div>
                 </div>
 
@@ -251,11 +306,15 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
                 tenantSlug={currentSlug || 'demo'}
                 primaryColor={config.primaryColor}
                 accentColor={config.accentColor}
+                userMsgColor={config.userMsgColor}
+                chatBackground={config.chatBackground}
+                borderRadius={config.borderRadius}
                 ctaMessage={config.ctaMessage}
                 botName={config.botName}
                 logoUrl={config.logoUrl}
                 welcomeMessage={config.welcomeMessage}
                 logoAnimation={config.animation}
+                fontFamily={config.fontFamily}
              />
         </div>
       </div>

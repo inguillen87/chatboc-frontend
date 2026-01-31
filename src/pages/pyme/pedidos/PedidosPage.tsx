@@ -248,6 +248,23 @@ const PedidosPage = () => {
         <div className={`md:col-span-1 overflow-y-auto pr-2 space-y-3 ${selectedOrder ? 'hidden md:block' : 'block'}`}>
           {loading ? (
              <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin text-primary"/></div>
+          ) : filteredOrders.length === 0 ? (
+             <div className="flex flex-col items-center justify-center p-8 text-center border-2 border-dashed rounded-lg bg-muted/10">
+                 <div className="w-12 h-12 rounded-full bg-muted/50 flex items-center justify-center mb-3">
+                     <Package className="h-6 w-6 text-muted-foreground" />
+                 </div>
+                 <h3 className="font-medium text-foreground">Sin pedidos</h3>
+                 <p className="text-sm text-muted-foreground mt-1">
+                     {searchTerm || channelFilter !== 'all'
+                        ? "No hay pedidos que coincidan con los filtros."
+                        : "Aún no recibiste pedidos en este canal."}
+                 </p>
+                 {(searchTerm || channelFilter !== 'all') && (
+                     <Button variant="link" onClick={() => { setSearchTerm(''); setChannelFilter('all'); }}>
+                         Limpiar filtros
+                     </Button>
+                 )}
+             </div>
           ) : (
             filteredOrders.map(order => {
               const ChannelIcon = CHANNEL_ICONS[(order as any).channel] || Globe;

@@ -77,6 +77,10 @@ export const apiClient = {
     return apiFetch<Order[]>(`/api/admin/tenants/${tenantSlug}/orders`, { tenantSlug });
   },
 
+  adminGetOrder: async (tenantSlug: string, orderId: string | number): Promise<Order> => {
+    return apiFetch<Order>(`/api/admin/tenants/${tenantSlug}/orders/${orderId}`, { tenantSlug });
+  },
+
   adminCreateOrder: async (tenantSlug: string, payload: any): Promise<Order> => {
     return apiFetch<Order>(`/api/admin/tenants/${tenantSlug}/orders`, {
       method: 'POST',

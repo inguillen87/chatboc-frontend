@@ -80,7 +80,7 @@ import DemoLandingPage from '@/pages/DemoLandingPage';
 import SmartPedidosWrapper from '@/pages/SmartPedidosWrapper';
 import SmartNotificationsWrapper from '@/pages/SmartNotificationsWrapper';
 import OrderTrackingPage from '@/pages/pyme/pedidos/OrderTrackingPage';
-import OrderDetailPage from '@/pages/pyme/pedidos/OrderDetailPage';
+import AdminOrderDetailPage from '@/pages/admin/AdminOrderDetailPage';
 
 // Updated for Commerce Module & Mirror Catalog
 // Final verification: Commerce & Admin modules active
@@ -241,7 +241,7 @@ const routes: RouteConfig[] = [
   ...withTenantPrefixes('/:tenant/reclamos', { element: <TicketsPanel />, roles: ['admin', 'empleado', 'super_admin'] }),
   ...withTenantPrefixes('/:tenant/tickets', { element: <TicketsPanel />, roles: ['admin', 'empleado', 'super_admin'] }),
   ...withTenantPrefixes('/:tenant/pedidos', { element: <SmartPedidosWrapper />, roles: ['admin', 'empleado', 'super_admin'] }),
-  ...withTenantPrefixes('/:tenant/pedidos/:id', { element: <OrderDetailPage />, roles: ['admin', 'empleado', 'super_admin'] }),
+  ...withTenantPrefixes('/:tenant/pedidos/:id', { element: <AdminOrderDetailPage />, roles: ['admin', 'empleado', 'super_admin'] }),
   ...withTenantPrefixes('/:tenant/notificaciones', { element: <SmartNotificationsWrapper />, roles: ['admin', 'empleado', 'super_admin'] }),
   ...withTenantPrefixes('/:tenant/categorias', { element: <CategoryManagementPage />, roles: ['admin', 'super_admin'] }),
 

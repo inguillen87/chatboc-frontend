@@ -106,7 +106,7 @@ const extractNumberFromRecord = (
   return null;
 };
 
-const getArray = <T = unknown>(value: unknown): T[] => {
+const getArray = <T = unknown,>(value: unknown): T[] => {
   if (Array.isArray(value)) return value as T[];
   if (isRecord(value)) {
     const { data, items, results, values, entries, list } = value as {
@@ -129,7 +129,7 @@ const getArray = <T = unknown>(value: unknown): T[] => {
   return [];
 };
 
-const getArrayOrObjectValues = <T = unknown>(value: unknown): T[] => {
+const getArrayOrObjectValues = <T = unknown,>(value: unknown): T[] => {
   const directArray = getArray<T>(value);
   if (directArray.length) return directArray;
   if (isRecord(value)) {
