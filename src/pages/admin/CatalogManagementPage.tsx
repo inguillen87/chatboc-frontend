@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
 import { Loader2, Search, Filter, Save, ExternalLink, ImageOff, UploadCloud, Edit2, Check, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useUser } from '@/hooks/useUser';
-import CatalogUploadWizard from '@/components/catalog/CatalogUploadWizard';
+import ImportWizard from '@/components/catalog/ImportWizard';
 
 const CatalogManagementPage = () => {
   const { currentSlug, tenant } = useTenant();
@@ -133,7 +133,12 @@ const CatalogManagementPage = () => {
                     </Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto sm:max-w-[800px]">
-                    <CatalogUploadWizard onSuccess={() => { setUploadOpen(false); loadProducts(); }} />
+                    {/* Assuming tenant ID is available or optional in ImportWizard. Using 0 or mock for now if type requires number */}
+                    {/* ImportWizard expects tenantId number. We need to get it from context if possible */}
+                    <ImportWizard
+                        tenantId={tenant?.id ? Number(tenant.id) : 0}
+                        onComplete={() => { setUploadOpen(false); loadProducts(); }}
+                    />
                 </DialogContent>
             </Dialog>
             <Button onClick={loadProducts} variant="outline" size="sm">
