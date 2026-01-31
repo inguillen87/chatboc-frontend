@@ -322,29 +322,56 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onSuccess }) 
                      </Button>
                  </div>
 
-                 <div className="border rounded-md overflow-hidden">
+                 <div className="border rounded-md overflow-hidden max-h-[300px] overflow-y-auto">
                     <Table>
                         <TableHeader className="bg-muted">
                             <TableRow>
-                                {Object.keys(previewData.preview_items[0] || {}).slice(0, 5).map(header => (
-                                    <TableHead key={header}>{header}</TableHead>
-                                ))}
+                                <TableHead>Producto (Detectado)</TableHead>
+                                <TableHead className="w-24">Precio</TableHead>
+                                <TableHead className="w-24">Stock</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {previewData.preview_items.map((row, i) => (
-                                <TableRow key={i}>
-                                    {Object.values(row).slice(0, 5).map((val: any, j) => (
-                                        <TableCell key={j} className="font-mono text-xs truncate max-w-[150px]">
-                                            {String(val)}
+                            {previewData.preview_items.map((row, i) => {
+                                const nameKey = mapping['nombre'] || 'nombre';
+                                const priceKey = mapping['precio'] || 'precio';
+                                const stockKey = mapping['stock'] || 'stock';
+                                const hasError = !row[priceKey] || !row[stockKey];
+
+                                return (
+                                    <TableRow key={i} className={hasError ? 'bg-red-50' : ''}>
+                                        <TableCell className="font-medium text-sm">
+                                            {row[nameKey] || <span className="text-red-400 italic">Sin nombre</span>}
                                         </TableCell>
-                                    ))}
-                                </TableRow>
-                            ))}
+                                        <TableCell>
+                                            <Input
+                                                className="h-7 w-20 text-right px-1"
+                                                defaultValue={row[priceKey]}
+                                                onChange={(e) => {
+                                                    const newData = [...previewData.preview_items];
+                                                    newData[i][priceKey] = e.target.value;
+                                                    setPreviewData({...previewData, preview_items: newData});
+                                                }}
+                                            />
+                                        </TableCell>
+                                        <TableCell>
+                                            <Input
+                                                className="h-7 w-20 text-right px-1"
+                                                defaultValue={row[stockKey]}
+                                                onChange={(e) => {
+                                                    const newData = [...previewData.preview_items];
+                                                    newData[i][stockKey] = e.target.value;
+                                                    setPreviewData({...previewData, preview_items: newData});
+                                                }}
+                                            />
+                                        </TableCell>
+                                    </TableRow>
+                                );
+                            })}
                         </TableBody>
                     </Table>
                  </div>
-                 <p className="text-xs text-center text-muted-foreground">Mostrando primeras 5 filas como vista previa.</p>
+                 <p className="text-xs text-center text-muted-foreground">Revisá y corregí los valores antes de confirmar.</p>
 
                  {/* Visual Product Card Preview */}
                  {previewData.preview_items[0] && (

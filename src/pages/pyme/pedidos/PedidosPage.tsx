@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useTenant } from '@/context/TenantContext';
 import { apiClient } from '@/api/client';
 import { Order } from '@/types/unified';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -50,6 +51,7 @@ const normalizeOrders = (raw: unknown): Order[] => {
 
 const PedidosPage = () => {
   const { currentSlug } = useTenant();
+  const navigate = useNavigate();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -255,7 +257,17 @@ const PedidosPage = () => {
                 <Card
                   key={order.id}
                   className={`cursor-pointer transition-all hover:shadow-md ${isSelected ? 'border-primary ring-1 ring-primary bg-accent/50' : ''}`}
-                  onClick={() => setSelectedOrder(order)}
+                  onClick={() => {
+                      // If on mobile or small screen, navigate to dedicated page
+                      if (window.innerWidth < 768) {
+                          // Try to detect current route context or assume a valid prefix
+                          // Since we are likely in a tenant-scoped view, we construct a relative path or a known absolute
+                          // If currentSlug is available, we assume the user is in /<slug>/pedidos context usually.
+                          navigate(`/${currentSlug}/pedidos/${order.id}`);
+                      } else {
+                          setSelectedOrder(order);
+                      }
+                  }}
                 >
                   <CardContent className="p-4">
                     <div className="flex justify-between items-start mb-2">
