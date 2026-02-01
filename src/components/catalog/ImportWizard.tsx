@@ -69,10 +69,29 @@ const ImportWizard: React.FC<Props> = ({ tenantId, onComplete }) => {
 
       <CardContent>
         {step === 1 && (
-          <div className="space-y-4">
-            <div className="grid w-full max-w-sm items-center gap-1.5">
-              <Label htmlFor="file">Archivo (PDF, Excel, CSV)</Label>
-              <Input id="file" type="file" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+          <div className="space-y-6">
+            <div
+                className="border-2 border-dashed border-gray-300 rounded-lg p-10 text-center hover:bg-gray-50 transition-colors cursor-pointer"
+                onClick={() => document.getElementById('file')?.click()}
+            >
+                <Upload className="h-10 w-10 text-gray-400 mx-auto mb-4" />
+                <p className="text-sm font-medium text-gray-700">Arrastra tu archivo aquí o haz clic para subir</p>
+                <p className="text-xs text-gray-500 mt-1">Soporta PDF, Excel (.xlsx) y CSV</p>
+                <Input id="file" type="file" className="hidden" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+                {file && (
+                    <div className="mt-4 flex items-center justify-center gap-2 text-sm text-green-600 font-medium">
+                        <CheckCircle className="h-4 w-4" /> {file.name}
+                    </div>
+                )}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-blue-50 p-4 rounded-md text-xs text-blue-800">
+                    <strong>Tip:</strong> Asegúrate que tu Excel tenga columnas como "Nombre", "Precio" y "SKU".
+                </div>
+                <div className="bg-blue-50 p-4 rounded-md text-xs text-blue-800">
+                    <strong>Imágenes:</strong> Si tienes URLs de imágenes, inclúyelas en una columna "Imagen" o "Foto".
+                </div>
             </div>
 
             <div className="space-y-2">

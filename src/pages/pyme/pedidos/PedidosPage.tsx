@@ -473,7 +473,11 @@ const PedidosPage = () => {
                               <div key={idx} className={`relative ${step.active ? '' : 'opacity-50'}`}>
                                   <div className={`absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full ring-4 ring-background ${step.active ? 'bg-primary' : 'bg-muted'}`} />
                                   <p className="text-sm font-medium">{step.label}</p>
-                                  {step.date && <p className="text-xs text-muted-foreground">{format(new Date(step.date), "d MMM, HH:mm", { locale: es })}</p>}
+                                  {step.date ? (
+                                      <p className="text-xs text-muted-foreground">{format(new Date(step.date), "d MMM, HH:mm", { locale: es })}</p>
+                                  ) : (
+                                      step.active && <p className="text-xs text-muted-foreground italic">Completado</p>
+                                  )}
                               </div>
                           ))}
                       </div>

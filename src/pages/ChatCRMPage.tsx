@@ -1,12 +1,37 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
+import CustomerHistoryPanel from "@/components/admin/CustomerHistoryPanel";
+import { useTenant } from "@/context/TenantContext";
 
 const ChatCRMPage = () => {
   const whatsappURL = "https://wa.me/5492613168608?text=Hola!%20Estoy%20interesado%20en%20probar%20la%20demo%20de%20ChatCRM.";
+  const { currentSlug } = useTenant();
 
   return (
     <main className="bg-background text-foreground py-20 px-6 md:px-12">
+      {/* Customer Context Demo Section */}
+      {currentSlug && (
+        <section className="max-w-6xl mx-auto mb-20">
+            <h2 className="text-2xl font-bold mb-6 text-center">Vista de Agente: Contexto del Cliente</h2>
+            <div className="grid md:grid-cols-2 gap-8 items-start">
+                <div className="border rounded-xl p-6 bg-card shadow-sm h-[600px]">
+                    <h3 className="text-lg font-semibold mb-4 border-b pb-2">Chat en Vivo</h3>
+                    <div className="flex flex-col h-full justify-center items-center text-muted-foreground bg-muted/20 rounded-lg">
+                        <p>Simulación de chat con cliente...</p>
+                    </div>
+                </div>
+                <div className="h-[600px] border rounded-xl overflow-hidden shadow-sm bg-card">
+                    {/* Integrated Customer History Panel */}
+                    <CustomerHistoryPanel
+                        customerId="demo-customer-123"
+                        tenantSlug={currentSlug}
+                    />
+                </div>
+            </div>
+        </section>
+      )}
+
       {/* Hero */}
       <section className="text-center max-w-5xl mx-auto mb-24">
         <motion.img

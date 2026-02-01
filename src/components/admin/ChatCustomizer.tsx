@@ -173,6 +173,12 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
 
   const handleManualSave = () => performSave(config, false);
 
+  const handleReset = () => {
+      setConfig(DEFAULT_THEME);
+      setHasUnsavedChanges(true); // Trigger auto-save to persist reset
+      toast.info("Configuración restaurada a valores por defecto.");
+  };
+
   // Auto-save effect
   useEffect(() => {
     if (hasUnsavedChanges) {
@@ -185,9 +191,14 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
       {/* Settings Form */}
       <div className="space-y-6">
         <Card>
-            <CardHeader>
-                <CardTitle className="flex items-center gap-2"><Palette className="h-5 w-5"/> Apariencia</CardTitle>
-                <CardDescription>Personalizá los colores y estilo del chat.</CardDescription>
+            <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                    <CardTitle className="flex items-center gap-2"><Palette className="h-5 w-5"/> Apariencia</CardTitle>
+                    <CardDescription>Personalizá los colores y estilo del chat.</CardDescription>
+                </div>
+                <Button variant="ghost" size="sm" onClick={handleReset} title="Restaurar valores por defecto">
+                    Restaurar
+                </Button>
             </CardHeader>
             <CardContent className="space-y-4">
                 <div className="flex items-center justify-between p-2 border rounded mb-4">

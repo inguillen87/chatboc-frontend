@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, RefreshCw, ExternalLink, CheckCircle2, AlertCircle, MessageSquare, Send, Tags, Eye, Palette, Link2 } from 'lucide-react';
+import { Loader2, RefreshCw, ExternalLink, CheckCircle2, AlertCircle, MessageSquare, Send, Tags, Eye, Palette, Link2, Smartphone } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
@@ -278,13 +278,30 @@ const IntegracionesPage = () => {
                                  )}
                                </div>
 
-                               {/* Channel Preview Hover/Column */}
-                               <div className="hidden lg:block w-64 shrink-0 mx-4">
-                                   <div className="scale-75 origin-center transform transition-transform hover:scale-90 duration-300">
+                               {/* Channel Preview Hover/Column - Always Visible on LG, Collapsible on Mobile */}
+                               <div className="w-full lg:w-64 shrink-0 mx-0 lg:mx-4 mt-4 lg:mt-0 flex flex-col items-center">
+                                   <div className="flex justify-between w-full items-center mb-2 px-1">
+                                       <div className="flex gap-1">
+                                            {/* Mock Health Check Indicator */}
+                                            <div className={`h-2 w-2 rounded-full ${integration.connected ? 'bg-green-500 animate-pulse' : 'bg-gray-300'}`} title="Webhook Health: OK" />
+                                            <span className="text-[10px] text-muted-foreground uppercase tracking-wider">{integration.connected ? 'Online' : 'Offline'}</span>
+                                       </div>
+                                       <div className="lg:hidden">
+                                           <Button variant="ghost" size="sm" className="h-6 text-xs text-muted-foreground">
+                                               <Smartphone className="h-3 w-3 mr-1" /> Ver Vista Previa
+                                           </Button>
+                                       </div>
+                                   </div>
+
+                                   <div className="scale-90 lg:scale-75 origin-top lg:origin-center transform transition-transform hover:scale-95 duration-300 relative group">
                                        <ChannelPreview
                                             channel={integration.provider as any}
                                             product={integration.provider === 'mercadolibre' ? { name: 'Zapatillas Running', price: '$45.000' } : undefined}
                                        />
+                                       {/* Toggle overlay hint (visual only for now as ChannelPreview is stateless in this list context) */}
+                                       <div className="absolute inset-0 flex items-center justify-center bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none rounded-lg">
+                                            <span className="bg-white/90 text-[10px] px-2 py-1 rounded shadow-sm text-foreground font-medium">Vista Previa {integration.provider}</span>
+                                       </div>
                                    </div>
                                </div>
 
