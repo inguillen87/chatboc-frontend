@@ -3,9 +3,23 @@ export interface Order {
   tenant_id?: string;
   user_id?: string;
   total: number;
-  status: 'pending' | 'paid' | 'shipped' | 'delivered' | 'cancelled';
+  status: 'pending' | 'paid' | 'shipped' | 'delivered' | 'cancelled' | 'confirmed' | 'nuevo';
   items: OrderItem[];
   created_at: string;
+  updated_at?: string;
+  channel?: string;
+  notes?: string;
+  // Customer Info
+  customerName?: string;
+  customerPhone?: string;
+  customerEmail?: string;
+  contact_name?: string; // Payload alias
+  // Dispatch Info
+  dispatch_email?: string;
+  dispatch_phone?: string;
+  // External Refs
+  externalId?: string;
+  externalUrl?: string;
 }
 
 export interface OrderItem {
@@ -14,6 +28,7 @@ export interface OrderItem {
   quantity: number;
   price: number;
   name: string;
+  sku?: string;
 }
 
 export interface Cart {

@@ -107,6 +107,10 @@ export const apiClient = {
     return apiFetch<{ url: string }>(`/api/admin/tenants/${tenantSlug}/integrations/${type}/connect`, { tenantSlug });
   },
 
+  adminPreviewIntegration: async (tenantSlug: string, type: string): Promise<any> => {
+    return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/integrations/${type}/preview`, { tenantSlug });
+  },
+
   adminSyncIntegration: async (tenantSlug: string, type: string): Promise<any> => {
     return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/integrations/${type}/sync`, {
       method: 'POST',
