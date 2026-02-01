@@ -324,4 +324,15 @@ export const apiClient = {
       tenantSlug
     });
   },
+
+  // --- CRM & Contact Methods ---
+
+  adminListContacts: async (tenantSlug: string, filters?: Record<string, any>): Promise<any> => {
+    const params = new URLSearchParams(filters);
+    return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/contacts?${params.toString()}`, { tenantSlug });
+  },
+
+  adminGetContactHistory: async (tenantSlug: string, contactId: string): Promise<any> => {
+    return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/contacts/${contactId}/history`, { tenantSlug });
+  },
 };

@@ -473,15 +473,39 @@ const PedidosPage = () => {
                       </div>
                   </div>
 
-                  {/* Timeline (Mock Data Structure) */}
+                  {/* Timeline */}
                   <div className="space-y-4 pt-4 border-t">
                       <h3 className="text-sm font-medium">Historial de Eventos</h3>
                       <div className="space-y-4 ml-2 border-l-2 border-muted pl-4">
                           {[
-                              { status: 'created', label: 'Pedido Creado', date: selectedOrder.created_at, active: true },
-                              { status: 'confirmed', label: 'Confirmado por tienda', date: null, active: ['confirmed', 'paid', 'shipped', 'delivered'].includes(selectedOrder.status) },
-                              { status: 'shipped', label: 'Enviado', date: null, active: ['shipped', 'delivered'].includes(selectedOrder.status) },
-                              { status: 'delivered', label: 'Entregado', date: null, active: ['delivered'].includes(selectedOrder.status) }
+                              {
+                                  status: 'created',
+                                  label: 'Pedido Creado',
+                                  // Always active if order exists
+                                  active: true,
+                                  // Use created_at as the source of truth for the first step
+                                  date: selectedOrder.created_at
+                              },
+                              {
+                                  status: 'confirmed',
+                                  label: 'Confirmado',
+                                  active: ['confirmed', 'paid', 'shipped', 'delivered'].includes(selectedOrder.status),
+                                  // If this is the *current* status, we might use updated_at if available, but Order type doesn't guarantee it.
+                                  // We leave date undefined to avoid faking it, showing "Completado" instead.
+                                  date: undefined
+                              },
+                              {
+                                  status: 'shipped',
+                                  label: 'Enviado',
+                                  active: ['shipped', 'delivered'].includes(selectedOrder.status),
+                                  date: undefined
+                              },
+                              {
+                                  status: 'delivered',
+                                  label: 'Entregado',
+                                  active: ['delivered'].includes(selectedOrder.status),
+                                  date: undefined
+                              }
                           ].map((step, idx) => (
                               <div key={idx} className={`relative ${step.active ? '' : 'opacity-50'}`}>
                                   <div className={`absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full ring-4 ring-background ${step.active ? 'bg-primary' : 'bg-muted'}`} />

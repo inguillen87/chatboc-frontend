@@ -11,36 +11,6 @@ import OverviewDashboard from '@/components/analytics/OverviewDashboard';
 import HeatmapDashboard from '@/components/analytics/HeatmapDashboard';
 import InsightsDashboard from '@/components/analytics/InsightsDashboard';
 
-// Mock data generator for frontend demo when API fails or is not ready
-const USE_MOCK = true;
-
-const generateMockData = (): AnalyticsSummary => ({
-  kpis: {
-    total_interactions: 1250,
-    active_users: 320,
-    avg_response_time_s: 45,
-    conversion_rate: 12.5,
-    backlog_open: 15,
-    sla_breaches: 3
-  },
-  top_categories: [
-    { category: 'Consultas Generales', count: 450 },
-    { category: 'Soporte Técnico', count: 320 },
-    { category: 'Ventas', count: 210 },
-    { category: 'Reclamos', count: 150 },
-  ],
-  volume_by_day: Array.from({ length: 7 }, (_, i) => ({
-    date: new Date(Date.now() - (6 - i) * 86400000).toLocaleDateString('es-AR', { weekday: 'short' }),
-    count: Math.floor(Math.random() * 200) + 50,
-  })),
-  heatmap_points: [], // Will be handled by separate call usually, or included if small
-  insights: [
-    { text: "Pico de consultas sobre 'Horarios' el lunes a las 10am.", severity: "med", category: "Tendencia" },
-    { text: "Aumento del 15% en conversión vía WhatsApp.", severity: "low", category: "Positivo" },
-    { text: "Categoría 'Reclamos' redujo su tiempo de resolución un 20%.", severity: "low", category: "Performance" }
-  ]
-});
-
 const AnalyticsPage = () => {
   const [searchParams] = useSearchParams();
   const { currentSlug, tenant } = useTenant();
@@ -67,28 +37,17 @@ const AnalyticsPage = () => {
     setLoading(true);
     setError(null);
     try {
-      if (USE_MOCK) {
-          // Simulate network delay
-          await new Promise(r => setTimeout(r, 800));
-          setData(generateMockData());
-      } else {
-          const result = await analyticsService.getSummary({
-            tenant_id: tenantId,
-            tenantSlug: currentSlug || undefined,
-            from: dateRange.from,
-            to: dateRange.to,
-            context: context
-          });
-          setData(result);
-      }
+      const result = await analyticsService.getSummary({
+        tenant_id: tenantId,
+        tenantSlug: currentSlug || undefined,
+        from: dateRange.from,
+        to: dateRange.to,
+        context: context
+      });
+      setData(result);
     } catch (err: any) {
       console.error(err);
-      if (USE_MOCK) {
-          // Fallback even on error if we want to show something
-          setData(generateMockData());
-      } else {
-          setError("No se pudo cargar el dashboard.");
-      }
+      setError("No se pudo cargar el dashboard.");
     } finally {
       setLoading(false);
     }
