@@ -11,11 +11,13 @@ import { useTenant } from '@/context/TenantContext';
 
 interface Props {
   tenantId: number;
+  tenantSlug?: string;
   onComplete: () => void;
 }
 
-const ImportWizard: React.FC<Props> = ({ tenantId, onComplete }) => {
-  const { currentSlug } = useTenant();
+const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => {
+  const { currentSlug: contextSlug } = useTenant();
+  const effectiveSlug = tenantSlug || contextSlug;
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [file, setFile] = useState<File | null>(null);
   const [processor, setProcessor] = useState('generic');
@@ -28,14 +30,14 @@ const ImportWizard: React.FC<Props> = ({ tenantId, onComplete }) => {
     if (!file) return;
     setLoading(true);
     try {
-      const res = await importService.uploadFile(tenantId, file, processor, currentSlug || undefined);
+      const res = await importService.uploadFile(tenantId, file, processor, effectiveSlug || undefined);
       setUploadId(res.upload_id);
 
       // Poll for preview or just get it if sync (backend depends)
       // Assuming backend processes fast enough or we poll.
       // For MVP we assume the POST triggers process or we call getPreview immediately.
       // Let's call getPreview:
-      const previewData = await importService.getPreview(res.upload_id, currentSlug || undefined);
+      const previewData = await importService.getPreview(res.upload_id, effectiveSlug || undefined);
       setPreview(previewData);
       setStep(2);
     } catch (e) {
@@ -50,7 +52,7 @@ const ImportWizard: React.FC<Props> = ({ tenantId, onComplete }) => {
     if (!uploadId) return;
     setLoading(true);
     try {
-      const res = await importService.commitImport(uploadId, {}, currentSlug || undefined);
+      const res = await importService.commitImport(uploadId, {}, effectiveSlug || undefined);
       setResult(res);
       setStep(3);
     } catch (e) {

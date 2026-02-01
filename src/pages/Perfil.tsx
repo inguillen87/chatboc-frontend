@@ -112,6 +112,7 @@ import {
   generateJuninDemoHeatmap,
   mergeAndSortStrings,
 } from '@/utils/demoHeatmap';
+import ImportWizard from "@/components/catalog/ImportWizard";
 
 
 // Durante el desarrollo usamos "/api" para evitar problemas de CORS.
@@ -1908,198 +1909,88 @@ export default function Perfil() {
                 </CardContent>
               </Card>
 
-              {/* Cargar Catálogo Card */}
-              <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm flex flex-col flex-grow">
-                <CardHeader>
-                  <CardTitle className="text-lg font-semibold text-primary">
-                    {esMunicipio
-                      ? "Cargar Catálogo de Trámites"
-                      : "Cargar Catálogo de Productos"}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4 flex flex-col flex-grow">
-                  <div>
-                    <Label
-                      htmlFor="catalogoFile"
-                      className="text-sm text-muted-foreground mb-1 block"
-                    >
-                      Subir nuevo o actualizar (PDF, Excel, CSV)
-                    </Label>
-                    <Input
-                      id="catalogoFile"
-                      type="file"
-                      accept=".xlsx,.xls,.csv,.pdf"
-                      onChange={handleArchivoChange}
-                      className="text-muted-foreground file:mr-2 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90 cursor-pointer"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1.5">
-                      Tip: Para mayor precisión, usá Excel/CSV con columnas claras
-                      (ej: Nombre, Precio, Descripción).
-                    </p>
-                  </div>
+              {/* Cargar Catálogo Wizard */}
+              <div className="flex flex-col gap-6 flex-grow">
+                <ImportWizard
+                  tenantId={Number(user?.id)}
+                  tenantSlug={derivedTenantSlug || undefined}
+                  onComplete={() => {
+                    refreshVectorSyncStatus();
+                    toast({ title: "Catálogo actualizado", description: "El proceso de importación ha finalizado." });
+                  }}
+                />
 
-                  {/* Gestión de Mapeos */}
-                  <div className="mt-3 pt-3 border-t border-border/60">
-                    <Dialog open={showManageMappingsDialog} onOpenChange={setShowManageMappingsDialog}>
-                      <DialogTrigger asChild>
-                        <Button variant="outline" size="sm" className="w-full text-sm">
-                          <Settings2 className="w-4 h-4 mr-2" />
-                          Configurar Formatos de Archivo...
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="sm:max-w-[625px]">
-                        <DialogHeader>
-                          <DialogTitle className="text-xl flex items-center">
-                            <FileCog className="w-5 h-5 mr-2 text-primary"/>
-                            Mis Formatos de Archivo de Catálogo
-                          </DialogTitle>
-                          <DialogDescription>
-                            Gestiona cómo se leen las columnas de tus archivos de catálogo. Puedes tener múltiples formatos.
-                          </DialogDescription>
-                        </DialogHeader>
-                        <div className="py-2 max-h-[60vh] overflow-y-auto">
-                          {loadingMappings && <p className="text-muted-foreground text-sm p-4 text-center">Cargando formatos...</p>}
-                          {!loadingMappings && mappingConfigs.length === 0 && (
-                            <p className="text-muted-foreground text-sm p-4 text-center">
-                              Aún no has guardado ninguna configuración de formato.
-                              Se intentará detectar las columnas automáticamente al subir un archivo.
-                            </p>
-                          )}
-                          {!loadingMappings && mappingConfigs.length > 0 && (
-                            <ul className="space-y-2">
-                              {mappingConfigs.map((config) => (
-                                <li key={config.id} className="flex items-center justify-between p-3 bg-muted/30 hover:bg-muted/60 rounded-md border border-border">
-                                  <span className="text-sm font-medium text-foreground">{config.name}</span>
-                                  <div className="space-x-2">
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-8 w-8"
-                                      onClick={() => navigate(buildMappingPath(`/catalog-mappings/${config.id}`))}
-                                      title="Editar"
-                                    >
-                                      <Edit3 className="w-4 h-4" />
-                                    </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                      onClick={() => setMappingToDelete(config)}
-                                      title="Eliminar"
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                    </Button>
-                                  </div>
-                                </li>
-                              ))}
-                            </ul>
-                          )}
-                        </div>
-                        <DialogFooter className="mt-4 sm:justify-between gap-2">
-                           <DialogClose asChild>
-                             <Button variant="outline" className="w-full sm:w-auto">Cerrar</Button>
-                           </DialogClose>
-                           <Button
-                             className="w-full sm:w-auto"
-                             onClick={() => navigate(buildMappingPath('/catalog-mappings/new'))}
-                           >
-                             <PlusCircle className="w-4 h-4 mr-2" />
-                             Crear Nuevo Formato
-                           </Button>
-                        </DialogFooter>
-                      </DialogContent>
-                    </Dialog>
-                  </div>
-                  {/* Fin Gestión de Mapeos */}
-
-                  <div className="flex-grow"></div> {/* Spacer element */}
-                  {isPyme && (
-                    <div className="rounded-lg border border-border/60 bg-muted/30 p-3 space-y-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-foreground">Estado en Qdrant</span>
-                        <Badge
-                          variant={
-                            loadingVectorSync
-                              ? 'secondary'
-                              : vectorSyncStatus?.status === 'ready'
-                                ? 'success'
-                                : vectorSyncStatus?.status === 'error'
-                                  ? 'destructive'
-                                  : 'outline'
-                          }
-                        >
-                          {loadingVectorSync
-                            ? 'Sincronizando...'
-                            : vectorSyncStatus?.status === 'ready'
-                              ? 'Listo'
-                              : vectorSyncStatus?.status === 'processing'
-                                ? 'Procesando'
-                                : vectorSyncStatus?.status === 'pending'
-                                  ? 'Pendiente'
+                {isPyme && (
+                  <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm">
+                    <CardHeader>
+                      <CardTitle className="text-sm font-semibold text-primary">Estado de Sincronización</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="rounded-lg border border-border/60 bg-muted/30 p-3 space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium text-foreground">Estado en Qdrant</span>
+                          <Badge
+                            variant={
+                              loadingVectorSync
+                                ? 'secondary'
+                                : vectorSyncStatus?.status === 'ready'
+                                  ? 'success'
                                   : vectorSyncStatus?.status === 'error'
-                                    ? 'Error'
-                                    : 'Sin datos'}
-                        </Badge>
+                                    ? 'destructive'
+                                    : 'outline'
+                            }
+                          >
+                            {loadingVectorSync
+                              ? 'Sincronizando...'
+                              : vectorSyncStatus?.status === 'ready'
+                                ? 'Listo'
+                                : vectorSyncStatus?.status === 'processing'
+                                  ? 'Procesando'
+                                  : vectorSyncStatus?.status === 'pending'
+                                    ? 'Pendiente'
+                                    : vectorSyncStatus?.status === 'error'
+                                      ? 'Error'
+                                      : 'Sin datos'}
+                          </Badge>
+                        </div>
+                        {loadingVectorSync ? (
+                          <p className="text-xs text-muted-foreground">Consultando sincronización...</p>
+                        ) : (
+                          <>
+                            <p className="text-xs text-muted-foreground">
+                              {vectorSyncStatus?.message || 'Tus catálogos se indexan para búsquedas de precios y promociones.'}
+                            </p>
+                            {vectorSyncStatus?.lastSyncedAt && (
+                              <p className="text-xs text-muted-foreground">
+                                Última actualización: {formatVectorSyncDate(vectorSyncStatus.lastSyncedAt)}
+                              </p>
+                            )}
+                            {typeof vectorSyncStatus?.documentCount === 'number' && (
+                              <p className="text-xs text-muted-foreground">
+                                Documentos indexados: {vectorSyncStatus.documentCount}
+                              </p>
+                            )}
+                            {vectorSyncStatus?.lastSourceFileName && (
+                              <p className="text-xs text-muted-foreground truncate">
+                                Archivo más reciente: {vectorSyncStatus.lastSourceFileName}
+                              </p>
+                            )}
+                          </>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="w-full"
+                          onClick={refreshVectorSyncStatus}
+                          disabled={loadingVectorSync || !user?.id}
+                        >
+                          Actualizar estado
+                        </Button>
                       </div>
-                      {loadingVectorSync ? (
-                        <p className="text-xs text-muted-foreground">Consultando sincronización...</p>
-                      ) : (
-                        <>
-                          <p className="text-xs text-muted-foreground">
-                            {vectorSyncStatus?.message || 'Tus catálogos se indexan para búsquedas de precios y promociones.'}
-                          </p>
-                          {vectorSyncStatus?.lastSyncedAt && (
-                            <p className="text-xs text-muted-foreground">
-                              Última actualización: {formatVectorSyncDate(vectorSyncStatus.lastSyncedAt)}
-                            </p>
-                          )}
-                          {typeof vectorSyncStatus?.documentCount === 'number' && (
-                            <p className="text-xs text-muted-foreground">
-                              Documentos indexados: {vectorSyncStatus.documentCount}
-                            </p>
-                          )}
-                          {vectorSyncStatus?.lastSourceFileName && (
-                            <p className="text-xs text-muted-foreground truncate">
-                              Archivo más reciente: {vectorSyncStatus.lastSourceFileName}
-                            </p>
-                          )}
-                        </>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="w-full"
-                        onClick={refreshVectorSyncStatus}
-                        disabled={loadingVectorSync || !user?.id}
-                      >
-                        Actualizar estado
-                      </Button>
-                    </div>
-                  )}
-                  <Button
-                    onClick={handleSubirArchivo}
-                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-2.5 mt-auto"
-                    disabled={loadingCatalogo || !archivo}
-                  >
-                    <UploadCloud className="w-4 h-4 mr-2" />{" "}
-                    {loadingCatalogo
-                      ? "Procesando Catálogo..."
-                      : "Subir y Procesar Catálogo"}
-                  </Button>
-                  {resultadoCatalogo && (
-                    <div
-                      className={`text-sm p-3 rounded-md flex items-center gap-2 ${resultadoCatalogo.type === "error" ? "bg-destructive text-destructive-foreground" : "bg-green-100 text-green-800"}`}
-                    >
-                      {resultadoCatalogo.type === "error" ? (
-                        <XCircle className="w-5 h-5" />
-                      ) : (
-                        <CheckCircle className="w-5 h-5" />
-                      )}{" "}
-                      {resultadoCatalogo.message}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
 
               {/* Gestión de Eventos y Noticias Card */}
               {isStaff && esMunicipio && (
@@ -2452,199 +2343,6 @@ export default function Perfil() {
         )}
       </Tabs>
 
-      {/* AlertDialog para confirmar eliminación de mapeo */}
-      <AlertDialog open={!!mappingToDelete} onOpenChange={(open) => !open && setMappingToDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>¿Estás seguro de eliminar este formato?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Formato: <span className="font-semibold">{mappingToDelete?.name}</span>
-              <br />
-              Esta acción no se puede deshacer.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setMappingToDelete(null)}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteMapping}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              disabled={loadingMappings}
-            >
-              {loadingMappings ? "Eliminando..." : "Sí, eliminar"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* --- Modal de Mapeo Simplificado --- */}
-      <Dialog open={isMappingModalOpen} onOpenChange={setIsMappingModalOpen}>
-        <DialogContent className="sm:max-w-[625px]">
-          <DialogHeader>
-            <DialogTitle className="text-xl flex items-center">
-              <Wand2 className="w-5 h-5 mr-2 text-primary"/>
-              Confirmar Columnas del Catálogo
-            </DialogTitle>
-            <DialogDescription>
-              Hemos detectado las siguientes columnas en tu archivo <strong>{archivo?.name}</strong>.
-              Confirma si el mapeo es correcto para procesarlo.
-            </DialogDescription>
-          </DialogHeader>
-
-          {archivo && (
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mt-3">
-              <p className="text-xs text-muted-foreground">
-                Ajustá las columnas sugeridas o vuelve a analizar el archivo con IA para detectar listas complejas.
-              </p>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="gap-1.5"
-                onClick={() => parseFileAndSuggest(archivo, { forceAi: true })}
-                disabled={isParsing}
-              >
-                <Wand2 className="w-4 h-4" />
-                Analizar con IA
-              </Button>
-            </div>
-          )}
-
-          {isParsing && (
-            <div className="flex items-center justify-center p-8">
-              <Loader2 className="h-8 w-8 animate-spin text-primary mr-3" />
-              <p className="text-muted-foreground">Analizando archivo...</p>
-            </div>
-          )}
-
-          {fileProcessingError && (
-              <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">
-                  <strong>Error:</strong> {fileProcessingError}
-              </div>
-          )}
-
-          {!isParsing && !fileProcessingError && (
-            <div className="py-2 space-y-4 max-h-[60vh] overflow-y-auto pr-1">
-              {(analysisSummary || analysisWarnings.length > 0 || (previewRecords.length > 0 && previewColumnNames.length > 0)) && (
-                <div className="bg-muted/30 border border-border/60 rounded-md p-3">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div>
-                      <p className="text-sm font-semibold text-foreground">Vista previa inteligente</p>
-                      {analysisSource && (
-                        <p className="text-[11px] text-muted-foreground mt-0.5">
-                          Origen detectado: <span className="font-medium text-foreground">{humanizeDocumentSource(analysisSource)}</span>
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {analysisEngine && (
-                        <Badge variant="outline" className="uppercase text-[10px] tracking-wide">
-                          {analysisEngine}
-                        </Badge>
-                      )}
-                      {typeof analysisConfidence === 'number' && (
-                        <Badge variant="secondary" className="text-[10px]">
-                          Confianza {(analysisConfidence * 100).toFixed(0)}%
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-
-                  {analysisSummary && (
-                    <p className="text-[12px] text-muted-foreground mt-2">{analysisSummary}</p>
-                  )}
-
-                  {analysisWarnings.length > 0 && (
-                    <ul className="mt-2 space-y-1 text-[11px] text-amber-600 dark:text-amber-400 list-disc list-inside">
-                      {analysisWarnings.map((warning, index) => (
-                        <li key={`modal-analysis-warning-${index}`}>{warning}</li>
-                      ))}
-                    </ul>
-                  )}
-
-                  {previewRecords.length > 0 && previewColumnNames.length > 0 && (
-                    <div className="mt-3 overflow-auto max-h-48 border border-border/60 rounded-sm">
-                      <table className="min-w-full text-[11px]">
-                        <thead className="bg-muted/50">
-                          <tr>
-                            {previewColumnNames.map((column) => (
-                              <th
-                                key={`modal-preview-column-${column}`}
-                                className="px-2 py-1 text-left font-medium text-muted-foreground whitespace-nowrap border-b border-border/60"
-                              >
-                                {column}
-                              </th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {previewRecords.map((record, rowIndex) => (
-                            <tr
-                              key={`modal-preview-row-${rowIndex}`}
-                              className={rowIndex % 2 === 0 ? 'bg-background' : 'bg-muted/40'}
-                            >
-                              {previewColumnNames.map((column) => (
-                                <td
-                                  key={`${column}-${rowIndex}`}
-                                  className="px-2 py-1 border-b border-border/60 whitespace-nowrap text-[11px]"
-                                >
-                                  {record[column] && record[column]?.length !== 0 ? record[column] : <span className="text-muted-foreground/70">—</span>}
-                                </td>
-                              ))}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {parsedColumns.length > 0 && (
-                <div className="space-y-2 text-sm">
-                  <ul className="space-y-2">
-                    {systemFields.map((field) => {
-                      const mappedColumn = suggestedMappings[field.key];
-                      if (mappedColumn) {
-                        return (
-                          <li key={field.key} className="flex items-center justify-between p-2 bg-muted/30 rounded-md">
-                            <span className="font-semibold text-foreground">{field.label}</span>
-                            <span className="text-primary font-mono text-xs p-1 bg-primary/10 rounded">{mappedColumn}</span>
-                          </li>
-                        );
-                      }
-                      return null;
-                    })}
-                  </ul>
-                  <p className="text-xs text-muted-foreground">
-                    Campos no encontrados en el archivo serán ignorados.
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-
-          <DialogFooter className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-2">
-            <Button
-              variant="outline"
-              className="w-full sm:col-span-1"
-              onClick={() => navigate(buildMappingPath('/catalog-mappings/new'), { state: { preloadedFile: archivo }})}
-            >
-              Configuración Avanzada...
-            </Button>
-            <DialogClose asChild className="sm:col-start-2">
-              <Button variant="ghost" className="w-full">Cancelar</Button>
-            </DialogClose>
-            <Button
-              className="w-full sm:col-span-1"
-              onClick={handleConfirmAndProcess}
-              disabled={isParsing || loadingCatalogo || !!fileProcessingError}
-            >
-              {(isParsing || loadingCatalogo) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              Confirmar y Procesar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
        {/* --- Modal para Crear Evento/Noticia --- */}
       <Dialog
