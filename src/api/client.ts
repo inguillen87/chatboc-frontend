@@ -319,13 +319,13 @@ export const apiClient = {
   // --- Widget & Theme Methods ---
 
   getChatTheme: async (tenantSlug: string): Promise<any> => {
-    // Guide: GET /api/tenant/config
-    return apiFetch<any>(`/api/tenant/config`, { tenantSlug });
+    // Use the admin config endpoint which includes theme_config
+    return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/config`, { tenantSlug });
   },
 
   updateChatTheme: async (tenantSlug: string, data: any): Promise<any> => {
-    // Guide: PUT /api/tenant/config
-    return apiFetch<any>(`/api/tenant/config`, {
+    // Update the tenant config (merges with existing)
+    return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/config`, {
       method: 'PUT',
       body: data,
       tenantSlug

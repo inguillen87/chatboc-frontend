@@ -21,7 +21,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import ChatCustomizer from '@/components/admin/ChatCustomizer';
 import OrderDispatchSettings from '@/components/admin/OrderDispatchSettings';
-import ImportWizard from '@/components/catalog/ImportWizard';
+import CatalogUploadWizard from '@/components/admin/catalog/CatalogUploadWizard';
 import ChannelPreview from '@/components/integrations/ChannelPreview';
 import {
   Dialog,
@@ -221,7 +221,7 @@ const IntegracionesPage = () => {
 
                 <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
                     <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto sm:max-w-[800px]">
-                        <ImportWizard tenantId={0} onComplete={() => setUploadOpen(false)} />
+                        <CatalogUploadWizard onFinish={() => setUploadOpen(false)} />
                     </DialogContent>
                 </Dialog>
             </TabsContent>
