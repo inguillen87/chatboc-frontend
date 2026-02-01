@@ -93,12 +93,20 @@ export const apiClient = {
   },
 
   adminGetIntegrations: async (tenantSlug: string): Promise<IntegrationStatus[]> => {
-    // Backend returns Object { "MercadoLibre": {...} }, we must transform to Array
-    const rawData = await apiFetch<Record<string, any>>(`/api/admin/tenants/${tenantSlug}/integrations`, { tenantSlug });
+    // Backend might return Object { "MercadoLibre": {...} } OR Array [{ provider: 'mercadolibre', ... }]
+    const rawData = await apiFetch<any>(`/api/admin/tenants/${tenantSlug}/integrations`, { tenantSlug });
 
     if (!rawData) return [];
 
-    return Object.entries(rawData).map(([provider, details]) => ({
+    if (Array.isArray(rawData)) {
+        return rawData.map((item) => ({
+            provider: item.provider ? item.provider.toLowerCase() : 'unknown',
+            connected: !!item.connected,
+            lastSync: item.lastSync
+        }));
+    }
+
+    return Object.entries(rawData).map(([provider, details]: [string, any]) => ({
       provider: provider.toLowerCase() as any,
       connected: details.connected,
       lastSync: details.lastSync
