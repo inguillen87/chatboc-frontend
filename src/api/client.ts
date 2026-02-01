@@ -96,6 +96,8 @@ export const apiClient = {
     // Backend returns Object { "MercadoLibre": {...} }, we must transform to Array
     const rawData = await apiFetch<Record<string, any>>(`/api/admin/tenants/${tenantSlug}/integrations`, { tenantSlug });
 
+    if (!rawData) return [];
+
     return Object.entries(rawData).map(([provider, details]) => ({
       provider: provider.toLowerCase() as any,
       connected: details.connected,
@@ -323,11 +325,11 @@ export const apiClient = {
   },
 
   getFulfillmentConfig: async (tenantSlug: string): Promise<any> => {
-    return apiFetch<any>(`/api/fulfillment-config`, { tenantSlug });
+    return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/config`, { tenantSlug });
   },
 
   updateFulfillmentConfig: async (tenantSlug: string, data: any): Promise<any> => {
-    return apiFetch<any>(`/api/fulfillment-config`, {
+    return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/config`, {
       method: 'PUT',
       body: data,
       tenantSlug

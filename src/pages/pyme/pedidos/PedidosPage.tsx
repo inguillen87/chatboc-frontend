@@ -431,7 +431,7 @@ const PedidosPage = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {selectedOrder.items.map((item, idx) => (
+                        {(selectedOrder.items || []).map((item, idx) => (
                           <tr key={idx} className="border-t last:border-0">
                             <td className="p-3">
                                 <div className="font-medium">{item.name}</div>

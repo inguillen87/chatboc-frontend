@@ -120,7 +120,7 @@ const PedidoDetail: FC<{ pedido: Order; onClose: () => void; onStatusChange: (ne
         <div className="mb-4">
           <h4 className="font-semibold mb-1">Items</h4>
           <ul className="list-disc list-inside space-y-1 text-sm">
-            {pedido.items.map((item, idx) => (
+            {(pedido.items || []).map((item, idx) => (
               <li key={idx}>
                 {item.quantity} x {item.name}
               </li>
