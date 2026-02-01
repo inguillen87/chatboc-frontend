@@ -10,6 +10,8 @@ import { analyticsService, AnalyticsSummary } from '@/services/analyticsService'
 import OverviewDashboard from '@/components/analytics/OverviewDashboard';
 import HeatmapDashboard from '@/components/analytics/HeatmapDashboard';
 import InsightsDashboard from '@/components/analytics/InsightsDashboard';
+import MunicipioDashboard from '@/components/analytics/MunicipioDashboard';
+import PymeDashboard from '@/components/analytics/PymeDashboard';
 
 const AnalyticsPage = () => {
   const [searchParams] = useSearchParams();
@@ -113,11 +115,11 @@ const AnalyticsPage = () => {
           </TabsContent>
 
           <TabsContent value="municipio">
-            {data && <OverviewDashboard data={data} showSla={true} />}
+            {data && <MunicipioDashboard data={data} />}
           </TabsContent>
 
           <TabsContent value="pyme">
-            {data && <OverviewDashboard data={data} showConversion={true} />}
+            {data && <PymeDashboard data={data} />}
           </TabsContent>
 
           <TabsContent value="geo">
