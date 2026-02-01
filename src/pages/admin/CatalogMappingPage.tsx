@@ -455,7 +455,7 @@ const CatalogMappingPage: React.FC = () => {
     const method = mappingId ? 'PUT' : 'POST';
 
     try {
-      const saved = await apiFetch<SavedMappingConfig>(url, { method, body: configToSave });
+      const saved = await apiFetch<SavedMappingConfig>(url, { method, body: configToSave, omitEntityToken: true });
       toast({ title: "¡Guardado!", description: `Configuración de mapeo "${saved.name}" guardada.` });
       navigate('/perfil');
     } catch (err) {

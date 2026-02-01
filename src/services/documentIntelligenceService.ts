@@ -60,5 +60,6 @@ export async function requestDocumentPreview({
   return apiFetch<DocumentPreviewResponse>(`/${entityType}/${entityId}/document-intelligence/preview`, {
     method: 'POST',
     body: formData,
+    omitEntityToken: true,
   });
 }
