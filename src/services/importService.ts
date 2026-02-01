@@ -16,7 +16,8 @@ export const importService = {
 
     // Using apiFetch which usually handles headers, but for FormData sometimes we need to be careful.
     // apiFetch typically expects JSON unless body is FormData.
-    const response = await apiFetch<any>('/api/catalog/import/upload', {
+    // Updated endpoint to match backend guide: POST /api/admin/catalog/import
+    const response = await apiFetch<any>('/api/admin/catalog/import', {
       method: 'POST',
       body: formData,
       tenantSlug
@@ -26,14 +27,17 @@ export const importService = {
   },
 
   getPreview: async (uploadId: number, tenantSlug?: string): Promise<ImportPreview> => {
-    const response = await apiFetch<ImportPreview>(`/api/catalog/import/${uploadId}/preview`, {
+    // Updated endpoint: GET /api/admin/catalog/import/{id} (implied or /preview suffix)
+    // Guide says: GET /api/admin/catalog/import/{session_id} returns preview
+    const response = await apiFetch<ImportPreview>(`/api/admin/catalog/import/${uploadId}`, {
         tenantSlug
     });
     return response;
   },
 
   commitImport: async (uploadId: number, overrides: any = {}, tenantSlug?: string) => {
-    const response = await apiFetch<any>(`/api/catalog/import/${uploadId}/commit`, {
+    // Updated endpoint: POST /api/admin/catalog/import/{session_id}/commit
+    const response = await apiFetch<any>(`/api/admin/catalog/import/${uploadId}/commit`, {
       method: 'POST',
       body: { overrides },
       tenantSlug

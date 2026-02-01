@@ -50,12 +50,13 @@ const CustomerHistoryPanel: React.FC<CustomerHistoryProps> = ({ customerId, tena
         // Based on "Jules - Backend" prompt, response includes { snapshot, orders, interactions }
         // We map to our internal CustomerContext interface.
 
+        // Map backend payload structure (e.g. contact.ltv -> summary.total_spent)
         const context: CustomerContext = {
             summary: {
-                total_spent: response.snapshot?.total_spent || 0,
-                total_orders: response.orders?.length || 0,
+                total_spent: response.contact?.ltv || response.contact?.ltv_monetary || 0,
+                total_orders: response.contact?.total_orders || (response.orders ? response.orders.length : 0),
                 loyalty_points: response.contact?.loyalty_points || 0,
-                avg_ticket: response.snapshot?.avg_ticket || 0,
+                avg_ticket: response.contact?.avg_ticket || 0,
                 last_order_date: response.orders?.[0]?.created_at || null
             },
             recent_orders: (response.orders || []).slice(0, 5).map((o: any) => ({
@@ -66,8 +67,8 @@ const CustomerHistoryPanel: React.FC<CustomerHistoryProps> = ({ customerId, tena
                 items_summary: o.items?.map((i: any) => `${i.qty}x ${i.title}`).join(', ') || 'Sin items'
             })),
             preferences: {
-                top_categories: response.snapshot?.top_categories || [],
-                favorite_products: response.snapshot?.favorite_products || []
+                top_categories: response.snapshot?.suggested_actions || [], // Using suggestions as proxy for now
+                favorite_products: [] // If backend doesn't provide this yet, leave empty or infer
             }
         };
         setData(context);
