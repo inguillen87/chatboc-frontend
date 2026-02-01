@@ -38,10 +38,8 @@ export const analyticsService = {
     if (filters.channel) params.append('channel', filters.channel);
 
     // Using apiFetch which is the standard here
-    // Adjust endpoint path if necessary, guide says /api/analytics/summary
-    // I need to ensure tenant context is passed if needed by middleware,
-    // but the guide passes tenant_id in query params.
-    return apiFetch<AnalyticsSummary>(`/api/analytics/summary?${params.toString()}`, {
+    // Updated to match backend guide: GET /api/admin/analytics/summary
+    return apiFetch<AnalyticsSummary>(`/api/admin/analytics/summary?${params.toString()}`, {
         tenantSlug: filters.tenantSlug
     });
   },
@@ -52,19 +50,20 @@ export const analyticsService = {
     if (filters.from) params.append('from', filters.from);
     if (filters.to) params.append('to', filters.to);
 
-    // The backend guide specifies the response contains { points: [...] }
-    // apiFetch returns the JSON body directly.
-    // If the endpoint returns { points: [...] }, accessing .points is correct.
-    // However, if apiFetch unwraps it or if the backend returns array directly, this needs adjustment.
-    // Assuming adherence to guide: "Expects { points: [...] }"
-    const response = await apiFetch<{ points: any[] }>(`/api/analytics/heatmap?${params.toString()}`, {
+    // Updated endpoint path to match pattern: /api/admin/analytics/heatmap
+    // Response expected: { points: [...] } or direct array?
+    // Guide says "Map heatmap_points -> stats.geo_heatmap".
+    // If getSummary returns heatmap, we might not need this separate call, but if the dashboard uses it:
+    const response = await apiFetch<{ points: any[] }>(`/api/admin/analytics/heatmap?${params.toString()}`, {
         tenantSlug: filters.tenantSlug
     });
     return response.points || [];
   },
 
   getInsights: async (tenantId: number, tenantSlug?: string) => {
-    const response = await apiFetch<{ insights: any[] }>(`/api/analytics/insights?tenant_id=${tenantId}`, {
+    // Updated path to /api/admin/analytics/insights (implied) or rely on summary if integrated
+    // Keeping separate call for now but pointing to admin path
+    const response = await apiFetch<{ insights: any[] }>(`/api/admin/analytics/insights?tenant_id=${tenantId}`, {
         tenantSlug
     });
     return response.insights;

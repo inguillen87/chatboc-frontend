@@ -81,6 +81,8 @@ import SmartPedidosWrapper from '@/pages/SmartPedidosWrapper';
 import SmartNotificationsWrapper from '@/pages/SmartNotificationsWrapper';
 import OrderTrackingPage from '@/pages/pyme/pedidos/OrderTrackingPage';
 import AdminOrderDetailPage from '@/pages/admin/AdminOrderDetailPage';
+import ClientsPage from '@/pages/pyme/crm/ClientsPage';
+import ClientDetailPage from '@/pages/pyme/crm/ClientDetailPage';
 
 // Updated for Commerce Module & Mirror Catalog
 // Final verification: Commerce & Admin modules active
@@ -244,6 +246,10 @@ const routes: RouteConfig[] = [
   ...withTenantPrefixes('/:tenant/pedidos/:id', { element: <AdminOrderDetailPage />, roles: ['admin', 'empleado', 'super_admin'] }),
   ...withTenantPrefixes('/:tenant/notificaciones', { element: <SmartNotificationsWrapper />, roles: ['admin', 'empleado', 'super_admin'] }),
   ...withTenantPrefixes('/:tenant/categorias', { element: <CategoryManagementPage />, roles: ['admin', 'super_admin'] }),
+
+  // CRM
+  ...withTenantPrefixes('/:tenant/crm/clientes', { element: <ClientsPage />, roles: ['admin', 'empleado', 'super_admin'] }),
+  ...withTenantPrefixes('/:tenant/crm/clientes/:contactId', { element: <ClientDetailPage />, roles: ['admin', 'empleado', 'super_admin'] }),
 
   // Surveys
   ...(FEATURE_ENCUESTAS

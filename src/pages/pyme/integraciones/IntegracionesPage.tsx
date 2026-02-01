@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, RefreshCw, ExternalLink, CheckCircle2, AlertCircle, MessageSquare, Send, Tags, Eye, Palette, Link2, Smartphone } from 'lucide-react';
+import { Loader2, RefreshCw, ExternalLink, CheckCircle2, AlertCircle, MessageSquare, Send, Tags, Eye, Palette, Link2, Smartphone, Search } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
@@ -309,18 +309,44 @@ const IntegracionesPage = () => {
                                  {integration.connected ? (
                                    <>
                                       {(integration.provider === 'mercadolibre' || integration.provider === 'tiendanube') && (
-                                        <Button
-                                          variant="outline"
-                                          size="sm"
-                                          className="w-full md:w-32 justify-start md:justify-center"
-                                          onClick={() => {
-                                            setSelectedMappingProvider(integration.provider);
-                                            setMappingOpen(true);
-                                          }}
-                                        >
-                                          <Tags className="mr-2 h-4 w-4" />
-                                          Mapeo
-                                        </Button>
+                                        <div className="flex gap-2 w-full md:w-auto">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="flex-1 md:w-auto justify-start md:justify-center"
+                                                onClick={() => {
+                                                    setSelectedMappingProvider(integration.provider);
+                                                    setMappingOpen(true);
+                                                }}
+                                            >
+                                                <Tags className="mr-2 h-4 w-4" />
+                                                Mapeo
+                                            </Button>
+                                            {integration.provider === 'mercadolibre' && (
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="flex-1 md:w-auto justify-start md:justify-center"
+                                                    onClick={async () => {
+                                                        // Call preview endpoint
+                                                        // Ideally we show a loading state here or in a modal
+                                                        // For now, let's open the mapping dialog but trigger a specific preview fetch if needed
+                                                        // Or just add a dedicated button that fetches and shows a toast/modal
+                                                        try {
+                                                            const res = await apiClient.get(`/api/admin/tenants/${currentSlug}/integrations/${integration.provider}/preview`);
+                                                            // Show summary in toast for MVP
+                                                            const summary = (res as any).summary || {};
+                                                            toast.info(`Preview Sync: ${summary.total_found || 0} encontrados, ${summary.new_items || 0} nuevos.`);
+                                                        } catch (e) {
+                                                            toast.error("Error al obtener preview de sincronización.");
+                                                        }
+                                                    }}
+                                                >
+                                                    <Search className="mr-2 h-4 w-4" />
+                                                    Preview Sync
+                                                </Button>
+                                            )}
+                                        </div>
                                       )}
                                       <Button
                                         variant="outline"
