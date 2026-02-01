@@ -452,6 +452,19 @@ const PedidosPage = () => {
                     </table>
                   </div>
 
+                  {/* Dispatch Info */}
+                  {(selectedOrder as any).dispatch_email || (selectedOrder as any).dispatch_phone ? (
+                      <div className="space-y-2">
+                          <h3 className="text-sm font-medium text-blue-900 flex items-center gap-2">
+                              <Truck className="h-4 w-4"/> Datos de Despacho
+                          </h3>
+                          <div className="p-3 bg-blue-50 border border-blue-100 rounded-md text-sm text-blue-900">
+                              {(selectedOrder as any).dispatch_email && <p>Email: {(selectedOrder as any).dispatch_email}</p>}
+                              {(selectedOrder as any).dispatch_phone && <p>Tel: {(selectedOrder as any).dispatch_phone}</p>}
+                          </div>
+                      </div>
+                  ) : null}
+
                   {/* Internal Notes */}
                   <div className="space-y-2">
                       <h3 className="text-sm font-medium">Notas internas</h3>
