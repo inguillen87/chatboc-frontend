@@ -75,15 +75,17 @@ export const apiClient = {
 
   adminListOrders: async (tenantSlug: string, filters?: Record<string, any>): Promise<Order[]> => {
     const params = new URLSearchParams(filters);
-    return apiFetch<Order[]>(`/api/admin/tenants/${tenantSlug}/orders?${params.toString()}`, { tenantSlug });
+    // Guide: GET /api/orders
+    return apiFetch<Order[]>(`/api/orders?${params.toString()}`, { tenantSlug });
   },
 
   adminGetOrder: async (tenantSlug: string, orderId: string | number): Promise<Order> => {
-    return apiFetch<Order>(`/api/admin/tenants/${tenantSlug}/orders/${orderId}`, { tenantSlug });
+     // Guide implies /api/orders/{id} or similar standard REST
+    return apiFetch<Order>(`/api/orders/${orderId}`, { tenantSlug });
   },
 
   adminCreateOrder: async (tenantSlug: string, payload: any): Promise<Order> => {
-    return apiFetch<Order>(`/api/admin/tenants/${tenantSlug}/orders`, {
+    return apiFetch<Order>(`/api/orders`, {
       method: 'POST',
       body: payload,
       tenantSlug,
@@ -94,6 +96,8 @@ export const apiClient = {
     // Backend returns Object { "MercadoLibre": {...} }, we must transform to Array
     const rawData = await apiFetch<Record<string, any>>(`/api/admin/tenants/${tenantSlug}/integrations`, { tenantSlug });
 
+    if (!rawData) return [];
+
     return Object.entries(rawData).map(([provider, details]) => ({
       provider: provider.toLowerCase() as any,
       connected: details.connected,
@@ -103,6 +107,10 @@ export const apiClient = {
 
   adminConnectIntegration: async (tenantSlug: string, type: string): Promise<{ url: string }> => {
     return apiFetch<{ url: string }>(`/api/admin/tenants/${tenantSlug}/integrations/${type}/connect`, { tenantSlug });
+  },
+
+  adminPreviewIntegration: async (tenantSlug: string, type: string): Promise<any> => {
+    return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/integrations/${type}/preview`, { tenantSlug });
   },
 
   adminSyncIntegration: async (tenantSlug: string, type: string): Promise<any> => {
@@ -190,8 +198,9 @@ export const apiClient = {
   },
 
   adminUpdateOrder: async (tenantSlug: string, orderId: string | number, data: { status: string }) => {
-    return apiFetch<Order>(`/api/admin/tenants/${tenantSlug}/orders/${orderId}`, {
-      method: 'PUT',
+    // Guide: PATCH /api/orders/{order_id}
+    return apiFetch<Order>(`/api/orders/${orderId}`, {
+      method: 'PATCH',
       tenantSlug,
       body: data,
     });
@@ -302,13 +311,13 @@ export const apiClient = {
   // --- Widget & Theme Methods ---
 
   getChatTheme: async (tenantSlug: string): Promise<any> => {
-    // Target Endpoint: GET /api/admin/tenants/<slug>/config
-    return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/config`, { tenantSlug });
+    // Guide: GET /api/tenant/config
+    return apiFetch<any>(`/api/tenant/config`, { tenantSlug });
   },
 
   updateChatTheme: async (tenantSlug: string, data: any): Promise<any> => {
-    // Target Endpoint: PUT /api/admin/tenants/<slug>/config
-    return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/config`, {
+    // Guide: PUT /api/tenant/config
+    return apiFetch<any>(`/api/tenant/config`, {
       method: 'PUT',
       body: data,
       tenantSlug
@@ -316,11 +325,11 @@ export const apiClient = {
   },
 
   getFulfillmentConfig: async (tenantSlug: string): Promise<any> => {
-    return apiFetch<any>(`/api/fulfillment-config`, { tenantSlug });
+    return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/config`, { tenantSlug });
   },
 
   updateFulfillmentConfig: async (tenantSlug: string, data: any): Promise<any> => {
-    return apiFetch<any>(`/api/fulfillment-config`, {
+    return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/config`, {
       method: 'PUT',
       body: data,
       tenantSlug
@@ -335,6 +344,7 @@ export const apiClient = {
   },
 
   adminGetContactHistory: async (tenantSlug: string, contactId: string): Promise<any> => {
-    return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/contacts/${contactId}/history`, { tenantSlug });
+    // Guide: GET /crm/contacts/{contact_id}
+    return apiFetch<any>(`/crm/contacts/${contactId}`, { tenantSlug });
   },
 };

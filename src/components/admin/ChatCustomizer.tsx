@@ -12,7 +12,6 @@ import { useTenant } from '@/context/TenantContext';
 import { toast } from 'sonner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { apiClient } from '@/api/client';
-import { useDebounce } from '@/hooks/useDebounce'; // Assuming this hook exists, or I will implement a local one
 
 interface ChatCustomizerProps {
   initialConfig?: any;
@@ -404,7 +403,7 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
                 </div>
             </CardContent>
             <CardFooter>
-                <Button className="w-full" onClick={handleSave} disabled={saving}>
+                <Button className="w-full" onClick={handleManualSave} disabled={saving}>
                     {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Guardar Personalización
                 </Button>

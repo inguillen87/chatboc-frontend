@@ -286,7 +286,7 @@ const PedidosPage = () => {
              </div>
           ) : (
             filteredOrders.map(order => {
-              const ChannelIcon = CHANNEL_ICONS[(order as any).channel] || Globe;
+              const ChannelIcon = CHANNEL_ICONS[order.channel || 'web'] || Globe;
               const isSelected = selectedOrder?.id === order.id;
 
               return (
@@ -308,7 +308,7 @@ const PedidosPage = () => {
                   <CardContent className="p-4">
                     <div className="flex justify-between items-start mb-2">
                       <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="px-1.5 h-6 w-6 flex items-center justify-center rounded-full border-muted-foreground/30" title={CHANNEL_LABELS[(order as any).channel]}>
+                          <Badge variant="outline" className="px-1.5 h-6 w-6 flex items-center justify-center rounded-full border-muted-foreground/30" title={CHANNEL_LABELS[order.channel || 'web']}>
                               <ChannelIcon className="h-3 w-3" />
                           </Badge>
                           <span className="font-mono text-sm font-bold">#{order.id}</span>
@@ -324,7 +324,7 @@ const PedidosPage = () => {
                                 {format(new Date(order.created_at), "d MMM, HH:mm", { locale: es })}
                             </div>
                             <div className="text-xs text-muted-foreground mt-1">
-                                {order.items.length} items • {(order as any).customerName || 'Cliente Final'}
+                                {order.items.length} items • {order.customerName || order.contact_name || 'Cliente Final'}
                             </div>
                         </div>
                         <div className="font-bold text-lg">
@@ -352,16 +352,16 @@ const PedidosPage = () => {
                         </div>
                         <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
                             Pedido #{selectedOrder.id}
-                            {(selectedOrder as any).externalId && (
+                            {selectedOrder.externalId && (
                                 <Badge variant="outline" className="text-xs font-normal font-mono">
-                                    Ref: {(selectedOrder as any).externalId}
+                                    Ref: {selectedOrder.externalId}
                                 </Badge>
                             )}
                         </CardTitle>
                         <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1">
-                             Canal: {CHANNEL_LABELS[(selectedOrder as any).channel] || 'Web'}
-                             {(selectedOrder as any).externalUrl && (
-                                 <a href={(selectedOrder as any).externalUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-0.5 ml-2">
+                             Canal: {CHANNEL_LABELS[selectedOrder.channel || 'web'] || 'Web'}
+                             {selectedOrder.externalUrl && (
+                                 <a href={selectedOrder.externalUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-0.5 ml-2">
                                      (Ver original <ExternalLink className="h-3 w-3"/>)
                                  </a>
                              )}
@@ -403,9 +403,9 @@ const PedidosPage = () => {
                       <div className="space-y-1">
                           <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Cliente</h3>
                           <div className="p-3 border rounded-md bg-card">
-                              <p className="font-medium">{(selectedOrder as any).customerName || 'Consumidor Final'}</p>
-                              <p className="text-sm text-muted-foreground">{(selectedOrder as any).customerPhone || 'Sin teléfono'}</p>
-                              <p className="text-sm text-muted-foreground">{(selectedOrder as any).customerEmail || 'Sin email'}</p>
+                              <p className="font-medium">{selectedOrder.customerName || selectedOrder.contact_name || 'Consumidor Final'}</p>
+                              <p className="text-sm text-muted-foreground">{selectedOrder.customerPhone || 'Sin teléfono'}</p>
+                              <p className="text-sm text-muted-foreground">{selectedOrder.customerEmail || 'Sin email'}</p>
                           </div>
                       </div>
 
@@ -431,11 +431,11 @@ const PedidosPage = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {selectedOrder.items.map((item, idx) => (
+                        {(selectedOrder.items || []).map((item, idx) => (
                           <tr key={idx} className="border-t last:border-0">
                             <td className="p-3">
                                 <div className="font-medium">{item.name}</div>
-                                <div className="text-xs text-muted-foreground">SKU: {(item as any).sku || 'N/A'}</div>
+                                <div className="text-xs text-muted-foreground">SKU: {item.sku || 'N/A'}</div>
                             </td>
                             <td className="p-3 text-right">{item.quantity}</td>
                             <td className="p-3 text-right">${item.price.toLocaleString()}</td>
@@ -453,14 +453,14 @@ const PedidosPage = () => {
                   </div>
 
                   {/* Dispatch Info */}
-                  {(selectedOrder as any).dispatch_email || (selectedOrder as any).dispatch_phone ? (
+                  {selectedOrder.dispatch_email || selectedOrder.dispatch_phone ? (
                       <div className="space-y-2">
                           <h3 className="text-sm font-medium text-blue-900 flex items-center gap-2">
                               <Truck className="h-4 w-4"/> Datos de Despacho
                           </h3>
                           <div className="p-3 bg-blue-50 border border-blue-100 rounded-md text-sm text-blue-900">
-                              {(selectedOrder as any).dispatch_email && <p>Email: {(selectedOrder as any).dispatch_email}</p>}
-                              {(selectedOrder as any).dispatch_phone && <p>Tel: {(selectedOrder as any).dispatch_phone}</p>}
+                              {selectedOrder.dispatch_email && <p>Email: {selectedOrder.dispatch_email}</p>}
+                              {selectedOrder.dispatch_phone && <p>Tel: {selectedOrder.dispatch_phone}</p>}
                           </div>
                       </div>
                   ) : null}
@@ -469,7 +469,7 @@ const PedidosPage = () => {
                   <div className="space-y-2">
                       <h3 className="text-sm font-medium">Notas internas</h3>
                       <div className="p-3 bg-yellow-50 border border-yellow-100 rounded-md text-sm text-yellow-900">
-                          {(selectedOrder as any).notes || "Sin notas adicionales."}
+                          {selectedOrder.notes || "Sin notas adicionales."}
                       </div>
                   </div>
 

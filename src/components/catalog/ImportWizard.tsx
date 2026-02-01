@@ -30,15 +30,11 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
     if (!file) return;
     setLoading(true);
     try {
-      const res = await importService.uploadFile(tenantId, file, processor, effectiveSlug || undefined);
-      setUploadId(res.upload_id);
-
-      // Poll for preview or just get it if sync (backend depends)
-      // Assuming backend processes fast enough or we poll.
-      // For MVP we assume the POST triggers process or we call getPreview immediately.
-      // Let's call getPreview:
-      const previewData = await importService.getPreview(res.upload_id, effectiveSlug || undefined);
+      // Step 1: Stateless Upload & Preview
+      const previewData = await importService.uploadFile(tenantId, file, processor, effectiveSlug || undefined);
+      // We receive the preview directly.
       setPreview(previewData);
+      setUploadId(previewData.upload_id || Date.now()); // Fallback ID if not provided, just for state tracking
       setStep(2);
     } catch (e) {
       console.error(e);
@@ -49,10 +45,13 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
   };
 
   const handleCommit = async () => {
-    if (!uploadId) return;
+    if (!file) return;
     setLoading(true);
     try {
-      const res = await importService.commitImport(uploadId, {}, effectiveSlug || undefined);
+      // Step 2: Stateless Commit (Send file again)
+      // Note: We ignore overrides for now as the backend stateless flow typically re-processes the file.
+      // If we supported inline edits in the future, we'd send the 'preview.items_preview' as JSON instead of the file.
+      const res = await importService.commitImport(tenantId, file, processor, effectiveSlug || undefined);
       setResult(res);
       setStep(3);
     } catch (e) {

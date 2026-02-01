@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { getErrorMessage } from '@/utils/api';
 import { apiClient } from '@/api/client';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
+import { Order } from '@/types/unified';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -22,34 +23,25 @@ import {
 } from '@/components/ui/select';
 
 // ---------- Tipos ----------
-interface Pedido {
-  id: number;
-  nro_pedido: string;
-  asunto: string;
-  estado: string;
-  detalles: Array<{ cantidad: number; unidad: string; nombre: string; sku?: string; precio_str?: string }>;
-  monto_total: number | null;
-  fecha_creacion: string;
-  nombre_cliente: string | null;
-  email_cliente: string | null;
-  telefono_cliente: string | null;
-  rubro: string;
-}
+// Using Order from unified types
 
-type CategorizedPedidos = { [estado: string]: Pedido[] };
+type CategorizedPedidos = { [status: string]: Order[] };
 
 // ---------- Constantes de estado ----------
 const PEDIDO_ESTADOS_INFO: Record<string, { label: string; style: string }> = {
-  pendiente_confirmacion: { label: 'Pend. Confirmación', style: 'bg-orange-500/20 text-orange-600 border-orange-400' }, // Nuevo estado
-  pendiente: { label: 'Pendiente Pago', style: 'bg-yellow-500/20 text-yellow-600 border-yellow-400' }, // Asumimos que 'pendiente' es pendiente de pago
+  nuevo: { label: 'Nuevo', style: 'bg-blue-100 text-blue-800' },
+  confirmed: { label: 'Confirmado', style: 'bg-indigo-100 text-indigo-800' },
+  paid: { label: 'Pagado', style: 'bg-green-100 text-green-800' },
+  shipped: { label: 'Enviado', style: 'bg-purple-100 text-purple-800' },
+  delivered: { label: 'Entregado', style: 'bg-emerald-100 text-emerald-800' },
+  cancelled: { label: 'Cancelado', style: 'bg-red-100 text-red-800' },
+  pending: { label: 'Pendiente', style: 'bg-yellow-100 text-yellow-800' },
+  // Legacy mappings fallback
+  pendiente_confirmacion: { label: 'Pend. Confirmación', style: 'bg-orange-500/20 text-orange-600 border-orange-400' },
   en_proceso: { label: 'En Proceso', style: 'bg-blue-500/20 text-blue-600 border-blue-400' },
-  enviado: { label: 'Enviado', style: 'bg-purple-500/20 text-purple-600 border-purple-400' },
-  entregado: { label: 'Entregado', style: 'bg-green-500/20 text-green-600 border-green-400' },
-  satisfecho: { label: 'Satisfecho', style: 'bg-emerald-500/20 text-emerald-600 border-emerald-400' },
-  cancelado: { label: 'Cancelado', style: 'bg-red-500/20 text-red-600 border-red-400' },
 };
 
-const ESTADOS_ORDEN_PRIORIDAD = ['pendiente_confirmacion', 'pendiente', 'en_proceso', 'enviado', 'entregado', 'satisfecho', 'cancelado'];
+const ESTADOS_ORDEN_PRIORIDAD = ['nuevo', 'confirmed', 'paid', 'pending', 'shipped', 'delivered', 'cancelled'];
 
 // ---------- Componentes utilitarios ----------
 const SkeletonCard = () => (
@@ -66,7 +58,8 @@ const SkeletonCard = () => (
   </Card>
 );
 
-const PedidoCard: FC<{ pedido: Pedido; onSelect: (p: Pedido) => void; selected: boolean; timezone: string; locale: string }> = ({ pedido, onSelect, selected, timezone, locale }) => {
+const PedidoCard: FC<{ pedido: Order; onSelect: (p: Order) => void; selected: boolean; timezone: string; locale: string }> = ({ pedido, onSelect, selected, timezone, locale }) => {
+  const title = pedido.notes || `Pedido de ${(pedido as any).customerName || 'Cliente'}`;
   return (
     <div
       onClick={() => onSelect(pedido)}
@@ -77,38 +70,38 @@ const PedidoCard: FC<{ pedido: Pedido; onSelect: (p: Pedido) => void; selected: 
       )}
     >
       <div className="flex justify-between items-center mb-1">
-        <span className="font-semibold text-primary text-sm">#{pedido.nro_pedido}</span>
-        <Badge className={cn('text-xs border', PEDIDO_ESTADOS_INFO[pedido.estado]?.style)}>
-          {PEDIDO_ESTADOS_INFO[pedido.estado]?.label || pedido.estado}
+        <span className="font-semibold text-primary text-sm">#{pedido.id}</span>
+        <Badge className={cn('text-xs border', PEDIDO_ESTADOS_INFO[pedido.status]?.style)}>
+          {PEDIDO_ESTADOS_INFO[pedido.status]?.label || pedido.status}
         </Badge>
       </div>
-      <p className="font-medium text-foreground truncate" title={pedido.asunto}>{pedido.asunto}</p>
+      <p className="font-medium text-foreground truncate" title={title}>{title}</p>
       <p className="text-xs text-muted-foreground truncate">
-        {fmtAR(pedido.fecha_creacion)}
+        {fmtAR(pedido.created_at)}
       </p>
     </div>
   );
 };
 
-const PedidoDetail: FC<{ pedido: Pedido; onClose: () => void; onStatusChange: (newStatus: string) => void; timezone: string; locale: string }> = ({ pedido, onClose, onStatusChange, timezone, locale }) => {
+const PedidoDetail: FC<{ pedido: Order; onClose: () => void; onStatusChange: (newStatus: string) => void; timezone: string; locale: string }> = ({ pedido, onClose, onStatusChange, timezone, locale }) => {
   return (
     <div className="bg-card rounded-lg p-4 border border-border shadow-md mt-2">
       <div className="flex justify-between items-center mb-3">
-        <h3 className="text-lg font-bold text-foreground">Detalle #{pedido.nro_pedido}</h3>
+        <h3 className="text-lg font-bold text-foreground">Detalle #{pedido.id}</h3>
         <Button variant="ghost" size="icon" onClick={onClose} aria-label="Cerrar detalle">
           <X className="h-5 w-5" />
         </Button>
       </div>
       <div className="text-sm space-y-1 mb-4">
-        <p><strong>Cliente:</strong> {pedido.nombre_cliente || 'N/A'}</p>
-        <p><strong>Email:</strong> {pedido.email_cliente || 'N/A'}</p>
-        <p><strong>Teléfono:</strong> {pedido.telefono_cliente || 'N/A'}</p>
-        <p><strong>Fecha:</strong> {fmtAR(pedido.fecha_creacion)}</p>
-        <p><strong>Rubro:</strong> <span className="capitalize">{pedido.rubro}</span></p>
+        <p><strong>Cliente:</strong> {pedido.customerName || (pedido as any).contact_name || 'N/A'}</p>
+        <p><strong>Email:</strong> {pedido.customerEmail || 'N/A'}</p>
+        <p><strong>Teléfono:</strong> {pedido.customerPhone || 'N/A'}</p>
+        <p><strong>Fecha:</strong> {fmtAR(pedido.created_at)}</p>
+        {/* <p><strong>Rubro:</strong> <span className="capitalize">{pedido.rubro}</span></p> */}
       </div>
       <div className="mt-4">
         <Select
-          defaultValue={pedido.estado}
+          defaultValue={pedido.status}
           onValueChange={(value) => onStatusChange(value)}
         >
           <SelectTrigger>
@@ -123,20 +116,20 @@ const PedidoDetail: FC<{ pedido: Pedido; onClose: () => void; onStatusChange: (n
           </SelectContent>
         </Select>
       </div>
-      {pedido.detalles && pedido.detalles.length > 0 && (
+      {pedido.items && pedido.items.length > 0 && (
         <div className="mb-4">
           <h4 className="font-semibold mb-1">Items</h4>
           <ul className="list-disc list-inside space-y-1 text-sm">
-            {pedido.detalles.map((item, idx) => (
+            {(pedido.items || []).map((item, idx) => (
               <li key={idx}>
-                {item.cantidad} {item.unidad} de {item.nombre}
+                {item.quantity} x {item.name}
               </li>
             ))}
           </ul>
         </div>
       )}
-      {pedido.monto_total !== null && (
-        <p className="font-bold text-right">Total: ${pedido.monto_total.toFixed(2)}</p>
+      {pedido.total !== null && (
+        <p className="font-bold text-right">Total: ${pedido.total.toFixed(2)}</p>
       )}
     </div>
   );
@@ -144,10 +137,10 @@ const PedidoDetail: FC<{ pedido: Pedido; onClose: () => void; onStatusChange: (n
 
 const PedidoCategoryAccordion: FC<{
   estado: string;
-  pedidos: Pedido[];
+  pedidos: Order[];
   isOpen: boolean;
   onToggle: () => void;
-  onSelect: (p: Pedido) => void;
+  onSelect: (p: Order) => void;
   selectedPedidoId: number | null;
   timezone: string;
   locale: string;
@@ -274,7 +267,7 @@ export default function PedidosPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [openCategories, setOpenCategories] = useState<Set<string>>(new Set());
-  const [selectedPedidoId, setSelectedPedidoId] = useState<number | null>(null);
+  const [selectedPedidoId, setSelectedPedidoId] = useState<number | string | null>(null);
 
   const handleLogout = () => {
     safeLocalStorage.clear();
@@ -290,14 +283,15 @@ export default function PedidosPage() {
     }
 
     try {
-      const data = await apiClient.adminListOrders(tenantSlug);
+      // Pass { status: 'all' } to get everything, similar to Pyme page
+      const data = await apiClient.adminListOrders(tenantSlug, { status: 'all' });
       if (Array.isArray(data)) {
         const categorized = data.reduce<CategorizedPedidos>((acc, p) => {
-          acc[p.estado] = acc[p.estado] ? [...acc[p.estado], p] : [p];
+          acc[p.status] = acc[p.status] ? [...acc[p.status], p] : [p];
           return acc;
         }, {});
         setCategorizedPedidos(categorized);
-        setOpenCategories(new Set(Object.keys(categorized).filter((e) => !['satisfecho', 'cancelado'].includes(e))));
+        setOpenCategories(new Set(Object.keys(categorized).filter((e) => !['delivered', 'cancelled', 'satisfecho', 'cancelado'].includes(e))));
       } else {
         console.error('Error: La respuesta de la API de pedidos no es un array', data);
         setCategorizedPedidos({});
@@ -334,11 +328,11 @@ export default function PedidosPage() {
     });
   };
 
-  const handleSelectPedido = (pedido: Pedido) => {
+  const handleSelectPedido = (pedido: Order) => {
     setSelectedPedidoId((id) => (id === pedido.id ? null : pedido.id));
   };
 
-  const handleStatusChange = async (pedidoId: number, newStatus: string) => {
+  const handleStatusChange = async (pedidoId: number | string, newStatus: string) => {
     const tenantSlug = safeLocalStorage.getItem('tenantSlug');
     if (!tenantSlug) {
       setError('No se pudo identificar al tenant.');
