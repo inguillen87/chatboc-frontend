@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Loader2, ShoppingBag, Clock, Star, Gift } from 'lucide-react';
-import { apiFetch } from '@/utils/api';
+import { apiClient } from '@/api/client';
 import { formatCurrency } from '@/utils/currency';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -43,28 +43,34 @@ const CustomerHistoryPanel: React.FC<CustomerHistoryProps> = ({ customerId, tena
       if (!customerId) return;
       setLoading(true);
       try {
-        // Mocking the endpoint for now as backend implementation is parallel
-        // Ideally: await apiFetch(`/api/tenants/${tenantSlug}/crm/customers/${customerId}/context`);
+        const response = await apiClient.adminGetContactHistory(tenantSlug, customerId);
 
-        // Simulating API delay and response
-        await new Promise(r => setTimeout(r, 800));
-        setData({
+        // Transform backend response to UI model if necessary, or use directly if backend matches
+        // Assuming backend returns a compatible structure or we map it here.
+        // Based on "Jules - Backend" prompt, response includes { snapshot, orders, interactions }
+        // We map to our internal CustomerContext interface.
+
+        const context: CustomerContext = {
             summary: {
-                total_spent: 154000,
-                total_orders: 5,
-                loyalty_points: 1200,
-                avg_ticket: 30800,
-                last_order_date: new Date().toISOString()
+                total_spent: response.snapshot?.total_spent || 0,
+                total_orders: response.orders?.length || 0,
+                loyalty_points: response.contact?.loyalty_points || 0,
+                avg_ticket: response.snapshot?.avg_ticket || 0,
+                last_order_date: response.orders?.[0]?.created_at || null
             },
-            recent_orders: [
-                { id: '1024', date: new Date().toISOString(), total: 45000, status: 'delivered', items_summary: '2x Malbec Reserva, 1x Aceite Oliva' },
-                { id: '998', date: new Date(Date.now() - 86400000 * 10).toISOString(), total: 22000, status: 'delivered', items_summary: '1x Caja Mix Varietales' }
-            ],
+            recent_orders: (response.orders || []).slice(0, 5).map((o: any) => ({
+                id: o.id,
+                date: o.created_at,
+                total: parseFloat(o.total || 0),
+                status: o.status,
+                items_summary: o.items?.map((i: any) => `${i.qty}x ${i.title}`).join(', ') || 'Sin items'
+            })),
             preferences: {
-                top_categories: ['Vinos Tintos', 'Gourmet'],
-                favorite_products: ['Malbec Reserva', 'Queso Brie']
+                top_categories: response.snapshot?.top_categories || [],
+                favorite_products: response.snapshot?.favorite_products || []
             }
-        });
+        };
+        setData(context);
 
       } catch (error) {
         console.error("Failed to load customer history", error);
