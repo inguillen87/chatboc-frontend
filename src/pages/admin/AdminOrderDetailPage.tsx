@@ -38,11 +38,14 @@ export default function AdminOrderDetailPage() {
   const loadDispatchInfo = async () => {
       try {
           if (!currentSlug) return;
-          const settings = await apiClient.adminGetNotificationSettings(currentSlug);
-          setDispatchInfo({
-              email: settings?.dispatch_email || settings?.notification_settings?.dispatch_email,
-              phone: settings?.dispatch_phone || settings?.notification_settings?.dispatch_phone
-          });
+          // Use getFulfillmentConfig to get the authoritative dispatch settings
+          const settings = await apiClient.getFulfillmentConfig(currentSlug);
+          if (settings && settings.tenant) {
+              setDispatchInfo({
+                  email: settings.tenant.dispatch_email,
+                  phone: settings.tenant.dispatch_phone
+              });
+          }
       } catch (e) {
           console.warn("Could not load dispatch info", e);
       }
