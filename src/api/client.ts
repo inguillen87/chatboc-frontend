@@ -75,7 +75,7 @@ export const apiClient = {
 
   adminListOrders: async (tenantSlug: string, filters?: Record<string, any>): Promise<Order[]> => {
     const params = new URLSearchParams(filters);
-    // Guide: GET /api/orders
+    // Guide: GET /api/orders (alias for admin order list)
     return apiFetch<Order[]>(`/api/orders?${params.toString()}`, { tenantSlug });
   },
 
