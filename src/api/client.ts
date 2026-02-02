@@ -333,11 +333,14 @@ export const apiClient = {
   },
 
   getFulfillmentConfig: async (tenantSlug: string): Promise<any> => {
-    return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/config`, { tenantSlug });
+    // New specialized endpoint for fulfillment settings
+    return apiFetch<any>(`/api/fulfillment-config`, { tenantSlug });
   },
 
   updateFulfillmentConfig: async (tenantSlug: string, data: any): Promise<any> => {
-    return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/config`, {
+     // The endpoint expects the simplified payload structure directly
+     // Payload: { dispatch_email, dispatch_phone, send_buyer_email, ... }
+    return apiFetch<any>(`/api/fulfillment-config`, {
       method: 'PUT',
       body: data,
       tenantSlug

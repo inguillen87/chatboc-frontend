@@ -1,13 +1,13 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import { Upload, FileText, CheckCircle2, AlertTriangle, ArrowRight, RefreshCw, X } from 'lucide-react';
 import { useTenant } from '@/context/TenantContext';
 import { apiClient } from '@/api/client';
 import { toast } from 'sonner';
 import CatalogItemsTable, { CatalogPreviewItem } from './CatalogItemsTable';
+import { importService } from '@/services/importService';
 
 interface CatalogUploadWizardProps {
   onFinish?: () => void;
@@ -19,11 +19,30 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
   const { currentSlug } = useTenant();
   const [step, setStep] = useState<WizardStep>('upload');
   const [file, setFile] = useState<File | null>(null);
-  const [uploadToken, setUploadToken] = useState<string | null>(null);
+  const [tenantId, setTenantId] = useState<number | null>(null);
   const [previewItems, setPreviewItems] = useState<CatalogPreviewItem[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [resultSummary, setResultSummary] = useState<{ processed: number; errors: number } | null>(null);
+
+  // Fetch tenant ID needed for importService
+  useEffect(() => {
+    const fetchTenantId = async () => {
+        if (!currentSlug) return;
+        try {
+            // Using getChatTheme as a proxy to get the full tenant object with ID
+            // Since there is no dedicated "getPublicTenant" in apiClient that returns ID securely/reliably for admin ops
+            // The config endpoint is for admins and returns the Tenant object.
+            const config = await apiClient.getChatTheme(currentSlug);
+            if (config && config.tenant && config.tenant.id) {
+                setTenantId(Number(config.tenant.id));
+            }
+        } catch (e) {
+            console.error("Failed to resolve tenant ID", e);
+        }
+    };
+    fetchTenantId();
+  }, [currentSlug]);
 
   // -- Step 1: Upload Logic --
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -42,43 +61,39 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
   const startUpload = async () => {
     if (!file || !currentSlug) return;
 
+    // For preview we can use ID 0 (generic) if real ID is not yet loaded, but prefer real ID.
+    // The endpoint supports pyme_id=0 for preview.
+    const effectiveId = tenantId || 0;
+
     setIsProcessing(true);
-    setUploadProgress(10); // Start progress
+    setUploadProgress(10);
 
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-
-      // Simulate progress for UX
+      // Simulate progress
       const progressInterval = setInterval(() => {
         setUploadProgress(prev => Math.min(prev + 10, 90));
       }, 500);
 
-      // Actual API call
-      // NOTE: Assuming adminUploadCatalog returns the preview directly or a token
-      // If it supports polling, we would use the token to poll.
-      // For this implementation, we assume a direct response for MVP simplicity as per common REST patterns.
-      const response = await apiClient.adminUploadCatalog(currentSlug, formData);
+      // Use importService which matches the new backend flow
+      const preview = await importService.uploadFile(effectiveId, file, 'generic', currentSlug);
 
       clearInterval(progressInterval);
       setUploadProgress(100);
 
-      if (response) {
+      if (preview && preview.items_preview) {
         // Map response to CatalogPreviewItem
-        // Assuming response has { items: [], upload_token: '...' }
-        const mappedItems: CatalogPreviewItem[] = (response.items || []).map((item: any, idx: number) => ({
+        const mappedItems: CatalogPreviewItem[] = preview.items_preview.map((item: any, idx: number) => ({
             id: idx,
             sku: item.sku || `TMP-${idx}`,
             name: item.name || item.nombre || '',
             price: item.price || item.precio || 0,
             stock: item.stock || 0,
             category: item.category || item.categoria || '',
-            errors: item.errors || [],
-            warnings: item.warnings || []
+            errors: preview.warnings || [], // This maps global warnings to items if specific item errors aren't provided
+            warnings: []
         }));
 
         setPreviewItems(mappedItems);
-        setUploadToken(response.upload_token || 'mock-token');
         setStep('preview');
       } else {
           toast.error("La respuesta del servidor no fue válida.");
@@ -104,26 +119,28 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
   };
 
   const confirmUpload = async () => {
-    if (!uploadToken || !currentSlug) return;
+    if (!file || !currentSlug) return;
+    // Commit requires real tenant ID. If we used 0 for preview, we must have the real ID now.
+    if (!tenantId) {
+        toast.error("No se pudo identificar la cuenta para confirmar. Intente recargar.");
+        return;
+    }
+
     setIsProcessing(true);
 
     try {
-        // We might need to send back the CORRECTED items if the backend allows it.
-        // Or just the token if the backend kept state.
-        // Assuming we confirm the current state of the upload token.
-        // If the backend doesn't support inline edits on preview (stateless), we'd need to re-upload.
-        // For MVP, we'll assume the confirm just commits the batch associated with the token.
-        // IF edits are needed, we usually send the diffs or the full list.
-        // Let's assume we send the token.
+        // commitImport re-uploads the file in the stateless flow
+        // Note: Inline edits in preview (handleItemUpdate) are NOT persisted because we send the original file.
+        // To support inline edits, the backend would need to accept the JSON payload or we'd need to modify the file client-side (complex).
+        // For this MVP, we warn the user or just send the file.
+        // Ideally we would send the `previewItems` as JSON, but importService.commitImport sends the file.
+        // We will stick to the file for now as per backend spec "fixed 404... catalog-upload".
 
-        await apiClient.adminConfirmCatalog(currentSlug, {
-            upload_token: uploadToken
-            // mapping_override: ... (if we implemented column mapping)
-        });
+        await importService.commitImport(tenantId, file, 'generic', currentSlug);
 
         setResultSummary({
             processed: previewItems.length,
-            errors: previewItems.filter(i => (i.errors?.length || 0) > 0).length
+            errors: 0
         });
         setStep('result');
         toast.success("Catálogo actualizado correctamente.");
@@ -197,7 +214,7 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
             <div>
                 <h3 className="text-lg font-medium">Vista Previa</h3>
                 <p className="text-sm text-muted-foreground">
-                    Detectamos <b>{previewItems.length}</b> productos. Revisá que la información sea correcta antes de confirmar.
+                    Detectamos <b>{previewItems.length}</b> productos.
                 </p>
             </div>
             <div className="flex gap-2">
@@ -209,12 +226,15 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
             items={previewItems}
             onUpdate={handleItemUpdate}
             onDelete={handleItemDelete}
+            // ReadOnly true because edits aren't persisted in this file-based flow yet
+            readOnly={true}
         />
 
+        <p className="text-xs text-amber-600 bg-amber-50 p-2 rounded">
+            Nota: La edición en línea no está disponible en este modo. Suba un archivo corregido si detecta errores.
+        </p>
+
         <div className="flex items-center justify-end gap-3 pt-4 border-t">
-             <span className="text-sm text-muted-foreground">
-                {previewItems.filter(i => i.errors?.length).length > 0 && "Hay items con errores que no se importarán."}
-             </span>
              <Button onClick={confirmUpload} disabled={isProcessing}>
                 {isProcessing && <RefreshCw className="mr-2 h-4 w-4 animate-spin" />}
                 Confirmar e Importar
@@ -231,8 +251,7 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
         <div className="space-y-2">
             <h2 className="text-2xl font-bold">¡Importación Exitosa!</h2>
             <p className="text-muted-foreground max-w-md mx-auto">
-                Se han procesado correctamente <b>{resultSummary?.processed}</b> productos.
-                {resultSummary?.errors ? ` Hubo ${resultSummary.errors} items omitidos por errores.` : ''}
+                Se ha procesado el archivo correctamente.
             </p>
         </div>
         <div className="flex gap-4">

@@ -52,14 +52,13 @@ const OrderDispatchSettings = () => {
     if (!currentSlug) return;
     setSaving(true);
     try {
+        // Updated payload structure for the new endpoint
         const payload = {
-            tenant: {
-                dispatch_email: dispatchEmail,
-                dispatch_phone: dispatchPhone,
-                send_buyer_email: sendBuyerEmail,
-                send_dispatch_email: sendDispatchEmail,
-                send_dispatch_whatsapp: sendDispatchWhatsapp
-            }
+            dispatch_email: dispatchEmail,
+            dispatch_phone: dispatchPhone,
+            send_buyer_email: sendBuyerEmail,
+            send_dispatch_email: sendDispatchEmail,
+            send_dispatch_whatsapp: sendDispatchWhatsapp
         };
         await apiClient.updateFulfillmentConfig(currentSlug, payload);
         toast.success("Configuración de despacho guardada.");
