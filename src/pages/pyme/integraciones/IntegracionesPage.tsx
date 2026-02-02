@@ -31,6 +31,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import IntegrationPreviewDialog from './IntegrationPreviewDialog';
 
 const INTEGRATION_LOGOS: Record<string, string> = {
   mercadolibre: "https://http2.mlstatic.com/frontend-assets/ml-web-navigation/ui-navigation/5.21.22/mercadolibre/logo__large_plus.png",
@@ -330,11 +331,11 @@ const IntegracionesPage = () => {
                                                             setSelectedMappingProvider(selectedChannel);
                                                             setMappingOpen(true);
                                                         }}>
-                                                            <Tags className="mr-2 h-4 w-4" /> Ver Mapeo
+                                                            <Eye className="mr-2 h-4 w-4" /> Previsualizar Sync
                                                         </Button>
                                                         <Button variant="outline" onClick={() => handleSync(selectedChannel)} disabled={!!syncing}>
                                                             {syncing === selectedChannel ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <RefreshCw className="mr-2 h-4 w-4"/>}
-                                                            Sincronizar
+                                                            Sincronizar Ahora
                                                         </Button>
                                                     </div>
                                                 )}
@@ -423,15 +424,11 @@ const IntegracionesPage = () => {
       {/* Mapping Dialog (Reused) */}
       <Dialog open={mappingOpen} onOpenChange={setMappingOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto sm:max-w-[800px]">
-          <DialogHeader>
-            <DialogTitle className="capitalize">Mapeo de {selectedMappingProvider}</DialogTitle>
-            <DialogDescription>
-              Verifica cómo se verán tus productos importados.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-8 text-center text-muted-foreground">
-             Funcionalidad de mapeo detallado en construcción.
-          </div>
+          <IntegrationPreviewDialog
+             provider={selectedMappingProvider}
+             tenantSlug={currentSlug}
+             onClose={() => setMappingOpen(false)}
+          />
         </DialogContent>
       </Dialog>
     </div>
