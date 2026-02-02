@@ -9,12 +9,16 @@ export interface ImportPreview {
 
 export const importService = {
   // Step 1: Upload & Preview (Document Intelligence)
-  uploadFile: async (tenantId: number, file: File, processorSlug: string = 'generic', tenantSlug?: string): Promise<ImportPreview & { upload_id?: number }> => {
+  uploadFile: async (tenantId: number | null | undefined, file: File, processorSlug: string = 'generic', tenantSlug?: string): Promise<ImportPreview & { upload_id?: number }> => {
     const formData = new FormData();
     formData.append('file', file);
+
+    // Use generic ID 0 if tenantId is not resolved (e.g. initial setup) as per backend v2 specs
+    const effectiveId = tenantId || 0;
+
     // Guide: POST /api/pymes/{pyme_id}/document-intelligence/preview
     // Response: { columns: [], rows: [], ... } which maps to ImportPreview
-    const response = await apiFetch<any>(`/api/pymes/${tenantId}/document-intelligence/preview`, {
+    const response = await apiFetch<any>(`/api/pymes/${effectiveId}/document-intelligence/preview`, {
       method: 'POST',
       body: formData,
       tenantSlug,
