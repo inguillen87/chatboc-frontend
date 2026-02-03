@@ -30,7 +30,10 @@ interface UseSurveyAdminResult {
   saveSurvey: (payload: SurveyDraftPayload) => Promise<SurveyAdmin>;
   createSurvey: (payload: SurveyDraftPayload) => Promise<SurveyAdmin>;
   publishSurvey: (id?: number) => Promise<SurveyAdmin>;
-  seedSurvey: (id: number, cantidad: number) => Promise<{ creadas: number }>;
+  seedSurvey: (
+    id: number,
+    payload: { cantidad: number; reset?: boolean; geo_profile_key?: string; municipality_label?: string },
+  ) => Promise<{ creadas: number; reset?: { respuestas?: number; comentarios?: number } }>;
   deleteSurvey: (id: number) => Promise<void>;
   isSaving: boolean;
   isPublishing: boolean;
@@ -100,8 +103,14 @@ export function useSurveyAdmin(options: UseSurveyAdminOptions = {}): UseSurveyAd
   });
 
   const seedMutation = useMutation({
-    mutationFn: async ({ id, cantidad }: { id: number; cantidad: number }) => {
-      const result = await adminSeedSurvey(id, { cantidad }, adminRequestOptions);
+    mutationFn: async ({
+      id,
+      payload,
+    }: {
+      id: number;
+      payload: { cantidad: number; reset?: boolean; geo_profile_key?: string; municipality_label?: string };
+    }) => {
+      const result = await adminSeedSurvey(id, payload, adminRequestOptions);
       await queryClient.invalidateQueries({ queryKey: ['survey-admin', id] });
       await queryClient.invalidateQueries({ queryKey: ['survey-admin-list'] });
       return result;
@@ -126,7 +135,7 @@ export function useSurveyAdmin(options: UseSurveyAdminOptions = {}): UseSurveyAd
     saveSurvey: async (payload: SurveyDraftPayload) => saveMutation.mutateAsync(payload),
     createSurvey: async (payload: SurveyDraftPayload) => createMutation.mutateAsync(payload),
     publishSurvey: async (id?: number) => publishMutation.mutateAsync({ id }),
-    seedSurvey: async (id: number, cantidad: number) => seedMutation.mutateAsync({ id, cantidad }),
+    seedSurvey: async (id: number, payload) => seedMutation.mutateAsync({ id, payload }),
     deleteSurvey: async (id: number) => deleteMutation.mutateAsync(id),
     isSaving: saveMutation.isPending || createMutation.isPending,
     isPublishing: publishMutation.isPending,

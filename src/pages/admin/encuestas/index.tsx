@@ -69,7 +69,7 @@ const AdminSurveysIndex = () => {
   const handleSeed = async (survey: SurveyAdmin) => {
     try {
       setSeedingId(survey.id);
-      const result = await seedSurvey(survey.id, 100);
+      const result = await seedSurvey(survey.id, { cantidad: 100, reset: true });
       toast({
         title: 'Datos generados',
         description: `Se agregaron ${result.creadas} respuestas de prueba.`
