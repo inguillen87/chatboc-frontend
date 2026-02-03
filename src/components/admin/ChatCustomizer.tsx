@@ -556,26 +556,29 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
         {previewMode === 'widget' ? (
             <div
                 className={cn(
-                    "mx-auto border-[8px] border-slate-900 shadow-2xl overflow-hidden bg-white relative ring-1 ring-slate-900/10 transition-all",
+                    "mx-auto border-[8px] border-slate-900 shadow-2xl overflow-hidden relative ring-1 ring-slate-900/10 transition-all",
+                    (publicEmbedSnippet || resolvedEmbedSnippet) ? "bg-transparent" : "bg-white",
                     previewDevice === 'mobile' && "h-[700px] w-full max-w-[420px] rounded-[3rem]",
                     previewDevice === 'tablet' && "h-[640px] w-full max-w-[560px] rounded-[2.5rem]",
                     previewDevice === 'desktop' && "h-[520px] w-full max-w-[720px] rounded-[1.75rem]"
                 )}
             >
-                 <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-slate-900 rounded-b-xl z-20"></div>
+                 <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-slate-900 rounded-b-xl z-30"></div>
 
-                 <div className="absolute inset-0 bg-slate-100 z-0 flex flex-col items-center justify-center text-slate-300">
-                     <div className="w-32 h-4 bg-slate-200 rounded mb-4"></div>
-                     <div className="w-48 h-4 bg-slate-200 rounded mb-2"></div>
-                     <div className="w-40 h-4 bg-slate-200 rounded"></div>
-                 </div>
+                 {!publicEmbedSnippet && !resolvedEmbedSnippet && (
+                    <div className="absolute inset-0 bg-slate-100 z-0 flex flex-col items-center justify-center text-slate-300">
+                        <div className="w-32 h-4 bg-slate-200 rounded mb-4"></div>
+                        <div className="w-48 h-4 bg-slate-200 rounded mb-2"></div>
+                        <div className="w-40 h-4 bg-slate-200 rounded"></div>
+                    </div>
+                 )}
 
-                 <div className="relative z-10 w-full h-full">
+                 <div className="relative z-20 w-full h-full">
                      {publicEmbedSnippet || resolvedEmbedSnippet ? (
                         <iframe
                           key={`${previewDevice}-${previewOpen}-${currentSlug || 'demo'}`}
                           title="Widget preview"
-                          className="w-full h-full border-0"
+                          className="absolute inset-0 w-full h-full border-0 bg-transparent"
                           src={previewIframeSrc}
                         />
                       ) : (
