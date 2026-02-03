@@ -12,6 +12,7 @@ import { Menu } from 'lucide-react';
 import { useUser } from '@/hooks/useUser';
 import { normalizeRole } from '@/utils/roles';
 import useEndpointAvailable from '@/hooks/useEndpointAvailable';
+import { useRealtimeAlerts } from '@/context/RealtimeAlertsContext';
 
 interface NavItem {
   label: string;
@@ -38,6 +39,7 @@ export default function ProfileNav() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useUser();
+  const { ticketUnreadCount, orderUnreadCount } = useRealtimeAlerts();
 
   // Hooks to check endpoint availability
   const tramitesAvailable = useEndpointAvailable('/municipal/tramites');
@@ -86,7 +88,19 @@ export default function ProfileNav() {
                 value={it.path}
                 className="rounded-lg px-4 py-2 text-sm font-semibold leading-snug text-center transition-all duration-200 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg hover:bg-accent/70 hover:shadow-md whitespace-normal"
               >
-                {it.label}
+                <span className="flex items-center gap-2">
+                  {it.label}
+                  {it.path === '/tickets' && ticketUnreadCount > 0 && (
+                    <span className="inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
+                      {ticketUnreadCount}
+                    </span>
+                  )}
+                  {it.path === '/pedidos' && orderUnreadCount > 0 && (
+                    <span className="inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
+                      {orderUnreadCount}
+                    </span>
+                  )}
+                </span>
               </TabsTrigger>
             ))}
           </TabsList>
@@ -105,7 +119,19 @@ export default function ProfileNav() {
           <DropdownMenuContent align="start">
             {items.map((it) => (
               <DropdownMenuItem key={it.path} onSelect={() => navigate(it.path)}>
-                {it.label}
+                <span className="flex items-center gap-2">
+                  {it.label}
+                  {it.path === '/tickets' && ticketUnreadCount > 0 && (
+                    <span className="inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
+                      {ticketUnreadCount}
+                    </span>
+                  )}
+                  {it.path === '/pedidos' && orderUnreadCount > 0 && (
+                    <span className="inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
+                      {orderUnreadCount}
+                    </span>
+                  )}
+                </span>
               </DropdownMenuItem>
             ))}
           </DropdownMenuContent>
