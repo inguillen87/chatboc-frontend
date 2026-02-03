@@ -54,6 +54,8 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
   const [previewOpen, setPreviewOpen] = useState(true);
   const [previewDevice, setPreviewDevice] = useState<'mobile' | 'tablet' | 'desktop'>('mobile');
   const [previewMode, setPreviewMode] = useState<'widget' | 'embed'>('widget');
+  const [embedSnippet, setEmbedSnippet] = useState<string>('');
+  const [embedAttributes, setEmbedAttributes] = useState<Record<string, string>>({});
 
   // Debounce logic
   const [debouncedConfig, setDebouncedConfig] = useState(config);
@@ -78,6 +80,14 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
       try {
         const themeData = await apiClient.getChatTheme(currentSlug);
         if (themeData) {
+           const builderConfig = themeData.configs?.widget?.default?.builder_config
+             || themeData.widget?.builder_config
+             || {};
+           const snippet = builderConfig?.embed_snippet
+             || themeData.widget?.embed_snippet
+             || '';
+           setEmbedSnippet(snippet);
+           setEmbedAttributes(builderConfig?.attributes || {});
            const flatConfig = {
                primaryColor: themeData.theme_config?.light?.primary || DEFAULT_THEME.primaryColor,
                accentColor: themeData.theme_config?.light?.secondary || DEFAULT_THEME.accentColor,
@@ -481,18 +491,17 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="rounded-lg bg-slate-950 text-slate-100 p-4 text-xs font-mono whitespace-pre-wrap">
-                        {`<script src=\"https://www.chatboc.ar/widget.js\" data-tenant=\"${currentSlug || 'tu-tenant'}\"></script>`}
+                        {embedSnippet || ''}
                     </div>
-                    <div className="grid grid-cols-2 gap-4 text-xs text-muted-foreground">
-                        <div className="space-y-1">
-                            <p className="font-medium text-foreground">Colores activos</p>
-                            <p>Primario: {config.primaryColor}</p>
-                            <p>Secundario: {config.accentColor}</p>
-                        </div>
-                        <div className="space-y-1">
-                            <p className="font-medium text-foreground">Ajustes</p>
-                            <p>Radio: {config.borderRadius}px</p>
-                            <p>Animación: {config.animation}</p>
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                        <p className="font-medium text-foreground">Atributos activos</p>
+                        <div className="grid grid-cols-2 gap-2">
+                            {Object.entries(embedAttributes).map(([key, value]) => (
+                                <div key={key} className="flex flex-col gap-1 rounded-lg border border-white/10 bg-white/5 p-2">
+                                    <span className="font-medium text-foreground">{key}</span>
+                                    <span>{value}</span>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 </CardContent>
