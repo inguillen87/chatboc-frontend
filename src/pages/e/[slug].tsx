@@ -13,7 +13,7 @@ import { usePageMetadata } from '@/hooks/usePageMetadata';
 import { PublicSurveyShareActions } from '@/components/surveys/PublicSurveyShareActions';
 import { trackSurveySubmission } from '@/utils/surveyAnalytics';
 import { useSurveySocket } from '@/hooks/useSurveySocket';
-import { SurveyComments } from '@/components/surveys/SurveyComments';
+import { SurveyComments, type SurveyCommentsCopy } from '@/components/surveys/SurveyComments';
 
 const PublicSurveyPage = () => {
   const { slug } = useParams();
@@ -76,6 +76,8 @@ const PublicSurveyPage = () => {
     } as Pick<PublicResponsePayload, 'utm_source' | 'utm_campaign' | 'canal'>;
   }, [searchParams]);
 
+  const safeText = (value?: unknown) => (typeof value === 'string' ? value : '');
+
   const handleSubmit = useCallback(
     async (payload: PublicResponsePayload) => {
       try {
@@ -87,25 +89,25 @@ const PublicSurveyPage = () => {
           trackSurveySubmission({ survey, payload: finalPayload });
         }
 
-        let description = 'Tu aporte se registró correctamente.';
+        let description = safeText(votacionMessages?.toast_success_detail);
         if (survey?.puntos_recompensa && survey.puntos_recompensa > 0) {
-            description = `¡Gracias! Sumaste ${survey.puntos_recompensa} puntos por participar.`;
+          description = `${safeText(votacionMessages?.toast_puntos_prefix)} ${survey.puntos_recompensa}`;
         }
 
-        toast({ title: '¡Gracias por participar!', description });
+        toast({ title: safeText(votacionMessages?.toast_success_title), description });
       } catch (err) {
         setLastSubmission(null);
         if (err instanceof ApiError && err.status === 409) {
           toast({
-            title: 'Ya registramos tu opinión',
-            description: 'La política de unicidad impide enviar más de una respuesta.',
+            title: safeText(votacionMessages?.toast_duplicate_title),
+            description: safeText(votacionMessages?.toast_duplicate_detail),
           });
           return;
         }
         const message = err instanceof Error ? err.message : String(err);
         toast({
-          title: 'No pudimos enviar tu respuesta',
-          description: submitError ?? message ?? 'Intentá nuevamente.',
+          title: safeText(votacionMessages?.toast_error_title),
+          description: submitError ?? message ?? safeText(votacionMessages?.toast_error_detail),
           variant: 'destructive',
         });
       }
@@ -180,6 +182,20 @@ const PublicSurveyPage = () => {
     return survey.descripcion;
   }, [survey?.descripcion]);
 
+  const votacionUi = useMemo(
+    () => ((survey?.recursos as Record<string, unknown> | undefined)?.votacion_ui as Record<string, unknown>) ?? {},
+    [survey?.recursos],
+  );
+  const votacionMessages = useMemo(
+    () => ((survey?.recursos as Record<string, unknown> | undefined)?.votacion_mensajes as Record<string, unknown>) ?? {},
+    [survey?.recursos],
+  );
+  const comentariosCopy = useMemo(
+    () =>
+      ((survey?.recursos as Record<string, unknown> | undefined)?.comentarios_ui as SurveyCommentsCopy) ?? {},
+    [survey?.recursos],
+  );
+
   const isClosed = Boolean(survey?.estado === 'cerrada' || survey?.status === 'closed');
   const closedMessage =
     (survey?.recursos as Record<string, unknown> | undefined)?.mensaje_cierre ??
@@ -193,21 +209,19 @@ const PublicSurveyPage = () => {
         <Card className="w-full border-none shadow-none sm:border sm:shadow-sm">
           <CardContent className="flex flex-col items-center gap-6 py-12 text-center">
             <div className="space-y-3 max-w-xl">
-              <h1 className="text-2xl font-semibold">¡Gracias por participar!</h1>
+              <h1 className="text-2xl font-semibold">{safeText(votacionMessages?.titulo_gracias)}</h1>
               {survey.puntos_recompensa ? (
-                  <p className="text-lg font-bold text-primary animate-pulse">
-                      Has sumado +{survey.puntos_recompensa} puntos
-                  </p>
+                <p className="text-lg font-bold text-primary animate-pulse">
+                  {safeText(votacionMessages?.puntos_label)} {survey.puntos_recompensa}
+                </p>
               ) : null}
-              <p className="text-muted-foreground">
-                Tu respuesta ya alimenta los tableros en tiempo real.
-              </p>
+              <p className="text-muted-foreground">{safeText(votacionMessages?.detalle_gracias)}</p>
             </div>
 
             {/* Show Results Here if enabled */}
             {survey.mostrar_resultados_envivo && (
               <div className="w-full max-w-xl text-left border rounded-xl p-6 bg-accent/10">
-                <h3 className="mb-4 font-semibold text-lg">Resultados en vivo</h3>
+                <h3 className="mb-4 font-semibold text-lg">{safeText(votacionUi?.resultados_titulo)}</h3>
                 <SurveyForm
                   survey={survey}
                   onSubmit={async () => {}}
@@ -216,7 +230,7 @@ const PublicSurveyPage = () => {
                   showLiveResults={true}
                   readOnly={true}
                   showHeader={false}
-                  submitLabel="Ver resultados"
+                  submitLabel={safeText(votacionUi?.resultados_boton)}
                   variant="votacion"
                 />
               </div>
@@ -228,21 +242,60 @@ const PublicSurveyPage = () => {
 
             <div className="flex flex-wrap items-center justify-center gap-3">
               {mode !== 'embed' && (
-                  <Button asChild>
-                    <Link to="/">Ir al sitio principal</Link>
-                  </Button>
+                <Button asChild>
+                  <Link to="/">{safeText(votacionUi?.volver_inicio)}</Link>
+                </Button>
               )}
               <Button variant="outline" onClick={handleReset}>
-                Volver a la encuesta
+                {safeText(votacionUi?.volver_encuesta)}
               </Button>
             </div>
 
             {survey.permitir_comentarios && (
-                <SurveyComments
-                    slug={slug || ''}
-                    tenantSlug={tenantSlug || undefined}
-                    realtimeComments={liveComments}
-                />
+              <SurveyComments
+                slug={slug || ''}
+                tenantSlug={tenantSlug || undefined}
+                realtimeComments={liveComments}
+                copy={comentariosCopy}
+              />
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (isClosed && survey) {
+    return (
+      <div className={containerClass}>
+        <Card className="w-full border border-border/60">
+          <CardContent className="space-y-6 px-6 py-8 text-center sm:px-8">
+            <div className="space-y-2">
+              <h1 className="text-2xl font-semibold sm:text-3xl">{survey.titulo}</h1>
+              {closedMessage ? (
+                <p className="text-muted-foreground">{String(closedMessage)}</p>
+              ) : null}
+            </div>
+            <div className="w-full max-w-2xl mx-auto text-left">
+              <SurveyForm
+                survey={survey}
+                onSubmit={async () => {}}
+                loading={false}
+                liveResults={liveResults}
+                showLiveResults={true}
+                readOnly={true}
+                showHeader={false}
+                submitLabel={safeText(votacionUi?.resultados_finales_boton)}
+                variant="votacion"
+              />
+            </div>
+            {survey.permitir_comentarios && (
+              <SurveyComments
+                slug={slug || ''}
+                tenantSlug={tenantSlug || undefined}
+                realtimeComments={liveComments}
+                copy={comentariosCopy}
+              />
             )}
           </CardContent>
         </Card>
@@ -297,11 +350,11 @@ const PublicSurveyPage = () => {
                 <div className="flex flex-wrap items-center gap-3">
                   <span className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-600">
                     <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                    En tiempo real
+                    {safeText(votacionUi?.badge_en_vivo)}
                   </span>
                   {survey?.recursos?.demoMode ? (
                     <span className="inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-600">
-                      Demo con datos simulados
+                      {safeText(votacionUi?.badge_demo)}
                     </span>
                   ) : null}
                 </div>
@@ -317,14 +370,14 @@ const PublicSurveyPage = () => {
                 <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-background/70 px-4 py-3">
                   <Users className="h-5 w-5 text-primary" />
                   <div>
-                    <p className="text-xs uppercase text-muted-foreground">Total de votos</p>
+                    <p className="text-xs uppercase text-muted-foreground">{safeText(votacionUi?.stat_total_label)}</p>
                     <p className="text-lg font-semibold">{livePollTotalVotes ?? '—'}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-background/70 px-4 py-3">
                   <Timer className="h-5 w-5 text-primary" />
                   <div>
-                    <p className="text-xs uppercase text-muted-foreground">Tiempo restante</p>
+                    <p className="text-xs uppercase text-muted-foreground">{safeText(votacionUi?.stat_tiempo_label)}</p>
                     <p className="text-lg font-semibold">
                       {survey.fin_at ? new Date(survey.fin_at).toLocaleString() : '—'}
                     </p>
@@ -333,7 +386,7 @@ const PublicSurveyPage = () => {
                 <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-background/70 px-4 py-3">
                   <MessageSquareText className="h-5 w-5 text-primary" />
                   <div>
-                    <p className="text-xs uppercase text-muted-foreground">Opciones</p>
+                    <p className="text-xs uppercase text-muted-foreground">{safeText(votacionUi?.stat_opciones_label)}</p>
                     <p className="text-lg font-semibold">{votingOptionsCount || '—'}</p>
                   </div>
                 </div>
@@ -355,7 +408,11 @@ const PublicSurveyPage = () => {
                   submitErrorStatus={submitStatus}
                   duplicateDetected={duplicateDetected}
                   showHeader={false}
-                  submitLabel={survey.tipo === 'votacion' ? 'Votar ahora' : 'Enviar voto'}
+                  submitLabel={
+                    survey.tipo === 'votacion'
+                      ? safeText(votacionUi?.boton_votar)
+                      : safeText(votacionUi?.boton_enviar)
+                  }
                   liveResults={liveResults}
                   showLiveResults={Boolean(survey.mostrar_resultados_envivo)}
                 />
@@ -368,6 +425,7 @@ const PublicSurveyPage = () => {
               slug={slug || ''}
               tenantSlug={tenantSlug || undefined}
               realtimeComments={liveComments}
+              copy={comentariosCopy}
             />
           )}
         </div>

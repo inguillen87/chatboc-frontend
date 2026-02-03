@@ -747,7 +747,7 @@ export const SurveyForm = ({
               value={demographics.ocupacion ?? ''}
               onChange={(event) => handleDemographicsChange('ocupacion', event.target.value)}
               placeholder="Ej: Comercio minorista, educación, salud"
-              disabled={showLiveResults}
+              disabled={readOnly}
             />
           </div>
           <div className="grid gap-4 md:grid-cols-2">
@@ -808,12 +808,12 @@ export const SurveyForm = ({
             <div className="space-y-2">
               <Label htmlFor="survey-residency">Tiempo de residencia en la zona</Label>
               <Input
-                id="survey-residency"
-                value={demographics.tiempoResidencia ?? ''}
-                onChange={(event) => handleDemographicsChange('tiempoResidencia', event.target.value)}
-                placeholder="Ej: 5 años"
-                disabled={showLiveResults}
-              />
+              id="survey-residency"
+              value={demographics.tiempoResidencia ?? ''}
+              onChange={(event) => handleDemographicsChange('tiempoResidencia', event.target.value)}
+              placeholder="Ej: 5 años"
+              disabled={readOnly}
+            />
             </div>
           </div>
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">

@@ -630,7 +630,11 @@ export const adminPublishSurvey = async (id: number, options?: ApiFetchOptions):
   return normalizeSurveyPreguntas(survey);
 };
 
-export const adminSeedSurvey = async (id: number, payload: { cantidad: number }, options?: ApiFetchOptions): Promise<{ creadas: number }> => {
+export const adminSeedSurvey = async (
+  id: number,
+  payload: { cantidad: number; reset?: boolean; geo_profile_key?: string; municipality_label?: string },
+  options?: ApiFetchOptions,
+): Promise<{ creadas: number; reset?: { respuestas?: number; comentarios?: number } }> => {
   return callAdminSurveyEndpoint<{ creadas: number }>(`${id}/seed-demo`, {
     method: 'POST',
     body: payload,
