@@ -455,7 +455,7 @@ export const getSurveyComments = (
 
 export const postSurveyComment = (
   slug: string,
-  payload: { texto: string; nombre?: string },
+  payload: { texto: string; nombre?: string; modo?: 'anonimo' | 'facebook' },
   tenantSlug?: string,
 ): Promise<SurveyComment> =>
   apiFetch(`/public/encuestas/${slug}/comentarios`, {

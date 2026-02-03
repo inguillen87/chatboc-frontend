@@ -42,6 +42,10 @@ interface SurveyFormProps {
   duplicateDetected?: boolean;
   liveResults?: SurveyLiveResults;
   showLiveResults?: boolean;
+  readOnly?: boolean;
+  showHeader?: boolean;
+  variant?: 'default' | 'votacion';
+  submitLabel?: string;
 }
 
 interface AnswerState {
@@ -59,7 +63,12 @@ export const SurveyForm = ({
   duplicateDetected,
   liveResults,
   showLiveResults,
+  readOnly = false,
+  showHeader = true,
+  variant = 'default',
+  submitLabel,
 }: SurveyFormProps) => {
+  const isVotingVariant = variant === 'votacion';
   const initialState = useMemo(() => {
     const state: Record<number, AnswerState> = {};
     survey.preguntas.forEach((pregunta) => {
@@ -422,6 +431,7 @@ export const SurveyForm = ({
   };
 
   const handleSubmit = async () => {
+    if (readOnly) return;
     if (submitting) return;
     if (!validate()) return;
 
@@ -532,22 +542,24 @@ export const SurveyForm = ({
   };
 
   return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle className="text-2xl font-semibold">{survey.titulo}</CardTitle>
-        {survey.descripcion && (
-          <CardDescription className="max-w-3xl whitespace-pre-line text-base text-muted-foreground">
-            {survey.descripcion}
-          </CardDescription>
-        )}
-        <div className="text-sm text-muted-foreground flex flex-col gap-1">
-          <span>
-            Vigencia: {new Date(survey.inicio_at).toLocaleDateString()} –{' '}
-            {new Date(survey.fin_at).toLocaleDateString()}
-          </span>
-          <span>Tipo: {survey.tipo}</span>
-        </div>
-      </CardHeader>
+    <Card className={isVotingVariant ? 'w-full border border-border/70 bg-background/80 shadow-sm' : 'w-full'}>
+      {showHeader && (
+        <CardHeader>
+          <CardTitle className="text-2xl font-semibold">{survey.titulo}</CardTitle>
+          {survey.descripcion && (
+            <CardDescription className="max-w-3xl whitespace-pre-line text-base text-muted-foreground">
+              {survey.descripcion}
+            </CardDescription>
+          )}
+          <div className="text-sm text-muted-foreground flex flex-col gap-1">
+            <span>
+              Vigencia: {new Date(survey.inicio_at).toLocaleDateString()} –{' '}
+              {new Date(survey.fin_at).toLocaleDateString()}
+            </span>
+            <span>Tipo: {survey.tipo}</span>
+          </div>
+        </CardHeader>
+      )}
       <CardContent className="space-y-10">
         {submissionErrorTitle && (
           <Alert variant="destructive" className="border-destructive/40 bg-destructive/10 text-left">
@@ -604,7 +616,7 @@ export const SurveyForm = ({
                   value={dni}
                   onChange={(event) => setDni(event.target.value)}
                   placeholder="Ingresá tu número de documento"
-                  disabled={showLiveResults}
+                  disabled={readOnly}
                 />
               </div>
             )}
@@ -617,7 +629,7 @@ export const SurveyForm = ({
                   value={phone}
                   onChange={(event) => setPhone(event.target.value)}
                   placeholder="Ingresá tu número de teléfono"
-                  disabled={showLiveResults}
+                  disabled={readOnly}
                 />
               </div>
             )}
@@ -638,7 +650,7 @@ export const SurveyForm = ({
               <Select
                 value={demographics.rangoEtario}
                 onValueChange={(value) => handleDemographicsChange('rangoEtario', value)}
-                disabled={showLiveResults}
+                disabled={readOnly}
               >
                 <SelectTrigger id="survey-age-range">
                   <SelectValue placeholder="Seleccioná tu rango etario" />
@@ -657,7 +669,7 @@ export const SurveyForm = ({
               <Select
                 value={demographics.genero}
                 onValueChange={(value) => handleDemographicsChange('genero', value)}
-                disabled={showLiveResults}
+                disabled={readOnly}
               >
                 <SelectTrigger id="survey-gender">
                   <SelectValue placeholder="Seleccioná una opción" />
@@ -684,7 +696,7 @@ export const SurveyForm = ({
                   handleDemographicsChange('generoDescripcion', value);
                 }}
                 placeholder="Ingresá cómo te identificás"
-                disabled={showLiveResults}
+                disabled={readOnly}
               />
             </div>
           ) : null}
@@ -694,7 +706,7 @@ export const SurveyForm = ({
               <Select
                 value={demographics.nivelEducativo}
                 onValueChange={(value) => handleDemographicsChange('nivelEducativo', value)}
-                disabled={showLiveResults}
+                disabled={readOnly}
               >
                 <SelectTrigger id="survey-education">
                   <SelectValue placeholder="Seleccioná una opción" />
@@ -713,7 +725,7 @@ export const SurveyForm = ({
               <Select
                 value={demographics.situacionLaboral}
                 onValueChange={(value) => handleDemographicsChange('situacionLaboral', value)}
-                disabled={showLiveResults}
+                disabled={readOnly}
               >
                 <SelectTrigger id="survey-employment">
                   <SelectValue placeholder="Seleccioná una opción" />
@@ -746,7 +758,7 @@ export const SurveyForm = ({
                 value={demographics.ubicacion?.pais ?? ''}
                 onChange={(event) => handleLocationFieldChange('pais', event.target.value)}
                 placeholder="Ej: Argentina"
-                disabled={showLiveResults}
+                disabled={readOnly}
               />
             </div>
             <div className="space-y-2">
@@ -756,7 +768,7 @@ export const SurveyForm = ({
                 value={demographics.ubicacion?.provincia ?? ''}
                 onChange={(event) => handleLocationFieldChange('provincia', event.target.value)}
                 placeholder="Ej: Santa Fe"
-                disabled={showLiveResults}
+                disabled={readOnly}
               />
             </div>
           </div>
@@ -768,7 +780,7 @@ export const SurveyForm = ({
                 value={demographics.ubicacion?.ciudad ?? ''}
                 onChange={(event) => handleLocationFieldChange('ciudad', event.target.value)}
                 placeholder="Ej: Rosario"
-                disabled={showLiveResults}
+                disabled={readOnly}
               />
             </div>
             <div className="space-y-2">
@@ -778,7 +790,7 @@ export const SurveyForm = ({
                 value={demographics.ubicacion?.barrio ?? ''}
                 onChange={(event) => handleLocationFieldChange('barrio', event.target.value)}
                 placeholder="Ej: Barrio Centro"
-                disabled={showLiveResults}
+                disabled={readOnly}
               />
             </div>
           </div>
@@ -790,7 +802,7 @@ export const SurveyForm = ({
                 value={demographics.ubicacion?.codigoPostal ?? ''}
                 onChange={(event) => handleLocationFieldChange('codigoPostal', event.target.value)}
                 placeholder="Ej: 2000"
-                disabled={showLiveResults}
+                disabled={readOnly}
               />
             </div>
             <div className="space-y-2">
@@ -812,7 +824,7 @@ export const SurveyForm = ({
               type="button"
               variant="secondary"
               onClick={handleRequestLocation}
-              disabled={geoStatus === 'loading' || showLiveResults}
+                disabled={geoStatus === 'loading' || readOnly}
             >
               {geoStatus === 'loading' ? 'Obteniendo ubicación…' : 'Usar mi ubicación actual'}
             </Button>
@@ -830,7 +842,14 @@ export const SurveyForm = ({
         </div>
         )}
         {survey.preguntas.map((pregunta) => (
-          <div key={pregunta.id} className="space-y-3 border border-border rounded-lg p-4 bg-card/40">
+          <div
+            key={pregunta.id}
+            className={
+              isVotingVariant
+                ? 'space-y-3 rounded-xl border border-border/70 bg-background px-4 py-4 shadow-sm'
+                : 'space-y-3 border border-border rounded-lg p-4 bg-card/40'
+            }
+          >
             <div className="flex flex-col gap-1">
               <h3 className="text-lg font-medium">
                 {pregunta.orden}. {pregunta.texto}
@@ -863,13 +882,22 @@ export const SurveyForm = ({
                       }
                     >
                       {pregunta.tipo !== 'rating_emoji' && (
-                        <RadioGroupItem id={`preg-${pregunta.id}-opc-${opcion.id}`} value={opcion.id.toString()} className="z-10" />
+                        <RadioGroupItem
+                          id={`preg-${pregunta.id}-opc-${opcion.id}`}
+                          value={opcion.id.toString()}
+                          className="z-10"
+                          disabled={readOnly}
+                        />
                       )}
 
                       {pregunta.tipo === 'rating_emoji' && (
-                         <div className="sr-only">
-                           <RadioGroupItem id={`preg-${pregunta.id}-opc-${opcion.id}`} value={opcion.id.toString()} />
-                         </div>
+                        <div className="sr-only">
+                          <RadioGroupItem
+                            id={`preg-${pregunta.id}-opc-${opcion.id}`}
+                            value={opcion.id.toString()}
+                            disabled={readOnly}
+                          />
+                        </div>
                       )}
 
                       <span className={pregunta.tipo === 'rating_emoji' ? "text-4xl select-none" : "z-10 relative"}>
@@ -885,14 +913,14 @@ export const SurveyForm = ({
 
                       {showLiveResults && pregunta.tipo !== 'rating_emoji' && (
                         <span className="ml-auto text-xs font-bold z-10 text-muted-foreground">
-                            {percent}% ({optionStats?.votos || 0})
+                          {percent}% ({optionStats?.votos || 0})
                         </span>
                       )}
 
                       {showLiveResults && pregunta.tipo === 'rating_emoji' && (
-                         <div className="text-sm font-bold mt-1 text-muted-foreground">
-                             {percent}%
-                         </div>
+                        <div className="text-sm font-bold mt-1 text-muted-foreground">
+                          {percent}%
+                        </div>
                       )}
                     </Label>
                   );
@@ -922,6 +950,7 @@ export const SurveyForm = ({
                           handleCheckboxToggle(pregunta, opcion.id, state === true)
                         }
                         className="z-10"
+                        disabled={readOnly}
                       />
                       <span className="z-10 relative">{opcion.texto}</span>
 
@@ -934,7 +963,7 @@ export const SurveyForm = ({
 
                       {showLiveResults && (
                         <span className="ml-auto text-xs font-bold z-10 text-muted-foreground">
-                            {percent}% ({optionStats?.votos || 0})
+                          {percent}% ({optionStats?.votos || 0})
                         </span>
                       )}
                     </Label>
@@ -952,6 +981,7 @@ export const SurveyForm = ({
                 onChange={(event) => handleTextChange(pregunta, event.target.value)}
                 placeholder="Escribí tu respuesta"
                 className="min-h-[120px]"
+                disabled={readOnly}
               />
             )}
             {errors[pregunta.id] && (
@@ -960,9 +990,16 @@ export const SurveyForm = ({
           </div>
         ))}
 
-        <Button type="button" disabled={loading || submitting} onClick={handleSubmit} className="w-full md:w-auto">
-          {loading || submitting ? 'Enviando…' : 'Enviar opinión'}
-        </Button>
+        {!readOnly && (
+          <Button
+            type="button"
+            disabled={loading || submitting}
+            onClick={handleSubmit}
+            className="w-full md:w-auto"
+          >
+            {loading || submitting ? 'Enviando…' : submitLabel ?? 'Enviar opinión'}
+          </Button>
+        )}
       </CardContent>
     </Card>
   );

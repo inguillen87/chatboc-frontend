@@ -40,23 +40,23 @@ export const SeedButton = ({ onSeed, loading = false, surveyTitle = 'esta encues
           size="sm"
           disabled={loading}
           className="inline-flex items-center gap-2"
-          title="Generar 100 respuestas de prueba"
+          title="Resetear y generar 100 respuestas de prueba"
         >
           {loading ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
             <Sprout className="h-4 w-4 text-green-600" />
           )}
-          <span className="hidden sm:inline">Seed 100</span>
+          <span className="hidden sm:inline">Reset y generar 100</span>
         </Button>
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>¿Generar 100 respuestas de prueba?</AlertDialogTitle>
-          <AlertDialogDescription>
-            Esta acción generará 100 respuestas aleatorias para <strong>{surveyTitle}</strong>.
+        <AlertDialogTitle>¿Resetear y generar 100 respuestas de prueba?</AlertDialogTitle>
+        <AlertDialogDescription>
+            Esta acción borrará las respuestas actuales y generará 100 respuestas aleatorias para <strong>{surveyTitle}</strong>.
             Esto es útil para visualizar datos en analytics, pero puede afectar las estadísticas reales.
-          </AlertDialogDescription>
+        </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel disabled={loading}>Cancelar</AlertDialogCancel>
@@ -67,7 +67,7 @@ export const SeedButton = ({ onSeed, loading = false, surveyTitle = 'esta encues
                 Generando...
               </>
             ) : (
-              'Generar datos'
+              'Resetear y generar'
             )}
           </AlertDialogAction>
         </AlertDialogFooter>
