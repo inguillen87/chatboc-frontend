@@ -303,6 +303,43 @@ const PublicSurveyPage = () => {
     );
   }
 
+  if (isClosed && survey) {
+    return (
+      <div className={containerClass}>
+        <Card className="w-full border border-border/60">
+          <CardContent className="space-y-6 px-6 py-8 text-center sm:px-8">
+            <div className="space-y-2">
+              <h1 className="text-2xl font-semibold sm:text-3xl">{survey.titulo}</h1>
+              {closedMessage ? (
+                <p className="text-muted-foreground">{String(closedMessage)}</p>
+              ) : null}
+            </div>
+            <div className="w-full max-w-2xl mx-auto text-left">
+              <SurveyForm
+                survey={survey}
+                onSubmit={async () => {}}
+                loading={false}
+                liveResults={liveResults}
+                showLiveResults={true}
+                readOnly={true}
+                showHeader={false}
+                submitLabel="Resultados finales"
+                variant="votacion"
+              />
+            </div>
+            {survey.permitir_comentarios && (
+              <SurveyComments
+                slug={slug || ''}
+                tenantSlug={tenantSlug || undefined}
+                realtimeComments={liveComments}
+              />
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className={containerClass}>
       {survey.es_votacion_envivo ? (
