@@ -1,15 +1,4 @@
 import { apiFetch } from '@/utils/api';
-import { PreviewValue } from '@/utils/catalogPreview';
-
-export interface PreviewColumn {
-  key: string;
-  label: string;
-}
-
-export interface PreviewColumn {
-  key: string;
-  label: string;
-}
 
 export interface PreviewColumn {
   key: string;
@@ -95,6 +84,19 @@ export const importService = {
       omitEntityToken: true,
     });
 
+    if (response?.ok === false) {
+      throw new Error(response?.detail || response?.error || 'No se pudo generar la vista previa');
+    }
+
+    const hasAnyData =
+      Array.isArray(response?.items_preview) ||
+      Array.isArray(response?.records) ||
+      Array.isArray(response?.rows);
+
+    if (!hasAnyData) {
+      throw new Error('Vista previa vacía: el backend no devolvió filas/records. Revisar logs.');
+    }
+
     const resolvePreviewRows = (columns?: PreviewColumn[]): Array<Record<string, unknown>> => {
       if (Array.isArray(response.items_preview)) {
         return response.items_preview;
@@ -137,14 +139,14 @@ export const importService = {
 
     // Transform backend response to ImportPreview format expected by UI
     return {
-        total_detected: response.total_detected || response.totalRows || previewRows.length || 0,
-        confidence: response.confidence ?? response.metadata?.confidence ?? 0,
-        warnings: response.warnings || response.metadata?.warnings || [],
-        items_preview: previewRows,
-        columns: previewColumns,
-        // We might not get an upload_id here if it's stateless, but if we do, pass it.
-        // If stateless, we might need to re-upload in commit step.
-        upload_id: response.upload_id
+      total_detected: response.total_detected || response.totalRows || previewRows.length || 0,
+      confidence: response.confidence ?? response.metadata?.confidence ?? 0,
+      warnings: response.warnings || response.metadata?.warnings || [],
+      items_preview: previewRows,
+      columns: previewColumns,
+      // We might not get an upload_id here if it's stateless, but if we do, pass it.
+      // If stateless, we might need to re-upload in commit step.
+      upload_id: response.upload_id,
     };
   },
 
@@ -186,6 +188,6 @@ export const importService = {
 
   // Deprecated/Unused in new stateless flow, kept for compatibility if needed
   getPreview: async (uploadId: number, tenantSlug?: string): Promise<ImportPreview> => {
-     return { total_detected: 0, confidence: 0, warnings: [], items_preview: [] };
+    return { total_detected: 0, confidence: 0, warnings: [], items_preview: [] };
   }
 };

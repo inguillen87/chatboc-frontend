@@ -34,8 +34,12 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
 
-  const canConfirm = (preview?.items_preview.length ?? 0) > 0;
+  const previewCount = preview?.items_preview.length ?? 0;
+  const effectiveDetected = preview?.total_detected ?? previewCount;
+  const canConfirm = previewCount > 0 && effectiveDetected > 0;
+  const confirmLabel = `Confirmar${previewCount > 0 ? ` ${previewCount} items` : ' items'}`;
 
   const previewColumns = useMemo(() => {
     if (!preview) {
@@ -136,11 +140,13 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
       // We receive the preview directly.
       setPreview(previewData);
       setCatalogUploadId(previewData.upload_id ?? null);
+      setPreviewError(null);
       setStep(2);
       setIsPreviewModalOpen(true);
     } catch (e) {
       console.error(e);
-      alert("Error uploading file");
+      setPreview(null);
+      setPreviewError((e as Error)?.message || 'No se pudo generar la vista previa');
     } finally {
       setLoading(false);
     }
@@ -183,6 +189,13 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
       <CardContent>
         {step === 1 && (
           <div className="space-y-6">
+            {previewError && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>No se pudo generar la vista previa</AlertTitle>
+                <AlertDescription>{previewError}</AlertDescription>
+              </Alert>
+            )}
             <div
                 className="border-2 border-dashed border-gray-300 rounded-lg p-10 text-center hover:bg-gray-50 transition-colors cursor-pointer"
                 onDragOver={(event) => event.preventDefault()}
@@ -245,6 +258,15 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
                     </AlertDescription>
                 </Alert>
             )}
+            {previewCount === 0 && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>No se pudieron detectar productos</AlertTitle>
+                <AlertDescription>
+                  No se pudo interpretar el archivo. Probá CSV template o Editar.
+                </AlertDescription>
+              </Alert>
+            )}
 
             <div className="flex justify-end">
               <Button variant="outline" onClick={() => setIsPreviewModalOpen(true)}>
@@ -293,7 +315,7 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
                     </Button>
                     <Button onClick={handleCommit} disabled={loading || !canConfirm}>
                       {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                      Confirmar {preview?.items_preview.length} items
+                      {confirmLabel}
                     </Button>
                   </div>
                 </DialogFooter>
@@ -332,7 +354,7 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
                    </Button>
                    <Button onClick={handleCommit} disabled={loading || !canConfirm}>
                       {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                      Confirmar {preview?.items_preview.length} items
+                      {confirmLabel}
                    </Button>
                 </div>
             </>
