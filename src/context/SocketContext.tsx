@@ -92,7 +92,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
 
     if (token) {
-      socketOptions.auth = { token };
+      socketOptions.auth = tenantSlug ? { token, tenant_slug: tenantSlug } : { token };
     }
 
     const newSocket = io(SOCKET_URL ?? undefined, socketOptions);
@@ -103,7 +103,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       // Subscribe to ticket updates if we have a token
       if (token) {
-        newSocket.emit('subscribe_ticket_updates', { token });
+        newSocket.emit('subscribe_ticket_updates', tenantSlug ? { token, tenant_slug: tenantSlug } : { token });
       }
     });
 
