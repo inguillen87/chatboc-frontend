@@ -44,10 +44,13 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
       return preview.columns;
     }
     const firstRow = preview.items_preview[0];
-    return firstRow ? Object.keys(firstRow) : [];
+    return firstRow
+      ? Object.keys(firstRow).map((key) => ({ key, label: key }))
+      : [];
   }, [preview]);
   const isPlainTextPreview =
-    previewColumns.length === 1 && previewColumns[0]?.toLowerCase().includes('contenido');
+    previewColumns.length === 1 &&
+    (previewColumns[0]?.label || previewColumns[0]?.key)?.toLowerCase().includes('contenido');
 
   const updatePreviewField = (
     itemIndex: number,
@@ -68,15 +71,15 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
       {isPlainTextPreview && (
         <div className="flex items-center gap-2 border-b border-amber-200 px-3 py-2 text-xs text-amber-700">
           <AlertTriangle className="h-4 w-4" />
-          <span className="font-medium">{previewColumns[0]}</span>
+          <span className="font-medium">{previewColumns[0]?.label ?? previewColumns[0]?.key}</span>
         </div>
       )}
       <table className="w-full min-w-max text-sm">
         <thead className="bg-gray-100 sticky top-0 z-10">
           <tr>
             {previewColumns.map((column) => (
-              <th key={column} className="p-2 text-left font-medium text-gray-600 whitespace-nowrap">
-                {column}
+              <th key={column.key} className="p-2 text-left font-medium text-gray-600 whitespace-nowrap">
+                {column.label}
               </th>
             ))}
           </tr>
@@ -85,10 +88,10 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
           {preview?.items_preview.map((item, idx) => (
             <tr key={idx} className="border-b hover:bg-gray-50">
               {previewColumns.map((column) => (
-                <td key={`${idx}-${column}`} className="p-2">
+                <td key={`${idx}-${column.key}`} className="p-2">
                   <Input
-                    value={item[column] === null || item[column] === undefined ? '' : String(item[column])}
-                    onChange={(e) => updatePreviewField(idx, column, e.target.value)}
+                    value={item[column.key] === null || item[column.key] === undefined ? '' : String(item[column.key])}
+                    onChange={(e) => updatePreviewField(idx, column.key, e.target.value)}
                     className="h-8 border-transparent hover:border-input focus:border-input bg-transparent"
                   />
                 </td>

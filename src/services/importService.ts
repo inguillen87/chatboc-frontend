@@ -1,12 +1,17 @@
 import { apiFetch } from '@/utils/api';
 import { PreviewValue } from '@/utils/catalogPreview';
 
+export interface PreviewColumn {
+  key: string;
+  label: string;
+}
+
 export interface ImportPreview {
   total_detected: number;
   confidence: number;
   warnings: string[];
   items_preview: Array<Record<string, unknown>>;
-  columns?: string[];
+  columns?: PreviewColumn[];
 }
 
 const resolveColumnKey = (column: unknown, index: number): string => {
@@ -21,6 +26,17 @@ const resolveColumnKey = (column: unknown, index: number): string => {
     }
   }
   return `col_${index + 1}`;
+};
+
+const resolveColumnLabel = (column: unknown, index: number, key: string): string => {
+  if (column && typeof column === 'object') {
+    const record = column as Record<string, unknown>;
+    const candidate = record.name ?? record.label ?? record.key;
+    if (typeof candidate === 'string' && candidate.trim().length > 0) {
+      return candidate;
+    }
+  }
+  return key || `Col ${index + 1}`;
 };
 
 export const importService = {
@@ -41,7 +57,7 @@ export const importService = {
       omitEntityToken: true,
     });
 
-    const resolvePreviewRows = (): Array<Record<string, unknown>> => {
+    const resolvePreviewRows = (columns?: PreviewColumn[]): Array<Record<string, unknown>> => {
       if (Array.isArray(response.items_preview)) {
         return response.items_preview;
       }
@@ -54,13 +70,13 @@ export const importService = {
         return [];
       }
 
-      if (Array.isArray(response.columns) && response.columns.length > 0) {
+      if (Array.isArray(response.columns) && response.columns.length > 0 && columns && columns.length > 0) {
         return response.rows.map((row: unknown) => {
           if (!Array.isArray(row)) {
             return row as Record<string, unknown>;
           }
-          return response.columns.reduce<Record<string, unknown>>((acc, column: unknown, index: number) => {
-            const key = resolveColumnKey(column, index);
+          return columns.reduce<Record<string, unknown>>((acc, column: PreviewColumn, index: number) => {
+            const key = column.key || resolveColumnKey(column, index);
             acc[key] = row[index];
             return acc;
           }, {});
@@ -70,10 +86,16 @@ export const importService = {
       return response.rows as Array<Record<string, unknown>>;
     };
 
-    const previewRows = resolvePreviewRows();
     const previewColumns = Array.isArray(response.columns)
-      ? response.columns.map((column: unknown, index: number) => resolveColumnKey(column, index))
+      ? response.columns.map((column: unknown, index: number) => {
+          const key = resolveColumnKey(column, index);
+          return {
+            key,
+            label: resolveColumnLabel(column, index, key),
+          };
+        })
       : undefined;
+    const previewRows = resolvePreviewRows(previewColumns);
 
     // Transform backend response to ImportPreview format expected by UI
     return {

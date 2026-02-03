@@ -32,10 +32,13 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
     if (previewColumns.length > 0) {
       return previewColumns;
     }
-    return previewItems.length > 0 ? Object.keys(previewItems[0]) : [];
+    return previewItems.length > 0
+      ? Object.keys(previewItems[0]).map((key) => ({ key, label: key }))
+      : [];
   }, [previewColumns, previewItems]);
   const isPlainTextPreview =
-    resolvedColumns.length === 1 && resolvedColumns[0]?.toLowerCase().includes('contenido');
+    resolvedColumns.length === 1 &&
+    (resolvedColumns[0]?.label || resolvedColumns[0]?.key)?.toLowerCase().includes('contenido');
 
   const updatePreviewField = (rowIndex: number, column: string, value: string) => {
     setPreviewItems((prev) => {
@@ -208,15 +211,15 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
       {isPlainTextPreview && (
         <div className="flex items-center gap-2 border-b border-amber-200 px-3 py-2 text-xs text-amber-700">
           <AlertTriangle className="h-4 w-4" />
-          <span className="font-medium">{resolvedColumns[0]}</span>
+          <span className="font-medium">{resolvedColumns[0]?.label ?? resolvedColumns[0]?.key}</span>
         </div>
       )}
       <table className="w-full min-w-max text-sm">
         <thead className="bg-gray-100 sticky top-0 z-10">
           <tr>
             {resolvedColumns.map((column) => (
-              <th key={column} className="p-2 text-left font-medium text-gray-600 whitespace-nowrap">
-                {column}
+              <th key={column.key} className="p-2 text-left font-medium text-gray-600 whitespace-nowrap">
+                {column.label}
               </th>
             ))}
           </tr>
@@ -225,10 +228,10 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
           {previewItems.map((item, idx) => (
             <tr key={idx} className="border-b hover:bg-gray-50">
               {resolvedColumns.map((column) => (
-                <td key={`${idx}-${column}`} className="p-2">
+                <td key={`${idx}-${column.key}`} className="p-2">
                   <Input
-                    value={item[column] === null || item[column] === undefined ? '' : String(item[column])}
-                    onChange={(e) => updatePreviewField(idx, column, e.target.value)}
+                    value={item[column.key] === null || item[column.key] === undefined ? '' : String(item[column.key])}
+                    onChange={(e) => updatePreviewField(idx, column.key, e.target.value)}
                     className="h-8 border-transparent hover:border-input focus:border-input bg-transparent"
                   />
                 </td>
