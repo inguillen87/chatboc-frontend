@@ -17,10 +17,22 @@ interface SeedButtonProps {
   onSeed: () => Promise<void>;
   loading?: boolean;
   surveyTitle?: string;
+  labels?: {
+    button?: string;
+    buttonTitle?: string;
+    dialogTitle?: string;
+    dialogDescription?: string;
+    confirmLabel?: string;
+    loadingLabel?: string;
+    cancelLabel?: string;
+  };
 }
 
-export const SeedButton = ({ onSeed, loading = false, surveyTitle = 'esta encuesta' }: SeedButtonProps) => {
+export const SeedButton = ({ onSeed, loading = false, surveyTitle = '', labels }: SeedButtonProps) => {
   const [open, setOpen] = useState(false);
+  const safeText = (value?: string) => (typeof value === 'string' ? value : '');
+  const interpolate = (value?: string) =>
+    typeof value === 'string' ? value.replace('{title}', surveyTitle) : '';
 
   const handleConfirm = async () => {
     try {
@@ -40,34 +52,31 @@ export const SeedButton = ({ onSeed, loading = false, surveyTitle = 'esta encues
           size="sm"
           disabled={loading}
           className="inline-flex items-center gap-2"
-          title="Generar 100 respuestas de prueba"
+          title={safeText(labels?.buttonTitle)}
         >
           {loading ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
             <Sprout className="h-4 w-4 text-green-600" />
           )}
-          <span className="hidden sm:inline">Seed 100</span>
+          <span className="hidden sm:inline">{safeText(labels?.button)}</span>
         </Button>
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>¿Generar 100 respuestas de prueba?</AlertDialogTitle>
-          <AlertDialogDescription>
-            Esta acción generará 100 respuestas aleatorias para <strong>{surveyTitle}</strong>.
-            Esto es útil para visualizar datos en analytics, pero puede afectar las estadísticas reales.
-          </AlertDialogDescription>
+        <AlertDialogTitle>{safeText(labels?.dialogTitle)}</AlertDialogTitle>
+        <AlertDialogDescription>{interpolate(labels?.dialogDescription)}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={loading}>Cancelar</AlertDialogCancel>
+          <AlertDialogCancel disabled={loading}>{safeText(labels?.cancelLabel)}</AlertDialogCancel>
           <AlertDialogAction onClick={handleConfirm} disabled={loading} className="bg-green-600 hover:bg-green-700">
             {loading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Generando...
+                {safeText(labels?.loadingLabel)}
               </>
             ) : (
-              'Generar datos'
+              safeText(labels?.confirmLabel)
             )}
           </AlertDialogAction>
         </AlertDialogFooter>
