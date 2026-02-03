@@ -223,6 +223,12 @@ const IntegracionesPage = () => {
 
                 <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
                     <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto sm:max-w-[800px]">
+                        <DialogHeader className="sr-only">
+                            <DialogTitle>Importación de catálogo</DialogTitle>
+                            <DialogDescription>
+                                Asistente para revisar y confirmar la vista previa del catálogo antes de importarlo.
+                            </DialogDescription>
+                        </DialogHeader>
                         <CatalogUploadWizard onFinish={() => setUploadOpen(false)} />
                     </DialogContent>
                 </Dialog>
