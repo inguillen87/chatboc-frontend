@@ -17,6 +17,7 @@ export interface CatalogPreviewItem {
   image_url?: string;
   errors?: string[];
   warnings?: string[];
+  metadata?: Array<{ key: string; value: string }>;
 }
 
 interface CatalogItemsTableProps {
@@ -65,7 +66,21 @@ const CatalogItemsTable: React.FC<CatalogItemsTableProps> = ({ items, onUpdate, 
                 <TableCell>
                   <div className="flex flex-col gap-1">
                     {readOnly ? (
-                        <span className="font-medium">{item.name}</span>
+                        <div className="flex flex-col gap-1">
+                          <span className="font-medium">{item.name}</span>
+                          {item.metadata && item.metadata.length > 0 && (
+                            <div className="flex flex-wrap gap-1 text-[10px] text-muted-foreground">
+                              {item.metadata.map((entry) => (
+                                <span
+                                  key={`${entry.key}-${entry.value}`}
+                                  className="rounded border border-muted px-1 py-0.5"
+                                >
+                                  <span className="font-medium">{entry.key}</span>: {entry.value}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                     ) : (
                         <Input
                             value={item.name}
