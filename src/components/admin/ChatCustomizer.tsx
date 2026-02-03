@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useMemo, useEffect, useRef, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -56,6 +56,9 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
   const [previewMode, setPreviewMode] = useState<'widget' | 'embed'>('widget');
   const [embedSnippet, setEmbedSnippet] = useState<string>('');
   const [embedAttributes, setEmbedAttributes] = useState<Record<string, string>>({});
+  const [publicEmbedSnippet, setPublicEmbedSnippet] = useState<string>('');
+  const [publicEmbedAttributes, setPublicEmbedAttributes] = useState<Record<string, string>>({});
+  const previewIframeRef = useRef<HTMLIFrameElement | null>(null);
   const resolvedEmbedSnippet = useMemo(() => {
     if (embedSnippet) return embedSnippet;
     const base = (import.meta.env.VITE_WIDGET_API_BASE || "https://chatboc.ar").replace(/\/+$/, "");
@@ -129,6 +132,49 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
 
     loadTheme();
   }, [currentSlug, initialConfig]);
+
+  useEffect(() => {
+    const loadPublicWidget = async () => {
+      if (!currentSlug) return;
+      try {
+        const data = await apiClient.get<any>(`/api/public/tenants/${currentSlug}/widget-config`, { tenantSlug: currentSlug });
+        const builderConfig = data?.builder_config || data?.widget?.builder_config || {};
+        const snippet = builderConfig?.embed_snippet || data?.embed_snippet || '';
+        setPublicEmbedSnippet(snippet);
+        setPublicEmbedAttributes(builderConfig?.attributes || {});
+      } catch (error) {
+        console.error("Failed to load public widget config", error);
+      }
+    };
+
+    loadPublicWidget();
+  }, [currentSlug]);
+
+  useEffect(() => {
+    if (previewMode !== 'widget') return;
+    if (!previewIframeRef.current) return;
+    if (!publicEmbedSnippet) return;
+
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(publicEmbedSnippet, 'text/html');
+    const script = doc.querySelector('script');
+    if (!script) return;
+
+    const mergedAttributes = {
+      ...(currentSlug ? { "data-tenant": currentSlug, "data-tenant-slug": currentSlug } : {}),
+      ...publicEmbedAttributes,
+      "data-default-open": previewOpen ? "true" : "false",
+    };
+    Object.entries(mergedAttributes).forEach(([key, value]) => {
+      script.setAttribute(key, String(value));
+    });
+
+    const iframeDoc = previewIframeRef.current.contentDocument;
+    if (!iframeDoc) return;
+    iframeDoc.open();
+    iframeDoc.write(`<!doctype html><html><head><base href="${window.location.origin}/"></head><body style="margin:0;">${script.outerHTML}</body></html>`);
+    iframeDoc.close();
+  }, [previewMode, publicEmbedSnippet, publicEmbedAttributes, previewOpen, previewDevice, currentSlug]);
 
   const handleChange = (field: string, value: any) => {
     setConfig(prev => ({ ...prev, [field]: value }));
@@ -479,22 +525,31 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
                  </div>
 
                  <div className="relative z-10 w-full h-full">
-                     <WidgetPreview
-                        key={`${previewDevice}-${previewOpen}-${currentSlug || 'demo'}`}
-                        tenantSlug={currentSlug || 'demo'}
-                        defaultOpen={previewOpen}
-                        primaryColor={config.primaryColor}
-                        accentColor={config.accentColor}
-                        userMsgColor={config.userMsgColor}
-                        chatBackground={config.chatBackground}
-                        borderRadius={config.borderRadius}
-                        ctaMessage={config.ctaMessage}
-                        botName={config.botName}
-                        logoUrl={config.logoUrl}
-                        welcomeMessage={config.welcomeMessage}
-                        logoAnimation={config.animation}
-                        fontFamily={config.fontFamily}
-                     />
+                     {publicEmbedSnippet ? (
+                        <iframe
+                          key={`${previewDevice}-${previewOpen}-${currentSlug || 'demo'}`}
+                          ref={previewIframeRef}
+                          title="Widget preview"
+                          className="w-full h-full border-0"
+                        />
+                      ) : (
+                        <WidgetPreview
+                          key={`${previewDevice}-${previewOpen}-${currentSlug || 'demo'}`}
+                          tenantSlug={currentSlug || 'demo'}
+                          defaultOpen={previewOpen}
+                          primaryColor={config.primaryColor}
+                          accentColor={config.accentColor}
+                          userMsgColor={config.userMsgColor}
+                          chatBackground={config.chatBackground}
+                          borderRadius={config.borderRadius}
+                          ctaMessage={config.ctaMessage}
+                          botName={config.botName}
+                          logoUrl={config.logoUrl}
+                          welcomeMessage={config.welcomeMessage}
+                          logoAnimation={config.animation}
+                          fontFamily={config.fontFamily}
+                        />
+                      )}
                  </div>
             </div>
         ) : (
