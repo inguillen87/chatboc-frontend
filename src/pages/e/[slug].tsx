@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState, useEffect } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { Loader2 } from 'lucide-react';
+import { Loader2, MessageSquareText, Timer, Users } from 'lucide-react';
 
 import { SurveyForm } from '@/components/surveys/SurveyForm';
 import { Button } from '@/components/ui/button';
@@ -13,7 +13,7 @@ import { usePageMetadata } from '@/hooks/usePageMetadata';
 import { PublicSurveyShareActions } from '@/components/surveys/PublicSurveyShareActions';
 import { trackSurveySubmission } from '@/utils/surveyAnalytics';
 import { useSurveySocket } from '@/hooks/useSurveySocket';
-import { SurveyComments } from '@/components/surveys/SurveyComments';
+import { SurveyComments, type SurveyCommentsCopy } from '@/components/surveys/SurveyComments';
 
 const PublicSurveyPage = () => {
   const { slug } = useParams();
@@ -21,6 +21,7 @@ const PublicSurveyPage = () => {
   const tenantSlug = searchParams.get('tenant');
   const mode = searchParams.get('mode'); // 'embed' or undefined
   const [submitted, setSubmitted] = useState(false);
+  const [livePollTotalVotes, setLivePollTotalVotes] = useState<number | null>(null);
   const [lastSubmission, setLastSubmission] = useState<PublicResponsePayload | null>(null);
   const {
     survey,
@@ -75,6 +76,8 @@ const PublicSurveyPage = () => {
     } as Pick<PublicResponsePayload, 'utm_source' | 'utm_campaign' | 'canal'>;
   }, [searchParams]);
 
+  const safeText = (value?: unknown) => (typeof value === 'string' ? value : '');
+
   const handleSubmit = useCallback(
     async (payload: PublicResponsePayload) => {
       try {
@@ -86,25 +89,25 @@ const PublicSurveyPage = () => {
           trackSurveySubmission({ survey, payload: finalPayload });
         }
 
-        let description = 'Tu aporte se registró correctamente.';
+        let description = safeText(votacionMessages?.toast_success_detail);
         if (survey?.puntos_recompensa && survey.puntos_recompensa > 0) {
-            description = `¡Gracias! Sumaste ${survey.puntos_recompensa} puntos por participar.`;
+          description = `${safeText(votacionMessages?.toast_puntos_prefix)} ${survey.puntos_recompensa}`;
         }
 
-        toast({ title: '¡Gracias por participar!', description });
+        toast({ title: safeText(votacionMessages?.toast_success_title), description });
       } catch (err) {
         setLastSubmission(null);
         if (err instanceof ApiError && err.status === 409) {
           toast({
-            title: 'Ya registramos tu opinión',
-            description: 'La política de unicidad impide enviar más de una respuesta.',
+            title: safeText(votacionMessages?.toast_duplicate_title),
+            description: safeText(votacionMessages?.toast_duplicate_detail),
           });
           return;
         }
         const message = err instanceof Error ? err.message : String(err);
         toast({
-          title: 'No pudimos enviar tu respuesta',
-          description: submitError ?? message ?? 'Intentá nuevamente.',
+          title: safeText(votacionMessages?.toast_error_title),
+          description: submitError ?? message ?? safeText(votacionMessages?.toast_error_detail),
           variant: 'destructive',
         });
       }
@@ -146,25 +149,59 @@ const PublicSurveyPage = () => {
     );
   }
 
-  // If already submitted OR user is viewing live results (and hasn't voted yet, but we want to show them?
-  // No, usually you vote then see results, OR see results if allowed.
-  // For now let's keep the "Vote -> Success" flow, but the form itself can show results if desired, or maybe the success page shows them.
-  // The requirement says "Al recibir el 201 Created tras votar... el frontend puede mostrar una animación".
-  // But also "mostrar resultados en tiempo real" implies maybe seeing them while voting or after?
-  // "mostrar_resultados_envivo (bool): Indica que el frontend debe conectarse... para mostrar resultados en tiempo real."
-  // Usually this means showing the bars updating.
-  // My SurveyForm implementation handles `showLiveResults` prop to overlay bars ON the options.
-  // So we should pass `liveResults` and `showLiveResults` to SurveyForm.
-  // If `es_votacion_envivo` is true, maybe we show results even before voting? Or only after?
-  // Let's assume we show them if `mostrar_resultados_envivo` is true, regardless of voting status, OR maybe we should only show after voting to avoid bias?
-  // The prompt says "apenas terminasn de votar les figura como va la votacion". So maybe only after voting.
-  // BUT the prompt also says "mostrar_resultados_envivo... para mostrar resultados en tiempo real".
-  // Let's stick to standard practice: If it's a "Live Poll" (es_votacion_envivo), often you see results AFTER voting.
-  // However, `SurveyForm` was modified to show bars overlaying the options. If I pass `showLiveResults={true}`, the user sees bars.
-  // I will enable `showLiveResults` only if `submitted` is true OR if the survey allows seeing results before voting (not specified, but safer to hide until vote).
-  // Actually, for a "Live Voting" scenario like YouTube chat, you vote and then see the bar fill up.
-  // Let's toggle it: passing `showLiveResults={submitted && survey.mostrar_resultados_envivo}` to form?
-  // No, if I reuse SurveyForm for the "Success" state, I can show the results there.
+  const votingOptionsCount = useMemo(() => {
+    const question = survey?.preguntas?.[0];
+    return question?.opciones?.length ?? 0;
+  }, [survey?.preguntas]);
+
+  const totalVotes = useMemo(() => {
+    if (!survey) return null;
+    if (survey?.resultados_envivo?.total_respuestas) {
+      return survey.resultados_envivo.total_respuestas;
+    }
+    if (typeof liveResults?.total_respuestas === 'number') {
+      return liveResults.total_respuestas;
+    }
+    if (survey?.resultados_envivo?.preguntas) {
+      const question = Object.values(survey.resultados_envivo.preguntas)[0];
+      if (question?.opciones?.length) {
+        return question.opciones.reduce((acc, curr) => acc + curr.votos, 0);
+      }
+    }
+    return null;
+  }, [survey, liveResults]);
+
+  useEffect(() => {
+    if (typeof totalVotes === 'number') {
+      setLivePollTotalVotes(totalVotes);
+    }
+  }, [totalVotes]);
+
+  const pollSubtitle = useMemo(() => {
+    if (!survey?.descripcion) return null;
+    return survey.descripcion;
+  }, [survey?.descripcion]);
+
+  const votacionUi = useMemo(
+    () => ((survey?.recursos as Record<string, unknown> | undefined)?.votacion_ui as Record<string, unknown>) ?? {},
+    [survey?.recursos],
+  );
+  const votacionMessages = useMemo(
+    () => ((survey?.recursos as Record<string, unknown> | undefined)?.votacion_mensajes as Record<string, unknown>) ?? {},
+    [survey?.recursos],
+  );
+  const comentariosCopy = useMemo(
+    () =>
+      ((survey?.recursos as Record<string, unknown> | undefined)?.comentarios_ui as SurveyCommentsCopy) ?? {},
+    [survey?.recursos],
+  );
+
+  const isClosed = Boolean(survey?.estado === 'cerrada' || survey?.status === 'closed');
+  const closedMessage =
+    (survey?.recursos as Record<string, unknown> | undefined)?.mensaje_cierre ??
+    (survey as Record<string, unknown> | undefined)?.mensaje_cierre ??
+    (survey as Record<string, unknown> | undefined)?.mensaje_institucional ??
+    null;
 
   if (submitted && survey) {
     return (
@@ -172,47 +209,31 @@ const PublicSurveyPage = () => {
         <Card className="w-full border-none shadow-none sm:border sm:shadow-sm">
           <CardContent className="flex flex-col items-center gap-6 py-12 text-center">
             <div className="space-y-3 max-w-xl">
-              <h1 className="text-2xl font-semibold">¡Gracias por participar!</h1>
+              <h1 className="text-2xl font-semibold">{safeText(votacionMessages?.titulo_gracias)}</h1>
               {survey.puntos_recompensa ? (
-                  <p className="text-lg font-bold text-primary animate-pulse">
-                      Has sumado +{survey.puntos_recompensa} puntos
-                  </p>
+                <p className="text-lg font-bold text-primary animate-pulse">
+                  {safeText(votacionMessages?.puntos_label)} {survey.puntos_recompensa}
+                </p>
               ) : null}
-              <p className="text-muted-foreground">
-                Tu respuesta ya alimenta los tableros en tiempo real.
-              </p>
+              <p className="text-muted-foreground">{safeText(votacionMessages?.detalle_gracias)}</p>
             </div>
 
             {/* Show Results Here if enabled */}
             {survey.mostrar_resultados_envivo && (
-                <div className="w-full max-w-xl text-left border rounded-xl p-6 bg-accent/10">
-                    <h3 className="mb-4 font-semibold text-lg">Resultados en vivo</h3>
-                    {/* We can reuse SurveyForm in read-only mode or just render the bars.
-                        Since SurveyForm has the logic to render bars on options, let's try to reuse it
-                        BUT SurveyForm is built for input.
-                        Maybe it's better to render a simplified view here or pass a "readOnly" prop to SurveyForm.
-                        For now, I will assume the user wants to see the "Resultados" visualization.
-                        Refactoring SurveyForm to support "results view only" might be complex.
-                        Let's just re-render SurveyForm but disabled and with results shown.
-                    */}
-                    <SurveyForm
-                        survey={survey}
-                        onSubmit={async () => {}}
-                        loading={false}
-                        liveResults={liveResults}
-                        showLiveResults={true}
-                        // We need a way to disable interaction
-                        // I'll add a 'readOnly' prop or just rely on 'submitted' check in parent,
-                        // but here I'm re-rendering it.
-                        // Actually, I didn't add 'readOnly' to SurveyForm.
-                        // I'll just rely on the user not clicking, or the fact that they already voted.
-                        // Ideally I should add readOnly.
-                    />
-                     {/* Note: I haven't implemented readOnly in SurveyForm, so inputs are still clickable
-                         but won't do anything because we don't handle submit here (empty function).
-                         It's a bit hacky but works for MVP.
-                     */}
-                </div>
+              <div className="w-full max-w-xl text-left border rounded-xl p-6 bg-accent/10">
+                <h3 className="mb-4 font-semibold text-lg">{safeText(votacionUi?.resultados_titulo)}</h3>
+                <SurveyForm
+                  survey={survey}
+                  onSubmit={async () => {}}
+                  loading={false}
+                  liveResults={liveResults}
+                  showLiveResults={true}
+                  readOnly={true}
+                  showHeader={false}
+                  submitLabel={safeText(votacionUi?.resultados_boton)}
+                  variant="votacion"
+                />
+              </div>
             )}
 
             {mode !== 'embed' && (
@@ -221,21 +242,60 @@ const PublicSurveyPage = () => {
 
             <div className="flex flex-wrap items-center justify-center gap-3">
               {mode !== 'embed' && (
-                  <Button asChild>
-                    <Link to="/">Ir al sitio principal</Link>
-                  </Button>
+                <Button asChild>
+                  <Link to="/">{safeText(votacionUi?.volver_inicio)}</Link>
+                </Button>
               )}
               <Button variant="outline" onClick={handleReset}>
-                Volver a la encuesta
+                {safeText(votacionUi?.volver_encuesta)}
               </Button>
             </div>
 
             {survey.permitir_comentarios && (
-                <SurveyComments
-                    slug={slug || ''}
-                    tenantSlug={tenantSlug || undefined}
-                    realtimeComments={liveComments}
-                />
+              <SurveyComments
+                slug={slug || ''}
+                tenantSlug={tenantSlug || undefined}
+                realtimeComments={liveComments}
+                copy={comentariosCopy}
+              />
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (isClosed && survey) {
+    return (
+      <div className={containerClass}>
+        <Card className="w-full border border-border/60">
+          <CardContent className="space-y-6 px-6 py-8 text-center sm:px-8">
+            <div className="space-y-2">
+              <h1 className="text-2xl font-semibold sm:text-3xl">{survey.titulo}</h1>
+              {closedMessage ? (
+                <p className="text-muted-foreground">{String(closedMessage)}</p>
+              ) : null}
+            </div>
+            <div className="w-full max-w-2xl mx-auto text-left">
+              <SurveyForm
+                survey={survey}
+                onSubmit={async () => {}}
+                loading={false}
+                liveResults={liveResults}
+                showLiveResults={true}
+                readOnly={true}
+                showHeader={false}
+                submitLabel={safeText(votacionUi?.resultados_finales_boton)}
+                variant="votacion"
+              />
+            </div>
+            {survey.permitir_comentarios && (
+              <SurveyComments
+                slug={slug || ''}
+                tenantSlug={tenantSlug || undefined}
+                realtimeComments={liveComments}
+                copy={comentariosCopy}
+              />
             )}
           </CardContent>
         </Card>
@@ -245,30 +305,116 @@ const PublicSurveyPage = () => {
 
   return (
     <div className={containerClass}>
-      <SurveyForm
-        survey={survey}
-        onSubmit={handleSubmit}
-        loading={isSubmitting}
-        defaultMetadata={metadata}
-        submitErrorMessage={submitError}
-        submitErrorStatus={submitStatus}
-        duplicateDetected={duplicateDetected}
-        // If we want to show results LIVE while voting (dynamic updates):
-        // liveResults={liveResults}
-        // showLiveResults={survey.mostrar_resultados_envivo}
-        // NOTE: Showing results BEFORE voting biases the user. Usually suppressed.
-        // I will NOT show live results during the voting phase, only after.
-      />
+      {survey.es_votacion_envivo ? (
+        <div className="space-y-6">
+          <Card className="border border-border/60 bg-gradient-to-br from-background via-background to-primary/5">
+            <CardContent className="space-y-6 px-6 py-8 sm:px-8">
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-600">
+                    <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                    {safeText(votacionUi?.badge_en_vivo)}
+                  </span>
+                  {survey?.recursos?.demoMode ? (
+                    <span className="inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-600">
+                      {safeText(votacionUi?.badge_demo)}
+                    </span>
+                  ) : null}
+                </div>
+                <div className="space-y-2">
+                  <h1 className="text-2xl font-semibold sm:text-3xl">{survey.titulo}</h1>
+                  {pollSubtitle && (
+                    <p className="text-muted-foreground text-base sm:text-lg">{pollSubtitle}</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-3">
+                <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-background/70 px-4 py-3">
+                  <Users className="h-5 w-5 text-primary" />
+                  <div>
+                    <p className="text-xs uppercase text-muted-foreground">{safeText(votacionUi?.stat_total_label)}</p>
+                    <p className="text-lg font-semibold">{livePollTotalVotes ?? '—'}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-background/70 px-4 py-3">
+                  <Timer className="h-5 w-5 text-primary" />
+                  <div>
+                    <p className="text-xs uppercase text-muted-foreground">{safeText(votacionUi?.stat_tiempo_label)}</p>
+                    <p className="text-lg font-semibold">
+                      {survey.fin_at ? new Date(survey.fin_at).toLocaleString() : '—'}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-background/70 px-4 py-3">
+                  <MessageSquareText className="h-5 w-5 text-primary" />
+                  <div>
+                    <p className="text-xs uppercase text-muted-foreground">{safeText(votacionUi?.stat_opciones_label)}</p>
+                    <p className="text-lg font-semibold">{votingOptionsCount || '—'}</p>
+                  </div>
+                </div>
+              </div>
+
+              {mode !== 'embed' && (
+                <div className="flex justify-start">
+                  <PublicSurveyShareActions survey={survey} submission={lastSubmission} />
+                </div>
+              )}
+
+              <div className="space-y-3">
+                <SurveyForm
+                  survey={survey}
+                  onSubmit={handleSubmit}
+                  loading={isSubmitting}
+                  defaultMetadata={metadata}
+                  submitErrorMessage={submitError}
+                  submitErrorStatus={submitStatus}
+                  duplicateDetected={duplicateDetected}
+                  showHeader={false}
+                  submitLabel={
+                    survey.tipo === 'votacion'
+                      ? safeText(votacionUi?.boton_votar)
+                      : safeText(votacionUi?.boton_enviar)
+                  }
+                  liveResults={liveResults}
+                  showLiveResults={Boolean(survey.mostrar_resultados_envivo)}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {survey.permitir_comentarios && (
+            <SurveyComments
+              slug={slug || ''}
+              tenantSlug={tenantSlug || undefined}
+              realtimeComments={liveComments}
+              copy={comentariosCopy}
+            />
+          )}
+        </div>
+      ) : (
+        <>
+          <SurveyForm
+            survey={survey}
+            onSubmit={handleSubmit}
+            loading={isSubmitting}
+            defaultMetadata={metadata}
+            submitErrorMessage={submitError}
+            submitErrorStatus={submitStatus}
+            duplicateDetected={duplicateDetected}
+          />
+          {survey.permitir_comentarios && (
+            <SurveyComments
+              slug={slug || ''}
+              tenantSlug={tenantSlug || undefined}
+              realtimeComments={liveComments}
+            />
+          )}
+        </>
+      )}
       {/* If comments are allowed, do we show them during voting? Yes, usually debate influences vote or vice versa.
           YouTube shows chat alongside poll.
       */}
-      {survey.permitir_comentarios && (
-         <SurveyComments
-             slug={slug || ''}
-             tenantSlug={tenantSlug || undefined}
-             realtimeComments={liveComments}
-         />
-      )}
     </div>
   );
 };
