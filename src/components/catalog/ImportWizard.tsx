@@ -8,6 +8,7 @@ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Loader2, CheckCircle, Upload, AlertTriangle } from 'lucide-react';
 import { importService, ImportPreview } from '../../services/importService';
 import { useTenant } from '@/context/TenantContext';
+import { getPreviewMetadataEntries } from '@/utils/catalogPreview';
 
 interface Props {
   tenantId: number;
@@ -144,7 +145,9 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
                         </tr>
                     </thead>
                     <tbody>
-                        {preview.items_preview.map((item, idx) => (
+                        {preview.items_preview.map((item, idx) => {
+                            const metadataEntries = getPreviewMetadataEntries(item);
+                            return (
                             <tr key={idx} className="border-b hover:bg-gray-50 group">
                                 <td className="p-2">
                                     <div className="h-10 w-10 bg-gray-100 rounded overflow-hidden flex items-center justify-center border">
@@ -165,6 +168,18 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
                                     }}
                                     className="h-8 border-transparent hover:border-input focus:border-input bg-transparent"
                                   />
+                                  {metadataEntries.length > 0 && (
+                                    <div className="mt-2 flex flex-wrap gap-1 text-[10px] text-gray-500">
+                                      {metadataEntries.map((entry) => (
+                                        <span
+                                          key={`${entry.key}-${entry.value}`}
+                                          className="rounded border border-gray-200 bg-gray-50 px-1 py-0.5"
+                                        >
+                                          <span className="font-medium">{entry.key}</span>: {entry.value}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
                                 </td>
                                 <td className="p-2">
                                   <div className="relative">
@@ -215,7 +230,8 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
                                     </Select>
                                 </td>
                             </tr>
-                        ))}
+                            );
+                        })}
                     </tbody>
                 </table>
             </div>

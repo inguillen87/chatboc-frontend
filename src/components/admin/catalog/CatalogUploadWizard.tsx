@@ -8,6 +8,7 @@ import { apiClient } from '@/api/client';
 import { toast } from 'sonner';
 import CatalogItemsTable, { CatalogPreviewItem } from './CatalogItemsTable';
 import { importService } from '@/services/importService';
+import { getPreviewMetadataEntries } from '@/utils/catalogPreview';
 
 interface CatalogUploadWizardProps {
   onFinish?: () => void;
@@ -89,6 +90,7 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
             price: item.price || item.precio || 0,
             stock: item.stock || 0,
             category: item.category || item.categoria || '',
+            metadata: getPreviewMetadataEntries(item),
             errors: preview.warnings || [], // This maps global warnings to items if specific item errors aren't provided
             warnings: []
         }));
