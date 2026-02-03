@@ -44,10 +44,10 @@ const SurveyDetailPage = () => {
         body: {},
         omitEntityToken: true
       });
-      toast({ title: "Seeding complete", description: result.message });
+      toast({ title: "Demo actualizada", description: result.message });
     } catch (error) {
       console.error('Seeding failed:', error);
-      toast({ title: 'Error seeding data', variant: 'destructive' });
+      toast({ title: 'Error al generar demo', variant: 'destructive' });
     }
   };
 
@@ -72,7 +72,7 @@ const SurveyDetailPage = () => {
             <CardDescription>Actualizá contenido, reglas y preguntas antes de compartirla.</CardDescription>
           </div>
           <Button variant="outline" size="sm" onClick={seedDemoData}>
-            Seed Demo Data
+            Reset y generar 100 seeds
           </Button>
         </CardHeader>
         <CardContent>
