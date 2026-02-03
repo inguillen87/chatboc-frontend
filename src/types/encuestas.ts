@@ -94,6 +94,7 @@ export interface SurveyComment {
   fecha: string;
   user_id?: number | null;
   anon_id?: string | null;
+  likes?: number;
 }
 
 export type SurveyLocationPrecision = 'gps' | 'manual' | 'estimada';

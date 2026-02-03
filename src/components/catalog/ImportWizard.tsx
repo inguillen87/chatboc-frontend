@@ -9,6 +9,13 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Loader2, CheckCircle, Upload, AlertTriangle } from 'lucide-react';
 import { importService, ImportPreview } from '../../services/importService';
 import { useTenant } from '@/context/TenantContext';
+import {
+  getPreviewFallbackValue,
+  getPreviewFieldValue,
+  getPreviewMetadataEntries,
+  hasMeaningfulValue,
+  parsePreviewNumber,
+} from '@/utils/catalogPreview';
 
 interface Props {
   tenantId: number;
