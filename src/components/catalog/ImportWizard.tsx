@@ -59,7 +59,7 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
     return { hasNames, hasPrices };
   }, [preview]);
 
-  const canConfirm = previewQuality.hasNames && previewQuality.hasPrices;
+  const canConfirm = (preview?.items_preview.length ?? 0) > 0;
 
   const updatePreviewField = (
     itemIndex: number,
@@ -107,7 +107,13 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
       // Step 2: Stateless Commit (Send file again)
       // Note: We ignore overrides for now as the backend stateless flow typically re-processes the file.
       // If we supported inline edits in the future, we'd send the 'preview.items_preview' as JSON instead of the file.
-      const res = await importService.commitImport(tenantId, file, processor, effectiveSlug || undefined);
+      const res = await importService.commitImport(
+        tenantId,
+        file,
+        processor,
+        effectiveSlug || undefined,
+        preview?.items_preview
+      );
       setResult(res);
       setStep(3);
     } catch (e) {
@@ -190,19 +196,58 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
                 </Alert>
             )}
 
+            {(!previewQuality.hasNames || !previewQuality.hasPrices) && (
+              <Alert>
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Revisá la vista previa</AlertTitle>
+                <AlertDescription>
+                  Faltan nombres o precios detectados en algunos productos. Podés editar los datos antes de confirmar.
+                </AlertDescription>
+              </Alert>
+            )}
+
             <div className="border rounded-md max-h-96 overflow-y-auto">
                 <table className="w-full text-sm">
                     <thead className="bg-gray-100 sticky top-0 z-10">
-                        <tr>
-                            <th className="p-2 text-left font-medium text-gray-600 w-16">Img</th>
-                            <th className="p-2 text-left font-medium text-gray-600">Nombre</th>
-                            <th className="p-2 text-left font-medium text-gray-600 w-32">Precio</th>
-                            <th className="p-2 text-left font-medium text-gray-600 w-32">SKU</th>
-                            <th className="p-2 text-left font-medium text-gray-600 w-40">Categoría</th>
-                        </tr>
+                        {preview.columns && preview.columns.length > 0 ? (
+                          <tr>
+                            {preview.columns.map((column) => (
+                              <th key={column} className="p-2 text-left font-medium text-gray-600">
+                                {column}
+                              </th>
+                            ))}
+                          </tr>
+                        ) : (
+                          <tr>
+                              <th className="p-2 text-left font-medium text-gray-600 w-16">Img</th>
+                              <th className="p-2 text-left font-medium text-gray-600">Nombre</th>
+                              <th className="p-2 text-left font-medium text-gray-600 w-32">Precio</th>
+                              <th className="p-2 text-left font-medium text-gray-600 w-32">SKU</th>
+                              <th className="p-2 text-left font-medium text-gray-600 w-40">Categoría</th>
+                          </tr>
+                        )}
                     </thead>
                     <tbody>
                         {preview.items_preview.map((item, idx) => {
+                            if (preview.columns && preview.columns.length > 0) {
+                              return (
+                                <tr key={idx} className="border-b hover:bg-gray-50">
+                                  {preview.columns.map((column) => {
+                                    const cellValue = getPreviewFieldValue(item, [column]) ?? '';
+                                    return (
+                                      <td key={`${idx}-${column}`} className="p-2">
+                                        <Input
+                                          value={String(cellValue)}
+                                          onChange={(e) => updatePreviewField(idx, [column], column, e.target.value)}
+                                          className="h-8 border-transparent hover:border-input focus:border-input bg-transparent"
+                                        />
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              );
+                            }
+
                             const metadataEntries = getPreviewMetadataEntries(item);
                             const nameValue =
                               getPreviewFieldValue(item, [

@@ -28,6 +28,7 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
   const [file, setFile] = useState<File | null>(null);
   const [tenantId, setTenantId] = useState<number | null>(null);
   const [previewItems, setPreviewItems] = useState<CatalogPreviewItem[]>([]);
+  const [rawPreviewItems, setRawPreviewItems] = useState<Array<Record<string, unknown>>>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [resultSummary, setResultSummary] = useState<{ processed: number; errors: number } | null>(null);
@@ -38,7 +39,7 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
     return { hasNames, hasPrices };
   }, [previewItems]);
 
-  const canConfirm = previewItems.length > 0 && previewQuality.hasNames && previewQuality.hasPrices;
+  const canConfirm = previewItems.length > 0;
 
   // Fetch tenant ID needed for importService
   useEffect(() => {
@@ -96,6 +97,7 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
       setUploadProgress(100);
 
       if (preview && preview.items_preview) {
+        setRawPreviewItems(preview.items_preview);
         // Map response to CatalogPreviewItem
         const mappedItems: CatalogPreviewItem[] = preview.items_preview.map((item: any, idx: number) => {
           const nameValue =
@@ -176,7 +178,7 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
         // Ideally we would send the `previewItems` as JSON, but importService.commitImport sends the file.
         // We will stick to the file for now as per backend spec "fixed 404... catalog-upload".
 
-        await importService.commitImport(tenantId, file, 'generic', currentSlug);
+        await importService.commitImport(tenantId, file, 'generic', currentSlug, rawPreviewItems);
 
         setResultSummary({
             processed: previewItems.length,
