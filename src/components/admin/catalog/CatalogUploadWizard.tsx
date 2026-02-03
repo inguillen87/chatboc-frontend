@@ -211,11 +211,11 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
           <span className="font-medium">{resolvedColumns[0]}</span>
         </div>
       )}
-      <table className="w-full text-sm">
+      <table className="w-full min-w-max text-sm">
         <thead className="bg-gray-100 sticky top-0 z-10">
           <tr>
             {resolvedColumns.map((column) => (
-              <th key={column} className="p-2 text-left font-medium text-gray-600">
+              <th key={column} className="p-2 text-left font-medium text-gray-600 whitespace-nowrap">
                 {column}
               </th>
             ))}
