@@ -65,7 +65,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     // Only connect if we have a user/tenant context or if it's required globally
     // For now, we follow the pattern in useTicketUpdates
-    const tenantSlug = resolveTenantSlug(user?.tenantSlug);
+    const tenantSlug = resolveTenantSlug(user?.tenantSlug || (user as any)?.tenant_slug);
 
     // If we want to allow anonymous connection (e.g. for widget), logic might differ.
     // But this context is primarily for the Admin App (TicketPanel, etc).
@@ -91,8 +91,13 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       };
     }
 
-    if (token) {
-      socketOptions.auth = { token };
+    const authPayload = {
+      ...(token ? { token } : {}),
+      ...(tenantSlug ? { tenant_slug: tenantSlug } : {}),
+    };
+
+    if (Object.keys(authPayload).length > 0) {
+      socketOptions.auth = authPayload;
     }
 
     const newSocket = io(SOCKET_URL ?? undefined, socketOptions);
@@ -103,7 +108,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       // Subscribe to ticket updates if we have a token
       if (token) {
-        newSocket.emit('subscribe_ticket_updates', { token });
+        newSocket.emit('subscribe_ticket_updates', tenantSlug ? { token, tenant_slug: tenantSlug } : { token });
       }
     });
 
@@ -113,7 +118,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
 
     newSocket.on('connect_error', (err) => {
-        console.error('Global Socket connection error:', err);
+      console.error('Global Socket connection error:', err);
     });
 
     setSocket(newSocket);
