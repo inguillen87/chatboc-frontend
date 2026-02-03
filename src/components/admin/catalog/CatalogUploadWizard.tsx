@@ -7,7 +7,7 @@ import { Upload, FileText, CheckCircle2, AlertTriangle, ArrowRight, RefreshCw, X
 import { useTenant } from '@/context/TenantContext';
 import { apiClient } from '@/api/client';
 import { toast } from 'sonner';
-import { importService } from '@/services/importService';
+import { importService, PreviewColumn } from '@/services/importService';
 import { Input } from '@/components/ui/input';
 
 interface CatalogUploadWizardProps {
@@ -22,7 +22,8 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
   const [file, setFile] = useState<File | null>(null);
   const [tenantId, setTenantId] = useState<number | null>(null);
   const [previewItems, setPreviewItems] = useState<Array<Record<string, unknown>>>([]);
-  const [previewColumns, setPreviewColumns] = useState<string[]>([]);
+  const [previewColumns, setPreviewColumns] = useState<PreviewColumn[]>([]);
+  const [catalogUploadId, setCatalogUploadId] = useState<number | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
@@ -99,7 +100,14 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
       }, 500);
 
       // Use importService which matches the new backend flow
-      const preview = await importService.uploadFile(effectiveId, file, 'generic', currentSlug);
+      const preview = await importService.uploadFile(
+        effectiveId,
+        file,
+        'generic',
+        currentSlug,
+        'generic',
+        catalogUploadId ?? undefined
+      );
 
       clearInterval(progressInterval);
       setUploadProgress(100);
@@ -107,6 +115,7 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
       if (preview && preview.items_preview) {
         setPreviewItems(preview.items_preview);
         setPreviewColumns(preview.columns ?? []);
+        setCatalogUploadId(preview.upload_id ?? null);
         setStep('preview');
         setIsPreviewModalOpen(true);
       } else {
@@ -136,7 +145,14 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
         // commitImport re-uploads the file in the stateless flow.
         // We also send the `previewItems` payload when available so the backend can apply inline edits.
 
-        await importService.commitImport(tenantId, file, 'generic', currentSlug, previewItems);
+        await importService.commitImport(
+          tenantId,
+          previewColumns,
+          previewItems,
+          currentSlug,
+          catalogUploadId ?? undefined,
+          'generic'
+        );
 
         setStep('result');
         toast.success("Catálogo actualizado correctamente.");

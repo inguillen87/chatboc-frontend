@@ -11,12 +11,25 @@ export interface PreviewColumn {
   label: string;
 }
 
+export interface PreviewColumn {
+  key: string;
+  label: string;
+}
+
 export interface ImportPreview {
   total_detected: number;
   confidence: number;
   warnings: string[];
   items_preview: Array<Record<string, unknown>>;
   columns?: PreviewColumn[];
+}
+
+export interface CommitPayload {
+  columns: string[];
+  rows: Array<Array<unknown>>;
+  catalogUploadId?: number;
+  rubro?: string;
+  replaceCatalog?: boolean;
 }
 
 const resolveColumnKey = (column: unknown, index: number): string => {
@@ -51,7 +64,9 @@ export const importService = {
     file: File,
     processorSlug: string = 'generic',
     tenantSlug?: string,
-    rubroSlug?: string
+    rubroSlug?: string,
+    catalogUploadId?: number,
+    maxPages?: number
   ): Promise<ImportPreview & { upload_id?: number }> => {
     const formData = new FormData();
     formData.append('file', file);
@@ -60,6 +75,12 @@ export const importService = {
     }
     if (rubroSlug) {
       formData.append('rubro', rubroSlug);
+    }
+    if (typeof catalogUploadId === 'number') {
+      formData.append('catalogUploadId', String(catalogUploadId));
+    }
+    if (typeof maxPages === 'number') {
+      formData.append('maxPages', String(maxPages));
     }
 
     // Use generic ID 0 if tenantId is not resolved (e.g. initial setup) as per backend v2 specs
@@ -134,25 +155,33 @@ export const importService = {
   // The UI (ImportWizard) holds the file, so we can pass it here.
   commitImport: async (
     tenantId: number,
-    file: File,
-    processorSlug: string = 'generic',
+    previewColumns: PreviewColumn[] | undefined,
+    previewItems: Array<Record<string, unknown>>,
     tenantSlug?: string,
-    previewItems?: Array<Record<string, unknown>>
+    catalogUploadId?: number,
+    rubro?: string,
+    replaceCatalog: boolean = true
   ) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('processor', processorSlug);
-    if (previewItems && previewItems.length > 0) {
-      formData.append('items_preview', JSON.stringify(previewItems));
-    }
+    const columns = (previewColumns ?? []).map((column) => column.label);
+    const rows = previewItems.map((item) =>
+      (previewColumns ?? []).map((column) => item[column.key])
+    );
 
-    const response = await apiFetch<any>(`/api/pymes/${tenantId}/catalog-upload/subir_catalogo`, {
+    const payload: CommitPayload = {
+      columns,
+      rows,
+      catalogUploadId,
+      rubro,
+      replaceCatalog,
+    };
+
+    const response = await apiFetch<any>(`/api/pymes/${tenantId}/document-intelligence/commit`, {
       method: 'POST',
-      body: formData,
+      body: JSON.stringify(payload),
       tenantSlug,
       omitEntityToken: true,
     });
-    return response; // { message, items_count, upload_id }
+    return response;
   },
 
   // Deprecated/Unused in new stateless flow, kept for compatibility if needed

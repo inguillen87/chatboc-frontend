@@ -30,6 +30,7 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
   const [file, setFile] = useState<File | null>(null);
   const [processor, setProcessor] = useState('generic');
   const [preview, setPreview] = useState<ImportPreview | null>(null);
+  const [catalogUploadId, setCatalogUploadId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
@@ -129,10 +130,12 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
         file,
         processor,
         effectiveSlug || undefined,
-        processor
+        processor,
+        catalogUploadId ?? undefined
       );
       // We receive the preview directly.
       setPreview(previewData);
+      setCatalogUploadId(previewData.upload_id ?? null);
       setStep(2);
       setIsPreviewModalOpen(true);
     } catch (e) {
@@ -150,12 +153,16 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
       // Step 2: Stateless Commit (Send file again)
       // Note: We ignore overrides for now as the backend stateless flow typically re-processes the file.
       // If we supported inline edits in the future, we'd send the 'preview.items_preview' as JSON instead of the file.
+      if (!preview) {
+        throw new Error('Missing preview data');
+      }
       const res = await importService.commitImport(
         tenantId,
-        file,
-        processor,
+        preview.columns,
+        preview.items_preview,
         effectiveSlug || undefined,
-        preview?.items_preview
+        catalogUploadId ?? undefined,
+        processor
       );
       setResult(res);
       setStep(3);
