@@ -10,11 +10,43 @@ export interface SurveyTemplateDefinition {
   politica_unicidad: SurveyDraftPayload['politica_unicidad'];
   anonimato?: boolean;
   requiere_datos_contacto?: boolean;
+  es_votacion_envivo?: boolean;
+  mostrar_resultados_envivo?: boolean;
+  permitir_comentarios?: boolean;
+  puntos_recompensa?: number;
   preguntas: SurveyTemplatePregunta[];
   tags?: string[];
 }
 
 const MUNICIPAL_SURVEY_TEMPLATES: SurveyTemplateDefinition[] = [
+  {
+    slug: 'votacion-en-vivo',
+    titulo: 'Votación en vivo: definamos la próxima decisión en {{municipality}}',
+    descripcion:
+      'Elegí tu opción preferida y seguí los resultados en tiempo real junto a la comunidad.',
+    tipo: 'votacion',
+    politica_unicidad: 'por_cookie',
+    anonimato: true,
+    requiere_datos_contacto: false,
+    es_votacion_envivo: true,
+    mostrar_resultados_envivo: true,
+    permitir_comentarios: true,
+    preguntas: [
+      {
+        orden: 1,
+        tipo: 'opcion_unica',
+        texto: '¿Qué iniciativa debería priorizarse primero?',
+        obligatoria: true,
+        opciones: [
+          { orden: 1, texto: 'Mejoras en espacios verdes' },
+          { orden: 2, texto: 'Seguridad y prevención' },
+          { orden: 3, texto: 'Movilidad y transporte' },
+          { orden: 4, texto: 'Innovación y servicios digitales' },
+        ],
+      },
+    ],
+    tags: ['Votación', 'Tiempo real'],
+  },
   {
     slug: 'servicios-publicos',
     titulo: 'Encuesta sobre servicios públicos en {{municipality}}',
@@ -499,6 +531,10 @@ export const buildDraftFromTemplate = (
     politica_unicidad: template.politica_unicidad,
     anonimato: Boolean(template.anonimato),
     requiere_datos_contacto: Boolean(template.anonimato ? false : template.requiere_datos_contacto),
+    es_votacion_envivo: template.es_votacion_envivo,
+    mostrar_resultados_envivo: template.mostrar_resultados_envivo,
+    permitir_comentarios: template.permitir_comentarios,
+    puntos_recompensa: template.puntos_recompensa,
     preguntas: template.preguntas.map((pregunta, preguntaIndex) => ({
       orden: typeof pregunta.orden === 'number' ? pregunta.orden : preguntaIndex + 1,
       tipo: pregunta.tipo,

@@ -1,4 +1,5 @@
 import { apiFetch } from '@/utils/api';
+import { PreviewValue } from '@/utils/catalogPreview';
 
 export interface PreviewColumn {
   key: string;

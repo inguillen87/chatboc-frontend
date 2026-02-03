@@ -8,13 +8,22 @@ import { Button } from '@/components/ui/button';
 import { useSurveyAdmin } from '@/hooks/useSurveyAdmin';
 import type { SurveyDraftPayload } from '@/types/encuestas';
 import { toast } from '@/components/ui/use-toast';
-import { apiFetch } from '@/utils/api';
 
 const SurveyDetailPage = () => {
   const params = useParams();
   const navigate = useNavigate();
   const surveyId = useMemo(() => (params.id ? Number(params.id) : null), [params.id]);
-  const { survey, isLoadingSurvey, surveyError, saveSurvey, publishSurvey, isSaving, isPublishing, refetchSurvey } = useSurveyAdmin({ id: surveyId ?? undefined });
+  const {
+    survey,
+    isLoadingSurvey,
+    surveyError,
+    saveSurvey,
+    publishSurvey,
+    seedSurvey,
+    isSaving,
+    isPublishing,
+    refetchSurvey,
+  } = useSurveyAdmin({ id: surveyId ?? undefined });
 
   const handleSave = async (payload: SurveyDraftPayload) => {
     try {
@@ -39,15 +48,14 @@ const SurveyDetailPage = () => {
   const seedDemoData = async () => {
     if (!surveyId) return;
     try {
-      const result = await apiFetch<{ message: string }>(`/admin/encuestas/${surveyId}/seed-demo`, {
-        method: 'POST',
-        body: {},
-        omitEntityToken: true
-      });
-      toast({ title: "Seeding complete", description: result.message });
+      const result = await seedSurvey(surveyId, { cantidad: 100, reset: true });
+      const resetInfo = result.reset
+        ? ` (${result.reset.respuestas ?? 0} respuestas, ${result.reset.comentarios ?? 0} comentarios)`
+        : '';
+      toast({ title: "Demo actualizada", description: `Se generaron ${result.creadas} respuestas.${resetInfo}` });
     } catch (error) {
       console.error('Seeding failed:', error);
-      toast({ title: 'Error seeding data', variant: 'destructive' });
+      toast({ title: 'Error al generar demo', variant: 'destructive' });
     }
   };
 
@@ -72,7 +80,7 @@ const SurveyDetailPage = () => {
             <CardDescription>Actualizá contenido, reglas y preguntas antes de compartirla.</CardDescription>
           </div>
           <Button variant="outline" size="sm" onClick={seedDemoData}>
-            Seed Demo Data
+            Reset y generar 100 seeds
           </Button>
         </CardHeader>
         <CardContent>
