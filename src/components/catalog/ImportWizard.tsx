@@ -61,6 +61,21 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
 
   const canConfirm = (preview?.items_preview.length ?? 0) > 0;
 
+  const normalizedPreviewColumns = useMemo(() => {
+    if (!preview?.columns || preview.columns.length === 0) {
+      return [];
+    }
+    return preview.columns.map((column, index) => {
+      if (typeof column === 'string') {
+        return { key: column, label: column };
+      }
+      const columnRecord = column as Record<string, unknown>;
+      const key = String(columnRecord.key ?? columnRecord.name ?? columnRecord.label ?? `col_${index + 1}`);
+      const label = String(columnRecord.name ?? columnRecord.label ?? columnRecord.key ?? `Col ${index + 1}`);
+      return { key, label };
+    });
+  }, [preview?.columns]);
+
   const updatePreviewField = (
     itemIndex: number,
     keys: string[],
@@ -209,11 +224,11 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
             <div className="border rounded-md max-h-96 overflow-y-auto">
                 <table className="w-full text-sm">
                     <thead className="bg-gray-100 sticky top-0 z-10">
-                        {preview.columns && preview.columns.length > 0 ? (
+                        {normalizedPreviewColumns.length > 0 ? (
                           <tr>
-                            {preview.columns.map((column) => (
-                              <th key={column} className="p-2 text-left font-medium text-gray-600">
-                                {column}
+                            {normalizedPreviewColumns.map((column) => (
+                              <th key={column.key} className="p-2 text-left font-medium text-gray-600">
+                                {column.label}
                               </th>
                             ))}
                           </tr>
@@ -229,16 +244,16 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
                     </thead>
                     <tbody>
                         {preview.items_preview.map((item, idx) => {
-                            if (preview.columns && preview.columns.length > 0) {
+                            if (normalizedPreviewColumns.length > 0) {
                               return (
                                 <tr key={idx} className="border-b hover:bg-gray-50">
-                                  {preview.columns.map((column) => {
-                                    const cellValue = getPreviewFieldValue(item, [column]) ?? '';
+                                  {normalizedPreviewColumns.map((column) => {
+                                    const cellValue = getPreviewFieldValue(item, [column.key]) ?? '';
                                     return (
-                                      <td key={`${idx}-${column}`} className="p-2">
+                                      <td key={`${idx}-${column.key}`} className="p-2">
                                         <Input
                                           value={String(cellValue)}
-                                          onChange={(e) => updatePreviewField(idx, [column], column, e.target.value)}
+                                          onChange={(e) => updatePreviewField(idx, [column.key], column.key, e.target.value)}
                                           className="h-8 border-transparent hover:border-input focus:border-input bg-transparent"
                                         />
                                       </td>

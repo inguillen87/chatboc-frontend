@@ -6,7 +6,7 @@ export interface ImportPreview {
   confidence: number;
   warnings: string[];
   items_preview: Array<Record<string, PreviewValue>>;
-  columns?: string[];
+  columns?: Array<unknown>;
 }
 
 export const importService = {
