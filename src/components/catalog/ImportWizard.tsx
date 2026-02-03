@@ -87,15 +87,24 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
         <tbody>
           {preview?.items_preview.map((item, idx) => (
             <tr key={idx} className="border-b hover:bg-gray-50">
-              {previewColumns.map((column) => (
-                <td key={`${idx}-${column.key}`} className="p-2">
-                  <Input
-                    value={item[column.key] === null || item[column.key] === undefined ? '' : String(item[column.key])}
-                    onChange={(e) => updatePreviewField(idx, column.key, e.target.value)}
-                    className="h-8 border-transparent hover:border-input focus:border-input bg-transparent"
-                  />
-                </td>
-              ))}
+              {previewColumns.map((column) => {
+                const cellValue = item[column.key];
+                const isEmpty =
+                  cellValue === null ||
+                  cellValue === undefined ||
+                  (typeof cellValue === 'string' && cellValue.trim().length === 0);
+                return (
+                  <td key={`${idx}-${column.key}`} className="p-2">
+                    <Input
+                      value={cellValue === null || cellValue === undefined ? '' : String(cellValue)}
+                      onChange={(e) => updatePreviewField(idx, column.key, e.target.value)}
+                      className={`h-8 border-transparent hover:border-input focus:border-input bg-transparent ${
+                        isEmpty ? 'bg-amber-50/50 border-amber-200/70' : ''
+                      }`.trim()}
+                    />
+                  </td>
+                );
+              })}
             </tr>
           ))}
         </tbody>
@@ -115,7 +124,13 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
     setLoading(true);
     try {
       // Step 1: Stateless Upload & Preview
-      const previewData = await importService.uploadFile(tenantId, file, processor, effectiveSlug || undefined);
+      const previewData = await importService.uploadFile(
+        tenantId,
+        file,
+        processor,
+        effectiveSlug || undefined,
+        processor
+      );
       // We receive the preview directly.
       setPreview(previewData);
       setStep(2);

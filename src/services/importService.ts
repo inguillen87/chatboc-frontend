@@ -6,6 +6,11 @@ export interface PreviewColumn {
   label: string;
 }
 
+export interface PreviewColumn {
+  key: string;
+  label: string;
+}
+
 export interface ImportPreview {
   total_detected: number;
   confidence: number;
@@ -41,9 +46,21 @@ const resolveColumnLabel = (column: unknown, index: number, key: string): string
 
 export const importService = {
   // Step 1: Upload & Preview (Document Intelligence)
-  uploadFile: async (tenantId: number | null | undefined, file: File, processorSlug: string = 'generic', tenantSlug?: string): Promise<ImportPreview & { upload_id?: number }> => {
+  uploadFile: async (
+    tenantId: number | null | undefined,
+    file: File,
+    processorSlug: string = 'generic',
+    tenantSlug?: string,
+    rubroSlug?: string
+  ): Promise<ImportPreview & { upload_id?: number }> => {
     const formData = new FormData();
     formData.append('file', file);
+    if (processorSlug) {
+      formData.append('processor', processorSlug);
+    }
+    if (rubroSlug) {
+      formData.append('rubro', rubroSlug);
+    }
 
     // Use generic ID 0 if tenantId is not resolved (e.g. initial setup) as per backend v2 specs
     const effectiveId = tenantId || 0;
