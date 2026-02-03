@@ -265,6 +265,70 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
     }
   };
 
+  const previewQuality = useMemo(() => {
+    if (!preview) {
+      return { hasNames: false, hasPrices: false };
+    }
+
+    const items = preview.items_preview;
+    const hasNames = items.some((item) => {
+      const directName = getPreviewFieldValue(item, [
+        'nombre',
+        'name',
+        'producto',
+        'producto_nombre',
+        'descripcion',
+        'description',
+        'titulo',
+        'title',
+      ]);
+      return hasMeaningfulValue(directName) || hasMeaningfulValue(getPreviewFallbackValue(item));
+    });
+    const hasPrices = items.some((item) =>
+      parsePreviewNumber(getPreviewFieldValue(item, ['precio', 'price', 'precio_unitario', 'unit_price', 'precio_por_caja', 'price_per_box'])) !== null
+    );
+
+    return { hasNames, hasPrices };
+  }, [preview]);
+
+  const canConfirm = (preview?.items_preview.length ?? 0) > 0;
+
+  const normalizedPreviewColumns = useMemo(() => {
+    if (!preview?.columns || preview.columns.length === 0) {
+      return [];
+    }
+    return preview.columns.map((column, index) => {
+      if (typeof column === 'string') {
+        return { key: column, label: column };
+      }
+      const columnRecord = column as Record<string, unknown>;
+      const key = String(columnRecord.key ?? columnRecord.name ?? columnRecord.label ?? `col_${index + 1}`);
+      const label = String(columnRecord.name ?? columnRecord.label ?? columnRecord.key ?? `Col ${index + 1}`);
+      return { key, label };
+    });
+  }, [preview?.columns]);
+
+  const updatePreviewField = (
+    itemIndex: number,
+    keys: string[],
+    fallbackKey: string,
+    value: string
+  ) => {
+    if (!preview) return;
+    const newItems = [...preview.items_preview];
+    const current = newItems[itemIndex];
+    const targetKey = keys.find((key) => current[key] !== undefined) ?? fallbackKey;
+    newItems[itemIndex] = { ...current, [targetKey]: value };
+    setPreview({ ...preview, items_preview: newItems });
+  };
+
+  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    if (event.dataTransfer.files && event.dataTransfer.files[0]) {
+      setFile(event.dataTransfer.files[0]);
+    }
+  };
+
   const handleUpload = async () => {
     if (!file) return;
     setLoading(true);
