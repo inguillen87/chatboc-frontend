@@ -1,7 +1,7 @@
 export type PreviewValue = string | number | boolean | null | undefined | Record<string, unknown> | Array<unknown>;
 
-const normalizePreviewKey = (key: string): string =>
-  key
+const normalizePreviewKey = (key: unknown): string =>
+  String(key)
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-zA-Z0-9]+/g, '')
