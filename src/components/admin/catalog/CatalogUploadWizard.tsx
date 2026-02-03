@@ -35,6 +35,15 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
     return previewItems.length > 0 ? Object.keys(previewItems[0]) : [];
   }, [previewColumns, previewItems]);
 
+  const updatePreviewField = (rowIndex: number, column: string, value: string) => {
+    setPreviewItems((prev) => {
+      const next = [...prev];
+      const current = next[rowIndex] ?? {};
+      next[rowIndex] = { ...current, [column]: value };
+      return next;
+    });
+  };
+
   // Fetch tenant ID needed for importService
   useEffect(() => {
     const fetchTenantId = async () => {
@@ -119,12 +128,8 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
     setIsProcessing(true);
 
     try {
-        // commitImport re-uploads the file in the stateless flow
-        // Note: Inline edits in preview (handleItemUpdate) are NOT persisted because we send the original file.
-        // To support inline edits, the backend would need to accept the JSON payload or we'd need to modify the file client-side (complex).
-        // For this MVP, we warn the user or just send the file.
-        // Ideally we would send the `previewItems` as JSON, but importService.commitImport sends the file.
-        // We will stick to the file for now as per backend spec "fixed 404... catalog-upload".
+        // commitImport re-uploads the file in the stateless flow.
+        // We also send the `previewItems` payload when available so the backend can apply inline edits.
 
         await importService.commitImport(tenantId, file, 'generic', currentSlug, previewItems);
 
@@ -213,8 +218,8 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
                 <td key={`${idx}-${column}`} className="p-2">
                   <Input
                     value={item[column] === null || item[column] === undefined ? '' : String(item[column])}
-                    readOnly
-                    className="h-8 border-transparent bg-transparent"
+                    onChange={(e) => updatePreviewField(idx, column, e.target.value)}
+                    className="h-8 border-transparent hover:border-input focus:border-input bg-transparent"
                   />
                 </td>
               ))}
@@ -248,7 +253,7 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
         {!isPreviewModalOpen && renderPreviewTable("border rounded-md max-h-96 overflow-y-auto")}
 
         <p className="text-xs text-amber-600 bg-amber-50 p-2 rounded">
-            Nota: La edición en línea no está disponible en este modo. Suba un archivo corregido si detecta errores.
+            Nota: Podés editar los valores antes de confirmar la importación.
         </p>
 
         <div className="flex items-center justify-end gap-3 pt-4 border-t">
