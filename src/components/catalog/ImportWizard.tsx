@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Loader2, CheckCircle, Upload, AlertTriangle } from 'lucide-react';
 import { importService, ImportPreview } from '../../services/importService';
 import { useTenant } from '@/context/TenantContext';
@@ -28,67 +29,76 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [file, setFile] = useState<File | null>(null);
   const [processor, setProcessor] = useState('generic');
-  const [uploadId, setUploadId] = useState<number | null>(null);
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
-
-  const previewQuality = useMemo(() => {
-    if (!preview) {
-      return { hasNames: false, hasPrices: false };
-    }
-
-    const items = preview.items_preview;
-    const hasNames = items.some((item) => {
-      const directName = getPreviewFieldValue(item, [
-        'nombre',
-        'name',
-        'producto',
-        'producto_nombre',
-        'descripcion',
-        'description',
-        'titulo',
-        'title',
-      ]);
-      return hasMeaningfulValue(directName) || hasMeaningfulValue(getPreviewFallbackValue(item));
-    });
-    const hasPrices = items.some((item) =>
-      parsePreviewNumber(getPreviewFieldValue(item, ['precio', 'price', 'precio_unitario', 'unit_price', 'precio_por_caja', 'price_per_box'])) !== null
-    );
-
-    return { hasNames, hasPrices };
-  }, [preview]);
+  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
 
   const canConfirm = (preview?.items_preview.length ?? 0) > 0;
 
-  const normalizedPreviewColumns = useMemo(() => {
-    if (!preview?.columns || preview.columns.length === 0) {
+  const previewColumns = useMemo(() => {
+    if (!preview) {
       return [];
     }
-    return preview.columns.map((column, index) => {
-      if (typeof column === 'string') {
-        return { key: column, label: column };
-      }
-      const columnRecord = column as Record<string, unknown>;
-      const key = String(columnRecord.key ?? columnRecord.name ?? columnRecord.label ?? `col_${index + 1}`);
-      const label = String(columnRecord.name ?? columnRecord.label ?? columnRecord.key ?? `Col ${index + 1}`);
-      return { key, label };
-    });
-  }, [preview?.columns]);
+    if (preview.columns && preview.columns.length > 0) {
+      return preview.columns;
+    }
+    const firstRow = preview.items_preview[0];
+    return firstRow ? Object.keys(firstRow) : [];
+  }, [preview]);
+  const isPlainTextPreview =
+    previewColumns.length === 1 && previewColumns[0]?.toLowerCase().includes('contenido');
 
   const updatePreviewField = (
     itemIndex: number,
-    keys: string[],
-    fallbackKey: string,
+    key: string,
     value: string
   ) => {
     if (!preview) return;
     const newItems = [...preview.items_preview];
     const current = newItems[itemIndex];
-    const targetKey = keys.find((key) => current[key] !== undefined) ?? fallbackKey;
-    newItems[itemIndex] = { ...current, [targetKey]: value };
+    newItems[itemIndex] = { ...current, [key]: value };
     setPreview({ ...preview, items_preview: newItems });
   };
+
+  const renderPreviewTable = (containerClassName: string) => (
+    <div
+      className={`${containerClassName} ${isPlainTextPreview ? 'border-amber-200 bg-amber-50/30' : ''}`.trim()}
+    >
+      {isPlainTextPreview && (
+        <div className="flex items-center gap-2 border-b border-amber-200 px-3 py-2 text-xs text-amber-700">
+          <AlertTriangle className="h-4 w-4" />
+          <span className="font-medium">{previewColumns[0]}</span>
+        </div>
+      )}
+      <table className="w-full min-w-max text-sm">
+        <thead className="bg-gray-100 sticky top-0 z-10">
+          <tr>
+            {previewColumns.map((column) => (
+              <th key={column} className="p-2 text-left font-medium text-gray-600 whitespace-nowrap">
+                {column}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {preview?.items_preview.map((item, idx) => (
+            <tr key={idx} className="border-b hover:bg-gray-50">
+              {previewColumns.map((column) => (
+                <td key={`${idx}-${column}`} className="p-2">
+                  <Input
+                    value={item[column] === null || item[column] === undefined ? '' : String(item[column])}
+                    onChange={(e) => updatePreviewField(idx, column, e.target.value)}
+                    className="h-8 border-transparent hover:border-input focus:border-input bg-transparent"
+                  />
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 
   const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -105,8 +115,8 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
       const previewData = await importService.uploadFile(tenantId, file, processor, effectiveSlug || undefined);
       // We receive the preview directly.
       setPreview(previewData);
-      setUploadId(previewData.upload_id || Date.now()); // Fallback ID if not provided, just for state tracking
       setStep(2);
+      setIsPreviewModalOpen(true);
     } catch (e) {
       console.error(e);
       alert("Error uploading file");
@@ -211,179 +221,59 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
                 </Alert>
             )}
 
-            {(!previewQuality.hasNames || !previewQuality.hasPrices) && (
-              <Alert>
-                <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>Revisá la vista previa</AlertTitle>
-                <AlertDescription>
-                  Faltan nombres o precios detectados en algunos productos. Podés editar los datos antes de confirmar.
-                </AlertDescription>
-              </Alert>
-            )}
-
-            <div className="border rounded-md max-h-96 overflow-y-auto">
-                <table className="w-full text-sm">
-                    <thead className="bg-gray-100 sticky top-0 z-10">
-                        {normalizedPreviewColumns.length > 0 ? (
-                          <tr>
-                            {normalizedPreviewColumns.map((column) => (
-                              <th key={column.key} className="p-2 text-left font-medium text-gray-600">
-                                {column.label}
-                              </th>
-                            ))}
-                          </tr>
-                        ) : (
-                          <tr>
-                              <th className="p-2 text-left font-medium text-gray-600 w-16">Img</th>
-                              <th className="p-2 text-left font-medium text-gray-600">Nombre</th>
-                              <th className="p-2 text-left font-medium text-gray-600 w-32">Precio</th>
-                              <th className="p-2 text-left font-medium text-gray-600 w-32">SKU</th>
-                              <th className="p-2 text-left font-medium text-gray-600 w-40">Categoría</th>
-                          </tr>
-                        )}
-                    </thead>
-                    <tbody>
-                        {preview.items_preview.map((item, idx) => {
-                            if (normalizedPreviewColumns.length > 0) {
-                              return (
-                                <tr key={idx} className="border-b hover:bg-gray-50">
-                                  {normalizedPreviewColumns.map((column) => {
-                                    const cellValue = getPreviewFieldValue(item, [column.key]) ?? '';
-                                    return (
-                                      <td key={`${idx}-${column.key}`} className="p-2">
-                                        <Input
-                                          value={String(cellValue)}
-                                          onChange={(e) => updatePreviewField(idx, [column.key], column.key, e.target.value)}
-                                          className="h-8 border-transparent hover:border-input focus:border-input bg-transparent"
-                                        />
-                                      </td>
-                                    );
-                                  })}
-                                </tr>
-                              );
-                            }
-
-                            const metadataEntries = getPreviewMetadataEntries(item);
-                            const nameValue =
-                              getPreviewFieldValue(item, [
-                                'nombre',
-                                'name',
-                                'producto',
-                                'producto_nombre',
-                                'descripcion',
-                                'description',
-                                'titulo',
-                                'title',
-                              ]) ??
-                              getPreviewFallbackValue(item, [
-                                'precio',
-                                'price',
-                                'precio_unitario',
-                                'unit_price',
-                                'precio_por_caja',
-                                'price_per_box',
-                                'sku',
-                                'category',
-                                'categoria',
-                                'image_url',
-                                'imageUrl',
-                              ]) ??
-                              '';
-                            const priceValue =
-                              getPreviewFieldValue(item, ['precio', 'price', 'precio_unitario', 'unit_price', 'precio_por_caja', 'price_per_box']) ?? '';
-                            const skuValue = getPreviewFieldValue(item, ['sku', 'SKU', 'codigo', 'code']) ?? '';
-                            const categoryValue = getPreviewFieldValue(item, ['categoria', 'category']) ?? 'General';
-                            const imageValue = getPreviewFieldValue(item, ['image_url', 'imageUrl', 'imagen', 'image']) ?? '';
-                            return (
-                            <tr key={idx} className="border-b hover:bg-gray-50 group">
-                                <td className="p-2">
-                                    <div className="h-10 w-10 bg-gray-100 rounded overflow-hidden flex items-center justify-center border">
-                                        {imageValue ? (
-                                            <img src={String(imageValue)} alt="" className="h-full w-full object-cover" />
-                                        ) : (
-                                            <span className="text-[8px] text-gray-400">N/A</span>
-                                        )}
-                                    </div>
-                                </td>
-                                <td className="p-2">
-                                  <Input
-                                    value={String(nameValue)}
-                                    onChange={(e) => {
-                                      updatePreviewField(
-                                        idx,
-                                        ['nombre', 'name', 'producto', 'producto_nombre', 'descripcion', 'description', 'titulo', 'title'],
-                                        'nombre',
-                                        e.target.value
-                                      );
-                                    }}
-                                    className="h-8 border-transparent hover:border-input focus:border-input bg-transparent"
-                                  />
-                                  {metadataEntries.length > 0 && (
-                                    <div className="mt-2 flex flex-wrap gap-1 text-[10px] text-gray-500">
-                                      {metadataEntries.map((entry) => (
-                                        <span
-                                          key={`${entry.key}-${entry.value}`}
-                                          className="rounded border border-gray-200 bg-gray-50 px-1 py-0.5"
-                                        >
-                                          <span className="font-medium">{entry.key}</span>: {entry.value}
-                                        </span>
-                                      ))}
-                                    </div>
-                                  )}
-                                </td>
-                                <td className="p-2">
-                                  <div className="relative">
-                                    <span className="absolute left-2 top-1.5 text-xs text-gray-500">$</span>
-                                    <Input
-                                      type="number"
-                                      value={priceValue === '' ? '' : String(priceValue)}
-                                      onChange={(e) => {
-                                        updatePreviewField(
-                                          idx,
-                                          ['precio', 'price', 'precio_unitario', 'unit_price', 'precio_por_caja', 'price_per_box'],
-                                          'precio',
-                                          e.target.value
-                                        );
-                                      }}
-                                      className="h-8 pl-5 border-transparent hover:border-input focus:border-input bg-transparent"
-                                    />
-                                  </div>
-                                </td>
-                                <td className="p-2">
-                                  <Input
-                                    value={String(skuValue)}
-                                    placeholder="Auto-gen"
-                                    onChange={(e) => {
-                                      updatePreviewField(idx, ['sku', 'SKU', 'codigo', 'code'], 'sku', e.target.value);
-                                    }}
-                                    className="h-8 border-transparent hover:border-input focus:border-input bg-transparent text-gray-500 font-mono text-xs"
-                                  />
-                                </td>
-                                <td className="p-2">
-                                    <Select
-                                        value={String(categoryValue || 'General')}
-                                        onValueChange={(val) => {
-                                            updatePreviewField(idx, ['category', 'categoria'], 'category', val);
-                                        }}
-                                    >
-                                        <SelectTrigger className="h-8 border-transparent hover:border-input focus:border-input bg-transparent">
-                                            <SelectValue placeholder="Categoría" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="General">General</SelectItem>
-                                            <SelectItem value="Indumentaria">Indumentaria</SelectItem>
-                                            <SelectItem value="Calzado">Calzado</SelectItem>
-                                            <SelectItem value="Accesorios">Accesorios</SelectItem>
-                                            <SelectItem value="Hogar">Hogar</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </td>
-                            </tr>
-                            );
-                        })}
-                    </tbody>
-                </table>
+            <div className="flex justify-end">
+              <Button variant="outline" onClick={() => setIsPreviewModalOpen(true)}>
+                Ver en pantalla completa
+              </Button>
             </div>
+
+            {!isPreviewModalOpen && renderPreviewTable("border rounded-md max-h-96 overflow-y-auto")}
+
+            <Dialog open={isPreviewModalOpen} onOpenChange={setIsPreviewModalOpen}>
+              <DialogContent className="max-w-6xl h-[85vh]">
+                <DialogHeader>
+                  <DialogTitle>Vista previa completa</DialogTitle>
+                  <DialogDescription>
+                    Revisá el detalle detectado por la IA antes de confirmar la importación. Productos detectados: {preview.total_detected}.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-lg border bg-muted/40 p-4">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Productos detectados</p>
+                      <p className="text-xl font-semibold">{preview.total_detected}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Confianza</p>
+                      <p className="text-xl font-semibold">{(preview.confidence * 100).toFixed(0)}%</p>
+                    </div>
+                    {preview.warnings.length > 0 && (
+                      <div>
+                        <p className="text-sm text-muted-foreground">Warnings</p>
+                        <p className="text-sm font-medium">{preview.warnings.length}</p>
+                      </div>
+                    )}
+                  </div>
+                  <div className="overflow-x-auto">
+                    {renderPreviewTable("border rounded-md max-h-[55vh] overflow-y-auto")}
+                  </div>
+                </div>
+                <DialogFooter className="gap-2 sm:justify-between">
+                  <Button variant="outline" onClick={() => setIsPreviewModalOpen(false)}>
+                    Editar
+                  </Button>
+                  <div className="flex gap-2">
+                    <Button variant="ghost" onClick={() => setIsPreviewModalOpen(false)}>
+                      Cancelar
+                    </Button>
+                    <Button onClick={handleCommit} disabled={loading || !canConfirm}>
+                      {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Confirmar {preview?.items_preview.length} items
+                    </Button>
+                  </div>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
         )}
 
