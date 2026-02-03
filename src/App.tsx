@@ -16,7 +16,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import UserPortalGuard from "@/components/user-portal/UserPortalGuard";
 import { DateSettingsProvider } from "./hooks/useDateSettings";
 import { UserProvider } from "./hooks/useUser";
-import useTicketUpdates from "./hooks/useTicketUpdates";
+import { RealtimeAlertsProvider } from "@/context/RealtimeAlertsContext";
 import { TenantProvider } from "./context/TenantContext";
 import { SocketProvider } from "@/context/SocketContext";
 import { GOOGLE_CLIENT_ID } from './env';
@@ -49,8 +49,6 @@ function AppRoutes() {
        console.warn("Failed to initialize anon session", e);
     }
   }, []);
-  useTicketUpdates();
-
   const layoutExcludedPaths = ['/iframe'];
   const layoutRoutes = routes.filter(({ path, userPortal }) => !layoutExcludedPaths.includes(path) && !userPortal);
   const portalRoutes = routes.filter(({ userPortal }) => userPortal);
@@ -158,7 +156,9 @@ const App = () => {
                 }}
               >
                 <TenantProvider>
-                  <AppRoutes />
+                  <RealtimeAlertsProvider>
+                    <AppRoutes />
+                  </RealtimeAlertsProvider>
                 </TenantProvider>
               </BrowserRouter>
             </SocketProvider>

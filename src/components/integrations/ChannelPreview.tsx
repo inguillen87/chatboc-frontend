@@ -71,7 +71,7 @@ const ChannelPreview: React.FC<ChannelPreviewProps> = ({ channel, message, produ
   const theme = defaults[channel] || defaults.web;
 
   return (
-    <Card className={cn("w-full max-w-[320px] mx-auto overflow-hidden flex flex-col shadow-lg border-0 ring-1 ring-black/5 font-sans text-sm h-[380px] rounded-xl transition-all hover:shadow-xl", theme.bg)}>
+    <Card className={cn("w-full max-w-[360px] mx-auto overflow-hidden flex flex-col border-0 ring-1 ring-black/5 font-sans text-sm h-[460px] rounded-2xl shadow-xl transition-all hover:shadow-2xl", theme.bg)}>
       {/* Header */}
       <div className={cn("px-4 py-3 flex items-center gap-3 shadow-sm shrink-0 relative z-20", theme.headerColor)}>
         <div className={cn("w-8 h-8 rounded-full flex items-center justify-center shadow-inner", channel === 'mercadolibre' ? 'bg-black/5' : 'bg-black/10')}>
@@ -119,6 +119,16 @@ const ChannelPreview: React.FC<ChannelPreviewProps> = ({ channel, message, produ
                          Quería saber si tienen stock del modelo en rojo.
                          <span className="text-[10px] opacity-60 block text-right mt-1 font-medium">10:43 AM</span>
                          {channel === 'whatsapp' && <span className="absolute bottom-1 right-1 text-[9px]">✓✓</span>}
+                     </div>
+                 </div>
+             )}
+
+             {(channel === 'whatsapp' || channel === 'telegram') && (
+                 <div className="flex justify-start">
+                     <div className={cn("px-3 py-2 max-w-[60%] flex items-center gap-1.5", theme.bubbleIn)}>
+                         <span className="h-1.5 w-1.5 rounded-full bg-black/40" />
+                         <span className="h-1.5 w-1.5 rounded-full bg-black/40" />
+                         <span className="h-1.5 w-1.5 rounded-full bg-black/40" />
                      </div>
                  </div>
              )}
