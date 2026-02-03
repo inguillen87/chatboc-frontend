@@ -58,6 +58,7 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
   const [embedAttributes, setEmbedAttributes] = useState<Record<string, string>>({});
   const [publicEmbedSnippet, setPublicEmbedSnippet] = useState<string>('');
   const [publicEmbedAttributes, setPublicEmbedAttributes] = useState<Record<string, string>>({});
+  const [publicWidgetInfo, setPublicWidgetInfo] = useState<{ token?: string; tenantSlug?: string; tipoChat?: string } | null>(null);
   const previewIframeRef = useRef<HTMLIFrameElement | null>(null);
   const resolvedEmbedSnippet = useMemo(() => {
     if (embedSnippet) return embedSnippet;
@@ -140,8 +141,31 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
         const data = await apiClient.get<any>(`/api/public/tenants/${currentSlug}/widget-config`, { tenantSlug: currentSlug });
         const builderConfig = data?.builder_config || data?.widget?.builder_config || {};
         const snippet = builderConfig?.embed_snippet || data?.embed_snippet || '';
+        const token = data?.owner_token || data?.entity_token || data?.widget_token || data?.token;
+        const tenantSlug = data?.tenant_slug || data?.tenant?.slug || currentSlug;
+        const tipoChat = data?.tipo_chat || data?.tipoChat || data?.widget_tipo_chat;
         setPublicEmbedSnippet(snippet);
-        setPublicEmbedAttributes(builderConfig?.attributes || {});
+        const attributes = { ...(builderConfig?.attributes || {}) } as Record<string, string>;
+        if (token) {
+          if (!attributes["data-owner-token"]) attributes["data-owner-token"] = token;
+          if (!attributes["data-widget-token"]) attributes["data-widget-token"] = token;
+          if (!attributes["data-entity-token"]) attributes["data-entity-token"] = token;
+        }
+        if (tenantSlug) {
+          if (!attributes["data-tenant"]) attributes["data-tenant"] = tenantSlug;
+          if (!attributes["data-tenant-slug"]) attributes["data-tenant-slug"] = tenantSlug;
+        }
+        if (tipoChat && !attributes["data-endpoint"]) {
+          attributes["data-endpoint"] = tipoChat;
+        }
+        if (!attributes["data-api-base"]) {
+          attributes["data-api-base"] = (import.meta.env.VITE_WIDGET_API_BASE || "https://chatboc.ar").replace(/\/+$/, "");
+        }
+        if (!attributes["data-shadow-dom"]) {
+          attributes["data-shadow-dom"] = "true";
+        }
+        setPublicEmbedAttributes(attributes);
+        setPublicWidgetInfo({ token, tenantSlug, tipoChat });
       } catch (error) {
         console.error("Failed to load public widget config", error);
       }
@@ -153,28 +177,44 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
   useEffect(() => {
     if (previewMode !== 'widget') return;
     if (!previewIframeRef.current) return;
-    if (!publicEmbedSnippet) return;
+    const sourceSnippet = publicEmbedSnippet || resolvedEmbedSnippet;
+    if (!sourceSnippet) return;
 
     const parser = new DOMParser();
-    const doc = parser.parseFromString(publicEmbedSnippet, 'text/html');
+    const doc = parser.parseFromString(sourceSnippet, 'text/html');
     const script = doc.querySelector('script');
-    if (!script) return;
-
-    const mergedAttributes = {
+    const base = (import.meta.env.VITE_WIDGET_API_BASE || "https://chatboc.ar").replace(/\/+$/, "");
+    const widgetScriptUrl = `${base}/widget.js`;
+    const mergedAttributes: Record<string, string> = {
       ...(currentSlug ? { "data-tenant": currentSlug, "data-tenant-slug": currentSlug } : {}),
       ...publicEmbedAttributes,
       "data-default-open": previewOpen ? "true" : "false",
     };
-    Object.entries(mergedAttributes).forEach(([key, value]) => {
-      script.setAttribute(key, String(value));
-    });
+    if (!mergedAttributes["data-api-base"]) {
+      mergedAttributes["data-api-base"] = base;
+    }
+    if (!mergedAttributes["data-shadow-dom"]) {
+      mergedAttributes["data-shadow-dom"] = "true";
+    }
+    if (!mergedAttributes["data-endpoint"] && publicWidgetInfo?.tipoChat) {
+      mergedAttributes["data-endpoint"] = publicWidgetInfo.tipoChat;
+    }
 
     const iframeDoc = previewIframeRef.current.contentDocument;
     if (!iframeDoc) return;
     iframeDoc.open();
-    iframeDoc.write(`<!doctype html><html><head><base href="${window.location.origin}/"></head><body style="margin:0;">${script.outerHTML}</body></html>`);
+    iframeDoc.write(`<!doctype html><html><head><base href="${window.location.origin}/"></head></html>`);
     iframeDoc.close();
-  }, [previewMode, publicEmbedSnippet, publicEmbedAttributes, previewOpen, previewDevice, currentSlug]);
+    if (!iframeDoc.body) return;
+    iframeDoc.body.style.margin = "0";
+    const scriptEl = iframeDoc.createElement("script");
+    scriptEl.async = true;
+    scriptEl.src = script?.getAttribute("src") || widgetScriptUrl;
+    Object.entries(mergedAttributes).forEach(([key, value]) => {
+      scriptEl.setAttribute(key, String(value));
+    });
+    iframeDoc.body.appendChild(scriptEl);
+  }, [previewMode, publicEmbedSnippet, publicEmbedAttributes, previewOpen, previewDevice, currentSlug, resolvedEmbedSnippet, publicWidgetInfo]);
 
   const handleChange = (field: string, value: any) => {
     setConfig(prev => ({ ...prev, [field]: value }));
