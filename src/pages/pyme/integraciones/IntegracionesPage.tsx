@@ -229,62 +229,57 @@ const IntegracionesPage = () => {
             </TabsContent>
 
             <TabsContent value="integrations" className="space-y-8">
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-8 items-start">
 
-                    {/* Left: Channel List */}
-                    <div className="lg:col-span-3 space-y-6">
-                        <div className="space-y-6 lg:sticky lg:top-6">
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle className="text-lg">Canales Disponibles</CardTitle>
-                                </CardHeader>
-                                <CardContent className="flex flex-col space-y-2">
-                                    {CHANNELS.map((channel) => {
-                                        const status = getIntegrationStatus(channel.id);
-                                        const Icon = channel.icon;
-                                        return (
-                                            <button
-                                                key={channel.id}
-                                                onClick={() => setSelectedChannel(channel.id)}
-                                                className={cn(
-                                                    "flex items-center justify-between w-full px-3 py-2.5 rounded-lg text-sm font-medium transition-all border",
-                                                    selectedChannel === channel.id
-                                                        ? "bg-primary/10 text-foreground border-primary/40 shadow-sm"
-                                                        : "border-transparent hover:border-border hover:bg-muted/60 text-muted-foreground hover:text-foreground"
-                                                )}
-                                            >
-                                                <div className="flex items-center gap-3">
-                                                    <Icon className="h-4 w-4" />
-                                                    {channel.label}
-                                                </div>
-                                                {status.connected && (
-                                                    <span className="flex h-2 w-2 rounded-full bg-green-500 ring-2 ring-background" />
-                                                )}
-                                            </button>
-                                        )
-                                    })}
-                                </CardContent>
-                            </Card>
-
-                            <Card className="bg-muted/40">
-                                <CardHeader>
-                                    <CardTitle className="text-sm font-medium flex items-center gap-2">
-                                        <Settings className="h-4 w-4"/> Configuración Global
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent className="space-y-4">
-                                    <p className="text-xs text-muted-foreground">
-                                        Ajustes de notificaciones y despacho aplicables a todos los canales.
-                                    </p>
-                                    <OrderDispatchSettings />
-                                </CardContent>
-                            </Card>
-                        </div>
-                    </div>
-
-                    {/* Middle: Configuration Area */}
-                    <div className="lg:col-span-5 space-y-6">
+                    {/* Left: Settings Panel */}
+                    <div className="space-y-6">
                         <Card>
+                            <CardHeader>
+                                <CardTitle className="text-lg">Canales Disponibles</CardTitle>
+                            </CardHeader>
+                            <CardContent className="flex flex-col space-y-2">
+                                {CHANNELS.map((channel) => {
+                                    const status = getIntegrationStatus(channel.id);
+                                    const Icon = channel.icon;
+                                    return (
+                                        <button
+                                            key={channel.id}
+                                            onClick={() => setSelectedChannel(channel.id)}
+                                            className={cn(
+                                                "flex items-center justify-between w-full px-3 py-2.5 rounded-lg text-sm font-medium transition-all border",
+                                                selectedChannel === channel.id
+                                                    ? "bg-primary/10 text-foreground border-primary/40 shadow-sm"
+                                                    : "border-transparent hover:border-border hover:bg-muted/60 text-muted-foreground hover:text-foreground"
+                                            )}
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <Icon className="h-4 w-4" />
+                                                {channel.label}
+                                            </div>
+                                            {status.connected && (
+                                                <span className="flex h-2 w-2 rounded-full bg-green-500 ring-2 ring-background" />
+                                            )}
+                                        </button>
+                                    )
+                                })}
+                            </CardContent>
+                        </Card>
+
+                        <Card className="bg-muted/40">
+                            <CardHeader>
+                                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                                    <Settings className="h-4 w-4"/> Configuración Global
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <p className="text-xs text-muted-foreground">
+                                    Ajustes de notificaciones y despacho aplicables a todos los canales.
+                                </p>
+                                <OrderDispatchSettings />
+                            </CardContent>
+                        </Card>
+
+                        <Card className="min-h-[520px]">
                             <CardHeader>
                                 <div className="flex items-center justify-between gap-4">
                                     <div className="flex items-center gap-4">
@@ -409,7 +404,7 @@ const IntegracionesPage = () => {
                     </div>
 
                     {/* Right: Persistent Preview */}
-                    <div className="lg:col-span-4">
+                    <div className="lg:col-span-1">
                         <div className="sticky top-6 space-y-4">
                             <h3 className="font-semibold text-lg flex items-center gap-2">
                                 <Eye className="h-5 w-5 text-muted-foreground" />
