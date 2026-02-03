@@ -1,10 +1,11 @@
 import { apiFetch } from '@/utils/api';
+import { PreviewValue } from '@/utils/catalogPreview';
 
 export interface ImportPreview {
   total_detected: number;
   confidence: number;
   warnings: string[];
-  items_preview: any[];
+  items_preview: Array<Record<string, PreviewValue>>;
 }
 
 export const importService = {
@@ -25,12 +26,42 @@ export const importService = {
       omitEntityToken: true,
     });
 
+    const resolvePreviewRows = (): Array<Record<string, PreviewValue>> => {
+      if (Array.isArray(response.items_preview)) {
+        return response.items_preview;
+      }
+
+      if (Array.isArray(response.records)) {
+        return response.records;
+      }
+
+      if (!Array.isArray(response.rows)) {
+        return [];
+      }
+
+      if (Array.isArray(response.columns) && response.columns.length > 0 && Array.isArray(response.rows[0])) {
+        return response.rows.map((row: PreviewValue[], rowIndex: number) => {
+          const record: Record<string, PreviewValue> = {};
+          response.columns.forEach((column: string, columnIndex: number) => {
+            const key = column || `col_${columnIndex + 1}`;
+            record[key] = row[columnIndex];
+          });
+          record._rowIndex = rowIndex;
+          return record;
+        });
+      }
+
+      return response.rows;
+    };
+
+    const previewRows = resolvePreviewRows();
+
     // Transform backend response to ImportPreview format expected by UI
     return {
-        total_detected: response.totalRows || response.rows?.length || 0,
-        confidence: response.confidence || 0.95, // Mock confidence if not provided
-        warnings: response.warnings || [],
-        items_preview: response.rows || [],
+        total_detected: response.total_detected || response.totalRows || previewRows.length || 0,
+        confidence: response.confidence ?? response.metadata?.confidence ?? 0,
+        warnings: response.warnings || response.metadata?.warnings || [],
+        items_preview: previewRows,
         // We might not get an upload_id here if it's stateless, but if we do, pass it.
         // If stateless, we might need to re-upload in commit step.
         upload_id: response.upload_id || Date.now() // temporary ID if stateless

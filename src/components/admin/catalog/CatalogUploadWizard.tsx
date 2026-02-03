@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -8,6 +8,13 @@ import { apiClient } from '@/api/client';
 import { toast } from 'sonner';
 import CatalogItemsTable, { CatalogPreviewItem } from './CatalogItemsTable';
 import { importService } from '@/services/importService';
+import {
+  getPreviewFallbackValue,
+  getPreviewFieldValue,
+  getPreviewMetadataEntries,
+  hasMeaningfulValue,
+  parsePreviewNumber,
+} from '@/utils/catalogPreview';
 
 interface CatalogUploadWizardProps {
   onFinish?: () => void;
@@ -24,6 +31,14 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
   const [isProcessing, setIsProcessing] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [resultSummary, setResultSummary] = useState<{ processed: number; errors: number } | null>(null);
+
+  const previewQuality = useMemo(() => {
+    const hasNames = previewItems.some((item) => hasMeaningfulValue(item.name));
+    const hasPrices = previewItems.some((item) => parsePreviewNumber(item.price) !== null);
+    return { hasNames, hasPrices };
+  }, [previewItems]);
+
+  const canConfirm = previewItems.length > 0 && previewQuality.hasNames && previewQuality.hasPrices;
 
   // Fetch tenant ID needed for importService
   useEffect(() => {
@@ -82,16 +97,41 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
 
       if (preview && preview.items_preview) {
         // Map response to CatalogPreviewItem
-        const mappedItems: CatalogPreviewItem[] = preview.items_preview.map((item: any, idx: number) => ({
+        const mappedItems: CatalogPreviewItem[] = preview.items_preview.map((item: any, idx: number) => {
+          const nameValue =
+            getPreviewFieldValue(item, ['nombre', 'name', 'producto', 'producto_nombre', 'descripcion', 'description', 'titulo', 'title']) ??
+            getPreviewFallbackValue(item, [
+              'precio',
+              'price',
+              'precio_unitario',
+              'unit_price',
+              'precio_por_caja',
+              'price_per_box',
+              'sku',
+              'category',
+              'categoria',
+              'image_url',
+              'imageUrl',
+            ]) ??
+            '';
+          const priceValue =
+            getPreviewFieldValue(item, ['precio', 'price', 'precio_unitario', 'unit_price', 'precio_por_caja', 'price_per_box']) ?? 0;
+          const skuValue = getPreviewFieldValue(item, ['sku', 'SKU', 'codigo', 'code']) ?? `TMP-${idx}`;
+          const categoryValue = getPreviewFieldValue(item, ['category', 'categoria']) ?? '';
+          const stockValue = getPreviewFieldValue(item, ['stock', 'cantidad', 'qty']) ?? 0;
+
+          return {
             id: idx,
-            sku: item.sku || `TMP-${idx}`,
-            name: item.name || item.nombre || '',
-            price: item.price || item.precio || 0,
-            stock: item.stock || 0,
-            category: item.category || item.categoria || '',
+            sku: String(skuValue),
+            name: String(nameValue),
+            price: priceValue as number | string,
+            stock: stockValue as number | string,
+            category: String(categoryValue),
+            metadata: getPreviewMetadataEntries(item),
             errors: preview.warnings || [], // This maps global warnings to items if specific item errors aren't provided
             warnings: []
-        }));
+          };
+        });
 
         setPreviewItems(mappedItems);
         setStep('preview');
@@ -235,7 +275,7 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
         </p>
 
         <div className="flex items-center justify-end gap-3 pt-4 border-t">
-             <Button onClick={confirmUpload} disabled={isProcessing}>
+             <Button onClick={confirmUpload} disabled={isProcessing || !canConfirm}>
                 {isProcessing && <RefreshCw className="mr-2 h-4 w-4 animate-spin" />}
                 Confirmar e Importar
              </Button>
