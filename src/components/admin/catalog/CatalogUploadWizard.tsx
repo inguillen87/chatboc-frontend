@@ -27,6 +27,7 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
   const [isProcessing, setIsProcessing] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
 
   const canConfirm = previewItems.length > 0;
   const resolvedColumns = useMemo(() => {
@@ -116,6 +117,7 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
         setPreviewItems(preview.items_preview);
         setPreviewColumns(preview.columns ?? []);
         setCatalogUploadId(preview.upload_id ?? null);
+        setPreviewError(null);
         setStep('preview');
         setIsPreviewModalOpen(true);
       } else {
@@ -124,6 +126,7 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
 
     } catch (error) {
       console.error("Upload failed", error);
+      setPreviewError((error as Error)?.message || 'No se pudo generar la vista previa');
       toast.error("Error al subir el archivo. Verificá el formato.");
     } finally {
       setIsProcessing(false);
@@ -168,6 +171,11 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
 
   const renderUploadStep = () => (
     <div className="space-y-6">
+        {previewError && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {previewError}
+            </div>
+        )}
         <div
             className="border-2 border-dashed border-muted-foreground/25 rounded-xl p-10 flex flex-col items-center justify-center text-center hover:bg-muted/10 transition-colors cursor-pointer"
             onDragOver={(e) => e.preventDefault()}
@@ -293,6 +301,11 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
         <p className="text-xs text-amber-600 bg-amber-50 p-2 rounded">
             Nota: Podés editar los valores antes de confirmar la importación.
         </p>
+        {previewItems.length === 0 && (
+          <p className="text-xs text-red-600 bg-red-50 p-2 rounded">
+            No se pudo interpretar el archivo. Probá CSV template o Editar.
+          </p>
+        )}
 
         <div className="flex items-center justify-end gap-3 pt-4 border-t">
              <Button onClick={confirmUpload} disabled={isProcessing || !canConfirm}>
