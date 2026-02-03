@@ -32,6 +32,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import IntegrationPreviewDialog from './IntegrationPreviewDialog';
+import { cn } from '@/lib/utils';
 
 const INTEGRATION_LOGOS: Record<string, string> = {
   mercadolibre: "https://http2.mlstatic.com/frontend-assets/ml-web-navigation/ui-navigation/5.21.22/mercadolibre/logo__large_plus.png",
@@ -176,17 +177,17 @@ const IntegracionesPage = () => {
   if (loading) return <div className="flex h-96 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
   return (
-    <div className="container mx-auto p-4 md:p-6 max-w-7xl space-y-8">
-      <div>
+    <div className="container mx-auto p-4 md:p-6 max-w-7xl space-y-10">
+      <div className="space-y-2">
         <h1 className="text-3xl font-bold tracking-tight">Integraciones y Canales</h1>
-        <p className="text-muted-foreground mt-2">
+        <p className="text-muted-foreground">
           Gestioná tus canales de venta, personalizá tu chat y configurá notificaciones.
         </p>
       </div>
 
       {currentSlug && (
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
-            <TabsList className="w-full justify-start border-b rounded-none h-auto p-0 bg-transparent gap-6">
+            <TabsList className="w-full justify-start border-b rounded-none h-auto p-0 bg-transparent gap-6 overflow-x-auto">
                 <TabsTrigger value="integrations" className="data-[state=active]:border-primary border-b-2 border-transparent rounded-none px-0 py-3 font-semibold text-muted-foreground data-[state=active]:text-foreground">
                     Integraciones
                 </TabsTrigger>
@@ -228,48 +229,56 @@ const IntegracionesPage = () => {
             </TabsContent>
 
             <TabsContent value="integrations" className="space-y-8">
-                {/* Main 2-Column Layout for Integrations */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
 
                     {/* Left: Channel List */}
-                    <div className="lg:col-span-3 space-y-2">
-                        <h3 className="mb-4 text-lg font-semibold tracking-tight">Canales Disponibles</h3>
-                        <div className="flex flex-col space-y-1">
-                            {CHANNELS.map((channel) => {
-                                const status = getIntegrationStatus(channel.id);
-                                const Icon = channel.icon;
-                                return (
-                                    <button
-                                        key={channel.id}
-                                        onClick={() => setSelectedChannel(channel.id)}
-                                        className={`flex items-center justify-between w-full p-3 rounded-lg text-sm font-medium transition-colors ${
-                                            selectedChannel === channel.id
-                                            ? 'bg-primary text-primary-foreground'
-                                            : 'hover:bg-muted text-muted-foreground hover:text-foreground'
-                                        }`}
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <Icon className="h-4 w-4" />
-                                            {channel.label}
-                                        </div>
-                                        {status.connected && (
-                                            <span className="flex h-2 w-2 rounded-full bg-green-500 ring-2 ring-background" />
-                                        )}
-                                    </button>
-                                )
-                            })}
-                        </div>
+                    <div className="lg:col-span-3 space-y-6">
+                        <div className="space-y-6 lg:sticky lg:top-6">
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="text-lg">Canales Disponibles</CardTitle>
+                                </CardHeader>
+                                <CardContent className="flex flex-col space-y-2">
+                                    {CHANNELS.map((channel) => {
+                                        const status = getIntegrationStatus(channel.id);
+                                        const Icon = channel.icon;
+                                        return (
+                                            <button
+                                                key={channel.id}
+                                                onClick={() => setSelectedChannel(channel.id)}
+                                                className={cn(
+                                                    "flex items-center justify-between w-full px-3 py-2.5 rounded-lg text-sm font-medium transition-all border",
+                                                    selectedChannel === channel.id
+                                                        ? "bg-primary/10 text-foreground border-primary/40 shadow-sm"
+                                                        : "border-transparent hover:border-border hover:bg-muted/60 text-muted-foreground hover:text-foreground"
+                                                )}
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <Icon className="h-4 w-4" />
+                                                    {channel.label}
+                                                </div>
+                                                {status.connected && (
+                                                    <span className="flex h-2 w-2 rounded-full bg-green-500 ring-2 ring-background" />
+                                                )}
+                                            </button>
+                                        )
+                                    })}
+                                </CardContent>
+                            </Card>
 
-                        <Separator className="my-6" />
-
-                        <div className="rounded-lg border bg-muted/40 p-4">
-                            <h4 className="font-medium flex items-center gap-2 mb-2">
-                                <Settings className="h-4 w-4"/> Configuración Global
-                            </h4>
-                            <p className="text-xs text-muted-foreground mb-4">
-                                Ajustes de notificaciones y despacho aplicables a todos los canales.
-                            </p>
-                            <OrderDispatchSettings />
+                            <Card className="bg-muted/40">
+                                <CardHeader>
+                                    <CardTitle className="text-sm font-medium flex items-center gap-2">
+                                        <Settings className="h-4 w-4"/> Configuración Global
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    <p className="text-xs text-muted-foreground">
+                                        Ajustes de notificaciones y despacho aplicables a todos los canales.
+                                    </p>
+                                    <OrderDispatchSettings />
+                                </CardContent>
+                            </Card>
                         </div>
                     </div>
 
@@ -277,7 +286,7 @@ const IntegracionesPage = () => {
                     <div className="lg:col-span-5 space-y-6">
                         <Card>
                             <CardHeader>
-                                <div className="flex items-center justify-between">
+                                <div className="flex items-center justify-between gap-4">
                                     <div className="flex items-center gap-4">
                                         <img
                                             src={INTEGRATION_LOGOS[selectedChannel]}
@@ -301,23 +310,25 @@ const IntegracionesPage = () => {
                             </CardHeader>
                             <CardContent className="space-y-6">
                                 {selectedChannel === 'email' ? (
-                                    <div className="space-y-4">
+                                    <div className="space-y-5">
                                         <p className="text-sm text-muted-foreground">Configurá las notificaciones por correo electrónico.</p>
-                                        <div className="flex items-center justify-between p-3 border rounded-lg">
+                                        <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
                                             <div className="space-y-0.5">
                                                 <Label className="text-base">Notificaciones por Email</Label>
                                                 <p className="text-xs text-muted-foreground">Resumen diario y backup de seguridad.</p>
                                             </div>
                                             <Switch checked={notifyEmail} onCheckedChange={setNotifyEmail} />
                                         </div>
-                                        <Button onClick={handleSaveNotifications} disabled={savingSettings}>
-                                            Guardar Preferencias
-                                        </Button>
+                                        <div className="flex justify-end">
+                                            <Button onClick={handleSaveNotifications} disabled={savingSettings}>
+                                                Guardar Preferencias
+                                            </Button>
+                                        </div>
                                     </div>
                                 ) : (
                                     <>
                                         {getIntegrationStatus(selectedChannel).connected ? (
-                                            <div className="space-y-4">
+                                            <div className="space-y-5">
                                                 <div className="rounded-md bg-green-50 p-4 text-sm text-green-700 dark:bg-green-900/20 dark:text-green-300">
                                                     <div className="flex items-center gap-2 font-medium mb-1">
                                                         <CheckCircle2 className="h-4 w-4" /> Conexión Establecida
@@ -377,7 +388,7 @@ const IntegracionesPage = () => {
 
                         {/* Additional Config Blocks based on Channel */}
                         {(selectedChannel === 'whatsapp' || selectedChannel === 'telegram') && (
-                             <Card>
+                            <Card>
                                 <CardHeader>
                                     <CardTitle className="text-base">Alertas y Notificaciones</CardTitle>
                                 </CardHeader>
@@ -389,9 +400,11 @@ const IntegracionesPage = () => {
                                             onCheckedChange={selectedChannel === 'whatsapp' ? setNotifyWhatsapp : setNotifyTelegram}
                                         />
                                     </div>
-                                    <Button size="sm" variant="secondary" onClick={handleSaveNotifications}>Actualizar Alertas</Button>
+                                    <div className="flex justify-end">
+                                        <Button size="sm" variant="secondary" onClick={handleSaveNotifications}>Actualizar Alertas</Button>
+                                    </div>
                                 </CardContent>
-                             </Card>
+                            </Card>
                         )}
                     </div>
 
@@ -402,16 +415,18 @@ const IntegracionesPage = () => {
                                 <Eye className="h-5 w-5 text-muted-foreground" />
                                 Vista Previa
                             </h3>
-                            <Card className="border-0 shadow-none bg-transparent">
-                                <div className="origin-top transform transition-all duration-300">
-                                    <ChannelPreview
-                                        channel={selectedChannel as any}
-                                        product={selectedChannel === 'mercadolibre' ? { name: 'Producto Demo', price: '$15.000' } : undefined}
-                                    />
-                                </div>
-                                <p className="text-center text-xs text-muted-foreground mt-4">
-                                    Así verán los mensajes tus clientes en {CHANNELS.find(c => c.id === selectedChannel)?.label}.
-                                </p>
+                            <Card className="border border-white/10 bg-gradient-to-br from-slate-950/30 via-slate-900/30 to-slate-900/60 shadow-xl">
+                                <CardContent className="p-6">
+                                    <div className="origin-top transform transition-all duration-300">
+                                        <ChannelPreview
+                                            channel={selectedChannel as any}
+                                            product={selectedChannel === 'mercadolibre' ? { name: 'Producto Demo', price: '$15.000' } : undefined}
+                                        />
+                                    </div>
+                                    <p className="text-center text-xs text-muted-foreground mt-4">
+                                        Así verán los mensajes tus clientes en {CHANNELS.find(c => c.id === selectedChannel)?.label}.
+                                    </p>
+                                </CardContent>
                             </Card>
                         </div>
                     </div>
