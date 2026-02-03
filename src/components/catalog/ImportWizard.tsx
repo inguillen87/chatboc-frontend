@@ -8,7 +8,13 @@ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Loader2, CheckCircle, Upload, AlertTriangle } from 'lucide-react';
 import { importService, ImportPreview } from '../../services/importService';
 import { useTenant } from '@/context/TenantContext';
-import { getPreviewFieldValue, getPreviewMetadataEntries, hasMeaningfulValue, parsePreviewNumber } from '@/utils/catalogPreview';
+import {
+  getPreviewFallbackValue,
+  getPreviewFieldValue,
+  getPreviewMetadataEntries,
+  hasMeaningfulValue,
+  parsePreviewNumber,
+} from '@/utils/catalogPreview';
 
 interface Props {
   tenantId: number;
@@ -33,9 +39,19 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
     }
 
     const items = preview.items_preview;
-    const hasNames = items.some((item) =>
-      hasMeaningfulValue(getPreviewFieldValue(item, ['nombre', 'name', 'producto', 'producto_nombre', 'descripcion', 'description', 'titulo', 'title']))
-    );
+    const hasNames = items.some((item) => {
+      const directName = getPreviewFieldValue(item, [
+        'nombre',
+        'name',
+        'producto',
+        'producto_nombre',
+        'descripcion',
+        'description',
+        'titulo',
+        'title',
+      ]);
+      return hasMeaningfulValue(directName) || hasMeaningfulValue(getPreviewFallbackValue(item));
+    });
     const hasPrices = items.some((item) =>
       parsePreviewNumber(getPreviewFieldValue(item, ['precio', 'price', 'precio_unitario', 'unit_price', 'precio_por_caja', 'price_per_box'])) !== null
     );
@@ -57,6 +73,13 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
     const targetKey = keys.find((key) => current[key] !== undefined) ?? fallbackKey;
     newItems[itemIndex] = { ...current, [targetKey]: value };
     setPreview({ ...preview, items_preview: newItems });
+  };
+
+  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    if (event.dataTransfer.files && event.dataTransfer.files[0]) {
+      setFile(event.dataTransfer.files[0]);
+    }
   };
 
   const handleUpload = async () => {
@@ -106,6 +129,8 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
           <div className="space-y-6">
             <div
                 className="border-2 border-dashed border-gray-300 rounded-lg p-10 text-center hover:bg-gray-50 transition-colors cursor-pointer"
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={handleDrop}
                 onClick={() => document.getElementById('file')?.click()}
             >
                 <Upload className="h-10 w-10 text-gray-400 mx-auto mb-4" />
@@ -180,7 +205,29 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
                         {preview.items_preview.map((item, idx) => {
                             const metadataEntries = getPreviewMetadataEntries(item);
                             const nameValue =
-                              getPreviewFieldValue(item, ['nombre', 'name', 'producto', 'producto_nombre', 'descripcion', 'description', 'titulo', 'title']) ??
+                              getPreviewFieldValue(item, [
+                                'nombre',
+                                'name',
+                                'producto',
+                                'producto_nombre',
+                                'descripcion',
+                                'description',
+                                'titulo',
+                                'title',
+                              ]) ??
+                              getPreviewFallbackValue(item, [
+                                'precio',
+                                'price',
+                                'precio_unitario',
+                                'unit_price',
+                                'precio_por_caja',
+                                'price_per_box',
+                                'sku',
+                                'category',
+                                'categoria',
+                                'image_url',
+                                'imageUrl',
+                              ]) ??
                               '';
                             const priceValue =
                               getPreviewFieldValue(item, ['precio', 'price', 'precio_unitario', 'unit_price', 'precio_por_caja', 'price_per_box']) ?? '';

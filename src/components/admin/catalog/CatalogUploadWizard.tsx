@@ -8,7 +8,13 @@ import { apiClient } from '@/api/client';
 import { toast } from 'sonner';
 import CatalogItemsTable, { CatalogPreviewItem } from './CatalogItemsTable';
 import { importService } from '@/services/importService';
-import { getPreviewFieldValue, getPreviewMetadataEntries, hasMeaningfulValue, parsePreviewNumber } from '@/utils/catalogPreview';
+import {
+  getPreviewFallbackValue,
+  getPreviewFieldValue,
+  getPreviewMetadataEntries,
+  hasMeaningfulValue,
+  parsePreviewNumber,
+} from '@/utils/catalogPreview';
 
 interface CatalogUploadWizardProps {
   onFinish?: () => void;
@@ -94,6 +100,19 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
         const mappedItems: CatalogPreviewItem[] = preview.items_preview.map((item: any, idx: number) => {
           const nameValue =
             getPreviewFieldValue(item, ['nombre', 'name', 'producto', 'producto_nombre', 'descripcion', 'description', 'titulo', 'title']) ??
+            getPreviewFallbackValue(item, [
+              'precio',
+              'price',
+              'precio_unitario',
+              'unit_price',
+              'precio_por_caja',
+              'price_per_box',
+              'sku',
+              'category',
+              'categoria',
+              'image_url',
+              'imageUrl',
+            ]) ??
             '';
           const priceValue =
             getPreviewFieldValue(item, ['precio', 'price', 'precio_unitario', 'unit_price', 'precio_por_caja', 'price_per_box']) ?? 0;

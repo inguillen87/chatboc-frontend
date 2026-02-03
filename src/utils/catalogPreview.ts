@@ -1,5 +1,12 @@
 export type PreviewValue = string | number | boolean | null | undefined | Record<string, unknown> | Array<unknown>;
 
+const normalizePreviewKey = (key: string): string =>
+  key
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, '')
+    .toLowerCase();
+
 const DEFAULT_EXCLUDED_KEYS = new Set([
   '_rowIndex',
   'id',
@@ -15,7 +22,7 @@ const DEFAULT_EXCLUDED_KEYS = new Set([
   'stock',
   'description',
   'descripcion',
-]);
+].map(normalizePreviewKey));
 
 const formatPreviewValue = (value: PreviewValue): string => {
   if (value === null || value === undefined) return '';
@@ -36,9 +43,15 @@ export const getPreviewMetadataEntries = (
   item: Record<string, PreviewValue>,
   extraExcludedKeys: string[] = []
 ): Array<{ key: string; value: string }> => {
-  const excludedKeys = new Set([...DEFAULT_EXCLUDED_KEYS, ...extraExcludedKeys]);
+  const excludedKeys = new Set([
+    ...DEFAULT_EXCLUDED_KEYS,
+    ...extraExcludedKeys.map(normalizePreviewKey),
+  ]);
   return Object.entries(item)
-    .filter(([key, value]) => !excludedKeys.has(key) && value !== undefined && value !== null && value !== '')
+    .filter(
+      ([key, value]) =>
+        !excludedKeys.has(normalizePreviewKey(key)) && value !== undefined && value !== null && value !== ''
+    )
     .map(([key, value]) => ({
       key,
       value: formatPreviewValue(value),
@@ -50,10 +63,17 @@ export const getPreviewFieldValue = (
   item: Record<string, PreviewValue>,
   keys: string[]
 ): PreviewValue | undefined => {
+  const normalizedItem = new Map(
+    Object.entries(item).map(([key, value]) => [normalizePreviewKey(key), { key, value }])
+  );
   for (const key of keys) {
     const value = item[key];
     if (value !== undefined && value !== null && value !== '') {
       return value;
+    }
+    const normalized = normalizedItem.get(normalizePreviewKey(key));
+    if (normalized && normalized.value !== undefined && normalized.value !== null && normalized.value !== '') {
+      return normalized.value;
     }
   }
   return undefined;
@@ -71,4 +91,24 @@ export const hasMeaningfulValue = (value: PreviewValue): boolean => {
   if (typeof value === 'string') return value.trim().length > 0;
   if (Array.isArray(value)) return value.length > 0;
   return true;
+};
+
+export const getPreviewFallbackValue = (
+  item: Record<string, PreviewValue>,
+  extraExcludedKeys: string[] = []
+): PreviewValue | undefined => {
+  const excludedKeys = new Set([
+    ...DEFAULT_EXCLUDED_KEYS,
+    ...extraExcludedKeys.map(normalizePreviewKey),
+  ]);
+
+  for (const [key, value] of Object.entries(item)) {
+    if (excludedKeys.has(normalizePreviewKey(key))) {
+      continue;
+    }
+    if (hasMeaningfulValue(value)) {
+      return value;
+    }
+  }
+  return undefined;
 };
