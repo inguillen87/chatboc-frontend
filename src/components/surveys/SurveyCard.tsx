@@ -54,6 +54,18 @@ export const SurveyCard = ({
   seeding,
 }: SurveyCardProps) => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const seedLabels =
+    (survey.recursos as Record<string, unknown> | undefined)?.seed_ui as
+      | {
+          button?: string;
+          buttonTitle?: string;
+          dialogTitle?: string;
+          dialogDescription?: string;
+          confirmLabel?: string;
+          loadingLabel?: string;
+          cancelLabel?: string;
+        }
+      | undefined;
 
   const handleConfirmDelete = async () => {
     if (!onDelete) return;
@@ -105,7 +117,7 @@ export const SurveyCard = ({
           </Button>
         )}
         {onSeed && (
-          <SeedButton onSeed={onSeed} loading={seeding} surveyTitle={survey.titulo} />
+          <SeedButton onSeed={onSeed} loading={seeding} surveyTitle={survey.titulo} labels={seedLabels} />
         )}
         {onDelete ? (
           <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

@@ -213,9 +213,11 @@ const Integracion = () => {
       const base = (import.meta.env.VITE_WIDGET_API_BASE || "https://chatboc.ar").replace(/\/+$/, "");
       const widgetScriptUrl = `${base}/widget.js`;
       const tenant = config.tenant.slug;
+      const builderConfig = config.configs?.widget?.default?.builder_config || {};
+      const embedSnippet = builderConfig?.embed_snippet || config.widget?.embed_snippet || "";
 
       if (type === "script") {
-          return `<script src="${widgetScriptUrl}" data-tenant="${tenant}" data-shadow-dom="true"></script>`;
+          return embedSnippet || `<script src="${widgetScriptUrl}" data-tenant="${tenant}" data-shadow-dom="true"></script>`;
       } else {
           return `<iframe src="${base}/iframe?tenant=${tenant}" style="border:none; position:fixed; bottom:20px; right:20px; z-index:9999; width:400px; height:600px;"></iframe>`;
       }

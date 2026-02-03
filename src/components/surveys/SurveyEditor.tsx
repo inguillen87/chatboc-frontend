@@ -111,6 +111,10 @@ const buildDraftFromSurvey = (survey?: SurveyAdmin): SurveyDraftPayload => ({
     typeof survey?.requiere_datos_contacto === 'boolean'
       ? survey.requiere_datos_contacto
       : !(survey?.anonimato ?? false),
+  es_votacion_envivo: survey?.es_votacion_envivo ?? false,
+  mostrar_resultados_envivo: survey?.mostrar_resultados_envivo ?? false,
+  permitir_comentarios: survey?.permitir_comentarios ?? false,
+  puntos_recompensa: survey?.puntos_recompensa ?? undefined,
   preguntas:
     survey?.preguntas?.map((pregunta, index) => ({
       id: pregunta.id,
@@ -160,6 +164,10 @@ const fallbackDraft: SurveyDraftPayload = {
   politica_unicidad: 'libre',
   anonimato: false,
   requiere_datos_contacto: false,
+  es_votacion_envivo: false,
+  mostrar_resultados_envivo: false,
+  permitir_comentarios: false,
+  puntos_recompensa: undefined,
   preguntas: [],
 };
 
@@ -483,6 +491,73 @@ export const SurveyEditor = ({
                 onCheckedChange={(checked) => setFormValues((prev) => ({ ...prev, requiere_datos_contacto: checked }))}
               />
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Votación en vivo</CardTitle>
+          <CardDescription>Configurá el comportamiento en tiempo real y los comentarios de la plantilla.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="space-y-2">
+            <Label className="flex items-center justify-between">Modo en vivo</Label>
+            <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
+              <div>
+                <p className="text-sm font-medium">Activar votación en vivo</p>
+                <p className="text-xs text-muted-foreground">Habilita el layout estilo YouTube y resultados dinámicos.</p>
+              </div>
+              <Switch
+                checked={Boolean(formValues.es_votacion_envivo)}
+                onCheckedChange={(checked) => setFormValues((prev) => ({ ...prev, es_votacion_envivo: checked }))}
+              />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label className="flex items-center justify-between">Resultados en tiempo real</Label>
+            <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
+              <div>
+                <p className="text-sm font-medium">Mostrar resultados en vivo</p>
+                <p className="text-xs text-muted-foreground">Actualiza barras y porcentajes automáticamente.</p>
+              </div>
+              <Switch
+                checked={Boolean(formValues.mostrar_resultados_envivo)}
+                onCheckedChange={(checked) =>
+                  setFormValues((prev) => ({ ...prev, mostrar_resultados_envivo: checked }))
+                }
+              />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label className="flex items-center justify-between">Comentarios</Label>
+            <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
+              <div>
+                <p className="text-sm font-medium">Permitir comentarios</p>
+                <p className="text-xs text-muted-foreground">Agregá debate anónimo y login social.</p>
+              </div>
+              <Switch
+                checked={Boolean(formValues.permitir_comentarios)}
+                onCheckedChange={(checked) => setFormValues((prev) => ({ ...prev, permitir_comentarios: checked }))}
+              />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="survey-reward-points">Puntos de recompensa</Label>
+            <Input
+              id="survey-reward-points"
+              type="number"
+              inputMode="numeric"
+              min={0}
+              value={formValues.puntos_recompensa ?? ''}
+              onChange={(event) =>
+                setFormValues((prev) => ({
+                  ...prev,
+                  puntos_recompensa: event.target.value ? Number(event.target.value) : undefined,
+                }))
+              }
+              placeholder="Ej: 50"
+            />
           </div>
         </CardContent>
       </Card>
