@@ -7,15 +7,8 @@ import { Upload, FileText, CheckCircle2, AlertTriangle, ArrowRight, RefreshCw, X
 import { useTenant } from '@/context/TenantContext';
 import { apiClient } from '@/api/client';
 import { toast } from 'sonner';
-import CatalogItemsTable, { CatalogPreviewItem } from './CatalogItemsTable';
 import { importService } from '@/services/importService';
-import {
-  getPreviewFallbackValue,
-  getPreviewFieldValue,
-  getPreviewMetadataEntries,
-  hasMeaningfulValue,
-  parsePreviewNumber,
-} from '@/utils/catalogPreview';
+import { Input } from '@/components/ui/input';
 
 interface CatalogUploadWizardProps {
   onFinish?: () => void;
@@ -28,20 +21,19 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
   const [step, setStep] = useState<WizardStep>('upload');
   const [file, setFile] = useState<File | null>(null);
   const [tenantId, setTenantId] = useState<number | null>(null);
-  const [previewItems, setPreviewItems] = useState<CatalogPreviewItem[]>([]);
-  const [rawPreviewItems, setRawPreviewItems] = useState<Array<Record<string, unknown>>>([]);
+  const [previewItems, setPreviewItems] = useState<Array<Record<string, unknown>>>([]);
+  const [previewColumns, setPreviewColumns] = useState<string[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [resultSummary, setResultSummary] = useState<{ processed: number; errors: number } | null>(null);
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
 
-  const previewQuality = useMemo(() => {
-    const hasNames = previewItems.some((item) => hasMeaningfulValue(item.name));
-    const hasPrices = previewItems.some((item) => parsePreviewNumber(item.price) !== null);
-    return { hasNames, hasPrices };
-  }, [previewItems]);
-
   const canConfirm = previewItems.length > 0;
+  const resolvedColumns = useMemo(() => {
+    if (previewColumns.length > 0) {
+      return previewColumns;
+    }
+    return previewItems.length > 0 ? Object.keys(previewItems[0]) : [];
+  }, [previewColumns, previewItems]);
 
   // Fetch tenant ID needed for importService
   useEffect(() => {
@@ -99,45 +91,8 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
       setUploadProgress(100);
 
       if (preview && preview.items_preview) {
-        setRawPreviewItems(preview.items_preview);
-        // Map response to CatalogPreviewItem
-        const mappedItems: CatalogPreviewItem[] = preview.items_preview.map((item: any, idx: number) => {
-          const nameValue =
-            getPreviewFieldValue(item, ['nombre', 'name', 'producto', 'producto_nombre', 'descripcion', 'description', 'titulo', 'title']) ??
-            getPreviewFallbackValue(item, [
-              'precio',
-              'price',
-              'precio_unitario',
-              'unit_price',
-              'precio_por_caja',
-              'price_per_box',
-              'sku',
-              'category',
-              'categoria',
-              'image_url',
-              'imageUrl',
-            ]) ??
-            '';
-          const priceValue =
-            getPreviewFieldValue(item, ['precio', 'price', 'precio_unitario', 'unit_price', 'precio_por_caja', 'price_per_box']) ?? 0;
-          const skuValue = getPreviewFieldValue(item, ['sku', 'SKU', 'codigo', 'code']) ?? `TMP-${idx}`;
-          const categoryValue = getPreviewFieldValue(item, ['category', 'categoria']) ?? '';
-          const stockValue = getPreviewFieldValue(item, ['stock', 'cantidad', 'qty']) ?? 0;
-
-          return {
-            id: idx,
-            sku: String(skuValue),
-            name: String(nameValue),
-            price: priceValue as number | string,
-            stock: stockValue as number | string,
-            category: String(categoryValue),
-            metadata: getPreviewMetadataEntries(item),
-            errors: preview.warnings || [], // This maps global warnings to items if specific item errors aren't provided
-            warnings: []
-          };
-        });
-
-        setPreviewItems(mappedItems);
+        setPreviewItems(preview.items_preview);
+        setPreviewColumns(preview.columns ?? []);
         setStep('preview');
       } else {
           toast.error("La respuesta del servidor no fue válida.");
@@ -152,16 +107,6 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
   };
 
   // -- Step 2: Preview Logic --
-  const handleItemUpdate = (id: string | number, field: keyof CatalogPreviewItem, value: any) => {
-    setPreviewItems(prev => prev.map(item =>
-        item.id === id ? { ...item, [field]: value } : item
-    ));
-  };
-
-  const handleItemDelete = (id: string | number) => {
-    setPreviewItems(prev => prev.filter(item => item.id !== id));
-  };
-
   const confirmUpload = async () => {
     if (!file || !currentSlug) return;
     // Commit requires real tenant ID. If we used 0 for preview, we must have the real ID now.
@@ -180,12 +125,8 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
         // Ideally we would send the `previewItems` as JSON, but importService.commitImport sends the file.
         // We will stick to the file for now as per backend spec "fixed 404... catalog-upload".
 
-        await importService.commitImport(tenantId, file, 'generic', currentSlug, rawPreviewItems);
+        await importService.commitImport(tenantId, file, 'generic', currentSlug, previewItems);
 
-        setResultSummary({
-            processed: previewItems.length,
-            errors: 0
-        });
         setStep('result');
         toast.success("Catálogo actualizado correctamente.");
     } catch (error) {
@@ -252,6 +193,37 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
     </div>
   );
 
+  const renderPreviewTable = (containerClassName: string) => (
+    <div className={containerClassName}>
+      <table className="w-full text-sm">
+        <thead className="bg-gray-100 sticky top-0 z-10">
+          <tr>
+            {resolvedColumns.map((column) => (
+              <th key={column} className="p-2 text-left font-medium text-gray-600">
+                {column}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {previewItems.map((item, idx) => (
+            <tr key={idx} className="border-b hover:bg-gray-50">
+              {resolvedColumns.map((column) => (
+                <td key={`${idx}-${column}`} className="p-2">
+                  <Input
+                    value={item[column] === null || item[column] === undefined ? '' : String(item[column])}
+                    readOnly
+                    className="h-8 border-transparent bg-transparent"
+                  />
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+
   const renderPreviewStep = () => (
     <div className="space-y-4">
         <div className="flex items-center justify-between">
@@ -272,13 +244,7 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
           </Button>
         </div>
 
-        <CatalogItemsTable
-            items={previewItems}
-            onUpdate={handleItemUpdate}
-            onDelete={handleItemDelete}
-            // ReadOnly true because edits aren't persisted in this file-based flow yet
-            readOnly={true}
-        />
+        {renderPreviewTable("border rounded-md max-h-96 overflow-y-auto")}
 
         <p className="text-xs text-amber-600 bg-amber-50 p-2 rounded">
             Nota: La edición en línea no está disponible en este modo. Suba un archivo corregido si detecta errores.
@@ -312,12 +278,7 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
               </div>
               <div className="overflow-x-auto">
                 <div className="max-h-[55vh] overflow-y-auto">
-                  <CatalogItemsTable
-                    items={previewItems}
-                    onUpdate={handleItemUpdate}
-                    onDelete={handleItemDelete}
-                    readOnly={true}
-                  />
+                  {renderPreviewTable("border rounded-md")}
                 </div>
               </div>
             </div>

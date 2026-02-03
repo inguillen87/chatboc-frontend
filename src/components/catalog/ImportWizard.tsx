@@ -29,66 +29,33 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [file, setFile] = useState<File | null>(null);
   const [processor, setProcessor] = useState('generic');
-  const [uploadId, setUploadId] = useState<number | null>(null);
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
 
-  const previewQuality = useMemo(() => {
-    if (!preview) {
-      return { hasNames: false, hasPrices: false };
-    }
-
-    const items = preview.items_preview;
-    const hasNames = items.some((item) => {
-      const directName = getPreviewFieldValue(item, [
-        'nombre',
-        'name',
-        'producto',
-        'producto_nombre',
-        'descripcion',
-        'description',
-        'titulo',
-        'title',
-      ]);
-      return hasMeaningfulValue(directName) || hasMeaningfulValue(getPreviewFallbackValue(item));
-    });
-    const hasPrices = items.some((item) =>
-      parsePreviewNumber(getPreviewFieldValue(item, ['precio', 'price', 'precio_unitario', 'unit_price', 'precio_por_caja', 'price_per_box'])) !== null
-    );
-
-    return { hasNames, hasPrices };
-  }, [preview]);
-
   const canConfirm = (preview?.items_preview.length ?? 0) > 0;
 
-  const normalizedPreviewColumns = useMemo(() => {
-    if (!preview?.columns || preview.columns.length === 0) {
+  const previewColumns = useMemo(() => {
+    if (!preview) {
       return [];
     }
-    return preview.columns.map((column, index) => {
-      if (typeof column === 'string') {
-        return { key: column, label: column };
-      }
-      const columnRecord = column as Record<string, unknown>;
-      const key = String(columnRecord.key ?? columnRecord.name ?? columnRecord.label ?? `col_${index + 1}`);
-      const label = String(columnRecord.name ?? columnRecord.label ?? columnRecord.key ?? `Col ${index + 1}`);
-      return { key, label };
-    });
-  }, [preview?.columns]);
+    if (preview.columns && preview.columns.length > 0) {
+      return preview.columns;
+    }
+    const firstRow = preview.items_preview[0];
+    return firstRow ? Object.keys(firstRow) : [];
+  }, [preview]);
 
   const updatePreviewField = (
     itemIndex: number,
-    keys: string[],
-    fallbackKey: string,
+    key: string,
     value: string
   ) => {
     if (!preview) return;
     const newItems = [...preview.items_preview];
     const current = newItems[itemIndex];
-    const targetKey = keys.find((key) => current[key] !== undefined) ?? fallbackKey;
-    newItems[itemIndex] = { ...current, [targetKey]: value };
+    newItems[itemIndex] = { ...current, [key]: value };
     setPreview({ ...preview, items_preview: newItems });
   };
 
@@ -96,163 +63,28 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
     <div className={containerClassName}>
       <table className="w-full text-sm">
         <thead className="bg-gray-100 sticky top-0 z-10">
-          {normalizedPreviewColumns.length > 0 ? (
-            <tr>
-              {normalizedPreviewColumns.map((column) => (
-                <th key={column.key} className="p-2 text-left font-medium text-gray-600">
-                  {column.label}
-                </th>
-              ))}
-            </tr>
-          ) : (
-            <tr>
-              <th className="p-2 text-left font-medium text-gray-600 w-16">Img</th>
-              <th className="p-2 text-left font-medium text-gray-600">Nombre</th>
-              <th className="p-2 text-left font-medium text-gray-600 w-32">Precio</th>
-              <th className="p-2 text-left font-medium text-gray-600 w-32">SKU</th>
-              <th className="p-2 text-left font-medium text-gray-600 w-40">Categoría</th>
-            </tr>
-          )}
+          <tr>
+            {previewColumns.map((column) => (
+              <th key={column} className="p-2 text-left font-medium text-gray-600">
+                {column}
+              </th>
+            ))}
+          </tr>
         </thead>
         <tbody>
-          {preview?.items_preview.map((item, idx) => {
-            if (normalizedPreviewColumns.length > 0) {
-              return (
-                <tr key={idx} className="border-b hover:bg-gray-50">
-                  {normalizedPreviewColumns.map((column) => {
-                    const cellValue = getPreviewFieldValue(item, [column.key]) ?? '';
-                    return (
-                      <td key={`${idx}-${column.key}`} className="p-2">
-                        <Input
-                          value={String(cellValue)}
-                          onChange={(e) => updatePreviewField(idx, [column.key], column.key, e.target.value)}
-                          className="h-8 border-transparent hover:border-input focus:border-input bg-transparent"
-                        />
-                      </td>
-                    );
-                  })}
-                </tr>
-              );
-            }
-
-            const metadataEntries = getPreviewMetadataEntries(item);
-            const nameValue =
-              getPreviewFieldValue(item, [
-                'nombre',
-                'name',
-                'producto',
-                'producto_nombre',
-                'descripcion',
-                'description',
-                'titulo',
-                'title',
-              ]) ??
-              getPreviewFallbackValue(item, [
-                'precio',
-                'price',
-                'precio_unitario',
-                'unit_price',
-                'precio_por_caja',
-                'price_per_box',
-                'sku',
-                'category',
-                'categoria',
-                'image_url',
-                'imageUrl',
-              ]) ??
-              '';
-            const priceValue =
-              getPreviewFieldValue(item, ['precio', 'price', 'precio_unitario', 'unit_price', 'precio_por_caja', 'price_per_box']) ?? '';
-            const skuValue = getPreviewFieldValue(item, ['sku', 'SKU', 'codigo', 'code']) ?? '';
-            const categoryValue = getPreviewFieldValue(item, ['categoria', 'category']) ?? 'General';
-            const imageValue = getPreviewFieldValue(item, ['image_url', 'imageUrl', 'imagen', 'image']) ?? '';
-            return (
-              <tr key={idx} className="border-b hover:bg-gray-50 group">
-                <td className="p-2">
-                  <div className="h-10 w-10 bg-gray-100 rounded overflow-hidden flex items-center justify-center border">
-                    {imageValue ? (
-                      <img src={String(imageValue)} alt="" className="h-full w-full object-cover" />
-                    ) : (
-                      <span className="text-[8px] text-gray-400">N/A</span>
-                    )}
-                  </div>
-                </td>
-                <td className="p-2">
+          {preview?.items_preview.map((item, idx) => (
+            <tr key={idx} className="border-b hover:bg-gray-50">
+              {previewColumns.map((column) => (
+                <td key={`${idx}-${column}`} className="p-2">
                   <Input
-                    value={String(nameValue)}
-                    onChange={(e) => {
-                      updatePreviewField(
-                        idx,
-                        ['nombre', 'name', 'producto', 'producto_nombre', 'descripcion', 'description', 'titulo', 'title'],
-                        'nombre',
-                        e.target.value
-                      );
-                    }}
+                    value={item[column] === null || item[column] === undefined ? '' : String(item[column])}
+                    onChange={(e) => updatePreviewField(idx, column, e.target.value)}
                     className="h-8 border-transparent hover:border-input focus:border-input bg-transparent"
                   />
-                  {metadataEntries.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-1 text-[10px] text-gray-500">
-                      {metadataEntries.map((entry) => (
-                        <span
-                          key={`${entry.key}-${entry.value}`}
-                          className="rounded border border-gray-200 bg-gray-50 px-1 py-0.5"
-                        >
-                          <span className="font-medium">{entry.key}</span>: {entry.value}
-                        </span>
-                      ))}
-                    </div>
-                  )}
                 </td>
-                <td className="p-2">
-                  <div className="relative">
-                    <span className="absolute left-2 top-1.5 text-xs text-gray-500">$</span>
-                    <Input
-                      type="number"
-                      value={priceValue === '' ? '' : String(priceValue)}
-                      onChange={(e) => {
-                        updatePreviewField(
-                          idx,
-                          ['precio', 'price', 'precio_unitario', 'unit_price', 'precio_por_caja', 'price_per_box'],
-                          'precio',
-                          e.target.value
-                        );
-                      }}
-                      className="h-8 pl-5 border-transparent hover:border-input focus:border-input bg-transparent"
-                    />
-                  </div>
-                </td>
-                <td className="p-2">
-                  <Input
-                    value={String(skuValue)}
-                    placeholder="Auto-gen"
-                    onChange={(e) => {
-                      updatePreviewField(idx, ['sku', 'SKU', 'codigo', 'code'], 'sku', e.target.value);
-                    }}
-                    className="h-8 border-transparent hover:border-input focus:border-input bg-transparent text-gray-500 font-mono text-xs"
-                  />
-                </td>
-                <td className="p-2">
-                  <Select
-                    value={String(categoryValue || 'General')}
-                    onValueChange={(val) => {
-                      updatePreviewField(idx, ['category', 'categoria'], 'category', val);
-                    }}
-                  >
-                    <SelectTrigger className="h-8 border-transparent hover:border-input focus:border-input bg-transparent">
-                      <SelectValue placeholder="Categoría" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="General">General</SelectItem>
-                      <SelectItem value="Indumentaria">Indumentaria</SelectItem>
-                      <SelectItem value="Calzado">Calzado</SelectItem>
-                      <SelectItem value="Accesorios">Accesorios</SelectItem>
-                      <SelectItem value="Hogar">Hogar</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </td>
-              </tr>
-            );
-          })}
+              ))}
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>
@@ -273,7 +105,6 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
       const previewData = await importService.uploadFile(tenantId, file, processor, effectiveSlug || undefined);
       // We receive the preview directly.
       setPreview(previewData);
-      setUploadId(previewData.upload_id || Date.now()); // Fallback ID if not provided, just for state tracking
       setStep(2);
     } catch (e) {
       console.error(e);
@@ -377,16 +208,6 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
                         </ul>
                     </AlertDescription>
                 </Alert>
-            )}
-
-            {(!previewQuality.hasNames || !previewQuality.hasPrices) && (
-              <Alert>
-                <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>Revisá la vista previa</AlertTitle>
-                <AlertDescription>
-                  Faltan nombres o precios detectados en algunos productos. Podés editar los datos antes de confirmar.
-                </AlertDescription>
-              </Alert>
             )}
 
             <div className="flex justify-end">
