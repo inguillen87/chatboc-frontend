@@ -34,6 +34,8 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
     }
     return previewItems.length > 0 ? Object.keys(previewItems[0]) : [];
   }, [previewColumns, previewItems]);
+  const isPlainTextPreview =
+    resolvedColumns.length === 1 && resolvedColumns[0]?.toLowerCase().includes('contenido');
 
   const updatePreviewField = (rowIndex: number, column: string, value: string) => {
     setPreviewItems((prev) => {
@@ -200,7 +202,15 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
   );
 
   const renderPreviewTable = (containerClassName: string) => (
-    <div className={containerClassName}>
+    <div
+      className={`${containerClassName} ${isPlainTextPreview ? 'border-amber-200 bg-amber-50/30' : ''}`.trim()}
+    >
+      {isPlainTextPreview && (
+        <div className="flex items-center gap-2 border-b border-amber-200 px-3 py-2 text-xs text-amber-700">
+          <AlertTriangle className="h-4 w-4" />
+          <span className="font-medium">{resolvedColumns[0]}</span>
+        </div>
+      )}
       <table className="w-full text-sm">
         <thead className="bg-gray-100 sticky top-0 z-10">
           <tr>
