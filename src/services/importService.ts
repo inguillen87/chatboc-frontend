@@ -5,9 +5,23 @@ export interface ImportPreview {
   total_detected: number;
   confidence: number;
   warnings: string[];
-  items_preview: Array<Record<string, PreviewValue>>;
-  columns?: Array<unknown>;
+  items_preview: Array<Record<string, unknown>>;
+  columns?: string[];
 }
+
+const resolveColumnKey = (column: unknown, index: number): string => {
+  if (typeof column === 'string' && column.trim().length > 0) {
+    return column;
+  }
+  if (column && typeof column === 'object') {
+    const record = column as Record<string, unknown>;
+    const candidate = record.key ?? record.name ?? record.label;
+    if (typeof candidate === 'string' && candidate.trim().length > 0) {
+      return candidate;
+    }
+  }
+  return `col_${index + 1}`;
+};
 
 export const importService = {
   // Step 1: Upload & Preview (Document Intelligence)
@@ -27,7 +41,7 @@ export const importService = {
       omitEntityToken: true,
     });
 
-    const resolvePreviewRows = (): Array<Record<string, PreviewValue>> => {
+    const resolvePreviewRows = (): Array<Record<string, unknown>> => {
       if (Array.isArray(response.items_preview)) {
         return response.items_preview;
       }
@@ -40,27 +54,26 @@ export const importService = {
         return [];
       }
 
-      if (Array.isArray(response.columns) && response.columns.length > 0 && Array.isArray(response.rows[0])) {
-        return response.rows.map((row: PreviewValue[], rowIndex: number) => {
-          const record: Record<string, PreviewValue> = {};
-          response.columns.forEach((column: string, columnIndex: number) => {
-            const key = column || `col_${columnIndex + 1}`;
-            record[key] = row[columnIndex];
-          });
-          record._rowIndex = rowIndex;
-          return record;
+      if (Array.isArray(response.columns) && response.columns.length > 0) {
+        return response.rows.map((row: unknown) => {
+          if (!Array.isArray(row)) {
+            return row as Record<string, unknown>;
+          }
+          return response.columns.reduce<Record<string, unknown>>((acc, column: unknown, index: number) => {
+            const key = resolveColumnKey(column, index);
+            acc[key] = row[index];
+            return acc;
+          }, {});
         });
       }
 
-      return response.rows;
+      return response.rows as Array<Record<string, unknown>>;
     };
 
     const previewRows = resolvePreviewRows();
     const previewColumns = Array.isArray(response.columns)
-      ? response.columns
-      : previewRows.length > 0
-        ? Object.keys(previewRows[0])
-        : undefined;
+      ? response.columns.map((column: unknown, index: number) => resolveColumnKey(column, index))
+      : undefined;
 
     // Transform backend response to ImportPreview format expected by UI
     return {
@@ -71,7 +84,7 @@ export const importService = {
         columns: previewColumns,
         // We might not get an upload_id here if it's stateless, but if we do, pass it.
         // If stateless, we might need to re-upload in commit step.
-        upload_id: response.upload_id || Date.now() // temporary ID if stateless
+        upload_id: response.upload_id
     };
   },
 
@@ -85,7 +98,7 @@ export const importService = {
     file: File,
     processorSlug: string = 'generic',
     tenantSlug?: string,
-    previewItems?: Array<Record<string, PreviewValue>>
+    previewItems?: Array<Record<string, unknown>>
   ) => {
     const formData = new FormData();
     formData.append('file', file);
