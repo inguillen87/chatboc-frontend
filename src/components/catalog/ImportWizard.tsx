@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Loader2, CheckCircle, Upload, AlertTriangle } from 'lucide-react';
 import { importService, ImportPreview } from '../../services/importService';
 import { useTenant } from '@/context/TenantContext';
@@ -265,70 +265,6 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
     }
   };
 
-  const previewQuality = useMemo(() => {
-    if (!preview) {
-      return { hasNames: false, hasPrices: false };
-    }
-
-    const items = preview.items_preview;
-    const hasNames = items.some((item) => {
-      const directName = getPreviewFieldValue(item, [
-        'nombre',
-        'name',
-        'producto',
-        'producto_nombre',
-        'descripcion',
-        'description',
-        'titulo',
-        'title',
-      ]);
-      return hasMeaningfulValue(directName) || hasMeaningfulValue(getPreviewFallbackValue(item));
-    });
-    const hasPrices = items.some((item) =>
-      parsePreviewNumber(getPreviewFieldValue(item, ['precio', 'price', 'precio_unitario', 'unit_price', 'precio_por_caja', 'price_per_box'])) !== null
-    );
-
-    return { hasNames, hasPrices };
-  }, [preview]);
-
-  const canConfirm = (preview?.items_preview.length ?? 0) > 0;
-
-  const normalizedPreviewColumns = useMemo(() => {
-    if (!preview?.columns || preview.columns.length === 0) {
-      return [];
-    }
-    return preview.columns.map((column, index) => {
-      if (typeof column === 'string') {
-        return { key: column, label: column };
-      }
-      const columnRecord = column as Record<string, unknown>;
-      const key = String(columnRecord.key ?? columnRecord.name ?? columnRecord.label ?? `col_${index + 1}`);
-      const label = String(columnRecord.name ?? columnRecord.label ?? columnRecord.key ?? `Col ${index + 1}`);
-      return { key, label };
-    });
-  }, [preview?.columns]);
-
-  const updatePreviewField = (
-    itemIndex: number,
-    keys: string[],
-    fallbackKey: string,
-    value: string
-  ) => {
-    if (!preview) return;
-    const newItems = [...preview.items_preview];
-    const current = newItems[itemIndex];
-    const targetKey = keys.find((key) => current[key] !== undefined) ?? fallbackKey;
-    newItems[itemIndex] = { ...current, [targetKey]: value };
-    setPreview({ ...preview, items_preview: newItems });
-  };
-
-  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    if (event.dataTransfer.files && event.dataTransfer.files[0]) {
-      setFile(event.dataTransfer.files[0]);
-    }
-  };
-
   const handleUpload = async () => {
     if (!file) return;
     setLoading(true);
@@ -462,11 +398,45 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
             {renderPreviewTable("border rounded-md max-h-96 overflow-y-auto")}
 
             <Dialog open={isPreviewModalOpen} onOpenChange={setIsPreviewModalOpen}>
-              <DialogContent className="max-w-6xl h-[80vh]">
+              <DialogContent className="max-w-6xl h-[85vh]">
                 <DialogHeader>
                   <DialogTitle>Vista previa completa</DialogTitle>
                 </DialogHeader>
-                {renderPreviewTable("border rounded-md max-h-[60vh] overflow-y-auto")}
+                <div className="grid gap-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-lg border bg-muted/40 p-4">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Productos detectados</p>
+                      <p className="text-xl font-semibold">{preview.total_detected}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Confianza</p>
+                      <p className="text-xl font-semibold">{(preview.confidence * 100).toFixed(0)}%</p>
+                    </div>
+                    {preview.warnings.length > 0 && (
+                      <div>
+                        <p className="text-sm text-muted-foreground">Warnings</p>
+                        <p className="text-sm font-medium">{preview.warnings.length}</p>
+                      </div>
+                    )}
+                  </div>
+                  <div className="overflow-x-auto">
+                    {renderPreviewTable("border rounded-md max-h-[55vh] overflow-y-auto")}
+                  </div>
+                </div>
+                <DialogFooter className="gap-2 sm:justify-between">
+                  <Button variant="outline" onClick={() => setIsPreviewModalOpen(false)}>
+                    Editar
+                  </Button>
+                  <div className="flex gap-2">
+                    <Button variant="ghost" onClick={() => setIsPreviewModalOpen(false)}>
+                      Cancelar
+                    </Button>
+                    <Button onClick={handleCommit} disabled={loading || !canConfirm}>
+                      {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Confirmar {preview?.items_preview.length} items
+                    </Button>
+                  </div>
+                </DialogFooter>
               </DialogContent>
             </Dialog>
           </div>
