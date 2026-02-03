@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Loader2, CheckCircle, Upload, AlertTriangle } from 'lucide-react';
 import { importService, ImportPreview } from '../../services/importService';
 import { useTenant } from '@/context/TenantContext';
@@ -401,6 +401,9 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
               <DialogContent className="max-w-6xl h-[85vh]">
                 <DialogHeader>
                   <DialogTitle>Vista previa completa</DialogTitle>
+                  <DialogDescription>
+                    Revisá el detalle detectado por la IA antes de confirmar la importación. Productos detectados: {preview.total_detected}.
+                  </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-lg border bg-muted/40 p-4">

@@ -2,7 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Upload, FileText, CheckCircle2, AlertTriangle, ArrowRight, RefreshCw, X } from 'lucide-react';
 import { useTenant } from '@/context/TenantContext';
 import { apiClient } from '@/api/client';
@@ -295,6 +295,9 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
           <DialogContent className="max-w-6xl h-[85vh]">
             <DialogHeader>
               <DialogTitle>Vista previa completa</DialogTitle>
+              <DialogDescription>
+                Revisá el detalle detectado por la IA antes de confirmar la importación. Productos detectados: {previewItems.length}.
+              </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-lg border bg-muted/40 p-4">
