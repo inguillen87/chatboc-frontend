@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -56,6 +56,19 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
   const [previewMode, setPreviewMode] = useState<'widget' | 'embed'>('widget');
   const [embedSnippet, setEmbedSnippet] = useState<string>('');
   const [embedAttributes, setEmbedAttributes] = useState<Record<string, string>>({});
+  const resolvedEmbedSnippet = useMemo(() => {
+    if (embedSnippet) return embedSnippet;
+    const base = (import.meta.env.VITE_WIDGET_API_BASE || "https://chatboc.ar").replace(/\/+$/, "");
+    const widgetScriptUrl = `${base}/widget.js`;
+    const attributes = {
+      ...(currentSlug ? { "data-tenant": currentSlug, "data-tenant-slug": currentSlug } : {}),
+      ...embedAttributes,
+    };
+    const attributeString = Object.entries(attributes)
+      .map(([key, value]) => `${key}="${value}"`)
+      .join(" ");
+    return attributeString ? `<script async src="${widgetScriptUrl}" ${attributeString}></script>` : '';
+  }, [embedSnippet, embedAttributes, currentSlug]);
 
   // Debounce logic
   const [debouncedConfig, setDebouncedConfig] = useState(config);
@@ -467,6 +480,7 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
 
                  <div className="relative z-10 w-full h-full">
                      <WidgetPreview
+                        key={`${previewDevice}-${previewOpen}-${currentSlug || 'demo'}`}
                         tenantSlug={currentSlug || 'demo'}
                         defaultOpen={previewOpen}
                         primaryColor={config.primaryColor}
@@ -491,7 +505,7 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="rounded-lg bg-slate-950 text-slate-100 p-4 text-xs font-mono whitespace-pre-wrap">
-                        {embedSnippet || ''}
+                        {resolvedEmbedSnippet}
                     </div>
                     <div className="space-y-2 text-xs text-muted-foreground">
                         <p className="font-medium text-foreground">Atributos activos</p>
