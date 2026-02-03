@@ -1,13 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Upload, FileText, CheckCircle2, AlertTriangle, ArrowRight, RefreshCw, X } from 'lucide-react';
 import { useTenant } from '@/context/TenantContext';
 import { apiClient } from '@/api/client';
 import { toast } from 'sonner';
-import CatalogItemsTable, { CatalogPreviewItem } from './CatalogItemsTable';
 import { importService } from '@/services/importService';
+import { Input } from '@/components/ui/input';
 
 interface CatalogUploadWizardProps {
   onFinish?: () => void;
@@ -20,10 +21,30 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
   const [step, setStep] = useState<WizardStep>('upload');
   const [file, setFile] = useState<File | null>(null);
   const [tenantId, setTenantId] = useState<number | null>(null);
-  const [previewItems, setPreviewItems] = useState<CatalogPreviewItem[]>([]);
+  const [previewItems, setPreviewItems] = useState<Array<Record<string, unknown>>>([]);
+  const [previewColumns, setPreviewColumns] = useState<string[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [resultSummary, setResultSummary] = useState<{ processed: number; errors: number } | null>(null);
+  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
+
+  const canConfirm = previewItems.length > 0;
+  const resolvedColumns = useMemo(() => {
+    if (previewColumns.length > 0) {
+      return previewColumns;
+    }
+    return previewItems.length > 0 ? Object.keys(previewItems[0]) : [];
+  }, [previewColumns, previewItems]);
+  const isPlainTextPreview =
+    resolvedColumns.length === 1 && resolvedColumns[0]?.toLowerCase().includes('contenido');
+
+  const updatePreviewField = (rowIndex: number, column: string, value: string) => {
+    setPreviewItems((prev) => {
+      const next = [...prev];
+      const current = next[rowIndex] ?? {};
+      next[rowIndex] = { ...current, [column]: value };
+      return next;
+    });
+  };
 
   // Fetch tenant ID needed for importService
   useEffect(() => {
@@ -81,20 +102,10 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
       setUploadProgress(100);
 
       if (preview && preview.items_preview) {
-        // Map response to CatalogPreviewItem
-        const mappedItems: CatalogPreviewItem[] = preview.items_preview.map((item: any, idx: number) => ({
-            id: idx,
-            sku: item.sku || `TMP-${idx}`,
-            name: item.name || item.nombre || '',
-            price: item.price || item.precio || 0,
-            stock: item.stock || 0,
-            category: item.category || item.categoria || '',
-            errors: preview.warnings || [], // This maps global warnings to items if specific item errors aren't provided
-            warnings: []
-        }));
-
-        setPreviewItems(mappedItems);
+        setPreviewItems(preview.items_preview);
+        setPreviewColumns(preview.columns ?? []);
         setStep('preview');
+        setIsPreviewModalOpen(true);
       } else {
           toast.error("La respuesta del servidor no fue válida.");
       }
@@ -108,16 +119,6 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
   };
 
   // -- Step 2: Preview Logic --
-  const handleItemUpdate = (id: string | number, field: keyof CatalogPreviewItem, value: any) => {
-    setPreviewItems(prev => prev.map(item =>
-        item.id === id ? { ...item, [field]: value } : item
-    ));
-  };
-
-  const handleItemDelete = (id: string | number) => {
-    setPreviewItems(prev => prev.filter(item => item.id !== id));
-  };
-
   const confirmUpload = async () => {
     if (!file || !currentSlug) return;
     // Commit requires real tenant ID. If we used 0 for preview, we must have the real ID now.
@@ -129,19 +130,11 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
     setIsProcessing(true);
 
     try {
-        // commitImport re-uploads the file in the stateless flow
-        // Note: Inline edits in preview (handleItemUpdate) are NOT persisted because we send the original file.
-        // To support inline edits, the backend would need to accept the JSON payload or we'd need to modify the file client-side (complex).
-        // For this MVP, we warn the user or just send the file.
-        // Ideally we would send the `previewItems` as JSON, but importService.commitImport sends the file.
-        // We will stick to the file for now as per backend spec "fixed 404... catalog-upload".
+        // commitImport re-uploads the file in the stateless flow.
+        // We also send the `previewItems` payload when available so the backend can apply inline edits.
 
-        await importService.commitImport(tenantId, file, 'generic', currentSlug);
+        await importService.commitImport(tenantId, file, 'generic', currentSlug, previewItems);
 
-        setResultSummary({
-            processed: previewItems.length,
-            errors: 0
-        });
         setStep('result');
         toast.success("Catálogo actualizado correctamente.");
     } catch (error) {
@@ -208,6 +201,45 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
     </div>
   );
 
+  const renderPreviewTable = (containerClassName: string) => (
+    <div
+      className={`${containerClassName} ${isPlainTextPreview ? 'border-amber-200 bg-amber-50/30' : ''}`.trim()}
+    >
+      {isPlainTextPreview && (
+        <div className="flex items-center gap-2 border-b border-amber-200 px-3 py-2 text-xs text-amber-700">
+          <AlertTriangle className="h-4 w-4" />
+          <span className="font-medium">{resolvedColumns[0]}</span>
+        </div>
+      )}
+      <table className="w-full min-w-max text-sm">
+        <thead className="bg-gray-100 sticky top-0 z-10">
+          <tr>
+            {resolvedColumns.map((column) => (
+              <th key={column} className="p-2 text-left font-medium text-gray-600 whitespace-nowrap">
+                {column}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {previewItems.map((item, idx) => (
+            <tr key={idx} className="border-b hover:bg-gray-50">
+              {resolvedColumns.map((column) => (
+                <td key={`${idx}-${column}`} className="p-2">
+                  <Input
+                    value={item[column] === null || item[column] === undefined ? '' : String(item[column])}
+                    onChange={(e) => updatePreviewField(idx, column, e.target.value)}
+                    className="h-8 border-transparent hover:border-input focus:border-input bg-transparent"
+                  />
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+
   const renderPreviewStep = () => (
     <div className="space-y-4">
         <div className="flex items-center justify-between">
@@ -222,24 +254,66 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
             </div>
         </div>
 
-        <CatalogItemsTable
-            items={previewItems}
-            onUpdate={handleItemUpdate}
-            onDelete={handleItemDelete}
-            // ReadOnly true because edits aren't persisted in this file-based flow yet
-            readOnly={true}
-        />
+        <div className="flex justify-end">
+          <Button variant="outline" onClick={() => setIsPreviewModalOpen(true)}>
+            Ver en pantalla completa
+          </Button>
+        </div>
+
+        {!isPreviewModalOpen && renderPreviewTable("border rounded-md max-h-96 overflow-y-auto")}
 
         <p className="text-xs text-amber-600 bg-amber-50 p-2 rounded">
-            Nota: La edición en línea no está disponible en este modo. Suba un archivo corregido si detecta errores.
+            Nota: Podés editar los valores antes de confirmar la importación.
         </p>
 
         <div className="flex items-center justify-end gap-3 pt-4 border-t">
-             <Button onClick={confirmUpload} disabled={isProcessing}>
+             <Button onClick={confirmUpload} disabled={isProcessing || !canConfirm}>
                 {isProcessing && <RefreshCw className="mr-2 h-4 w-4 animate-spin" />}
                 Confirmar e Importar
              </Button>
         </div>
+
+        <Dialog open={isPreviewModalOpen} onOpenChange={setIsPreviewModalOpen}>
+          <DialogContent className="max-w-6xl h-[85vh]">
+            <DialogHeader>
+              <DialogTitle>Vista previa completa</DialogTitle>
+              <DialogDescription>
+                Revisá el detalle detectado por la IA antes de confirmar la importación. Productos detectados: {previewItems.length}.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-lg border bg-muted/40 p-4">
+                <div>
+                  <p className="text-sm text-muted-foreground">Productos detectados</p>
+                  <p className="text-xl font-semibold">{previewItems.length}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Warnings</p>
+                  <p className="text-sm font-medium">{previewItems.flatMap((item) => item.errors ?? []).length}</p>
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                <div className="max-h-[55vh] overflow-y-auto">
+                  {renderPreviewTable("border rounded-md")}
+                </div>
+              </div>
+            </div>
+            <DialogFooter className="gap-2 sm:justify-between">
+              <Button variant="outline" onClick={() => setIsPreviewModalOpen(false)}>
+                Editar
+              </Button>
+              <div className="flex gap-2">
+                <Button variant="ghost" onClick={() => setIsPreviewModalOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button onClick={confirmUpload} disabled={isProcessing || !canConfirm}>
+                  {isProcessing && <RefreshCw className="mr-2 h-4 w-4 animate-spin" />}
+                  Confirmar e Importar
+                </Button>
+              </div>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
     </div>
   );
 
