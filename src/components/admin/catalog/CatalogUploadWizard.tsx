@@ -94,6 +94,7 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
         setPreviewItems(preview.items_preview);
         setPreviewColumns(preview.columns ?? []);
         setStep('preview');
+        setIsPreviewModalOpen(true);
       } else {
           toast.error("La respuesta del servidor no fue válida.");
       }
@@ -244,7 +245,7 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
           </Button>
         </div>
 
-        {renderPreviewTable("border rounded-md max-h-96 overflow-y-auto")}
+        {!isPreviewModalOpen && renderPreviewTable("border rounded-md max-h-96 overflow-y-auto")}
 
         <p className="text-xs text-amber-600 bg-amber-50 p-2 rounded">
             Nota: La edición en línea no está disponible en este modo. Suba un archivo corregido si detecta errores.

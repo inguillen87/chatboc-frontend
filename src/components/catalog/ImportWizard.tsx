@@ -106,6 +106,7 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
       // We receive the preview directly.
       setPreview(previewData);
       setStep(2);
+      setIsPreviewModalOpen(true);
     } catch (e) {
       console.error(e);
       alert("Error uploading file");
@@ -216,7 +217,7 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
               </Button>
             </div>
 
-            {renderPreviewTable("border rounded-md max-h-96 overflow-y-auto")}
+            {!isPreviewModalOpen && renderPreviewTable("border rounded-md max-h-96 overflow-y-auto")}
 
             <Dialog open={isPreviewModalOpen} onOpenChange={setIsPreviewModalOpen}>
               <DialogContent className="max-w-6xl h-[85vh]">
