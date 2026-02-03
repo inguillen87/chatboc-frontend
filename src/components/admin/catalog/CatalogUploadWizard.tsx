@@ -43,14 +43,6 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
 
   const canConfirm = previewItems.length > 0;
 
-  const previewQuality = useMemo(() => {
-    const hasNames = previewItems.some((item) => hasMeaningfulValue(item.name));
-    const hasPrices = previewItems.some((item) => parsePreviewNumber(item.price) !== null);
-    return { hasNames, hasPrices };
-  }, [previewItems]);
-
-  const canConfirm = previewItems.length > 0;
-
   // Fetch tenant ID needed for importService
   useEffect(() => {
     const fetchTenantId = async () => {
