@@ -580,6 +580,7 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
                           title="Widget preview"
                           className="absolute inset-0 w-full h-full border-0 bg-transparent"
                           src={previewIframeSrc}
+                          allow="clipboard-read; clipboard-write; autoplay"
                         />
                       ) : (
                         <WidgetPreview
