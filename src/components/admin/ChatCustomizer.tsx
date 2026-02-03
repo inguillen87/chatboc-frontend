@@ -1,4 +1,4 @@
-import React, { useMemo, useEffect, useRef, useState } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -59,7 +59,54 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
   const [publicEmbedSnippet, setPublicEmbedSnippet] = useState<string>('');
   const [publicEmbedAttributes, setPublicEmbedAttributes] = useState<Record<string, string>>({});
   const [publicWidgetInfo, setPublicWidgetInfo] = useState<{ token?: string; tenantSlug?: string; tipoChat?: string } | null>(null);
-  const previewIframeRef = useRef<HTMLIFrameElement | null>(null);
+  const previewIframeSrc = useMemo(() => {
+    if (typeof window === "undefined") return '';
+    const baseUrl = window.location.origin;
+    const params = new URLSearchParams();
+    const tenant = publicEmbedAttributes["data-tenant"] || publicEmbedAttributes["data-tenant-slug"] || publicWidgetInfo?.tenantSlug || currentSlug;
+    const entityToken =
+      publicEmbedAttributes["data-owner-token"]
+      || publicEmbedAttributes["data-entity-token"]
+      || publicEmbedAttributes["data-widget-token"]
+      || publicWidgetInfo?.token
+      || '';
+    const endpoint = publicEmbedAttributes["data-endpoint"] || publicWidgetInfo?.tipoChat || '';
+
+    if (tenant) {
+      params.set("tenant", tenant);
+      params.set("tenantSlug", tenant);
+    }
+    if (entityToken) {
+      params.set("entityToken", entityToken);
+      params.set("ownerToken", entityToken);
+    }
+    if (endpoint) {
+      params.set("endpoint", endpoint);
+    }
+
+    params.set("defaultOpen", previewOpen ? "true" : "false");
+
+    const attributeMap: Record<string, string> = {
+      "data-width": "openWidth",
+      "data-height": "openHeight",
+      "data-closed-width": "closedWidth",
+      "data-closed-height": "closedHeight",
+      "data-bottom": "bottom",
+      "data-right": "right",
+      "data-logo-url": "logoUrl",
+      "data-header-logo-url": "headerLogoUrl",
+      "data-logo-animation": "logoAnimation",
+      "data-welcome-title": "welcomeTitle",
+      "data-welcome-subtitle": "welcomeSubtitle",
+    };
+
+    Object.entries(attributeMap).forEach(([attr, queryKey]) => {
+      const value = publicEmbedAttributes[attr];
+      if (value) params.set(queryKey, value);
+    });
+
+    return `${baseUrl}/iframe?${params.toString()}`;
+  }, [publicEmbedAttributes, publicWidgetInfo, previewOpen, currentSlug]);
   const resolvedEmbedSnippet = useMemo(() => {
     if (embedSnippet) return embedSnippet;
     const base = (import.meta.env.VITE_WIDGET_API_BASE || "https://chatboc.ar").replace(/\/+$/, "");
@@ -174,47 +221,6 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
     loadPublicWidget();
   }, [currentSlug]);
 
-  useEffect(() => {
-    if (previewMode !== 'widget') return;
-    if (!previewIframeRef.current) return;
-    const sourceSnippet = publicEmbedSnippet || resolvedEmbedSnippet;
-    if (!sourceSnippet) return;
-
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(sourceSnippet, 'text/html');
-    const script = doc.querySelector('script');
-    const base = (import.meta.env.VITE_WIDGET_API_BASE || "https://chatboc.ar").replace(/\/+$/, "");
-    const widgetScriptUrl = `${base}/widget.js`;
-    const mergedAttributes: Record<string, string> = {
-      ...(currentSlug ? { "data-tenant": currentSlug, "data-tenant-slug": currentSlug } : {}),
-      ...publicEmbedAttributes,
-      "data-default-open": previewOpen ? "true" : "false",
-    };
-    if (!mergedAttributes["data-api-base"]) {
-      mergedAttributes["data-api-base"] = base;
-    }
-    if (!mergedAttributes["data-shadow-dom"]) {
-      mergedAttributes["data-shadow-dom"] = "true";
-    }
-    if (!mergedAttributes["data-endpoint"] && publicWidgetInfo?.tipoChat) {
-      mergedAttributes["data-endpoint"] = publicWidgetInfo.tipoChat;
-    }
-
-    const iframeDoc = previewIframeRef.current.contentDocument;
-    if (!iframeDoc) return;
-    iframeDoc.open();
-    iframeDoc.write(`<!doctype html><html><head><base href="${window.location.origin}/"></head></html>`);
-    iframeDoc.close();
-    if (!iframeDoc.body) return;
-    iframeDoc.body.style.margin = "0";
-    const scriptEl = iframeDoc.createElement("script");
-    scriptEl.async = true;
-    scriptEl.src = script?.getAttribute("src") || widgetScriptUrl;
-    Object.entries(mergedAttributes).forEach(([key, value]) => {
-      scriptEl.setAttribute(key, String(value));
-    });
-    iframeDoc.body.appendChild(scriptEl);
-  }, [previewMode, publicEmbedSnippet, publicEmbedAttributes, previewOpen, previewDevice, currentSlug, resolvedEmbedSnippet, publicWidgetInfo]);
 
   const handleChange = (field: string, value: any) => {
     setConfig(prev => ({ ...prev, [field]: value }));
@@ -565,12 +571,12 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
                  </div>
 
                  <div className="relative z-10 w-full h-full">
-                     {publicEmbedSnippet ? (
+                     {publicEmbedSnippet || resolvedEmbedSnippet ? (
                         <iframe
                           key={`${previewDevice}-${previewOpen}-${currentSlug || 'demo'}`}
-                          ref={previewIframeRef}
                           title="Widget preview"
                           className="w-full h-full border-0"
+                          src={previewIframeSrc}
                         />
                       ) : (
                         <WidgetPreview
