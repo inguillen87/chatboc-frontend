@@ -229,6 +229,7 @@ function ChatWidgetInner({
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (mode === "preview") return;
 
     if ((window as any).__chatbocWidgetMounted) {
       setDuplicateInstance(true);
@@ -240,7 +241,7 @@ function ChatWidgetInner({
     return () => {
       delete (window as any).__chatbocWidgetMounted;
     };
-  }, []);
+  }, [mode]);
 
   const derivedEntityTitle =
     (typeof entityInfo?.nombre_empresa === "string" && entityInfo.nombre_empresa.trim()) ||
