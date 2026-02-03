@@ -124,7 +124,7 @@ export const TicketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     (list: Ticket[]): Ticket[] => {
       const role = (user?.rol || '').toString().toLowerCase();
       const isSuperAdmin = role.includes('super_admin');
-      const shouldRestrict = !isSuperAdmin && (role.includes('empleado') || role.includes('admin'));
+      const shouldRestrict = !isSuperAdmin && role.includes('empleado');
 
       if (!shouldRestrict) return list;
 
