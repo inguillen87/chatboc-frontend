@@ -174,9 +174,10 @@ export const apiClient = {
   },
 
   adminConfirmCatalog: async (tenantSlug: string, payload: { upload_token: string; mapping_override?: Record<string, string> }): Promise<any> => {
-      return apiFetch<any>('/api/catalog/confirm', {
-          method: 'POST',
+      return apiFetch<any>("/api/catalog/confirm", {
+          method: "POST",
           body: payload,
+          headers: { "Content-Type": "application/json" },
           tenantSlug
       });
   },
