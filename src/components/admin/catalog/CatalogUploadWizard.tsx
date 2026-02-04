@@ -40,6 +40,40 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ tenantSlug, o
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   // --- Step 1: Upload Logic ---
+
+  const handleDownloadTemplate = () => {
+    try {
+      const ws = XLSX.utils.json_to_sheet([
+        {
+          "Producto": "Ejemplo Camiseta",
+          "Precio": 15000,
+          "Moneda": "ARS",
+          "Stock": 100,
+          "Descripcion": "Camiseta de algodón",
+          "Categoria": "Indumentaria",
+          "SKU": "CAM-001"
+        },
+        {
+          "Producto": "Ejemplo Pantalón",
+          "Precio": 45000,
+          "Moneda": "ARS",
+          "Stock": 50,
+          "Descripcion": "Jean corte clásico",
+          "Categoria": "Indumentaria",
+          "SKU": "PAN-002"
+        }
+      ]);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Plantilla");
+      XLSX.writeFile(wb, "plantilla_importacion.xlsx");
+
+      toast.success("Plantilla descargada");
+    } catch (err) {
+      console.error("Error generating template:", err);
+      toast.error("No se pudo generar la plantilla.");
+    }
+  };
+
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
       setFile(acceptedFiles[0]);
