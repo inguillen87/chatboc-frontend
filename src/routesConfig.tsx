@@ -66,6 +66,7 @@ import NewSurveyPage from '@/pages/admin/encuestas/new';
 import SurveyDetailPage from '@/pages/admin/encuestas/[id]';
 import SurveyAnalyticsPage from '@/pages/admin/encuestas/[id]/analytics';
 import TenantHomePage from '@/pages/tenant/TenantHomePage';
+import PublicCatalogPage from '@/pages/PublicCatalogPage';
 import TenantNewsPage from '@/pages/tenant/TenantNewsPage';
 import TenantEventsPage from '@/pages/tenant/TenantEventsPage';
 import TenantSurveyListPage from '@/pages/tenant/TenantSurveyListPage';
@@ -286,6 +287,7 @@ const routes: RouteConfig[] = [
   // Clean URL Support (Root Level Tenant Routes)
   // Placing these carefully to avoid conflicts, though React Router v6 is smart about specificity.
   { path: '/:tenant/productos', element: <ProductCatalog /> },
+  { path: '/:tenant/catalogo', element: <PublicCatalogPage /> },
   { path: '/:tenant/cart', element: <CartPage /> },
   { path: '/:tenant/checkout-productos', element: <ProductCheckoutPage /> },
   { path: '/:tenant/pedido/confirmado', element: <OrderConfirmationPage /> },

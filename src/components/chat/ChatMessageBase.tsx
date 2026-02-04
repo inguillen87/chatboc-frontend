@@ -25,6 +25,7 @@ import { getInitials, cn } from "@/lib/utils";
 import UserAvatarAnimated from "./UserAvatarAnimated";
 import { Badge } from "@/components/ui/badge";
 import InteractiveMenu from "./InteractiveMenu";
+import CatalogShareCard from "./CatalogShareCard";
 import { extractSmartHint } from "@/utils/smartHints";
 import ProductCard from "@/components/product/ProductCard";
 
@@ -664,6 +665,12 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
   const showMenuSections = !!((message.menu_sections && message.menu_sections.length > 0) || message.interactive_list);
   const showPosts = !!(message.posts && message.posts.length > 0);
   const showProductCards = !!((message.data?.cart_summary || message.data?.catalogo) && Array.isArray(message.data?.cart_summary || message.data?.catalogo));
+  const isCatalogShare =
+    message.messageType === 'catalog_share' ||
+    message.data?.type === 'catalog_share';
+
+  const catalogSharePayload =
+    (isCatalogShare ? (message.data as any) : null) || null;
   const showSocialLinks = message.socialLinks && Object.keys(message.socialLinks).length > 0;
   const now = new Date();
   const postsToShow = showPosts
@@ -718,7 +725,7 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
           )}
 
           {/* Prioridad al texto si no hay otros contenidos especiales */}
-          {!showAttachmentOrMap && !showStructuredContent && !audioSrc && !showProductCards && textAndListBlock}
+          {!showAttachmentOrMap && !showStructuredContent && !audioSrc && !showProductCards && !isCatalogShare && textAndListBlock}
 
           {/* Mostrar adjunto o mapa (no audio) */}
           {showAttachmentOrMap && (
@@ -770,6 +777,21 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
                         payload: { id: item.id }
                     })}
                 />
+            </>
+          )}
+
+          {isCatalogShare && (
+            <>
+              {textAndListBlock}
+              <CatalogShareCard
+                title={catalogSharePayload?.title ?? catalogSharePayload?.titulo}
+                text={catalogSharePayload?.text ?? catalogSharePayload?.mensaje}
+                bannerUrl={catalogSharePayload?.banner_url ?? catalogSharePayload?.bannerUrl}
+                viewUrl={catalogSharePayload?.view_url ?? catalogSharePayload?.viewUrl}
+                downloadUrl={catalogSharePayload?.download_url ?? catalogSharePayload?.downloadUrl}
+                viewLabel={catalogSharePayload?.view_label ?? catalogSharePayload?.viewLabel}
+                downloadLabel={catalogSharePayload?.download_label ?? catalogSharePayload?.downloadLabel}
+              />
             </>
           )}
 
