@@ -34,8 +34,12 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
 
-  const canConfirm = (preview?.items_preview.length ?? 0) > 0;
+  const previewCount = preview?.items_preview.length ?? 0;
+  const effectiveDetected = preview?.total_detected ?? previewCount;
+  const canConfirm = previewCount > 0 && effectiveDetected > 0;
+  const confirmLabel = `Confirmar${previewCount > 0 ? ` ${previewCount} items` : ' items'}`;
 
   const previewColumns = useMemo(() => {
     if (!preview) {
@@ -136,11 +140,13 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
       // We receive the preview directly.
       setPreview(previewData);
       setCatalogUploadId(previewData.upload_id ?? null);
+      setPreviewError(null);
       setStep(2);
       setIsPreviewModalOpen(true);
     } catch (e) {
       console.error(e);
-      alert("Error uploading file");
+      setPreview(null);
+      setPreviewError((e as Error)?.message || null);
     } finally {
       setLoading(false);
     }
@@ -183,6 +189,12 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
       <CardContent>
         {step === 1 && (
           <div className="space-y-6">
+            {previewError && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>{previewError}</AlertDescription>
+              </Alert>
+            )}
             <div
                 className="border-2 border-dashed border-gray-300 rounded-lg p-10 text-center hover:bg-gray-50 transition-colors cursor-pointer"
                 onDragOver={(event) => event.preventDefault()}
@@ -229,10 +241,16 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
             <div className="flex items-center gap-4 p-4 bg-blue-50 rounded-lg">
                 <CheckCircle className="text-blue-500" />
                 <div>
-                    <p className="font-medium">Detectados: {preview.total_detected} productos</p>
+                    <p className="font-medium">Detectados: {effectiveDetected} productos</p>
                     <p className="text-sm text-gray-500">Confianza: {(preview.confidence * 100).toFixed(0)}%</p>
                 </div>
             </div>
+            {preview.ui?.engine?.label && preview.ui?.engine?.value && (
+              <div className="rounded-lg border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+                <span className="font-medium">{preview.ui.engine.label}</span>{' '}
+                <span>{preview.ui.engine.value}</span>
+              </div>
+            )}
 
             {preview.warnings.length > 0 && (
                 <Alert variant="destructive">
@@ -245,6 +263,33 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
                     </AlertDescription>
                 </Alert>
             )}
+            {preview?.error_details && preview.error_details.length > 0 && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  <ul>
+                    {preview.error_details.map((error, index) => (
+                      <li key={index}>
+                        <div>{error.message}</div>
+                        {error.action && <div>{error.action}</div>}
+                      </li>
+                    ))}
+                  </ul>
+                </AlertDescription>
+              </Alert>
+            )}
+            {!preview?.error_details?.length && preview?.errors && preview.errors.length > 0 && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  <ul>
+                    {preview.errors.map((error, index) => (
+                      <li key={index}>{error}</li>
+                    ))}
+                  </ul>
+                </AlertDescription>
+              </Alert>
+            )}
 
             <div className="flex justify-end">
               <Button variant="outline" onClick={() => setIsPreviewModalOpen(true)}>
@@ -252,21 +297,52 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
               </Button>
             </div>
 
-            {!isPreviewModalOpen && renderPreviewTable("border rounded-md max-h-96 overflow-y-auto")}
+            <div className="flex flex-col gap-4 lg:flex-row">
+              <div className="flex-1">
+                {!isPreviewModalOpen && renderPreviewTable("border rounded-md max-h-96 overflow-y-auto")}
+              </div>
+              {preview.ui?.sidebar?.items && preview.ui.sidebar.items.length > 0 && (
+                <aside className="w-full max-w-sm space-y-3 rounded-lg border bg-muted/40 p-4 text-sm text-muted-foreground">
+                  {preview.ui.sidebar.title && (
+                    <p className="text-sm font-medium text-foreground">{preview.ui.sidebar.title}</p>
+                  )}
+                  <ul className="space-y-2">
+                    {preview.ui.sidebar.items.map((item, index) => (
+                      <li key={index} className="flex items-center justify-between gap-3">
+                        <span>{item.label}</span>
+                        <span className="font-medium text-foreground">{item.value}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </aside>
+              )}
+            </div>
+            {preview.ui?.summary && preview.ui.summary.length > 0 && (
+              <div className="rounded-lg border bg-muted/40 p-4 text-sm text-muted-foreground">
+                <ul className="space-y-2">
+                  {preview.ui.summary.map((item, index) => (
+                    <li key={index} className="flex items-center justify-between gap-3">
+                      <span>{item.label}</span>
+                      <span className="font-medium text-foreground">{item.value}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             <Dialog open={isPreviewModalOpen} onOpenChange={setIsPreviewModalOpen}>
               <DialogContent className="max-w-6xl h-[85vh]">
                 <DialogHeader>
                   <DialogTitle>Vista previa completa</DialogTitle>
                   <DialogDescription>
-                    Revisá el detalle detectado por la IA antes de confirmar la importación. Productos detectados: {preview.total_detected}.
+                    Revisá el detalle detectado por la IA antes de confirmar la importación. Productos detectados: {effectiveDetected}.
                   </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-lg border bg-muted/40 p-4">
                     <div>
                       <p className="text-sm text-muted-foreground">Productos detectados</p>
-                      <p className="text-xl font-semibold">{preview.total_detected}</p>
+                      <p className="text-xl font-semibold">{effectiveDetected}</p>
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Confianza</p>
@@ -293,7 +369,7 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
                     </Button>
                     <Button onClick={handleCommit} disabled={loading || !canConfirm}>
                       {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                      Confirmar {preview?.items_preview.length} items
+                      {confirmLabel}
                     </Button>
                   </div>
                 </DialogFooter>
@@ -332,7 +408,7 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
                    </Button>
                    <Button onClick={handleCommit} disabled={loading || !canConfirm}>
                       {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                      Confirmar {preview?.items_preview.length} items
+                      {confirmLabel}
                    </Button>
                 </div>
             </>
