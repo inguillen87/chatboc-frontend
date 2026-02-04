@@ -46,8 +46,12 @@ export interface CatalogMetadata {
 
 export interface TenantCatalog {
   status?: string | null;
+  has_pdf?: boolean | null;
   updated_at?: string | null;
   published_at?: string | null;
+  view_url?: string | null;
+  download_url?: string | null;
+  download_url_json?: string | null;
   metadata?: CatalogMetadata | null;
   links?: CatalogLinks | null;
   columns?: CatalogColumn[] | null;
