@@ -12,6 +12,7 @@ import { useChatLogic } from "@/hooks/useChatLogic";
 import PersonalDataForm from './PersonalDataForm';
 import { Rubro } from '@/types/rubro';
 import { Message } from "@/types/chat";
+import CatalogShareCard from "./CatalogShareCard";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { extractRubroKey, extractRubroLabel } from "@/utils/rubros";
 import { requestLocation } from "@/utils/geolocation";
@@ -74,6 +75,13 @@ interface ChatPanelProps {
   a11yPrefs?: Prefs;
   openWidth?: string;
   openHeight?: string;
+  catalogCard?: {
+    bannerUrl?: string | null;
+    viewUrl?: string | null;
+    downloadUrl?: string | null;
+    viewLabel?: string | null;
+    downloadLabel?: string | null;
+  } | null;
 }
 
 const ChatPanel = ({
@@ -98,6 +106,7 @@ const ChatPanel = ({
   logoAnimation,
   onA11yChange,
   a11yPrefs,
+  catalogCard,
 }: ChatPanelProps) => {
   const isMobile = useIsMobile();
   const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -133,6 +142,12 @@ const ChatPanel = ({
     skipAuth,
     selectedRubro: resolvedSelectedRubro,
   });
+
+  const shouldShowCatalogCard = Boolean(
+    catalogCard?.viewUrl || catalogCard?.downloadUrl || catalogCard?.bannerUrl,
+  );
+  const catalogViewLabel = catalogCard?.viewLabel ?? "Ver online";
+  const catalogDownloadLabel = catalogCard?.downloadLabel ?? "Descargar PDF";
 
   // Check for pending widget action from CTA bubble
   useEffect(() => {
@@ -686,6 +701,17 @@ const ChatPanel = ({
               Ver catálogo
             </Button>
           </div>
+        </div>
+      )}
+      {shouldShowCatalogCard && (
+        <div className="px-2 sm:px-4">
+          <CatalogShareCard
+            bannerUrl={catalogCard?.bannerUrl}
+            viewUrl={catalogCard?.viewUrl}
+            downloadUrl={catalogCard?.downloadUrl}
+            viewLabel={catalogCard?.viewUrl ? catalogViewLabel : null}
+            downloadLabel={catalogCard?.downloadUrl ? catalogDownloadLabel : null}
+          />
         </div>
       )}
       <div ref={chatContainerRef} className="flex-1 p-2 sm:p-4 min-h-0 flex flex-col gap-3 overflow-y-auto">
