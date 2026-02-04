@@ -114,13 +114,37 @@ const IntegracionesPage = () => {
       history_label: data?.history_label,
       template_url: data?.template_url,
       template_label: data?.template_label,
+      status_label: data?.status_label,
+      updated_label: data?.updated_label,
+      public_link_label: data?.public_link_label,
+      title_label: data?.title_label,
+      description_label: data?.description_label,
+      banner_label: data?.banner_label,
+      default_message_label: data?.default_message_label,
+      enabled_label: data?.enabled_label,
+      is_public_label: data?.is_public_label,
+      share_on_intent_label: data?.share_on_intent_label,
+      prefer_pdf_on_whatsapp_label: data?.prefer_pdf_on_whatsapp_label,
       upload_label: data?.upload_label,
       edit_label: data?.edit_label,
       publish_label: data?.publish_label,
+      preview_label: data?.preview_label,
+      editor_title: data?.editor_title,
+      editor_description: data?.editor_description,
+      editor_close_label: data?.editor_close_label,
+      editor_save_label: data?.editor_save_label,
+      add_row_label: data?.add_row_label,
+      add_column_label: data?.add_column_label,
+      empty_rows_label: data?.empty_rows_label,
+      empty_columns_label: data?.empty_columns_label,
+      upload_section_title: data?.upload_section_title,
+      upload_section_description: data?.upload_section_description,
+      upload_section_button_label: data?.upload_section_button_label,
       share_label: data?.share_label,
       share_whatsapp_label: data?.share_whatsapp_label,
       share_copy_label: data?.share_copy_label,
       share_hint: data?.share_hint,
+      search_placeholder: data?.search_placeholder,
       cta_label: data?.cta_label,
     };
     return {
@@ -387,199 +411,231 @@ const IntegracionesPage = () => {
             </TabsContent>
 
              <TabsContent value="catalog" className="space-y-6">
-                {catalogLoading && (
+                {catalogLoading && catalogData?.links?.status_label && (
                   <Card>
                     <CardContent className="p-6 flex items-center gap-3 text-muted-foreground">
-                      <Loader2 className="h-5 w-5 animate-spin" /> Cargando catálogo...
+                      <Loader2 className="h-5 w-5 animate-spin" /> {catalogData.links.status_label}
                     </CardContent>
                   </Card>
                 )}
 
-                {catalogError && (
+                {catalogError && catalogData?.links?.status_label && (
                   <Alert variant="destructive">
-                    <AlertTitle>Error</AlertTitle>
+                    <AlertTitle>{catalogData.links.status_label}</AlertTitle>
                     <AlertDescription>{catalogError}</AlertDescription>
                   </Alert>
                 )}
 
-                <Card>
-                  <CardHeader>
-                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                      <div className="space-y-1">
-                        <CardTitle className="text-lg">Estado del catálogo</CardTitle>
-                        <CardDescription>{catalogData?.status}</CardDescription>
-                        {catalogData?.updated_at && (
-                          <CardDescription>
-                            {formatDistanceToNow(new Date(catalogData.updated_at), { locale: es, addSuffix: true })}
-                          </CardDescription>
-                        )}
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {catalogData?.links?.view_url && catalogData?.links?.view_label && (
-                          <Button asChild variant="outline" size="sm">
-                            <a href={catalogData.links.view_url} target="_blank" rel="noreferrer">
-                              <ExternalLink className="mr-2 h-4 w-4" /> {catalogData.links.view_label}
-                            </a>
-                          </Button>
-                        )}
-                        {catalogData?.links?.download_url && catalogData?.links?.download_label && (
-                          <Button asChild variant="outline" size="sm">
-                            <a href={catalogData.links.download_url} target="_blank" rel="noreferrer">
-                              <FileDown className="mr-2 h-4 w-4" /> {catalogData.links.download_label}
-                            </a>
-                          </Button>
-                        )}
-                        {catalogData?.links?.download_url_pdf && (
-                          <Button asChild variant="outline" size="sm">
-                            <a href={catalogData.links.download_url_pdf} target="_blank" rel="noreferrer">
-                              <FileDown className="mr-2 h-4 w-4" /> PDF
-                            </a>
-                          </Button>
-                        )}
-                        {catalogData?.links?.download_url_json && (
-                          <Button asChild variant="outline" size="sm">
-                            <a href={catalogData.links.download_url_json} target="_blank" rel="noreferrer">
-                              <FileDown className="mr-2 h-4 w-4" /> JSON
-                            </a>
-                          </Button>
-                        )}
-                        {catalogData?.links?.download_url_xlsx && (
-                          <Button asChild variant="outline" size="sm">
-                            <a href={catalogData.links.download_url_xlsx} target="_blank" rel="noreferrer">
-                              <FileDown className="mr-2 h-4 w-4" /> XLSX
-                            </a>
-                          </Button>
-                        )}
-                        {catalogData?.links?.download_url_csv && (
-                          <Button asChild variant="outline" size="sm">
-                            <a href={catalogData.links.download_url_csv} target="_blank" rel="noreferrer">
-                              <FileDown className="mr-2 h-4 w-4" /> CSV
-                            </a>
-                          </Button>
-                        )}
-                        {catalogData?.links?.history_url && catalogData?.links?.history_label && (
-                          <Button asChild variant="outline" size="sm">
-                            <a href={catalogData.links.history_url} target="_blank" rel="noreferrer">
-                              <ExternalLink className="mr-2 h-4 w-4" /> {catalogData.links.history_label}
-                            </a>
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="grid gap-4">
-                    {catalogData?.links?.view_url && (
-                      <div className="flex flex-col gap-2">
-                        <Label>Enlace público</Label>
-                        <div className="flex flex-col gap-2 sm:flex-row">
-                          <Input value={catalogData.links.view_url} readOnly />
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => {
-                              navigator.clipboard.writeText(catalogData.links.view_url || "")
-                                .then(() => toast.success('Enlace copiado'))
-                                .catch((err) => {
-                                  console.error('Copy failed', err);
-                                  toast.error('No se pudo copiar el enlace');
-                                });
-                            }}
-                          >
-                            Copiar enlace
-                          </Button>
-                          <Button asChild variant="outline">
-                            <a
-                              href={`https://wa.me/?text=${encodeURIComponent(catalogData.links.view_url)}`}
-                              target="_blank"
-                              rel="noreferrer"
-                            >
-                              Enviar por WhatsApp
-                            </a>
-                          </Button>
+                {catalogData?.links?.status_label && (
+                  <Card>
+                    <CardHeader>
+                      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                        <div className="space-y-1">
+                          <CardTitle className="text-lg">{catalogData.links.status_label}</CardTitle>
+                          {catalogData?.status && (
+                            <CardDescription>{catalogData.status}</CardDescription>
+                          )}
+                          {catalogData?.updated_at && catalogData?.links?.updated_label && (
+                            <CardDescription>
+                              {catalogData.links.updated_label}{' '}
+                              {formatDistanceToNow(new Date(catalogData.updated_at), { locale: es, addSuffix: true })}
+                            </CardDescription>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {catalogData?.links?.view_url && catalogData?.links?.view_label && (
+                            <Button asChild variant="outline" size="sm">
+                              <a href={catalogData.links.view_url} target="_blank" rel="noreferrer">
+                                <ExternalLink className="mr-2 h-4 w-4" /> {catalogData.links.view_label}
+                              </a>
+                            </Button>
+                          )}
+                          {catalogData?.links?.download_url && catalogData?.links?.download_label && (
+                            <Button asChild variant="outline" size="sm">
+                              <a href={catalogData.links.download_url} target="_blank" rel="noreferrer">
+                                <FileDown className="mr-2 h-4 w-4" /> {catalogData.links.download_label}
+                              </a>
+                            </Button>
+                          )}
+                          {catalogData?.links?.download_url_pdf && catalogData?.links?.download_label && (
+                            <Button asChild variant="outline" size="sm">
+                              <a href={catalogData.links.download_url_pdf} target="_blank" rel="noreferrer">
+                                <FileDown className="mr-2 h-4 w-4" /> {catalogData.links.download_label}
+                              </a>
+                            </Button>
+                          )}
+                          {catalogData?.links?.download_url_json && catalogData?.links?.download_label && (
+                            <Button asChild variant="outline" size="sm">
+                              <a href={catalogData.links.download_url_json} target="_blank" rel="noreferrer">
+                                <FileDown className="mr-2 h-4 w-4" /> {catalogData.links.download_label}
+                              </a>
+                            </Button>
+                          )}
+                          {catalogData?.links?.download_url_xlsx && catalogData?.links?.download_label && (
+                            <Button asChild variant="outline" size="sm">
+                              <a href={catalogData.links.download_url_xlsx} target="_blank" rel="noreferrer">
+                                <FileDown className="mr-2 h-4 w-4" /> {catalogData.links.download_label}
+                              </a>
+                            </Button>
+                          )}
+                          {catalogData?.links?.download_url_csv && catalogData?.links?.download_label && (
+                            <Button asChild variant="outline" size="sm">
+                              <a href={catalogData.links.download_url_csv} target="_blank" rel="noreferrer">
+                                <FileDown className="mr-2 h-4 w-4" /> {catalogData.links.download_label}
+                              </a>
+                            </Button>
+                          )}
+                          {catalogData?.links?.history_url && catalogData?.links?.history_label && (
+                            <Button asChild variant="outline" size="sm">
+                              <a href={catalogData.links.history_url} target="_blank" rel="noreferrer">
+                                <ExternalLink className="mr-2 h-4 w-4" /> {catalogData.links.history_label}
+                              </a>
+                            </Button>
+                          )}
                         </div>
                       </div>
-                    )}
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label>Título</Label>
-                        <Input
-                          value={catalogMetadata.title ?? ''}
-                          onChange={(event) => updateCatalogMetadata('title', event.target.value)}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Descripción</Label>
-                        <Input
-                          value={catalogMetadata.description ?? ''}
-                          onChange={(event) => updateCatalogMetadata('description', event.target.value)}
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Banner</Label>
-                      <Input
-                        value={catalogMetadata.banner_url ?? ''}
-                        onChange={(event) => updateCatalogMetadata('banner_url', event.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Mensaje por defecto</Label>
-                      <Input
-                        value={catalogMetadata.default_message ?? ''}
-                        onChange={(event) => updateCatalogMetadata('default_message', event.target.value)}
-                      />
-                    </div>
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div className="flex items-center justify-between rounded-lg border p-3">
-                        <div>
-                          <Label>Catálogo habilitado</Label>
+                    </CardHeader>
+                    <CardContent className="grid gap-4">
+                      {catalogData?.links?.view_url && catalogData?.links?.public_link_label && (
+                        <div className="flex flex-col gap-2">
+                          <Label>{catalogData.links.public_link_label}</Label>
+                          <div className="flex flex-col gap-2 sm:flex-row">
+                            <Input value={catalogData.links.view_url} readOnly />
+                            {catalogData?.links?.share_copy_label && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(catalogData.links.view_url || "")
+                                    .then(() => toast.success(catalogData.links.share_copy_label))
+                                    .catch((err) => {
+                                      console.error('Copy failed', err);
+                                    });
+                                }}
+                              >
+                                {catalogData.links.share_copy_label}
+                              </Button>
+                            )}
+                            {catalogData?.links?.share_whatsapp_label && (
+                              <Button asChild variant="outline">
+                                <a
+                                  href={`https://wa.me/?text=${encodeURIComponent(catalogData.links.view_url)}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                >
+                                  {catalogData.links.share_whatsapp_label}
+                                </a>
+                              </Button>
+                            )}
+                          </div>
                         </div>
-                        <Switch
-                          checked={Boolean(catalogMetadata.enabled)}
-                          onCheckedChange={(value) => updateCatalogMetadata('enabled', value)}
-                        />
-                      </div>
-                      <div className="flex items-center justify-between rounded-lg border p-3">
-                        <div>
-                          <Label>Público</Label>
+                      )}
+                      {(catalogMetadata.title || catalogMetadata.description) && (catalogData?.links?.title_label || catalogData?.links?.description_label) && (
+                        <div className="grid gap-4 md:grid-cols-2">
+                          {catalogData?.links?.title_label && (
+                            <div className="space-y-2">
+                              <Label>{catalogData.links.title_label}</Label>
+                              <Input
+                                value={catalogMetadata.title ?? ''}
+                                onChange={(event) => updateCatalogMetadata('title', event.target.value)}
+                              />
+                            </div>
+                          )}
+                          {catalogData?.links?.description_label && (
+                            <div className="space-y-2">
+                              <Label>{catalogData.links.description_label}</Label>
+                              <Input
+                                value={catalogMetadata.description ?? ''}
+                                onChange={(event) => updateCatalogMetadata('description', event.target.value)}
+                              />
+                            </div>
+                          )}
                         </div>
-                        <Switch
-                          checked={Boolean(catalogMetadata.is_public)}
-                          onCheckedChange={(value) => updateCatalogMetadata('is_public', value)}
-                        />
-                      </div>
-                      <div className="flex items-center justify-between rounded-lg border p-3">
-                        <div>
-                          <Label>Compartir en intención</Label>
+                      )}
+                      {catalogMetadata.banner_url && catalogData?.links?.banner_label && (
+                        <div className="space-y-2">
+                          <Label>{catalogData.links.banner_label}</Label>
+                          <Input
+                            value={catalogMetadata.banner_url ?? ''}
+                            onChange={(event) => updateCatalogMetadata('banner_url', event.target.value)}
+                          />
                         </div>
-                        <Switch
-                          checked={Boolean(catalogMetadata.share_on_intent)}
-                          onCheckedChange={(value) => updateCatalogMetadata('share_on_intent', value)}
-                        />
-                      </div>
-                      <div className="flex items-center justify-between rounded-lg border p-3">
-                        <div>
-                          <Label>Preferir PDF en WhatsApp</Label>
+                      )}
+                      {catalogMetadata.default_message && catalogData?.links?.default_message_label && (
+                        <div className="space-y-2">
+                          <Label>{catalogData.links.default_message_label}</Label>
+                          <Input
+                            value={catalogMetadata.default_message ?? ''}
+                            onChange={(event) => updateCatalogMetadata('default_message', event.target.value)}
+                          />
                         </div>
-                        <Switch
-                          checked={Boolean(catalogMetadata.prefer_pdf_on_whatsapp)}
-                          onCheckedChange={(value) => updateCatalogMetadata('prefer_pdf_on_whatsapp', value)}
-                        />
+                      )}
+                      <div className="grid gap-4 md:grid-cols-2">
+                        {catalogData?.links?.enabled_label && (
+                          <div className="flex items-center justify-between rounded-lg border p-3">
+                            <div>
+                              <Label>{catalogData.links.enabled_label}</Label>
+                            </div>
+                            <Switch
+                              checked={Boolean(catalogMetadata.enabled)}
+                              onCheckedChange={(value) => updateCatalogMetadata('enabled', value)}
+                            />
+                          </div>
+                        )}
+                        {catalogData?.links?.is_public_label && (
+                          <div className="flex items-center justify-between rounded-lg border p-3">
+                            <div>
+                              <Label>{catalogData.links.is_public_label}</Label>
+                            </div>
+                            <Switch
+                              checked={Boolean(catalogMetadata.is_public)}
+                              onCheckedChange={(value) => updateCatalogMetadata('is_public', value)}
+                            />
+                          </div>
+                        )}
+                        {catalogData?.links?.share_on_intent_label && (
+                          <div className="flex items-center justify-between rounded-lg border p-3">
+                            <div>
+                              <Label>{catalogData.links.share_on_intent_label}</Label>
+                            </div>
+                            <Switch
+                              checked={Boolean(catalogMetadata.share_on_intent)}
+                              onCheckedChange={(value) => updateCatalogMetadata('share_on_intent', value)}
+                            />
+                          </div>
+                        )}
+                        {catalogData?.links?.prefer_pdf_on_whatsapp_label && (
+                          <div className="flex items-center justify-between rounded-lg border p-3">
+                            <div>
+                              <Label>{catalogData.links.prefer_pdf_on_whatsapp_label}</Label>
+                            </div>
+                            <Switch
+                              checked={Boolean(catalogMetadata.prefer_pdf_on_whatsapp)}
+                              onCheckedChange={(value) => updateCatalogMetadata('prefer_pdf_on_whatsapp', value)}
+                            />
+                          </div>
+                        )}
                       </div>
-                    </div>
-                    <div className="flex flex-wrap gap-2 justify-end">
-                      <Button variant="outline" onClick={openCatalogEditor}>
-                        <Pencil className="mr-2 h-4 w-4" /> {catalogData?.links?.edit_label ?? 'Editar en planilla'}
-                      </Button>
-                      <Button variant="outline" onClick={handleSaveDraft}>
-                        <Save className="mr-2 h-4 w-4" /> {catalogData?.links?.upload_label ?? 'Guardar borrador'}
-                      </Button>
-                      <Button onClick={handlePublishCatalog}>
-                        {catalogData?.links?.publish_label ?? 'Publicar'}
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
+                      <div className="flex flex-wrap gap-2 justify-end">
+                        {catalogData?.links?.edit_label && (
+                          <Button variant="outline" onClick={openCatalogEditor}>
+                            <Pencil className="mr-2 h-4 w-4" /> {catalogData.links.edit_label}
+                          </Button>
+                        )}
+                        {catalogData?.links?.upload_label && (
+                          <Button variant="outline" onClick={handleSaveDraft}>
+                            <Save className="mr-2 h-4 w-4" /> {catalogData.links.upload_label}
+                          </Button>
+                        )}
+                        {catalogData?.links?.publish_label && (
+                          <Button onClick={handlePublishCatalog}>
+                            {catalogData.links.publish_label}
+                          </Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
 
                 {catalogData?.links?.share_label && (catalogMetadata.title || catalogMetadata.description || catalogMetadata.banner_url) && (
                   <Card>
@@ -632,31 +688,34 @@ const IntegracionesPage = () => {
                     </CardHeader>
                     <CardContent>
                       <div className="flex flex-wrap gap-2">
-                        {catalogData?.links?.view_url && (
+                        {catalogData?.links?.view_url && catalogData?.links?.share_whatsapp_label && (
                           <Button asChild variant="outline">
                             <a
                               href={`https://wa.me/?text=${encodeURIComponent(catalogData.links.view_url)}`}
                               target="_blank"
                               rel="noreferrer"
                             >
-                              {catalogData?.links?.share_whatsapp_label ?? 'Enviar por WhatsApp'}
+                              {catalogData.links.share_whatsapp_label}
                             </a>
                           </Button>
                         )}
-                        {catalogData?.links?.view_url && (
+                        {catalogData?.links?.view_url && catalogData?.links?.share_copy_label && (
                           <Button
                             type="button"
                             variant="outline"
                             onClick={() => {
                               navigator.clipboard.writeText(catalogData.links.view_url || "")
-                                .then(() => toast.success('Enlace copiado'))
+                                .then(() => {
+                                  if (catalogData.links.share_copy_label) {
+                                    toast.success(catalogData.links.share_copy_label);
+                                  }
+                                })
                                 .catch((err) => {
                                   console.error('Copy failed', err);
-                                  toast.error('No se pudo copiar el enlace');
                                 });
                             }}
                           >
-                            {catalogData?.links?.share_copy_label ?? 'Copiar enlace'}
+                            {catalogData.links.share_copy_label}
                           </Button>
                         )}
                       </div>
@@ -664,29 +723,33 @@ const IntegracionesPage = () => {
                   </Card>
                 )}
 
-                <Card>
-                    <div className="p-6 flex flex-col md:flex-row items-center gap-6">
-                        <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-blue-50 border border-blue-100">
-                            <FileSpreadsheet className="h-8 w-8 text-blue-600" />
-                        </div>
-                        <div className="flex-1 space-y-1 text-center md:text-left">
-                            <h3 className="font-semibold text-lg">Importación Masiva</h3>
-                            <p className="text-sm text-muted-foreground">
-                                Actualizá tus productos subiendo un archivo Excel o CSV. Detectamos automáticamente columnas y precios.
-                            </p>
-                        </div>
-                        <Button onClick={() => setUploadOpen(true)} className="w-full md:w-auto">
-                            Iniciar Asistente <ArrowRight className="ml-2 h-4 w-4"/>
-                        </Button>
-                    </div>
-                </Card>
+                {catalogData?.links?.upload_section_title && catalogData?.links?.upload_section_button_label && (
+                  <Card>
+                      <div className="p-6 flex flex-col md:flex-row items-center gap-6">
+                          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-blue-50 border border-blue-100">
+                              <FileSpreadsheet className="h-8 w-8 text-blue-600" />
+                          </div>
+                          <div className="flex-1 space-y-1 text-center md:text-left">
+                              <h3 className="font-semibold text-lg">{catalogData.links.upload_section_title}</h3>
+                              {catalogData.links.upload_section_description && (
+                                <p className="text-sm text-muted-foreground">
+                                  {catalogData.links.upload_section_description}
+                                </p>
+                              )}
+                          </div>
+                          <Button onClick={() => setUploadOpen(true)} className="w-full md:w-auto">
+                              {catalogData.links.upload_section_button_label} <ArrowRight className="ml-2 h-4 w-4"/>
+                          </Button>
+                      </div>
+                  </Card>
+                )}
 
                 <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
                     <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto sm:max-w-[800px]">
                         <DialogHeader className="sr-only">
-                            <DialogTitle>Importación de catálogo</DialogTitle>
+                            <DialogTitle>{catalogData?.links?.upload_section_title}</DialogTitle>
                             <DialogDescription>
-                                Asistente para revisar y confirmar la vista previa del catálogo antes de importarlo.
+                                {catalogData?.links?.upload_section_description}
                             </DialogDescription>
                         </DialogHeader>
                         <CatalogUploadWizard
@@ -700,10 +763,16 @@ const IntegracionesPage = () => {
 
                 <Dialog open={editorOpen} onOpenChange={setEditorOpen}>
                   <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
-                      <DialogTitle>Editor de catálogo</DialogTitle>
-                      <DialogDescription>Administrá columnas y filas del catálogo.</DialogDescription>
-                    </DialogHeader>
+                    {(catalogData?.links?.editor_title || catalogData?.links?.editor_description) && (
+                      <DialogHeader>
+                        {catalogData?.links?.editor_title && (
+                          <DialogTitle>{catalogData.links.editor_title}</DialogTitle>
+                        )}
+                        {catalogData?.links?.editor_description && (
+                          <DialogDescription>{catalogData.links.editor_description}</DialogDescription>
+                        )}
+                      </DialogHeader>
+                    )}
                     <CatalogSpreadsheetEditor
                       columns={draftColumns}
                       rows={draftRows}
@@ -713,14 +782,22 @@ const IntegracionesPage = () => {
                       onAddRow={handleAddRow}
                       onDeleteRow={handleDeleteRow}
                       onUpdateCell={handleUpdateCell}
+                      addRowLabel={catalogData?.links?.add_row_label}
+                      addColumnLabel={catalogData?.links?.add_column_label}
+                      emptyLabel={catalogData?.links?.empty_rows_label}
+                      emptyColumnsLabel={catalogData?.links?.empty_columns_label}
                     />
                     <div className="flex justify-end gap-2 pt-4">
-                      <Button variant="outline" onClick={() => setEditorOpen(false)}>
-                        Cerrar
-                      </Button>
-                      <Button onClick={handleSaveDraft}>
-                        Guardar borrador
-                      </Button>
+                      {catalogData?.links?.editor_close_label && (
+                        <Button variant="outline" onClick={() => setEditorOpen(false)}>
+                          {catalogData.links.editor_close_label}
+                        </Button>
+                      )}
+                      {catalogData?.links?.editor_save_label && (
+                        <Button onClick={handleSaveDraft}>
+                          {catalogData.links.editor_save_label}
+                        </Button>
+                      )}
                     </div>
                   </DialogContent>
                 </Dialog>
