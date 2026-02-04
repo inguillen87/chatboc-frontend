@@ -698,7 +698,7 @@ export async function apiFetch<T>(
   const requestInit: RequestInit = {
     method,
     headers,
-    body: isForm ? body : body ? JSON.stringify(body) : undefined,
+    body: isForm ? body : (typeof body === "string" ? body : (body ? JSON.stringify(body) : undefined)),
     credentials: shouldOmitCredentials ? 'omit' : 'include',
     cache,
   };
