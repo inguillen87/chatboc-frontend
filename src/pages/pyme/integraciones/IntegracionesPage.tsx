@@ -125,8 +125,12 @@ const IntegracionesPage = () => {
     };
     return {
       status: data?.status ?? data?.catalog_status ?? null,
+      has_pdf: data?.has_pdf ?? null,
       updated_at: data?.updated_at ?? null,
       published_at: data?.published_at ?? null,
+      view_url: data?.view_url ?? null,
+      download_url: data?.download_url ?? null,
+      download_url_json: data?.download_url_json ?? null,
       metadata,
       links,
       columns: data?.columns ?? null,
@@ -260,6 +264,17 @@ const IntegracionesPage = () => {
       ),
     );
   };
+
+  const catalogViewUrl = catalogData?.links?.view_url ?? catalogData?.view_url ?? null;
+  const catalogDownloadUrl = catalogData?.links?.download_url ?? catalogData?.download_url ?? null;
+  const normalizedCatalogStatus = catalogData?.status?.toString().toLowerCase() ?? "";
+  const isCatalogPublished = Boolean(catalogData?.has_pdf) && ["published", "publicado"].includes(normalizedCatalogStatus);
+  const catalogStatusLabel = isCatalogPublished ? "publicado" : "sin catálogo";
+  const catalogViewLabel = catalogData?.links?.view_label ?? "Ver online";
+  const catalogDownloadLabel = catalogData?.links?.download_label ?? "Descargar PDF";
+  const catalogShareLabel = catalogData?.links?.share_label ?? "Compartir catálogo";
+  const catalogShareWhatsappLabel = catalogData?.links?.share_whatsapp_label ?? "Enviar por WhatsApp";
+  const catalogShareCopyLabel = catalogData?.links?.share_copy_label ?? "Copiar link";
 
   const loadSettings = async () => {
     try {
@@ -407,7 +422,12 @@ const IntegracionesPage = () => {
                     <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                       <div className="space-y-1">
                         <CardTitle className="text-lg">Estado del catálogo</CardTitle>
-                        <CardDescription>{catalogData?.status}</CardDescription>
+                        <div className="flex items-center gap-2">
+                          <Badge variant={isCatalogPublished ? "default" : "secondary"}>{catalogStatusLabel}</Badge>
+                          {catalogData?.status && (
+                            <CardDescription className="text-xs uppercase">{catalogData.status}</CardDescription>
+                          )}
+                        </div>
                         {catalogData?.updated_at && (
                           <CardDescription>
                             {formatDistanceToNow(new Date(catalogData.updated_at), { locale: es, addSuffix: true })}
@@ -415,69 +435,50 @@ const IntegracionesPage = () => {
                         )}
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        {catalogData?.links?.view_url && catalogData?.links?.view_label && (
+                        {catalogViewUrl && (
                           <Button asChild variant="outline" size="sm">
-                            <a href={catalogData.links.view_url} target="_blank" rel="noreferrer">
-                              <ExternalLink className="mr-2 h-4 w-4" /> {catalogData.links.view_label}
+                            <a href={catalogViewUrl} target="_blank" rel="noreferrer">
+                              <ExternalLink className="mr-2 h-4 w-4" /> {catalogViewLabel}
                             </a>
                           </Button>
                         )}
-                        {catalogData?.links?.download_url && catalogData?.links?.download_label && (
+                        {catalogDownloadUrl && catalogData?.has_pdf && (
                           <Button asChild variant="outline" size="sm">
-                            <a href={catalogData.links.download_url} target="_blank" rel="noreferrer">
-                              <FileDown className="mr-2 h-4 w-4" /> {catalogData.links.download_label}
+                            <a href={catalogDownloadUrl} target="_blank" rel="noreferrer">
+                              <FileDown className="mr-2 h-4 w-4" /> {catalogDownloadLabel}
                             </a>
                           </Button>
                         )}
-                        {catalogData?.links?.download_url_pdf && (
-                          <Button asChild variant="outline" size="sm">
-                            <a href={catalogData.links.download_url_pdf} target="_blank" rel="noreferrer">
-                              <FileDown className="mr-2 h-4 w-4" /> PDF
-                            </a>
-                          </Button>
-                        )}
-                        {catalogData?.links?.download_url_json && (
-                          <Button asChild variant="outline" size="sm">
-                            <a href={catalogData.links.download_url_json} target="_blank" rel="noreferrer">
-                              <FileDown className="mr-2 h-4 w-4" /> JSON
-                            </a>
-                          </Button>
-                        )}
-                        {catalogData?.links?.download_url_xlsx && (
-                          <Button asChild variant="outline" size="sm">
-                            <a href={catalogData.links.download_url_xlsx} target="_blank" rel="noreferrer">
-                              <FileDown className="mr-2 h-4 w-4" /> XLSX
-                            </a>
-                          </Button>
-                        )}
-                        {catalogData?.links?.download_url_csv && (
-                          <Button asChild variant="outline" size="sm">
-                            <a href={catalogData.links.download_url_csv} target="_blank" rel="noreferrer">
-                              <FileDown className="mr-2 h-4 w-4" /> CSV
-                            </a>
-                          </Button>
-                        )}
-                        {catalogData?.links?.history_url && catalogData?.links?.history_label && (
-                          <Button asChild variant="outline" size="sm">
-                            <a href={catalogData.links.history_url} target="_blank" rel="noreferrer">
-                              <ExternalLink className="mr-2 h-4 w-4" /> {catalogData.links.history_label}
-                            </a>
+                        {catalogViewUrl && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              navigator.clipboard.writeText(catalogViewUrl || "")
+                                .then(() => toast.success('Enlace copiado'))
+                                .catch((err) => {
+                                  console.error('Copy failed', err);
+                                  toast.error('No se pudo copiar el enlace');
+                                });
+                            }}
+                          >
+                            Copiar link
                           </Button>
                         )}
                       </div>
                     </div>
                   </CardHeader>
                   <CardContent className="grid gap-4">
-                    {catalogData?.links?.view_url && (
+                    {catalogViewUrl && (
                       <div className="flex flex-col gap-2">
                         <Label>Enlace público</Label>
                         <div className="flex flex-col gap-2 sm:flex-row">
-                          <Input value={catalogData.links.view_url} readOnly />
+                          <Input value={catalogViewUrl} readOnly />
                           <Button
                             type="button"
                             variant="outline"
                             onClick={() => {
-                              navigator.clipboard.writeText(catalogData.links.view_url || "")
+                              navigator.clipboard.writeText(catalogViewUrl || "")
                                 .then(() => toast.success('Enlace copiado'))
                                 .catch((err) => {
                                   console.error('Copy failed', err);
@@ -486,15 +487,6 @@ const IntegracionesPage = () => {
                             }}
                           >
                             Copiar enlace
-                          </Button>
-                          <Button asChild variant="outline">
-                            <a
-                              href={`https://wa.me/?text=${encodeURIComponent(catalogData.links.view_url)}`}
-                              target="_blank"
-                              rel="noreferrer"
-                            >
-                              Enviar por WhatsApp
-                            </a>
                           </Button>
                         </div>
                       </div>
@@ -581,84 +573,39 @@ const IntegracionesPage = () => {
                   </CardContent>
                 </Card>
 
-                {catalogData?.links?.share_label && (catalogMetadata.title || catalogMetadata.description || catalogMetadata.banner_url) && (
+                {catalogViewUrl && (
                   <Card>
                     <CardHeader>
-                      <CardTitle className="text-lg">{catalogData.links.share_label}</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      {catalogMetadata.banner_url && (
-                        <div className="overflow-hidden rounded-lg border">
-                          <img
-                            src={catalogMetadata.banner_url}
-                            alt={catalogMetadata.title ?? ''}
-                            className="h-40 w-full object-cover"
-                          />
-                        </div>
-                      )}
-                      <div className="space-y-1">
-                        {catalogMetadata.title && <p className="text-sm font-semibold">{catalogMetadata.title}</p>}
-                        {catalogMetadata.description && (
-                          <p className="text-sm text-muted-foreground">{catalogMetadata.description}</p>
-                        )}
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {catalogData?.links?.view_url && catalogData?.links?.view_label && (
-                          <Button asChild variant="outline" size="sm">
-                            <a href={catalogData.links.view_url} target="_blank" rel="noreferrer">
-                              {catalogData.links.view_label}
-                            </a>
-                          </Button>
-                        )}
-                        {catalogData?.links?.download_url && catalogData?.links?.download_label && (
-                          <Button asChild variant="outline" size="sm">
-                            <a href={catalogData.links.download_url} target="_blank" rel="noreferrer">
-                              {catalogData.links.download_label}
-                            </a>
-                          </Button>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {catalogData?.links?.share_label && (catalogData?.links?.view_url || catalogData?.links?.share_hint) && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">{catalogData.links.share_label}</CardTitle>
+                      <CardTitle className="text-lg">{catalogShareLabel}</CardTitle>
                       {catalogData?.links?.share_hint && (
                         <CardDescription>{catalogData.links.share_hint}</CardDescription>
                       )}
                     </CardHeader>
                     <CardContent>
                       <div className="flex flex-wrap gap-2">
-                        {catalogData?.links?.view_url && (
-                          <Button asChild variant="outline">
-                            <a
-                              href={`https://wa.me/?text=${encodeURIComponent(catalogData.links.view_url)}`}
-                              target="_blank"
-                              rel="noreferrer"
-                            >
-                              {catalogData?.links?.share_whatsapp_label ?? 'Enviar por WhatsApp'}
-                            </a>
-                          </Button>
-                        )}
-                        {catalogData?.links?.view_url && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => {
-                              navigator.clipboard.writeText(catalogData.links.view_url || "")
-                                .then(() => toast.success('Enlace copiado'))
-                                .catch((err) => {
-                                  console.error('Copy failed', err);
-                                  toast.error('No se pudo copiar el enlace');
-                                });
-                            }}
+                        <Button asChild variant="outline">
+                          <a
+                            href={`https://wa.me/?text=${encodeURIComponent(catalogViewUrl)}`}
+                            target="_blank"
+                            rel="noreferrer"
                           >
-                            {catalogData?.links?.share_copy_label ?? 'Copiar enlace'}
-                          </Button>
-                        )}
+                            {catalogShareWhatsappLabel}
+                          </a>
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => {
+                            navigator.clipboard.writeText(catalogViewUrl || "")
+                              .then(() => toast.success('Enlace copiado'))
+                              .catch((err) => {
+                                console.error('Copy failed', err);
+                                toast.error('No se pudo copiar el enlace');
+                              });
+                          }}
+                        >
+                          {catalogShareCopyLabel}
+                        </Button>
                       </div>
                     </CardContent>
                   </Card>
