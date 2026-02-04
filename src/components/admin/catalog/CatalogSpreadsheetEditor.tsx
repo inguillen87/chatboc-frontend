@@ -12,6 +12,7 @@ interface CatalogSpreadsheetEditorProps {
   onDeleteColumn: (index: number) => void;
   onAddColumn: () => void;
   onUpdateCell: (rowId: CatalogRow["id"], columnKey: string, value: string) => void;
+  onCommitCell?: (rowId: CatalogRow["id"], columnKey: string, value: string) => void;
   onAddRow: () => void;
   onDeleteRow: (rowId: CatalogRow["id"]) => void;
 }
@@ -23,6 +24,7 @@ const CatalogSpreadsheetEditor: React.FC<CatalogSpreadsheetEditorProps> = ({
   onDeleteColumn,
   onAddColumn,
   onUpdateCell,
+  onCommitCell,
   onAddRow,
   onDeleteRow,
 }) => {
@@ -98,6 +100,9 @@ const CatalogSpreadsheetEditor: React.FC<CatalogSpreadsheetEditorProps> = ({
                       value={String(row.cells?.[column.key] ?? "")}
                       onChange={(event) =>
                         onUpdateCell(row.id, column.key, event.target.value)
+                      }
+                      onBlur={(event) =>
+                        onCommitCell?.(row.id, column.key, event.target.value)
                       }
                       className="h-8"
                     />
