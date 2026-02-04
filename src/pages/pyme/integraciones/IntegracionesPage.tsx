@@ -289,6 +289,24 @@ const IntegracionesPage = () => {
     );
   };
 
+  const handleCommitCell = async (rowId: CatalogRow["id"], columnKey: string, value: string) => {
+    if (!currentSlug) return;
+    const resolvedRowId =
+      typeof rowId === "number"
+        ? rowId
+        : typeof rowId === "string" && rowId.trim() && !rowId.startsWith("row_")
+          ? rowId
+          : null;
+    if (!resolvedRowId) return;
+    try {
+      await apiClient.adminUpdateCatalogItem(currentSlug, resolvedRowId, {
+        [columnKey]: value,
+      });
+    } catch (error) {
+      console.error("Error updating catalog item", error);
+    }
+  };
+
   const catalogViewUrl = catalogData?.links?.view_url ?? catalogData?.view_url ?? null;
   const catalogDownloadUrl = catalogData?.links?.download_url ?? catalogData?.download_url ?? null;
   const catalogViewLabel = catalogData?.links?.view_label ?? null;
@@ -707,10 +725,7 @@ const IntegracionesPage = () => {
                       onAddRow={handleAddRow}
                       onDeleteRow={handleDeleteRow}
                       onUpdateCell={handleUpdateCell}
-                      addRowLabel={catalogData?.links?.add_row_label}
-                      addColumnLabel={catalogData?.links?.add_column_label}
-                      emptyLabel={catalogData?.links?.empty_rows_label}
-                      emptyColumnsLabel={catalogData?.links?.empty_columns_label}
+                      onCommitCell={handleCommitCell}
                     />
                     <div className="flex justify-end gap-2 pt-4">
                       {catalogData?.links?.editor_close_label && (
