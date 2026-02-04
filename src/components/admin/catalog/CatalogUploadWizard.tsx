@@ -4,6 +4,7 @@ import {
   Upload, FileText, CheckCircle2, AlertTriangle,
   ArrowRight, Loader2, XCircle, Settings2, RefreshCw, Save
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -227,8 +228,8 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ tenantSlug, o
       )}
 
       <div className="flex justify-between items-center">
-         {/* <Button variant="ghost" onClick={() => window.open('/template_example.xlsx', '_blank')}>
-           Descargar plantilla ejemplo </Button> */}
+         <Button variant="ghost" onClick={handleDownloadTemplate}>
+           Descargar plantilla ejemplo </Button>
          <Button onClick={handleUpload} disabled={!file || isProcessing}>
            {isProcessing ? "Procesando..." : "Analizar Archivo"} <ArrowRight className="ml-2 h-4 w-4" />
          </Button>
