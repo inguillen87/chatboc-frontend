@@ -114,13 +114,37 @@ const IntegracionesPage = () => {
       history_label: data?.history_label,
       template_url: data?.template_url,
       template_label: data?.template_label,
+      status_label: data?.status_label,
+      updated_label: data?.updated_label,
+      public_link_label: data?.public_link_label,
+      title_label: data?.title_label,
+      description_label: data?.description_label,
+      banner_label: data?.banner_label,
+      default_message_label: data?.default_message_label,
+      enabled_label: data?.enabled_label,
+      is_public_label: data?.is_public_label,
+      share_on_intent_label: data?.share_on_intent_label,
+      prefer_pdf_on_whatsapp_label: data?.prefer_pdf_on_whatsapp_label,
       upload_label: data?.upload_label,
       edit_label: data?.edit_label,
       publish_label: data?.publish_label,
+      preview_label: data?.preview_label,
+      editor_title: data?.editor_title,
+      editor_description: data?.editor_description,
+      editor_close_label: data?.editor_close_label,
+      editor_save_label: data?.editor_save_label,
+      add_row_label: data?.add_row_label,
+      add_column_label: data?.add_column_label,
+      empty_rows_label: data?.empty_rows_label,
+      empty_columns_label: data?.empty_columns_label,
+      upload_section_title: data?.upload_section_title,
+      upload_section_description: data?.upload_section_description,
+      upload_section_button_label: data?.upload_section_button_label,
       share_label: data?.share_label,
       share_whatsapp_label: data?.share_whatsapp_label,
       share_copy_label: data?.share_copy_label,
       share_hint: data?.share_hint,
+      search_placeholder: data?.search_placeholder,
       cta_label: data?.cta_label,
     };
     return {
@@ -402,17 +426,17 @@ const IntegracionesPage = () => {
             </TabsContent>
 
              <TabsContent value="catalog" className="space-y-6">
-                {catalogLoading && (
+                {catalogLoading && catalogData?.links?.status_label && (
                   <Card>
                     <CardContent className="p-6 flex items-center gap-3 text-muted-foreground">
-                      <Loader2 className="h-5 w-5 animate-spin" /> Cargando catálogo...
+                      <Loader2 className="h-5 w-5 animate-spin" /> {catalogData.links.status_label}
                     </CardContent>
                   </Card>
                 )}
 
-                {catalogError && (
+                {catalogError && catalogData?.links?.status_label && (
                   <Alert variant="destructive">
-                    <AlertTitle>Error</AlertTitle>
+                    <AlertTitle>{catalogData.links.status_label}</AlertTitle>
                     <AlertDescription>{catalogError}</AlertDescription>
                   </Alert>
                 )}
@@ -611,29 +635,33 @@ const IntegracionesPage = () => {
                   </Card>
                 )}
 
-                <Card>
-                    <div className="p-6 flex flex-col md:flex-row items-center gap-6">
-                        <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-blue-50 border border-blue-100">
-                            <FileSpreadsheet className="h-8 w-8 text-blue-600" />
-                        </div>
-                        <div className="flex-1 space-y-1 text-center md:text-left">
-                            <h3 className="font-semibold text-lg">Importación Masiva</h3>
-                            <p className="text-sm text-muted-foreground">
-                                Actualizá tus productos subiendo un archivo Excel o CSV. Detectamos automáticamente columnas y precios.
-                            </p>
-                        </div>
-                        <Button onClick={() => setUploadOpen(true)} className="w-full md:w-auto">
-                            Iniciar Asistente <ArrowRight className="ml-2 h-4 w-4"/>
-                        </Button>
-                    </div>
-                </Card>
+                {catalogData?.links?.upload_section_title && catalogData?.links?.upload_section_button_label && (
+                  <Card>
+                      <div className="p-6 flex flex-col md:flex-row items-center gap-6">
+                          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-blue-50 border border-blue-100">
+                              <FileSpreadsheet className="h-8 w-8 text-blue-600" />
+                          </div>
+                          <div className="flex-1 space-y-1 text-center md:text-left">
+                              <h3 className="font-semibold text-lg">{catalogData.links.upload_section_title}</h3>
+                              {catalogData.links.upload_section_description && (
+                                <p className="text-sm text-muted-foreground">
+                                  {catalogData.links.upload_section_description}
+                                </p>
+                              )}
+                          </div>
+                          <Button onClick={() => setUploadOpen(true)} className="w-full md:w-auto">
+                              {catalogData.links.upload_section_button_label} <ArrowRight className="ml-2 h-4 w-4"/>
+                          </Button>
+                      </div>
+                  </Card>
+                )}
 
                 <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
                     <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto sm:max-w-[800px]">
                         <DialogHeader className="sr-only">
-                            <DialogTitle>Importación de catálogo</DialogTitle>
+                            <DialogTitle>{catalogData?.links?.upload_section_title}</DialogTitle>
                             <DialogDescription>
-                                Asistente para revisar y confirmar la vista previa del catálogo antes de importarlo.
+                                {catalogData?.links?.upload_section_description}
                             </DialogDescription>
                         </DialogHeader>
                         <CatalogUploadWizard
@@ -647,10 +675,16 @@ const IntegracionesPage = () => {
 
                 <Dialog open={editorOpen} onOpenChange={setEditorOpen}>
                   <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
-                      <DialogTitle>Editor de catálogo</DialogTitle>
-                      <DialogDescription>Administrá columnas y filas del catálogo.</DialogDescription>
-                    </DialogHeader>
+                    {(catalogData?.links?.editor_title || catalogData?.links?.editor_description) && (
+                      <DialogHeader>
+                        {catalogData?.links?.editor_title && (
+                          <DialogTitle>{catalogData.links.editor_title}</DialogTitle>
+                        )}
+                        {catalogData?.links?.editor_description && (
+                          <DialogDescription>{catalogData.links.editor_description}</DialogDescription>
+                        )}
+                      </DialogHeader>
+                    )}
                     <CatalogSpreadsheetEditor
                       columns={draftColumns}
                       rows={draftRows}
@@ -660,14 +694,22 @@ const IntegracionesPage = () => {
                       onAddRow={handleAddRow}
                       onDeleteRow={handleDeleteRow}
                       onUpdateCell={handleUpdateCell}
+                      addRowLabel={catalogData?.links?.add_row_label}
+                      addColumnLabel={catalogData?.links?.add_column_label}
+                      emptyLabel={catalogData?.links?.empty_rows_label}
+                      emptyColumnsLabel={catalogData?.links?.empty_columns_label}
                     />
                     <div className="flex justify-end gap-2 pt-4">
-                      <Button variant="outline" onClick={() => setEditorOpen(false)}>
-                        Cerrar
-                      </Button>
-                      <Button onClick={handleSaveDraft}>
-                        Guardar borrador
-                      </Button>
+                      {catalogData?.links?.editor_close_label && (
+                        <Button variant="outline" onClick={() => setEditorOpen(false)}>
+                          {catalogData.links.editor_close_label}
+                        </Button>
+                      )}
+                      {catalogData?.links?.editor_save_label && (
+                        <Button onClick={handleSaveDraft}>
+                          {catalogData.links.editor_save_label}
+                        </Button>
+                      )}
                     </div>
                   </DialogContent>
                 </Dialog>

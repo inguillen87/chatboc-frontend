@@ -14,6 +14,10 @@ interface CatalogSpreadsheetEditorProps {
   onUpdateCell: (rowId: CatalogRow["id"], columnKey: string, value: string) => void;
   onAddRow: () => void;
   onDeleteRow: (rowId: CatalogRow["id"]) => void;
+  addRowLabel?: string | null;
+  addColumnLabel?: string | null;
+  emptyLabel?: string | null;
+  emptyColumnsLabel?: string | null;
 }
 
 const CatalogSpreadsheetEditor: React.FC<CatalogSpreadsheetEditorProps> = ({
@@ -25,16 +29,24 @@ const CatalogSpreadsheetEditor: React.FC<CatalogSpreadsheetEditorProps> = ({
   onUpdateCell,
   onAddRow,
   onDeleteRow,
+  addRowLabel,
+  addColumnLabel,
+  emptyLabel,
+  emptyColumnsLabel,
 }) => {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <Button type="button" variant="outline" size="sm" onClick={onAddColumn}>
-          <Plus className="mr-2 h-4 w-4" /> Agregar columna
-        </Button>
-        <Button type="button" variant="outline" size="sm" onClick={onAddRow}>
-          <Plus className="mr-2 h-4 w-4" /> Agregar fila
-        </Button>
+        {addColumnLabel && (
+          <Button type="button" variant="outline" size="sm" onClick={onAddColumn}>
+            <Plus className="mr-2 h-4 w-4" /> {addColumnLabel}
+          </Button>
+        )}
+        {addRowLabel && (
+          <Button type="button" variant="outline" size="sm" onClick={onAddRow}>
+            <Plus className="mr-2 h-4 w-4" /> {addRowLabel}
+          </Button>
+        )}
       </div>
 
       <div className="overflow-x-auto rounded-lg border">
@@ -83,8 +95,8 @@ const CatalogSpreadsheetEditor: React.FC<CatalogSpreadsheetEditorProps> = ({
                   </div>
                 </th>
               ))}
-              {columns.length === 0 && (
-                <th className="p-3 text-left text-muted-foreground">Sin columnas</th>
+              {columns.length === 0 && emptyColumnsLabel && (
+                <th className="p-3 text-left text-muted-foreground">{emptyColumnsLabel}</th>
               )}
               <th className="w-12 p-3"></th>
             </tr>
@@ -115,10 +127,10 @@ const CatalogSpreadsheetEditor: React.FC<CatalogSpreadsheetEditorProps> = ({
                 </td>
               </tr>
             ))}
-            {rows.length === 0 && (
+            {rows.length === 0 && emptyLabel && (
               <tr>
                 <td colSpan={Math.max(columns.length + 1, 1)} className="p-6 text-center text-muted-foreground">
-                  Sin filas cargadas
+                  {emptyLabel}
                 </td>
               </tr>
             )}
