@@ -147,8 +147,8 @@ const ChatPanel = (props: ChatPanelProps) => {
   const shouldShowCatalogCard = Boolean(
     catalogCard?.viewUrl || catalogCard?.downloadUrl || catalogCard?.bannerUrl,
   );
-  const catalogViewLabel = catalogCard?.viewLabel ?? "Ver online";
-  const catalogDownloadLabel = catalogCard?.downloadLabel ?? "Descargar PDF";
+  const catalogViewLabel = catalogCard?.viewLabel ?? null;
+  const catalogDownloadLabel = catalogCard?.downloadLabel ?? null;
 
   // Check for pending widget action from CTA bubble
   useEffect(() => {
@@ -704,14 +704,14 @@ const ChatPanel = (props: ChatPanelProps) => {
           </div>
         </div>
       )}
-      {shouldShowCatalogCard && (
+      {shouldShowCatalogCard && (catalogViewLabel || catalogDownloadLabel) && (
         <div className="px-2 sm:px-4">
           <CatalogShareCard
             bannerUrl={catalogCard?.bannerUrl}
             viewUrl={catalogCard?.viewUrl}
             downloadUrl={catalogCard?.downloadUrl}
-            viewLabel={catalogCard?.viewUrl ? catalogViewLabel : null}
-            downloadLabel={catalogCard?.downloadUrl ? catalogDownloadLabel : null}
+            viewLabel={catalogCard?.viewUrl && catalogViewLabel ? catalogViewLabel : null}
+            downloadLabel={catalogCard?.downloadUrl && catalogDownloadLabel ? catalogDownloadLabel : null}
           />
         </div>
       )}

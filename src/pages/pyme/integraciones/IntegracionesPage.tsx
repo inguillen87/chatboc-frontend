@@ -291,14 +291,11 @@ const IntegracionesPage = () => {
 
   const catalogViewUrl = catalogData?.links?.view_url ?? catalogData?.view_url ?? null;
   const catalogDownloadUrl = catalogData?.links?.download_url ?? catalogData?.download_url ?? null;
-  const normalizedCatalogStatus = catalogData?.status?.toString().toLowerCase() ?? "";
-  const isCatalogPublished = Boolean(catalogData?.has_pdf) && ["published", "publicado"].includes(normalizedCatalogStatus);
-  const catalogStatusLabel = isCatalogPublished ? "publicado" : "sin catálogo";
-  const catalogViewLabel = catalogData?.links?.view_label ?? "Ver online";
-  const catalogDownloadLabel = catalogData?.links?.download_label ?? "Descargar PDF";
-  const catalogShareLabel = catalogData?.links?.share_label ?? "Compartir catálogo";
-  const catalogShareWhatsappLabel = catalogData?.links?.share_whatsapp_label ?? "Enviar por WhatsApp";
-  const catalogShareCopyLabel = catalogData?.links?.share_copy_label ?? "Copiar link";
+  const catalogViewLabel = catalogData?.links?.view_label ?? null;
+  const catalogDownloadLabel = catalogData?.links?.download_label ?? null;
+  const catalogShareLabel = catalogData?.links?.share_label ?? null;
+  const catalogShareWhatsappLabel = catalogData?.links?.share_whatsapp_label ?? null;
+  const catalogShareCopyLabel = catalogData?.links?.share_copy_label ?? null;
 
   const loadSettings = async () => {
     try {
@@ -457,12 +454,11 @@ const IntegracionesPage = () => {
                     <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                       <div className="space-y-1">
                         <CardTitle className="text-lg">Estado del catálogo</CardTitle>
-                        <div className="flex items-center gap-2">
-                          <Badge variant={isCatalogPublished ? "default" : "secondary"}>{catalogStatusLabel}</Badge>
-                          {catalogData?.status && (
-                            <CardDescription className="text-xs uppercase">{catalogData.status}</CardDescription>
-                          )}
-                        </div>
+                        {catalogData?.status && (
+                          <div className="flex items-center gap-2">
+                            <Badge variant={catalogData?.has_pdf ? "default" : "secondary"}>{catalogData.status}</Badge>
+                          </div>
+                        )}
                         {catalogData?.updated_at && (
                           <CardDescription>
                             {formatDistanceToNow(new Date(catalogData.updated_at), { locale: es, addSuffix: true })}
@@ -470,21 +466,21 @@ const IntegracionesPage = () => {
                         )}
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        {catalogViewUrl && (
+                        {catalogViewUrl && catalogViewLabel && (
                           <Button asChild variant="outline" size="sm">
                             <a href={catalogViewUrl} target="_blank" rel="noreferrer">
                               <ExternalLink className="mr-2 h-4 w-4" /> {catalogViewLabel}
                             </a>
                           </Button>
                         )}
-                        {catalogDownloadUrl && catalogData?.has_pdf && (
+                        {catalogDownloadUrl && catalogData?.has_pdf && catalogDownloadLabel && (
                           <Button asChild variant="outline" size="sm">
                             <a href={catalogDownloadUrl} target="_blank" rel="noreferrer">
                               <FileDown className="mr-2 h-4 w-4" /> {catalogDownloadLabel}
                             </a>
                           </Button>
                         )}
-                        {catalogViewUrl && (
+                        {catalogViewUrl && catalogShareCopyLabel && (
                           <Button
                             variant="outline"
                             size="sm"
@@ -497,7 +493,7 @@ const IntegracionesPage = () => {
                                 });
                             }}
                           >
-                            Copiar link
+                            {catalogShareCopyLabel}
                           </Button>
                         )}
                       </div>
@@ -509,20 +505,22 @@ const IntegracionesPage = () => {
                         <Label>Enlace público</Label>
                         <div className="flex flex-col gap-2 sm:flex-row">
                           <Input value={catalogViewUrl} readOnly />
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => {
-                              navigator.clipboard.writeText(catalogViewUrl || "")
-                                .then(() => toast.success('Enlace copiado'))
-                                .catch((err) => {
-                                  console.error('Copy failed', err);
-                                  toast.error('No se pudo copiar el enlace');
-                                });
-                            }}
-                          >
-                            Copiar enlace
-                          </Button>
+                          {catalogShareCopyLabel && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => {
+                                navigator.clipboard.writeText(catalogViewUrl || "")
+                                  .then(() => toast.success('Enlace copiado'))
+                                  .catch((err) => {
+                                    console.error('Copy failed', err);
+                                    toast.error('No se pudo copiar el enlace');
+                                  });
+                              }}
+                            >
+                              {catalogShareCopyLabel}
+                            </Button>
+                          )}
                         </div>
                       </div>
                     )}
@@ -608,7 +606,7 @@ const IntegracionesPage = () => {
                   </CardContent>
                 </Card>
 
-                {catalogViewUrl && (
+                {catalogViewUrl && catalogShareLabel && (
                   <Card>
                     <CardHeader>
                       <CardTitle className="text-lg">{catalogShareLabel}</CardTitle>
@@ -618,88 +616,33 @@ const IntegracionesPage = () => {
                     </CardHeader>
                     <CardContent>
                       <div className="flex flex-wrap gap-2">
-                        <Button asChild variant="outline">
-                          <a
-                            href={`https://wa.me/?text=${encodeURIComponent(catalogViewUrl)}`}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            {catalogShareWhatsappLabel}
-                          </a>
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => {
-                            navigator.clipboard.writeText(catalogViewUrl || "")
-                              .then(() => toast.success('Enlace copiado'))
-                              .catch((err) => {
-                                console.error('Copy failed', err);
-                                toast.error('No se pudo copiar el enlace');
-                              });
-                          }}
-                        >
-                          {catalogShareCopyLabel}
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {catalogData?.links?.upload_section_title && catalogData?.links?.upload_section_button_label && (
-                  <Card>
-                      <div className="p-6 flex flex-col md:flex-row items-center gap-6">
-                          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-blue-50 border border-blue-100">
-                              <FileSpreadsheet className="h-8 w-8 text-blue-600" />
-                          </div>
-                          <div className="flex-1 space-y-1 text-center md:text-left">
-                              <h3 className="font-semibold text-lg">{catalogData.links.upload_section_title}</h3>
-                              {catalogData.links.upload_section_description && (
-                                <p className="text-sm text-muted-foreground">
-                                  {catalogData.links.upload_section_description}
-                                </p>
-                              )}
-                          </div>
-                          <Button onClick={() => setUploadOpen(true)} className="w-full md:w-auto">
-                              {catalogData.links.upload_section_button_label} <ArrowRight className="ml-2 h-4 w-4"/>
+                        {catalogShareWhatsappLabel && (
+                          <Button asChild variant="outline">
+                            <a
+                              href={`https://wa.me/?text=${encodeURIComponent(catalogViewUrl)}`}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              {catalogShareWhatsappLabel}
+                            </a>
                           </Button>
-                      </div>
-                  </Card>
-                )}
-
-                {catalogViewUrl && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">{catalogShareLabel}</CardTitle>
-                      {catalogData?.links?.share_hint && (
-                        <CardDescription>{catalogData.links.share_hint}</CardDescription>
-                      )}
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex flex-wrap gap-2">
-                        <Button asChild variant="outline">
-                          <a
-                            href={`https://wa.me/?text=${encodeURIComponent(catalogViewUrl)}`}
-                            target="_blank"
-                            rel="noreferrer"
+                        )}
+                        {catalogShareCopyLabel && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => {
+                              navigator.clipboard.writeText(catalogViewUrl || "")
+                                .then(() => toast.success('Enlace copiado'))
+                                .catch((err) => {
+                                  console.error('Copy failed', err);
+                                  toast.error('No se pudo copiar el enlace');
+                                });
+                            }}
                           >
-                            {catalogShareWhatsappLabel}
-                          </a>
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => {
-                            navigator.clipboard.writeText(catalogViewUrl || "")
-                              .then(() => toast.success('Enlace copiado'))
-                              .catch((err) => {
-                                console.error('Copy failed', err);
-                                toast.error('No se pudo copiar el enlace');
-                              });
-                          }}
-                        >
-                          {catalogShareCopyLabel}
-                        </Button>
+                            {catalogShareCopyLabel}
+                          </Button>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
