@@ -220,8 +220,47 @@ function ChatWidgetInner({
 
   const isEmbedded = mode !== "standalone";
   const isLandingPage = typeof window !== 'undefined' && window.location.pathname === '/';
-  const catalogMetadata = catalogInfo?.metadata;
-  const catalogLinks = catalogInfo?.links;
+  const catalogMetadata = useMemo(() => {
+    if (!catalogInfo) return null;
+    return (
+      catalogInfo?.metadata ?? {
+        title: catalogInfo?.title,
+        description: catalogInfo?.description,
+        banner_url: catalogInfo?.banner_url,
+        enabled: catalogInfo?.enabled,
+        is_public: catalogInfo?.is_public,
+        share_on_intent: catalogInfo?.share_on_intent,
+        prefer_pdf_on_whatsapp: catalogInfo?.prefer_pdf_on_whatsapp,
+        default_message: catalogInfo?.default_message,
+      }
+    );
+  }, [catalogInfo]);
+
+  const catalogLinks = useMemo(() => {
+    if (!catalogInfo) return null;
+    return (
+      catalogInfo?.links ?? {
+        view_url: catalogInfo?.view_url,
+        download_url: catalogInfo?.download_url,
+        download_url_json: catalogInfo?.download_url_json,
+        view_label: catalogInfo?.view_label,
+        download_label: catalogInfo?.download_label,
+        cta_label: catalogInfo?.cta_label,
+      }
+    );
+  }, [catalogInfo]);
+
+  const catalogCard = useMemo(
+    () => ({
+      bannerUrl: catalogMetadata?.banner_url ?? null,
+      viewUrl: catalogLinks?.view_url ?? null,
+      downloadUrl: catalogLinks?.download_url ?? null,
+      viewLabel: catalogLinks?.view_label ?? null,
+      downloadLabel: catalogLinks?.download_label ?? null,
+    }),
+    [catalogLinks, catalogMetadata],
+  );
+
   const catalogCtaLabel = catalogLinks?.cta_label ?? catalogLinks?.view_label;
   const showCatalogCta =
     !!catalogCtaLabel &&

@@ -84,30 +84,31 @@ interface ChatPanelProps {
   } | null;
 }
 
-const ChatPanel = ({
-  onClose,
-  tipoChat,
-  onOpenUserPanel,
-  onShowLogin,
-  onShowRegister,
-  onCart,
-  muted,
-  onToggleSound,
-  onRequireAuth,
-  selectedRubro,
-  onRubroSelect,
-  mode,
-  entityToken: propEntityToken,
-  tenantSlug,
-  cartCount,
-  headerLogoUrl,
-  welcomeTitle,
-  welcomeSubtitle,
-  logoAnimation,
-  onA11yChange,
-  a11yPrefs,
-  catalogCard,
-}: ChatPanelProps) => {
+const ChatPanel = (props: ChatPanelProps) => {
+  const {
+    onClose,
+    tipoChat,
+    onOpenUserPanel,
+    onShowLogin,
+    onShowRegister,
+    onCart,
+    muted,
+    onToggleSound,
+    onRequireAuth,
+    selectedRubro,
+    onRubroSelect,
+    mode,
+    entityToken: propEntityToken,
+    tenantSlug,
+    cartCount,
+    headerLogoUrl,
+    welcomeTitle,
+    welcomeSubtitle,
+    logoAnimation,
+    onA11yChange,
+    a11yPrefs,
+    catalogCard,
+  } = props;
   const isMobile = useIsMobile();
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
