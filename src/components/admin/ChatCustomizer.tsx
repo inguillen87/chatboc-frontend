@@ -107,19 +107,7 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
 
     return `${baseUrl}/iframe?${params.toString()}`;
   }, [publicEmbedAttributes, publicWidgetInfo, previewOpen, currentSlug]);
-  const resolvedEmbedSnippet = useMemo(() => {
-    if (embedSnippet) return embedSnippet;
-    const base = (import.meta.env.VITE_WIDGET_API_BASE || "https://chatboc.ar").replace(/\/+$/, "");
-    const widgetScriptUrl = `${base}/widget.js`;
-    const attributes = {
-      ...(currentSlug ? { "data-tenant": currentSlug, "data-tenant-slug": currentSlug } : {}),
-      ...embedAttributes,
-    };
-    const attributeString = Object.entries(attributes)
-      .map(([key, value]) => `${key}="${value}"`)
-      .join(" ");
-    return attributeString ? `<script async src="${widgetScriptUrl}" ${attributeString}></script>` : '';
-  }, [embedSnippet, embedAttributes, currentSlug]);
+  const resolvedEmbedSnippet = useMemo(() => embedSnippet, [embedSnippet]);
 
   // Debounce logic
   const [debouncedConfig, setDebouncedConfig] = useState(config);
@@ -193,24 +181,6 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
         const tipoChat = data?.tipo_chat || data?.tipoChat || data?.widget_tipo_chat;
         setPublicEmbedSnippet(snippet);
         const attributes = { ...(builderConfig?.attributes || {}) } as Record<string, string>;
-        if (token) {
-          if (!attributes["data-owner-token"]) attributes["data-owner-token"] = token;
-          if (!attributes["data-widget-token"]) attributes["data-widget-token"] = token;
-          if (!attributes["data-entity-token"]) attributes["data-entity-token"] = token;
-        }
-        if (tenantSlug) {
-          if (!attributes["data-tenant"]) attributes["data-tenant"] = tenantSlug;
-          if (!attributes["data-tenant-slug"]) attributes["data-tenant-slug"] = tenantSlug;
-        }
-        if (tipoChat && !attributes["data-endpoint"]) {
-          attributes["data-endpoint"] = tipoChat;
-        }
-        if (!attributes["data-api-base"]) {
-          attributes["data-api-base"] = (import.meta.env.VITE_WIDGET_API_BASE || "https://chatboc.ar").replace(/\/+$/, "");
-        }
-        if (!attributes["data-shadow-dom"]) {
-          attributes["data-shadow-dom"] = "true";
-        }
         setPublicEmbedAttributes(attributes);
         setPublicWidgetInfo({ token, tenantSlug, tipoChat });
       } catch (error) {
@@ -610,12 +580,12 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="rounded-lg bg-slate-950 text-slate-100 p-4 text-xs font-mono whitespace-pre-wrap">
-                        {resolvedEmbedSnippet}
+                        {publicEmbedSnippet || resolvedEmbedSnippet}
                     </div>
                     <div className="space-y-2 text-xs text-muted-foreground">
                         <p className="font-medium text-foreground">Atributos activos</p>
                         <div className="grid grid-cols-2 gap-2">
-                            {Object.entries(embedAttributes).map(([key, value]) => (
+                            {Object.entries(publicEmbedSnippet ? publicEmbedAttributes : embedAttributes).map(([key, value]) => (
                                 <div key={key} className="flex flex-col gap-1 rounded-lg border border-white/10 bg-white/5 p-2">
                                     <span className="font-medium text-foreground">{key}</span>
                                     <span>{value}</span>

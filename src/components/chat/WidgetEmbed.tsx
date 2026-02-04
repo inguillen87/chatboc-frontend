@@ -4,10 +4,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
+import { apiClient } from "@/api/client";
 
 const WidgetEmbed = ({ token }: { token: string }) => {
-  const [tipoChat, setTipoChat] = useState('pyme');
   const [tenantSlug, setTenantSlug] = useState<string | null>(null);
+  const [embedSnippet, setEmbedSnippet] = useState<string>("");
 
   const slugify = (value?: string | null) => {
     if (!value) return null;
@@ -48,25 +49,27 @@ const WidgetEmbed = ({ token }: { token: string }) => {
   };
 
   useEffect(() => {
-    try {
-      const storedUser = safeLocalStorage.getItem("user");
-      const user = storedUser ? JSON.parse(storedUser) : null;
-      if (user && user.tipo_chat === 'municipio') {
-        setTipoChat('municipio');
-      }
-      setTenantSlug(resolveTenantSlug());
-    } catch (e) {
-      console.error("Could not determine user type for widget, defaulting to pyme.", e);
-    }
+    setTenantSlug(resolveTenantSlug());
   }, []);
 
-  const apiBase = (import.meta.env.VITE_WIDGET_API_BASE || "https://chatboc.ar").replace(/\/+$/, "");
-  const defaultWidgetScriptUrl = `${apiBase}/widget.js`;
-  const widgetScriptUrl = import.meta.env.VITE_WIDGET_SCRIPT_URL || defaultWidgetScriptUrl;
-  const tenantAttrs = tenantSlug
-    ? ` data-tenant="${tenantSlug}" data-tenant-slug="${tenantSlug}"`
-    : "";
-  const embedCode = `<script async src="${widgetScriptUrl}" data-api-base="${apiBase}" data-owner-token="${token}" data-endpoint="${tipoChat}" data-default-open="false" data-width="460px" data-height="680px" data-closed-width="112px" data-closed-height="112px" data-bottom="20px" data-right="20px" data-shadow-dom="true"${tenantAttrs}></script>`;
+  useEffect(() => {
+    const loadEmbedSnippet = async () => {
+      if (!tenantSlug) return;
+      try {
+        const data = await apiClient.get<any>(`/api/public/tenants/${tenantSlug}/widget-config`, { tenantSlug });
+        const builderConfig = data?.builder_config || data?.widget?.builder_config || {};
+        const snippet = builderConfig?.embed_snippet || data?.embed_snippet || "";
+        setEmbedSnippet(snippet);
+      } catch (error) {
+        console.error("No se pudo cargar el snippet de embed", error);
+        setEmbedSnippet("");
+      }
+    };
+
+    loadEmbedSnippet();
+  }, [tenantSlug]);
+
+  const embedCode = embedSnippet || "";
 
   const copiar = () => {
     navigator.clipboard.writeText(embedCode)
@@ -98,7 +101,7 @@ const WidgetEmbed = ({ token }: { token: string }) => {
           rows={4}
           value={embedCode}
         />
-        <Button onClick={copiar}>📋 Copiar código</Button>
+        <Button onClick={copiar} disabled={!embedCode}>📋 Copiar código</Button>
       </CardContent>
     </Card>
   );
