@@ -106,25 +106,28 @@ export const importService = {
       throw new Error(detail);
     }
 
-    const errorDetails = Array.isArray(response?.errors)
+    const rawErrors = Array.isArray(response?.errors)
       ? response.errors
-          .map((error: unknown) => {
-            if (typeof error === 'string') {
-              return { message: error };
-            }
-            if (error && typeof error === 'object') {
-              const record = error as Record<string, unknown>;
-              const message = typeof record.message === 'string' ? record.message : '';
-              const action = typeof record.action === 'string' ? record.action : undefined;
-              const code = typeof record.code === 'string' ? record.code : undefined;
-              if (message) {
-                return { message, action, code };
-              }
-            }
-            return null;
-          })
-          .filter((detail): detail is { message: string; action?: string; code?: string } => Boolean(detail))
-      : [];
+      : Array.isArray(response?.metadata?.errors)
+        ? response.metadata.errors
+        : [];
+    const errorDetails = rawErrors
+      .map((error: unknown) => {
+        if (typeof error === 'string') {
+          return { message: error };
+        }
+        if (error && typeof error === 'object') {
+          const record = error as Record<string, unknown>;
+          const message = typeof record.message === 'string' ? record.message : '';
+          const action = typeof record.action === 'string' ? record.action : undefined;
+          const code = typeof record.code === 'string' ? record.code : undefined;
+          if (message) {
+            return { message, action, code };
+          }
+        }
+        return null;
+      })
+      .filter((detail): detail is { message: string; action?: string; code?: string } => Boolean(detail));
     const normalizedErrors = errorDetails.map((detail) => detail.message);
 
     const hasAnyData =
@@ -186,7 +189,7 @@ export const importService = {
       confidence: response.confidence ?? response.metadata?.confidence ?? 0,
       warnings: response.warnings || response.metadata?.warnings || [],
       errors: normalizedErrors.length > 0 ? normalizedErrors : response.metadata?.errors,
-      error_details: errorDetails.length > 0 ? errorDetails : response.metadata?.errors,
+      error_details: errorDetails.length > 0 ? errorDetails : undefined,
       status: response.status,
       ui: response.ui || response.metadata?.ui,
       items_preview: previewRows,
