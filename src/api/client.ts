@@ -2,6 +2,7 @@ import { apiFetch } from '@/utils/api';
 import { Order, Cart, Ticket, PortalContent, IntegrationStatus, PortalLoyaltySummary } from '@/types/unified';
 import { Tenant, CreateTenantDTO, UpdateTenantDTO } from '@/types/superAdmin';
 import { WhatsappExternalNumberPayload, WhatsappNumberCreatePayload, WhatsappNumberInventoryItem, WhatsappNumberStatus } from '@/types/whatsapp';
+import { TenantCatalog } from '@/types/catalog';
 
 /**
  * Standardized API Client for Tenant-Aware fetching.
@@ -199,6 +200,36 @@ export const apiClient = {
 
   adminGetCatalogSyncStatus: async (tenantSlug: string): Promise<{ status: string; progress: number; message?: string }> => {
     return apiFetch<{ status: string; progress: number; message?: string }>(`/api/pymes/${tenantSlug}/catalog-vector-sync/status`, { tenantSlug });
+  },
+
+  adminGetCatalog: async (tenantSlug: string): Promise<TenantCatalog> => {
+    return apiFetch<TenantCatalog>(`/api/admin/tenants/${tenantSlug}/catalog`, { tenantSlug });
+  },
+
+  adminUpdateCatalogDraft: async (tenantSlug: string, payload: any): Promise<TenantCatalog> => {
+    return apiFetch<TenantCatalog>(`/api/admin/tenants/${tenantSlug}/catalog/draft`, {
+      method: 'PUT',
+      body: payload,
+      tenantSlug,
+    });
+  },
+
+  adminPublishCatalog: async (tenantSlug: string): Promise<TenantCatalog> => {
+    return apiFetch<TenantCatalog>(`/api/admin/tenants/${tenantSlug}/catalog/publish`, {
+      method: 'POST',
+      tenantSlug,
+    });
+  },
+
+  publicGetCatalog: async (tenantSlug: string): Promise<TenantCatalog> => {
+    const data = await apiFetch<TenantCatalog | any[]>(`/api/public/tenants/${tenantSlug}/catalog`, {
+      tenantSlug,
+      isWidgetRequest: true,
+    });
+    if (Array.isArray(data)) {
+      return { metadata: null, links: null, columns: [], rows: [] };
+    }
+    return data;
   },
 
   // --- Super Admin Methods ---

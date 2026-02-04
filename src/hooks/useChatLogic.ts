@@ -250,6 +250,9 @@ export function useChatLogic({
     mediaUrl,
     audioUrlValue,
     attachmentInfo,
+    messageType,
+    action,
+    dataPayload,
     structuredContent,
     listItems,
     posts,
@@ -264,6 +267,9 @@ export function useChatLogic({
     mediaUrl?: string;
     audioUrlValue?: string;
     attachmentInfo?: Message['attachmentInfo'];
+    messageType?: string;
+    action?: string;
+    dataPayload?: unknown;
     structuredContent?: StructuredContentItem[];
     listItems?: string[];
     posts?: Post[];
@@ -278,6 +284,7 @@ export function useChatLogic({
     }
 
     const serializedAttachment = attachmentInfo ? JSON.stringify(attachmentInfo) : '';
+    const serializedPayload = dataPayload ? JSON.stringify(dataPayload) : '';
     const serializedStructured = structuredContent ? JSON.stringify(structuredContent) : '';
     const serializedList = listItems ? JSON.stringify(listItems) : '';
     const serializedPosts = posts
@@ -299,6 +306,9 @@ export function useChatLogic({
       mediaUrl || '',
       audioUrlValue || '',
       serializedAttachment,
+      messageType || '',
+      action || '',
+      serializedPayload,
       serializedStructured,
       serializedList,
       serializedPosts,
@@ -349,6 +359,29 @@ export function useChatLogic({
       if (!data || typeof data !== 'object') {
         return;
       }
+
+      const messageType = pickFirstString(
+        data.message_type,
+        data.messageType,
+        data.tipo_mensaje,
+        data.tipoMensaje,
+        data.metadata?.message_type,
+        data.metadata?.messageType,
+      );
+      const action = pickFirstString(
+        data.action,
+        data.accion,
+        data.action_type,
+        data.actionType,
+        data.metadata?.action,
+        data.metadata?.accion,
+      );
+      const dataPayload =
+        data.data ??
+        data.payload ??
+        data.metadata?.data ??
+        data.metadata?.payload ??
+        null;
 
       const rawText = pickFirstString(
         data.comentario,
@@ -542,6 +575,9 @@ export function useChatLogic({
         mediaUrl,
         audioUrlValue,
         attachmentInfo,
+        messageType,
+        action,
+        dataPayload,
         structuredContent,
         listItems,
         posts,
@@ -595,6 +631,9 @@ export function useChatLogic({
         isBot: true,
         timestamp: new Date(timestampValue),
         origen: data.origen ?? data.source,
+        ...(messageType ? { messageType } : {}),
+        ...(action ? { action } : {}),
+        ...(dataPayload ? { data: dataPayload } : {}),
         ...(botones.length ? { botones } : {}),
         ...(categorias.length ? { categorias } : {}),
         ...(mediaUrl ? { mediaUrl } : {}),

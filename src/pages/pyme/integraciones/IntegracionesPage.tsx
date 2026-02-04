@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useTenant } from '@/context/TenantContext';
 import { apiClient } from '@/api/client';
+import { ApiError } from '@/utils/api';
 import { IntegrationStatus } from '@/types/unified';
-import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from '@/components/ui/card';
+import type { CatalogColumn, CatalogMetadata, CatalogRow, TenantCatalog } from '@/types/catalog';
+import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
@@ -13,7 +15,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Loader2, RefreshCw, ExternalLink, CheckCircle2, AlertCircle,
   MessageSquare, Send, Tags, Eye, Palette, Link2, Smartphone, Search,
-  ShoppingBag, MessageCircle, Mail, Settings, ArrowRight, FileSpreadsheet
+  ShoppingBag, MessageCircle, Mail, Settings, ArrowRight, FileSpreadsheet,
+  Save, Pencil, FileDown
 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { toast } from 'sonner';
@@ -22,6 +25,7 @@ import { es } from 'date-fns/locale';
 import ChatCustomizer from '@/components/admin/ChatCustomizer';
 import OrderDispatchSettings from '@/components/admin/OrderDispatchSettings';
 import CatalogUploadWizard from '@/components/admin/catalog/CatalogUploadWizard';
+import CatalogSpreadsheetEditor from '@/components/admin/catalog/CatalogSpreadsheetEditor';
 import ChannelPreview from '@/components/integrations/ChannelPreview';
 import {
   Dialog,
@@ -59,6 +63,13 @@ const IntegracionesPage = () => {
   const [mappingOpen, setMappingOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [selectedMappingProvider, setSelectedMappingProvider] = useState<string | null>(null);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [catalogData, setCatalogData] = useState<TenantCatalog | null>(null);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [draftColumns, setDraftColumns] = useState<CatalogColumn[]>([]);
+  const [draftRows, setDraftRows] = useState<CatalogRow[]>([]);
+  const [catalogMetadata, setCatalogMetadata] = useState<CatalogMetadata>({});
 
   // UI State
   const [activeTab, setActiveTab] = useState("integrations");
@@ -75,8 +86,205 @@ const IntegracionesPage = () => {
     if (currentSlug) {
       loadIntegrations();
       loadSettings();
+      loadCatalog();
     }
   }, [currentSlug]);
+
+  const normalizeCatalog = (data: TenantCatalog | any): TenantCatalog => {
+    const metadata = data?.metadata ?? data?.catalog ?? {
+      title: data?.title,
+      description: data?.description,
+      banner_url: data?.banner_url,
+      enabled: data?.enabled,
+      is_public: data?.is_public,
+      share_on_intent: data?.share_on_intent,
+      prefer_pdf_on_whatsapp: data?.prefer_pdf_on_whatsapp,
+      default_message: data?.default_message,
+    };
+    const links = data?.links ?? {
+      view_url: data?.view_url,
+      download_url: data?.download_url,
+      download_url_pdf: data?.download_url_pdf,
+      download_url_json: data?.download_url_json,
+      download_url_xlsx: data?.download_url_xlsx,
+      download_url_csv: data?.download_url_csv,
+      view_label: data?.view_label,
+      download_label: data?.download_label,
+      history_url: data?.history_url,
+      history_label: data?.history_label,
+      template_url: data?.template_url,
+      template_label: data?.template_label,
+      status_label: data?.status_label,
+      updated_label: data?.updated_label,
+      public_link_label: data?.public_link_label,
+      title_label: data?.title_label,
+      description_label: data?.description_label,
+      banner_label: data?.banner_label,
+      default_message_label: data?.default_message_label,
+      enabled_label: data?.enabled_label,
+      is_public_label: data?.is_public_label,
+      share_on_intent_label: data?.share_on_intent_label,
+      prefer_pdf_on_whatsapp_label: data?.prefer_pdf_on_whatsapp_label,
+      upload_label: data?.upload_label,
+      edit_label: data?.edit_label,
+      publish_label: data?.publish_label,
+      preview_label: data?.preview_label,
+      editor_title: data?.editor_title,
+      editor_description: data?.editor_description,
+      editor_close_label: data?.editor_close_label,
+      editor_save_label: data?.editor_save_label,
+      add_row_label: data?.add_row_label,
+      add_column_label: data?.add_column_label,
+      empty_rows_label: data?.empty_rows_label,
+      empty_columns_label: data?.empty_columns_label,
+      upload_section_title: data?.upload_section_title,
+      upload_section_description: data?.upload_section_description,
+      upload_section_button_label: data?.upload_section_button_label,
+      share_label: data?.share_label,
+      share_whatsapp_label: data?.share_whatsapp_label,
+      share_copy_label: data?.share_copy_label,
+      share_hint: data?.share_hint,
+      search_placeholder: data?.search_placeholder,
+      cta_label: data?.cta_label,
+    };
+    return {
+      status: data?.status ?? data?.catalog_status ?? null,
+      updated_at: data?.updated_at ?? null,
+      published_at: data?.published_at ?? null,
+      has_pdf: data?.has_pdf ?? null,
+      metadata,
+      links,
+      columns: data?.columns ?? null,
+      rows: data?.rows ?? null,
+      draft: data?.draft ?? null,
+    };
+  };
+
+  const loadCatalog = async () => {
+    if (!currentSlug) return;
+    setCatalogLoading(true);
+    setCatalogError(null);
+    try {
+      const data = await apiClient.adminGetCatalog(currentSlug);
+      const normalized = normalizeCatalog(data);
+      setCatalogData(normalized);
+      setCatalogMetadata(normalized.metadata ?? {});
+    } catch (error: any) {
+      console.error('Error loading catalog', error);
+      if (error instanceof ApiError && [403, 404, 405].includes(error.status)) {
+        setCatalogData(null);
+        setCatalogMetadata({});
+        setCatalogError(null);
+      } else {
+        setCatalogError(error?.message ?? null);
+      }
+    } finally {
+      setCatalogLoading(false);
+    }
+  };
+
+  const openCatalogEditor = () => {
+    const columns = catalogData?.draft?.columns ?? catalogData?.columns ?? [];
+    const rows = catalogData?.draft?.rows ?? catalogData?.rows ?? [];
+    setDraftColumns(columns.map((column) => ({ ...column })));
+    setDraftRows(rows.map((row) => ({ ...row, cells: { ...row.cells } })));
+    setEditorOpen(true);
+  };
+
+  const updateCatalogMetadata = (field: keyof CatalogMetadata, value: any) => {
+    setCatalogMetadata((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleSaveDraft = async () => {
+    if (!currentSlug) return;
+    try {
+      const fallbackColumns = catalogData?.draft?.columns ?? catalogData?.columns ?? [];
+      const fallbackRows = catalogData?.draft?.rows ?? catalogData?.rows ?? [];
+      const columnsToSave = draftColumns.length ? draftColumns : fallbackColumns;
+      const rowsToSave = draftRows.length ? draftRows : fallbackRows;
+      const hasEmptyColumnLabel = columnsToSave.some((column) => !column.label?.trim());
+      if (hasEmptyColumnLabel) {
+        toast.error('Completá el nombre de todas las columnas');
+        return;
+      }
+      const payload = {
+        metadata: catalogMetadata,
+        columns: columnsToSave,
+        rows: rowsToSave,
+      };
+      const response = await apiClient.adminUpdateCatalogDraft(currentSlug, payload);
+      const normalized = normalizeCatalog(response);
+      setCatalogData(normalized);
+      setCatalogMetadata(normalized.metadata ?? {});
+      toast.success('Borrador guardado');
+      setEditorOpen(false);
+    } catch (error: any) {
+      console.error('Error saving catalog draft', error);
+      toast.error(error?.message ?? 'No se pudo guardar el borrador');
+    }
+  };
+
+  const handlePublishCatalog = async () => {
+    if (!currentSlug) return;
+    try {
+      const response = await apiClient.adminPublishCatalog(currentSlug);
+      const normalized = normalizeCatalog(response);
+      setCatalogData(normalized);
+      toast.success('Catálogo publicado');
+    } catch (error: any) {
+      console.error('Error publishing catalog', error);
+      toast.error(error?.message ?? 'No se pudo publicar el catálogo');
+    }
+  };
+
+  const handleAddColumn = () => {
+    const key = `col_${Date.now()}`;
+    setDraftColumns((prev) => [...prev, { key, label: key }]);
+    setDraftRows((prev) =>
+      prev.map((row) => ({
+        ...row,
+        cells: { ...row.cells, [key]: "" },
+      })),
+    );
+  };
+
+  const handleUpdateColumn = (index: number, column: CatalogColumn) => {
+    setDraftColumns((prev) => prev.map((col, idx) => (idx === index ? column : col)));
+  };
+
+  const handleDeleteColumn = (index: number) => {
+    const column = draftColumns[index];
+    if (!column) return;
+    setDraftColumns((prev) => prev.filter((_, idx) => idx !== index));
+    setDraftRows((prev) =>
+      prev.map((row) => {
+        const nextCells = { ...row.cells };
+        delete nextCells[column.key];
+        return { ...row, cells: nextCells };
+      }),
+    );
+  };
+
+  const handleAddRow = () => {
+    const id = `row_${Date.now()}`;
+    const baseCells = draftColumns.reduce<Record<string, unknown>>((acc, column) => {
+      acc[column.key] = "";
+      return acc;
+    }, {});
+    setDraftRows((prev) => [...prev, { id, cells: baseCells }]);
+  };
+
+  const handleDeleteRow = (rowId: CatalogRow["id"]) => {
+    setDraftRows((prev) => prev.filter((row) => row.id !== rowId));
+  };
+
+  const handleUpdateCell = (rowId: CatalogRow["id"], columnKey: string, value: string) => {
+    setDraftRows((prev) =>
+      prev.map((row) =>
+        row.id === rowId ? { ...row, cells: { ...row.cells, [columnKey]: value } } : row,
+      ),
+    );
+  };
 
   const loadSettings = async () => {
     try {
@@ -176,6 +384,17 @@ const IntegracionesPage = () => {
 
   if (loading) return <div className="flex h-96 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
+  const viewUrl = catalogData?.links?.view_url ?? null;
+  const downloadUrl = catalogData?.links?.download_url ?? null;
+  const hasPdf = Boolean(catalogData?.has_pdf);
+  const statusText = catalogData?.status ?? (hasPdf ? 'publicado' : 'sin catálogo');
+  const statusLabel = catalogData?.links?.status_label ?? 'Estado del catálogo';
+  const viewLabel = catalogData?.links?.view_label ?? 'Ver online';
+  const downloadLabel = catalogData?.links?.download_label ?? 'Descargar PDF';
+  const copyLabel = catalogData?.links?.share_copy_label ?? 'Copiar link';
+  const whatsappLabel = catalogData?.links?.share_whatsapp_label ?? 'WhatsApp';
+  const shareLabel = catalogData?.links?.share_label ?? 'Compartir catálogo';
+
   return (
     <div className="container mx-auto p-4 md:p-6 max-w-7xl space-y-10">
       <div className="space-y-2">
@@ -204,33 +423,358 @@ const IntegracionesPage = () => {
             </TabsContent>
 
              <TabsContent value="catalog" className="space-y-6">
-                <Card>
-                    <div className="p-6 flex flex-col md:flex-row items-center gap-6">
-                        <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-blue-50 border border-blue-100">
-                            <FileSpreadsheet className="h-8 w-8 text-blue-600" />
+                {catalogLoading && statusLabel && (
+                  <Card>
+                    <CardContent className="p-6 flex items-center gap-3 text-muted-foreground">
+                      <Loader2 className="h-5 w-5 animate-spin" /> {statusLabel}
+                    </CardContent>
+                  </Card>
+                )}
+
+                {catalogError && statusLabel && (
+                  <Alert variant="destructive">
+                    <AlertTitle>{statusLabel}</AlertTitle>
+                    <AlertDescription>{catalogError}</AlertDescription>
+                  </Alert>
+                )}
+
+                {catalogData && statusLabel && (
+                  <Card>
+                    <CardHeader>
+                      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                        <div className="space-y-1">
+                          <CardTitle className="text-lg">{statusLabel}</CardTitle>
+                          {statusText && (
+                            <CardDescription>{statusText}</CardDescription>
+                          )}
+                          {catalogData?.updated_at && catalogData?.links?.updated_label && (
+                            <CardDescription>
+                              {catalogData.links.updated_label}{' '}
+                              {formatDistanceToNow(new Date(catalogData.updated_at), { locale: es, addSuffix: true })}
+                            </CardDescription>
+                          )}
                         </div>
-                        <div className="flex-1 space-y-1 text-center md:text-left">
-                            <h3 className="font-semibold text-lg">Importación Masiva</h3>
-                            <p className="text-sm text-muted-foreground">
-                                Actualizá tus productos subiendo un archivo Excel o CSV. Detectamos automáticamente columnas y precios.
-                            </p>
+                        <div className="flex flex-wrap gap-2">
+                          {viewUrl && viewLabel && (
+                            <Button asChild variant="outline" size="sm">
+                              <a href={viewUrl} target="_blank" rel="noreferrer">
+                                <ExternalLink className="mr-2 h-4 w-4" /> {viewLabel}
+                              </a>
+                            </Button>
+                          )}
+                          {downloadUrl && hasPdf && downloadLabel && (
+                            <Button asChild variant="outline" size="sm">
+                              <a href={downloadUrl} target="_blank" rel="noreferrer">
+                                <FileDown className="mr-2 h-4 w-4" /> {downloadLabel}
+                              </a>
+                            </Button>
+                          )}
                         </div>
-                        <Button onClick={() => setUploadOpen(true)} className="w-full md:w-auto">
-                            Iniciar Asistente <ArrowRight className="ml-2 h-4 w-4"/>
-                        </Button>
-                    </div>
-                </Card>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="grid gap-4">
+                      {viewUrl && catalogData?.links?.public_link_label && (
+                        <div className="flex flex-col gap-2">
+                          <Label>{catalogData.links.public_link_label}</Label>
+                          <div className="flex flex-col gap-2 sm:flex-row">
+                            <Input value={viewUrl} readOnly />
+                            {viewUrl && copyLabel && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(viewUrl)
+                                    .then(() => toast.success(copyLabel))
+                                    .catch((err) => {
+                                      console.error('Copy failed', err);
+                                    });
+                                }}
+                              >
+                                {copyLabel}
+                              </Button>
+                            )}
+                            {viewUrl && whatsappLabel && (
+                              <Button asChild variant="outline">
+                                <a
+                                  href={`https://wa.me/?text=${encodeURIComponent(viewUrl)}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                >
+                                  {whatsappLabel}
+                                </a>
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      {(catalogMetadata.title || catalogMetadata.description) && (catalogData?.links?.title_label || catalogData?.links?.description_label) && (
+                        <div className="grid gap-4 md:grid-cols-2">
+                          {catalogData?.links?.title_label && (
+                            <div className="space-y-2">
+                              <Label>{catalogData.links.title_label}</Label>
+                              <Input
+                                value={catalogMetadata.title ?? ''}
+                                onChange={(event) => updateCatalogMetadata('title', event.target.value)}
+                              />
+                            </div>
+                          )}
+                          {catalogData?.links?.description_label && (
+                            <div className="space-y-2">
+                              <Label>{catalogData.links.description_label}</Label>
+                              <Input
+                                value={catalogMetadata.description ?? ''}
+                                onChange={(event) => updateCatalogMetadata('description', event.target.value)}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {catalogMetadata.banner_url && catalogData?.links?.banner_label && (
+                        <div className="space-y-2">
+                          <Label>{catalogData.links.banner_label}</Label>
+                          <Input
+                            value={catalogMetadata.banner_url ?? ''}
+                            onChange={(event) => updateCatalogMetadata('banner_url', event.target.value)}
+                          />
+                        </div>
+                      )}
+                      {catalogMetadata.default_message && catalogData?.links?.default_message_label && (
+                        <div className="space-y-2">
+                          <Label>{catalogData.links.default_message_label}</Label>
+                          <Input
+                            value={catalogMetadata.default_message ?? ''}
+                            onChange={(event) => updateCatalogMetadata('default_message', event.target.value)}
+                          />
+                        </div>
+                      )}
+                      <div className="grid gap-4 md:grid-cols-2">
+                        {catalogData?.links?.enabled_label && (
+                          <div className="flex items-center justify-between rounded-lg border p-3">
+                            <div>
+                              <Label>{catalogData.links.enabled_label}</Label>
+                            </div>
+                            <Switch
+                              checked={Boolean(catalogMetadata.enabled)}
+                              onCheckedChange={(value) => updateCatalogMetadata('enabled', value)}
+                            />
+                          </div>
+                        )}
+                        {catalogData?.links?.is_public_label && (
+                          <div className="flex items-center justify-between rounded-lg border p-3">
+                            <div>
+                              <Label>{catalogData.links.is_public_label}</Label>
+                            </div>
+                            <Switch
+                              checked={Boolean(catalogMetadata.is_public)}
+                              onCheckedChange={(value) => updateCatalogMetadata('is_public', value)}
+                            />
+                          </div>
+                        )}
+                        {catalogData?.links?.share_on_intent_label && (
+                          <div className="flex items-center justify-between rounded-lg border p-3">
+                            <div>
+                              <Label>{catalogData.links.share_on_intent_label}</Label>
+                            </div>
+                            <Switch
+                              checked={Boolean(catalogMetadata.share_on_intent)}
+                              onCheckedChange={(value) => updateCatalogMetadata('share_on_intent', value)}
+                            />
+                          </div>
+                        )}
+                        {catalogData?.links?.prefer_pdf_on_whatsapp_label && (
+                          <div className="flex items-center justify-between rounded-lg border p-3">
+                            <div>
+                              <Label>{catalogData.links.prefer_pdf_on_whatsapp_label}</Label>
+                            </div>
+                            <Switch
+                              checked={Boolean(catalogMetadata.prefer_pdf_on_whatsapp)}
+                              onCheckedChange={(value) => updateCatalogMetadata('prefer_pdf_on_whatsapp', value)}
+                            />
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-2 justify-end">
+                        {catalogData?.links?.edit_label && (
+                          <Button variant="outline" onClick={openCatalogEditor}>
+                            <Pencil className="mr-2 h-4 w-4" /> {catalogData.links.edit_label}
+                          </Button>
+                        )}
+                        {catalogData?.links?.upload_label && (
+                          <Button variant="outline" onClick={handleSaveDraft}>
+                            <Save className="mr-2 h-4 w-4" /> {catalogData.links.upload_label}
+                          </Button>
+                        )}
+                        {catalogData?.links?.publish_label && (
+                          <Button onClick={handlePublishCatalog}>
+                            {catalogData.links.publish_label}
+                          </Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {catalogData?.links?.share_label && (catalogMetadata.title || catalogMetadata.description || catalogMetadata.banner_url) && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">{shareLabel}</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {catalogMetadata.banner_url && (
+                        <div className="overflow-hidden rounded-lg border">
+                          <img
+                            src={catalogMetadata.banner_url}
+                            alt={catalogMetadata.title ?? ''}
+                            className="h-40 w-full object-cover"
+                          />
+                        </div>
+                      )}
+                      <div className="space-y-1">
+                        {catalogMetadata.title && <p className="text-sm font-semibold">{catalogMetadata.title}</p>}
+                        {catalogMetadata.description && (
+                          <p className="text-sm text-muted-foreground">{catalogMetadata.description}</p>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {viewUrl && viewLabel && (
+                          <Button asChild variant="outline" size="sm">
+                            <a href={viewUrl} target="_blank" rel="noreferrer">
+                              {viewLabel}
+                            </a>
+                          </Button>
+                        )}
+                        {downloadUrl && hasPdf && downloadLabel && (
+                          <Button asChild variant="outline" size="sm">
+                            <a href={downloadUrl} target="_blank" rel="noreferrer">
+                              {downloadLabel}
+                            </a>
+                          </Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {shareLabel && (viewUrl || catalogData?.links?.share_hint) && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">{shareLabel}</CardTitle>
+                      {catalogData?.links?.share_hint && (
+                        <CardDescription>{catalogData.links.share_hint}</CardDescription>
+                      )}
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex flex-wrap gap-2">
+                        {viewUrl && whatsappLabel && (
+                          <Button asChild variant="outline">
+                            <a
+                              href={`https://wa.me/?text=${encodeURIComponent(viewUrl)}`}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              {whatsappLabel}
+                            </a>
+                          </Button>
+                        )}
+                        {viewUrl && copyLabel && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => {
+                              navigator.clipboard.writeText(viewUrl)
+                                .then(() => {
+                                  toast.success(copyLabel);
+                                })
+                                .catch((err) => {
+                                  console.error('Copy failed', err);
+                                });
+                            }}
+                          >
+                            {copyLabel}
+                          </Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {catalogData?.links?.upload_section_title && catalogData?.links?.upload_section_button_label && (
+                  <Card>
+                      <div className="p-6 flex flex-col md:flex-row items-center gap-6">
+                          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-blue-50 border border-blue-100">
+                              <FileSpreadsheet className="h-8 w-8 text-blue-600" />
+                          </div>
+                          <div className="flex-1 space-y-1 text-center md:text-left">
+                              <h3 className="font-semibold text-lg">{catalogData.links.upload_section_title}</h3>
+                              {catalogData.links.upload_section_description && (
+                                <p className="text-sm text-muted-foreground">
+                                  {catalogData.links.upload_section_description}
+                                </p>
+                              )}
+                          </div>
+                          <Button onClick={() => setUploadOpen(true)} className="w-full md:w-auto">
+                              {catalogData.links.upload_section_button_label} <ArrowRight className="ml-2 h-4 w-4"/>
+                          </Button>
+                      </div>
+                  </Card>
+                )}
 
                 <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
                     <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto sm:max-w-[800px]">
                         <DialogHeader className="sr-only">
-                            <DialogTitle>Importación de catálogo</DialogTitle>
+                            <DialogTitle>{catalogData?.links?.upload_section_title}</DialogTitle>
                             <DialogDescription>
-                                Asistente para revisar y confirmar la vista previa del catálogo antes de importarlo.
+                                {catalogData?.links?.upload_section_description}
                             </DialogDescription>
                         </DialogHeader>
-                        <CatalogUploadWizard tenantSlug={currentSlug || ""} onFinish={() => setUploadOpen(false)} />
+                        <CatalogUploadWizard
+                          tenantSlug={currentSlug || ""}
+                          onFinish={() => setUploadOpen(false)}
+                          templateUrl={catalogData?.links?.template_url}
+                          templateLabel={catalogData?.links?.template_label}
+                        />
                     </DialogContent>
+                </Dialog>
+
+                <Dialog open={editorOpen} onOpenChange={setEditorOpen}>
+                  <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+                    {(catalogData?.links?.editor_title || catalogData?.links?.editor_description) && (
+                      <DialogHeader>
+                        {catalogData?.links?.editor_title && (
+                          <DialogTitle>{catalogData.links.editor_title}</DialogTitle>
+                        )}
+                        {catalogData?.links?.editor_description && (
+                          <DialogDescription>{catalogData.links.editor_description}</DialogDescription>
+                        )}
+                      </DialogHeader>
+                    )}
+                    <CatalogSpreadsheetEditor
+                      columns={draftColumns}
+                      rows={draftRows}
+                      onAddColumn={handleAddColumn}
+                      onUpdateColumn={handleUpdateColumn}
+                      onDeleteColumn={handleDeleteColumn}
+                      onAddRow={handleAddRow}
+                      onDeleteRow={handleDeleteRow}
+                      onUpdateCell={handleUpdateCell}
+                      addRowLabel={catalogData?.links?.add_row_label}
+                      addColumnLabel={catalogData?.links?.add_column_label}
+                      emptyLabel={catalogData?.links?.empty_rows_label}
+                      emptyColumnsLabel={catalogData?.links?.empty_columns_label}
+                    />
+                    <div className="flex justify-end gap-2 pt-4">
+                      {catalogData?.links?.editor_close_label && (
+                        <Button variant="outline" onClick={() => setEditorOpen(false)}>
+                          {catalogData.links.editor_close_label}
+                        </Button>
+                      )}
+                      {catalogData?.links?.editor_save_label && (
+                        <Button onClick={handleSaveDraft}>
+                          {catalogData.links.editor_save_label}
+                        </Button>
+                      )}
+                    </div>
+                  </DialogContent>
                 </Dialog>
             </TabsContent>
 
