@@ -2,12 +2,13 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import {
   Upload, FileText, CheckCircle2, AlertTriangle,
-  ArrowRight, Loader2, XCircle, Settings2, RefreshCw
+  ArrowRight, Loader2, XCircle, Settings2, RefreshCw, Save
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Skeleton } from '@/components/ui/skeleton';
 import { apiClient } from '@/api/client';
 import { toast } from 'sonner';
 import { CatalogPreviewV1, ColumnMapping, CatalogField, ImportStatus } from '@/types/catalog-import';
@@ -32,8 +33,10 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ tenantSlug, o
 
   // UI State
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   // --- Step 1: Upload Logic ---
   const onDrop = useCallback((acceptedFiles: File[]) => {
@@ -102,6 +105,7 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ tenantSlug, o
       setJobId(response.job_id);
       setPreviewData(response);
       setMapping(initialMapping);
+      setHasUnsavedChanges(false);
 
       // If status is failed, we still show preview step but with error UI
       setStep('preview');
@@ -121,6 +125,7 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ tenantSlug, o
 
   const handleCellValueChange = (rowId: string, colKey: string, value: any) => {
     if (!previewData) return;
+    setHasUnsavedChanges(true);
     // Update local preview state (optimistic)
     const newRows = previewData.rows_sample.map(row => {
       if (row.row_id === rowId) {
@@ -129,6 +134,22 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ tenantSlug, o
       return row;
     });
     setPreviewData({ ...previewData, rows_sample: newRows });
+  };
+
+  const handleSaveChanges = async () => {
+    if (!jobId || !previewData) return;
+    setIsSaving(true);
+    try {
+      await apiClient.adminUpdateImportPreview(tenantSlug, jobId, {
+        rows: previewData.rows_sample
+      });
+      setHasUnsavedChanges(false);
+      toast.success("Cambios guardados");
+    } catch (err: any) {
+      toast.error("Error al guardar cambios: " + err.message);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleConfirm = async () => {
@@ -142,6 +163,13 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ tenantSlug, o
          toast.error("Debes mapear al menos 'Nombre Producto' y 'Precio'");
          setIsProcessing(false);
          return;
+      }
+
+      // Optional: Auto-save if changes pending
+      if (hasUnsavedChanges) {
+         await apiClient.adminUpdateImportPreview(tenantSlug, jobId, {
+            rows: previewData.rows_sample
+         });
       }
 
       await apiClient.adminConfirmCatalog(tenantSlug, {
@@ -212,14 +240,16 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ tenantSlug, o
   const renderProcessing = () => (
     <div className="py-16 flex flex-col items-center justify-center space-y-6 text-center">
       <div className="relative">
+         {/* Replaced generic Spinner with a nicer Loading state or Skeleton if we had one for big blocks, but here spinner + text is standard */}
         <Loader2 className="h-16 w-16 animate-spin text-primary" />
         <div className="absolute inset-0 flex items-center justify-center text-xs font-bold">AI</div>
       </div>
-      <div className="space-y-2 max-w-md">
+      <div className="space-y-2 max-w-md w-full">
         <h3 className="text-xl font-medium">Analizando documento...</h3>
-        <p className="text-sm text-muted-foreground">
-          Estamos detectando tablas, limpiando datos y normalizando precios. Esto puede tomar unos segundos.
-        </p>
+        <div className="space-y-2">
+           <Skeleton className="h-4 w-3/4 mx-auto" />
+           <Skeleton className="h-4 w-1/2 mx-auto" />
+        </div>
       </div>
       <Progress value={uploadProgress} className="w-64" />
     </div>
@@ -231,6 +261,7 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ tenantSlug, o
     const isFailed = previewData.status === 'failed';
     const hasWarnings = previewData.summary?.warnings?.length > 0;
     const hasErrors = previewData.errors?.length > 0;
+    const showTable = !isFailed || (previewData.rows_sample && previewData.rows_sample.length > 0);
 
     return (
       <div className="space-y-4">
@@ -288,22 +319,40 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ tenantSlug, o
         )}
 
         {/* Main Mapping Table */}
-        <ImportMappingTable
-          preview={previewData}
-          mapping={mapping}
-          onMappingChange={handleMappingChange}
-          onCellValueChange={handleCellValueChange}
-        />
+        {showTable ? (
+          <ImportMappingTable
+            preview={previewData}
+            mapping={mapping}
+            onMappingChange={handleMappingChange}
+            onCellValueChange={handleCellValueChange}
+          />
+        ) : (
+           <div className="border border-dashed rounded-lg p-12 flex flex-col items-center justify-center text-center text-muted-foreground">
+              <XCircle className="h-10 w-10 mb-4 text-destructive/50" />
+              <p>No se encontraron datos estructurados válidos.</p>
+              <p className="text-sm">Intenta subir un archivo diferente o revisa los errores arriba.</p>
+           </div>
+        )}
 
         {/* Actions */}
         <div className="flex justify-between pt-4">
           <Button variant="outline" onClick={() => { setStep('upload'); setFile(null); }}>
              Cancelar / Subir otro
           </Button>
-          <Button onClick={handleConfirm} disabled={isProcessing || isFailed}>
-            {isProcessing ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
-            Confirmar e Importar
-          </Button>
+
+          <div className="flex gap-2">
+            {hasUnsavedChanges && showTable && (
+               <Button variant="secondary" onClick={handleSaveChanges} disabled={isSaving}>
+                  {isSaving && <Loader2 className="animate-spin mr-2 h-4 w-4" />}
+                  <Save className="mr-2 h-4 w-4" /> Guardar Cambios
+               </Button>
+            )}
+
+            <Button onClick={handleConfirm} disabled={isProcessing || isFailed}>
+               {isProcessing ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+               Confirmar e Importar
+            </Button>
+          </div>
         </div>
       </div>
     );
