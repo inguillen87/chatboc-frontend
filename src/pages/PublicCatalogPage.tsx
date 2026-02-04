@@ -55,24 +55,8 @@ const PublicCatalogPage: React.FC = () => {
     );
   }, [columns, rows, search]);
 
-  if (loading) {
-    return (
-      <div className="container mx-auto px-4 py-10">
-        <Card>
-          <CardContent className="p-6">Cargando...</CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="container mx-auto px-4 py-10">
-        <Card>
-          <CardContent className="p-6">{error}</CardContent>
-        </Card>
-      </div>
-    );
+  if (loading || error) {
+    return null;
   }
 
   return (
@@ -102,18 +86,23 @@ const PublicCatalogPage: React.FC = () => {
         </CardContent>
       </Card>
 
-      {(columns.length > 0 || rows.length > 0) && (
-        <Card>
-          <CardHeader>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <CardTitle className="text-lg">{metadata?.default_message}</CardTitle>
-              <Input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                className="sm:max-w-xs"
-              />
-            </div>
-          </CardHeader>
+          {(columns.length > 0 || rows.length > 0) && (
+            <Card>
+              <CardHeader>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  {metadata?.default_message && (
+                    <CardTitle className="text-lg">{metadata.default_message}</CardTitle>
+                  )}
+                  {links?.search_placeholder && (
+                    <Input
+                      value={search}
+                      onChange={(event) => setSearch(event.target.value)}
+                      className="sm:max-w-xs"
+                      placeholder={links.search_placeholder}
+                    />
+                  )}
+                </div>
+              </CardHeader>
           <CardContent>
             <div className="overflow-x-auto rounded-lg border">
               <table className="w-full text-sm">

@@ -427,23 +427,10 @@
       window.chatbocDestroyWidget();
     }
 
-    const scriptOrigin =
-      (script.src && new URL(script.src, window.location.href).origin) ||
-      SCRIPT_CONFIG.DEFAULT_CHATBOC_DOMAIN;
-    const defaultApiBase = (() => {
-      try {
-        const originUrl = new URL(scriptOrigin);
-        const host = originUrl.hostname.toLowerCase();
-        if (host === "chatboc.ar" || host === "www.chatboc.ar") {
-          return SCRIPT_CONFIG.DEFAULT_API_DOMAIN;
-        }
-      } catch (err) {
-        console.warn("Chatboc widget: unable to parse script origin", err);
-      }
-      return scriptOrigin;
-    })();
+    const apiBaseAttr = (script.getAttribute("data-api-base") || "").trim();
+    const apiBaseFromDomain = (script.getAttribute("data-domain") || "").trim();
     const apiBase = normalizeBase(
-      script.getAttribute("data-api-base") || defaultApiBase
+      apiBaseAttr || apiBaseFromDomain || SCRIPT_CONFIG.DEFAULT_API_DOMAIN
     );
 
     const authManager = getTokenManager(ownerToken, apiBase, tenantSlug);
