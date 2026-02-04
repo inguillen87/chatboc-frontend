@@ -24,11 +24,15 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
   const [previewItems, setPreviewItems] = useState<Array<Record<string, unknown>>>([]);
   const [previewColumns, setPreviewColumns] = useState<PreviewColumn[]>([]);
   const [catalogUploadId, setCatalogUploadId] = useState<number | null>(null);
+  const [previewTotal, setPreviewTotal] = useState(0);
+  const [previewErrors, setPreviewErrors] = useState<string[]>([]);
+  const [previewWarnings, setPreviewWarnings] = useState<string[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
 
-  const canConfirm = previewItems.length > 0;
+  const canConfirm = previewItems.length > 0 && previewTotal > 0;
   const resolvedColumns = useMemo(() => {
     if (previewColumns.length > 0) {
       return previewColumns;
@@ -116,6 +120,10 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
         setPreviewItems(preview.items_preview);
         setPreviewColumns(preview.columns ?? []);
         setCatalogUploadId(preview.upload_id ?? null);
+        setPreviewTotal(preview.total_detected ?? preview.items_preview.length);
+        setPreviewErrors(preview.errors ?? []);
+        setPreviewWarnings(preview.warnings ?? []);
+        setPreviewError(null);
         setStep('preview');
         setIsPreviewModalOpen(true);
       } else {
@@ -124,6 +132,10 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
 
     } catch (error) {
       console.error("Upload failed", error);
+      setPreviewError((error as Error)?.message || null);
+      setPreviewTotal(0);
+      setPreviewErrors([]);
+      setPreviewWarnings([]);
       toast.error("Error al subir el archivo. Verificá el formato.");
     } finally {
       setIsProcessing(false);
@@ -168,6 +180,11 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
 
   const renderUploadStep = () => (
     <div className="space-y-6">
+        {previewError && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {previewError}
+            </div>
+        )}
         <div
             className="border-2 border-dashed border-muted-foreground/25 rounded-xl p-10 flex flex-col items-center justify-center text-center hover:bg-muted/10 transition-colors cursor-pointer"
             onDragOver={(e) => e.preventDefault()}
@@ -274,7 +291,7 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
             <div>
                 <h3 className="text-lg font-medium">Vista Previa</h3>
                 <p className="text-sm text-muted-foreground">
-                    Detectamos <b>{previewItems.length}</b> productos.
+                    Detectamos <b>{previewTotal}</b> productos.
                 </p>
             </div>
             <div className="flex gap-2">
@@ -293,6 +310,13 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
         <p className="text-xs text-amber-600 bg-amber-50 p-2 rounded">
             Nota: Podés editar los valores antes de confirmar la importación.
         </p>
+        {previewErrors.length > 0 && (
+          <ul className="text-xs text-red-600 bg-red-50 p-2 rounded">
+            {previewErrors.map((error, index) => (
+              <li key={index}>{error}</li>
+            ))}
+          </ul>
+        )}
 
         <div className="flex items-center justify-end gap-3 pt-4 border-t">
              <Button onClick={confirmUpload} disabled={isProcessing || !canConfirm}>
@@ -306,19 +330,21 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
             <DialogHeader>
               <DialogTitle>Vista previa completa</DialogTitle>
               <DialogDescription>
-                Revisá el detalle detectado por la IA antes de confirmar la importación. Productos detectados: {previewItems.length}.
+                Revisá el detalle detectado por la IA antes de confirmar la importación. Productos detectados: {previewTotal}.
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-lg border bg-muted/40 p-4">
                 <div>
                   <p className="text-sm text-muted-foreground">Productos detectados</p>
-                  <p className="text-xl font-semibold">{previewItems.length}</p>
+                  <p className="text-xl font-semibold">{previewTotal}</p>
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Warnings</p>
-                  <p className="text-sm font-medium">{previewItems.flatMap((item) => item.errors ?? []).length}</p>
-                </div>
+                {previewWarnings.length > 0 && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Warnings</p>
+                    <p className="text-sm font-medium">{previewWarnings.length}</p>
+                  </div>
+                )}
               </div>
               <div className="overflow-x-auto">
                 <div className="max-h-[55vh] overflow-y-auto">
@@ -361,6 +387,9 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
                 setStep('upload');
                 setFile(null);
                 setPreviewItems([]);
+                setPreviewTotal(0);
+                setPreviewErrors([]);
+                setPreviewWarnings([]);
             }}>
                 Subir otro archivo
             </Button>
