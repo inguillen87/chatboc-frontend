@@ -1395,6 +1395,7 @@ function ChatWidgetInner({
                     cartCount={cartCount}
                     selectedRubro={selectedRubro ?? entityDefaultRubro}
                     onRubroSelect={handleRubroSelect}
+                    catalogCard={catalogCard}
                     headerLogoUrl={headerLogoUrl || customLauncherLogoUrl || entityInfo?.logo_url || (isDarkMode ? '/chatbocar.png' : '/chatbocar2.png')}
                     welcomeTitle={headerTitle}
                     welcomeSubtitle={headerSubtitle}

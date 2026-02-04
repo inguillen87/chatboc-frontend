@@ -719,6 +719,65 @@ const IntegracionesPage = () => {
                   </Card>
                 )}
 
+                {catalogViewUrl && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">{catalogShareLabel}</CardTitle>
+                      {catalogData?.links?.share_hint && (
+                        <CardDescription>{catalogData.links.share_hint}</CardDescription>
+                      )}
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex flex-wrap gap-2">
+                        <Button asChild variant="outline">
+                          <a
+                            href={`https://wa.me/?text=${encodeURIComponent(catalogViewUrl)}`}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            {catalogShareWhatsappLabel}
+                          </a>
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => {
+                            navigator.clipboard.writeText(catalogViewUrl || "")
+                              .then(() => toast.success('Enlace copiado'))
+                              .catch((err) => {
+                                console.error('Copy failed', err);
+                                toast.error('No se pudo copiar el enlace');
+                              });
+                          }}
+                        >
+                          {catalogShareCopyLabel}
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {catalogData?.links?.upload_section_title && catalogData?.links?.upload_section_button_label && (
+                  <Card>
+                      <div className="p-6 flex flex-col md:flex-row items-center gap-6">
+                          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-blue-50 border border-blue-100">
+                              <FileSpreadsheet className="h-8 w-8 text-blue-600" />
+                          </div>
+                          <div className="flex-1 space-y-1 text-center md:text-left">
+                              <h3 className="font-semibold text-lg">{catalogData.links.upload_section_title}</h3>
+                              {catalogData.links.upload_section_description && (
+                                <p className="text-sm text-muted-foreground">
+                                  {catalogData.links.upload_section_description}
+                                </p>
+                              )}
+                          </div>
+                          <Button onClick={() => setUploadOpen(true)} className="w-full md:w-auto">
+                              {catalogData.links.upload_section_button_label} <ArrowRight className="ml-2 h-4 w-4"/>
+                          </Button>
+                      </div>
+                  </Card>
+                )}
+
                 <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
                     <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto sm:max-w-[800px]">
                         <DialogHeader className="sr-only">
