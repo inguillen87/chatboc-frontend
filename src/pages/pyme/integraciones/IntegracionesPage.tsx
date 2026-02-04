@@ -229,7 +229,7 @@ const IntegracionesPage = () => {
                                 Asistente para revisar y confirmar la vista previa del catálogo antes de importarlo.
                             </DialogDescription>
                         </DialogHeader>
-                        <CatalogUploadWizard onFinish={() => setUploadOpen(false)} />
+                        <CatalogUploadWizard tenantSlug={currentSlug || ""} onFinish={() => setUploadOpen(false)} />
                     </DialogContent>
                 </Dialog>
             </TabsContent>
