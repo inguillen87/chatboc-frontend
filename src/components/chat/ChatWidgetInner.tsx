@@ -20,6 +20,7 @@ import { tenantService } from "@/services/tenantService";
 import { ChatWidgetProps } from "./types";
 import { MOCK_TENANT_INFO, MOCK_JUNIN_TENANT_INFO } from "@/data/mockTenantData";
 import { hexToHsl, getContrastColorHsl } from "@/utils/color";
+import { apiClient } from "@/api/client";
 
 // LOCAL_PLACEHOLDER_SLUGS is used to prevent the widget from treating reserved paths as tenant slugs.
 // We also alias it to PLACEHOLDER_SLUGS_SET just in case some stale build/import relies on that name.
@@ -203,6 +204,7 @@ function ChatWidgetInner({
   const [isProfileLoading, setProfileLoading] = useState(true);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [requireCatalogAuth, setRequireCatalogAuth] = useState(false);
+  const [catalogInfo, setCatalogInfo] = useState<any | null>(null);
 
   const [duplicateInstance, setDuplicateInstance] = useState(false);
 
@@ -218,6 +220,14 @@ function ChatWidgetInner({
 
   const isEmbedded = mode !== "standalone";
   const isLandingPage = typeof window !== 'undefined' && window.location.pathname === '/';
+  const catalogMetadata = catalogInfo?.metadata;
+  const catalogLinks = catalogInfo?.links;
+  const catalogCtaLabel = catalogLinks?.cta_label ?? catalogLinks?.view_label;
+  const showCatalogCta =
+    !!catalogCtaLabel &&
+    !!catalogLinks?.view_url &&
+    catalogMetadata?.enabled !== false &&
+    catalogMetadata?.is_public !== false;
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1178,6 +1188,31 @@ function ChatWidgetInner({
   }, [ownerToken, resolvedTenantSlug]);
 
   useEffect(() => {
+    let isActive = true;
+    const loadCatalogInfo = async () => {
+      if (!resolvedTenantSlug) {
+        setCatalogInfo(null);
+        return;
+      }
+      try {
+        const catalog = await apiClient.publicGetCatalog(resolvedTenantSlug);
+        if (isActive) {
+          setCatalogInfo(catalog);
+        }
+      } catch (error) {
+        console.warn("Failed to load catalog info", error);
+        if (isActive) {
+          setCatalogInfo(null);
+        }
+      }
+    };
+    loadCatalogInfo();
+    return () => {
+      isActive = false;
+    };
+  }, [resolvedTenantSlug]);
+
+  useEffect(() => {
     if (!isProfileLoading) return;
     const timeout = setTimeout(() => {
       if (isProfileLoading) {
@@ -1394,6 +1429,24 @@ function ChatWidgetInner({
                 >
                   {ctaMessage}
                 </motion.div>
+              )}
+              {showCatalogCta && !showProactiveBubble && !showCta && (
+                <motion.button
+                  type="button"
+                  className="absolute right-0 text-sm bg-background border rounded-lg shadow-lg px-3 py-2 dark:bg-slate-800 dark:border-slate-700"
+                  style={{ bottom: "calc(100% + 8px)" }}
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                  transition={{ duration: 0.3 }}
+                  onClick={() => {
+                    if (catalogLinks?.view_url) {
+                      window.open(catalogLinks.view_url, "_blank");
+                    }
+                  }}
+                >
+                  {catalogCtaLabel}
+                </motion.button>
               )}
               <motion.button
                 key="chatboc-toggle-btn"
