@@ -177,6 +177,7 @@ export function useChatLogic({
           skipAuth,
           isWidgetRequest: true,
           tenantSlug: tenantSlug,
+          entityToken,
           body: {
             pregunta: '',
             action: 'initial_greeting',
@@ -206,7 +207,7 @@ export function useChatLogic({
         setIsTyping(false);
       }
     },
-    [contexto, selectedRubro, skipAuth, tipoChat, tenantSlug]
+    [contexto, selectedRubro, skipAuth, tipoChat, tenantSlug, entityToken]
   );
 
   const initializeConversationRef = useRef(initializeConversation);
@@ -1231,6 +1232,7 @@ export function useChatLogic({
         skipAuth,
         isWidgetRequest: true,
         tenantSlug: tenantSlug,
+        entityToken,
       });
       console.log('useChatLogic: Backend response', response);
       processBotPayload(response, {
@@ -1251,6 +1253,7 @@ export function useChatLogic({
     currentClaimIdempotencyKey,
     tipoChat,
     tenantSlug,
+    entityToken,
   ]);
 
   const isLiveChatActive = liveChatTicketId !== null;
