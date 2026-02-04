@@ -9,6 +9,8 @@ export interface ImportPreview {
   total_detected: number;
   confidence: number;
   warnings: string[];
+  errors?: string[];
+  status?: string;
   items_preview: Array<Record<string, unknown>>;
   columns?: PreviewColumn[];
 }
@@ -85,7 +87,11 @@ export const importService = {
     });
 
     if (response?.ok === false) {
-      throw new Error(response?.detail || response?.error || 'No se pudo generar la vista previa');
+      const detail =
+        response?.detail ||
+        response?.error ||
+        (Array.isArray(response?.errors) ? response.errors.join(' ') : '');
+      throw new Error(detail);
     }
 
     const hasAnyData =
@@ -94,7 +100,11 @@ export const importService = {
       Array.isArray(response?.rows);
 
     if (!hasAnyData) {
-      throw new Error('Vista previa vacía: el backend no devolvió filas/records. Revisar logs.');
+      const detail =
+        response?.detail ||
+        response?.error ||
+        (Array.isArray(response?.errors) ? response.errors.join(' ') : '');
+      throw new Error(detail);
     }
 
     const resolvePreviewRows = (columns?: PreviewColumn[]): Array<Record<string, unknown>> => {
@@ -142,6 +152,8 @@ export const importService = {
       total_detected: response.total_detected || response.totalRows || previewRows.length || 0,
       confidence: response.confidence ?? response.metadata?.confidence ?? 0,
       warnings: response.warnings || response.metadata?.warnings || [],
+      errors: response.errors || response.metadata?.errors,
+      status: response.status,
       items_preview: previewRows,
       columns: previewColumns,
       // We might not get an upload_id here if it's stateless, but if we do, pass it.

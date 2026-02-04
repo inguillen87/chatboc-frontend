@@ -146,7 +146,7 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
     } catch (e) {
       console.error(e);
       setPreview(null);
-      setPreviewError((e as Error)?.message || 'No se pudo generar la vista previa');
+      setPreviewError((e as Error)?.message || null);
     } finally {
       setLoading(false);
     }
@@ -192,7 +192,6 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
             {previewError && (
               <Alert variant="destructive">
                 <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>No se pudo generar la vista previa</AlertTitle>
                 <AlertDescription>{previewError}</AlertDescription>
               </Alert>
             )}
@@ -258,12 +257,15 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
                     </AlertDescription>
                 </Alert>
             )}
-            {previewCount === 0 && (
+            {preview?.errors && preview.errors.length > 0 && (
               <Alert variant="destructive">
                 <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>No se pudieron detectar productos</AlertTitle>
                 <AlertDescription>
-                  No se pudo interpretar el archivo. Probá CSV template o Editar.
+                  <ul>
+                    {preview.errors.map((error, index) => (
+                      <li key={index}>{error}</li>
+                    ))}
+                  </ul>
                 </AlertDescription>
               </Alert>
             )}

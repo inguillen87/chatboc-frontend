@@ -25,6 +25,7 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
   const [previewColumns, setPreviewColumns] = useState<PreviewColumn[]>([]);
   const [catalogUploadId, setCatalogUploadId] = useState<number | null>(null);
   const [previewTotal, setPreviewTotal] = useState(0);
+  const [previewErrors, setPreviewErrors] = useState<string[]>([]);
   const [previewWarnings, setPreviewWarnings] = useState<string[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -120,6 +121,7 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
         setPreviewColumns(preview.columns ?? []);
         setCatalogUploadId(preview.upload_id ?? null);
         setPreviewTotal(preview.total_detected ?? preview.items_preview.length);
+        setPreviewErrors(preview.errors ?? []);
         setPreviewWarnings(preview.warnings ?? []);
         setPreviewError(null);
         setStep('preview');
@@ -130,8 +132,9 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
 
     } catch (error) {
       console.error("Upload failed", error);
-      setPreviewError((error as Error)?.message || 'No se pudo generar la vista previa');
+      setPreviewError((error as Error)?.message || null);
       setPreviewTotal(0);
+      setPreviewErrors([]);
       setPreviewWarnings([]);
       toast.error("Error al subir el archivo. Verificá el formato.");
     } finally {
@@ -307,10 +310,12 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
         <p className="text-xs text-amber-600 bg-amber-50 p-2 rounded">
             Nota: Podés editar los valores antes de confirmar la importación.
         </p>
-        {previewTotal === 0 && (
-          <p className="text-xs text-red-600 bg-red-50 p-2 rounded">
-            No se pudo interpretar el archivo. Probá CSV template o Editar.
-          </p>
+        {previewErrors.length > 0 && (
+          <ul className="text-xs text-red-600 bg-red-50 p-2 rounded">
+            {previewErrors.map((error, index) => (
+              <li key={index}>{error}</li>
+            ))}
+          </ul>
         )}
 
         <div className="flex items-center justify-end gap-3 pt-4 border-t">
@@ -383,6 +388,7 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
                 setFile(null);
                 setPreviewItems([]);
                 setPreviewTotal(0);
+                setPreviewErrors([]);
                 setPreviewWarnings([]);
             }}>
                 Subir otro archivo
