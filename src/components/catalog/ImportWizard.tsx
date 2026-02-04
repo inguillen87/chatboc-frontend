@@ -242,7 +242,7 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
             <div className="flex items-center gap-4 p-4 bg-blue-50 rounded-lg">
                 <CheckCircle className="text-blue-500" />
                 <div>
-                    <p className="font-medium">Detectados: {preview.total_detected} productos</p>
+                    <p className="font-medium">Detectados: {effectiveDetected} productos</p>
                     <p className="text-sm text-gray-500">Confianza: {(preview.confidence * 100).toFixed(0)}%</p>
                 </div>
             </div>
@@ -281,14 +281,14 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
                 <DialogHeader>
                   <DialogTitle>Vista previa completa</DialogTitle>
                   <DialogDescription>
-                    Revisá el detalle detectado por la IA antes de confirmar la importación. Productos detectados: {preview.total_detected}.
+                    Revisá el detalle detectado por la IA antes de confirmar la importación. Productos detectados: {effectiveDetected}.
                   </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-lg border bg-muted/40 p-4">
                     <div>
                       <p className="text-sm text-muted-foreground">Productos detectados</p>
-                      <p className="text-xl font-semibold">{preview.total_detected}</p>
+                      <p className="text-xl font-semibold">{effectiveDetected}</p>
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Confianza</p>
