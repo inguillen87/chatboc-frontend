@@ -245,6 +245,12 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
                     <p className="text-sm text-gray-500">Confianza: {(preview.confidence * 100).toFixed(0)}%</p>
                 </div>
             </div>
+            {preview.ui?.engine?.label && preview.ui?.engine?.value && (
+              <div className="rounded-lg border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+                <span className="font-medium">{preview.ui.engine.label}</span>{' '}
+                <span>{preview.ui.engine.value}</span>
+              </div>
+            )}
 
             {preview.warnings.length > 0 && (
                 <Alert variant="destructive">
@@ -257,7 +263,22 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
                     </AlertDescription>
                 </Alert>
             )}
-            {preview?.errors && preview.errors.length > 0 && (
+            {preview?.error_details && preview.error_details.length > 0 && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  <ul>
+                    {preview.error_details.map((error, index) => (
+                      <li key={index}>
+                        <div>{error.message}</div>
+                        {error.action && <div>{error.action}</div>}
+                      </li>
+                    ))}
+                  </ul>
+                </AlertDescription>
+              </Alert>
+            )}
+            {!preview?.error_details?.length && preview?.errors && preview.errors.length > 0 && (
               <Alert variant="destructive">
                 <AlertTriangle className="h-4 w-4" />
                 <AlertDescription>
@@ -276,7 +297,38 @@ const ImportWizard: React.FC<Props> = ({ tenantId, tenantSlug, onComplete }) => 
               </Button>
             </div>
 
-            {!isPreviewModalOpen && renderPreviewTable("border rounded-md max-h-96 overflow-y-auto")}
+            <div className="flex flex-col gap-4 lg:flex-row">
+              <div className="flex-1">
+                {!isPreviewModalOpen && renderPreviewTable("border rounded-md max-h-96 overflow-y-auto")}
+              </div>
+              {preview.ui?.sidebar?.items && preview.ui.sidebar.items.length > 0 && (
+                <aside className="w-full max-w-sm space-y-3 rounded-lg border bg-muted/40 p-4 text-sm text-muted-foreground">
+                  {preview.ui.sidebar.title && (
+                    <p className="text-sm font-medium text-foreground">{preview.ui.sidebar.title}</p>
+                  )}
+                  <ul className="space-y-2">
+                    {preview.ui.sidebar.items.map((item, index) => (
+                      <li key={index} className="flex items-center justify-between gap-3">
+                        <span>{item.label}</span>
+                        <span className="font-medium text-foreground">{item.value}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </aside>
+              )}
+            </div>
+            {preview.ui?.summary && preview.ui.summary.length > 0 && (
+              <div className="rounded-lg border bg-muted/40 p-4 text-sm text-muted-foreground">
+                <ul className="space-y-2">
+                  {preview.ui.summary.map((item, index) => (
+                    <li key={index} className="flex items-center justify-between gap-3">
+                      <span>{item.label}</span>
+                      <span className="font-medium text-foreground">{item.value}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             <Dialog open={isPreviewModalOpen} onOpenChange={setIsPreviewModalOpen}>
               <DialogContent className="max-w-6xl h-[85vh]">

@@ -7,7 +7,7 @@ import { Upload, FileText, CheckCircle2, AlertTriangle, ArrowRight, RefreshCw, X
 import { useTenant } from '@/context/TenantContext';
 import { apiClient } from '@/api/client';
 import { toast } from 'sonner';
-import { importService, PreviewColumn } from '@/services/importService';
+import { importService, PreviewColumn, ImportPreview } from '@/services/importService';
 import { Input } from '@/components/ui/input';
 
 interface CatalogUploadWizardProps {
@@ -26,7 +26,9 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
   const [catalogUploadId, setCatalogUploadId] = useState<number | null>(null);
   const [previewTotal, setPreviewTotal] = useState(0);
   const [previewErrors, setPreviewErrors] = useState<string[]>([]);
+  const [previewErrorDetails, setPreviewErrorDetails] = useState<ImportPreview['error_details']>([]);
   const [previewWarnings, setPreviewWarnings] = useState<string[]>([]);
+  const [previewUi, setPreviewUi] = useState<ImportPreview['ui'] | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
@@ -122,7 +124,9 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
         setCatalogUploadId(preview.upload_id ?? null);
         setPreviewTotal(preview.total_detected ?? preview.items_preview.length);
         setPreviewErrors(preview.errors ?? []);
+        setPreviewErrorDetails(preview.error_details ?? []);
         setPreviewWarnings(preview.warnings ?? []);
+        setPreviewUi(preview.ui ?? null);
         setPreviewError(null);
         setStep('preview');
         setIsPreviewModalOpen(true);
@@ -135,7 +139,9 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
       setPreviewError((error as Error)?.message || null);
       setPreviewTotal(0);
       setPreviewErrors([]);
+      setPreviewErrorDetails([]);
       setPreviewWarnings([]);
+      setPreviewUi(null);
       toast.error("Error al subir el archivo. Verificá el formato.");
     } finally {
       setIsProcessing(false);
@@ -305,12 +311,53 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
           </Button>
         </div>
 
-        {!isPreviewModalOpen && renderPreviewTable("border rounded-md max-h-96 overflow-y-auto")}
+        <div className="flex flex-col gap-4 lg:flex-row">
+          <div className="flex-1">
+            {!isPreviewModalOpen && renderPreviewTable("border rounded-md max-h-96 overflow-y-auto")}
+          </div>
+          {previewUi?.sidebar?.items && previewUi.sidebar.items.length > 0 && (
+            <aside className="w-full max-w-sm space-y-3 rounded-lg border bg-muted/40 p-4 text-sm text-muted-foreground">
+              {previewUi.sidebar.title && (
+                <p className="text-sm font-medium text-foreground">{previewUi.sidebar.title}</p>
+              )}
+              <ul className="space-y-2">
+                {previewUi.sidebar.items.map((item, index) => (
+                  <li key={index} className="flex items-center justify-between gap-3">
+                    <span>{item.label}</span>
+                    <span className="font-medium text-foreground">{item.value}</span>
+                  </li>
+                ))}
+              </ul>
+            </aside>
+          )}
+        </div>
+        {previewUi?.summary && previewUi.summary.length > 0 && (
+          <div className="rounded-lg border bg-muted/40 p-4 text-sm text-muted-foreground">
+            <ul className="space-y-2">
+              {previewUi.summary.map((item, index) => (
+                <li key={index} className="flex items-center justify-between gap-3">
+                  <span>{item.label}</span>
+                  <span className="font-medium text-foreground">{item.value}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         <p className="text-xs text-amber-600 bg-amber-50 p-2 rounded">
             Nota: Podés editar los valores antes de confirmar la importación.
         </p>
-        {previewErrors.length > 0 && (
+        {previewErrorDetails.length > 0 && (
+          <ul className="text-xs text-red-600 bg-red-50 p-2 rounded">
+            {previewErrorDetails.map((error, index) => (
+              <li key={index}>
+                <div>{error.message}</div>
+                {error.action && <div>{error.action}</div>}
+              </li>
+            ))}
+          </ul>
+        )}
+        {!previewErrorDetails.length && previewErrors.length > 0 && (
           <ul className="text-xs text-red-600 bg-red-50 p-2 rounded">
             {previewErrors.map((error, index) => (
               <li key={index}>{error}</li>
@@ -389,7 +436,9 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ onFinish }) =
                 setPreviewItems([]);
                 setPreviewTotal(0);
                 setPreviewErrors([]);
+                setPreviewErrorDetails([]);
                 setPreviewWarnings([]);
+                setPreviewUi(null);
             }}>
                 Subir otro archivo
             </Button>

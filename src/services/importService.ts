@@ -10,7 +10,19 @@ export interface ImportPreview {
   confidence: number;
   warnings: string[];
   errors?: string[];
+  error_details?: Array<{ message: string; action?: string; code?: string }>;
   status?: string;
+  ui?: {
+    engine?: {
+      label?: string;
+      value?: string;
+    };
+    sidebar?: {
+      title?: string;
+      items?: Array<{ label: string; value: string }>;
+    };
+    summary?: Array<{ label: string; value: string }>;
+  };
   items_preview: Array<Record<string, unknown>>;
   columns?: PreviewColumn[];
 }
@@ -94,12 +106,33 @@ export const importService = {
       throw new Error(detail);
     }
 
+    const errorDetails = Array.isArray(response?.errors)
+      ? response.errors
+          .map((error: unknown) => {
+            if (typeof error === 'string') {
+              return { message: error };
+            }
+            if (error && typeof error === 'object') {
+              const record = error as Record<string, unknown>;
+              const message = typeof record.message === 'string' ? record.message : '';
+              const action = typeof record.action === 'string' ? record.action : undefined;
+              const code = typeof record.code === 'string' ? record.code : undefined;
+              if (message) {
+                return { message, action, code };
+              }
+            }
+            return null;
+          })
+          .filter((detail): detail is { message: string; action?: string; code?: string } => Boolean(detail))
+      : [];
+    const normalizedErrors = errorDetails.map((detail) => detail.message);
+
     const hasAnyData =
       Array.isArray(response?.items_preview) ||
       Array.isArray(response?.records) ||
       Array.isArray(response?.rows);
 
-    if (!hasAnyData) {
+    if (!hasAnyData && normalizedErrors.length === 0 && response?.status !== 'failed') {
       const detail =
         response?.detail ||
         response?.error ||
@@ -145,15 +178,17 @@ export const importService = {
           };
         })
       : undefined;
-    const previewRows = resolvePreviewRows(previewColumns);
+    const previewRows = hasAnyData ? resolvePreviewRows(previewColumns) : [];
 
     // Transform backend response to ImportPreview format expected by UI
     return {
       total_detected: response.total_detected || response.totalRows || previewRows.length || 0,
       confidence: response.confidence ?? response.metadata?.confidence ?? 0,
       warnings: response.warnings || response.metadata?.warnings || [],
-      errors: response.errors || response.metadata?.errors,
+      errors: normalizedErrors.length > 0 ? normalizedErrors : response.metadata?.errors,
+      error_details: errorDetails.length > 0 ? errorDetails : response.metadata?.errors,
       status: response.status,
+      ui: response.ui || response.metadata?.ui,
       items_preview: previewRows,
       columns: previewColumns,
       // We might not get an upload_id here if it's stateless, but if we do, pass it.
