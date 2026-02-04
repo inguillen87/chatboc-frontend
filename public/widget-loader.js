@@ -44,7 +44,7 @@
   // Communication (PostMessage)
   window.addEventListener('message', function(event) {
     // Security check: ensure origin matches (if needed)
-    // if (event.origin !== baseUrl) return;
+    if (event.origin !== baseUrl) return;
 
     var data = event.data;
     if (!data) return;
