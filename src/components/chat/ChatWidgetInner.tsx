@@ -1241,6 +1241,15 @@ function ChatWidgetInner({
 
   const openSpring = { type: "spring", stiffness: 200, damping: 20 };
 
+  useEffect(() => {
+    if (mode === 'iframe' && typeof window !== 'undefined') {
+      window.parent.postMessage({
+        type: 'CHATBOC_RESIZE',
+        isOpen: isOpen
+      }, '*');
+    }
+  }, [isOpen, mode]);
+
   // MOVED: duplicateInstance check is now at the end to prevent Hook Violation
   if (duplicateInstance) {
     return null;

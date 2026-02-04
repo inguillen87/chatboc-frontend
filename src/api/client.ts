@@ -165,6 +165,14 @@ export const apiClient = {
     });
   },
 
+  adminUpdateImportPreview: async (tenantSlug: string, jobId: string, data: { rows: any[] }): Promise<any> => {
+    return apiFetch<any>(`/api/catalog/import/${jobId}`, {
+      method: "PUT",
+      body: data,
+      tenantSlug
+    });
+  },
+
   adminConfirmCatalog: async (tenantSlug: string, payload: { upload_token: string; mapping_override?: Record<string, string> }): Promise<any> => {
       return apiFetch<any>('/api/catalog/confirm', {
           method: 'POST',
