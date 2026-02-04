@@ -81,6 +81,9 @@ export interface Message {
   isBot: boolean; // True si el mensaje es del bot, false si es del usuario
   timestamp: Date; // Fecha y hora del mensaje
   origen?: 'chat' | 'email'; // Nuevo campo para diferenciar el origen del mensaje
+  messageType?: string; // Tipo de mensaje enviado por backend (catalog_share, interactive_list, etc.)
+  action?: string; // Acción asociada al mensaje
+  data?: Record<string, unknown> | null; // Payload adicional para renderizado estructurado
   botones?: Boton[]; // Array de botones interactivos asociados al mensaje (si los hay)
   categorias?: Categoria[]; // Array de categorías con botones (formato anidado para acordeones)
   menu_sections?: MenuSection[]; // Sections for structured menus

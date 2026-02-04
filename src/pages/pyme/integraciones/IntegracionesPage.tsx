@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useTenant } from '@/context/TenantContext';
 import { apiClient } from '@/api/client';
+import { ApiError } from '@/utils/api';
 import { IntegrationStatus } from '@/types/unified';
-import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from '@/components/ui/card';
+import type { CatalogColumn, CatalogMetadata, CatalogRow, TenantCatalog } from '@/types/catalog';
+import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
@@ -13,7 +15,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Loader2, RefreshCw, ExternalLink, CheckCircle2, AlertCircle,
   MessageSquare, Send, Tags, Eye, Palette, Link2, Smartphone, Search,
-  ShoppingBag, MessageCircle, Mail, Settings, ArrowRight, FileSpreadsheet
+  ShoppingBag, MessageCircle, Mail, Settings, ArrowRight, FileSpreadsheet,
+  Save, Pencil, FileDown
 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { toast } from 'sonner';
@@ -22,6 +25,7 @@ import { es } from 'date-fns/locale';
 import ChatCustomizer from '@/components/admin/ChatCustomizer';
 import OrderDispatchSettings from '@/components/admin/OrderDispatchSettings';
 import CatalogUploadWizard from '@/components/admin/catalog/CatalogUploadWizard';
+import CatalogSpreadsheetEditor from '@/components/admin/catalog/CatalogSpreadsheetEditor';
 import ChannelPreview from '@/components/integrations/ChannelPreview';
 import {
   Dialog,
@@ -59,6 +63,13 @@ const IntegracionesPage = () => {
   const [mappingOpen, setMappingOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [selectedMappingProvider, setSelectedMappingProvider] = useState<string | null>(null);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [catalogData, setCatalogData] = useState<TenantCatalog | null>(null);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [draftColumns, setDraftColumns] = useState<CatalogColumn[]>([]);
+  const [draftRows, setDraftRows] = useState<CatalogRow[]>([]);
+  const [catalogMetadata, setCatalogMetadata] = useState<CatalogMetadata>({});
 
   // UI State
   const [activeTab, setActiveTab] = useState("integrations");
@@ -75,8 +86,180 @@ const IntegracionesPage = () => {
     if (currentSlug) {
       loadIntegrations();
       loadSettings();
+      loadCatalog();
     }
   }, [currentSlug]);
+
+  const normalizeCatalog = (data: TenantCatalog | any): TenantCatalog => {
+    const metadata = data?.metadata ?? data?.catalog ?? {
+      title: data?.title,
+      description: data?.description,
+      banner_url: data?.banner_url,
+      enabled: data?.enabled,
+      is_public: data?.is_public,
+      share_on_intent: data?.share_on_intent,
+      prefer_pdf_on_whatsapp: data?.prefer_pdf_on_whatsapp,
+      default_message: data?.default_message,
+    };
+    const links = data?.links ?? {
+      view_url: data?.view_url,
+      download_url: data?.download_url,
+      download_url_pdf: data?.download_url_pdf,
+      download_url_json: data?.download_url_json,
+      download_url_xlsx: data?.download_url_xlsx,
+      download_url_csv: data?.download_url_csv,
+      view_label: data?.view_label,
+      download_label: data?.download_label,
+      history_url: data?.history_url,
+      history_label: data?.history_label,
+      template_url: data?.template_url,
+      template_label: data?.template_label,
+      upload_label: data?.upload_label,
+      edit_label: data?.edit_label,
+      publish_label: data?.publish_label,
+      share_label: data?.share_label,
+      share_whatsapp_label: data?.share_whatsapp_label,
+      share_copy_label: data?.share_copy_label,
+      share_hint: data?.share_hint,
+      cta_label: data?.cta_label,
+    };
+    return {
+      status: data?.status ?? data?.catalog_status ?? null,
+      updated_at: data?.updated_at ?? null,
+      published_at: data?.published_at ?? null,
+      metadata,
+      links,
+      columns: data?.columns ?? null,
+      rows: data?.rows ?? null,
+      draft: data?.draft ?? null,
+    };
+  };
+
+  const loadCatalog = async () => {
+    if (!currentSlug) return;
+    setCatalogLoading(true);
+    setCatalogError(null);
+    try {
+      const data = await apiClient.adminGetCatalog(currentSlug);
+      const normalized = normalizeCatalog(data);
+      setCatalogData(normalized);
+      setCatalogMetadata(normalized.metadata ?? {});
+    } catch (error: any) {
+      console.error('Error loading catalog', error);
+      if (error instanceof ApiError && [403, 404, 405].includes(error.status)) {
+        setCatalogData(null);
+        setCatalogMetadata({});
+        setCatalogError(null);
+      } else {
+        setCatalogError(error?.message ?? null);
+      }
+    } finally {
+      setCatalogLoading(false);
+    }
+  };
+
+  const openCatalogEditor = () => {
+    const columns = catalogData?.draft?.columns ?? catalogData?.columns ?? [];
+    const rows = catalogData?.draft?.rows ?? catalogData?.rows ?? [];
+    setDraftColumns(columns.map((column) => ({ ...column })));
+    setDraftRows(rows.map((row) => ({ ...row, cells: { ...row.cells } })));
+    setEditorOpen(true);
+  };
+
+  const updateCatalogMetadata = (field: keyof CatalogMetadata, value: any) => {
+    setCatalogMetadata((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleSaveDraft = async () => {
+    if (!currentSlug) return;
+    try {
+      const fallbackColumns = catalogData?.draft?.columns ?? catalogData?.columns ?? [];
+      const fallbackRows = catalogData?.draft?.rows ?? catalogData?.rows ?? [];
+      const columnsToSave = draftColumns.length ? draftColumns : fallbackColumns;
+      const rowsToSave = draftRows.length ? draftRows : fallbackRows;
+      const hasEmptyColumnLabel = columnsToSave.some((column) => !column.label?.trim());
+      if (hasEmptyColumnLabel) {
+        toast.error('Completá el nombre de todas las columnas');
+        return;
+      }
+      const payload = {
+        metadata: catalogMetadata,
+        columns: columnsToSave,
+        rows: rowsToSave,
+      };
+      const response = await apiClient.adminUpdateCatalogDraft(currentSlug, payload);
+      const normalized = normalizeCatalog(response);
+      setCatalogData(normalized);
+      setCatalogMetadata(normalized.metadata ?? {});
+      toast.success('Borrador guardado');
+      setEditorOpen(false);
+    } catch (error: any) {
+      console.error('Error saving catalog draft', error);
+      toast.error(error?.message ?? 'No se pudo guardar el borrador');
+    }
+  };
+
+  const handlePublishCatalog = async () => {
+    if (!currentSlug) return;
+    try {
+      const response = await apiClient.adminPublishCatalog(currentSlug);
+      const normalized = normalizeCatalog(response);
+      setCatalogData(normalized);
+      toast.success('Catálogo publicado');
+    } catch (error: any) {
+      console.error('Error publishing catalog', error);
+      toast.error(error?.message ?? 'No se pudo publicar el catálogo');
+    }
+  };
+
+  const handleAddColumn = () => {
+    const key = `col_${Date.now()}`;
+    setDraftColumns((prev) => [...prev, { key, label: key }]);
+    setDraftRows((prev) =>
+      prev.map((row) => ({
+        ...row,
+        cells: { ...row.cells, [key]: "" },
+      })),
+    );
+  };
+
+  const handleUpdateColumn = (index: number, column: CatalogColumn) => {
+    setDraftColumns((prev) => prev.map((col, idx) => (idx === index ? column : col)));
+  };
+
+  const handleDeleteColumn = (index: number) => {
+    const column = draftColumns[index];
+    if (!column) return;
+    setDraftColumns((prev) => prev.filter((_, idx) => idx !== index));
+    setDraftRows((prev) =>
+      prev.map((row) => {
+        const nextCells = { ...row.cells };
+        delete nextCells[column.key];
+        return { ...row, cells: nextCells };
+      }),
+    );
+  };
+
+  const handleAddRow = () => {
+    const id = `row_${Date.now()}`;
+    const baseCells = draftColumns.reduce<Record<string, unknown>>((acc, column) => {
+      acc[column.key] = "";
+      return acc;
+    }, {});
+    setDraftRows((prev) => [...prev, { id, cells: baseCells }]);
+  };
+
+  const handleDeleteRow = (rowId: CatalogRow["id"]) => {
+    setDraftRows((prev) => prev.filter((row) => row.id !== rowId));
+  };
+
+  const handleUpdateCell = (rowId: CatalogRow["id"], columnKey: string, value: string) => {
+    setDraftRows((prev) =>
+      prev.map((row) =>
+        row.id === rowId ? { ...row, cells: { ...row.cells, [columnKey]: value } } : row,
+      ),
+    );
+  };
 
   const loadSettings = async () => {
     try {
@@ -204,6 +387,283 @@ const IntegracionesPage = () => {
             </TabsContent>
 
              <TabsContent value="catalog" className="space-y-6">
+                {catalogLoading && (
+                  <Card>
+                    <CardContent className="p-6 flex items-center gap-3 text-muted-foreground">
+                      <Loader2 className="h-5 w-5 animate-spin" /> Cargando catálogo...
+                    </CardContent>
+                  </Card>
+                )}
+
+                {catalogError && (
+                  <Alert variant="destructive">
+                    <AlertTitle>Error</AlertTitle>
+                    <AlertDescription>{catalogError}</AlertDescription>
+                  </Alert>
+                )}
+
+                <Card>
+                  <CardHeader>
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                      <div className="space-y-1">
+                        <CardTitle className="text-lg">Estado del catálogo</CardTitle>
+                        <CardDescription>{catalogData?.status}</CardDescription>
+                        {catalogData?.updated_at && (
+                          <CardDescription>
+                            {formatDistanceToNow(new Date(catalogData.updated_at), { locale: es, addSuffix: true })}
+                          </CardDescription>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {catalogData?.links?.view_url && catalogData?.links?.view_label && (
+                          <Button asChild variant="outline" size="sm">
+                            <a href={catalogData.links.view_url} target="_blank" rel="noreferrer">
+                              <ExternalLink className="mr-2 h-4 w-4" /> {catalogData.links.view_label}
+                            </a>
+                          </Button>
+                        )}
+                        {catalogData?.links?.download_url && catalogData?.links?.download_label && (
+                          <Button asChild variant="outline" size="sm">
+                            <a href={catalogData.links.download_url} target="_blank" rel="noreferrer">
+                              <FileDown className="mr-2 h-4 w-4" /> {catalogData.links.download_label}
+                            </a>
+                          </Button>
+                        )}
+                        {catalogData?.links?.download_url_pdf && (
+                          <Button asChild variant="outline" size="sm">
+                            <a href={catalogData.links.download_url_pdf} target="_blank" rel="noreferrer">
+                              <FileDown className="mr-2 h-4 w-4" /> PDF
+                            </a>
+                          </Button>
+                        )}
+                        {catalogData?.links?.download_url_json && (
+                          <Button asChild variant="outline" size="sm">
+                            <a href={catalogData.links.download_url_json} target="_blank" rel="noreferrer">
+                              <FileDown className="mr-2 h-4 w-4" /> JSON
+                            </a>
+                          </Button>
+                        )}
+                        {catalogData?.links?.download_url_xlsx && (
+                          <Button asChild variant="outline" size="sm">
+                            <a href={catalogData.links.download_url_xlsx} target="_blank" rel="noreferrer">
+                              <FileDown className="mr-2 h-4 w-4" /> XLSX
+                            </a>
+                          </Button>
+                        )}
+                        {catalogData?.links?.download_url_csv && (
+                          <Button asChild variant="outline" size="sm">
+                            <a href={catalogData.links.download_url_csv} target="_blank" rel="noreferrer">
+                              <FileDown className="mr-2 h-4 w-4" /> CSV
+                            </a>
+                          </Button>
+                        )}
+                        {catalogData?.links?.history_url && catalogData?.links?.history_label && (
+                          <Button asChild variant="outline" size="sm">
+                            <a href={catalogData.links.history_url} target="_blank" rel="noreferrer">
+                              <ExternalLink className="mr-2 h-4 w-4" /> {catalogData.links.history_label}
+                            </a>
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="grid gap-4">
+                    {catalogData?.links?.view_url && (
+                      <div className="flex flex-col gap-2">
+                        <Label>Enlace público</Label>
+                        <div className="flex flex-col gap-2 sm:flex-row">
+                          <Input value={catalogData.links.view_url} readOnly />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => {
+                              navigator.clipboard.writeText(catalogData.links.view_url || "")
+                                .then(() => toast.success('Enlace copiado'))
+                                .catch((err) => {
+                                  console.error('Copy failed', err);
+                                  toast.error('No se pudo copiar el enlace');
+                                });
+                            }}
+                          >
+                            Copiar enlace
+                          </Button>
+                          <Button asChild variant="outline">
+                            <a
+                              href={`https://wa.me/?text=${encodeURIComponent(catalogData.links.view_url)}`}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              Enviar por WhatsApp
+                            </a>
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>Título</Label>
+                        <Input
+                          value={catalogMetadata.title ?? ''}
+                          onChange={(event) => updateCatalogMetadata('title', event.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Descripción</Label>
+                        <Input
+                          value={catalogMetadata.description ?? ''}
+                          onChange={(event) => updateCatalogMetadata('description', event.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Banner</Label>
+                      <Input
+                        value={catalogMetadata.banner_url ?? ''}
+                        onChange={(event) => updateCatalogMetadata('banner_url', event.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Mensaje por defecto</Label>
+                      <Input
+                        value={catalogMetadata.default_message ?? ''}
+                        onChange={(event) => updateCatalogMetadata('default_message', event.target.value)}
+                      />
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="flex items-center justify-between rounded-lg border p-3">
+                        <div>
+                          <Label>Catálogo habilitado</Label>
+                        </div>
+                        <Switch
+                          checked={Boolean(catalogMetadata.enabled)}
+                          onCheckedChange={(value) => updateCatalogMetadata('enabled', value)}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between rounded-lg border p-3">
+                        <div>
+                          <Label>Público</Label>
+                        </div>
+                        <Switch
+                          checked={Boolean(catalogMetadata.is_public)}
+                          onCheckedChange={(value) => updateCatalogMetadata('is_public', value)}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between rounded-lg border p-3">
+                        <div>
+                          <Label>Compartir en intención</Label>
+                        </div>
+                        <Switch
+                          checked={Boolean(catalogMetadata.share_on_intent)}
+                          onCheckedChange={(value) => updateCatalogMetadata('share_on_intent', value)}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between rounded-lg border p-3">
+                        <div>
+                          <Label>Preferir PDF en WhatsApp</Label>
+                        </div>
+                        <Switch
+                          checked={Boolean(catalogMetadata.prefer_pdf_on_whatsapp)}
+                          onCheckedChange={(value) => updateCatalogMetadata('prefer_pdf_on_whatsapp', value)}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2 justify-end">
+                      <Button variant="outline" onClick={openCatalogEditor}>
+                        <Pencil className="mr-2 h-4 w-4" /> {catalogData?.links?.edit_label ?? 'Editar en planilla'}
+                      </Button>
+                      <Button variant="outline" onClick={handleSaveDraft}>
+                        <Save className="mr-2 h-4 w-4" /> {catalogData?.links?.upload_label ?? 'Guardar borrador'}
+                      </Button>
+                      <Button onClick={handlePublishCatalog}>
+                        {catalogData?.links?.publish_label ?? 'Publicar'}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {catalogData?.links?.share_label && (catalogMetadata.title || catalogMetadata.description || catalogMetadata.banner_url) && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">{catalogData.links.share_label}</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {catalogMetadata.banner_url && (
+                        <div className="overflow-hidden rounded-lg border">
+                          <img
+                            src={catalogMetadata.banner_url}
+                            alt={catalogMetadata.title ?? ''}
+                            className="h-40 w-full object-cover"
+                          />
+                        </div>
+                      )}
+                      <div className="space-y-1">
+                        {catalogMetadata.title && <p className="text-sm font-semibold">{catalogMetadata.title}</p>}
+                        {catalogMetadata.description && (
+                          <p className="text-sm text-muted-foreground">{catalogMetadata.description}</p>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {catalogData?.links?.view_url && catalogData?.links?.view_label && (
+                          <Button asChild variant="outline" size="sm">
+                            <a href={catalogData.links.view_url} target="_blank" rel="noreferrer">
+                              {catalogData.links.view_label}
+                            </a>
+                          </Button>
+                        )}
+                        {catalogData?.links?.download_url && catalogData?.links?.download_label && (
+                          <Button asChild variant="outline" size="sm">
+                            <a href={catalogData.links.download_url} target="_blank" rel="noreferrer">
+                              {catalogData.links.download_label}
+                            </a>
+                          </Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {catalogData?.links?.share_label && (catalogData?.links?.view_url || catalogData?.links?.share_hint) && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">{catalogData.links.share_label}</CardTitle>
+                      {catalogData?.links?.share_hint && (
+                        <CardDescription>{catalogData.links.share_hint}</CardDescription>
+                      )}
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex flex-wrap gap-2">
+                        {catalogData?.links?.view_url && (
+                          <Button asChild variant="outline">
+                            <a
+                              href={`https://wa.me/?text=${encodeURIComponent(catalogData.links.view_url)}`}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              {catalogData?.links?.share_whatsapp_label ?? 'Enviar por WhatsApp'}
+                            </a>
+                          </Button>
+                        )}
+                        {catalogData?.links?.view_url && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => {
+                              navigator.clipboard.writeText(catalogData.links.view_url || "")
+                                .then(() => toast.success('Enlace copiado'))
+                                .catch((err) => {
+                                  console.error('Copy failed', err);
+                                  toast.error('No se pudo copiar el enlace');
+                                });
+                            }}
+                          >
+                            {catalogData?.links?.share_copy_label ?? 'Copiar enlace'}
+                          </Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
                 <Card>
                     <div className="p-6 flex flex-col md:flex-row items-center gap-6">
                         <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-blue-50 border border-blue-100">
@@ -229,8 +689,40 @@ const IntegracionesPage = () => {
                                 Asistente para revisar y confirmar la vista previa del catálogo antes de importarlo.
                             </DialogDescription>
                         </DialogHeader>
-                        <CatalogUploadWizard tenantSlug={currentSlug || ""} onFinish={() => setUploadOpen(false)} />
+                        <CatalogUploadWizard
+                          tenantSlug={currentSlug || ""}
+                          onFinish={() => setUploadOpen(false)}
+                          templateUrl={catalogData?.links?.template_url}
+                          templateLabel={catalogData?.links?.template_label}
+                        />
                     </DialogContent>
+                </Dialog>
+
+                <Dialog open={editorOpen} onOpenChange={setEditorOpen}>
+                  <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                      <DialogTitle>Editor de catálogo</DialogTitle>
+                      <DialogDescription>Administrá columnas y filas del catálogo.</DialogDescription>
+                    </DialogHeader>
+                    <CatalogSpreadsheetEditor
+                      columns={draftColumns}
+                      rows={draftRows}
+                      onAddColumn={handleAddColumn}
+                      onUpdateColumn={handleUpdateColumn}
+                      onDeleteColumn={handleDeleteColumn}
+                      onAddRow={handleAddRow}
+                      onDeleteRow={handleDeleteRow}
+                      onUpdateCell={handleUpdateCell}
+                    />
+                    <div className="flex justify-end gap-2 pt-4">
+                      <Button variant="outline" onClick={() => setEditorOpen(false)}>
+                        Cerrar
+                      </Button>
+                      <Button onClick={handleSaveDraft}>
+                        Guardar borrador
+                      </Button>
+                    </div>
+                  </DialogContent>
                 </Dialog>
             </TabsContent>
 

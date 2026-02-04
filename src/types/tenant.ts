@@ -33,6 +33,14 @@ export interface TenantPublicInfo {
   public_cart_url?: string | null;
   public_catalog_url?: string | null;
   whatsapp_share_url?: string | null;
+  catalog?: {
+    enabled?: boolean | null;
+    is_public?: boolean | null;
+    share_on_intent?: boolean | null;
+    prefer_pdf_on_whatsapp?: boolean | null;
+    default_message?: string | null;
+    banner_url?: string | null;
+  } | null;
   // New engagement fields
   cta_messages?: CtaMessage[];
   default_open?: boolean;
