@@ -222,7 +222,14 @@ export const apiClient = {
   },
 
   publicGetCatalog: async (tenantSlug: string): Promise<TenantCatalog> => {
-    return apiFetch<TenantCatalog>(`/api/public/tenants/${tenantSlug}/catalog`, { tenantSlug, isWidgetRequest: true });
+    const data = await apiFetch<TenantCatalog | any[]>(`/api/public/tenants/${tenantSlug}/catalog`, {
+      tenantSlug,
+      isWidgetRequest: true,
+    });
+    if (Array.isArray(data)) {
+      return { metadata: null, links: null, columns: [], rows: [] };
+    }
+    return data;
   },
 
   // --- Super Admin Methods ---

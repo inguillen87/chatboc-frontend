@@ -20,8 +20,10 @@ const CatalogShareCard: React.FC<CatalogShareCardProps> = ({
   viewLabel,
   downloadLabel,
 }) => {
-  const hasView = Boolean(viewUrl && viewLabel);
-  const hasDownload = Boolean(downloadUrl && downloadLabel);
+  const resolvedViewLabel = viewLabel ?? (viewUrl ? "Ver online" : null);
+  const resolvedDownloadLabel = downloadLabel ?? (downloadUrl ? "Descargar PDF" : null);
+  const hasView = Boolean(viewUrl && resolvedViewLabel);
+  const hasDownload = Boolean(downloadUrl && resolvedDownloadLabel);
 
   if (!title && !text && !bannerUrl && !hasView && !hasDownload) {
     return null;
@@ -42,14 +44,14 @@ const CatalogShareCard: React.FC<CatalogShareCardProps> = ({
             {hasView && (
               <Button asChild variant="outline" size="sm">
                 <a href={viewUrl ?? undefined} target="_blank" rel="noreferrer">
-                  {viewLabel}
+                  {resolvedViewLabel}
                 </a>
               </Button>
             )}
             {hasDownload && (
               <Button asChild variant="outline" size="sm">
                 <a href={downloadUrl ?? undefined} target="_blank" rel="noreferrer">
-                  {downloadLabel}
+                  {resolvedDownloadLabel}
                 </a>
               </Button>
             )}
