@@ -149,12 +149,9 @@ const IntegracionesPage = () => {
     };
     return {
       status: data?.status ?? data?.catalog_status ?? null,
-      has_pdf: data?.has_pdf ?? null,
       updated_at: data?.updated_at ?? null,
       published_at: data?.published_at ?? null,
-      view_url: data?.view_url ?? null,
-      download_url: data?.download_url ?? null,
-      download_url_json: data?.download_url_json ?? null,
+      has_pdf: data?.has_pdf ?? null,
       metadata,
       links,
       columns: data?.columns ?? null,
@@ -289,17 +286,6 @@ const IntegracionesPage = () => {
     );
   };
 
-  const catalogViewUrl = catalogData?.links?.view_url ?? catalogData?.view_url ?? null;
-  const catalogDownloadUrl = catalogData?.links?.download_url ?? catalogData?.download_url ?? null;
-  const normalizedCatalogStatus = catalogData?.status?.toString().toLowerCase() ?? "";
-  const isCatalogPublished = Boolean(catalogData?.has_pdf) && ["published", "publicado"].includes(normalizedCatalogStatus);
-  const catalogStatusLabel = isCatalogPublished ? "publicado" : "sin catálogo";
-  const catalogViewLabel = catalogData?.links?.view_label ?? "Ver online";
-  const catalogDownloadLabel = catalogData?.links?.download_label ?? "Descargar PDF";
-  const catalogShareLabel = catalogData?.links?.share_label ?? "Compartir catálogo";
-  const catalogShareWhatsappLabel = catalogData?.links?.share_whatsapp_label ?? "Enviar por WhatsApp";
-  const catalogShareCopyLabel = catalogData?.links?.share_copy_label ?? "Copiar link";
-
   const loadSettings = async () => {
     try {
       if (!currentSlug) return;
@@ -398,6 +384,17 @@ const IntegracionesPage = () => {
 
   if (loading) return <div className="flex h-96 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
+  const viewUrl = catalogData?.links?.view_url ?? null;
+  const downloadUrl = catalogData?.links?.download_url ?? null;
+  const hasPdf = Boolean(catalogData?.has_pdf);
+  const statusText = catalogData?.status ?? (hasPdf ? 'publicado' : 'sin catálogo');
+  const statusLabel = catalogData?.links?.status_label ?? 'Estado del catálogo';
+  const viewLabel = catalogData?.links?.view_label ?? 'Ver online';
+  const downloadLabel = catalogData?.links?.download_label ?? 'Descargar PDF';
+  const copyLabel = catalogData?.links?.share_copy_label ?? 'Copiar link';
+  const whatsappLabel = catalogData?.links?.share_whatsapp_label ?? 'WhatsApp';
+  const shareLabel = catalogData?.links?.share_label ?? 'Compartir catálogo';
+
   return (
     <div className="container mx-auto p-4 md:p-6 max-w-7xl space-y-10">
       <div className="space-y-2">
@@ -426,176 +423,301 @@ const IntegracionesPage = () => {
             </TabsContent>
 
              <TabsContent value="catalog" className="space-y-6">
-                {catalogLoading && catalogData?.links?.status_label && (
+                {catalogLoading && statusLabel && (
                   <Card>
                     <CardContent className="p-6 flex items-center gap-3 text-muted-foreground">
-                      <Loader2 className="h-5 w-5 animate-spin" /> {catalogData.links.status_label}
+                      <Loader2 className="h-5 w-5 animate-spin" /> {statusLabel}
                     </CardContent>
                   </Card>
                 )}
 
-                {catalogError && catalogData?.links?.status_label && (
+                {catalogError && statusLabel && (
                   <Alert variant="destructive">
-                    <AlertTitle>{catalogData.links.status_label}</AlertTitle>
+                    <AlertTitle>{statusLabel}</AlertTitle>
                     <AlertDescription>{catalogError}</AlertDescription>
                   </Alert>
                 )}
 
-                <Card>
-                  <CardHeader>
-                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                      <div className="space-y-1">
-                        <CardTitle className="text-lg">Estado del catálogo</CardTitle>
-                        <div className="flex items-center gap-2">
-                          <Badge variant={isCatalogPublished ? "default" : "secondary"}>{catalogStatusLabel}</Badge>
-                          {catalogData?.status && (
-                            <CardDescription className="text-xs uppercase">{catalogData.status}</CardDescription>
+                {catalogData && statusLabel && (
+                  <Card>
+                    <CardHeader>
+                      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                        <div className="space-y-1">
+                          <CardTitle className="text-lg">{statusLabel}</CardTitle>
+                          {statusText && (
+                            <CardDescription>{statusText}</CardDescription>
+                          )}
+                          {catalogData?.updated_at && catalogData?.links?.updated_label && (
+                            <CardDescription>
+                              {catalogData.links.updated_label}{' '}
+                              {formatDistanceToNow(new Date(catalogData.updated_at), { locale: es, addSuffix: true })}
+                            </CardDescription>
                           )}
                         </div>
-                        {catalogData?.updated_at && (
-                          <CardDescription>
-                            {formatDistanceToNow(new Date(catalogData.updated_at), { locale: es, addSuffix: true })}
-                          </CardDescription>
+                        <div className="flex flex-wrap gap-2">
+                          {viewUrl && viewLabel && (
+                            <Button asChild variant="outline" size="sm">
+                              <a href={viewUrl} target="_blank" rel="noreferrer">
+                                <ExternalLink className="mr-2 h-4 w-4" /> {viewLabel}
+                              </a>
+                            </Button>
+                          )}
+                          {downloadUrl && hasPdf && downloadLabel && (
+                            <Button asChild variant="outline" size="sm">
+                              <a href={downloadUrl} target="_blank" rel="noreferrer">
+                                <FileDown className="mr-2 h-4 w-4" /> {downloadLabel}
+                              </a>
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="grid gap-4">
+                      {viewUrl && catalogData?.links?.public_link_label && (
+                        <div className="flex flex-col gap-2">
+                          <Label>{catalogData.links.public_link_label}</Label>
+                          <div className="flex flex-col gap-2 sm:flex-row">
+                            <Input value={viewUrl} readOnly />
+                            {viewUrl && copyLabel && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(viewUrl)
+                                    .then(() => toast.success(copyLabel))
+                                    .catch((err) => {
+                                      console.error('Copy failed', err);
+                                    });
+                                }}
+                              >
+                                {copyLabel}
+                              </Button>
+                            )}
+                            {viewUrl && whatsappLabel && (
+                              <Button asChild variant="outline">
+                                <a
+                                  href={`https://wa.me/?text=${encodeURIComponent(viewUrl)}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                >
+                                  {whatsappLabel}
+                                </a>
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      {(catalogMetadata.title || catalogMetadata.description) && (catalogData?.links?.title_label || catalogData?.links?.description_label) && (
+                        <div className="grid gap-4 md:grid-cols-2">
+                          {catalogData?.links?.title_label && (
+                            <div className="space-y-2">
+                              <Label>{catalogData.links.title_label}</Label>
+                              <Input
+                                value={catalogMetadata.title ?? ''}
+                                onChange={(event) => updateCatalogMetadata('title', event.target.value)}
+                              />
+                            </div>
+                          )}
+                          {catalogData?.links?.description_label && (
+                            <div className="space-y-2">
+                              <Label>{catalogData.links.description_label}</Label>
+                              <Input
+                                value={catalogMetadata.description ?? ''}
+                                onChange={(event) => updateCatalogMetadata('description', event.target.value)}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {catalogMetadata.banner_url && catalogData?.links?.banner_label && (
+                        <div className="space-y-2">
+                          <Label>{catalogData.links.banner_label}</Label>
+                          <Input
+                            value={catalogMetadata.banner_url ?? ''}
+                            onChange={(event) => updateCatalogMetadata('banner_url', event.target.value)}
+                          />
+                        </div>
+                      )}
+                      {catalogMetadata.default_message && catalogData?.links?.default_message_label && (
+                        <div className="space-y-2">
+                          <Label>{catalogData.links.default_message_label}</Label>
+                          <Input
+                            value={catalogMetadata.default_message ?? ''}
+                            onChange={(event) => updateCatalogMetadata('default_message', event.target.value)}
+                          />
+                        </div>
+                      )}
+                      <div className="grid gap-4 md:grid-cols-2">
+                        {catalogData?.links?.enabled_label && (
+                          <div className="flex items-center justify-between rounded-lg border p-3">
+                            <div>
+                              <Label>{catalogData.links.enabled_label}</Label>
+                            </div>
+                            <Switch
+                              checked={Boolean(catalogMetadata.enabled)}
+                              onCheckedChange={(value) => updateCatalogMetadata('enabled', value)}
+                            />
+                          </div>
+                        )}
+                        {catalogData?.links?.is_public_label && (
+                          <div className="flex items-center justify-between rounded-lg border p-3">
+                            <div>
+                              <Label>{catalogData.links.is_public_label}</Label>
+                            </div>
+                            <Switch
+                              checked={Boolean(catalogMetadata.is_public)}
+                              onCheckedChange={(value) => updateCatalogMetadata('is_public', value)}
+                            />
+                          </div>
+                        )}
+                        {catalogData?.links?.share_on_intent_label && (
+                          <div className="flex items-center justify-between rounded-lg border p-3">
+                            <div>
+                              <Label>{catalogData.links.share_on_intent_label}</Label>
+                            </div>
+                            <Switch
+                              checked={Boolean(catalogMetadata.share_on_intent)}
+                              onCheckedChange={(value) => updateCatalogMetadata('share_on_intent', value)}
+                            />
+                          </div>
+                        )}
+                        {catalogData?.links?.prefer_pdf_on_whatsapp_label && (
+                          <div className="flex items-center justify-between rounded-lg border p-3">
+                            <div>
+                              <Label>{catalogData.links.prefer_pdf_on_whatsapp_label}</Label>
+                            </div>
+                            <Switch
+                              checked={Boolean(catalogMetadata.prefer_pdf_on_whatsapp)}
+                              onCheckedChange={(value) => updateCatalogMetadata('prefer_pdf_on_whatsapp', value)}
+                            />
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-2 justify-end">
+                        {catalogData?.links?.edit_label && (
+                          <Button variant="outline" onClick={openCatalogEditor}>
+                            <Pencil className="mr-2 h-4 w-4" /> {catalogData.links.edit_label}
+                          </Button>
+                        )}
+                        {catalogData?.links?.upload_label && (
+                          <Button variant="outline" onClick={handleSaveDraft}>
+                            <Save className="mr-2 h-4 w-4" /> {catalogData.links.upload_label}
+                          </Button>
+                        )}
+                        {catalogData?.links?.publish_label && (
+                          <Button onClick={handlePublishCatalog}>
+                            {catalogData.links.publish_label}
+                          </Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {catalogData?.links?.share_label && (catalogMetadata.title || catalogMetadata.description || catalogMetadata.banner_url) && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">{shareLabel}</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {catalogMetadata.banner_url && (
+                        <div className="overflow-hidden rounded-lg border">
+                          <img
+                            src={catalogMetadata.banner_url}
+                            alt={catalogMetadata.title ?? ''}
+                            className="h-40 w-full object-cover"
+                          />
+                        </div>
+                      )}
+                      <div className="space-y-1">
+                        {catalogMetadata.title && <p className="text-sm font-semibold">{catalogMetadata.title}</p>}
+                        {catalogMetadata.description && (
+                          <p className="text-sm text-muted-foreground">{catalogMetadata.description}</p>
                         )}
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        {catalogViewUrl && (
+                        {viewUrl && viewLabel && (
                           <Button asChild variant="outline" size="sm">
-                            <a href={catalogViewUrl} target="_blank" rel="noreferrer">
-                              <ExternalLink className="mr-2 h-4 w-4" /> {catalogViewLabel}
+                            <a href={viewUrl} target="_blank" rel="noreferrer">
+                              {viewLabel}
                             </a>
                           </Button>
                         )}
-                        {catalogDownloadUrl && catalogData?.has_pdf && (
+                        {downloadUrl && hasPdf && downloadLabel && (
                           <Button asChild variant="outline" size="sm">
-                            <a href={catalogDownloadUrl} target="_blank" rel="noreferrer">
-                              <FileDown className="mr-2 h-4 w-4" /> {catalogDownloadLabel}
+                            <a href={downloadUrl} target="_blank" rel="noreferrer">
+                              {downloadLabel}
                             </a>
-                          </Button>
-                        )}
-                        {catalogViewUrl && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              navigator.clipboard.writeText(catalogViewUrl || "")
-                                .then(() => toast.success('Enlace copiado'))
-                                .catch((err) => {
-                                  console.error('Copy failed', err);
-                                  toast.error('No se pudo copiar el enlace');
-                                });
-                            }}
-                          >
-                            Copiar link
                           </Button>
                         )}
                       </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="grid gap-4">
-                    {catalogViewUrl && (
-                      <div className="flex flex-col gap-2">
-                        <Label>Enlace público</Label>
-                        <div className="flex flex-col gap-2 sm:flex-row">
-                          <Input value={catalogViewUrl} readOnly />
+                    </CardContent>
+                  </Card>
+                )}
+
+                {shareLabel && (viewUrl || catalogData?.links?.share_hint) && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">{shareLabel}</CardTitle>
+                      {catalogData?.links?.share_hint && (
+                        <CardDescription>{catalogData.links.share_hint}</CardDescription>
+                      )}
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex flex-wrap gap-2">
+                        {viewUrl && whatsappLabel && (
+                          <Button asChild variant="outline">
+                            <a
+                              href={`https://wa.me/?text=${encodeURIComponent(viewUrl)}`}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              {whatsappLabel}
+                            </a>
+                          </Button>
+                        )}
+                        {viewUrl && copyLabel && (
                           <Button
                             type="button"
                             variant="outline"
                             onClick={() => {
-                              navigator.clipboard.writeText(catalogViewUrl || "")
-                                .then(() => toast.success('Enlace copiado'))
+                              navigator.clipboard.writeText(viewUrl)
+                                .then(() => {
+                                  toast.success(copyLabel);
+                                })
                                 .catch((err) => {
                                   console.error('Copy failed', err);
-                                  toast.error('No se pudo copiar el enlace');
                                 });
                             }}
                           >
-                            Copiar enlace
+                            {copyLabel}
                           </Button>
-                        </div>
+                        )}
                       </div>
-                    )}
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label>Título</Label>
-                        <Input
-                          value={catalogMetadata.title ?? ''}
-                          onChange={(event) => updateCatalogMetadata('title', event.target.value)}
-                        />
+                    </CardContent>
+                  </Card>
+                )}
+
+                {catalogData?.links?.upload_section_title && catalogData?.links?.upload_section_button_label && (
+                  <Card>
+                      <div className="p-6 flex flex-col md:flex-row items-center gap-6">
+                          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-blue-50 border border-blue-100">
+                              <FileSpreadsheet className="h-8 w-8 text-blue-600" />
+                          </div>
+                          <div className="flex-1 space-y-1 text-center md:text-left">
+                              <h3 className="font-semibold text-lg">{catalogData.links.upload_section_title}</h3>
+                              {catalogData.links.upload_section_description && (
+                                <p className="text-sm text-muted-foreground">
+                                  {catalogData.links.upload_section_description}
+                                </p>
+                              )}
+                          </div>
+                          <Button onClick={() => setUploadOpen(true)} className="w-full md:w-auto">
+                              {catalogData.links.upload_section_button_label} <ArrowRight className="ml-2 h-4 w-4"/>
+                          </Button>
                       </div>
-                      <div className="space-y-2">
-                        <Label>Descripción</Label>
-                        <Input
-                          value={catalogMetadata.description ?? ''}
-                          onChange={(event) => updateCatalogMetadata('description', event.target.value)}
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Banner</Label>
-                      <Input
-                        value={catalogMetadata.banner_url ?? ''}
-                        onChange={(event) => updateCatalogMetadata('banner_url', event.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Mensaje por defecto</Label>
-                      <Input
-                        value={catalogMetadata.default_message ?? ''}
-                        onChange={(event) => updateCatalogMetadata('default_message', event.target.value)}
-                      />
-                    </div>
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div className="flex items-center justify-between rounded-lg border p-3">
-                        <div>
-                          <Label>Catálogo habilitado</Label>
-                        </div>
-                        <Switch
-                          checked={Boolean(catalogMetadata.enabled)}
-                          onCheckedChange={(value) => updateCatalogMetadata('enabled', value)}
-                        />
-                      </div>
-                      <div className="flex items-center justify-between rounded-lg border p-3">
-                        <div>
-                          <Label>Público</Label>
-                        </div>
-                        <Switch
-                          checked={Boolean(catalogMetadata.is_public)}
-                          onCheckedChange={(value) => updateCatalogMetadata('is_public', value)}
-                        />
-                      </div>
-                      <div className="flex items-center justify-between rounded-lg border p-3">
-                        <div>
-                          <Label>Compartir en intención</Label>
-                        </div>
-                        <Switch
-                          checked={Boolean(catalogMetadata.share_on_intent)}
-                          onCheckedChange={(value) => updateCatalogMetadata('share_on_intent', value)}
-                        />
-                      </div>
-                      <div className="flex items-center justify-between rounded-lg border p-3">
-                        <div>
-                          <Label>Preferir PDF en WhatsApp</Label>
-                        </div>
-                        <Switch
-                          checked={Boolean(catalogMetadata.prefer_pdf_on_whatsapp)}
-                          onCheckedChange={(value) => updateCatalogMetadata('prefer_pdf_on_whatsapp', value)}
-                        />
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap gap-2 justify-end">
-                      <Button variant="outline" onClick={openCatalogEditor}>
-                        <Pencil className="mr-2 h-4 w-4" /> {catalogData?.links?.edit_label ?? 'Editar en planilla'}
-                      </Button>
-                      <Button variant="outline" onClick={handleSaveDraft}>
-                        <Save className="mr-2 h-4 w-4" /> {catalogData?.links?.upload_label ?? 'Guardar borrador'}
-                      </Button>
-                      <Button onClick={handlePublishCatalog}>
-                        {catalogData?.links?.publish_label ?? 'Publicar'}
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
+                  </Card>
+                )}
 
                 {catalogViewUrl && (
                   <Card>
