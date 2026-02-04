@@ -18,9 +18,11 @@ export interface CatalogLinks {
   download_url_xlsx?: string | null;
   download_url_csv?: string | null;
   history_url?: string | null;
+  template_url?: string | null;
   view_label?: string | null;
   download_label?: string | null;
   history_label?: string | null;
+  template_label?: string | null;
   upload_label?: string | null;
   edit_label?: string | null;
   publish_label?: string | null;

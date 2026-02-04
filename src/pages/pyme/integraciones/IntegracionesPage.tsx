@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTenant } from '@/context/TenantContext';
 import { apiClient } from '@/api/client';
+import { ApiError } from '@/utils/api';
 import { IntegrationStatus } from '@/types/unified';
 import type { CatalogColumn, CatalogMetadata, CatalogRow, TenantCatalog } from '@/types/catalog';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
@@ -111,6 +112,8 @@ const IntegracionesPage = () => {
       download_label: data?.download_label,
       history_url: data?.history_url,
       history_label: data?.history_label,
+      template_url: data?.template_url,
+      template_label: data?.template_label,
       upload_label: data?.upload_label,
       edit_label: data?.edit_label,
       publish_label: data?.publish_label,
@@ -143,7 +146,13 @@ const IntegracionesPage = () => {
       setCatalogMetadata(normalized.metadata ?? {});
     } catch (error: any) {
       console.error('Error loading catalog', error);
-      setCatalogError(error?.message ?? null);
+      if (error instanceof ApiError && [403, 404, 405].includes(error.status)) {
+        setCatalogData(null);
+        setCatalogMetadata({});
+        setCatalogError(null);
+      } else {
+        setCatalogError(error?.message ?? null);
+      }
     } finally {
       setCatalogLoading(false);
     }
@@ -572,10 +581,10 @@ const IntegracionesPage = () => {
                   </CardContent>
                 </Card>
 
-                {(catalogMetadata.title || catalogMetadata.description || catalogMetadata.banner_url) && (
+                {catalogData?.links?.share_label && (catalogMetadata.title || catalogMetadata.description || catalogMetadata.banner_url) && (
                   <Card>
                     <CardHeader>
-                      <CardTitle className="text-lg">{catalogData?.links?.share_label}</CardTitle>
+                      <CardTitle className="text-lg">{catalogData.links.share_label}</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
                       {catalogMetadata.banner_url && (
@@ -613,10 +622,10 @@ const IntegracionesPage = () => {
                   </Card>
                 )}
 
-                {(catalogData?.links?.view_url || catalogData?.links?.share_hint) && (
+                {catalogData?.links?.share_label && (catalogData?.links?.view_url || catalogData?.links?.share_hint) && (
                   <Card>
                     <CardHeader>
-                      <CardTitle className="text-lg">{catalogData?.links?.share_label}</CardTitle>
+                      <CardTitle className="text-lg">{catalogData.links.share_label}</CardTitle>
                       {catalogData?.links?.share_hint && (
                         <CardDescription>{catalogData.links.share_hint}</CardDescription>
                       )}
@@ -680,7 +689,12 @@ const IntegracionesPage = () => {
                                 Asistente para revisar y confirmar la vista previa del catálogo antes de importarlo.
                             </DialogDescription>
                         </DialogHeader>
-                        <CatalogUploadWizard tenantSlug={currentSlug || ""} onFinish={() => setUploadOpen(false)} />
+                        <CatalogUploadWizard
+                          tenantSlug={currentSlug || ""}
+                          onFinish={() => setUploadOpen(false)}
+                          templateUrl={catalogData?.links?.template_url}
+                          templateLabel={catalogData?.links?.template_label}
+                        />
                     </DialogContent>
                 </Dialog>
 
