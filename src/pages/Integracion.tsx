@@ -135,17 +135,6 @@ const Integracion = () => {
   }, [userLoading, tenantSlug, loadConfig, loadEmbedSnippet]);
 
   useEffect(() => {
-    if (!tenantSlug) return;
-    tenantService
-      .getPublicWidgetConfig(tenantSlug)
-      .then((data) => setPublicWidgetConfig(data))
-      .catch((error) => {
-        console.warn("No se pudo cargar el widget público", error);
-        setPublicWidgetConfig(null);
-      });
-  }, [tenantSlug]);
-
-  useEffect(() => {
     if (activeTab === "whatsapp") {
       loadWhatsappNumbers();
     }
