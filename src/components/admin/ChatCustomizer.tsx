@@ -113,10 +113,6 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
   const resolvedPublicEmbedSnippet = useMemo(() => {
     return publicEmbedSnippet;
   }, [publicEmbedSnippet]);
-  const shouldUseIframePreview = useMemo(
-    () => (resolvedPublicEmbedSnippet || resolvedEmbedSnippet) && !hasUnsavedChanges,
-    [resolvedPublicEmbedSnippet, resolvedEmbedSnippet, hasUnsavedChanges]
-  );
 
   // Debounce logic
   const [debouncedConfig, setDebouncedConfig] = useState(config);
@@ -570,7 +566,7 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
             >
                  <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-slate-900 rounded-b-xl z-30 shadow-sm"></div>
 
-                 {!shouldUseIframePreview && (
+                 {!resolvedPublicEmbedSnippet && !resolvedEmbedSnippet && (
                     <div className="absolute inset-0 bg-slate-100 z-0 flex flex-col items-center justify-center text-slate-300">
                         <div className="w-32 h-4 bg-slate-200 rounded mb-4"></div>
                         <div className="w-48 h-4 bg-slate-200 rounded mb-2"></div>
@@ -579,7 +575,7 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
                  )}
 
                  <div className="relative z-20 w-full h-full">
-                     {shouldUseIframePreview ? (
+                     {resolvedPublicEmbedSnippet || resolvedEmbedSnippet ? (
                         <iframe
                           key={`${previewDevice}-${previewOpen}-${currentSlug || 'demo'}`}
                           title="Widget preview"
