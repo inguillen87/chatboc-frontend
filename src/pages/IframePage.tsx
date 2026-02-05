@@ -132,6 +132,19 @@ const IframePage = () => {
       const borderRadius = Number.isFinite(parsedBorderRadius) ? parsedBorderRadius : undefined;
       const fontFamily = urlParams.get("fontFamily") || cfg.fontFamily || '';
 
+      let faqSuggestions: string[] = [];
+      try {
+          const faqParam = urlParams.get("faqSuggestions");
+          if (faqParam) {
+              const parsed = JSON.parse(faqParam);
+              if (Array.isArray(parsed)) faqSuggestions = parsed;
+          } else if (fetchedConfig.content?.faq_suggestions) {
+              faqSuggestions = fetchedConfig.content.faq_suggestions;
+          }
+      } catch (e) {
+          console.warn("Failed to parse FAQ suggestions", e);
+      }
+
       setWidgetParams({
         defaultOpen,
         widgetId,
@@ -157,6 +170,7 @@ const IframePage = () => {
         borderRadius,
         fontFamily,
         tenantSlug: tenantSlug,
+        faqSuggestions,
       });
 
       const mergedConfig = {
@@ -257,6 +271,7 @@ const IframePage = () => {
       chatBackground={widgetParams.chatBackground}
       borderRadius={widgetParams.borderRadius}
       fontFamily={widgetParams.fontFamily}
+      faqSuggestions={widgetParams.faqSuggestions}
     />
   );
 

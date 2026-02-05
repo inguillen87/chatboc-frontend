@@ -420,6 +420,7 @@ export function useChatLogic({
         data.buttons,
         data.botonesSugeridos,
         data.quick_replies,
+        data.interactive_list,
         data.metadata,
       );
       const categorias = normalizeCategories(
