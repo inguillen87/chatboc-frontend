@@ -31,15 +31,29 @@ export const useBusinessHours = (entityToken?: string, tenantSlug?: string | nul
           return;
         }
 
-        const path = tenantSlug
-          ? `/api/${tenantSlug}/live-chat/schedule`
-          : '/live-chat/schedule';
+        const candidatePaths = tenantSlug
+          ? ['/live-chat/schedule', `/api/${tenantSlug}/live-chat/schedule`]
+          : ['/live-chat/schedule'];
 
-        const schedule = await apiFetch<LiveChatSchedule>(path, {
-          skipAuth: !authToken,
-          entityToken,
-          tenantSlug
-        });
+        let schedule: LiveChatSchedule | null = null;
+        let lastError: unknown = null;
+
+        for (const path of candidatePaths) {
+          try {
+            schedule = await apiFetch<LiveChatSchedule>(path, {
+              skipAuth: !authToken,
+              entityToken,
+              tenantSlug,
+            });
+            break;
+          } catch (error) {
+            lastError = error;
+          }
+        }
+
+        if (!schedule) {
+          throw lastError ?? new Error('No se pudo cargar el horario de atención');
+        }
 
         const description =
           typeof schedule?.description === 'string' && schedule.description.trim()
@@ -65,7 +79,7 @@ export const useBusinessHours = (entityToken?: string, tenantSlug?: string | nul
     };
 
     fetchProfile();
-  }, [entityToken]);
+  }, [entityToken, tenantSlug]);
 
   return businessHours;
 };

@@ -229,7 +229,6 @@ function ChatWidgetInner({
   );
 
   const isEmbedded = mode !== "standalone";
-  const isLandingPage = typeof window !== 'undefined' && window.location.pathname === '/';
   const catalogMetadata = useMemo(() => {
     if (!catalogInfo) return null;
     return (
@@ -1429,7 +1428,7 @@ function ChatWidgetInner({
                     mode={mode}
                     widgetId={widgetId}
                     entityToken={resolvedOwnerToken ?? undefined}
-                    tenantSlug={(isLandingPage && resolvedTenantSlug === 'municipio') ? null : resolvedTenantSlug}
+                    tenantSlug={resolvedTenantSlug}
                     openWidth={finalOpenWidth}
                     openHeight={finalOpenHeight}
                     onClose={toggleChat}

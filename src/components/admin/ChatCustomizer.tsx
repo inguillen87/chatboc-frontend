@@ -187,6 +187,10 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
     if (config.animation) params.set('logoAnimation', config.animation);
     if (config.botName) params.set('welcomeTitle', config.botName);
     if (config.welcomeMessage) params.set('welcomeSubtitle', config.welcomeMessage);
+    if (config.userMsgColor) params.set('userMsgColor', config.userMsgColor);
+    if (config.chatBackground) params.set('chatBackground', config.chatBackground);
+    if (typeof config.borderRadius === 'number') params.set('borderRadius', String(config.borderRadius));
+    if (config.fontFamily) params.set('fontFamily', config.fontFamily);
 
     return `${baseUrl}/iframe?${params.toString()}`;
   }, [config, publicEmbedAttributes, publicWidgetInfo, previewOpen, currentSlug]);
