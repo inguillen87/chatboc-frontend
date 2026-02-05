@@ -43,6 +43,23 @@ let messages = [
   },
 ];
 
+// Index for O(1) access to messages by ticketId
+let messagesByTicketId = new Map();
+
+function rebuildIndex() {
+  messagesByTicketId.clear();
+  for (const m of messages) {
+    const tid = m.ticketId;
+    if (!messagesByTicketId.has(tid)) {
+      messagesByTicketId.set(tid, []);
+    }
+    messagesByTicketId.get(tid).push(m);
+  }
+}
+
+// Build index initially
+rebuildIndex();
+
 export function getTickets() {
   return tickets;
 }
@@ -57,9 +74,12 @@ export function getMessages() {
 
 export function __setMessages(newMessages) {
   messages = newMessages;
+  rebuildIndex();
 }
 
 // Devuelve el historial de mensajes para un ticket específico
 export function getTicketMessagesById(ticketId) {
-  return messages.filter((m) => m.ticketId === Number(ticketId));
+  const msgs = messagesByTicketId.get(Number(ticketId));
+  // Return a shallow copy to match original behavior (filter returns new array)
+  return msgs ? [...msgs] : [];
 }
