@@ -207,6 +207,16 @@ function ChatWidgetInner({
   const [catalogInfo, setCatalogInfo] = useState<any | null>(null);
 
   const [duplicateInstance, setDuplicateInstance] = useState(false);
+  const resolvedOwnerToken = useMemo(() => {
+    if (ownerToken) return ownerToken;
+    return (
+      entityInfo?.owner_token ||
+      entityInfo?.entity_token ||
+      entityInfo?.widget_token ||
+      entityInfo?.token ||
+      null
+    );
+  }, [entityInfo, ownerToken]);
 
   const [isMobileView, setIsMobileView] = useState(
     typeof window !== "undefined" && window.innerWidth < 640
@@ -1402,8 +1412,8 @@ function ChatWidgetInner({
                     </div>
                   }
                 >
-                  {view === "register" ? <ChatUserRegisterPanel onSuccess={handleAuthSuccess} onShowLogin={() => setView("login")} entityToken={ownerToken} />
-                    : view === "login" ? <ChatUserLoginPanel onSuccess={handleAuthSuccess} onShowRegister={() => setView("register")} entityToken={ownerToken} />
+                  {view === "register" ? <ChatUserRegisterPanel onSuccess={handleAuthSuccess} onShowLogin={() => setView("login")} entityToken={resolvedOwnerToken ?? undefined} />
+                    : view === "login" ? <ChatUserLoginPanel onSuccess={handleAuthSuccess} onShowRegister={() => setView("register")} entityToken={resolvedOwnerToken ?? undefined} />
                     : view === "user" ? <ChatUserPanel onClose={() => setView("chat")} />
                     : <EntityInfoPanel info={entityInfo} onClose={() => setView("chat")} />}
                 </Suspense>
@@ -1418,7 +1428,7 @@ function ChatWidgetInner({
                   <ChatPanel
                     mode={mode}
                     widgetId={widgetId}
-                    entityToken={ownerToken}
+                    entityToken={resolvedOwnerToken ?? undefined}
                     tenantSlug={(isLandingPage && resolvedTenantSlug === 'municipio') ? null : resolvedTenantSlug}
                     openWidth={finalOpenWidth}
                     openHeight={finalOpenHeight}

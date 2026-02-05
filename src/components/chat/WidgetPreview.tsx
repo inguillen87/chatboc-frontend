@@ -22,6 +22,33 @@ interface WidgetPreviewProps {
   fontFamily?: string;
 }
 
+class PreviewErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: unknown) {
+    console.error("WidgetPreview error:", error);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="absolute inset-0 flex items-center justify-center bg-background/80">
+          <div className="h-10 w-10 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
 const WidgetPreview: React.FC<WidgetPreviewProps> = ({
   tenantSlug,
   className,
@@ -77,7 +104,8 @@ const WidgetPreview: React.FC<WidgetPreviewProps> = ({
         <div className="relative w-full h-full p-4 pointer-events-none">
           {/* pointer-events-none prevents interacting with the widget logic but lets us see it.
               If we want interaction, we remove it. */}
-           <ChatWidget
+          <PreviewErrorBoundary>
+            <ChatWidget
               mode="preview"
               tenantSlug={tenantSlug}
               defaultOpen={defaultOpen}
@@ -93,7 +121,8 @@ const WidgetPreview: React.FC<WidgetPreviewProps> = ({
               welcomeSubtitle={welcomeMessage}
               logoAnimation={logoAnimation}
               fontFamily={fontFamily}
-           />
+            />
+          </PreviewErrorBoundary>
         </div>
       </div>
 
