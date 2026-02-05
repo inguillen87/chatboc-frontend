@@ -1,4 +1,5 @@
 import React from 'react';
+import { isExtensionNoiseError } from '@/utils/registerExtensionNoiseFilters';
 
 interface ErrorBoundaryProps {
   fallbackMessage?: string;
@@ -14,11 +15,17 @@ class ErrorBoundary extends React.Component<React.PropsWithChildren<ErrorBoundar
     this.state = { hasError: false };
   }
 
-  static getDerivedStateFromError(): ErrorBoundaryState {
+  static getDerivedStateFromError(error: unknown): ErrorBoundaryState {
+    if (isExtensionNoiseError(error)) {
+      return { hasError: false };
+    }
     return { hasError: true };
   }
 
   componentDidCatch(error: unknown, info: unknown) {
+    if (isExtensionNoiseError(error)) {
+      return;
+    }
     console.error('ErrorBoundary caught an error', error, info);
   }
 
