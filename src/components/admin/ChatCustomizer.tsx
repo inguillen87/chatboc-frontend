@@ -59,7 +59,56 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
   const [publicEmbedSnippet, setPublicEmbedSnippet] = useState<string>('');
   const [publicEmbedAttributes, setPublicEmbedAttributes] = useState<Record<string, string>>({});
   const [publicWidgetInfo, setPublicWidgetInfo] = useState<{ token?: string; tenantSlug?: string; tipoChat?: string } | null>(null);
-  const shouldUseIframePreview = (resolvedPublicEmbedSnippet || resolvedEmbedSnippet) && !hasUnsavedChanges;
+  const embedBaseUrl = useMemo(() => {
+    if (typeof window === 'undefined') return '';
+    const fallbackBase = window.location.origin || '';
+    const base = import.meta.env.VITE_WIDGET_API_BASE || fallbackBase;
+    return base ? base.replace(/\/+$/, '') : '';
+  }, []);
+  const buildFallbackSnippet = useCallback(
+    (attributes: Record<string, string>, info?: { token?: string; tenantSlug?: string; tipoChat?: string } | null) => {
+      if (!embedBaseUrl) return '';
+      const mergedAttributes: Record<string, string> = { ...attributes };
+      const tenant =
+        mergedAttributes['data-tenant'] ||
+        mergedAttributes['data-tenant-slug'] ||
+        info?.tenantSlug ||
+        currentSlug ||
+        '';
+      const token =
+        mergedAttributes['data-owner-token'] ||
+        mergedAttributes['data-entity-token'] ||
+        mergedAttributes['data-widget-token'] ||
+        info?.token ||
+        '';
+      const endpoint =
+        mergedAttributes['data-endpoint'] ||
+        info?.tipoChat ||
+        '';
+
+      if (tenant && !mergedAttributes['data-tenant']) {
+        mergedAttributes['data-tenant'] = tenant;
+      }
+      if (token && !mergedAttributes['data-owner-token']) {
+        mergedAttributes['data-owner-token'] = token;
+      }
+      if (endpoint && !mergedAttributes['data-endpoint']) {
+        mergedAttributes['data-endpoint'] = endpoint;
+      }
+      if (!mergedAttributes['data-api-base']) {
+        mergedAttributes['data-api-base'] = embedBaseUrl;
+      }
+
+      const attributeEntries = Object.entries(mergedAttributes).filter(([, value]) => value);
+      if (!attributeEntries.length) return '';
+
+      const attributeString = attributeEntries
+        .map(([key, value]) => `\n        ${key}="${value}"`)
+        .join('');
+      return `<script async src="${embedBaseUrl}/widget.js"${attributeString}></script>`;
+    },
+    [currentSlug, embedBaseUrl],
+  );
   const previewIframeSrc = useMemo(() => {
     if (typeof window === "undefined") return '';
     const baseUrl = window.location.origin;
@@ -108,11 +157,15 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
 
     return `${baseUrl}/iframe?${params.toString()}`;
   }, [publicEmbedAttributes, publicWidgetInfo, previewOpen, currentSlug]);
-  const resolvedEmbedSnippet = useMemo(() => embedSnippet, [embedSnippet]);
+  const resolvedEmbedSnippet = useMemo(() => {
+    if (embedSnippet) return embedSnippet;
+    return buildFallbackSnippet(embedAttributes, null);
+  }, [buildFallbackSnippet, embedAttributes, embedSnippet]);
 
   const resolvedPublicEmbedSnippet = useMemo(() => {
-    return publicEmbedSnippet;
-  }, [publicEmbedSnippet]);
+    if (publicEmbedSnippet) return publicEmbedSnippet;
+    return buildFallbackSnippet(publicEmbedAttributes, publicWidgetInfo);
+  }, [buildFallbackSnippet, publicEmbedAttributes, publicEmbedSnippet, publicWidgetInfo]);
   const shouldUseIframePreview = useMemo(
     () => previewMode === 'embed' && (resolvedPublicEmbedSnippet || resolvedEmbedSnippet) && !hasUnsavedChanges,
     [previewMode, resolvedPublicEmbedSnippet, resolvedEmbedSnippet, hasUnsavedChanges]
