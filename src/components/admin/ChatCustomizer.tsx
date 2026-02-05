@@ -1,4 +1,4 @@
-import React, { useMemo, useEffect, useState } from 'react';
+import React, { useCallback, useMemo, useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -109,6 +109,14 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
   }, [publicEmbedAttributes, publicWidgetInfo, previewOpen, currentSlug]);
   const resolvedEmbedSnippet = useMemo(() => embedSnippet, [embedSnippet]);
 
+  const resolvedPublicEmbedSnippet = useMemo(() => {
+    return publicEmbedSnippet;
+  }, [publicEmbedSnippet]);
+  const shouldUseIframePreview = useMemo(
+    () => (resolvedPublicEmbedSnippet || resolvedEmbedSnippet) && !hasUnsavedChanges,
+    [resolvedPublicEmbedSnippet, resolvedEmbedSnippet, hasUnsavedChanges]
+  );
+
   // Debounce logic
   const [debouncedConfig, setDebouncedConfig] = useState(config);
 
@@ -119,55 +127,80 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
     return () => clearTimeout(timer);
   }, [config]);
 
-  // Load initial data
-  useEffect(() => {
-    const loadTheme = async () => {
-      if (!currentSlug) return;
-      if (initialConfig) {
-        setConfig({ ...DEFAULT_THEME, ...initialConfig });
+  const loadTheme = useCallback(async () => {
+    if (!currentSlug) return;
+    if (initialConfig) {
+      setConfig({ ...DEFAULT_THEME, ...initialConfig });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const themeData = await apiClient.getChatTheme(currentSlug);
+      if (themeData) {
+         const builderConfig = themeData.configs?.widget?.default?.builder_config
+           || themeData.widget?.builder_config
+           || {};
+         const snippet = builderConfig?.embed_snippet
+           || themeData.widget?.embed_snippet
+           || '';
+         setEmbedSnippet(snippet);
+         setEmbedAttributes(builderConfig?.attributes || {});
+         const flatConfig = {
+             primaryColor: themeData.theme_config?.light?.primary || DEFAULT_THEME.primaryColor,
+             accentColor: themeData.theme_config?.light?.secondary || DEFAULT_THEME.accentColor,
+             fontFamily: themeData.theme_config?.font_family || DEFAULT_THEME.fontFamily,
+             animation: themeData.theme_config?.animation || DEFAULT_THEME.animation,
+             borderRadius: themeData.theme_config?.border_radius ?? DEFAULT_THEME.borderRadius,
+             userMsgColor: themeData.theme_config?.light?.foreground || DEFAULT_THEME.userMsgColor,
+             chatBackground: themeData.theme_config?.light?.background || DEFAULT_THEME.chatBackground,
+             botName: themeData.bot_name || DEFAULT_THEME.botName,
+             welcomeMessage: themeData.welcome_message || DEFAULT_THEME.welcomeMessage,
+             ctaMessage: themeData.cta_messages?.[0] || DEFAULT_THEME.ctaMessage,
+             showLogo: themeData.show_logo ?? DEFAULT_THEME.showLogo,
+             logoUrl: themeData.logo_url || DEFAULT_THEME.logoUrl,
+             mode: themeData.theme_config?.mode || DEFAULT_THEME.mode,
+             soundEnabled: themeData.theme_config?.sound_enabled ?? DEFAULT_THEME.soundEnabled,
+         };
+         setConfig(flatConfig);
+         setDebouncedConfig(flatConfig);
+      }
+    } catch (error) {
+      console.error("Failed to load chat theme", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [currentSlug, initialConfig]);
+
+  const refreshEmbedSnippet = useCallback(async () => {
+    if (!currentSlug) return;
+    try {
+      const integrationData = await apiClient.get<any>(`/api/portal/${currentSlug}/integration`, { tenantSlug: currentSlug });
+      const integrationWidget = integrationData?.widget || {};
+      const integrationSnippet = integrationWidget?.embed_snippet || '';
+      if (integrationSnippet) {
+        setEmbedSnippet(integrationSnippet);
         return;
       }
+    } catch (error) {
+      console.warn("No se pudo cargar el snippet desde integración", error);
+    }
 
-      setLoading(true);
-      try {
-        const themeData = await apiClient.getChatTheme(currentSlug);
-        if (themeData) {
-           const builderConfig = themeData.configs?.widget?.default?.builder_config
-             || themeData.widget?.builder_config
-             || {};
-           const snippet = builderConfig?.embed_snippet
-             || themeData.widget?.embed_snippet
-             || '';
-           setEmbedSnippet(snippet);
-           setEmbedAttributes(builderConfig?.attributes || {});
-           const flatConfig = {
-               primaryColor: themeData.theme_config?.light?.primary || DEFAULT_THEME.primaryColor,
-               accentColor: themeData.theme_config?.light?.secondary || DEFAULT_THEME.accentColor,
-               fontFamily: themeData.theme_config?.font_family || DEFAULT_THEME.fontFamily,
-               animation: themeData.theme_config?.animation || DEFAULT_THEME.animation,
-               borderRadius: themeData.theme_config?.border_radius ?? DEFAULT_THEME.borderRadius,
-               userMsgColor: themeData.theme_config?.light?.foreground || DEFAULT_THEME.userMsgColor,
-               chatBackground: themeData.theme_config?.light?.background || DEFAULT_THEME.chatBackground,
-               botName: themeData.bot_name || DEFAULT_THEME.botName,
-               welcomeMessage: themeData.welcome_message || DEFAULT_THEME.welcomeMessage,
-               ctaMessage: themeData.cta_messages?.[0] || DEFAULT_THEME.ctaMessage,
-               showLogo: themeData.show_logo ?? DEFAULT_THEME.showLogo,
-               logoUrl: themeData.logo_url || DEFAULT_THEME.logoUrl,
-               mode: themeData.theme_config?.mode || DEFAULT_THEME.mode,
-               soundEnabled: themeData.theme_config?.sound_enabled ?? DEFAULT_THEME.soundEnabled,
-           };
-           setConfig(flatConfig);
-           setDebouncedConfig(flatConfig);
-        }
-      } catch (error) {
-        console.error("Failed to load chat theme", error);
-      } finally {
-        setLoading(false);
-      }
-    };
+    try {
+      const data = await apiClient.get<any>(`/api/public/tenants/${currentSlug}/widget-config`, { tenantSlug: currentSlug });
+      const builderConfig = data?.builder_config || data?.widget?.builder_config || {};
+      const snippet = builderConfig?.embed_snippet || data?.embed_snippet || '';
+      setEmbedSnippet(snippet);
+      setEmbedAttributes(builderConfig?.attributes || {});
+    } catch (error) {
+      console.error("Failed to load public widget config", error);
+    }
+  }, [currentSlug]);
 
+  // Load initial data
+  useEffect(() => {
     loadTheme();
-  }, [currentSlug, initialConfig]);
+  }, [loadTheme]);
 
   useEffect(() => {
     const loadPublicWidget = async () => {
@@ -262,6 +295,7 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
       }
       if (!isAutoSave) toast.success("Personalización guardada correctamente.");
       setHasUnsavedChanges(false);
+      refreshEmbedSnippet();
     } catch (error) {
       console.error("Save failed", error);
       if (!isAutoSave) toast.error("Error al guardar.");
@@ -277,20 +311,20 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
   }, [debouncedConfig]);
 
   return (
-    <div className="grid lg:grid-cols-2 gap-8">
-      <div className="space-y-6">
+    <div className="grid lg:grid-cols-2 gap-10">
+      <div className="space-y-8">
         <Tabs defaultValue="appearance" className="space-y-6">
-            <TabsList className="w-full justify-start border-b rounded-none h-auto p-0 bg-transparent gap-6 overflow-x-auto">
-                <TabsTrigger value="appearance" className="data-[state=active]:border-primary border-b-2 border-transparent rounded-none px-0 py-3 font-semibold text-muted-foreground data-[state=active]:text-foreground">
+            <TabsList className="w-full justify-start border border-border/60 rounded-2xl h-auto p-1 bg-card/60 backdrop-blur gap-2 overflow-x-auto">
+                <TabsTrigger value="appearance" className="rounded-xl px-4 py-2.5 font-semibold text-muted-foreground data-[state=active]:text-foreground data-[state=active]:bg-background data-[state=active]:shadow-sm">
                     Apariencia
                 </TabsTrigger>
-                <TabsTrigger value="content" className="data-[state=active]:border-primary border-b-2 border-transparent rounded-none px-0 py-3 font-semibold text-muted-foreground data-[state=active]:text-foreground">
+                <TabsTrigger value="content" className="rounded-xl px-4 py-2.5 font-semibold text-muted-foreground data-[state=active]:text-foreground data-[state=active]:bg-background data-[state=active]:shadow-sm">
                     Contenido
                 </TabsTrigger>
             </TabsList>
 
             <TabsContent value="appearance" className="space-y-6">
-                <Card className="border-t-4 border-t-primary">
+                <Card className="border border-border/60 shadow-sm rounded-2xl overflow-hidden">
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2"><Palette className="h-5 w-5 text-primary"/> Estilo y Marca</CardTitle>
                         <CardDescription>Elegí una plantilla o personalizá cada detalle.</CardDescription>
@@ -397,7 +431,7 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
             </TabsContent>
 
             <TabsContent value="content" className="space-y-6">
-                <Card>
+                <Card className="border border-border/60 shadow-sm rounded-2xl overflow-hidden">
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2"><MessageSquare className="h-5 w-5 text-primary"/> Identidad del Bot</CardTitle>
                     </CardHeader>
@@ -458,14 +492,14 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
         </Tabs>
 
         <div className="sticky bottom-4">
-             <Button className="w-full" onClick={() => performSave(config)} disabled={saving}>
+             <Button className="w-full h-11 rounded-xl shadow-sm" onClick={() => performSave(config)} disabled={saving}>
                 {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
                 Guardar Cambios
             </Button>
         </div>
       </div>
 
-      <div className="lg:sticky lg:top-8 h-fit space-y-4">
+      <div className="lg:sticky lg:top-8 h-fit space-y-4 rounded-2xl border border-border/60 bg-card/60 p-4 shadow-sm backdrop-blur">
         <div className="flex items-center justify-between gap-4 flex-wrap">
              <div>
                 <h3 className="text-lg font-semibold flex items-center gap-2"><Monitor className="h-5 w-5"/> Vista Previa</h3>
@@ -493,7 +527,7 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
             >
                 Modo embed
             </Button>
-            <div className="flex items-center gap-2 ml-auto">
+            <div className="flex items-center gap-2 ml-auto rounded-full border border-border/60 bg-background/80 px-3 py-1">
                 <Label className="text-xs text-muted-foreground">Preview abierto</Label>
                 <Switch checked={previewOpen} onCheckedChange={setPreviewOpen} />
             </div>
@@ -526,16 +560,16 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
         {previewMode === 'widget' ? (
             <div
                 className={cn(
-                    "mx-auto border-[8px] border-slate-900 shadow-2xl overflow-hidden relative ring-1 ring-slate-900/10 transition-all",
-                    (publicEmbedSnippet || resolvedEmbedSnippet) ? "bg-transparent" : "bg-white",
-                    previewDevice === 'mobile' && "h-[700px] w-full max-w-[420px] rounded-[3rem]",
-                    previewDevice === 'tablet' && "h-[640px] w-full max-w-[560px] rounded-[2.5rem]",
-                    previewDevice === 'desktop' && "h-[520px] w-full max-w-[720px] rounded-[1.75rem]"
+                    "mx-auto border-[10px] border-slate-900/90 shadow-[0_30px_80px_-40px_rgba(15,23,42,0.55)] overflow-hidden relative ring-1 ring-slate-900/10 transition-all bg-gradient-to-br from-slate-950/5 via-transparent to-slate-950/10",
+                    (resolvedPublicEmbedSnippet || resolvedEmbedSnippet) ? "bg-transparent" : "bg-white",
+                    previewDevice === 'mobile' && "h-[700px] w-full max-w-[420px] rounded-[3.25rem]",
+                    previewDevice === 'tablet' && "h-[640px] w-full max-w-[560px] rounded-[2.75rem]",
+                    previewDevice === 'desktop' && "h-[520px] w-full max-w-[720px] rounded-[2rem]"
                 )}
             >
-                 <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-slate-900 rounded-b-xl z-30"></div>
+                 <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-slate-900 rounded-b-xl z-30 shadow-sm"></div>
 
-                 {!publicEmbedSnippet && !resolvedEmbedSnippet && (
+                 {!shouldUseIframePreview && (
                     <div className="absolute inset-0 bg-slate-100 z-0 flex flex-col items-center justify-center text-slate-300">
                         <div className="w-32 h-4 bg-slate-200 rounded mb-4"></div>
                         <div className="w-48 h-4 bg-slate-200 rounded mb-2"></div>
@@ -544,7 +578,7 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
                  )}
 
                  <div className="relative z-20 w-full h-full">
-                     {publicEmbedSnippet || resolvedEmbedSnippet ? (
+                     {shouldUseIframePreview ? (
                         <iframe
                           key={`${previewDevice}-${previewOpen}-${currentSlug || 'demo'}`}
                           title="Widget preview"
@@ -573,19 +607,19 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
                  </div>
             </div>
         ) : (
-            <Card className="border-0 shadow-xl bg-slate-950/20">
+            <Card className="border border-border/60 shadow-sm bg-card/80 rounded-2xl">
                 <CardHeader>
                     <CardTitle className="text-base">Snippet de integración</CardTitle>
                     <CardDescription>Copiá y pegá este script en tu plataforma.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    <div className="rounded-lg bg-slate-950 text-slate-100 p-4 text-xs font-mono whitespace-pre-wrap">
-                        {publicEmbedSnippet || resolvedEmbedSnippet}
+                    <div className="rounded-xl border border-border/40 bg-slate-950 text-slate-100 p-4 text-xs font-mono whitespace-pre-wrap">
+                        {resolvedPublicEmbedSnippet || resolvedEmbedSnippet}
                     </div>
                     <div className="space-y-2 text-xs text-muted-foreground">
                         <p className="font-medium text-foreground">Atributos activos</p>
                         <div className="grid grid-cols-2 gap-2">
-                            {Object.entries(publicEmbedSnippet ? publicEmbedAttributes : embedAttributes).map(([key, value]) => (
+                            {Object.entries(resolvedPublicEmbedSnippet ? publicEmbedAttributes : embedAttributes).map(([key, value]) => (
                                 <div key={key} className="flex flex-col gap-1 rounded-lg border border-white/10 bg-white/5 p-2">
                                     <span className="font-medium text-foreground">{key}</span>
                                     <span>{value}</span>

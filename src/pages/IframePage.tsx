@@ -8,7 +8,6 @@ import { hexToHsl } from "@/utils/color";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { apiFetch } from "@/utils/api";
 import { GOOGLE_CLIENT_ID } from '@/env';
-import { tenantService } from '@/services/tenantService';
 
 const DEFAULTS = {
   openWidth: "460px",
@@ -49,7 +48,9 @@ const IframePage = () => {
       let fetchedConfig: any = {};
       if (tenantSlug) {
         try {
-          const publicConfig = await tenantService.getPublicWidgetConfig(tenantSlug);
+          const publicConfig = await apiFetch(`/api/public/tenants/${tenantSlug}/widget-config`, {
+            tenantSlug,
+          });
           fetchedConfig = publicConfig || {};
           setTenantConfig(fetchedConfig);
         } catch (e) {
