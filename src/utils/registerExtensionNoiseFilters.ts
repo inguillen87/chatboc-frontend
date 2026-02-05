@@ -2,6 +2,7 @@ const KNOWN_EXTENSION_PATTERNS = [
   /Cannot assign to read only property '(ethereum|tronLink)' of object '#<Window>'/i,
   /Cannot assign to read only property '(ethereum|tronLink)'/i,
   /This document requires 'TrustedScript' assignment/i,
+  /Cannot access 'ae' before initialization/i,
 ];
 
 const EXTENSION_PROTOCOLS = ['chrome-extension://', 'moz-extension://', 'safari-extension://'];
