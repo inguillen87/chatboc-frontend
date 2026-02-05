@@ -58,6 +58,7 @@ const Integracion = () => {
   const [whatsappNumbers, setWhatsappNumbers] = useState<WhatsappNumberInventoryItem[]>([]);
   const [whatsappNumbersLoading, setWhatsappNumbersLoading] = useState(false);
   const [whatsappNumbersError, setWhatsappNumbersError] = useState<string | null>(null);
+  const [publicWidgetConfig, setPublicWidgetConfig] = useState<any>(null);
   const [selectedWhatsappNumber, setSelectedWhatsappNumber] = useState<string>("");
   const [createPayload, setCreatePayload] = useState({ phone_number: "", sender_id: "" });
   const [externalNumberPayload, setExternalNumberPayload] = useState({ number: "", sender_id: "" });
@@ -104,6 +105,17 @@ const Integracion = () => {
       loadConfig();
     }
   }, [userLoading, tenantSlug, loadConfig]);
+
+  useEffect(() => {
+    if (!tenantSlug) return;
+    tenantService
+      .getPublicWidgetConfig(tenantSlug)
+      .then((data) => setPublicWidgetConfig(data))
+      .catch((error) => {
+        console.warn("No se pudo cargar el widget público", error);
+        setPublicWidgetConfig(null);
+      });
+  }, [tenantSlug]);
 
   useEffect(() => {
     if (activeTab === "whatsapp") {
@@ -211,8 +223,15 @@ const Integracion = () => {
   const generateEmbedCode = (type: "script" | "iframe") => {
       if (!config) return "";
       const tenant = config.tenant.slug;
-      const builderConfig = config.configs?.widget?.default?.builder_config || {};
-      const embedSnippet = builderConfig?.embed_snippet || config.widget?.embed_snippet || "";
+      const builderConfig =
+        publicWidgetConfig?.builder_config
+        || config.configs?.widget?.default?.builder_config
+        || {};
+      const embedSnippet =
+        builderConfig?.embed_snippet
+        || publicWidgetConfig?.embed_snippet
+        || config.widget?.embed_snippet
+        || "";
 
       if (type === "script") {
           return embedSnippet;
@@ -268,23 +287,23 @@ const Integracion = () => {
 
       {(config.tenant.plan === 'pro' || config.tenant.plan === 'full') ? (
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-2 md:grid-cols-6 h-auto">
-            <TabsTrigger value="general" className="py-3">
+          <TabsList className="grid w-full grid-cols-2 md:grid-cols-6 h-auto rounded-2xl border border-border/60 bg-card/60 p-1 shadow-sm backdrop-blur">
+            <TabsTrigger value="general" className="py-3 rounded-xl data-[state=active]:bg-background data-[state=active]:shadow-sm">
               <Layout className="mr-2 h-4 w-4" /> General
             </TabsTrigger>
-            <TabsTrigger value="marketplace" className="py-3 data-[state=active]:bg-primary/10 data-[state=active]:text-primary font-bold">
+            <TabsTrigger value="marketplace" className="py-3 rounded-xl data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-sm font-bold">
               <ShoppingCart className="mr-2 h-4 w-4" /> Marketplace
             </TabsTrigger>
-            <TabsTrigger value="whatsapp" className="py-3">
+            <TabsTrigger value="whatsapp" className="py-3 rounded-xl data-[state=active]:bg-background data-[state=active]:shadow-sm">
               <Phone className="mr-2 h-4 w-4" /> WhatsApp
             </TabsTrigger>
-            <TabsTrigger value="widget" className="py-3">
+            <TabsTrigger value="widget" className="py-3 rounded-xl data-[state=active]:bg-background data-[state=active]:shadow-sm">
               <MessageCircle className="mr-2 h-4 w-4" /> Widget
             </TabsTrigger>
-            <TabsTrigger value="menus" className="py-3">
+            <TabsTrigger value="menus" className="py-3 rounded-xl data-[state=active]:bg-background data-[state=active]:shadow-sm">
               <MenuIcon className="mr-2 h-4 w-4" /> Menús
             </TabsTrigger>
-            <TabsTrigger value="contacts" className="py-3">
+            <TabsTrigger value="contacts" className="py-3 rounded-xl data-[state=active]:bg-background data-[state=active]:shadow-sm">
               <LinkIcon className="mr-2 h-4 w-4" /> Contactos
             </TabsTrigger>
           </TabsList>
