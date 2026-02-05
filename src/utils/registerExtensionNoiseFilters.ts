@@ -30,6 +30,20 @@ function isExtensionUrl(url: string | null | undefined): boolean {
   return EXTENSION_PROTOCOLS.some((protocol) => url.startsWith(protocol));
 }
 
+export function isExtensionNoiseError(error: unknown): boolean {
+  const message = extractMessage(error);
+  if (shouldIgnore(message)) {
+    return true;
+  }
+  if (error && typeof error === 'object') {
+    const stack = (error as any).stack;
+    if (isExtensionUrl(stack)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export function registerExtensionNoiseFilters(): () => void {
   if (typeof window === 'undefined') {
     return () => {};
