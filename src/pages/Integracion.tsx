@@ -54,8 +54,8 @@ const Integracion = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState("general");
-  const [copiado, setCopiado] = useState<"iframe" | "script" | null>(null);
-  const [embedSnippet, setEmbedSnippet] = useState("");
+  const [copiado, setCopiado] = useState<"script" | null>(null);
+  const [embedSnippet, setEmbedSnippet] = useState<string>("");
   const [whatsappNumbers, setWhatsappNumbers] = useState<WhatsappNumberInventoryItem[]>([]);
   const [whatsappNumbersLoading, setWhatsappNumbersLoading] = useState(false);
   const [whatsappNumbersError, setWhatsappNumbersError] = useState<string | null>(null);
@@ -133,17 +133,6 @@ const Integracion = () => {
       loadEmbedSnippet();
     }
   }, [userLoading, tenantSlug, loadConfig, loadEmbedSnippet]);
-
-  useEffect(() => {
-    if (!tenantSlug) return;
-    tenantService
-      .getPublicWidgetConfig(tenantSlug)
-      .then((data) => setPublicWidgetConfig(data))
-      .catch((error) => {
-        console.warn("No se pudo cargar el widget público", error);
-        setPublicWidgetConfig(null);
-      });
-  }, [tenantSlug]);
 
   useEffect(() => {
     if (activeTab === "whatsapp") {
@@ -248,23 +237,15 @@ const Integracion = () => {
 
   const isVerificationReady = verificationChecklist.business && verificationChecklist.meta && verificationChecklist.template;
 
-  const generateEmbedCode = (type: "script" | "iframe") => {
-      if (!config) return "";
-      const tenant = config.tenant.slug;
-
-      if (type === "script") {
-          return embedSnippet;
-      } else {
-          const base = (import.meta.env.VITE_WIDGET_API_BASE || "https://chatboc.ar").replace(/\/+$/, "");
-          return `<iframe src="${base}/iframe?tenant=${tenant}" style="border:none; position:fixed; bottom:20px; right:20px; z-index:9999; width:400px; height:600px;"></iframe>`;
-      }
+  const generateEmbedCode = () => {
+    return embedSnippet;
   };
 
-  const copiarCodigo = async (type: "script" | "iframe") => {
-      const text = generateEmbedCode(type);
+  const copiarCodigo = async () => {
+      const text = generateEmbedCode();
       try {
           await navigator.clipboard.writeText(text);
-          setCopiado(type);
+          setCopiado("script");
           toast.success("Código copiado");
           setTimeout(() => setCopiado(null), 2000);
       } catch (e) {
@@ -632,18 +613,11 @@ const Integracion = () => {
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="rounded-md bg-muted p-4 font-mono text-xs overflow-x-auto">
-                        {generateEmbedCode("script")}
+                        {generateEmbedCode()}
                     </div>
-                    <Button className="w-full" onClick={() => copiarCodigo("script")}>
+                    <Button className="w-full" onClick={copiarCodigo}>
                         {copiado === "script" ? <Check className="mr-2 h-4 w-4"/> : <Copy className="mr-2 h-4 w-4"/>}
                         Copiar Script (Recomendado)
-                    </Button>
-                    <div className="rounded-md bg-muted p-4 font-mono text-xs overflow-x-auto mt-4">
-                        {generateEmbedCode("iframe")}
-                    </div>
-                    <Button variant="outline" className="w-full" onClick={() => copiarCodigo("iframe")}>
-                        {copiado === "iframe" ? <Check className="mr-2 h-4 w-4"/> : <Copy className="mr-2 h-4 w-4"/>}
-                        Copiar Iframe
                     </Button>
                 </CardContent>
               </Card>
@@ -730,9 +704,9 @@ const Integracion = () => {
             </CardHeader>
             <CardContent className="space-y-4">
                 <div className="rounded-md bg-muted p-4 font-mono text-xs overflow-x-auto">
-                    {generateEmbedCode("script")}
+                    {generateEmbedCode()}
                 </div>
-                <Button className="w-full" onClick={() => copiarCodigo("script")}>
+                <Button className="w-full" onClick={copiarCodigo}>
                     {copiado === "script" ? <Check className="mr-2 h-4 w-4"/> : <Copy className="mr-2 h-4 w-4"/>}
                     Copiar Script (Recomendado)
                 </Button>
