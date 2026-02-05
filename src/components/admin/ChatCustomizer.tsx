@@ -59,7 +59,78 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
   const [publicEmbedSnippet, setPublicEmbedSnippet] = useState<string>('');
   const [publicEmbedAttributes, setPublicEmbedAttributes] = useState<Record<string, string>>({});
   const [publicWidgetInfo, setPublicWidgetInfo] = useState<{ token?: string; tenantSlug?: string; tipoChat?: string } | null>(null);
-  const shouldUseIframePreview = (resolvedPublicEmbedSnippet || resolvedEmbedSnippet) && !hasUnsavedChanges;
+  const [showFullSnippet, setShowFullSnippet] = useState(false);
+  const apiBaseUrl = useMemo(() => {
+    if (typeof window === 'undefined') return '';
+    const fallbackBase = window.location.origin || '';
+    const base = import.meta.env.VITE_WIDGET_API_BASE || fallbackBase;
+    return base ? base.replace(/\/+$/, '') : '';
+  }, []);
+  const parseScriptSrc = useCallback((snippet: string) => {
+    const srcMatch = snippet.match(/<script[^>]*\ssrc=["']([^"']+)["'][^>]*>/i);
+    return srcMatch?.[1] || '';
+  }, []);
+  const widgetScriptUrl = useMemo(() => {
+    const fromPublicSnippet = parseScriptSrc(publicEmbedSnippet);
+    const fromPrivateSnippet = parseScriptSrc(embedSnippet);
+    const fallbackOrigin = typeof window === 'undefined' ? '' : window.location.origin;
+    const chosenSrc = fromPublicSnippet || fromPrivateSnippet;
+
+    if (chosenSrc) return chosenSrc;
+    if (!fallbackOrigin) return '';
+    return `${fallbackOrigin.replace(/\/+$/, '')}/widget.js`;
+  }, [embedSnippet, parseScriptSrc, publicEmbedSnippet]);
+  const buildFallbackSnippet = useCallback(
+    (attributes: Record<string, string>, info?: { token?: string; tenantSlug?: string; tipoChat?: string } | null) => {
+      if (!widgetScriptUrl) return '';
+      const mergedAttributes: Record<string, string> = { ...attributes };
+      const tenant =
+        mergedAttributes['data-tenant'] ||
+        mergedAttributes['data-tenant-slug'] ||
+        info?.tenantSlug ||
+        currentSlug ||
+        '';
+      const token =
+        mergedAttributes['data-owner-token'] ||
+        mergedAttributes['data-entity-token'] ||
+        mergedAttributes['data-widget-token'] ||
+        info?.token ||
+        '';
+      const endpoint =
+        mergedAttributes['data-endpoint'] ||
+        info?.tipoChat ||
+        '';
+
+      if (tenant && !mergedAttributes['data-tenant']) {
+        mergedAttributes['data-tenant'] = tenant;
+      }
+      if (token && !mergedAttributes['data-owner-token']) {
+        mergedAttributes['data-owner-token'] = token;
+      }
+      if (endpoint && !mergedAttributes['data-endpoint']) {
+        mergedAttributes['data-endpoint'] = endpoint;
+      }
+      if (!mergedAttributes['data-api-base']) {
+        mergedAttributes['data-api-base'] = apiBaseUrl;
+      }
+      if (!mergedAttributes['data-domain']) {
+        try {
+          mergedAttributes['data-domain'] = new URL(widgetScriptUrl, window.location.origin).origin;
+        } catch {
+          // ignore invalid URL and keep snippet without data-domain
+        }
+      }
+
+      const attributeEntries = Object.entries(mergedAttributes).filter(([, value]) => value);
+      if (!attributeEntries.length) return '';
+
+      const attributeString = attributeEntries
+        .map(([key, value]) => `\n        ${key}="${value}"`)
+        .join('');
+      return `<script async src="${widgetScriptUrl}"${attributeString}></script>`;
+    },
+    [apiBaseUrl, currentSlug, widgetScriptUrl],
+  );
   const previewIframeSrc = useMemo(() => {
     if (typeof window === "undefined") return '';
     const baseUrl = window.location.origin;
@@ -106,16 +177,81 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
       if (value) params.set(queryKey, value);
     });
 
+    if (config.primaryColor) params.set('primaryColor', config.primaryColor);
+    if (config.accentColor) params.set('accentColor', config.accentColor);
+    if (config.ctaMessage) params.set('ctaMessage', config.ctaMessage);
+    if (config.logoUrl) {
+      params.set('logoUrl', config.logoUrl);
+      params.set('headerLogoUrl', config.logoUrl);
+    }
+    if (config.animation) params.set('logoAnimation', config.animation);
+    if (config.botName) params.set('welcomeTitle', config.botName);
+    if (config.welcomeMessage) params.set('welcomeSubtitle', config.welcomeMessage);
+    if (config.userMsgColor) params.set('userMsgColor', config.userMsgColor);
+    if (config.chatBackground) params.set('chatBackground', config.chatBackground);
+    if (typeof config.borderRadius === 'number') params.set('borderRadius', String(config.borderRadius));
+    if (config.fontFamily) params.set('fontFamily', config.fontFamily);
+
     return `${baseUrl}/iframe?${params.toString()}`;
-  }, [publicEmbedAttributes, publicWidgetInfo, previewOpen, currentSlug]);
-  const resolvedEmbedSnippet = useMemo(() => embedSnippet, [embedSnippet]);
+  }, [config, publicEmbedAttributes, publicWidgetInfo, previewOpen, currentSlug]);
+  const resolvedEmbedSnippet = useMemo(() => {
+    if (embedSnippet) return embedSnippet;
+    return buildFallbackSnippet(embedAttributes, null);
+  }, [buildFallbackSnippet, embedAttributes, embedSnippet]);
 
   const resolvedPublicEmbedSnippet = useMemo(() => {
-    return publicEmbedSnippet;
-  }, [publicEmbedSnippet]);
+    if (publicEmbedSnippet) return publicEmbedSnippet;
+    return buildFallbackSnippet(publicEmbedAttributes, publicWidgetInfo);
+  }, [buildFallbackSnippet, publicEmbedAttributes, publicEmbedSnippet, publicWidgetInfo]);
+  const activeEmbedAttributes = useMemo(
+    () => (resolvedPublicEmbedSnippet ? publicEmbedAttributes : embedAttributes),
+    [embedAttributes, publicEmbedAttributes, resolvedPublicEmbedSnippet],
+  );
+  const shortEmbedSnippet = useMemo(() => {
+    const scriptUrl = widgetScriptUrl;
+    if (!scriptUrl) return resolvedPublicEmbedSnippet || resolvedEmbedSnippet;
+    const tenant =
+      activeEmbedAttributes['data-tenant'] ||
+      activeEmbedAttributes['data-tenant-slug'] ||
+      publicWidgetInfo?.tenantSlug ||
+      currentSlug ||
+      '';
+    const token =
+      activeEmbedAttributes['data-owner-token'] ||
+      activeEmbedAttributes['data-entity-token'] ||
+      activeEmbedAttributes['data-widget-token'] ||
+      publicWidgetInfo?.token ||
+      '';
+    const endpoint = activeEmbedAttributes['data-endpoint'] || publicWidgetInfo?.tipoChat || '';
+    const attributes: Record<string, string> = {
+      'data-tenant': tenant,
+      'data-owner-token': token,
+      'data-endpoint': endpoint,
+      'data-api-base': activeEmbedAttributes['data-api-base'] || apiBaseUrl,
+    };
+    try {
+      attributes['data-domain'] = new URL(scriptUrl, typeof window === 'undefined' ? undefined : window.location.origin).origin;
+    } catch {
+      // noop
+    }
+    const attributeEntries = Object.entries(attributes).filter(([, value]) => value);
+    if (!attributeEntries.length) return resolvedPublicEmbedSnippet || resolvedEmbedSnippet;
+    const attributeString = attributeEntries
+      .map(([key, value]) => `\n        ${key}="${value}"`)
+      .join('');
+    return `<script async src="${scriptUrl}"${attributeString}></script>`;
+  }, [
+    activeEmbedAttributes,
+    apiBaseUrl,
+    currentSlug,
+    publicWidgetInfo,
+    resolvedEmbedSnippet,
+    resolvedPublicEmbedSnippet,
+    widgetScriptUrl,
+  ]);
   const shouldUseIframePreview = useMemo(
-    () => previewMode === 'embed' && (resolvedPublicEmbedSnippet || resolvedEmbedSnippet) && !hasUnsavedChanges,
-    [previewMode, resolvedPublicEmbedSnippet, resolvedEmbedSnippet, hasUnsavedChanges]
+    () => previewMode === 'embed' && (resolvedPublicEmbedSnippet || resolvedEmbedSnippet),
+    [previewMode, resolvedPublicEmbedSnippet, resolvedEmbedSnippet]
   );
 
   // Debounce logic
@@ -614,20 +750,31 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
                     <CardDescription>Copiá y pegá este script en tu plataforma.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    <div className="rounded-xl border border-border/40 bg-slate-950 text-slate-100 p-4 text-xs font-mono whitespace-pre-wrap">
-                        {resolvedPublicEmbedSnippet || resolvedEmbedSnippet}
+                    <div className="rounded-2xl border border-border/40 bg-slate-950/95 text-slate-100 p-4 text-xs font-mono whitespace-pre-wrap shadow-inner ring-1 ring-white/5 max-h-48 overflow-auto">
+                        {showFullSnippet ? (resolvedPublicEmbedSnippet || resolvedEmbedSnippet) : shortEmbedSnippet}
                     </div>
-                    <div className="space-y-2 text-xs text-muted-foreground">
-                        <p className="font-medium text-foreground">Atributos activos</p>
-                        <div className="grid grid-cols-2 gap-2">
-                            {Object.entries(resolvedPublicEmbedSnippet ? publicEmbedAttributes : embedAttributes).map(([key, value]) => (
-                                <div key={key} className="flex flex-col gap-1 rounded-lg border border-white/10 bg-white/5 p-2">
-                                    <span className="font-medium text-foreground">{key}</span>
-                                    <span>{value}</span>
-                                </div>
-                            ))}
-                        </div>
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowFullSnippet((prev) => !prev)}
+                        >
+                          {showFullSnippet ? 'Ocultar atributos' : 'Ver atributos completos'}
+                        </Button>
                     </div>
+                    {showFullSnippet && (
+                      <div className="space-y-2 text-xs text-muted-foreground">
+                          <p className="font-medium text-foreground">Atributos activos</p>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-64 overflow-auto pr-1">
+                              {Object.entries(activeEmbedAttributes).map(([key, value]) => (
+                                  <div key={key} className="flex flex-col gap-1 rounded-xl border border-white/10 bg-white/5 p-3 shadow-sm">
+                                      <span className="font-medium text-foreground">{key}</span>
+                                      <span>{value}</span>
+                                  </div>
+                              ))}
+                          </div>
+                      </div>
+                    )}
                 </CardContent>
             </Card>
         )}
