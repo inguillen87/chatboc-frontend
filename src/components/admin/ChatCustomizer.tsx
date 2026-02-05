@@ -60,15 +60,29 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
   const [publicEmbedAttributes, setPublicEmbedAttributes] = useState<Record<string, string>>({});
   const [publicWidgetInfo, setPublicWidgetInfo] = useState<{ token?: string; tenantSlug?: string; tipoChat?: string } | null>(null);
   const [showFullSnippet, setShowFullSnippet] = useState(false);
-  const embedBaseUrl = useMemo(() => {
+  const apiBaseUrl = useMemo(() => {
     if (typeof window === 'undefined') return '';
     const fallbackBase = window.location.origin || '';
     const base = import.meta.env.VITE_WIDGET_API_BASE || fallbackBase;
     return base ? base.replace(/\/+$/, '') : '';
   }, []);
+  const parseScriptSrc = useCallback((snippet: string) => {
+    const srcMatch = snippet.match(/<script[^>]*\ssrc=["']([^"']+)["'][^>]*>/i);
+    return srcMatch?.[1] || '';
+  }, []);
+  const widgetScriptUrl = useMemo(() => {
+    const fromPublicSnippet = parseScriptSrc(publicEmbedSnippet);
+    const fromPrivateSnippet = parseScriptSrc(embedSnippet);
+    const fallbackOrigin = typeof window === 'undefined' ? '' : window.location.origin;
+    const chosenSrc = fromPublicSnippet || fromPrivateSnippet;
+
+    if (chosenSrc) return chosenSrc;
+    if (!fallbackOrigin) return '';
+    return `${fallbackOrigin.replace(/\/+$/, '')}/widget.js`;
+  }, [embedSnippet, parseScriptSrc, publicEmbedSnippet]);
   const buildFallbackSnippet = useCallback(
     (attributes: Record<string, string>, info?: { token?: string; tenantSlug?: string; tipoChat?: string } | null) => {
-      if (!embedBaseUrl) return '';
+      if (!widgetScriptUrl) return '';
       const mergedAttributes: Record<string, string> = { ...attributes };
       const tenant =
         mergedAttributes['data-tenant'] ||
@@ -97,7 +111,14 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
         mergedAttributes['data-endpoint'] = endpoint;
       }
       if (!mergedAttributes['data-api-base']) {
-        mergedAttributes['data-api-base'] = embedBaseUrl;
+        mergedAttributes['data-api-base'] = apiBaseUrl;
+      }
+      if (!mergedAttributes['data-domain']) {
+        try {
+          mergedAttributes['data-domain'] = new URL(widgetScriptUrl, window.location.origin).origin;
+        } catch {
+          // ignore invalid URL and keep snippet without data-domain
+        }
       }
 
       const attributeEntries = Object.entries(mergedAttributes).filter(([, value]) => value);
@@ -106,9 +127,9 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
       const attributeString = attributeEntries
         .map(([key, value]) => `\n        ${key}="${value}"`)
         .join('');
-      return `<script async src="${embedBaseUrl}/widget.js"${attributeString}></script>`;
+      return `<script async src="${widgetScriptUrl}"${attributeString}></script>`;
     },
-    [currentSlug, embedBaseUrl],
+    [apiBaseUrl, currentSlug, widgetScriptUrl],
   );
   const previewIframeSrc = useMemo(() => {
     if (typeof window === "undefined") return '';
@@ -156,8 +177,19 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
       if (value) params.set(queryKey, value);
     });
 
+    if (config.primaryColor) params.set('primaryColor', config.primaryColor);
+    if (config.accentColor) params.set('accentColor', config.accentColor);
+    if (config.ctaMessage) params.set('ctaMessage', config.ctaMessage);
+    if (config.logoUrl) {
+      params.set('logoUrl', config.logoUrl);
+      params.set('headerLogoUrl', config.logoUrl);
+    }
+    if (config.animation) params.set('logoAnimation', config.animation);
+    if (config.botName) params.set('welcomeTitle', config.botName);
+    if (config.welcomeMessage) params.set('welcomeSubtitle', config.welcomeMessage);
+
     return `${baseUrl}/iframe?${params.toString()}`;
-  }, [publicEmbedAttributes, publicWidgetInfo, previewOpen, currentSlug]);
+  }, [config, publicEmbedAttributes, publicWidgetInfo, previewOpen, currentSlug]);
   const resolvedEmbedSnippet = useMemo(() => {
     if (embedSnippet) return embedSnippet;
     return buildFallbackSnippet(embedAttributes, null);
@@ -172,8 +204,8 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
     [embedAttributes, publicEmbedAttributes, resolvedPublicEmbedSnippet],
   );
   const shortEmbedSnippet = useMemo(() => {
-    const base = embedBaseUrl;
-    if (!base) return resolvedPublicEmbedSnippet || resolvedEmbedSnippet;
+    const scriptUrl = widgetScriptUrl;
+    if (!scriptUrl) return resolvedPublicEmbedSnippet || resolvedEmbedSnippet;
     const tenant =
       activeEmbedAttributes['data-tenant'] ||
       activeEmbedAttributes['data-tenant-slug'] ||
@@ -191,25 +223,31 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
       'data-tenant': tenant,
       'data-owner-token': token,
       'data-endpoint': endpoint,
-      'data-api-base': activeEmbedAttributes['data-api-base'] || base,
+      'data-api-base': activeEmbedAttributes['data-api-base'] || apiBaseUrl,
     };
+    try {
+      attributes['data-domain'] = new URL(scriptUrl, typeof window === 'undefined' ? undefined : window.location.origin).origin;
+    } catch {
+      // noop
+    }
     const attributeEntries = Object.entries(attributes).filter(([, value]) => value);
     if (!attributeEntries.length) return resolvedPublicEmbedSnippet || resolvedEmbedSnippet;
     const attributeString = attributeEntries
       .map(([key, value]) => `\n        ${key}="${value}"`)
       .join('');
-    return `<script async src="${base}/widget.js"${attributeString}></script>`;
+    return `<script async src="${scriptUrl}"${attributeString}></script>`;
   }, [
     activeEmbedAttributes,
+    apiBaseUrl,
     currentSlug,
-    embedBaseUrl,
     publicWidgetInfo,
     resolvedEmbedSnippet,
     resolvedPublicEmbedSnippet,
+    widgetScriptUrl,
   ]);
   const shouldUseIframePreview = useMemo(
-    () => previewMode === 'embed' && (resolvedPublicEmbedSnippet || resolvedEmbedSnippet) && !hasUnsavedChanges,
-    [previewMode, resolvedPublicEmbedSnippet, resolvedEmbedSnippet, hasUnsavedChanges]
+    () => previewMode === 'embed' && (resolvedPublicEmbedSnippet || resolvedEmbedSnippet),
+    [previewMode, resolvedPublicEmbedSnippet, resolvedEmbedSnippet]
   );
 
   // Debounce logic
