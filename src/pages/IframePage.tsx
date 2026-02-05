@@ -6,7 +6,6 @@ import { TenantProvider } from "@/context/TenantContext";
 import { getChatbocConfig } from "@/utils/config";
 import { hexToHsl } from "@/utils/color";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
-import { apiFetch } from "@/utils/api";
 import { GOOGLE_CLIENT_ID } from '@/env';
 
 const DEFAULTS = {
@@ -48,9 +47,16 @@ const IframePage = () => {
       let fetchedConfig: any = {};
       if (tenantSlug) {
         try {
-          const publicConfig = await apiFetch(`/api/public/tenants/${tenantSlug}/widget-config`, {
-            tenantSlug,
+          const response = await fetch(`/api/public/tenants/${tenantSlug}/widget-config`, {
+            credentials: "omit",
+            headers: {
+              Accept: "application/json",
+            },
           });
+          if (!response.ok) {
+            throw new Error(`Failed to load widget config (${response.status})`);
+          }
+          const publicConfig = await response.json();
           fetchedConfig = publicConfig || {};
           setTenantConfig(fetchedConfig);
         } catch (e) {
