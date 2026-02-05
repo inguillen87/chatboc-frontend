@@ -708,7 +708,7 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
                     <CardDescription>Copiá y pegá este script en tu plataforma.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    <div className="rounded-xl border border-border/40 bg-slate-950 text-slate-100 p-4 text-xs font-mono whitespace-pre-wrap">
+                    <div className="rounded-2xl border border-border/40 bg-slate-950/95 text-slate-100 p-4 text-xs font-mono whitespace-pre-wrap shadow-inner ring-1 ring-white/5 max-h-48 overflow-auto">
                         {showFullSnippet ? (resolvedPublicEmbedSnippet || resolvedEmbedSnippet) : shortEmbedSnippet}
                     </div>
                     <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -723,9 +723,9 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
                     {showFullSnippet && (
                       <div className="space-y-2 text-xs text-muted-foreground">
                           <p className="font-medium text-foreground">Atributos activos</p>
-                          <div className="grid grid-cols-2 gap-2">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-64 overflow-auto pr-1">
                               {Object.entries(activeEmbedAttributes).map(([key, value]) => (
-                                  <div key={key} className="flex flex-col gap-1 rounded-lg border border-white/10 bg-white/5 p-2">
+                                  <div key={key} className="flex flex-col gap-1 rounded-xl border border-white/10 bg-white/5 p-3 shadow-sm">
                                       <span className="font-medium text-foreground">{key}</span>
                                       <span>{value}</span>
                                   </div>
