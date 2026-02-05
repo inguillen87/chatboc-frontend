@@ -21,6 +21,7 @@ import { ChatWidgetProps } from "./types";
 import { MOCK_TENANT_INFO, MOCK_JUNIN_TENANT_INFO } from "@/data/mockTenantData";
 import { hexToHsl, getContrastColorHsl } from "@/utils/color";
 import { apiClient } from "@/api/client";
+import { esRubroPublico } from "@/utils/chatEndpoints";
 
 // LOCAL_PLACEHOLDER_SLUGS is used to prevent the widget from treating reserved paths as tenant slugs.
 // We also alias it to PLACEHOLDER_SLUGS_SET just in case some stale build/import relies on that name.
@@ -207,6 +208,16 @@ function ChatWidgetInner({
   const [catalogInfo, setCatalogInfo] = useState<any | null>(null);
 
   const [duplicateInstance, setDuplicateInstance] = useState(false);
+  const resolvedOwnerToken = useMemo(() => {
+    if (ownerToken) return ownerToken;
+    return (
+      entityInfo?.owner_token ||
+      entityInfo?.entity_token ||
+      entityInfo?.widget_token ||
+      entityInfo?.token ||
+      null
+    );
+  }, [entityInfo, ownerToken]);
 
   const [isMobileView, setIsMobileView] = useState(
     typeof window !== "undefined" && window.innerWidth < 640
@@ -219,7 +230,6 @@ function ChatWidgetInner({
   );
 
   const isEmbedded = mode !== "standalone";
-  const isLandingPage = typeof window !== 'undefined' && window.location.pathname === '/';
   const catalogMetadata = useMemo(() => {
     if (!catalogInfo) return null;
     return (
@@ -1090,6 +1100,16 @@ function ChatWidgetInner({
           if (resolvedTenantSlug) {
              try {
                 const publicConfig = await tenantService.getPublicWidgetConfig(resolvedTenantSlug);
+                const inferredTipoChat = (() => {
+                    if (publicConfig.tipo_chat === 'municipio' || publicConfig.tipo_chat === 'pyme') return publicConfig.tipo_chat;
+                    if (publicConfig.type === 'municipio' || publicConfig.type === 'pyme') return publicConfig.type;
+                    if (publicConfig.tipo === 'municipio' || publicConfig.tipo === 'pyme') return publicConfig.tipo;
+                    if (typeof publicConfig.es_publico === 'boolean') return publicConfig.es_publico ? 'municipio' : 'pyme';
+                    const rubroCandidate = publicConfig.rubro || publicConfig.rubro_publico || publicConfig.public_rubro;
+                    if (rubroCandidate) return esRubroPublico(rubroCandidate) ? 'municipio' : 'pyme';
+                    return tipoChat || 'pyme';
+                })();
+
                 const info = {
                     ...publicConfig,
                     // Priority Merge: Props > Backend Config
@@ -1099,7 +1119,7 @@ function ChatWidgetInner({
                     theme_config: publicConfig.theme_config || {},
                     default_open: (typeof defaultOpen === 'boolean') ? defaultOpen : publicConfig.default_open,
                     slug: resolvedTenantSlug,
-                    tipo_chat: publicConfig.tipo_chat || (publicConfig.type === 'municipio' ? 'municipio' : 'pyme')
+                    tipo_chat: inferredTipoChat,
                 };
 
                 setEntityInfo(info);
@@ -1402,8 +1422,8 @@ function ChatWidgetInner({
                     </div>
                   }
                 >
-                  {view === "register" ? <ChatUserRegisterPanel onSuccess={handleAuthSuccess} onShowLogin={() => setView("login")} entityToken={ownerToken} />
-                    : view === "login" ? <ChatUserLoginPanel onSuccess={handleAuthSuccess} onShowRegister={() => setView("register")} entityToken={ownerToken} />
+                  {view === "register" ? <ChatUserRegisterPanel onSuccess={handleAuthSuccess} onShowLogin={() => setView("login")} entityToken={resolvedOwnerToken ?? undefined} />
+                    : view === "login" ? <ChatUserLoginPanel onSuccess={handleAuthSuccess} onShowRegister={() => setView("register")} entityToken={resolvedOwnerToken ?? undefined} />
                     : view === "user" ? <ChatUserPanel onClose={() => setView("chat")} />
                     : <EntityInfoPanel info={entityInfo} onClose={() => setView("chat")} />}
                 </Suspense>
@@ -1418,8 +1438,8 @@ function ChatWidgetInner({
                   <ChatPanel
                     mode={mode}
                     widgetId={widgetId}
-                    entityToken={ownerToken}
-                    tenantSlug={(isLandingPage && resolvedTenantSlug === 'municipio') ? null : resolvedTenantSlug}
+                    entityToken={resolvedOwnerToken ?? undefined}
+                    tenantSlug={resolvedTenantSlug}
                     openWidth={finalOpenWidth}
                     openHeight={finalOpenHeight}
                     onClose={toggleChat}

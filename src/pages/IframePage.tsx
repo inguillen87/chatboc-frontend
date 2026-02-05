@@ -119,6 +119,12 @@ const IframePage = () => {
       const logoAnimation = urlParams.get("logoAnimation") || fetchedConfig.logo_animation || cfg.logoAnimation || '';
       const welcomeTitle = urlParams.get("welcomeTitle") || fetchedConfig.welcome_title || cfg.welcomeTitle || '';
       const welcomeSubtitle = urlParams.get("welcomeSubtitle") || fetchedConfig.welcome_subtitle || cfg.welcomeSubtitle || '';
+      const userMsgColor = urlParams.get("userMsgColor") || cfg.userMsgColor || '';
+      const chatBackground = urlParams.get("chatBackground") || cfg.chatBackground || '';
+      const borderRadiusParam = urlParams.get("borderRadius") || '';
+      const parsedBorderRadius = Number.parseInt(borderRadiusParam, 10);
+      const borderRadius = Number.isFinite(parsedBorderRadius) ? parsedBorderRadius : undefined;
+      const fontFamily = urlParams.get("fontFamily") || cfg.fontFamily || '';
 
       setWidgetParams({
         defaultOpen,
@@ -140,6 +146,10 @@ const IframePage = () => {
         logoAnimation,
         welcomeTitle,
         welcomeSubtitle,
+        userMsgColor,
+        chatBackground,
+        borderRadius,
+        fontFamily,
         tenantSlug: tenantSlug,
       });
 
@@ -161,6 +171,10 @@ const IframePage = () => {
         logoAnimation,
         welcomeTitle,
         welcomeSubtitle,
+        userMsgColor,
+        chatBackground,
+        borderRadius,
+        fontFamily,
         tenantSlug,
       };
 
@@ -233,6 +247,10 @@ const IframePage = () => {
       tenantSlug={widgetParams.tenantSlug}
       primaryColor={widgetParams.primaryColor}
       accentColor={widgetParams.accentColor}
+      userMsgColor={widgetParams.userMsgColor}
+      chatBackground={widgetParams.chatBackground}
+      borderRadius={widgetParams.borderRadius}
+      fontFamily={widgetParams.fontFamily}
     />
   );
 

@@ -397,6 +397,8 @@ export function useChatLogic({
         data.caption,
         data.descripcion,
         data.description,
+        data.message_to_user,
+        data.messageToUser,
       );
 
       const attachmentInfo = normalizeAttachmentInfo(
@@ -1207,12 +1209,16 @@ export function useChatLogic({
     setIsTyping(true);
 
     try {
+      const allowRubroInference = tipoChat !== 'municipio';
       const storedUser = JSON.parse(safeLocalStorage.getItem('user') || 'null');
-      const storedRubro =
-        storedUser?.rubro?.clave ||
-        storedUser?.rubro?.nombre ||
-        safeLocalStorage.getItem("rubroSeleccionado") ||
-        null;
+      const storedRubro = allowRubroInference
+        ? (
+            storedUser?.rubro?.clave ||
+            storedUser?.rubro?.nombre ||
+            safeLocalStorage.getItem("rubroSeleccionado") ||
+            null
+          )
+        : null;
 
       const tipoChatFinal = enforceTipoChatForRubro(tipoChat, storedRubro);
       const rubro = tipoChatFinal === 'pyme' ? storedRubro : null;
