@@ -55,9 +55,11 @@ const Integracion = () => {
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState("general");
   const [copiado, setCopiado] = useState<"iframe" | "script" | null>(null);
+  const [embedSnippet, setEmbedSnippet] = useState("");
   const [whatsappNumbers, setWhatsappNumbers] = useState<WhatsappNumberInventoryItem[]>([]);
   const [whatsappNumbersLoading, setWhatsappNumbersLoading] = useState(false);
   const [whatsappNumbersError, setWhatsappNumbersError] = useState<string | null>(null);
+  const [publicWidgetConfig, setPublicWidgetConfig] = useState<any>(null);
   const [selectedWhatsappNumber, setSelectedWhatsappNumber] = useState<string>("");
   const [createPayload, setCreatePayload] = useState({ phone_number: "", sender_id: "" });
   const [externalNumberPayload, setExternalNumberPayload] = useState({ number: "", sender_id: "" });
@@ -99,11 +101,49 @@ const Integracion = () => {
     }
   }, [tenantSlug]);
 
+  const loadEmbedSnippet = useCallback(async () => {
+    if (!tenantSlug) return;
+    try {
+      const integrationData = await tenantService.getIntegrationEmbed(tenantSlug);
+      const integrationWidget = integrationData?.widget || {};
+      const integrationSnippet = integrationWidget?.embed_snippet || "";
+      if (integrationSnippet) {
+        setEmbedSnippet(integrationSnippet);
+        return;
+      }
+
+      const data = await tenantService.getPublicWidgetConfig(tenantSlug);
+      const builderConfig = data?.builder_config || data?.widget?.builder_config || {};
+      const snippet = builderConfig?.embed_snippet || data?.embed_snippet || "";
+      setEmbedSnippet(snippet);
+    } catch (error) {
+      console.error("No se pudo cargar el snippet de embed", error);
+      setEmbedSnippet("");
+    }
+  }, [tenantSlug]);
+
+  const handleReload = () => {
+    loadConfig();
+    loadEmbedSnippet();
+  };
+
   useEffect(() => {
     if (!userLoading && tenantSlug) {
       loadConfig();
+      loadEmbedSnippet();
     }
-  }, [userLoading, tenantSlug, loadConfig]);
+  }, [userLoading, tenantSlug, loadConfig, loadEmbedSnippet]);
+
+  useEffect(() => {
+    if (!tenantSlug) return;
+    tenantService
+      .getPublicWidgetConfig(tenantSlug)
+      .then((data) => setPublicWidgetConfig(data))
+      .catch((error) => {
+        console.warn("No se pudo cargar el widget público", error);
+        setPublicWidgetConfig(null);
+      });
+  }, [tenantSlug]);
 
   useEffect(() => {
     if (activeTab === "whatsapp") {
@@ -210,15 +250,12 @@ const Integracion = () => {
 
   const generateEmbedCode = (type: "script" | "iframe") => {
       if (!config) return "";
-      const base = (import.meta.env.VITE_WIDGET_API_BASE || "https://chatboc.ar").replace(/\/+$/, "");
-      const widgetScriptUrl = `${base}/widget.js`;
       const tenant = config.tenant.slug;
-      const builderConfig = config.configs?.widget?.default?.builder_config || {};
-      const embedSnippet = builderConfig?.embed_snippet || config.widget?.embed_snippet || "";
 
       if (type === "script") {
-          return embedSnippet || `<script src="${widgetScriptUrl}" data-tenant="${tenant}" data-shadow-dom="true"></script>`;
+          return embedSnippet;
       } else {
+          const base = (import.meta.env.VITE_WIDGET_API_BASE || "https://chatboc.ar").replace(/\/+$/, "");
           return `<iframe src="${base}/iframe?tenant=${tenant}" style="border:none; position:fixed; bottom:20px; right:20px; z-index:9999; width:400px; height:600px;"></iframe>`;
       }
   };
@@ -261,7 +298,7 @@ const Integracion = () => {
             Gestiona la apariencia, menús y canales de tu organización ({config.tenant.nombre}).
           </p>
         </div>
-        <Button onClick={loadConfig} variant="outline" size="sm" disabled={loading}>
+        <Button onClick={handleReload} variant="outline" size="sm" disabled={loading}>
             <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             Recargar
         </Button>
@@ -269,23 +306,23 @@ const Integracion = () => {
 
       {(config.tenant.plan === 'pro' || config.tenant.plan === 'full') ? (
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-2 md:grid-cols-6 h-auto">
-            <TabsTrigger value="general" className="py-3">
+          <TabsList className="grid w-full grid-cols-2 md:grid-cols-6 h-auto rounded-2xl border border-border/60 bg-card/60 p-1 shadow-sm backdrop-blur">
+            <TabsTrigger value="general" className="py-3 rounded-xl data-[state=active]:bg-background data-[state=active]:shadow-sm">
               <Layout className="mr-2 h-4 w-4" /> General
             </TabsTrigger>
-            <TabsTrigger value="marketplace" className="py-3 data-[state=active]:bg-primary/10 data-[state=active]:text-primary font-bold">
+            <TabsTrigger value="marketplace" className="py-3 rounded-xl data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-sm font-bold">
               <ShoppingCart className="mr-2 h-4 w-4" /> Marketplace
             </TabsTrigger>
-            <TabsTrigger value="whatsapp" className="py-3">
+            <TabsTrigger value="whatsapp" className="py-3 rounded-xl data-[state=active]:bg-background data-[state=active]:shadow-sm">
               <Phone className="mr-2 h-4 w-4" /> WhatsApp
             </TabsTrigger>
-            <TabsTrigger value="widget" className="py-3">
+            <TabsTrigger value="widget" className="py-3 rounded-xl data-[state=active]:bg-background data-[state=active]:shadow-sm">
               <MessageCircle className="mr-2 h-4 w-4" /> Widget
             </TabsTrigger>
-            <TabsTrigger value="menus" className="py-3">
+            <TabsTrigger value="menus" className="py-3 rounded-xl data-[state=active]:bg-background data-[state=active]:shadow-sm">
               <MenuIcon className="mr-2 h-4 w-4" /> Menús
             </TabsTrigger>
-            <TabsTrigger value="contacts" className="py-3">
+            <TabsTrigger value="contacts" className="py-3 rounded-xl data-[state=active]:bg-background data-[state=active]:shadow-sm">
               <LinkIcon className="mr-2 h-4 w-4" /> Contactos
             </TabsTrigger>
           </TabsList>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTenant } from '@/context/TenantContext';
 import { apiClient } from '@/api/client';
+import { ApiError } from '@/utils/api';
 import { IntegrationStatus } from '@/types/unified';
 import type { CatalogColumn, CatalogMetadata, CatalogRow, TenantCatalog } from '@/types/catalog';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
@@ -111,19 +112,49 @@ const IntegracionesPage = () => {
       download_label: data?.download_label,
       history_url: data?.history_url,
       history_label: data?.history_label,
+      template_url: data?.template_url,
+      template_label: data?.template_label,
+      status_label: data?.status_label,
+      updated_label: data?.updated_label,
+      public_link_label: data?.public_link_label,
+      title_label: data?.title_label,
+      description_label: data?.description_label,
+      banner_label: data?.banner_label,
+      default_message_label: data?.default_message_label,
+      enabled_label: data?.enabled_label,
+      is_public_label: data?.is_public_label,
+      share_on_intent_label: data?.share_on_intent_label,
+      prefer_pdf_on_whatsapp_label: data?.prefer_pdf_on_whatsapp_label,
       upload_label: data?.upload_label,
       edit_label: data?.edit_label,
       publish_label: data?.publish_label,
+      preview_label: data?.preview_label,
+      editor_title: data?.editor_title,
+      editor_description: data?.editor_description,
+      editor_close_label: data?.editor_close_label,
+      editor_save_label: data?.editor_save_label,
+      add_row_label: data?.add_row_label,
+      add_column_label: data?.add_column_label,
+      empty_rows_label: data?.empty_rows_label,
+      empty_columns_label: data?.empty_columns_label,
+      upload_section_title: data?.upload_section_title,
+      upload_section_description: data?.upload_section_description,
+      upload_section_button_label: data?.upload_section_button_label,
       share_label: data?.share_label,
       share_whatsapp_label: data?.share_whatsapp_label,
       share_copy_label: data?.share_copy_label,
       share_hint: data?.share_hint,
+      search_placeholder: data?.search_placeholder,
       cta_label: data?.cta_label,
     };
     return {
       status: data?.status ?? data?.catalog_status ?? null,
+      has_pdf: data?.has_pdf ?? null,
       updated_at: data?.updated_at ?? null,
       published_at: data?.published_at ?? null,
+      view_url: data?.view_url ?? null,
+      download_url: data?.download_url ?? null,
+      download_url_json: data?.download_url_json ?? null,
       metadata,
       links,
       columns: data?.columns ?? null,
@@ -143,7 +174,13 @@ const IntegracionesPage = () => {
       setCatalogMetadata(normalized.metadata ?? {});
     } catch (error: any) {
       console.error('Error loading catalog', error);
-      setCatalogError(error?.message ?? null);
+      if (error instanceof ApiError && [403, 404, 405].includes(error.status)) {
+        setCatalogData(null);
+        setCatalogMetadata({});
+        setCatalogError(null);
+      } else {
+        setCatalogError(error?.message ?? null);
+      }
     } finally {
       setCatalogLoading(false);
     }
@@ -252,6 +289,32 @@ const IntegracionesPage = () => {
     );
   };
 
+  const handleCommitCell = async (rowId: CatalogRow["id"], columnKey: string, value: string) => {
+    if (!currentSlug) return;
+    const resolvedRowId =
+      typeof rowId === "number"
+        ? rowId
+        : typeof rowId === "string" && rowId.trim() && !rowId.startsWith("row_")
+          ? rowId
+          : null;
+    if (!resolvedRowId) return;
+    try {
+      await apiClient.adminUpdateCatalogItem(currentSlug, resolvedRowId, {
+        [columnKey]: value,
+      });
+    } catch (error) {
+      console.error("Error updating catalog item", error);
+    }
+  };
+
+  const catalogViewUrl = catalogData?.links?.view_url ?? catalogData?.view_url ?? null;
+  const catalogDownloadUrl = catalogData?.links?.download_url ?? catalogData?.download_url ?? null;
+  const catalogViewLabel = catalogData?.links?.view_label ?? null;
+  const catalogDownloadLabel = catalogData?.links?.download_label ?? null;
+  const catalogShareLabel = catalogData?.links?.share_label ?? null;
+  const catalogShareWhatsappLabel = catalogData?.links?.share_whatsapp_label ?? null;
+  const catalogShareCopyLabel = catalogData?.links?.share_copy_label ?? null;
+
   const loadSettings = async () => {
     try {
       if (!currentSlug) return;
@@ -350,6 +413,17 @@ const IntegracionesPage = () => {
 
   if (loading) return <div className="flex h-96 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
+  const viewUrl = catalogData?.links?.view_url ?? null;
+  const downloadUrl = catalogData?.links?.download_url ?? null;
+  const hasPdf = Boolean(catalogData?.has_pdf);
+  const statusText = catalogData?.status ?? (hasPdf ? 'publicado' : 'sin catálogo');
+  const statusLabel = catalogData?.links?.status_label ?? 'Estado del catálogo';
+  const viewLabel = catalogData?.links?.view_label ?? 'Ver online';
+  const downloadLabel = catalogData?.links?.download_label ?? 'Descargar PDF';
+  const copyLabel = catalogData?.links?.share_copy_label ?? 'Copiar link';
+  const whatsappLabel = catalogData?.links?.share_whatsapp_label ?? 'WhatsApp';
+  const shareLabel = catalogData?.links?.share_label ?? 'Compartir catálogo';
+
   return (
     <div className="container mx-auto p-4 md:p-6 max-w-7xl space-y-10">
       <div className="space-y-2">
@@ -378,17 +452,17 @@ const IntegracionesPage = () => {
             </TabsContent>
 
              <TabsContent value="catalog" className="space-y-6">
-                {catalogLoading && (
+                {catalogLoading && statusLabel && (
                   <Card>
                     <CardContent className="p-6 flex items-center gap-3 text-muted-foreground">
-                      <Loader2 className="h-5 w-5 animate-spin" /> Cargando catálogo...
+                      <Loader2 className="h-5 w-5 animate-spin" /> {statusLabel}
                     </CardContent>
                   </Card>
                 )}
 
-                {catalogError && (
+                {catalogError && statusLabel && (
                   <Alert variant="destructive">
-                    <AlertTitle>Error</AlertTitle>
+                    <AlertTitle>{statusLabel}</AlertTitle>
                     <AlertDescription>{catalogError}</AlertDescription>
                   </Alert>
                 )}
@@ -398,7 +472,11 @@ const IntegracionesPage = () => {
                     <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                       <div className="space-y-1">
                         <CardTitle className="text-lg">Estado del catálogo</CardTitle>
-                        <CardDescription>{catalogData?.status}</CardDescription>
+                        {catalogData?.status && (
+                          <div className="flex items-center gap-2">
+                            <Badge variant={catalogData?.has_pdf ? "default" : "secondary"}>{catalogData.status}</Badge>
+                          </div>
+                        )}
                         {catalogData?.updated_at && (
                           <CardDescription>
                             {formatDistanceToNow(new Date(catalogData.updated_at), { locale: es, addSuffix: true })}
@@ -406,69 +484,26 @@ const IntegracionesPage = () => {
                         )}
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        {catalogData?.links?.view_url && catalogData?.links?.view_label && (
+                        {catalogViewUrl && catalogViewLabel && (
                           <Button asChild variant="outline" size="sm">
-                            <a href={catalogData.links.view_url} target="_blank" rel="noreferrer">
-                              <ExternalLink className="mr-2 h-4 w-4" /> {catalogData.links.view_label}
+                            <a href={catalogViewUrl} target="_blank" rel="noreferrer">
+                              <ExternalLink className="mr-2 h-4 w-4" /> {catalogViewLabel}
                             </a>
                           </Button>
                         )}
-                        {catalogData?.links?.download_url && catalogData?.links?.download_label && (
+                        {catalogDownloadUrl && catalogData?.has_pdf && catalogDownloadLabel && (
                           <Button asChild variant="outline" size="sm">
-                            <a href={catalogData.links.download_url} target="_blank" rel="noreferrer">
-                              <FileDown className="mr-2 h-4 w-4" /> {catalogData.links.download_label}
+                            <a href={catalogDownloadUrl} target="_blank" rel="noreferrer">
+                              <FileDown className="mr-2 h-4 w-4" /> {catalogDownloadLabel}
                             </a>
                           </Button>
                         )}
-                        {catalogData?.links?.download_url_pdf && (
-                          <Button asChild variant="outline" size="sm">
-                            <a href={catalogData.links.download_url_pdf} target="_blank" rel="noreferrer">
-                              <FileDown className="mr-2 h-4 w-4" /> PDF
-                            </a>
-                          </Button>
-                        )}
-                        {catalogData?.links?.download_url_json && (
-                          <Button asChild variant="outline" size="sm">
-                            <a href={catalogData.links.download_url_json} target="_blank" rel="noreferrer">
-                              <FileDown className="mr-2 h-4 w-4" /> JSON
-                            </a>
-                          </Button>
-                        )}
-                        {catalogData?.links?.download_url_xlsx && (
-                          <Button asChild variant="outline" size="sm">
-                            <a href={catalogData.links.download_url_xlsx} target="_blank" rel="noreferrer">
-                              <FileDown className="mr-2 h-4 w-4" /> XLSX
-                            </a>
-                          </Button>
-                        )}
-                        {catalogData?.links?.download_url_csv && (
-                          <Button asChild variant="outline" size="sm">
-                            <a href={catalogData.links.download_url_csv} target="_blank" rel="noreferrer">
-                              <FileDown className="mr-2 h-4 w-4" /> CSV
-                            </a>
-                          </Button>
-                        )}
-                        {catalogData?.links?.history_url && catalogData?.links?.history_label && (
-                          <Button asChild variant="outline" size="sm">
-                            <a href={catalogData.links.history_url} target="_blank" rel="noreferrer">
-                              <ExternalLink className="mr-2 h-4 w-4" /> {catalogData.links.history_label}
-                            </a>
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="grid gap-4">
-                    {catalogData?.links?.view_url && (
-                      <div className="flex flex-col gap-2">
-                        <Label>Enlace público</Label>
-                        <div className="flex flex-col gap-2 sm:flex-row">
-                          <Input value={catalogData.links.view_url} readOnly />
+                        {catalogViewUrl && catalogShareCopyLabel && (
                           <Button
-                            type="button"
                             variant="outline"
+                            size="sm"
                             onClick={() => {
-                              navigator.clipboard.writeText(catalogData.links.view_url || "")
+                              navigator.clipboard.writeText(catalogViewUrl || "")
                                 .then(() => toast.success('Enlace copiado'))
                                 .catch((err) => {
                                   console.error('Copy failed', err);
@@ -476,17 +511,34 @@ const IntegracionesPage = () => {
                                 });
                             }}
                           >
-                            Copiar enlace
+                            {catalogShareCopyLabel}
                           </Button>
-                          <Button asChild variant="outline">
-                            <a
-                              href={`https://wa.me/?text=${encodeURIComponent(catalogData.links.view_url)}`}
-                              target="_blank"
-                              rel="noreferrer"
+                        )}
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="grid gap-4">
+                    {catalogViewUrl && (
+                      <div className="flex flex-col gap-2">
+                        <Label>Enlace público</Label>
+                        <div className="flex flex-col gap-2 sm:flex-row">
+                          <Input value={catalogViewUrl} readOnly />
+                          {catalogShareCopyLabel && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => {
+                                navigator.clipboard.writeText(catalogViewUrl || "")
+                                  .then(() => toast.success('Enlace copiado'))
+                                  .catch((err) => {
+                                    console.error('Copy failed', err);
+                                    toast.error('No se pudo copiar el enlace');
+                                  });
+                              }}
                             >
-                              Enviar por WhatsApp
-                            </a>
-                          </Button>
+                              {catalogShareCopyLabel}
+                            </Button>
+                          )}
                         </div>
                       </div>
                     )}
@@ -572,74 +624,33 @@ const IntegracionesPage = () => {
                   </CardContent>
                 </Card>
 
-                {(catalogMetadata.title || catalogMetadata.description || catalogMetadata.banner_url) && (
+                {catalogViewUrl && catalogShareLabel && (
                   <Card>
                     <CardHeader>
-                      <CardTitle className="text-lg">{catalogData?.links?.share_label}</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      {catalogMetadata.banner_url && (
-                        <div className="overflow-hidden rounded-lg border">
-                          <img
-                            src={catalogMetadata.banner_url}
-                            alt={catalogMetadata.title ?? ''}
-                            className="h-40 w-full object-cover"
-                          />
-                        </div>
-                      )}
-                      <div className="space-y-1">
-                        {catalogMetadata.title && <p className="text-sm font-semibold">{catalogMetadata.title}</p>}
-                        {catalogMetadata.description && (
-                          <p className="text-sm text-muted-foreground">{catalogMetadata.description}</p>
-                        )}
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {catalogData?.links?.view_url && catalogData?.links?.view_label && (
-                          <Button asChild variant="outline" size="sm">
-                            <a href={catalogData.links.view_url} target="_blank" rel="noreferrer">
-                              {catalogData.links.view_label}
-                            </a>
-                          </Button>
-                        )}
-                        {catalogData?.links?.download_url && catalogData?.links?.download_label && (
-                          <Button asChild variant="outline" size="sm">
-                            <a href={catalogData.links.download_url} target="_blank" rel="noreferrer">
-                              {catalogData.links.download_label}
-                            </a>
-                          </Button>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {(catalogData?.links?.view_url || catalogData?.links?.share_hint) && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">{catalogData?.links?.share_label}</CardTitle>
+                      <CardTitle className="text-lg">{catalogShareLabel}</CardTitle>
                       {catalogData?.links?.share_hint && (
                         <CardDescription>{catalogData.links.share_hint}</CardDescription>
                       )}
                     </CardHeader>
                     <CardContent>
                       <div className="flex flex-wrap gap-2">
-                        {catalogData?.links?.view_url && (
+                        {catalogShareWhatsappLabel && (
                           <Button asChild variant="outline">
                             <a
-                              href={`https://wa.me/?text=${encodeURIComponent(catalogData.links.view_url)}`}
+                              href={`https://wa.me/?text=${encodeURIComponent(catalogViewUrl)}`}
                               target="_blank"
                               rel="noreferrer"
                             >
-                              {catalogData?.links?.share_whatsapp_label ?? 'Enviar por WhatsApp'}
+                              {catalogShareWhatsappLabel}
                             </a>
                           </Button>
                         )}
-                        {catalogData?.links?.view_url && (
+                        {catalogShareCopyLabel && (
                           <Button
                             type="button"
                             variant="outline"
                             onClick={() => {
-                              navigator.clipboard.writeText(catalogData.links.view_url || "")
+                              navigator.clipboard.writeText(catalogViewUrl || "")
                                 .then(() => toast.success('Enlace copiado'))
                                 .catch((err) => {
                                   console.error('Copy failed', err);
@@ -647,7 +658,7 @@ const IntegracionesPage = () => {
                                 });
                             }}
                           >
-                            {catalogData?.links?.share_copy_label ?? 'Copiar enlace'}
+                            {catalogShareCopyLabel}
                           </Button>
                         )}
                       </div>
@@ -655,41 +666,56 @@ const IntegracionesPage = () => {
                   </Card>
                 )}
 
-                <Card>
-                    <div className="p-6 flex flex-col md:flex-row items-center gap-6">
-                        <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-blue-50 border border-blue-100">
-                            <FileSpreadsheet className="h-8 w-8 text-blue-600" />
-                        </div>
-                        <div className="flex-1 space-y-1 text-center md:text-left">
-                            <h3 className="font-semibold text-lg">Importación Masiva</h3>
-                            <p className="text-sm text-muted-foreground">
-                                Actualizá tus productos subiendo un archivo Excel o CSV. Detectamos automáticamente columnas y precios.
-                            </p>
-                        </div>
-                        <Button onClick={() => setUploadOpen(true)} className="w-full md:w-auto">
-                            Iniciar Asistente <ArrowRight className="ml-2 h-4 w-4"/>
-                        </Button>
-                    </div>
-                </Card>
+                {catalogData?.links?.upload_section_title && catalogData?.links?.upload_section_button_label && (
+                  <Card>
+                      <div className="p-6 flex flex-col md:flex-row items-center gap-6">
+                          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-blue-50 border border-blue-100">
+                              <FileSpreadsheet className="h-8 w-8 text-blue-600" />
+                          </div>
+                          <div className="flex-1 space-y-1 text-center md:text-left">
+                              <h3 className="font-semibold text-lg">{catalogData.links.upload_section_title}</h3>
+                              {catalogData.links.upload_section_description && (
+                                <p className="text-sm text-muted-foreground">
+                                  {catalogData.links.upload_section_description}
+                                </p>
+                              )}
+                          </div>
+                          <Button onClick={() => setUploadOpen(true)} className="w-full md:w-auto">
+                              {catalogData.links.upload_section_button_label} <ArrowRight className="ml-2 h-4 w-4"/>
+                          </Button>
+                      </div>
+                  </Card>
+                )}
 
                 <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
                     <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto sm:max-w-[800px]">
                         <DialogHeader className="sr-only">
-                            <DialogTitle>Importación de catálogo</DialogTitle>
+                            <DialogTitle>{catalogData?.links?.upload_section_title}</DialogTitle>
                             <DialogDescription>
-                                Asistente para revisar y confirmar la vista previa del catálogo antes de importarlo.
+                                {catalogData?.links?.upload_section_description}
                             </DialogDescription>
                         </DialogHeader>
-                        <CatalogUploadWizard tenantSlug={currentSlug || ""} onFinish={() => setUploadOpen(false)} />
+                        <CatalogUploadWizard
+                          tenantSlug={currentSlug || ""}
+                          onFinish={() => setUploadOpen(false)}
+                          templateUrl={catalogData?.links?.template_url}
+                          templateLabel={catalogData?.links?.template_label}
+                        />
                     </DialogContent>
                 </Dialog>
 
                 <Dialog open={editorOpen} onOpenChange={setEditorOpen}>
                   <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
-                      <DialogTitle>Editor de catálogo</DialogTitle>
-                      <DialogDescription>Administrá columnas y filas del catálogo.</DialogDescription>
-                    </DialogHeader>
+                    {(catalogData?.links?.editor_title || catalogData?.links?.editor_description) && (
+                      <DialogHeader>
+                        {catalogData?.links?.editor_title && (
+                          <DialogTitle>{catalogData.links.editor_title}</DialogTitle>
+                        )}
+                        {catalogData?.links?.editor_description && (
+                          <DialogDescription>{catalogData.links.editor_description}</DialogDescription>
+                        )}
+                      </DialogHeader>
+                    )}
                     <CatalogSpreadsheetEditor
                       columns={draftColumns}
                       rows={draftRows}
@@ -699,14 +725,19 @@ const IntegracionesPage = () => {
                       onAddRow={handleAddRow}
                       onDeleteRow={handleDeleteRow}
                       onUpdateCell={handleUpdateCell}
+                      onCommitCell={handleCommitCell}
                     />
                     <div className="flex justify-end gap-2 pt-4">
-                      <Button variant="outline" onClick={() => setEditorOpen(false)}>
-                        Cerrar
-                      </Button>
-                      <Button onClick={handleSaveDraft}>
-                        Guardar borrador
-                      </Button>
+                      {catalogData?.links?.editor_close_label && (
+                        <Button variant="outline" onClick={() => setEditorOpen(false)}>
+                          {catalogData.links.editor_close_label}
+                        </Button>
+                      )}
+                      {catalogData?.links?.editor_save_label && (
+                        <Button onClick={handleSaveDraft}>
+                          {catalogData.links.editor_save_label}
+                        </Button>
+                      )}
                     </div>
                   </DialogContent>
                 </Dialog>

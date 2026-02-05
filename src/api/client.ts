@@ -206,6 +206,18 @@ export const apiClient = {
     return apiFetch<TenantCatalog>(`/api/admin/tenants/${tenantSlug}/catalog`, { tenantSlug });
   },
 
+  adminUpdateCatalogItem: async (
+    tenantSlug: string,
+    itemId: string | number,
+    payload: Record<string, unknown>,
+  ): Promise<any> => {
+    return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/catalog/items/${itemId}`, {
+      method: "PATCH",
+      body: payload,
+      tenantSlug,
+    });
+  },
+
   adminUpdateCatalogDraft: async (tenantSlug: string, payload: any): Promise<TenantCatalog> => {
     return apiFetch<TenantCatalog>(`/api/admin/tenants/${tenantSlug}/catalog/draft`, {
       method: 'PUT',
@@ -222,7 +234,14 @@ export const apiClient = {
   },
 
   publicGetCatalog: async (tenantSlug: string): Promise<TenantCatalog> => {
-    return apiFetch<TenantCatalog>(`/api/public/tenants/${tenantSlug}/catalog`, { tenantSlug, isWidgetRequest: true });
+    const data = await apiFetch<TenantCatalog | any[]>(`/api/public/tenants/${tenantSlug}/catalog`, {
+      tenantSlug,
+      isWidgetRequest: true,
+    });
+    if (Array.isArray(data)) {
+      return { metadata: null, links: null, columns: [], rows: [] };
+    }
+    return data;
   },
 
   // --- Super Admin Methods ---

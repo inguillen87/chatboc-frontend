@@ -19,11 +19,18 @@ import { cn } from '@/lib/utils';
 interface CatalogUploadWizardProps {
   tenantSlug: string;
   onFinish?: () => void;
+  templateUrl?: string | null;
+  templateLabel?: string | null;
 }
 
 type WizardStep = 'upload' | 'processing' | 'preview' | 'result';
 
-const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ tenantSlug, onFinish }) => {
+const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({
+  tenantSlug,
+  onFinish,
+  templateUrl,
+  templateLabel,
+}) => {
   const [step, setStep] = useState<WizardStep>('upload');
   const [file, setFile] = useState<File | null>(null);
 
@@ -228,8 +235,16 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({ tenantSlug, o
       )}
 
       <div className="flex justify-between items-center">
-         <Button variant="ghost" onClick={handleDownloadTemplate}>
-           Descargar plantilla ejemplo </Button>
+         {templateUrl && templateLabel && (
+           <Button
+             variant="ghost"
+             onClick={() => {
+               window.open(templateUrl, "_blank");
+             }}
+           >
+             {templateLabel}
+           </Button>
+         )}
          <Button onClick={handleUpload} disabled={!file || isProcessing}>
            {isProcessing ? "Procesando..." : "Analizar Archivo"} <ArrowRight className="ml-2 h-4 w-4" />
          </Button>
