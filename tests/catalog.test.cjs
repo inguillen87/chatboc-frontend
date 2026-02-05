@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { getFormattedProducts } from '../catalog.js';
 
 describe('getFormattedProducts', () => {
-  it('should return formatted products', () => {
-    const products = getFormattedProducts();
+  it('should return formatted products', async () => {
+    const products = await getFormattedProducts();
     expect(Array.isArray(products)).toBe(true);
     expect(products.length).toBeGreaterThanOrEqual(3);
 
