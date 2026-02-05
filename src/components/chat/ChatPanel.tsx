@@ -392,7 +392,15 @@ const ChatPanel = (props: ChatPanelProps) => {
         return;
       }
 
-      const socket = io(socketUrl, { path: SOCKET_PATH });
+      let socket: SocketIOClient.Socket | null = null;
+      try {
+        socket = io(socketUrl, { path: SOCKET_PATH });
+      } catch (err) {
+        console.error("Failed to initialize socket.io client:", err);
+      }
+
+      if (!socket) return;
+
       socketRef.current = socket;
 
       const room = `ticket_${tipoChat}_${liveChatTicketId}`;
