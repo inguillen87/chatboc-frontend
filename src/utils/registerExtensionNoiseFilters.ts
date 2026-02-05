@@ -2,7 +2,6 @@ const KNOWN_EXTENSION_PATTERNS = [
   /Cannot assign to read only property '(ethereum|tronLink)' of object '#<Window>'/i,
   /Cannot assign to read only property '(ethereum|tronLink)'/i,
   /This document requires 'TrustedScript' assignment/i,
-  /Cannot access 'ae' before initialization/i,
 ];
 
 const EXTENSION_PROTOCOLS = ['chrome-extension://', 'moz-extension://', 'safari-extension://'];
@@ -28,20 +27,6 @@ function shouldIgnore(message: string | null | undefined): boolean {
 function isExtensionUrl(url: string | null | undefined): boolean {
   if (typeof url !== 'string' || !url) return false;
   return EXTENSION_PROTOCOLS.some((protocol) => url.startsWith(protocol));
-}
-
-export function isExtensionNoiseError(error: unknown): boolean {
-  const message = extractMessage(error);
-  if (shouldIgnore(message)) {
-    return true;
-  }
-  if (error && typeof error === 'object') {
-    const stack = (error as any).stack;
-    if (isExtensionUrl(stack)) {
-      return true;
-    }
-  }
-  return false;
 }
 
 export function registerExtensionNoiseFilters(): () => void {
