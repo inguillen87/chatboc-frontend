@@ -1,81 +1,50 @@
-/**
- * Chatboc Widget Loader
- * Copy and paste this script into your website to embed the Chatboc widget.
- * Usage:
- * <script>
- *   window.chatbocSettings = { tenant: 'your-tenant-slug' };
- *   (function(d, s, id) { ... })(document, 'script', 'chatboc-js');
- * </script>
- */
+(function () {
+  function getAttr(script, name) {
+    return script.getAttribute(name) || script.getAttribute("data-" + name) || "";
+  }
 
-(function (window, document) {
-  'use strict';
+  var script = document.currentScript || (function () {
+    var scripts = document.getElementsByTagName("script");
+    return scripts[scripts.length - 1];
+  })();
 
-  // Configuration
-  var settings = window.chatbocSettings || {};
-  var tenantSlug = settings.tenant;
-  var baseUrl = settings.baseUrl || 'https://app.chatboc.com'; // Adjust for production
+  var tenant = getAttr(script, "tenant");
+  var entityToken = getAttr(script, "entity-token");
+  var host = getAttr(script, "host") || "https://www.chatboc.ar";
+  var position = getAttr(script, "position") || "right";
 
-  if (!tenantSlug) {
-    console.warn('Chatboc: No tenant slug provided.');
+  if (!tenant) {
+    console.error("[Chatboc] Falta data-tenant");
     return;
   }
 
-  // Create Iframe
-  var iframe = document.createElement('iframe');
-  iframe.id = 'chatboc-widget-frame';
-  iframe.src = baseUrl + '/iframe?tenant=' + encodeURIComponent(tenantSlug);
+  var iframe = document.createElement("iframe");
+  iframe.style.position = "fixed";
+  iframe.style.bottom = "24px";
+  iframe.style[position] = "24px";
+  iframe.style.width = "380px";
+  iframe.style.height = "640px";
+  iframe.style.border = "0";
+  iframe.style.zIndex = "2147483647";
+  iframe.style.borderRadius = "16px";
+  iframe.style.boxShadow = "0 18px 60px rgba(0,0,0,.2)";
+  iframe.allow = "microphone; clipboard-read; clipboard-write";
 
-  // Styles
-  iframe.style.position = 'fixed';
-  iframe.style.bottom = '20px';
-  iframe.style.right = '20px';
-  iframe.style.width = '60px'; // Initial button size
-  iframe.style.height = '60px';
-  iframe.style.border = 'none';
-  iframe.style.borderRadius = '30px'; // Circular initially
-  iframe.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
-  iframe.style.zIndex = '999999';
-  iframe.style.transition = 'width 0.3s ease, height 0.3s ease, border-radius 0.3s ease';
-  iframe.style.overflow = 'hidden';
+  // Check if tenant is just a slug or a full URL
+  var url = host + "/iframe?tenant=" + encodeURIComponent(tenant);
+  if (entityToken) url += "&entityToken=" + encodeURIComponent(entityToken);
+  url += "&origin=" + encodeURIComponent(window.location.origin);
 
+  iframe.src = url;
   document.body.appendChild(iframe);
 
-  // Communication (PostMessage)
-  window.addEventListener('message', function(event) {
-    // Security check: ensure origin matches (if needed)
-    // Normalize origin check
-    var allowedOrigin = new URL(baseUrl).origin;
-    if (event.origin !== allowedOrigin) return;
-
-    var data = event.data;
-    if (!data) return;
-
-    if (data.type === 'CHATBOC_RESIZE') {
-      if (data.isOpen) {
-        // Expanded state
-        if (window.innerWidth < 640) {
-          // Mobile: Fullscreen
-          iframe.style.width = '100%';
-          iframe.style.height = '100%';
-          iframe.style.bottom = '0';
-          iframe.style.right = '0';
-          iframe.style.borderRadius = '0';
-        } else {
-          // Desktop: Popover
-          iframe.style.width = '400px';
-          iframe.style.height = '600px';
-          iframe.style.borderRadius = '12px';
-        }
-      } else {
-        // Collapsed state (Button only)
-        iframe.style.width = '60px';
-        iframe.style.height = '60px';
-        iframe.style.bottom = '20px';
-        iframe.style.right = '20px';
-        iframe.style.borderRadius = '30px';
-      }
+  // postMessage (opcional)
+  window.addEventListener("message", function (ev) {
+    // Podés validar ev.origin === host
+    if (!ev.data || !ev.data.type) return;
+    if (ev.data.type === "CHATBOC_RESIZE") {
+      if (ev.data.width) iframe.style.width = ev.data.width + "px";
+      if (ev.data.height) iframe.style.height = ev.data.height + "px";
     }
   });
-
-})(window, document);
+})();

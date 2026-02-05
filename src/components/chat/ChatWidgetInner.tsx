@@ -399,6 +399,13 @@ function ChatWidgetInner({
   const tenantSlugFromScripts = useMemo(() => sanitizeTenantSlug(readTenantFromScripts()), []);
   const tenantSlugFromSubdomain = useMemo(() => sanitizeTenantSlug(readTenantFromSubdomain()), []);
 
+  const isPublicLanding = useMemo(() => {
+    if (typeof window === "undefined") return false;
+    const isHome = window.location.pathname === "/";
+    const isPublicDomain = window.location.hostname === "www.chatboc.ar" || window.location.hostname === "chatboc.ar" || window.location.hostname.includes("vercel.app");
+    return isHome && isPublicDomain && !explicitTenantSlug;
+  }, [explicitTenantSlug]);
+
   const resolvedTenantSlug = useMemo(() => {
     const candidates = [
       explicitTenantSlug,
@@ -406,9 +413,9 @@ function ChatWidgetInner({
       tenantSlugFromLocation,
       tenantSlugFromScripts,
       tenantSlugFromSubdomain,
-      storedTenantSlug,
-      currentSlug,
-      tenant?.slug,
+      !isPublicLanding ? storedTenantSlug : null,
+      !isPublicLanding ? currentSlug : null,
+      !isPublicLanding ? tenant?.slug : null,
     ];
 
     // Explicitly check global config if available
@@ -425,9 +432,9 @@ function ChatWidgetInner({
     return null;
   }, [
     explicitTenantSlug,
-    currentSlug,
-    tenant?.slug,
-    storedTenantSlug,
+    !isPublicLanding ? currentSlug : null,
+    !isPublicLanding ? tenant?.slug : null,
+    !isPublicLanding ? storedTenantSlug : null,
     tenantSlugFromEntity,
     tenantSlugFromLocation,
     tenantSlugFromScripts,
@@ -1442,6 +1449,7 @@ function ChatWidgetInner({
                   }
                 >
                   <ChatPanel
+                    omitCredentials={isPublicLanding}
                     mode={mode}
                     widgetId={widgetId}
                     entityToken={resolvedOwnerToken ?? undefined}

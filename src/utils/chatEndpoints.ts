@@ -63,6 +63,6 @@ export function getAskEndpoint({
   rubro
 }: GetEndpointOptions): string {
   const esPublico = rubro ? esRubroPublico(rubro) : false;
-  if (esPublico) return "/ask/municipio";
-  return tipoChat === "municipio" ? "/ask/municipio" : "/ask/pyme";
+  if (esPublico) return "/api/ask/municipio";
+  return tipoChat === "municipio" ? "/api/ask/municipio" : "/api/ask/pyme";
 }
