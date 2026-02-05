@@ -1,15 +1,20 @@
-import fs from 'fs';
+import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-function loadCatalog() {
+let catalogCache = null;
+
+async function loadCatalog() {
+  if (catalogCache) return catalogCache;
+
   const file = path.join(__dirname, 'catalog.json');
   try {
-    const raw = fs.readFileSync(file, 'utf8');
+    const raw = await fs.readFile(file, 'utf8');
     const data = JSON.parse(raw);
-    return Array.isArray(data) ? data : [];
+    catalogCache = Array.isArray(data) ? data : [];
+    return catalogCache;
   } catch {
     return [];
   }
@@ -37,8 +42,8 @@ function normalize(p) {
   return out;
 }
 
-export function getFormattedProducts() {
-  const catalog = loadCatalog();
+export async function getFormattedProducts() {
+  const catalog = await loadCatalog();
   const map = new Map();
 
   for (const item of catalog) {
