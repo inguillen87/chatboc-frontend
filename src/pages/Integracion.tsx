@@ -59,6 +59,7 @@ const Integracion = () => {
   const [whatsappNumbers, setWhatsappNumbers] = useState<WhatsappNumberInventoryItem[]>([]);
   const [whatsappNumbersLoading, setWhatsappNumbersLoading] = useState(false);
   const [whatsappNumbersError, setWhatsappNumbersError] = useState<string | null>(null);
+  const [publicWidgetConfig, setPublicWidgetConfig] = useState<any>(null);
   const [selectedWhatsappNumber, setSelectedWhatsappNumber] = useState<string>("");
   const [createPayload, setCreatePayload] = useState({ phone_number: "", sender_id: "" });
   const [externalNumberPayload, setExternalNumberPayload] = useState({ number: "", sender_id: "" });
@@ -132,6 +133,17 @@ const Integracion = () => {
       loadEmbedSnippet();
     }
   }, [userLoading, tenantSlug, loadConfig, loadEmbedSnippet]);
+
+  useEffect(() => {
+    if (!tenantSlug) return;
+    tenantService
+      .getPublicWidgetConfig(tenantSlug)
+      .then((data) => setPublicWidgetConfig(data))
+      .catch((error) => {
+        console.warn("No se pudo cargar el widget público", error);
+        setPublicWidgetConfig(null);
+      });
+  }, [tenantSlug]);
 
   useEffect(() => {
     if (activeTab === "whatsapp") {
