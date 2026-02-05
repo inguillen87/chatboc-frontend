@@ -60,6 +60,10 @@ export const tenantService = {
     return apiFetch(`${PUBLIC_BASE_URL}/${slug}/menu?channel=${channel}`);
   },
 
+  getIntegrationEmbed: async (slug: string) => {
+    return apiFetch(`/api/portal/${slug}/integration`, { tenantSlug: slug });
+  },
+
   getPublicWidgetConfig: async (slug: string) => {
     return apiFetch(`${PUBLIC_BASE_URL}/${slug}/widget-config`);
   }

@@ -55,6 +55,7 @@ const Integracion = () => {
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState("general");
   const [copiado, setCopiado] = useState<"iframe" | "script" | null>(null);
+  const [embedSnippet, setEmbedSnippet] = useState("");
   const [whatsappNumbers, setWhatsappNumbers] = useState<WhatsappNumberInventoryItem[]>([]);
   const [whatsappNumbersLoading, setWhatsappNumbersLoading] = useState(false);
   const [whatsappNumbersError, setWhatsappNumbersError] = useState<string | null>(null);
@@ -100,11 +101,38 @@ const Integracion = () => {
     }
   }, [tenantSlug]);
 
+  const loadEmbedSnippet = useCallback(async () => {
+    if (!tenantSlug) return;
+    try {
+      const integrationData = await tenantService.getIntegrationEmbed(tenantSlug);
+      const integrationWidget = integrationData?.widget || {};
+      const integrationSnippet = integrationWidget?.embed_snippet || "";
+      if (integrationSnippet) {
+        setEmbedSnippet(integrationSnippet);
+        return;
+      }
+
+      const data = await tenantService.getPublicWidgetConfig(tenantSlug);
+      const builderConfig = data?.builder_config || data?.widget?.builder_config || {};
+      const snippet = builderConfig?.embed_snippet || data?.embed_snippet || "";
+      setEmbedSnippet(snippet);
+    } catch (error) {
+      console.error("No se pudo cargar el snippet de embed", error);
+      setEmbedSnippet("");
+    }
+  }, [tenantSlug]);
+
+  const handleReload = () => {
+    loadConfig();
+    loadEmbedSnippet();
+  };
+
   useEffect(() => {
     if (!userLoading && tenantSlug) {
       loadConfig();
+      loadEmbedSnippet();
     }
-  }, [userLoading, tenantSlug, loadConfig]);
+  }, [userLoading, tenantSlug, loadConfig, loadEmbedSnippet]);
 
   useEffect(() => {
     if (!tenantSlug) return;
@@ -223,15 +251,6 @@ const Integracion = () => {
   const generateEmbedCode = (type: "script" | "iframe") => {
       if (!config) return "";
       const tenant = config.tenant.slug;
-      const builderConfig =
-        publicWidgetConfig?.builder_config
-        || config.configs?.widget?.default?.builder_config
-        || {};
-      const embedSnippet =
-        builderConfig?.embed_snippet
-        || publicWidgetConfig?.embed_snippet
-        || config.widget?.embed_snippet
-        || "";
 
       if (type === "script") {
           return embedSnippet;
@@ -279,7 +298,7 @@ const Integracion = () => {
             Gestiona la apariencia, menús y canales de tu organización ({config.tenant.nombre}).
           </p>
         </div>
-        <Button onClick={loadConfig} variant="outline" size="sm" disabled={loading}>
+        <Button onClick={handleReload} variant="outline" size="sm" disabled={loading}>
             <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             Recargar
         </Button>

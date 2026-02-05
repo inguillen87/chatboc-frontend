@@ -1,4 +1,4 @@
-import React, { useMemo, useEffect, useState } from 'react';
+import React, { useCallback, useMemo, useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -59,6 +59,7 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
   const [publicEmbedSnippet, setPublicEmbedSnippet] = useState<string>('');
   const [publicEmbedAttributes, setPublicEmbedAttributes] = useState<Record<string, string>>({});
   const [publicWidgetInfo, setPublicWidgetInfo] = useState<{ token?: string; tenantSlug?: string; tipoChat?: string } | null>(null);
+  const shouldUseIframePreview = (resolvedPublicEmbedSnippet || resolvedEmbedSnippet) && !hasUnsavedChanges;
   const previewIframeSrc = useMemo(() => {
     if (typeof window === "undefined") return '';
     const baseUrl = window.location.origin;
@@ -123,55 +124,80 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
     return () => clearTimeout(timer);
   }, [config]);
 
-  // Load initial data
-  useEffect(() => {
-    const loadTheme = async () => {
-      if (!currentSlug) return;
-      if (initialConfig) {
-        setConfig({ ...DEFAULT_THEME, ...initialConfig });
+  const loadTheme = useCallback(async () => {
+    if (!currentSlug) return;
+    if (initialConfig) {
+      setConfig({ ...DEFAULT_THEME, ...initialConfig });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const themeData = await apiClient.getChatTheme(currentSlug);
+      if (themeData) {
+         const builderConfig = themeData.configs?.widget?.default?.builder_config
+           || themeData.widget?.builder_config
+           || {};
+         const snippet = builderConfig?.embed_snippet
+           || themeData.widget?.embed_snippet
+           || '';
+         setEmbedSnippet(snippet);
+         setEmbedAttributes(builderConfig?.attributes || {});
+         const flatConfig = {
+             primaryColor: themeData.theme_config?.light?.primary || DEFAULT_THEME.primaryColor,
+             accentColor: themeData.theme_config?.light?.secondary || DEFAULT_THEME.accentColor,
+             fontFamily: themeData.theme_config?.font_family || DEFAULT_THEME.fontFamily,
+             animation: themeData.theme_config?.animation || DEFAULT_THEME.animation,
+             borderRadius: themeData.theme_config?.border_radius ?? DEFAULT_THEME.borderRadius,
+             userMsgColor: themeData.theme_config?.light?.foreground || DEFAULT_THEME.userMsgColor,
+             chatBackground: themeData.theme_config?.light?.background || DEFAULT_THEME.chatBackground,
+             botName: themeData.bot_name || DEFAULT_THEME.botName,
+             welcomeMessage: themeData.welcome_message || DEFAULT_THEME.welcomeMessage,
+             ctaMessage: themeData.cta_messages?.[0] || DEFAULT_THEME.ctaMessage,
+             showLogo: themeData.show_logo ?? DEFAULT_THEME.showLogo,
+             logoUrl: themeData.logo_url || DEFAULT_THEME.logoUrl,
+             mode: themeData.theme_config?.mode || DEFAULT_THEME.mode,
+             soundEnabled: themeData.theme_config?.sound_enabled ?? DEFAULT_THEME.soundEnabled,
+         };
+         setConfig(flatConfig);
+         setDebouncedConfig(flatConfig);
+      }
+    } catch (error) {
+      console.error("Failed to load chat theme", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [currentSlug, initialConfig]);
+
+  const refreshEmbedSnippet = useCallback(async () => {
+    if (!currentSlug) return;
+    try {
+      const integrationData = await apiClient.get<any>(`/api/portal/${currentSlug}/integration`, { tenantSlug: currentSlug });
+      const integrationWidget = integrationData?.widget || {};
+      const integrationSnippet = integrationWidget?.embed_snippet || '';
+      if (integrationSnippet) {
+        setEmbedSnippet(integrationSnippet);
         return;
       }
+    } catch (error) {
+      console.warn("No se pudo cargar el snippet desde integración", error);
+    }
 
-      setLoading(true);
-      try {
-        const themeData = await apiClient.getChatTheme(currentSlug);
-        if (themeData) {
-           const builderConfig = themeData.configs?.widget?.default?.builder_config
-             || themeData.widget?.builder_config
-             || {};
-           const snippet = builderConfig?.embed_snippet
-             || themeData.widget?.embed_snippet
-             || '';
-           setEmbedSnippet(snippet);
-           setEmbedAttributes(builderConfig?.attributes || {});
-           const flatConfig = {
-               primaryColor: themeData.theme_config?.light?.primary || DEFAULT_THEME.primaryColor,
-               accentColor: themeData.theme_config?.light?.secondary || DEFAULT_THEME.accentColor,
-               fontFamily: themeData.theme_config?.font_family || DEFAULT_THEME.fontFamily,
-               animation: themeData.theme_config?.animation || DEFAULT_THEME.animation,
-               borderRadius: themeData.theme_config?.border_radius ?? DEFAULT_THEME.borderRadius,
-               userMsgColor: themeData.theme_config?.light?.foreground || DEFAULT_THEME.userMsgColor,
-               chatBackground: themeData.theme_config?.light?.background || DEFAULT_THEME.chatBackground,
-               botName: themeData.bot_name || DEFAULT_THEME.botName,
-               welcomeMessage: themeData.welcome_message || DEFAULT_THEME.welcomeMessage,
-               ctaMessage: themeData.cta_messages?.[0] || DEFAULT_THEME.ctaMessage,
-               showLogo: themeData.show_logo ?? DEFAULT_THEME.showLogo,
-               logoUrl: themeData.logo_url || DEFAULT_THEME.logoUrl,
-               mode: themeData.theme_config?.mode || DEFAULT_THEME.mode,
-               soundEnabled: themeData.theme_config?.sound_enabled ?? DEFAULT_THEME.soundEnabled,
-           };
-           setConfig(flatConfig);
-           setDebouncedConfig(flatConfig);
-        }
-      } catch (error) {
-        console.error("Failed to load chat theme", error);
-      } finally {
-        setLoading(false);
-      }
-    };
+    try {
+      const data = await apiClient.get<any>(`/api/public/tenants/${currentSlug}/widget-config`, { tenantSlug: currentSlug });
+      const builderConfig = data?.builder_config || data?.widget?.builder_config || {};
+      const snippet = builderConfig?.embed_snippet || data?.embed_snippet || '';
+      setEmbedSnippet(snippet);
+      setEmbedAttributes(builderConfig?.attributes || {});
+    } catch (error) {
+      console.error("Failed to load public widget config", error);
+    }
+  }, [currentSlug]);
 
+  // Load initial data
+  useEffect(() => {
     loadTheme();
-  }, [currentSlug, initialConfig]);
+  }, [loadTheme]);
 
   useEffect(() => {
     const loadPublicWidget = async () => {
@@ -266,6 +292,7 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
       }
       if (!isAutoSave) toast.success("Personalización guardada correctamente.");
       setHasUnsavedChanges(false);
+      refreshEmbedSnippet();
     } catch (error) {
       console.error("Save failed", error);
       if (!isAutoSave) toast.error("Error al guardar.");
@@ -539,7 +566,7 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
             >
                  <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-slate-900 rounded-b-xl z-30 shadow-sm"></div>
 
-                 {!resolvedPublicEmbedSnippet && !resolvedEmbedSnippet && (
+                 {!shouldUseIframePreview && (
                     <div className="absolute inset-0 bg-slate-100 z-0 flex flex-col items-center justify-center text-slate-300">
                         <div className="w-32 h-4 bg-slate-200 rounded mb-4"></div>
                         <div className="w-48 h-4 bg-slate-200 rounded mb-2"></div>
@@ -548,7 +575,7 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
                  )}
 
                  <div className="relative z-20 w-full h-full">
-                     {resolvedPublicEmbedSnippet || resolvedEmbedSnippet ? (
+                     {shouldUseIframePreview ? (
                         <iframe
                           key={`${previewDevice}-${previewOpen}-${currentSlug || 'demo'}`}
                           title="Widget preview"
