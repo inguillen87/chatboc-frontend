@@ -109,6 +109,10 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
   }, [publicEmbedAttributes, publicWidgetInfo, previewOpen, currentSlug]);
   const resolvedEmbedSnippet = useMemo(() => embedSnippet, [embedSnippet]);
 
+  const resolvedPublicEmbedSnippet = useMemo(() => {
+    return publicEmbedSnippet;
+  }, [publicEmbedSnippet]);
+
   // Debounce logic
   const [debouncedConfig, setDebouncedConfig] = useState(config);
 
@@ -527,7 +531,7 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
             <div
                 className={cn(
                     "mx-auto border-[8px] border-slate-900 shadow-2xl overflow-hidden relative ring-1 ring-slate-900/10 transition-all",
-                    (publicEmbedSnippet || resolvedEmbedSnippet) ? "bg-transparent" : "bg-white",
+                    (resolvedPublicEmbedSnippet || resolvedEmbedSnippet) ? "bg-transparent" : "bg-white",
                     previewDevice === 'mobile' && "h-[700px] w-full max-w-[420px] rounded-[3rem]",
                     previewDevice === 'tablet' && "h-[640px] w-full max-w-[560px] rounded-[2.5rem]",
                     previewDevice === 'desktop' && "h-[520px] w-full max-w-[720px] rounded-[1.75rem]"
@@ -535,7 +539,7 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
             >
                  <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-slate-900 rounded-b-xl z-30"></div>
 
-                 {!publicEmbedSnippet && !resolvedEmbedSnippet && (
+                 {!resolvedPublicEmbedSnippet && !resolvedEmbedSnippet && (
                     <div className="absolute inset-0 bg-slate-100 z-0 flex flex-col items-center justify-center text-slate-300">
                         <div className="w-32 h-4 bg-slate-200 rounded mb-4"></div>
                         <div className="w-48 h-4 bg-slate-200 rounded mb-2"></div>
@@ -544,7 +548,7 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
                  )}
 
                  <div className="relative z-20 w-full h-full">
-                     {publicEmbedSnippet || resolvedEmbedSnippet ? (
+                     {resolvedPublicEmbedSnippet || resolvedEmbedSnippet ? (
                         <iframe
                           key={`${previewDevice}-${previewOpen}-${currentSlug || 'demo'}`}
                           title="Widget preview"
@@ -580,12 +584,12 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="rounded-lg bg-slate-950 text-slate-100 p-4 text-xs font-mono whitespace-pre-wrap">
-                        {publicEmbedSnippet || resolvedEmbedSnippet}
+                        {resolvedPublicEmbedSnippet || resolvedEmbedSnippet}
                     </div>
                     <div className="space-y-2 text-xs text-muted-foreground">
                         <p className="font-medium text-foreground">Atributos activos</p>
                         <div className="grid grid-cols-2 gap-2">
-                            {Object.entries(publicEmbedSnippet ? publicEmbedAttributes : embedAttributes).map(([key, value]) => (
+                            {Object.entries(resolvedPublicEmbedSnippet ? publicEmbedAttributes : embedAttributes).map(([key, value]) => (
                                 <div key={key} className="flex flex-col gap-1 rounded-lg border border-white/10 bg-white/5 p-2">
                                     <span className="font-medium text-foreground">{key}</span>
                                     <span>{value}</span>
