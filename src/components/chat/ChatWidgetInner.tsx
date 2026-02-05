@@ -154,6 +154,20 @@ function readTenantFromSubdomain(): string | null {
   }
 }
 
+const panelAnimation = {
+    initial: { opacity: 0, scale: 0.95, y: 20, originY: 1 },
+    animate: { opacity: 1, scale: 1, y: 0, originY: 1 },
+    exit: { opacity: 0, scale: 0.95, y: 20, originY: 1 },
+    transition: { type: "spring", stiffness: 350, damping: 30 },
+  };
+
+const iconAnimation = {
+    open: { rotate: 180, scale: 0.8 },
+    closed: { rotate: 0, scale: 1 },
+  };
+
+const openSpring = { type: "spring", stiffness: 200, damping: 20 };
+
 function ChatWidgetInner({
   mode = "standalone",
   defaultOpen = false,
@@ -1314,12 +1328,7 @@ function ChatWidgetInner({
     return {};
   }, [mode, initialPosition.bottom, initialPosition.right, isOpen, finalOpenWidth, finalOpenHeight, finalClosedWidth, finalClosedHeight, isMobileView]);
 
-  const panelAnimation = {
-    initial: { opacity: 0, scale: 0.95, y: 20, originY: 1 },
-    animate: { opacity: 1, scale: 1, y: 0, originY: 1 },
-    exit: { opacity: 0, scale: 0.95, y: 20, originY: 1 },
-    transition: { type: "spring", stiffness: 350, damping: 30 },
-  };
+
 
   const buttonAnimation = {
     initial: { scale: 0, opacity: 0 },
@@ -1328,12 +1337,9 @@ function ChatWidgetInner({
     transition: { type: "spring", stiffness: 300, damping: 20 },
   };
 
-  const iconAnimation = {
-    open: { rotate: 180, scale: 0.8 },
-    closed: { rotate: 0, scale: 1 },
-  };
 
-  const openSpring = { type: "spring", stiffness: 200, damping: 20 };
+
+
 
   useEffect(() => {
     if (mode === 'iframe' && typeof window !== 'undefined') {
