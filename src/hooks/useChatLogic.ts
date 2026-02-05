@@ -24,6 +24,7 @@ import { getVisitorName, setVisitorName } from "@/utils/visitorName";
 import { ensureAbsoluteUrl, mergeButtons, pickFirstString } from "@/utils/chatButtons";
 import { deriveAttachmentInfo } from "@/utils/attachment";
 import { getValidStoredToken } from "@/utils/authTokens";
+import { normalizeBotPayload } from "@/lib/normalizeBotPayload";
 
 const EMOJI_CATEGORY_MAP: Record<string, string> = {
   // Agua y saneamiento
@@ -67,6 +68,7 @@ interface UseChatLogicOptions {
   tokenKey?: string;
   skipAuth?: boolean;
   selectedRubro?: string | null;
+  omitCredentials?: boolean;
 }
 
 export function useChatLogic({
@@ -76,6 +78,7 @@ export function useChatLogic({
   tokenKey = 'authToken',
   skipAuth = false,
   selectedRubro = null,
+  omitCredentials = false,
 }: UseChatLogicOptions) {
   const entityToken = propToken || getIframeToken();
   const { user } = useUser();
@@ -108,7 +111,7 @@ export function useChatLogic({
         return;
       }
 
-      const allowRubroInference = tipoChat !== 'municipio';
+      const allowRubroInference = true;
 
       let rawRubro = sanitizeRubroValue(options?.rubroOverride);
       if (!rawRubro) {
@@ -175,7 +178,7 @@ export function useChatLogic({
         const response = await apiFetch<any>(endpoint, {
           method: 'POST',
           skipAuth,
-          isWidgetRequest: true,
+          isWidgetRequest: true, omitCredentials,
           tenantSlug: tenantSlug,
           entityToken,
           body: {
@@ -220,7 +223,6 @@ export function useChatLogic({
   const isAnonimo = skipAuth || !token;
 
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const ultimoMensajeIdRef = useRef<number>(0);
   const clientMessageIdCounter = useRef(0);
 
   const generateClientMessageId = () => {
@@ -261,24 +263,7 @@ export function useChatLogic({
     chatBubbleStyle,
     botones,
     categorias,
-  }: {
-    messageIdCandidate: unknown;
-    text: string | undefined;
-    mediaUrl?: string;
-    audioUrlValue?: string;
-    attachmentInfo?: Message['attachmentInfo'];
-    messageType?: string;
-    action?: string;
-    dataPayload?: unknown;
-    structuredContent?: StructuredContentItem[];
-    listItems?: string[];
-    posts?: Post[];
-    socialLinks?: Record<string, string>;
-    displayHint?: Message['displayHint'];
-    chatBubbleStyle?: Message['chatBubbleStyle'];
-    botones: any[];
-    categorias: Categoria[];
-  }) => {
+  }: any) => {
     if (typeof messageIdCandidate === 'string' || typeof messageIdCandidate === 'number') {
       return `id:${messageIdCandidate}`;
     }
@@ -289,10 +274,10 @@ export function useChatLogic({
     const serializedList = listItems ? JSON.stringify(listItems) : '';
     const serializedPosts = posts
       ? JSON.stringify(
-          posts.map((p) => [
-            (p as any)?.id ?? (p as any)?.post_id ?? '',
-            p.url ?? (p as any)?.enlace ?? (p as any)?.link ?? '',
-            (p as any)?.titulo ?? (p as any)?.title ?? '',
+          posts.map((p: any) => [
+            p?.id ?? p?.post_id ?? '',
+            p.url ?? p?.enlace ?? p?.link ?? '',
+            p?.titulo ?? p?.title ?? '',
           ]),
         )
       : '';
@@ -360,6 +345,7 @@ export function useChatLogic({
         return;
       }
 
+      // Logic to extract standard message content (existing logic)
       const messageType = pickFirstString(
         data.message_type,
         data.messageType,
@@ -524,7 +510,8 @@ export function useChatLogic({
         !!locationData ||
         !!socialLinks;
 
-      let text = rawText ?? (hasNonTextContent ? '' : '⚠️ No se pudo generar una respuesta.');
+      let text = rawText ?? (hasNonTextContent ? '' : ''); // Fallback empty if no content, handle error later
+
       if (text && /es el Administrador de la Municipalidad/i.test(text)) {
         text = text
           .replace(/,?\s*[^.]*es el Administrador de la Municipalidad\.\s*/i, ' ')
@@ -627,9 +614,13 @@ export function useChatLogic({
         return undefined;
       })();
 
+      const isContentValid = !!text || hasNonTextContent;
+
+      if (!isContentValid) return; // Skip if still invalid
+
       const botMessage: Message = {
         id: messageId,
-        text,
+        text: text || "",
         isBot: true,
         timestamp: new Date(timestampValue),
         origen: data.origen ?? data.source,
@@ -650,7 +641,7 @@ export function useChatLogic({
         ...(socialLinks ? { socialLinks } : {}),
         ...(ticketId ? { ticketId } : {}),
         ...(data.query ? { query: data.query } : {}),
-        isError: explicitError ?? (!rawText && !hasNonTextContent),
+        isError: explicitError ?? (!text && !hasNonTextContent),
       };
 
       normalizedMessages.push(botMessage);
@@ -666,8 +657,26 @@ export function useChatLogic({
       return true;
     }
 
+    // 🔥 Fallback: Use normalizeBotPayload for robust extraction if standard logic failed
+    const fallbackMsgs = normalizeBotPayload(rawPayload);
+    if (fallbackMsgs.length > 0) {
+        const adapted: Message[] = fallbackMsgs.map(m => ({
+            id: m.id,
+            text: m.text || (m.items && m.items.length ? 'Opciones:' : 'Mensaje recibido'),
+            isBot: true,
+            timestamp: new Date(),
+            botones: m.items?.map(i => ({ texto: i.title, payload: { id: i.id }, action: 'reply' }))
+        }));
+
+        // Filter out already seen messages using simple ID check or content check
+        // For now, just push them.
+        setMessages((prev) => [...prev, ...adapted]);
+        setIsTyping(false);
+        return true;
+    }
+
     if (fallbackOnEmpty) {
-      console.warn('useChatLogic: Normalized payload produced no messages.');
+      console.warn('useChatLogic: Normalized payload produced no messages even after fallback.');
       setIsTyping(false);
     }
 
@@ -1070,6 +1079,14 @@ export function useChatLogic({
   }, []);
 
   const handleSend = useCallback(async (payload: string | TypeSendPayload) => {
+    const normalizeMessages = (msgs: Message[]) => {
+      return msgs.map(m => {
+        const role = m.isBot ? "assistant" : "user";
+        const content = (m.text || "").trim();
+        if (!content) return null;
+        return { role, content };
+      }).filter(Boolean);
+    };
     const actualPayload: TypeSendPayload =
       typeof payload === 'string'
         ? { text: payload.trim(), source: 'system' }
@@ -1209,7 +1226,7 @@ export function useChatLogic({
     setIsTyping(true);
 
     try {
-      const allowRubroInference = tipoChat !== 'municipio';
+      const allowRubroInference = true;
       const storedUser = JSON.parse(safeLocalStorage.getItem('user') || 'null');
       const resolvedRubro = allowRubroInference
         ? (
@@ -1221,15 +1238,29 @@ export function useChatLogic({
         : null;
 
       const tipoChatFinal = enforceTipoChatForRubro(tipoChat, resolvedRubro);
-      const rubro = tipoChatFinal === 'pyme' ? resolvedRubro : null;
+      const rubro = resolvedRubro;
 
       const updatedContext = updateMunicipioContext(contexto, { userInput: userMessageText, action: resolvedAction });
       setContexto(updatedContext);
 
       const visitorName = getVisitorName();
 
+      const currentMsgs = [...messages];
+      if (userMessageText || attachmentInfo || location) {
+         currentMsgs.push(userMessage);
+      }
+      const normalizedMessages = normalizeMessages(currentMsgs);
+
+      // Fix #2: Ensure messages is not empty if we have content to send.
+      // If normalization returns empty (e.g. only attachments) but we have a question, fallback to single message.
+      const messagesPayload = normalizedMessages.length
+        ? normalizedMessages
+        : [{ role: "user", content: questionForBackend || userMessageText || (attachmentInfo ? "Archivo adjunto" : "Info") }];
+
       const requestBody: Record<string, any> = {
-        pregunta: questionForBackend,
+        pregunta: questionForBackend || userMessageText || (attachmentInfo ? "Archivo adjunto" : "Info"),
+        question: questionForBackend || userMessageText || (attachmentInfo ? "Archivo adjunto" : "Info"),
+        messages: messagesPayload,
         contexto_previo: updatedContext,
         tipo_chat: tipoChatFinal,
         ...(rubro && { rubro_clave: rubro }),
@@ -1275,7 +1306,7 @@ export function useChatLogic({
         method: 'POST',
         body: requestBody,
         skipAuth,
-        isWidgetRequest: true,
+        isWidgetRequest: true, omitCredentials,
         tenantSlug: tenantSlug,
         entityToken,
       });

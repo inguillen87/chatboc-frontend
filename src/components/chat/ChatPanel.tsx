@@ -75,6 +75,7 @@ interface ChatPanelProps {
   a11yPrefs?: Prefs;
   openWidth?: string;
   openHeight?: string;
+  omitCredentials?: boolean;
   catalogCard?: {
     bannerUrl?: string | null;
     viewUrl?: string | null;
@@ -108,6 +109,7 @@ const ChatPanel = (props: ChatPanelProps) => {
     onA11yChange,
     a11yPrefs,
     catalogCard,
+    omitCredentials,
   } = props;
   const isMobile = useIsMobile();
   const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -142,6 +144,7 @@ const ChatPanel = (props: ChatPanelProps) => {
     tenantSlug,
     skipAuth,
     selectedRubro: resolvedSelectedRubro,
+    omitCredentials,
   });
 
   const shouldShowCatalogCard = Boolean(
