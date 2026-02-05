@@ -133,7 +133,6 @@ const Integracion = () => {
       loadEmbedSnippet();
     }
   }, [userLoading, tenantSlug, loadConfig, loadEmbedSnippet]);
-<<<<<<< HEAD
 
   useEffect(() => {
     if (!tenantSlug) return;
@@ -145,8 +144,6 @@ const Integracion = () => {
         setPublicWidgetConfig(null);
       });
   }, [tenantSlug]);
-=======
->>>>>>> d1b04b0aca8ced1fb18d4eb7ba9c7ea49b4668c9
 
   useEffect(() => {
     if (activeTab === "whatsapp") {
@@ -263,11 +260,11 @@ const Integracion = () => {
       }
   };
 
-  const copiarCodigo = async () => {
-      const text = generateEmbedCode();
+  const copiarCodigo = async (type: "script" | "iframe") => {
+      const text = generateEmbedCode(type);
       try {
           await navigator.clipboard.writeText(text);
-          setCopiado("script");
+          setCopiado(type);
           toast.success("Código copiado");
           setTimeout(() => setCopiado(null), 2000);
       } catch (e) {
@@ -635,11 +632,18 @@ const Integracion = () => {
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="rounded-md bg-muted p-4 font-mono text-xs overflow-x-auto">
-                        {generateEmbedCode()}
+                        {generateEmbedCode("script")}
                     </div>
-                    <Button className="w-full" onClick={copiarCodigo}>
+                    <Button className="w-full" onClick={() => copiarCodigo("script")}>
                         {copiado === "script" ? <Check className="mr-2 h-4 w-4"/> : <Copy className="mr-2 h-4 w-4"/>}
                         Copiar Script (Recomendado)
+                    </Button>
+                    <div className="rounded-md bg-muted p-4 font-mono text-xs overflow-x-auto mt-4">
+                        {generateEmbedCode("iframe")}
+                    </div>
+                    <Button variant="outline" className="w-full" onClick={() => copiarCodigo("iframe")}>
+                        {copiado === "iframe" ? <Check className="mr-2 h-4 w-4"/> : <Copy className="mr-2 h-4 w-4"/>}
+                        Copiar Iframe
                     </Button>
                 </CardContent>
               </Card>
@@ -726,9 +730,9 @@ const Integracion = () => {
             </CardHeader>
             <CardContent className="space-y-4">
                 <div className="rounded-md bg-muted p-4 font-mono text-xs overflow-x-auto">
-                    {generateEmbedCode()}
+                    {generateEmbedCode("script")}
                 </div>
-                <Button className="w-full" onClick={copiarCodigo}>
+                <Button className="w-full" onClick={() => copiarCodigo("script")}>
                     {copiado === "script" ? <Check className="mr-2 h-4 w-4"/> : <Copy className="mr-2 h-4 w-4"/>}
                     Copiar Script (Recomendado)
                 </Button>
