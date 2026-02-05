@@ -103,6 +103,14 @@ const Integracion = () => {
   const loadEmbedSnippet = useCallback(async () => {
     if (!tenantSlug) return;
     try {
+      const integrationData = await tenantService.getIntegrationEmbed(tenantSlug);
+      const integrationWidget = integrationData?.widget || {};
+      const integrationSnippet = integrationWidget?.embed_snippet || "";
+      if (integrationSnippet) {
+        setEmbedSnippet(integrationSnippet);
+        return;
+      }
+
       const data = await tenantService.getPublicWidgetConfig(tenantSlug);
       const builderConfig = data?.builder_config || data?.widget?.builder_config || {};
       const snippet = builderConfig?.embed_snippet || data?.embed_snippet || "";
@@ -112,6 +120,11 @@ const Integracion = () => {
       setEmbedSnippet("");
     }
   }, [tenantSlug]);
+
+  const handleReload = () => {
+    loadConfig();
+    loadEmbedSnippet();
+  };
 
   useEffect(() => {
     if (!userLoading && tenantSlug) {
@@ -265,7 +278,7 @@ const Integracion = () => {
             Gestiona la apariencia, menús y canales de tu organización ({config.tenant.nombre}).
           </p>
         </div>
-        <Button onClick={loadConfig} variant="outline" size="sm" disabled={loading}>
+        <Button onClick={handleReload} variant="outline" size="sm" disabled={loading}>
             <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             Recargar
         </Button>
