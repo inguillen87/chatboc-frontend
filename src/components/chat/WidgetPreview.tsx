@@ -75,8 +75,42 @@ const WidgetPreview: React.FC<WidgetPreviewProps> = ({
     if (defaultOpen) {
       params.set('defaultOpen', 'true');
     }
+    if (primaryColor) {
+      params.set('primaryColor', primaryColor);
+    }
+    if (accentColor) {
+      params.set('accentColor', accentColor);
+    }
+    if (ctaMessage) {
+      params.set('ctaMessage', ctaMessage);
+    }
+    if (logoUrl) {
+      params.set('logoUrl', logoUrl);
+    }
+    if (logoUrl) {
+      params.set('headerLogoUrl', logoUrl);
+    }
+    if (logoAnimation) {
+      params.set('logoAnimation', logoAnimation);
+    }
+    if (botName) {
+      params.set('welcomeTitle', botName);
+    }
+    if (welcomeMessage) {
+      params.set('welcomeSubtitle', welcomeMessage);
+    }
     return `${window.location.origin}/iframe?${params.toString()}`;
-  }, [defaultOpen, tenantSlug]);
+  }, [
+    accentColor,
+    botName,
+    ctaMessage,
+    defaultOpen,
+    logoAnimation,
+    logoUrl,
+    primaryColor,
+    tenantSlug,
+    welcomeMessage,
+  ]);
 
   return (
     <div className={cn("flex flex-col items-center gap-4", className)}>
