@@ -113,6 +113,7 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
   const resolvedPublicEmbedSnippet = useMemo(() => {
     return publicEmbedSnippet;
   }, [publicEmbedSnippet]);
+  const shouldUseIframePreview = (resolvedPublicEmbedSnippet || resolvedEmbedSnippet) && !hasUnsavedChanges;
 
   // Debounce logic
   const [debouncedConfig, setDebouncedConfig] = useState(config);

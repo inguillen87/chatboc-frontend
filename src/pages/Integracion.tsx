@@ -54,8 +54,8 @@ const Integracion = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState("general");
-  const [copiado, setCopiado] = useState<"script" | null>(null);
-  const [embedSnippet, setEmbedSnippet] = useState<string>("");
+  const [copiado, setCopiado] = useState<"iframe" | "script" | null>(null);
+  const [embedSnippet, setEmbedSnippet] = useState("");
   const [whatsappNumbers, setWhatsappNumbers] = useState<WhatsappNumberInventoryItem[]>([]);
   const [whatsappNumbersLoading, setWhatsappNumbersLoading] = useState(false);
   const [whatsappNumbersError, setWhatsappNumbersError] = useState<string | null>(null);
@@ -237,8 +237,16 @@ const Integracion = () => {
 
   const isVerificationReady = verificationChecklist.business && verificationChecklist.meta && verificationChecklist.template;
 
-  const generateEmbedCode = () => {
-    return embedSnippet;
+  const generateEmbedCode = (type: "script" | "iframe") => {
+      if (!config) return "";
+      const tenant = config.tenant.slug;
+
+      if (type === "script") {
+          return embedSnippet;
+      } else {
+          const base = (import.meta.env.VITE_WIDGET_API_BASE || "https://chatboc.ar").replace(/\/+$/, "");
+          return `<iframe src="${base}/iframe?tenant=${tenant}" style="border:none; position:fixed; bottom:20px; right:20px; z-index:9999; width:400px; height:600px;"></iframe>`;
+      }
   };
 
   const copiarCodigo = async () => {
