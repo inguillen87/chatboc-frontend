@@ -1211,17 +1211,17 @@ export function useChatLogic({
     try {
       const allowRubroInference = tipoChat !== 'municipio';
       const storedUser = JSON.parse(safeLocalStorage.getItem('user') || 'null');
-      const storedRubro = allowRubroInference
+      const resolvedRubro = allowRubroInference
         ? (
-            storedUser?.rubro?.clave ||
+            selectedRubro || storedUser?.rubro?.clave ||
             storedUser?.rubro?.nombre ||
             safeLocalStorage.getItem("rubroSeleccionado") ||
             null
           )
         : null;
 
-      const tipoChatFinal = enforceTipoChatForRubro(tipoChat, storedRubro);
-      const rubro = tipoChatFinal === 'pyme' ? storedRubro : null;
+      const tipoChatFinal = enforceTipoChatForRubro(tipoChat, resolvedRubro);
+      const rubro = tipoChatFinal === 'pyme' ? resolvedRubro : null;
 
       const updatedContext = updateMunicipioContext(contexto, { userInput: userMessageText, action: resolvedAction });
       setContexto(updatedContext);
@@ -1298,7 +1298,7 @@ export function useChatLogic({
     currentClaimIdempotencyKey,
     tipoChat,
     tenantSlug,
-    entityToken,
+    entityToken, selectedRubro, user,
   ]);
 
   const isLiveChatActive = liveChatTicketId !== null;

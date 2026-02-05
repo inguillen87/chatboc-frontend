@@ -90,11 +90,17 @@ const IframePage = () => {
         cfg.endpoint === 'pyme' || cfg.endpoint === 'municipio'
           ? (cfg.endpoint as 'pyme' | 'municipio')
           : null;
+
+      const fetchedEndpoint =
+        fetchedConfig.tipo_chat === 'pyme' || fetchedConfig.tipo_chat === 'municipio'
+          ? fetchedConfig.tipo_chat
+          : (fetchedConfig.endpoint === 'pyme' || fetchedConfig.endpoint === 'municipio' ? fetchedConfig.endpoint : null);
+
       const endpointParam =
         endpointFromUrl === 'pyme' || endpointFromUrl === 'municipio'
           ? (endpointFromUrl as 'pyme' | 'municipio')
           : null;
-      const resolvedEndpoint = endpointParam || configEndpoint || null;
+      const resolvedEndpoint = endpointParam || fetchedEndpoint || configEndpoint || null;
       if (resolvedEndpoint) {
         setTipoChat(resolvedEndpoint);
       }
