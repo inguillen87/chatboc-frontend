@@ -21,6 +21,7 @@ import { ChatWidgetProps } from "./types";
 import { MOCK_TENANT_INFO, MOCK_JUNIN_TENANT_INFO } from "@/data/mockTenantData";
 import { hexToHsl, getContrastColorHsl } from "@/utils/color";
 import { apiClient } from "@/api/client";
+import { esRubroPublico } from "@/utils/chatEndpoints";
 
 // LOCAL_PLACEHOLDER_SLUGS is used to prevent the widget from treating reserved paths as tenant slugs.
 // We also alias it to PLACEHOLDER_SLUGS_SET just in case some stale build/import relies on that name.
@@ -1099,6 +1100,16 @@ function ChatWidgetInner({
           if (resolvedTenantSlug) {
              try {
                 const publicConfig = await tenantService.getPublicWidgetConfig(resolvedTenantSlug);
+                const inferredTipoChat = (() => {
+                    if (publicConfig.tipo_chat === 'municipio' || publicConfig.tipo_chat === 'pyme') return publicConfig.tipo_chat;
+                    if (publicConfig.type === 'municipio' || publicConfig.type === 'pyme') return publicConfig.type;
+                    if (publicConfig.tipo === 'municipio' || publicConfig.tipo === 'pyme') return publicConfig.tipo;
+                    if (typeof publicConfig.es_publico === 'boolean') return publicConfig.es_publico ? 'municipio' : 'pyme';
+                    const rubroCandidate = publicConfig.rubro || publicConfig.rubro_publico || publicConfig.public_rubro;
+                    if (rubroCandidate) return esRubroPublico(rubroCandidate) ? 'municipio' : 'pyme';
+                    return tipoChat || 'pyme';
+                })();
+
                 const info = {
                     ...publicConfig,
                     // Priority Merge: Props > Backend Config
@@ -1108,7 +1119,7 @@ function ChatWidgetInner({
                     theme_config: publicConfig.theme_config || {},
                     default_open: (typeof defaultOpen === 'boolean') ? defaultOpen : publicConfig.default_open,
                     slug: resolvedTenantSlug,
-                    tipo_chat: publicConfig.tipo_chat || (publicConfig.type === 'municipio' ? 'municipio' : 'pyme')
+                    tipo_chat: inferredTipoChat,
                 };
 
                 setEntityInfo(info);
