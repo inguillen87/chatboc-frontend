@@ -39,39 +39,16 @@ export function getMunicipalStats(filters) {
       });
   }
 
-  // Aggregation Logic (Preserving Original Functionality)
-  const statsMap = {};
-
-  for (const t of filtered) {
-      const key = `${t.municipality || 'Desconocido'}-${t.category}`;
-
-      if (!statsMap[key]) {
-          statsMap[key] = {
-              municipality: t.municipality,
-              category: t.category,
-              total: 0,
-              responseMsSum: 0,
-              responseCount: 0
-          };
-      }
-
-      statsMap[key].total++;
-
-      if (t.responseMs !== undefined) {
-          statsMap[key].responseMsSum += t.responseMs;
-          statsMap[key].responseCount++;
-      }
-  }
-
-  const aggregatedStats = Object.values(statsMap).map(group => ({
-      ...group,
-      averageResponseMs: group.responseCount > 0 ? group.responseMsSum / group.responseCount : 0
-  }));
+  // Restore Original Return Structure: { stats: [{ label: string, value: number }] }
+  const total = filtered.length;
+  // Calculate average response time safely
+  const avgResponse = filtered.reduce((acc, t) => acc + (t.responseMs || 0), 0) / (total || 1);
 
   return {
-      count: filtered.length,
-      tickets: filtered,
-      stats: aggregatedStats
+      stats: [
+          { label: 'Total', value: total },
+          { label: 'Promedio Respuesta (hs)', value: Math.round(avgResponse / 3600000 * 10) / 10 }
+      ]
   };
 }
 
