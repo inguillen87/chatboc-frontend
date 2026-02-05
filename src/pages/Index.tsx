@@ -89,6 +89,7 @@ const Index = () => {
           <ComingSoonSection />
         </section>
       </main>
+      {showWidget && <ChatWidget />}
     </>
   );
 };
