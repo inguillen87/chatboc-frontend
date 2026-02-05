@@ -287,23 +287,23 @@ const Integracion = () => {
 
       {(config.tenant.plan === 'pro' || config.tenant.plan === 'full') ? (
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-2 md:grid-cols-6 h-auto">
-            <TabsTrigger value="general" className="py-3">
+          <TabsList className="grid w-full grid-cols-2 md:grid-cols-6 h-auto rounded-2xl border border-border/60 bg-card/60 p-1 shadow-sm backdrop-blur">
+            <TabsTrigger value="general" className="py-3 rounded-xl data-[state=active]:bg-background data-[state=active]:shadow-sm">
               <Layout className="mr-2 h-4 w-4" /> General
             </TabsTrigger>
-            <TabsTrigger value="marketplace" className="py-3 data-[state=active]:bg-primary/10 data-[state=active]:text-primary font-bold">
+            <TabsTrigger value="marketplace" className="py-3 rounded-xl data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-sm font-bold">
               <ShoppingCart className="mr-2 h-4 w-4" /> Marketplace
             </TabsTrigger>
-            <TabsTrigger value="whatsapp" className="py-3">
+            <TabsTrigger value="whatsapp" className="py-3 rounded-xl data-[state=active]:bg-background data-[state=active]:shadow-sm">
               <Phone className="mr-2 h-4 w-4" /> WhatsApp
             </TabsTrigger>
-            <TabsTrigger value="widget" className="py-3">
+            <TabsTrigger value="widget" className="py-3 rounded-xl data-[state=active]:bg-background data-[state=active]:shadow-sm">
               <MessageCircle className="mr-2 h-4 w-4" /> Widget
             </TabsTrigger>
-            <TabsTrigger value="menus" className="py-3">
+            <TabsTrigger value="menus" className="py-3 rounded-xl data-[state=active]:bg-background data-[state=active]:shadow-sm">
               <MenuIcon className="mr-2 h-4 w-4" /> Menús
             </TabsTrigger>
-            <TabsTrigger value="contacts" className="py-3">
+            <TabsTrigger value="contacts" className="py-3 rounded-xl data-[state=active]:bg-background data-[state=active]:shadow-sm">
               <LinkIcon className="mr-2 h-4 w-4" /> Contactos
             </TabsTrigger>
           </TabsList>
