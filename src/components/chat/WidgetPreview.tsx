@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import ChatWidget from './ChatWidget';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -22,6 +22,33 @@ interface WidgetPreviewProps {
   fontFamily?: string;
 }
 
+class PreviewErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: unknown) {
+    console.error("WidgetPreview error:", error);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="absolute inset-0 flex items-center justify-center bg-background/80">
+          <div className="h-10 w-10 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
 const WidgetPreview: React.FC<WidgetPreviewProps> = ({
   tenantSlug,
   className,
@@ -39,6 +66,51 @@ const WidgetPreview: React.FC<WidgetPreviewProps> = ({
   fontFamily,
 }) => {
   const [device, setDevice] = useState<'desktop' | 'mobile'>('desktop');
+
+  const previewSrc = useMemo(() => {
+    if (typeof window === 'undefined') return '';
+    const params = new URLSearchParams();
+    params.set('tenant', tenantSlug);
+    params.set('tenantSlug', tenantSlug);
+    if (defaultOpen) {
+      params.set('defaultOpen', 'true');
+    }
+    if (primaryColor) {
+      params.set('primaryColor', primaryColor);
+    }
+    if (accentColor) {
+      params.set('accentColor', accentColor);
+    }
+    if (ctaMessage) {
+      params.set('ctaMessage', ctaMessage);
+    }
+    if (logoUrl) {
+      params.set('logoUrl', logoUrl);
+    }
+    if (logoUrl) {
+      params.set('headerLogoUrl', logoUrl);
+    }
+    if (logoAnimation) {
+      params.set('logoAnimation', logoAnimation);
+    }
+    if (botName) {
+      params.set('welcomeTitle', botName);
+    }
+    if (welcomeMessage) {
+      params.set('welcomeSubtitle', welcomeMessage);
+    }
+    return `${window.location.origin}/iframe?${params.toString()}`;
+  }, [
+    accentColor,
+    botName,
+    ctaMessage,
+    defaultOpen,
+    logoAnimation,
+    logoUrl,
+    primaryColor,
+    tenantSlug,
+    welcomeMessage,
+  ]);
 
   return (
     <div className={cn("flex flex-col items-center gap-4", className)}>
@@ -74,26 +146,37 @@ const WidgetPreview: React.FC<WidgetPreviewProps> = ({
         <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1557683316-973673baf926?auto=format&fit=crop&q=80')] bg-cover bg-center opacity-5" />
 
         {/* Actual Widget Component */}
-        <div className="relative w-full h-full p-4 pointer-events-none">
+        <div className="relative w-full h-full p-4">
           {/* pointer-events-none prevents interacting with the widget logic but lets us see it.
               If we want interaction, we remove it. */}
-           <ChatWidget
-              mode="preview"
-              tenantSlug={tenantSlug}
-              defaultOpen={defaultOpen}
-              primaryColor={primaryColor}
-              accentColor={accentColor}
-              userMsgColor={userMsgColor}
-              chatBackground={chatBackground}
-              borderRadius={borderRadius}
-              ctaMessage={ctaMessage}
-              botName={botName}
-              headerLogoUrl={logoUrl}
-              welcomeTitle={botName}
-              welcomeSubtitle={welcomeMessage}
-              logoAnimation={logoAnimation}
-              fontFamily={fontFamily}
-           />
+          <PreviewErrorBoundary>
+            {previewSrc ? (
+              <iframe
+                title="Widget preview"
+                className="absolute inset-0 h-full w-full border-0 bg-transparent"
+                src={previewSrc}
+                allow="clipboard-read; clipboard-write; autoplay; geolocation; microphone; camera"
+              />
+            ) : (
+              <ChatWidget
+                mode="preview"
+                tenantSlug={tenantSlug}
+                defaultOpen={defaultOpen}
+                primaryColor={primaryColor}
+                accentColor={accentColor}
+                userMsgColor={userMsgColor}
+                chatBackground={chatBackground}
+                borderRadius={borderRadius}
+                ctaMessage={ctaMessage}
+                botName={botName}
+                headerLogoUrl={logoUrl}
+                welcomeTitle={botName}
+                welcomeSubtitle={welcomeMessage}
+                logoAnimation={logoAnimation}
+                fontFamily={fontFamily}
+              />
+            )}
+          </PreviewErrorBoundary>
         </div>
       </div>
 
