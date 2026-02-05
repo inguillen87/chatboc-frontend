@@ -12,6 +12,9 @@ import CtaSection from '@/components/sections/CtaSection';
 import ComingSoonSection from '@/components/sections/ComingSoonSection';
 
 const Index = () => {
+  // Guard for mixed old/new client chunks during deploy rollouts.
+  // Legacy bundles may still reference showWidget on this page.
+  const showWidget = false;
   useEffect(() => {
     document.title = 'Chatboc - Conectando Gobiernos y Empresas con sus Comunidades'; // Título actualizado
 
@@ -64,7 +67,7 @@ const Index = () => {
           <ComingSoonSection />
         </section>
       </main>
-      {showWidget && <ChatWidget />}
+      {showWidget && null}
     </>
   );
 };
