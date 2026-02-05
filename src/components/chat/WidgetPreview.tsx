@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import ChatWidget from './ChatWidget';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -67,6 +67,17 @@ const WidgetPreview: React.FC<WidgetPreviewProps> = ({
 }) => {
   const [device, setDevice] = useState<'desktop' | 'mobile'>('desktop');
 
+  const previewSrc = useMemo(() => {
+    if (typeof window === 'undefined') return '';
+    const params = new URLSearchParams();
+    params.set('tenant', tenantSlug);
+    params.set('tenantSlug', tenantSlug);
+    if (defaultOpen) {
+      params.set('defaultOpen', 'true');
+    }
+    return `${window.location.origin}/iframe?${params.toString()}`;
+  }, [defaultOpen, tenantSlug]);
+
   return (
     <div className={cn("flex flex-col items-center gap-4", className)}>
       {/* Device Toggle */}
@@ -101,27 +112,36 @@ const WidgetPreview: React.FC<WidgetPreviewProps> = ({
         <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1557683316-973673baf926?auto=format&fit=crop&q=80')] bg-cover bg-center opacity-5" />
 
         {/* Actual Widget Component */}
-        <div className="relative w-full h-full p-4 pointer-events-none">
+        <div className="relative w-full h-full p-4">
           {/* pointer-events-none prevents interacting with the widget logic but lets us see it.
               If we want interaction, we remove it. */}
           <PreviewErrorBoundary>
-            <ChatWidget
-              mode="preview"
-              tenantSlug={tenantSlug}
-              defaultOpen={defaultOpen}
-              primaryColor={primaryColor}
-              accentColor={accentColor}
-              userMsgColor={userMsgColor}
-              chatBackground={chatBackground}
-              borderRadius={borderRadius}
-              ctaMessage={ctaMessage}
-              botName={botName}
-              headerLogoUrl={logoUrl}
-              welcomeTitle={botName}
-              welcomeSubtitle={welcomeMessage}
-              logoAnimation={logoAnimation}
-              fontFamily={fontFamily}
-            />
+            {previewSrc ? (
+              <iframe
+                title="Widget preview"
+                className="absolute inset-0 h-full w-full border-0 bg-transparent"
+                src={previewSrc}
+                allow="clipboard-read; clipboard-write; autoplay; geolocation; microphone; camera"
+              />
+            ) : (
+              <ChatWidget
+                mode="preview"
+                tenantSlug={tenantSlug}
+                defaultOpen={defaultOpen}
+                primaryColor={primaryColor}
+                accentColor={accentColor}
+                userMsgColor={userMsgColor}
+                chatBackground={chatBackground}
+                borderRadius={borderRadius}
+                ctaMessage={ctaMessage}
+                botName={botName}
+                headerLogoUrl={logoUrl}
+                welcomeTitle={botName}
+                welcomeSubtitle={welcomeMessage}
+                logoAnimation={logoAnimation}
+                fontFamily={fontFamily}
+              />
+            )}
           </PreviewErrorBoundary>
         </div>
       </div>
