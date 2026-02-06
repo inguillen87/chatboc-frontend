@@ -24,6 +24,8 @@ interface HeatmapProps {
   metadata?: HeatmapMapMetadata | null;
   mapConfig?: MapConfig | null;
   mapLayers?: Record<string, MapLayerSource> | null;
+  polygons?: { type: 'FeatureCollection'; features: any[] };
+  showPolygons?: boolean;
   onSelect?: (lat: number, lon: number, address?: string) => void;
 }
 
@@ -36,6 +38,8 @@ export const AnalyticsHeatmap: React.FC<HeatmapProps> = ({
   metadata,
   mapConfig,
   mapLayers,
+  polygons,
+  showPolygons = false,
   onSelect,
 }) => {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
@@ -511,6 +515,8 @@ export const AnalyticsHeatmap: React.FC<HeatmapProps> = ({
           center={mapCenter}
           initialZoom={initialZoom}
           heatmapData={heatmapData}
+          polygons={polygons}
+          showPolygons={showPolygons}
           adminLocation={adminLocation}
           onSelect={onSelect}
           className="h-[600px] rounded-lg"

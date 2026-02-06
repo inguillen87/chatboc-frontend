@@ -44,6 +44,13 @@ export interface HeatPoint {
   coordinates?: [number, number];
   location?: { lat: number; lng: number };
   feature?: Record<string, unknown>;
+  // New fields for completeness
+  source?: string;
+  cellId?: string;
+  pointCount?: number;
+  aggregatedCanales?: HeatmapBreakdownItem[];
+  aggregatedFuentes?: HeatmapBreakdownItem[];
+  dominantValues?: Record<string, string | null | undefined>;
 }
 
 type FeatureCollectionLike = {
@@ -128,14 +135,18 @@ export interface TicketStatsResponse {
   heatmapDataset?: HeatmapDataset;
 }
 
-export interface TicketStatsParams {
+export interface HeatmapParams {
   tipo?: string;
   fecha_inicio?: string;
   fecha_fin?: string;
+  tipo_ticket?: string; // legacy support
   categoria?: string | string[];
   estado?: string | string[];
   distrito?: string;
   barrio?: string;
+}
+
+export interface TicketStatsParams extends HeatmapParams {
   genero?: string | string[];
   edad_min?: string | number;
   edad_max?: string | number;
@@ -158,6 +169,8 @@ export interface SalesAnalyticsResponse {
   total_orders: number;
   sales_by_product: { name: string; count: number }[];
   sales_by_hour: { hour: number; count: number }[];
+  chat_conversion?: number;
+  lead_source?: { source: string; count: number }[];
 }
 
 export interface BenchmarkData {
@@ -200,9 +213,25 @@ export interface SurveyGeoResponse {
   points: { lat: number; lng: number; weight: number }[];
 }
 
-const MUNICIPAL_TIPO_ALIASES = ['municipio', 'municipal', 'municipalidad'] as const;
+interface CoordinateCollector {
+  latValues: number[];
+  lngValues: number[];
+  pairs: { lat: number; lng: number }[];
+}
 
-// ... (existing constants: LATITUDE_KEYWORDS, LONGITUDE_KEYWORDS, etc. - keeping them as is for brevity, but they should be included) ...
+interface NormalizedChart {
+  title: string;
+  data: Record<string, number>;
+}
+
+interface NormalizeCellsResult {
+  points: HeatPoint[];
+  raw: Record<string, unknown>[];
+}
+
+const MUNICIPAL_TIPO_ALIASES = ['municipio', 'municipal', 'municipalidad'] as const;
+const STATUS_KEYWORDS = ['estado', 'status', 'situacion'];
+
 const LATITUDE_KEYWORDS = ['lat', 'latitude', 'latitud'];
 const LONGITUDE_KEYWORDS = ['lng', 'lon', 'longitud', 'long'];
 const COORDINATE_CONTAINER_KEYWORDS = [
@@ -315,9 +344,7 @@ const NESTED_CONTAINER_KEYS = [
   'meta',
 ];
 
-// ... (helper functions: isPlainObject, sanitizeLooseJson, tryParseLooseJson, normalizeApiPayload, isHtmlPayload, normalizeKey, parseNumberValue, candidateScore, chooseCandidate, parseCoordinatePair, pushUniqueNumber, pushUniquePair, collectCoordinates, extractCoordinates, coerceString, coerceNumber, formatKeyLabel, findStringByKeywords, findNumberByKeywords, buildChartDataFromObject, buildChartData, parseChartLikeObject, normalizeChartCollection, extractChartsFromPayload, looksLikeHeatmapPoint, extractHeatmapFromPayload, asRecord, getFromRecord, gatherCandidateContainers, pickFirstValue, toBreakdownItems, normalizeHeatmapCells, normalizeHeatmapDataset, extractValueByKeywords, stringTransformer, numberTransformer, pickStringValue, pickNumberValue, normalizeHeatmapBreakdown, normalizeHeatmapCellValues, normalizeHeatmapCell, normalizeHeatPoint, normalizeHeatmapCellList, normalizeMapConfig, normalizeMapLayers, normalizeHeatmapMapMetadata, normalizeHeatmapMetadata, isFeatureCollection, extractHeatmapDataset, buildSearchParams, normalizeDateParam, normalizeTipo, buildMunicipalAttemptList, shouldTryMunicipalAliases, tryMunicipalAliases - keeping logic same) ...
-
-// Re-including helper functions to ensure the file is complete and functional
+// Helper Functions
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 
@@ -391,21 +418,21 @@ const normalizeApiPayload = (payload: unknown, visited: WeakMap<object, unknown>
 };
 
 const isHtmlPayload = (payload: unknown): payload is string =>
-  typeof payload === 'string' && /<\\s*(?:!doctype|html|head|body)\\b/i.test(payload);
+  typeof payload === 'string' && /<\s*(?:!doctype|html|head|body)\b/i.test(payload);
 
 const normalizeKey = (key: string): string =>
-  key.normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase().replace(/[^a-z0-9_-]+/g, '');
+  key.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9_-]+/g, '');
 
 const parseNumberValue = (value: unknown): number | undefined => {
   if (typeof value === 'number') return Number.isFinite(value) ? value : undefined;
   if (typeof value === 'string') {
     const trimmed = value.trim();
     if (!trimmed) return undefined;
-    const sanitized = trimmed.replace(/\\s+/g, '');
+    const sanitized = trimmed.replace(/\s+/g, '');
     const hasComma = sanitized.includes(',');
     const hasDot = sanitized.includes('.');
     let normalized = sanitized;
-    if (hasComma && hasDot) normalized = normalized.replace(/\\./g, '').replace(/,/g, '.');
+    if (hasComma && hasDot) normalized = normalized.replace(/\./g, '').replace(/,/g, '.');
     else if (hasComma) normalized = normalized.replace(/,/g, '.');
     const parsed = Number(normalized);
     return Number.isFinite(parsed) ? parsed : undefined;
@@ -454,14 +481,14 @@ const parseCoordinatePair = (value: unknown, order: 'auto' | 'lat-lng' | 'lng-la
   if (typeof value === 'string') {
     const trimmed = value.trim();
     if (!trimmed) return {};
-    const matches = trimmed.match(/-?\\d+(?:[.,]\\d+)?/g);
+    const matches = trimmed.match(/-?\d+(?:[.,]\d+)?/g);
     if (!matches || matches.length < 2) return {};
     const first = parseNumberValue(matches[0]);
     const second = parseNumberValue(matches[1]);
     if (first === undefined || second === undefined) return {};
     let hint = order;
     if (hint === 'auto') {
-      if (/\\bpoint\\b/i.test(trimmed) || /\\blon\\b/i.test(trimmed)) hint = 'lng-lat';
+      if (/\bpoint\b/i.test(trimmed) || /\blon\b/i.test(trimmed)) hint = 'lng-lat';
       else if (trimmed.includes(',')) hint = 'lat-lng';
     }
     const candidate = chooseCandidate(first, second, hint);
@@ -483,12 +510,6 @@ const pushUniquePair = (list: { lat: number; lng: number }[], pair: { lat?: numb
   if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return;
   if (!list.some((existing) => Math.abs(existing.lat - lat) < 1e-9 && Math.abs(existing.lng - lng) < 1e-9)) list.push({ lat, lng });
 };
-
-// ... (skipping implementing all helper functions fully inline for brevity, assuming existing ones work as tested.
-// However, since I am rewriting the file, I must ensure all dependencies are present.
-// I will include the core logic and reuse the structures.)
-
-// [Resuming helper function implementation for complete file write]
 
 const collectCoordinates = (value: unknown, collector: CoordinateCollector, depth = 0) => {
   if (depth > 5 || value === null || value === undefined) return;
@@ -571,7 +592,7 @@ const coerceNumber = (value: unknown): number | null => {
   return parsed !== undefined && Number.isFinite(parsed) ? parsed : null;
 };
 
-const formatKeyLabel = (key: string): string => key.replace(/[_-]+/g, ' ').replace(/\\s+/g, ' ').trim().replace(/\\b\\w/g, (match) => match.toUpperCase());
+const formatKeyLabel = (key: string): string => key.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim().replace(/\b\w/g, (match) => match.toUpperCase());
 
 const findStringByKeywords = (record: Record<string, unknown>, keywords: string[]): string | null => {
   for (const [key, value] of Object.entries(record)) {
@@ -744,6 +765,27 @@ const looksLikeHeatmapPoint = (value: unknown): boolean => {
   });
 };
 
+const normalizeHeatPoint = (raw: unknown): HeatPoint | null => {
+  if (!raw || typeof raw !== 'object') return null;
+  const record = raw as Record<string, unknown>;
+  const coords = extractCoordinates(record);
+  if (coords.lat === undefined || coords.lng === undefined) return null;
+  const categoria = findStringByKeywords(record, NORMALIZED_STRING_FIELDS.categoria);
+  const estado = findStringByKeywords(record, NORMALIZED_STRING_FIELDS.estado);
+  const ticket = findStringByKeywords(record, NORMALIZED_STRING_FIELDS.ticket);
+  const weight = findNumberByKeywords(record, NORMALIZED_NUMBER_FIELDS.weight);
+  const total = findNumberByKeywords(record, NORMALIZED_NUMBER_FIELDS.total);
+  return {
+    lat: coords.lat,
+    lng: coords.lng,
+    categoria: categoria ?? undefined,
+    estado: estado ?? undefined,
+    ticket: ticket ?? undefined,
+    weight: weight ?? undefined,
+    total: total ?? undefined,
+  };
+};
+
 const extractHeatmapFromPayload = (payload: unknown): HeatPoint[] => {
   const points: HeatPoint[] = [];
   const visited = new Set<unknown>();
@@ -836,9 +878,6 @@ const toBreakdownItems = (value: unknown, totalWeight: number): HeatmapBreakdown
   }).filter((item): item is HeatmapBreakdownItem => Boolean(item));
 };
 
-// ... [The rest of normalizeHeatmapCells, normalizeHeatmapDataset, etc. as in the previous file read] ...
-// I will include them to ensure the file is complete.
-
 const normalizeHeatmapCells = (rawCells: unknown): NormalizeCellsResult => {
   const rawList: Record<string, unknown>[] = [];
   if (!Array.isArray(rawCells)) return { points: [], raw: rawList };
@@ -883,7 +922,61 @@ const normalizeHeatmapCells = (rawCells: unknown): NormalizeCellsResult => {
   return { points, raw: rawList };
 };
 
-// ... [Assuming all previous helper functions are present, continuing with API exports] ...
+const isFeatureCollection = (value: unknown): value is FeatureCollectionLike => {
+  const record = asRecord(value);
+  return record?.type === 'FeatureCollection' && Array.isArray(record.features);
+};
+
+const normalizeMapConfig = (raw: unknown): MapConfig => {
+  const record = asRecord(raw) ?? {};
+  return { provider: coerceString(record.provider) || 'none', google_maps_key: coerceString(record.google_maps_key) || undefined, maptiler_key: coerceString(record.maptiler_key) || undefined, style_url: coerceString(record.style_url) || undefined };
+};
+
+const normalizeMapLayers = (raw: unknown): Record<string, MapLayerSource> => {
+  const result: Record<string, MapLayerSource> = {};
+  const record = asRecord(raw);
+  if (!record) return result;
+  Object.entries(record).forEach(([key, value]) => {
+    const layer = asRecord(value);
+    if (layer) { result[key] = { kind: coerceString(layer.kind) || undefined, supportedFormats: Array.isArray(layer.supported_formats) ? layer.supported_formats.map(String) : undefined, preferredFormat: coerceString(layer.preferred_format) || undefined, providerHint: coerceString(layer.provider_hint) || undefined, sourceKeys: asRecord(layer.source_keys) as Record<string, string> || undefined, raw: layer }; }
+  });
+  return result;
+};
+
+const normalizeHeatmapMapMetadata = (raw: unknown): HeatmapMapMetadata => {
+  const record = asRecord(raw) ?? {};
+  return { pointCount: parseNumberValue(record.point_count), cellCount: parseNumberValue(record.cell_count), maxPointWeight: parseNumberValue(record.max_point_weight), maxCellCount: parseNumberValue(record.max_cell_count), totalWeight: parseNumberValue(record.total_weight), resolution: parseNumberValue(record.resolution), bounds: Array.isArray(record.bounds) && record.bounds.length === 4 ? (record.bounds as [number, number, number, number]) : undefined, centroid: Array.isArray(record.centroid) && record.centroid.length === 2 ? (record.centroid as [number, number]) : undefined };
+};
+
+const normalizeHeatmapMetadata = (raw: unknown): HeatmapMetadata => {
+  const record = asRecord(raw) ?? {};
+  const mapMeta: Record<string, HeatmapMapMetadata> = {};
+  const mapRecord = asRecord(record.map);
+  if (mapRecord) { Object.entries(mapRecord).forEach(([key, value]) => { mapMeta[key] = normalizeHeatmapMapMetadata(value); }); }
+  return { map: mapMeta, raw: record };
+};
+
+const normalizeHeatmapDataset = (raw: unknown): HeatmapDataset => {
+  const record = asRecord(raw);
+  if (!record) return { points: [] };
+  const containers = gatherCandidateContainers(record);
+  const geojsonCandidate = pickFirstValue(containers, ['geojson', 'feature_collection'], isFeatureCollection);
+  let geojsonPoints: HeatPoint[] = [];
+  if (geojsonCandidate) geojsonPoints = extractHeatmapFromPayload(geojsonCandidate);
+  const explicitPointsCandidate = pickFirstValue(containers, ['points', 'puntos', 'heatmap', 'data', 'datos'], Array.isArray);
+  const explicitPoints = explicitPointsCandidate ? extractHeatmapFromPayload(explicitPointsCandidate) : [];
+  const cellsCandidate = pickFirstValue(containers, ['cells', 'celdas', 'clusters', 'grid', 'cuadricula'], Array.isArray);
+  const { points: cellPoints, raw: rawCells } = normalizeHeatmapCells(cellsCandidate);
+  const points = [...geojsonPoints, ...explicitPoints, ...cellPoints];
+  const mapConfig = normalizeMapConfig(pickFirstValue(containers, ['map_config', 'mapconfig', 'config'], isPlainObject));
+  const mapLayers = normalizeMapLayers(pickFirstValue(containers, ['map_layers', 'layers', 'capas'], isPlainObject));
+  const metadata = normalizeHeatmapMetadata(pickFirstValue(containers, ['metadata', 'meta', 'info'], isPlainObject));
+  return { points, geojson: geojsonCandidate, cells: rawCells as unknown as HeatmapCell[], mapConfig, mapLayers, metadata, raw };
+};
+
+export const extractHeatmapDataset = (payload: unknown): HeatmapDataset => {
+  return normalizeHeatmapDataset(payload);
+};
 
 const buildSearchParams = (params?: Record<string, unknown>) => {
   const qs = new URLSearchParams();
@@ -952,7 +1045,7 @@ export const getTicketStats = async (params?: TicketStatsParams): Promise<Ticket
   const fetchStats = async (overrideTipo?: string): Promise<TicketStatsResponse> => {
     const normalizedParams: TicketStatsParams = { ...(params || {}), tipo: normalizeTipo(overrideTipo ?? params?.tipo ?? params?.tipo_ticket), fecha_inicio: normalizeDateParam(params?.fecha_inicio), fecha_fin: normalizeDateParam(params?.fecha_fin) };
     delete (normalizedParams as any).tipo_ticket;
-    const query = buildSearchParams(normalizedParams).toString();
+    const query = buildSearchParams(normalizedParams as unknown as Record<string, unknown>).toString();
     const candidatePaths = [`/api/estadisticas/tickets${query ? `?${query}` : ''}`, `/estadisticas/tickets${query ? `?${query}` : ''}`, `/api/municipal/estadisticas/tickets${query ? `?${query}` : ''}`, `/municipal/estadisticas/tickets${query ? `?${query}` : ''}`];
     let resp: unknown = null;
     let lastError: unknown = null;
@@ -981,7 +1074,7 @@ export const getHeatmapDataset = async (params?: HeatmapParams): Promise<Heatmap
   const requestHeatmap = async (overrideTipo?: string): Promise<HeatmapDataset> => {
     const normalizedParams: HeatmapParams = { ...(params || {}), tipo: normalizeTipo(overrideTipo ?? params?.tipo ?? params?.tipo_ticket), fecha_inicio: normalizeDateParam(params?.fecha_inicio), fecha_fin: normalizeDateParam(params?.fecha_fin) };
     delete (normalizedParams as any).tipo_ticket;
-    const query = buildSearchParams(normalizedParams).toString();
+    const query = buildSearchParams(normalizedParams as unknown as Record<string, unknown>).toString();
     const candidatePaths = [`/api/estadisticas/mapa_calor/datos${query ? `?${query}` : ''}`, `/estadisticas/mapa_calor/datos${query ? `?${query}` : ''}`, `/api/municipal/estadisticas/mapa_calor/datos${query ? `?${query}` : ''}`, `/municipal/estadisticas/mapa_calor/datos${query ? `?${query}` : ''}`];
     let payload: unknown = null;
     let lastError: unknown = null;
@@ -1007,7 +1100,7 @@ export const getHeatmapPoints = async (params?: HeatmapParams): Promise<HeatPoin
 // --- NEW ENDPOINTS IMPLEMENTATION ---
 
 export const getAiReportLatest = async (params: { tenant_id?: string | number, segment: string }): Promise<AiReportResponse> => {
-    const query = buildSearchParams(params).toString();
+    const query = buildSearchParams(params as unknown as Record<string, unknown>).toString();
     return apiFetch<AiReportResponse>(`/api/analytics/report/latest${query ? `?${query}` : ''}`);
 };
 
@@ -1019,7 +1112,7 @@ export const generateAiReport = async (params: { tenant_id?: string | number, se
 };
 
 export const getAiReportExport = async (params: { tenant_id?: string | number, segment: string, format: 'pdf' | 'excel' }): Promise<void> => {
-  const query = buildSearchParams(params).toString();
+  const query = buildSearchParams(params as unknown as Record<string, unknown>).toString();
   // Trigger file download via browser navigation or fetch-blob
   const url = `/api/analytics/report/export?${query}`;
 
@@ -1033,17 +1126,17 @@ export const getAiReportExport = async (params: { tenant_id?: string | number, s
 };
 
 export const getSalesAnalytics = async (params?: { tenant_id?: string | number, from?: string, to?: string }): Promise<SalesAnalyticsResponse> => {
-  const query = buildSearchParams(params).toString();
+  const query = buildSearchParams(params as unknown as Record<string, unknown>).toString();
   return apiFetch<SalesAnalyticsResponse>(`/api/analytics/sales${query ? `?${query}` : ''}`);
 };
 
 export const getBenchmarks = async (params?: { tenant_id?: string | number, from?: string, to?: string }): Promise<BenchmarksResponse> => {
-  const query = buildSearchParams(params).toString();
+  const query = buildSearchParams(params as unknown as Record<string, unknown>).toString();
   return apiFetch<BenchmarksResponse>(`/api/analytics/benchmarks${query ? `?${query}` : ''}`);
 };
 
 export const getFunnel = async (params?: { tenant_id?: string | number, from?: string, to?: string }): Promise<FunnelResponse> => {
-  const query = buildSearchParams(params).toString();
+  const query = buildSearchParams(params as unknown as Record<string, unknown>).toString();
   return apiFetch<FunnelResponse>(`/api/analytics/funnel${query ? `?${query}` : ''}`);
 };
 
