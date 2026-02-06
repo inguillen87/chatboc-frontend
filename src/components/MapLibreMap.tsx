@@ -401,13 +401,15 @@ export default function MapLibreMap({
                 ["linear"],
                 ["heatmap-density"],
                 0,
-                "rgba(14,165,233,0)",
-                0.3,
-                "rgba(14,165,233,0.6)",
+                "rgba(34, 197, 94, 0)", // Transparent Green
+                0.2,
+                "rgba(34, 197, 94, 0.6)", // Green-500
+                0.4,
+                "rgba(234, 179, 8, 0.7)", // Yellow-500
                 0.6,
-                "rgba(59,130,246,0.8)",
+                "rgba(249, 115, 22, 0.8)", // Orange-500
                 1,
-                "rgba(239,68,68,0.95)",
+                "rgba(239, 68, 68, 0.95)", // Red-500
               ],
             },
           });
@@ -818,8 +820,9 @@ export default function MapLibreMap({
     let frame: number;
 
     const animate = () => {
-      const t = (Date.now() % 2000) / 2000;
-      const intensity = 1 + 0.5 * Math.sin(t * Math.PI * 2);
+      // Slower, deeper pulse for a "breathing" effect
+      const t = (Date.now() % 4000) / 4000;
+      const intensity = 1 + 0.3 * Math.sin(t * Math.PI * 2);
       map.setPaintProperty("tickets-heat", "heatmap-intensity", intensity);
       frame = requestAnimationFrame(animate);
     };

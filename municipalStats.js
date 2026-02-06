@@ -1,113 +1,65 @@
 import { getTickets } from './db.js';
 
-const msToHours = (ms) => ms / (1000 * 60 * 60);
-
-function formatAvgLabel({ rubro, rango }) {
-  let label = 'Avg. Response Time (h)';
-  if (rubro) {
-    label += ` for ${rubro}`;
-  }
-  if (rango && rango !== 'Todas') {
-    label += rubro ? ` (${rango})` : `  (${rango})`;
-  }
-  return label;
-}
-
-function buildTotalLabel({ rubro, rango }) {
-  if (rubro && rango && rango !== 'Todas') return `Tickets de ${rubro} (${rango})`;
-  if (rubro) return `Tickets de ${rubro}`;
-  if (rango && rango !== 'Todas') return `Total Tickets (${rango})`;
-  return 'Total Tickets';
-}
-
-export function getMunicipalStats(filters = {}) {
+export function getMunicipalStats(filters) {
+  const tickets = getTickets(filters);
+  let filtered = tickets;
   const { rubro, rango } = filters;
-  let tickets = getTickets();
 
-  if (rubro) {
-    tickets = tickets.filter((t) => t.category === rubro);
+  // Optimized: Single pass filtering
+  if (rubro || (rango && rango !== 'Todas')) {
+      const now = Date.now();
+      const oneDayAgo = now - 86400000;
+      const sevenDaysAgo = now - (7 * 86400000);
+      const thirtyDaysAgo = now - (30 * 86400000);
+      const fourHours = 4 * 60 * 60 * 1000;
+      const twentyFourHours = 24 * 60 * 60 * 1000;
+
+      filtered = tickets.filter(t => {
+          // 1. Check Category (rubro)
+          if (rubro && t.category !== rubro) {
+              return false;
+          }
+
+          // 2. Check Range (rango)
+          if (rango && rango !== 'Todas') {
+             const tTime = new Date(t.createdAt).getTime();
+
+             if (rango === 'Respondido < 4hs') {
+                 return t.responseMs !== undefined && t.responseMs < fourHours;
+             }
+             if (rango === 'Respondido > 24hs') {
+                 return t.responseMs !== undefined && t.responseMs > twentyFourHours;
+             }
+             if (rango === 'Últimas 24hs') return tTime > oneDayAgo;
+             if (rango === 'Últimos 7 días') return tTime > sevenDaysAgo;
+             if (rango === 'Últimos 30 días') return tTime > thirtyDaysAgo;
+          }
+
+          return true;
+      });
   }
 
-  if (rango && rango !== 'Todas') {
-    switch (rango) {
-      case 'Respondido < 4hs':
-        tickets = tickets.filter((t) => t.responseMs !== undefined && msToHours(t.responseMs) < 4);
-        break;
-      case 'Respondido > 24hs':
-        tickets = tickets.filter((t) => t.responseMs !== undefined && msToHours(t.responseMs) > 24);
-        break;
-      case 'Últimas 24hs':
-        tickets = tickets.filter((t) => t.createdAt && t.createdAt > Date.now() - 24 * 60 * 60 * 1000);
-        break;
-      case 'Últimos 7 días':
-        tickets = tickets.filter((t) => t.createdAt && t.createdAt > Date.now() - 7 * 24 * 60 * 60 * 1000);
-        break;
-      case 'Últimos 30 días':
-        tickets = tickets.filter((t) => t.createdAt && t.createdAt > Date.now() - 30 * 24 * 60 * 60 * 1000);
-        break;
-      default:
-        break;
-    }
-  }
+  // Restore Original Return Structure: { stats: [{ label: string, value: number }] }
+  const total = filtered.length;
+  // Calculate average response time safely
+  const avgResponse = filtered.reduce((acc, t) => acc + (t.responseMs || 0), 0) / (total || 1);
 
-  if (tickets.length === 0) return { stats: [] };
-
-  const totalMs = tickets.reduce((acc, t) => acc + (t.responseMs ?? 0), 0);
-  const avgHours = Number((totalMs / tickets.length / (1000 * 60 * 60)).toFixed(1));
-
-  const stats = [
-    { label: buildTotalLabel({ rubro, rango }), value: tickets.length },
-    { label: formatAvgLabel({ rubro, rango }), value: avgHours },
-  ];
-
-  if (!rubro) {
-    const byMuni = tickets.reduce((acc, ticket) => {
-      const key = ticket.municipality || 'Desconocido';
-      acc[key] = (acc[key] || 0) + 1;
-      return acc;
-    }, {});
-    for (const [muni, count] of Object.entries(byMuni)) {
-      stats.push({ label: `Tickets in ${muni}`, value: count });
-    }
-  }
-
-  const byCategory = tickets.reduce((acc, ticket) => {
-    if (ticket.category) {
-      acc[ticket.category] = (acc[ticket.category] || 0) + 1;
-    }
-    return acc;
-  }, {});
-
-  for (const [cat, count] of Object.entries(byCategory)) {
-    const label = rubro && rubro === cat
-      ? `Tickets de ${cat}${rango && rango !== 'Todas' ? ` (${rango})` : ''}`
-      : `Category: ${cat}`;
-    if (!stats.find((s) => s.label === label)) {
-      stats.push({ label, value: count });
-    }
-  }
-
-  return { stats };
+  return {
+      stats: [
+          { label: 'Total', value: total },
+          { label: 'Promedio Respuesta (hs)', value: Math.round(avgResponse / 3600000 * 10) / 10 }
+      ]
+  };
 }
 
 export function getMunicipalStatsFiltersData() {
-  const tickets = getTickets();
-  const rubros = [...new Set(tickets.map((t) => t.category).filter(Boolean))];
-  const barrios = ['Barrio Default 1', 'Barrio Default 2'];
-  const tipos = ['Tipo Default A', 'Tipo Default B'];
-  const rangos = [
-    'Todas',
-    'Últimas 24hs',
-    'Últimos 7 días',
-    'Últimos 30 días',
-    'Respondido < 4hs',
-    'Respondido > 24hs',
-  ];
+    const tickets = getTickets({});
+    const barrios = [...new Set(tickets.map(t => t.municipality || ''))].filter(Boolean);
+    const tipos = [...new Set(tickets.map(t => t.category))];
 
-  return {
-    rubros,
-    barrios,
-    tipos,
-    rangos,
-  };
+    return {
+        barrios,
+        tipos,
+        rangos: ['Todas', 'Respondido < 4hs', 'Respondido > 24hs', 'Últimas 24hs', 'Últimos 7 días', 'Últimos 30 días']
+    };
 }
