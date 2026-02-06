@@ -392,6 +392,7 @@ export function useChatLogic({
         data.texto,
         data.text,
         data.message,
+        data.content,
         data.respuesta_usuario,
         data.html_text,
         data.html,
