@@ -12,7 +12,9 @@ type Props = {
   initialZoom?: number;
   onSelect?: (lat: number, lon: number, address?: string) => void;
   heatmapData?: HeatPoint[];
+  polygons?: { type: "FeatureCollection"; features: any[] };
   showHeatmap?: boolean;
+  showPolygons?: boolean;
   marker?: [number, number];
   className?: string;
   provider?: MapProvider;
@@ -129,13 +131,27 @@ const updateHeatmapSource = (map: Map, points: HeatPoint[]) => {
   }
 };
 
-const toggleLayers = (map: Map, showHeatmap: boolean) => {
-  if (!map.getLayer("tickets-heat") || !map.getLayer("tickets-circles")) {
-    return;
+const toggleLayers = (map: Map, showHeatmap: boolean, showPolygons: boolean) => {
+  if (map.getLayer("tickets-heat")) {
+    map.setLayoutProperty(
+      "tickets-heat",
+      "visibility",
+      showHeatmap && !showPolygons ? "visible" : "none",
+    );
   }
-
-  map.setLayoutProperty("tickets-heat", "visibility", showHeatmap ? "visible" : "none");
-  map.setLayoutProperty("tickets-circles", "visibility", showHeatmap ? "none" : "visible");
+  if (map.getLayer("tickets-circles")) {
+    map.setLayoutProperty(
+      "tickets-circles",
+      "visibility",
+      !showHeatmap && !showPolygons ? "visible" : "none",
+    );
+  }
+  if (map.getLayer("polygons-fill")) {
+    map.setLayoutProperty("polygons-fill", "visibility", showPolygons ? "visible" : "none");
+  }
+  if (map.getLayer("polygons-outline")) {
+    map.setLayoutProperty("polygons-outline", "visibility", showPolygons ? "visible" : "none");
+  }
 };
 
 export default function MapLibreMap({
@@ -143,7 +159,9 @@ export default function MapLibreMap({
   initialZoom = 12,
   onSelect,
   heatmapData = [],
+  polygons,
   showHeatmap = true,
+  showPolygons = false,
   marker,
   className,
   provider = "maplibre",
@@ -251,6 +269,8 @@ export default function MapLibreMap({
   const apiKeyRef = useRef(resolvedMaptilerKey);
   const centerRef = useRef(center);
   const showHeatmapRef = useRef(showHeatmap);
+  const showPolygonsRef = useRef(showPolygons);
+  const polygonsRef = useRef(polygons);
   const onSelectRef = useRef(onSelect);
   const initialZoomRef = useRef(initialZoom);
 
@@ -265,6 +285,14 @@ export default function MapLibreMap({
   useEffect(() => {
     showHeatmapRef.current = showHeatmap;
   }, [showHeatmap]);
+
+  useEffect(() => {
+    showPolygonsRef.current = showPolygons;
+  }, [showPolygons]);
+
+  useEffect(() => {
+    polygonsRef.current = polygons;
+  }, [polygons]);
 
   useEffect(() => {
     onSelectRef.current = onSelect;
@@ -351,6 +379,52 @@ export default function MapLibreMap({
               data: { type: "FeatureCollection", features: [] },
             });
           }
+
+          if (!map.getSource("polygons")) {
+            map.addSource("polygons", {
+              type: "geojson",
+              data: polygonsRef.current ?? { type: "FeatureCollection", features: [] },
+            });
+          }
+
+          addLayer(map, {
+            id: "polygons-fill",
+            type: "fill",
+            source: "polygons",
+            paint: {
+              "fill-color": [
+                "coalesce",
+                ["get", "fill"],
+                [
+                  "interpolate",
+                  ["linear"],
+                  ["coalesce", ["get", "density"], 0],
+                  0,
+                  "rgba(0,0,0,0)",
+                  20,
+                  "#fecaca",
+                  50,
+                  "#ef4444",
+                  80,
+                  "#b91c1c",
+                  100,
+                  "#7f1d1d",
+                ],
+              ],
+              "fill-opacity": 0.6,
+            },
+          });
+
+          addLayer(map, {
+            id: "polygons-outline",
+            type: "line",
+            source: "polygons",
+            paint: {
+              "line-color": "#ffffff",
+              "line-width": 1.5,
+              "line-opacity": 0.8,
+            },
+          });
 
           addLayer(map, {
             id: "tickets-heat",
@@ -478,7 +552,7 @@ export default function MapLibreMap({
             },
           });
 
-          toggleLayers(map, showHeatmapRef.current);
+          toggleLayers(map, showHeatmapRef.current, showPolygonsRef.current);
           updateHeatmapSource(map, latestHeatmap.current);
         };
 
@@ -804,19 +878,29 @@ export default function MapLibreMap({
     if (!map || effectiveProvider !== "maplibre") return;
 
     if (!map.getLayer("tickets-heat") || !map.getLayer("tickets-circles")) {
-      const handler = () => toggleLayers(map, showHeatmap);
+      const handler = () => toggleLayers(map, showHeatmap, showPolygons);
       map.once("load", handler);
       return () => {
         map.off("load", handler);
       };
     }
 
-    toggleLayers(map, showHeatmap);
-  }, [showHeatmap, effectiveProvider]);
+    toggleLayers(map, showHeatmap, showPolygons);
+  }, [showHeatmap, showPolygons, effectiveProvider]);
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !showHeatmap || effectiveProvider !== "maplibre") return;
+    if (!map || effectiveProvider !== "maplibre") return;
+
+    const source = map.getSource("polygons");
+    if (source && typeof (source as any).setData === "function") {
+      (source as any).setData(polygons ?? { type: "FeatureCollection", features: [] });
+    }
+  }, [polygons, effectiveProvider]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !showHeatmap || showPolygons || effectiveProvider !== "maplibre") return;
     let frame: number;
 
     const animate = () => {

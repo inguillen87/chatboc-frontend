@@ -60,16 +60,20 @@ import {
   TicketStatsResponse,
   getAiReportLatest,
   generateAiReport,
-  getAiReportExport,
   getSurveySummary,
   getSurveySentiment,
   getBenchmarks,
   getGeoPolygons,
+  getSalesAnalytics,
+  getFunnel,
   AiReportResponse,
   SurveySummaryResponse,
   SurveySentimentResponse,
-  BenchmarksResponse
+  BenchmarksResponse,
+  SalesAnalyticsResponse,
+  FunnelResponse
 } from '@/services/statsService';
+import { generatePdfReport, generateExcelReport } from '@/utils/reportGenerator';
 import { getTickets } from '@/services/ticketService';
 import { getErrorMessage } from '@/utils/api';
 import type { Ticket } from '@/types/tickets';
@@ -96,7 +100,9 @@ import {
   CalendarCheck2,
   Map as MapIcon,
   Download,
-  FileSpreadsheet
+  FileSpreadsheet,
+  DollarSign,
+  ShoppingBag
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -663,7 +669,7 @@ const AnalyticsChartCard = ({
 );
 
 // --- COMPONENT: PARTICIPATION & SURVEYS DASHBOARD ---
-const ParticipationDashboard = ({ segment, tenantId }: { segment: Segment, tenantId: number }) => {
+const ParticipationDashboard = ({ segment, tenantId, funnelData }: { segment: Segment, tenantId: number, funnelData: FunnelResponse | null }) => {
   const isPyme = segment === 'pyme';
   const [loading, setLoading] = useState(true);
   const [surveyData, setSurveyData] = useState<SurveySummaryResponse | null>(null);
@@ -731,7 +737,7 @@ const ParticipationDashboard = ({ segment, tenantId }: { segment: Segment, tenan
         />
         <SummaryCard
           title="Leads / Interesados"
-          value="-" // TODO: Integrate getFunnel
+          value={funnelData?.steps?.[1]?.count ? formatNumber(funnelData.steps[1].count) : (funnelData?.steps?.[0]?.count ? formatNumber(funnelData.steps[0].count) : "-")}
           subtitle="Contactos calificados"
           icon={Target}
           variant="default"
@@ -828,6 +834,9 @@ export default function EstadisticasPage() {
   // New States
   const [cachedReport, setCachedReport] = useState<AiReportResponse | null>(null);
   const [benchmarks, setBenchmarks] = useState<BenchmarksResponse | null>(null);
+  const [salesData, setSalesData] = useState<SalesAnalyticsResponse | null>(null);
+  const [funnelData, setFunnelData] = useState<FunnelResponse | null>(null);
+  const [polygons, setPolygons] = useState<any | null>(null);
   const [showPolygons, setShowPolygons] = useState(false); // Toggle for heatmap vs polygons
 
   const timelineGradientId = useId();
@@ -864,7 +873,7 @@ export default function EstadisticasPage() {
     if (categoryFilter !== 'all') params.categoria = categoryFilter;
 
     try {
-      const [statsResult, heatmapResult, ticketsResult, benchmarksResult] = await Promise.allSettled([
+      const [statsResult, heatmapResult, ticketsResult, benchmarksResult, funnelResult, salesResult, geoResult] = await Promise.allSettled([
         getTicketStats(params),
         getHeatmapPoints({
           tipo: segment,
@@ -874,12 +883,16 @@ export default function EstadisticasPage() {
           categoria: categoryFilter !== 'all' ? categoryFilter : undefined,
         }),
         getTickets(),
-        getBenchmarks({ tenant_id: user?.id, from: start, to: end }) // Attempt to get real benchmarks
+        getBenchmarks({ tenant_id: user?.id, from: start, to: end }), // Attempt to get real benchmarks
+        getFunnel({ tenant_id: user?.id, from: start, to: end }),
+        segment === 'pyme' ? getSalesAnalytics({ tenant_id: user?.id, from: start, to: end }) : Promise.resolve(null),
+        getGeoPolygons(user?.id as number)
       ]);
 
-      if (benchmarksResult.status === 'fulfilled') {
-          setBenchmarks(benchmarksResult.value);
-      }
+      if (benchmarksResult.status === 'fulfilled') setBenchmarks(benchmarksResult.value);
+      if (funnelResult.status === 'fulfilled') setFunnelData(funnelResult.value);
+      if (salesResult.status === 'fulfilled') setSalesData(salesResult.value);
+      if (geoResult.status === 'fulfilled') setPolygons(geoResult.value);
 
       const statsData: TicketStatsResponse['charts'] =
         statsResult.status === 'fulfilled' ? statsResult.value.charts ?? [] : [];
@@ -951,10 +964,27 @@ export default function EstadisticasPage() {
 
       setTicketCounts(totalSummary > 0 ? summary : null);
       setStatusBreakdown(mergedStatuses);
-      setCategoryBreakdown(mergedCategories);
-      setChannelBreakdown(
-        chartChannels.sort((a, b) => b.value - a.value || a.label.localeCompare(b.label)),
-      );
+
+      // Override with Sales Data if available (Pyme)
+      if (segment === 'pyme' && salesResult.status === 'fulfilled' && salesResult.value) {
+        const sd = salesResult.value;
+        if (sd.sales_by_product?.length) {
+           setCategoryBreakdown(sd.sales_by_product.map(p => ({ label: p.name, value: p.count })));
+        } else {
+           setCategoryBreakdown(mergedCategories);
+        }
+
+        // Lead Source
+        if ((sd as any).lead_source?.length) {
+            setChannelBreakdown((sd as any).lead_source.map((s: any) => ({ label: formatLabel(s.source), value: s.count })));
+        } else {
+             setChannelBreakdown(chartChannels.sort((a, b) => b.value - a.value || a.label.localeCompare(b.label)));
+        }
+      } else {
+        setCategoryBreakdown(mergedCategories);
+        setChannelBreakdown(chartChannels.sort((a, b) => b.value - a.value || a.label.localeCompare(b.label)));
+      }
+
       setTimeline(timelineFromTickets);
       const combinedDataset: HeatmapDataset =
         heatmapData.length > 0
@@ -1139,7 +1169,22 @@ export default function EstadisticasPage() {
     if (!user?.id) return;
     setIsDownloading(true);
     try {
-        await getAiReportExport({ tenant_id: user.id, segment, format });
+        const { start, end } = getRangeDates(range);
+        const reportData = {
+            tenantName: user.nombre_empresa || 'Mi Organización',
+            segment,
+            dateRange: { start, end },
+            aiReport: cachedReport,
+            salesData: salesData,
+            ticketStats: { ticketCounts, statusBreakdown },
+            heatmapData: heatmap
+        };
+
+        if (format === 'pdf') {
+            generatePdfReport(reportData);
+        } else {
+            generateExcelReport(reportData);
+        }
     } catch (e) {
         console.error("Failed to download report", e);
     } finally {
@@ -1307,25 +1352,47 @@ export default function EstadisticasPage() {
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <SummaryCard
               title={labels.total}
-              value={formatNumber(totalTickets)}
+              value={formatNumber(salesData?.total_orders ?? totalTickets)}
               subtitle="Volumen del periodo"
               icon={BarChart3}
               variant="info"
             />
-            <SummaryCard
-              title={labels.inProgress}
-              value={formatNumber(ticketCounts?.enProceso ?? 0)}
-              subtitle="Requieren atención"
-              icon={Activity}
-              variant="warning"
-            />
-            <SummaryCard
-              title={labels.solved}
-              value={formatNumber(ticketCounts?.resueltos ?? 0)}
-              subtitle={`Tasa de éxito: ${resolutionRate}%`}
-              icon={CheckCircle2}
-              variant="success"
-            />
+
+            {isPyme && salesData ? (
+                <>
+                    <SummaryCard
+                        title="Ingresos Totales"
+                        value={`$${formatNumber(salesData.revenue)}`}
+                        subtitle="Facturación periodo"
+                        icon={DollarSign}
+                        variant="success"
+                    />
+                     <SummaryCard
+                        title="Ticket Promedio"
+                        value={`$${formatNumber(salesData.average_ticket)}`}
+                        subtitle={`Conv. Chat: ${salesData.conversion_rate ?? 0}%`}
+                        icon={ShoppingBag}
+                        variant="warning"
+                    />
+                </>
+            ) : (
+                <>
+                    <SummaryCard
+                    title={labels.inProgress}
+                    value={formatNumber(ticketCounts?.enProceso ?? 0)}
+                    subtitle="Requieren atención"
+                    icon={Activity}
+                    variant="warning"
+                    />
+                    <SummaryCard
+                    title={labels.solved}
+                    value={formatNumber(ticketCounts?.resueltos ?? 0)}
+                    subtitle={`Tasa de éxito: ${resolutionRate}%`}
+                    icon={CheckCircle2}
+                    variant="success"
+                    />
+                </>
+            )}
             <SummaryCard
               title={isPyme ? "Top Producto" : "Top Categoría"}
               value={topCategory ? formatNumber(topCategory.value) : '-'}
@@ -1445,7 +1512,7 @@ export default function EstadisticasPage() {
         </TabsContent>
 
         <TabsContent value="participacion" className="focus-visible:outline-none">
-          <ParticipationDashboard segment={segment} tenantId={user?.id as number} />
+          <ParticipationDashboard segment={segment} tenantId={user?.id as number} funnelData={funnelData} />
         </TabsContent>
       </Tabs>
 
@@ -1482,6 +1549,8 @@ export default function EstadisticasPage() {
                   metadata={heatmapDetails?.metadata?.map?.heatmap}
                   mapConfig={heatmapDetails?.mapConfig}
                   mapLayers={heatmapDetails?.mapLayers}
+                  polygons={polygons}
+                  showPolygons={showPolygons}
                 />
               </div>
             ) : (
