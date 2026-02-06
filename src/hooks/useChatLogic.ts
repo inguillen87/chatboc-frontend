@@ -391,6 +391,7 @@ export function useChatLogic({
         data.reply,
         data.texto,
         data.text,
+        data.message,
         data.respuesta_usuario,
         data.html_text,
         data.html,
@@ -481,6 +482,7 @@ export function useChatLogic({
         data.tts_audio_url,
         data.ttsAudioUrl,
         data.audio?.url,
+        data.audio?.link,
         data.audio?.cached_url,
         data.audio?.cache_url,
         data.audio?.public_url,
@@ -523,6 +525,10 @@ export function useChatLogic({
         !!attachmentInfo ||
         !!locationData ||
         !!socialLinks;
+
+      if (!rawText && !hasNonTextContent) {
+         console.warn("processBotPayload: Empty content detected", { data, audioCandidate, audioUrlValue });
+      }
 
       let text = rawText ?? (hasNonTextContent ? '' : '⚠️ No se pudo generar una respuesta.');
       if (text && /es el Administrador de la Municipalidad/i.test(text)) {
