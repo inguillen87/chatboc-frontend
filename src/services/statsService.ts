@@ -323,20 +323,20 @@ const isPlainObject = (value: unknown): value is Record<string, unknown> =>
 
 const sanitizeLooseJson = (raw: string): string => {
   let sanitized = raw
-    .replace(/\\bNone\\b/g, 'null')
-    .replace(/\\bTrue\\b/g, 'true')
-    .replace(/\\bFalse\\b/g, 'false');
-  sanitized = sanitized.replace(/,\\s*([}\\]])/g, '$1');
-  sanitized = sanitized.replace(/'([\\p{L}\\p{N}_-]+)'(\\s*:)/gu, (_, key, suffix) => {
-    const escapedKey = key.replace(/"/g, '\\\\"');
+    .replace(/\bNone\b/g, 'null')
+    .replace(/\bTrue\b/g, 'true')
+    .replace(/\bFalse\b/g, 'false');
+  sanitized = sanitized.replace(/,\s*([}\]])/g, '$1');
+  sanitized = sanitized.replace(/'([\p{L}\p{N}_-]+)'(\s*:)/gu, (_, key, suffix) => {
+    const escapedKey = key.replace(/"/g, '\\"');
     return `"${escapedKey}"${suffix}`;
   });
-  sanitized = sanitized.replace(/:\\s*'([^'\\\\]*(?:\\\\.[^'\\\\]*)*)'/g, (_, value) => {
-    const escaped = value.replace(/\\\\/g, '\\\\\\\\').replace(/"/g, '\\\\"');
+  sanitized = sanitized.replace(/:\s*'([^'\\]*(?:\\.[^'\\]*)*)'/g, (_, value) => {
+    const escaped = value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
     return `: "${escaped}"`;
   });
-  sanitized = sanitized.replace(/'([^'\\\\]*(?:\\\\.[^'\\\\]*)*)'/g, (_, value) => {
-    const escaped = value.replace(/\\\\/g, '\\\\\\\\').replace(/"/g, '\\\\"');
+  sanitized = sanitized.replace(/'([^'\\]*(?:\\.[^'\\]*)*)'/g, (_, value) => {
+    const escaped = value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
     return `"${escaped}"`;
   });
   return sanitized;
