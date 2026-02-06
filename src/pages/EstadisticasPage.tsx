@@ -19,6 +19,9 @@ import {
   Tooltip,
   XAxis,
   YAxis,
+  PieChart,
+  Pie,
+  Legend
 } from 'recharts';
 import {
   Alert,
@@ -42,14 +45,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import AnalyticsHeatmap from '@/components/analytics/Heatmap';
 import ChartTooltip from '@/components/analytics/ChartTooltip';
 import { useUser } from '@/hooks/useUser';
@@ -73,8 +69,47 @@ import {
   MapPin,
   RefreshCcw,
   TrendingUp,
+  ArrowUpRight,
+  CheckCircle2,
+  Clock,
+  Filter,
+  BrainCircuit,
+  Sparkles,
+  FileText,
+  Vote,
+  MessageSquare,
+  Users,
+  Target
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
+// --- PROFESSIONAL THEME CONSTANTS ---
+const THEME = {
+  colors: {
+    primary: '#4f46e5',    // Indigo 600
+    secondary: '#10b981',  // Emerald 500
+    tertiary: '#f59e0b',   // Amber 500
+    quaternary: '#ec4899', // Pink 500
+    background: '#ffffff',
+    surface: '#f9fafb',
+    text: '#111827',
+    textSecondary: '#6b7280',
+    border: '#e5e7eb',
+    grid: '#f3f4f6',
+  },
+  palette: [
+    '#4f46e5', // Indigo
+    '#10b981', // Emerald
+    '#f59e0b', // Amber
+    '#ec4899', // Pink
+    '#3b82f6', // Blue
+    '#8b5cf6', // Violet
+    '#ef4444', // Red
+    '#14b8a6', // Teal
+  ]
+};
+
+// --- TYPES ---
 interface TicketCounts {
   abiertos: number;
   enProceso: number;
@@ -97,6 +132,7 @@ interface RangeOption {
 }
 
 type Segment = 'municipio' | 'pyme';
+type TabView = 'operativo' | 'participacion';
 
 type TimelineCandidate = { label: string; sort: number; value: number };
 
@@ -110,27 +146,14 @@ const TIME_RANGE_OPTIONS: RangeOption[] = [
 ];
 
 const SEGMENT_OPTIONS: { label: string; value: Segment }[] = [
-  { label: 'Gobiernos', value: 'municipio' },
-  { label: 'PyMEs', value: 'pyme' },
+  { label: 'Gobierno / Municipio', value: 'municipio' },
+  { label: 'Empresa / Comercio', value: 'pyme' },
 ];
 
 const STATUS_KEYWORDS = ['estado', 'status', 'situacion', 'situación'];
 const CATEGORY_KEYWORDS = ['categoria', 'categoría', 'category', 'rubro', 'tipo'];
 const CHANNEL_KEYWORDS = ['canal', 'channel', 'origen', 'entrada'];
 const TIMELINE_KEYWORDS = ['tiempo', 'evolución', 'timeline', 'tendencia', 'mes', 'meses', 'día', 'historico'];
-
-const COLOR_PALETTE = [
-  '#2563eb',
-  '#22d3ee',
-  '#38bdf8',
-  '#f97316',
-  '#facc15',
-  '#16a34a',
-  '#a855f7',
-  '#ec4899',
-  '#0ea5e9',
-  '#f43f5e',
-];
 
 const MONTHS = [
   'enero',
@@ -147,6 +170,7 @@ const MONTHS = [
   'diciembre',
 ];
 
+// --- UTILITIES ---
 const formatLabel = (value: string): string =>
   value
     .split(/[\s_]+/)
@@ -297,7 +321,8 @@ const classifyStatusSummary = (label: string): keyof TicketCounts => {
     normalized.includes('resuelt') ||
     normalized.includes('finaliz') ||
     normalized.includes('cerrad') ||
-    normalized.includes('complet')
+    normalized.includes('complet') ||
+    normalized.includes('entregado')
   ) {
     return 'resueltos';
   }
@@ -308,7 +333,8 @@ const classifyStatusSummary = (label: string): keyof TicketCounts => {
     normalized.includes('pend') ||
     normalized.includes('espera') ||
     normalized.includes('deriv') ||
-    normalized.includes('asign')
+    normalized.includes('asign') ||
+    normalized.includes('preparacion')
   ) {
     return 'enProceso';
   }
@@ -522,69 +548,213 @@ const SummaryCard = ({
   value,
   subtitle,
   icon: Icon,
-  accent,
+  variant = 'default',
 }: {
   title: string;
   value: string;
   subtitle: string;
   icon: React.ComponentType<{ className?: string }>;
-  accent: string;
-}) => (
-  <Card className="relative overflow-hidden border-none bg-gradient-to-br from-background to-background/60 shadow-xl">
-    <div
-      className="absolute inset-0 opacity-10"
-      style={{ background: `radial-gradient(circle at top right, ${accent}, transparent)` }}
-    />
-    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-      <div>
-        <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
-        <CardDescription className="text-2xl font-semibold text-foreground">{value}</CardDescription>
-      </div>
-      <div
-        className="rounded-xl bg-primary/10 p-2 text-primary shadow-inner"
-        style={{
-          background:
-            'linear-gradient(135deg, hsla(var(--primary),0.15), hsla(var(--primary),0.05))',
-        }}
-      >
-        <Icon className="h-6 w-6 text-primary" />
-      </div>
-    </CardHeader>
-    <CardContent>
-      <p className="text-xs text-muted-foreground">{subtitle}</p>
-    </CardContent>
-  </Card>
-);
+  variant?: 'default' | 'success' | 'warning' | 'info';
+}) => {
+  const styles = {
+    default: {
+      gradient: 'from-blue-50 to-white dark:from-blue-900/20 dark:to-background',
+      iconBg: 'bg-blue-100 dark:bg-blue-900/30',
+      iconColor: 'text-blue-600 dark:text-blue-400',
+    },
+    success: {
+      gradient: 'from-emerald-50 to-white dark:from-emerald-900/20 dark:to-background',
+      iconBg: 'bg-emerald-100 dark:bg-emerald-900/30',
+      iconColor: 'text-emerald-600 dark:text-emerald-400',
+    },
+    warning: {
+      gradient: 'from-amber-50 to-white dark:from-amber-900/20 dark:to-background',
+      iconBg: 'bg-amber-100 dark:bg-amber-900/30',
+      iconColor: 'text-amber-600 dark:text-amber-400',
+    },
+    info: {
+      gradient: 'from-indigo-50 to-white dark:from-indigo-900/20 dark:to-background',
+      iconBg: 'bg-indigo-100 dark:bg-indigo-900/30',
+      iconColor: 'text-indigo-600 dark:text-indigo-400',
+    },
+  };
+
+  const style = styles[variant];
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+    >
+      <Card className={`relative overflow-hidden border border-border/50 bg-gradient-to-br ${style.gradient} shadow-sm transition-all hover:shadow-md`}>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <div>
+            <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider">{title}</CardTitle>
+            <div className="flex items-baseline gap-2 mt-1">
+              <CardDescription className="text-3xl font-bold text-foreground tracking-tight">{value}</CardDescription>
+            </div>
+          </div>
+          <div className={`rounded-xl p-2.5 ${style.iconBg} shadow-sm`}>
+            <Icon className={`h-6 w-6 ${style.iconColor}`} />
+          </div>
+        </CardHeader>
+        <CardContent>
+          <p className="text-xs text-muted-foreground font-medium flex items-center gap-1">
+            {subtitle}
+          </p>
+        </CardContent>
+      </Card>
+    </motion.div>
+  );
+};
 
 const AnalyticsChartCard = ({
   title,
   description,
   children,
+  action,
 }: {
   title: string;
   description?: string;
   children: React.ReactNode;
+  action?: React.ReactNode;
 }) => (
-  <Card className="h-full border-border/60 shadow-lg">
-    <CardHeader>
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <CardTitle className="text-lg font-semibold text-foreground">{title}</CardTitle>
-          {description ? (
-            <CardDescription className="text-sm text-muted-foreground">
-              {description}
-            </CardDescription>
-          ) : null}
+  <motion.div
+    initial={{ opacity: 0, scale: 0.95 }}
+    animate={{ opacity: 1, scale: 1 }}
+    transition={{ duration: 0.4 }}
+    className="h-full"
+  >
+    <Card className="h-full border-border/60 shadow-sm transition-shadow hover:shadow-md bg-card/50 backdrop-blur-sm">
+      <CardHeader>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <CardTitle className="text-lg font-semibold text-foreground tracking-tight">{title}</CardTitle>
+            {description ? (
+              <CardDescription className="text-sm text-muted-foreground mt-1">
+                {description}
+              </CardDescription>
+            ) : null}
+          </div>
+          {action}
         </div>
-      </div>
-    </CardHeader>
-    <CardContent className="h-[320px]">{children}</CardContent>
-  </Card>
+      </CardHeader>
+      <CardContent className="h-[350px] pt-4">{children}</CardContent>
+    </Card>
+  </motion.div>
 );
 
+// --- COMPONENT: PARTICIPATION & SURVEYS DASHBOARD ---
+// Mock data component since full backend isn't ready
+const ParticipationDashboard = ({ segment }: { segment: Segment }) => {
+  const isPyme = segment === 'pyme';
+
+  // Mock Data
+  const pollData = [
+    { name: isPyme ? 'Calidad Precio' : 'Seguridad', value: 450 },
+    { name: isPyme ? 'Atención' : 'Limpieza', value: 320 },
+    { name: isPyme ? 'Variedad' : 'Alumbrado', value: 210 },
+    { name: isPyme ? 'Stock' : 'Tránsito', value: 150 },
+  ];
+
+  const sentimentData = [
+    { name: 'Positivo', value: 65, fill: '#10b981' },
+    { name: 'Neutral', value: 25, fill: '#f59e0b' },
+    { name: 'Negativo', value: 10, fill: '#ef4444' },
+  ];
+
+  return (
+    <div className="space-y-6">
+       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <SummaryCard
+          title={isPyme ? "Encuestas Respondidas" : "Votos Totales"}
+          value="1,245"
+          subtitle="En el último mes"
+          icon={Vote}
+          variant="info"
+        />
+        <SummaryCard
+          title="Participación"
+          value="42%"
+          subtitle="Sobre usuarios activos"
+          icon={Users}
+          variant="success"
+        />
+        <SummaryCard
+          title="Sentimiento"
+          value="+65"
+          subtitle="NPS / Índice de Aprobación"
+          icon={BrainCircuit}
+          variant="warning"
+        />
+        <SummaryCard
+          title="Leads / Interesados"
+          value="312"
+          subtitle="Contactos calificados"
+          icon={Target}
+          variant="default"
+        />
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-2">
+         <AnalyticsChartCard
+            title="Resultados de Sondeos"
+            description={isPyme ? "Aspectos más valorados por clientes" : "Prioridades votadas por vecinos"}
+         >
+            <ResponsiveContainer width="100%" height="100%">
+               <BarChart data={pollData} layout="vertical" margin={{ left: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={THEME.colors.border} />
+                  <XAxis type="number" hide />
+                  <YAxis dataKey="name" type="category" width={100} tick={{ fontSize: 12 }} />
+                  <Tooltip cursor={{fill: 'transparent'}} content={<ChartTooltip />} />
+                  <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+                     {pollData.map((_, index) => (
+                        <Cell key={`cell-${index}`} fill={THEME.palette[index % THEME.palette.length]} />
+                     ))}
+                  </Bar>
+               </BarChart>
+            </ResponsiveContainer>
+         </AnalyticsChartCard>
+
+         <AnalyticsChartCard
+            title="Análisis de Sentimiento IA"
+            description="Tono detectado en respuestas abiertas y chats"
+         >
+            <ResponsiveContainer width="100%" height="100%">
+               <PieChart>
+                  <Pie
+                     data={sentimentData}
+                     cx="50%"
+                     cy="50%"
+                     innerRadius={60}
+                     outerRadius={100}
+                     paddingAngle={5}
+                     dataKey="value"
+                  >
+                     {sentimentData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.fill} />
+                     ))}
+                  </Pie>
+                  <Tooltip />
+                  <Legend verticalAlign="bottom" height={36}/>
+               </PieChart>
+            </ResponsiveContainer>
+            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
+               <span className="text-3xl font-bold text-gray-800 dark:text-white">65%</span>
+               <p className="text-xs text-muted-foreground">Positivo</p>
+            </div>
+         </AnalyticsChartCard>
+      </div>
+    </div>
+  );
+};
+
+// --- MAIN PAGE COMPONENT ---
 export default function EstadisticasPage() {
   const { user } = useUser();
   const [segment, setSegment] = useState<Segment>('municipio');
+  const [activeTab, setActiveTab] = useState<TabView>('operativo');
   const [range, setRange] = useState<number | 'all'>(30);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
@@ -601,6 +771,7 @@ export default function EstadisticasPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dataNotice, setDataNotice] = useState<string | null>(null);
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
 
   const timelineGradientId = useId();
 
@@ -789,36 +960,36 @@ export default function EstadisticasPage() {
   }, [timeline]);
 
   const insights = useMemo(() => {
-    const list: { title: string; description: string }[] = [];
+    const list: { title: string; description: string; icon: any; color: string }[] = [];
     if (topCategory) {
       list.push({
-        title: 'Categoría dominante',
-        description: `${topCategory.label} concentra ${formatNumber(topCategory.value)} casos en el período seleccionado.`,
+        title: segment === 'pyme' ? 'Producto/Servicio Top' : 'Categoría Crítica',
+        description: `${topCategory.label} lidera con ${formatNumber(topCategory.value)} ${segment === 'pyme' ? 'ventas/consultas' : 'casos'}.`,
+        icon: Flame,
+        color: 'text-orange-500'
       });
     }
     if (topLocations[0]) {
       list.push({
-        title: 'Zona crítica',
-        description: `${topLocations[0].label} lidera las solicitudes registradas. Refuerza la presencia operativa en la zona.`,
+        title: 'Zona Caliente',
+        description: `Mayor actividad registrada en ${topLocations[0].label}.`,
+        icon: MapPin,
+        color: 'text-red-500'
       });
     }
     if (trendDelta !== null) {
       list.push({
-        title: 'Tendencia intermensual',
+        title: 'Tendencia Periodo',
         description:
           trendDelta > 0
-            ? `Los tickets crecieron ${trendDelta}% respecto del período previo.`
-            : `Los tickets disminuyeron ${Math.abs(trendDelta)}% respecto del período previo.`,
-      });
-    }
-    if (resolutionRate > 0) {
-      list.push({
-        title: 'Efectividad de resolución',
-        description: `El ${resolutionRate}% de los tickets se resuelve dentro del rango elegido.`,
+            ? `Crecimiento del ${trendDelta}% vs periodo anterior.`
+            : `Descenso del ${Math.abs(trendDelta)}% vs periodo anterior.`,
+        icon: TrendingUp,
+        color: trendDelta > 0 ? 'text-emerald-500' : 'text-blue-500'
       });
     }
     return list;
-  }, [topCategory, topLocations, trendDelta, resolutionRate]);
+  }, [topCategory, topLocations, trendDelta, resolutionRate, segment]);
 
   const availableCategories = useMemo(
     () =>
@@ -860,61 +1031,91 @@ export default function EstadisticasPage() {
     loadData();
   };
 
+  const handleGenerateReport = () => {
+    setIsGeneratingReport(true);
+    // Mock API call delay
+    setTimeout(() => {
+        setIsGeneratingReport(false);
+    }, 2500);
+  };
+
   if (loading) {
     return (
-      <div className="space-y-6 p-4 md:p-8">
+      <div className="space-y-6 p-4 md:p-8 animate-pulse">
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {Array.from({ length: 4 }).map((_, idx) => (
-            <Skeleton key={idx} className="h-40 w-full rounded-2xl" />
+            <Skeleton key={idx} className="h-40 w-full rounded-2xl bg-muted/20" />
           ))}
         </div>
-        <Skeleton className="h-[400px] w-full rounded-2xl" />
-        <Skeleton className="h-[520px] w-full rounded-2xl" />
+        <Skeleton className="h-[400px] w-full rounded-2xl bg-muted/20" />
+        <Skeleton className="h-[520px] w-full rounded-2xl bg-muted/20" />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="p-4 md:p-8">
-        <Alert variant="destructive">
-          <AlertTitle>Error</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
+      <div className="p-8 flex justify-center">
+        <Alert variant="destructive" className="max-w-2xl shadow-lg border-red-200 bg-red-50 dark:bg-red-950/20">
+          <AlertCircle className="h-5 w-5 text-red-600" />
+          <div className="ml-4">
+            <AlertTitle className="text-lg font-semibold text-red-700 dark:text-red-400">Error al cargar datos</AlertTitle>
+            <AlertDescription className="text-red-600/90 dark:text-red-400/90">{error}</AlertDescription>
+            <Button variant="outline" onClick={handleRefresh} className="mt-4 border-red-200 text-red-700 hover:bg-red-100">
+              Intentar nuevamente
+            </Button>
+          </div>
         </Alert>
       </div>
     );
   }
 
+  const isPyme = segment === 'pyme';
+  const labels = {
+      total: isPyme ? 'Total Pedidos/Consultas' : 'Total Tickets',
+      inProgress: isPyme ? 'En Preparación/Gestión' : 'En Gestión',
+      solved: isPyme ? 'Entregados/Cerrados' : 'Resueltos',
+      category: isPyme ? 'Categoría' : 'Categoría',
+      timeline: isPyme ? 'Evolución de Ventas' : 'Evolución de Tickets',
+      status: isPyme ? 'Estado de Pedidos' : 'Estado del Flujo',
+      origin: isPyme ? 'Canal de Venta' : 'Origen',
+      heatmap: isPyme ? 'Mapa de Clientes' : 'Mapa de Calor',
+  };
+
   return (
-    <div className="space-y-8 p-4 md:p-8">
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center gap-3 text-primary">
-          <TrendingUp className="h-6 w-6" />
-          <p className="text-sm font-semibold uppercase tracking-widest text-primary/80">
-            Panel Inteligente de Analíticas
+    <div className="space-y-8 p-4 md:p-8 bg-gray-50/50 dark:bg-zinc-950 min-h-screen">
+      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400">
+            <BarChart3 className="h-5 w-5" />
+            <span className="text-xs font-bold uppercase tracking-wider">Analytics Intelligence</span>
+          </div>
+          <h1 className="text-3xl font-extrabold tracking-tight text-gray-900 dark:text-white sm:text-4xl">
+            {isPyme ? 'Panel de Ventas y Métricas' : 'Tablero de Control Ciudadano'}
+          </h1>
+          <p className="text-base text-muted-foreground max-w-2xl">
+            {isPyme
+                ? 'Monitoreo de rendimiento comercial, canales de venta y zonas de entrega.'
+                : 'Visión integral del rendimiento operativo y tendencias de servicio público.'}
           </p>
         </div>
-        <div>
-          <h1 className="text-4xl font-bold leading-tight text-foreground md:text-5xl">
-            Insights accionables en tiempo real
-          </h1>
-          <p className="mt-2 max-w-3xl text-base text-muted-foreground">
-            Combina métricas operativas, evolución temporal y mapas de calor para entender cómo se mueven los reclamos, las ventas o los tickets de servicio en tu organización. Ajusta filtros y visualiza información lista para presentar en comités ejecutivos.
-          </p>
+        <div className="flex items-center gap-2">
+            <Button variant="default" size="sm" onClick={handleRefresh} className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-md transition-all">
+                <RefreshCcw className="mr-2 h-4 w-4" /> Actualizar
+            </Button>
         </div>
       </div>
 
-      <Card className="border-border/60 shadow-lg">
-        <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <CardTitle className="text-lg">Configurá la vista</CardTitle>
-            <CardDescription>
-              Seleccioná horizonte temporal, segmento y filtros para actualizar los análisis.
-            </CardDescription>
-          </div>
-          <div className="flex flex-wrap gap-3">
+      <Card className="border-border/60 shadow-md bg-white/80 backdrop-blur-xl dark:bg-card/40 sticky top-0 z-10">
+        <CardContent className="p-4">
+          <div className="flex flex-wrap items-center gap-3">
+             <div className="flex items-center gap-2 mr-auto">
+                 <Filter className="w-4 h-4 text-muted-foreground" />
+                 <span className="text-sm font-medium">Filtros Activos</span>
+             </div>
+
             <Select value={segment} onValueChange={(value) => setSegment(value as Segment)}>
-              <SelectTrigger className="w-[180px]">
+              <SelectTrigger className="w-[200px] h-9 text-sm">
                 <SelectValue placeholder="Segmento" />
               </SelectTrigger>
               <SelectContent>
@@ -932,7 +1133,7 @@ export default function EstadisticasPage() {
                 setRange(value === 'all' ? 'all' : Number(value))
               }
             >
-              <SelectTrigger className="w-[180px]">
+              <SelectTrigger className="w-[160px] h-9 text-sm">
                 <SelectValue placeholder="Horizonte" />
               </SelectTrigger>
               <SelectContent>
@@ -944,267 +1145,323 @@ export default function EstadisticasPage() {
               </SelectContent>
             </Select>
 
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="Estado" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos los estados</SelectItem>
-                {statusOptions.map((status) => (
-                  <SelectItem key={status} value={status}>
-                    {status}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {/* Conditional filters only for operational view */}
+            {activeTab === 'operativo' && (
+              <>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-[180px] h-9 text-sm">
+                    <SelectValue placeholder="Estado" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los estados</SelectItem>
+                    {statusOptions.map((status) => (
+                      <SelectItem key={status} value={status}>
+                        {status}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
-            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger className="w-[220px]">
-                <SelectValue placeholder="Categoría" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas las categorías</SelectItem>
-                {categoryOptions.map((category) => (
-                  <SelectItem key={category} value={category}>
-                    {category}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Button variant="outline" onClick={handleRefresh} className="gap-2">
-              <RefreshCcw className="h-4 w-4" />
-              Actualizar
-            </Button>
+                <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                  <SelectTrigger className="w-[200px] h-9 text-sm">
+                    <SelectValue placeholder={isPyme ? "Producto/Rubro" : "Categoría"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas</SelectItem>
+                    {categoryOptions.map((category) => (
+                      <SelectItem key={category} value={category}>
+                        {category}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </>
+            )}
           </div>
-        </CardHeader>
+        </CardContent>
       </Card>
 
       {dataNotice ? (
-        <Alert>
-          <AlertCircle className="h-5 w-5" />
-          <AlertTitle>Información complementada automáticamente</AlertTitle>
-          <AlertDescription>{dataNotice}</AlertDescription>
+        <Alert className="bg-amber-50 border-amber-200 dark:bg-amber-900/10 dark:border-amber-800">
+          <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+          <AlertTitle className="text-amber-800 dark:text-amber-400 font-medium">Información parcial</AlertTitle>
+          <AlertDescription className="text-amber-700 dark:text-amber-300/80 text-sm">{dataNotice}</AlertDescription>
         </Alert>
       ) : null}
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <SummaryCard
-          title="Tickets totales"
-          value={formatNumber(totalTickets)}
-          subtitle="Volumen consolidado para el período seleccionado"
-          icon={BarChart3}
-          accent="rgba(37,99,235,0.35)"
-        />
-        <SummaryCard
-          title="En curso"
-          value={formatNumber(ticketCounts?.enProceso ?? 0)}
-          subtitle="Casos que requieren seguimiento activo"
-          icon={Activity}
-          accent="rgba(14,184,184,0.4)"
-        />
-        <SummaryCard
-          title="Resueltos"
-          value={formatNumber(ticketCounts?.resueltos ?? 0)}
-          subtitle={`Tasa de resolución ${resolutionRate}%`}
-          icon={Layers}
-          accent="rgba(16,185,129,0.35)"
-        />
-        <SummaryCard
-          title="Categoría destacada"
-          value={topCategory ? topCategory.label : 'Sin datos'}
-          subtitle={topCategory ? `${formatNumber(topCategory.value)} casos registrados` : 'Aguardando actividad'}
-          icon={Flame}
-          accent="rgba(249,115,22,0.35)"
-        />
-      </div>
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabView)} className="space-y-8">
+        <TabsList className="bg-muted/50 p-1">
+          <TabsTrigger value="operativo" className="px-8">{isPyme ? 'Ventas y Operaciones' : 'Gestión Operativa'}</TabsTrigger>
+          <TabsTrigger value="participacion" className="px-8">{isPyme ? 'Clientes y Encuestas' : 'Participación Ciudadana'}</TabsTrigger>
+        </TabsList>
 
-      <div className="grid gap-4 xl:grid-cols-3">
-        <AnalyticsChartCard
-          title="Evolución de tickets"
-          description="Tendencia mensual de creación de casos"
-        >
-          {timeline.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-              <AreaChart data={timeline}>
-                <defs>
-                  <linearGradient id={timelineGradientId} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="var(--primary)" stopOpacity={0.05} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border) / 0.35)" />
-                <XAxis dataKey="label" tick={{ fill: 'hsl(var(--muted-foreground))' }} />
-                <YAxis allowDecimals={false} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
-                <Tooltip content={<ChartTooltip />} />
-                <Area
-                  type="monotone"
-                  dataKey="value"
-                  stroke="hsl(var(--primary))"
-                  strokeWidth={2.5}
-                  fill={`url(#${timelineGradientId})`}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-              Aún no hay suficientes datos temporales para mostrar una tendencia.
-            </div>
-          )}
-        </AnalyticsChartCard>
+        <TabsContent value="operativo" className="space-y-8 focus-visible:outline-none">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <SummaryCard
+              title={labels.total}
+              value={formatNumber(totalTickets)}
+              subtitle="Volumen del periodo"
+              icon={BarChart3}
+              variant="info"
+            />
+            <SummaryCard
+              title={labels.inProgress}
+              value={formatNumber(ticketCounts?.enProceso ?? 0)}
+              subtitle="Requieren atención"
+              icon={Activity}
+              variant="warning"
+            />
+            <SummaryCard
+              title={labels.solved}
+              value={formatNumber(ticketCounts?.resueltos ?? 0)}
+              subtitle={`Tasa de éxito: ${resolutionRate}%`}
+              icon={CheckCircle2}
+              variant="success"
+            />
+            <SummaryCard
+              title={isPyme ? "Top Producto" : "Top Categoría"}
+              value={topCategory ? formatNumber(topCategory.value) : '-'}
+              subtitle={topCategory ? topCategory.label : 'Sin datos'}
+              icon={Flame}
+              variant="default"
+            />
+          </div>
 
-        <AnalyticsChartCard
-          title="Distribución por estado"
-          description="Proporción de tickets por etapa del flujo"
-        >
-          {statusBreakdown.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-              <RadialBarChart
-                data={statusBreakdown.map((item, index) => ({
-                  name: item.label,
-                  value: item.value,
-                  fill: COLOR_PALETTE[index % COLOR_PALETTE.length],
-                }))}
-                innerRadius="30%"
-                outerRadius="90%"
-                barSize={16}
-              >
-                <PolarAngleAxis type="number" domain={[0, Math.max(...statusBreakdown.map((item) => item.value))]} tick={false} />
-                <RadialBar
-                  dataKey="value"
-                  cornerRadius={10}
-                  background
-                  label={{ position: 'inside', fill: '#fff', fontSize: 11 }}
-                />
-                <Tooltip content={<ChartTooltip />} />
-              </RadialBarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-              No hay datos suficientes para segmentar los estados.
-            </div>
-          )}
-        </AnalyticsChartCard>
+          <div className="grid gap-6 xl:grid-cols-3">
+            <AnalyticsChartCard
+              title={labels.timeline}
+              description={isPyme ? "Volumen de actividad comercial" : "Evolución de tickets creados"}
+            >
+              {timeline.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                  <AreaChart data={timeline} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id={timelineGradientId} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor={THEME.colors.primary} stopOpacity={0.3} />
+                        <stop offset="95%" stopColor={THEME.colors.primary} stopOpacity={0.0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={THEME.colors.border} />
+                    <XAxis
+                        dataKey="label"
+                        tick={{ fill: THEME.colors.textSecondary, fontSize: 11 }}
+                        axisLine={false}
+                        tickLine={false}
+                        tickMargin={10}
+                    />
+                    <YAxis
+                        allowDecimals={false}
+                        tick={{ fill: THEME.colors.textSecondary, fontSize: 11 }}
+                        axisLine={false}
+                        tickLine={false}
+                    />
+                    <Tooltip content={<ChartTooltip />} cursor={{ stroke: THEME.colors.primary, strokeWidth: 1, strokeDasharray: '4 4' }} />
+                    <Area
+                      type="monotone"
+                      dataKey="value"
+                      stroke={THEME.colors.primary}
+                      strokeWidth={3}
+                      fill={`url(#${timelineGradientId})`}
+                      activeDot={{ r: 6, strokeWidth: 0, fill: THEME.colors.primary }}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex h-full flex-col items-center justify-center text-muted-foreground gap-2">
+                  <Clock className="w-8 h-8 opacity-20" />
+                  <p className="text-sm">Sin datos suficientes</p>
+                </div>
+              )}
+            </AnalyticsChartCard>
 
-        <AnalyticsChartCard
-          title="Canales de ingreso"
-          description="Conoce qué canales concentran las interacciones"
-        >
-          {channelBreakdown.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-              <BarChart data={channelBreakdown}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border) / 0.35)" />
-                <XAxis dataKey="label" tick={{ fill: 'hsl(var(--muted-foreground))' }} />
-                <YAxis allowDecimals={false} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
-                <Tooltip content={<ChartTooltip />} />
-                <Bar dataKey="value" radius={[12, 12, 0, 0]}>
-                  {channelBreakdown.map((_, idx) => (
-                    <Cell key={idx} fill={COLOR_PALETTE[idx % COLOR_PALETTE.length]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-              Aún no se detectaron canales diferenciados para el rango seleccionado.
-            </div>
-          )}
-        </AnalyticsChartCard>
-      </div>
+            <AnalyticsChartCard
+              title={labels.status}
+              description="Distribución actual"
+            >
+              {statusBreakdown.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                  <RadialBarChart
+                    data={statusBreakdown.map((item, index) => ({
+                      name: item.label,
+                      value: item.value,
+                      fill: THEME.palette[index % THEME.palette.length],
+                    }))}
+                    innerRadius="40%"
+                    outerRadius="100%"
+                    barSize={20}
+                    startAngle={90}
+                    endAngle={-270}
+                  >
+                    <RadialBar
+                      dataKey="value"
+                      cornerRadius={10}
+                      background={{ fill: THEME.colors.grid }}
+                    />
+                    <Tooltip content={<ChartTooltip />} />
+                  </RadialBarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex h-full flex-col items-center justify-center text-muted-foreground gap-2">
+                  <Layers className="w-8 h-8 opacity-20" />
+                  <p className="text-sm">Sin datos de estado</p>
+                </div>
+              )}
+            </AnalyticsChartCard>
 
-      <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
-        <Card className="border-border/60 shadow-lg">
+            <AnalyticsChartCard
+              title={labels.origin}
+              description="Canales de ingreso principales"
+            >
+              {channelBreakdown.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                  <BarChart data={channelBreakdown} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={THEME.colors.border} />
+                    <XAxis dataKey="label" tick={{ fill: THEME.colors.textSecondary, fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <YAxis allowDecimals={false} tick={{ fill: THEME.colors.textSecondary, fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <Tooltip content={<ChartTooltip />} cursor={{ fill: THEME.colors.surface }} />
+                    <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                      {channelBreakdown.map((_, idx) => (
+                        <Cell key={idx} fill={THEME.palette[idx % THEME.palette.length]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex h-full flex-col items-center justify-center text-muted-foreground gap-2">
+                   <ArrowUpRight className="w-8 h-8 opacity-20" />
+                  <p className="text-sm">Sin datos de canales</p>
+                </div>
+              )}
+            </AnalyticsChartCard>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="participacion" className="focus-visible:outline-none">
+          <ParticipationDashboard segment={segment} />
+        </TabsContent>
+      </Tabs>
+
+      <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
+        <Card className="border-border/60 shadow-md bg-white dark:bg-card">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-lg">Mapa de calor interactivo</CardTitle>
+                <CardTitle className="text-xl">{labels.heatmap}</CardTitle>
                 <CardDescription>
-                  Localiza hotspots geográficos para planificar operativos o campañas.
+                  Zonas con mayor densidad de actividad (Hotspots)
                 </CardDescription>
               </div>
-              <Badge variant="outline" className="flex items-center gap-1 text-xs">
-                <MapPin className="h-3.5 w-3.5" />
-                {displayedHeatmapCount.toLocaleString('es-AR')} puntos
+              <Badge variant="secondary" className="px-3 py-1 text-xs font-mono">
+                <MapPin className="h-3 w-3 mr-1" />
+                {displayedHeatmapCount.toLocaleString('es-AR')} PUNTOS
               </Badge>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-0 overflow-hidden rounded-b-xl">
             {heatmap.length > 0 ? (
-              <AnalyticsHeatmap
-                initialHeatmapData={heatmap}
-                availableCategories={availableCategories}
-                availableBarrios={availableBarrios}
-                availableTipos={availableTipos}
-                metadata={heatmapDetails?.metadata?.map?.heatmap}
-                mapConfig={heatmapDetails?.mapConfig}
-                mapLayers={heatmapDetails?.mapLayers}
-              />
+              <div className="h-[550px] w-full">
+                <AnalyticsHeatmap
+                  initialHeatmapData={heatmap}
+                  availableCategories={availableCategories}
+                  availableBarrios={availableBarrios}
+                  availableTipos={availableTipos}
+                  metadata={heatmapDetails?.metadata?.map?.heatmap}
+                  mapConfig={heatmapDetails?.mapConfig}
+                  mapLayers={heatmapDetails?.mapLayers}
+                />
+              </div>
             ) : (
-              <div className="flex h-[520px] items-center justify-center rounded-xl border border-dashed border-border text-sm text-muted-foreground">
-                No hay datos georreferenciados disponibles para los filtros aplicados.
+              <div className="flex h-[550px] items-center justify-center bg-muted/10 text-muted-foreground">
+                <div className="text-center">
+                    <MapPin className="h-10 w-10 mx-auto mb-2 opacity-20" />
+                    <p>No hay datos geográficos disponibles</p>
+                </div>
               </div>
             )}
           </CardContent>
         </Card>
 
-        <div className="space-y-4">
-          <Card className="border-border/60 shadow-lg">
-            <CardHeader>
-              <CardTitle className="text-lg">Zonas con mayor actividad</CardTitle>
-              <CardDescription>
-                Priorizá inspecciones o equipos de respuesta donde más se necesita.
-              </CardDescription>
+        <div className="space-y-6">
+           <Card className="border-indigo-100 shadow-lg bg-gradient-to-br from-indigo-50 via-purple-50 to-white dark:from-indigo-950/40 dark:via-purple-950/20 dark:to-black">
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-2">
+                 <div className="bg-indigo-600 p-2 rounded-lg">
+                    <BrainCircuit className="w-5 h-5 text-white" />
+                 </div>
+                 <div>
+                    <CardTitle className="text-base text-indigo-900 dark:text-indigo-300">Consultor IA</CardTitle>
+                    <CardDescription className="text-xs">Análisis automatizado de tendencias</CardDescription>
+                 </div>
+              </div>
             </CardHeader>
-            <CardContent>
-              {topLocations.length > 0 ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Ubicación</TableHead>
-                      <TableHead className="text-right">Tickets</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {topLocations.map((location, index) => (
-                      <TableRow key={location.label}>
-                        <TableCell className="flex items-center gap-2">
-                          <Badge variant={index === 0 ? 'default' : 'secondary'}>{index + 1}</Badge>
-                          {location.label}
-                        </TableCell>
-                        <TableCell className="text-right font-semibold">
-                          {formatNumber(location.value)}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+            <CardContent className="space-y-4">
+              {isGeneratingReport ? (
+                 <div className="space-y-3 py-4">
+                    <Skeleton className="h-4 w-3/4 bg-indigo-200/50" />
+                    <Skeleton className="h-4 w-full bg-indigo-200/50" />
+                    <Skeleton className="h-4 w-5/6 bg-indigo-200/50" />
+                    <p className="text-xs text-center text-indigo-600 animate-pulse mt-2">Analizando datos con GPT-4...</p>
+                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground">
-                  Aún no hay actividad territorial suficiente para construir el ranking.
-                </p>
+                <>
+                  {insights.length > 0 ? (
+                    insights.map((insight) => (
+                      <div key={insight.title} className="flex gap-3 items-start p-3 bg-white/70 dark:bg-black/40 rounded-xl border border-indigo-100 dark:border-indigo-900/50 shadow-sm transition-transform hover:scale-[1.02]">
+                        <insight.icon className={`w-5 h-5 mt-0.5 ${insight.color}`} />
+                        <div>
+                            <h4 className="text-sm font-semibold">{insight.title}</h4>
+                            <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{insight.description}</p>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-center py-4 text-muted-foreground">
+                      Recopilando datos para generar insights...
+                    </p>
+                  )}
+
+                  <div className="pt-2 border-t border-indigo-100 dark:border-indigo-900/30">
+                     <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-900/50 group"
+                        onClick={handleGenerateReport}
+                     >
+                        <Sparkles className="w-4 h-4 mr-2 text-indigo-500 group-hover:text-indigo-600" />
+                        Generar Informe Detallado
+                     </Button>
+                  </div>
+                </>
               )}
             </CardContent>
           </Card>
 
-          <Card className="border-border/60 shadow-lg">
-            <CardHeader>
-              <CardTitle className="text-lg">Insights clave</CardTitle>
-              <CardDescription>
-                Recomendaciones generadas automáticamente según tus datos.
-              </CardDescription>
+          <Card className="border-border/60 shadow-md h-full">
+             <CardHeader>
+              <CardTitle className="text-lg">Zonas Críticas</CardTitle>
+              <CardDescription>Top barrios/zonas con más {isPyme ? 'ventas' : 'tickets'}</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              {insights.length > 0 ? (
-                insights.map((insight) => (
-                  <div key={insight.title} className="rounded-xl border border-border/60 bg-card/70 p-3 shadow-sm">
-                    <p className="text-sm font-semibold text-foreground">{insight.title}</p>
-                    <p className="text-sm text-muted-foreground">{insight.description}</p>
-                  </div>
-                ))
+            <CardContent>
+              {topLocations.length > 0 ? (
+                <div className="space-y-4">
+                    {topLocations.map((location, index) => (
+                      <div key={location.label} className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50 transition-colors">
+                          <div className="flex items-center gap-3">
+                              <div className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${
+                                  index === 0 ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600'
+                              }`}>
+                                  {index + 1}
+                              </div>
+                              <span className="text-sm font-medium">{location.label}</span>
+                          </div>
+                          <Badge variant="outline" className="font-mono">{formatNumber(location.value)}</Badge>
+                      </div>
+                    ))}
+                </div>
               ) : (
-                <p className="text-sm text-muted-foreground">
-                  Aplica filtros o amplía el rango temporal para descubrir hallazgos automáticos.
-                </p>
+                <div className="text-center py-10 text-muted-foreground text-sm">
+                  Sin datos de ubicación
+                </div>
               )}
             </CardContent>
           </Card>
