@@ -47,7 +47,8 @@ const IframePage = () => {
       let fetchedConfig: any = {};
       if (tenantSlug) {
         try {
-          const response = await fetch(`/api/public/tenants/${tenantSlug}/widget-config`, {
+          // Use the live configuration endpoint for public widgets
+          const response = await fetch(`/api/public/tenants/${tenantSlug}/saas-config`, {
             credentials: "omit",
             headers: {
               Accept: "application/json",
@@ -57,7 +58,14 @@ const IframePage = () => {
             throw new Error(`Failed to load widget config (${response.status})`);
           }
           const publicConfig = await response.json();
-          fetchedConfig = publicConfig || {};
+          // The backend might return structure like { appearance: {...}, behavior: {...} } or flat
+          // We normalize it here if needed, but for now we assume it matches what the frontend expects
+          // or we map it:
+          fetchedConfig = {
+              ...publicConfig,
+              ...publicConfig.appearance, // Flatten appearance for easier access below
+              ...publicConfig.behavior,   // Flatten behavior
+          };
           setTenantConfig(fetchedConfig);
         } catch (e) {
           console.warn("Could not fetch tenant widget config", e);

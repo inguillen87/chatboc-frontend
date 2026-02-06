@@ -351,9 +351,10 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
       if (onSave) {
           await onSave(cfg);
       } else {
+          // Updates the Draft configuration
           await apiClient.updateChatTheme(currentSlug, payload);
       }
-      if (!isAutoSave) toast.success("Personalización guardada correctamente.");
+      if (!isAutoSave) toast.success("Borrador guardado.");
       setHasUnsavedChanges(false);
     } catch (error) {
       console.error("Save failed", error);
@@ -719,10 +720,26 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
             </TabsContent>
         </Tabs>
 
-        <div className="sticky bottom-4 z-10">
-             <Button className="w-full h-11 rounded-xl shadow-lg shadow-primary/20" onClick={() => performSave(config)} disabled={saving}>
-                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
-                Guardar Personalización
+        <div className="sticky bottom-4 z-10 flex gap-2">
+             <Button className="flex-1 h-11 rounded-xl shadow-sm" variant="outline" onClick={() => performSave(config)} disabled={saving}>
+                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Settings className="mr-2 h-4 w-4" />}
+                Guardar Borrador
+            </Button>
+             <Button className="flex-1 h-11 rounded-xl shadow-lg shadow-primary/20" onClick={async () => {
+                 await performSave(config, true);
+                 if (!currentSlug) return;
+                 try {
+                     setSaving(true);
+                     await apiClient.post(`/api/admin/tenants/${currentSlug}/widget-config/publish`);
+                     toast.success("¡Widget publicado en vivo!");
+                 } catch (e) {
+                     toast.error("Error al publicar.");
+                 } finally {
+                     setSaving(false);
+                 }
+             }} disabled={saving}>
+                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Globe className="mr-2 h-4 w-4" />}
+                Publicar Widget
             </Button>
         </div>
       </div>
