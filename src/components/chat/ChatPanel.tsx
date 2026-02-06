@@ -173,9 +173,7 @@ const ChatPanel = (props: ChatPanelProps) => {
     }
   }, [handleSend]);
 
-  const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-  const forcePicker = searchParams?.get("picker") === "1" || searchParams?.get("show_rubros") === "true";
-  const rubrosEnabled = tipoChat === 'pyme' || forcePicker;
+  const rubrosEnabled = tipoChat === 'pyme';
   const [rubros, setRubros] = useState<Rubro[]>([]);
   const [isLoadingRubros, setIsLoadingRubros] = useState(false);
   const [rubrosError, setRubrosError] = useState<string | null>(null);
@@ -353,7 +351,7 @@ const ChatPanel = (props: ChatPanelProps) => {
   // However, a 'pyme' tenant might still have rubros? No, usually a single pyme is a specific business.
   // The 'directory' mode is when we are at the aggregator level.
   // If tenantSlug is present, we assume it's a specific entity.
-  const showRubroSelector = rubrosEnabled && !localRubro && ((!tenantSlug && !propEntityToken) || forcePicker);
+  const showRubroSelector = rubrosEnabled && !localRubro && !tenantSlug && !propEntityToken;
 
   const handlePersonalDataSubmit = (data: { nombre: string; email: string; telefono: string; dni: string; }) => {
     const normalizedName = data?.nombre?.trim();
@@ -392,15 +390,7 @@ const ChatPanel = (props: ChatPanelProps) => {
         return;
       }
 
-      let socket: SocketIOClient.Socket | null = null;
-      try {
-        socket = io(socketUrl, { path: SOCKET_PATH });
-      } catch (err) {
-        console.error("Failed to initialize socket.io client:", err);
-      }
-
-      if (!socket) return;
-
+      const socket = io(socketUrl, { path: SOCKET_PATH });
       socketRef.current = socket;
 
       const room = `ticket_${tipoChat}_${liveChatTicketId}`;
@@ -618,14 +608,6 @@ const ChatPanel = (props: ChatPanelProps) => {
 
   const isAnalyzingImage = isTyping && lastUserMessage?.attachmentInfo?.type === 'image';
   const typingText = isAnalyzingImage ? "Analizando imagen..." : undefined;
-
-
-  // Auto-initialize conversation for municipality mode (or when rubros disabled)
-  useEffect(() => {
-    if (!rubrosEnabled && messages.length === 0 && !isTyping) {
-       initializeConversation({ force: false });
-    }
-  }, [rubrosEnabled, messages.length, isTyping, initializeConversation]);
 
   if (showRubroSelector) {
     return (

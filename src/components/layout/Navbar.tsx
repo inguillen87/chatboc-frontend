@@ -36,7 +36,6 @@ import type { LucideIcon } from "lucide-react";
 import useCartCount from "@/hooks/useCartCount";
 import { useTenant } from "@/context/TenantContext";
 import { buildTenantPath } from "@/utils/tenantPaths";
-import NotificationBadge from "./badges/NotificationBadge";
 
 const Navbar: React.FC = () => {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -60,9 +59,9 @@ const Navbar: React.FC = () => {
       return [] as Array<{ to: string; label: string; icon: LucideIcon }>;
     }
 
-    const links: Array<{ to: string; label: string; icon: LucideIcon; badgeType?: 'orders' | 'tickets' }> = [
-      { to: "/tickets", label: "Tickets", icon: TicketIcon, badgeType: 'tickets' },
-      { to: "/pedidos", label: "Pedidos", icon: ClipboardList, badgeType: 'orders' },
+    const links: Array<{ to: string; label: string; icon: LucideIcon }> = [
+      { to: "/tickets", label: "Tickets", icon: TicketIcon },
+      { to: "/pedidos", label: "Pedidos", icon: ClipboardList },
       { to: "/usuarios", label: "Usuarios", icon: Users },
       { to: "/empleados", label: "Empleados", icon: UserCog },
     ];
@@ -224,14 +223,11 @@ const Navbar: React.FC = () => {
                 {adminLinks.length > 0 && (
                   <>
                     <DropdownMenuSeparator />
-                    {adminLinks.map(({ to, label, icon: Icon, badgeType }) => (
+                    {adminLinks.map(({ to, label, icon: Icon }) => (
                       <DropdownMenuItem asChild key={to}>
-                        <RouterLink to={to} className="flex items-center justify-between gap-2 text-sm w-full">
-                          <div className="flex items-center gap-2">
-                            <Icon className="h-4 w-4" />
-                            {label}
-                          </div>
-                          {badgeType && <NotificationBadge type={badgeType} />}
+                        <RouterLink to={to} className="flex items-center gap-2 text-sm">
+                          <Icon className="h-4 w-4" />
+                          {label}
                         </RouterLink>
                       </DropdownMenuItem>
                     ))}
@@ -311,18 +307,15 @@ const Navbar: React.FC = () => {
                   <div className="w-full space-y-2 border-t border-border/40 pt-3">
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/80">Panel admin</p>
                     <div className="flex flex-col gap-2">
-                      {adminLinks.map(({ to, label, icon: Icon, badgeType }) => (
+                      {adminLinks.map(({ to, label, icon: Icon }) => (
                         <RouterLink
                           key={to}
                           to={to}
                           onClick={() => setMenuOpen(false)}
-                          className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-sm transition-colors hover:border-primary hover:text-primary"
+                          className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm transition-colors hover:border-primary hover:text-primary"
                         >
-                          <div className="flex items-center gap-2">
-                            <Icon className="h-4 w-4" />
-                            {label}
-                          </div>
-                          {badgeType && <NotificationBadge type={badgeType} />}
+                          <Icon className="h-4 w-4" />
+                          {label}
                         </RouterLink>
                       ))}
                     </div>

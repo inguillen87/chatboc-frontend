@@ -21,9 +21,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useSocket } from '@/context/SocketContext';
-import { safeOn } from '@/utils/safeOn';
-import { toast } from 'sonner';
 
 // ---------- Tipos ----------
 // Using Order from unified types
@@ -271,7 +268,6 @@ export default function PedidosPage() {
   const [error, setError] = useState<string | null>(null);
   const [openCategories, setOpenCategories] = useState<Set<string>>(new Set());
   const [selectedPedidoId, setSelectedPedidoId] = useState<number | string | null>(null);
-  const { socket } = useSocket();
 
   const handleLogout = () => {
     safeLocalStorage.clear();
@@ -295,14 +291,11 @@ export default function PedidosPage() {
           return acc;
         }, {});
         setCategorizedPedidos(categorized);
-        // Only auto-open if it's the initial load or categories were empty
-        setOpenCategories(prev => {
-            if (prev.size > 0) return prev;
-            return new Set(Object.keys(categorized).filter((e) => !['delivered', 'cancelled', 'satisfecho', 'cancelado'].includes(e)));
-        });
+        setOpenCategories(new Set(Object.keys(categorized).filter((e) => !['delivered', 'cancelled', 'satisfecho', 'cancelado'].includes(e))));
       } else {
         console.error('Error: La respuesta de la API de pedidos no es un array', data);
         setCategorizedPedidos({});
+        setOpenCategories(new Set());
       }
     } catch (err) {
       console.error('Error fetching pedidos:', err);
@@ -320,30 +313,6 @@ export default function PedidosPage() {
     }
     fetchPedidos();
   }, [fetchPedidos, navigate]);
-
-  // Real-time updates
-  useEffect(() => {
-    if (!socket) return;
-
-    const handleUpdate = (data: any) => {
-        // Listen for generic ticket/order updates
-        // The backend might send { type: 'new_order' } or just a generic update signal
-        console.log('[PedidosPage] Received update:', data);
-        toast.info('Actualizando lista de pedidos...');
-        fetchPedidos();
-    };
-
-    // Listen to both legacy and potential new event names
-    safeOn(socket, 'ticket_update', handleUpdate);
-    safeOn(socket, 'order_update', handleUpdate);
-    safeOn(socket, 'new_order', handleUpdate);
-
-    return () => {
-        socket.off('ticket_update', handleUpdate);
-        socket.off('order_update', handleUpdate);
-        socket.off('new_order', handleUpdate);
-    };
-  }, [socket, fetchPedidos]);
 
   const sortedCategories = Object.entries(categorizedPedidos).sort(([a], [b]) => {
     const indexA = ESTADOS_ORDEN_PRIORIDAD.indexOf(a);

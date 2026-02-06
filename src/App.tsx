@@ -1,3 +1,5 @@
+// src/App.tsx
+
 import React from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -23,13 +25,6 @@ import TokenRedirectWrapper from "@/components/TokenRedirectWrapper";
 import { apiFetch } from "@/utils/api";
 
 const queryClient = new QueryClient();
-
-const layoutExcludedPaths = ['/iframe'];
-const layoutRoutes = routes.filter(({ path, userPortal }) => !layoutExcludedPaths.includes(path) && !userPortal);
-const portalRoutes = routes.filter(({ userPortal }) => userPortal);
-const guestPortalPaths = portalRoutes.filter(({ allowGuest }) => allowGuest).map(({ path }) => path);
-const standaloneRoutes = routes.filter(({ path, userPortal }) => layoutExcludedPaths.includes(path) && !userPortal);
-
 function AppRoutes() {
   const location = useLocation();
 
@@ -54,6 +49,11 @@ function AppRoutes() {
        console.warn("Failed to initialize anon session", e);
     }
   }, []);
+  const layoutExcludedPaths = ['/iframe'];
+  const layoutRoutes = routes.filter(({ path, userPortal }) => !layoutExcludedPaths.includes(path) && !userPortal);
+  const portalRoutes = routes.filter(({ userPortal }) => userPortal);
+  const guestPortalPaths = portalRoutes.filter(({ allowGuest }) => allowGuest).map(({ path }) => path);
+  const standaloneRoutes = routes.filter(({ path, userPortal }) => layoutExcludedPaths.includes(path) && !userPortal);
 
   // Ahora el array soporta rutas exactas y subrutas tipo "/integracion/preview"
   const rutasSinWidget = [
