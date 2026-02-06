@@ -329,15 +329,15 @@ const sanitizeLooseJson = (raw: string): string => {
   sanitized = sanitized.replace(/,\\s*([}\\]])/g, '$1');
   sanitized = sanitized.replace(/'([\\p{L}\\p{N}_-]+)'(\\s*:)/gu, (_, key, suffix) => {
     const escapedKey = key.replace(/"/g, '\\\\"');
-    return \`"\${escapedKey}"\${suffix}\`;
+    return `"${escapedKey}"${suffix}`;
   });
   sanitized = sanitized.replace(/:\\s*'([^'\\\\]*(?:\\\\.[^'\\\\]*)*)'/g, (_, value) => {
     const escaped = value.replace(/\\\\/g, '\\\\\\\\').replace(/"/g, '\\\\"');
-    return \`: "\${escaped}"\`;
+    return `: "${escaped}"`;
   });
   sanitized = sanitized.replace(/'([^'\\\\]*(?:\\\\.[^'\\\\]*)*)'/g, (_, value) => {
     const escaped = value.replace(/\\\\/g, '\\\\\\\\').replace(/"/g, '\\\\"');
-    return \`"\${escaped}"\`;
+    return `"${escaped}"`;
   });
   return sanitized;
 };
@@ -636,7 +636,7 @@ const buildChartData = (source: unknown): Record<string, number> => {
         const normalized = item.trim();
         if (normalized.length > 0) entries[normalized] = (entries[normalized] ?? 0) + 1;
       } else if (typeof item === 'number' && Number.isFinite(item)) {
-        const label = \`Item \${index + 1}\`;
+        const label = `Item ${index + 1}`;
         entries[label] = (entries[label] ?? 0) + item;
       }
     });
@@ -728,10 +728,10 @@ const extractChartsFromPayload = (payload: unknown): NormalizedChart[] => {
   }
   const dedupe = new Map<string, NormalizedChart>();
   charts.forEach((chart) => {
-    const key = \`\${chart.title.toLowerCase()}|\${JSON.stringify(chart.data)}\`;
+    const key = `${chart.title.toLowerCase()}|${JSON.stringify(chart.data)}`;
     if (!dedupe.has(key)) dedupe.set(key, chart);
   });
-  return Array.from(dedupe.values()).map((chart, index) => ({ title: chart.title && chart.title.trim().length > 0 ? chart.title : \`Gráfico \${index + 1}\`, data: chart.data }));
+  return Array.from(dedupe.values()).map((chart, index) => ({ title: chart.title && chart.title.trim().length > 0 ? chart.title : `Gráfico ${index + 1}`, data: chart.data }));
 };
 
 const looksLikeHeatmapPoint = (value: unknown): boolean => {
@@ -758,7 +758,7 @@ const extractHeatmapFromPayload = (payload: unknown): HeatPoint[] => {
         if (item && looksLikeHeatmapPoint(item)) {
           const normalized = normalizeHeatPoint(item);
           if (normalized) {
-            const key = \`\${normalized.lat.toFixed(6)}|\${normalized.lng.toFixed(6)}|\${normalized.categoria ?? ''}|\${normalized.estado ?? ''}|\${normalized.ticket ?? ''}\`;
+            const key = `${normalized.lat.toFixed(6)}|${normalized.lng.toFixed(6)}|${normalized.categoria ?? ''}|${normalized.estado ?? ''}|${normalized.ticket ?? ''}`;
             if (!seen.has(key)) { seen.add(key); points.push(normalized); }
           }
         }
@@ -771,7 +771,7 @@ const extractHeatmapFromPayload = (payload: unknown): HeatPoint[] => {
     if (looksLikeHeatmapPoint(record)) {
       const directPoint = normalizeHeatPoint(record);
       if (directPoint) {
-        const key = \`\${directPoint.lat.toFixed(6)}|\${directPoint.lng.toFixed(6)}|\${directPoint.categoria ?? ''}|\${directPoint.estado ?? ''}|\${directPoint.ticket ?? ''}\`;
+        const key = `${directPoint.lat.toFixed(6)}|${directPoint.lng.toFixed(6)}|${directPoint.categoria ?? ''}|${directPoint.estado ?? ''}|${directPoint.ticket ?? ''}`;
         if (!seen.has(key)) { seen.add(key); points.push(directPoint); }
       }
     }
@@ -878,7 +878,7 @@ const normalizeHeatmapCells = (rawCells: unknown): NormalizeCellsResult => {
     const lastTicketAt = coerceString(getFromRecord(cellRecord, 'last_ticket_at', 'lastticketat', 'last_seen_at')) ?? coerceString(getFromRecord(featureProps ?? {}, 'last_ticket_at', 'lastticketat', 'last_seen_at')) ?? null;
     const clusterSize = pointCount !== undefined && pointCount > 0 ? Math.round(pointCount) : Math.max(1, Math.round(totalWeight || 1));
     const averageWeight = clusterSize > 0 ? Number((totalWeight / clusterSize).toFixed(2)) : totalWeight;
-    points.push({ lat, lng, weight: totalWeight, totalWeight, averageWeight, clusterId: clusterId ?? \`cell-\${index + 1}\`, clusterSize, radiusMeters, maxDistanceMeters, aggregatedCategorias, aggregatedBarrios, aggregatedEstados, aggregatedTipos, aggregatedSeveridades, aggregatedCanales, aggregatedFuentes, dominantValues, sampleTickets: normalizedTickets, last_ticket_at: lastTicketAt, source: 'cell', cellId: clusterId ?? undefined, pointCount: pointCount !== undefined ? Math.round(pointCount) : undefined });
+    points.push({ lat, lng, weight: totalWeight, totalWeight, averageWeight, clusterId: clusterId ?? `cell-${index + 1}`, clusterSize, radiusMeters, maxDistanceMeters, aggregatedCategorias, aggregatedBarrios, aggregatedEstados, aggregatedTipos, aggregatedSeveridades, aggregatedCanales, aggregatedFuentes, dominantValues, sampleTickets: normalizedTickets, last_ticket_at: lastTicketAt, source: 'cell', cellId: clusterId ?? undefined, pointCount: pointCount !== undefined ? Math.round(pointCount) : undefined });
   });
   return { points, raw: rawList };
 };
@@ -953,7 +953,7 @@ export const getTicketStats = async (params?: TicketStatsParams): Promise<Ticket
     const normalizedParams: TicketStatsParams = { ...(params || {}), tipo: normalizeTipo(overrideTipo ?? params?.tipo ?? params?.tipo_ticket), fecha_inicio: normalizeDateParam(params?.fecha_inicio), fecha_fin: normalizeDateParam(params?.fecha_fin) };
     delete (normalizedParams as any).tipo_ticket;
     const query = buildSearchParams(normalizedParams).toString();
-    const candidatePaths = [\`/api/estadisticas/tickets\${query ? \`?\${query}\` : ''}\`, \`/estadisticas/tickets\${query ? \`?\${query}\` : ''}\`, \`/api/municipal/estadisticas/tickets\${query ? \`?\${query}\` : ''}\`, \`/municipal/estadisticas/tickets\${query ? \`?\${query}\` : ''}\`];
+    const candidatePaths = [`/api/estadisticas/tickets${query ? `?${query}` : ''}`, `/estadisticas/tickets${query ? `?${query}` : ''}`, `/api/municipal/estadisticas/tickets${query ? `?${query}` : ''}`, `/municipal/estadisticas/tickets${query ? `?${query}` : ''}`];
     let resp: unknown = null;
     let lastError: unknown = null;
     for (const path of candidatePaths) {
@@ -982,7 +982,7 @@ export const getHeatmapDataset = async (params?: HeatmapParams): Promise<Heatmap
     const normalizedParams: HeatmapParams = { ...(params || {}), tipo: normalizeTipo(overrideTipo ?? params?.tipo ?? params?.tipo_ticket), fecha_inicio: normalizeDateParam(params?.fecha_inicio), fecha_fin: normalizeDateParam(params?.fecha_fin) };
     delete (normalizedParams as any).tipo_ticket;
     const query = buildSearchParams(normalizedParams).toString();
-    const candidatePaths = [\`/api/estadisticas/mapa_calor/datos\${query ? \`?\${query}\` : ''}\`, \`/estadisticas/mapa_calor/datos\${query ? \`?\${query}\` : ''}\`, \`/api/municipal/estadisticas/mapa_calor/datos\${query ? \`?\${query}\` : ''}\`, \`/municipal/estadisticas/mapa_calor/datos\${query ? \`?\${query}\` : ''}\`];
+    const candidatePaths = [`/api/estadisticas/mapa_calor/datos${query ? `?${query}` : ''}`, `/estadisticas/mapa_calor/datos${query ? `?${query}` : ''}`, `/api/municipal/estadisticas/mapa_calor/datos${query ? `?${query}` : ''}`, `/municipal/estadisticas/mapa_calor/datos${query ? `?${query}` : ''}`];
     let payload: unknown = null;
     let lastError: unknown = null;
     for (const path of candidatePaths) {
@@ -1015,33 +1015,33 @@ export const generateAiReport = async (params: { tenant_id?: string | number, se
 
 export const getSalesAnalytics = async (params?: { tenant_id?: string | number, from?: string, to?: string }): Promise<SalesAnalyticsResponse> => {
   const query = buildSearchParams(params).toString();
-  return apiFetch<SalesAnalyticsResponse>(\`/api/analytics/sales\${query ? \`?\${query}\` : ''}\`);
+  return apiFetch<SalesAnalyticsResponse>(`/api/analytics/sales${query ? `?${query}` : ''}`);
 };
 
 export const getBenchmarks = async (params?: { tenant_id?: string | number, from?: string, to?: string }): Promise<BenchmarksResponse> => {
   const query = buildSearchParams(params).toString();
-  return apiFetch<BenchmarksResponse>(\`/api/analytics/benchmarks\${query ? \`?\${query}\` : ''}\`);
+  return apiFetch<BenchmarksResponse>(`/api/analytics/benchmarks${query ? `?${query}` : ''}`);
 };
 
 export const getFunnel = async (params?: { tenant_id?: string | number, from?: string, to?: string }): Promise<FunnelResponse> => {
   const query = buildSearchParams(params).toString();
-  return apiFetch<FunnelResponse>(\`/api/analytics/funnel\${query ? \`?\${query}\` : ''}\`);
+  return apiFetch<FunnelResponse>(`/api/analytics/funnel${query ? `?${query}` : ''}`);
 };
 
 export const getSurveySummary = async (tenantId: string | number): Promise<SurveySummaryResponse> => {
-  return apiFetch<SurveySummaryResponse>(\`/api/analytics/surveys/summary?tenant_id=\${tenantId}\`);
+  return apiFetch<SurveySummaryResponse>(`/api/analytics/surveys/summary?tenant_id=${tenantId}`);
 };
 
 export const getSurveySentiment = async (tenantId: string | number): Promise<SurveySentimentResponse> => {
-  return apiFetch<SurveySentimentResponse>(\`/api/analytics/surveys/sentiment?tenant_id=\${tenantId}\`);
+  return apiFetch<SurveySentimentResponse>(`/api/analytics/surveys/sentiment?tenant_id=${tenantId}`);
 };
 
 export const getSurveyGeo = async (tenantId: string | number): Promise<SurveyGeoResponse> => {
-  return apiFetch<SurveyGeoResponse>(\`/api/analytics/surveys/geo?tenant_id=\${tenantId}\`);
+  return apiFetch<SurveyGeoResponse>(`/api/analytics/surveys/geo?tenant_id=${tenantId}`);
 };
 
 export const getGeoPolygons = async (tenantId: string | number): Promise<FeatureCollectionLike> => {
-  return apiFetch<FeatureCollectionLike>(\`/api/geo/polygons?tenant_id=\${tenantId}\`);
+  return apiFetch<FeatureCollectionLike>(`/api/geo/polygons?tenant_id=${tenantId}`);
 };
 
 export const getMunicipalTicketStates = async (): Promise<string[]> => {

@@ -911,9 +911,8 @@ export async function apiFetch<T>(
         }
       }
 
-      const errorMessage = data?.error?.message || data?.error || data?.message || "No autorizado";
       throw new ApiError(
-        typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage),
+        data?.error || data?.message || "No autorizado",
         response.status,
         data
       );
@@ -924,18 +923,16 @@ export async function apiFetch<T>(
     }
 
     if (response.status === 403) {
-      const errorMessage = data?.error?.message || data?.error || data?.message || "Acceso prohibido";
       throw new ApiError(
-        typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage),
+        data?.error || data?.message || "Acceso prohibido",
         response.status,
         data
       );
     }
 
     if (!response.ok) {
-      const errorMessage = data?.error?.message || data?.error || data?.message || "Error en la respuesta de la API";
       throw new ApiError(
-        typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage),
+        data?.error || data?.message || "Error en la respuesta de la API",
         response.status,
         data
       );

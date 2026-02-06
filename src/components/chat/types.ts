@@ -25,13 +25,4 @@ export interface ChatWidgetProps {
   borderRadius?: number;
   botName?: string;
   fontFamily?: string;
-
-  // New Config Props
-  autoOpenDelay?: number;
-  position?: 'left' | 'right';
-  sideOffset?: number;
-  bottomOffset?: number;
-  zIndex?: number;
-  simulateState?: 'loading' | 'offline' | 'error' | null;
-  faqSuggestions?: string[];
 }

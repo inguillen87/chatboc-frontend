@@ -47,8 +47,7 @@ const IframePage = () => {
       let fetchedConfig: any = {};
       if (tenantSlug) {
         try {
-          // Use the live configuration endpoint for public widgets
-          const response = await fetch(`/api/public/tenants/${tenantSlug}/saas-config`, {
+          const response = await fetch(`/api/public/tenants/${tenantSlug}/widget-config`, {
             credentials: "omit",
             headers: {
               Accept: "application/json",
@@ -58,14 +57,7 @@ const IframePage = () => {
             throw new Error(`Failed to load widget config (${response.status})`);
           }
           const publicConfig = await response.json();
-          // The backend might return structure like { appearance: {...}, behavior: {...} } or flat
-          // We normalize it here if needed, but for now we assume it matches what the frontend expects
-          // or we map it:
-          fetchedConfig = {
-              ...publicConfig,
-              ...publicConfig.appearance, // Flatten appearance for easier access below
-              ...publicConfig.behavior,   // Flatten behavior
-          };
+          fetchedConfig = publicConfig || {};
           setTenantConfig(fetchedConfig);
         } catch (e) {
           console.warn("Could not fetch tenant widget config", e);
@@ -140,19 +132,6 @@ const IframePage = () => {
       const borderRadius = Number.isFinite(parsedBorderRadius) ? parsedBorderRadius : undefined;
       const fontFamily = urlParams.get("fontFamily") || cfg.fontFamily || '';
 
-      let faqSuggestions: string[] = [];
-      try {
-          const faqParam = urlParams.get("faqSuggestions");
-          if (faqParam) {
-              const parsed = JSON.parse(faqParam);
-              if (Array.isArray(parsed)) faqSuggestions = parsed;
-          } else if (fetchedConfig.content?.faq_suggestions) {
-              faqSuggestions = fetchedConfig.content.faq_suggestions;
-          }
-      } catch (e) {
-          console.warn("Failed to parse FAQ suggestions", e);
-      }
-
       setWidgetParams({
         defaultOpen,
         widgetId,
@@ -178,7 +157,6 @@ const IframePage = () => {
         borderRadius,
         fontFamily,
         tenantSlug: tenantSlug,
-        faqSuggestions,
       });
 
       const mergedConfig = {
@@ -279,7 +257,6 @@ const IframePage = () => {
       chatBackground={widgetParams.chatBackground}
       borderRadius={widgetParams.borderRadius}
       fontFamily={widgetParams.fontFamily}
-      faqSuggestions={widgetParams.faqSuggestions}
     />
   );
 

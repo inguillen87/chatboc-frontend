@@ -52,13 +52,13 @@ describe('useBusinessHours', () => {
     });
   });
 
-  it('calls /live-chat/schedule when tenantSlug is provided', async () => {
+  it('calls /api/demo/live-chat/schedule when tenantSlug is provided', async () => {
     (safeLocalStorage.getItem as any).mockImplementation((key: string) => null);
 
     renderHook(() => useBusinessHours(undefined, 'demo'));
 
     await waitFor(() => {
-      expect(apiFetch).toHaveBeenCalledWith('/live-chat/schedule', {
+      expect(apiFetch).toHaveBeenCalledWith('/api/demo/live-chat/schedule', {
         skipAuth: true,
         entityToken: undefined,
         tenantSlug: 'demo'

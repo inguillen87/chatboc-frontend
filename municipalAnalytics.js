@@ -1,9 +1,5 @@
 import { getTickets } from './db.js';
 
-let cache = null;
-let lastCacheTime = 0;
-const CACHE_TTL = 60000; // 60 seconds
-
 function getAgeRange(age) {
   if (age < 18) return '0-17';
   if (age < 30) return '18-29';
@@ -12,11 +8,6 @@ function getAgeRange(age) {
 }
 
 export function getMunicipalAnalytics() {
-  const now = Date.now();
-  if (cache && (now - lastCacheTime < CACHE_TTL)) {
-    return cache;
-  }
-
   const tickets = getTickets();
   const statsMap = new Map();
   const genderTotals = {};
@@ -46,10 +37,10 @@ export function getMunicipalAnalytics() {
       ageTotals[range] = (ageTotals[range] || 0) + 1;
     }
   }
-  const resultList = [];
+  const result = [];
   for (const [name, s] of statsMap.entries()) {
     const avgMs = s.total ? s.totalResponseMs / s.total : 0;
-    resultList.push({
+    result.push({
       name,
       totalTickets: s.total,
       categories: s.categories,
@@ -58,10 +49,5 @@ export function getMunicipalAnalytics() {
       ageRanges: s.ages,
     });
   }
-
-  const result = { municipalities: resultList, genderTotals, ageRanges: ageTotals };
-  cache = result;
-  lastCacheTime = now;
-
-  return result;
+  return { municipalities: result, genderTotals, ageRanges: ageTotals };
 }

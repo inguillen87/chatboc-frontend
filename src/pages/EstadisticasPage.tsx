@@ -1033,7 +1033,7 @@ export default function EstadisticasPage() {
     if (topCategory) {
       list.push({
         title: segment === 'pyme' ? 'Producto/Servicio Top' : 'Categoría Crítica',
-        description: \`\${topCategory.label} lidera con \${formatNumber(topCategory.value)} \${segment === 'pyme' ? 'ventas/consultas' : 'casos'}.\`,
+        description: `${topCategory.label} lidera con ${formatNumber(topCategory.value)} ${segment === 'pyme' ? 'ventas/consultas' : 'casos'}.`,
         icon: Flame,
         color: 'text-orange-500'
       });
@@ -1041,7 +1041,7 @@ export default function EstadisticasPage() {
     if (topLocations[0]) {
       list.push({
         title: 'Zona Caliente',
-        description: \`Mayor actividad registrada en \${topLocations[0].label}.\`,
+        description: `Mayor actividad registrada en ${topLocations[0].label}.`,
         icon: MapPin,
         color: 'text-red-500'
       });
@@ -1051,8 +1051,8 @@ export default function EstadisticasPage() {
         title: 'Tendencia Periodo',
         description:
           trendDelta > 0
-            ? \`Crecimiento del \${trendDelta}% vs periodo anterior.\`
-            : \`Descenso del \${Math.abs(trendDelta)}% vs periodo anterior.\`,
+            ? `Crecimiento del ${trendDelta}% vs periodo anterior.`
+            : `Descenso del ${Math.abs(trendDelta)}% vs periodo anterior.`,
         icon: TrendingUp,
         color: trendDelta > 0 ? 'text-emerald-500' : 'text-blue-500'
       });
@@ -1302,7 +1302,7 @@ export default function EstadisticasPage() {
             <SummaryCard
               title={labels.solved}
               value={formatNumber(ticketCounts?.resueltos ?? 0)}
-              subtitle={\`Tasa de éxito: \${resolutionRate}%\`}
+              subtitle={`Tasa de éxito: ${resolutionRate}%`}
               icon={CheckCircle2}
               variant="success"
             />
@@ -1349,7 +1349,7 @@ export default function EstadisticasPage() {
                       dataKey="value"
                       stroke={THEME.colors.primary}
                       strokeWidth={3}
-                      fill={\`url(#\${timelineGradientId})\`}
+                      fill={`url(#${timelineGradientId})`}
                       activeDot={{ r: 6, strokeWidth: 0, fill: THEME.colors.primary }}
                     />
                   </AreaChart>
@@ -1527,7 +1527,7 @@ export default function EstadisticasPage() {
                   {insights.length > 0 && !cachedReport && (
                     insights.map((insight) => (
                       <div key={insight.title} className="flex gap-3 items-start p-3 bg-white/70 dark:bg-black/40 rounded-xl border border-indigo-100 dark:border-indigo-900/50 shadow-sm transition-transform hover:scale-[1.02]">
-                        <insight.icon className={\`w-5 h-5 mt-0.5 \${insight.color}\`} />
+                        <insight.icon className={`w-5 h-5 mt-0.5 ${insight.color}`} />
                         <div>
                             <h4 className="text-sm font-semibold">{insight.title}</h4>
                             <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{insight.description}</p>
@@ -1540,7 +1540,7 @@ export default function EstadisticasPage() {
                      <Button
                         variant={cachedReport ? "ghost" : "outline"}
                         size="sm"
-                        className={\`w-full group \${cachedReport ? 'text-indigo-600 hover:bg-indigo-50' : 'border-indigo-200 text-indigo-700 hover:bg-indigo-50'}\`}
+                        className={`w-full group ${cachedReport ? 'text-indigo-600 hover:bg-indigo-50' : 'border-indigo-200 text-indigo-700 hover:bg-indigo-50'}`}
                         onClick={handleGenerateReport}
                      >
                         <Sparkles className="w-4 h-4 mr-2 text-indigo-500 group-hover:text-indigo-600" />
@@ -1568,9 +1568,9 @@ export default function EstadisticasPage() {
                     {topLocations.map((location, index) => (
                       <div key={location.label} className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50 transition-colors">
                           <div className="flex items-center gap-3">
-                              <div className={\`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold \${
+                              <div className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${
                                   index === 0 ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600'
-                              }\`}>
+                              }`}>
                                   {index + 1}
                               </div>
                               <span className="text-sm font-medium">{location.label}</span>
