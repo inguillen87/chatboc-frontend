@@ -95,7 +95,8 @@ import {
   Target,
   CalendarCheck2,
   Map as MapIcon,
-  Download
+  Download,
+  FileSpreadsheet
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -1565,21 +1566,35 @@ export default function EstadisticasPage() {
                         <Sparkles className="w-4 h-4 mr-2 text-indigo-500 group-hover:text-indigo-600" />
                         {cachedReport ? 'Actualizar Análisis (Ad-hoc)' : 'Generar Informe Detallado'}
                      </Button>
+
                      {cachedReport && (
-                        <Button
-                            variant="secondary"
-                            size="sm"
-                            className="w-full text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200"
-                            onClick={() => handleDownloadReport('pdf')}
-                            disabled={isDownloading}
-                        >
-                            <Download className="w-4 h-4 mr-2" />
-                            {isDownloading ? 'Descargando...' : 'Descargar Reporte PDF'}
-                        </Button>
+                        <div className="grid grid-cols-2 gap-2">
+                            <Button
+                                variant="secondary"
+                                size="sm"
+                                className="text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-xs h-8"
+                                onClick={() => handleDownloadReport('pdf')}
+                                disabled={isDownloading}
+                            >
+                                <Download className="w-3.5 h-3.5 mr-1.5" />
+                                {isDownloading ? '...' : 'PDF'}
+                            </Button>
+                            <Button
+                                variant="secondary"
+                                size="sm"
+                                className="text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-xs h-8"
+                                onClick={() => handleDownloadReport('excel')}
+                                disabled={isDownloading}
+                            >
+                                <FileSpreadsheet className="w-3.5 h-3.5 mr-1.5" />
+                                {isDownloading ? '...' : 'Excel'}
+                            </Button>
+                        </div>
                      )}
+
                      {cachedReport && (
                          <p className="text-[10px] text-center text-muted-foreground mt-2">
-                             La actualización ad-hoc puede generar costos adicionales.
+                             La actualización manual puede generar costos adicionales.
                          </p>
                      )}
                   </div>
