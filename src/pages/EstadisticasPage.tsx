@@ -60,6 +60,7 @@ import {
   TicketStatsResponse,
   getAiReportLatest,
   generateAiReport,
+  getAiReportExport,
   getSurveySummary,
   getSurveySentiment,
   getBenchmarks,
@@ -93,7 +94,8 @@ import {
   Users,
   Target,
   CalendarCheck2,
-  Map as MapIcon
+  Map as MapIcon,
+  Download
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -820,6 +822,7 @@ export default function EstadisticasPage() {
   const [error, setError] = useState<string | null>(null);
   const [dataNotice, setDataNotice] = useState<string | null>(null);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   // New States
   const [cachedReport, setCachedReport] = useState<AiReportResponse | null>(null);
@@ -1128,6 +1131,18 @@ export default function EstadisticasPage() {
         });
     } finally {
         setIsGeneratingReport(false);
+    }
+  };
+
+  const handleDownloadReport = async (format: 'pdf' | 'excel') => {
+    if (!user?.id) return;
+    setIsDownloading(true);
+    try {
+        await getAiReportExport({ tenant_id: user.id, segment, format });
+    } catch (e) {
+        console.error("Failed to download report", e);
+    } finally {
+        setIsDownloading(false);
     }
   };
 
@@ -1540,7 +1555,7 @@ export default function EstadisticasPage() {
                     ))
                   )}
 
-                  <div className="pt-2 border-t border-indigo-100 dark:border-indigo-900/30">
+                  <div className="pt-2 border-t border-indigo-100 dark:border-indigo-900/30 space-y-2">
                      <Button
                         variant={cachedReport ? "ghost" : "outline"}
                         size="sm"
@@ -1550,6 +1565,18 @@ export default function EstadisticasPage() {
                         <Sparkles className="w-4 h-4 mr-2 text-indigo-500 group-hover:text-indigo-600" />
                         {cachedReport ? 'Actualizar Análisis (Ad-hoc)' : 'Generar Informe Detallado'}
                      </Button>
+                     {cachedReport && (
+                        <Button
+                            variant="secondary"
+                            size="sm"
+                            className="w-full text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200"
+                            onClick={() => handleDownloadReport('pdf')}
+                            disabled={isDownloading}
+                        >
+                            <Download className="w-4 h-4 mr-2" />
+                            {isDownloading ? 'Descargando...' : 'Descargar Reporte PDF'}
+                        </Button>
+                     )}
                      {cachedReport && (
                          <p className="text-[10px] text-center text-muted-foreground mt-2">
                              La actualización ad-hoc puede generar costos adicionales.

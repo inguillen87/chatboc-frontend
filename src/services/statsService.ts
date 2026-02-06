@@ -1018,6 +1018,20 @@ export const generateAiReport = async (params: { tenant_id?: string | number, se
   });
 };
 
+export const getAiReportExport = async (params: { tenant_id?: string | number, segment: string, format: 'pdf' | 'excel' }): Promise<void> => {
+  const query = buildSearchParams(params).toString();
+  // Trigger file download via browser navigation or fetch-blob
+  const url = `/api/analytics/report/export?${query}`;
+
+  // Create a temporary link to trigger download
+  const link = document.createElement('a');
+  link.href = url;
+  link.setAttribute('download', `reporte_mensual.${params.format === 'excel' ? 'xlsx' : 'pdf'}`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
+
 export const getSalesAnalytics = async (params?: { tenant_id?: string | number, from?: string, to?: string }): Promise<SalesAnalyticsResponse> => {
   const query = buildSearchParams(params).toString();
   return apiFetch<SalesAnalyticsResponse>(`/api/analytics/sales${query ? `?${query}` : ''}`);
