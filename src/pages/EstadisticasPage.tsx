@@ -58,6 +58,7 @@ import {
   HeatmapDataset,
   TicketStatsParams,
   TicketStatsResponse,
+  getAiReportLatest,
   generateAiReport,
   getSurveySummary,
   getSurveySentiment,
@@ -837,8 +838,11 @@ export default function EstadisticasPage() {
 
   // Initial Data Load (Benchmarks, AI Report Check)
   useEffect(() => {
-      // TODO: Call check for existing AI report
-      // getBenchmarks({ tenant_id: user?.id }).then(setBenchmarks).catch(console.warn);
+     if (!user?.id) return;
+     // Check for latest cached report
+     getAiReportLatest({ tenant_id: user.id, segment }).then(report => {
+         if (report) setCachedReport(report);
+     }).catch(e => console.debug("No cached report found or error", e));
   }, [user?.id, segment]);
 
   const loadData = useCallback(async () => {
@@ -1109,7 +1113,7 @@ export default function EstadisticasPage() {
             segment,
             from: start,
             to: end,
-            force: !!cachedReport // Force refresh if cached report exists and user clicks "Update"
+            force: true // Force refresh when user explicitly clicks "Generate/Update"
         });
         setCachedReport(report);
     } catch (e) {

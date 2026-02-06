@@ -1006,8 +1006,13 @@ export const getHeatmapPoints = async (params?: HeatmapParams): Promise<HeatPoin
 
 // --- NEW ENDPOINTS IMPLEMENTATION ---
 
+export const getAiReportLatest = async (params: { tenant_id?: string | number, segment: string }): Promise<AiReportResponse> => {
+    const query = buildSearchParams(params).toString();
+    return apiFetch<AiReportResponse>(`/api/analytics/report/latest${query ? `?${query}` : ''}`);
+};
+
 export const generateAiReport = async (params: { tenant_id?: string | number, segment: string, from?: string, to?: string, force?: boolean }): Promise<AiReportResponse> => {
-  return apiFetch<AiReportResponse>('/api/analytics/generate-report', {
+  return apiFetch<AiReportResponse>('/api/analytics/report/generate', {
     method: 'POST',
     body: JSON.stringify(params),
   });
