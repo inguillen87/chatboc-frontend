@@ -114,12 +114,12 @@ const OrderDispatchSettings = () => {
                         <Switch checked={sendDispatchWhatsapp} onCheckedChange={setSendDispatchWhatsapp} />
                     </div>
                     <Input
-                        placeholder="54911..."
+                        placeholder="54911..., 54911..."
                         value={dispatchPhone}
                         onChange={e => setDispatchPhone(e.target.value)}
                         disabled={!sendDispatchWhatsapp}
                     />
-                    <p className="text-xs text-muted-foreground">Se enviará un aviso inmediato al equipo de preparación.</p>
+                    <p className="text-xs text-muted-foreground">Se enviará un aviso inmediato al equipo de preparación. Separa múltiples números con comas.</p>
                 </div>
             </div>
         </CardContent>
