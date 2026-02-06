@@ -420,6 +420,7 @@ export function useChatLogic({
         data.buttons,
         data.botonesSugeridos,
         data.quick_replies,
+        data.interactive_list,
         data.metadata,
       );
       const categorias = normalizeCategories(
@@ -991,16 +992,22 @@ export function useChatLogic({
       hasUserToken: !!userAuthToken
     });
 
-    const socket = io(socketUrl, {
-      transports: ['websocket', 'polling'],
-      withCredentials: true,
-      path: SOCKET_PATH,
-      auth: {
-        ...(userAuthToken && { token: userAuthToken }), // Prioritize user JWT for auth
-        entityToken: entityToken, // Pass entity token for context
-        tenantSlug: tenantSlug // Pass tenant slug if entity token is missing (public tenant)
-      }
-    });
+    let socket: Socket | null = null;
+    try {
+      socket = io(socketUrl, {
+        transports: ['websocket', 'polling'],
+        withCredentials: true,
+        path: SOCKET_PATH,
+        auth: {
+          ...(userAuthToken && { token: userAuthToken }), // Prioritize user JWT for auth
+          entityToken: entityToken, // Pass entity token for context
+          tenantSlug: tenantSlug // Pass tenant slug if entity token is missing (public tenant)
+        }
+      });
+    } catch (err) {
+      console.error("Failed to initialize socket.io client in useChatLogic:", err);
+      return;
+    }
 
     if (!socket || typeof (socket as any).on !== "function") {
       console.error("Socket.io returned an invalid client", socket);
@@ -1089,10 +1096,23 @@ export function useChatLogic({
     const sanitizedCandidate = originalText.replace(emojiRegex, '').trim();
     const sanitizedDiffers = sanitizedCandidate !== originalText;
     const normalizedQuestionBase = sanitizedCandidate || emojiFallback || originalText;
-    const questionForBackend =
+    let questionForBackend =
       actualPayload.source === 'button' && sanitizedDiffers && sanitizedCandidate
         ? originalText
         : normalizedQuestionBase;
+
+    // Ensure questionForBackend is never empty to satisfy backend validation
+    if (!questionForBackend) {
+        if (attachmentInfo || actualPayload.archivo_url) {
+            questionForBackend = "Archivo adjunto";
+        } else if (location || ubicacion_usuario) {
+            questionForBackend = "Ubicación compartida";
+        } else if (resolvedAction) {
+             questionForBackend = `Acción: ${resolvedAction}`;
+        } else {
+             questionForBackend = "Mensaje vacío";
+        }
+    }
 
     // Texto normalizado (sin emojis) para comparaciones locales
     const normalizedForMatching = (normalizedQuestionBase || '').toLowerCase();

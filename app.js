@@ -492,12 +492,12 @@ app.get('/tickets/chat/:ticketId/mensajes', (req, res) => {
   res.json({ mensajes });
 });
 
-app.get('/productos', (req, res) => {
+app.get('/productos', async (req, res) => {
   const q = (req.query.q || req.query.search || '').toString().trim();
   if (q) {
     preferences.addPreference(req.session, q);
   }
-  res.json(getFormattedProducts());
+  res.json(await getFormattedProducts());
 });
 
 app.get('/files/:name', (req, res) => {
@@ -509,10 +509,10 @@ app.get('/pyme/metrics', (req, res) => {
   res.json(getBusinessMetrics(req.session));
 });
 
-app.post('/ask/pyme', (req, res) => {
+app.post('/ask/pyme', async (req, res) => {
   const pregunta = (req.body.pregunta || '').toLowerCase();
   if (pregunta.includes('ver catalogo') || pregunta.includes('ver catálogo')) {
-    return res.json({ productos: getFormattedProducts() });
+    return res.json({ productos: await getFormattedProducts() });
   }
   if (
     pregunta.includes('descargar catalogo') ||

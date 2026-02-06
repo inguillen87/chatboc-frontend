@@ -38,6 +38,9 @@ const extractArray = (source: any): any[] => {
   if (Array.isArray(source?.buttons)) return source.buttons;
   if (Array.isArray(source?.options)) return source.options;
   if (Array.isArray(source?.items)) return source.items;
+  // Handle new interactive_list options
+  if (Array.isArray(source?.options_list)) return source.options_list;
+  if (Array.isArray(source?.interactive_list?.options)) return source.interactive_list.options;
   return [];
 };
 
@@ -122,6 +125,7 @@ export const extractButtonsFromResponse = (data: any): Boton[] => {
     data.buttons,
     data.botonesSugeridos,
     data.quick_replies,
+    data.interactive_list,
     data.metadata
   );
 };

@@ -22,6 +22,8 @@ import { MOCK_TENANT_INFO, MOCK_JUNIN_TENANT_INFO } from "@/data/mockTenantData"
 import { hexToHsl, getContrastColorHsl } from "@/utils/color";
 import { apiClient } from "@/api/client";
 import { esRubroPublico } from "@/utils/chatEndpoints";
+import { Skeleton } from "@/components/ui/skeleton";
+import { AlertCircle, WifiOff, HelpCircle } from "lucide-react";
 
 // LOCAL_PLACEHOLDER_SLUGS is used to prevent the widget from treating reserved paths as tenant slugs.
 // We also alias it to PLACEHOLDER_SLUGS_SET just in case some stale build/import relies on that name.
@@ -154,6 +156,20 @@ function readTenantFromSubdomain(): string | null {
   }
 }
 
+const panelAnimation = {
+    initial: { opacity: 0, scale: 0.95, y: 20, originY: 1 },
+    animate: { opacity: 1, scale: 1, y: 0, originY: 1 },
+    exit: { opacity: 0, scale: 0.95, y: 20, originY: 1 },
+    transition: { type: "spring", stiffness: 350, damping: 30 },
+  };
+
+const iconAnimation = {
+    open: { rotate: 180, scale: 0.8 },
+    closed: { rotate: 0, scale: 1 },
+  };
+
+const openSpring = { type: "spring", stiffness: 200, damping: 20 };
+
 function ChatWidgetInner({
   mode = "standalone",
   defaultOpen = false,
@@ -180,6 +196,14 @@ function ChatWidgetInner({
   chatBackground,
   borderRadius,
   fontFamily,
+  // New Props
+  autoOpenDelay,
+  position = 'right',
+  sideOffset,
+  bottomOffset,
+  zIndex,
+  simulateState,
+  faqSuggestions
 }: ChatWidgetProps) {
   const proactiveMessageTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const hideProactiveBubbleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -585,6 +609,16 @@ function ChatWidgetInner({
     }
 
   }, [entityInfo, primaryColor, accentColor, userMsgColor, chatBackground, borderRadius, fontFamily, mode, isDarkMode]);
+
+  // Auto Open Delay
+  useEffect(() => {
+    if (autoOpenDelay && typeof autoOpenDelay === 'number' && !isOpen && !safeLocalStorage.getItem('widget_manually_closed')) {
+        const timer = setTimeout(() => {
+            setIsOpen(true);
+        }, autoOpenDelay * 1000);
+        return () => clearTimeout(timer);
+    }
+  }, [autoOpenDelay, isOpen]);
 
   // Proactive Bubble Logic
   useEffect(() => {
@@ -1284,19 +1318,18 @@ function ChatWidgetInner({
 
   const containerStyle: React.CSSProperties = useMemo(() => {
     if (mode === "standalone") {
-      const baseStyle = {
-        bottom: `${initialPosition.bottom}px`,
-        right: `${initialPosition.right}px`,
+      const isLeft = position === 'left';
+      const baseStyle: React.CSSProperties = {
+        bottom: `${bottomOffset ?? initialPosition.bottom}px`,
+        // Prioritize explicit position prop, then fallback to initialPosition
+        left: isLeft ? `${sideOffset ?? 32}px` : undefined,
+        right: !isLeft ? `${sideOffset ?? initialPosition.right}px` : undefined,
         width: isOpen ? finalOpenWidth : finalClosedWidth,
         height: isOpen ? finalOpenHeight : finalClosedHeight,
-        zIndex: 999999,
-        transition: 'width 0.3s ease, height 0.3s ease, bottom 0.3s ease, right 0.3s ease',
-        // FORCE NONE ON MOBILE TO PREVENT BACKEND INJECTION ISSUES
+        zIndex: zIndex ?? 999999,
+        transition: 'width 0.3s ease, height 0.3s ease, bottom 0.3s ease, right 0.3s ease, left 0.3s ease',
         transform: isMobileView ? 'none' : undefined
       };
-
-      // Specifically override if backend sends scale via other means, though 'style' prop usually wins over external CSS classes unless !important
-      // But if backend injects inline style via JS, we need to ensure this React render wins.
 
       return baseStyle;
     }
@@ -1312,14 +1345,9 @@ function ChatWidgetInner({
       };
     }
     return {};
-  }, [mode, initialPosition.bottom, initialPosition.right, isOpen, finalOpenWidth, finalOpenHeight, finalClosedWidth, finalClosedHeight, isMobileView]);
+  }, [mode, initialPosition.bottom, initialPosition.right, isOpen, finalOpenWidth, finalOpenHeight, finalClosedWidth, finalClosedHeight, isMobileView, position, bottomOffset, sideOffset, zIndex]);
 
-  const panelAnimation = {
-    initial: { opacity: 0, scale: 0.95, y: 20, originY: 1 },
-    animate: { opacity: 1, scale: 1, y: 0, originY: 1 },
-    exit: { opacity: 0, scale: 0.95, y: 20, originY: 1 },
-    transition: { type: "spring", stiffness: 350, damping: 30 },
-  };
+
 
   const buttonAnimation = {
     initial: { scale: 0, opacity: 0 },
@@ -1328,12 +1356,9 @@ function ChatWidgetInner({
     transition: { type: "spring", stiffness: 300, damping: 20 },
   };
 
-  const iconAnimation = {
-    open: { rotate: 180, scale: 0.8 },
-    closed: { rotate: 0, scale: 1 },
-  };
 
-  const openSpring = { type: "spring", stiffness: 200, damping: 20 };
+
+
 
   useEffect(() => {
     if (mode === 'iframe' && typeof window !== 'undefined') {
@@ -1350,6 +1375,40 @@ function ChatWidgetInner({
   }
 
   if (mode === "standalone" || mode === "iframe" || mode === "preview") {
+    // Handle Loading Simulation
+    if (simulateState === 'loading') {
+       return (
+         <div
+            className="flex flex-col bg-card rounded-2xl shadow-xl overflow-hidden border"
+            style={mode === 'standalone' ? containerStyle : { width: '100%', height: '100%' }}
+         >
+            <div className="h-16 bg-muted/20 border-b flex items-center px-4 gap-3">
+               <Skeleton className="h-10 w-10 rounded-full" />
+               <div className="flex-1 space-y-2">
+                   <Skeleton className="h-4 w-24" />
+                   <Skeleton className="h-3 w-16" />
+               </div>
+            </div>
+            <div className="flex-1 p-4 space-y-4">
+               <div className="flex gap-2">
+                   <Skeleton className="h-8 w-8 rounded-full" />
+                   <Skeleton className="h-20 w-3/4 rounded-xl rounded-tl-none" />
+               </div>
+               <div className="flex gap-2 justify-end">
+                   <Skeleton className="h-12 w-1/2 rounded-xl rounded-tr-none" />
+               </div>
+               <div className="flex gap-2">
+                   <Skeleton className="h-8 w-8 rounded-full" />
+                   <Skeleton className="h-16 w-2/3 rounded-xl rounded-tl-none" />
+               </div>
+            </div>
+            <div className="p-4 border-t">
+                <Skeleton className="h-10 w-full rounded-full" />
+            </div>
+         </div>
+       );
+    }
+
     return (
       <div
         ref={widgetContainerRef}
@@ -1363,7 +1422,7 @@ function ChatWidgetInner({
         className={cn(
           "chatboc-container flex flex-col",
           mode === "standalone"
-            ? "fixed z-[999999] items-end justify-end"
+            ? "fixed items-end justify-end"
             : "w-full h-full"
         )}
         style={containerStyle}
@@ -1373,23 +1432,32 @@ function ChatWidgetInner({
           <div className="w-full h-full flex items-center justify-center bg-card rounded-2xl">
             <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
           </div>
-        ) : profileError ? (
+        ) : profileError || simulateState === 'error' ? (
           <div className="w-full h-full flex flex-col items-center justify-center text-center p-4 bg-card rounded-2xl">
-            <p className="text-destructive font-semibold">Error</p>
-            <p className="text-sm text-muted-foreground">{profileError}</p>
+            <AlertCircle className="h-12 w-12 text-destructive mb-4" />
+            <p className="text-destructive font-semibold">Error de conexión</p>
+            <p className="text-sm text-muted-foreground">{simulateState === 'error' ? "No se pudo conectar al servidor." : profileError}</p>
+            <Button variant="outline" size="sm" className="mt-4" onClick={() => window.location.reload()}>Reintentar</Button>
           </div>
         ) : (
           <SafeAnimatePresence mode="wait" initial={false}>
             {isOpen ? (
             <motion.div
               key="chatboc-panel-open"
-              className={cn(commonPanelStyles, "w-full h-full shadow-xl")}
+              className={cn(commonPanelStyles, "w-full h-full shadow-xl relative")}
               style={{
                   borderRadius: isMobileView ? "0" : (borderRadius !== undefined ? `${borderRadius}px` : "16px"),
                   background: chatBackground || "hsl(var(--card))"
               }}
               {...panelAnimation}
             >
+              {simulateState === 'offline' && (
+                  <div className="absolute top-0 left-0 right-0 z-50 bg-slate-800 text-white text-xs py-1.5 px-4 flex items-center justify-center gap-2">
+                      <WifiOff className="w-3 h-3" />
+                      <span>Sin conexión. Intentando reconectar...</span>
+                  </div>
+              )}
+
               {(view === "register" || view === "login" || view === "user" || view === "info") && (
                 <Suspense
                   fallback={
@@ -1435,6 +1503,24 @@ function ChatWidgetInner({
                     </div>
                   }
                 >
+                  {/* Render FAQs if suggestions are present and chat is empty */}
+                  {faqSuggestions && faqSuggestions.length > 0 && messages.length === 0 && !isTyping && view === 'chat' && (
+                      <div className="px-4 py-2 space-y-2 bg-muted/20 border-b">
+                          <p className="text-xs font-medium text-muted-foreground flex items-center gap-1"><HelpCircle className="w-3 h-3"/> Preguntas frecuentes</p>
+                          <div className="flex flex-wrap gap-2">
+                              {faqSuggestions.map((faq, i) => (
+                                  <button
+                                      key={i}
+                                      onClick={() => handleSend(faq)}
+                                      className="text-xs bg-background hover:bg-muted border rounded-full px-3 py-1.5 transition-colors text-left"
+                                  >
+                                      {faq}
+                                  </button>
+                              ))}
+                          </div>
+                      </div>
+                  )}
+
                   <ChatPanel
                     mode={mode}
                     widgetId={widgetId}
@@ -1480,7 +1566,10 @@ function ChatWidgetInner({
               {showCta && ctaMessage && !showProactiveBubble && (
                 <motion.div
                   key="chatboc-cta"
-                  className="absolute right-0 text-sm bg-background border rounded-lg shadow-lg px-3 py-2 dark:bg-slate-800 dark:border-slate-700"
+                  className={cn(
+                      "absolute text-sm bg-background border rounded-lg shadow-lg px-3 py-2 dark:bg-slate-800 dark:border-slate-700",
+                      position === 'left' ? "left-0 origin-bottom-left" : "right-0 origin-bottom-right"
+                  )}
                   style={{ bottom: "calc(100% + 8px)" }}
                   initial={{ opacity: 0, y: 10, scale: 0.95 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -1493,7 +1582,10 @@ function ChatWidgetInner({
               {showCatalogCta && !showProactiveBubble && !showCta && (
                 <motion.button
                   type="button"
-                  className="absolute right-0 text-sm bg-background border rounded-lg shadow-lg px-3 py-2 dark:bg-slate-800 dark:border-slate-700"
+                  className={cn(
+                      "absolute text-sm bg-background border rounded-lg shadow-lg px-3 py-2 dark:bg-slate-800 dark:border-slate-700",
+                      position === 'left' ? "left-0 origin-bottom-left" : "right-0 origin-bottom-right"
+                  )}
                   style={{ bottom: "calc(100% + 8px)" }}
                   initial={{ opacity: 0, y: 10, scale: 0.95 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
