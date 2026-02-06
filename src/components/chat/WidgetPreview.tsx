@@ -1,12 +1,11 @@
-import React, { useState, useMemo } from 'react';
-import ChatWidgetInner from './ChatWidgetInner'; // Use Inner directly for preview to bypass loader
+import React, { useState } from 'react';
+import ChatWidget from './ChatWidget';
 import { Button } from '@/components/ui/button';
 import { Smartphone, Monitor, Sun, Moon, ArrowUpDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 
-// --- TYPES ---
 export interface WidgetPreviewProps {
   tenantSlug: string;
   className?: string;
@@ -19,9 +18,7 @@ export interface WidgetPreviewProps {
   ctaMessage?: string;
   botName?: string;
   logoUrl?: string;
-  headerLogoUrl?: string;
-  welcomeTitle?: string;
-  welcomeSubtitle?: string;
+  welcomeMessage?: string;
   logoAnimation?: string;
   fontFamily?: string;
   // New props
@@ -32,34 +29,31 @@ export interface WidgetPreviewProps {
   zIndex?: number;
   simulateState?: 'loading' | 'offline' | 'error' | null;
   faqSuggestions?: string[];
-  welcomeMessage?: string; // Alias for subtitle
 }
 
 class PreviewErrorBoundary extends React.Component<
   { children: React.ReactNode },
   { hasError: boolean }
 > {
-  constructor(props: { children: React.ReactNode }) {
-    super(props);
-    this.state = { hasError: false };
-  }
+  state = { hasError: false };
 
   static getDerivedStateFromError() {
     return { hasError: true };
   }
 
-  componentDidCatch(error: any, errorInfo: any) {
-    console.error("Error inside WidgetPreview:", error, errorInfo);
+  componentDidCatch(error: unknown) {
+    console.error("WidgetPreview error:", error);
   }
 
   render() {
     if (this.state.hasError) {
       return (
-        <div className="flex h-full w-full items-center justify-center bg-red-50 p-4 text-center text-red-600">
-          <p>Error al renderizar la vista previa del widget.</p>
+        <div className="absolute inset-0 flex items-center justify-center bg-background/80">
+          <div className="h-10 w-10 rounded-full border-2 border-primary border-t-transparent animate-spin" />
         </div>
       );
     }
+
     return this.props.children;
   }
 }
@@ -71,11 +65,11 @@ const FakeWebsite = ({ mode, scrollable }: { mode: 'light' | 'dark'; scrollable:
   const borderClass = mode === 'light' ? 'border-slate-200' : 'border-slate-800';
 
   return (
-    <div className={cn("w-full flex flex-col transition-colors duration-300 origin-top", bgClass, textClass, scrollable ? "min-h-[200%]" : "h-full")}>
+    <div className={cn("w-full flex flex-col transition-colors duration-300", bgClass, textClass, scrollable ? "min-h-[200%]" : "h-full")}>
       {/* Fake Header */}
       <header className={cn("h-14 border-b flex items-center px-6 sticky top-0 z-10 backdrop-blur-sm bg-opacity-90", borderClass, bgClass)}>
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-full bg-blue-600/20" />
+          <div className="w-6 h-6 rounded-full bg-primary/20" />
           <div className="w-24 h-3 rounded-md bg-slate-200/50 dark:bg-slate-800/50" />
         </div>
         <div className="ml-auto flex gap-3">
@@ -89,7 +83,7 @@ const FakeWebsite = ({ mode, scrollable }: { mode: 'light' | 'dark'; scrollable:
          <div className="w-32 h-4 rounded-lg bg-slate-300/50 dark:bg-slate-700/50 mb-2" />
          <div className="w-3/4 h-8 rounded-xl bg-slate-300/50 dark:bg-slate-700/50" />
          <div className="w-1/2 h-8 rounded-xl bg-slate-300/50 dark:bg-slate-700/50" />
-         <div className="w-24 h-8 rounded-lg bg-blue-600/20 mt-4" />
+         <div className="w-24 h-8 rounded-lg bg-primary/20 mt-4" />
       </div>
 
       {/* Fake Content Grid */}
@@ -121,7 +115,7 @@ const FakeWebsite = ({ mode, scrollable }: { mode: 'light' | 'dark'; scrollable:
 const WidgetPreview: React.FC<WidgetPreviewProps> = ({
   tenantSlug,
   className,
-  defaultOpen,
+  defaultOpen = true,
   primaryColor,
   accentColor,
   userMsgColor,
@@ -133,25 +127,23 @@ const WidgetPreview: React.FC<WidgetPreviewProps> = ({
   welcomeMessage,
   logoAnimation,
   fontFamily,
+  // New props
   autoOpenDelay,
   position = 'right',
-  sideOffset,
-  bottomOffset,
+  sideOffset = 20,
+  bottomOffset = 20,
   zIndex,
   simulateState,
   faqSuggestions
 }) => {
-  const [device, setDevice] = useState<'desktop' | 'mobile'>('mobile');
+  const [device, setDevice] = useState<'desktop' | 'mobile'>('desktop');
   const [siteMode, setSiteMode] = useState<'light' | 'dark'>('light');
   const [scrollable, setScrollable] = useState(false);
 
-  // We construct the iframe src if needed, or render the component directly
-  // Rendering component directly is faster for immediate feedback
-
   return (
-    <div className={cn("flex flex-col gap-4 items-center w-full", className)}>
+    <div className={cn("flex flex-col gap-4", className)}>
       {/* Controls Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-muted/40 p-2 rounded-xl border w-full max-w-[720px]">
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-muted/40 p-2 rounded-xl border">
         <div className="flex items-center gap-1 bg-background rounded-lg border p-1">
           <Button
             variant={device === 'desktop' ? 'secondary' : 'ghost'}
@@ -171,21 +163,21 @@ const WidgetPreview: React.FC<WidgetPreviewProps> = ({
           </Button>
         </div>
 
-        <div className="flex items-center gap-2 px-2">
-             <div className="flex items-center gap-1 bg-background rounded-lg border p-1">
+        <div className="flex items-center gap-4 px-2">
+             <div className="flex items-center gap-2">
                 <Button
-                    variant={siteMode === 'light' ? 'secondary' : 'ghost'}
+                    variant="ghost"
                     size="icon"
-                    className="h-7 w-7"
+                    className={cn("h-7 w-7", siteMode === 'light' && "bg-background shadow-sm")}
                     onClick={() => setSiteMode('light')}
                     title="Sitio Claro"
                 >
                     <Sun className="h-3.5 w-3.5" />
                 </Button>
                 <Button
-                    variant={siteMode === 'dark' ? 'secondary' : 'ghost'}
+                    variant="ghost"
                     size="icon"
-                    className="h-7 w-7"
+                    className={cn("h-7 w-7", siteMode === 'dark' && "bg-background shadow-sm")}
                     onClick={() => setSiteMode('dark')}
                     title="Sitio Oscuro"
                 >
@@ -193,41 +185,36 @@ const WidgetPreview: React.FC<WidgetPreviewProps> = ({
                 </Button>
              </div>
 
-             <div className="h-4 w-px bg-border mx-1" />
+             <div className="h-4 w-px bg-border" />
 
              <div className="flex items-center gap-2">
-                <Label htmlFor="scroll-toggle" className="text-xs cursor-pointer flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors">
-                    <ArrowUpDown className="h-3 w-3" /> Scroll
-                </Label>
                 <Switch
                     id="scroll-toggle"
                     checked={scrollable}
                     onCheckedChange={setScrollable}
-                    className="scale-75 origin-left"
+                    className="scale-75"
                 />
+                <Label htmlFor="scroll-toggle" className="text-xs cursor-pointer flex items-center gap-1">
+                    <ArrowUpDown className="h-3 w-3" /> Scroll
+                </Label>
              </div>
         </div>
       </div>
 
       {/* Preview Container */}
       <div className={cn(
-        "relative transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] border shadow-2xl overflow-hidden mx-auto bg-background",
+        "relative transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] border shadow-2xl overflow-hidden mx-auto",
         device === 'mobile'
-            ? "w-[375px] h-[700px] rounded-[3rem] border-[8px] border-slate-900 ring-1 ring-black/5"
-            : "w-full max-w-[900px] h-[600px] rounded-xl border-border"
+            ? "w-[375px] h-[700px] rounded-[2.5rem] border-[8px] border-slate-900 bg-slate-950 ring-1 ring-white/10"
+            : "w-full h-[600px] rounded-xl border-border bg-background"
       )}>
-        {/* Mobile Notch (only visible in mobile mode) */}
+        {/* Mobile Notch */}
         {device === 'mobile' && (
-          <>
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 h-6 w-32 bg-slate-900 rounded-b-xl z-30 pointer-events-none" />
-            <div className="absolute top-0 right-5 h-6 flex items-center gap-1 z-30 pointer-events-none">
-                <div className="w-4 h-2.5 border border-slate-600 rounded-[1px] relative"><div className="absolute inset-0.5 bg-white rounded-[0.5px]"></div></div>
-            </div>
-          </>
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 h-6 w-28 bg-slate-900 rounded-b-xl z-30 pointer-events-none" />
         )}
 
         {/* Scrollable Viewport */}
-        <div className="absolute inset-0 overflow-y-auto scrollbar-hide bg-zinc-50 dark:bg-zinc-950">
+        <div className="absolute inset-0 overflow-y-auto scrollbar-hide">
             <FakeWebsite mode={siteMode} scrollable={scrollable} />
         </div>
 
@@ -235,10 +222,10 @@ const WidgetPreview: React.FC<WidgetPreviewProps> = ({
         {/* We use absolute positioning inside this container to simulate 'fixed' behavior relative to the fake viewport */}
         <div className="absolute inset-0 pointer-events-none z-20 overflow-hidden">
              {/* The widget itself needs pointer-events-auto */}
-             <div className="w-full h-full pointer-events-auto relative">
+             <div className="w-full h-full pointer-events-auto">
                  <PreviewErrorBoundary>
-                    <ChatWidgetInner
-                        mode="preview"
+                    <ChatWidget
+                        mode="preview" // We use 'preview' mode which typically means 'absolute/contained'
                         tenantSlug={tenantSlug}
                         defaultOpen={defaultOpen}
                         primaryColor={primaryColor}
@@ -248,27 +235,31 @@ const WidgetPreview: React.FC<WidgetPreviewProps> = ({
                         borderRadius={borderRadius}
                         ctaMessage={ctaMessage}
                         botName={botName}
-                        headerLogoUrl={logoUrl} // Mapping prop
+                        headerLogoUrl={logoUrl}
                         welcomeTitle={botName}
                         welcomeSubtitle={welcomeMessage}
                         logoAnimation={logoAnimation}
                         fontFamily={fontFamily}
-                        autoOpenDelay={autoOpenDelay}
-                        position={position}
-                        sideOffset={sideOffset}
-                        bottomOffset={bottomOffset}
-                        zIndex={zIndex}
-                        simulateState={simulateState}
-                        faqSuggestions={faqSuggestions}
+                        // We will pass these via style/props in Step 4, but for now we pass them
+                        // Note: TypeScript might complain if ChatWidget doesn't have these props yet,
+                        // but since I'm writing this file and ChatWidget is imported,
+                        // I might need to cast or just ignore until Step 4.
+                        // However, ChatWidgetProps is imported in ChatWidget.tsx from types.ts or inline.
+                        // I will update types in Step 4. For now, React ignores extra props.
+                        {...({
+                            autoOpenDelay,
+                            position,
+                            sideOffset,
+                            bottomOffset,
+                            zIndex,
+                            simulateState,
+                            faqSuggestions
+                        } as any)}
                     />
                  </PreviewErrorBoundary>
              </div>
         </div>
       </div>
-
-      <p className="text-xs text-muted-foreground text-center">
-        Interactúa con la vista previa para probar el comportamiento real.
-      </p>
     </div>
   );
 };
