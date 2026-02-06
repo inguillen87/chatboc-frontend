@@ -59,3 +59,14 @@ To fully realize the "Consultancy-grade" Analytics SaaS vision, the following ba
 *   **Endpoint:** `GET /api/analytics/surveys/geo`
 *   **Description:** Geo-tagged voting data. Similar to the ticket heatmap but for votes.
     *   Allows generating "Opinion Maps" (e.g., "Which zones voted 'Yes' vs 'No'").
+
+## 7. Cost Optimization & Caching Strategy (Critical)
+*   **Objective:** Minimize calls to the expensive OpenAI API.
+*   **Endpoint:** `GET /api/analytics/report/latest`
+    *   **Description:** Fetches the *last generated report* from the database.
+    *   **Response:** JSON of the report content + `generated_at` timestamp.
+    *   **Logic:** Frontend should call this *first*. Only if it returns 404 or `generated_at` is too old (e.g., > 1 week) should the user be prompted to generate a new one.
+*   **Endpoint:** `POST /api/analytics/report/generate`
+    *   **Description:** Triggers a *fresh* analysis.
+    *   **Constraints:** Implement rate limiting (e.g., max 1 request per hour per admin).
+*   **Background Job:** Configure a weekly cron job on the backend to automatically generate and store the report during low-traffic hours (e.g., Sunday night), ensuring freshness without user latency.

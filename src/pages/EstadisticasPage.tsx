@@ -46,6 +46,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import AnalyticsHeatmap from '@/components/analytics/Heatmap';
 import ChartTooltip from '@/components/analytics/ChartTooltip';
 import { useUser } from '@/hooks/useUser';
@@ -56,6 +58,15 @@ import {
   HeatmapDataset,
   TicketStatsParams,
   TicketStatsResponse,
+  generateAiReport,
+  getSurveySummary,
+  getSurveySentiment,
+  getBenchmarks,
+  getGeoPolygons,
+  AiReportResponse,
+  SurveySummaryResponse,
+  SurveySentimentResponse,
+  BenchmarksResponse
 } from '@/services/statsService';
 import { getTickets } from '@/services/ticketService';
 import { getErrorMessage } from '@/utils/api';
@@ -79,7 +90,9 @@ import {
   Vote,
   MessageSquare,
   Users,
-  Target
+  Target,
+  CalendarCheck2,
+  Map as MapIcon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -646,51 +659,75 @@ const AnalyticsChartCard = ({
 );
 
 // --- COMPONENT: PARTICIPATION & SURVEYS DASHBOARD ---
-// Mock data component since full backend isn't ready
-const ParticipationDashboard = ({ segment }: { segment: Segment }) => {
+const ParticipationDashboard = ({ segment, tenantId }: { segment: Segment, tenantId: number }) => {
   const isPyme = segment === 'pyme';
+  const [loading, setLoading] = useState(true);
+  const [surveyData, setSurveyData] = useState<SurveySummaryResponse | null>(null);
+  const [sentimentData, setSentimentData] = useState<SurveySentimentResponse | null>(null);
 
-  // Mock Data
-  const pollData = [
-    { name: isPyme ? 'Calidad Precio' : 'Seguridad', value: 450 },
-    { name: isPyme ? 'Atención' : 'Limpieza', value: 320 },
-    { name: isPyme ? 'Variedad' : 'Alumbrado', value: 210 },
-    { name: isPyme ? 'Stock' : 'Tránsito', value: 150 },
-  ];
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!tenantId) return;
+      try {
+        setLoading(true);
+        const [summary, sentiment] = await Promise.allSettled([
+          getSurveySummary(tenantId),
+          getSurveySentiment(tenantId),
+        ]);
 
-  const sentimentData = [
-    { name: 'Positivo', value: 65, fill: '#10b981' },
-    { name: 'Neutral', value: 25, fill: '#f59e0b' },
-    { name: 'Negativo', value: 10, fill: '#ef4444' },
-  ];
+        if (summary.status === 'fulfilled') setSurveyData(summary.value);
+        if (sentiment.status === 'fulfilled') setSentimentData(sentiment.value);
+      } catch (e) {
+        console.warn("Failed to load participation data", e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, [tenantId]);
+
+  if (loading) {
+    return <div className="space-y-4"><Skeleton className="h-40 w-full" /><Skeleton className="h-96 w-full" /></div>;
+  }
+
+  // Transform Data for Charts
+  const pollChartData = surveyData?.stats.results_by_option.map(opt => ({
+    name: opt.option,
+    value: opt.count
+  })) || [];
+
+  const sentimentChartData = sentimentData ? [
+    { name: 'Positivo', value: Math.round((sentimentData.sentiment_score + 1) * 50), fill: '#10b981' },
+    { name: 'Negativo', value: Math.round((1 - sentimentData.sentiment_score) * 50), fill: '#ef4444' },
+  ] : [];
 
   return (
     <div className="space-y-6">
        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <SummaryCard
           title={isPyme ? "Encuestas Respondidas" : "Votos Totales"}
-          value="1,245"
+          value={formatNumber(surveyData?.stats.total_votes ?? 0)}
           subtitle="En el último mes"
           icon={Vote}
           variant="info"
         />
         <SummaryCard
           title="Participación"
-          value="42%"
+          value={`${surveyData?.stats.participation_rate.toFixed(1) ?? 0}%`}
           subtitle="Sobre usuarios activos"
           icon={Users}
           variant="success"
         />
         <SummaryCard
-          title="Sentimiento"
-          value="+65"
-          subtitle="NPS / Índice de Aprobación"
+          title="Sentimiento IA"
+          value={sentimentData?.sentiment_score ? (sentimentData.sentiment_score > 0 ? "Positivo" : "Negativo") : "-"}
+          subtitle={`Score: ${sentimentData?.sentiment_score.toFixed(2) ?? 0}`}
           icon={BrainCircuit}
           variant="warning"
         />
         <SummaryCard
           title="Leads / Interesados"
-          value="312"
+          value="-" // TODO: Integrate getFunnel
           subtitle="Contactos calificados"
           icon={Target}
           variant="default"
@@ -702,48 +739,58 @@ const ParticipationDashboard = ({ segment }: { segment: Segment }) => {
             title="Resultados de Sondeos"
             description={isPyme ? "Aspectos más valorados por clientes" : "Prioridades votadas por vecinos"}
          >
-            <ResponsiveContainer width="100%" height="100%">
-               <BarChart data={pollData} layout="vertical" margin={{ left: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={THEME.colors.border} />
-                  <XAxis type="number" hide />
-                  <YAxis dataKey="name" type="category" width={100} tick={{ fontSize: 12 }} />
-                  <Tooltip cursor={{fill: 'transparent'}} content={<ChartTooltip />} />
-                  <Bar dataKey="value" radius={[0, 4, 4, 0]}>
-                     {pollData.map((_, index) => (
-                        <Cell key={`cell-${index}`} fill={THEME.palette[index % THEME.palette.length]} />
-                     ))}
-                  </Bar>
-               </BarChart>
-            </ResponsiveContainer>
+            {pollChartData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                   <BarChart data={pollChartData} layout="vertical" margin={{ left: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={THEME.colors.border} />
+                      <XAxis type="number" hide />
+                      <YAxis dataKey="name" type="category" width={100} tick={{ fontSize: 12 }} />
+                      <Tooltip cursor={{fill: 'transparent'}} content={<ChartTooltip />} />
+                      <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+                         {pollChartData.map((_, index) => (
+                            <Cell key={`cell-${index}`} fill={THEME.palette[index % THEME.palette.length]} />
+                         ))}
+                      </Bar>
+                   </BarChart>
+                </ResponsiveContainer>
+            ) : (
+                <div className="flex h-full items-center justify-center text-muted-foreground text-sm">Sin datos de encuestas</div>
+            )}
          </AnalyticsChartCard>
 
          <AnalyticsChartCard
             title="Análisis de Sentimiento IA"
             description="Tono detectado en respuestas abiertas y chats"
          >
-            <ResponsiveContainer width="100%" height="100%">
-               <PieChart>
-                  <Pie
-                     data={sentimentData}
-                     cx="50%"
-                     cy="50%"
-                     innerRadius={60}
-                     outerRadius={100}
-                     paddingAngle={5}
-                     dataKey="value"
-                  >
-                     {sentimentData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.fill} />
-                     ))}
-                  </Pie>
-                  <Tooltip />
-                  <Legend verticalAlign="bottom" height={36}/>
-               </PieChart>
-            </ResponsiveContainer>
-            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
-               <span className="text-3xl font-bold text-gray-800 dark:text-white">65%</span>
-               <p className="text-xs text-muted-foreground">Positivo</p>
-            </div>
+            {sentimentChartData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                   <PieChart>
+                      <Pie
+                         data={sentimentChartData}
+                         cx="50%"
+                         cy="50%"
+                         innerRadius={60}
+                         outerRadius={100}
+                         paddingAngle={5}
+                         dataKey="value"
+                      >
+                         {sentimentChartData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.fill} />
+                         ))}
+                      </Pie>
+                      <Tooltip />
+                      <Legend verticalAlign="bottom" height={36}/>
+                   </PieChart>
+                </ResponsiveContainer>
+            ) : (
+                <div className="flex h-full items-center justify-center text-muted-foreground text-sm">Sin datos de sentimiento</div>
+            )}
+            {sentimentData && (
+                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
+                   <span className="text-3xl font-bold text-gray-800 dark:text-white">{(sentimentData.sentiment_score * 100).toFixed(0)}%</span>
+                   <p className="text-xs text-muted-foreground">Score</p>
+                </div>
+            )}
          </AnalyticsChartCard>
       </div>
     </div>
@@ -773,6 +820,11 @@ export default function EstadisticasPage() {
   const [dataNotice, setDataNotice] = useState<string | null>(null);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
 
+  // New States
+  const [cachedReport, setCachedReport] = useState<AiReportResponse | null>(null);
+  const [benchmarks, setBenchmarks] = useState<BenchmarksResponse | null>(null);
+  const [showPolygons, setShowPolygons] = useState(false); // Toggle for heatmap vs polygons
+
   const timelineGradientId = useId();
 
   useEffect(() => {
@@ -782,6 +834,12 @@ export default function EstadisticasPage() {
       setSegment('municipio');
     }
   }, [user]);
+
+  // Initial Data Load (Benchmarks, AI Report Check)
+  useEffect(() => {
+      // TODO: Call check for existing AI report
+      // getBenchmarks({ tenant_id: user?.id }).then(setBenchmarks).catch(console.warn);
+  }, [user?.id, segment]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -798,7 +856,7 @@ export default function EstadisticasPage() {
     if (categoryFilter !== 'all') params.categoria = categoryFilter;
 
     try {
-      const [statsResult, heatmapResult, ticketsResult] = await Promise.allSettled([
+      const [statsResult, heatmapResult, ticketsResult, benchmarksResult] = await Promise.allSettled([
         getTicketStats(params),
         getHeatmapPoints({
           tipo: segment,
@@ -808,7 +866,12 @@ export default function EstadisticasPage() {
           categoria: categoryFilter !== 'all' ? categoryFilter : undefined,
         }),
         getTickets(),
+        getBenchmarks({ tenant_id: user?.id, from: start, to: end }) // Attempt to get real benchmarks
       ]);
+
+      if (benchmarksResult.status === 'fulfilled') {
+          setBenchmarks(benchmarksResult.value);
+      }
 
       const statsData: TicketStatsResponse['charts'] =
         statsResult.status === 'fulfilled' ? statsResult.value.charts ?? [] : [];
@@ -832,14 +895,14 @@ export default function EstadisticasPage() {
             )
           : [];
 
+      // Improved Error Handling: Don't log noisy errors if we have at least partial data
       if (statsResult.status === 'rejected') {
-        console.warn('Error loading ticket stats:', statsResult.reason);
+        console.warn('Backend aggregated stats unavailable, relying on raw ticket data if available.');
       }
-      if (heatmapResult.status === 'rejected') {
-        console.warn('Error loading heatmap data:', heatmapResult.reason);
-      }
-      if (ticketsResult.status === 'rejected') {
-        console.warn('Error loading ticket fallback data:', ticketsResult.reason);
+
+      // Only warn about fallback failure if we also failed to get aggregated stats
+      if (ticketsResult.status === 'rejected' && statsResult.status === 'rejected') {
+         console.warn('Both aggregated and raw ticket data failed to load.');
       }
 
       const heatmapAggregates = aggregateHeatmap([...(statsHeatmap ?? []), ...heatmapData]);
@@ -896,21 +959,23 @@ export default function EstadisticasPage() {
       setStatusOptions(deriveUnique(mergedStatuses));
       setCategoryOptions(deriveUnique(mergedCategories));
 
+      // SMART ALERT LOGIC: Only show alert if CRITICAL data is missing.
+      const hasAggregatedData = statsResult.status === 'fulfilled' && (statsData?.length ?? 0) > 0;
+      const hasRawData = ticketsResult.status === 'fulfilled' && tickets.length > 0;
+
       const notices: string[] = [];
-      if (statsResult.status === 'rejected' || (statsData?.length ?? 0) === 0) {
-        notices.push(
-          'Mostramos los indicadores a partir de la actividad registrada porque el backend no devolvió métricas agregadas completas.',
-        );
+      if (!hasAggregatedData && !hasRawData) {
+         if (statsResult.status === 'rejected' || ticketsResult.status === 'rejected') {
+             notices.push('No se pudieron cargar datos completos. Verificá tu conexión.');
+         }
       }
-      if (ticketsResult.status === 'rejected') {
-        notices.push(
-          'No pudimos acceder al listado completo de tickets para usarlo como respaldo. Los gráficos utilizan únicamente la información consolidada disponible.',
-        );
-      }
+
       setDataNotice(notices.length > 0 ? notices.join(' ') : null);
+
     } catch (err) {
       console.error('Error loading analytics dashboard:', err);
       setError(getErrorMessage(err, 'No se pudieron cargar las estadísticas avanzadas.'));
+      // Reset state on critical error
       setTicketCounts(null);
       setStatusBreakdown([]);
       setCategoryBreakdown([]);
@@ -925,7 +990,7 @@ export default function EstadisticasPage() {
     } finally {
       setLoading(false);
     }
-  }, [segment, range, statusFilter, categoryFilter]);
+  }, [segment, range, statusFilter, categoryFilter, user?.id]);
 
   useEffect(() => {
     loadData();
@@ -950,6 +1015,10 @@ export default function EstadisticasPage() {
 
   const topCategory = categoryBreakdown[0];
   const trendDelta = useMemo(() => {
+    // If we have real benchmarks, use them
+    if (benchmarks?.tickets?.growth_percentage !== undefined) return benchmarks.tickets.growth_percentage;
+
+    // Fallback to timeline calculation
     if (timeline.length < 2) return null;
     const last = timeline[timeline.length - 1];
     const previous = timeline[timeline.length - 2];
@@ -957,14 +1026,14 @@ export default function EstadisticasPage() {
     const delta = ((last.value - previous.value) / previous.value) * 100;
     if (!Number.isFinite(delta)) return null;
     return Math.round(delta);
-  }, [timeline]);
+  }, [timeline, benchmarks]);
 
   const insights = useMemo(() => {
     const list: { title: string; description: string; icon: any; color: string }[] = [];
     if (topCategory) {
       list.push({
         title: segment === 'pyme' ? 'Producto/Servicio Top' : 'Categoría Crítica',
-        description: `${topCategory.label} lidera con ${formatNumber(topCategory.value)} ${segment === 'pyme' ? 'ventas/consultas' : 'casos'}.`,
+        description: \`\${topCategory.label} lidera con \${formatNumber(topCategory.value)} \${segment === 'pyme' ? 'ventas/consultas' : 'casos'}.\`,
         icon: Flame,
         color: 'text-orange-500'
       });
@@ -972,7 +1041,7 @@ export default function EstadisticasPage() {
     if (topLocations[0]) {
       list.push({
         title: 'Zona Caliente',
-        description: `Mayor actividad registrada en ${topLocations[0].label}.`,
+        description: \`Mayor actividad registrada en \${topLocations[0].label}.\`,
         icon: MapPin,
         color: 'text-red-500'
       });
@@ -982,8 +1051,8 @@ export default function EstadisticasPage() {
         title: 'Tendencia Periodo',
         description:
           trendDelta > 0
-            ? `Crecimiento del ${trendDelta}% vs periodo anterior.`
-            : `Descenso del ${Math.abs(trendDelta)}% vs periodo anterior.`,
+            ? \`Crecimiento del \${trendDelta}% vs periodo anterior.\`
+            : \`Descenso del \${Math.abs(trendDelta)}% vs periodo anterior.\`,
         icon: TrendingUp,
         color: trendDelta > 0 ? 'text-emerald-500' : 'text-blue-500'
       });
@@ -1031,12 +1100,31 @@ export default function EstadisticasPage() {
     loadData();
   };
 
-  const handleGenerateReport = () => {
+  const handleGenerateReport = async () => {
     setIsGeneratingReport(true);
-    // Mock API call delay
-    setTimeout(() => {
+    const { start, end } = getRangeDates(range);
+    try {
+        const report = await generateAiReport({
+            tenant_id: user?.id,
+            segment,
+            from: start,
+            to: end,
+            force: !!cachedReport // Force refresh if cached report exists and user clicks "Update"
+        });
+        setCachedReport(report);
+    } catch (e) {
+        console.error("Failed to generate AI Report", e);
+        // Fallback to mock for now if backend endpoint is 404/500 during dev
+        setCachedReport({
+            summary: "Informe generado (Simulación). El backend no respondió.",
+            opportunities: ["Oportunidad A", "Oportunidad B"],
+            threats: [],
+            tone: "Neutral",
+            _cached: false
+        });
+    } finally {
         setIsGeneratingReport(false);
-    }, 2500);
+    }
   };
 
   if (loading) {
@@ -1214,7 +1302,7 @@ export default function EstadisticasPage() {
             <SummaryCard
               title={labels.solved}
               value={formatNumber(ticketCounts?.resueltos ?? 0)}
-              subtitle={`Tasa de éxito: ${resolutionRate}%`}
+              subtitle={\`Tasa de éxito: \${resolutionRate}%\`}
               icon={CheckCircle2}
               variant="success"
             />
@@ -1261,7 +1349,7 @@ export default function EstadisticasPage() {
                       dataKey="value"
                       stroke={THEME.colors.primary}
                       strokeWidth={3}
-                      fill={`url(#${timelineGradientId})`}
+                      fill={\`url(#\${timelineGradientId})\`}
                       activeDot={{ r: 6, strokeWidth: 0, fill: THEME.colors.primary }}
                     />
                   </AreaChart>
@@ -1337,7 +1425,7 @@ export default function EstadisticasPage() {
         </TabsContent>
 
         <TabsContent value="participacion" className="focus-visible:outline-none">
-          <ParticipationDashboard segment={segment} />
+          <ParticipationDashboard segment={segment} tenantId={user?.id as number} />
         </TabsContent>
       </Tabs>
 
@@ -1351,10 +1439,16 @@ export default function EstadisticasPage() {
                   Zonas con mayor densidad de actividad (Hotspots)
                 </CardDescription>
               </div>
-              <Badge variant="secondary" className="px-3 py-1 text-xs font-mono">
-                <MapPin className="h-3 w-3 mr-1" />
-                {displayedHeatmapCount.toLocaleString('es-AR')} PUNTOS
-              </Badge>
+              <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                      <Label htmlFor="polygon-mode" className="text-xs text-muted-foreground">Polígonos</Label>
+                      <Switch id="polygon-mode" checked={showPolygons} onCheckedChange={setShowPolygons} />
+                  </div>
+                  <Badge variant="secondary" className="px-3 py-1 text-xs font-mono">
+                    <MapPin className="h-3 w-3 mr-1" />
+                    {displayedHeatmapCount.toLocaleString('es-AR')} PUNTOS
+                  </Badge>
+              </div>
             </div>
           </CardHeader>
           <CardContent className="p-0 overflow-hidden rounded-b-xl">
@@ -1390,7 +1484,9 @@ export default function EstadisticasPage() {
                  </div>
                  <div>
                     <CardTitle className="text-base text-indigo-900 dark:text-indigo-300">Consultor IA</CardTitle>
-                    <CardDescription className="text-xs">Análisis automatizado de tendencias</CardDescription>
+                    <CardDescription className="text-xs">
+                        {cachedReport && cachedReport._cached ? 'Informe Reciente (Cache)' : 'Análisis bajo demanda'}
+                    </CardDescription>
                  </div>
               </div>
             </CardHeader>
@@ -1404,32 +1500,57 @@ export default function EstadisticasPage() {
                  </div>
               ) : (
                 <>
-                  {insights.length > 0 ? (
+                  {cachedReport ? (
+                      <div className="p-3 bg-white/70 dark:bg-black/40 rounded-xl border border-emerald-100 dark:border-emerald-900/30">
+                          <div className="flex items-center gap-2 mb-2 text-emerald-700 dark:text-emerald-400">
+                              <CalendarCheck2 className="w-4 h-4" />
+                              <span className="text-xs font-semibold">Informe Disponible</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground leading-relaxed">
+                              {cachedReport.summary}
+                          </p>
+                          {cachedReport.opportunities.length > 0 && (
+                              <div className="mt-2">
+                                  <p className="text-[10px] font-bold uppercase text-emerald-600">Oportunidades</p>
+                                  <ul className="list-disc pl-3 text-[10px] text-muted-foreground">
+                                      {cachedReport.opportunities.slice(0, 2).map((op, i) => <li key={i}>{op}</li>)}
+                                  </ul>
+                              </div>
+                          )}
+                      </div>
+                  ) : (
+                    <p className="text-sm text-center py-4 text-muted-foreground">
+                      Genera un informe estratégico basado en tus datos.
+                    </p>
+                  )}
+
+                  {insights.length > 0 && !cachedReport && (
                     insights.map((insight) => (
                       <div key={insight.title} className="flex gap-3 items-start p-3 bg-white/70 dark:bg-black/40 rounded-xl border border-indigo-100 dark:border-indigo-900/50 shadow-sm transition-transform hover:scale-[1.02]">
-                        <insight.icon className={`w-5 h-5 mt-0.5 ${insight.color}`} />
+                        <insight.icon className={\`w-5 h-5 mt-0.5 \${insight.color}\`} />
                         <div>
                             <h4 className="text-sm font-semibold">{insight.title}</h4>
                             <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{insight.description}</p>
                         </div>
                       </div>
                     ))
-                  ) : (
-                    <p className="text-sm text-center py-4 text-muted-foreground">
-                      Recopilando datos para generar insights...
-                    </p>
                   )}
 
                   <div className="pt-2 border-t border-indigo-100 dark:border-indigo-900/30">
                      <Button
-                        variant="outline"
+                        variant={cachedReport ? "ghost" : "outline"}
                         size="sm"
-                        className="w-full border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-900/50 group"
+                        className={\`w-full group \${cachedReport ? 'text-indigo-600 hover:bg-indigo-50' : 'border-indigo-200 text-indigo-700 hover:bg-indigo-50'}\`}
                         onClick={handleGenerateReport}
                      >
                         <Sparkles className="w-4 h-4 mr-2 text-indigo-500 group-hover:text-indigo-600" />
-                        Generar Informe Detallado
+                        {cachedReport ? 'Actualizar Análisis (Ad-hoc)' : 'Generar Informe Detallado'}
                      </Button>
+                     {cachedReport && (
+                         <p className="text-[10px] text-center text-muted-foreground mt-2">
+                             La actualización ad-hoc puede generar costos adicionales.
+                         </p>
+                     )}
                   </div>
                 </>
               )}
@@ -1447,9 +1568,9 @@ export default function EstadisticasPage() {
                     {topLocations.map((location, index) => (
                       <div key={location.label} className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50 transition-colors">
                           <div className="flex items-center gap-3">
-                              <div className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${
+                              <div className={\`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold \${
                                   index === 0 ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600'
-                              }`}>
+                              }\`}>
                                   {index + 1}
                               </div>
                               <span className="text-sm font-medium">{location.label}</span>
