@@ -19,6 +19,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Textarea } from '@/components/ui/textarea';
+import TrackingMap from '@/components/ui/TrackingMap';
+import Confetti from '@/components/ui/Confetti';
 
 const STATUS_CONFIG = {
   pendiente: { label: 'Pendiente', color: 'bg-amber-100 text-amber-700 border-amber-200', icon: Clock, step: 1, description: 'Tu pedido ha sido recibido y está pendiente de confirmación.' },
@@ -93,8 +95,17 @@ export default function OrderTrackingPage() {
   }, [nro_pedido]);
 
   const handleOpenChat = () => {
-      // Trigger global chat widget
-      window.postMessage({ type: 'OPEN_CHAT' }, '*');
+      // Trigger global chat widget with context
+      window.postMessage({
+          type: 'OPEN_CHAT_WITH_CONTEXT',
+          tenantSlug: order?.tenant_slug,
+          tipoChat: 'pyme',
+          context: {
+              orderId: order?.id,
+              orderNumber: order?.nro_pedido,
+              action: 'consultar_pedido'
+          }
+      }, '*');
       setIsSupportOpen(false);
   };
 
@@ -109,7 +120,7 @@ export default function OrderTrackingPage() {
               action: 'send_message',
               text: `[Consulta Pedido #${order?.nro_pedido}] ${message}`
           }));
-          window.postMessage({ type: 'OPEN_CHAT' }, '*');
+          handleOpenChat();
           toast.success("Abriendo chat de soporte...");
           setIsSupportOpen(false);
           setMessage('');
@@ -166,7 +177,9 @@ export default function OrderTrackingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50/50 pb-20 font-sans selection:bg-primary/10">
+    <div className="min-h-screen bg-slate-50/50 pb-20 font-sans selection:bg-primary/10 relative">
+      {order.estado === 'entregado' && <Confetti />}
+
       {/* Navbar-like Header */}
       <div className="bg-white border-b sticky top-0 z-40 shadow-sm backdrop-blur-md bg-white/90">
           <div className="max-w-3xl mx-auto px-4 h-16 flex items-center justify-between">
@@ -237,7 +250,7 @@ export default function OrderTrackingPage() {
                                 )}
                             </div>
                             <span className={`
-                                text-[9px] sm:text-xs font-semibold uppercase tracking-wide text-center max-w-[60px] leading-tight
+                                text-[8px] sm:text-xs font-semibold uppercase tracking-wide text-center max-w-[50px] sm:max-w-[70px] leading-tight
                                 ${isCompleted ? 'text-gray-900' : 'text-gray-400'}
                             `}>
                                 {step.label}
@@ -303,7 +316,20 @@ export default function OrderTrackingPage() {
 
             {/* Right Column: Info & Actions */}
             <div className="space-y-6">
-                <Card className="border-0 shadow-md ring-1 ring-black/5 h-fit">
+                <Card className="border-0 shadow-md ring-1 ring-black/5 h-fit overflow-hidden">
+                    <div className="h-48 w-full bg-slate-100 relative">
+                        {/* Live Map Visualization */}
+                        <TrackingMap status={order.estado} />
+                        {order.estado !== 'entregado' && order.estado !== 'cancelado' && (
+                             <div className="absolute bottom-2 right-2 bg-white/90 backdrop-blur px-2 py-1 rounded shadow text-[10px] font-bold text-indigo-600 flex items-center gap-1">
+                                 <span className="relative flex h-2 w-2">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
+                                  </span>
+                                 EN VIVO
+                             </div>
+                        )}
+                    </div>
                     <CardHeader className="pb-4 border-b border-gray-50">
                         <CardTitle className="text-lg flex items-center gap-2">
                             <MapPin className="h-5 w-5 text-gray-400" />
