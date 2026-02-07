@@ -95,8 +95,17 @@ export default function OrderTrackingPage() {
   }, [nro_pedido]);
 
   const handleOpenChat = () => {
-      // Trigger global chat widget
-      window.postMessage({ type: 'OPEN_CHAT' }, '*');
+      // Trigger global chat widget with context
+      window.postMessage({
+          type: 'OPEN_CHAT_WITH_CONTEXT',
+          tenantSlug: order?.tenant_slug,
+          tipoChat: 'pyme',
+          context: {
+              orderId: order?.id,
+              orderNumber: order?.nro_pedido,
+              action: 'consultar_pedido'
+          }
+      }, '*');
       setIsSupportOpen(false);
   };
 
@@ -111,7 +120,7 @@ export default function OrderTrackingPage() {
               action: 'send_message',
               text: `[Consulta Pedido #${order?.nro_pedido}] ${message}`
           }));
-          window.postMessage({ type: 'OPEN_CHAT' }, '*');
+          handleOpenChat();
           toast.success("Abriendo chat de soporte...");
           setIsSupportOpen(false);
           setMessage('');

@@ -198,6 +198,7 @@ function ChatWidgetInner({
   });
   const [view, setView] = useState<'chat' | 'register' | 'login' | 'user' | 'info'>(initialView);
   const { user } = useUser();
+  const [contextOverride, setContextOverride] = useState<any>(null);
   const [resolvedTipoChat, setResolvedTipoChat] = useState<'pyme' | 'municipio'>(() => {
     return tipoChat || getCurrentTipoChat();
   });
@@ -387,6 +388,7 @@ function ChatWidgetInner({
 
   const resolvedTenantSlug = useMemo(() => {
     const candidates = [
+      contextOverride?.tenantSlug,
       explicitTenantSlug,
       tenantSlugFromEntity,
       tenantSlugFromLocation,
@@ -410,6 +412,7 @@ function ChatWidgetInner({
 
     return null;
   }, [
+    contextOverride,
     explicitTenantSlug,
     currentSlug,
     tenant?.slug,
@@ -1050,6 +1053,23 @@ function ChatWidgetInner({
       if (!event.data) return;
       // Allow generic OPEN_CHAT even if widgetId doesn't match perfectly if it's a global signal
       if (event.data === "OPEN_CHAT" || event.data.type === "OPEN_CHAT") {
+          setIsOpen(true);
+          return;
+      }
+
+      if (event.data.type === "OPEN_CHAT_WITH_CONTEXT") {
+          const { tenantSlug, tipoChat, context } = event.data;
+          console.log("ChatWidget: Received context override", event.data);
+
+          if (tenantSlug) {
+              setContextOverride((prev: any) => ({ ...prev, tenantSlug }));
+          }
+          if (tipoChat) {
+              setResolvedTipoChat(tipoChat);
+          }
+          // Note: Passing 'context' deeper into ChatPanel might require more piping,
+          // but updating tenantSlug/tipoChat solves the 403 error.
+
           setIsOpen(true);
           return;
       }

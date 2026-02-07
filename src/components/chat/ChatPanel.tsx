@@ -657,7 +657,6 @@ const ChatPanel = (props: ChatPanelProps) => {
               </div>
             ) : (
               <div className="min-h-0 flex-1 overflow-hidden pt-2">
-                {/* Always attempt to render RubroSelector if not loading/error, passing rubros (even if empty, RubroSelector handles it or we rely on fallback inside selector if needed, but current logic handles 0 length in ternary above if strictly empty). Wait, actually we want to force render if there are items OR if we trust the selector to show something. The outer condition checked rubros.length > 0. Let's make it more robust. */}
                 {rubros.length > 0 ? (
                     <RubroSelector rubros={rubros} onSelect={handleRubroSelection} />
                 ) : (

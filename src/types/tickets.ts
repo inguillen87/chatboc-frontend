@@ -173,4 +173,9 @@ export interface Ticket {
   assignedAgent?: User;
   whatsapp_conversation_id?: string;
   foto_url_directa?: string;
+
+  // Tenant/Branding info
+  tenant_slug?: string;
+  tenant_logo?: string;
+  tenant_theme?: any;
 }
