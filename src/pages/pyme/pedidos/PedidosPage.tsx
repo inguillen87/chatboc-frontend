@@ -42,7 +42,8 @@ const normalizeOrders = (raw: unknown): Order[] => {
   if (Array.isArray(raw)) return raw;
 
   if (raw && typeof raw === 'object') {
-    const candidate = (raw as any).orders ?? (raw as any).results;
+    // Try standard "pagination" structures: orders, results, data, items
+    const candidate = (raw as any).orders ?? (raw as any).results ?? (raw as any).data ?? (raw as any).items;
     if (Array.isArray(candidate)) return candidate;
   }
 
@@ -73,31 +74,25 @@ const PedidosPage = () => {
     setLoading(true);
     try {
       if (!currentSlug) return;
-      // Explicitly request all statuses to avoid filtering out 'created' or 'pending' by default backend logic
-      // Note: apiClient.adminListOrders currently takes only slug, need to verify if it accepts query params or we update it.
-      // If adminListOrders only takes slug, we might need to rely on the backend default being broad or update client.ts.
-      // Assuming adminListOrders implementation calls apiFetch with just the slug for now,
-      // but checking client.ts, it doesn't accept extra params.
-      // Let's stick to the basic call if the client signature is fixed,
-      // OR update client.ts to accept filters if we can (but I can't modify client.ts easily in this step without a plan).
-      // Wait, the plan says "Modify src/pages/pyme/pedidos/PedidosPage.tsx".
-      // Let's assume the backend default is correct OR we pass a query string if the client function supports it.
-      // Actually, looking at client.ts content provided earlier:
-      // adminListOrders: async (tenantSlug: string): Promise<Order[]> => { return apiFetch<Order[]>(`/api/admin/tenants/${tenantSlug}/orders`, { tenantSlug }); },
-      // It doesn't take extra args. I should update client.ts first if I want to pass params.
-      // But for this file, I will just ensure we handle the response correctly.
-      // IF the issue is backend filtering, we might need to update client.ts.
-      // The task says "Check if the frontend properly handles pagination or status filters that might be hiding...".
-      // Since I can't change client.ts signature here without deviating, I'll rely on client.get if needed or just ensuring NO client-side filtering hides them.
 
-      // Updated: Passing explicit status filter to include all relevant states
-      // We explicitly request 'all' to prevent backend from filtering out pending/created orders by default
-      const data = await apiClient.adminListOrders(currentSlug, { status: 'all' });
+      const data = await apiClient.adminListOrders(currentSlug, { status: 'all', limit: 100 });
       const normalized = normalizeOrders(data);
       setOrders(normalized);
     } catch (error) {
       console.error('Error loading orders:', error);
-      setOrders([]); // Fallback to empty array on error
+
+      try {
+          // Fallback retry without filters
+          const fallbackData = await apiClient.adminListOrders(currentSlug);
+          const fallbackNormalized = normalizeOrders(fallbackData);
+          if (fallbackNormalized.length > 0) {
+              setOrders(fallbackNormalized);
+              return;
+          }
+      } catch (e) {
+          // Ignore fallback error
+      }
+      setOrders([]);
     } finally {
       setLoading(false);
     }
