@@ -171,10 +171,13 @@ export function useChatLogic({
 
       setIsTyping(true);
 
+      const isPublicDemo = tipoChat === 'municipio' && (tenantSlug === 'municipio' || (!entityToken && !tenantSlug));
+      const effectiveSkipAuth = skipAuth || isPublicDemo;
+
       try {
         const response = await apiFetch<any>(endpoint, {
           method: 'POST',
-          skipAuth,
+          skipAuth: effectiveSkipAuth,
           isWidgetRequest: true,
           tenantSlug: tenantSlug,
           entityToken,
@@ -1277,11 +1280,14 @@ export function useChatLogic({
 
       const endpoint = getAskEndpoint({ tipoChat: tipoChatFinal, rubro });
 
+      const isPublicDemo = tipoChat === 'municipio' && (tenantSlug === 'municipio' || (!entityToken && !tenantSlug));
+      const effectiveSkipAuth = skipAuth || isPublicDemo;
+
       console.log('useChatLogic: Sending message to backend', { endpoint, requestBody });
       const response = await apiFetch<any>(endpoint, {
         method: 'POST',
         body: requestBody,
-        skipAuth,
+        skipAuth: effectiveSkipAuth,
         isWidgetRequest: true,
         tenantSlug: tenantSlug,
         entityToken,

@@ -119,8 +119,7 @@ const ChatPanel = (props: ChatPanelProps) => {
   const { isLiveChatEnabled, horariosAtencion } = useBusinessHours(propEntityToken, tenantSlug);
   const socketRef = useRef<SocketIOClient.Socket | null>(null);
 
-  const isPublicDemo = tipoChat === 'municipio' && (mode === 'standalone' || tenantSlug === 'municipio');
-  const skipAuth = mode === 'script' || isPublicDemo;
+  const skipAuth = mode === 'script';
   const normalizedPropRubro = extractRubroKey(selectedRubro);
   const [localRubro, setLocalRubro] = useState<string | null>(() => normalizedPropRubro ?? null);
   const resolvedSelectedRubro = localRubro ?? normalizedPropRubro ?? null;
