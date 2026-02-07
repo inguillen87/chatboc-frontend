@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Loader2, Package, Truck, CheckCircle, XCircle, Search, ShoppingBag, MessageCircle, Globe, ExternalLink, Plus } from 'lucide-react';
+import { Loader2, Package, Truck, CheckCircle, XCircle, Search, ShoppingBag, MessageCircle, Globe, ExternalLink, Plus, RefreshCw } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -278,6 +278,10 @@ const PedidosPage = () => {
                          Limpiar filtros
                      </Button>
                  )}
+                 <Button variant="outline" size="sm" onClick={loadOrders} className="mt-4 gap-2">
+                    <RefreshCw className="h-4 w-4" />
+                    Actualizar lista
+                 </Button>
              </div>
           ) : (
             filteredOrders.map(order => {
