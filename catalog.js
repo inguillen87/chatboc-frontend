@@ -4,12 +4,17 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+let cachedCatalog = null;
+
 function loadCatalog() {
+  if (cachedCatalog) return cachedCatalog;
+
   const file = path.join(__dirname, 'catalog.json');
   try {
     const raw = fs.readFileSync(file, 'utf8');
     const data = JSON.parse(raw);
-    return Array.isArray(data) ? data : [];
+    cachedCatalog = Array.isArray(data) ? data : [];
+    return cachedCatalog;
   } catch {
     return [];
   }

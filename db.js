@@ -22,7 +22,7 @@ export function getTickets(filters) {
             createdAt: new Date(now - Math.random() * 2000000000).toISOString()
         });
     }
-    return tickets;
+    return cachedTickets;
 }
 
 let mockMessages = null;
