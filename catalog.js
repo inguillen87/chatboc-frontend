@@ -14,10 +14,10 @@ function loadCatalog() {
     const raw = fs.readFileSync(file, 'utf8');
     const data = JSON.parse(raw);
     cachedCatalog = Array.isArray(data) ? data : [];
+    return cachedCatalog;
   } catch {
-    cachedCatalog = [];
+    return [];
   }
-  return cachedCatalog;
 }
 
 function normalize(p) {
