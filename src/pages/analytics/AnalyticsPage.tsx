@@ -15,6 +15,7 @@ import MunicipioDashboard from '@/components/analytics/MunicipioDashboard';
 import PymeDashboard from '@/components/analytics/PymeDashboard';
 import EnterpriseAIPanel from '@/components/analytics/EnterpriseAIPanel';
 import SectionErrorBoundary from '@/components/errors/SectionErrorBoundary';
+import { openExportAndTrack } from '@/utils/enterpriseExperience';
 
 const AnalyticsPage = () => {
   const [searchParams] = useSearchParams();
@@ -88,13 +89,14 @@ const AnalyticsPage = () => {
     if (!tenantId) return;
     const filters = { tenant_id: tenantId, scope, from: dateRange.from, to: dateRange.to };
     const url = format === 'csv' ? analyticsService.exportCsvUrl(filters) : analyticsService.exportPdfUrl(filters);
-    window.open(url, '_blank', 'noopener,noreferrer');
-    fireAndForgetTrackEvent({
-      tenant_id: tenantId,
-      event_name: 'export_click',
-      payload: { format, scope },
-      channel: 'web_widget',
-      session_id: `sess_${Date.now()}`
+    openExportAndTrack(url, async () => {
+      fireAndForgetTrackEvent({
+        tenant_id: tenantId,
+        event_name: 'export_click',
+        payload: { format, scope },
+        channel: 'web_widget',
+        session_id: `sess_${Date.now()}`
+      });
     });
   };
 

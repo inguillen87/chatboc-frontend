@@ -13,6 +13,7 @@ import { useTenant } from "@/context/TenantContext";
 import { buildTenantPath } from "@/utils/tenantPaths";
 import { enterpriseService, type DemoRubro } from "@/services/enterpriseService";
 import { getRubrosHierarchy } from "@/api/rubros";
+import { mapDemoOptionsFromHierarchy } from "@/utils/enterpriseExperience";
 
 // Asegúrate de que esta interfaz refleje EXACTAMENTE lo que tu backend devuelve en /auth/login
 interface LoginResponse {
@@ -72,12 +73,7 @@ const Login = () => {
       try {
         const hierarchy = await getRubrosHierarchy();
         if (!mounted || !Array.isArray(hierarchy)) return;
-        const nextOptions = hierarchy
-          .map((item) => ({
-            value: item.id === 1 ? "municipio" : item.id === 2 ? "pyme" : null,
-            label: String(item.nombre ?? item.clave ?? item.id),
-          }))
-          .filter((item): item is { value: DemoRubro; label: string } => Boolean(item.value));
+        const nextOptions = mapDemoOptionsFromHierarchy(hierarchy);
         if (nextOptions.length > 0) {
           setDemoOptions(nextOptions);
           setDemoRubro(nextOptions[0].value);
