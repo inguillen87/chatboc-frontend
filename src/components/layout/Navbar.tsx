@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState } from "react";
-import ChatbocLogoAnimated from "../chat/ChatbocLogoAnimated";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { Link as RouterLink, useLocation } from "react-router-dom";
 import {
@@ -36,6 +35,7 @@ import type { LucideIcon } from "lucide-react";
 import useCartCount from "@/hooks/useCartCount";
 import { useTenant } from "@/context/TenantContext";
 import { buildTenantPath } from "@/utils/tenantPaths";
+import { getChatbocBrandLogo, getChatbocBotAvatar } from "@/utils/brandAssets";
 
 const Navbar: React.FC = () => {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -160,11 +160,17 @@ const Navbar: React.FC = () => {
     <header className="fixed top-0 left-0 right-0 z-50 bg-card shadow-sm transition-all px-4 py-2">
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         {/* Logo */}
-        <button onClick={handleLogoClick} className="flex items-center gap-2">
-          <ChatbocLogoAnimated size={36} blinking pulsing />
-          <span className="text-2xl font-bold bg-gradient-to-r from-blue-700 to-cyan-400 text-transparent bg-clip-text">
-            Chatboc
-          </span>
+        <button onClick={handleLogoClick} className="flex items-center gap-3 rounded-xl px-2 py-1 hover:bg-primary/5 transition-colors">
+          <img
+            src={getChatbocBotAvatar(isDark)}
+            alt="Chatboc Bot"
+            className="h-9 w-9 rounded-full ring-2 ring-primary/30 shadow-[0_4px_18px_rgba(37,99,235,0.35)]"
+          />
+          <img
+            src={getChatbocBrandLogo(isDark)}
+            alt="Chatboc"
+            className="h-9 w-auto object-contain drop-shadow-sm"
+          />
         </button>
 
         {/* Links centrales - solo landing - desktop */}
