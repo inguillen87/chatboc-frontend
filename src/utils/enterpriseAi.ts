@@ -31,3 +31,18 @@ export const countMatchStatuses = (items: Array<{ match_status?: string }>) => {
   const unmatched = items.length - matched;
   return { matched, unmatched };
 };
+
+
+export const resolveDraftCounts = (
+  items: Array<{ match_status?: string }>,
+  fallbackMatched?: number,
+  fallbackUnmatched?: number,
+) => {
+  if (items.length > 0) {
+    return countMatchStatuses(items);
+  }
+  return {
+    matched: Number.isFinite(fallbackMatched as number) ? Number(fallbackMatched) : 0,
+    unmatched: Number.isFinite(fallbackUnmatched as number) ? Number(fallbackUnmatched) : 0,
+  };
+};

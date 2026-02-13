@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { countMatchStatuses, isMatchedStatus, validateOrderDraftFile } from '@/utils/enterpriseAi';
+import { countMatchStatuses, isMatchedStatus, resolveDraftCounts, validateOrderDraftFile } from '@/utils/enterpriseAi';
 
 describe('enterpriseAi utils', () => {
   it('detects matched vs unmatched statuses correctly', () => {
@@ -18,6 +18,12 @@ describe('enterpriseAi utils', () => {
     ]);
     expect(counts.matched).toBe(2);
     expect(counts.unmatched).toBe(2);
+  });
+
+  it('resolves counts from fallback when there are no editable items', () => {
+    const counts = resolveDraftCounts([], 5, 7);
+    expect(counts.matched).toBe(5);
+    expect(counts.unmatched).toBe(7);
   });
 
   it('validates order draft file extension and size', () => {

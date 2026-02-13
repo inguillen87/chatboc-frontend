@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { enterpriseService } from '@/services/enterpriseService';
 import { ApiError } from '@/utils/api';
 import { toast } from 'sonner';
-import { countMatchStatuses, validateOrderDraftFile, ORDER_DRAFT_ALLOWED_EXTENSIONS } from '@/utils/enterpriseAi';
+import { resolveDraftCounts, validateOrderDraftFile, ORDER_DRAFT_ALLOWED_EXTENSIONS } from '@/utils/enterpriseAi';
 
 interface Props {
   tenantId: number;
@@ -31,8 +31,8 @@ const EnterpriseAIPanel = ({ tenantId, tenantSlug, scope }: Props) => {
   const [draftError, setDraftError] = useState<string | null>(null);
 
   const { matched: resolvedMatchedCount, unmatched: resolvedUnmatchedCount } = useMemo(
-    () => countMatchStatuses(draftItems),
-    [draftItems],
+    () => resolveDraftCounts(draftItems, draftResponse?.matched_count, draftResponse?.unmatched_count),
+    [draftItems, draftResponse],
   );
 
   const handleLoadRecommendations = async () => {
@@ -198,8 +198,7 @@ const EnterpriseAIPanel = ({ tenantId, tenantSlug, scope }: Props) => {
           {draftResponse ? (
             <div className="space-y-2 text-sm">
               <p>
-                Matched: {resolvedMatchedCount || draftResponse?.matched_count || 0} · Unmatched:{' '}
-                {resolvedUnmatchedCount || draftResponse?.unmatched_count || 0}
+                Matched: {resolvedMatchedCount} · Unmatched: {resolvedUnmatchedCount}
               </p>
 
               {draftItems.length > 0 ? (
