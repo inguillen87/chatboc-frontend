@@ -30,6 +30,12 @@ const AnalyticsPage = () => {
   const [executiveSummary, setExecutiveSummary] = useState<string>('');
   const [loadingSummary, setLoadingSummary] = useState(false);
 
+  const fireAndForgetTrackEvent = (payload: { tenant_id: number; event_name: string; payload?: Record<string, unknown>; channel?: string; session_id?: string }) => {
+    enterpriseService
+      .trackEvent(payload, currentSlug || undefined)
+      .catch((trackError) => console.warn('[AnalyticsPage] tracking failed', trackError));
+  };
+
   const dateRange = useMemo(() => {
     const to = new Date();
     const from = new Date();
@@ -53,13 +59,13 @@ const AnalyticsPage = () => {
       });
       setData(result);
       if (tenantId) {
-        await enterpriseService.trackEvent({
+        fireAndForgetTrackEvent({
           tenant_id: tenantId,
           event_name: 'dashboard_view',
           payload: { path: '/panel/analytics', source: 'web' },
           channel: 'web_widget',
           session_id: `sess_${Date.now()}`
-        }, currentSlug || undefined);
+        });
       }
     } catch (err: any) {
       console.error(err);
@@ -80,14 +86,14 @@ const AnalyticsPage = () => {
     if (!tenantId) return;
     const filters = { tenant_id: tenantId, scope, from: dateRange.from, to: dateRange.to };
     const url = format === 'csv' ? analyticsService.exportCsvUrl(filters) : analyticsService.exportPdfUrl(filters);
-    await enterpriseService.trackEvent({
+    window.open(url, '_blank', 'noopener,noreferrer');
+    fireAndForgetTrackEvent({
       tenant_id: tenantId,
       event_name: 'export_click',
       payload: { format, scope },
       channel: 'web_widget',
       session_id: `sess_${Date.now()}`
-    }, currentSlug || undefined);
-    window.open(url, '_blank', 'noopener,noreferrer');
+    });
   };
 
 
@@ -176,7 +182,7 @@ const AnalyticsPage = () => {
         </div>
       ) : null}
 
-      <Tabs defaultValue="overview" className="w-full" onValueChange={(val) => { setContext(val as any); if (tenantId) { enterpriseService.trackEvent({ tenant_id: tenantId, event_name: 'tab_click', payload: { tab: val }, channel: 'web_widget', session_id: `sess_${Date.now()}` }, currentSlug || undefined); } }}>
+      <Tabs defaultValue="overview" className="w-full" onValueChange={(val) => { setContext(val as any); if (tenantId) { fireAndForgetTrackEvent({ tenant_id: tenantId, event_name: 'tab_click', payload: { tab: val }, channel: 'web_widget', session_id: `sess_${Date.now()}` }); } }}>
         <TabsList className="grid w-full grid-cols-4 lg:w-[400px]">
           <TabsTrigger value="overview">General</TabsTrigger>
           <TabsTrigger value="municipio">Municipio</TabsTrigger>

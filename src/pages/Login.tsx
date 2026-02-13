@@ -40,11 +40,8 @@ const Login = () => {
   const [isPasskeyAvailable, setIsPasskeyAvailable] = useState(false);
   const [isPasskeyLoading, setIsPasskeyLoading] = useState(false);
   const [isDemoLoading, setIsDemoLoading] = useState(false);
-  const [demoRubro, setDemoRubro] = useState<DemoRubro>("municipio");
-  const [demoOptions, setDemoOptions] = useState<Array<{ value: DemoRubro; label: string }>>([
-    { value: "municipio", label: "municipio" },
-    { value: "pyme", label: "pyme" },
-  ]);
+  const [demoRubro, setDemoRubro] = useState<DemoRubro | null>(null);
+  const [demoOptions, setDemoOptions] = useState<Array<{ value: DemoRubro; label: string }>>([]);
 
   // Check if this is the global login page (/login) or a tenant login page (/:slug/login)
   const isGlobalLogin = location.pathname === '/login' || location.pathname === '/login/';
@@ -78,7 +75,7 @@ const Login = () => {
         const nextOptions = hierarchy
           .map((item) => ({
             value: item.id === 1 ? "municipio" : item.id === 2 ? "pyme" : null,
-            label: item.nombre || item.clave || "demo",
+            label: String(item.nombre ?? item.clave ?? item.id),
           }))
           .filter((item): item is { value: DemoRubro; label: string } => Boolean(item.value));
         if (nextOptions.length > 0) {
@@ -225,6 +222,7 @@ const Login = () => {
     setError("");
     setIsDemoLoading(true);
     try {
+      if (!demoRubro) return;
       const data = await enterpriseService.demoLogin(demoRubro);
       safeLocalStorage.setItem("authToken", data.token);
       safeLocalStorage.setItem("demoMode", String(Boolean(data.demo_mode)));
@@ -316,7 +314,7 @@ const Login = () => {
             type="button"
             className="w-full"
             onClick={handleDemoLogin}
-            disabled={isDemoLoading || isLoading || isPasskeyLoading}
+            disabled={!demoRubro || isDemoLoading || isLoading || isPasskeyLoading}
           >
             {isDemoLoading ? "Ingresando demo..." : "Probar Demo"}
           </Button>
