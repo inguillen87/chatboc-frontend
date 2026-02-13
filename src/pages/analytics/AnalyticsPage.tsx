@@ -13,6 +13,7 @@ import HeatmapDashboard from '@/components/analytics/HeatmapDashboard';
 import InsightsDashboard from '@/components/analytics/InsightsDashboard';
 import MunicipioDashboard from '@/components/analytics/MunicipioDashboard';
 import PymeDashboard from '@/components/analytics/PymeDashboard';
+import EnterpriseAIPanel from '@/components/analytics/EnterpriseAIPanel';
 
 const AnalyticsPage = () => {
   const [searchParams] = useSearchParams();
@@ -212,6 +213,10 @@ const AnalyticsPage = () => {
       {/* Insights Section always visible at bottom or side */}
       <div className="mt-8">
         <InsightsDashboard tenantId={tenantId} />
+      </div>
+
+      <div className="mt-8">
+        <EnterpriseAIPanel tenantId={tenantId} tenantSlug={currentSlug || undefined} scope={scope} />
       </div>
     </div>
   );
