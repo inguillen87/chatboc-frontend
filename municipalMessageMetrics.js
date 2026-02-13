@@ -6,13 +6,18 @@ let lastComputationTime = 0;
 const CACHE_TTL = 10000; // 10 seconds
 
 export function getMunicipalMessageMetrics() {
-  const currentMessages = getMessages();
   const now = Date.now();
 
-  // Check cache validity: same messages reference AND within TTL
-  if (cachedMetrics &&
-      currentMessages === lastMessagesRef &&
-      (now - lastComputationTime < CACHE_TTL)) {
+  // Check cache validity: within TTL
+  if (cachedMetrics && (now - lastComputationTime < CACHE_TTL)) {
+    return cachedMetrics;
+  }
+
+  const currentMessages = getMessages();
+
+  // Check if messages reference is same, even if TTL expired
+  if (cachedMetrics && currentMessages === lastMessagesRef) {
+    lastComputationTime = now;
     return cachedMetrics;
   }
 
