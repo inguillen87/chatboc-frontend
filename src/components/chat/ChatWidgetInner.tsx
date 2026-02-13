@@ -22,6 +22,7 @@ import { MOCK_TENANT_INFO, MOCK_JUNIN_TENANT_INFO } from "@/data/mockTenantData"
 import { hexToHsl, getContrastColorHsl } from "@/utils/color";
 import { apiClient } from "@/api/client";
 import { esRubroPublico } from "@/utils/chatEndpoints";
+import { getChatbocBotAvatar } from "@/utils/brandAssets";
 
 // LOCAL_PLACEHOLDER_SLUGS is used to prevent the widget from treating reserved paths as tenant slugs.
 // We also alias it to PLACEHOLDER_SLUGS_SET just in case some stale build/import relies on that name.
@@ -1426,7 +1427,7 @@ function ChatWidgetInner({
                     onToggleSound={toggleMuted}
                     onCart={openCart}
                     cartCount={cartCount}
-                    logoUrl={headerLogoUrl || customLauncherLogoUrl || entityInfo?.logo_url || (isDarkMode ? '/chatbocar.png' : '/chatbocar2.png')}
+                    logoUrl={headerLogoUrl || customLauncherLogoUrl || entityInfo?.logo_url || getChatbocBotAvatar(isDarkMode)}
                     title={headerTitle}
                     subtitle={headerSubtitle}
                     logoAnimation={logoAnimation}
@@ -1475,7 +1476,7 @@ function ChatWidgetInner({
                     selectedRubro={selectedRubro ?? entityDefaultRubro}
                     onRubroSelect={handleRubroSelect}
                     catalogCard={catalogCard}
-                    headerLogoUrl={headerLogoUrl || customLauncherLogoUrl || entityInfo?.logo_url || (isDarkMode ? '/chatbocar.png' : '/chatbocar2.png')}
+                    headerLogoUrl={headerLogoUrl || customLauncherLogoUrl || entityInfo?.logo_url || getChatbocBotAvatar(isDarkMode)}
                     welcomeTitle={headerTitle}
                     welcomeSubtitle={headerSubtitle}
                     logoAnimation={logoAnimation}
@@ -1536,10 +1537,11 @@ function ChatWidgetInner({
                 )}
                 style={{
                   borderRadius: "50%",
-                  // Ensure we use the dynamic 'primary' color if set, else fallback
-                  backgroundColor: "var(--primary, #2563eb)",
+                  backgroundColor: isDarkMode ? "#0b1220" : "#ffffff",
                   color: "var(--primary-foreground, #ffffff)",
-                  boxShadow: "0 6px 24px 0 rgba(0,0,0,0.15)",
+                  boxShadow: isDarkMode
+                    ? "0 10px 30px rgba(37,99,235,0.45), 0 0 0 2px rgba(125,211,252,0.35)"
+                    : "0 10px 28px rgba(37,99,235,0.28), 0 0 0 2px rgba(37,99,235,0.2)",
                 }}
                 {...buttonAnimation}
                 whileHover={{ scale: 1.1, transition: { type: "spring", stiffness: 400, damping: 15 } }}
@@ -1553,7 +1555,7 @@ function ChatWidgetInner({
                   transition={openSpring}
                 >
                   <ChatbocLogoAnimated
-                    src={entityInfo?.logo_url || customLauncherLogoUrl || (isDarkMode ? '/chatbocar.png' : '/chatbocar2.png')}
+                    src={entityInfo?.logo_url || customLauncherLogoUrl || getChatbocBotAvatar(isDarkMode)}
                     size={calculatedLogoSize}
                     blinking={!isOpen}
                     floating={!isOpen}
