@@ -21,8 +21,8 @@ const BotSettingsEnterprise = () => {
 
   const [form, setForm] = useState<BotSettingsPayload>({
     tenant_id: 0,
-    nombre_bot: '',
-    tono: '',
+    name: '',
+    tone: '',
     system_prompt: '',
     fallback_behavior: 'auto_reply',
     branding: {
@@ -44,14 +44,14 @@ const BotSettingsEnterprise = () => {
         const data = await enterpriseService.getBotSettings(tenantId, currentSlug || undefined);
         setForm({
           tenant_id: tenantId,
-          nombre_bot: data?.nombre_bot || '',
-          tono: data?.tono || '',
-          system_prompt: data?.system_prompt || '',
-          fallback_behavior: data?.fallback_behavior || 'auto_reply',
+          name: data?.settings?.name || '',
+          tone: data?.settings?.tone || '',
+          system_prompt: data?.settings?.system_prompt || '',
+          fallback_behavior: data?.settings?.fallback_behavior || 'auto_reply',
           branding: {
-            logo_url: data?.branding?.logo_url || '',
-            primary_color: data?.branding?.primary_color || '',
-            secondary_color: data?.branding?.secondary_color || '',
+            logo_url: data?.settings?.branding?.logo_url || '',
+            primary_color: data?.settings?.branding?.primary_color || '',
+            secondary_color: data?.settings?.branding?.secondary_color || '',
           },
         });
       } catch (err) {
@@ -59,7 +59,13 @@ const BotSettingsEnterprise = () => {
           navigate('/permission-denied');
           return;
         }
-        setError('No se pudo cargar la configuración.');
+        if (err instanceof ApiError && err.status === 404) {
+          setError('No encontramos configuración para este tenant.');
+        } else if (err instanceof ApiError && err.status === 400) {
+          setError('La solicitud de configuración es inválida.');
+        } else {
+          setError('No se pudo cargar la configuración.');
+        }
       } finally {
         setLoading(false);
       }
@@ -71,8 +77,8 @@ const BotSettingsEnterprise = () => {
     const allowed = ['derivar_humano', 'auto_reply', 'silent'];
     const fallback = form.fallback_behavior || 'auto_reply';
     if (!allowed.includes(fallback)) return false;
-    if ((form.nombre_bot || '').length > 120) return false;
-    if ((form.tono || '').length > 120) return false;
+    if ((form.name || '').length > 120) return false;
+    if ((form.tone || '').length > 120) return false;
     if ((form.system_prompt || '').length > 4000) return false;
     return true;
   }, [form]);
@@ -96,7 +102,13 @@ const BotSettingsEnterprise = () => {
         navigate('/permission-denied');
         return;
       }
-      setError('No se pudo guardar la configuración.');
+      if (err instanceof ApiError && err.status === 400) {
+        setError(err.message || 'La configuración enviada no es válida.');
+      } else if (err instanceof ApiError && err.status === 404) {
+        setError('No encontramos el tenant para guardar la configuración.');
+      } else {
+        setError('No se pudo guardar la configuración.');
+      }
     } finally {
       setSaving(false);
     }
@@ -112,13 +124,13 @@ const BotSettingsEnterprise = () => {
         </CardHeader>
         <CardContent className="space-y-4">
           <Input
-            value={form.nombre_bot || ''}
-            onChange={(e) => setForm((prev) => ({ ...prev, nombre_bot: e.target.value }))}
+            value={form.name || ''}
+            onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
             placeholder="Nombre bot"
           />
           <Input
-            value={form.tono || ''}
-            onChange={(e) => setForm((prev) => ({ ...prev, tono: e.target.value }))}
+            value={form.tone || ''}
+            onChange={(e) => setForm((prev) => ({ ...prev, tone: e.target.value }))}
             placeholder="Tono"
           />
           <Textarea

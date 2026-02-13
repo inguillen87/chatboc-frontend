@@ -16,16 +16,29 @@ export interface DemoAuthResponse {
   };
 }
 
+export interface BotSettingsBranding {
+  logo_url?: string;
+  primary_color?: string;
+  secondary_color?: string;
+}
+
 export interface BotSettingsPayload {
   tenant_id: number;
-  nombre_bot?: string;
-  tono?: string;
+  name?: string;
+  tone?: string;
   system_prompt?: string;
   fallback_behavior?: 'derivar_humano' | 'auto_reply' | 'silent';
-  branding?: {
-    logo_url?: string;
-    primary_color?: string;
-    secondary_color?: string;
+  branding?: BotSettingsBranding;
+}
+
+export interface BotSettingsResponse {
+  tenant_id: number;
+  settings: {
+    name?: string;
+    tone?: string;
+    system_prompt?: string;
+    fallback_behavior?: 'derivar_humano' | 'auto_reply' | 'silent';
+    branding?: BotSettingsBranding;
   };
 }
 
@@ -92,8 +105,36 @@ export const enterpriseService = {
     });
   },
 
-  getBotSettings: async (tenantId: number, tenantSlug?: string) => {
-    return apiFetch<any>(`/admin/bot/settings?tenant_id=${tenantId}`, { tenantSlug });
+  getTicketSummary: async (ticketId: string | number, payload: { scope?: string }, tenantSlug?: string) => {
+    return apiFetch<{ summary?: string; text?: string }>(`/admin/tickets/${ticketId}/ai-summary`, {
+      method: 'POST',
+      body: payload,
+      tenantSlug,
+    });
+  },
+
+  getProductRecommendations: async (payload: { tenant_id: number; limit?: number }, tenantSlug?: string) => {
+    return apiFetch<{ items?: any[]; recommendations?: any[] }>('/admin/ai/product-recommendations', {
+      method: 'POST',
+      body: payload,
+      tenantSlug,
+    });
+  },
+
+  uploadOrderDraftFromDocument: async (tenantId: number, file: File, tenantSlug?: string) => {
+    const formData = new FormData();
+    formData.append('tenant_id', String(tenantId));
+    formData.append('file', file);
+    return apiFetch<any>('/admin/ai/order-draft-from-document', {
+      method: 'POST',
+      body: formData,
+      tenantSlug,
+      headers: {},
+    });
+  },
+
+  getBotSettings: async (tenantId: number, tenantSlug?: string): Promise<BotSettingsResponse> => {
+    return apiFetch<BotSettingsResponse>(`/admin/bot/settings?tenant_id=${tenantId}`, { tenantSlug });
   },
 
   updateBotSettings: async (payload: BotSettingsPayload, tenantSlug?: string) => {
