@@ -14,6 +14,7 @@ import InsightsDashboard from '@/components/analytics/InsightsDashboard';
 import MunicipioDashboard from '@/components/analytics/MunicipioDashboard';
 import PymeDashboard from '@/components/analytics/PymeDashboard';
 import EnterpriseAIPanel from '@/components/analytics/EnterpriseAIPanel';
+import SectionErrorBoundary from '@/components/errors/SectionErrorBoundary';
 
 const AnalyticsPage = () => {
   const [searchParams] = useSearchParams();
@@ -212,7 +213,15 @@ const AnalyticsPage = () => {
 
       {/* Insights Section always visible at bottom or side */}
       <div className="mt-8">
-        <InsightsDashboard tenantId={tenantId} />
+        <SectionErrorBoundary title="No pudimos cargar insights">
+          <InsightsDashboard tenantId={tenantId} />
+        </SectionErrorBoundary>
+      </div>
+
+      <div className="mt-8">
+        <SectionErrorBoundary title="No pudimos cargar herramientas IA">
+          <EnterpriseAIPanel tenantId={tenantId} tenantSlug={currentSlug || undefined} scope={scope} />
+        </SectionErrorBoundary>
       </div>
 
       <div className="mt-8">

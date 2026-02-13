@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { enterpriseService } from '@/services/enterpriseService';
 import { ApiError } from '@/utils/api';
+import { toast } from 'sonner';
 
 interface Props {
   tenantId: number;
@@ -55,7 +56,13 @@ const EnterpriseAIPanel = ({ tenantId, tenantSlug, scope }: Props) => {
         tenantSlug,
       );
       const rows = response?.items || response?.recommendations || [];
-      setRecommendations(Array.isArray(rows) ? rows : []);
+      const nextRows = Array.isArray(rows) ? rows : [];
+      setRecommendations(nextRows);
+      if (nextRows.length === 0) {
+        toast.info('No se encontraron recomendaciones para este filtro.');
+      } else {
+        toast.success('Recomendaciones cargadas.');
+      }
     } catch (err) {
       if (err instanceof ApiError && err.status === 403) {
         setRecommendationsError('No tenés permisos para ver recomendaciones.');
@@ -111,6 +118,7 @@ const EnterpriseAIPanel = ({ tenantId, tenantSlug, scope }: Props) => {
           }))
         : [];
       setDraftItems(rows);
+      toast.success('Borrador generado correctamente.');
     } catch (err) {
       if (err instanceof ApiError && err.status === 403) {
         setDraftError('No tenés permisos para generar borradores.');
@@ -150,6 +158,7 @@ const EnterpriseAIPanel = ({ tenantId, tenantSlug, scope }: Props) => {
     a.download = 'draft_items.json';
     a.click();
     URL.revokeObjectURL(url);
+    toast.success('JSON descargado.');
   };
 
   return (
@@ -162,7 +171,17 @@ const EnterpriseAIPanel = ({ tenantId, tenantSlug, scope }: Props) => {
           <Button onClick={handleLoadRecommendations} disabled={loadingRecommendations || !tenantId}>
             {loadingRecommendations ? 'Cargando...' : 'Cargar recomendaciones IA'}
           </Button>
-          {recommendationsError ? <p className="text-sm text-destructive">{recommendationsError}</p> : null}
+          {recommendationsError ? (
+            <div className="space-y-2">
+              <p className="text-sm text-destructive">{recommendationsError}</p>
+              <Button variant="outline" size="sm" onClick={handleLoadRecommendations}>
+                Reintentar recomendaciones
+              </Button>
+            </div>
+          ) : null}
+          {!loadingRecommendations && !recommendationsError && recommendations.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Todavía no hay recomendaciones cargadas.</p>
+          ) : null}
           {recommendations.length > 0 ? (
             <ul className="space-y-2 text-sm">
               {recommendations.map((item, idx) => (
@@ -188,7 +207,14 @@ const EnterpriseAIPanel = ({ tenantId, tenantSlug, scope }: Props) => {
           <Button onClick={handleUpload} disabled={!file || uploading || !tenantId}>
             {uploading ? 'Procesando...' : 'Generar borrador IA'}
           </Button>
-          {draftError ? <p className="text-sm text-destructive">{draftError}</p> : null}
+          {draftError ? (
+            <div className="space-y-2">
+              <p className="text-sm text-destructive">{draftError}</p>
+              <Button variant="outline" size="sm" onClick={handleUpload} disabled={!file || uploading || !tenantId}>
+                Reintentar borrador
+              </Button>
+            </div>
+          ) : null}
 
           {draftResponse ? (
             <div className="space-y-2 text-sm">
