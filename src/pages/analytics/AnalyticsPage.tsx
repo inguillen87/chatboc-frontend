@@ -7,6 +7,7 @@ import { Loader2, AlertCircle } from 'lucide-react';
 import { useTenant } from '@/context/TenantContext';
 
 import { analyticsService, AnalyticsSummary } from '@/services/analyticsService';
+import { enterpriseService } from '@/services/enterpriseService';
 import OverviewDashboard from '@/components/analytics/OverviewDashboard';
 import HeatmapDashboard from '@/components/analytics/HeatmapDashboard';
 import InsightsDashboard from '@/components/analytics/InsightsDashboard';
@@ -24,6 +25,7 @@ const AnalyticsPage = () => {
   const [error, setError] = useState<string | null>(null);
 
   const [timeRange, setTimeRange] = useState('7d');
+  const [scope, setScope] = useState('municipio');
   const [context, setContext] = useState<'overview' | 'municipio' | 'pyme'>('overview');
 
   const dateRange = useMemo(() => {
@@ -44,9 +46,19 @@ const AnalyticsPage = () => {
         tenantSlug: currentSlug || undefined,
         from: dateRange.from,
         to: dateRange.to,
-        context: context
+        context: context,
+        scope
       });
       setData(result);
+      if (tenantId) {
+        await enterpriseService.trackEvent({
+          tenant_id: tenantId,
+          event_name: 'dashboard_view',
+          payload: { path: '/panel/analytics', source: 'web' },
+          channel: 'web_widget',
+          session_id: `sess_${Date.now()}`
+        }, currentSlug || undefined);
+      }
     } catch (err: any) {
       console.error(err);
       setError("No se pudo cargar el dashboard.");
@@ -60,6 +72,21 @@ const AnalyticsPage = () => {
         fetchData();
     }
   }, [tenantId, currentSlug, dateRange, context]);
+
+
+  const handleExport = async (format: 'csv' | 'pdf') => {
+    if (!tenantId) return;
+    const filters = { tenant_id: tenantId, scope, from: dateRange.from, to: dateRange.to };
+    const url = format === 'csv' ? analyticsService.exportCsvUrl(filters) : analyticsService.exportPdfUrl(filters);
+    await enterpriseService.trackEvent({
+      tenant_id: tenantId,
+      event_name: 'export_click',
+      payload: { format, scope },
+      channel: 'web_widget',
+      session_id: `sess_${Date.now()}`
+    }, currentSlug || undefined);
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
 
   if (loading && !data) {
     return (
@@ -87,7 +114,7 @@ const AnalyticsPage = () => {
           <p className="text-muted-foreground">Métricas clave y comportamiento de tu audiencia en tiempo real.</p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Select value={timeRange} onValueChange={setTimeRange}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Periodo" />
@@ -98,10 +125,21 @@ const AnalyticsPage = () => {
               <SelectItem value="30d">Últimos 30 días</SelectItem>
             </SelectContent>
           </Select>
+          <Select value={scope} onValueChange={setScope}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Scope" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="municipio">Municipio</SelectItem>
+              <SelectItem value="pyme">Pyme</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button variant="outline" onClick={() => handleExport('csv')}>Export CSV</Button>
+          <Button variant="outline" onClick={() => handleExport('pdf')}>Export PDF</Button>
         </div>
       </div>
 
-      <Tabs defaultValue="overview" className="w-full" onValueChange={(val) => setContext(val as any)}>
+      <Tabs defaultValue="overview" className="w-full" onValueChange={(val) => { setContext(val as any); if (tenantId) { enterpriseService.trackEvent({ tenant_id: tenantId, event_name: 'tab_click', payload: { tab: val }, channel: 'web_widget', session_id: `sess_${Date.now()}` }, currentSlug || undefined); } }}>
         <TabsList className="grid w-full grid-cols-4 lg:w-[400px]">
           <TabsTrigger value="overview">General</TabsTrigger>
           <TabsTrigger value="municipio">Municipio</TabsTrigger>

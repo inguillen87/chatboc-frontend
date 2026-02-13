@@ -11,6 +11,7 @@ import GoogleLoginButton from "@/components/auth/GoogleLoginButton";
 import { isPasskeySupported, loginPasskey } from "@/services/passkeys";
 import { useTenant } from "@/context/TenantContext";
 import { buildTenantPath } from "@/utils/tenantPaths";
+import { enterpriseService, type DemoRubro } from "@/services/enterpriseService";
 
 // Asegúrate de que esta interfaz refleje EXACTAMENTE lo que tu backend devuelve en /auth/login
 interface LoginResponse {
@@ -37,6 +38,8 @@ const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isPasskeyAvailable, setIsPasskeyAvailable] = useState(false);
   const [isPasskeyLoading, setIsPasskeyLoading] = useState(false);
+  const [isDemoLoading, setIsDemoLoading] = useState(false);
+  const [demoRubro, setDemoRubro] = useState<DemoRubro>("municipio");
 
   // Check if this is the global login page (/login) or a tenant login page (/:slug/login)
   const isGlobalLogin = location.pathname === '/login' || location.pathname === '/login/';
@@ -184,6 +187,30 @@ const Login = () => {
     }
   };
 
+
+
+  const handleDemoLogin = async () => {
+    setError("");
+    setIsDemoLoading(true);
+    try {
+      const data = await enterpriseService.demoLogin(demoRubro);
+      safeLocalStorage.setItem("authToken", data.token);
+      safeLocalStorage.setItem("demoMode", String(Boolean(data.demo_mode)));
+      if (data.tenant?.slug) safeLocalStorage.setItem("tenantSlug", data.tenant.slug);
+      if (data.tenant?.id) safeLocalStorage.setItem("tenantId", String(data.tenant.id));
+      await refreshUser();
+      navigate("/analytics");
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(err.body?.error || "No se pudo iniciar demo.");
+      } else {
+        setError("No se pudo conectar con el servidor.");
+      }
+    } finally {
+      setIsDemoLoading(false);
+    }
+  };
+
   // Determine the registration target path
   // If global login, force /register. If tenant login, use currentSlug.
   const registerTarget = isGlobalLogin ? '/register' : buildTenantPath("/register", currentSlug);
@@ -238,6 +265,37 @@ const Login = () => {
             <GoogleLoginButton className="w-full" onLoggedIn={() => navigateToTenantCatalog()} />
           </div>
         </form>
+        <div className="mt-6 border-t border-border pt-4 space-y-3">
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant={demoRubro === "municipio" ? "default" : "outline"}
+              className="flex-1"
+              onClick={() => setDemoRubro("municipio")}
+              disabled={isDemoLoading || isLoading || isPasskeyLoading}
+            >
+              Demo municipio
+            </Button>
+            <Button
+              type="button"
+              variant={demoRubro === "pyme" ? "default" : "outline"}
+              className="flex-1"
+              onClick={() => setDemoRubro("pyme")}
+              disabled={isDemoLoading || isLoading || isPasskeyLoading}
+            >
+              Demo pyme
+            </Button>
+          </div>
+          <Button
+            type="button"
+            className="w-full"
+            onClick={handleDemoLogin}
+            disabled={isDemoLoading || isLoading || isPasskeyLoading}
+          >
+            {isDemoLoading ? "Ingresando demo..." : "Probar Demo"}
+          </Button>
+        </div>
+
         <div className="text-center text-sm text-muted-foreground mt-4">
           ¿No tenés cuenta?{" "}
           <button onClick={() => navigate(registerTarget)} className="text-primary hover:underline">
