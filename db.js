@@ -1,5 +1,15 @@
+
+let mockTickets = null;
+
+export function __setTickets(tickets) {
+  mockTickets = tickets;
+}
+
 export function getTickets(filters) {
-    // Return sample data instead of empty array to fix regression
+    if (mockTickets) {
+        return mockTickets;
+    }
+
     const N = 1000;
     const tickets = [];
     const now = Date.now();
@@ -13,4 +23,28 @@ export function getTickets(filters) {
         });
     }
     return tickets;
+}
+
+let mockMessages = null;
+
+export function __setMessages(msgs) {
+  mockMessages = msgs;
+}
+
+export function getMessages() {
+  if (mockMessages) {
+    return mockMessages;
+  }
+
+  const N = 10000;
+  const messages = [];
+  const now = Date.now();
+  for (let i = 0; i < N; i++) {
+    messages.push({
+      id: i,
+      text: `Message ${i}`,
+      timestamp: now - Math.floor(Math.random() * 31536000000)
+    });
+  }
+  return messages;
 }
