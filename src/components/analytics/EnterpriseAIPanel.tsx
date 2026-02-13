@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { enterpriseService } from '@/services/enterpriseService';
 import { ApiError } from '@/utils/api';
 import { toast } from 'sonner';
+import { countMatchStatuses, validateOrderDraftFile, ORDER_DRAFT_ALLOWED_EXTENSIONS } from '@/utils/enterpriseAi';
 
 interface Props {
   tenantId: number;
@@ -18,14 +19,6 @@ interface DraftItem {
   quantity: number;
 }
 
-const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
-const ALLOWED_EXTENSIONS = ['.pdf', '.png', '.jpg', '.jpeg', '.webp'];
-
-const hasAllowedExtension = (filename: string) => {
-  const normalized = filename.toLowerCase();
-  return ALLOWED_EXTENSIONS.some((extension) => normalized.endsWith(extension));
-};
-
 const EnterpriseAIPanel = ({ tenantId, tenantSlug, scope }: Props) => {
   const [recommendations, setRecommendations] = useState<any[]>([]);
   const [loadingRecommendations, setLoadingRecommendations] = useState(false);
@@ -37,12 +30,8 @@ const EnterpriseAIPanel = ({ tenantId, tenantSlug, scope }: Props) => {
   const [draftItems, setDraftItems] = useState<DraftItem[]>([]);
   const [draftError, setDraftError] = useState<string | null>(null);
 
-  const resolvedMatchedCount = useMemo(
-    () => draftItems.filter((item) => item.match_status.toLowerCase().includes('match')).length,
-    [draftItems],
-  );
-  const resolvedUnmatchedCount = useMemo(
-    () => draftItems.filter((item) => !item.match_status.toLowerCase().includes('match')).length,
+  const { matched: resolvedMatchedCount, unmatched: resolvedUnmatchedCount } = useMemo(
+    () => countMatchStatuses(draftItems),
     [draftItems],
   );
 
@@ -83,20 +72,10 @@ const EnterpriseAIPanel = ({ tenantId, tenantSlug, scope }: Props) => {
     setDraftResponse(null);
     setDraftItems([]);
 
-    if (!selectedFile) {
+    const validation = validateOrderDraftFile(selectedFile);
+    if (!validation.valid) {
       setFile(null);
-      return;
-    }
-
-    if (!hasAllowedExtension(selectedFile.name)) {
-      setFile(null);
-      setDraftError('Formato de archivo no permitido.');
-      return;
-    }
-
-    if (selectedFile.size > MAX_FILE_SIZE_BYTES) {
-      setFile(null);
-      setDraftError('El archivo supera el límite de 5MB.');
+      if (validation.message) setDraftError(validation.message);
       return;
     }
 
@@ -201,7 +180,7 @@ const EnterpriseAIPanel = ({ tenantId, tenantSlug, scope }: Props) => {
         <CardContent className="space-y-3">
           <Input
             type="file"
-            accept={ALLOWED_EXTENSIONS.join(',')}
+            accept={ORDER_DRAFT_ALLOWED_EXTENSIONS.join(',')}
             onChange={(event) => handleFileSelection(event.target.files?.[0] ?? null)}
           />
           <Button onClick={handleUpload} disabled={!file || uploading || !tenantId}>
