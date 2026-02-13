@@ -27,6 +27,8 @@ const AnalyticsPage = () => {
   const [timeRange, setTimeRange] = useState('7d');
   const [scope, setScope] = useState('municipio');
   const [context, setContext] = useState<'overview' | 'municipio' | 'pyme'>('overview');
+  const [executiveSummary, setExecutiveSummary] = useState<string>('');
+  const [loadingSummary, setLoadingSummary] = useState(false);
 
   const dateRange = useMemo(() => {
     const to = new Date();
@@ -71,7 +73,46 @@ const AnalyticsPage = () => {
     if (tenantId || currentSlug) {
         fetchData();
     }
-  }, [tenantId, currentSlug, dateRange, context]);
+  }, [tenantId, currentSlug, dateRange, context, scope]);
+
+
+  const handleExport = async (format: 'csv' | 'pdf') => {
+    if (!tenantId) return;
+    const filters = { tenant_id: tenantId, scope, from: dateRange.from, to: dateRange.to };
+    const url = format === 'csv' ? analyticsService.exportCsvUrl(filters) : analyticsService.exportPdfUrl(filters);
+    await enterpriseService.trackEvent({
+      tenant_id: tenantId,
+      event_name: 'export_click',
+      payload: { format, scope },
+      channel: 'web_widget',
+      session_id: `sess_${Date.now()}`
+    }, currentSlug || undefined);
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+
+  const handleGenerateExecutiveSummary = async () => {
+    if (!tenantId) return;
+    setLoadingSummary(true);
+    try {
+      const response = await enterpriseService.getExecutiveSummary(
+        {
+          tenant_id: tenantId,
+          scope,
+          from: dateRange.from,
+          to: dateRange.to,
+          strict_no_data_message: true,
+        },
+        currentSlug || undefined,
+      );
+      setExecutiveSummary(response?.summary || response?.text || '');
+    } catch (err) {
+      console.error(err);
+      setExecutiveSummary('');
+    } finally {
+      setLoadingSummary(false);
+    }
+  };
 
 
   const handleExport = async (format: 'csv' | 'pdf') => {
@@ -136,8 +177,19 @@ const AnalyticsPage = () => {
           </Select>
           <Button variant="outline" onClick={() => handleExport('csv')}>Export CSV</Button>
           <Button variant="outline" onClick={() => handleExport('pdf')}>Export PDF</Button>
+          <Button variant="default" onClick={handleGenerateExecutiveSummary} disabled={loadingSummary}>
+            {loadingSummary ? 'Generando...' : 'Resumen ejecutivo IA'}
+          </Button>
         </div>
       </div>
+
+
+      {executiveSummary ? (
+        <div className="rounded-lg border bg-card p-4">
+          <h2 className="font-semibold mb-2">Resumen ejecutivo</h2>
+          <p className="text-sm text-muted-foreground whitespace-pre-wrap">{executiveSummary}</p>
+        </div>
+      ) : null}
 
       <Tabs defaultValue="overview" className="w-full" onValueChange={(val) => { setContext(val as any); if (tenantId) { enterpriseService.trackEvent({ tenant_id: tenantId, event_name: 'tab_click', payload: { tab: val }, channel: 'web_widget', session_id: `sess_${Date.now()}` }, currentSlug || undefined); } }}>
         <TabsList className="grid w-full grid-cols-4 lg:w-[400px]">

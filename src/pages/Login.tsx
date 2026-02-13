@@ -12,6 +12,7 @@ import { isPasskeySupported, loginPasskey } from "@/services/passkeys";
 import { useTenant } from "@/context/TenantContext";
 import { buildTenantPath } from "@/utils/tenantPaths";
 import { enterpriseService, type DemoRubro } from "@/services/enterpriseService";
+import { getRubrosHierarchy } from "@/api/rubros";
 
 // Asegúrate de que esta interfaz refleje EXACTAMENTE lo que tu backend devuelve en /auth/login
 interface LoginResponse {
@@ -40,6 +41,10 @@ const Login = () => {
   const [isPasskeyLoading, setIsPasskeyLoading] = useState(false);
   const [isDemoLoading, setIsDemoLoading] = useState(false);
   const [demoRubro, setDemoRubro] = useState<DemoRubro>("municipio");
+  const [demoOptions, setDemoOptions] = useState<Array<{ value: DemoRubro; label: string }>>([
+    { value: "municipio", label: "municipio" },
+    { value: "pyme", label: "pyme" },
+  ]);
 
   // Check if this is the global login page (/login) or a tenant login page (/:slug/login)
   const isGlobalLogin = location.pathname === '/login' || location.pathname === '/login/';
@@ -63,6 +68,33 @@ const Login = () => {
     },
     [currentSlug, navigate],
   );
+
+  useEffect(() => {
+    let mounted = true;
+    const loadDemoOptions = async () => {
+      try {
+        const hierarchy = await getRubrosHierarchy();
+        if (!mounted || !Array.isArray(hierarchy)) return;
+        const nextOptions = hierarchy
+          .map((item) => ({
+            value: item.id === 1 ? "municipio" : item.id === 2 ? "pyme" : null,
+            label: item.nombre || item.clave || "demo",
+          }))
+          .filter((item): item is { value: DemoRubro; label: string } => Boolean(item.value));
+        if (nextOptions.length > 0) {
+          setDemoOptions(nextOptions);
+          setDemoRubro(nextOptions[0].value);
+        }
+      } catch (err) {
+        console.warn('No se pudieron cargar rubros demo desde backend', err);
+      }
+    };
+    loadDemoOptions();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -267,24 +299,18 @@ const Login = () => {
         </form>
         <div className="mt-6 border-t border-border pt-4 space-y-3">
           <div className="flex gap-2">
-            <Button
-              type="button"
-              variant={demoRubro === "municipio" ? "default" : "outline"}
-              className="flex-1"
-              onClick={() => setDemoRubro("municipio")}
-              disabled={isDemoLoading || isLoading || isPasskeyLoading}
-            >
-              Demo municipio
-            </Button>
-            <Button
-              type="button"
-              variant={demoRubro === "pyme" ? "default" : "outline"}
-              className="flex-1"
-              onClick={() => setDemoRubro("pyme")}
-              disabled={isDemoLoading || isLoading || isPasskeyLoading}
-            >
-              Demo pyme
-            </Button>
+            {demoOptions.map((option) => (
+              <Button
+                key={option.value}
+                type="button"
+                variant={demoRubro === option.value ? "default" : "outline"}
+                className="flex-1"
+                onClick={() => setDemoRubro(option.value)}
+                disabled={isDemoLoading || isLoading || isPasskeyLoading}
+              >
+                {option.label}
+              </Button>
+            ))}
           </div>
           <Button
             type="button"

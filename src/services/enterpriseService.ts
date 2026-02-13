@@ -16,6 +16,19 @@ export interface DemoAuthResponse {
   };
 }
 
+export interface BotSettingsPayload {
+  tenant_id: number;
+  nombre_bot?: string;
+  tono?: string;
+  system_prompt?: string;
+  fallback_behavior?: 'derivar_humano' | 'auto_reply' | 'silent';
+  branding?: {
+    logo_url?: string;
+    primary_color?: string;
+    secondary_color?: string;
+  };
+}
+
 interface EnterpriseBaseFilters {
   tenant_id: number;
   scope?: string;
@@ -67,5 +80,27 @@ export const enterpriseService = {
       tenantSlug,
     });
   },
-};
 
+  getExecutiveSummary: async (
+    payload: { tenant_id: number; scope?: string; from?: string; to?: string; strict_no_data_message?: boolean },
+    tenantSlug?: string,
+  ) => {
+    return apiFetch<{ summary?: string; text?: string }>('/admin/ai/executive-summary', {
+      method: 'POST',
+      body: payload,
+      tenantSlug,
+    });
+  },
+
+  getBotSettings: async (tenantId: number, tenantSlug?: string) => {
+    return apiFetch<any>(`/admin/bot/settings?tenant_id=${tenantId}`, { tenantSlug });
+  },
+
+  updateBotSettings: async (payload: BotSettingsPayload, tenantSlug?: string) => {
+    return apiFetch<any>('/admin/bot/settings', {
+      method: 'PUT',
+      body: payload,
+      tenantSlug,
+    });
+  },
+};
