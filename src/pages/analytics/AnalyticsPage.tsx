@@ -114,6 +114,21 @@ const AnalyticsPage = () => {
     }
   };
 
+
+  const handleExport = async (format: 'csv' | 'pdf') => {
+    if (!tenantId) return;
+    const filters = { tenant_id: tenantId, scope, from: dateRange.from, to: dateRange.to };
+    const url = format === 'csv' ? analyticsService.exportCsvUrl(filters) : analyticsService.exportPdfUrl(filters);
+    await enterpriseService.trackEvent({
+      tenant_id: tenantId,
+      event_name: 'export_click',
+      payload: { format, scope },
+      channel: 'web_widget',
+      session_id: `sess_${Date.now()}`
+    }, currentSlug || undefined);
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
   if (loading && !data) {
     return (
       <div className="flex items-center justify-center h-64">
