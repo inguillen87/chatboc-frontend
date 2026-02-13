@@ -113,7 +113,7 @@ export const enterpriseService = {
     });
   },
 
-  getProductRecommendations: async (payload: { tenant_id: number; limit?: number }, tenantSlug?: string) => {
+  getProductRecommendations: async (payload: { tenant_id: number; limit?: number; scope?: string }, tenantSlug?: string) => {
     return apiFetch<{ items?: any[]; recommendations?: any[] }>('/admin/ai/product-recommendations', {
       method: 'POST',
       body: payload,
