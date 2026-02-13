@@ -223,6 +223,10 @@ const AnalyticsPage = () => {
           <EnterpriseAIPanel tenantId={tenantId} tenantSlug={currentSlug || undefined} scope={scope} />
         </SectionErrorBoundary>
       </div>
+
+      <div className="mt-8">
+        <EnterpriseAIPanel tenantId={tenantId} tenantSlug={currentSlug || undefined} scope={scope} />
+      </div>
     </div>
   );
 };
