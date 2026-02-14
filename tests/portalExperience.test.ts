@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mapHistoryToActivities, mapNetworkFeedToNews, mergePortalExperience } from '@/utils/portalExperience';
+import { mapHistoryToActivities, mapNetworkFeedToNews, mapSurveysHistory, mergePortalExperience } from '@/utils/portalExperience';
 import { getDemoPortalContent } from '@/data/portalDemoContent';
 
 describe('portalExperience utils', () => {
@@ -26,6 +26,12 @@ describe('portalExperience utils', () => {
     expect(news[0].title).toBe('Nuevo servicio');
   });
 
+  it('maps surveys history payload', () => {
+    const surveys = mapSurveysHistory({ surveys: [{ id: 1, title: 'Encuesta de satisfacción' }] });
+    expect(surveys).toHaveLength(1);
+    expect(surveys[0].title).toBe('Encuesta de satisfacción');
+  });
+
   it('merges backend responses into portal content', () => {
     const merged = mergePortalExperience(
       getDemoPortalContent(),
@@ -41,10 +47,17 @@ describe('portalExperience utils', () => {
         current_points: 250,
         benefits: [{ id: 'b1', title: 'Descuento', points_cost: 120, eligible: true }],
       },
+      {
+        summary: { claims: 4, surveys: 5 },
+      },
+      {
+        surveys: [{ id: 's1', title: 'Encuesta portal' }],
+      },
     );
 
     expect(merged.loyaltySummary?.points).toBe(250);
     expect(merged.catalog[0].category).toBe('beneficios');
     expect(merged.news[0].title).toBe('Evento abierto');
+    expect(merged.surveys[0].title).toBe('Encuesta portal');
   });
 });

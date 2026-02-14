@@ -38,8 +38,19 @@ export const apiClient = {
     return apiFetch<Order>(`/api/v1/portal/${tenantSlug}/orders/${orderId}`, { tenantSlug });
   },
 
-  getPortalHistory: async (tenantSlug: string): Promise<any> => {
-    return apiFetch<any>(`/api/v1/portal/${tenantSlug}/history`, { tenantSlug });
+  getPortalHistory: async (tenantSlug: string, includeNetwork = false): Promise<any> => {
+    const suffix = includeNetwork ? '?include_network=true' : '';
+    return apiFetch<any>(`/api/v1/portal/${tenantSlug}/history${suffix}`, { tenantSlug });
+  },
+
+  getPortalSurveysHistory: async (tenantSlug: string, includeNetwork = false): Promise<any> => {
+    const suffix = includeNetwork ? '?include_network=true' : '';
+    return apiFetch<any>(`/api/v1/portal/${tenantSlug}/surveys/history${suffix}`, { tenantSlug });
+  },
+
+  getPortalDashboard: async (tenantSlug: string, includeNetwork = false): Promise<any> => {
+    const suffix = includeNetwork ? '?include_network=true' : '';
+    return apiFetch<any>(`/api/v1/portal/${tenantSlug}/dashboard${suffix}`, { tenantSlug });
   },
 
   getPortalNetworkFeed: async (tenantSlug: string): Promise<any> => {

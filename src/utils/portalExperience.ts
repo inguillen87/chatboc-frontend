@@ -1,4 +1,4 @@
-import type { Order, PortalActivity, PortalContent, PortalLoyaltySummary, PortalNews } from '@/types/unified';
+import type { Order, PortalActivity, PortalContent, PortalLoyaltySummary, PortalNews, PortalSurvey } from '@/types/unified';
 
 const toIsoString = (value: unknown) => {
   if (typeof value === 'string' && value.trim()) return value;
@@ -64,6 +64,23 @@ export const mapNetworkFeedToNews = (feedResponse: any): PortalNews[] => {
   }));
 };
 
+
+export const mapSurveysHistory = (surveysResponse: any): PortalSurvey[] => {
+  const raw = Array.isArray(surveysResponse)
+    ? surveysResponse
+    : Array.isArray(surveysResponse?.surveys)
+      ? surveysResponse.surveys
+      : Array.isArray(surveysResponse?.items)
+        ? surveysResponse.items
+        : [];
+
+  return raw.map((survey: any, idx: number) => ({
+    id: String(survey?.id ?? `survey-${idx}`),
+    title: String(survey?.title ?? survey?.name ?? 'Encuesta'),
+    link: survey?.link ?? '/portal/encuestas',
+  }));
+};
+
 export const mapBenefitsToLoyaltySummary = (benefitsResponse: any, historyResponse: any): PortalLoyaltySummary => {
   const points = Number(benefitsResponse?.current_points ?? 0);
   const counts = historyResponse?.summary?.counts || {};
@@ -91,11 +108,15 @@ export const mergePortalExperience = (
   historyResponse: any,
   feedResponse: any,
   benefitsResponse: any,
+  dashboardResponse: any,
+  surveysResponse: any,
 ): PortalContent => {
   const mappedActivities = mapHistoryToActivities(historyResponse);
   const mappedNews = mapNetworkFeedToNews(feedResponse);
   const mappedOrders = mapPortalOrders(historyResponse?.orders);
   const mappedLoyaltySummary = mapBenefitsToLoyaltySummary(benefitsResponse, historyResponse);
+  const mappedSurveys = mapSurveysHistory(surveysResponse);
+  const dashboardSummary = dashboardResponse?.summary || {};
 
   return {
     ...content,
@@ -114,7 +135,12 @@ export const mergePortalExperience = (
             link: '/portal/beneficios',
           }))
         : content.catalog,
-    loyaltySummary: mappedLoyaltySummary,
+    surveys: mappedSurveys.length > 0 ? mappedSurveys : content.surveys,
+    loyaltySummary: {
+      ...mappedLoyaltySummary,
+      claimsFiled: Number(dashboardSummary?.claims ?? mappedLoyaltySummary.claimsFiled ?? 0),
+      surveysCompleted: Number(dashboardSummary?.surveys ?? mappedLoyaltySummary.surveysCompleted ?? 0),
+    },
     notifications: mappedOrders.slice(0, 3).map((order, idx) => ({
       id: `order-notification-${idx}`,
       title: `Pedido #${order.id}`,

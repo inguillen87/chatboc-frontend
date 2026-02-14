@@ -22,11 +22,14 @@ export function usePortalContent() {
     setError(null);
 
     try {
-      const [contentResponse, historyResponse, feedResponse, benefitsResponse] = await Promise.allSettled([
+      const includeNetwork = true;
+      const [contentResponse, historyResponse, feedResponse, benefitsResponse, dashboardResponse, surveysResponse] = await Promise.allSettled([
         apiClient.getPortalContent(currentSlug),
-        apiClient.getPortalHistory(currentSlug),
+        apiClient.getPortalHistory(currentSlug, includeNetwork),
         apiClient.getPortalNetworkFeed(currentSlug),
         apiClient.getPortalBenefits(currentSlug),
+        apiClient.getPortalDashboard(currentSlug, includeNetwork),
+        apiClient.getPortalSurveysHistory(currentSlug, includeNetwork),
       ]);
 
       if (contentResponse.status !== 'fulfilled') {
@@ -38,6 +41,8 @@ export function usePortalContent() {
         historyResponse.status === 'fulfilled' ? historyResponse.value : null,
         feedResponse.status === 'fulfilled' ? feedResponse.value : null,
         benefitsResponse.status === 'fulfilled' ? benefitsResponse.value : null,
+        dashboardResponse.status === 'fulfilled' ? dashboardResponse.value : null,
+        surveysResponse.status === 'fulfilled' ? surveysResponse.value : null,
       );
 
       setContent(merged);

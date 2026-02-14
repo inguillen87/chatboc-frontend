@@ -11,4 +11,6 @@ export const LOCALE_OPTIONS: LocaleOption[] = [
   { label: 'México', locale: 'es-MX', timezone: 'America/Mexico_City' },
   { label: 'Colombia', locale: 'es-CO', timezone: 'America/Bogota' },
   { label: 'España', locale: 'es-ES', timezone: 'Europe/Madrid' },
+  { label: 'Brasil', locale: 'pt-BR', timezone: 'America/Sao_Paulo' },
+  { label: 'Estados Unidos', locale: 'en-US', timezone: 'America/New_York' },
 ];
