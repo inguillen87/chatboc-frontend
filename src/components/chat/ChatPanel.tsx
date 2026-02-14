@@ -71,6 +71,10 @@ interface ChatPanelProps {
   welcomeTitle?: string;
   welcomeSubtitle?: string;
   logoAnimation?: string;
+  typingAnimation?: string;
+  bubbleAnimation?: string;
+  messageEnterAnimation?: string;
+  logoBadgeStyle?: string;
   onA11yChange?: (p: Prefs) => void;
   a11yPrefs?: Prefs;
   openWidth?: string;
@@ -105,11 +109,19 @@ const ChatPanel = (props: ChatPanelProps) => {
     welcomeTitle,
     welcomeSubtitle,
     logoAnimation,
+    typingAnimation,
+    bubbleAnimation,
+    messageEnterAnimation,
+    logoBadgeStyle,
     onA11yChange,
     a11yPrefs,
     catalogCard,
   } = props;
   const isMobile = useIsMobile();
+  const fallbackRubroTitle = welcomeTitle || "Chatboc";
+  const fallbackRubroSubtitle =
+    welcomeSubtitle ||
+    "Seleccioná un rubro para personalizar la experiencia automáticamente.";
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatInputTextRef = useRef<HTMLInputElement>(null);
@@ -631,19 +643,17 @@ const ChatPanel = (props: ChatPanelProps) => {
           onA11yChange={onA11yChange}
         />
         <div className="flex-1 overflow-hidden px-4 pb-4">
-          <div className="mx-auto flex h-full max-h-[calc(100vh-160px)] w-full max-w-sm flex-col rounded-2xl border border-border bg-background/90 p-6 text-center shadow-lg">
+          <div className="mx-auto flex h-full max-h-[calc(100vh-160px)] w-full max-w-sm flex-col rounded-2xl border border-primary/20 bg-gradient-to-b from-background via-background to-primary/[0.05] p-6 text-center shadow-xl backdrop-blur-sm">
             <img
-              src="/chatboc_logo_clean_transparent.png"
+              src={headerLogoUrl || "/chatboc_logo_clean_transparent.png"}
               alt="Chatboc"
-              className="mx-auto h-14 w-14"
+              className="mx-auto h-16 w-16 rounded-2xl border border-primary/20 bg-background p-2 shadow-lg"
               onError={(e) => {
                 (e.target as HTMLImageElement).src = "/favicon/favicon-48x48.png";
               }}
             />
-            <h2 className="text-xl font-semibold text-primary">¡Bienvenido a Chatboc!</h2>
-            <p className="text-sm text-muted-foreground">
-              Seleccioná el rubro que más se parece a tu negocio:
-            </p>
+            <h2 className="text-xl font-semibold text-primary mt-3">{fallbackRubroTitle}</h2>
+            <p className="text-sm text-muted-foreground">{fallbackRubroSubtitle}</p>
             {isLoadingRubros ? (
               <div className="flex justify-center py-6">
                 <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -726,10 +736,19 @@ const ChatPanel = (props: ChatPanelProps) => {
             tipoChat={tipoChat}
             botLogoUrl={headerLogoUrl}
             logoAnimation={logoAnimation}
+            messageEnterAnimation={messageEnterAnimation}
+            bubbleAnimation={bubbleAnimation}
+            logoBadgeStyle={logoBadgeStyle}
           />
         ))}
         {isTyping && (
-          <TypingIndicator logoUrl={headerLogoUrl} logoAnimation={logoAnimation} text={typingText} />
+          <TypingIndicator
+            logoUrl={headerLogoUrl}
+            logoAnimation={logoAnimation}
+            text={typingText}
+            typingAnimation={typingAnimation}
+            logoBadgeStyle={logoBadgeStyle}
+          />
         )}
         {userTyping && <UserTypingIndicator />}
         <div ref={messagesEndRef} />
