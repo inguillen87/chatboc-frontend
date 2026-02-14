@@ -1,9 +1,9 @@
 {
-  "name": "Chatboc",
+  "name": "Chatboc | Tu experto virtual",
   "short_name": "Chatboc",
-  "start_url": "/?pwa=1",
+  "description": "Automatizá consultas, ventas y atención al cliente con IA para pymes y municipios.",
+  "start_url": "/",
   "display": "standalone",
-  "scope": "/",
   "background_color": "#ffffff",
   "theme_color": "#0f62fe",
   "icons": [
