@@ -16,6 +16,32 @@ export interface DemoAuthResponse {
   };
 }
 
+export interface DemoCatalogTenant {
+  id?: number;
+  slug?: string;
+  nombre?: string;
+  tipo?: string;
+  rubro?: string;
+}
+
+export interface DemoCatalogResponse {
+  tenants?: DemoCatalogTenant[];
+  supported_languages?: string[];
+  credentials?: Record<string, unknown>;
+}
+
+export interface FranchiseProfilePayload {
+  white_label_enabled?: boolean;
+  reseller_enabled?: boolean;
+  default_language?: 'es' | 'en' | 'pt';
+  supported_languages?: Array<'es' | 'en' | 'pt'>;
+  country?: string;
+  currency?: string;
+  timezone?: string;
+  target_markets?: string[];
+  partner_program?: string;
+}
+
 export interface BotSettingsBranding {
   logo_url?: string;
   primary_color?: string;
@@ -60,6 +86,11 @@ const buildQueryString = (filters: Record<string, string | number | boolean | un
 };
 
 export const enterpriseService = {
+  getDemoCatalog: async (ensureUsers = false): Promise<DemoCatalogResponse> => {
+    const suffix = ensureUsers ? '?ensure_users=true' : '';
+    return apiFetch<DemoCatalogResponse>(`/auth/demo/catalog${suffix}`);
+  },
+
   demoLogin: async (rubro: DemoRubro): Promise<DemoAuthResponse> => {
     return apiFetch<DemoAuthResponse>('/auth/demo', {
       method: 'POST',
@@ -143,5 +174,25 @@ export const enterpriseService = {
       body: payload,
       tenantSlug,
     });
+  },
+
+  getFranchiseProfile: async (tenantSlug: string) => {
+    return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/franchise-profile`, { tenantSlug });
+  },
+
+  updateFranchiseProfile: async (tenantSlug: string, payload: FranchiseProfilePayload) => {
+    return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/franchise-profile`, {
+      method: 'PUT',
+      body: payload,
+      tenantSlug,
+    });
+  },
+
+  getFranchiseReadiness: async (tenantSlug: string) => {
+    return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/franchise-readiness`, { tenantSlug });
+  },
+
+  getFranchisePlaybook: async (tenantSlug: string) => {
+    return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/franchise-playbook`, { tenantSlug });
   },
 };

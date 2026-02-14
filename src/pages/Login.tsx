@@ -11,7 +11,7 @@ import GoogleLoginButton from "@/components/auth/GoogleLoginButton";
 import { isPasskeySupported, loginPasskey } from "@/services/passkeys";
 import { useTenant } from "@/context/TenantContext";
 import { buildTenantPath } from "@/utils/tenantPaths";
-import { enterpriseService, type DemoRubro } from "@/services/enterpriseService";
+import { enterpriseService, type DemoCatalogTenant, type DemoRubro } from "@/services/enterpriseService";
 import { getRubrosHierarchy } from "@/api/rubros";
 import { mapDemoOptionsFromHierarchy } from "@/utils/enterpriseExperience";
 import { getDemoAccessProfiles } from "@/utils/demoAccessProfiles";
@@ -52,6 +52,39 @@ const Login = () => {
 
   const isGlobalLogin = location.pathname === '/login' || location.pathname === '/login/';
 
+  const normalizeDemoRubro = (raw: unknown): DemoRubro | null => {
+    if (typeof raw !== 'string') return null;
+    const normalized = raw.trim().toLowerCase();
+    if (normalized.includes('mun')) return 'municipio';
+    if (normalized.includes('pym') || normalized.includes('emp')) return 'pyme';
+    if (normalized === 'municipio' || normalized === 'pyme') return normalized;
+    return null;
+  };
+
+  const getDemoOptionsFromCatalog = (tenants: DemoCatalogTenant[] = []): Array<{ value: DemoRubro; label: string }> => {
+    const values = new Set<DemoRubro>();
+    const labelsByValue = new Map<DemoRubro, string>();
+
+    tenants.forEach((tenant) => {
+      const rawRubro = typeof tenant.rubro === 'string' && tenant.rubro.trim()
+        ? tenant.rubro.trim()
+        : (typeof tenant.tipo === 'string' ? tenant.tipo.trim() : '');
+
+      const rubro = normalizeDemoRubro(rawRubro);
+      if (!rubro) return;
+
+      values.add(rubro);
+      if (rawRubro && !labelsByValue.has(rubro)) {
+        labelsByValue.set(rubro, rawRubro);
+      }
+    });
+
+    return Array.from(values).map((value) => ({
+      value,
+      label: labelsByValue.get(value) || value,
+    }));
+  };
+
   const navigateToTenantCatalog = useCallback(
     (tenantSlug?: string | null) => {
       const storedSlug = safeLocalStorage.getItem("tenantSlug");
@@ -76,6 +109,16 @@ const Login = () => {
     let mounted = true;
     const loadDemoOptions = async () => {
       try {
+        const catalog = await enterpriseService.getDemoCatalog();
+        if (!mounted) return;
+
+        const catalogOptions = getDemoOptionsFromCatalog(catalog?.tenants);
+        if (catalogOptions.length > 0) {
+          setDemoOptions(catalogOptions);
+          setDemoRubro(catalogOptions[0].value);
+          return;
+        }
+
         const hierarchy = await getRubrosHierarchy();
         if (!mounted || !Array.isArray(hierarchy)) return;
         const nextOptions = mapDemoOptionsFromHierarchy(hierarchy);

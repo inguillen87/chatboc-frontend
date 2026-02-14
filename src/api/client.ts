@@ -176,6 +176,26 @@ export const apiClient = {
     return apiFetch<any[]>(`/api/admin/tenants/${tenantSlug}/ticket-categories`, { tenantSlug });
   },
 
+  adminGetFranchiseProfile: async (tenantSlug: string): Promise<any> => {
+    return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/franchise-profile`, { tenantSlug });
+  },
+
+  adminUpdateFranchiseProfile: async (tenantSlug: string, payload: any): Promise<any> => {
+    return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/franchise-profile`, {
+      method: 'PUT',
+      body: payload,
+      tenantSlug,
+    });
+  },
+
+  adminGetFranchiseReadiness: async (tenantSlug: string): Promise<any> => {
+    return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/franchise-readiness`, { tenantSlug });
+  },
+
+  adminGetFranchisePlaybook: async (tenantSlug: string): Promise<any> => {
+    return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/franchise-playbook`, { tenantSlug });
+  },
+
   // Legacy import - to be replaced by Wizard
   adminImportCatalog: async (tenantSlug: string, formData: FormData): Promise<any> => {
     return apiFetch<any>(`/api/admin/catalogo/importar`, {
