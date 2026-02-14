@@ -32,7 +32,7 @@ export const useBusinessHours = (entityToken?: string, tenantSlug?: string | nul
         }
 
         const candidatePaths = tenantSlug
-          ? ['/live-chat/schedule', `/api/${tenantSlug}/live-chat/schedule`]
+          ? ['/api/demo/live-chat/schedule', '/live-chat/schedule']
           : ['/live-chat/schedule'];
 
         let schedule: LiveChatSchedule | null = null;
