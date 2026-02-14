@@ -71,6 +71,10 @@ interface ChatPanelProps {
   welcomeTitle?: string;
   welcomeSubtitle?: string;
   logoAnimation?: string;
+  typingAnimation?: string;
+  bubbleAnimation?: string;
+  messageEnterAnimation?: string;
+  logoBadgeStyle?: string;
   onA11yChange?: (p: Prefs) => void;
   a11yPrefs?: Prefs;
   openWidth?: string;
@@ -105,6 +109,10 @@ const ChatPanel = (props: ChatPanelProps) => {
     welcomeTitle,
     welcomeSubtitle,
     logoAnimation,
+    typingAnimation,
+    bubbleAnimation,
+    messageEnterAnimation,
+    logoBadgeStyle,
     onA11yChange,
     a11yPrefs,
     catalogCard,
@@ -728,10 +736,19 @@ const ChatPanel = (props: ChatPanelProps) => {
             tipoChat={tipoChat}
             botLogoUrl={headerLogoUrl}
             logoAnimation={logoAnimation}
+            messageEnterAnimation={messageEnterAnimation}
+            bubbleAnimation={bubbleAnimation}
+            logoBadgeStyle={logoBadgeStyle}
           />
         ))}
         {isTyping && (
-          <TypingIndicator logoUrl={headerLogoUrl} logoAnimation={logoAnimation} text={typingText} />
+          <TypingIndicator
+            logoUrl={headerLogoUrl}
+            logoAnimation={logoAnimation}
+            text={typingText}
+            typingAnimation={typingAnimation}
+            logoBadgeStyle={logoBadgeStyle}
+          />
         )}
         {userTyping && <UserTypingIndicator />}
         <div ref={messagesEndRef} />

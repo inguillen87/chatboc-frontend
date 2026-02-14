@@ -189,6 +189,13 @@ function ChatWidgetInner({
     logoRing: true,
     gradientStart: '#0f172a',
     gradientEnd: '#007aff',
+    typingAnimation: 'wave-dots',
+    bubbleAnimation: 'soft-rise',
+    launcherAnimation: 'pulse-glow',
+    messageEnterAnimation: 'fade-up',
+    logoBadgeStyle: 'ring',
+    cursorTrail: false,
+    ambientParticles: false,
   } as const;
 
   const normalizeUxBool = (value: unknown, fallback: boolean) => {
@@ -219,6 +226,13 @@ function ChatWidgetInner({
       logoRing: normalizeUxBool(attrs['data-logo-ring'] ?? ux.logo_ring, DEFAULT_WIDGET_UX.logoRing),
       gradientStart: normalizeUxString(attrs['data-gradient-start'] ?? ux.gradient_start, DEFAULT_WIDGET_UX.gradientStart),
       gradientEnd: normalizeUxString(attrs['data-gradient-end'] ?? ux.gradient_end, DEFAULT_WIDGET_UX.gradientEnd),
+      typingAnimation: normalizeUxString(attrs['data-typing-animation'] ?? ux.typing_animation, DEFAULT_WIDGET_UX.typingAnimation),
+      bubbleAnimation: normalizeUxString(attrs['data-bubble-animation'] ?? ux.bubble_animation, DEFAULT_WIDGET_UX.bubbleAnimation),
+      launcherAnimation: normalizeUxString(attrs['data-launcher-animation'] ?? ux.launcher_animation, DEFAULT_WIDGET_UX.launcherAnimation),
+      messageEnterAnimation: normalizeUxString(attrs['data-message-enter-animation'] ?? ux.message_enter_animation, DEFAULT_WIDGET_UX.messageEnterAnimation),
+      logoBadgeStyle: normalizeUxString(attrs['data-logo-badge-style'] ?? ux.logo_badge_style, DEFAULT_WIDGET_UX.logoBadgeStyle),
+      cursorTrail: normalizeUxBool(attrs['data-cursor-trail'] ?? ux.cursor_trail, DEFAULT_WIDGET_UX.cursorTrail),
+      ambientParticles: normalizeUxBool(attrs['data-ambient-particles'] ?? ux.ambient_particles, DEFAULT_WIDGET_UX.ambientParticles),
     };
   };
 
@@ -544,6 +558,7 @@ function ChatWidgetInner({
   const [showProactiveBubble, setShowProactiveBubble] = useState(false);
   const [proactiveCycle, setProactiveCycle] = useState(0);
   const [widgetUx, setWidgetUx] = useState(DEFAULT_WIDGET_UX);
+  const [cursorTrailPoint, setCursorTrailPoint] = useState<{ x: number; y: number } | null>(null);
 
   // Apply Theme Config
   useEffect(() => {
@@ -1355,6 +1370,7 @@ function ChatWidgetInner({
   };
 
   const motionScale = widgetUx.motionLevel === 'pro' ? 1 : widgetUx.motionLevel === 'minimal' ? 0.5 : 0.75;
+  const enableHeavyEffects = widgetUx.motionLevel !== 'low' && !isMobileView;
 
   const launcherPalette = useMemo(() => {
     const primary = primaryColor || widgetUx.gradientEnd || "hsl(var(--primary))";
@@ -1430,6 +1446,13 @@ function ChatWidgetInner({
         data-logo-ring={String(widgetUx.logoRing)}
         data-gradient-start={widgetUx.gradientStart}
         data-gradient-end={widgetUx.gradientEnd}
+        data-typing-animation={widgetUx.typingAnimation}
+        data-bubble-animation={widgetUx.bubbleAnimation}
+        data-launcher-animation={widgetUx.launcherAnimation}
+        data-message-enter-animation={widgetUx.messageEnterAnimation}
+        data-logo-badge-style={widgetUx.logoBadgeStyle}
+        data-cursor-trail={String(widgetUx.cursorTrail)}
+        data-ambient-particles={String(widgetUx.ambientParticles)}
         className={cn(
           "chatboc-container flex flex-col",
           mode === "standalone"
@@ -1437,7 +1460,42 @@ function ChatWidgetInner({
             : "w-full h-full"
         )}
         style={containerStyle}
+        onMouseMove={(event) => {
+          if (!widgetUx.cursorTrail || !enableHeavyEffects) return;
+          const rect = widgetContainerRef.current?.getBoundingClientRect();
+          if (!rect) return;
+          setCursorTrailPoint({ x: event.clientX - rect.left, y: event.clientY - rect.top });
+        }}
       >
+        {widgetUx.cursorTrail && enableHeavyEffects && cursorTrailPoint ? (
+          <motion.span
+            aria-hidden
+            className="pointer-events-none absolute z-10 h-20 w-20 rounded-full"
+            style={{
+              left: cursorTrailPoint.x - 40,
+              top: cursorTrailPoint.y - 40,
+              background: `radial-gradient(circle, ${launcherPalette.accent}40 0%, transparent 70%)`,
+              filter: 'blur(8px)',
+            }}
+            animate={{ opacity: [0.25, 0.45, 0.25] }}
+            transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
+          />
+        ) : null}
+
+        {widgetUx.ambientParticles && enableHeavyEffects ? (
+          <div className="pointer-events-none absolute inset-0 overflow-hidden z-[1]">
+            {[0, 1, 2, 3].map((particle) => (
+              <motion.span
+                key={`ambient-${particle}`}
+                className="absolute h-2 w-2 rounded-full bg-primary/35"
+                style={{ left: `${18 + particle * 19}%`, top: `${22 + (particle % 2) * 28}%` }}
+                animate={{ y: [-4, 8, -4], opacity: [0.15, 0.5, 0.15] }}
+                transition={{ duration: 3 + particle * 0.7, repeat: Infinity, ease: 'easeInOut' }}
+              />
+            ))}
+          </div>
+        ) : null}
+
         {isOpen && a11yPrefs.dyslexia && <ReadingRuler />}
         {isProfileLoading ? (
           <div className="w-full h-full flex items-center justify-center bg-card rounded-2xl">
@@ -1532,6 +1590,10 @@ function ChatWidgetInner({
                     welcomeTitle={headerTitle}
                     welcomeSubtitle={headerSubtitle}
                     logoAnimation={logoAnimation}
+                    typingAnimation={widgetUx.typingAnimation}
+                    bubbleAnimation={widgetUx.bubbleAnimation}
+                    messageEnterAnimation={widgetUx.messageEnterAnimation}
+                    logoBadgeStyle={widgetUx.logoBadgeStyle}
                     onA11yChange={setA11yPrefs}
                     a11yPrefs={a11yPrefs}
                   />
@@ -1596,7 +1658,11 @@ function ChatWidgetInner({
                     : presetVisualProfile.closedShadowLight,
                 }}
                 {...buttonAnimation}
-                whileHover={{ scale: 1.08, transition: { type: "spring", stiffness: 420, damping: 18 / motionScale } }}
+                whileHover={{
+                  scale: widgetUx.launcherAnimation.includes('pulse') ? 1.1 : 1.08,
+                  rotate: widgetUx.launcherAnimation.includes('orbit') ? 3 : 0,
+                  transition: { type: "spring", stiffness: 420, damping: 18 / motionScale },
+                }}
                 whileTap={{ scale: 0.95 }}
                 onClick={toggleChat}
                 aria-label="Abrir chat"
