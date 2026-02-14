@@ -328,6 +328,10 @@ function ChatWidgetInner({
   );
 
   const catalogCtaLabel = catalogLinks?.cta_label ?? catalogLinks?.view_label;
+  const supportChannels = useMemo(
+    () => entityInfo?.widget?.support_channels || entityInfo?.support_channels || null,
+    [entityInfo],
+  );
   const showCatalogCta =
     !!catalogCtaLabel &&
     !!catalogLinks?.view_url &&
@@ -1453,6 +1457,8 @@ function ChatWidgetInner({
         data-logo-badge-style={widgetUx.logoBadgeStyle}
         data-cursor-trail={String(widgetUx.cursorTrail)}
         data-ambient-particles={String(widgetUx.ambientParticles)}
+        data-support-live-chat={String(Boolean(supportChannels?.live_chat?.realtime))}
+        data-support-whatsapp={String(Boolean(supportChannels?.whatsapp?.enabled))}
         className={cn(
           "chatboc-container flex flex-col",
           mode === "standalone"
@@ -1594,6 +1600,7 @@ function ChatWidgetInner({
                     bubbleAnimation={widgetUx.bubbleAnimation}
                     messageEnterAnimation={widgetUx.messageEnterAnimation}
                     logoBadgeStyle={widgetUx.logoBadgeStyle}
+                    supportChannels={supportChannels}
                     onA11yChange={setA11yPrefs}
                     a11yPrefs={a11yPrefs}
                   />

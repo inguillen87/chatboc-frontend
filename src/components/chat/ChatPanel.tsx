@@ -75,6 +75,10 @@ interface ChatPanelProps {
   bubbleAnimation?: string;
   messageEnterAnimation?: string;
   logoBadgeStyle?: string;
+  supportChannels?: {
+    live_chat?: { realtime?: boolean; media?: Record<string, boolean> };
+    whatsapp?: { enabled?: boolean; realtime_bridge?: boolean; media?: Record<string, boolean>; label?: string };
+  } | null;
   onA11yChange?: (p: Prefs) => void;
   a11yPrefs?: Prefs;
   openWidth?: string;
@@ -113,6 +117,7 @@ const ChatPanel = (props: ChatPanelProps) => {
     bubbleAnimation,
     messageEnterAnimation,
     logoBadgeStyle,
+    supportChannels,
     onA11yChange,
     a11yPrefs,
     catalogCard,
@@ -438,6 +443,23 @@ const ChatPanel = (props: ChatPanelProps) => {
       action: "request_agent",
     });
   };
+
+  const handleWhatsAppBridge = () => {
+    handleSend({
+      action: 'contact_whatsapp',
+      payload: { channel: 'whatsapp' },
+    });
+  };
+
+  const liveChatAllowedByBackend = supportChannels?.live_chat?.realtime !== false;
+  const canRenderLiveChat = Boolean(liveChatAllowedByBackend && isLiveChatEnabled);
+  const canRenderWhatsAppBridge = Boolean(
+    supportChannels?.whatsapp?.enabled && supportChannels?.whatsapp?.realtime_bridge,
+  );
+  const whatsappButtonLabel =
+    typeof supportChannels?.whatsapp?.label === 'string' && supportChannels.whatsapp.label.trim()
+      ? supportChannels.whatsapp.label.trim()
+      : 'WhatsApp';
 
   const handleInternalAction = useCallback(
     async (action: string) => {
@@ -767,21 +789,26 @@ const ChatPanel = (props: ChatPanelProps) => {
            </div>
         )}
         {!activeTicketId && (
-            isLiveChatEnabled ? (
-              <Button onClick={handleLiveChatRequest} className="w-full mb-2">
-                Hablar con un representante
-              </Button>
-            ) : (
-              horariosAtencion && (
-                <div className="text-center text-sm text-muted-foreground p-2">
-                  <p>Para hablar con un representante, nuestro horario de atención es:</p>
-                  <p>
-                    <strong>{horariosAtencion}</strong>
-                  </p>
-                </div>
-              )
+          canRenderLiveChat ? (
+            <Button onClick={handleLiveChatRequest} className="w-full mb-2">
+              Hablar con un representante
+            </Button>
+          ) : (
+            horariosAtencion && (
+              <div className="text-center text-sm text-muted-foreground p-2">
+                <p>Para hablar con un representante, nuestro horario de atención es:</p>
+                <p>
+                  <strong>{horariosAtencion}</strong>
+                </p>
+              </div>
             )
+          )
         )}
+        {!activeTicketId && canRenderWhatsAppBridge ? (
+          <Button onClick={handleWhatsAppBridge} variant="outline" className="w-full mb-2">
+            {whatsappButtonLabel}
+          </Button>
+        ) : null}
         {contexto.estado_conversacion === 'recolectando_datos_personales' ? (
           <PersonalDataForm onSubmit={handlePersonalDataSubmit} isSubmitting={isTyping} />
         ) : (
