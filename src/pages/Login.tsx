@@ -11,7 +11,7 @@ import GoogleLoginButton from "@/components/auth/GoogleLoginButton";
 import { isPasskeySupported, loginPasskey } from "@/services/passkeys";
 import { useTenant } from "@/context/TenantContext";
 import { buildTenantPath } from "@/utils/tenantPaths";
-import { enterpriseService, type DemoCatalogTenant, type DemoRubro } from "@/services/enterpriseService";
+import { enterpriseService, type DemoCatalogEntryPoint, type DemoCatalogTenant, type DemoRubro } from "@/services/enterpriseService";
 import { getRubrosHierarchy } from "@/api/rubros";
 import { mapDemoOptionsFromHierarchy } from "@/utils/enterpriseExperience";
 import { getDemoAccessProfiles } from "@/utils/demoAccessProfiles";
@@ -47,6 +47,7 @@ const Login = () => {
   const [isDemoLoading, setIsDemoLoading] = useState(false);
   const [demoRubro, setDemoRubro] = useState<DemoRubro | null>(null);
   const [demoOptions, setDemoOptions] = useState<Array<{ value: DemoRubro; label: string }>>([]);
+  const [demoEntryPoints, setDemoEntryPoints] = useState<DemoCatalogEntryPoint[]>([]);
   const demoAccessProfiles = getDemoAccessProfiles();
   const franchisePartner = getFranchisePartnerConfig();
 
@@ -59,6 +60,14 @@ const Login = () => {
     if (normalized.includes('pym') || normalized.includes('emp')) return 'pyme';
     if (normalized === 'municipio' || normalized === 'pyme') return normalized;
     return null;
+  };
+
+  const getDemoEntryPoints = (entryPoints: DemoCatalogEntryPoint[] = []): DemoCatalogEntryPoint[] => {
+    return entryPoints.filter((entry) => {
+      const rubro = normalizeDemoRubro(entry?.rubro);
+      const label = typeof entry?.label === 'string' ? entry.label.trim() : '';
+      return Boolean(rubro && label);
+    });
   };
 
   const getDemoOptionsFromCatalog = (tenants: DemoCatalogTenant[] = []): Array<{ value: DemoRubro; label: string }> => {
@@ -112,10 +121,15 @@ const Login = () => {
         const catalog = await enterpriseService.getDemoCatalog();
         if (!mounted) return;
 
+        const backendEntryPoints = getDemoEntryPoints(catalog?.entry_points);
+        if (backendEntryPoints.length > 0) {
+          setDemoEntryPoints(backendEntryPoints);
+        }
+
         const catalogOptions = getDemoOptionsFromCatalog(catalog?.tenants);
         if (catalogOptions.length > 0) {
           setDemoOptions(catalogOptions);
-          setDemoRubro(catalogOptions[0].value);
+          setDemoRubro((prev) => prev || catalogOptions[0].value);
           return;
         }
 
@@ -124,7 +138,7 @@ const Login = () => {
         const nextOptions = mapDemoOptionsFromHierarchy(hierarchy);
         if (nextOptions.length > 0) {
           setDemoOptions(nextOptions);
-          setDemoRubro(nextOptions[0].value);
+          setDemoRubro((prev) => prev || nextOptions[0].value);
         }
       } catch (err) {
         console.warn('No se pudieron cargar rubros demo desde backend', err);
@@ -254,12 +268,13 @@ const Login = () => {
 
 
 
-  const handleDemoLogin = async () => {
+  const handleDemoLogin = async (rubroOverride?: DemoRubro) => {
     setError("");
     setIsDemoLoading(true);
     try {
-      if (!demoRubro) return;
-      const data = await enterpriseService.demoLogin(demoRubro);
+      const resolvedRubro = rubroOverride || demoRubro;
+      if (!resolvedRubro) return;
+      const data = await enterpriseService.demoLogin(resolvedRubro);
       safeLocalStorage.setItem("authToken", data.token);
       safeLocalStorage.setItem("demoMode", String(Boolean(data.demo_mode)));
       if (data.tenant?.slug) safeLocalStorage.setItem("tenantSlug", data.tenant.slug);
@@ -376,6 +391,28 @@ const Login = () => {
           >
             {isDemoLoading ? "Ingresando demo..." : "Probar Demo"}
           </Button>
+          {demoEntryPoints.length > 0 ? (
+            <div className="grid gap-2">
+              {demoEntryPoints.map((entry) => {
+                const rubro = normalizeDemoRubro(entry.rubro);
+                if (!rubro) return null;
+                return (
+                  <Button
+                    key={entry.id || `${rubro}-${entry.label}`}
+                    type="button"
+                    variant="secondary"
+                    onClick={() => {
+                      setDemoRubro(rubro);
+                      handleDemoLogin(rubro);
+                    }}
+                    disabled={isDemoLoading || isLoading || isPasskeyLoading}
+                  >
+                    {entry.label}
+                  </Button>
+                );
+              })}
+            </div>
+          ) : null}
         </div>
 
         {demoAccessProfiles.length > 0 ? (

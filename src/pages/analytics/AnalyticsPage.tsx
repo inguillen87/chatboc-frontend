@@ -7,7 +7,7 @@ import { Loader2, AlertCircle } from 'lucide-react';
 import { useTenant } from '@/context/TenantContext';
 
 import { analyticsService, AnalyticsSummary } from '@/services/analyticsService';
-import { enterpriseService } from '@/services/enterpriseService';
+import { enterpriseService, type LeadInteractionItem } from '@/services/enterpriseService';
 import OverviewDashboard from '@/components/analytics/OverviewDashboard';
 import HeatmapDashboard from '@/components/analytics/HeatmapDashboard';
 import InsightsDashboard from '@/components/analytics/InsightsDashboard';
@@ -35,6 +35,8 @@ const AnalyticsPage = () => {
   const [executiveSummary, setExecutiveSummary] = useState<string>('');
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [leadInteractions, setLeadInteractions] = useState<LeadInteractionItem[]>([]);
+  const [loadingLeadInteractions, setLoadingLeadInteractions] = useState(false);
 
   const fireAndForgetTrackEvent = (payload: { tenant_id: number; event_name: string; payload?: Record<string, unknown>; channel?: string; session_id?: string }) => {
     enterpriseService
@@ -86,6 +88,38 @@ const AnalyticsPage = () => {
         fetchData();
     }
   }, [tenantId, currentSlug, dateRange, context, scope]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchLeadInteractions = async () => {
+      if (!tenantId) return;
+      setLoadingLeadInteractions(true);
+      try {
+        const response = await enterpriseService.getLeadInteractions(
+          { tenant_id: tenantId, limit: 20, from: dateRange.from, to: dateRange.to, scope },
+          currentSlug || undefined,
+        );
+        if (cancelled) return;
+        const items = Array.isArray(response?.items)
+          ? response.items
+          : (Array.isArray(response?.interactions) ? response.interactions : []);
+        setLeadInteractions(items);
+      } catch (leadError) {
+        if (!cancelled) {
+          console.warn('[AnalyticsPage] lead interactions unavailable', leadError);
+          setLeadInteractions([]);
+        }
+      } finally {
+        if (!cancelled) setLoadingLeadInteractions(false);
+      }
+    };
+
+    fetchLeadInteractions();
+    return () => {
+      cancelled = true;
+    };
+  }, [tenantId, currentSlug, dateRange.from, dateRange.to, scope]);
+
 
 
   const handleExport = async (format: 'csv' | 'pdf') => {
@@ -230,6 +264,30 @@ const AnalyticsPage = () => {
         <SectionErrorBoundary title="No pudimos cargar insights">
           <InsightsDashboard tenantId={tenantId} />
         </SectionErrorBoundary>
+      </div>
+
+
+      <div className="mt-8 rounded-lg border bg-card p-4">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <h2 className="font-semibold">Timeline de interacciones de leads</h2>
+          {loadingLeadInteractions ? <span className="text-xs text-muted-foreground">Actualizando…</span> : null}
+        </div>
+        {leadInteractions.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No hay interacciones priorizadas para este período.</p>
+        ) : (
+          <div className="space-y-2">
+            {leadInteractions.map((item, index) => (
+              <div key={String(item.id || `${item.lead_email || item.lead_phone || 'lead'}-${index}`)} className="rounded-md border px-3 py-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm font-medium">{item.lead_name || item.lead_email || item.lead_phone || 'Lead sin identificar'}</p>
+                  <span className="text-xs text-muted-foreground">Score {typeof item.score === 'number' ? item.score : '-'}</span>
+                </div>
+                <p className="text-xs text-muted-foreground">{item.intent || 'Sin intención clasificada'}</p>
+                {item.last_message ? <p className="text-sm mt-1">{item.last_message}</p> : null}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="mt-8">

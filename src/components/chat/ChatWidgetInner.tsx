@@ -1550,6 +1550,7 @@ function ChatWidgetInner({
                     subtitle={headerSubtitle}
                     logoAnimation={logoAnimation}
                     onA11yChange={setA11yPrefs}
+                    supportChannels={supportChannels}
                   />
                 </Suspense>
               )}

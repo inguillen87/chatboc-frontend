@@ -76,7 +76,7 @@ interface ChatPanelProps {
   messageEnterAnimation?: string;
   logoBadgeStyle?: string;
   supportChannels?: {
-    live_chat?: { realtime?: boolean; media?: Record<string, boolean> };
+    live_chat?: { realtime?: boolean; available?: boolean; media?: Record<string, boolean>; label?: string };
     whatsapp?: { enabled?: boolean; realtime_bridge?: boolean; media?: Record<string, boolean>; label?: string };
   } | null;
   onA11yChange?: (p: Prefs) => void;
@@ -137,6 +137,7 @@ const ChatPanel = (props: ChatPanelProps) => {
   const socketRef = useRef<SocketIOClient.Socket | null>(null);
 
   const skipAuth = mode === 'script';
+  const liveChatIsAvailable = Boolean(supportChannels?.live_chat?.available ?? supportChannels?.live_chat?.realtime);
   const normalizedPropRubro = extractRubroKey(selectedRubro);
   const [localRubro, setLocalRubro] = useState<string | null>(() => normalizedPropRubro ?? null);
   const resolvedSelectedRubro = localRubro ?? normalizedPropRubro ?? null;
@@ -159,6 +160,7 @@ const ChatPanel = (props: ChatPanelProps) => {
     tenantSlug,
     skipAuth,
     selectedRubro: resolvedSelectedRubro,
+    liveChatAvailable: liveChatIsAvailable,
   });
 
   const shouldShowCatalogCard = Boolean(
@@ -663,6 +665,7 @@ const ChatPanel = (props: ChatPanelProps) => {
           subtitle={welcomeSubtitle}
           logoAnimation={logoAnimation}
           onA11yChange={onA11yChange}
+          supportChannels={supportChannels}
         />
         <div className="flex-1 overflow-hidden px-4 pb-4">
           <div className="mx-auto flex h-full max-h-[calc(100vh-160px)] w-full max-w-sm flex-col rounded-2xl border border-primary/20 bg-gradient-to-b from-background via-background to-primary/[0.05] p-6 text-center shadow-xl backdrop-blur-sm">
@@ -716,6 +719,7 @@ const ChatPanel = (props: ChatPanelProps) => {
         subtitle={welcomeSubtitle}
         logoAnimation={logoAnimation}
         onA11yChange={onA11yChange}
+        supportChannels={supportChannels}
       />
       {onCart && tipoChat === 'pyme' && (
         <div className="px-2 sm:px-4 pt-2">

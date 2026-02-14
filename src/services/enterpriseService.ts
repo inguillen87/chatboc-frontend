@@ -24,8 +24,16 @@ export interface DemoCatalogTenant {
   rubro?: string;
 }
 
+export interface DemoCatalogEntryPoint {
+  id?: string;
+  rubro?: DemoRubro;
+  label?: string;
+  description?: string;
+}
+
 export interface DemoCatalogResponse {
   tenants?: DemoCatalogTenant[];
+  entry_points?: DemoCatalogEntryPoint[];
   supported_languages?: string[];
   credentials?: Record<string, unknown>;
 }
@@ -68,6 +76,19 @@ export interface BotSettingsResponse {
   };
 }
 
+
+export interface LeadInteractionItem {
+  id?: number | string;
+  lead_name?: string;
+  lead_email?: string;
+  lead_phone?: string;
+  intent?: string;
+  score?: number;
+  last_message?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 interface EnterpriseBaseFilters {
   tenant_id: number;
   scope?: string;
@@ -86,6 +107,38 @@ const buildQueryString = (filters: Record<string, string | number | boolean | un
 };
 
 export const enterpriseService = {
+  captureLead: async (payload: {
+    tenant_slug?: string;
+    name?: string;
+    email?: string;
+    phone?: string;
+    interest?: string;
+    message?: string;
+    source?: string;
+    metadata?: Record<string, unknown>;
+  }) => {
+    return apiFetch<any>('/api/public/lead-capture', {
+      method: 'POST',
+      body: payload,
+      skipAuth: true,
+      isWidgetRequest: true,
+      omitCredentials: true,
+      omitChatSessionId: true,
+      sendAnonId: true,
+    });
+  },
+
+  getLeadInteractions: async (filters: {
+    tenant_id: number;
+    limit?: number;
+    from?: string;
+    to?: string;
+    scope?: string;
+  }, tenantSlug?: string) => {
+    const query = buildQueryString(filters);
+    return apiFetch<{ items?: LeadInteractionItem[]; interactions?: LeadInteractionItem[] }>(`/api/admin/leads/interactions?${query}`, { tenantSlug });
+  },
+
   getDemoCatalog: async (ensureUsers = false): Promise<DemoCatalogResponse> => {
     const suffix = ensureUsers ? '?ensure_users=true' : '';
     return apiFetch<DemoCatalogResponse>(`/auth/demo/catalog${suffix}`);
