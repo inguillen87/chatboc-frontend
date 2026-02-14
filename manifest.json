@@ -1,15 +1,27 @@
 {
-  "name": "Chatboc",
+  "name": "Chatboc | Tu experto virtual",
   "short_name": "Chatboc",
+  "description": "Automatizá consultas, ventas y atención al cliente con IA para pymes y municipios.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#ffffff",
+  "theme_color": "#0f62fe",
   "icons": [
     {
-      "src": "/chatboc_widget_64x64.png",
-      "sizes": "64x64",
+      "src": "/favicon/favicon-192x192.png",
+      "sizes": "192x192",
       "type": "image/png"
+    },
+    {
+      "src": "/favicon/favicon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/favicon/favicon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ]
 }
