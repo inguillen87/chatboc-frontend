@@ -4,6 +4,14 @@ export interface TenantDemoSummary {
   slug: string;
   nombre: string;
   descripcion?: string;
+  widget_preview?: {
+    preset?: string;
+    motion_level?: string;
+    glassmorphism?: boolean;
+    logo_ring?: boolean;
+    gradient_start?: string;
+    gradient_end?: string;
+  };
 }
 
 export interface Rubro {
