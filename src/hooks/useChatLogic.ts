@@ -24,6 +24,7 @@ import { getVisitorName, setVisitorName } from "@/utils/visitorName";
 import { ensureAbsoluteUrl, mergeButtons, pickFirstString } from "@/utils/chatButtons";
 import { deriveAttachmentInfo } from "@/utils/attachment";
 import { getValidStoredToken } from "@/utils/authTokens";
+import { enterpriseService } from "@/services/enterpriseService";
 
 const EMOJI_CATEGORY_MAP: Record<string, string> = {
   // Agua y saneamiento
@@ -60,6 +61,21 @@ const findCategoryFromEmoji = (text: string): string | undefined => {
 
 const LIVE_CHAT_STATUSES = new Set(['esperando_agente_en_vivo', 'en_vivo']);
 
+const HIGH_INTENT_PATTERNS = [
+  'hablar con un representante',
+  'hablar con un agente',
+  'hablar con ventas',
+  'quiero comprar',
+  'necesito asesor',
+  'cotizacion',
+  'cotización',
+  'presupuesto',
+  'contacto',
+  'whatsapp',
+];
+
+const URGENT_PATTERNS = ['urgente', 'emergencia', 'ahora', 'ya', 'inmediato', 'prioridad'];
+
 interface UseChatLogicOptions {
   tipoChat: 'pyme' | 'municipio';
   entityToken?: string;
@@ -67,6 +83,7 @@ interface UseChatLogicOptions {
   tokenKey?: string;
   skipAuth?: boolean;
   selectedRubro?: string | null;
+  liveChatAvailable?: boolean;
 }
 
 export function useChatLogic({
@@ -76,8 +93,28 @@ export function useChatLogic({
   tokenKey = 'authToken',
   skipAuth = false,
   selectedRubro = null,
+  liveChatAvailable = false,
 }: UseChatLogicOptions) {
   const entityToken = propToken || getIframeToken();
+
+  const shouldUsePublicFlow = useCallback(
+    (resolvedTipoChat: 'pyme' | 'municipio', resolvedTenantSlug?: string | null) => {
+      if (resolvedTipoChat !== 'municipio') return false;
+
+      const normalizedTenant = typeof resolvedTenantSlug === 'string'
+        ? resolvedTenantSlug.trim().toLowerCase()
+        : '';
+      const isMunicipioTenant = normalizedTenant === 'municipio';
+      const hasAuthToken = Boolean(
+        safeLocalStorage.getItem('authToken') ||
+        safeLocalStorage.getItem('chatAuthToken') ||
+        safeLocalStorage.getItem(tokenKey),
+      );
+
+      return isMunicipioTenant || (!entityToken && !normalizedTenant && !hasAuthToken);
+    },
+    [entityToken, tokenKey],
+  );
   const { user } = useUser();
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
@@ -171,7 +208,7 @@ export function useChatLogic({
 
       setIsTyping(true);
 
-      const isPublicDemo = tipoChat === 'municipio' && (tenantSlug === 'municipio' || (!entityToken && !tenantSlug));
+      const isPublicDemo = shouldUsePublicFlow(tipoChatFinal, tenantSlug);
       const effectiveSkipAuth = skipAuth || isPublicDemo;
 
       try {
@@ -210,7 +247,7 @@ export function useChatLogic({
         setIsTyping(false);
       }
     },
-    [contexto, selectedRubro, skipAuth, tipoChat, tenantSlug, entityToken]
+    [contexto, selectedRubro, skipAuth, tipoChat, tenantSlug, entityToken, shouldUsePublicFlow]
   );
 
   const initializeConversationRef = useRef(initializeConversation);
@@ -225,6 +262,7 @@ export function useChatLogic({
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const ultimoMensajeIdRef = useRef<number>(0);
   const clientMessageIdCounter = useRef(0);
+  const leadCaptureSentRef = useRef(false);
 
   const generateClientMessageId = () => {
     clientMessageIdCounter.current += 1;
@@ -1134,6 +1172,48 @@ export function useChatLogic({
       setVisitorName(payloadNombre);
     }
 
+
+    const isHighIntent = HIGH_INTENT_PATTERNS.some((keyword) => normalizedForMatching.includes(keyword));
+    if (isHighIntent && !leadCaptureSentRef.current) {
+      const storedUser = JSON.parse(safeLocalStorage.getItem('user') || 'null');
+      const leadName = pickFirstString(
+        actionPayload?.nombre,
+        storedUser?.name,
+        storedUser?.nombre,
+        getVisitorName(),
+      );
+      const leadEmail = pickFirstString(actionPayload?.email, storedUser?.email);
+      const leadPhone = pickFirstString(
+        actionPayload?.telefono,
+        storedUser?.telefono,
+        storedUser?.phone,
+        storedUser?.whatsapp,
+        storedUser?.celular,
+      );
+
+      if (leadName || leadEmail || leadPhone) {
+        leadCaptureSentRef.current = true;
+        enterpriseService.captureLead({
+          tenant_slug: tenantSlug || undefined,
+          name: leadName,
+          email: leadEmail,
+          phone: leadPhone,
+          interest: userMessageText || normalizedQuestionBase,
+          message: originalText,
+          source: 'widget_chat',
+          metadata: { tipo_chat: tipoChat, action: resolvedAction || null },
+        }).catch((captureError) => {
+          leadCaptureSentRef.current = false;
+          console.warn('Lead capture failed', captureError);
+        });
+      }
+    }
+
+    const isUrgentMessage = URGENT_PATTERNS.some((keyword) => normalizedForMatching.includes(keyword));
+    if (isUrgentMessage && liveChatAvailable && !liveChatTicketId && !resolvedAction) {
+      resolvedAction = 'request_agent';
+    }
+
     if (resolvedAction === 'iniciar_creacion_reclamo') {
       // Check for existing user data
       const userData = user || JSON.parse(safeLocalStorage.getItem('user') || 'null');
@@ -1280,7 +1360,7 @@ export function useChatLogic({
 
       const endpoint = getAskEndpoint({ tipoChat: tipoChatFinal, rubro });
 
-      const isPublicDemo = tipoChat === 'municipio' && (tenantSlug === 'municipio' || (!entityToken && !tenantSlug));
+      const isPublicDemo = shouldUsePublicFlow(tipoChatFinal, tenantSlug);
       const effectiveSkipAuth = skipAuth || isPublicDemo;
 
       console.log('useChatLogic: Sending message to backend', { endpoint, requestBody });
@@ -1311,7 +1391,7 @@ export function useChatLogic({
     currentClaimIdempotencyKey,
     tipoChat,
     tenantSlug,
-    entityToken, selectedRubro, user,
+    entityToken, selectedRubro, user, shouldUsePublicFlow, liveChatAvailable,
   ]);
 
   const isLiveChatActive = liveChatTicketId !== null;

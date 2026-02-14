@@ -71,6 +71,14 @@ interface ChatPanelProps {
   welcomeTitle?: string;
   welcomeSubtitle?: string;
   logoAnimation?: string;
+  typingAnimation?: string;
+  bubbleAnimation?: string;
+  messageEnterAnimation?: string;
+  logoBadgeStyle?: string;
+  supportChannels?: {
+    live_chat?: { realtime?: boolean; available?: boolean; media?: Record<string, boolean>; label?: string };
+    whatsapp?: { enabled?: boolean; realtime_bridge?: boolean; media?: Record<string, boolean>; label?: string };
+  } | null;
   onA11yChange?: (p: Prefs) => void;
   a11yPrefs?: Prefs;
   openWidth?: string;
@@ -105,11 +113,20 @@ const ChatPanel = (props: ChatPanelProps) => {
     welcomeTitle,
     welcomeSubtitle,
     logoAnimation,
+    typingAnimation,
+    bubbleAnimation,
+    messageEnterAnimation,
+    logoBadgeStyle,
+    supportChannels,
     onA11yChange,
     a11yPrefs,
     catalogCard,
   } = props;
   const isMobile = useIsMobile();
+  const fallbackRubroTitle = welcomeTitle || "Chatboc";
+  const fallbackRubroSubtitle =
+    welcomeSubtitle ||
+    "Seleccioná un rubro para personalizar la experiencia automáticamente.";
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatInputTextRef = useRef<HTMLInputElement>(null);
@@ -120,6 +137,7 @@ const ChatPanel = (props: ChatPanelProps) => {
   const socketRef = useRef<SocketIOClient.Socket | null>(null);
 
   const skipAuth = mode === 'script';
+  const liveChatIsAvailable = Boolean(supportChannels?.live_chat?.available ?? supportChannels?.live_chat?.realtime);
   const normalizedPropRubro = extractRubroKey(selectedRubro);
   const [localRubro, setLocalRubro] = useState<string | null>(() => normalizedPropRubro ?? null);
   const resolvedSelectedRubro = localRubro ?? normalizedPropRubro ?? null;
@@ -142,6 +160,7 @@ const ChatPanel = (props: ChatPanelProps) => {
     tenantSlug,
     skipAuth,
     selectedRubro: resolvedSelectedRubro,
+    liveChatAvailable: liveChatIsAvailable,
   });
 
   const shouldShowCatalogCard = Boolean(
@@ -427,6 +446,23 @@ const ChatPanel = (props: ChatPanelProps) => {
     });
   };
 
+  const handleWhatsAppBridge = () => {
+    handleSend({
+      action: 'contact_whatsapp',
+      payload: { channel: 'whatsapp' },
+    });
+  };
+
+  const liveChatAllowedByBackend = supportChannels?.live_chat?.realtime !== false;
+  const canRenderLiveChat = Boolean(liveChatAllowedByBackend && isLiveChatEnabled);
+  const canRenderWhatsAppBridge = Boolean(
+    supportChannels?.whatsapp?.enabled && supportChannels?.whatsapp?.realtime_bridge,
+  );
+  const whatsappButtonLabel =
+    typeof supportChannels?.whatsapp?.label === 'string' && supportChannels.whatsapp.label.trim()
+      ? supportChannels.whatsapp.label.trim()
+      : 'WhatsApp';
+
   const handleInternalAction = useCallback(
     async (action: string) => {
       const normalized = action.toLowerCase().replace(/[_\s-]+/g, "");
@@ -629,21 +665,20 @@ const ChatPanel = (props: ChatPanelProps) => {
           subtitle={welcomeSubtitle}
           logoAnimation={logoAnimation}
           onA11yChange={onA11yChange}
+          supportChannels={supportChannels}
         />
         <div className="flex-1 overflow-hidden px-4 pb-4">
-          <div className="mx-auto flex h-full max-h-[calc(100vh-160px)] w-full max-w-sm flex-col rounded-2xl border border-border bg-background/90 p-6 text-center shadow-lg">
+          <div className="mx-auto flex h-full max-h-[calc(100vh-160px)] w-full max-w-sm flex-col rounded-2xl border border-primary/20 bg-gradient-to-b from-background via-background to-primary/[0.05] p-6 text-center shadow-xl backdrop-blur-sm">
             <img
-              src="/chatboc_logo_clean_transparent.png"
+              src={headerLogoUrl || "/chatboc_logo_clean_transparent.png"}
               alt="Chatboc"
-              className="mx-auto h-14 w-14"
+              className="mx-auto h-16 w-16 rounded-2xl border border-primary/20 bg-background p-2 shadow-lg"
               onError={(e) => {
                 (e.target as HTMLImageElement).src = "/favicon/favicon-48x48.png";
               }}
             />
-            <h2 className="text-xl font-semibold text-primary">¡Bienvenido a Chatboc!</h2>
-            <p className="text-sm text-muted-foreground">
-              Seleccioná el rubro que más se parece a tu negocio:
-            </p>
+            <h2 className="text-xl font-semibold text-primary mt-3">{fallbackRubroTitle}</h2>
+            <p className="text-sm text-muted-foreground">{fallbackRubroSubtitle}</p>
             {isLoadingRubros ? (
               <div className="flex justify-center py-6">
                 <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -684,6 +719,7 @@ const ChatPanel = (props: ChatPanelProps) => {
         subtitle={welcomeSubtitle}
         logoAnimation={logoAnimation}
         onA11yChange={onA11yChange}
+        supportChannels={supportChannels}
       />
       {onCart && tipoChat === 'pyme' && (
         <div className="px-2 sm:px-4 pt-2">
@@ -726,10 +762,19 @@ const ChatPanel = (props: ChatPanelProps) => {
             tipoChat={tipoChat}
             botLogoUrl={headerLogoUrl}
             logoAnimation={logoAnimation}
+            messageEnterAnimation={messageEnterAnimation}
+            bubbleAnimation={bubbleAnimation}
+            logoBadgeStyle={logoBadgeStyle}
           />
         ))}
         {isTyping && (
-          <TypingIndicator logoUrl={headerLogoUrl} logoAnimation={logoAnimation} text={typingText} />
+          <TypingIndicator
+            logoUrl={headerLogoUrl}
+            logoAnimation={logoAnimation}
+            text={typingText}
+            typingAnimation={typingAnimation}
+            logoBadgeStyle={logoBadgeStyle}
+          />
         )}
         {userTyping && <UserTypingIndicator />}
         <div ref={messagesEndRef} />
@@ -748,21 +793,26 @@ const ChatPanel = (props: ChatPanelProps) => {
            </div>
         )}
         {!activeTicketId && (
-            isLiveChatEnabled ? (
-              <Button onClick={handleLiveChatRequest} className="w-full mb-2">
-                Hablar con un representante
-              </Button>
-            ) : (
-              horariosAtencion && (
-                <div className="text-center text-sm text-muted-foreground p-2">
-                  <p>Para hablar con un representante, nuestro horario de atención es:</p>
-                  <p>
-                    <strong>{horariosAtencion}</strong>
-                  </p>
-                </div>
-              )
+          canRenderLiveChat ? (
+            <Button onClick={handleLiveChatRequest} className="w-full mb-2">
+              Hablar con un representante
+            </Button>
+          ) : (
+            horariosAtencion && (
+              <div className="text-center text-sm text-muted-foreground p-2">
+                <p>Para hablar con un representante, nuestro horario de atención es:</p>
+                <p>
+                  <strong>{horariosAtencion}</strong>
+                </p>
+              </div>
             )
+          )
         )}
+        {!activeTicketId && canRenderWhatsAppBridge ? (
+          <Button onClick={handleWhatsAppBridge} variant="outline" className="w-full mb-2">
+            {whatsappButtonLabel}
+          </Button>
+        ) : null}
         {contexto.estado_conversacion === 'recolectando_datos_personales' ? (
           <PersonalDataForm onSubmit={handlePersonalDataSubmit} isSubmitting={isTyping} />
         ) : (

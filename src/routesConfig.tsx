@@ -56,6 +56,7 @@ import OpinarArPage from '@/pages/OpinarArPage';
 import EstadisticasPage from '@/pages/EstadisticasPage';
 import Iframe from '@/pages/IframePage';
 import AnalyticsPage from '@/pages/analytics/AnalyticsPage';
+import BotSettingsEnterprise from '@/pages/BotSettingsEnterprise';
 import MarketCartPage from '@/pages/market/MarketCartPage';
 import MarketplaceBlueprintPage from '@/pages/market/MarketplaceBlueprintPage';
 import PublicSurveysIndex from '@/pages/encuestas';
@@ -314,6 +315,7 @@ const routes: RouteConfig[] = [
   { path: '/soluciones/gobierno', element: <Navigate to="/demo/municipio" replace /> },
   { path: '/soluciones/empresas', element: <Navigate to="/demo/empresa" replace /> },
   { path: '/perfil', element: <Perfil /> },
+  { path: '/bot-settings', element: <BotSettingsEnterprise />, roles: ['admin', 'tenant_admin', 'super_admin'] },
   { path: '/perfil/pedidos', element: <Navigate to="/portal/pedidos" replace /> },
   { path: '/chat', element: <ChatPage /> },
   { path: '/chat/:ticketId', element: <TicketLookup /> },
