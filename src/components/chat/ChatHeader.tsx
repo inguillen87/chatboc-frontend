@@ -86,8 +86,8 @@ const ChatHeader: React.FC<Props> = ({
 }) => {
   const liveChatVisible = Boolean(supportChannels?.live_chat?.realtime || supportChannels?.live_chat?.available);
   const whatsappVisible = Boolean(supportChannels?.whatsapp?.enabled && supportChannels?.whatsapp?.realtime_bridge);
-  const liveChatLabel = supportChannels?.live_chat?.label || 'Live chat';
-  const whatsappLabel = supportChannels?.whatsapp?.label || 'WhatsApp';
+  const liveChatLabel = typeof supportChannels?.live_chat?.label === 'string' ? supportChannels.live_chat.label.trim() : '';
+  const whatsappLabel = typeof supportChannels?.whatsapp?.label === 'string' ? supportChannels.whatsapp.label.trim() : '';
 
   return (
     <div
@@ -119,12 +119,12 @@ const ChatHeader: React.FC<Props> = ({
           <span className="text-xs text-primary-foreground/80 whitespace-nowrap overflow-hidden text-ellipsis block" style={{ fontWeight: 500 }}>
             {subtitle || 'Asistente Virtual'}
           </span>
-          {(liveChatVisible || whatsappVisible) ? (
+          {((liveChatVisible && liveChatLabel) || (whatsappVisible && whatsappLabel)) ? (
             <div className="mt-1 flex flex-wrap gap-1">
-              {liveChatVisible ? (
+              {liveChatVisible && liveChatLabel ? (
                 <span className="rounded-full bg-primary-foreground/15 px-2 py-0.5 text-[10px] font-medium text-primary-foreground/90">{liveChatLabel}</span>
               ) : null}
-              {whatsappVisible ? (
+              {whatsappVisible && whatsappLabel ? (
                 <span className="rounded-full bg-primary-foreground/15 px-2 py-0.5 text-[10px] font-medium text-primary-foreground/90">{whatsappLabel}</span>
               ) : null}
             </div>

@@ -267,28 +267,30 @@ const AnalyticsPage = () => {
       </div>
 
 
-      <div className="mt-8 rounded-lg border bg-card p-4">
-        <div className="mb-3 flex items-center justify-between gap-2">
-          <h2 className="font-semibold">Timeline de interacciones de leads</h2>
-          {loadingLeadInteractions ? <span className="text-xs text-muted-foreground">Actualizando…</span> : null}
-        </div>
-        {leadInteractions.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No hay interacciones priorizadas para este período.</p>
-        ) : (
-          <div className="space-y-2">
-            {leadInteractions.map((item, index) => (
-              <div key={String(item.id || `${item.lead_email || item.lead_phone || 'lead'}-${index}`)} className="rounded-md border px-3 py-2">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-sm font-medium">{item.lead_name || item.lead_email || item.lead_phone || 'Lead sin identificar'}</p>
-                  <span className="text-xs text-muted-foreground">Score {typeof item.score === 'number' ? item.score : '-'}</span>
-                </div>
-                <p className="text-xs text-muted-foreground">{item.intent || 'Sin intención clasificada'}</p>
-                {item.last_message ? <p className="text-sm mt-1">{item.last_message}</p> : null}
-              </div>
-            ))}
+      {leadInteractions.length > 0 ? (
+        <div className="mt-8 rounded-lg border bg-card p-4">
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <h2 className="font-semibold">Timeline de interacciones de leads</h2>
+            {loadingLeadInteractions ? <span className="text-xs text-muted-foreground">Actualizando…</span> : null}
           </div>
-        )}
-      </div>
+          <div className="space-y-2">
+            {leadInteractions.map((item, index) => {
+              const leadIdentifier = item.lead_name || item.lead_email || item.lead_phone;
+              const scoreLabel = typeof item.score === 'number' ? String(item.score) : null;
+              return (
+                <div key={String(item.id || `${item.lead_email || item.lead_phone || index}`)} className="rounded-md border px-3 py-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    {leadIdentifier ? <p className="text-sm font-medium">{leadIdentifier}</p> : null}
+                    {scoreLabel ? <span className="text-xs text-muted-foreground">Score {scoreLabel}</span> : null}
+                  </div>
+                  {item.intent ? <p className="text-xs text-muted-foreground">{item.intent}</p> : null}
+                  {item.last_message ? <p className="text-sm mt-1">{item.last_message}</p> : null}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
 
       <div className="mt-8">
         <SectionErrorBoundary title="No pudimos cargar herramientas IA">

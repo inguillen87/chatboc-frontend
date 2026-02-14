@@ -24,6 +24,7 @@ import { getVisitorName, setVisitorName } from "@/utils/visitorName";
 import { ensureAbsoluteUrl, mergeButtons, pickFirstString } from "@/utils/chatButtons";
 import { deriveAttachmentInfo } from "@/utils/attachment";
 import { getValidStoredToken } from "@/utils/authTokens";
+import { enterpriseService } from "@/services/enterpriseService";
 
 const EMOJI_CATEGORY_MAP: Record<string, string> = {
   // Agua y saneamiento
@@ -1192,23 +1193,15 @@ export function useChatLogic({
 
       if (leadName || leadEmail || leadPhone) {
         leadCaptureSentRef.current = true;
-        apiFetch('/api/public/lead-capture', {
-          method: 'POST',
-          body: {
-            tenant_slug: tenantSlug || undefined,
-            name: leadName,
-            email: leadEmail,
-            phone: leadPhone,
-            interest: userMessageText || normalizedQuestionBase,
-            message: originalText,
-            source: 'widget_chat',
-            metadata: { tipo_chat: tipoChat, action: resolvedAction || null },
-          },
-          skipAuth: true,
-          isWidgetRequest: true,
-          omitCredentials: true,
-          omitChatSessionId: true,
-          sendAnonId: true,
+        enterpriseService.captureLead({
+          tenant_slug: tenantSlug || undefined,
+          name: leadName,
+          email: leadEmail,
+          phone: leadPhone,
+          interest: userMessageText || normalizedQuestionBase,
+          message: originalText,
+          source: 'widget_chat',
+          metadata: { tipo_chat: tipoChat, action: resolvedAction || null },
         }).catch((captureError) => {
           leadCaptureSentRef.current = false;
           console.warn('Lead capture failed', captureError);
@@ -1217,17 +1210,8 @@ export function useChatLogic({
     }
 
     const isUrgentMessage = URGENT_PATTERNS.some((keyword) => normalizedForMatching.includes(keyword));
-    if (isUrgentMessage && liveChatAvailable && !liveChatTicketId) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: generateClientMessageId(),
-          text: 'Detectamos prioridad alta. ¿Querés hablar con un agente ahora?',
-          isBot: true,
-          timestamp: new Date(),
-          botones: [{ texto: 'Hablar con agente ahora', action: 'request_agent' }],
-        },
-      ]);
+    if (isUrgentMessage && liveChatAvailable && !liveChatTicketId && !resolvedAction) {
+      resolvedAction = 'request_agent';
     }
 
     if (resolvedAction === 'iniciar_creacion_reclamo') {
