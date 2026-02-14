@@ -8,6 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useTenant } from '@/context/TenantContext';
 import { ApiError } from '@/utils/api';
 import { enterpriseService, type BotSettingsPayload } from '@/services/enterpriseService';
+import { getEnterpriseErrorMessage } from '@/utils/enterpriseErrors';
+import { hasBotSettingsErrors, sanitizeBotSettingsPayload, validateBotSettings } from '@/utils/botSettings';
 
 const BotSettingsEnterprise = () => {
   const { tenant, currentSlug } = useTenant();
@@ -59,13 +61,8 @@ const BotSettingsEnterprise = () => {
           navigate('/permission-denied');
           return;
         }
-        if (err instanceof ApiError && err.status === 404) {
-          setError('No encontramos configuración para este tenant.');
-        } else if (err instanceof ApiError && err.status === 400) {
-          setError('La solicitud de configuración es inválida.');
-        } else {
-          setError('No se pudo cargar la configuración.');
-        }
+        const status = err instanceof ApiError ? err.status : undefined;
+        setError(getEnterpriseErrorMessage(status, 'load_bot_settings'));
       } finally {
         setLoading(false);
       }
@@ -73,15 +70,8 @@ const BotSettingsEnterprise = () => {
     load();
   }, [tenantId, currentSlug, navigate]);
 
-  const isValid = useMemo(() => {
-    const allowed = ['derivar_humano', 'auto_reply', 'silent'];
-    const fallback = form.fallback_behavior || 'auto_reply';
-    if (!allowed.includes(fallback)) return false;
-    if ((form.name || '').length > 120) return false;
-    if ((form.tone || '').length > 120) return false;
-    if ((form.system_prompt || '').length > 4000) return false;
-    return true;
-  }, [form]);
+  const validation = useMemo(() => validateBotSettings(form), [form]);
+  const isValid = useMemo(() => !hasBotSettingsErrors(validation), [validation]);
 
   const handleSave = async () => {
     if (!tenantId || !isValid) return;
@@ -90,10 +80,7 @@ const BotSettingsEnterprise = () => {
     setSuccess(null);
     try {
       await enterpriseService.updateBotSettings(
-        {
-          ...form,
-          tenant_id: tenantId,
-        },
+        sanitizeBotSettingsPayload(form, tenantId),
         currentSlug || undefined,
       );
       setSuccess('Configuración guardada.');
@@ -102,19 +89,30 @@ const BotSettingsEnterprise = () => {
         navigate('/permission-denied');
         return;
       }
-      if (err instanceof ApiError && err.status === 400) {
-        setError(err.message || 'La configuración enviada no es válida.');
-      } else if (err instanceof ApiError && err.status === 404) {
-        setError('No encontramos el tenant para guardar la configuración.');
-      } else {
-        setError('No se pudo guardar la configuración.');
-      }
+      const status = err instanceof ApiError ? err.status : undefined;
+      setError(getEnterpriseErrorMessage(status, 'save_bot_settings'));
     } finally {
       setSaving(false);
     }
   };
 
   if (loading) return <div className="p-6">Cargando...</div>;
+
+  if (!tenantId) {
+    return (
+      <div className="p-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Configuración del bot</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">Necesitás seleccionar un tenant para editar la configuración.</p>
+            <Button variant="outline" onClick={() => navigate('/analytics')}>Ir a analytics</Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-4">
@@ -123,22 +121,40 @@ const BotSettingsEnterprise = () => {
           <CardTitle>Configuración del bot</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Input
-            value={form.name || ''}
-            onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
-            placeholder="Nombre bot"
-          />
-          <Input
-            value={form.tone || ''}
-            onChange={(e) => setForm((prev) => ({ ...prev, tone: e.target.value }))}
-            placeholder="Tono"
-          />
-          <Textarea
-            value={form.system_prompt || ''}
-            onChange={(e) => setForm((prev) => ({ ...prev, system_prompt: e.target.value }))}
-            placeholder="System prompt"
-            rows={6}
-          />
+          <div className="space-y-1">
+            <Input
+              value={form.name || ''}
+              onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
+              placeholder="Nombre bot"
+            />
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>{validation.name || 'Nombre visible del asistente.'}</span>
+              <span>{(form.name || '').length}/120</span>
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Input
+              value={form.tone || ''}
+              onChange={(e) => setForm((prev) => ({ ...prev, tone: e.target.value }))}
+              placeholder="Tono"
+            />
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>{validation.tone || 'Ejemplo: profesional, cercano, directo.'}</span>
+              <span>{(form.tone || '').length}/120</span>
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Textarea
+              value={form.system_prompt || ''}
+              onChange={(e) => setForm((prev) => ({ ...prev, system_prompt: e.target.value }))}
+              placeholder="System prompt"
+              rows={6}
+            />
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>{validation.system_prompt || 'Instrucciones internas del bot para este tenant.'}</span>
+              <span>{(form.system_prompt || '').length}/4000</span>
+            </div>
+          </div>
           <Select
             value={form.fallback_behavior || 'auto_reply'}
             onValueChange={(value) =>
@@ -154,34 +170,62 @@ const BotSettingsEnterprise = () => {
               <SelectItem value="silent">silent</SelectItem>
             </SelectContent>
           </Select>
-          <Input
-            value={form.branding?.logo_url || ''}
-            onChange={(e) =>
-              setForm((prev) => ({ ...prev, branding: { ...prev.branding, logo_url: e.target.value } }))
-            }
-            placeholder="Logo URL"
-          />
-          <Input
-            value={form.branding?.primary_color || ''}
-            onChange={(e) =>
-              setForm((prev) => ({ ...prev, branding: { ...prev.branding, primary_color: e.target.value } }))
-            }
-            placeholder="Color primario"
-          />
-          <Input
-            value={form.branding?.secondary_color || ''}
-            onChange={(e) =>
-              setForm((prev) => ({ ...prev, branding: { ...prev.branding, secondary_color: e.target.value } }))
-            }
-            placeholder="Color secundario"
-          />
+          {validation.fallback_behavior ? <p className="text-xs text-destructive">{validation.fallback_behavior}</p> : null}
+          <div className="space-y-1">
+            <Input
+              value={form.branding?.logo_url || ''}
+              onChange={(e) =>
+                setForm((prev) => ({ ...prev, branding: { ...prev.branding, logo_url: e.target.value } }))
+              }
+              placeholder="Logo URL"
+            />
+            {validation.logo_url ? <p className="text-xs text-destructive">{validation.logo_url}</p> : null}
+          </div>
+          <div className="space-y-1">
+            <Input
+              value={form.branding?.primary_color || ''}
+              onChange={(e) =>
+                setForm((prev) => ({ ...prev, branding: { ...prev.branding, primary_color: e.target.value } }))
+              }
+              placeholder="Color primario"
+            />
+            {validation.primary_color ? <p className="text-xs text-destructive">{validation.primary_color}</p> : null}
+          </div>
+          <div className="space-y-1">
+            <Input
+              value={form.branding?.secondary_color || ''}
+              onChange={(e) =>
+                setForm((prev) => ({ ...prev, branding: { ...prev.branding, secondary_color: e.target.value } }))
+              }
+              placeholder="Color secundario"
+            />
+            {validation.secondary_color ? <p className="text-xs text-destructive">{validation.secondary_color}</p> : null}
+          </div>
 
           {error ? <p className="text-destructive text-sm">{error}</p> : null}
           {success ? <p className="text-green-600 text-sm">{success}</p> : null}
 
-          <Button onClick={handleSave} disabled={!isValid || saving}>
-            {saving ? 'Guardando...' : 'Guardar configuración'}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={handleSave} disabled={!isValid || saving}>
+              {saving ? 'Guardando...' : 'Guardar configuración'}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() =>
+                setForm((prev) => ({
+                  ...prev,
+                  branding: {
+                    ...prev.branding,
+                    primary_color: '',
+                    secondary_color: '',
+                  },
+                }))
+              }
+              disabled={saving}
+            >
+              Limpiar colores
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>

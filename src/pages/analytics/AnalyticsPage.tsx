@@ -16,6 +16,8 @@ import PymeDashboard from '@/components/analytics/PymeDashboard';
 import EnterpriseAIPanel from '@/components/analytics/EnterpriseAIPanel';
 import SectionErrorBoundary from '@/components/errors/SectionErrorBoundary';
 import { openExportAndTrack } from '@/utils/enterpriseExperience';
+import { ApiError } from '@/utils/api';
+import { getEnterpriseErrorMessage } from '@/utils/enterpriseErrors';
 
 const AnalyticsPage = () => {
   const [searchParams] = useSearchParams();
@@ -32,6 +34,7 @@ const AnalyticsPage = () => {
   const [context, setContext] = useState<'overview' | 'municipio' | 'pyme'>('overview');
   const [executiveSummary, setExecutiveSummary] = useState<string>('');
   const [loadingSummary, setLoadingSummary] = useState(false);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
 
   const fireAndForgetTrackEvent = (payload: { tenant_id: number; event_name: string; payload?: Record<string, unknown>; channel?: string; session_id?: string }) => {
     enterpriseService
@@ -104,6 +107,7 @@ const AnalyticsPage = () => {
   const handleGenerateExecutiveSummary = async () => {
     if (!tenantId) return;
     setLoadingSummary(true);
+    setSummaryError(null);
     try {
       const response = await enterpriseService.getExecutiveSummary(
         {
@@ -115,10 +119,16 @@ const AnalyticsPage = () => {
         },
         currentSlug || undefined,
       );
-      setExecutiveSummary(response?.summary || response?.text || '');
+      const summaryText = response?.summary || response?.text || '';
+      setExecutiveSummary(summaryText);
+      if (!summaryText) {
+        setSummaryError('No hay datos suficientes para generar el resumen en este período.');
+      }
     } catch (err) {
       console.error(err);
       setExecutiveSummary('');
+      const status = err instanceof ApiError ? err.status : undefined;
+      setSummaryError(getEnterpriseErrorMessage(status, 'executive_summary'));
     } finally {
       setLoadingSummary(false);
     }
@@ -178,6 +188,8 @@ const AnalyticsPage = () => {
         </div>
       </div>
 
+
+      {summaryError ? <p className="text-sm text-destructive">{summaryError}</p> : null}
 
       {executiveSummary ? (
         <div className="rounded-lg border bg-card p-4">
