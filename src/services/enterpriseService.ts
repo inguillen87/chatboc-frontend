@@ -79,6 +79,9 @@ export interface BotSettingsResponse {
 
 export interface LeadInteractionItem {
   id?: number | string;
+  tenant_id?: number;
+  tenant_slug?: string;
+  priority?: string;
   lead_name?: string;
   lead_email?: string;
   lead_phone?: string;
@@ -87,6 +90,13 @@ export interface LeadInteractionItem {
   last_message?: string;
   created_at?: string;
   updated_at?: string;
+}
+
+export interface LeadInteractionsResponse {
+  items?: LeadInteractionItem[];
+  interactions?: LeadInteractionItem[];
+  next_cursor?: string | null;
+  cursor?: string | null;
 }
 
 interface EnterpriseBaseFilters {
@@ -129,14 +139,17 @@ export const enterpriseService = {
   },
 
   getLeadInteractions: async (filters: {
-    tenant_id: number;
+    tenant_id?: number;
     limit?: number;
+    cursor?: string;
+    priority?: string;
+    tenant_slug?: string;
     from?: string;
     to?: string;
     scope?: string;
   }, tenantSlug?: string) => {
     const query = buildQueryString(filters);
-    return apiFetch<{ items?: LeadInteractionItem[]; interactions?: LeadInteractionItem[] }>(`/api/admin/leads/interactions?${query}`, { tenantSlug });
+    return apiFetch<LeadInteractionsResponse>(`/api/admin/leads/interactions?${query}`, { tenantSlug });
   },
 
   getDemoCatalog: async (ensureUsers = false): Promise<DemoCatalogResponse> => {
