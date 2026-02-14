@@ -1,4 +1,3 @@
-// Contenido COMPLETO y CORREGIDO para: Login.tsx
 
 import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -15,7 +14,6 @@ import { enterpriseService, type DemoRubro } from "@/services/enterpriseService"
 import { getRubrosHierarchy } from "@/api/rubros";
 import { mapDemoOptionsFromHierarchy } from "@/utils/enterpriseExperience";
 
-// Asegúrate de que esta interfaz refleje EXACTAMENTE lo que tu backend devuelve en /auth/login
 interface LoginResponse {
   token: string;
   user: {
@@ -44,7 +42,6 @@ const Login = () => {
   const [demoRubro, setDemoRubro] = useState<DemoRubro | null>(null);
   const [demoOptions, setDemoOptions] = useState<Array<{ value: DemoRubro; label: string }>>([]);
 
-  // Check if this is the global login page (/login) or a tenant login page (/:slug/login)
   const isGlobalLogin = location.pathname === '/login' || location.pathname === '/login/';
 
   const navigateToTenantCatalog = useCallback(
@@ -108,7 +105,6 @@ const Login = () => {
     setError("");
     setIsLoading(true);
 
-    // Extract tenant from the path directly, which is more reliable on login page
     const pathSegments = location.pathname.split('/').filter(Boolean);
     const slugFromPath = (pathSegments.length > 0 && pathSegments[0] !== 'login') ? pathSegments[0] : null;
 
@@ -121,7 +117,6 @@ const Login = () => {
     }
 
     try {
-      // Always use the admin login endpoint for this component.
       const data = await apiFetch<LoginResponse>("/auth/admin/login", {
         method: "POST",
         body: payload,
@@ -129,7 +124,6 @@ const Login = () => {
 
       safeLocalStorage.setItem("authToken", data.token);
 
-      // The backend now reliably returns the correct tenant_slug inside the user object.
       const responseTenantSlug = data.user?.tenant_slug;
 
       if (responseTenantSlug) {
@@ -237,8 +231,6 @@ const Login = () => {
     }
   };
 
-  // Determine the registration target path
-  // If global login, force /register. If tenant login, use currentSlug.
   const registerTarget = isGlobalLogin ? '/register' : buildTenantPath("/register", currentSlug);
 
   return (

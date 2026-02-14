@@ -2,10 +2,11 @@ import { describe, expect, it, vi } from 'vitest';
 import { mapDemoOptionsFromHierarchy, openExportAndTrack } from '@/utils/enterpriseExperience';
 
 describe('enterpriseExperience utilities', () => {
-  it('maps backend hierarchy to demo options without hardcoded fallback list', () => {
+  it('maps backend hierarchy to demo options using clave/nombre and deduplicates values', () => {
     const result = mapDemoOptionsFromHierarchy([
-      { id: 1, nombre: 'Gobierno Digital' },
-      { id: 2, nombre: 'Comercio Inteligente' },
+      { clave: 'municipio_demo', nombre: 'Gobierno Digital' },
+      { clave: 'PYME', nombre: 'Comercio Inteligente' },
+      { id: 2, nombre: 'Comercio Duplicado' },
       { id: 99, nombre: 'Otro' },
     ]);
 

@@ -6,6 +6,18 @@ interface RubroNode {
   clave?: string | null;
 }
 
+const normalizeRubroValue = (item: RubroNode): DemoRubro | null => {
+  const normalizedKey = String(item?.clave ?? item?.nombre ?? '').trim().toLowerCase();
+
+  if (normalizedKey.includes('municipio')) return 'municipio';
+  if (normalizedKey.includes('pyme')) return 'pyme';
+
+  if (item?.id === 1) return 'municipio';
+  if (item?.id === 2) return 'pyme';
+
+  return null;
+};
+
 export interface DemoOption {
   value: DemoRubro;
   label: string;
@@ -14,10 +26,14 @@ export interface DemoOption {
 export const mapDemoOptionsFromHierarchy = (hierarchy: RubroNode[] | null | undefined): DemoOption[] => {
   if (!Array.isArray(hierarchy)) return [];
 
+  const seen = new Set<DemoRubro>();
+
   return hierarchy
     .map((item) => {
-      const value = item?.id === 1 ? 'municipio' : item?.id === 2 ? 'pyme' : null;
-      if (!value) return null;
+      const value = normalizeRubroValue(item);
+      if (!value || seen.has(value)) return null;
+      seen.add(value);
+
       return {
         value,
         label: String(item?.nombre ?? item?.clave ?? item?.id ?? value),
