@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Button } from '@/components/ui/button';
 import { ChevronRight } from 'lucide-react';
-import { Rubro } from '@/types/rubro';
+import { Rubro, TenantDemoSummary } from '@/types/rubro';
 
 interface RubroSelectorProps {
   rubros: Rubro[];
@@ -21,6 +21,15 @@ const RubroSelector: React.FC<RubroSelectorProps> = ({ rubros, onSelect }) => {
       return 'border-fuchsia-300/40 hover:border-fuchsia-400/60 hover:bg-fuchsia-500/10';
     }
     return 'border-primary/10 hover:border-primary/30 hover:bg-primary/10';
+  };
+
+  const getPreviewStyle = (preview?: TenantDemoSummary['widget_preview']) => {
+    const start = preview?.gradient_start;
+    const end = preview?.gradient_end;
+    if (!start || !end) return undefined;
+    return {
+      background: `linear-gradient(135deg, color-mix(in oklab, ${start} 12%, transparent), color-mix(in oklab, ${end} 12%, transparent))`,
+    } as React.CSSProperties;
   };
 
   // Deduplicate and merge rubros based on Name to handle backend fragmentation
@@ -76,6 +85,7 @@ const RubroSelector: React.FC<RubroSelectorProps> = ({ rubros, onSelect }) => {
                                                 <Button
                                                     variant="secondary"
                                                     className={`w-full justify-between h-auto py-2 px-3 bg-background/80 border text-left whitespace-normal rounded-lg shadow-sm hover:shadow-md transition-all ${getPreviewClass(level2.demo.widget_preview?.preset)}`}
+                                                    style={getPreviewStyle(level2.demo.widget_preview)}
                                                     onClick={() => onSelect(level2)}
                                                     data-widget-preset={level2.demo.widget_preview?.preset}
                                                     data-motion-level={level2.demo.widget_preview?.motion_level}
@@ -103,6 +113,7 @@ const RubroSelector: React.FC<RubroSelectorProps> = ({ rubros, onSelect }) => {
                                 <Button
                                     variant="secondary"
                                     className={`w-full justify-between h-auto py-2 px-3 bg-background/80 border text-left whitespace-normal rounded-lg shadow-sm hover:shadow-md transition-all ${getPreviewClass(level1.demo.widget_preview?.preset)}`}
+                                    style={getPreviewStyle(level1.demo.widget_preview)}
                                     onClick={() => onSelect(level1)}
                                     data-widget-preset={level1.demo.widget_preview?.preset}
                                     data-motion-level={level1.demo.widget_preview?.motion_level}

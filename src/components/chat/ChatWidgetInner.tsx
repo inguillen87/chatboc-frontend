@@ -1356,6 +1356,35 @@ function ChatWidgetInner({
 
   const motionScale = widgetUx.motionLevel === 'pro' ? 1 : widgetUx.motionLevel === 'minimal' ? 0.5 : 0.75;
 
+  const launcherPalette = useMemo(() => {
+    const primary = primaryColor || widgetUx.gradientEnd || "hsl(var(--primary))";
+    const accent = accentColor || widgetUx.gradientStart || "hsl(var(--secondary))";
+    return { primary, accent };
+  }, [primaryColor, accentColor, widgetUx.gradientEnd, widgetUx.gradientStart]);
+
+  const presetVisualProfile = useMemo(() => {
+    const preset = (widgetUx.preset || '').toLowerCase();
+    if (preset.includes('civic')) {
+      return {
+        closedShadowDark: "0 16px 40px rgba(15,23,42,0.55), 0 0 0 2px rgba(148,163,184,0.35)",
+        closedShadowLight: "0 14px 34px rgba(15,23,42,0.22), 0 0 0 2px rgba(203,213,225,0.75)",
+        panelGradient: 'linear-gradient(155deg, color-mix(in oklab, white 88%, transparent), color-mix(in oklab, #dbeafe 24%, transparent))',
+      };
+    }
+    if (preset.includes('commerce') || preset.includes('neon')) {
+      return {
+        closedShadowDark: "0 18px 42px rgba(91,33,182,0.6), 0 0 0 2px rgba(244,114,182,0.28)",
+        closedShadowLight: "0 16px 36px rgba(168,85,247,0.28), 0 0 0 2px rgba(244,114,182,0.35)",
+        panelGradient: 'linear-gradient(155deg, color-mix(in oklab, white 86%, transparent), color-mix(in oklab, #fae8ff 26%, transparent))',
+      };
+    }
+    return {
+      closedShadowDark: "0 16px 44px rgba(15,23,42,0.65), 0 0 0 2px rgba(255,255,255,0.12)",
+      closedShadowLight: "0 14px 34px rgba(15,23,42,0.26), 0 0 0 2px rgba(255,255,255,0.6)",
+      panelGradient: 'linear-gradient(155deg, color-mix(in oklab, white 84%, transparent), color-mix(in oklab, hsl(var(--card)) 90%, transparent))',
+    };
+  }, [widgetUx.preset]);
+
   const buttonAnimation = {
     initial: { scale: 0, opacity: 0 },
     animate: { scale: 1, opacity: 1 },
@@ -1369,12 +1398,6 @@ function ChatWidgetInner({
   };
 
   const openSpring = { type: "spring", stiffness: 200, damping: 20 / motionScale };
-
-  const launcherPrimary = primaryColor || widgetUx.gradientEnd || "hsl(var(--primary))";
-  const launcherAccent = accentColor || widgetUx.gradientStart || "hsl(var(--secondary))";
-
-  const launcherPrimary = primaryColor || "hsl(var(--primary))";
-  const launcherAccent = accentColor || "hsl(var(--secondary))";
 
   useEffect(() => {
     if (mode === 'iframe' && typeof window !== 'undefined') {
@@ -1434,7 +1457,7 @@ function ChatWidgetInner({
               style={{
                   borderRadius: isMobileView ? "0" : (borderRadius !== undefined ? `${borderRadius}px` : "16px"),
                   background: chatBackground || (widgetUx.glassmorphism
-                    ? 'linear-gradient(155deg, color-mix(in oklab, white 84%, transparent), color-mix(in oklab, hsl(var(--card)) 90%, transparent))'
+                    ? presetVisualProfile.panelGradient
                     : "hsl(var(--card))"),
                   backdropFilter: widgetUx.glassmorphism ? 'blur(10px) saturate(120%)' : undefined,
               }}
@@ -1566,11 +1589,11 @@ function ChatWidgetInner({
                 )}
                 style={{
                   borderRadius: "50%",
-                  background: `radial-gradient(circle at 30% 30%, ${launcherAccent}, ${launcherPrimary})`,
+                  background: `radial-gradient(circle at 30% 30%, ${launcherPalette.accent}, ${launcherPalette.primary})`,
                   color: "var(--primary-foreground, #ffffff)",
                   boxShadow: isDarkMode
-                    ? "0 16px 44px rgba(15,23,42,0.65), 0 0 0 2px rgba(255,255,255,0.12)"
-                    : "0 14px 34px rgba(15,23,42,0.26), 0 0 0 2px rgba(255,255,255,0.6)",
+                    ? presetVisualProfile.closedShadowDark
+                    : presetVisualProfile.closedShadowLight,
                 }}
                 {...buttonAnimation}
                 whileHover={{ scale: 1.08, transition: { type: "spring", stiffness: 420, damping: 18 / motionScale } }}
@@ -1578,17 +1601,29 @@ function ChatWidgetInner({
                 onClick={toggleChat}
                 aria-label="Abrir chat"
               >
-                {widgetUx.logoRing ? (
+                {widgetUx.logoRing && widgetUx.motionLevel !== 'minimal' ? (
                   <motion.span
                     aria-hidden
                     className="pointer-events-none absolute inset-0 rounded-full"
                     style={{
-                      background: `conic-gradient(from 0deg, ${launcherPrimary}, ${launcherAccent}, ${launcherPrimary})`,
+                      background: `conic-gradient(from 0deg, ${launcherPalette.primary}, ${launcherPalette.accent}, ${launcherPalette.primary})`,
                       filter: "blur(10px)",
                       opacity: isOpen ? 0.45 : 0.75,
                     }}
                     animate={{ rotate: 360 }}
                     transition={{ duration: widgetUx.motionLevel === 'pro' ? 5 : 8, repeat: Infinity, ease: "linear" }}
+                  />
+                ) : null}
+                {widgetUx.motionLevel !== 'minimal' ? (
+                  <motion.span
+                    aria-hidden
+                    className="pointer-events-none absolute inset-[6px] rounded-full"
+                    style={{
+                      background: 'linear-gradient(145deg, rgba(255,255,255,0.36), rgba(255,255,255,0.04))',
+                      mixBlendMode: 'screen',
+                    }}
+                    animate={{ opacity: [0.35, 0.65, 0.35] }}
+                    transition={{ duration: widgetUx.motionLevel === 'pro' ? 2 : 3.2, repeat: Infinity, ease: 'easeInOut' }}
                   />
                 ) : null}
                 <span className="absolute inset-[4px] rounded-full bg-background/90 backdrop-blur-sm" />
