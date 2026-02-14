@@ -6,6 +6,8 @@ interface TypingIndicatorProps {
   logoUrl?: string;
   logoAnimation?: string;
   text?: string;
+  typingAnimation?: string;
+  logoBadgeStyle?: string;
 }
 
 const DEFAULT_PRIMARY = "217 100% 50%";
@@ -15,11 +17,16 @@ const primaryColorValue = (alpha?: number) =>
     ? `hsl(var(--primary, ${DEFAULT_PRIMARY}) / ${alpha})`
     : `hsl(var(--primary, ${DEFAULT_PRIMARY}))`;
 
-const TypingIndicator: React.FC<TypingIndicatorProps> = ({ logoUrl, logoAnimation, text }) => {
+const TypingIndicator: React.FC<TypingIndicatorProps> = ({ logoUrl, logoAnimation, text, typingAnimation, logoBadgeStyle }) => {
+  const normalizedTyping = (typingAnimation || 'wave-dots').toLowerCase();
+  const useBars = normalizedTyping.includes('bar');
+  const useMinimal = normalizedTyping.includes('minimal');
+
   const avatarStyle: React.CSSProperties = {
     background: primaryColorValue(0.15),
     border: `1px solid ${primaryColorValue(0.35)}`,
     boxShadow: `0 8px 20px -12px ${primaryColorValue(0.35)}`,
+    borderRadius: logoBadgeStyle === 'rounded-square' ? '14px' : '9999px',
   };
 
   const bubbleStyle: React.CSSProperties = {
@@ -82,15 +89,16 @@ const TypingIndicator: React.FC<TypingIndicatorProps> = ({ logoUrl, logoAnimatio
             {[0, 1, 2].map((i) => (
               <motion.span
                 key={i}
-                className="block w-2 h-2 rounded-full"
+                className={useBars ? "block w-1.5 h-3 rounded-full" : "block w-2 h-2 rounded-full"}
                 style={dotStyle}
                 initial={{ y: 0, opacity: 0.6 }}
                 animate={{
-                  y: [0, -5, 0],
+                  y: useMinimal ? [0, -2, 0] : [0, -5, 0],
+                  scaleY: useBars ? [0.8, 1.35, 0.8] : 1,
                   opacity: [0.6, 1, 0.6],
                 }}
                 transition={{
-                  duration: 0.85,
+                  duration: useMinimal ? 1.1 : 0.85,
                   delay: i * 0.18,
                   repeat: Infinity,
                   repeatType: "loop",

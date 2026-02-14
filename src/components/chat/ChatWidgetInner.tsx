@@ -22,6 +22,7 @@ import { MOCK_TENANT_INFO, MOCK_JUNIN_TENANT_INFO } from "@/data/mockTenantData"
 import { hexToHsl, getContrastColorHsl } from "@/utils/color";
 import { apiClient } from "@/api/client";
 import { esRubroPublico } from "@/utils/chatEndpoints";
+import { getChatbocBotAvatar } from "@/utils/brandAssets";
 
 // LOCAL_PLACEHOLDER_SLUGS is used to prevent the widget from treating reserved paths as tenant slugs.
 // We also alias it to PLACEHOLDER_SLUGS_SET just in case some stale build/import relies on that name.
@@ -67,21 +68,21 @@ const LOCAL_PLACEHOLDER_SLUGS = new Set([
 ]);
 const PLACEHOLDER_SLUGS_SET = LOCAL_PLACEHOLDER_SLUGS;
 
-const PROACTIVE_MESSAGES = [
-  "¿Necesitas ayuda?",
-  "¿Querés hacer una sugerencia?",
-  "¿Tenés un reclamo?",
-  "¿Tenés consultas? ¡Preguntame!",
-];
-
-const LANDING_PROACTIVE_MESSAGES = [
-  "¡Hola! 👋 ¿Querés probar una demo interactiva?",
-  "Probá nuestro asistente inteligente gratis 🤖",
-  "Descubrí cómo automatizar tus ventas 🚀",
-  "¿Hablamos? Estoy acá para ayudarte 😊"
-];
-
 const LS_KEY = "chatboc_accessibility";
+
+function normalizeCtaMessages(rawMessages: any): string[] {
+  if (!Array.isArray(rawMessages)) return [];
+
+  return rawMessages
+    .map((msg: any) => {
+      if (!msg) return '';
+      if (typeof msg === 'string') return msg;
+      return msg.text || msg.message || '';
+    })
+    .map((msg: string) => msg.trim())
+    .filter((msg: string) => msg.length > 0);
+}
+
 
 function SafeAnimatePresence({ children = null, ...rest }: AnimatePresenceProps = { children: null }) {
   return <AnimatePresence {...rest}>{children}</AnimatePresence>;
@@ -181,6 +182,60 @@ function ChatWidgetInner({
   borderRadius,
   fontFamily,
 }: ChatWidgetProps) {
+  const DEFAULT_WIDGET_UX = {
+    preset: 'premium',
+    motionLevel: 'balanced',
+    glassmorphism: true,
+    logoRing: true,
+    gradientStart: '#0f172a',
+    gradientEnd: '#007aff',
+    typingAnimation: 'wave-dots',
+    bubbleAnimation: 'soft-rise',
+    launcherAnimation: 'pulse-glow',
+    messageEnterAnimation: 'fade-up',
+    logoBadgeStyle: 'ring',
+    cursorTrail: false,
+    ambientParticles: false,
+  } as const;
+
+  const normalizeUxBool = (value: unknown, fallback: boolean) => {
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      if (normalized === 'true') return true;
+      if (normalized === 'false') return false;
+    }
+    return fallback;
+  };
+
+  const normalizeUxString = (value: unknown, fallback: string) => {
+    if (typeof value !== 'string') return fallback;
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : fallback;
+  };
+
+  const resolveWidgetUxConfig = (publicConfig: any, fallbackTipoChat: 'municipio' | 'pyme') => {
+    const attrs = publicConfig?.widget?.attributes || {};
+    const ux = publicConfig?.builder_config?.ux || {};
+    const defaultPreset = fallbackTipoChat === 'municipio' ? 'civic-premium' : 'commerce-neon';
+
+    return {
+      preset: normalizeUxString(attrs['data-widget-preset'] ?? ux.preset, defaultPreset),
+      motionLevel: normalizeUxString(attrs['data-motion-level'] ?? ux.motion_level, DEFAULT_WIDGET_UX.motionLevel),
+      glassmorphism: normalizeUxBool(attrs['data-glassmorphism'] ?? ux.glassmorphism, DEFAULT_WIDGET_UX.glassmorphism),
+      logoRing: normalizeUxBool(attrs['data-logo-ring'] ?? ux.logo_ring, DEFAULT_WIDGET_UX.logoRing),
+      gradientStart: normalizeUxString(attrs['data-gradient-start'] ?? ux.gradient_start, DEFAULT_WIDGET_UX.gradientStart),
+      gradientEnd: normalizeUxString(attrs['data-gradient-end'] ?? ux.gradient_end, DEFAULT_WIDGET_UX.gradientEnd),
+      typingAnimation: normalizeUxString(attrs['data-typing-animation'] ?? ux.typing_animation, DEFAULT_WIDGET_UX.typingAnimation),
+      bubbleAnimation: normalizeUxString(attrs['data-bubble-animation'] ?? ux.bubble_animation, DEFAULT_WIDGET_UX.bubbleAnimation),
+      launcherAnimation: normalizeUxString(attrs['data-launcher-animation'] ?? ux.launcher_animation, DEFAULT_WIDGET_UX.launcherAnimation),
+      messageEnterAnimation: normalizeUxString(attrs['data-message-enter-animation'] ?? ux.message_enter_animation, DEFAULT_WIDGET_UX.messageEnterAnimation),
+      logoBadgeStyle: normalizeUxString(attrs['data-logo-badge-style'] ?? ux.logo_badge_style, DEFAULT_WIDGET_UX.logoBadgeStyle),
+      cursorTrail: normalizeUxBool(attrs['data-cursor-trail'] ?? ux.cursor_trail, DEFAULT_WIDGET_UX.cursorTrail),
+      ambientParticles: normalizeUxBool(attrs['data-ambient-particles'] ?? ux.ambient_particles, DEFAULT_WIDGET_UX.ambientParticles),
+    };
+  };
+
   const proactiveMessageTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const hideProactiveBubbleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isDarkMode = useDarkMode();
@@ -273,6 +328,10 @@ function ChatWidgetInner({
   );
 
   const catalogCtaLabel = catalogLinks?.cta_label ?? catalogLinks?.view_label;
+  const supportChannels = useMemo(
+    () => entityInfo?.widget?.support_channels || entityInfo?.support_channels || null,
+    [entityInfo],
+  );
   const showCatalogCta =
     !!catalogCtaLabel &&
     !!catalogLinks?.view_url &&
@@ -502,6 +561,8 @@ function ChatWidgetInner({
   const [proactiveMessage, setProactiveMessage] = useState<string | null>(null);
   const [showProactiveBubble, setShowProactiveBubble] = useState(false);
   const [proactiveCycle, setProactiveCycle] = useState(0);
+  const [widgetUx, setWidgetUx] = useState(DEFAULT_WIDGET_UX);
+  const [cursorTrailPoint, setCursorTrailPoint] = useState<{ x: number; y: number } | null>(null);
 
   // Apply Theme Config
   useEffect(() => {
@@ -589,81 +650,46 @@ function ChatWidgetInner({
 
   }, [entityInfo, primaryColor, accentColor, userMsgColor, chatBackground, borderRadius, fontFamily, mode, isDarkMode]);
 
+  const proactiveMessages = useMemo(() => {
+    const backendMessages = normalizeCtaMessages(entityInfo?.cta_messages || entityInfo?.interaction?.cta_messages);
+    const propMessage = typeof ctaMessage === 'string' && ctaMessage.trim().length > 0 ? [ctaMessage.trim()] : [];
+    return [...propMessage, ...backendMessages].filter((message, index, current) => current.indexOf(message) === index);
+  }, [entityInfo, ctaMessage]);
+
   // Proactive Bubble Logic
   useEffect(() => {
-    let messages = PROACTIVE_MESSAGES;
-    const isLanding = typeof window !== 'undefined' && window.location.pathname === '/';
-
-    // Priority: Backend Config > Landing Page Defaults > Generic Defaults
-    let backendMessages = entityInfo?.cta_messages;
-
-    if (!backendMessages && entityInfo?.interaction?.cta_messages) {
-      backendMessages = entityInfo.interaction.cta_messages;
+    if (proactiveMessages.length === 0) {
+      setShowProactiveBubble(false);
+      setProactiveMessage(null);
+      return;
     }
 
-    if (backendMessages && !Array.isArray(backendMessages)) {
-      backendMessages = [];
-    }
-
-    if (backendMessages && Array.isArray(backendMessages) && backendMessages.length > 0) {
-        messages = backendMessages.map((msg: any) => {
-          if (!msg) return "";
-          if (typeof msg === 'string') return msg;
-          return msg.text || msg.message || "";
-        });
-        messages = messages.filter(m => m.trim().length > 0);
-    } else if (isLanding) {
-        messages = LANDING_PROACTIVE_MESSAGES;
-    }
-
-    if (messages.length === 0) return;
-
-    // Initial Force Show
-    const shouldForceShow = isLanding || (entityInfo?.force_proactive === true);
+    const shouldForceShow = entityInfo?.force_proactive === true;
     if (shouldForceShow && !safeLocalStorage.getItem('proactive_bubble_shown_v2')) {
-       const timer = setTimeout(() => {
-           if (!isOpen) {
-             setProactiveMessage(messages[0]);
-             setShowProactiveBubble(true);
-           }
-           safeLocalStorage.setItem('proactive_bubble_shown_v2', '1');
-       }, 3000);
-       return () => clearTimeout(timer);
+      const timer = setTimeout(() => {
+        if (!isOpen) {
+          setProactiveMessage(proactiveMessages[0]);
+          setShowProactiveBubble(true);
+        }
+        safeLocalStorage.setItem('proactive_bubble_shown_v2', '1');
+      }, 3000);
+      return () => clearTimeout(timer);
     }
-
-    // Cycling Logic
-    const hasCustomMessages = !!(backendMessages && backendMessages.length > 0);
-    const intervalTime = hasCustomMessages ? 6000 : 20000;
 
     const cycleTimer = setInterval(() => {
-        if (isOpen) return;
+      if (isOpen) return;
 
-        if (hasCustomMessages) {
-            const nextIdx = (proactiveCycle + 1) % messages.length;
-            setProactiveMessage(messages[nextIdx]);
-            setProactiveCycle(nextIdx);
+      const nextIdx = (proactiveCycle + 1) % proactiveMessages.length;
+      setProactiveMessage(proactiveMessages[nextIdx]);
+      setProactiveCycle(nextIdx);
 
-            if (!showProactiveBubble) {
-                setShowProactiveBubble(true);
-            }
-        } else {
-            if (showProactiveBubble) return;
-
-            if (isLanding) {
-                const nextIdx = (proactiveCycle + 1) % messages.length;
-                setProactiveMessage(messages[nextIdx]);
-                setShowProactiveBubble(true);
-                setProactiveCycle(nextIdx);
-
-                setTimeout(() => {
-                    setShowProactiveBubble(false);
-                }, 6000);
-            }
-        }
-    }, intervalTime);
+      if (!showProactiveBubble) {
+        setShowProactiveBubble(true);
+      }
+    }, 6000);
 
     return () => clearInterval(cycleTimer);
-  }, [isOpen, showProactiveBubble, proactiveCycle, entityInfo]);
+  }, [isOpen, showProactiveBubble, proactiveCycle, proactiveMessages, entityInfo?.force_proactive]);
 
   const toggleChat = useCallback(() => {
     if (typeof window !== "undefined" && window.AudioContext && window.AudioContext.state === "suspended") {
@@ -1016,7 +1042,7 @@ function ChatWidgetInner({
   }, [viewport, isOpen, sendStateMessageToParent]);
 
   useEffect(() => {
-    if (isOpen || mode === 'standalone') {
+    if (isOpen || mode === 'standalone' || proactiveMessages.length === 0) {
       if (proactiveMessageTimeoutRef.current) clearTimeout(proactiveMessageTimeoutRef.current);
       if (hideProactiveBubbleTimeoutRef.current) clearTimeout(hideProactiveBubbleTimeoutRef.current);
       setShowProactiveBubble(false);
@@ -1029,10 +1055,11 @@ function ChatWidgetInner({
     if (alreadyShownProactive) return;
 
     proactiveMessageTimeoutRef.current = setTimeout(() => {
-      const nextMessage = PROACTIVE_MESSAGES[proactiveCycle % PROACTIVE_MESSAGES.length];
+      const nextMessage = proactiveMessages[proactiveCycle % proactiveMessages.length];
+      if (!nextMessage) return;
       setProactiveMessage(nextMessage);
       setShowProactiveBubble(true);
-      
+
       safeLocalStorage.setItem("proactive_bubble_session_shown", "1");
 
       hideProactiveBubbleTimeoutRef.current = setTimeout(() => {
@@ -1046,7 +1073,7 @@ function ChatWidgetInner({
       if (proactiveMessageTimeoutRef.current) clearTimeout(proactiveMessageTimeoutRef.current);
       if (hideProactiveBubbleTimeoutRef.current) clearTimeout(hideProactiveBubbleTimeoutRef.current);
     };
-  }, [isOpen, proactiveCycle, mode]);
+  }, [isOpen, proactiveCycle, mode, proactiveMessages]);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
@@ -1143,6 +1170,7 @@ function ChatWidgetInner({
                 };
 
                 setEntityInfo(info);
+                setWidgetUx(resolveWidgetUxConfig(publicConfig, inferredTipoChat));
                 if (info.tipo_chat) {
                     setResolvedTipoChat(info.tipo_chat === 'municipio' ? 'municipio' : 'pyme');
                 }
@@ -1190,6 +1218,10 @@ function ChatWidgetInner({
                      };
 
                      setEntityInfo(info);
+                     setWidgetUx({
+                       ...DEFAULT_WIDGET_UX,
+                       preset: info.tipo_chat === 'municipio' ? 'civic-premium' : 'commerce-neon',
+                     });
                      if (info.tipo_chat) {
                          setResolvedTipoChat(info.tipo_chat === 'municipio' ? 'municipio' : 'pyme');
                      }
@@ -1341,11 +1373,43 @@ function ChatWidgetInner({
     transition: { type: "spring", stiffness: 350, damping: 30 },
   };
 
+  const motionScale = widgetUx.motionLevel === 'pro' ? 1 : widgetUx.motionLevel === 'minimal' ? 0.5 : 0.75;
+  const enableHeavyEffects = widgetUx.motionLevel !== 'low' && !isMobileView;
+
+  const launcherPalette = useMemo(() => {
+    const primary = primaryColor || widgetUx.gradientEnd || "hsl(var(--primary))";
+    const accent = accentColor || widgetUx.gradientStart || "hsl(var(--secondary))";
+    return { primary, accent };
+  }, [primaryColor, accentColor, widgetUx.gradientEnd, widgetUx.gradientStart]);
+
+  const presetVisualProfile = useMemo(() => {
+    const preset = (widgetUx.preset || '').toLowerCase();
+    if (preset.includes('civic')) {
+      return {
+        closedShadowDark: "0 16px 40px rgba(15,23,42,0.55), 0 0 0 2px rgba(148,163,184,0.35)",
+        closedShadowLight: "0 14px 34px rgba(15,23,42,0.22), 0 0 0 2px rgba(203,213,225,0.75)",
+        panelGradient: 'linear-gradient(155deg, color-mix(in oklab, white 88%, transparent), color-mix(in oklab, #dbeafe 24%, transparent))',
+      };
+    }
+    if (preset.includes('commerce') || preset.includes('neon')) {
+      return {
+        closedShadowDark: "0 18px 42px rgba(91,33,182,0.6), 0 0 0 2px rgba(244,114,182,0.28)",
+        closedShadowLight: "0 16px 36px rgba(168,85,247,0.28), 0 0 0 2px rgba(244,114,182,0.35)",
+        panelGradient: 'linear-gradient(155deg, color-mix(in oklab, white 86%, transparent), color-mix(in oklab, #fae8ff 26%, transparent))',
+      };
+    }
+    return {
+      closedShadowDark: "0 16px 44px rgba(15,23,42,0.65), 0 0 0 2px rgba(255,255,255,0.12)",
+      closedShadowLight: "0 14px 34px rgba(15,23,42,0.26), 0 0 0 2px rgba(255,255,255,0.6)",
+      panelGradient: 'linear-gradient(155deg, color-mix(in oklab, white 84%, transparent), color-mix(in oklab, hsl(var(--card)) 90%, transparent))',
+    };
+  }, [widgetUx.preset]);
+
   const buttonAnimation = {
     initial: { scale: 0, opacity: 0 },
     animate: { scale: 1, opacity: 1 },
     exit: { scale: 0, opacity: 0 },
-    transition: { type: "spring", stiffness: 300, damping: 20 },
+    transition: { type: "spring", stiffness: 300, damping: 20 / motionScale },
   };
 
   const iconAnimation = {
@@ -1353,7 +1417,7 @@ function ChatWidgetInner({
     closed: { rotate: 0, scale: 1 },
   };
 
-  const openSpring = { type: "spring", stiffness: 200, damping: 20 };
+  const openSpring = { type: "spring", stiffness: 200, damping: 20 / motionScale };
 
   useEffect(() => {
     if (mode === 'iframe' && typeof window !== 'undefined') {
@@ -1380,6 +1444,23 @@ function ChatWidgetInner({
         data-owner-token={ownerToken}
         data-tipo-chat={tipoChat}
         data-initial-rubro={initialRubro}
+        data-widget-preset={widgetUx.preset}
+        data-motion-level={widgetUx.motionLevel}
+        data-glassmorphism={String(widgetUx.glassmorphism)}
+        data-logo-ring={String(widgetUx.logoRing)}
+        data-gradient-start={widgetUx.gradientStart}
+        data-gradient-end={widgetUx.gradientEnd}
+        data-typing-animation={widgetUx.typingAnimation}
+        data-bubble-animation={widgetUx.bubbleAnimation}
+        data-launcher-animation={widgetUx.launcherAnimation}
+        data-message-enter-animation={widgetUx.messageEnterAnimation}
+        data-logo-badge-style={widgetUx.logoBadgeStyle}
+        data-cursor-trail={String(widgetUx.cursorTrail)}
+        data-ambient-particles={String(widgetUx.ambientParticles)}
+        data-support-live-chat={String(Boolean(supportChannels?.live_chat?.realtime))}
+        data-support-whatsapp={String(
+          Boolean(supportChannels?.whatsapp?.enabled && supportChannels?.whatsapp?.realtime_bridge),
+        )}
         className={cn(
           "chatboc-container flex flex-col",
           mode === "standalone"
@@ -1387,7 +1468,42 @@ function ChatWidgetInner({
             : "w-full h-full"
         )}
         style={containerStyle}
+        onMouseMove={(event) => {
+          if (!widgetUx.cursorTrail || !enableHeavyEffects) return;
+          const rect = widgetContainerRef.current?.getBoundingClientRect();
+          if (!rect) return;
+          setCursorTrailPoint({ x: event.clientX - rect.left, y: event.clientY - rect.top });
+        }}
       >
+        {widgetUx.cursorTrail && enableHeavyEffects && cursorTrailPoint ? (
+          <motion.span
+            aria-hidden
+            className="pointer-events-none absolute z-10 h-20 w-20 rounded-full"
+            style={{
+              left: cursorTrailPoint.x - 40,
+              top: cursorTrailPoint.y - 40,
+              background: `radial-gradient(circle, ${launcherPalette.accent}40 0%, transparent 70%)`,
+              filter: 'blur(8px)',
+            }}
+            animate={{ opacity: [0.25, 0.45, 0.25] }}
+            transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
+          />
+        ) : null}
+
+        {widgetUx.ambientParticles && enableHeavyEffects ? (
+          <div className="pointer-events-none absolute inset-0 overflow-hidden z-[1]">
+            {[0, 1, 2, 3].map((particle) => (
+              <motion.span
+                key={`ambient-${particle}`}
+                className="absolute h-2 w-2 rounded-full bg-primary/35"
+                style={{ left: `${18 + particle * 19}%`, top: `${22 + (particle % 2) * 28}%` }}
+                animate={{ y: [-4, 8, -4], opacity: [0.15, 0.5, 0.15] }}
+                transition={{ duration: 3 + particle * 0.7, repeat: Infinity, ease: 'easeInOut' }}
+              />
+            ))}
+          </div>
+        ) : null}
+
         {isOpen && a11yPrefs.dyslexia && <ReadingRuler />}
         {isProfileLoading ? (
           <div className="w-full h-full flex items-center justify-center bg-card rounded-2xl">
@@ -1406,7 +1522,10 @@ function ChatWidgetInner({
               className={cn(commonPanelStyles, "w-full h-full shadow-xl")}
               style={{
                   borderRadius: isMobileView ? "0" : (borderRadius !== undefined ? `${borderRadius}px` : "16px"),
-                  background: chatBackground || "hsl(var(--card))"
+                  background: chatBackground || (widgetUx.glassmorphism
+                    ? presetVisualProfile.panelGradient
+                    : "hsl(var(--card))"),
+                  backdropFilter: widgetUx.glassmorphism ? 'blur(10px) saturate(120%)' : undefined,
               }}
               {...panelAnimation}
             >
@@ -1426,7 +1545,7 @@ function ChatWidgetInner({
                     onToggleSound={toggleMuted}
                     onCart={openCart}
                     cartCount={cartCount}
-                    logoUrl={headerLogoUrl || customLauncherLogoUrl || entityInfo?.logo_url || (isDarkMode ? '/chatbocar.png' : '/chatbocar2.png')}
+                    logoUrl={headerLogoUrl || customLauncherLogoUrl || entityInfo?.logo_url || getChatbocBotAvatar(isDarkMode)}
                     title={headerTitle}
                     subtitle={headerSubtitle}
                     logoAnimation={logoAnimation}
@@ -1475,10 +1594,15 @@ function ChatWidgetInner({
                     selectedRubro={selectedRubro ?? entityDefaultRubro}
                     onRubroSelect={handleRubroSelect}
                     catalogCard={catalogCard}
-                    headerLogoUrl={headerLogoUrl || customLauncherLogoUrl || entityInfo?.logo_url || (isDarkMode ? '/chatbocar.png' : '/chatbocar2.png')}
+                    headerLogoUrl={headerLogoUrl || customLauncherLogoUrl || entityInfo?.logo_url || getChatbocBotAvatar(isDarkMode)}
                     welcomeTitle={headerTitle}
                     welcomeSubtitle={headerSubtitle}
                     logoAnimation={logoAnimation}
+                    typingAnimation={widgetUx.typingAnimation}
+                    bubbleAnimation={widgetUx.bubbleAnimation}
+                    messageEnterAnimation={widgetUx.messageEnterAnimation}
+                    logoBadgeStyle={widgetUx.logoBadgeStyle}
+                    supportChannels={supportChannels}
                     onA11yChange={setA11yPrefs}
                     a11yPrefs={a11yPrefs}
                   />
@@ -1532,28 +1656,60 @@ function ChatWidgetInner({
                 key="chatboc-toggle-btn"
                 className={cn(
                   commonButtonStyles,
-                  "w-full h-full border-none shadow-xl"
+                  "group relative w-full h-full border-none"
                 )}
                 style={{
                   borderRadius: "50%",
-                  // Ensure we use the dynamic 'primary' color if set, else fallback
-                  backgroundColor: "var(--primary, #2563eb)",
+                  background: `radial-gradient(circle at 30% 30%, ${launcherPalette.accent}, ${launcherPalette.primary})`,
                   color: "var(--primary-foreground, #ffffff)",
-                  boxShadow: "0 6px 24px 0 rgba(0,0,0,0.15)",
+                  boxShadow: isDarkMode
+                    ? presetVisualProfile.closedShadowDark
+                    : presetVisualProfile.closedShadowLight,
                 }}
                 {...buttonAnimation}
-                whileHover={{ scale: 1.1, transition: { type: "spring", stiffness: 400, damping: 15 } }}
+                whileHover={{
+                  scale: widgetUx.launcherAnimation.includes('pulse') ? 1.1 : 1.08,
+                  rotate: widgetUx.launcherAnimation.includes('orbit') ? 3 : 0,
+                  transition: { type: "spring", stiffness: 420, damping: 18 / motionScale },
+                }}
                 whileTap={{ scale: 0.95 }}
                 onClick={toggleChat}
                 aria-label="Abrir chat"
               >
+                {widgetUx.logoRing && widgetUx.motionLevel !== 'minimal' ? (
+                  <motion.span
+                    aria-hidden
+                    className="pointer-events-none absolute inset-0 rounded-full"
+                    style={{
+                      background: `conic-gradient(from 0deg, ${launcherPalette.primary}, ${launcherPalette.accent}, ${launcherPalette.primary})`,
+                      filter: "blur(10px)",
+                      opacity: isOpen ? 0.45 : 0.75,
+                    }}
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: widgetUx.motionLevel === 'pro' ? 5 : 8, repeat: Infinity, ease: "linear" }}
+                  />
+                ) : null}
+                {widgetUx.motionLevel !== 'minimal' ? (
+                  <motion.span
+                    aria-hidden
+                    className="pointer-events-none absolute inset-[6px] rounded-full"
+                    style={{
+                      background: 'linear-gradient(145deg, rgba(255,255,255,0.36), rgba(255,255,255,0.04))',
+                      mixBlendMode: 'screen',
+                    }}
+                    animate={{ opacity: [0.35, 0.65, 0.35] }}
+                    transition={{ duration: widgetUx.motionLevel === 'pro' ? 2 : 3.2, repeat: Infinity, ease: 'easeInOut' }}
+                  />
+                ) : null}
+                <span className="absolute inset-[4px] rounded-full bg-background/90 backdrop-blur-sm" />
                 <motion.div
+                  className="relative z-10"
                   variants={iconAnimation}
                   animate={isOpen ? "open" : "closed"}
                   transition={openSpring}
                 >
                   <ChatbocLogoAnimated
-                    src={entityInfo?.logo_url || customLauncherLogoUrl || (isDarkMode ? '/chatbocar.png' : '/chatbocar2.png')}
+                    src={entityInfo?.logo_url || customLauncherLogoUrl || getChatbocBotAvatar(isDarkMode)}
                     size={calculatedLogoSize}
                     blinking={!isOpen}
                     floating={!isOpen}
