@@ -34,6 +34,37 @@ export const apiClient = {
     return apiFetch<Order[]>(`/api/v1/portal/${tenantSlug}/orders`, { tenantSlug });
   },
 
+  getOrderDetail: async (tenantSlug: string, orderId: string | number): Promise<Order> => {
+    return apiFetch<Order>(`/api/v1/portal/${tenantSlug}/orders/${orderId}`, { tenantSlug });
+  },
+
+  getPortalHistory: async (tenantSlug: string, includeNetwork = false): Promise<any> => {
+    const suffix = includeNetwork ? '?include_network=true' : '';
+    return apiFetch<any>(`/api/v1/portal/${tenantSlug}/history${suffix}`, { tenantSlug });
+  },
+
+  getPortalSurveysHistory: async (tenantSlug: string, includeNetwork = false): Promise<any> => {
+    const suffix = includeNetwork ? '?include_network=true' : '';
+    return apiFetch<any>(`/api/v1/portal/${tenantSlug}/surveys/history${suffix}`, { tenantSlug });
+  },
+
+  getPortalDashboard: async (tenantSlug: string, includeNetwork = false): Promise<any> => {
+    const suffix = includeNetwork ? '?include_network=true' : '';
+    return apiFetch<any>(`/api/v1/portal/${tenantSlug}/dashboard${suffix}`, { tenantSlug });
+  },
+
+  getPortalNetworkFeed: async (tenantSlug: string): Promise<any> => {
+    return apiFetch<any>(`/api/v1/portal/${tenantSlug}/network/feed`, { tenantSlug });
+  },
+
+  getPortalBenefits: async (tenantSlug: string): Promise<any> => {
+    return apiFetch<any>(`/api/v1/portal/${tenantSlug}/benefits`, { tenantSlug });
+  },
+
+  listPortalRedeems: async (tenantSlug: string): Promise<any[]> => {
+    return apiFetch<any[]>(`/api/v1/portal/${tenantSlug}/redeems`, { tenantSlug });
+  },
+
   listTickets: async (tenantSlug: string): Promise<Ticket[]> => {
     return apiFetch<Ticket[]>(`/api/v1/portal/${tenantSlug}/tickets`, { tenantSlug });
   },
