@@ -68,21 +68,21 @@ const LOCAL_PLACEHOLDER_SLUGS = new Set([
 ]);
 const PLACEHOLDER_SLUGS_SET = LOCAL_PLACEHOLDER_SLUGS;
 
-const PROACTIVE_MESSAGES = [
-  "¿Necesitas ayuda?",
-  "¿Querés hacer una sugerencia?",
-  "¿Tenés un reclamo?",
-  "¿Tenés consultas? ¡Preguntame!",
-];
-
-const LANDING_PROACTIVE_MESSAGES = [
-  "¡Hola! 👋 ¿Querés probar una demo interactiva?",
-  "Probá nuestro asistente inteligente gratis 🤖",
-  "Descubrí cómo automatizar tus ventas 🚀",
-  "¿Hablamos? Estoy acá para ayudarte 😊"
-];
-
 const LS_KEY = "chatboc_accessibility";
+
+function normalizeCtaMessages(rawMessages: any): string[] {
+  if (!Array.isArray(rawMessages)) return [];
+
+  return rawMessages
+    .map((msg: any) => {
+      if (!msg) return '';
+      if (typeof msg === 'string') return msg;
+      return msg.text || msg.message || '';
+    })
+    .map((msg: string) => msg.trim())
+    .filter((msg: string) => msg.length > 0);
+}
+
 
 function SafeAnimatePresence({ children = null, ...rest }: AnimatePresenceProps = { children: null }) {
   return <AnimatePresence {...rest}>{children}</AnimatePresence>;
@@ -590,81 +590,46 @@ function ChatWidgetInner({
 
   }, [entityInfo, primaryColor, accentColor, userMsgColor, chatBackground, borderRadius, fontFamily, mode, isDarkMode]);
 
+  const proactiveMessages = useMemo(() => {
+    const backendMessages = normalizeCtaMessages(entityInfo?.cta_messages || entityInfo?.interaction?.cta_messages);
+    const propMessage = typeof ctaMessage === 'string' && ctaMessage.trim().length > 0 ? [ctaMessage.trim()] : [];
+    return [...propMessage, ...backendMessages].filter((message, index, current) => current.indexOf(message) === index);
+  }, [entityInfo, ctaMessage]);
+
   // Proactive Bubble Logic
   useEffect(() => {
-    let messages = PROACTIVE_MESSAGES;
-    const isLanding = typeof window !== 'undefined' && window.location.pathname === '/';
-
-    // Priority: Backend Config > Landing Page Defaults > Generic Defaults
-    let backendMessages = entityInfo?.cta_messages;
-
-    if (!backendMessages && entityInfo?.interaction?.cta_messages) {
-      backendMessages = entityInfo.interaction.cta_messages;
+    if (proactiveMessages.length === 0) {
+      setShowProactiveBubble(false);
+      setProactiveMessage(null);
+      return;
     }
 
-    if (backendMessages && !Array.isArray(backendMessages)) {
-      backendMessages = [];
-    }
-
-    if (backendMessages && Array.isArray(backendMessages) && backendMessages.length > 0) {
-        messages = backendMessages.map((msg: any) => {
-          if (!msg) return "";
-          if (typeof msg === 'string') return msg;
-          return msg.text || msg.message || "";
-        });
-        messages = messages.filter(m => m.trim().length > 0);
-    } else if (isLanding) {
-        messages = LANDING_PROACTIVE_MESSAGES;
-    }
-
-    if (messages.length === 0) return;
-
-    // Initial Force Show
-    const shouldForceShow = isLanding || (entityInfo?.force_proactive === true);
+    const shouldForceShow = entityInfo?.force_proactive === true;
     if (shouldForceShow && !safeLocalStorage.getItem('proactive_bubble_shown_v2')) {
-       const timer = setTimeout(() => {
-           if (!isOpen) {
-             setProactiveMessage(messages[0]);
-             setShowProactiveBubble(true);
-           }
-           safeLocalStorage.setItem('proactive_bubble_shown_v2', '1');
-       }, 3000);
-       return () => clearTimeout(timer);
+      const timer = setTimeout(() => {
+        if (!isOpen) {
+          setProactiveMessage(proactiveMessages[0]);
+          setShowProactiveBubble(true);
+        }
+        safeLocalStorage.setItem('proactive_bubble_shown_v2', '1');
+      }, 3000);
+      return () => clearTimeout(timer);
     }
-
-    // Cycling Logic
-    const hasCustomMessages = !!(backendMessages && backendMessages.length > 0);
-    const intervalTime = hasCustomMessages ? 6000 : 20000;
 
     const cycleTimer = setInterval(() => {
-        if (isOpen) return;
+      if (isOpen) return;
 
-        if (hasCustomMessages) {
-            const nextIdx = (proactiveCycle + 1) % messages.length;
-            setProactiveMessage(messages[nextIdx]);
-            setProactiveCycle(nextIdx);
+      const nextIdx = (proactiveCycle + 1) % proactiveMessages.length;
+      setProactiveMessage(proactiveMessages[nextIdx]);
+      setProactiveCycle(nextIdx);
 
-            if (!showProactiveBubble) {
-                setShowProactiveBubble(true);
-            }
-        } else {
-            if (showProactiveBubble) return;
-
-            if (isLanding) {
-                const nextIdx = (proactiveCycle + 1) % messages.length;
-                setProactiveMessage(messages[nextIdx]);
-                setShowProactiveBubble(true);
-                setProactiveCycle(nextIdx);
-
-                setTimeout(() => {
-                    setShowProactiveBubble(false);
-                }, 6000);
-            }
-        }
-    }, intervalTime);
+      if (!showProactiveBubble) {
+        setShowProactiveBubble(true);
+      }
+    }, 6000);
 
     return () => clearInterval(cycleTimer);
-  }, [isOpen, showProactiveBubble, proactiveCycle, entityInfo]);
+  }, [isOpen, showProactiveBubble, proactiveCycle, proactiveMessages, entityInfo?.force_proactive]);
 
   const toggleChat = useCallback(() => {
     if (typeof window !== "undefined" && window.AudioContext && window.AudioContext.state === "suspended") {
@@ -1017,7 +982,7 @@ function ChatWidgetInner({
   }, [viewport, isOpen, sendStateMessageToParent]);
 
   useEffect(() => {
-    if (isOpen || mode === 'standalone') {
+    if (isOpen || mode === 'standalone' || proactiveMessages.length === 0) {
       if (proactiveMessageTimeoutRef.current) clearTimeout(proactiveMessageTimeoutRef.current);
       if (hideProactiveBubbleTimeoutRef.current) clearTimeout(hideProactiveBubbleTimeoutRef.current);
       setShowProactiveBubble(false);
@@ -1030,10 +995,11 @@ function ChatWidgetInner({
     if (alreadyShownProactive) return;
 
     proactiveMessageTimeoutRef.current = setTimeout(() => {
-      const nextMessage = PROACTIVE_MESSAGES[proactiveCycle % PROACTIVE_MESSAGES.length];
+      const nextMessage = proactiveMessages[proactiveCycle % proactiveMessages.length];
+      if (!nextMessage) return;
       setProactiveMessage(nextMessage);
       setShowProactiveBubble(true);
-      
+
       safeLocalStorage.setItem("proactive_bubble_session_shown", "1");
 
       hideProactiveBubbleTimeoutRef.current = setTimeout(() => {
@@ -1047,7 +1013,7 @@ function ChatWidgetInner({
       if (proactiveMessageTimeoutRef.current) clearTimeout(proactiveMessageTimeoutRef.current);
       if (hideProactiveBubbleTimeoutRef.current) clearTimeout(hideProactiveBubbleTimeoutRef.current);
     };
-  }, [isOpen, proactiveCycle, mode]);
+  }, [isOpen, proactiveCycle, mode, proactiveMessages]);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
