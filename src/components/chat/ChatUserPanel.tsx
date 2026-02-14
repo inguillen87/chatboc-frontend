@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,6 +30,12 @@ interface Props {
   onClose: () => void;
 }
 
+interface QuickActionConfig {
+  label: string;
+  path?: string;
+  url?: string;
+}
+
 const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -53,8 +59,33 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
     }
   }, []);
 
+  const trackLeadEvent = useCallback(
+    async (eventName: string, payload: Record<string, unknown>) => {
+      const tenantId = Number(tenantInfo?.id || safeLocalStorage.getItem('tenantId') || 0);
+      if (!tenantId) return;
+
+      try {
+        await apiFetch('/analytics/event', {
+          method: 'POST',
+          body: {
+            tenant_id: tenantId,
+            event_name: eventName,
+            payload,
+            channel: 'web_widget',
+            session_id: `sess_${Date.now()}`,
+          },
+          isWidgetRequest: true,
+        });
+      } catch (eventError) {
+        console.warn('[ChatUserPanel] tracking failed', eventError);
+      }
+    },
+    [tenantInfo?.id],
+  );
+
   const goTo = (path: string) => {
     const url = buildTenantNavigationUrl({ basePath: path, tenantSlug, tenant: tenantInfo });
+    trackLeadEvent('widget_quick_action_click', { path, has_contact_data: Boolean(email || phone) });
     window.open(url, "_blank", "noreferrer");
   };
 
@@ -124,6 +155,7 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
           safeLocalStorage.setItem("user", JSON.stringify(obj));
         } catch {}
       }
+      trackLeadEvent("widget_lead_profile_updated", { has_email: Boolean(email), has_phone: Boolean(phone), marketing_opt_in: marketingOptIn });
       onClose();
     } catch (e) {
       setError(getErrorMessage(e, "No se pudo guardar"));
@@ -132,12 +164,29 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
     }
   };
 
-  const quickActions = [
-    { label: "Explorar catálogo", icon: Store, path: "/catalogo" },
-    { label: "Mi carrito", icon: ShoppingCart, path: "/cart" },
-    { label: "Mis pedidos", icon: ListChecks, path: "/orders" },
-    { label: "Mis tickets", icon: Ticket, path: "/tickets/mis" },
-  ];
+  const backendQuickActions = useMemo(() => {
+    const rawActions = tenantInfo?.interaction?.quick_actions || tenantInfo?.quick_actions || [];
+    if (!Array.isArray(rawActions)) return [] as QuickActionConfig[];
+
+    return rawActions
+      .map((action: any) => {
+        const label = typeof action?.label === 'string' ? action.label.trim() : '';
+        const path = typeof action?.path === 'string' ? action.path.trim() : undefined;
+        const url = typeof action?.url === 'string' ? action.url.trim() : undefined;
+        if (!label || (!path && !url)) return null;
+        return { label, path, url };
+      })
+      .filter((action: QuickActionConfig | null): action is QuickActionConfig => Boolean(action));
+  }, [tenantInfo]);
+
+  const quickActions = backendQuickActions.length > 0
+    ? backendQuickActions.map((action) => ({ ...action, icon: Sparkles }))
+    : [
+        { label: "Explorar catálogo", icon: Store, path: "/catalogo" },
+        { label: "Mi carrito", icon: ShoppingCart, path: "/cart" },
+        { label: "Mis pedidos", icon: ListChecks, path: "/orders" },
+        { label: "Mis tickets", icon: Ticket, path: "/tickets/mis" },
+      ];
 
   return (
     <div className="p-4 flex flex-col gap-4 w-full max-w-md mx-auto animate-fade-in overflow-y-auto">
@@ -161,7 +210,14 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
               variant="secondary"
               className="w-full justify-start gap-2"
               type="button"
-              onClick={() => goTo(action.path)}
+              onClick={() => {
+                if (action.url) {
+                  trackLeadEvent('widget_quick_action_click', { url: action.url, has_contact_data: Boolean(email || phone) });
+                  window.open(action.url, "_blank", "noreferrer");
+                  return;
+                }
+                if (action.path) goTo(action.path);
+              }}
             >
               <action.icon className="h-4 w-4" />
               {action.label}

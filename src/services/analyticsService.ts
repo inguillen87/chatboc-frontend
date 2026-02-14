@@ -1,16 +1,14 @@
-import { apiClient } from '@/api/client';
 import { apiFetch } from '@/utils/api';
-
-// Using apiClient as base or axios if preferred.
-// The prompt example used `api` from `axiosConfig`, but I should align with the project's `apiFetch`.
 
 export interface AnalyticsFilters {
   tenant_id?: number;
-  from?: string; // ISO Date
-  to?: string;   // ISO Date
+  from?: string;
+  to?: string;
   context?: 'overview' | 'municipio' | 'pyme';
+  scope?: string;
   channel?: string;
-  tenantSlug?: string; // Add slug support if needed by backend or internal logic
+  tz?: string;
+  tenantSlug?: string;
 }
 
 export interface AnalyticsSummary {
@@ -28,44 +26,39 @@ export interface AnalyticsSummary {
   insights: any[];
 }
 
+const buildQuery = (filters: AnalyticsFilters) => {
+  const params = new URLSearchParams();
+  if (filters.tenant_id) params.append('tenant_id', String(filters.tenant_id));
+  if (filters.from) params.append('from', filters.from);
+  if (filters.to) params.append('to', filters.to);
+  if (filters.scope) params.append('scope', filters.scope);
+  if (filters.tz) params.append('tz', filters.tz);
+  return params.toString();
+};
+
 export const analyticsService = {
   getSummary: async (filters: AnalyticsFilters): Promise<AnalyticsSummary> => {
-    const params = new URLSearchParams();
-    if (filters.tenant_id) params.append('tenant_id', filters.tenant_id.toString());
-    if (filters.from) params.append('from', filters.from);
-    if (filters.to) params.append('to', filters.to);
-    if (filters.context) params.append('context', filters.context);
-    if (filters.channel) params.append('channel', filters.channel);
-
-    // Using apiFetch which is the standard here
-    // Updated to match backend guide: GET /api/admin/analytics/summary
-    return apiFetch<AnalyticsSummary>(`/api/admin/analytics/summary?${params.toString()}`, {
-        tenantSlug: filters.tenantSlug
+    const query = buildQuery({ ...filters, scope: filters.scope ?? filters.context ?? 'municipio' });
+    return apiFetch<AnalyticsSummary>(`/admin/analytics/overview?${query}`, {
+      tenantSlug: filters.tenantSlug,
     });
   },
 
   getHeatmap: async (filters: AnalyticsFilters) => {
-    const params = new URLSearchParams();
-    if (filters.tenant_id) params.append('tenant_id', filters.tenant_id.toString());
-    if (filters.from) params.append('from', filters.from);
-    if (filters.to) params.append('to', filters.to);
-
-    // Updated endpoint path to match pattern: /api/admin/analytics/heatmap
-    // Response expected: { points: [...] } or direct array?
-    // Guide says "Map heatmap_points -> stats.geo_heatmap".
-    // If getSummary returns heatmap, we might not need this separate call, but if the dashboard uses it:
-    const response = await apiFetch<{ points: any[] }>(`/api/admin/analytics/heatmap?${params.toString()}`, {
-        tenantSlug: filters.tenantSlug
+    const query = buildQuery({ ...filters, scope: filters.scope ?? filters.context ?? 'municipio' });
+    const response = await apiFetch<any>(`/admin/analytics/heatmap?${query}`, {
+      tenantSlug: filters.tenantSlug,
     });
-    return response.points || [];
+    return response?.points || response?.geo_points || response?.heatmap_points || [];
   },
 
   getInsights: async (tenantId: number, tenantSlug?: string) => {
-    // Updated path to /api/admin/analytics/insights (implied) or rely on summary if integrated
-    // Keeping separate call for now but pointing to admin path
-    const response = await apiFetch<{ insights: any[] }>(`/api/admin/analytics/insights?tenant_id=${tenantId}`, {
-        tenantSlug
+    const response = await apiFetch<{ insights: any[] }>(`/admin/analytics/overview?tenant_id=${tenantId}`, {
+      tenantSlug,
     });
-    return response.insights;
-  }
+    return response?.insights || [];
+  },
+
+  exportCsvUrl: (filters: AnalyticsFilters) => `/admin/analytics/export.csv?${buildQuery(filters)}`,
+  exportPdfUrl: (filters: AnalyticsFilters) => `/admin/analytics/export.pdf?${buildQuery(filters)}`,
 };
