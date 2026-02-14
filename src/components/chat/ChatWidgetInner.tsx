@@ -1458,7 +1458,9 @@ function ChatWidgetInner({
         data-cursor-trail={String(widgetUx.cursorTrail)}
         data-ambient-particles={String(widgetUx.ambientParticles)}
         data-support-live-chat={String(Boolean(supportChannels?.live_chat?.realtime))}
-        data-support-whatsapp={String(Boolean(supportChannels?.whatsapp?.enabled))}
+        data-support-whatsapp={String(
+          Boolean(supportChannels?.whatsapp?.enabled && supportChannels?.whatsapp?.realtime_bridge),
+        )}
         className={cn(
           "chatboc-container flex flex-col",
           mode === "standalone"
