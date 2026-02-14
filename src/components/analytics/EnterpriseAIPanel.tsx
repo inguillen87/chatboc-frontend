@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { enterpriseService } from '@/services/enterpriseService';
 import { ApiError } from '@/utils/api';
+import { getEnterpriseErrorMessage } from '@/utils/enterpriseErrors';
 import { toast } from 'sonner';
 import { resolveDraftCounts, validateOrderDraftFile, ORDER_DRAFT_ALLOWED_EXTENSIONS } from '@/utils/enterpriseAi';
 
@@ -53,15 +54,8 @@ const EnterpriseAIPanel = ({ tenantId, tenantSlug, scope }: Props) => {
         toast.success('Recomendaciones cargadas.');
       }
     } catch (err) {
-      if (err instanceof ApiError && err.status === 403) {
-        setRecommendationsError('No tenés permisos para ver recomendaciones.');
-      } else if (err instanceof ApiError && err.status === 404) {
-        setRecommendationsError('No encontramos recomendaciones para este tenant.');
-      } else if (err instanceof ApiError && err.status === 400) {
-        setRecommendationsError('La solicitud de recomendaciones es inválida.');
-      } else {
-        setRecommendationsError('No se pudieron cargar recomendaciones.');
-      }
+      const status = err instanceof ApiError ? err.status : undefined;
+      setRecommendationsError(getEnterpriseErrorMessage(status, 'load_recommendations'));
     } finally {
       setLoadingRecommendations(false);
     }
@@ -99,13 +93,8 @@ const EnterpriseAIPanel = ({ tenantId, tenantSlug, scope }: Props) => {
       setDraftItems(rows);
       toast.success('Borrador generado correctamente.');
     } catch (err) {
-      if (err instanceof ApiError && err.status === 403) {
-        setDraftError('No tenés permisos para generar borradores.');
-      } else if (err instanceof ApiError && err.status === 400) {
-        setDraftError('Archivo inválido. Verificá tamaño/formato e intentá nuevamente.');
-      } else {
-        setDraftError('No se pudo procesar el documento.');
-      }
+      const status = err instanceof ApiError ? err.status : undefined;
+      setDraftError(getEnterpriseErrorMessage(status, 'upload_order_draft'));
     } finally {
       setUploading(false);
     }
