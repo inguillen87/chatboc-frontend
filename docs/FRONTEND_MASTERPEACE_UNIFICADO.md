@@ -87,6 +87,67 @@ Este es el **documento único** para frontend con:
 3. Toasts y mensajes de error normalizados (`400/403/404/500`).
 4. Smoke tests FE mínimos de flujos críticos.
 
+
+## 2.7 Portal UX de referencia (implementación frontend)
+
+### Cards sugeridas para Home del portal
+- **Mi actividad**: resumen de `summary.counts` (`orders`, `claims`, `surveys`, `suggestions`).
+- **Mis puntos**: saldo actual + `summary.points_breakdown`.
+- **Seguimiento de pedidos**: últimos `orders[]` usando `tracking.stage` + `tracking.eta`.
+- **Novedades de mi red**: `network/feed` (tenant actual + tenants seguidos).
+
+### Contrato sugerido para Timeline unificado
+Normalizar visualmente `timeline[]` por `type`:
+- `order`: badge por estado (`pending/preparing/shipped/delivered/cancelled`)
+- `claim`: badge por estado del reclamo
+- `points`: badge `earned/redeemed` + color por signo de `delta`
+- `survey`: badge `submitted`
+- `suggestion`: badge por `estado` (`nueva/revisada/implementada`)
+
+### Ejemplo de payload (`GET /history`)
+```json
+{
+  "summary": {
+    "counts": {"orders": 3, "claims": 2, "surveys": 1, "suggestions": 1, "points_movements": 7},
+    "points_breakdown": {
+      "compras": 120,
+      "encuestas": 50,
+      "votaciones": 0,
+      "sugerencias": 30,
+      "reclamos": 20,
+      "canjes": -70,
+      "participacion": 0,
+      "otros": 0
+    }
+  },
+  "timeline": [
+    {"type": "order", "status": "shipped", "at": "2026-02-14T12:00:00+00:00"},
+    {"type": "points", "status": "earned", "at": "2026-02-14T11:30:00+00:00"},
+    {"type": "suggestion", "status": "nueva", "at": "2026-02-13T18:00:00+00:00"}
+  ]
+}
+```
+
+### Ejemplo de payload (`GET /network/feed`)
+```json
+{
+  "items": [
+    {
+      "id": 101,
+      "type": "news",
+      "title": "Nueva obra de pavimentación",
+      "date": "2026-02-14T10:00:00+00:00",
+      "tenant": {"slug": "mi-ciudad", "name": "Municipio X", "tipo": "municipio"},
+      "link": "/mi-ciudad/noticias/101"
+    }
+  ],
+  "tenants": [
+    {"slug": "mi-ciudad", "name": "Municipio X", "tipo": "municipio"},
+    {"slug": "pyme-favorita", "name": "Pyme Favorita", "tipo": "pyme"}
+  ]
+}
+```
+
 ---
 
 ## 3) Contratos clave que frontend debe respetar
@@ -138,7 +199,8 @@ Validaciones FE recomendadas:
 ### Portal usuario (historial, tracking y fidelización)
 - `GET /api/v1/portal/<tenant_slug>/orders` incluye `status_label`, `tracking.stage`, `tracking.eta` y `tracking.latest_event`.
 - `GET /api/v1/portal/<tenant_slug>/orders/<order_id>` devuelve detalle con `tracking.timeline` y `items[]`.
-- `GET /api/v1/portal/<tenant_slug>/history` expone historial unificado (`claims`, `orders`, `points`, `surveys`, `timeline`).
+- `GET /api/v1/portal/<tenant_slug>/history` expone historial unificado (`claims`, `orders`, `points`, `surveys`, `suggestions`, `timeline`) e incluye `summary.counts` + `summary.points_breakdown`.
+- `GET /api/v1/portal/<tenant_slug>/network/feed` devuelve noticias/eventos del tenant actual + tenants seguidos por el usuario.
 - `GET /api/v1/portal/<tenant_slug>/benefits` entrega beneficios canjeables + elegibilidad por puntos.
 - `POST /api/v1/portal/<tenant_slug>/redeem` registra canje real (débito de puntos + metadata).
 - `GET /api/v1/portal/<tenant_slug>/redeems` devuelve historial de canjes realizados.
@@ -208,3 +270,18 @@ Se considera listo cuando frontend cumpla:
 ## 8) Mensaje corto para pasar al equipo frontend
 
 > “Backend enterprise ya está listo para demo, analytics, IA admin y personalización del bot por tenant. Priorizamos en frontend: demo entry + dashboard + features IA + pantalla de bot settings + hardening de errores/scope tenant. Con eso cerramos el paquete comercial enterprise de punta a punta.”
+
+
+## 9) Bloque final para pasar al frontend (portal usuario)
+
+Implementar en este orden:
+1. **Home portal** con 4 widgets: actividad, puntos, pedidos, red de noticias.
+2. **Timeline unificado** consumiendo `GET /api/v1/portal/<tenant_slug>/history`.
+3. **Feed transversal** consumiendo `GET /api/v1/portal/<tenant_slug>/network/feed`.
+4. **Canjes** (`benefits`, `redeem`, `redeems`) con feedback inmediato de saldo.
+
+Criterio de calidad UX:
+- estados vacíos elegantes,
+- skeletons de carga,
+- filtros por tipo en timeline,
+- consistencia visual de badges de estado.
