@@ -182,6 +182,46 @@ function ChatWidgetInner({
   borderRadius,
   fontFamily,
 }: ChatWidgetProps) {
+  const DEFAULT_WIDGET_UX = {
+    preset: 'premium',
+    motionLevel: 'balanced',
+    glassmorphism: true,
+    logoRing: true,
+    gradientStart: '#0f172a',
+    gradientEnd: '#007aff',
+  } as const;
+
+  const normalizeUxBool = (value: unknown, fallback: boolean) => {
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      if (normalized === 'true') return true;
+      if (normalized === 'false') return false;
+    }
+    return fallback;
+  };
+
+  const normalizeUxString = (value: unknown, fallback: string) => {
+    if (typeof value !== 'string') return fallback;
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : fallback;
+  };
+
+  const resolveWidgetUxConfig = (publicConfig: any, fallbackTipoChat: 'municipio' | 'pyme') => {
+    const attrs = publicConfig?.widget?.attributes || {};
+    const ux = publicConfig?.builder_config?.ux || {};
+    const defaultPreset = fallbackTipoChat === 'municipio' ? 'civic-premium' : 'commerce-neon';
+
+    return {
+      preset: normalizeUxString(attrs['data-widget-preset'] ?? ux.preset, defaultPreset),
+      motionLevel: normalizeUxString(attrs['data-motion-level'] ?? ux.motion_level, DEFAULT_WIDGET_UX.motionLevel),
+      glassmorphism: normalizeUxBool(attrs['data-glassmorphism'] ?? ux.glassmorphism, DEFAULT_WIDGET_UX.glassmorphism),
+      logoRing: normalizeUxBool(attrs['data-logo-ring'] ?? ux.logo_ring, DEFAULT_WIDGET_UX.logoRing),
+      gradientStart: normalizeUxString(attrs['data-gradient-start'] ?? ux.gradient_start, DEFAULT_WIDGET_UX.gradientStart),
+      gradientEnd: normalizeUxString(attrs['data-gradient-end'] ?? ux.gradient_end, DEFAULT_WIDGET_UX.gradientEnd),
+    };
+  };
+
   const proactiveMessageTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const hideProactiveBubbleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isDarkMode = useDarkMode();
@@ -503,6 +543,7 @@ function ChatWidgetInner({
   const [proactiveMessage, setProactiveMessage] = useState<string | null>(null);
   const [showProactiveBubble, setShowProactiveBubble] = useState(false);
   const [proactiveCycle, setProactiveCycle] = useState(0);
+  const [widgetUx, setWidgetUx] = useState(DEFAULT_WIDGET_UX);
 
   // Apply Theme Config
   useEffect(() => {
@@ -1110,6 +1151,7 @@ function ChatWidgetInner({
                 };
 
                 setEntityInfo(info);
+                setWidgetUx(resolveWidgetUxConfig(publicConfig, inferredTipoChat));
                 if (info.tipo_chat) {
                     setResolvedTipoChat(info.tipo_chat === 'municipio' ? 'municipio' : 'pyme');
                 }
@@ -1157,6 +1199,10 @@ function ChatWidgetInner({
                      };
 
                      setEntityInfo(info);
+                     setWidgetUx({
+                       ...DEFAULT_WIDGET_UX,
+                       preset: info.tipo_chat === 'municipio' ? 'civic-premium' : 'commerce-neon',
+                     });
                      if (info.tipo_chat) {
                          setResolvedTipoChat(info.tipo_chat === 'municipio' ? 'municipio' : 'pyme');
                      }
@@ -1308,11 +1354,13 @@ function ChatWidgetInner({
     transition: { type: "spring", stiffness: 350, damping: 30 },
   };
 
+  const motionScale = widgetUx.motionLevel === 'pro' ? 1 : widgetUx.motionLevel === 'minimal' ? 0.5 : 0.75;
+
   const buttonAnimation = {
     initial: { scale: 0, opacity: 0 },
     animate: { scale: 1, opacity: 1 },
     exit: { scale: 0, opacity: 0 },
-    transition: { type: "spring", stiffness: 300, damping: 20 },
+    transition: { type: "spring", stiffness: 300, damping: 20 / motionScale },
   };
 
   const iconAnimation = {
@@ -1320,7 +1368,10 @@ function ChatWidgetInner({
     closed: { rotate: 0, scale: 1 },
   };
 
-  const openSpring = { type: "spring", stiffness: 200, damping: 20 };
+  const openSpring = { type: "spring", stiffness: 200, damping: 20 / motionScale };
+
+  const launcherPrimary = primaryColor || widgetUx.gradientEnd || "hsl(var(--primary))";
+  const launcherAccent = accentColor || widgetUx.gradientStart || "hsl(var(--secondary))";
 
   const launcherPrimary = primaryColor || "hsl(var(--primary))";
   const launcherAccent = accentColor || "hsl(var(--secondary))";
@@ -1350,6 +1401,12 @@ function ChatWidgetInner({
         data-owner-token={ownerToken}
         data-tipo-chat={tipoChat}
         data-initial-rubro={initialRubro}
+        data-widget-preset={widgetUx.preset}
+        data-motion-level={widgetUx.motionLevel}
+        data-glassmorphism={String(widgetUx.glassmorphism)}
+        data-logo-ring={String(widgetUx.logoRing)}
+        data-gradient-start={widgetUx.gradientStart}
+        data-gradient-end={widgetUx.gradientEnd}
         className={cn(
           "chatboc-container flex flex-col",
           mode === "standalone"
@@ -1376,7 +1433,10 @@ function ChatWidgetInner({
               className={cn(commonPanelStyles, "w-full h-full shadow-xl")}
               style={{
                   borderRadius: isMobileView ? "0" : (borderRadius !== undefined ? `${borderRadius}px` : "16px"),
-                  background: chatBackground || "hsl(var(--card))"
+                  background: chatBackground || (widgetUx.glassmorphism
+                    ? 'linear-gradient(155deg, color-mix(in oklab, white 84%, transparent), color-mix(in oklab, hsl(var(--card)) 90%, transparent))'
+                    : "hsl(var(--card))"),
+                  backdropFilter: widgetUx.glassmorphism ? 'blur(10px) saturate(120%)' : undefined,
               }}
               {...panelAnimation}
             >
@@ -1513,22 +1573,24 @@ function ChatWidgetInner({
                     : "0 14px 34px rgba(15,23,42,0.26), 0 0 0 2px rgba(255,255,255,0.6)",
                 }}
                 {...buttonAnimation}
-                whileHover={{ scale: 1.08, transition: { type: "spring", stiffness: 420, damping: 18 } }}
+                whileHover={{ scale: 1.08, transition: { type: "spring", stiffness: 420, damping: 18 / motionScale } }}
                 whileTap={{ scale: 0.95 }}
                 onClick={toggleChat}
                 aria-label="Abrir chat"
               >
-                <motion.span
-                  aria-hidden
-                  className="pointer-events-none absolute inset-0 rounded-full"
-                  style={{
-                    background: `conic-gradient(from 0deg, ${launcherPrimary}, ${launcherAccent}, ${launcherPrimary})`,
-                    filter: "blur(10px)",
-                    opacity: isOpen ? 0.45 : 0.75,
-                  }}
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
-                />
+                {widgetUx.logoRing ? (
+                  <motion.span
+                    aria-hidden
+                    className="pointer-events-none absolute inset-0 rounded-full"
+                    style={{
+                      background: `conic-gradient(from 0deg, ${launcherPrimary}, ${launcherAccent}, ${launcherPrimary})`,
+                      filter: "blur(10px)",
+                      opacity: isOpen ? 0.45 : 0.75,
+                    }}
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: widgetUx.motionLevel === 'pro' ? 5 : 8, repeat: Infinity, ease: "linear" }}
+                  />
+                ) : null}
                 <span className="absolute inset-[4px] rounded-full bg-background/90 backdrop-blur-sm" />
                 <motion.div
                   className="relative z-10"

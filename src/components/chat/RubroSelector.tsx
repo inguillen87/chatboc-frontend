@@ -11,6 +11,18 @@ interface RubroSelectorProps {
 }
 
 const RubroSelector: React.FC<RubroSelectorProps> = ({ rubros, onSelect }) => {
+  const getPreviewClass = (preset?: string) => {
+    if (!preset) return 'border-primary/10 hover:border-primary/30 hover:bg-primary/10';
+    const normalized = preset.toLowerCase();
+    if (normalized.includes('civic')) {
+      return 'border-sky-300/40 hover:border-sky-400/60 hover:bg-sky-500/10';
+    }
+    if (normalized.includes('commerce') || normalized.includes('neon')) {
+      return 'border-fuchsia-300/40 hover:border-fuchsia-400/60 hover:bg-fuchsia-500/10';
+    }
+    return 'border-primary/10 hover:border-primary/30 hover:bg-primary/10';
+  };
+
   // Deduplicate and merge rubros based on Name to handle backend fragmentation
   const uniqueRubros = useMemo(() => {
     const mergedMap = new Map<string, Rubro>();
@@ -63,8 +75,12 @@ const RubroSelector: React.FC<RubroSelectorProps> = ({ rubros, onSelect }) => {
                                             <motion.div key={level2.id} whileHover={{ scale: 1.02, y: -1 }} whileTap={{ scale: 0.98 }}>
                                                 <Button
                                                     variant="secondary"
-                                                    className="w-full justify-between h-auto py-2 px-3 bg-background/80 hover:bg-primary/10 border border-primary/10 hover:border-primary/30 text-left whitespace-normal rounded-lg shadow-sm hover:shadow-md transition-all"
+                                                    className={`w-full justify-between h-auto py-2 px-3 bg-background/80 border text-left whitespace-normal rounded-lg shadow-sm hover:shadow-md transition-all ${getPreviewClass(level2.demo.widget_preview?.preset)}`}
                                                     onClick={() => onSelect(level2)}
+                                                    data-widget-preset={level2.demo.widget_preview?.preset}
+                                                    data-motion-level={level2.demo.widget_preview?.motion_level}
+                                                    data-gradient-start={level2.demo.widget_preview?.gradient_start}
+                                                    data-gradient-end={level2.demo.widget_preview?.gradient_end}
                                                 >
                                                     <div className="flex flex-col items-start gap-0.5">
                                                         <span className="font-medium text-sm">{level2.demo.nombre || level2.nombre}</span>
@@ -86,8 +102,12 @@ const RubroSelector: React.FC<RubroSelectorProps> = ({ rubros, onSelect }) => {
                             <motion.div whileHover={{ scale: 1.02, y: -1 }} whileTap={{ scale: 0.98 }}>
                                 <Button
                                     variant="secondary"
-                                    className="w-full justify-between h-auto py-2 px-3 bg-background/80 hover:bg-primary/10 border border-primary/10 hover:border-primary/30 text-left whitespace-normal rounded-lg shadow-sm hover:shadow-md transition-all"
+                                    className={`w-full justify-between h-auto py-2 px-3 bg-background/80 border text-left whitespace-normal rounded-lg shadow-sm hover:shadow-md transition-all ${getPreviewClass(level1.demo.widget_preview?.preset)}`}
                                     onClick={() => onSelect(level1)}
+                                    data-widget-preset={level1.demo.widget_preview?.preset}
+                                    data-motion-level={level1.demo.widget_preview?.motion_level}
+                                    data-gradient-start={level1.demo.widget_preview?.gradient_start}
+                                    data-gradient-end={level1.demo.widget_preview?.gradient_end}
                                 >
                                     <div className="flex flex-col items-start gap-0.5">
                                         <span className="font-medium text-sm">{level1.demo.nombre || level1.nombre}</span>
