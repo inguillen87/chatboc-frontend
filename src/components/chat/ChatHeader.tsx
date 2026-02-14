@@ -61,6 +61,10 @@ interface Props {
   subtitle?: string;
   logoAnimation?: string;
   onA11yChange?: (p: Prefs) => void;
+  supportChannels?: {
+    live_chat?: { realtime?: boolean; available?: boolean; label?: string };
+    whatsapp?: { enabled?: boolean; realtime_bridge?: boolean; label?: string };
+  } | null;
 }
 
 const ChatHeader: React.FC<Props> = ({
@@ -78,7 +82,13 @@ const ChatHeader: React.FC<Props> = ({
   subtitle,
   logoAnimation,
   onA11yChange,
+  supportChannels,
 }) => {
+  const liveChatVisible = Boolean(supportChannels?.live_chat?.realtime || supportChannels?.live_chat?.available);
+  const whatsappVisible = Boolean(supportChannels?.whatsapp?.enabled && supportChannels?.whatsapp?.realtime_bridge);
+  const liveChatLabel = typeof supportChannels?.live_chat?.label === 'string' ? supportChannels.live_chat.label.trim() : '';
+  const whatsappLabel = typeof supportChannels?.whatsapp?.label === 'string' ? supportChannels.whatsapp.label.trim() : '';
+
   return (
     <div
       className={`
@@ -109,6 +119,16 @@ const ChatHeader: React.FC<Props> = ({
           <span className="text-xs text-primary-foreground/80 whitespace-nowrap overflow-hidden text-ellipsis block" style={{ fontWeight: 500 }}>
             {subtitle || 'Asistente Virtual'}
           </span>
+          {((liveChatVisible && liveChatLabel) || (whatsappVisible && whatsappLabel)) ? (
+            <div className="mt-1 flex flex-wrap gap-1">
+              {liveChatVisible && liveChatLabel ? (
+                <span className="rounded-full bg-primary-foreground/15 px-2 py-0.5 text-[10px] font-medium text-primary-foreground/90">{liveChatLabel}</span>
+              ) : null}
+              {whatsappVisible && whatsappLabel ? (
+                <span className="rounded-full bg-primary-foreground/15 px-2 py-0.5 text-[10px] font-medium text-primary-foreground/90">{whatsappLabel}</span>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       </div>
       <div className="flex items-center gap-1 sm:gap-2"> {/* Reduced gap for mobile */}

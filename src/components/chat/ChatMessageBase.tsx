@@ -468,6 +468,9 @@ export interface ChatMessageBaseProps {
   tipoChat?: "pyme" | "municipio"; // Puede usarse para alguna lógica residual muy específica
   botLogoUrl?: string;
   logoAnimation?: string;
+  messageEnterAnimation?: string;
+  bubbleAnimation?: string;
+  logoBadgeStyle?: string;
 }
 
 const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( (
@@ -478,6 +481,9 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
     onInternalAction,
     botLogoUrl,
     logoAnimation,
+    messageEnterAnimation,
+    bubbleAnimation,
+    logoBadgeStyle,
     // tipoChat, // tipoChat podría usarse si hay alguna variación mínima que no dependa del contenido del mensaje
   },
   ref
@@ -699,16 +705,43 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
 
   const isHandover = message.action === 'agent_handover' || message.text?.includes('Derivando a un representante') || !!message.ticket_id;
 
+  const normalizedEnter = (messageEnterAnimation || 'fade-up').toLowerCase();
+  const enterInitial = normalizedEnter.includes('slide')
+    ? { opacity: 0, x: isBot ? -16 : 16 }
+    : normalizedEnter.includes('zoom')
+      ? { opacity: 0, scale: 0.95, y: 8 }
+      : { opacity: 0, y: 10 };
+  const enterAnimate = normalizedEnter.includes('slide')
+    ? { opacity: 1, x: 0 }
+    : normalizedEnter.includes('zoom')
+      ? { opacity: 1, scale: 1, y: 0 }
+      : { opacity: 1, y: 0 };
+
+  const bubbleAnimClass = (() => {
+    const normalizedBubble = (bubbleAnimation || 'soft-rise').toLowerCase();
+    if (normalizedBubble.includes('glow')) return 'shadow-[0_0_0_1px_hsl(var(--primary)/0.25),0_12px_28px_-16px_hsl(var(--primary)/0.55)]';
+    if (normalizedBubble.includes('soft')) return 'shadow-lg';
+    return '';
+  })();
+
+  const botBadgeClass = logoBadgeStyle === 'rounded-square' ? 'rounded-2xl' : 'rounded-full';
+
   return (
     <motion.div
       ref={ref}
       className={`flex w-full ${isBot ? "justify-start" : "justify-end"} mb-2`}
-      // layout // Podría causar problemas con scroll, evaluar
+      initial={enterInitial}
+      animate={enterAnimate}
+      transition={{ duration: 0.28, ease: 'easeOut' }}
     >
       <div className={`flex items-end gap-2 ${isBot ? "" : "flex-row-reverse"}`}>
-        {isBot && <AvatarBot isTyping={isTyping} logoUrl={botLogoUrl} logoAnimation={logoAnimation} />}
+        {isBot && (
+          <div className={botBadgeClass}>
+            <AvatarBot isTyping={isTyping} logoUrl={botLogoUrl} logoAnimation={logoAnimation} />
+          </div>
+        )}
 
-        <MessageBubble className={cn(bubbleBaseClass, bubbleStyleClass, message.isError && "bg-destructive/20 border border-destructive/50", isHandover && "bg-yellow-50 border-yellow-200")}>
+        <MessageBubble className={cn(bubbleBaseClass, bubbleStyleClass, bubbleAnimClass, message.isError && "bg-destructive/20 border border-destructive/50", isHandover && "bg-yellow-50 border-yellow-200")}>
           {/* Icono de error */}
           {message.isError && (
             <div className="flex items-center gap-2 mb-2 text-destructive">
