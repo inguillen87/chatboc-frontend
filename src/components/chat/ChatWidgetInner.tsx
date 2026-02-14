@@ -1373,6 +1373,9 @@ function ChatWidgetInner({
   const launcherPrimary = primaryColor || widgetUx.gradientEnd || "hsl(var(--primary))";
   const launcherAccent = accentColor || widgetUx.gradientStart || "hsl(var(--secondary))";
 
+  const launcherPrimary = primaryColor || "hsl(var(--primary))";
+  const launcherAccent = accentColor || "hsl(var(--secondary))";
+
   useEffect(() => {
     if (mode === 'iframe' && typeof window !== 'undefined') {
       window.parent.postMessage({
