@@ -7,11 +7,17 @@ import { Loader2, AlertCircle } from 'lucide-react';
 import { useTenant } from '@/context/TenantContext';
 
 import { analyticsService, AnalyticsSummary } from '@/services/analyticsService';
+import { enterpriseService, type LeadInteractionItem, type LeadInteractionsResponse } from '@/services/enterpriseService';
 import OverviewDashboard from '@/components/analytics/OverviewDashboard';
 import HeatmapDashboard from '@/components/analytics/HeatmapDashboard';
 import InsightsDashboard from '@/components/analytics/InsightsDashboard';
 import MunicipioDashboard from '@/components/analytics/MunicipioDashboard';
 import PymeDashboard from '@/components/analytics/PymeDashboard';
+import EnterpriseAIPanel from '@/components/analytics/EnterpriseAIPanel';
+import SectionErrorBoundary from '@/components/errors/SectionErrorBoundary';
+import { openExportAndTrack } from '@/utils/enterpriseExperience';
+import { ApiError } from '@/utils/api';
+import { getEnterpriseErrorMessage } from '@/utils/enterpriseErrors';
 
 const AnalyticsPage = () => {
   const [searchParams] = useSearchParams();
@@ -24,7 +30,23 @@ const AnalyticsPage = () => {
   const [error, setError] = useState<string | null>(null);
 
   const [timeRange, setTimeRange] = useState('7d');
+  const [scope, setScope] = useState('municipio');
   const [context, setContext] = useState<'overview' | 'municipio' | 'pyme'>('overview');
+  const [executiveSummary, setExecutiveSummary] = useState<string>('');
+  const [loadingSummary, setLoadingSummary] = useState(false);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [leadInteractions, setLeadInteractions] = useState<LeadInteractionItem[]>([]);
+  const [loadingLeadInteractions, setLoadingLeadInteractions] = useState(false);
+  const [loadingMoreLeadInteractions, setLoadingMoreLeadInteractions] = useState(false);
+  const [leadCursor, setLeadCursor] = useState<string | null>(null);
+  const [leadPriorityFilter, setLeadPriorityFilter] = useState<string>('all');
+  const [leadTenantFilter, setLeadTenantFilter] = useState<string>('all');
+
+  const fireAndForgetTrackEvent = (payload: { tenant_id: number; event_name: string; payload?: Record<string, unknown>; channel?: string; session_id?: string }) => {
+    enterpriseService
+      .trackEvent(payload, currentSlug || undefined)
+      .catch((trackError) => console.warn('[AnalyticsPage] tracking failed', trackError));
+  };
 
   const dateRange = useMemo(() => {
     const to = new Date();
@@ -44,9 +66,19 @@ const AnalyticsPage = () => {
         tenantSlug: currentSlug || undefined,
         from: dateRange.from,
         to: dateRange.to,
-        context: context
+        context: context,
+        scope
       });
       setData(result);
+      if (tenantId) {
+        fireAndForgetTrackEvent({
+          tenant_id: tenantId,
+          event_name: 'dashboard_view',
+          payload: { path: '/panel/analytics', source: 'web' },
+          channel: 'web_widget',
+          session_id: `sess_${Date.now()}`
+        });
+      }
     } catch (err: any) {
       console.error(err);
       setError("No se pudo cargar el dashboard.");
@@ -59,7 +91,105 @@ const AnalyticsPage = () => {
     if (tenantId || currentSlug) {
         fetchData();
     }
-  }, [tenantId, currentSlug, dateRange, context]);
+  }, [tenantId, currentSlug, dateRange, context, scope]);
+
+  const normalizeLeadInteractions = (response: LeadInteractionsResponse | null | undefined) => {
+    if (!response) return [] as LeadInteractionItem[];
+    if (Array.isArray(response.items)) return response.items;
+    if (Array.isArray(response.interactions)) return response.interactions;
+    return [] as LeadInteractionItem[];
+  };
+
+  const fetchLeadInteractions = async (options?: { cursor?: string; append?: boolean }) => {
+    if (!tenantId) return;
+    const isAppend = Boolean(options?.append);
+    if (isAppend) {
+      setLoadingMoreLeadInteractions(true);
+    } else {
+      setLoadingLeadInteractions(true);
+    }
+
+    try {
+      const response = await enterpriseService.getLeadInteractions(
+        {
+          tenant_id: tenantId,
+          limit: 20,
+          cursor: options?.cursor,
+          from: dateRange.from,
+          to: dateRange.to,
+          scope,
+        },
+        currentSlug || undefined,
+      );
+      const items = normalizeLeadInteractions(response);
+      setLeadInteractions((prev) => (isAppend ? [...prev, ...items] : items));
+      setLeadCursor(response?.next_cursor || response?.cursor || null);
+    } catch (leadError) {
+      console.warn('[AnalyticsPage] lead interactions unavailable', leadError);
+      if (!isAppend) {
+        setLeadInteractions([]);
+        setLeadCursor(null);
+      }
+    } finally {
+      if (isAppend) {
+        setLoadingMoreLeadInteractions(false);
+      } else {
+        setLoadingLeadInteractions(false);
+      }
+    }
+  };
+
+  useEffect(() => {
+    fetchLeadInteractions();
+  }, [tenantId, currentSlug, dateRange.from, dateRange.to, scope]);
+
+
+
+  const handleExport = async (format: 'csv' | 'pdf') => {
+    if (!tenantId) return;
+    const filters = { tenant_id: tenantId, scope, from: dateRange.from, to: dateRange.to };
+    const url = format === 'csv' ? analyticsService.exportCsvUrl(filters) : analyticsService.exportPdfUrl(filters);
+    openExportAndTrack(url, async () => {
+      fireAndForgetTrackEvent({
+        tenant_id: tenantId,
+        event_name: 'export_click',
+        payload: { format, scope },
+        channel: 'web_widget',
+        session_id: `sess_${Date.now()}`
+      });
+    });
+  };
+
+
+  const handleGenerateExecutiveSummary = async () => {
+    if (!tenantId) return;
+    setLoadingSummary(true);
+    setSummaryError(null);
+    try {
+      const response = await enterpriseService.getExecutiveSummary(
+        {
+          tenant_id: tenantId,
+          scope,
+          from: dateRange.from,
+          to: dateRange.to,
+          strict_no_data_message: true,
+        },
+        currentSlug || undefined,
+      );
+      const summaryText = response?.summary || response?.text || '';
+      setExecutiveSummary(summaryText);
+      if (!summaryText) {
+        setSummaryError('No hay datos suficientes para generar el resumen en este período.');
+      }
+    } catch (err) {
+      console.error(err);
+      setExecutiveSummary('');
+      const status = err instanceof ApiError ? err.status : undefined;
+      setSummaryError(getEnterpriseErrorMessage(status, 'executive_summary'));
+    } finally {
+      setLoadingSummary(false);
+    }
+  };
 
   if (loading && !data) {
     return (
@@ -87,7 +217,7 @@ const AnalyticsPage = () => {
           <p className="text-muted-foreground">Métricas clave y comportamiento de tu audiencia en tiempo real.</p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Select value={timeRange} onValueChange={setTimeRange}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Periodo" />
@@ -98,10 +228,34 @@ const AnalyticsPage = () => {
               <SelectItem value="30d">Últimos 30 días</SelectItem>
             </SelectContent>
           </Select>
+          <Select value={scope} onValueChange={setScope}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Scope" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="municipio">Municipio</SelectItem>
+              <SelectItem value="pyme">Pyme</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button variant="outline" onClick={() => handleExport('csv')}>Export CSV</Button>
+          <Button variant="outline" onClick={() => handleExport('pdf')}>Export PDF</Button>
+          <Button variant="default" onClick={handleGenerateExecutiveSummary} disabled={loadingSummary}>
+            {loadingSummary ? 'Generando...' : 'Resumen ejecutivo IA'}
+          </Button>
         </div>
       </div>
 
-      <Tabs defaultValue="overview" className="w-full" onValueChange={(val) => setContext(val as any)}>
+
+      {summaryError ? <p className="text-sm text-destructive">{summaryError}</p> : null}
+
+      {executiveSummary ? (
+        <div className="rounded-lg border bg-card p-4">
+          <h2 className="font-semibold mb-2">Resumen ejecutivo</h2>
+          <p className="text-sm text-muted-foreground whitespace-pre-wrap">{executiveSummary}</p>
+        </div>
+      ) : null}
+
+      <Tabs defaultValue="overview" className="w-full" onValueChange={(val) => { setContext(val as any); if (tenantId) { fireAndForgetTrackEvent({ tenant_id: tenantId, event_name: 'tab_click', payload: { tab: val }, channel: 'web_widget', session_id: `sess_${Date.now()}` }); } }}>
         <TabsList className="grid w-full grid-cols-4 lg:w-[400px]">
           <TabsTrigger value="overview">General</TabsTrigger>
           <TabsTrigger value="municipio">Municipio</TabsTrigger>
@@ -130,7 +284,91 @@ const AnalyticsPage = () => {
 
       {/* Insights Section always visible at bottom or side */}
       <div className="mt-8">
-        <InsightsDashboard tenantId={tenantId} />
+        <SectionErrorBoundary title="No pudimos cargar insights">
+          <InsightsDashboard tenantId={tenantId} />
+        </SectionErrorBoundary>
+      </div>
+
+
+      {leadInteractions.length > 0 ? (
+        <div className="mt-8 rounded-lg border bg-card p-4">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="font-semibold">Timeline de interacciones de leads</h2>
+            {loadingLeadInteractions ? <span className="text-xs text-muted-foreground">Actualizando…</span> : null}
+          </div>
+          <div className="mb-3 grid gap-2 md:grid-cols-3">
+            <Select value={leadPriorityFilter} onValueChange={setLeadPriorityFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="Prioridad" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas las prioridades</SelectItem>
+                <SelectItem value="high">High</SelectItem>
+                <SelectItem value="medium">Medium</SelectItem>
+                <SelectItem value="low">Low</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={leadTenantFilter} onValueChange={setLeadTenantFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="Tenant" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los tenants</SelectItem>
+                {Array.from(new Set(leadInteractions.map((item) => item.tenant_slug).filter(Boolean) as string[])).map((slug) => (
+                  <SelectItem key={slug} value={slug}>{slug}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              variant="outline"
+              onClick={() => fetchLeadInteractions()}
+              disabled={loadingLeadInteractions}
+            >
+              Refrescar
+            </Button>
+          </div>
+          <div className="space-y-2">
+            {leadInteractions
+              .filter((item) => leadPriorityFilter === 'all' || (item.priority || '').toLowerCase() === leadPriorityFilter)
+              .filter((item) => leadTenantFilter === 'all' || item.tenant_slug === leadTenantFilter)
+              .map((item, index) => {
+                const leadIdentifier = item.lead_name || item.lead_email || item.lead_phone;
+                const scoreLabel = typeof item.score === 'number' ? String(item.score) : null;
+                const priorityLabel = typeof item.priority === 'string' ? item.priority : null;
+                return (
+                  <div key={String(item.id || `${item.lead_email || item.lead_phone || index}`)} className="rounded-md border px-3 py-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      {leadIdentifier ? <p className="text-sm font-medium">{leadIdentifier}</p> : null}
+                      <div className="flex items-center gap-2">
+                        {priorityLabel ? <span className="text-xs text-muted-foreground">{priorityLabel}</span> : null}
+                        {scoreLabel ? <span className="text-xs text-muted-foreground">Score {scoreLabel}</span> : null}
+                      </div>
+                    </div>
+                    {item.tenant_slug ? <p className="text-xs text-muted-foreground">{item.tenant_slug}</p> : null}
+                    {item.intent ? <p className="text-xs text-muted-foreground">{item.intent}</p> : null}
+                    {item.last_message ? <p className="text-sm mt-1">{item.last_message}</p> : null}
+                  </div>
+                );
+              })}
+          </div>
+          {leadCursor ? (
+            <div className="mt-3">
+              <Button
+                variant="outline"
+                onClick={() => fetchLeadInteractions({ cursor: leadCursor, append: true })}
+                disabled={loadingMoreLeadInteractions}
+              >
+                {loadingMoreLeadInteractions ? 'Cargando...' : 'Cargar más'}
+              </Button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div className="mt-8">
+        <SectionErrorBoundary title="No pudimos cargar herramientas IA">
+          <EnterpriseAIPanel tenantId={tenantId} tenantSlug={currentSlug || undefined} scope={scope} />
+        </SectionErrorBoundary>
       </div>
     </div>
   );
