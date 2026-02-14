@@ -37,8 +37,12 @@ const RubroSelector: React.FC<RubroSelectorProps> = ({ rubros, onSelect }) => {
     <div className="h-full min-h-0 overflow-y-auto pr-1">
       <Accordion type="single" collapsible className="w-full space-y-2">
         {uniqueRubros.map((root) => (
-          <AccordionItem key={root.id} value={String(root.id)} className="border rounded-xl px-2">
-            <AccordionTrigger className="capitalize text-base font-semibold py-3 hover:no-underline px-1">
+          <AccordionItem
+            key={root.id}
+            value={String(root.id)}
+            className="border border-primary/20 bg-gradient-to-r from-primary/[0.06] via-background to-secondary/10 rounded-xl px-2 shadow-sm backdrop-blur"
+          >
+            <AccordionTrigger className="capitalize text-base font-semibold py-3 hover:no-underline px-1 transition-colors hover:text-primary">
                 {root.nombre}
             </AccordionTrigger>
             <AccordionContent className="pb-3 pt-1">
@@ -56,10 +60,10 @@ const RubroSelector: React.FC<RubroSelectorProps> = ({ rubros, onSelect }) => {
                                 <div className="grid grid-cols-1 gap-2">
                                     {level1.subrubros.map((level2) => (
                                         level2.demo ? (
-                                            <motion.div key={level2.id} whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }}>
+                                            <motion.div key={level2.id} whileHover={{ scale: 1.02, y: -1 }} whileTap={{ scale: 0.98 }}>
                                                 <Button
                                                     variant="secondary"
-                                                    className="w-full justify-between h-auto py-2 px-3 bg-secondary/50 hover:bg-secondary border border-transparent hover:border-primary/20 text-left whitespace-normal rounded-lg"
+                                                    className="w-full justify-between h-auto py-2 px-3 bg-background/80 hover:bg-primary/10 border border-primary/10 hover:border-primary/30 text-left whitespace-normal rounded-lg shadow-sm hover:shadow-md transition-all"
                                                     onClick={() => onSelect(level2)}
                                                 >
                                                     <div className="flex flex-col items-start gap-0.5">
@@ -79,10 +83,10 @@ const RubroSelector: React.FC<RubroSelectorProps> = ({ rubros, onSelect }) => {
                             </>
                         ) : level1.demo ? (
                             // Direct Level 1 Item (no subcategories, just a demo itself)
-                            <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }}>
+                            <motion.div whileHover={{ scale: 1.02, y: -1 }} whileTap={{ scale: 0.98 }}>
                                 <Button
                                     variant="secondary"
-                                    className="w-full justify-between h-auto py-2 px-3 bg-secondary/50 hover:bg-secondary border border-transparent hover:border-primary/20 text-left whitespace-normal rounded-lg"
+                                    className="w-full justify-between h-auto py-2 px-3 bg-background/80 hover:bg-primary/10 border border-primary/10 hover:border-primary/30 text-left whitespace-normal rounded-lg shadow-sm hover:shadow-md transition-all"
                                     onClick={() => onSelect(level1)}
                                 >
                                     <div className="flex flex-col items-start gap-0.5">

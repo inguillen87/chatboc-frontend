@@ -1322,6 +1322,9 @@ function ChatWidgetInner({
 
   const openSpring = { type: "spring", stiffness: 200, damping: 20 };
 
+  const launcherPrimary = primaryColor || "hsl(var(--primary))";
+  const launcherAccent = accentColor || "hsl(var(--secondary))";
+
   useEffect(() => {
     if (mode === 'iframe' && typeof window !== 'undefined') {
       window.parent.postMessage({
@@ -1499,23 +1502,36 @@ function ChatWidgetInner({
                 key="chatboc-toggle-btn"
                 className={cn(
                   commonButtonStyles,
-                  "w-full h-full border-none shadow-xl"
+                  "group relative w-full h-full border-none"
                 )}
                 style={{
                   borderRadius: "50%",
-                  backgroundColor: isDarkMode ? "#0b1220" : "#ffffff",
+                  background: `radial-gradient(circle at 30% 30%, ${launcherAccent}, ${launcherPrimary})`,
                   color: "var(--primary-foreground, #ffffff)",
                   boxShadow: isDarkMode
-                    ? "0 10px 30px rgba(37,99,235,0.45), 0 0 0 2px rgba(125,211,252,0.35)"
-                    : "0 10px 28px rgba(37,99,235,0.28), 0 0 0 2px rgba(37,99,235,0.2)",
+                    ? "0 16px 44px rgba(15,23,42,0.65), 0 0 0 2px rgba(255,255,255,0.12)"
+                    : "0 14px 34px rgba(15,23,42,0.26), 0 0 0 2px rgba(255,255,255,0.6)",
                 }}
                 {...buttonAnimation}
-                whileHover={{ scale: 1.1, transition: { type: "spring", stiffness: 400, damping: 15 } }}
+                whileHover={{ scale: 1.08, transition: { type: "spring", stiffness: 420, damping: 18 } }}
                 whileTap={{ scale: 0.95 }}
                 onClick={toggleChat}
                 aria-label="Abrir chat"
               >
+                <motion.span
+                  aria-hidden
+                  className="pointer-events-none absolute inset-0 rounded-full"
+                  style={{
+                    background: `conic-gradient(from 0deg, ${launcherPrimary}, ${launcherAccent}, ${launcherPrimary})`,
+                    filter: "blur(10px)",
+                    opacity: isOpen ? 0.45 : 0.75,
+                  }}
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
+                />
+                <span className="absolute inset-[4px] rounded-full bg-background/90 backdrop-blur-sm" />
                 <motion.div
+                  className="relative z-10"
                   variants={iconAnimation}
                   animate={isOpen ? "open" : "closed"}
                   transition={openSpring}
