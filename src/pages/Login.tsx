@@ -17,6 +17,7 @@ import { mapDemoOptionsFromHierarchy } from "@/utils/enterpriseExperience";
 import { getDemoAccessProfiles } from "@/utils/demoAccessProfiles";
 import { useDateSettings } from "@/hooks/useDateSettings";
 import { LOCALE_OPTIONS } from "@/utils/localeOptions";
+import { getFranchisePartnerConfig } from "@/utils/franchisePartnerConfig";
 
 interface LoginResponse {
   token: string;
@@ -47,6 +48,7 @@ const Login = () => {
   const [demoRubro, setDemoRubro] = useState<DemoRubro | null>(null);
   const [demoOptions, setDemoOptions] = useState<Array<{ value: DemoRubro; label: string }>>([]);
   const demoAccessProfiles = getDemoAccessProfiles();
+  const franchisePartner = getFranchisePartnerConfig();
 
   const isGlobalLogin = location.pathname === '/login' || location.pathname === '/login/';
 
@@ -237,9 +239,12 @@ const Login = () => {
   return (
     <div className="min-h-[calc(100vh-80px)] flex items-center justify-center px-4 bg-gradient-to-br from-background via-card to-muted text-foreground">
       <div className="w-full max-w-md bg-card p-8 rounded-xl shadow-xl border border-border">
-        <h2 className="text-2xl font-bold mb-6 text-center text-foreground">
+        <h2 className="text-2xl font-bold mb-2 text-center text-foreground">
           Iniciar Sesión
         </h2>
+        {franchisePartner.partnerName ? (
+          <p className="text-xs text-center text-muted-foreground mb-4">{franchisePartner.partnerName}</p>
+        ) : null}
         <div className="mb-4">
           <Select
             value={locale}
@@ -351,6 +356,17 @@ const Login = () => {
               ))}
             </div>
           </div>
+        ) : null}
+
+        {franchisePartner.salesUrl ? (
+          <Button
+            type="button"
+            variant="secondary"
+            className="w-full mt-4"
+            onClick={() => window.open(franchisePartner.salesUrl, '_blank', 'noopener,noreferrer')}
+          >
+            Programa de partners
+          </Button>
         ) : null}
 
         <div className="text-center text-sm text-muted-foreground mt-4">
