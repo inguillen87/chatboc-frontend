@@ -4,6 +4,7 @@ import { useUser } from '@/hooks/useUser';
 import { apiClient } from '@/api/client'; // Use the central client
 import { getDemoPortalContent } from '@/data/portalDemoContent';
 import { PortalContent } from '@/types/unified';
+import { mergePortalExperience } from '@/utils/portalExperience';
 
 export function usePortalContent() {
   const { currentSlug } = useTenant();
@@ -21,14 +22,34 @@ export function usePortalContent() {
     setError(null);
 
     try {
-      // Use apiClient to ensure consistent logic (prefix handling etc.)
-      const data = await apiClient.getPortalContent(currentSlug);
-      setContent(data);
+      const includeNetwork = true;
+      const [contentResponse, historyResponse, feedResponse, benefitsResponse, dashboardResponse, surveysResponse] = await Promise.allSettled([
+        apiClient.getPortalContent(currentSlug),
+        apiClient.getPortalHistory(currentSlug, includeNetwork),
+        apiClient.getPortalNetworkFeed(currentSlug),
+        apiClient.getPortalBenefits(currentSlug),
+        apiClient.getPortalDashboard(currentSlug, includeNetwork),
+        apiClient.getPortalSurveysHistory(currentSlug, includeNetwork),
+      ]);
+
+      if (contentResponse.status !== 'fulfilled') {
+        throw contentResponse.reason;
+      }
+
+      const merged = mergePortalExperience(
+        contentResponse.value,
+        historyResponse.status === 'fulfilled' ? historyResponse.value : null,
+        feedResponse.status === 'fulfilled' ? feedResponse.value : null,
+        benefitsResponse.status === 'fulfilled' ? benefitsResponse.value : null,
+        dashboardResponse.status === 'fulfilled' ? dashboardResponse.value : null,
+        surveysResponse.status === 'fulfilled' ? surveysResponse.value : null,
+      );
+
+      setContent(merged);
     } catch (err: any) {
       console.warn('Failed to fetch portal content, falling back to demo', err);
       setIsDemo(true);
       setError(err);
-      // Fallback to demo data on error (e.g. 404 or network error)
       setContent(getDemoPortalContent());
     } finally {
       setIsLoading(false);
