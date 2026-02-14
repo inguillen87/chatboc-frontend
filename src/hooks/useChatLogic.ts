@@ -78,6 +78,25 @@ export function useChatLogic({
   selectedRubro = null,
 }: UseChatLogicOptions) {
   const entityToken = propToken || getIframeToken();
+
+  const shouldUsePublicFlow = useCallback(
+    (resolvedTipoChat: 'pyme' | 'municipio', resolvedTenantSlug?: string | null) => {
+      if (resolvedTipoChat !== 'municipio') return false;
+
+      const normalizedTenant = typeof resolvedTenantSlug === 'string'
+        ? resolvedTenantSlug.trim().toLowerCase()
+        : '';
+      const isMunicipioTenant = normalizedTenant === 'municipio';
+      const hasAuthToken = Boolean(
+        safeLocalStorage.getItem('authToken') ||
+        safeLocalStorage.getItem('chatAuthToken') ||
+        safeLocalStorage.getItem(tokenKey),
+      );
+
+      return isMunicipioTenant || (!entityToken && !normalizedTenant && !hasAuthToken);
+    },
+    [entityToken, tokenKey],
+  );
   const { user } = useUser();
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
@@ -171,7 +190,7 @@ export function useChatLogic({
 
       setIsTyping(true);
 
-      const isPublicDemo = tipoChat === 'municipio' && (tenantSlug === 'municipio' || (!entityToken && !tenantSlug));
+      const isPublicDemo = shouldUsePublicFlow(tipoChatFinal, tenantSlug);
       const effectiveSkipAuth = skipAuth || isPublicDemo;
 
       try {
@@ -210,7 +229,7 @@ export function useChatLogic({
         setIsTyping(false);
       }
     },
-    [contexto, selectedRubro, skipAuth, tipoChat, tenantSlug, entityToken]
+    [contexto, selectedRubro, skipAuth, tipoChat, tenantSlug, entityToken, shouldUsePublicFlow]
   );
 
   const initializeConversationRef = useRef(initializeConversation);
@@ -1280,7 +1299,7 @@ export function useChatLogic({
 
       const endpoint = getAskEndpoint({ tipoChat: tipoChatFinal, rubro });
 
-      const isPublicDemo = tipoChat === 'municipio' && (tenantSlug === 'municipio' || (!entityToken && !tenantSlug));
+      const isPublicDemo = shouldUsePublicFlow(tipoChatFinal, tenantSlug);
       const effectiveSkipAuth = skipAuth || isPublicDemo;
 
       console.log('useChatLogic: Sending message to backend', { endpoint, requestBody });
@@ -1311,7 +1330,7 @@ export function useChatLogic({
     currentClaimIdempotencyKey,
     tipoChat,
     tenantSlug,
-    entityToken, selectedRubro, user,
+    entityToken, selectedRubro, user, shouldUsePublicFlow,
   ]);
 
   const isLiveChatActive = liveChatTicketId !== null;
