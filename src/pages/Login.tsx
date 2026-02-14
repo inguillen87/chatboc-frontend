@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiFetch, ApiError } from "@/utils/api";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { useUser } from "@/hooks/useUser";
@@ -13,6 +14,9 @@ import { buildTenantPath } from "@/utils/tenantPaths";
 import { enterpriseService, type DemoRubro } from "@/services/enterpriseService";
 import { getRubrosHierarchy } from "@/api/rubros";
 import { mapDemoOptionsFromHierarchy } from "@/utils/enterpriseExperience";
+import { getDemoAccessProfiles } from "@/utils/demoAccessProfiles";
+import { useDateSettings } from "@/hooks/useDateSettings";
+import { LOCALE_OPTIONS } from "@/utils/localeOptions";
 
 interface LoginResponse {
   token: string;
@@ -31,6 +35,7 @@ const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { refreshUser } = useUser();
+  const { timezone, locale, updateSettings } = useDateSettings();
   const { currentSlug } = useTenant();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -41,6 +46,7 @@ const Login = () => {
   const [isDemoLoading, setIsDemoLoading] = useState(false);
   const [demoRubro, setDemoRubro] = useState<DemoRubro | null>(null);
   const [demoOptions, setDemoOptions] = useState<Array<{ value: DemoRubro; label: string }>>([]);
+  const demoAccessProfiles = getDemoAccessProfiles();
 
   const isGlobalLogin = location.pathname === '/login' || location.pathname === '/login/';
 
@@ -100,8 +106,7 @@ const Login = () => {
     };
   }, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const loginWithCredentials = async (nextEmail: string, nextPassword: string, tenantSlugOverride?: string) => {
     setError("");
     setIsLoading(true);
 
@@ -109,9 +114,9 @@ const Login = () => {
     const slugFromPath = (pathSegments.length > 0 && pathSegments[0] !== 'login') ? pathSegments[0] : null;
 
     const storedSlug = safeLocalStorage.getItem("tenantSlug");
-    const effectiveSlug = slugFromPath || currentSlug || storedSlug;
+    const effectiveSlug = tenantSlugOverride || slugFromPath || currentSlug || storedSlug;
 
-    const payload: any = { email, password };
+    const payload: any = { email: nextEmail, password: nextPassword };
     if (effectiveSlug) {
       payload.tenant_slug = effectiveSlug;
     }
@@ -123,32 +128,23 @@ const Login = () => {
       });
 
       safeLocalStorage.setItem("authToken", data.token);
-
       const responseTenantSlug = data.user?.tenant_slug;
-
       if (responseTenantSlug) {
         safeLocalStorage.setItem("tenantSlug", responseTenantSlug);
       }
 
-      await refreshUser(); // This will fetch user details and store them
-
-      // After refreshUser, the user object in localStorage is updated.
+      await refreshUser();
       const rawUser = safeLocalStorage.getItem("user");
       const parsedUser = rawUser ? JSON.parse(rawUser) : {};
-
       const resolvedTenantSlug = responseTenantSlug || parsedUser.tenant_slug;
 
-      // Redirect based on role.
       if (parsedUser.rol === "super_admin") {
         navigate("/superadmin");
       } else if (["admin", "tenant_admin", "admin_pyme", "empleado"].includes(parsedUser.rol)) {
-        // For any kind of admin or employee, redirect to the global profile route.
         navigate("/perfil");
       } else {
-        // Fallback for other roles, though this page is for admins.
         navigate(buildTenantPath("/", resolvedTenantSlug));
       }
-
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.body?.error || "Credenciales inválidas o error en el servidor.");
@@ -158,6 +154,11 @@ const Login = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await loginWithCredentials(email, password);
   };
 
   const handlePasskeyLogin = async () => {
@@ -239,6 +240,27 @@ const Login = () => {
         <h2 className="text-2xl font-bold mb-6 text-center text-foreground">
           Iniciar Sesión
         </h2>
+        <div className="mb-4">
+          <Select
+            value={locale}
+            onValueChange={(nextLocale) => {
+              const nextOption = LOCALE_OPTIONS.find((option) => option.locale === nextLocale);
+              if (nextOption) updateSettings(nextOption.timezone, nextOption.locale);
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Idioma / Language" />
+            </SelectTrigger>
+            <SelectContent>
+              {LOCALE_OPTIONS.map((option) => (
+                <SelectItem key={`${option.locale}-${option.timezone}`} value={option.locale}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground mt-2">Zona horaria activa: {timezone}</p>
+        </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input
             type="email"
@@ -307,6 +329,29 @@ const Login = () => {
             {isDemoLoading ? "Ingresando demo..." : "Probar Demo"}
           </Button>
         </div>
+
+        {demoAccessProfiles.length > 0 ? (
+          <div className="mt-4 border-t border-border pt-4 space-y-2">
+            <p className="text-xs text-muted-foreground">Accesos demo configurados por entorno</p>
+            <div className="grid gap-2">
+              {demoAccessProfiles.map((profile) => (
+                <Button
+                  key={profile.id}
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setEmail(profile.email);
+                    setPassword(profile.password);
+                    loginWithCredentials(profile.email, profile.password, profile.tenantSlug);
+                  }}
+                  disabled={isLoading || isPasskeyLoading || isDemoLoading}
+                >
+                  {profile.label}
+                </Button>
+              ))}
+            </div>
+          </div>
+        ) : null}
 
         <div className="text-center text-sm text-muted-foreground mt-4">
           ¿No tenés cuenta?{" "}
