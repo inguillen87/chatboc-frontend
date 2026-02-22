@@ -28,10 +28,12 @@ import { Button } from "@/components/ui/button";
 import { io } from 'socket.io-client';
 import { getSocketUrl, SOCKET_PATH } from "@/config";
 import { safeOn, assertEventSource } from "@/utils/safeOn";
-import { Loader2, X, Lightbulb } from "lucide-react";
+import { Loader2, X, Lightbulb, CheckCircle2 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { getInitialMunicipioContext } from "@/utils/contexto_municipio";
 import { resetChatSessionId } from "@/utils/chatSessionId";
 import { extractSmartHint } from "@/utils/smartHints";
+import { trackFrontendEvent } from '@/utils/frontendTelemetry';
 
 const PENDING_TICKET_KEY = 'pending_ticket_id';
 const PENDING_GPS_KEY = 'pending_gps';
@@ -632,6 +634,20 @@ const ChatPanel = (props: ChatPanelProps) => {
   const lastMessage = messages[messages.length - 1];
   const lastUserMessage = [...messages].reverse().find(m => !m.isBot); // Safe find last user message
   const [smartHint, setSmartHint] = useState<string | null>(null);
+  const [leadSuccessTicket, setLeadSuccessTicket] = useState<string | null>(null);
+  const leadStepViewedRef = useRef<string | null>(null);
+
+
+  useEffect(() => {
+    const latestWithTicket = [...messages]
+      .reverse()
+      .find((msg) => msg.isBot && (msg.data as any)?.fuente === 'demo_lead_capture' && (msg.data as any)?.nro_ticket);
+    const ticket = latestWithTicket ? String((latestWithTicket.data as any).nro_ticket) : null;
+    if (!ticket || ticket === leadSuccessTicket) return;
+    setLeadSuccessTicket(ticket);
+    const timer = setTimeout(() => setLeadSuccessTicket(null), 4500);
+    return () => clearTimeout(timer);
+  }, [messages, leadSuccessTicket]);
 
   useEffect(() => {
     if (lastMessage?.isBot) {
@@ -644,6 +660,46 @@ const ChatPanel = (props: ChatPanelProps) => {
 
   const isAnalyzingImage = isTyping && lastUserMessage?.attachmentInfo?.type === 'image';
   const typingText = isAnalyzingImage ? "Analizando imagen..." : undefined;
+
+
+  const latestLeadCaptureMessage = [...messages]
+    .reverse()
+    .find((msg) => msg.isBot && (msg.data as any)?.fuente === 'demo_lead_capture');
+
+  const leadRequestedFieldRaw = (latestLeadCaptureMessage?.data as any)?.pedir_info;
+  const leadRequestedField = typeof leadRequestedFieldRaw === 'string' ? leadRequestedFieldRaw.toLowerCase() : null;
+  const leadStep = leadRequestedField === 'nombre' ? 1 : leadRequestedField === 'telefono' ? 2 : leadRequestedField === 'email' ? 3 : null;
+  const leadStepProgress = leadStep ? (leadStep / 3) * 100 : 0;
+
+  useEffect(() => {
+    if (!leadRequestedField) return;
+    if (leadStepViewedRef.current === leadRequestedField) return;
+    leadStepViewedRef.current = leadRequestedField;
+    trackFrontendEvent('lead_capture_step_viewed', { step: leadRequestedField });
+  }, [leadRequestedField]);
+
+  const persistentLeadButton = [...messages]
+    .flatMap((msg) => msg.botones || [])
+    .find((btn) => {
+      const candidate = (btn.action_id || btn.action || '').toLowerCase();
+      return candidate === 'open_demo_form';
+    });
+
+  const validateLeadCaptureInput = useCallback((payload: { text: string; action?: string; action_id?: string }) => {
+    if (!leadRequestedField || payload.action || payload.action_id) return null;
+    const value = payload.text?.trim() || '';
+    if (!value) return null;
+    if (leadRequestedField === 'telefono') {
+      const digits = value.replace(/\D/g, '');
+      if (digits.length < 8) return 'Ingresá un teléfono válido para continuar.';
+    }
+    if (leadRequestedField === 'email') {
+      const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+      if (!isEmail) return 'Ingresá un email válido para continuar.';
+    }
+    trackFrontendEvent('lead_capture_step_completed', { step: leadRequestedField });
+    return null;
+  }, [leadRequestedField]);
 
   if (showRubroSelector) {
     return (
@@ -813,6 +869,40 @@ const ChatPanel = (props: ChatPanelProps) => {
             {whatsappButtonLabel}
           </Button>
         ) : null}
+        <AnimatePresence>
+          {leadSuccessTicket ? (
+            <motion.div
+              initial={{ opacity: 0, y: 8, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8 }}
+              className="mb-2 flex items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-800"
+            >
+              <CheckCircle2 className="h-4 w-4" />
+              <span>Lead registrado con éxito. Seguimiento: #{leadSuccessTicket}</span>
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
+
+        {leadStep ? (
+          <div className="mb-2 rounded-lg border bg-muted/40 px-3 py-2">
+            <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
+              <span>Captura de lead</span>
+              <span>Paso {leadStep}/3</span>
+            </div>
+            <div className="h-1.5 rounded bg-muted"><div className="h-1.5 rounded bg-primary transition-all" style={{ width: `${leadStepProgress}%` }} /></div>
+          </div>
+        ) : null}
+
+        {persistentLeadButton ? (
+          <Button
+            variant="outline"
+            className="mb-2 w-full"
+            onClick={() => handleSend({ text: persistentLeadButton.texto, action: persistentLeadButton.action, action_id: persistentLeadButton.action_id, source: 'button' })}
+          >
+            {persistentLeadButton.texto}
+          </Button>
+        ) : null}
+
         {contexto.estado_conversacion === 'recolectando_datos_personales' ? (
           <PersonalDataForm onSubmit={handlePersonalDataSubmit} isSubmitting={isTyping} />
         ) : (
@@ -823,6 +913,7 @@ const ChatPanel = (props: ChatPanelProps) => {
             inputRef={chatInputTextRef}
             onTypingChange={setUserTyping}
             onSystemMessage={addSystemMessage}
+            validateBeforeSend={validateLeadCaptureInput}
           />
         )}
       </div>
