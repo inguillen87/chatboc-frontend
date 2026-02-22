@@ -428,13 +428,22 @@ export function useChatLogic({
         data.metadata?.action,
         data.metadata?.accion,
       );
-      const dataPayload =
+      const dataPayloadRaw =
         data.data ??
         data.payload ??
         data.metadata?.data ??
         data.metadata?.payload ??
         null;
       const sourceName = pickFirstString(data.fuente, data.source, data.metadata?.fuente, data.metadata?.source);
+      const dataPayload = (() => {
+        const base = dataPayloadRaw && typeof dataPayloadRaw === 'object' ? { ...(dataPayloadRaw as Record<string, unknown>) } : {};
+        if (sourceName && !base.fuente) base.fuente = sourceName;
+        if (data.pedir_info && !base.pedir_info) base.pedir_info = data.pedir_info;
+        if ((data.nro_ticket || data.ticket_id || data.ticketId) && !base.nro_ticket) {
+          base.nro_ticket = data.nro_ticket ?? data.ticket_id ?? data.ticketId;
+        }
+        return Object.keys(base).length ? base : null;
+      })();
 
       const isDemoSelector =
         sourceName === 'demo_selector' &&
