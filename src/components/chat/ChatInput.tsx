@@ -28,7 +28,9 @@ interface Props {
   inputRef?: React.RefObject<HTMLInputElement>;
   onTypingChange?: (typing: boolean) => void;
   onSystemMessage?: (text: string, type: 'error' | 'info') => void;
+  validateBeforeSend?: (payload: SendPayload) => string | null;
 }
+
 
 const PLACEHOLDERS = [
   "Escribí tu mensaje...",
@@ -56,12 +58,13 @@ const QUICK_EMOJIS = [
 
 type UploadResponse = UploadResponseLike;
 
-const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping, inputRef, onTypingChange, onSystemMessage }, ref) => {
+const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping, inputRef, onTypingChange, onSystemMessage, validateBeforeSend }, ref) => {
   const [input, setInput] = useState("");
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const [isLocating, setIsLocating] = useState(false);
   const [attachmentPreview, setAttachmentPreview] = useState<{ file: File; previewUrl: string } | null>(null);
   const [showEmojis, setShowEmojis] = useState(false);
+  const [inlineError, setInlineError] = useState<string | null>(null);
   const internalRef = inputRef || useRef<HTMLInputElement>(null);
   const { isRecording, startRecording, stopRecording } = useAudioRecorder();
   const adjRef = useRef<AdjuntarArchivoHandle>(null);
@@ -214,14 +217,23 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
     const finalEsFoto =
       legacyEsFoto || ((finalAttachment?.mimeType || '').toLowerCase().startsWith('image/'));
 
-    onSendMessage({
+    const nextPayload: SendPayload = {
       text: input.trim(),
       attachmentInfo: finalAttachment,
       ...(finalArchivoUrl ? { archivo_url: finalArchivoUrl } : {}),
       ...(finalEsFoto ? { es_foto: true } : {}),
       source: 'input',
-    });
+    };
+
+    const validationError = validateBeforeSend?.(nextPayload) ?? null;
+    if (validationError) {
+      setInlineError(validationError);
+      return;
+    }
+
+    onSendMessage(nextPayload);
     setInput("");
+    setInlineError(null);
     setAttachmentPreview(null);
     setShowEmojis(false);
     onTypingChange?.(false);
@@ -262,6 +274,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
       setIsLocating(false);
     }
     setInput("");
+    setInlineError(null);
     onTypingChange?.(false);
   };
 
@@ -566,6 +579,9 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
           </button>
         </div>
       </div>
+      {inlineError ? (
+        <p className="mt-1 text-xs text-destructive">{inlineError}</p>
+      ) : null}
     </div>
   );
 });
