@@ -5,6 +5,7 @@ import { getCurrentTipoChat } from "@/utils/tipoChat";
 import { cn } from "@/lib/utils";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { extractRubroKey } from "@/utils/rubros";
+import { trackWidgetEvent } from "@/utils/widgetTelemetry";
 import { getOrCreateAnonId } from "@/utils/anonIdGenerator";
 import { motion, AnimatePresence } from "framer-motion";
 import type { AnimatePresenceProps } from "framer-motion";
@@ -703,6 +704,7 @@ function ChatWidgetInner({
       }
       
       if (nextIsOpen) {
+        trackWidgetEvent('widget_opened');
         setShowProactiveBubble(false);
         if (proactiveMessageTimeoutRef.current) clearTimeout(proactiveMessageTimeoutRef.current);
         if (hideProactiveBubbleTimeoutRef.current) clearTimeout(hideProactiveBubbleTimeoutRef.current);
@@ -717,6 +719,7 @@ function ChatWidgetInner({
           const currentMsgObj = backendMessages[proactiveCycle % backendMessages.length];
           if (currentMsgObj && typeof currentMsgObj === 'object' && currentMsgObj.action) {
               setIsOpen(true);
+              trackWidgetEvent('lead_cta_clicked');
               safeLocalStorage.setItem('pending_widget_action', JSON.stringify({
                   action: currentMsgObj.action,
                   payload: currentMsgObj.payload,
@@ -728,6 +731,7 @@ function ChatWidgetInner({
 
       // Ensure toggleChat opens the chat if closed
       setIsOpen(true); // Explicitly open instead of toggle to be safe
+      trackWidgetEvent('widget_opened');
 
       if (proactiveMessageTimeoutRef.current) clearTimeout(proactiveMessageTimeoutRef.current);
       if (hideProactiveBubbleTimeoutRef.current) clearTimeout(hideProactiveBubbleTimeoutRef.current);
