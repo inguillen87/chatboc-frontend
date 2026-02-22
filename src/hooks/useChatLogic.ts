@@ -127,6 +127,7 @@ export function useChatLogic({
   const messagesRef = useRef<Message[]>([]);
   const initSentRef = useRef(false);
   const firstRealQuestionSentRef = useRef(false);
+  const leadCompletionTrackedTicketsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     messagesRef.current = messages;
@@ -444,6 +445,15 @@ export function useChatLogic({
         }
         return Object.keys(base).length ? base : null;
       })();
+
+      const leadTicketCandidate = data.nro_ticket ?? data.ticket_id ?? data.ticketId ?? (dataPayload as any)?.nro_ticket;
+      if (sourceName === 'demo_lead_capture' && leadTicketCandidate) {
+        const ticketKey = String(leadTicketCandidate);
+        if (!leadCompletionTrackedTicketsRef.current.has(ticketKey)) {
+          leadCompletionTrackedTicketsRef.current.add(ticketKey);
+          trackWidgetEvent('lead_completed', { ticket_id: ticketKey });
+        }
+      }
 
       const isDemoSelector =
         sourceName === 'demo_selector' &&

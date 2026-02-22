@@ -75,6 +75,7 @@ const SuperadminLeadsPipeline: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [activeStage, setActiveStage] = useState<LeadStage | null>(null);
   const [data, setData] = useState<PipelineResponse>({});
+  const [interactions, setInteractions] = useState<Array<{ lead_name?: string; relevance_score?: number; last_message?: string }>>([]);
 
   const fetchPipeline = async () => {
     setLoading(true);
@@ -84,6 +85,13 @@ const SuperadminLeadsPipeline: React.FC = () => {
         since_days: sinceDays,
       });
       setData(payload || {});
+      const interactionsPayload = await enterpriseService.getLeadInteractions({
+        tenant_slug: tenantSlug || undefined,
+        limit: 10,
+        since_days: sinceDays as any,
+      } as any);
+      const entries = interactionsPayload?.items || interactionsPayload?.interactions || [];
+      setInteractions(entries as any);
     } catch (error) {
       console.error(error);
       toast.error('No se pudo cargar el pipeline de leads.');
@@ -123,6 +131,32 @@ const SuperadminLeadsPipeline: React.FC = () => {
   };
 
   const openWhatsApp = (phone: string) => window.open(`https://wa.me/${phone.replace(/\D/g, '')}`, '_blank', 'noopener,noreferrer');
+  const handleStageChange = async (item: LeadItem, nextStage: string) => {
+    const ticketId = item.nro_ticket || item.ticket_id;
+    if (!ticketId) {
+      toast.error('El lead no tiene ticket para actualizar etapa.');
+      return;
+    }
+    const note = window.prompt('Nota de cambio de etapa (opcional):', '') || undefined;
+    try {
+      await enterpriseService.updateLeadStage(ticketId, { stage: nextStage, note });
+      setData((prev) => ({
+        ...prev,
+        items: (prev.items || []).map((lead) =>
+          (lead.id && item.id && lead.id === item.id) ||
+          ((lead.nro_ticket || lead.ticket_id) === ticketId)
+            ? { ...lead, stage: nextStage }
+            : lead,
+        ),
+      }));
+      toast.success('Etapa actualizada.');
+      fetchPipeline();
+    } catch (error) {
+      console.error(error);
+      toast.error('No se pudo actualizar la etapa del lead.');
+    }
+  };
+
 
   return (
     <section className="space-y-4">
@@ -155,7 +189,7 @@ const SuperadminLeadsPipeline: React.FC = () => {
             <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Ganado / Perdido</p><p className="text-2xl font-bold">{won} / {lost}</p></CardContent></Card>
           </div>
 
-          <div className="grid gap-3 lg:grid-cols-2">
+          <div className="grid gap-3 lg:grid-cols-3">
             <Card>
               <CardHeader><CardTitle>Funnel</CardTitle></CardHeader>
               <CardContent className="space-y-2">
@@ -177,6 +211,18 @@ const SuperadminLeadsPipeline: React.FC = () => {
                 {Object.entries(data.by_tenant || {}).sort((a, b) => b[1] - a[1]).map(([slug, count]) => (
                   <div key={slug} className="flex items-center justify-between rounded border px-3 py-2 text-sm">
                     <span>{slug}</span><Badge variant="secondary">{count}</Badge>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader><CardTitle>Interacciones relevantes</CardTitle></CardHeader>
+              <CardContent className="space-y-2">
+                {interactions.map((entry, index) => (
+                  <div key={`${entry.lead_name || 'lead'}-${index}`} className="rounded border px-3 py-2 text-sm">
+                    <p className="font-medium">{entry.lead_name || 'Lead sin nombre'}</p>
+                    <p className="text-xs text-muted-foreground">Score: {entry.relevance_score ?? '—'}</p>
+                    {entry.last_message ? <p className="mt-1 text-xs">{entry.last_message}</p> : null}
                   </div>
                 ))}
               </CardContent>
@@ -229,7 +275,17 @@ const SuperadminLeadsPipeline: React.FC = () => {
                       <tr key={`row-${item.id || name}-${item.created_at || ''}`} className="border-b align-top">
                         <td className="p-2">{name}</td>
                         <td className="p-2">{normalizeLeadField(item, 'tenant_slug') || '—'}</td>
-                        <td className="p-2">{normalizeLeadField(item, 'stage') || 'nuevo'}</td>
+                        <td className="p-2">
+                          <select
+                            className="h-8 rounded border bg-background px-2 text-xs"
+                            value={normalizeLeadField(item, 'stage') || 'nuevo'}
+                            onChange={(e) => handleStageChange(item, e.target.value)}
+                          >
+                            {STAGES.map((stage) => (
+                              <option key={`opt-${stage}`} value={stage}>{stage}</option>
+                            ))}
+                          </select>
+                        </td>
                         <td className="p-2">{email || phone || '—'}</td>
                         <td className="p-2">
                           <div className="flex gap-1">

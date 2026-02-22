@@ -173,6 +173,20 @@ export const enterpriseService = {
     return apiFetch<LeadsPipelineResponse>(`/api/admin/leads/pipeline?${query}`, { tenantSlug });
   },
 
+
+
+  updateLeadStage: async (
+    ticketId: string | number,
+    payload: { stage: string; note?: string },
+    tenantSlug?: string,
+  ) => {
+    return apiFetch<any>(`/api/admin/leads/${ticketId}/stage`, {
+      method: 'PATCH',
+      body: payload,
+      tenantSlug,
+    });
+  },
+
   getLeadInteractions: async (filters: {
     tenant_id?: number;
     limit?: number;

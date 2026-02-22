@@ -5,7 +5,8 @@ type WidgetTelemetryEvent =
   | 'demo_selector_rendered'
   | 'demo_option_clicked'
   | 'first_real_question_sent'
-  | 'lead_cta_clicked';
+  | 'lead_cta_clicked'
+  | 'lead_completed';
 
 const EVENT_PREFIX = 'chatboc_widget';
 
