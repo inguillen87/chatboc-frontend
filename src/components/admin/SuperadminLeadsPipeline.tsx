@@ -67,6 +67,11 @@ const SuperadminLeadsPipeline: React.FC = () => {
   const [timelineEvents, setTimelineEvents] = useState<Array<any>>([]);
   const [timelineNote, setTimelineNote] = useState('');
   const [playbookPreview, setPlaybookPreview] = useState<any[]>([]);
+  const [heatmapData, setHeatmapData] = useState<{ top_categories?: any[]; top_zones?: any[]; heatmap_points?: any[] } | null>(null);
+  const [heatmapCategoryFilter, setHeatmapCategoryFilter] = useState('');
+  const [heatmapZoneFilter, setHeatmapZoneFilter] = useState('');
+  const [heatmapTypeFilter, setHeatmapTypeFilter] = useState('');
+  const [assigneeSuggestions, setAssigneeSuggestions] = useState<Record<string, any[]>>({});
 
   const fetchPipeline = async () => {
     setLoading(true);
@@ -79,6 +84,8 @@ const SuperadminLeadsPipeline: React.FC = () => {
       setCatalogQuality(quality?.items || []);
       const strategic = await enterpriseService.getStrategicOverview({ since_days: sinceDays });
       setStrategicOverview(strategic || null);
+      const heatmap = await enterpriseService.getStrategicHeatmapCategoriesZones({ since_days: sinceDays });
+      setHeatmapData(heatmap || null);
     } catch (error) {
       console.error(error);
       toast.error('No se pudo cargar el panel de leads.');
@@ -153,6 +160,23 @@ const SuperadminLeadsPipeline: React.FC = () => {
     setTimelineEvents(resp?.items || resp?.timeline || []);
   };
 
+
+  const handleSuggestAssignee = async (item: LeadItem) => {
+    const slug = item.tenant_slug;
+    if (!slug) return toast.error('Lead sin tenant_slug para sugerencia.');
+    const categoria = window.prompt('Categoría para sugerencia:', '') || undefined;
+    const zona = window.prompt('Zona para sugerencia:', '') || undefined;
+    try {
+      const response = await enterpriseService.suggestAssignee(slug, { categoria, zona });
+      const suggestions = response?.items || response?.suggestions || [];
+      setAssigneeSuggestions((prev) => ({ ...prev, [leadKey(item)]: suggestions.slice(0, 3) }));
+      toast.success('Sugerencias cargadas.');
+    } catch (error) {
+      console.error(error);
+      toast.error('No se pudieron obtener sugerencias de responsable.');
+    }
+  };
+
   const handleAddTimelineNote = async () => {
     if (!selectedTimelineLead || !timelineNote.trim()) return;
     const ticketId = selectedTimelineLead.nro_ticket || selectedTimelineLead.ticket_id;
@@ -203,7 +227,7 @@ const SuperadminLeadsPipeline: React.FC = () => {
               {filteredInteractions.map((entry, i) => (
                 <div key={`int-${i}`} className="rounded border px-3 py-2 text-sm">
                   <div className="flex items-center gap-2"><p className="font-medium">{entry.lead_name || 'Lead'}</p>{entry.sla_breached ? <Badge variant="destructive">SLA</Badge> : null}</div>
-                  <p className="text-xs text-muted-foreground">lead_score: {entry.lead_score ?? '—'} · relevance: {entry.relevance_score ?? '—'}</p>
+                  <p className="text-xs text-muted-foreground" title={`urgencia: ${entry.urgency_score ?? '—'} · completitud: ${entry.completeness_score ?? '—'} · actividad: ${entry.activity_score ?? '—'}`}>lead_score: {entry.lead_score ?? '—'} · relevance: {entry.relevance_score ?? '—'}</p>
                   {entry.last_message ? <p className="text-xs mt-1">{entry.last_message}</p> : null}
                 </div>
               ))}
@@ -231,6 +255,46 @@ const SuperadminLeadsPipeline: React.FC = () => {
             </CardContent>
           </Card>
 
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Mapa de calor estratégico (CEO)</CardTitle>
+              <CardDescription>Filtros por categoría/zona/tipo con top categorías y zonas.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex flex-wrap gap-2">
+                <input className="h-9 rounded border px-3 text-sm" placeholder="Filtrar categoría" value={heatmapCategoryFilter} onChange={(e) => setHeatmapCategoryFilter(e.target.value)} />
+                <input className="h-9 rounded border px-3 text-sm" placeholder="Filtrar zona" value={heatmapZoneFilter} onChange={(e) => setHeatmapZoneFilter(e.target.value)} />
+                <input className="h-9 rounded border px-3 text-sm" placeholder="Filtrar tipo" value={heatmapTypeFilter} onChange={(e) => setHeatmapTypeFilter(e.target.value)} />
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <div>
+                  <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Top categorías</p>
+                  <div className="space-y-1">
+                    {(heatmapData?.top_categories || []).map((c: any, idx: number) => (
+                      <button key={`cat-${idx}`} className="flex w-full items-center justify-between rounded border px-2 py-1 text-sm" onClick={() => setHeatmapCategoryFilter(c?.categoria || '')}>
+                        <span>{c?.categoria || '—'}</span><Badge variant="outline">{c?.count ?? 0}</Badge>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Top zonas</p>
+                  <div className="space-y-1">
+                    {(heatmapData?.top_zones || []).map((z: any, idx: number) => (
+                      <button key={`zone-${idx}`} className="flex w-full items-center justify-between rounded border px-2 py-1 text-sm" onClick={() => setHeatmapZoneFilter(z?.zona || '')}>
+                        <span>{z?.zona || '—'}</span><Badge variant="outline">{z?.count ?? 0}</Badge>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div className="rounded border p-3 text-sm text-muted-foreground">
+                Points visibles: {(heatmapData?.heatmap_points || []).filter((p: any) => (!heatmapCategoryFilter || (p?.categoria || '').toLowerCase().includes(heatmapCategoryFilter.toLowerCase())) && (!heatmapZoneFilter || (p?.zona || '').toLowerCase().includes(heatmapZoneFilter.toLowerCase())) && (!heatmapTypeFilter || (p?.tipo || '').toLowerCase().includes(heatmapTypeFilter.toLowerCase()))).length}
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader><CardTitle>Leads</CardTitle></CardHeader>
             <CardContent className="space-y-3 overflow-x-auto">
@@ -252,8 +316,8 @@ const SuperadminLeadsPipeline: React.FC = () => {
                       <td className="p-2">{name}</td>
                       <td className="p-2">{normalizeLeadField(item, 'tenant_slug') || '—'}</td>
                       <td className="p-2"><select className="h-8 rounded border px-2 text-xs" value={normalizeLeadField(item, 'stage') || 'nuevo'} onChange={(e) => handleStageChange(item, e.target.value)}>{STAGES.map((s) => <option key={`${leadKey(item)}-${s}`} value={s}>{s}</option>)}</select></td>
-                      <td className="p-2"><div>{email || phone || '—'}</div>{typeof mins === 'number' ? <div className="text-xs text-muted-foreground">hace {mins} min</div> : null}</td>
-                      <td className="p-2"><div className="flex gap-1">{phone ? <Button size="icon" variant="outline" onClick={() => openWhatsApp(phone)}><MessageCircle className="h-4 w-4"/></Button> : null}{email ? <Button size="icon" variant="outline" onClick={() => window.open(`mailto:${email}`, '_blank', 'noopener,noreferrer')}><Mail className="h-4 w-4"/></Button> : null}<Button size="icon" variant="outline" onClick={() => navigator.clipboard.writeText([email, phone].filter(Boolean).join(' | ')).then(() => toast.success('Datos copiados'))}><Copy className="h-4 w-4"/></Button><Button size="sm" variant="outline" onClick={() => handleOpenTimeline(item)}>Timeline</Button></div></td>
+                      <td className="p-2"><div>{email || phone || '—'}</div>{typeof mins === 'number' ? <div className="text-xs text-muted-foreground">hace {mins} min</div> : null}{(assigneeSuggestions[leadKey(item)] || []).length ? <div className="mt-1 flex flex-wrap gap-1">{assigneeSuggestions[leadKey(item)].map((s:any, idx:number)=><span key={`asg-${idx}`} className="inline-flex rounded border px-1.5 py-0.5 text-[10px]">{s?.name || s?.nombre || 'responsable'} ({s?.score ?? '—'})</span>)}</div> : null}</td>
+                      <td className="p-2"><div className="flex gap-1">{phone ? <Button size="icon" variant="outline" onClick={() => openWhatsApp(phone)}><MessageCircle className="h-4 w-4"/></Button> : null}{email ? <Button size="icon" variant="outline" onClick={() => window.open(`mailto:${email}`, '_blank', 'noopener,noreferrer')}><Mail className="h-4 w-4"/></Button> : null}<Button size="icon" variant="outline" onClick={() => navigator.clipboard.writeText([email, phone].filter(Boolean).join(' | ')).then(() => toast.success('Datos copiados'))}><Copy className="h-4 w-4"/></Button><Button size="sm" variant="outline" onClick={() => handleOpenTimeline(item)}>Timeline</Button><Button size="sm" variant="outline" onClick={() => handleSuggestAssignee(item)}>Sugerir responsable</Button></div></td>
                     </tr>;
                   })}
                 </tbody>

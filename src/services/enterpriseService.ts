@@ -127,6 +127,23 @@ export interface LeadTimelineEvent {
   actor?: string;
 }
 
+
+
+export interface StrategicHeatmapPoint {
+  lat?: number;
+  lon?: number;
+  categoria?: string;
+  zona?: string;
+  tipo?: string;
+  count?: number;
+}
+
+export interface StrategicHeatmapResponse {
+  top_categories?: Array<{ categoria?: string; count?: number }>;
+  top_zones?: Array<{ zona?: string; count?: number }>;
+  heatmap_points?: StrategicHeatmapPoint[];
+}
+
 export interface StrategicOverviewResponse {
   totals?: Record<string, number>;
   by_stage?: Record<string, number>;
@@ -318,6 +335,61 @@ export const enterpriseService = {
       body: payload,
       tenantSlug,
     });
+  },
+
+
+  getTenantLeads: async (tenantSlug: string, filters: { stage?: string; limit?: number } = {}) => {
+    const query = buildQueryString(filters);
+    return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/leads?${query}`, { tenantSlug });
+  },
+
+  updateTenantLeadStage: async (tenantSlug: string, ticketType: string, ticketId: string | number, payload: { stage: string; note?: string }) => {
+    return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/leads/${ticketType}/${ticketId}/stage`, {
+      method: 'PATCH',
+      body: payload,
+      tenantSlug,
+    });
+  },
+
+  bulkUpdateTenantLeadStage: async (tenantSlug: string, payload: { stage: string; updates: Array<{ ticket_type: string; ticket_id: string | number; note?: string }> }) => {
+    return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/leads/bulk-stage`, {
+      method: 'PATCH',
+      body: payload,
+      tenantSlug,
+    });
+  },
+
+  getTenantLeadTimeline: async (tenantSlug: string, ticketType: string, ticketId: string | number) => {
+    return apiFetch<{ items?: LeadTimelineEvent[]; timeline?: LeadTimelineEvent[] }>(`/api/admin/tenants/${tenantSlug}/leads/${ticketType}/${ticketId}/timeline`, { tenantSlug });
+  },
+
+  addTenantLeadTimelineNote: async (tenantSlug: string, ticketType: string, ticketId: string | number, payload: { note: string }) => {
+    return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/leads/${ticketType}/${ticketId}/timeline`, {
+      method: 'POST',
+      body: payload,
+      tenantSlug,
+    });
+  },
+
+  updateEmployeeScope: async (userId: string | number, payload: { categorias?: string[]; zonas?: string[]; permisos?: string[] }, tenantSlug?: string) => {
+    return apiFetch<any>(`/api/admin/employees/${userId}/scope`, {
+      method: 'PUT',
+      body: payload,
+      tenantSlug,
+    });
+  },
+
+  suggestAssignee: async (tenantSlug: string, payload: { categoria?: string; zona?: string }) => {
+    return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/employees/suggest-assignee`, {
+      method: 'POST',
+      body: payload,
+      tenantSlug,
+    });
+  },
+
+  getStrategicHeatmapCategoriesZones: async (filters: { since_days?: number } = {}, tenantSlug?: string) => {
+    const query = buildQueryString(filters);
+    return apiFetch<StrategicHeatmapResponse>(`/api/admin/analytics/heatmap-categories-zones?${query}`, { tenantSlug });
   },
 
   getExecutiveSummary: async (
