@@ -14,12 +14,16 @@ interface LiveChatSchedule {
 interface BusinessHours {
   isLiveChatEnabled: boolean;
   horariosAtencion: string;
+  availabilityLabel: string;
+  timezone?: string;
 }
 
 export const useBusinessHours = (entityToken?: string, tenantSlug?: string | null): BusinessHours => {
   const [businessHours, setBusinessHours] = useState<BusinessHours>({
     isLiveChatEnabled: false,
     horariosAtencion: '',
+    availabilityLabel: '',
+    timezone: '',
   });
 
   useEffect(() => {
@@ -31,9 +35,13 @@ export const useBusinessHours = (entityToken?: string, tenantSlug?: string | nul
           return;
         }
 
-        const candidatePaths = tenantSlug
-          ? ['/api/demo/live-chat/schedule', '/live-chat/schedule']
-          : ['/live-chat/schedule'];
+        const tenantAwarePath = tenantSlug ? `/api/${tenantSlug}/live-chat/schedule` : null;
+        const candidatePaths = [
+          '/api/live-chat/schedule',
+          tenantAwarePath,
+          '/api/demo/live-chat/schedule',
+          '/live-chat/schedule',
+        ].filter((path): path is string => Boolean(path));
 
         let schedule: LiveChatSchedule | null = null;
         let lastError: unknown = null;
@@ -69,9 +77,12 @@ export const useBusinessHours = (entityToken?: string, tenantSlug?: string | nul
                 return parts.join(' ');
               })();
 
+        const available = Boolean(schedule?.enabled && schedule?.available);
         setBusinessHours({
-          isLiveChatEnabled: Boolean(schedule?.enabled && schedule?.available),
+          isLiveChatEnabled: available,
           horariosAtencion: description,
+          availabilityLabel: available ? 'Asesores en línea' : 'Te respondemos en horario',
+          timezone: typeof schedule?.timezone === 'string' ? schedule.timezone : '',
         });
       } catch (error) {
         console.error('Error fetching profile:', error);

@@ -135,7 +135,7 @@ const ChatPanel = (props: ChatPanelProps) => {
   const chatInputHandleRef = useRef<ChatInputHandle>(null);
   const [showScrollDown, setShowScrollDown] = useState(false);
   const [userTyping, setUserTyping] = useState(false);
-  const { isLiveChatEnabled, horariosAtencion } = useBusinessHours(propEntityToken, tenantSlug);
+  const { isLiveChatEnabled, horariosAtencion, availabilityLabel, timezone } = useBusinessHours(propEntityToken, tenantSlug);
   const socketRef = useRef<SocketIOClient.Socket | null>(null);
 
   const skipAuth = mode === 'script';
@@ -848,6 +848,13 @@ const ChatPanel = (props: ChatPanelProps) => {
               </div>
            </div>
         )}
+        {!activeTicketId ? (
+          <div className="mb-2 rounded-md border px-3 py-2 text-xs">
+            <span className={cn('font-medium', isLiveChatEnabled ? 'text-emerald-700' : 'text-amber-700')}>{availabilityLabel || (isLiveChatEnabled ? 'Asesores en línea' : 'Te respondemos en horario')}</span>
+            {!isLiveChatEnabled && horariosAtencion ? <p className="mt-1 text-muted-foreground">{horariosAtencion}{timezone ? ` · ${timezone}` : ''}</p> : null}
+          </div>
+        ) : null}
+
         {!activeTicketId && (
           canRenderLiveChat ? (
             <Button onClick={handleLiveChatRequest} className="w-full mb-2">
