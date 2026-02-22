@@ -144,6 +144,7 @@ export interface SendPayload {
   location?: { lat: number, lon: number }; // NUEVO: Para el envío de ubicación desde el widget
 
   action?: string; // Si el envío es resultado de un clic en un botón con una acción específica que el backend debe procesar
+  action_id?: string; // ID de acción explícito para compatibilidad con payloads interactivos del backend
   payload?: any; // Datos adicionales asociados a la acción del botón
 
   attachmentInfo?: { // Información del archivo que el usuario está adjuntando (antes de que el backend lo confirme)
