@@ -439,9 +439,6 @@ export function useChatLogic({
       const isDemoSelector =
         sourceName === 'demo_selector' &&
         (messageType === 'interactive_list' || messageType === 'interactive_buttons');
-      if (isDemoSelector) {
-        trackWidgetEvent('demo_selector_rendered');
-      }
 
       const rawText = pickFirstString(
         data.comentario,
@@ -661,6 +658,10 @@ export function useChatLogic({
         return;
       }
       seenMessageFingerprintsRef.current.add(fingerprint);
+
+      if (isDemoSelector) {
+        trackWidgetEvent('demo_selector_rendered');
+      }
 
       const messageId =
         typeof messageIdCandidate === 'number' || typeof messageIdCandidate === 'string'
@@ -1147,7 +1148,15 @@ export function useChatLogic({
     const { text: userMessageText, attachmentInfo, ubicacion_usuario, action, action_id, location } = actualPayload;
     const actionPayload = 'payload' in actualPayload ? actualPayload.payload : undefined;
 
-    if (!firstRealQuestionSentRef.current && actualPayload.source !== 'button' && originalText && originalText !== '__INIT__') {
+    const isLikelyTypedQuestion =
+      !!originalText &&
+      originalText !== '__INIT__' &&
+      !action &&
+      !action_id &&
+      actualPayload.source !== 'button' &&
+      (actualPayload.source === 'input' || typeof payload === 'string' || typeof actualPayload.source === 'undefined');
+
+    if (!firstRealQuestionSentRef.current && isLikelyTypedQuestion) {
       firstRealQuestionSentRef.current = true;
       trackWidgetEvent('first_real_question_sent');
     }
