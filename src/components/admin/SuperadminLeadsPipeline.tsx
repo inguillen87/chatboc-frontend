@@ -84,6 +84,10 @@ const SuperadminLeadsPipeline: React.FC = () => {
   const [tenantEncuestas, setTenantEncuestas] = useState<any[]>([]);
   const [globalEncuestas, setGlobalEncuestas] = useState<any[]>([]);
   const [realtimeAi, setRealtimeAi] = useState<any>(null);
+  const [tenantHealth, setTenantHealth] = useState<any[]>([]);
+  const [employeeWorkload, setEmployeeWorkload] = useState<any[]>([]);
+  const [balanceLoadEnabled, setBalanceLoadEnabled] = useState(true);
+  const [requiredPermission, setRequiredPermission] = useState('');
 
   const fetchPipeline = async () => {
     setLoading(true);
@@ -102,6 +106,8 @@ const SuperadminLeadsPipeline: React.FC = () => {
       setRealtimeAi(realtime || null);
       const surveys = await enterpriseService.getGlobalEncuestasOverview();
       setGlobalEncuestas(surveys?.items || []);
+      const health = await enterpriseService.getTenantHealth({ since_days: sinceDays });
+      setTenantHealth(health?.items || []);
     } catch (error) {
       console.error(error);
       toast.error('No se pudo cargar el panel de leads.');
@@ -183,9 +189,12 @@ const SuperadminLeadsPipeline: React.FC = () => {
     const categoria = window.prompt('Categoría para sugerencia:', '') || undefined;
     const zona = window.prompt('Zona para sugerencia:', '') || undefined;
     try {
-      const response = await enterpriseService.suggestAssignee(slug, { categoria, zona });
+      const response = await enterpriseService.suggestAssignee(slug, { categoria, zona, required_permission: requiredPermission || undefined });
       const suggestions = response?.items || response?.suggestions || [];
-      setAssigneeSuggestions((prev) => ({ ...prev, [leadKey(item)]: suggestions.slice(0, 3) }));
+      const ordered = balanceLoadEnabled
+        ? suggestions.slice().sort((a: any, b: any) => (a?.workload_open_tickets || 0) - (b?.workload_open_tickets || 0))
+        : suggestions;
+      setAssigneeSuggestions((prev) => ({ ...prev, [leadKey(item)]: ordered.slice(0, 3) }));
       toast.success('Sugerencias cargadas.');
     } catch (error) {
       console.error(error);
@@ -210,9 +219,9 @@ const SuperadminLeadsPipeline: React.FC = () => {
     const ticketId = lead.nro_ticket || lead.ticket_id;
     if (!slug || !ticketId) return toast.error('Faltan datos para autoasignar.');
     try {
-      const resp = await enterpriseService.autoAssignTenantTicket(slug, ticketType, ticketId);
+      const resp = await enterpriseService.autoAssignTenantTicket(slug, ticketType, ticketId, { required_permission: requiredPermission || undefined });
       const employee = resp?.employee?.name || resp?.employee?.nombre || 'Responsable asignado';
-      toast.success(`${employee} (score ${resp?.score ?? '—'})`);
+      toast.success(`${employee} (score ${resp?.score ?? '—'} · carga ${resp?.workload_open_tickets ?? '—'})`);
     } catch (error) {
       console.error(error);
       toast.error('No se pudo autoasignar.');
@@ -238,6 +247,8 @@ const SuperadminLeadsPipeline: React.FC = () => {
       setTenantLeads(response?.items || response?.leads || []);
       const tenantSurveys = await enterpriseService.getTenantEncuestasOverview(slug);
       setTenantEncuestas(tenantSurveys?.items || []);
+      const workload = await enterpriseService.getTenantEmployeesWorkload(slug);
+      setEmployeeWorkload(workload?.items || []);
     } catch (error) {
       console.error(error);
       toast.error('No se pudieron cargar leads del tenant.');
@@ -445,7 +456,9 @@ const SuperadminLeadsPipeline: React.FC = () => {
                 </select>
                 <Button size="sm" onClick={fetchTenantLeads}>Cargar tenant leads</Button>
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="inline-flex items-center gap-2 text-xs"><input type="checkbox" checked={balanceLoadEnabled} onChange={(e) => setBalanceLoadEnabled(e.target.checked)} /> Balancear carga</label>
+                <input className="h-9 rounded border px-3 text-sm" placeholder="permiso requerido (opcional)" value={requiredPermission} onChange={(e) => setRequiredPermission(e.target.value)} />
                 <select className="h-9 rounded border px-2 text-sm" value={tenantBulkStage} onChange={(e) => setTenantBulkStage(e.target.value as LeadStage)}>
                   {STAGES.map((s) => <option key={`tenant-bulk-${s}`} value={s}>{s}</option>)}
                 </select>
@@ -459,7 +472,7 @@ const SuperadminLeadsPipeline: React.FC = () => {
                       <tr key={`tenant-lead-${idx}`} className="border-b">
                         <td className="p-2"><input type="checkbox" checked={tenantSelectedLeadKeys.includes(leadKey(lead))} onChange={() => setTenantSelectedLeadKeys((prev) => prev.includes(leadKey(lead)) ? prev.filter((k) => k !== leadKey(lead)) : [...prev, leadKey(lead)])} /></td>
                         <td className="p-2">{normalizeLeadField(lead, 'nombre', 'name') || 'Sin nombre'} #{lead.nro_ticket || lead.ticket_id || '—'}</td>
-                        <td className="p-2">{normalizeLeadField(lead, 'stage') || 'nuevo'}</td>
+                        <td className="p-2">{normalizeLeadField(lead, 'stage') || 'nuevo'}{lead?.assigned_employee_workload_open_tickets !== undefined ? <Badge variant="outline" className="ml-2">carga {lead.assigned_employee_workload_open_tickets}</Badge> : null}</td>
                         <td className="p-2"><Button size="sm" variant="outline" onClick={() => handleOpenTimeline(lead)}>Abrir</Button></td>
                         <td className="p-2"><Button size="sm" variant="outline" onClick={() => handleAutoAssign(lead)}>Autoasignar empleado</Button></td>
                       </tr>
@@ -496,6 +509,41 @@ const SuperadminLeadsPipeline: React.FC = () => {
               </table>
             </CardContent>
           </Card>
+
+          <Card>
+            <CardHeader><CardTitle>Carga de empleados (tenant)</CardTitle><CardDescription>Open tickets por empleado para balanceo operativo.</CardDescription></CardHeader>
+            <CardContent className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="border-b text-left text-muted-foreground"><th className="p-2">Empleado</th><th className="p-2">Categorías</th><th className="p-2">Zonas</th><th className="p-2">Carga abierta</th></tr></thead>
+                <tbody>
+                  {employeeWorkload.map((emp, idx) => (
+                    <tr key={`workload-${idx}`} className="border-b"><td className="p-2">{emp?.name || emp?.nombre || '—'}</td><td className="p-2">{Array.isArray(emp?.categorias) ? emp.categorias.join(', ') : '—'}</td><td className="p-2">{Array.isArray(emp?.zonas) ? emp.zonas.join(', ') : '—'}</td><td className="p-2"><Badge variant="outline">{emp?.workload_open_tickets ?? 0}</Badge></td></tr>
+                  ))}
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle>Tenant Health (CEO)</CardTitle><CardDescription>Ranking por health_score, win_rate, SLA y encuestas.</CardDescription></CardHeader>
+            <CardContent className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="border-b text-left text-muted-foreground"><th className="p-2">Tenant</th><th className="p-2">Health</th><th className="p-2">Win rate</th><th className="p-2">SLA breached</th><th className="p-2">Encuestas</th></tr></thead>
+                <tbody>
+                  {tenantHealth.slice().sort((a, b) => (b?.health_score || 0) - (a?.health_score || 0)).map((row, idx) => (
+                    <tr key={`health-${idx}`} className="border-b">
+                      <td className="p-2">{row?.tenant_slug || '—'}</td>
+                      <td className="p-2"><span className={`inline-flex rounded px-2 py-0.5 text-xs font-semibold ${(row?.health_score || 0) >= 0.8 ? 'bg-emerald-100 text-emerald-700' : (row?.health_score || 0) >= 0.6 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>{typeof row?.health_score === 'number' ? `${(row.health_score * 100).toFixed(0)}%` : '—'}</span></td>
+                      <td className="p-2">{typeof row?.win_rate === 'number' ? `${(row.win_rate * 100).toFixed(1)}%` : '—'}</td>
+                      <td className="p-2">{row?.sla_breached ?? 0}</td>
+                      <td className="p-2">{row?.survey_responses ?? 0}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader><CardTitle>Editor scope de empleado</CardTitle><CardDescription>Chips CSV: categorías, zonas y permisos por rol.</CardDescription></CardHeader>
             <CardContent className="space-y-2">

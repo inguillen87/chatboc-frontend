@@ -388,7 +388,7 @@ export const enterpriseService = {
     });
   },
 
-  suggestAssignee: async (tenantSlug: string, payload: { categoria?: string; zona?: string }) => {
+  suggestAssignee: async (tenantSlug: string, payload: { categoria?: string; zona?: string; required_permission?: string }) => {
     return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/employees/suggest-assignee`, {
       method: 'POST',
       body: payload,
@@ -396,11 +396,16 @@ export const enterpriseService = {
     });
   },
 
-  autoAssignTenantTicket: async (tenantSlug: string, ticketType: string, ticketId: string | number) => {
+  autoAssignTenantTicket: async (tenantSlug: string, ticketType: string, ticketId: string | number, payload: { required_permission?: string } = {}) => {
     return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/tickets/${ticketType}/${ticketId}/auto-assign`, {
       method: 'POST',
+      body: payload,
       tenantSlug,
     });
+  },
+
+  getTenantEmployeesWorkload: async (tenantSlug: string) => {
+    return apiFetch<{ items?: any[] }>(`/api/admin/tenants/${tenantSlug}/employees/workload`, { tenantSlug });
   },
 
   getTenantEncuestasOverview: async (tenantSlug: string) => {
@@ -409,6 +414,12 @@ export const enterpriseService = {
 
   getGlobalEncuestasOverview: async (tenantSlug?: string) => {
     return apiFetch<{ items?: any[]; totals?: any }>(`/api/admin/encuestas/overview`, { tenantSlug });
+  },
+
+
+  getTenantHealth: async (filters: { since_days?: number } = {}, tenantSlug?: string) => {
+    const query = buildQueryString(filters);
+    return apiFetch<{ items?: any[] }>(`/api/admin/analytics/tenant-health?${query}`, { tenantSlug });
   },
 
   getRealtimeAiOverview: async (filters: { minutes?: number } = {}, tenantSlug?: string) => {
