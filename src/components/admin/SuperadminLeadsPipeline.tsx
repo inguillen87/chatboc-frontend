@@ -67,6 +67,15 @@ const SuperadminLeadsPipeline: React.FC = () => {
   const [timelineEvents, setTimelineEvents] = useState<Array<any>>([]);
   const [timelineNote, setTimelineNote] = useState('');
   const [playbookPreview, setPlaybookPreview] = useState<any[]>([]);
+  const [tenantBoardSlug, setTenantBoardSlug] = useState('');
+  const [tenantLeads, setTenantLeads] = useState<any[]>([]);
+  const [tenantStageFilter, setTenantStageFilter] = useState('');
+  const [tenantBulkStage, setTenantBulkStage] = useState<LeadStage>('contactado');
+  const [tenantSelectedLeadKeys, setTenantSelectedLeadKeys] = useState<string[]>([]);
+  const [employeeScopeUserId, setEmployeeScopeUserId] = useState('');
+  const [employeeCategorias, setEmployeeCategorias] = useState('');
+  const [employeeZonas, setEmployeeZonas] = useState('');
+  const [employeePermisos, setEmployeePermisos] = useState('');
   const [heatmapData, setHeatmapData] = useState<{ top_categories?: any[]; top_zones?: any[]; heatmap_points?: any[] } | null>(null);
   const [heatmapCategoryFilter, setHeatmapCategoryFilter] = useState('');
   const [heatmapZoneFilter, setHeatmapZoneFilter] = useState('');
@@ -188,11 +197,67 @@ const SuperadminLeadsPipeline: React.FC = () => {
   };
 
   const handleRunPlaybook = async (dryRun: boolean) => {
+    if (!dryRun) {
+      const confirmed = window.confirm('¿Confirmás ejecutar playbook en productivo?');
+      if (!confirmed) return;
+    }
     const resp = await enterpriseService.runLeadsPlaybook({ dry_run: dryRun, only_sla_breached: true, limit: 50 });
     setPlaybookPreview(resp?.items || []);
   };
 
   const openWhatsApp = (phone: string) => window.open(`https://wa.me/${phone.replace(/\D/g, '')}`, '_blank', 'noopener,noreferrer');
+
+
+  const fetchTenantLeads = async () => {
+    if (!tenantBoardSlug.trim()) return;
+    try {
+      const response = await enterpriseService.getTenantLeads(tenantBoardSlug.trim(), { stage: tenantStageFilter || undefined, limit: 100 });
+      setTenantLeads(response?.items || response?.leads || []);
+    } catch (error) {
+      console.error(error);
+      toast.error('No se pudieron cargar leads del tenant.');
+    }
+  };
+
+  const handleTenantBulkStage = async () => {
+    if (!tenantBoardSlug.trim()) return;
+    const updates = tenantLeads
+      .filter((lead) => tenantSelectedLeadKeys.includes(leadKey(lead)))
+      .map((lead) => ({
+        ticket_type: (lead.ticket_type || 'municipio') as string,
+        ticket_id: (lead.nro_ticket || lead.ticket_id) as string | number,
+      }))
+      .filter((item) => item.ticket_id);
+    if (!updates.length) {
+      toast.error('Seleccioná leads tenant para bulk.');
+      return;
+    }
+    try {
+      await enterpriseService.bulkUpdateTenantLeadStage(tenantBoardSlug.trim(), { stage: String(tenantBulkStage), updates });
+      toast.success('Tenant bulk stage aplicado.');
+      setTenantSelectedLeadKeys([]);
+      fetchTenantLeads();
+    } catch (error) {
+      console.error(error);
+      toast.error('No se pudo aplicar bulk tenant.');
+    }
+  };
+
+  const handleUpdateEmployeeScope = async () => {
+    if (!employeeScopeUserId.trim()) return;
+    const parseCsv = (value: string) => value.split(',').map((v) => v.trim()).filter(Boolean);
+    try {
+      await enterpriseService.updateEmployeeScope(employeeScopeUserId.trim(), {
+        categorias: parseCsv(employeeCategorias),
+        zonas: parseCsv(employeeZonas),
+        permisos: parseCsv(employeePermisos),
+      });
+      toast.success('Scope de empleado actualizado.');
+    } catch (error) {
+      console.error(error);
+      toast.error('No se pudo actualizar scope de empleado.');
+    }
+  };
 
   return (
     <section className="space-y-4">
@@ -338,6 +403,53 @@ const SuperadminLeadsPipeline: React.FC = () => {
             <CardHeader><CardTitle>Resultado playbook</CardTitle></CardHeader>
             <CardContent className="space-y-2">
               {playbookPreview.map((item, idx) => <div key={`pb-${idx}`} className="rounded border px-3 py-2 text-sm"><p className="font-medium">Ticket #{item.ticket_id || '—'}</p><div className="mt-1 flex flex-wrap gap-1">{(item.actions || []).map((a: any, i: number) => <span key={`a-${i}`} className="inline-flex rounded border px-2 py-0.5 text-xs">{a.channel || 'canal'} · {a.status || 'pending'}</span>)}</div></div>)}
+            </CardContent>
+          </Card>
+
+
+          <Card>
+            <CardHeader><CardTitle>Tenant board operativo</CardTitle><CardDescription>Acciones masivas por tenant + timeline.</CardDescription></CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex flex-wrap gap-2">
+                <input className="h-9 rounded border px-3 text-sm" placeholder="tenant slug" value={tenantBoardSlug} onChange={(e) => setTenantBoardSlug(e.target.value)} />
+                <select className="h-9 rounded border px-2 text-sm" value={tenantStageFilter} onChange={(e) => setTenantStageFilter(e.target.value)}>
+                  <option value="">todas etapas</option>
+                  {STAGES.map((s) => <option key={`tenant-stage-${s}`} value={s}>{s}</option>)}
+                </select>
+                <Button size="sm" onClick={fetchTenantLeads}>Cargar tenant leads</Button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <select className="h-9 rounded border px-2 text-sm" value={tenantBulkStage} onChange={(e) => setTenantBulkStage(e.target.value as LeadStage)}>
+                  {STAGES.map((s) => <option key={`tenant-bulk-${s}`} value={s}>{s}</option>)}
+                </select>
+                <Button size="sm" variant="outline" onClick={handleTenantBulkStage}>Aplicar bulk tenant</Button>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead><tr className="border-b text-left text-muted-foreground"><th className="p-2">Sel</th><th className="p-2">Lead</th><th className="p-2">Etapa</th><th className="p-2">Timeline</th></tr></thead>
+                  <tbody>
+                    {tenantLeads.map((lead, idx) => (
+                      <tr key={`tenant-lead-${idx}`} className="border-b">
+                        <td className="p-2"><input type="checkbox" checked={tenantSelectedLeadKeys.includes(leadKey(lead))} onChange={() => setTenantSelectedLeadKeys((prev) => prev.includes(leadKey(lead)) ? prev.filter((k) => k !== leadKey(lead)) : [...prev, leadKey(lead)])} /></td>
+                        <td className="p-2">{normalizeLeadField(lead, 'nombre', 'name') || 'Sin nombre'} #{lead.nro_ticket || lead.ticket_id || '—'}</td>
+                        <td className="p-2">{normalizeLeadField(lead, 'stage') || 'nuevo'}</td>
+                        <td className="p-2"><Button size="sm" variant="outline" onClick={() => handleOpenTimeline(lead)}>Abrir</Button></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle>Editor scope de empleado</CardTitle><CardDescription>Chips CSV: categorías, zonas y permisos por rol.</CardDescription></CardHeader>
+            <CardContent className="space-y-2">
+              <input className="h-9 w-full rounded border px-3 text-sm" placeholder="user_id" value={employeeScopeUserId} onChange={(e) => setEmployeeScopeUserId(e.target.value)} />
+              <input className="h-9 w-full rounded border px-3 text-sm" placeholder="categorías (coma separadas)" value={employeeCategorias} onChange={(e) => setEmployeeCategorias(e.target.value)} />
+              <input className="h-9 w-full rounded border px-3 text-sm" placeholder="zonas (coma separadas)" value={employeeZonas} onChange={(e) => setEmployeeZonas(e.target.value)} />
+              <input className="h-9 w-full rounded border px-3 text-sm" placeholder="permisos (coma separadas)" value={employeePermisos} onChange={(e) => setEmployeePermisos(e.target.value)} />
+              <Button size="sm" onClick={handleUpdateEmployeeScope}>Guardar scope</Button>
             </CardContent>
           </Card>
 
