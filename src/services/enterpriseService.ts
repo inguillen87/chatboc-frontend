@@ -99,6 +99,94 @@ export interface LeadInteractionsResponse {
   cursor?: string | null;
 }
 
+
+export interface LeadsPipelineItem {
+  id?: number | string;
+  tenant_slug?: string;
+  nombre?: string;
+  name?: string;
+  email?: string;
+  telefono?: string;
+  phone?: string;
+  stage?: string;
+  nro_ticket?: number | string;
+  ticket_id?: number | string;
+  relevance_score?: number;
+  confidence_score?: number;
+  created_at?: string;
+}
+
+
+
+export interface LeadTimelineEvent {
+  id?: number | string;
+  event_type?: string;
+  note?: string;
+  stage?: string;
+  created_at?: string;
+  actor?: string;
+}
+
+
+
+export interface StrategicHeatmapPoint {
+  lat?: number;
+  lon?: number;
+  categoria?: string;
+  zona?: string;
+  tipo?: string;
+  count?: number;
+}
+
+export interface StrategicHeatmapResponse {
+  top_categories?: Array<{ categoria?: string; count?: number }>;
+  top_zones?: Array<{ zona?: string; count?: number }>;
+  heatmap_points?: StrategicHeatmapPoint[];
+}
+
+export interface RealtimeAiOverviewResponse {
+  active_sessions?: number;
+  llm_status?: string;
+  open_tickets?: number;
+  assigned_tickets?: number;
+  unassigned_tickets?: number;
+  coverage_ratio?: number;
+}
+
+export interface StrategicOverviewResponse {
+  totals?: Record<string, number>;
+  by_stage?: Record<string, number>;
+  by_tenant?: Record<string, number>;
+  total_leads?: number;
+  open_leads?: number;
+  won?: number;
+  lost?: number;
+  sla_breached?: number;
+  win_rate?: number;
+}
+
+export interface CatalogQualityItem {
+  id?: number | string;
+  tenant_slug?: string;
+  product_name?: string;
+  confidence_score?: number;
+  quality_issues?: string[];
+  review_required?: boolean;
+}
+
+export interface CatalogQualityResponse {
+  items?: CatalogQualityItem[];
+}
+
+export interface LeadsPipelineResponse {
+  total?: number;
+  by_stage?: Record<string, number>;
+  by_tenant?: Record<string, number>;
+  conversion_rate?: number;
+  avg_first_response_seconds?: number;
+  items?: LeadsPipelineItem[];
+}
+
 interface EnterpriseBaseFilters {
   tenant_id: number;
   scope?: string;
@@ -138,6 +226,72 @@ export const enterpriseService = {
     });
   },
 
+
+
+  getCatalogQuality: async (filters: {
+    tenant_slug?: string;
+    limit?: number;
+  }, tenantSlug?: string) => {
+    const query = buildQueryString(filters);
+    return apiFetch<CatalogQualityResponse>(`/api/admin/catalog/quality?${query}`, { tenantSlug });
+  },
+
+  getLeadsPipeline: async (filters: {
+    tenant_slug?: string;
+    since_days?: number;
+  }, tenantSlug?: string) => {
+    const query = buildQueryString(filters);
+    return apiFetch<LeadsPipelineResponse>(`/api/admin/leads/pipeline?${query}`, { tenantSlug });
+  },
+
+
+
+  updateLeadStage: async (
+    ticketId: string | number,
+    payload: { stage: string; note?: string; ticket_type?: string },
+    tenantSlug?: string,
+  ) => {
+    const ticketType = payload.ticket_type || 'municipio';
+    return apiFetch<any>(`/api/admin/leads/${ticketType}/${ticketId}/stage`, {
+      method: 'PATCH',
+      body: { stage: payload.stage, note: payload.note },
+      tenantSlug,
+    });
+  },
+
+  bulkUpdateLeadStage: async (payload: { stage: string; updates: Array<{ ticket_type: string; ticket_id: string | number; note?: string }> }, tenantSlug?: string) => {
+    return apiFetch<any>('/api/admin/leads/bulk-stage', {
+      method: 'PATCH',
+      body: payload,
+      tenantSlug,
+    });
+  },
+
+  getLeadTimeline: async (ticketType: string, ticketId: string | number, tenantSlug?: string) => {
+    return apiFetch<{ items?: LeadTimelineEvent[]; timeline?: LeadTimelineEvent[] }>(`/api/admin/leads/${ticketType}/${ticketId}/timeline`, { tenantSlug });
+  },
+
+  addLeadTimelineNote: async (ticketType: string, ticketId: string | number, payload: { note: string }, tenantSlug?: string) => {
+    return apiFetch<any>(`/api/admin/leads/${ticketType}/${ticketId}/timeline`, {
+      method: 'POST',
+      body: payload,
+      tenantSlug,
+    });
+  },
+
+  getStrategicOverview: async (filters: { since_days?: number }, tenantSlug?: string) => {
+    const query = buildQueryString(filters);
+    return apiFetch<StrategicOverviewResponse>(`/api/admin/leads/strategic-overview?${query}`, { tenantSlug });
+  },
+
+  runLeadsPlaybook: async (payload: { dry_run: boolean; only_sla_breached?: boolean; limit?: number }, tenantSlug?: string) => {
+    return apiFetch<{ items?: Array<{ ticket_id?: string | number; actions?: Array<{ channel?: string; status?: string; template?: string }> }> }>('/api/admin/leads/playbooks/run', {
+      method: 'POST',
+      body: payload,
+      tenantSlug,
+    });
+  },
+
   getLeadInteractions: async (filters: {
     tenant_id?: number;
     limit?: number;
@@ -147,6 +301,7 @@ export const enterpriseService = {
     from?: string;
     to?: string;
     scope?: string;
+    since_days?: number;
   }, tenantSlug?: string) => {
     const query = buildQueryString(filters);
     return apiFetch<LeadInteractionsResponse>(`/api/admin/leads/interactions?${query}`, { tenantSlug });
@@ -189,6 +344,92 @@ export const enterpriseService = {
       body: payload,
       tenantSlug,
     });
+  },
+
+
+  getTenantLeads: async (tenantSlug: string, filters: { stage?: string; limit?: number } = {}) => {
+    const query = buildQueryString(filters);
+    return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/leads?${query}`, { tenantSlug });
+  },
+
+  updateTenantLeadStage: async (tenantSlug: string, ticketType: string, ticketId: string | number, payload: { stage: string; note?: string }) => {
+    return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/leads/${ticketType}/${ticketId}/stage`, {
+      method: 'PATCH',
+      body: payload,
+      tenantSlug,
+    });
+  },
+
+  bulkUpdateTenantLeadStage: async (tenantSlug: string, payload: { stage: string; updates: Array<{ ticket_type: string; ticket_id: string | number; note?: string }> }) => {
+    return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/leads/bulk-stage`, {
+      method: 'PATCH',
+      body: payload,
+      tenantSlug,
+    });
+  },
+
+  getTenantLeadTimeline: async (tenantSlug: string, ticketType: string, ticketId: string | number) => {
+    return apiFetch<{ items?: LeadTimelineEvent[]; timeline?: LeadTimelineEvent[] }>(`/api/admin/tenants/${tenantSlug}/leads/${ticketType}/${ticketId}/timeline`, { tenantSlug });
+  },
+
+  addTenantLeadTimelineNote: async (tenantSlug: string, ticketType: string, ticketId: string | number, payload: { note: string }) => {
+    return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/leads/${ticketType}/${ticketId}/timeline`, {
+      method: 'POST',
+      body: payload,
+      tenantSlug,
+    });
+  },
+
+  updateEmployeeScope: async (userId: string | number, payload: { categorias?: string[]; zonas?: string[]; permisos?: string[] }, tenantSlug?: string) => {
+    return apiFetch<any>(`/api/admin/employees/${userId}/scope`, {
+      method: 'PUT',
+      body: payload,
+      tenantSlug,
+    });
+  },
+
+  suggestAssignee: async (tenantSlug: string, payload: { categoria?: string; zona?: string; required_permission?: string }) => {
+    return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/employees/suggest-assignee`, {
+      method: 'POST',
+      body: payload,
+      tenantSlug,
+    });
+  },
+
+  autoAssignTenantTicket: async (tenantSlug: string, ticketType: string, ticketId: string | number, payload: { required_permission?: string } = {}) => {
+    return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/tickets/${ticketType}/${ticketId}/auto-assign`, {
+      method: 'POST',
+      body: payload,
+      tenantSlug,
+    });
+  },
+
+  getTenantEmployeesWorkload: async (tenantSlug: string) => {
+    return apiFetch<{ items?: any[] }>(`/api/admin/tenants/${tenantSlug}/employees/workload`, { tenantSlug });
+  },
+
+  getTenantEncuestasOverview: async (tenantSlug: string) => {
+    return apiFetch<{ items?: any[]; total?: number }>(`/api/admin/tenants/${tenantSlug}/encuestas/overview`, { tenantSlug });
+  },
+
+  getGlobalEncuestasOverview: async (tenantSlug?: string) => {
+    return apiFetch<{ items?: any[]; totals?: any }>(`/api/admin/encuestas/overview`, { tenantSlug });
+  },
+
+
+  getTenantHealth: async (filters: { since_days?: number } = {}, tenantSlug?: string) => {
+    const query = buildQueryString(filters);
+    return apiFetch<{ items?: any[] }>(`/api/admin/analytics/tenant-health?${query}`, { tenantSlug });
+  },
+
+  getRealtimeAiOverview: async (filters: { minutes?: number } = {}, tenantSlug?: string) => {
+    const query = buildQueryString(filters);
+    return apiFetch<RealtimeAiOverviewResponse>(`/api/admin/analytics/realtime-ai?${query}`, { tenantSlug });
+  },
+
+  getStrategicHeatmapCategoriesZones: async (filters: { since_days?: number } = {}, tenantSlug?: string) => {
+    const query = buildQueryString(filters);
+    return apiFetch<StrategicHeatmapResponse>(`/api/admin/analytics/heatmap-categories-zones?${query}`, { tenantSlug });
   },
 
   getExecutiveSummary: async (
