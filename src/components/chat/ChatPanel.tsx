@@ -33,6 +33,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { getInitialMunicipioContext } from "@/utils/contexto_municipio";
 import { resetChatSessionId } from "@/utils/chatSessionId";
 import { extractSmartHint } from "@/utils/smartHints";
+import { trackFrontendEvent } from '@/utils/frontendTelemetry';
 
 const PENDING_TICKET_KEY = 'pending_ticket_id';
 const PENDING_GPS_KEY = 'pending_gps';
@@ -634,6 +635,7 @@ const ChatPanel = (props: ChatPanelProps) => {
   const lastUserMessage = [...messages].reverse().find(m => !m.isBot); // Safe find last user message
   const [smartHint, setSmartHint] = useState<string | null>(null);
   const [leadSuccessTicket, setLeadSuccessTicket] = useState<string | null>(null);
+  const leadStepViewedRef = useRef<string | null>(null);
 
 
   useEffect(() => {
@@ -669,6 +671,13 @@ const ChatPanel = (props: ChatPanelProps) => {
   const leadStep = leadRequestedField === 'nombre' ? 1 : leadRequestedField === 'telefono' ? 2 : leadRequestedField === 'email' ? 3 : null;
   const leadStepProgress = leadStep ? (leadStep / 3) * 100 : 0;
 
+  useEffect(() => {
+    if (!leadRequestedField) return;
+    if (leadStepViewedRef.current === leadRequestedField) return;
+    leadStepViewedRef.current = leadRequestedField;
+    trackFrontendEvent('lead_capture_step_viewed', { step: leadRequestedField });
+  }, [leadRequestedField]);
+
   const persistentLeadButton = [...messages]
     .flatMap((msg) => msg.botones || [])
     .find((btn) => {
@@ -688,6 +697,7 @@ const ChatPanel = (props: ChatPanelProps) => {
       const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
       if (!isEmail) return 'Ingresá un email válido para continuar.';
     }
+    trackFrontendEvent('lead_capture_step_completed', { step: leadRequestedField });
     return null;
   }, [leadRequestedField]);
 

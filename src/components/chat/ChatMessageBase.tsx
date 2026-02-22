@@ -1,5 +1,5 @@
 // src/components/chat/ChatMessageBase.tsx
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { Boton, Message, SendPayload, StructuredContentItem } from "@/types/chat";
 import ChatButtons from "./ChatButtons";
 import CategorizedButtons from "./CategorizedButtons";
@@ -28,6 +28,7 @@ import InteractiveMenu from "./InteractiveMenu";
 import CatalogShareCard from "./CatalogShareCard";
 import { extractSmartHint } from "@/utils/smartHints";
 import ProductCard from "@/components/product/ProductCard";
+import { trackFrontendEvent } from '@/utils/frontendTelemetry';
 
 type RawAttachment = {
   url: string;
@@ -684,6 +685,14 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
   const isCommercialCatalogResponse = Boolean(sourceForCommercial && commercialCatalogSources.has(sourceForCommercial));
   const commercialSummary = typeof dataAny?.resumen === 'string' ? dataAny.resumen : (typeof message.text === 'string' ? message.text : '');
   const highlightedProducts = Array.isArray(dataAny?.productos) ? dataAny.productos.slice(0, 3) : [];
+  const structuredTelemetrySentRef = useRef(false);
+  useEffect(() => {
+    if (isCommercialCatalogResponse && !structuredTelemetrySentRef.current) {
+      structuredTelemetrySentRef.current = true;
+      trackFrontendEvent('catalog_structured_rendered', { source: sourceForCommercial || 'unknown' });
+    }
+  }, [isCommercialCatalogResponse, sourceForCommercial]);
+
   const now = new Date();
   const postsToShow = showPosts
     ? message.posts!
@@ -710,6 +719,7 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
   // Por ahora, lo mantendremos simple.
 
   const isHandover = message.action === 'agent_handover' || message.text?.includes('Derivando a un representante') || !!message.ticket_id;
+  const criticalConfirmationData = dataAny?.confirmacion_critica || dataAny?.critical_confirmation || null;
 
   const normalizedEnter = (messageEnterAnimation || 'fade-up').toLowerCase();
   const enterInitial = normalizedEnter.includes('slide')
@@ -918,6 +928,19 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
               </div>
             </div>
           )}
+
+
+          {criticalConfirmationData ? (
+            <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-amber-900">
+              <p className="text-sm font-semibold">Confirmemos antes de continuar</p>
+              <p className="mt-1 text-xs">{criticalConfirmationData?.resumen || criticalConfirmationData?.summary || 'Revisá categoría, ubicación y contacto antes de ejecutar la acción final.'}</p>
+              <p className="mt-1 text-[11px] font-medium">La acción final se ejecuta tras confirmación explícita.</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button className="rounded border border-amber-500 bg-amber-100 px-2 py-1 text-xs" onClick={() => onButtonClick({ text: 'Confirmar', action: 'confirmar_reclamo', action_id: 'confirmar_reclamo', source: 'button' })}>Confirmar</button>
+                <button className="rounded border border-amber-400 bg-white px-2 py-1 text-xs" onClick={() => onButtonClick({ text: 'Corregir', action: 'corregir_datos_confirmacion', action_id: 'corregir_datos_confirmacion', source: 'button' })}>Corregir</button>
+              </div>
+            </div>
+          ) : null}
 
           {showSocialLinks && <SocialLinks links={message.socialLinks!} />}
 

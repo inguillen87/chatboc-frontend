@@ -436,6 +436,7 @@ export function useChatLogic({
         data.metadata?.payload ??
         null;
       const sourceName = pickFirstString(data.fuente, data.source, data.metadata?.fuente, data.metadata?.source);
+      const commercialSourcesForCta = new Set(['catalogo_qdrant_con_promos_v2', 'catalogo_fallback_faq', 'catalogo_fallback_web']);
       const dataPayload = (() => {
         const base = dataPayloadRaw && typeof dataPayloadRaw === 'object' ? { ...(dataPayloadRaw as Record<string, unknown>) } : {};
         if (sourceName && !base.fuente) base.fuente = sourceName;
@@ -500,6 +501,16 @@ export function useChatLogic({
         data.quick_replies,
         data.metadata,
       );
+      if (sourceName && commercialSourcesForCta.has(sourceName) && botones.length > 0) {
+        const idx = botones.findIndex((btn: any) => {
+          const candidate = pickFirstString(btn.action_id, btn.action, btn.accion_interna)?.toLowerCase();
+          return candidate === 'pedir_presupuesto_pyme';
+        });
+        if (idx > 0) {
+          const [budgetBtn] = botones.splice(idx, 1);
+          botones.unshift(budgetBtn);
+        }
+      }
       const categorias = normalizeCategories(
         data.categorias,
         data.categories,

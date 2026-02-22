@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { enterpriseService } from '@/services/enterpriseService';
 import { toast } from 'sonner';
 import { Copy, Mail, MessageCircle, RefreshCw } from 'lucide-react';
+import { trackFrontendEvent } from '@/utils/frontendTelemetry';
 
 type LeadStage =
   | 'nuevo'
@@ -83,11 +85,13 @@ const toCsv = (rows: LeadItem[]) => {
 };
 
 const SuperadminLeadsPipeline: React.FC = () => {
-  const [tenantSlug, setTenantSlug] = useState('');
-  const [sinceDays, setSinceDays] = useState(30);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [tenantSlug, setTenantSlug] = useState(() => searchParams.get('tenant_slug') || '');
+  const [sinceDays, setSinceDays] = useState(() => Number(searchParams.get('since_days') || 30));
   const [loading, setLoading] = useState(false);
   const [activeStage, setActiveStage] = useState<LeadStage | null>(null);
-  const [sortBy, setSortBy] = useState<'recent' | 'relevance'>('recent');
+  const [sortBy, setSortBy] = useState<'recent' | 'relevance'>(() => (searchParams.get('sort') === 'relevance' ? 'relevance' : 'recent'));
+  const [slaOnly, setSlaOnly] = useState(() => searchParams.get('sla_only') === '1');
   const [data, setData] = useState<PipelineResponse>({});
   const [interactions, setInteractions] = useState<Array<{ lead_name?: string; relevance_score?: number; last_message?: string; sla_breached?: boolean; lead_score?: number }>>([]);
   const [catalogQuality, setCatalogQuality] = useState<Array<{ tenant_slug?: string; product_name?: string; confidence_score?: number; quality_issues?: string[]; review_required?: boolean }>>([]);
@@ -119,7 +123,17 @@ const SuperadminLeadsPipeline: React.FC = () => {
 
   useEffect(() => {
     fetchPipeline();
+    trackFrontendEvent('catalog_quality_queue_opened');
   }, []);
+
+  useEffect(() => {
+    const next = new URLSearchParams();
+    if (tenantSlug) next.set('tenant_slug', tenantSlug);
+    next.set('since_days', String(sinceDays));
+    next.set('sort', sortBy);
+    if (slaOnly) next.set('sla_only', '1');
+    setSearchParams(next);
+  }, [tenantSlug, sinceDays, sortBy, slaOnly, setSearchParams]);
 
   const items = data.items || [];
   const filteredItems = useMemo(() => {
@@ -141,6 +155,16 @@ const SuperadminLeadsPipeline: React.FC = () => {
     return typeof mins === 'number' && mins > 30;
   }).length;
   const lowConfidenceCount = items.filter((item) => typeof item.confidence_score === 'number' && item.confidence_score < 0.6).length;
+  const filteredInteractions = interactions
+    .filter((entry) => (slaOnly ? Boolean(entry.sla_breached) : true))
+    .slice()
+    .sort((a, b) => (b.lead_score || 0) - (a.lead_score || 0));
+
+  useEffect(() => {
+    if (slaOnly) {
+      trackFrontendEvent('lead_sla_filter_enabled');
+    }
+  }, [slaOnly]);
 
   const handleExportCsv = () => {
     const csv = toCsv(filteredItems);
@@ -210,6 +234,7 @@ const SuperadminLeadsPipeline: React.FC = () => {
                 <option value="relevance">Mayor relevancia</option>
               </select>
             </div>
+            <Button variant={slaOnly ? 'default' : 'outline'} onClick={() => setSlaOnly((prev) => !prev)}>{slaOnly ? 'Solo SLA vencido' : 'Filtrar SLA vencido'}</Button>
             <Button onClick={fetchPipeline} disabled={loading}><RefreshCw className="mr-2 h-4 w-4"/>Actualizar</Button>
             <Button variant="outline" onClick={handleExportCsv}>Export CSV</Button>
           </div>
@@ -252,7 +277,7 @@ const SuperadminLeadsPipeline: React.FC = () => {
             <Card>
               <CardHeader><CardTitle>Interacciones relevantes</CardTitle></CardHeader>
               <CardContent className="space-y-2">
-                {interactions.slice().sort((a,b)=> (b.lead_score || 0) - (a.lead_score || 0)).map((entry, index) => (
+                {filteredInteractions.map((entry, index) => (
                   <div key={`${entry.lead_name || 'lead'}-${index}`} className="rounded border px-3 py-2 text-sm">
                     <p className="font-medium">{entry.lead_name || 'Lead sin nombre'}</p>
                     <p className="text-xs text-muted-foreground">Score: {entry.relevance_score ?? '—'} · Lead score: {entry.lead_score ?? '—'}</p>
