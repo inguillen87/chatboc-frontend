@@ -91,8 +91,9 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
 
         // Priority 2: Handle other `boton.action` (non-auth internal actions or backend actions)
         if (actionToUse) { // Will be non-auth at this point
+            const actionId = boton.action_id || undefined;
             // Send raw action to backend so it can match exactly.
-            onButtonClick({ text: boton.texto, action: actionToUse, payload: boton.payload, source: 'button' });
+            onButtonClick({ text: boton.texto, action: actionToUse, action_id: actionId, payload: boton.payload, source: 'button' });
             // Trigger potential frontend side-effects for this action.
             onInternalAction?.(actionToUse);
             return;
