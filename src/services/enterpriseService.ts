@@ -99,6 +99,45 @@ export interface LeadInteractionsResponse {
   cursor?: string | null;
 }
 
+
+export interface LeadsPipelineItem {
+  id?: number | string;
+  tenant_slug?: string;
+  nombre?: string;
+  name?: string;
+  email?: string;
+  telefono?: string;
+  phone?: string;
+  stage?: string;
+  nro_ticket?: number | string;
+  ticket_id?: number | string;
+  relevance_score?: number;
+  confidence_score?: number;
+  created_at?: string;
+}
+
+export interface CatalogQualityItem {
+  id?: number | string;
+  tenant_slug?: string;
+  product_name?: string;
+  confidence_score?: number;
+  quality_issues?: string[];
+  review_required?: boolean;
+}
+
+export interface CatalogQualityResponse {
+  items?: CatalogQualityItem[];
+}
+
+export interface LeadsPipelineResponse {
+  total?: number;
+  by_stage?: Record<string, number>;
+  by_tenant?: Record<string, number>;
+  conversion_rate?: number;
+  avg_first_response_seconds?: number;
+  items?: LeadsPipelineItem[];
+}
+
 interface EnterpriseBaseFilters {
   tenant_id: number;
   scope?: string;
@@ -138,6 +177,38 @@ export const enterpriseService = {
     });
   },
 
+
+
+  getCatalogQuality: async (filters: {
+    tenant_slug?: string;
+    limit?: number;
+  }, tenantSlug?: string) => {
+    const query = buildQueryString(filters);
+    return apiFetch<CatalogQualityResponse>(`/api/admin/catalog/quality?${query}`, { tenantSlug });
+  },
+
+  getLeadsPipeline: async (filters: {
+    tenant_slug?: string;
+    since_days?: number;
+  }, tenantSlug?: string) => {
+    const query = buildQueryString(filters);
+    return apiFetch<LeadsPipelineResponse>(`/api/admin/leads/pipeline?${query}`, { tenantSlug });
+  },
+
+
+
+  updateLeadStage: async (
+    ticketId: string | number,
+    payload: { stage: string; note?: string },
+    tenantSlug?: string,
+  ) => {
+    return apiFetch<any>(`/api/admin/leads/${ticketId}/stage`, {
+      method: 'PATCH',
+      body: payload,
+      tenantSlug,
+    });
+  },
+
   getLeadInteractions: async (filters: {
     tenant_id?: number;
     limit?: number;
@@ -147,6 +218,7 @@ export const enterpriseService = {
     from?: string;
     to?: string;
     scope?: string;
+    since_days?: number;
   }, tenantSlug?: string) => {
     const query = buildQueryString(filters);
     return apiFetch<LeadInteractionsResponse>(`/api/admin/leads/interactions?${query}`, { tenantSlug });
