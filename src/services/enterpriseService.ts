@@ -112,7 +112,21 @@ export interface LeadsPipelineItem {
   nro_ticket?: number | string;
   ticket_id?: number | string;
   relevance_score?: number;
+  confidence_score?: number;
   created_at?: string;
+}
+
+export interface CatalogQualityItem {
+  id?: number | string;
+  tenant_slug?: string;
+  product_name?: string;
+  confidence_score?: number;
+  quality_issues?: string[];
+  review_required?: boolean;
+}
+
+export interface CatalogQualityResponse {
+  items?: CatalogQualityItem[];
 }
 
 export interface LeadsPipelineResponse {
@@ -165,6 +179,14 @@ export const enterpriseService = {
 
 
 
+  getCatalogQuality: async (filters: {
+    tenant_slug?: string;
+    limit?: number;
+  }, tenantSlug?: string) => {
+    const query = buildQueryString(filters);
+    return apiFetch<CatalogQualityResponse>(`/api/admin/catalog/quality?${query}`, { tenantSlug });
+  },
+
   getLeadsPipeline: async (filters: {
     tenant_slug?: string;
     since_days?: number;
@@ -196,6 +218,7 @@ export const enterpriseService = {
     from?: string;
     to?: string;
     scope?: string;
+    since_days?: number;
   }, tenantSlug?: string) => {
     const query = buildQueryString(filters);
     return apiFetch<LeadInteractionsResponse>(`/api/admin/leads/interactions?${query}`, { tenantSlug });

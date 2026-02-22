@@ -678,6 +678,12 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
   const catalogSharePayload =
     (isCatalogShare ? (message.data as any) : null) || null;
   const showSocialLinks = message.socialLinks && Object.keys(message.socialLinks).length > 0;
+  const dataAny = (message.data || {}) as any;
+  const sourceForCommercial = typeof dataAny?.fuente === 'string' ? dataAny.fuente : undefined;
+  const commercialCatalogSources = new Set(['catalogo_qdrant_con_promos_v2', 'catalogo_fallback_faq', 'catalogo_fallback_web']);
+  const isCommercialCatalogResponse = Boolean(sourceForCommercial && commercialCatalogSources.has(sourceForCommercial));
+  const commercialSummary = typeof dataAny?.resumen === 'string' ? dataAny.resumen : (typeof message.text === 'string' ? message.text : '');
+  const highlightedProducts = Array.isArray(dataAny?.productos) ? dataAny.productos.slice(0, 3) : [];
   const now = new Date();
   const postsToShow = showPosts
     ? message.posts!
@@ -887,6 +893,29 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
                   )}
                 </button>
               ))}
+            </div>
+          )}
+
+
+          {isCommercialCatalogResponse && (
+            <div className="mt-2 space-y-2 rounded-lg border border-primary/20 bg-primary/5 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-primary">Resumen</p>
+              <p className="text-sm">{commercialSummary}</p>
+              {highlightedProducts.length > 0 ? (
+                <div className="space-y-2">
+                  {highlightedProducts.map((prod: any, idx: number) => (
+                    <div key={`featured-${idx}`} className="rounded border bg-background p-2 text-xs">
+                      <p className="font-semibold">{prod?.nombre || prod?.name || `Producto ${idx + 1}`}</p>
+                      {prod?.precio ? <p className="text-muted-foreground">{prod.precio}</p> : null}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              <div className="flex flex-wrap gap-2">
+                <button className="rounded border px-2 py-1 text-xs" onClick={() => onButtonClick({ text: 'Pedir presupuesto', action: 'pedir_presupuesto_pyme', action_id: 'pedir_presupuesto_pyme', source: 'button' })}>Pedir presupuesto</button>
+                <button className="rounded border px-2 py-1 text-xs" onClick={() => onButtonClick({ text: 'Hablar con asesor', action: 'hablar_con_agente_pyme_catalogo', action_id: 'hablar_con_agente_pyme_catalogo', source: 'button' })}>Hablar con asesor</button>
+                <button className="rounded border px-2 py-1 text-xs" onClick={() => onButtonClick({ text: 'Buscar otra opción', action: 'ver_catalogo_pyme_buscar_otra', action_id: 'ver_catalogo_pyme_buscar_otra', source: 'button' })}>Buscar otra opción</button>
+              </div>
             </div>
           )}
 

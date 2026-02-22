@@ -29,6 +29,7 @@ interface LeadItem {
   stage?: LeadStage;
   relevance_score?: number;
   created_at?: string;
+  confidence_score?: number;
 }
 
 interface PipelineResponse {
@@ -49,6 +50,18 @@ const normalizeLeadField = (item: LeadItem, ...keys: Array<keyof LeadItem>) => {
     if (typeof value === 'number') return String(value);
   }
   return '';
+};
+
+const toTimestamp = (value?: string) => {
+  if (!value) return 0;
+  const t = new Date(value).getTime();
+  return Number.isFinite(t) ? t : 0;
+};
+
+const minutesSince = (value?: string) => {
+  const ts = toTimestamp(value);
+  if (!ts) return null;
+  return Math.floor((Date.now() - ts) / 60000);
 };
 
 const toCsv = (rows: LeadItem[]) => {
@@ -74,8 +87,10 @@ const SuperadminLeadsPipeline: React.FC = () => {
   const [sinceDays, setSinceDays] = useState(30);
   const [loading, setLoading] = useState(false);
   const [activeStage, setActiveStage] = useState<LeadStage | null>(null);
+  const [sortBy, setSortBy] = useState<'recent' | 'relevance'>('recent');
   const [data, setData] = useState<PipelineResponse>({});
-  const [interactions, setInteractions] = useState<Array<{ lead_name?: string; relevance_score?: number; last_message?: string }>>([]);
+  const [interactions, setInteractions] = useState<Array<{ lead_name?: string; relevance_score?: number; last_message?: string; sla_breached?: boolean; lead_score?: number }>>([]);
+  const [catalogQuality, setCatalogQuality] = useState<Array<{ tenant_slug?: string; product_name?: string; confidence_score?: number; quality_issues?: string[]; review_required?: boolean }>>([]);
 
   const fetchPipeline = async () => {
     setLoading(true);
@@ -92,6 +107,8 @@ const SuperadminLeadsPipeline: React.FC = () => {
       } as any);
       const entries = interactionsPayload?.items || interactionsPayload?.interactions || [];
       setInteractions(entries as any);
+      const qualityPayload = await enterpriseService.getCatalogQuality({ tenant_slug: tenantSlug || undefined, limit: 100 });
+      setCatalogQuality((qualityPayload?.items || []) as any);
     } catch (error) {
       console.error(error);
       toast.error('No se pudo cargar el pipeline de leads.');
@@ -106,9 +123,12 @@ const SuperadminLeadsPipeline: React.FC = () => {
 
   const items = data.items || [];
   const filteredItems = useMemo(() => {
-    if (!activeStage) return items;
-    return items.filter((item) => (item.stage || 'nuevo') === activeStage);
-  }, [items, activeStage]);
+    const base = activeStage ? items.filter((item) => (item.stage || 'nuevo') === activeStage) : items.slice();
+    if (sortBy === 'relevance') {
+      return base.sort((a, b) => (b.relevance_score || 0) - (a.relevance_score || 0));
+    }
+    return base.sort((a, b) => toTimestamp(b.created_at) - toTimestamp(a.created_at));
+  }, [items, activeStage, sortBy]);
 
   const tenantOptions = useMemo(() => Object.keys(data.by_tenant || {}).sort(), [data.by_tenant]);
 
@@ -116,6 +136,11 @@ const SuperadminLeadsPipeline: React.FC = () => {
   const avgResponseLabel = data.avg_first_response_seconds ? `${Math.round(data.avg_first_response_seconds)}s` : '—';
   const won = data.by_stage?.ganado || 0;
   const lost = data.by_stage?.perdido || 0;
+  const slaBreachedCount = items.filter((item) => (item.stage || 'nuevo') === 'nuevo').filter((item) => {
+    const mins = minutesSince(item.created_at);
+    return typeof mins === 'number' && mins > 30;
+  }).length;
+  const lowConfidenceCount = items.filter((item) => typeof item.confidence_score === 'number' && item.confidence_score < 0.6).length;
 
   const handleExportCsv = () => {
     const csv = toCsv(filteredItems);
@@ -178,15 +203,24 @@ const SuperadminLeadsPipeline: React.FC = () => {
               <label className="text-xs text-muted-foreground">Últimos días</label>
               <input className="block h-10 w-24 rounded-md border bg-background px-3 text-sm" type="number" min={1} max={365} value={sinceDays} onChange={(e) => setSinceDays(Number(e.target.value) || 30)} />
             </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Orden</label>
+              <select className="block h-10 rounded-md border bg-background px-3 text-sm" value={sortBy} onChange={(e) => setSortBy(e.target.value as 'recent' | 'relevance')}>
+                <option value="recent">Más recientes</option>
+                <option value="relevance">Mayor relevancia</option>
+              </select>
+            </div>
             <Button onClick={fetchPipeline} disabled={loading}><RefreshCw className="mr-2 h-4 w-4"/>Actualizar</Button>
             <Button variant="outline" onClick={handleExportCsv}>Export CSV</Button>
           </div>
 
-          <div className="grid gap-3 md:grid-cols-4">
+          <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
             <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Total leads</p><p className="text-2xl font-bold">{data.total || 0}</p></CardContent></Card>
             <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Conversion rate</p><p className="text-2xl font-bold">{conversionRateLabel}</p></CardContent></Card>
             <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Avg first response</p><p className="text-2xl font-bold">{avgResponseLabel}</p></CardContent></Card>
             <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Ganado / Perdido</p><p className="text-2xl font-bold">{won} / {lost}</p></CardContent></Card>
+            <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">SLA nuevo &gt; 30 min</p><p className="text-2xl font-bold">{slaBreachedCount}</p></CardContent></Card>
+            <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Catálogo baja confianza</p><p className="text-2xl font-bold">{lowConfidenceCount}</p></CardContent></Card>
           </div>
 
           <div className="grid gap-3 lg:grid-cols-3">
@@ -218,10 +252,11 @@ const SuperadminLeadsPipeline: React.FC = () => {
             <Card>
               <CardHeader><CardTitle>Interacciones relevantes</CardTitle></CardHeader>
               <CardContent className="space-y-2">
-                {interactions.map((entry, index) => (
+                {interactions.slice().sort((a,b)=> (b.lead_score || 0) - (a.lead_score || 0)).map((entry, index) => (
                   <div key={`${entry.lead_name || 'lead'}-${index}`} className="rounded border px-3 py-2 text-sm">
                     <p className="font-medium">{entry.lead_name || 'Lead sin nombre'}</p>
-                    <p className="text-xs text-muted-foreground">Score: {entry.relevance_score ?? '—'}</p>
+                    <p className="text-xs text-muted-foreground">Score: {entry.relevance_score ?? '—'} · Lead score: {entry.lead_score ?? '—'}</p>
+                    {entry.sla_breached ? <span className="inline-flex rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700">SLA</span> : null}
                     {entry.last_message ? <p className="mt-1 text-xs">{entry.last_message}</p> : null}
                   </div>
                 ))}
@@ -238,6 +273,7 @@ const SuperadminLeadsPipeline: React.FC = () => {
                     const name = normalizeLeadField(item, 'nombre', 'name') || 'Sin nombre';
                     const email = normalizeLeadField(item, 'email');
                     const phone = normalizeLeadField(item, 'telefono', 'phone');
+                    const minutesOpen = minutesSince(item.created_at);
                     const slug = normalizeLeadField(item, 'tenant_slug');
                     const ticket = normalizeLeadField(item, 'nro_ticket', 'ticket_id');
                     return (
@@ -253,6 +289,39 @@ const SuperadminLeadsPipeline: React.FC = () => {
               </Card>
             ))}
           </div>
+
+
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Cola de calidad de catálogo</CardTitle>
+              <CardDescription>Items con baja confianza y revisión requerida.</CardDescription>
+            </CardHeader>
+            <CardContent className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left text-muted-foreground">
+                    <th className="p-2">Tenant</th>
+                    <th className="p-2">Producto</th>
+                    <th className="p-2">Confidence</th>
+                    <th className="p-2">Issues</th>
+                    <th className="p-2">Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {catalogQuality.map((item, idx) => (
+                    <tr key={`quality-${item.product_name || idx}`} className="border-b align-top">
+                      <td className="p-2">{item.tenant_slug || '—'}</td>
+                      <td className="p-2">{item.product_name || '—'}</td>
+                      <td className="p-2">{typeof item.confidence_score === 'number' ? `${(item.confidence_score * 100).toFixed(0)}%` : '—'}</td>
+                      <td className="p-2">{Array.isArray(item.quality_issues) && item.quality_issues.length ? item.quality_issues.join(', ') : '—'}</td>
+                      <td className="p-2">{item.review_required ? <span className="inline-flex rounded bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">Requiere revisión</span> : <span className="inline-flex rounded bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">OK</span>}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
 
           <Card>
             <CardHeader>
@@ -271,6 +340,7 @@ const SuperadminLeadsPipeline: React.FC = () => {
                     const name = normalizeLeadField(item, 'nombre', 'name') || 'Sin nombre';
                     const email = normalizeLeadField(item, 'email');
                     const phone = normalizeLeadField(item, 'telefono', 'phone');
+                    const minutesOpen = minutesSince(item.created_at);
                     return (
                       <tr key={`row-${item.id || name}-${item.created_at || ''}`} className="border-b align-top">
                         <td className="p-2">{name}</td>
@@ -286,7 +356,11 @@ const SuperadminLeadsPipeline: React.FC = () => {
                             ))}
                           </select>
                         </td>
-                        <td className="p-2">{email || phone || '—'}</td>
+                        <td className="p-2">
+                          <div>{email || phone || '—'}</div>
+                          {typeof minutesOpen === 'number' ? <div className="text-xs text-muted-foreground">hace {minutesOpen} min</div> : null}
+                          {typeof item.confidence_score === 'number' ? <div className="text-xs text-muted-foreground">confianza catálogo: {(item.confidence_score * 100).toFixed(0)}%</div> : null}
+                        </td>
                         <td className="p-2">
                           <div className="flex gap-1">
                             {phone ? <Button size="icon" variant="outline" onClick={() => openWhatsApp(phone)}><MessageCircle className="h-4 w-4"/></Button> : null}
