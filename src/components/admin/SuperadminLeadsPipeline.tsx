@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { enterpriseService } from '@/services/enterpriseService';
 import { toast } from 'sonner';
-import { Copy, Mail, MessageCircle, RefreshCw } from 'lucide-react';
+import { Bell, Copy, Mail, MessageCircle, RefreshCw } from 'lucide-react';
 import { trackFrontendEvent } from '@/utils/frontendTelemetry';
 
 type LeadStage = 'nuevo' | 'contactado' | 'calificado' | 'demo_agendada' | 'propuesta_enviada' | 'ganado' | 'perdido' | string;
@@ -88,6 +88,8 @@ const SuperadminLeadsPipeline: React.FC = () => {
   const [employeeWorkload, setEmployeeWorkload] = useState<any[]>([]);
   const [balanceLoadEnabled, setBalanceLoadEnabled] = useState(true);
   const [requiredPermission, setRequiredPermission] = useState('');
+  const [unreadSummary, setUnreadSummary] = useState<{ total_tickets_with_unread?: number; items?: any[] }>({ total_tickets_with_unread: 0, items: [] });
+  const [unreadSinceMinutes, setUnreadSinceMinutes] = useState(60);
 
   const fetchPipeline = async () => {
     setLoading(true);
@@ -249,6 +251,7 @@ const SuperadminLeadsPipeline: React.FC = () => {
       setTenantEncuestas(tenantSurveys?.items || []);
       const workload = await enterpriseService.getTenantEmployeesWorkload(slug);
       setEmployeeWorkload(workload?.items || []);
+      await fetchUnreadSummary(slug);
     } catch (error) {
       console.error(error);
       toast.error('No se pudieron cargar leads del tenant.');
@@ -278,6 +281,29 @@ const SuperadminLeadsPipeline: React.FC = () => {
       toast.error('No se pudo aplicar bulk tenant.');
     }
   };
+
+
+  const fetchUnreadSummary = async (slugOverride?: string) => {
+    const slug = (slugOverride || tenantBoardSlug || tenantSlug).trim();
+    if (!slug) return;
+    try {
+      const summary = await enterpriseService.getTenantUnreadSummary(slug, { since_minutes: unreadSinceMinutes });
+      setUnreadSummary({
+        total_tickets_with_unread: summary?.total_tickets_with_unread || 0,
+        items: summary?.items || [],
+      });
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  useEffect(() => {
+    const slug = (tenantBoardSlug || tenantSlug).trim();
+    if (!slug) return;
+    fetchUnreadSummary(slug);
+    const timer = window.setInterval(() => fetchUnreadSummary(slug), 30000);
+    return () => window.clearInterval(timer);
+  }, [tenantBoardSlug, tenantSlug, unreadSinceMinutes]);
 
   const handleUpdateEmployeeScope = async () => {
     if (!employeeScopeUserId.trim()) return;
@@ -464,6 +490,26 @@ const SuperadminLeadsPipeline: React.FC = () => {
                 </select>
                 <Button size="sm" variant="outline" onClick={handleTenantBulkStage}>Aplicar bulk tenant</Button>
               </div>
+
+              <div className="rounded border p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-sm font-medium"><Bell className="h-4 w-4" /> Notificaciones admin</div>
+                  <div className="flex items-center gap-2">
+                    <input className="h-8 w-20 rounded border px-2 text-xs" type="number" value={unreadSinceMinutes} onChange={(e) => setUnreadSinceMinutes(Number(e.target.value) || 60)} />
+                    <Badge variant={Number(unreadSummary?.total_tickets_with_unread || 0) > 0 ? 'destructive' : 'outline'}>{unreadSummary?.total_tickets_with_unread || 0}</Badge>
+                  </div>
+                </div>
+                <div className="space-y-1 text-xs">
+                  {(unreadSummary?.items || []).slice(0, 8).map((item: any, idx: number) => (
+                    <div key={`unread-${idx}`} className="flex items-center justify-between rounded border px-2 py-1">
+                      <span>{item?.ticket_type || 'ticket'} #{item?.ticket_id || '—'}</span>
+                      <span className="text-muted-foreground">{item?.unread_count || 0} · {item?.last_message_at || '—'}</span>
+                    </div>
+                  ))}
+                  {!(unreadSummary?.items || []).length ? <p className="text-muted-foreground">Sin tickets con mensajes no-admin.</p> : null}
+                </div>
+              </div>
+
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead><tr className="border-b text-left text-muted-foreground"><th className="p-2">Sel</th><th className="p-2">Lead</th><th className="p-2">Etapa</th><th className="p-2">Timeline</th><th className="p-2">Delegación</th></tr></thead>

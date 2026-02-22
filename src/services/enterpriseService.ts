@@ -417,6 +417,12 @@ export const enterpriseService = {
   },
 
 
+
+  getTenantUnreadSummary: async (tenantSlug: string, filters: { since_minutes?: number } = {}) => {
+    const query = buildQueryString(filters);
+    return apiFetch<{ total_tickets_with_unread?: number; items?: any[] }>(`/api/admin/tenants/${tenantSlug}/tickets/unread-summary?${query}`, { tenantSlug });
+  },
+
   getTenantHealth: async (filters: { since_days?: number } = {}, tenantSlug?: string) => {
     const query = buildQueryString(filters);
     return apiFetch<{ items?: any[] }>(`/api/admin/analytics/tenant-health?${query}`, { tenantSlug });
