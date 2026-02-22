@@ -24,6 +24,7 @@ import { TenantModal } from '@/components/admin/TenantModal';
 import { WhatsappInventoryPanel } from '@/components/admin/WhatsappInventoryPanel';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { buildTenantPath } from '@/utils/tenantPaths';
+import SuperadminLeadsPipeline from '@/components/admin/SuperadminLeadsPipeline';
 
 export default function SuperAdminDashboard() {
   useRequireRole(['super_admin']);
@@ -215,6 +216,8 @@ export default function SuperAdminDashboard() {
           <Plus className="mr-2 h-4 w-4" /> Nuevo Tenant
         </Button>
       </div>
+
+      <SuperadminLeadsPipeline />
 
       <Card className="border-muted/60 shadow-sm">
         <CardHeader>

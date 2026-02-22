@@ -5,6 +5,7 @@ import { Boton, SendPayload } from '@/types/chat';
 import { openExternalLink } from '@/utils/openExternalLink';
 import { useTenant } from '@/context/TenantContext';
 import { buildTenantAwareUrl } from '@/utils/tenantUrls';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface ChatButtonsProps {
     botones: Boton[];
@@ -19,6 +20,7 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
     onInternalAction,
 }) => {
     const { currentSlug } = useTenant();
+    const isMobile = useIsMobile();
 
     const resolveUrl = useMemo(
         () => (url?: string) => (url ? buildTenantAwareUrl(url, currentSlug) : undefined),
@@ -62,6 +64,14 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
         })
         .concat(catalogMenuButtons);
 
+
+    const formatButtonLabel = (label: string) => {
+        const trimmed = label?.trim?.() || '';
+        if (!trimmed) return '';
+        const max = isMobile ? 28 : 44;
+        return trimmed.length > max ? `${trimmed.slice(0, max - 1)}…` : trimmed;
+    };
+
     const loginActions = [
         "login",
         "loginpanel",
@@ -91,8 +101,9 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
 
         // Priority 2: Handle other `boton.action` (non-auth internal actions or backend actions)
         if (actionToUse) { // Will be non-auth at this point
+            const actionId = boton.action_id || undefined;
             // Send raw action to backend so it can match exactly.
-            onButtonClick({ text: boton.texto, action: actionToUse, payload: boton.payload, source: 'button' });
+            onButtonClick({ text: boton.texto, action: actionToUse, action_id: actionId, payload: boton.payload, source: 'button' });
             // Trigger potential frontend side-effects for this action.
             onInternalAction?.(actionToUse);
             return;
@@ -154,9 +165,9 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
                         }}
                         className={baseClass + " no-underline inline-flex items-center justify-center"}
                         style={{ maxWidth: 180 }}
-                        title={boton.texto}
+                        title={formatButtonLabel(boton.texto)}
                     >
-                        {boton.texto}
+                        {formatButtonLabel(boton.texto)}
                     </a>
                 ) : (
                     <button
@@ -164,9 +175,9 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
                         onClick={() => handleButtonClick(boton)}
                         className={baseClass}
                         style={{ maxWidth: 180 }}
-                        title={boton.texto}
+                        title={formatButtonLabel(boton.texto)}
                     >
-                        {boton.texto}
+                        {formatButtonLabel(boton.texto)}
                     </button>
                 )
             )}

@@ -25,6 +25,7 @@ import { ensureAbsoluteUrl, mergeButtons, pickFirstString } from "@/utils/chatBu
 import { deriveAttachmentInfo } from "@/utils/attachment";
 import { getValidStoredToken } from "@/utils/authTokens";
 import { enterpriseService } from "@/services/enterpriseService";
+import { trackWidgetEvent } from "@/utils/widgetTelemetry";
 
 const EMOJI_CATEGORY_MAP: Record<string, string> = {
   // Agua y saneamiento
@@ -124,6 +125,9 @@ export function useChatLogic({
   const [liveChatStatus, setLiveChatStatus] = useState<string | null>(null);
   const [currentClaimIdempotencyKey, setCurrentClaimIdempotencyKey] = useState<string | null>(null);
   const messagesRef = useRef<Message[]>([]);
+  const initSentRef = useRef(false);
+  const firstRealQuestionSentRef = useRef(false);
+  const leadCompletionTrackedTicketsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     messagesRef.current = messages;
@@ -142,6 +146,10 @@ export function useChatLogic({
       force?: boolean;
     }) => {
       if (!options?.force && messagesRef.current.length > 0) {
+        return;
+      }
+
+      if (initSentRef.current) {
         return;
       }
 
@@ -207,6 +215,7 @@ export function useChatLogic({
       });
 
       setIsTyping(true);
+      initSentRef.current = true;
 
       const isPublicDemo = shouldUsePublicFlow(tipoChatFinal, tenantSlug);
       const effectiveSkipAuth = skipAuth || isPublicDemo;
@@ -219,10 +228,11 @@ export function useChatLogic({
           tenantSlug: tenantSlug,
           entityToken,
           body: {
-            pregunta: '',
+            pregunta: '__INIT__',
             action: 'initial_greeting',
             contexto_previo: contextToSend,
             tipo_chat: tipoChatFinal,
+            tenant_slug: tenantSlug ?? 'municipio',
             ...(rubroForPayload && { rubro_clave: rubroForPayload }),
             ...(visitorName && { nombre_usuario: visitorName }),
           },
@@ -245,6 +255,8 @@ export function useChatLogic({
           },
         ]);
         setIsTyping(false);
+      } finally {
+        initSentRef.current = false;
       }
     },
     [contexto, selectedRubro, skipAuth, tipoChat, tenantSlug, entityToken, shouldUsePublicFlow]
@@ -417,12 +429,36 @@ export function useChatLogic({
         data.metadata?.action,
         data.metadata?.accion,
       );
-      const dataPayload =
+      const dataPayloadRaw =
         data.data ??
         data.payload ??
         data.metadata?.data ??
         data.metadata?.payload ??
         null;
+      const sourceName = pickFirstString(data.fuente, data.source, data.metadata?.fuente, data.metadata?.source);
+      const commercialSourcesForCta = new Set(['catalogo_qdrant_con_promos_v2', 'catalogo_fallback_faq', 'catalogo_fallback_web']);
+      const dataPayload = (() => {
+        const base = dataPayloadRaw && typeof dataPayloadRaw === 'object' ? { ...(dataPayloadRaw as Record<string, unknown>) } : {};
+        if (sourceName && !base.fuente) base.fuente = sourceName;
+        if (data.pedir_info && !base.pedir_info) base.pedir_info = data.pedir_info;
+        if ((data.nro_ticket || data.ticket_id || data.ticketId) && !base.nro_ticket) {
+          base.nro_ticket = data.nro_ticket ?? data.ticket_id ?? data.ticketId;
+        }
+        return Object.keys(base).length ? base : null;
+      })();
+
+      const leadTicketCandidate = data.nro_ticket ?? data.ticket_id ?? data.ticketId ?? (dataPayload as any)?.nro_ticket;
+      if (sourceName === 'demo_lead_capture' && leadTicketCandidate) {
+        const ticketKey = String(leadTicketCandidate);
+        if (!leadCompletionTrackedTicketsRef.current.has(ticketKey)) {
+          leadCompletionTrackedTicketsRef.current.add(ticketKey);
+          trackWidgetEvent('lead_completed', { ticket_id: ticketKey });
+        }
+      }
+
+      const isDemoSelector =
+        sourceName === 'demo_selector' &&
+        (messageType === 'interactive_list' || messageType === 'interactive_buttons');
 
       const rawText = pickFirstString(
         data.comentario,
@@ -465,6 +501,16 @@ export function useChatLogic({
         data.quick_replies,
         data.metadata,
       );
+      if (sourceName && commercialSourcesForCta.has(sourceName) && botones.length > 0) {
+        const idx = botones.findIndex((btn: any) => {
+          const candidate = pickFirstString(btn.action_id, btn.action, btn.accion_interna)?.toLowerCase();
+          return candidate === 'pedir_presupuesto_pyme';
+        });
+        if (idx > 0) {
+          const [budgetBtn] = botones.splice(idx, 1);
+          botones.unshift(budgetBtn);
+        }
+      }
       const categorias = normalizeCategories(
         data.categorias,
         data.categories,
@@ -642,6 +688,10 @@ export function useChatLogic({
         return;
       }
       seenMessageFingerprintsRef.current.add(fingerprint);
+
+      if (isDemoSelector) {
+        trackWidgetEvent('demo_selector_rendered');
+      }
 
       const messageId =
         typeof messageIdCandidate === 'number' || typeof messageIdCandidate === 'string'
@@ -1125,8 +1175,28 @@ export function useChatLogic({
 
     const originalText = actualPayload.text || "";
 
-    const { text: userMessageText, attachmentInfo, ubicacion_usuario, action, location } = actualPayload;
+    const { text: userMessageText, attachmentInfo, ubicacion_usuario, action, action_id, location } = actualPayload;
     const actionPayload = 'payload' in actualPayload ? actualPayload.payload : undefined;
+
+    const isLikelyTypedQuestion =
+      !!originalText &&
+      originalText !== '__INIT__' &&
+      !action &&
+      !action_id &&
+      actualPayload.source !== 'button' &&
+      (actualPayload.source === 'input' || typeof payload === 'string' || typeof actualPayload.source === 'undefined');
+
+    if (!firstRealQuestionSentRef.current && isLikelyTypedQuestion) {
+      firstRealQuestionSentRef.current = true;
+      trackWidgetEvent('first_real_question_sent');
+    }
+
+    const resolvedActionId = typeof action_id === 'string' && action_id.trim() ? action_id.trim() : undefined;
+    const demoActionCandidate = resolvedActionId || (typeof action === 'string' ? action : undefined);
+    if (demoActionCandidate && demoActionCandidate.startsWith('demo_select_rubro:')) {
+      const demoKey = demoActionCandidate.split(':')[1]?.trim();
+      trackWidgetEvent('demo_option_clicked', demoKey ? { demo_key: demoKey } : {});
+    }
 
     const emojiFallback =
       (typeof actionPayload?.category === 'string' && actionPayload.category.trim()) ||
@@ -1327,6 +1397,7 @@ export function useChatLogic({
         ...(attachmentInfo && { attachment_info: attachmentInfo }),
         ...(location && { location: location }),
         ...(resolvedAction && { action: resolvedAction }),
+        ...(resolvedActionId && { action_id: resolvedActionId }),
         ...(actionPayload && { payload: actionPayload }),
         ...(resolvedAction === "confirmar_reclamo" && currentClaimIdempotencyKey && { idempotency_key: currentClaimIdempotencyKey }),
         ...(visitorName && { nombre_usuario: visitorName }),
