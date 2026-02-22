@@ -81,6 +81,9 @@ const SuperadminLeadsPipeline: React.FC = () => {
   const [heatmapZoneFilter, setHeatmapZoneFilter] = useState('');
   const [heatmapTypeFilter, setHeatmapTypeFilter] = useState('');
   const [assigneeSuggestions, setAssigneeSuggestions] = useState<Record<string, any[]>>({});
+  const [tenantEncuestas, setTenantEncuestas] = useState<any[]>([]);
+  const [globalEncuestas, setGlobalEncuestas] = useState<any[]>([]);
+  const [realtimeAi, setRealtimeAi] = useState<any>(null);
 
   const fetchPipeline = async () => {
     setLoading(true);
@@ -95,6 +98,10 @@ const SuperadminLeadsPipeline: React.FC = () => {
       setStrategicOverview(strategic || null);
       const heatmap = await enterpriseService.getStrategicHeatmapCategoriesZones({ since_days: sinceDays });
       setHeatmapData(heatmap || null);
+      const realtime = await enterpriseService.getRealtimeAiOverview({ minutes: 60 });
+      setRealtimeAi(realtime || null);
+      const surveys = await enterpriseService.getGlobalEncuestasOverview();
+      setGlobalEncuestas(surveys?.items || []);
     } catch (error) {
       console.error(error);
       toast.error('No se pudo cargar el panel de leads.');
@@ -196,6 +203,21 @@ const SuperadminLeadsPipeline: React.FC = () => {
     handleOpenTimeline(selectedTimelineLead);
   };
 
+
+  const handleAutoAssign = async (lead: any) => {
+    const slug = tenantBoardSlug.trim() || lead.tenant_slug;
+    const ticketType = lead.ticket_type || 'municipio';
+    const ticketId = lead.nro_ticket || lead.ticket_id;
+    if (!slug || !ticketId) return toast.error('Faltan datos para autoasignar.');
+    try {
+      const resp = await enterpriseService.autoAssignTenantTicket(slug, ticketType, ticketId);
+      const employee = resp?.employee?.name || resp?.employee?.nombre || 'Responsable asignado';
+      toast.success(`${employee} (score ${resp?.score ?? '—'})`);
+    } catch (error) {
+      console.error(error);
+      toast.error('No se pudo autoasignar.');
+    }
+  };
   const handleRunPlaybook = async (dryRun: boolean) => {
     if (!dryRun) {
       const confirmed = window.confirm('¿Confirmás ejecutar playbook en productivo?');
@@ -211,8 +233,11 @@ const SuperadminLeadsPipeline: React.FC = () => {
   const fetchTenantLeads = async () => {
     if (!tenantBoardSlug.trim()) return;
     try {
-      const response = await enterpriseService.getTenantLeads(tenantBoardSlug.trim(), { stage: tenantStageFilter || undefined, limit: 100 });
+      const slug = tenantBoardSlug.trim();
+      const response = await enterpriseService.getTenantLeads(slug, { stage: tenantStageFilter || undefined, limit: 100 });
       setTenantLeads(response?.items || response?.leads || []);
+      const tenantSurveys = await enterpriseService.getTenantEncuestasOverview(slug);
+      setTenantEncuestas(tenantSurveys?.items || []);
     } catch (error) {
       console.error(error);
       toast.error('No se pudieron cargar leads del tenant.');
@@ -284,6 +309,8 @@ const SuperadminLeadsPipeline: React.FC = () => {
             <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Win rate</p><p className="text-2xl font-bold">{typeof strategicOverview?.win_rate === 'number' ? `${(strategicOverview.win_rate * 100).toFixed(1)}%` : '—'}</p></CardContent></Card>
             <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Conv.</p><p className="text-2xl font-bold">{((data.conversion_rate || 0) * 100).toFixed(1)}%</p></CardContent></Card>
             <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Avg resp</p><p className="text-2xl font-bold">{data.avg_first_response_seconds ? `${Math.round(data.avg_first_response_seconds)}s` : '—'}</p></CardContent></Card>
+            <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Realtime sesiones</p><p className="text-2xl font-bold">{realtimeAi?.active_sessions ?? '—'}</p></CardContent></Card>
+            <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Cobertura asignación</p><p className="text-2xl font-bold">{typeof realtimeAi?.coverage_ratio === 'number' ? `${(realtimeAi.coverage_ratio * 100).toFixed(0)}%` : '—'}</p></CardContent></Card>
           </div>
 
           <Card>
@@ -302,7 +329,7 @@ const SuperadminLeadsPipeline: React.FC = () => {
           <Card>
             <CardHeader><CardTitle>Cola de calidad de catálogo</CardTitle></CardHeader>
             <CardContent className="overflow-x-auto">
-              <table className="w-full text-sm"><thead><tr className="border-b text-left text-muted-foreground"><th className="p-2">Tenant</th><th className="p-2">Producto</th><th className="p-2">Confidence</th><th className="p-2">Issues</th><th className="p-2">Estado</th></tr></thead>
+              <table className="w-full text-sm"><thead><tr className="border-b text-left text-muted-foreground"><th className="p-2">Tenant</th><th className="p-2">Producto</th><th className="p-2">Confidence</th><th className="p-2">Issues</th><th className="p-2">Review</th><th className="p-2">Estado</th></tr></thead>
                 <tbody>
                   {catalogQuality.map((item, idx) => {
                     const c = item.confidence_score;
@@ -313,7 +340,7 @@ const SuperadminLeadsPipeline: React.FC = () => {
                         : (typeof c === 'number' && c >= 0.85 && Array.isArray(item.quality_issues) && item.quality_issues.length)
                           ? { label: 'Observación', cls: 'bg-blue-100 text-blue-700' }
                           : { label: 'OK', cls: 'bg-emerald-100 text-emerald-700' };
-                    return <tr key={`q-${idx}`} className="border-b"><td className="p-2">{item.tenant_slug || '—'}</td><td className="p-2">{item.product_name || '—'}</td><td className="p-2">{typeof c === 'number' ? `${(c * 100).toFixed(0)}%` : '—'}</td><td className="p-2">{Array.isArray(item.quality_issues) && item.quality_issues.length ? item.quality_issues.join(', ') : '—'}</td><td className="p-2"><span className={`inline-flex rounded px-2 py-0.5 text-xs font-semibold ${status.cls}`}>{status.label}</span></td></tr>;
+                    return <tr key={`q-${idx}`} className="border-b"><td className="p-2">{item.tenant_slug || '—'}</td><td className="p-2">{item.product_name || '—'}</td><td className="p-2">{typeof c === 'number' ? `${(c * 100).toFixed(0)}%` : '—'}</td><td className="p-2">{Array.isArray(item.quality_issues) && item.quality_issues.length ? item.quality_issues.join(', ') : '—'}</td><td className="p-2">{item.review_required ? <Badge variant="destructive">Requerida</Badge> : <Badge variant="outline">No</Badge>}</td><td className="p-2"><span className={`inline-flex rounded px-2 py-0.5 text-xs font-semibold ${status.cls}`}>{status.label}</span></td></tr>;
                   })}
                 </tbody>
               </table>
@@ -426,7 +453,7 @@ const SuperadminLeadsPipeline: React.FC = () => {
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead><tr className="border-b text-left text-muted-foreground"><th className="p-2">Sel</th><th className="p-2">Lead</th><th className="p-2">Etapa</th><th className="p-2">Timeline</th></tr></thead>
+                  <thead><tr className="border-b text-left text-muted-foreground"><th className="p-2">Sel</th><th className="p-2">Lead</th><th className="p-2">Etapa</th><th className="p-2">Timeline</th><th className="p-2">Delegación</th></tr></thead>
                   <tbody>
                     {tenantLeads.map((lead, idx) => (
                       <tr key={`tenant-lead-${idx}`} className="border-b">
@@ -434,6 +461,7 @@ const SuperadminLeadsPipeline: React.FC = () => {
                         <td className="p-2">{normalizeLeadField(lead, 'nombre', 'name') || 'Sin nombre'} #{lead.nro_ticket || lead.ticket_id || '—'}</td>
                         <td className="p-2">{normalizeLeadField(lead, 'stage') || 'nuevo'}</td>
                         <td className="p-2"><Button size="sm" variant="outline" onClick={() => handleOpenTimeline(lead)}>Abrir</Button></td>
+                        <td className="p-2"><Button size="sm" variant="outline" onClick={() => handleAutoAssign(lead)}>Autoasignar empleado</Button></td>
                       </tr>
                     ))}
                   </tbody>
@@ -442,6 +470,32 @@ const SuperadminLeadsPipeline: React.FC = () => {
             </CardContent>
           </Card>
 
+
+          <Card>
+            <CardHeader><CardTitle>Encuestas del tenant</CardTitle><CardDescription>Resumen operativo con cantidad de respuestas.</CardDescription></CardHeader>
+            <CardContent className="space-y-2 text-sm">
+              {tenantEncuestas.length ? tenantEncuestas.map((item, idx) => (
+                <div key={`tenant-survey-${idx}`} className="flex items-center justify-between rounded border px-3 py-2">
+                  <span>{item?.name || item?.encuesta || `Encuesta ${idx + 1}`}</span>
+                  <Badge variant="outline">{item?.responses ?? item?.count ?? 0} respuestas</Badge>
+                </div>
+              )) : <p className="text-muted-foreground">Cargá un tenant para ver encuestas.</p>}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle>Encuestas por tenant (global)</CardTitle></CardHeader>
+            <CardContent className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="border-b text-left text-muted-foreground"><th className="p-2">Tenant</th><th className="p-2">Encuesta</th><th className="p-2">Respuestas</th></tr></thead>
+                <tbody>
+                  {globalEncuestas.slice().sort((a, b) => (b?.responses || 0) - (a?.responses || 0)).map((item, idx) => (
+                    <tr key={`global-survey-${idx}`} className="border-b"><td className="p-2">{item?.tenant_slug || '—'}</td><td className="p-2">{item?.name || item?.encuesta || '—'}</td><td className="p-2">{item?.responses ?? item?.count ?? 0}</td></tr>
+                  ))}
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
           <Card>
             <CardHeader><CardTitle>Editor scope de empleado</CardTitle><CardDescription>Chips CSV: categorías, zonas y permisos por rol.</CardDescription></CardHeader>
             <CardContent className="space-y-2">

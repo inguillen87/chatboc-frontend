@@ -144,6 +144,15 @@ export interface StrategicHeatmapResponse {
   heatmap_points?: StrategicHeatmapPoint[];
 }
 
+export interface RealtimeAiOverviewResponse {
+  active_sessions?: number;
+  llm_status?: string;
+  open_tickets?: number;
+  assigned_tickets?: number;
+  unassigned_tickets?: number;
+  coverage_ratio?: number;
+}
+
 export interface StrategicOverviewResponse {
   totals?: Record<string, number>;
   by_stage?: Record<string, number>;
@@ -385,6 +394,26 @@ export const enterpriseService = {
       body: payload,
       tenantSlug,
     });
+  },
+
+  autoAssignTenantTicket: async (tenantSlug: string, ticketType: string, ticketId: string | number) => {
+    return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/tickets/${ticketType}/${ticketId}/auto-assign`, {
+      method: 'POST',
+      tenantSlug,
+    });
+  },
+
+  getTenantEncuestasOverview: async (tenantSlug: string) => {
+    return apiFetch<{ items?: any[]; total?: number }>(`/api/admin/tenants/${tenantSlug}/encuestas/overview`, { tenantSlug });
+  },
+
+  getGlobalEncuestasOverview: async (tenantSlug?: string) => {
+    return apiFetch<{ items?: any[]; totals?: any }>(`/api/admin/encuestas/overview`, { tenantSlug });
+  },
+
+  getRealtimeAiOverview: async (filters: { minutes?: number } = {}, tenantSlug?: string) => {
+    const query = buildQueryString(filters);
+    return apiFetch<RealtimeAiOverviewResponse>(`/api/admin/analytics/realtime-ai?${query}`, { tenantSlug });
   },
 
   getStrategicHeatmapCategoriesZones: async (filters: { since_days?: number } = {}, tenantSlug?: string) => {
