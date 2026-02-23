@@ -53,7 +53,8 @@ const LOCAL_PLACEHOLDER_SLUGS = new Set([
   'analytics',
   'settings',
   'config',
-  'api'
+  'api',
+  'e'
 ]);
 
 interface TenantContextValue {

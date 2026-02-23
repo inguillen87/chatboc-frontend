@@ -52,6 +52,78 @@ export interface SurveyLiveResults {
   preguntas: Record<string, SurveyLiveQuestionResult>;
 }
 
+export interface SurveyLiveTimelineMinute {
+  minute?: string;
+  timestamp?: string;
+  label?: string;
+  respuestas?: number;
+  value?: number;
+}
+
+export interface SurveyLiveMomentum {
+  last_10m?: number;
+  previous_10m?: number;
+  trend?: 'subiendo' | 'estable' | 'bajando' | string;
+  delta?: number;
+}
+
+export interface SurveyLiveKpis {
+  responses_last_hour?: number;
+  participation_per_minute?: number;
+  heatmap_coverage_cells?: number;
+  leader?: string;
+}
+
+export interface SurveyLiveHeatmapPoint {
+  lat?: number;
+  lng?: number;
+  value?: number;
+  respuestas?: number;
+  barrio?: string;
+  canal?: string;
+  [key: string]: unknown;
+}
+
+export interface SurveyLiveHeatmapCell {
+  id?: string;
+  lat?: number;
+  lng?: number;
+  value?: number;
+  respuestas?: number;
+  barrio?: string;
+  canal?: string;
+  [key: string]: unknown;
+}
+
+export interface SurveyLiveHeatmap {
+  points?: SurveyLiveHeatmapPoint[];
+  cells?: SurveyLiveHeatmapCell[];
+  metadata?: Record<string, unknown>;
+}
+
+export interface SurveyLivePublicQuestionOption {
+  value?: string;
+  votos?: number;
+  porcentaje?: number;
+}
+
+export interface SurveyLivePublicQuestion {
+  id?: string | number;
+  texto?: string;
+  opciones?: SurveyLivePublicQuestionOption[];
+}
+
+export interface SurveyLivePublicResultsPayload {
+  total_respuestas?: number;
+  preguntas?: SurveyLivePublicQuestion[];
+  timeline_minute?: SurveyLiveTimelineMinute[];
+  momentum?: SurveyLiveMomentum;
+  kpis?: SurveyLiveKpis;
+  heatmap?: SurveyLiveHeatmap;
+  ai_summary?: string;
+  updated_at?: string;
+}
+
 export interface SurveyPublic {
   id?: number;
   slug: string;
@@ -241,6 +313,57 @@ export interface SurveySummary {
   canales?: Array<{ canal: string; respuestas: number }>;
   utms?: Array<{ fuente: string; campania?: string; respuestas: number }>;
   demografia?: SurveyDemographicBreakdowns;
+}
+
+
+export interface SurveyForecast {
+  projected_total?: number;
+  current_rate?: number;
+  confidence?: number;
+  window_minutes?: number;
+  horizon_minutes?: number;
+}
+
+export interface SurveyAlert {
+  id?: string | number;
+  severity?: 'high' | 'medium' | 'info' | string;
+  title?: string;
+  message?: string;
+  action?: string;
+}
+
+export interface SurveyBrief {
+  summary?: string;
+  highlights?: string[];
+  recommendations?: string[];
+}
+
+
+export interface SurveySegmentCompareBucket {
+  question_id?: number | string;
+  question_text?: string;
+  segment_a?: number;
+  segment_b?: number;
+  delta?: number;
+}
+
+export interface SurveySegmentsCompare {
+  segment_a_label?: string;
+  segment_b_label?: string;
+  buckets?: SurveySegmentCompareBucket[];
+}
+
+export interface SurveyAnomalySignal {
+  id?: string | number;
+  type?: string;
+  detail?: string;
+  score?: number;
+}
+
+export interface SurveyAnomalies {
+  risk_score?: number;
+  risk_level?: 'bajo' | 'medio' | 'alto' | string;
+  signals?: SurveyAnomalySignal[];
 }
 
 export interface SurveyTimeseriesPoint {

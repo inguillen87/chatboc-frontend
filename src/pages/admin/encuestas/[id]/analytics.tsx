@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
-import { CalendarDays, Copy, Download, Loader2 } from 'lucide-react';
+import { AlertTriangle, CalendarDays, Copy, Download, Loader2, Sparkles, TrendingUp } from 'lucide-react';
 
 import { SurveyAnalytics } from '@/components/surveys/SurveyAnalytics';
 import { SurveyQrPreview } from '@/components/surveys/SurveyQrPreview';
@@ -17,6 +17,7 @@ import { useSurveyResponses } from '@/hooks/useSurveyResponses';
 import { useSurveySeedResponses } from '@/hooks/useSurveySeedResponses';
 import { toast } from '@/components/ui/use-toast';
 import { getAbsolutePublicSurveyUrl, getPublicSurveyQrUrl } from '@/utils/publicSurveyUrl';
+import { getSurveyAlerts, getSurveyAnomalies, getSurveyBrief, getSurveyForecast, getSurveySegmentsCompare } from '@/api/encuestas';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -34,10 +35,29 @@ const formatDateLabel = (value?: string | null) => {
   return parsed.toLocaleDateString();
 };
 
+const asSafeText = (value?: unknown) => (typeof value === 'string' ? value : '');
+
+const asRenderableText = (value?: unknown) => {
+  if (typeof value === 'string' || typeof value === 'number') return String(value);
+  if (!value || typeof value !== 'object') return '';
+
+  const record = value as Record<string, unknown>;
+  const candidates = [record.texto, record.text, record.label, record.title, record.message, record.summary];
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' || typeof candidate === 'number') return String(candidate);
+  }
+
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return '';
+  }
+};
+
 const SurveyAnalyticsPage = () => {
   const params = useParams();
   const surveyId = useMemo(() => (params.id ? Number(params.id) : null), [params.id]);
-  const { survey, isLoadingSurvey, surveyError } = useSurveyAdmin({ id: surveyId ?? undefined });
+  const { survey, surveys, isLoadingSurvey, surveyError } = useSurveyAdmin({ id: surveyId ?? undefined });
   const {
     summary,
     timeseries,
@@ -61,18 +81,60 @@ const SurveyAnalyticsPage = () => {
   const queryClient = useQueryClient();
   const { seed: seedSurveyResponses, isSeeding } = useSurveySeedResponses();
 
+  const forecastQuery = useQuery({
+    queryKey: ['survey-analytics-forecast', surveyId],
+    enabled: Boolean(surveyId),
+    queryFn: () => getSurveyForecast(surveyId as number, { window_minutes: 15, horizon_minutes: 90 }),
+    staleTime: 30_000,
+  });
+  const alertsQuery = useQuery({
+    queryKey: ['survey-analytics-alerts', surveyId],
+    enabled: Boolean(surveyId),
+    queryFn: () => getSurveyAlerts(surveyId as number, { window_minutes: 15, min_activity: 5 }),
+    staleTime: 15_000,
+  });
+  const briefQuery = useQuery({
+    queryKey: ['survey-analytics-brief', surveyId],
+    enabled: Boolean(surveyId),
+    queryFn: () => getSurveyBrief(surveyId as number),
+    staleTime: 60_000,
+  });
+  const compareQuery = useQuery({
+    queryKey: ['survey-analytics-segments-compare', surveyId],
+    enabled: Boolean(surveyId),
+    queryFn: () => getSurveySegmentsCompare(surveyId as number, { a_canal: 'web', b_canal: 'whatsapp' }),
+    staleTime: 30_000,
+  });
+  const anomaliesQuery = useQuery({
+    queryKey: ['survey-analytics-anomalies', surveyId],
+    enabled: Boolean(surveyId),
+    queryFn: () => getSurveyAnomalies(surveyId as number, { burst_window_minutes: 5, burst_threshold: 10 }),
+    staleTime: 30_000,
+  });
+
+  const surveyFromList = useMemo(() => {
+    if (!surveyId || !surveys?.data?.length) return undefined;
+    return surveys.data.find((item) => item.id === surveyId);
+  }, [surveyId, surveys?.data]);
+  const effectiveSurvey = survey ?? surveyFromList;
+
   const publicUrl = useMemo(
-    () => (survey?.slug ? getAbsolutePublicSurveyUrl(survey.slug) : null),
-    [survey?.slug],
+    () => (effectiveSurvey?.slug ? getAbsolutePublicSurveyUrl(effectiveSurvey.slug) : null),
+    [effectiveSurvey?.slug],
   );
-  const qrUrl = survey?.slug ? getPublicSurveyQrUrl(survey.slug, { size: 512 }) : null;
+  const qrUrl = effectiveSurvey?.slug ? getPublicSurveyQrUrl(effectiveSurvey.slug, { size: 512 }) : null;
   const rangeLabel = useMemo(() => {
-    const start = formatDateLabel(survey?.inicio_at);
-    const end = formatDateLabel(survey?.fin_at);
+    const start = formatDateLabel(effectiveSurvey?.inicio_at);
+    const end = formatDateLabel(effectiveSurvey?.fin_at);
     if (start && end) return `${start} – ${end}`;
     return start || end || 'Sin rango definido';
-  }, [survey?.fin_at, survey?.inicio_at]);
+  }, [effectiveSurvey?.fin_at, effectiveSurvey?.inicio_at]);
 
+  const enterpriseUiConfig = useMemo(
+    () => ((effectiveSurvey?.recursos as Record<string, unknown> | undefined)?.analytics_enterprise_ui as Record<string, unknown>) ?? {},
+    [effectiveSurvey?.recursos],
+  );
+  
   const demographicFilterOptions = useMemo(() => {
     const breakdowns = summary?.demografia ?? {};
     const buildOptions = (keys: string[]) => {
@@ -193,7 +255,7 @@ const SurveyAnalyticsPage = () => {
   const handleExport = async () => {
     try {
       const blob = await exportCsv();
-      const filename = survey ? `encuesta-${survey.slug}-analytics.csv` : 'encuesta-analytics.csv';
+      const filename = effectiveSurvey ? `encuesta-${effectiveSurvey.slug}-analytics.csv` : 'encuesta-analytics.csv';
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -241,15 +303,15 @@ const SurveyAnalyticsPage = () => {
   };
 
   const handleSeedDemoResponses = async () => {
-    if (!survey) return;
+    if (!effectiveSurvey) return;
     try {
-      const result = await seedSurveyResponses({ survey, count: 100 });
+      const result = await seedSurveyResponses({ survey: effectiveSurvey, count: 100 });
 
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['survey-analytics-summary', survey.id] }),
-        queryClient.invalidateQueries({ queryKey: ['survey-analytics-timeseries', survey.id] }),
-        queryClient.invalidateQueries({ queryKey: ['survey-analytics-heatmap', survey.id] }),
-        queryClient.invalidateQueries({ queryKey: ['survey-responses', survey.id] }),
+        queryClient.invalidateQueries({ queryKey: ['survey-analytics-summary', effectiveSurvey.id] }),
+        queryClient.invalidateQueries({ queryKey: ['survey-analytics-timeseries', effectiveSurvey.id] }),
+        queryClient.invalidateQueries({ queryKey: ['survey-analytics-heatmap', effectiveSurvey.id] }),
+        queryClient.invalidateQueries({ queryKey: ['survey-responses', effectiveSurvey.id] }),
       ]);
 
       void refetchResponses();
@@ -270,7 +332,13 @@ const SurveyAnalyticsPage = () => {
     }
   };
 
-  if (isLoadingSurvey || isLoading) {
+  const forecast = forecastQuery.data;
+  const alerts = alertsQuery.data ?? [];
+  const brief = briefQuery.data;
+  const segmentsCompare = compareQuery.data;
+  const anomalies = anomaliesQuery.data;
+
+  if ((isLoadingSurvey && !surveys) || isLoading) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -278,7 +346,7 @@ const SurveyAnalyticsPage = () => {
     );
   }
 
-  if (!survey || surveyError) {
+  if (!effectiveSurvey) {
     return <p className="text-sm text-destructive">{surveyError || 'No encontramos esta encuesta.'}</p>;
   }
 
@@ -292,7 +360,7 @@ const SurveyAnalyticsPage = () => {
         <CardContent className="space-y-6">
           <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
             <Badge variant="outline" className="uppercase tracking-wide">
-              Estado: {survey.estado}
+              Estado: {effectiveSurvey.estado}
             </Badge>
             <span className="inline-flex items-center gap-1">
               <CalendarDays className="h-3.5 w-3.5" />
@@ -352,8 +420,8 @@ const SurveyAnalyticsPage = () => {
             {qrUrl ? (
               <div className="flex flex-col items-center gap-2">
                 <SurveyQrPreview
-                  slug={survey.slug}
-                  title={survey.titulo}
+                  slug={effectiveSurvey.slug}
+                  title={effectiveSurvey.titulo}
                   remoteUrl={qrUrl}
                   size={160}
                   imageClassName="bg-white p-4"
@@ -413,7 +481,7 @@ const SurveyAnalyticsPage = () => {
         <CardHeader>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="space-y-1">
-              <CardTitle>Analítica de {survey.titulo}</CardTitle>
+              <CardTitle>Analítica de {effectiveSurvey.titulo}</CardTitle>
               <CardDescription>
                 Explorá la evolución de las respuestas, canales de difusión y trazabilidad pública.
               </CardDescription>
@@ -423,7 +491,7 @@ const SurveyAnalyticsPage = () => {
               onClick={() => {
                 void handleSeedDemoResponses();
               }}
-              disabled={isSeeding || !survey.slug}
+              disabled={isSeeding || !effectiveSurvey.slug}
               className="inline-flex items-center gap-2"
             >
               {isSeeding ? (
@@ -453,6 +521,131 @@ const SurveyAnalyticsPage = () => {
           />
         </CardContent>
       </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>{asSafeText(enterpriseUiConfig?.command_center_title)}</CardTitle>
+          <CardDescription>{asSafeText(enterpriseUiConfig?.command_center_description)}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="rounded-lg border border-border/60 p-4">
+              <div className="mb-2 flex items-center gap-2 text-sm font-medium">
+                <TrendingUp className="h-4 w-4 text-primary" /> {asSafeText(enterpriseUiConfig?.forecast_title)}
+              </div>
+              {forecastQuery.isLoading ? (
+                <p className="text-sm text-muted-foreground">Cargando…</p>
+              ) : forecastQuery.error ? (
+                <p className="text-sm text-destructive">{getErrorMessage(forecastQuery.error)}</p>
+              ) : (
+                <div className="space-y-1 text-sm">
+                  <p>{asSafeText(enterpriseUiConfig?.forecast_projected_total_label)}: <strong>{forecast?.projected_total ?? '—'}</strong></p>
+                  <p>{asSafeText(enterpriseUiConfig?.forecast_current_rate_label)}: <strong>{forecast?.current_rate ?? '—'}</strong></p>
+                  <p>{asSafeText(enterpriseUiConfig?.forecast_confidence_label)}: <strong>{forecast?.confidence ?? '—'}</strong></p>
+                </div>
+              )}
+            </div>
+            <div className="rounded-lg border border-border/60 p-4 md:col-span-2">
+              <div className="mb-2 flex items-center gap-2 text-sm font-medium">
+                <AlertTriangle className="h-4 w-4 text-amber-500" /> {asSafeText(enterpriseUiConfig?.alerts_title)}
+              </div>
+              {alertsQuery.isLoading ? (
+                <p className="text-sm text-muted-foreground">Cargando…</p>
+              ) : alertsQuery.error ? (
+                <p className="text-sm text-destructive">{getErrorMessage(alertsQuery.error)}</p>
+              ) : alerts.length ? (
+                <div className="space-y-2">
+                  {alerts.slice(0, 6).map((alert, index) => (
+                    <div key={`${alert.id ?? index}`} className="rounded-md border border-border/60 px-3 py-2 text-sm">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline">{asRenderableText(alert.severity) || 'info'}</Badge>
+                        <span className="font-medium">{asRenderableText(alert.title)}</span>
+                      </div>
+                      <p className="text-muted-foreground">{asRenderableText(alert.message)}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">{asSafeText(enterpriseUiConfig?.alerts_empty_label)}</p>
+              )}
+            </div>
+          </div>
+          <div className="rounded-lg border border-border/60 p-4">
+            <div className="mb-2 flex items-center gap-2 text-sm font-medium">
+              <Sparkles className="h-4 w-4 text-primary" /> {asSafeText(enterpriseUiConfig?.brief_title)}
+            </div>
+            {briefQuery.isLoading ? (
+              <p className="text-sm text-muted-foreground">Cargando…</p>
+            ) : briefQuery.error ? (
+              <p className="text-sm text-destructive">{getErrorMessage(briefQuery.error)}</p>
+            ) : (
+              <div className="space-y-2 text-sm">
+                <p>{asRenderableText(brief?.summary) || asSafeText(enterpriseUiConfig?.brief_fallback_label)}</p>
+                {brief?.highlights?.length ? (
+                  <ul className="list-disc pl-5 text-muted-foreground">
+                    {brief.highlights.slice(0, 4).map((item, index) => (
+                      <li key={`${index}-${asRenderableText(item)}`}>{asRenderableText(item)}</li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{asSafeText(enterpriseUiConfig?.territorial_center_title)}</CardTitle>
+          <CardDescription>{asSafeText(enterpriseUiConfig?.territorial_center_description)}</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 lg:grid-cols-2">
+          <div className="rounded-lg border border-border/60 p-4">
+            <p className="mb-2 text-sm font-medium">{asSafeText(enterpriseUiConfig?.segment_comparator_title)}</p>
+            {compareQuery.isLoading ? (
+              <p className="text-sm text-muted-foreground">{asSafeText(enterpriseUiConfig?.loading_label)}</p>
+            ) : compareQuery.error ? (
+              <p className="text-sm text-destructive">{getErrorMessage(compareQuery.error)}</p>
+            ) : segmentsCompare?.buckets?.length ? (
+              <div className="space-y-2">
+                {segmentsCompare.buckets.slice(0, 6).map((bucket, index) => (
+                  <div key={`${bucket.question_id ?? index}`} className="space-y-1">
+                    <p className="text-xs text-muted-foreground">{asRenderableText(bucket.question_text)}</p>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="rounded bg-primary/10 px-2 py-1">{asRenderableText(segmentsCompare.segment_a_label)}: {bucket.segment_a ?? 0}</div>
+                      <div className="rounded bg-amber-500/10 px-2 py-1">{asRenderableText(segmentsCompare.segment_b_label)}: {bucket.segment_b ?? 0}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">{asSafeText(enterpriseUiConfig?.segment_comparator_empty_label)}</p>
+            )}
+          </div>
+          <div className="rounded-lg border border-border/60 p-4">
+            <p className="mb-2 text-sm font-medium">{asSafeText(enterpriseUiConfig?.data_quality_title)}</p>
+            {anomaliesQuery.isLoading ? (
+              <p className="text-sm text-muted-foreground">{asSafeText(enterpriseUiConfig?.loading_label)}</p>
+            ) : anomaliesQuery.error ? (
+              <p className="text-sm text-destructive">{getErrorMessage(anomaliesQuery.error)}</p>
+            ) : (
+              <div className="space-y-2 text-sm">
+                <p>{asSafeText(enterpriseUiConfig?.risk_score_label)}: <strong>{anomalies?.risk_score ?? '—'}</strong></p>
+                <p>{asSafeText(enterpriseUiConfig?.risk_level_label)}: <strong>{anomalies?.risk_level ?? '—'}</strong></p>
+                {anomalies?.signals?.length ? (
+                  <ul className="list-disc pl-5 text-muted-foreground">
+                    {anomalies.signals.slice(0, 6).map((signal, index) => (
+                      <li key={`${signal.id ?? index}`}>{asRenderableText(signal.type)}: {asRenderableText(signal.detail)}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-muted-foreground">{asSafeText(enterpriseUiConfig?.data_quality_empty_label)}</p>
+                )}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       <SurveyRecentResponses
         responses={responses}
         loading={isLoadingResponses}

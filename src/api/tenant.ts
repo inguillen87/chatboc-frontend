@@ -234,6 +234,7 @@ const resolveTenantInfo = async ({
         isWidgetRequest: true,
         omitChatSessionId: true,
         sendAnonId: true,
+        omitEntityToken: true,
       });
     } catch (error) {
       // Critical fix: If the widget config endpoint is 404, we MUST fallback to mock data
@@ -281,6 +282,7 @@ const resolveTenantInfo = async ({
           isWidgetRequest: true,
           omitChatSessionId: true,
           sendAnonId: true,
+          omitEntityToken: true,
         });
         return normalizeTenantInfo(legacyResponse, fallbackSlug, forceSlug);
       } catch (tertiaryError) {

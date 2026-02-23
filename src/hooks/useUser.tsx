@@ -46,7 +46,7 @@ const UserContext = React.createContext<UserContextValue>({
   loading: false,
 });
 
-const PLACEHOLDER_SLUGS = new Set(['iframe', 'embed', 'widget']);
+const PLACEHOLDER_SLUGS = new Set(['iframe', 'embed', 'widget', 'e']);
 
 const sanitizeTenantSlug = (slug?: string | null) => {
   if (!slug || typeof slug !== 'string') return null;

@@ -288,6 +288,10 @@ export const apiClient = {
     const data = await apiFetch<TenantCatalog | any[]>(`/api/public/tenants/${tenantSlug}/catalog`, {
       tenantSlug,
       isWidgetRequest: true,
+      skipAuth: true,
+      omitCredentials: true,
+      omitEntityToken: true,
+      omitChatSessionId: true,
     });
     if (Array.isArray(data)) {
       return { metadata: null, links: null, columns: [], rows: [] };

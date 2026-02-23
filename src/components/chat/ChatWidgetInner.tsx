@@ -14,7 +14,7 @@ import { apiFetch, getErrorMessage } from "@/utils/api";
 import ReadingRuler from "./ReadingRuler";
 import type { Prefs } from "./AccessibilityToggle";
 import { useCartCount } from "@/hooks/useCartCount";
-import { buildTenantNavigationUrl } from "@/utils/tenantPaths";
+import { buildTenantNavigationUrl, TENANT_ROUTE_PREFIXES } from "@/utils/tenantPaths";
 import { useTenant } from "@/context/TenantContext";
 import { toast } from "sonner";
 import { tenantService } from "@/services/tenantService";
@@ -28,6 +28,7 @@ import { getChatbocBotAvatar } from "@/utils/brandAssets";
 // LOCAL_PLACEHOLDER_SLUGS is used to prevent the widget from treating reserved paths as tenant slugs.
 // We also alias it to PLACEHOLDER_SLUGS_SET just in case some stale build/import relies on that name.
 const LOCAL_PLACEHOLDER_SLUGS = new Set([
+  'e',
   'iframe',
   'embed',
   'widget',
@@ -428,7 +429,7 @@ function ChatWidgetInner({
       }
 
       const segments = window.location.pathname.split('/').filter(Boolean);
-      if (segments[0] === 't' && segments[1]) {
+      if (segments[0] && TENANT_ROUTE_PREFIXES.includes(segments[0] as (typeof TENANT_ROUTE_PREFIXES)[number]) && segments[1]) {
         return sanitizeTenantSlug(decodeURIComponent(segments[1]));
       }
 
