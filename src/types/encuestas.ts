@@ -338,6 +338,34 @@ export interface SurveyBrief {
   recommendations?: string[];
 }
 
+
+export interface SurveySegmentCompareBucket {
+  question_id?: number | string;
+  question_text?: string;
+  segment_a?: number;
+  segment_b?: number;
+  delta?: number;
+}
+
+export interface SurveySegmentsCompare {
+  segment_a_label?: string;
+  segment_b_label?: string;
+  buckets?: SurveySegmentCompareBucket[];
+}
+
+export interface SurveyAnomalySignal {
+  id?: string | number;
+  type?: string;
+  detail?: string;
+  score?: number;
+}
+
+export interface SurveyAnomalies {
+  risk_score?: number;
+  risk_level?: 'bajo' | 'medio' | 'alto' | string;
+  signals?: SurveyAnomalySignal[];
+}
+
 export interface SurveyTimeseriesPoint {
   fecha: string;
   respuestas: number;

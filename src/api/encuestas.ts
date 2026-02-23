@@ -20,6 +20,8 @@ import {
   SurveyForecast,
   SurveyAlert,
   SurveyBrief,
+  SurveySegmentsCompare,
+  SurveyAnomalies,
 } from '@/types/encuestas';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
@@ -701,6 +703,26 @@ export const getSurveyAlerts = (
 
 export const getSurveyBrief = (id: number): Promise<SurveyBrief> =>
   callAdminSurveyEndpoint(`${id}/analytics/brief`);
+
+
+export const getSurveySegmentsCompare = (
+  id: number,
+  params?: {
+    a_canal?: string;
+    b_canal?: string;
+    a_genero?: string;
+    b_genero?: string;
+    a_territorio?: string;
+    b_territorio?: string;
+  },
+): Promise<SurveySegmentsCompare> =>
+  callAdminSurveyEndpoint(`${id}/analytics/segments/compare${buildQueryString(params)}`);
+
+export const getSurveyAnomalies = (
+  id: number,
+  params?: { burst_window_minutes?: number; burst_threshold?: number },
+): Promise<SurveyAnomalies> =>
+  callAdminSurveyEndpoint(`${id}/analytics/anomalies${buildQueryString(params)}`);
 
 export const downloadExportCsv = async (
   id: number,
