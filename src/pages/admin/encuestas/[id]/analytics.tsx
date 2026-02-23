@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
-import { CalendarDays, Copy, Download, Loader2 } from 'lucide-react';
+import { AlertTriangle, CalendarDays, Copy, Download, Loader2, Sparkles, TrendingUp } from 'lucide-react';
 
 import { SurveyAnalytics } from '@/components/surveys/SurveyAnalytics';
 import { SurveyQrPreview } from '@/components/surveys/SurveyQrPreview';
@@ -17,6 +17,7 @@ import { useSurveyResponses } from '@/hooks/useSurveyResponses';
 import { useSurveySeedResponses } from '@/hooks/useSurveySeedResponses';
 import { toast } from '@/components/ui/use-toast';
 import { getAbsolutePublicSurveyUrl, getPublicSurveyQrUrl } from '@/utils/publicSurveyUrl';
+import { getSurveyAlerts, getSurveyAnomalies, getSurveyBrief, getSurveyForecast, getSurveySegmentsCompare } from '@/api/encuestas';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -61,6 +62,37 @@ const SurveyAnalyticsPage = () => {
   const queryClient = useQueryClient();
   const { seed: seedSurveyResponses, isSeeding } = useSurveySeedResponses();
 
+  const forecastQuery = useQuery({
+    queryKey: ['survey-analytics-forecast', surveyId],
+    enabled: Boolean(surveyId),
+    queryFn: () => getSurveyForecast(surveyId as number, { window_minutes: 15, horizon_minutes: 90 }),
+    staleTime: 30_000,
+  });
+  const alertsQuery = useQuery({
+    queryKey: ['survey-analytics-alerts', surveyId],
+    enabled: Boolean(surveyId),
+    queryFn: () => getSurveyAlerts(surveyId as number, { window_minutes: 15, min_activity: 5 }),
+    staleTime: 15_000,
+  });
+  const briefQuery = useQuery({
+    queryKey: ['survey-analytics-brief', surveyId],
+    enabled: Boolean(surveyId),
+    queryFn: () => getSurveyBrief(surveyId as number),
+    staleTime: 60_000,
+  });
+  const compareQuery = useQuery({
+    queryKey: ['survey-analytics-segments-compare', surveyId],
+    enabled: Boolean(surveyId),
+    queryFn: () => getSurveySegmentsCompare(surveyId as number, { a_canal: 'web', b_canal: 'whatsapp' }),
+    staleTime: 30_000,
+  });
+  const anomaliesQuery = useQuery({
+    queryKey: ['survey-analytics-anomalies', surveyId],
+    enabled: Boolean(surveyId),
+    queryFn: () => getSurveyAnomalies(surveyId as number, { burst_window_minutes: 5, burst_threshold: 10 }),
+    staleTime: 30_000,
+  });
+
   const publicUrl = useMemo(
     () => (survey?.slug ? getAbsolutePublicSurveyUrl(survey.slug) : null),
     [survey?.slug],
@@ -72,6 +104,13 @@ const SurveyAnalyticsPage = () => {
     if (start && end) return `${start} – ${end}`;
     return start || end || 'Sin rango definido';
   }, [survey?.fin_at, survey?.inicio_at]);
+
+
+  const enterpriseUi = useMemo(
+    () => ((survey?.recursos as Record<string, unknown> | undefined)?.analytics_enterprise_ui as Record<string, unknown>) ?? {},
+    [survey?.recursos],
+  );
+  const safeText = (value?: unknown) => (typeof value === 'string' ? value : '');
 
   const demographicFilterOptions = useMemo(() => {
     const breakdowns = summary?.demografia ?? {};
@@ -270,6 +309,12 @@ const SurveyAnalyticsPage = () => {
     }
   };
 
+  const forecast = forecastQuery.data;
+  const alerts = alertsQuery.data ?? [];
+  const brief = briefQuery.data;
+  const segmentsCompare = compareQuery.data;
+  const anomalies = anomaliesQuery.data;
+
   if (isLoadingSurvey || isLoading) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center">
@@ -453,6 +498,131 @@ const SurveyAnalyticsPage = () => {
           />
         </CardContent>
       </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>{safeText(enterpriseUi?.command_center_title)}</CardTitle>
+          <CardDescription>{safeText(enterpriseUi?.command_center_description)}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="rounded-lg border border-border/60 p-4">
+              <div className="mb-2 flex items-center gap-2 text-sm font-medium">
+                <TrendingUp className="h-4 w-4 text-primary" /> {safeText(enterpriseUi?.forecast_title)}
+              </div>
+              {forecastQuery.isLoading ? (
+                <p className="text-sm text-muted-foreground">Cargando…</p>
+              ) : forecastQuery.error ? (
+                <p className="text-sm text-destructive">{getErrorMessage(forecastQuery.error)}</p>
+              ) : (
+                <div className="space-y-1 text-sm">
+                  <p>{safeText(enterpriseUi?.forecast_projected_total_label)}: <strong>{forecast?.projected_total ?? '—'}</strong></p>
+                  <p>{safeText(enterpriseUi?.forecast_current_rate_label)}: <strong>{forecast?.current_rate ?? '—'}</strong></p>
+                  <p>{safeText(enterpriseUi?.forecast_confidence_label)}: <strong>{forecast?.confidence ?? '—'}</strong></p>
+                </div>
+              )}
+            </div>
+            <div className="rounded-lg border border-border/60 p-4 md:col-span-2">
+              <div className="mb-2 flex items-center gap-2 text-sm font-medium">
+                <AlertTriangle className="h-4 w-4 text-amber-500" /> {safeText(enterpriseUi?.alerts_title)}
+              </div>
+              {alertsQuery.isLoading ? (
+                <p className="text-sm text-muted-foreground">Cargando…</p>
+              ) : alertsQuery.error ? (
+                <p className="text-sm text-destructive">{getErrorMessage(alertsQuery.error)}</p>
+              ) : alerts.length ? (
+                <div className="space-y-2">
+                  {alerts.slice(0, 6).map((alert, index) => (
+                    <div key={`${alert.id ?? index}`} className="rounded-md border border-border/60 px-3 py-2 text-sm">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline">{alert.severity ?? 'info'}</Badge>
+                        <span className="font-medium">{alert.title ?? ''}</span>
+                      </div>
+                      <p className="text-muted-foreground">{alert.message ?? ''}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">{safeText(enterpriseUi?.alerts_empty_label)}</p>
+              )}
+            </div>
+          </div>
+          <div className="rounded-lg border border-border/60 p-4">
+            <div className="mb-2 flex items-center gap-2 text-sm font-medium">
+              <Sparkles className="h-4 w-4 text-primary" /> {safeText(enterpriseUi?.brief_title)}
+            </div>
+            {briefQuery.isLoading ? (
+              <p className="text-sm text-muted-foreground">Cargando…</p>
+            ) : briefQuery.error ? (
+              <p className="text-sm text-destructive">{getErrorMessage(briefQuery.error)}</p>
+            ) : (
+              <div className="space-y-2 text-sm">
+                <p>{brief?.summary ?? safeText(enterpriseUi?.brief_fallback_label)}</p>
+                {brief?.highlights?.length ? (
+                  <ul className="list-disc pl-5 text-muted-foreground">
+                    {brief.highlights.slice(0, 4).map((item, index) => (
+                      <li key={`${index}-${item}`}>{item}</li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{safeText(enterpriseUi?.territorial_center_title)}</CardTitle>
+          <CardDescription>{safeText(enterpriseUi?.territorial_center_description)}</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 lg:grid-cols-2">
+          <div className="rounded-lg border border-border/60 p-4">
+            <p className="mb-2 text-sm font-medium">{safeText(enterpriseUi?.segment_comparator_title)}</p>
+            {compareQuery.isLoading ? (
+              <p className="text-sm text-muted-foreground">{safeText(enterpriseUi?.loading_label)}</p>
+            ) : compareQuery.error ? (
+              <p className="text-sm text-destructive">{getErrorMessage(compareQuery.error)}</p>
+            ) : segmentsCompare?.buckets?.length ? (
+              <div className="space-y-2">
+                {segmentsCompare.buckets.slice(0, 6).map((bucket, index) => (
+                  <div key={`${bucket.question_id ?? index}`} className="space-y-1">
+                    <p className="text-xs text-muted-foreground">{bucket.question_text ?? ''}</p>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="rounded bg-primary/10 px-2 py-1">{segmentsCompare.segment_a_label ?? ''}: {bucket.segment_a ?? 0}</div>
+                      <div className="rounded bg-amber-500/10 px-2 py-1">{segmentsCompare.segment_b_label ?? ''}: {bucket.segment_b ?? 0}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">{safeText(enterpriseUi?.segment_comparator_empty_label)}</p>
+            )}
+          </div>
+          <div className="rounded-lg border border-border/60 p-4">
+            <p className="mb-2 text-sm font-medium">{safeText(enterpriseUi?.data_quality_title)}</p>
+            {anomaliesQuery.isLoading ? (
+              <p className="text-sm text-muted-foreground">{safeText(enterpriseUi?.loading_label)}</p>
+            ) : anomaliesQuery.error ? (
+              <p className="text-sm text-destructive">{getErrorMessage(anomaliesQuery.error)}</p>
+            ) : (
+              <div className="space-y-2 text-sm">
+                <p>{safeText(enterpriseUi?.risk_score_label)}: <strong>{anomalies?.risk_score ?? '—'}</strong></p>
+                <p>{safeText(enterpriseUi?.risk_level_label)}: <strong>{anomalies?.risk_level ?? '—'}</strong></p>
+                {anomalies?.signals?.length ? (
+                  <ul className="list-disc pl-5 text-muted-foreground">
+                    {anomalies.signals.slice(0, 6).map((signal, index) => (
+                      <li key={`${signal.id ?? index}`}>{signal.type ?? ''}: {signal.detail ?? ''}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-muted-foreground">{safeText(enterpriseUi?.data_quality_empty_label)}</p>
+                )}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       <SurveyRecentResponses
         responses={responses}
         loading={isLoadingResponses}
