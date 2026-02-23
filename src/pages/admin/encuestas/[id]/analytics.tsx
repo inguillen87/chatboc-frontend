@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
-import { CalendarDays, Copy, Download, Loader2 } from 'lucide-react';
+import { AlertTriangle, CalendarDays, Copy, Download, Loader2, Sparkles, TrendingUp } from 'lucide-react';
 
 import { SurveyAnalytics } from '@/components/surveys/SurveyAnalytics';
 import { SurveyQrPreview } from '@/components/surveys/SurveyQrPreview';
@@ -17,6 +17,7 @@ import { useSurveyResponses } from '@/hooks/useSurveyResponses';
 import { useSurveySeedResponses } from '@/hooks/useSurveySeedResponses';
 import { toast } from '@/components/ui/use-toast';
 import { getAbsolutePublicSurveyUrl, getPublicSurveyQrUrl } from '@/utils/publicSurveyUrl';
+import { getSurveyAlerts, getSurveyBrief, getSurveyForecast } from '@/api/encuestas';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -60,6 +61,25 @@ const SurveyAnalyticsPage = () => {
   } = useSurveyResponses(surveyId ?? undefined);
   const queryClient = useQueryClient();
   const { seed: seedSurveyResponses, isSeeding } = useSurveySeedResponses();
+
+  const forecastQuery = useQuery({
+    queryKey: ['survey-analytics-forecast', surveyId],
+    enabled: Boolean(surveyId),
+    queryFn: () => getSurveyForecast(surveyId as number, { window_minutes: 15, horizon_minutes: 90 }),
+    staleTime: 30_000,
+  });
+  const alertsQuery = useQuery({
+    queryKey: ['survey-analytics-alerts', surveyId],
+    enabled: Boolean(surveyId),
+    queryFn: () => getSurveyAlerts(surveyId as number, { window_minutes: 15, min_activity: 5 }),
+    staleTime: 15_000,
+  });
+  const briefQuery = useQuery({
+    queryKey: ['survey-analytics-brief', surveyId],
+    enabled: Boolean(surveyId),
+    queryFn: () => getSurveyBrief(surveyId as number),
+    staleTime: 60_000,
+  });
 
   const publicUrl = useMemo(
     () => (survey?.slug ? getAbsolutePublicSurveyUrl(survey.slug) : null),
@@ -270,6 +290,10 @@ const SurveyAnalyticsPage = () => {
     }
   };
 
+  const forecast = forecastQuery.data;
+  const alerts = alertsQuery.data ?? [];
+  const brief = briefQuery.data;
+
   if (isLoadingSurvey || isLoading) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center">
@@ -453,6 +477,78 @@ const SurveyAnalyticsPage = () => {
           />
         </CardContent>
       </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>Centro de comando</CardTitle>
+          <CardDescription>Proyección de cierre, alertas tácticas y brief ejecutivo para comité.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="rounded-lg border border-border/60 p-4">
+              <div className="mb-2 flex items-center gap-2 text-sm font-medium">
+                <TrendingUp className="h-4 w-4 text-primary" /> Proyección de cierre
+              </div>
+              {forecastQuery.isLoading ? (
+                <p className="text-sm text-muted-foreground">Cargando…</p>
+              ) : forecastQuery.error ? (
+                <p className="text-sm text-destructive">{getErrorMessage(forecastQuery.error)}</p>
+              ) : (
+                <div className="space-y-1 text-sm">
+                  <p>Total proyectado: <strong>{forecast?.projected_total ?? '—'}</strong></p>
+                  <p>Tasa actual: <strong>{forecast?.current_rate ?? '—'}</strong></p>
+                  <p>Confianza: <strong>{forecast?.confidence ?? '—'}</strong></p>
+                </div>
+              )}
+            </div>
+            <div className="rounded-lg border border-border/60 p-4 md:col-span-2">
+              <div className="mb-2 flex items-center gap-2 text-sm font-medium">
+                <AlertTriangle className="h-4 w-4 text-amber-500" /> Alertas operativas
+              </div>
+              {alertsQuery.isLoading ? (
+                <p className="text-sm text-muted-foreground">Cargando…</p>
+              ) : alertsQuery.error ? (
+                <p className="text-sm text-destructive">{getErrorMessage(alertsQuery.error)}</p>
+              ) : alerts.length ? (
+                <div className="space-y-2">
+                  {alerts.slice(0, 6).map((alert, index) => (
+                    <div key={`${alert.id ?? index}`} className="rounded-md border border-border/60 px-3 py-2 text-sm">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline">{alert.severity ?? 'info'}</Badge>
+                        <span className="font-medium">{alert.title ?? ''}</span>
+                      </div>
+                      <p className="text-muted-foreground">{alert.message ?? ''}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">Sin alertas en la ventana actual.</p>
+              )}
+            </div>
+          </div>
+          <div className="rounded-lg border border-border/60 p-4">
+            <div className="mb-2 flex items-center gap-2 text-sm font-medium">
+              <Sparkles className="h-4 w-4 text-primary" /> Brief ejecutivo
+            </div>
+            {briefQuery.isLoading ? (
+              <p className="text-sm text-muted-foreground">Cargando…</p>
+            ) : briefQuery.error ? (
+              <p className="text-sm text-destructive">{getErrorMessage(briefQuery.error)}</p>
+            ) : (
+              <div className="space-y-2 text-sm">
+                <p>{brief?.summary ?? 'Resumen no disponible por el momento.'}</p>
+                {brief?.highlights?.length ? (
+                  <ul className="list-disc pl-5 text-muted-foreground">
+                    {brief.highlights.slice(0, 4).map((item, index) => (
+                      <li key={`${index}-${item}`}>{item}</li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       <SurveyRecentResponses
         responses={responses}
         loading={isLoadingResponses}

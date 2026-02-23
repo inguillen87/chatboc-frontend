@@ -315,6 +315,29 @@ export interface SurveySummary {
   demografia?: SurveyDemographicBreakdowns;
 }
 
+
+export interface SurveyForecast {
+  projected_total?: number;
+  current_rate?: number;
+  confidence?: number;
+  window_minutes?: number;
+  horizon_minutes?: number;
+}
+
+export interface SurveyAlert {
+  id?: string | number;
+  severity?: 'high' | 'medium' | 'info' | string;
+  title?: string;
+  message?: string;
+  action?: string;
+}
+
+export interface SurveyBrief {
+  summary?: string;
+  highlights?: string[];
+  recommendations?: string[];
+}
+
 export interface SurveyTimeseriesPoint {
   fecha: string;
   respuestas: number;

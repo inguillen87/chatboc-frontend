@@ -17,6 +17,9 @@ import {
   SurveySnapshot,
   SurveySummary,
   SurveyTimeseriesPoint,
+  SurveyForecast,
+  SurveyAlert,
+  SurveyBrief,
 } from '@/types/encuestas';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
@@ -682,6 +685,22 @@ export const getHeatmap = (
   filtros?: SurveyAnalyticsFilters,
 ): Promise<SurveyHeatmapPoint[]> =>
   callAdminSurveyEndpoint(`${id}/analytics/heatmap${buildQueryString(filtros)}`);
+
+
+export const getSurveyForecast = (
+  id: number,
+  params?: { window_minutes?: number; horizon_minutes?: number },
+): Promise<SurveyForecast> =>
+  callAdminSurveyEndpoint(`${id}/analytics/forecast${buildQueryString(params)}`);
+
+export const getSurveyAlerts = (
+  id: number,
+  params?: { window_minutes?: number; min_activity?: number },
+): Promise<SurveyAlert[]> =>
+  callAdminSurveyEndpoint(`${id}/analytics/alerts${buildQueryString(params)}`);
+
+export const getSurveyBrief = (id: number): Promise<SurveyBrief> =>
+  callAdminSurveyEndpoint(`${id}/analytics/brief`);
 
 export const downloadExportCsv = async (
   id: number,
