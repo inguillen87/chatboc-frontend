@@ -62,6 +62,7 @@ export function useSurveyAdmin(options: UseSurveyAdminOptions = {}): UseSurveyAd
   const surveyQuery = useQuery({
     queryKey: ['survey-admin', normalizedId],
     enabled: normalizedId !== null,
+    retry: false,
     queryFn: () =>
       normalizedId !== null
         ? adminGetSurvey(normalizedId, adminRequestOptions)
@@ -71,6 +72,7 @@ export function useSurveyAdmin(options: UseSurveyAdminOptions = {}): UseSurveyAd
   const listQuery = useQuery({
     queryKey: ['survey-admin-list', buildListKey(options.listParams)],
     queryFn: () => adminListSurveys(options.listParams as any, adminRequestOptions),
+    retry: false,
   });
 
   const saveMutation = useMutation({
