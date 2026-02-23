@@ -14,7 +14,31 @@ import { PublicSurveyShareActions } from '@/components/surveys/PublicSurveyShare
 import { trackSurveySubmission } from '@/utils/surveyAnalytics';
 import { useSurveySocket } from '@/hooks/useSurveySocket';
 import { SurveyComments, type SurveyCommentsCopy } from '@/components/surveys/SurveyComments';
-import { useSurveyLiveResults } from '@/hooks/useSurveyLiveResults';
+import { useSurveyLiveResults, type SurveyLiveRequestParams } from '@/hooks/useSurveyLiveResults';
+import { safeSessionStorage } from '@/utils/safeSessionStorage';
+
+const LIVE_FILTERS_STORAGE_KEY = 'survey-live-filters-v1';
+
+const parseLiveRequestParams = (): SurveyLiveRequestParams => {
+  const raw = safeSessionStorage.getItem(LIVE_FILTERS_STORAGE_KEY);
+  if (!raw) return { include_heatmap: 1, window_minutes: 60, max_points: 800, max_cells: 120 };
+
+  try {
+    const parsed = JSON.parse(raw) as SurveyLiveRequestParams;
+    return {
+      include_heatmap: parsed.include_heatmap === 0 ? 0 : 1,
+      window_minutes: typeof parsed.window_minutes === 'number' ? parsed.window_minutes : 60,
+      max_points: typeof parsed.max_points === 'number' ? parsed.max_points : 800,
+      max_cells: typeof parsed.max_cells === 'number' ? parsed.max_cells : 120,
+      canal: parsed.canal,
+      barrio: parsed.barrio,
+      ciudad: parsed.ciudad,
+      provincia: parsed.provincia,
+    };
+  } catch {
+    return { include_heatmap: 1, window_minutes: 60, max_points: 800, max_cells: 120 };
+  }
+};
 
 const PublicSurveyPage = () => {
   const { slug } = useParams();
@@ -37,6 +61,7 @@ const PublicSurveyPage = () => {
 
   const [liveResults, setLiveResults] = useState<SurveyLiveResults | undefined>(undefined);
   const [liveComments, setLiveComments] = useState<SurveyComment[]>([]);
+  const [liveRequestParams, setLiveRequestParams] = useState<SurveyLiveRequestParams>(() => parseLiveRequestParams());
   const {
     liveResults: liveDashboard,
     isFetching: isFetchingLiveDashboard,
@@ -45,7 +70,12 @@ const PublicSurveyPage = () => {
   } = useSurveyLiveResults(
     survey?.mostrar_resultados_envivo ? slug : undefined,
     tenantSlug,
+    liveRequestParams,
   );
+
+  useEffect(() => {
+    safeSessionStorage.setItem(LIVE_FILTERS_STORAGE_KEY, JSON.stringify(liveRequestParams));
+  }, [liveRequestParams]);
 
   // Sync initial live results from survey data
   useEffect(() => {
@@ -359,43 +389,6 @@ const PublicSurveyPage = () => {
     );
   }
 
-  if (isClosed && survey) {
-    return (
-      <div className={containerClass}>
-        <Card className="w-full border border-border/60">
-          <CardContent className="space-y-6 px-6 py-8 text-center sm:px-8">
-            <div className="space-y-2">
-              <h1 className="text-2xl font-semibold sm:text-3xl">{survey.titulo}</h1>
-              {closedMessage ? (
-                <p className="text-muted-foreground">{String(closedMessage)}</p>
-              ) : null}
-            </div>
-            <div className="w-full max-w-2xl mx-auto text-left">
-              <SurveyForm
-                survey={survey}
-                onSubmit={async () => {}}
-                loading={false}
-                liveResults={liveResults}
-                showLiveResults={true}
-                readOnly={true}
-                showHeader={false}
-                submitLabel="Resultados finales"
-                variant="votacion"
-              />
-            </div>
-            {survey.permitir_comentarios && (
-              <SurveyComments
-                slug={slug || ''}
-                tenantSlug={tenantSlug || undefined}
-                realtimeComments={liveComments}
-              />
-            )}
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
   return (
     <div className={containerClass}>
       {survey.es_votacion_envivo ? (
@@ -468,7 +461,7 @@ const PublicSurveyPage = () => {
                     <div className="flex items-center gap-2">
                       <Button type="button" size="sm" variant="outline" onClick={handleExportLiveCsv}>
                         <Download className="mr-2 h-3.5 w-3.5" />
-                        {safeText(liveResultsUi?.export_csv_label)}
+                        {safeText(liveResultsUi?.export_csv_label) || safeText(votacionUi?.resultados_finales_boton)}
                       </Button>
                       <RefreshCw className={`h-4 w-4 text-muted-foreground ${isFetchingLiveDashboard ? 'animate-spin' : ''}`} />
                     </div>
@@ -477,6 +470,58 @@ const PublicSurveyPage = () => {
                   {liveDashboardConsecutiveErrors > 2 && liveDashboardError ? (
                     <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700">
                       {liveDashboardError}
+                    </div>
+                  ) : null}
+
+                  {survey.mostrar_resultados_envivo ? (
+                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
+                      <select
+                        className="rounded-md border bg-background px-2 py-1.5 text-xs"
+                        value={String(liveRequestParams.include_heatmap ?? 1)}
+                        onChange={(event) =>
+                          setLiveRequestParams((prev) => ({ ...prev, include_heatmap: Number(event.target.value) === 0 ? 0 : 1 }))
+                        }
+                      >
+                        <option value="1">{safeText(liveResultsUi?.filter_heatmap_on_label)}</option>
+                        <option value="0">{safeText(liveResultsUi?.filter_heatmap_off_label)}</option>
+                      </select>
+                      <select
+                        className="rounded-md border bg-background px-2 py-1.5 text-xs"
+                        value={String(liveRequestParams.window_minutes ?? 60)}
+                        onChange={(event) =>
+                          setLiveRequestParams((prev) => ({ ...prev, window_minutes: Number(event.target.value) || 60 }))
+                        }
+                      >
+                        <option value="60">{safeText(liveResultsUi?.preset_last_hour_label)}</option>
+                        <option value="1440">{safeText(liveResultsUi?.preset_today_label)}</option>
+                        <option value="1440">{safeText(liveResultsUi?.preset_last_24h_label)}</option>
+                      </select>
+                      <input
+                        className="rounded-md border bg-background px-2 py-1.5 text-xs"
+                        placeholder={safeText(liveResultsUi?.filter_channel_placeholder)}
+                        value={liveRequestParams.canal ?? ''}
+                        onChange={(event) => setLiveRequestParams((prev) => ({ ...prev, canal: event.target.value || undefined }))}
+                      />
+                      <input
+                        className="rounded-md border bg-background px-2 py-1.5 text-xs"
+                        placeholder={safeText(liveResultsUi?.filter_barrio_placeholder)}
+                        value={liveRequestParams.barrio ?? ''}
+                        onChange={(event) => setLiveRequestParams((prev) => ({ ...prev, barrio: event.target.value || undefined }))}
+                      />
+                      <input
+                        className="rounded-md border bg-background px-2 py-1.5 text-xs"
+                        placeholder={safeText(liveResultsUi?.filter_ciudad_placeholder)}
+                        value={liveRequestParams.ciudad ?? ''}
+                        onChange={(event) => setLiveRequestParams((prev) => ({ ...prev, ciudad: event.target.value || undefined }))}
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setLiveRequestParams({ include_heatmap: 1, window_minutes: 60, max_points: 800, max_cells: 120 })}
+                      >
+                        {safeText(liveResultsUi?.filters_reset_label)}
+                      </Button>
                     </div>
                   ) : null}
 

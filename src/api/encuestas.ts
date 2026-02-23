@@ -426,8 +426,18 @@ export const listPublicSurveys = async (tenantSlug?: string): Promise<PublicSurv
 export const getPublicSurveyLiveResults = (
   slug: string,
   tenantSlug?: string,
+  params?: {
+    include_heatmap?: 0 | 1;
+    window_minutes?: number;
+    max_points?: number;
+    max_cells?: number;
+    canal?: string;
+    barrio?: string;
+    ciudad?: string;
+    provincia?: string;
+  },
 ): Promise<SurveyLivePublicResultsPayload> =>
-  apiFetch(`/public/encuestas/${slug}/live-results`, {
+  apiFetch(`/public/encuestas/${slug}/live-results${buildQueryString(params)}`, {
     skipAuth: true,
     omitCredentials: true,
     isWidgetRequest: true,

@@ -12,6 +12,17 @@ const HIDDEN_INTERVAL = 15000;
 const BACKOFF_INTERVALS = [5000, 10000, 20000] as const;
 const CACHE_TTL = 5 * 60 * 1000;
 
+export interface SurveyLiveRequestParams {
+  include_heatmap?: 0 | 1;
+  window_minutes?: number;
+  max_points?: number;
+  max_cells?: number;
+  canal?: string;
+  barrio?: string;
+  ciudad?: string;
+  provincia?: string;
+}
+
 const parseCachedPayload = (key: string): SurveyLivePublicResultsPayload | undefined => {
   const raw = safeLocalStorage.getItem(key);
   if (!raw) return undefined;
@@ -28,12 +39,17 @@ const parseCachedPayload = (key: string): SurveyLivePublicResultsPayload | undef
 
 const getTrend = (payload?: SurveyLivePublicResultsPayload) => payload?.momentum?.trend;
 
-export const useSurveyLiveResults = (slug?: string | null, tenantSlug?: string | null) => {
+export const useSurveyLiveResults = (
+  slug?: string | null,
+  tenantSlug?: string | null,
+  params?: SurveyLiveRequestParams,
+) => {
   const normalizedSlug = slug?.trim() ?? '';
   const normalizedTenant = tenantSlug?.trim() ?? '';
+  const serializedParams = useMemo(() => JSON.stringify(params ?? {}), [params]);
   const cacheKey = useMemo(
-    () => `survey-live-results:${normalizedTenant || 'default'}:${normalizedSlug}`,
-    [normalizedSlug, normalizedTenant],
+    () => `survey-live-results:${normalizedTenant || 'default'}:${normalizedSlug}:${serializedParams}`,
+    [normalizedSlug, normalizedTenant, serializedParams],
   );
   const [isDocumentHidden, setIsDocumentHidden] = useState<boolean>(() =>
     typeof document === 'undefined' ? false : document.hidden,
@@ -47,10 +63,10 @@ export const useSurveyLiveResults = (slug?: string | null, tenantSlug?: string |
   }, []);
 
   const query = useQuery({
-    queryKey: ['survey-public-live-results', normalizedSlug, normalizedTenant],
+    queryKey: ['survey-public-live-results', normalizedSlug, normalizedTenant, serializedParams],
     enabled: Boolean(normalizedSlug),
     queryFn: async () => {
-      const data = await getPublicSurveyLiveResults(normalizedSlug, normalizedTenant || undefined);
+      const data = await getPublicSurveyLiveResults(normalizedSlug, normalizedTenant || undefined, params);
       safeLocalStorage.setItem(cacheKey, JSON.stringify({ timestamp: Date.now(), data }));
       return data;
     },
