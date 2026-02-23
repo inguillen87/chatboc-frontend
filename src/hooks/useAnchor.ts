@@ -24,6 +24,7 @@ export function useAnchor(id?: number | null): UseAnchorResult {
   const query = useQuery({
     queryKey: ['survey-snapshots', normalizedId],
     enabled: normalizedId !== null,
+    retry: false,
     queryFn: () => (normalizedId !== null ? listSnapshots(normalizedId) : Promise.reject('No id provided')),
   });
 
