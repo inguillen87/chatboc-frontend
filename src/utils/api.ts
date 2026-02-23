@@ -726,7 +726,9 @@ export async function apiFetch<T>(
     const isApiBase = cleanBase.endsWith("/api") || cleanBase === "/api";
     const isSameOriginProxy =
       Boolean(SAME_ORIGIN_PROXY_BASE) && cleanBase === SAME_ORIGIN_PROXY_BASE;
+    const isCurrentOriginBase = Boolean(currentOrigin) && cleanBase === currentOrigin;
     const allowAuthFallback = isSameOriginProxy && treatAsWidget;
+    const allowPublicOriginFallback = (isSameOriginProxy || isCurrentOriginBase) && shouldOmitEntityTokenForRoute;
     const urlsToTry = [buildUrl(base, isApiBase)];
 
     if (!isApiBase && hasApiPrefix) {
@@ -746,6 +748,10 @@ export async function apiFetch<T>(
           }
 
           if (allowAuthFallback && (status === 401 || status === 403)) {
+            return true;
+          }
+
+          if (allowPublicOriginFallback && status === 403) {
             return true;
           }
 
