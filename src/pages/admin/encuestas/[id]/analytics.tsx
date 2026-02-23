@@ -117,6 +117,13 @@ const SurveyAnalyticsPage = () => {
   );
   const safeText = (value?: unknown) => (typeof value === 'string' ? value : '');
 
+
+  const enterpriseUi = useMemo(
+    () => ((survey?.recursos as Record<string, unknown> | undefined)?.analytics_enterprise_ui as Record<string, unknown>) ?? {},
+    [survey?.recursos],
+  );
+  const safeText = (value?: unknown) => (typeof value === 'string' ? value : '');
+
   const demographicFilterOptions = useMemo(() => {
     const breakdowns = summary?.demografia ?? {};
     const buildOptions = (keys: string[]) => {
