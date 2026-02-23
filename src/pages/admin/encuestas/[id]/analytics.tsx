@@ -37,6 +37,23 @@ const formatDateLabel = (value?: string | null) => {
 
 const asSafeText = (value?: unknown) => (typeof value === 'string' ? value : '');
 
+const asRenderableText = (value?: unknown) => {
+  if (typeof value === 'string' || typeof value === 'number') return String(value);
+  if (!value || typeof value !== 'object') return '';
+
+  const record = value as Record<string, unknown>;
+  const candidates = [record.texto, record.text, record.label, record.title, record.message, record.summary];
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' || typeof candidate === 'number') return String(candidate);
+  }
+
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return '';
+  }
+};
+
 const SurveyAnalyticsPage = () => {
   const params = useParams();
   const surveyId = useMemo(() => (params.id ? Number(params.id) : null), [params.id]);
@@ -540,10 +557,10 @@ const SurveyAnalyticsPage = () => {
                   {alerts.slice(0, 6).map((alert, index) => (
                     <div key={`${alert.id ?? index}`} className="rounded-md border border-border/60 px-3 py-2 text-sm">
                       <div className="flex items-center gap-2">
-                        <Badge variant="outline">{alert.severity ?? 'info'}</Badge>
-                        <span className="font-medium">{alert.title ?? ''}</span>
+                        <Badge variant="outline">{asRenderableText(alert.severity) || 'info'}</Badge>
+                        <span className="font-medium">{asRenderableText(alert.title)}</span>
                       </div>
-                      <p className="text-muted-foreground">{alert.message ?? ''}</p>
+                      <p className="text-muted-foreground">{asRenderableText(alert.message)}</p>
                     </div>
                   ))}
                 </div>
@@ -562,11 +579,11 @@ const SurveyAnalyticsPage = () => {
               <p className="text-sm text-destructive">{getErrorMessage(briefQuery.error)}</p>
             ) : (
               <div className="space-y-2 text-sm">
-                <p>{brief?.summary ?? asSafeText(enterpriseUiConfig?.brief_fallback_label)}</p>
+                <p>{asRenderableText(brief?.summary) || asSafeText(enterpriseUiConfig?.brief_fallback_label)}</p>
                 {brief?.highlights?.length ? (
                   <ul className="list-disc pl-5 text-muted-foreground">
                     {brief.highlights.slice(0, 4).map((item, index) => (
-                      <li key={`${index}-${item}`}>{item}</li>
+                      <li key={`${index}-${asRenderableText(item)}`}>{asRenderableText(item)}</li>
                     ))}
                   </ul>
                 ) : null}
@@ -592,10 +609,10 @@ const SurveyAnalyticsPage = () => {
               <div className="space-y-2">
                 {segmentsCompare.buckets.slice(0, 6).map((bucket, index) => (
                   <div key={`${bucket.question_id ?? index}`} className="space-y-1">
-                    <p className="text-xs text-muted-foreground">{bucket.question_text ?? ''}</p>
+                    <p className="text-xs text-muted-foreground">{asRenderableText(bucket.question_text)}</p>
                     <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div className="rounded bg-primary/10 px-2 py-1">{segmentsCompare.segment_a_label ?? ''}: {bucket.segment_a ?? 0}</div>
-                      <div className="rounded bg-amber-500/10 px-2 py-1">{segmentsCompare.segment_b_label ?? ''}: {bucket.segment_b ?? 0}</div>
+                      <div className="rounded bg-primary/10 px-2 py-1">{asRenderableText(segmentsCompare.segment_a_label)}: {bucket.segment_a ?? 0}</div>
+                      <div className="rounded bg-amber-500/10 px-2 py-1">{asRenderableText(segmentsCompare.segment_b_label)}: {bucket.segment_b ?? 0}</div>
                     </div>
                   </div>
                 ))}
@@ -617,7 +634,7 @@ const SurveyAnalyticsPage = () => {
                 {anomalies?.signals?.length ? (
                   <ul className="list-disc pl-5 text-muted-foreground">
                     {anomalies.signals.slice(0, 6).map((signal, index) => (
-                      <li key={`${signal.id ?? index}`}>{signal.type ?? ''}: {signal.detail ?? ''}</li>
+                      <li key={`${signal.id ?? index}`}>{asRenderableText(signal.type)}: {asRenderableText(signal.detail)}</li>
                     ))}
                   </ul>
                 ) : (

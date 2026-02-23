@@ -38,6 +38,7 @@ const parseDebugFlag = (value?: string | null): boolean => {
 const TENANT_PATH_REGEX = new RegExp(`^/(?:${TENANT_ROUTE_PREFIXES.join("|")})/([^/]+)`, "i");
 
 const LOCAL_PLACEHOLDER_SLUGS = new Set([
+  'e',
   'iframe',
   'embed',
   'widget',
@@ -568,6 +569,10 @@ export async function apiFetch<T>(
 
   const isAbsolutePath = /^https?:\/\//i.test(path);
   const normalizedPath = isAbsolutePath ? path : path.replace(/^\/+/, "");
+  const isPublicRoute = !isAbsolutePath && /^(?:api\/)?public(?:[/?#]|$)/i.test(normalizedPath);
+  const isPublicTenantInfoRoute =
+    !isAbsolutePath && /^(?:api\/)?pwa\/tenant-info(?:[/?#]|$)/i.test(normalizedPath);
+  const shouldOmitEntityTokenForRoute = isPublicRoute || isPublicTenantInfoRoute;
 
   const normalizedPathWithTenant = appendTenantQueryParams(
     normalizedPath,
@@ -666,7 +671,7 @@ export async function apiFetch<T>(
        headers["Anon-Id"] = anonId;
     }
   }
-  if (effectiveEntityToken && !omitEntityToken) {
+  if (effectiveEntityToken && !omitEntityToken && !shouldOmitEntityTokenForRoute) {
     headers["X-Entity-Token"] = effectiveEntityToken;
     headers["X-Token"] = effectiveEntityToken;
   }
