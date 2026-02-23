@@ -38,7 +38,7 @@ const formatDateLabel = (value?: string | null) => {
 const SurveyAnalyticsPage = () => {
   const params = useParams();
   const surveyId = useMemo(() => (params.id ? Number(params.id) : null), [params.id]);
-  const { survey, isLoadingSurvey, surveyError } = useSurveyAdmin({ id: surveyId ?? undefined });
+  const { survey, surveys, isLoadingSurvey, surveyError } = useSurveyAdmin({ id: surveyId ?? undefined });
   const {
     summary,
     timeseries,
@@ -93,17 +93,29 @@ const SurveyAnalyticsPage = () => {
     staleTime: 30_000,
   });
 
+  const surveyFromList = useMemo(() => {
+    if (!surveyId || !surveys?.data?.length) return undefined;
+    return surveys.data.find((item) => item.id === surveyId);
+  }, [surveyId, surveys?.data]);
+  const effectiveSurvey = survey ?? surveyFromList;
+
   const publicUrl = useMemo(
-    () => (survey?.slug ? getAbsolutePublicSurveyUrl(survey.slug) : null),
-    [survey?.slug],
+    () => (effectiveSurvey?.slug ? getAbsolutePublicSurveyUrl(effectiveSurvey.slug) : null),
+    [effectiveSurvey?.slug],
   );
-  const qrUrl = survey?.slug ? getPublicSurveyQrUrl(survey.slug, { size: 512 }) : null;
+  const qrUrl = effectiveSurvey?.slug ? getPublicSurveyQrUrl(effectiveSurvey.slug, { size: 512 }) : null;
   const rangeLabel = useMemo(() => {
-    const start = formatDateLabel(survey?.inicio_at);
-    const end = formatDateLabel(survey?.fin_at);
+    const start = formatDateLabel(effectiveSurvey?.inicio_at);
+    const end = formatDateLabel(effectiveSurvey?.fin_at);
     if (start && end) return `${start} – ${end}`;
     return start || end || 'Sin rango definido';
-  }, [survey?.fin_at, survey?.inicio_at]);
+  }, [effectiveSurvey?.fin_at, effectiveSurvey?.inicio_at]);
+
+  const enterpriseUi = useMemo(
+    () => ((effectiveSurvey?.recursos as Record<string, unknown> | undefined)?.analytics_enterprise_ui as Record<string, unknown>) ?? {},
+    [effectiveSurvey?.recursos],
+  );
+  const safeText = (value?: unknown) => (typeof value === 'string' ? value : '');
 
 
   const enterpriseUi = useMemo(
@@ -232,7 +244,7 @@ const SurveyAnalyticsPage = () => {
   const handleExport = async () => {
     try {
       const blob = await exportCsv();
-      const filename = survey ? `encuesta-${survey.slug}-analytics.csv` : 'encuesta-analytics.csv';
+      const filename = effectiveSurvey ? `encuesta-${effectiveSurvey.slug}-analytics.csv` : 'encuesta-analytics.csv';
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -280,15 +292,15 @@ const SurveyAnalyticsPage = () => {
   };
 
   const handleSeedDemoResponses = async () => {
-    if (!survey) return;
+    if (!effectiveSurvey) return;
     try {
-      const result = await seedSurveyResponses({ survey, count: 100 });
+      const result = await seedSurveyResponses({ survey: effectiveSurvey, count: 100 });
 
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['survey-analytics-summary', survey.id] }),
-        queryClient.invalidateQueries({ queryKey: ['survey-analytics-timeseries', survey.id] }),
-        queryClient.invalidateQueries({ queryKey: ['survey-analytics-heatmap', survey.id] }),
-        queryClient.invalidateQueries({ queryKey: ['survey-responses', survey.id] }),
+        queryClient.invalidateQueries({ queryKey: ['survey-analytics-summary', effectiveSurvey.id] }),
+        queryClient.invalidateQueries({ queryKey: ['survey-analytics-timeseries', effectiveSurvey.id] }),
+        queryClient.invalidateQueries({ queryKey: ['survey-analytics-heatmap', effectiveSurvey.id] }),
+        queryClient.invalidateQueries({ queryKey: ['survey-responses', effectiveSurvey.id] }),
       ]);
 
       void refetchResponses();
@@ -315,7 +327,7 @@ const SurveyAnalyticsPage = () => {
   const segmentsCompare = compareQuery.data;
   const anomalies = anomaliesQuery.data;
 
-  if (isLoadingSurvey || isLoading) {
+  if ((isLoadingSurvey && !surveys) || isLoading) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -323,7 +335,7 @@ const SurveyAnalyticsPage = () => {
     );
   }
 
-  if (!survey || surveyError) {
+  if (!effectiveSurvey) {
     return <p className="text-sm text-destructive">{surveyError || 'No encontramos esta encuesta.'}</p>;
   }
 
@@ -337,7 +349,7 @@ const SurveyAnalyticsPage = () => {
         <CardContent className="space-y-6">
           <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
             <Badge variant="outline" className="uppercase tracking-wide">
-              Estado: {survey.estado}
+              Estado: {effectiveSurvey.estado}
             </Badge>
             <span className="inline-flex items-center gap-1">
               <CalendarDays className="h-3.5 w-3.5" />
@@ -397,8 +409,8 @@ const SurveyAnalyticsPage = () => {
             {qrUrl ? (
               <div className="flex flex-col items-center gap-2">
                 <SurveyQrPreview
-                  slug={survey.slug}
-                  title={survey.titulo}
+                  slug={effectiveSurvey.slug}
+                  title={effectiveSurvey.titulo}
                   remoteUrl={qrUrl}
                   size={160}
                   imageClassName="bg-white p-4"
@@ -458,7 +470,7 @@ const SurveyAnalyticsPage = () => {
         <CardHeader>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="space-y-1">
-              <CardTitle>Analítica de {survey.titulo}</CardTitle>
+              <CardTitle>Analítica de {effectiveSurvey.titulo}</CardTitle>
               <CardDescription>
                 Explorá la evolución de las respuestas, canales de difusión y trazabilidad pública.
               </CardDescription>
@@ -468,7 +480,7 @@ const SurveyAnalyticsPage = () => {
               onClick={() => {
                 void handleSeedDemoResponses();
               }}
-              disabled={isSeeding || !survey.slug}
+              disabled={isSeeding || !effectiveSurvey.slug}
               className="inline-flex items-center gap-2"
             >
               {isSeeding ? (
