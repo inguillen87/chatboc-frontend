@@ -10,6 +10,7 @@ import {
   SurveyDraftPayload,
   SurveyHeatmapPoint,
   SurveyListResponse,
+  SurveyLivePublicResultsPayload,
   SurveyPublic,
   SurveyResponseFilters,
   SurveyResponseList,
@@ -420,6 +421,21 @@ export const listPublicSurveys = async (tenantSlug?: string): Promise<PublicSurv
     return MOCK_SURVEYS;
   }
 };
+
+
+export const getPublicSurveyLiveResults = (
+  slug: string,
+  tenantSlug?: string,
+): Promise<SurveyLivePublicResultsPayload> =>
+  apiFetch(`/public/encuestas/${slug}/live-results`, {
+    skipAuth: true,
+    omitCredentials: true,
+    isWidgetRequest: true,
+    omitChatSessionId: true,
+    tenantSlug,
+    baseUrlOverride: PUBLIC_SURVEY_API_BASE,
+    omitEntityToken: true,
+  });
 
 export const postPublicResponse = (
   slug: string,

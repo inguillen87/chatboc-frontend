@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState, useEffect } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { Loader2, MessageSquareText, Timer, Users } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, Download, Loader2, MessageSquareText, RefreshCw, Timer, TrendingUp, Users } from 'lucide-react';
 
 import { SurveyForm } from '@/components/surveys/SurveyForm';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,7 @@ import { PublicSurveyShareActions } from '@/components/surveys/PublicSurveyShare
 import { trackSurveySubmission } from '@/utils/surveyAnalytics';
 import { useSurveySocket } from '@/hooks/useSurveySocket';
 import { SurveyComments, type SurveyCommentsCopy } from '@/components/surveys/SurveyComments';
+import { useSurveyLiveResults } from '@/hooks/useSurveyLiveResults';
 
 const PublicSurveyPage = () => {
   const { slug } = useParams();
@@ -36,6 +37,15 @@ const PublicSurveyPage = () => {
 
   const [liveResults, setLiveResults] = useState<SurveyLiveResults | undefined>(undefined);
   const [liveComments, setLiveComments] = useState<SurveyComment[]>([]);
+  const {
+    liveResults: liveDashboard,
+    isFetching: isFetchingLiveDashboard,
+    error: liveDashboardError,
+    consecutiveErrors: liveDashboardConsecutiveErrors,
+  } = useSurveyLiveResults(
+    survey?.mostrar_resultados_envivo ? slug : undefined,
+    tenantSlug,
+  );
 
   // Sync initial live results from survey data
   useEffect(() => {
@@ -195,6 +205,52 @@ const PublicSurveyPage = () => {
       ((survey?.recursos as Record<string, unknown> | undefined)?.comentarios_ui as SurveyCommentsCopy) ?? {},
     [survey?.recursos],
   );
+
+
+  const liveResultsUi = useMemo(
+    () => ((survey?.recursos as Record<string, unknown> | undefined)?.live_results_ui as Record<string, unknown>) ?? {},
+    [survey?.recursos],
+  );
+  const liveTimeline = useMemo(() => liveDashboard?.timeline_minute ?? [], [liveDashboard?.timeline_minute]);
+  const liveQuestions = useMemo(() => liveDashboard?.preguntas ?? [], [liveDashboard?.preguntas]);
+  const liveHeatmap = liveDashboard?.heatmap;
+  const trend = liveDashboard?.momentum?.trend;
+  const trendChipClass = trend === 'subiendo'
+    ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600'
+    : trend === 'bajando'
+      ? 'border-amber-500/40 bg-amber-500/10 text-amber-600'
+      : 'border-blue-500/40 bg-blue-500/10 text-blue-600';
+  const updatedAtLabel = useMemo(() => {
+    if (!liveDashboard?.updated_at) return null;
+    const date = new Date(liveDashboard.updated_at);
+    if (Number.isNaN(date.getTime())) return null;
+    return date.toLocaleString();
+  }, [liveDashboard?.updated_at]);
+  const handleExportLiveCsv = useCallback(() => {
+    if (!liveDashboard) return;
+    const rows = [
+      ['tipo', 'clave', 'value', 'votos', 'porcentaje'].join(','),
+      ...liveQuestions.flatMap((question, qIndex) =>
+        (question.opciones ?? []).map((option, oIndex) =>
+          [
+            'pregunta',
+            String(question.id ?? qIndex),
+            JSON.stringify(option.value ?? ''),
+            String(option.votos ?? 0),
+            String(option.porcentaje ?? 0),
+          ].join(','),
+        ),
+      ),
+    ];
+
+    const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${slug ?? 'encuesta'}-live-results.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [liveDashboard, liveQuestions, slug]);
 
   const isClosed = Boolean(survey?.estado === 'cerrada' || survey?.status === 'closed');
   const closedMessage =
@@ -397,6 +453,106 @@ const PublicSurveyPage = () => {
                   <PublicSurveyShareActions survey={survey} submission={lastSubmission} />
                 </div>
               )}
+
+              {survey.mostrar_resultados_envivo && liveDashboard ? (
+                <div className="space-y-4 rounded-xl border border-border/60 bg-background/70 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-medium">{safeText(liveResultsUi?.header_title) || survey.titulo}</span>
+                      <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs ${trendChipClass}`}>
+                        {trend === 'subiendo' ? <ArrowUpRight className="h-3.5 w-3.5" /> : <ArrowDownRight className="h-3.5 w-3.5" />}
+                        {String(trend ?? '')}
+                      </span>
+                      {updatedAtLabel ? <span className="text-xs text-muted-foreground">{updatedAtLabel}</span> : null}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button type="button" size="sm" variant="outline" onClick={handleExportLiveCsv}>
+                        <Download className="mr-2 h-3.5 w-3.5" />
+                        {safeText(liveResultsUi?.export_csv_label)}
+                      </Button>
+                      <RefreshCw className={`h-4 w-4 text-muted-foreground ${isFetchingLiveDashboard ? 'animate-spin' : ''}`} />
+                    </div>
+                  </div>
+
+                  {liveDashboardConsecutiveErrors > 2 && liveDashboardError ? (
+                    <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700">
+                      {liveDashboardError}
+                    </div>
+                  ) : null}
+
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <div className="rounded-lg border border-border/60 p-3">
+                      <p className="text-xs text-muted-foreground">{safeText(liveResultsUi?.kpi_responses_last_hour_label)}</p>
+                      <p className="text-lg font-semibold">{liveDashboard.kpis?.responses_last_hour ?? '—'}</p>
+                    </div>
+                    <div className="rounded-lg border border-border/60 p-3">
+                      <p className="text-xs text-muted-foreground">{safeText(liveResultsUi?.kpi_participation_per_minute_label)}</p>
+                      <p className="text-lg font-semibold">{liveDashboard.kpis?.participation_per_minute ?? '—'}</p>
+                    </div>
+                    <div className="rounded-lg border border-border/60 p-3">
+                      <p className="text-xs text-muted-foreground">{safeText(liveResultsUi?.kpi_heatmap_coverage_cells_label)}</p>
+                      <p className="text-lg font-semibold">{liveDashboard.kpis?.heatmap_coverage_cells ?? '—'}</p>
+                    </div>
+                    <div className="rounded-lg border border-border/60 p-3">
+                      <p className="text-xs text-muted-foreground">{safeText(liveResultsUi?.kpi_leader_label)}</p>
+                      <p className="text-lg font-semibold">{liveDashboard.kpis?.leader ?? '—'}</p>
+                    </div>
+                  </div>
+
+                  {liveTimeline.length > 0 ? (
+                    <div className="rounded-lg border border-border/60 p-3">
+                      <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
+                        <TrendingUp className="h-3.5 w-3.5" />
+                        {safeText(liveResultsUi?.timeline_title)}
+                      </div>
+                      <div className="flex h-20 items-end gap-1">
+                        {liveTimeline.slice(-60).map((item, index) => {
+                          const value = Number(item.respuestas ?? item.value ?? 0);
+                          const maxValue = Math.max(...liveTimeline.map((point) => Number(point.respuestas ?? point.value ?? 0)), 1);
+                          const height = Math.max((value / maxValue) * 100, 4);
+                          return <div key={`${index}-${item.minute ?? item.timestamp ?? item.label ?? ''}`} className="flex-1 rounded-sm bg-primary/40" style={{ height: `${height}%` }} />;
+                        })}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {liveQuestions.length > 0 ? (
+                    <div className="grid gap-3 lg:grid-cols-2">
+                      {liveQuestions.map((question, qIndex) => (
+                        <div key={`${question.id ?? qIndex}`} className="rounded-lg border border-border/60 p-3">
+                          <p className="mb-2 text-sm font-medium">{question.texto ?? ''}</p>
+                          <div className="space-y-2">
+                            {(question.opciones ?? []).map((option, optionIndex) => (
+                              <div key={`${option.value ?? optionIndex}`} className="space-y-1">
+                                <div className="flex items-center justify-between text-xs">
+                                  <span>{option.value ?? ''}</span>
+                                  <span>{option.porcentaje ?? 0}%</span>
+                                </div>
+                                <div className="h-2 rounded-full bg-muted">
+                                  <div className="h-2 rounded-full bg-primary transition-all" style={{ width: `${Math.max(0, Math.min(100, Number(option.porcentaje ?? 0)))}%` }} />
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  {liveHeatmap && ((liveHeatmap.points?.length ?? 0) > 0 || (liveHeatmap.cells?.length ?? 0) > 0) ? (
+                    <div className="rounded-lg border border-border/60 p-3 text-xs text-muted-foreground">
+                      {safeText(liveResultsUi?.heatmap_points_label)}: {liveHeatmap.points?.length ?? 0} · {safeText(liveResultsUi?.heatmap_cells_label)}: {liveHeatmap.cells?.length ?? 0}
+                    </div>
+                  ) : null}
+
+                  {liveDashboard.ai_summary ? (
+                    <div className="rounded-lg border border-border/60 p-3">
+                      <p className="text-xs text-muted-foreground">{safeText(liveResultsUi?.ai_summary_title)}</p>
+                      <p className="text-sm">{liveDashboard.ai_summary}</p>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
 
               <div className="space-y-3">
                 <SurveyForm
