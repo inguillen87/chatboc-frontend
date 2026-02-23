@@ -38,6 +38,7 @@ export function useSurveyResponses(
         ? listSurveyResponses(normalizedId, normalizedFilters)
         : Promise.reject(new Error('No survey id provided')),
     refetchInterval: 30_000,
+    retry: false,
   });
 
   return {
