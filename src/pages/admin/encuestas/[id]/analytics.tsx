@@ -35,6 +35,8 @@ const formatDateLabel = (value?: string | null) => {
   return parsed.toLocaleDateString();
 };
 
+const asSafeText = (value?: unknown) => (typeof value === 'string' ? value : '');
+
 const SurveyAnalyticsPage = () => {
   const params = useParams();
   const surveyId = useMemo(() => (params.id ? Number(params.id) : null), [params.id]);
@@ -111,19 +113,11 @@ const SurveyAnalyticsPage = () => {
     return start || end || 'Sin rango definido';
   }, [effectiveSurvey?.fin_at, effectiveSurvey?.inicio_at]);
 
-  const enterpriseUi = useMemo(
+  const enterpriseUiConfig = useMemo(
     () => ((effectiveSurvey?.recursos as Record<string, unknown> | undefined)?.analytics_enterprise_ui as Record<string, unknown>) ?? {},
     [effectiveSurvey?.recursos],
   );
-  const safeText = (value?: unknown) => (typeof value === 'string' ? value : '');
-
-
-  const enterpriseUi = useMemo(
-    () => ((survey?.recursos as Record<string, unknown> | undefined)?.analytics_enterprise_ui as Record<string, unknown>) ?? {},
-    [survey?.recursos],
-  );
-  const safeText = (value?: unknown) => (typeof value === 'string' ? value : '');
-
+  
   const demographicFilterOptions = useMemo(() => {
     const breakdowns = summary?.demografia ?? {};
     const buildOptions = (keys: string[]) => {
@@ -512,14 +506,14 @@ const SurveyAnalyticsPage = () => {
       </Card>
       <Card>
         <CardHeader>
-          <CardTitle>{safeText(enterpriseUi?.command_center_title)}</CardTitle>
-          <CardDescription>{safeText(enterpriseUi?.command_center_description)}</CardDescription>
+          <CardTitle>{asSafeText(enterpriseUiConfig?.command_center_title)}</CardTitle>
+          <CardDescription>{asSafeText(enterpriseUiConfig?.command_center_description)}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-3 md:grid-cols-3">
             <div className="rounded-lg border border-border/60 p-4">
               <div className="mb-2 flex items-center gap-2 text-sm font-medium">
-                <TrendingUp className="h-4 w-4 text-primary" /> {safeText(enterpriseUi?.forecast_title)}
+                <TrendingUp className="h-4 w-4 text-primary" /> {asSafeText(enterpriseUiConfig?.forecast_title)}
               </div>
               {forecastQuery.isLoading ? (
                 <p className="text-sm text-muted-foreground">Cargando…</p>
@@ -527,15 +521,15 @@ const SurveyAnalyticsPage = () => {
                 <p className="text-sm text-destructive">{getErrorMessage(forecastQuery.error)}</p>
               ) : (
                 <div className="space-y-1 text-sm">
-                  <p>{safeText(enterpriseUi?.forecast_projected_total_label)}: <strong>{forecast?.projected_total ?? '—'}</strong></p>
-                  <p>{safeText(enterpriseUi?.forecast_current_rate_label)}: <strong>{forecast?.current_rate ?? '—'}</strong></p>
-                  <p>{safeText(enterpriseUi?.forecast_confidence_label)}: <strong>{forecast?.confidence ?? '—'}</strong></p>
+                  <p>{asSafeText(enterpriseUiConfig?.forecast_projected_total_label)}: <strong>{forecast?.projected_total ?? '—'}</strong></p>
+                  <p>{asSafeText(enterpriseUiConfig?.forecast_current_rate_label)}: <strong>{forecast?.current_rate ?? '—'}</strong></p>
+                  <p>{asSafeText(enterpriseUiConfig?.forecast_confidence_label)}: <strong>{forecast?.confidence ?? '—'}</strong></p>
                 </div>
               )}
             </div>
             <div className="rounded-lg border border-border/60 p-4 md:col-span-2">
               <div className="mb-2 flex items-center gap-2 text-sm font-medium">
-                <AlertTriangle className="h-4 w-4 text-amber-500" /> {safeText(enterpriseUi?.alerts_title)}
+                <AlertTriangle className="h-4 w-4 text-amber-500" /> {asSafeText(enterpriseUiConfig?.alerts_title)}
               </div>
               {alertsQuery.isLoading ? (
                 <p className="text-sm text-muted-foreground">Cargando…</p>
@@ -554,13 +548,13 @@ const SurveyAnalyticsPage = () => {
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground">{safeText(enterpriseUi?.alerts_empty_label)}</p>
+                <p className="text-sm text-muted-foreground">{asSafeText(enterpriseUiConfig?.alerts_empty_label)}</p>
               )}
             </div>
           </div>
           <div className="rounded-lg border border-border/60 p-4">
             <div className="mb-2 flex items-center gap-2 text-sm font-medium">
-              <Sparkles className="h-4 w-4 text-primary" /> {safeText(enterpriseUi?.brief_title)}
+              <Sparkles className="h-4 w-4 text-primary" /> {asSafeText(enterpriseUiConfig?.brief_title)}
             </div>
             {briefQuery.isLoading ? (
               <p className="text-sm text-muted-foreground">Cargando…</p>
@@ -568,7 +562,7 @@ const SurveyAnalyticsPage = () => {
               <p className="text-sm text-destructive">{getErrorMessage(briefQuery.error)}</p>
             ) : (
               <div className="space-y-2 text-sm">
-                <p>{brief?.summary ?? safeText(enterpriseUi?.brief_fallback_label)}</p>
+                <p>{brief?.summary ?? asSafeText(enterpriseUiConfig?.brief_fallback_label)}</p>
                 {brief?.highlights?.length ? (
                   <ul className="list-disc pl-5 text-muted-foreground">
                     {brief.highlights.slice(0, 4).map((item, index) => (
@@ -584,14 +578,14 @@ const SurveyAnalyticsPage = () => {
 
       <Card>
         <CardHeader>
-          <CardTitle>{safeText(enterpriseUi?.territorial_center_title)}</CardTitle>
-          <CardDescription>{safeText(enterpriseUi?.territorial_center_description)}</CardDescription>
+          <CardTitle>{asSafeText(enterpriseUiConfig?.territorial_center_title)}</CardTitle>
+          <CardDescription>{asSafeText(enterpriseUiConfig?.territorial_center_description)}</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 lg:grid-cols-2">
           <div className="rounded-lg border border-border/60 p-4">
-            <p className="mb-2 text-sm font-medium">{safeText(enterpriseUi?.segment_comparator_title)}</p>
+            <p className="mb-2 text-sm font-medium">{asSafeText(enterpriseUiConfig?.segment_comparator_title)}</p>
             {compareQuery.isLoading ? (
-              <p className="text-sm text-muted-foreground">{safeText(enterpriseUi?.loading_label)}</p>
+              <p className="text-sm text-muted-foreground">{asSafeText(enterpriseUiConfig?.loading_label)}</p>
             ) : compareQuery.error ? (
               <p className="text-sm text-destructive">{getErrorMessage(compareQuery.error)}</p>
             ) : segmentsCompare?.buckets?.length ? (
@@ -607,19 +601,19 @@ const SurveyAnalyticsPage = () => {
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">{safeText(enterpriseUi?.segment_comparator_empty_label)}</p>
+              <p className="text-sm text-muted-foreground">{asSafeText(enterpriseUiConfig?.segment_comparator_empty_label)}</p>
             )}
           </div>
           <div className="rounded-lg border border-border/60 p-4">
-            <p className="mb-2 text-sm font-medium">{safeText(enterpriseUi?.data_quality_title)}</p>
+            <p className="mb-2 text-sm font-medium">{asSafeText(enterpriseUiConfig?.data_quality_title)}</p>
             {anomaliesQuery.isLoading ? (
-              <p className="text-sm text-muted-foreground">{safeText(enterpriseUi?.loading_label)}</p>
+              <p className="text-sm text-muted-foreground">{asSafeText(enterpriseUiConfig?.loading_label)}</p>
             ) : anomaliesQuery.error ? (
               <p className="text-sm text-destructive">{getErrorMessage(anomaliesQuery.error)}</p>
             ) : (
               <div className="space-y-2 text-sm">
-                <p>{safeText(enterpriseUi?.risk_score_label)}: <strong>{anomalies?.risk_score ?? '—'}</strong></p>
-                <p>{safeText(enterpriseUi?.risk_level_label)}: <strong>{anomalies?.risk_level ?? '—'}</strong></p>
+                <p>{asSafeText(enterpriseUiConfig?.risk_score_label)}: <strong>{anomalies?.risk_score ?? '—'}</strong></p>
+                <p>{asSafeText(enterpriseUiConfig?.risk_level_label)}: <strong>{anomalies?.risk_level ?? '—'}</strong></p>
                 {anomalies?.signals?.length ? (
                   <ul className="list-disc pl-5 text-muted-foreground">
                     {anomalies.signals.slice(0, 6).map((signal, index) => (
@@ -627,7 +621,7 @@ const SurveyAnalyticsPage = () => {
                     ))}
                   </ul>
                 ) : (
-                  <p className="text-muted-foreground">{safeText(enterpriseUi?.data_quality_empty_label)}</p>
+                  <p className="text-muted-foreground">{asSafeText(enterpriseUiConfig?.data_quality_empty_label)}</p>
                 )}
               </div>
             )}
