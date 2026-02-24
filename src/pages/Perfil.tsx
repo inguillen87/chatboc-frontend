@@ -75,6 +75,7 @@ import { toast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import TicketsPanel from '@/pages/TicketsPanel';
 import EstadisticasPage from '@/pages/EstadisticasPage';
+import AnalyticsPage from '@/pages/analytics/AnalyticsPage';
 import UsuariosPage from '@/pages/UsuariosPage';
 import SmartPedidosWrapper from '@/pages/SmartPedidosWrapper';
 import InternalUsers from '@/pages/InternalUsers';

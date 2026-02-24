@@ -1,4 +1,4 @@
-import { useMemo, useCallback, useEffect, useRef } from 'react';
+import { useMemo, useCallback, useEffect, useRef, useState } from 'react';
 import {
   Bar,
   BarChart,
@@ -413,6 +413,36 @@ const normalizeUtmBreakdown = (raw: unknown): UtmBreakdownItem[] => {
   return normalized;
 };
 
+
+const ChartMount = ({ className, children }: { className: string; children: React.ReactNode }) => {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [isReady, setIsReady] = useState(false);
+
+  useEffect(() => {
+    const node = containerRef.current;
+    if (!node || typeof ResizeObserver === 'undefined') {
+      setIsReady(true);
+      return;
+    }
+
+    const update = () => {
+      const { width, height } = node.getBoundingClientRect();
+      setIsReady(width > 24 && height > 24);
+    };
+
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div ref={containerRef} className={className}>
+      {isReady ? children : <div className="h-full w-full" />}
+    </div>
+  );
+};
+
 export const SurveyAnalytics = ({
   summary,
   timeseries,
@@ -430,20 +460,19 @@ export const SurveyAnalytics = ({
   );
   const optionData = useMemo(() => buildOptionBreakdown(summary, summaryRecord), [summary, summaryRecord]);
   const heatmapPoints = useMemo(() => normalizeHeatmapPoints(heatmap), [heatmap]);
-  const heatmapData = useMemo(
-    () =>
-      heatmapPoints.map((point) => ({
-        lat: point.lat,
-        lng: point.lng,
-        weight: point.respuestas,
-      })),
-    [heatmapPoints],
-  );
-
   const usingSyntheticPoints = useMemo(() => {
     if (!heatmapMeta || typeof heatmapMeta !== 'object') return false;
     return Boolean((heatmapMeta as Record<string, unknown>).using_synthetic_points);
   }, [heatmapMeta]);
+
+  const heatmapData = useMemo(() => {
+    const allZero = heatmapPoints.length > 0 && heatmapPoints.every((point) => point.respuestas <= 0);
+    return heatmapPoints.map((point) => ({
+      lat: point.lat,
+      lng: point.lng,
+      weight: usingSyntheticPoints || allZero ? Math.max(1, point.respuestas || 0) : point.respuestas,
+    }));
+  }, [heatmapPoints, usingSyntheticPoints]);
   const { provider, setProvider } = useMapProvider();
   const googleProviderAvailable = useMemo(
     () => ((import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? '').trim().length > 0),
@@ -779,7 +808,7 @@ export const SurveyAnalytics = ({
           <CardTitle>Evolución diaria</CardTitle>
           <CardDescription>Visualizá el ritmo de participación a lo largo del tiempo.</CardDescription>
         </CardHeader>
-        <CardContent className="h-72 min-w-0">
+        <CardContent><ChartMount className="h-72 min-w-0">
           {timeseriesData.length ? (
             <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220}>
               <LineChart data={timeseriesData}>
@@ -795,7 +824,7 @@ export const SurveyAnalytics = ({
               Aún no hay datos de series temporales.
             </div>
           )}
-        </CardContent>
+        </ChartMount></CardContent>
       </Card>
 
       <Card>
@@ -804,7 +833,7 @@ export const SurveyAnalytics = ({
           <CardDescription>Resultados acumulados por pregunta y opción.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-6 lg:grid-cols-2">
-          <div className="h-72 min-w-0">
+          <ChartMount className="h-72 min-w-0">
             {optionData.length ? (
               <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220}>
                 <BarChart data={optionData}>
@@ -821,8 +850,8 @@ export const SurveyAnalytics = ({
                 No hay respuestas registradas para mostrar.
               </div>
             )}
-          </div>
-          <div className="h-72 min-w-0">
+          </ChartMount>
+          <ChartMount className="h-72 min-w-0">
             {optionData.length ? (
               <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220}>
                 <PieChart>
@@ -847,7 +876,7 @@ export const SurveyAnalytics = ({
                 Sin datos para graficar.
               </div>
             )}
-          </div>
+          </ChartMount>
         </CardContent>
       </Card>
 
@@ -1086,7 +1115,7 @@ export const SurveyAnalytics = ({
                     Participación segmentada para este atributo.
                   </p>
                 </div>
-                <div className="h-64 w-full min-w-0">
+                <ChartMount className="h-64 w-full min-w-0">
                   <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220}>
                     <BarChart
                       data={section.data}
@@ -1117,7 +1146,7 @@ export const SurveyAnalytics = ({
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
-                </div>
+                </ChartMount>
               </div>
             ))}
           </CardContent>

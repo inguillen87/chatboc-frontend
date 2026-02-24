@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { io, Socket, ManagerOptions, SocketOptions } from 'socket.io-client';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { getSocketUrl, SOCKET_PATH } from '@/config';
@@ -93,6 +94,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const { user } = useUser();
+  const location = useLocation();
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
@@ -111,7 +113,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       safeLocalStorage.getItem('authToken') ||
       safeLocalStorage.getItem('chatAuthToken');
 
-    const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
+    const pathname = location.pathname || '';
     if (!shouldEnableGlobalSocket(pathname, Boolean(token))) {
       setSocket(null);
       setIsConnected(false);
@@ -143,7 +145,9 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const newSocket = io(SOCKET_URL ?? undefined, socketOptions);
 
     newSocket.on('connect', () => {
-      console.log('Global Socket connected');
+      if (import.meta.env.DEV) {
+        console.log('Global Socket connected');
+      }
       setIsConnected(true);
 
       // Subscribe to ticket updates if we have a token
@@ -153,7 +157,9 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
 
     newSocket.on('disconnect', () => {
-      console.log('Global Socket disconnected');
+      if (import.meta.env.DEV) {
+        console.log('Global Socket disconnected');
+      }
       setIsConnected(false);
     });
 
@@ -169,7 +175,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return () => {
       newSocket.close();
     };
-  }, [user]); // Re-connect if user changes (e.g. login/logout or tenant switch)
+  }, [user, location.pathname]); // Re-connect if user or route changes
 
   return (
     <SocketContext.Provider value={{ socket, isConnected }}>
