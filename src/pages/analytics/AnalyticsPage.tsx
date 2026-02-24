@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
@@ -40,6 +40,7 @@ const resolveDefaultScope = (tenantType?: string | null) => {
 
 const AnalyticsPage = () => {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const { currentSlug, tenant } = useTenant();
 
   const tenantId = tenant?.id ? Number(tenant.id) : (parseInt(searchParams.get('tenant_id') || '0', 10));
@@ -257,16 +258,22 @@ const AnalyticsPage = () => {
   }
 
   return (
-    <div className="p-6 space-y-6 bg-gray-50 dark:bg-slate-950 min-h-screen">
+    <div className="p-3 sm:p-6 space-y-6 bg-gray-50 dark:bg-slate-950 min-h-screen">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Analytics & Insights</h1>
-          <p className="text-muted-foreground">Métricas clave y comportamiento de tu audiencia en tiempo real.</p>
+        <div className="space-y-2">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Analytics & Insights</h1>
+            <p className="text-muted-foreground">Métricas clave y comportamiento de tu audiencia en tiempo real.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={() => navigate('/perfil')}>Perfil</Button>
+            <Button variant="outline" size="sm" onClick={() => navigate('/admin/encuestas')}>Encuestas</Button>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="grid w-full gap-2 sm:flex sm:w-auto sm:items-center sm:flex-wrap">
           <Select value={timeRange} onValueChange={setTimeRange}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-full sm:w-[180px]">
               <SelectValue placeholder="Periodo" />
             </SelectTrigger>
             <SelectContent>
@@ -276,7 +283,7 @@ const AnalyticsPage = () => {
             </SelectContent>
           </Select>
           <Select value={scope} onValueChange={setScope}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-full sm:w-[180px]">
               <SelectValue placeholder="Scope" />
             </SelectTrigger>
             <SelectContent>

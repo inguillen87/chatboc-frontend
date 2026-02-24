@@ -30,7 +30,7 @@ const NAV_ITEMS: NavItem[] = [
   // Municipio specific items
   { label: 'Trámites', path: '/municipal/tramites', roles: ['admin', 'super_admin'], tipo: 'municipio' },
   { label: 'Estadísticas', path: '/municipal/stats', roles: ['admin', 'super_admin'], tipo: 'municipio' },
-  { label: 'Analíticas', path: '/municipal/analytics', roles: ['admin', 'super_admin'], tipo: 'municipio' },
+  { label: 'Analytics', path: '/analytics', roles: ['admin', 'empleado', 'super_admin'] },
   { label: 'Empleados', path: '/municipal/usuarios', roles: ['admin', 'super_admin'], tipo: 'municipio' },
   { label: 'Mapa de Incidentes', path: '/municipal/incidents', roles: ['admin', 'super_admin'], tipo: 'municipio' },
 ];
@@ -44,7 +44,7 @@ export default function ProfileNav() {
   // Hooks to check endpoint availability
   const tramitesAvailable = useEndpointAvailable('/municipal/tramites');
   const statsAvailable = useEndpointAvailable('/municipal/stats');
-  const analyticsAvailable = useEndpointAvailable('/municipal/analytics');
+  const analyticsAvailable = useEndpointAvailable('/api/admin/analytics/overview');
   const empleadosAvailable = useEndpointAvailable('/municipal/usuarios');
   const incidentsMapAvailable = useEndpointAvailable('/municipal/incidents'); // Check for Mapa de Incidentes
 
@@ -63,7 +63,7 @@ export default function ProfileNav() {
     // Check endpoint availability for relevant items
     if (it.path === '/municipal/tramites' && tramitesAvailable === false) return false;
     if (it.path === '/municipal/stats' && statsAvailable === false) return false;
-    if (it.path === '/municipal/analytics' && analyticsAvailable === false) return false;
+    if (it.path === '/analytics' && analyticsAvailable === false) return false;
     if (it.path === '/municipal/usuarios' && empleadosAvailable === false) return false;
     if (it.path === '/municipal/incidents' && incidentsMapAvailable === false) return false; // Check for Mapa
 
