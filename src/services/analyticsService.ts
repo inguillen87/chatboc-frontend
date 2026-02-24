@@ -36,12 +36,36 @@ const buildQuery = (filters: AnalyticsFilters) => {
   return params.toString();
 };
 
+
+const normalizeAnalyticsSummary = (payload: any): AnalyticsSummary => {
+  const totals = payload?.totals ?? {};
+  const rawKpis = payload?.kpis ?? {};
+
+  const kpis = {
+    total_interactions: Number(rawKpis.total_interactions ?? totals.total_interactions ?? 0) || 0,
+    active_users: Number(rawKpis.active_users ?? totals.active_users ?? totals.unique_users ?? 0) || 0,
+    avg_response_time_s: Number(rawKpis.avg_response_time_s ?? totals.avg_response_time_s ?? 0) || 0,
+    conversion_rate: Number(rawKpis.conversion_rate ?? totals.conversion_rate ?? 0) || 0,
+    backlog_open: Number(rawKpis.backlog_open ?? totals.backlog_open ?? 0) || 0,
+    sla_breaches: Number(rawKpis.sla_breaches ?? totals.sla_breaches ?? 0) || 0,
+  };
+
+  return {
+    kpis,
+    top_categories: Array.isArray(payload?.top_categories) ? payload.top_categories : [],
+    volume_by_day: Array.isArray(payload?.volume_by_day) ? payload.volume_by_day : [],
+    heatmap_points: Array.isArray(payload?.heatmap_points) ? payload.heatmap_points : [],
+    insights: Array.isArray(payload?.insights) ? payload.insights : [],
+  };
+};
+
 export const analyticsService = {
   getSummary: async (filters: AnalyticsFilters): Promise<AnalyticsSummary> => {
     const query = buildQuery({ ...filters, scope: filters.scope ?? filters.context ?? 'municipio' });
-    return apiFetch<AnalyticsSummary>(`/admin/analytics/overview?${query}`, {
+    const response = await apiFetch<any>(`/admin/analytics/overview?${query}`, {
       tenantSlug: filters.tenantSlug,
     });
+    return normalizeAnalyticsSummary(response);
   },
 
   getHeatmap: async (filters: AnalyticsFilters) => {

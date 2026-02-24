@@ -93,7 +93,8 @@ const LOCAL_PLACEHOLDER_SLUGS = new Set([
   'mapas',
   'ticket',
   'tickets',
-  'admin'
+  'admin',
+  'me'
 ]);
 
 // Merge shared placeholders with API-specific ones
@@ -346,6 +347,31 @@ const shouldLogVerboseApi = (): boolean => {
   }
 
   return false;
+};
+
+
+const resolveApiErrorMessage = (data: unknown, fallback: string) => {
+  if (typeof data === 'string') {
+    const trimmed = data.trim();
+    return trimmed || fallback;
+  }
+
+  if (data && typeof data === 'object') {
+    const payload = data as Record<string, unknown>;
+    const directMessage = payload.error ?? payload.message ?? payload.detail;
+
+    if (typeof directMessage === 'string') {
+      const trimmed = directMessage.trim();
+      if (trimmed) return trimmed;
+    }
+
+    if (Array.isArray(directMessage)) {
+      const joined = directMessage.filter((item) => typeof item === 'string').join(' · ').trim();
+      if (joined) return joined;
+    }
+  }
+
+  return fallback;
 };
 
 interface ApiFetchOptions {
@@ -924,7 +950,7 @@ export async function apiFetch<T>(
       }
 
       throw new ApiError(
-        data?.error || data?.message || "No autorizado",
+        resolveApiErrorMessage(data, "No autorizado"),
         response.status,
         data
       );
@@ -936,7 +962,7 @@ export async function apiFetch<T>(
 
     if (response.status === 403) {
       throw new ApiError(
-        data?.error || data?.message || "Acceso prohibido",
+        resolveApiErrorMessage(data, "Acceso prohibido"),
         response.status,
         data
       );
@@ -944,7 +970,7 @@ export async function apiFetch<T>(
 
     if (!response.ok) {
       throw new ApiError(
-        data?.error || data?.message || "Error en la respuesta de la API",
+        resolveApiErrorMessage(data, "Error en la respuesta de la API"),
         response.status,
         data
       );

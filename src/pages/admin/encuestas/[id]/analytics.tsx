@@ -47,11 +47,23 @@ const asRenderableText = (value?: unknown) => {
     if (typeof candidate === 'string' || typeof candidate === 'number') return String(candidate);
   }
 
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return '';
+  return '';
+};
+
+const renderLabeledMetric = (label: string, value: string | number) => {
+  if (label.trim()) {
+    return (
+      <p>
+        {label}: <strong>{value}</strong>
+      </p>
+    );
   }
+
+  return (
+    <p>
+      <strong>{value}</strong>
+    </p>
+  );
 };
 
 const SurveyAnalyticsPage = () => {
@@ -62,6 +74,9 @@ const SurveyAnalyticsPage = () => {
     summary,
     timeseries,
     heatmap,
+    heatmapMeta,
+    dashboardBundle,
+    executiveSummary,
     isLoading,
     exportCsv,
     isExporting,
@@ -337,6 +352,11 @@ const SurveyAnalyticsPage = () => {
   const brief = briefQuery.data;
   const segmentsCompare = compareQuery.data;
   const anomalies = anomaliesQuery.data;
+  const responsesTotalHint = typeof summary?.total_respuestas === 'number' ? summary.total_respuestas : null;
+  const backendAlerts = dashboardBundle?.modules?.alerts ?? [];
+  const effectiveAlerts = backendAlerts.length ? backendAlerts : alerts;
+  const backendBrief = dashboardBundle?.modules?.brief;
+  const effectiveBrief = backendBrief ?? brief;
 
   if ((isLoadingSurvey && !surveys) || isLoading) {
     return (
@@ -477,6 +497,34 @@ const SurveyAnalyticsPage = () => {
           ) : null}
         </CardContent>
       </Card>
+
+      {executiveSummary ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>{asRenderableText(executiveSummary.headline)}</CardTitle>
+            <CardDescription>{asRenderableText(executiveSummary.one_liner)}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {Array.isArray(executiveSummary.focus_points) && executiveSummary.focus_points.length ? (
+              <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+                {executiveSummary.focus_points.slice(0, 6).map((focusPoint, index) => (
+                  <li key={`${index}-${asRenderableText(focusPoint)}`}>{asRenderableText(focusPoint)}</li>
+                ))}
+              </ul>
+            ) : null}
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-lg border border-border/60 p-3 text-sm">
+                <p className="text-muted-foreground">alert_count</p>
+                <p className="text-xl font-semibold">{executiveSummary.alert_count ?? effectiveAlerts.length ?? 0}</p>
+              </div>
+              <div className="rounded-lg border border-border/60 p-3 text-sm">
+                <p className="text-muted-foreground">projected_additional</p>
+                <p className="text-xl font-semibold">{executiveSummary.projected_additional ?? '—'}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
       <Card>
         <CardHeader>
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -514,6 +562,7 @@ const SurveyAnalyticsPage = () => {
             summary={summary}
             timeseries={timeseries}
             heatmap={heatmap}
+            heatmapMeta={heatmapMeta}
             onExport={handleExport}
             isExporting={isExporting}
             filters={filters}
@@ -538,9 +587,9 @@ const SurveyAnalyticsPage = () => {
                 <p className="text-sm text-destructive">{getErrorMessage(forecastQuery.error)}</p>
               ) : (
                 <div className="space-y-1 text-sm">
-                  <p>{asSafeText(enterpriseUiConfig?.forecast_projected_total_label)}: <strong>{forecast?.projected_total ?? '—'}</strong></p>
-                  <p>{asSafeText(enterpriseUiConfig?.forecast_current_rate_label)}: <strong>{forecast?.current_rate ?? '—'}</strong></p>
-                  <p>{asSafeText(enterpriseUiConfig?.forecast_confidence_label)}: <strong>{forecast?.confidence ?? '—'}</strong></p>
+                  {renderLabeledMetric(asSafeText(enterpriseUiConfig?.forecast_projected_total_label), forecast?.projected_total ?? '—')}
+                  {renderLabeledMetric(asSafeText(enterpriseUiConfig?.forecast_current_rate_label), forecast?.current_rate ?? '—')}
+                  {renderLabeledMetric(asSafeText(enterpriseUiConfig?.forecast_confidence_label), forecast?.confidence ?? '—')}
                 </div>
               )}
             </div>
@@ -552,9 +601,9 @@ const SurveyAnalyticsPage = () => {
                 <p className="text-sm text-muted-foreground">Cargando…</p>
               ) : alertsQuery.error ? (
                 <p className="text-sm text-destructive">{getErrorMessage(alertsQuery.error)}</p>
-              ) : alerts.length ? (
+              ) : effectiveAlerts.length ? (
                 <div className="space-y-2">
-                  {alerts.slice(0, 6).map((alert, index) => (
+                  {effectiveAlerts.slice(0, 6).map((alert, index) => (
                     <div key={`${alert.id ?? index}`} className="rounded-md border border-border/60 px-3 py-2 text-sm">
                       <div className="flex items-center gap-2">
                         <Badge variant="outline">{asRenderableText(alert.severity) || 'info'}</Badge>
@@ -579,10 +628,10 @@ const SurveyAnalyticsPage = () => {
               <p className="text-sm text-destructive">{getErrorMessage(briefQuery.error)}</p>
             ) : (
               <div className="space-y-2 text-sm">
-                <p>{asRenderableText(brief?.summary) || asSafeText(enterpriseUiConfig?.brief_fallback_label)}</p>
-                {brief?.highlights?.length ? (
+                <p>{asRenderableText(effectiveBrief?.summary) || asSafeText(enterpriseUiConfig?.brief_fallback_label)}</p>
+                {effectiveBrief?.highlights?.length ? (
                   <ul className="list-disc pl-5 text-muted-foreground">
-                    {brief.highlights.slice(0, 4).map((item, index) => (
+                    {effectiveBrief.highlights.slice(0, 4).map((item, index) => (
                       <li key={`${index}-${asRenderableText(item)}`}>{asRenderableText(item)}</li>
                     ))}
                   </ul>
@@ -629,8 +678,8 @@ const SurveyAnalyticsPage = () => {
               <p className="text-sm text-destructive">{getErrorMessage(anomaliesQuery.error)}</p>
             ) : (
               <div className="space-y-2 text-sm">
-                <p>{asSafeText(enterpriseUiConfig?.risk_score_label)}: <strong>{anomalies?.risk_score ?? '—'}</strong></p>
-                <p>{asSafeText(enterpriseUiConfig?.risk_level_label)}: <strong>{anomalies?.risk_level ?? '—'}</strong></p>
+                {renderLabeledMetric(asSafeText(enterpriseUiConfig?.risk_score_label), anomalies?.risk_score ?? '—')}
+                {renderLabeledMetric(asSafeText(enterpriseUiConfig?.risk_level_label), anomalies?.risk_level ?? '—')}
                 {anomalies?.signals?.length ? (
                   <ul className="list-disc pl-5 text-muted-foreground">
                     {anomalies.signals.slice(0, 6).map((signal, index) => (
@@ -655,6 +704,7 @@ const SurveyAnalyticsPage = () => {
           void refetchResponses();
         }}
         emptyHintUrl={publicUrl}
+        totalResponsesHint={responsesTotalHint}
       />
       <Card>
         <CardHeader>
