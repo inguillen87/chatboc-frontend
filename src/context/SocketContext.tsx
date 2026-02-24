@@ -56,6 +56,28 @@ const resolveSocketUrl = (): string | undefined => {
 
 const SOCKET_URL = resolveSocketUrl();
 
+
+const shouldEnableGlobalSocket = (pathname: string, hasToken: boolean): boolean => {
+  if (!hasToken) return false;
+  const normalized = pathname.toLowerCase();
+
+  const blockedPrefixes = [
+    '/login',
+    '/register',
+    '/demo',
+    '/e',
+    '/encuestas',
+    '/admin/encuestas',
+    '/public/encuestas',
+  ];
+
+  if (blockedPrefixes.some((prefix) => normalized === prefix || normalized.startsWith(`${prefix}/`))) {
+    return false;
+  }
+
+  return true;
+};
+
 export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
@@ -77,6 +99,13 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const token =
       safeLocalStorage.getItem('authToken') ||
       safeLocalStorage.getItem('chatAuthToken');
+
+    const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
+    if (!shouldEnableGlobalSocket(pathname, Boolean(token))) {
+      setSocket(null);
+      setIsConnected(false);
+      return;
+    }
 
     const socketOptions: Partial<ManagerOptions & SocketOptions> = {
       transports: ['websocket', 'polling'], // Added polling for better compatibility
@@ -118,7 +147,9 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
 
     newSocket.on('connect_error', (err) => {
-      console.error('Global Socket connection error:', err);
+      if (import.meta.env.DEV) {
+        console.error('Global Socket connection error:', err);
+      }
     });
 
     setSocket(newSocket);
