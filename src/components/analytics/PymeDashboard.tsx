@@ -9,7 +9,16 @@ interface Props {
 }
 
 const PymeDashboard: React.FC<Props> = ({ data }) => {
-  const { kpis, top_categories } = data;
+  const kpis = data?.kpis ?? {
+    total_interactions: 0,
+    active_users: 0,
+    avg_response_time_s: 0,
+    conversion_rate: 0,
+    backlog_open: 0,
+    sla_breaches: 0,
+  };
+  const topCategories = Array.isArray(data?.top_categories) ? data.top_categories : [];
+
 
   return (
     <div className="space-y-6">
@@ -42,7 +51,7 @@ const PymeDashboard: React.FC<Props> = ({ data }) => {
             <ShoppingBag className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{top_categories.length}</div>
+            <div className="text-2xl font-bold">{topCategories.length}</div>
             <p className="text-xs text-muted-foreground mt-1">Categorías activas</p>
           </CardContent>
         </Card>
@@ -54,7 +63,7 @@ const PymeDashboard: React.FC<Props> = ({ data }) => {
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={top_categories} layout="vertical" margin={{ top: 0, right: 30, left: 40, bottom: 0 }}>
+            <BarChart data={topCategories} layout="vertical" margin={{ top: 0, right: 30, left: 40, bottom: 0 }}>
               <XAxis type="number" hide />
               <YAxis dataKey="category" type="category" width={120} tick={{ fontSize: 12 }} />
               <Tooltip cursor={{ fill: 'transparent' }} />

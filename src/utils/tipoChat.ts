@@ -3,6 +3,11 @@ import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { esRubroPublico, normalizeRubro } from './chatEndpoints'; // Importar normalizeRubro
 import { APP_TARGET } from '@/config';
 
+const shouldLogTipoChatWarnings = () => {
+  const metaEnv = typeof import.meta !== 'undefined' ? (import.meta as any)?.env : undefined;
+  return Boolean(metaEnv?.DEV || metaEnv?.MODE === 'development');
+};
+
 export function parseRubro(raw: any): string | null {
   if (!raw) return null;
   let rubroStr: string | null = null;
@@ -74,11 +79,15 @@ export function enforceTipoChatForRubro(
   if (rubroStr) {
     const isPublico = esRubroPublico(rubroStr);
     if (isPublico && tipoChat === 'pyme') {
-      console.warn(`Discrepancia: tipoChat 'pyme' con rubro público '${rubroStr}'. Forzando a 'municipio'.`);
+      if (shouldLogTipoChatWarnings()) {
+        console.warn(`Discrepancia: tipoChat 'pyme' con rubro público '${rubroStr}'. Forzando a 'municipio'.`);
+      }
       return 'municipio';
     }
     if (!isPublico && tipoChat === 'municipio') {
-      console.warn(`Discrepancia: tipoChat 'municipio' con rubro no público '${rubroStr}'. Forzando a 'pyme'.`);
+      if (shouldLogTipoChatWarnings()) {
+        console.warn(`Discrepancia: tipoChat 'municipio' con rubro no público '${rubroStr}'. Forzando a 'pyme'.`);
+      }
       return 'pyme';
     }
   }

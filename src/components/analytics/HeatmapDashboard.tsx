@@ -37,15 +37,15 @@ const HeatmapDashboard: React.FC<Props> = ({ tenantId, dateRange }) => {
     if (tenantId) loadHeatmap();
   }, [tenantId, dateRange, currentSlug]);
 
-  if (loading) return <div className="h-64 flex items-center justify-center"><Loader2 className="animate-spin" /></div>;
+  if (loading) return <div className="h-[320px] sm:h-[420px] flex items-center justify-center rounded-2xl border border-border/50 bg-background/60"><Loader2 className="h-6 w-6 animate-spin" /></div>;
 
   return (
-    <Card>
+    <Card className="border border-border/60 bg-gradient-to-br from-background via-background to-primary/5 shadow-sm">
       <CardHeader>
         <CardTitle>Mapa de Calor</CardTitle>
         <CardDescription>Distribución geográfica de incidentes y pedidos.</CardDescription>
       </CardHeader>
-      <CardContent className="h-[500px] p-0 relative overflow-hidden rounded-b-lg">
+      <CardContent className="h-[320px] sm:h-[420px] lg:h-[520px] p-0 relative overflow-hidden rounded-b-2xl">
          {points.length > 0 ? (
              <MapLibreMap
                 heatmapData={points}
