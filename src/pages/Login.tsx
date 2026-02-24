@@ -242,18 +242,18 @@ const Login = () => {
         safeLocalStorage.setItem("tenantSlug", responseTenantSlug);
       }
 
-      await refreshUser();
-      const rawUser = safeLocalStorage.getItem("user");
-      const parsedUser = rawUser ? JSON.parse(rawUser) : {};
-      const resolvedTenantSlug = responseTenantSlug || parsedUser.tenant_slug;
+      const responseRole = data.user?.rol;
+      const resolvedTenantSlug = responseTenantSlug || currentSlug || safeLocalStorage.getItem("tenantSlug") || undefined;
 
-      if (parsedUser.rol === "super_admin") {
+      if (responseRole === "super_admin") {
         navigate("/superadmin");
-      } else if (["admin", "tenant_admin", "admin_pyme", "empleado"].includes(parsedUser.rol)) {
+      } else if (["admin", "tenant_admin", "admin_pyme", "empleado"].includes(responseRole)) {
         navigate("/perfil");
       } else {
         navigate(buildTenantPath("/", resolvedTenantSlug));
       }
+
+      refreshUser().catch(() => undefined);
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.body?.error || "Credenciales inválidas o error en el servidor.");
@@ -330,8 +330,8 @@ const Login = () => {
       safeLocalStorage.setItem("demoMode", String(Boolean(data.demo_mode)));
       if (data.tenant?.slug) safeLocalStorage.setItem("tenantSlug", data.tenant.slug);
       if (data.tenant?.id) safeLocalStorage.setItem("tenantId", String(data.tenant.id));
-      await refreshUser();
       navigate("/analytics");
+      refreshUser().catch(() => undefined);
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.body?.error || "No se pudo iniciar demo.");
@@ -440,7 +440,7 @@ const Login = () => {
           <Button
             type="button"
             className="w-full"
-            onClick={handleDemoLogin}
+            onClick={() => { void handleDemoLogin(); }}
             disabled={!demoLoginEnabled || !demoRubro || isDemoLoading || isLoading || isPasskeyLoading}
           >
             {isDemoLoading ? "Ingresando demo..." : "Probar Demo"}
@@ -460,7 +460,7 @@ const Login = () => {
                       const payload = entry.login_payload && Object.keys(entry.login_payload).length > 0
                         ? entry.login_payload
                         : { rubro };
-                      handleDemoLogin(rubro, payload, entry.login_endpoint || demoLoginEndpoint);
+                      void handleDemoLogin(rubro, payload, entry.login_endpoint || demoLoginEndpoint);
                     }}
                     disabled={!demoLoginEnabled || entry.enabled === false || isDemoLoading || isLoading || isPasskeyLoading}
                   >
@@ -485,7 +485,7 @@ const Login = () => {
                     onClick={() => {
                       if (rubro) setDemoRubro(rubro);
                       if (!payload) return;
-                      handleDemoLogin(rubro || undefined, payload, tenantDemo.login_endpoint || demoLoginEndpoint);
+                      void handleDemoLogin(rubro || undefined, payload, tenantDemo.login_endpoint || demoLoginEndpoint);
                     }}
                     disabled={!demoLoginEnabled || tenantDemo.enabled === false || !payload || isDemoLoading || isLoading || isPasskeyLoading}
                   >

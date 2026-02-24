@@ -126,14 +126,6 @@ export function useSurveyAnalytics(
           normalizedId !== null &&
           (dashboardQuery.isError || !dashboardQuery.data?.modules?.summary),
         queryFn: () =>
-          normalizedId !== null ? getSurveyDashboardBundle(normalizedId, normalizedFilters) : Promise.reject('No id provided'),
-      },
-      {
-        queryKey: ['survey-analytics-summary', normalizedId, normalizedFilters],
-        enabled:
-          normalizedId !== null &&
-          (dashboardQuery.isError || !dashboardQuery.data?.modules?.summary),
-        queryFn: () =>
           normalizedId !== null ? getSummary(normalizedId, normalizedFilters) : Promise.reject('No id provided'),
       },
       {
