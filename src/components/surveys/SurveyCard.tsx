@@ -17,6 +17,8 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import type { SurveyAdmin } from '@/types/encuestas';
+import { getAbsolutePublicSurveyUrl } from '@/utils/publicSurveyUrl';
+import { getAutoSeedCantidad } from '@/utils/surveyDemoPriority';
 
 interface SurveyCardProps {
   survey: SurveyAdmin;
@@ -54,6 +56,10 @@ export const SurveyCard = ({
   seeding,
 }: SurveyCardProps) => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+
+  const autoSeedCantidad = getAutoSeedCantidad(survey);
+  const publicUrl = survey.slug ? getAbsolutePublicSurveyUrl(survey.slug) : null;
+
   const seedLabels =
     (survey.recursos as Record<string, unknown> | undefined)?.seed_ui as
       | {
@@ -94,6 +100,12 @@ export const SurveyCard = ({
           <span className="inline-flex items-center gap-1">Tipo: {survey.tipo || '—'}</span>
           <span className="inline-flex items-center gap-1">Slug: {survey.slug || '—'}</span>
         </div>
+        <div className="flex flex-wrap gap-2">
+          {survey.es_votacion_envivo ? <Badge variant="default">En vivo</Badge> : null}
+          {survey.mostrar_resultados_envivo ? <Badge variant="secondary">Resultados en tiempo real</Badge> : null}
+          {survey.permitir_comentarios ? <Badge variant="outline">Comentarios abiertos</Badge> : null}
+          {autoSeedCantidad ? <Badge variant="outline">Demo precargada: {autoSeedCantidad}</Badge> : null}
+        </div>
       </CardHeader>
       <CardContent className="space-y-1 text-sm text-muted-foreground">
         <p>Preguntas: {Array.isArray(survey.preguntas) ? survey.preguntas.length : 0}</p>
@@ -116,6 +128,13 @@ export const SurveyCard = ({
             <LinkIcon className="h-4 w-4" /> Copiar link
           </Button>
         )}
+        {survey.estado === 'publicada' && publicUrl ? (
+          <Button variant="ghost" size="sm" asChild>
+            <a href={publicUrl} target="_blank" rel="noopener noreferrer">
+              Ver en vivo
+            </a>
+          </Button>
+        ) : null}
         {onSeed && (
           <SeedButton onSeed={onSeed} loading={seeding} surveyTitle={survey.titulo} labels={seedLabels} />
         )}
