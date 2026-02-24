@@ -75,6 +75,7 @@ export function SurveyComments({ slug, tenantSlug, realtimeComments, copy }: Sur
   const [commentMode, setCommentMode] = useState<'anonimo' | 'facebook'>('anonimo');
   const [orderBy, setOrderBy] = useState<'recent' | 'top'>('recent');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const maxCommentLength = 500;
 
   const copyText = (value: string | undefined, fallback: string) => {
     const normalized = typeof value === 'string' ? value.trim() : '';
@@ -219,7 +220,11 @@ export function SurveyComments({ slug, tenantSlug, realtimeComments, copy }: Sur
             value={newComment}
             onChange={(e) => setNewComment(e.target.value)}
             className="min-h-[92px] rounded-xl"
+            maxLength={maxCommentLength}
           />
+          <div className="-mt-2 flex justify-end">
+            <span className="text-xs text-muted-foreground">{newComment.length}/{maxCommentLength}</span>
+          </div>
           <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
             <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
               <Input
@@ -239,6 +244,7 @@ export function SurveyComments({ slug, tenantSlug, realtimeComments, copy }: Sur
               disabled={isSubmitting || !newComment.trim()}
               size="sm"
               aria-label={copyText(copy?.submitLabel, DEFAULT_COMMENTS_COPY.submitLabel)}
+              title={copyText(copy?.submitLabel, DEFAULT_COMMENTS_COPY.submitLabel)}
             >
               {isSubmitting ? copyText(copy?.submittingLabel, DEFAULT_COMMENTS_COPY.submittingLabel) : (
                 <>
