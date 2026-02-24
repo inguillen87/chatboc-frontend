@@ -71,7 +71,18 @@ const shouldEnableGlobalSocket = (pathname: string, hasToken: boolean): boolean 
     '/public/encuestas',
   ];
 
+  const segments = normalized.split('/').filter(Boolean);
+  const knownRootSegments = new Set(['login', 'register', 'demo', 'e', 'encuestas', 'admin', 'public']);
+  const tenantScopedPath =
+    segments.length > 1 && !knownRootSegments.has(segments[0])
+      ? `/${segments.slice(1).join('/')}`
+      : normalized;
+
   if (blockedPrefixes.some((prefix) => normalized === prefix || normalized.startsWith(`${prefix}/`))) {
+    return false;
+  }
+
+  if (blockedPrefixes.some((prefix) => tenantScopedPath === prefix || tenantScopedPath.startsWith(`${prefix}/`))) {
     return false;
   }
 

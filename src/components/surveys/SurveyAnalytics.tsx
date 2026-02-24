@@ -1,4 +1,4 @@
-import { useMemo, useCallback, useRef } from 'react';
+import { useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   Bar,
   BarChart,
@@ -474,6 +474,7 @@ export const SurveyAnalytics = ({
     [setProvider],
   );
   const skipNextBoundingUpdateRef = useRef(false);
+  const boundingBoxDebounceRef = useRef<number | null>(null);
   const handleBoundingBoxChange = useCallback(
     (bbox: [number, number, number, number] | null) => {
       if (!onFiltersChange) return;
@@ -481,25 +482,32 @@ export const SurveyAnalytics = ({
         skipNextBoundingUpdateRef.current = false;
         return;
       }
-      const current = filters ?? {};
-      if (!bbox) {
-        if (!boundingBoxValue) return;
-        const nextFilters = { ...current };
-        delete nextFilters.bbox;
-        onFiltersChange(nextFilters);
-        return;
+
+      if (boundingBoxDebounceRef.current !== null) {
+        window.clearTimeout(boundingBoxDebounceRef.current);
       }
 
-      if (bbox.length !== 4 || bbox.some((value) => !Number.isFinite(value))) {
-        return;
-      }
+      boundingBoxDebounceRef.current = window.setTimeout(() => {
+        const current = filters ?? {};
+        if (!bbox) {
+          if (!boundingBoxValue) return;
+          const nextFilters = { ...current };
+          delete nextFilters.bbox;
+          onFiltersChange(nextFilters);
+          return;
+        }
 
-      const formatted = bbox.map((value) => Number(value).toFixed(6)).join(',');
-      if (formatted === boundingBoxValue) {
-        return;
-      }
+        if (bbox.length !== 4 || bbox.some((value) => !Number.isFinite(value))) {
+          return;
+        }
 
-      onFiltersChange({ ...current, bbox: formatted });
+        const formatted = bbox.map((value) => Number(value).toFixed(6)).join(',');
+        if (formatted === boundingBoxValue) {
+          return;
+        }
+
+        onFiltersChange({ ...current, bbox: formatted });
+      }, 350);
     },
     [filters, onFiltersChange, boundingBoxValue, skipNextBoundingUpdateRef],
   );
@@ -511,6 +519,14 @@ export const SurveyAnalytics = ({
     skipNextBoundingUpdateRef.current = true;
     onFiltersChange(nextFilters);
   }, [filters, onFiltersChange, boundingBoxValue, skipNextBoundingUpdateRef]);
+
+  useEffect(() => {
+    return () => {
+      if (boundingBoxDebounceRef.current !== null) {
+        window.clearTimeout(boundingBoxDebounceRef.current);
+      }
+    };
+  }, []);
   const heatmapCenter = useMemo(() => {
     if (!heatmapData.length) return undefined;
     const totalWeight = heatmapData.reduce((sum, point) => sum + (point.weight ?? 1), 0);
@@ -765,7 +781,7 @@ export const SurveyAnalytics = ({
         </CardHeader>
         <CardContent className="h-72 min-w-0">
           {timeseriesData.length ? (
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220}>
               <LineChart data={timeseriesData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="fecha" />
@@ -790,7 +806,7 @@ export const SurveyAnalytics = ({
         <CardContent className="grid gap-6 lg:grid-cols-2">
           <div className="h-72 min-w-0">
             {optionData.length ? (
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220}>
                 <BarChart data={optionData}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="opcion" interval={0} angle={-25} textAnchor="end" height={90} />
@@ -808,7 +824,7 @@ export const SurveyAnalytics = ({
           </div>
           <div className="h-72 min-w-0">
             {optionData.length ? (
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220}>
                 <PieChart>
                   <Pie
                     data={optionData}
@@ -1071,7 +1087,7 @@ export const SurveyAnalytics = ({
                   </p>
                 </div>
                 <div className="h-64 w-full min-w-0">
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220}>
                     <BarChart
                       data={section.data}
                       layout="vertical"
