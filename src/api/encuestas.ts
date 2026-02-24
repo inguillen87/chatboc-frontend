@@ -296,7 +296,10 @@ const attemptRecoveryFromAdminList = async (): Promise<PublicSurveyListResult | 
 };
 
 export const getPublicSurvey = async (slug: string, tenantSlug?: string): Promise<SurveyPublic> => {
-  const response = await apiFetch<unknown>(`/public/encuestas/${slug}`, {
+  const response = await callPublicSurveyEndpoint<unknown>([
+    `/api/public/encuestas/${slug}`,
+    `/public/encuestas/${slug}`,
+  ], {
     skipAuth: true,
     omitCredentials: true,
     isWidgetRequest: true,
@@ -311,6 +314,31 @@ export const getPublicSurvey = async (slug: string, tenantSlug?: string): Promis
   }
 
   return normalizeSurveyPreguntas(response as SurveyPublic);
+};
+
+
+const shouldRetryPublicSurveyRequest = (error: unknown) => {
+  if (error instanceof ApiError) {
+    return error.status === 401 || error.status === 403 || error.status === 404 || error.status === 405 || error.status >= 500;
+  }
+  return false;
+};
+
+const callPublicSurveyEndpoint = async <T>(paths: string[], options: ApiFetchOptions): Promise<T> => {
+  let lastError: unknown = null;
+
+  for (const path of paths) {
+    try {
+      return await apiFetch<T>(path, options);
+    } catch (error) {
+      lastError = error;
+      if (!shouldRetryPublicSurveyRequest(error)) {
+        break;
+      }
+    }
+  }
+
+  throw lastError ?? new Error('No fue posible consultar el endpoint público de encuestas.');
 };
 
 const FALLBACK_SURVEY_URL_REGEX = /https?:\/\/[\S]+\/e\/([a-z0-9-]+)/gi;
@@ -368,7 +396,10 @@ const attemptRecoveryFromRawPayload = async (
 
 export const listPublicSurveys = async (tenantSlug?: string): Promise<PublicSurveyListResult> => {
   try {
-    const response = await apiFetch<unknown>('/public/encuestas', {
+    const response = await callPublicSurveyEndpoint<unknown>([
+      '/api/public/encuestas',
+      '/public/encuestas',
+    ], {
       skipAuth: true,
       omitCredentials: true,
       isWidgetRequest: true,

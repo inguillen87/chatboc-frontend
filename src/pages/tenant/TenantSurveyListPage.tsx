@@ -13,7 +13,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { getErrorMessage } from '@/utils/api';
-import { getAutoSeedCantidad, prioritizeMendozaDemoSurveys } from '@/utils/surveyDemoPriority';
+import { getAutoSeedCantidad } from '@/utils/surveyDemoPriority';
 
 const formatDate = (value?: string | null) => {
   if (!value) return null;
@@ -58,10 +58,7 @@ const TenantSurveyListPage = () => {
     staleTime: 1000 * 60 * 2,
   });
 
-  const surveys = useMemo(() => {
-    const raw = Array.isArray(surveysQuery.data) ? surveysQuery.data : [];
-    return prioritizeMendozaDemoSurveys(raw, slug);
-  }, [surveysQuery.data, slug]);
+  const surveys = useMemo(() => (Array.isArray(surveysQuery.data) ? surveysQuery.data : []), [surveysQuery.data]);
 
   return (
     <TenantShell>

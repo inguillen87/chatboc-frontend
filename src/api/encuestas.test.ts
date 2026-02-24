@@ -14,7 +14,8 @@ vi.mock('@/utils/api', () => ({
   },
 }));
 
-import { getHeatmap } from '@/api/encuestas';
+import { getHeatmap, getPublicSurvey } from '@/api/encuestas';
+import { ApiError } from '@/utils/api';
 
 describe('getHeatmap', () => {
   beforeEach(() => {
@@ -44,5 +45,32 @@ describe('getHeatmap', () => {
     expect(result.points).toHaveLength(1);
     expect(result.metadata).toEqual({ using_synthetic_points: true });
     expect(result.cells).toEqual([]);
+  });
+});
+
+
+describe('getPublicSurvey', () => {
+  beforeEach(() => {
+    apiFetchMock.mockReset();
+  });
+
+  it('retries using /public endpoint when /api/public returns forbidden', async () => {
+    apiFetchMock
+      .mockRejectedValueOnce(new ApiError('Forbidden', 403))
+      .mockResolvedValueOnce({ slug: 'movilidad-y-transporte-junin', titulo: 'Movilidad', tipo: 'opinion', inicio_at: '2026-01-01', fin_at: '2026-12-31', politica_unicidad: 'libre', preguntas: [] });
+
+    const survey = await getPublicSurvey('movilidad-y-transporte-junin');
+
+    expect(survey.slug).toBe('movilidad-y-transporte-junin');
+    expect(apiFetchMock).toHaveBeenNthCalledWith(
+      1,
+      '/api/public/encuestas/movilidad-y-transporte-junin',
+      expect.any(Object),
+    );
+    expect(apiFetchMock).toHaveBeenNthCalledWith(
+      2,
+      '/public/encuestas/movilidad-y-transporte-junin',
+      expect.any(Object),
+    );
   });
 });
