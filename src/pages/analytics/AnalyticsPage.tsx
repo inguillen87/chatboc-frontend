@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
@@ -19,6 +19,7 @@ import { openExportAndTrack } from '@/utils/enterpriseExperience';
 import { ApiError } from '@/utils/api';
 import { getEnterpriseErrorMessage } from '@/utils/enterpriseErrors';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
+import { buildTenantPath } from '@/utils/tenantPaths';
 
 
 const resolveDefaultScope = (tenantType?: string | null) => {
@@ -41,7 +42,9 @@ const resolveDefaultScope = (tenantType?: string | null) => {
 const AnalyticsPage = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { currentSlug, tenant } = useTenant();
+  const isEmbeddedInProfile = location.pathname === '/perfil';
 
   const tenantId = tenant?.id ? Number(tenant.id) : (parseInt(searchParams.get('tenant_id') || '0', 10));
 
@@ -258,7 +261,7 @@ const AnalyticsPage = () => {
   }
 
   return (
-    <div className="p-3 sm:p-6 space-y-6 bg-gray-50 dark:bg-slate-950 min-h-screen">
+    <div className={`space-y-6 ${isEmbeddedInProfile ? 'p-0 bg-transparent min-h-0' : 'p-3 sm:p-6 bg-gray-50 dark:bg-slate-950 min-h-screen'}`}>
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div className="space-y-2">
           <div>
@@ -266,8 +269,10 @@ const AnalyticsPage = () => {
             <p className="text-muted-foreground">Métricas clave y comportamiento de tu audiencia en tiempo real.</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={() => navigate('/perfil')}>Perfil</Button>
-            <Button variant="outline" size="sm" onClick={() => navigate('/admin/encuestas')}>Encuestas</Button>
+            {!isEmbeddedInProfile ? (
+              <Button variant="outline" size="sm" onClick={() => navigate('/perfil')}>Perfil</Button>
+            ) : null}
+            <Button variant="outline" size="sm" onClick={() => navigate(buildTenantPath('/admin/encuestas', currentSlug || undefined))}>Encuestas</Button>
           </div>
         </div>
 

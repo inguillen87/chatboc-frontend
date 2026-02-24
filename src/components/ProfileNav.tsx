@@ -13,6 +13,8 @@ import { useUser } from '@/hooks/useUser';
 import { normalizeRole } from '@/utils/roles';
 import useEndpointAvailable from '@/hooks/useEndpointAvailable';
 import { useRealtimeAlerts } from '@/context/RealtimeAlertsContext';
+import { useTenant } from '@/context/TenantContext';
+import { buildTenantPath } from '@/utils/tenantPaths';
 
 interface NavItem {
   label: string;
@@ -39,6 +41,7 @@ export default function ProfileNav() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useUser();
+  const { currentSlug } = useTenant();
   const { ticketUnreadCount, orderUnreadCount } = useRealtimeAlerts();
 
   // Hooks to check endpoint availability
@@ -75,14 +78,31 @@ export default function ProfileNav() {
   // Example: Pyme items first, then Municipio items.
   // items.sort((a, b) => (a.tipo === 'pyme' ? -1 : 1)); // Simple sort, might need refinement
 
-  if (!items.length) return null;
+
+  const resolvedItems = items.map((it) => {
+    if (it.path === '/analytics') {
+      return {
+        ...it,
+        path: buildTenantPath('/analytics', currentSlug || undefined),
+      };
+    }
+    return it;
+  });
+
+  const currentPath = location.pathname;
+  const selectedPath =
+    resolvedItems.find((it) => it.path === currentPath)?.path
+    ?? resolvedItems.find((it) => currentPath.endsWith(it.path))?.path
+    ?? resolvedItems[0]?.path;
+
+  if (!resolvedItems.length) return null;
 
   return (
     <div className="w-full">
       <div className="hidden sm:block">
-        <Tabs value={location.pathname} onValueChange={(v) => navigate(v)}>
+        <Tabs value={selectedPath} onValueChange={(v) => navigate(v)}>
           <TabsList className="flex w-full flex-wrap items-stretch gap-2 overflow-x-auto rounded-xl border border-border bg-muted/50 p-1 shadow-sm">
-            {items.map((it) => (
+            {resolvedItems.map((it) => (
               <TabsTrigger
                 key={it.path}
                 value={it.path}
@@ -117,7 +137,7 @@ export default function ProfileNav() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
-            {items.map((it) => (
+            {resolvedItems.map((it) => (
               <DropdownMenuItem key={it.path} onSelect={() => navigate(it.path)}>
                 <span className="flex items-center gap-2">
                   {it.label}
