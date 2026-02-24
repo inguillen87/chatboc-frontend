@@ -49,7 +49,7 @@ const Login = () => {
   const [demoOptions, setDemoOptions] = useState<Array<{ value: DemoRubro; label: string }>>([]);
   const [demoEntryPoints, setDemoEntryPoints] = useState<DemoCatalogEntryPoint[]>([]);
   const [demoTenantDemos, setDemoTenantDemos] = useState<DemoCatalogTenant[]>([]);
-  const [demoLoginEnabled, setDemoLoginEnabled] = useState(false);
+  const [demoLoginEnabled, setDemoLoginEnabled] = useState(true);
   const [demoLoginEndpoint, setDemoLoginEndpoint] = useState("/auth/demo");
   const demoAccessProfiles = getDemoAccessProfiles();
   const franchisePartner = getFranchisePartnerConfig();
@@ -131,7 +131,9 @@ const Login = () => {
         if (!mounted) return;
 
         const resolvedCatalog = (catalog || {}) as DemoCatalogResponse;
-        setDemoLoginEnabled(Boolean(resolvedCatalog.demo_login_enabled));
+        if (typeof resolvedCatalog.demo_login_enabled === "boolean") {
+          setDemoLoginEnabled(resolvedCatalog.demo_login_enabled);
+        }
         if (typeof resolvedCatalog.demo_login_endpoint === 'string' && resolvedCatalog.demo_login_endpoint.trim()) {
           setDemoLoginEndpoint(resolvedCatalog.demo_login_endpoint.trim());
         }
