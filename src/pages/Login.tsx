@@ -11,7 +11,7 @@ import GoogleLoginButton from "@/components/auth/GoogleLoginButton";
 import { isPasskeySupported, loginPasskey } from "@/services/passkeys";
 import { useTenant } from "@/context/TenantContext";
 import { buildTenantPath } from "@/utils/tenantPaths";
-import { enterpriseService, type DemoCatalogEntryPoint, type DemoCatalogTenant, type DemoCatalogResponse, type DemoRubro } from "@/services/enterpriseService";
+import { enterpriseService, extractDemoFrontendContract, isSupportedDemoFrontendContract, type DemoCatalogEntryPoint, type DemoCatalogTenant, type DemoCatalogResponse, type DemoFrontendContract, type DemoRubro } from "@/services/enterpriseService";
 import { getRubrosHierarchy } from "@/api/rubros";
 import { mapDemoOptionsFromHierarchy } from "@/utils/enterpriseExperience";
 import { getDemoAccessProfiles } from "@/utils/demoAccessProfiles";
@@ -60,6 +60,7 @@ const Login = () => {
   const [demoTenantDemos, setDemoTenantDemos] = useState<DemoCatalogTenant[]>([]);
   const [demoLoginEnabled, setDemoLoginEnabled] = useState(true);
   const [demoLoginEndpoint, setDemoLoginEndpoint] = useState("/auth/demo");
+  const [demoFrontendContract, setDemoFrontendContract] = useState<DemoFrontendContract>({});
   const demoAccessProfiles = getDemoAccessProfiles();
   const franchisePartner = getFranchisePartnerConfig();
 
@@ -140,6 +141,57 @@ const Login = () => {
     }));
   };
 
+
+  const buildDemoPayload = useCallback((
+    basePayload: Record<string, unknown>,
+    rubro?: DemoRubro | null,
+    tenantSlug?: string | null,
+  ) => {
+    const payload: Record<string, unknown> = { ...basePayload };
+    const selector = demoFrontendContract.demo_selector;
+
+    if (selector?.require_rubro_by_sector && rubro && payload.rubro === undefined) {
+      payload.rubro = rubro;
+    }
+
+    const tenantSlugField = selector?.tenant_slug_field || 'tenant_slug';
+    if (tenantSlug && payload[tenantSlugField] === undefined) {
+      payload[tenantSlugField] = tenantSlug;
+    }
+
+    return payload;
+  }, [demoFrontendContract]);
+
+  const runDemoPreloadHints = useCallback(async (tenantSlugHint?: string | null) => {
+    const preloadHints = new Set((demoFrontendContract.preload_before_login || []).map((item) => item.trim().toLowerCase()));
+    if (preloadHints.size === 0) return;
+
+    const tenantSlug = tenantSlugHint || currentSlug || safeLocalStorage.getItem('tenantSlug') || 'municipio';
+    const jobs: Promise<unknown>[] = [];
+
+    if (preloadHints.has('catalog')) {
+      jobs.push(enterpriseService.getDemoCatalog().catch(() => undefined));
+    }
+
+    if (preloadHints.has('tenant-info') || preloadHints.has('tenant_info')) {
+      jobs.push(apiFetch('/pwa/tenant-info', {
+        skipAuth: true,
+        tenantSlug,
+        omitCredentials: true,
+      }).catch(() => undefined));
+    }
+
+    if (preloadHints.has('anon-id') || preloadHints.has('anon_id')) {
+      jobs.push(apiFetch('/pwa/anon-id', {
+        skipAuth: true,
+        tenantSlug,
+        omitCredentials: true,
+      }).catch(() => undefined));
+    }
+
+    await Promise.all(jobs);
+  }, [currentSlug, demoFrontendContract.preload_before_login]);
+
   const navigateToTenantCatalog = useCallback(
     (tenantSlug?: string | null) => {
       const storedSlug = safeLocalStorage.getItem("tenantSlug");
@@ -168,6 +220,13 @@ const Login = () => {
         if (!mounted) return;
 
         const resolvedCatalog = (catalog || {}) as DemoCatalogResponse;
+        const frontendContract = extractDemoFrontendContract(resolvedCatalog);
+        setDemoFrontendContract(frontendContract);
+
+        if (!isSupportedDemoFrontendContract(frontendContract.frontend_contract_version) && isDevEnvironment()) {
+          console.warn('[Login] Unsupported demo frontend contract version', frontendContract.frontend_contract_version);
+        }
+
         if (typeof resolvedCatalog.demo_login_enabled === "boolean") {
           setDemoLoginEnabled(resolvedCatalog.demo_login_enabled);
         }
@@ -188,7 +247,12 @@ const Login = () => {
         const catalogOptions = getDemoOptionsFromCatalog(tenantDemos);
         if (catalogOptions.length > 0) {
           setDemoOptions(catalogOptions);
-          setDemoRubro((prev) => prev || catalogOptions[0].value);
+          const defaultSector = frontendContract.demo_selector?.sector_default;
+          setDemoRubro((prev) => {
+            if (prev && catalogOptions.some((option) => option.value === prev)) return prev;
+            if (defaultSector && catalogOptions.some((option) => option.value === defaultSector)) return defaultSector;
+            return catalogOptions[0].value;
+          });
           return;
         }
 
@@ -197,7 +261,12 @@ const Login = () => {
         const nextOptions = mapDemoOptionsFromHierarchy(hierarchy);
         if (nextOptions.length > 0) {
           setDemoOptions(nextOptions);
-          setDemoRubro((prev) => prev || nextOptions[0].value);
+          const defaultSector = frontendContract.demo_selector?.sector_default;
+          setDemoRubro((prev) => {
+            if (prev && nextOptions.some((option) => option.value === prev)) return prev;
+            if (defaultSector && nextOptions.some((option) => option.value === defaultSector)) return defaultSector;
+            return nextOptions[0].value;
+          });
         }
       } catch (err) {
         if (isDevEnvironment()) {
@@ -360,7 +429,17 @@ const Login = () => {
       const resolvedRubro = rubroOverride || demoRubro;
       const resolvedPayload = payloadOverride || (resolvedRubro ? { rubro: resolvedRubro } : null);
       if (!resolvedPayload) return;
-      const data = await enterpriseService.demoLoginWithPayload(resolvedPayload, endpointOverride || demoLoginEndpoint);
+
+      const tenantSlugHint =
+        (typeof resolvedPayload.tenant_slug === 'string' && resolvedPayload.tenant_slug) ||
+        (typeof resolvedPayload.tenantSlug === 'string' && resolvedPayload.tenantSlug) ||
+        currentSlug ||
+        safeLocalStorage.getItem('tenantSlug') ||
+        null;
+
+      await runDemoPreloadHints(tenantSlugHint);
+      const requestPayload = buildDemoPayload(resolvedPayload, resolvedRubro, tenantSlugHint);
+      const data = await enterpriseService.demoLoginWithPayload(requestPayload, endpointOverride || demoLoginEndpoint);
       safeLocalStorage.setItem("authToken", data.token);
       safeLocalStorage.setItem("demoMode", String(Boolean(data.demo_mode)));
       if (data.tenant?.slug) safeLocalStorage.setItem("tenantSlug", data.tenant.slug);

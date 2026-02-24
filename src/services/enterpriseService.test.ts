@@ -6,7 +6,7 @@ vi.mock('@/utils/api', () => ({
   apiFetch: (...args: unknown[]) => apiFetchMock(...args),
 }));
 
-import { enterpriseService } from '@/services/enterpriseService';
+import { enterpriseService, extractDemoFrontendContract, isSupportedDemoFrontendContract } from '@/services/enterpriseService';
 
 describe('enterpriseService demo endpoints', () => {
   beforeEach(() => {
@@ -32,5 +32,40 @@ describe('enterpriseService demo endpoints', () => {
       skipAuth: true,
       omitTenant: true,
     });
+  });
+});
+
+
+describe('demo frontend contract parsing', () => {
+  it('validates frontend contract version pinning', () => {
+    expect(isSupportedDemoFrontendContract('1')).toBe(true);
+    expect(isSupportedDemoFrontendContract('1.0.2')).toBe(true);
+    expect(isSupportedDemoFrontendContract('2')).toBe(false);
+  });
+
+  it('parses sector-first selector contract', () => {
+    const contract = extractDemoFrontendContract({
+      frontend_contract_version: '1.0.0',
+      demo_selector: {
+        mode: 'sector_first',
+        sector_default: 'municipio',
+        require_rubro_by_sector: true,
+        tenant_slug_field: 'tenant_slug',
+      },
+    });
+
+    expect(contract.demo_selector?.mode).toBe('sector_first');
+    expect(contract.demo_selector?.sector_default).toBe('municipio');
+    expect(contract.demo_selector?.require_rubro_by_sector).toBe(true);
+    expect(contract.demo_selector?.tenant_slug_field).toBe('tenant_slug');
+  });
+
+  it('parses preload hints required before demo login bootstrap', () => {
+    const contract = extractDemoFrontendContract({
+      frontend_contract_version: '1',
+      preload_before_login: ['catalog', 'tenant-info', 'anon-id'],
+    });
+
+    expect(contract.preload_before_login).toEqual(['catalog', 'tenant-info', 'anon-id']);
   });
 });
