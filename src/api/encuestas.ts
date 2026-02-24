@@ -307,6 +307,7 @@ export const getPublicSurvey = async (slug: string, tenantSlug?: string): Promis
     tenantSlug,
     baseUrlOverride: PUBLIC_SURVEY_API_BASE,
     omitEntityToken: true,
+    omitTenant: true,
   });
 
   if (!response || typeof response !== 'object' || Array.isArray(response)) {
@@ -407,6 +408,7 @@ export const listPublicSurveys = async (tenantSlug?: string): Promise<PublicSurv
       tenantSlug,
       baseUrlOverride: PUBLIC_SURVEY_API_BASE,
       omitEntityToken: true,
+      omitTenant: true,
     });
 
     if (Array.isArray(response)) {
@@ -474,7 +476,10 @@ export const getPublicSurveyLiveResults = (
     provincia?: string;
   },
 ): Promise<SurveyLivePublicResultsPayload> =>
-  apiFetch(`/public/encuestas/${slug}/live-results${buildQueryString(params)}`, {
+  callPublicSurveyEndpoint<SurveyLivePublicResultsPayload>([
+    `/api/public/encuestas/${slug}/live-results${buildQueryString(params)}`,
+    `/public/encuestas/${slug}/live-results${buildQueryString(params)}`,
+  ], {
     skipAuth: true,
     omitCredentials: true,
     isWidgetRequest: true,
@@ -482,6 +487,7 @@ export const getPublicSurveyLiveResults = (
     tenantSlug,
     baseUrlOverride: PUBLIC_SURVEY_API_BASE,
     omitEntityToken: true,
+    omitTenant: true,
   });
 
 export const postPublicResponse = (
@@ -489,7 +495,10 @@ export const postPublicResponse = (
   payload: PublicResponsePayload,
   tenantSlug?: string,
 ): Promise<{ ok: boolean; id?: number }> =>
-  apiFetch(`/public/encuestas/${slug}/respuestas`, {
+  callPublicSurveyEndpoint<{ ok: boolean; id?: number }>([
+    `/api/public/encuestas/${slug}/respuestas`,
+    `/public/encuestas/${slug}/respuestas`,
+  ], {
     method: 'POST',
     body: payload,
     omitCredentials: true,
@@ -498,6 +507,7 @@ export const postPublicResponse = (
     tenantSlug,
     baseUrlOverride: PUBLIC_SURVEY_API_BASE,
     omitEntityToken: true,
+    omitTenant: true,
   });
 
 export const getSurveyComments = (
@@ -506,7 +516,10 @@ export const getSurveyComments = (
   limit = 50,
   offset = 0,
 ): Promise<SurveyComment[]> =>
-  apiFetch(`/public/encuestas/${slug}/comentarios?limit=${limit}&offset=${offset}`, {
+  callPublicSurveyEndpoint<SurveyComment[]>([
+    `/api/public/encuestas/${slug}/comentarios?limit=${limit}&offset=${offset}`,
+    `/public/encuestas/${slug}/comentarios?limit=${limit}&offset=${offset}`,
+  ], {
     skipAuth: true,
     omitCredentials: true,
     isWidgetRequest: true,
@@ -514,6 +527,7 @@ export const getSurveyComments = (
     tenantSlug,
     baseUrlOverride: PUBLIC_SURVEY_API_BASE,
     omitEntityToken: true,
+    omitTenant: true,
   });
 
 export const postSurveyComment = (
@@ -521,7 +535,10 @@ export const postSurveyComment = (
   payload: { texto: string; nombre?: string; modo?: 'anonimo' | 'facebook' },
   tenantSlug?: string,
 ): Promise<SurveyComment> =>
-  apiFetch(`/public/encuestas/${slug}/comentarios`, {
+  callPublicSurveyEndpoint<SurveyComment>([
+    `/api/public/encuestas/${slug}/comentarios`,
+    `/public/encuestas/${slug}/comentarios`,
+  ], {
     method: 'POST',
     body: payload,
     omitCredentials: true,
@@ -530,6 +547,7 @@ export const postSurveyComment = (
     tenantSlug,
     baseUrlOverride: PUBLIC_SURVEY_API_BASE,
     omitEntityToken: true,
+    omitTenant: true,
   });
 
 const isSurveyListMeta = (value: unknown): SurveyListResponse['meta'] | undefined => {
