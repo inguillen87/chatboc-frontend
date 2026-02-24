@@ -117,6 +117,10 @@ const PublicSurveyPage = () => {
   }, [searchParams]);
 
   const safeText = (value?: unknown) => (typeof value === 'string' ? value : '');
+  const textOr = (value: unknown, fallback: string) => {
+    const normalized = safeText(value).trim();
+    return normalized.length ? normalized : fallback;
+  };
   const toDisplayText = (value: unknown): string => {
     if (typeof value === 'string') return value;
     if (typeof value === 'number' || typeof value === 'boolean') return String(value);
@@ -307,19 +311,19 @@ const PublicSurveyPage = () => {
         <Card className="w-full border-none shadow-none sm:border sm:shadow-sm">
           <CardContent className="flex flex-col items-center gap-6 py-12 text-center">
             <div className="space-y-3 max-w-xl">
-              <h1 className="text-2xl font-semibold">{safeText(votacionMessages?.titulo_gracias)}</h1>
+              <h1 className="text-2xl font-semibold">{textOr(votacionMessages?.titulo_gracias, '¡Gracias por participar!')}</h1>
               {survey.puntos_recompensa ? (
                 <p className="text-lg font-bold text-primary animate-pulse">
-                  {safeText(votacionMessages?.puntos_label)} {survey.puntos_recompensa}
+                  {textOr(votacionMessages?.puntos_label, 'Puntos obtenidos:')} {survey.puntos_recompensa}
                 </p>
               ) : null}
-              <p className="text-muted-foreground">{safeText(votacionMessages?.detalle_gracias)}</p>
+              <p className="text-muted-foreground">{textOr(votacionMessages?.detalle_gracias, 'Tu respuesta quedó registrada correctamente.')}</p>
             </div>
 
             {/* Show Results Here if enabled */}
             {survey.mostrar_resultados_envivo && (
               <div className="w-full max-w-xl text-left border rounded-xl p-6 bg-accent/10">
-                <h3 className="mb-4 font-semibold text-lg">{safeText(votacionUi?.resultados_titulo)}</h3>
+                <h3 className="mb-4 font-semibold text-lg">{textOr(votacionUi?.resultados_titulo, 'Resultados en vivo')}</h3>
                 <SurveyForm
                   survey={survey}
                   onSubmit={async () => {}}
@@ -328,7 +332,7 @@ const PublicSurveyPage = () => {
                   showLiveResults={true}
                   readOnly={true}
                   showHeader={false}
-                  submitLabel={safeText(votacionUi?.resultados_boton)}
+                  submitLabel={textOr(votacionUi?.resultados_boton, 'Ver resultados')}
                   variant="votacion"
                 />
               </div>
@@ -341,11 +345,11 @@ const PublicSurveyPage = () => {
             <div className="flex flex-wrap items-center justify-center gap-3">
               {mode !== 'embed' && (
                 <Button asChild>
-                  <Link to="/">{safeText(votacionUi?.volver_inicio)}</Link>
+                  <Link to="/">{textOr(votacionUi?.volver_inicio, 'Volver al inicio')}</Link>
                 </Button>
               )}
               <Button variant="outline" onClick={handleReset}>
-                {safeText(votacionUi?.volver_encuesta)}
+                {textOr(votacionUi?.volver_encuesta, 'Responder nuevamente')}
               </Button>
             </div>
 
@@ -383,7 +387,7 @@ const PublicSurveyPage = () => {
                 showLiveResults={true}
                 readOnly={true}
                 showHeader={false}
-                submitLabel={safeText(votacionUi?.resultados_finales_boton)}
+                submitLabel={textOr(votacionUi?.resultados_finales_boton, 'Ver resultados finales')}
                 variant="votacion"
               />
             </div>
@@ -411,11 +415,11 @@ const PublicSurveyPage = () => {
                 <div className="flex flex-wrap items-center gap-3">
                   <span className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-600">
                     <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                    {safeText(votacionUi?.badge_en_vivo)}
+                    {textOr(votacionUi?.badge_en_vivo, 'En vivo')}
                   </span>
                   {survey?.recursos?.demoMode ? (
                     <span className="inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-600">
-                      {safeText(votacionUi?.badge_demo)}
+                      {textOr(votacionUi?.badge_demo, 'Demo')}
                     </span>
                   ) : null}
                 </div>
@@ -431,14 +435,14 @@ const PublicSurveyPage = () => {
                 <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-background/70 px-4 py-3 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
                   <Users className="h-5 w-5 text-primary" />
                   <div>
-                    <p className="text-xs uppercase text-muted-foreground">{safeText(votacionUi?.stat_total_label)}</p>
+                    <p className="text-xs uppercase text-muted-foreground">{textOr(votacionUi?.stat_total_label, 'Total de respuestas')}</p>
                     <p className="text-lg font-semibold">{livePollTotalVotes ?? '—'}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-background/70 px-4 py-3 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
                   <Timer className="h-5 w-5 text-primary" />
                   <div>
-                    <p className="text-xs uppercase text-muted-foreground">{safeText(votacionUi?.stat_tiempo_label)}</p>
+                    <p className="text-xs uppercase text-muted-foreground">{textOr(votacionUi?.stat_tiempo_label, 'Última actualización')}</p>
                     <p className="text-lg font-semibold">
                       {survey.fin_at ? new Date(survey.fin_at).toLocaleString() : '—'}
                     </p>
@@ -447,7 +451,7 @@ const PublicSurveyPage = () => {
                 <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-background/70 px-4 py-3 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
                   <MessageSquareText className="h-5 w-5 text-primary" />
                   <div>
-                    <p className="text-xs uppercase text-muted-foreground">{safeText(votacionUi?.stat_opciones_label)}</p>
+                    <p className="text-xs uppercase text-muted-foreground">{textOr(votacionUi?.stat_opciones_label, 'Opciones activas')}</p>
                     <p className="text-lg font-semibold">{votingOptionsCount || '—'}</p>
                   </div>
                 </div>
@@ -463,7 +467,7 @@ const PublicSurveyPage = () => {
                 <div className="space-y-4 rounded-2xl border border-border/60 bg-background/80 p-4 shadow-sm sm:p-5">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm font-medium">{safeText(liveResultsUi?.header_title) || survey.titulo}</span>
+                      <span className="text-sm font-medium">{textOr(liveResultsUi?.header_title, survey.titulo)}</span>
                       <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs ${trendChipClass}`}>
                         {trend === 'subiendo' ? <ArrowUpRight className="h-3.5 w-3.5" /> : <ArrowDownRight className="h-3.5 w-3.5" />}
                         {String(trend ?? '')}
@@ -473,7 +477,7 @@ const PublicSurveyPage = () => {
                     <div className="flex items-center gap-2">
                       <Button type="button" size="sm" variant="outline" onClick={handleExportLiveCsv}>
                         <Download className="mr-2 h-3.5 w-3.5" />
-                        {safeText(liveResultsUi?.export_csv_label) || safeText(votacionUi?.resultados_finales_boton)}
+                        {textOr(liveResultsUi?.export_csv_label, textOr(votacionUi?.resultados_finales_boton, 'Exportar CSV'))}
                       </Button>
                       <RefreshCw className={`h-4 w-4 text-muted-foreground ${isFetchingLiveDashboard ? 'animate-spin' : ''}`} />
                     </div>
@@ -494,8 +498,8 @@ const PublicSurveyPage = () => {
                           setLiveRequestParams((prev) => ({ ...prev, include_heatmap: Number(event.target.value) === 0 ? 0 : 1 }))
                         }
                       >
-                        <option value="1">{safeText(liveResultsUi?.filter_heatmap_on_label)}</option>
-                        <option value="0">{safeText(liveResultsUi?.filter_heatmap_off_label)}</option>
+                        <option value="1">{textOr(liveResultsUi?.filter_heatmap_on_label, 'Mapa activado')}</option>
+                        <option value="0">{textOr(liveResultsUi?.filter_heatmap_off_label, 'Mapa desactivado')}</option>
                       </select>
                       <select
                         className="rounded-md border bg-background px-2 py-1.5 text-xs"
@@ -504,25 +508,25 @@ const PublicSurveyPage = () => {
                           setLiveRequestParams((prev) => ({ ...prev, window_minutes: Number(event.target.value) || 60 }))
                         }
                       >
-                        <option value="60">{safeText(liveResultsUi?.preset_last_hour_label)}</option>
-                        <option value="1440">{safeText(liveResultsUi?.preset_today_label)}</option>
-                        <option value="1440">{safeText(liveResultsUi?.preset_last_24h_label)}</option>
+                        <option value="60">{textOr(liveResultsUi?.preset_last_hour_label, 'Última hora')}</option>
+                        <option value="1440">{textOr(liveResultsUi?.preset_today_label, 'Hoy')}</option>
+                        <option value="1440">{textOr(liveResultsUi?.preset_last_24h_label, 'Últimas 24 horas')}</option>
                       </select>
                       <input
                         className="rounded-md border bg-background px-2 py-1.5 text-xs"
-                        placeholder={safeText(liveResultsUi?.filter_channel_placeholder)}
+                        placeholder={textOr(liveResultsUi?.filter_channel_placeholder, 'Filtrar por canal')}
                         value={liveRequestParams.canal ?? ''}
                         onChange={(event) => setLiveRequestParams((prev) => ({ ...prev, canal: event.target.value || undefined }))}
                       />
                       <input
                         className="rounded-md border bg-background px-2 py-1.5 text-xs"
-                        placeholder={safeText(liveResultsUi?.filter_barrio_placeholder)}
+                        placeholder={textOr(liveResultsUi?.filter_barrio_placeholder, 'Filtrar por barrio')}
                         value={liveRequestParams.barrio ?? ''}
                         onChange={(event) => setLiveRequestParams((prev) => ({ ...prev, barrio: event.target.value || undefined }))}
                       />
                       <input
                         className="rounded-md border bg-background px-2 py-1.5 text-xs"
-                        placeholder={safeText(liveResultsUi?.filter_ciudad_placeholder)}
+                        placeholder={textOr(liveResultsUi?.filter_ciudad_placeholder, 'Filtrar por ciudad')}
                         value={liveRequestParams.ciudad ?? ''}
                         onChange={(event) => setLiveRequestParams((prev) => ({ ...prev, ciudad: event.target.value || undefined }))}
                       />
@@ -532,26 +536,26 @@ const PublicSurveyPage = () => {
                         variant="ghost"
                         onClick={() => setLiveRequestParams({ include_heatmap: 1, window_minutes: 60, max_points: 800, max_cells: 120 })}
                       >
-                        {safeText(liveResultsUi?.filters_reset_label)}
+                        {textOr(liveResultsUi?.filters_reset_label, 'Limpiar filtros')}
                       </Button>
                     </div>
                   ) : null}
 
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     <div className="rounded-xl border border-border/60 bg-background/70 p-3 transition-all duration-300 hover:shadow-sm">
-                      <p className="text-xs text-muted-foreground">{safeText(liveResultsUi?.kpi_responses_last_hour_label)}</p>
+                      <p className="text-xs text-muted-foreground">{textOr(liveResultsUi?.kpi_responses_last_hour_label, 'Respuestas en la última hora')}</p>
                       <p className="text-lg font-semibold">{liveDashboard.kpis?.responses_last_hour ?? '—'}</p>
                     </div>
                     <div className="rounded-xl border border-border/60 bg-background/70 p-3 transition-all duration-300 hover:shadow-sm">
-                      <p className="text-xs text-muted-foreground">{safeText(liveResultsUi?.kpi_participation_per_minute_label)}</p>
+                      <p className="text-xs text-muted-foreground">{textOr(liveResultsUi?.kpi_participation_per_minute_label, 'Participación por minuto')}</p>
                       <p className="text-lg font-semibold">{liveDashboard.kpis?.participation_per_minute ?? '—'}</p>
                     </div>
                     <div className="rounded-xl border border-border/60 bg-background/70 p-3 transition-all duration-300 hover:shadow-sm">
-                      <p className="text-xs text-muted-foreground">{safeText(liveResultsUi?.kpi_heatmap_coverage_cells_label)}</p>
+                      <p className="text-xs text-muted-foreground">{textOr(liveResultsUi?.kpi_heatmap_coverage_cells_label, 'Cobertura del mapa')}</p>
                       <p className="text-lg font-semibold">{liveDashboard.kpis?.heatmap_coverage_cells ?? '—'}</p>
                     </div>
                     <div className="rounded-xl border border-border/60 bg-background/70 p-3 transition-all duration-300 hover:shadow-sm">
-                      <p className="text-xs text-muted-foreground">{safeText(liveResultsUi?.kpi_leader_label)}</p>
+                      <p className="text-xs text-muted-foreground">{textOr(liveResultsUi?.kpi_leader_label, 'Opción líder')}</p>
                       <p className="text-lg font-semibold">{toDisplayText(liveDashboard.kpis?.leader) || '—'}</p>
                     </div>
                   </div>
@@ -560,7 +564,7 @@ const PublicSurveyPage = () => {
                     <div className="rounded-xl border border-border/60 bg-background/70 p-3 transition-all duration-300 hover:shadow-sm">
                       <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
                         <TrendingUp className="h-3.5 w-3.5" />
-                        {safeText(liveResultsUi?.timeline_title)}
+                        {textOr(liveResultsUi?.timeline_title, 'Evolución minuto a minuto')}
                       </div>
                       <div className="flex h-20 items-end gap-1">
                         {liveTimeline.slice(-60).map((item, index) => {
@@ -598,13 +602,13 @@ const PublicSurveyPage = () => {
 
                   {liveHeatmap && ((liveHeatmap.points?.length ?? 0) > 0 || (liveHeatmap.cells?.length ?? 0) > 0) ? (
                     <div className="rounded-lg border border-border/60 p-3 text-xs text-muted-foreground">
-                      {safeText(liveResultsUi?.heatmap_points_label)}: {liveHeatmap.points?.length ?? 0} · {safeText(liveResultsUi?.heatmap_cells_label)}: {liveHeatmap.cells?.length ?? 0}
+                      {textOr(liveResultsUi?.heatmap_points_label, 'Puntos')}: {liveHeatmap.points?.length ?? 0} · {textOr(liveResultsUi?.heatmap_cells_label, 'Celdas')}: {liveHeatmap.cells?.length ?? 0}
                     </div>
                   ) : null}
 
                   {liveDashboard.ai_summary ? (
                     <div className="rounded-xl border border-border/60 bg-background/70 p-3 transition-all duration-300 hover:shadow-sm">
-                      <p className="text-xs text-muted-foreground">{safeText(liveResultsUi?.ai_summary_title)}</p>
+                      <p className="text-xs text-muted-foreground">{textOr(liveResultsUi?.ai_summary_title, 'Resumen automático')}</p>
                       <p className="text-sm">{toDisplayText(liveDashboard.ai_summary)}</p>
                     </div>
                   ) : null}
@@ -623,8 +627,8 @@ const PublicSurveyPage = () => {
                   showHeader={false}
                   submitLabel={
                     survey.tipo === 'votacion'
-                      ? safeText(votacionUi?.boton_votar)
-                      : safeText(votacionUi?.boton_enviar)
+                      ? textOr(votacionUi?.boton_votar, 'Enviar voto')
+                      : textOr(votacionUi?.boton_enviar, 'Enviar respuesta')
                   }
                   liveResults={liveResults}
                   showLiveResults={Boolean(survey.mostrar_resultados_envivo)}

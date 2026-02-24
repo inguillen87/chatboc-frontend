@@ -211,23 +211,38 @@ export function useSurveyAnalytics(
     [dashboardQuery.data?.executive_summary],
   );
 
-  const baseError = dashboardQuery.error
-    ? getErrorMessage(dashboardQuery.error)
-    : summaryQuery.error
-    ? getErrorMessage(summaryQuery.error)
-    : timeseriesQuery.error
-      ? getErrorMessage(timeseriesQuery.error)
-      : heatmapQuery.error
-        ? getErrorMessage(heatmapQuery.error)
-        : null;
-
   const effectiveError = useMemo(() => {
-    if (!baseError) return null;
-    if (summaryData && summaryData.total_respuestas > 0) return null;
-    if (timeseriesData && timeseriesData.length > 0) return null;
-    if (heatmapData && heatmapData.length > 0) return null;
-    return baseError;
-  }, [baseError, summaryData, timeseriesData, heatmapData]);
+    const fallbackRecovered = summaryQuery.isSuccess || timeseriesQuery.isSuccess || heatmapQuery.isSuccess;
+    if (dashboardQuery.isError && fallbackRecovered) {
+      return null;
+    }
+
+    const hasMeaningfulResult = Boolean(summaryData) || timeseriesData.length > 0 || heatmapData.length > 0;
+    if (hasMeaningfulResult) {
+      return null;
+    }
+
+    const errorCandidate =
+      summaryQuery.error ??
+      timeseriesQuery.error ??
+      heatmapQuery.error ??
+      dashboardQuery.error ??
+      null;
+
+    return errorCandidate ? getErrorMessage(errorCandidate) : null;
+  }, [
+    dashboardQuery.isError,
+    dashboardQuery.error,
+    summaryQuery.isSuccess,
+    summaryQuery.error,
+    timeseriesQuery.isSuccess,
+    timeseriesQuery.error,
+    heatmapQuery.isSuccess,
+    heatmapQuery.error,
+    summaryData,
+    timeseriesData,
+    heatmapData,
+  ]);
 
   return {
     summary: summaryData ?? undefined,

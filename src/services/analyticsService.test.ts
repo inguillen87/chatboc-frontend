@@ -75,4 +75,16 @@ describe('analyticsService.getHub', () => {
     expect(result.kpis.total_interactions).toBe(21);
     expect(result.kpis.active_users).toBe(11);
   });
+
+  it('falls back to legacy overview when hub section is an empty placeholder', async () => {
+    apiFetchMock
+      .mockResolvedValueOnce({ sections: { general: {} } })
+      .mockResolvedValueOnce({ totals: { total_interactions: 33, active_users: 12 } });
+
+    const result = await analyticsService.getSummary({ scope: 'municipio', context: 'overview' });
+
+    expect(result.kpis.total_interactions).toBe(33);
+    expect(apiFetchMock).toHaveBeenNthCalledWith(2, '/admin/analytics/overview?scope=municipio', expect.any(Object));
+  });
+
 });

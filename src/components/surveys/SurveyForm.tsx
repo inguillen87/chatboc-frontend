@@ -1013,7 +1013,7 @@ export const SurveyForm = ({
             onClick={handleSubmit}
             className="w-full md:w-auto"
           >
-            {loading || submitting ? 'Enviando…' : submitLabel ?? 'Enviar opinión'}
+            {loading || submitting ? 'Enviando…' : (submitLabel && submitLabel.trim().length ? submitLabel : 'Enviar opinión')}
           </Button>
         )}
       </CardContent>
