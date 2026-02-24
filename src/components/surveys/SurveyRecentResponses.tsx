@@ -12,6 +12,7 @@ interface SurveyRecentResponsesProps {
   error?: string | null;
   onRefresh?: () => void;
   emptyHintUrl?: string | null;
+  totalResponsesHint?: number | null;
 }
 
 const formatDateTime = (value?: string | null) => {
@@ -121,6 +122,7 @@ export const SurveyRecentResponses = ({
   error,
   onRefresh,
   emptyHintUrl,
+  totalResponsesHint,
 }: SurveyRecentResponsesProps) => (
   <Card>
     <CardHeader className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
@@ -207,7 +209,9 @@ export const SurveyRecentResponses = ({
         </ul>
       ) : (
         <p className="text-sm text-muted-foreground">
-          {emptyHintUrl ? (
+          {typeof totalResponsesHint === 'number' && totalResponsesHint > 0 ? (
+            'Ya hay respuestas registradas, pero este bloque todavía no pudo cargar el detalle reciente. Probá actualizar.'
+          ) : emptyHintUrl ? (
             <>
               Todavía no recibimos respuestas. Compartí el enlace{' '}
               <code className="rounded bg-muted px-1 py-0.5 text-xs">{emptyHintUrl}</code> o el código QR para sumar

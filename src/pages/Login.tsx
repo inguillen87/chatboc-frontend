@@ -11,7 +11,7 @@ import GoogleLoginButton from "@/components/auth/GoogleLoginButton";
 import { isPasskeySupported, loginPasskey } from "@/services/passkeys";
 import { useTenant } from "@/context/TenantContext";
 import { buildTenantPath } from "@/utils/tenantPaths";
-import { enterpriseService, type DemoCatalogEntryPoint, type DemoCatalogTenant, type DemoRubro } from "@/services/enterpriseService";
+import { enterpriseService, type DemoCatalogEntryPoint, type DemoCatalogTenant, type DemoCatalogResponse, type DemoRubro } from "@/services/enterpriseService";
 import { getRubrosHierarchy } from "@/api/rubros";
 import { mapDemoOptionsFromHierarchy } from "@/utils/enterpriseExperience";
 import { getDemoAccessProfiles } from "@/utils/demoAccessProfiles";
@@ -45,9 +45,15 @@ const Login = () => {
   const [isPasskeyAvailable, setIsPasskeyAvailable] = useState(false);
   const [isPasskeyLoading, setIsPasskeyLoading] = useState(false);
   const [isDemoLoading, setIsDemoLoading] = useState(false);
-  const [demoRubro, setDemoRubro] = useState<DemoRubro | null>(null);
-  const [demoOptions, setDemoOptions] = useState<Array<{ value: DemoRubro; label: string }>>([]);
+  const [demoRubro, setDemoRubro] = useState<DemoRubro | null>('municipio');
+  const [demoOptions, setDemoOptions] = useState<Array<{ value: DemoRubro; label: string }>>([
+    { value: 'municipio', label: 'Municipio' },
+    { value: 'pyme', label: 'PyME' },
+  ]);
   const [demoEntryPoints, setDemoEntryPoints] = useState<DemoCatalogEntryPoint[]>([]);
+  const [demoTenantDemos, setDemoTenantDemos] = useState<DemoCatalogTenant[]>([]);
+  const [demoLoginEnabled, setDemoLoginEnabled] = useState(true);
+  const [demoLoginEndpoint, setDemoLoginEndpoint] = useState("/auth/demo");
   const demoAccessProfiles = getDemoAccessProfiles();
   const franchisePartner = getFranchisePartnerConfig();
 
@@ -62,8 +68,34 @@ const Login = () => {
     return null;
   };
 
+  const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  const getDemoCatalogWithRetry = useCallback(async (): Promise<DemoCatalogResponse> => {
+    const retryDelaysMs = [250, 700, 1500];
+    let lastError: unknown = null;
+
+    for (let attempt = 0; attempt < retryDelaysMs.length + 1; attempt += 1) {
+      try {
+        return await enterpriseService.getDemoCatalog();
+      } catch (error) {
+        lastError = error;
+        if (attempt >= retryDelaysMs.length) {
+          break;
+        }
+        await wait(retryDelaysMs[attempt]);
+      }
+    }
+
+    throw lastError ?? new Error('No se pudo cargar el catálogo demo.');
+  }, []);
+
+  const getEnabledTenants = (tenants: DemoCatalogTenant[] = []): DemoCatalogTenant[] => {
+    return tenants.filter((tenant) => tenant?.enabled !== false);
+  };
+
   const getDemoEntryPoints = (entryPoints: DemoCatalogEntryPoint[] = []): DemoCatalogEntryPoint[] => {
     return entryPoints.filter((entry) => {
+      if (entry?.enabled === false) return false;
       const rubro = normalizeDemoRubro(entry?.rubro);
       const label = typeof entry?.label === 'string' ? entry.label.trim() : '';
       return Boolean(rubro && label);
@@ -118,15 +150,28 @@ const Login = () => {
     let mounted = true;
     const loadDemoOptions = async () => {
       try {
-        const catalog = await enterpriseService.getDemoCatalog();
+        const catalog = await getDemoCatalogWithRetry();
         if (!mounted) return;
 
-        const backendEntryPoints = getDemoEntryPoints(catalog?.entry_points);
+        const resolvedCatalog = (catalog || {}) as DemoCatalogResponse;
+        if (typeof resolvedCatalog.demo_login_enabled === "boolean") {
+          setDemoLoginEnabled(resolvedCatalog.demo_login_enabled);
+        }
+        if (typeof resolvedCatalog.demo_login_endpoint === 'string' && resolvedCatalog.demo_login_endpoint.trim()) {
+          setDemoLoginEndpoint(resolvedCatalog.demo_login_endpoint.trim());
+        }
+
+        const backendEntryPoints = getDemoEntryPoints(resolvedCatalog.entry_points);
         if (backendEntryPoints.length > 0) {
           setDemoEntryPoints(backendEntryPoints);
         }
 
-        const catalogOptions = getDemoOptionsFromCatalog(catalog?.tenants);
+        const tenantDemos = getEnabledTenants(resolvedCatalog.tenant_demos ?? resolvedCatalog.tenants);
+        if (tenantDemos.length > 0) {
+          setDemoTenantDemos(tenantDemos);
+        }
+
+        const catalogOptions = getDemoOptionsFromCatalog(tenantDemos);
         if (catalogOptions.length > 0) {
           setDemoOptions(catalogOptions);
           setDemoRubro((prev) => prev || catalogOptions[0].value);
@@ -142,6 +187,11 @@ const Login = () => {
         }
       } catch (err) {
         console.warn('No se pudieron cargar rubros demo desde backend', err);
+        setDemoOptions((prev) => (prev.length ? prev : [
+          { value: 'municipio', label: 'Municipio' },
+          { value: 'pyme', label: 'PyME' },
+        ]));
+        setDemoRubro((prev) => prev || 'municipio');
       }
     };
     loadDemoOptions();
@@ -192,18 +242,18 @@ const Login = () => {
         safeLocalStorage.setItem("tenantSlug", responseTenantSlug);
       }
 
-      await refreshUser();
-      const rawUser = safeLocalStorage.getItem("user");
-      const parsedUser = rawUser ? JSON.parse(rawUser) : {};
-      const resolvedTenantSlug = responseTenantSlug || parsedUser.tenant_slug;
+      const responseRole = data.user?.rol;
+      const resolvedTenantSlug = responseTenantSlug || currentSlug || safeLocalStorage.getItem("tenantSlug") || undefined;
 
-      if (parsedUser.rol === "super_admin") {
+      if (responseRole === "super_admin") {
         navigate("/superadmin");
-      } else if (["admin", "tenant_admin", "admin_pyme", "empleado"].includes(parsedUser.rol)) {
+      } else if (["admin", "tenant_admin", "admin_pyme", "empleado"].includes(responseRole)) {
         navigate("/perfil");
       } else {
         navigate(buildTenantPath("/", resolvedTenantSlug));
       }
+
+      refreshUser().catch(() => undefined);
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.body?.error || "Credenciales inválidas o error en el servidor.");
@@ -268,19 +318,20 @@ const Login = () => {
 
 
 
-  const handleDemoLogin = async (rubroOverride?: DemoRubro) => {
+  const handleDemoLogin = async (rubroOverride?: DemoRubro, payloadOverride?: Record<string, unknown>, endpointOverride?: string) => {
     setError("");
     setIsDemoLoading(true);
     try {
       const resolvedRubro = rubroOverride || demoRubro;
-      if (!resolvedRubro) return;
-      const data = await enterpriseService.demoLogin(resolvedRubro);
+      const resolvedPayload = payloadOverride || (resolvedRubro ? { rubro: resolvedRubro } : null);
+      if (!resolvedPayload) return;
+      const data = await enterpriseService.demoLoginWithPayload(resolvedPayload, endpointOverride || demoLoginEndpoint);
       safeLocalStorage.setItem("authToken", data.token);
       safeLocalStorage.setItem("demoMode", String(Boolean(data.demo_mode)));
       if (data.tenant?.slug) safeLocalStorage.setItem("tenantSlug", data.tenant.slug);
       if (data.tenant?.id) safeLocalStorage.setItem("tenantId", String(data.tenant.id));
-      await refreshUser();
       navigate("/analytics");
+      refreshUser().catch(() => undefined);
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.body?.error || "No se pudo iniciar demo.");
@@ -369,6 +420,9 @@ const Login = () => {
           </div>
         </form>
         <div className="mt-6 border-t border-border pt-4 space-y-3">
+          {!demoLoginEnabled ? (
+            <p className="text-xs text-muted-foreground">Demo no disponible actualmente.</p>
+          ) : null}
           <div className="flex gap-2">
             {demoOptions.map((option) => (
               <Button
@@ -377,7 +431,7 @@ const Login = () => {
                 variant={demoRubro === option.value ? "default" : "outline"}
                 className="flex-1"
                 onClick={() => setDemoRubro(option.value)}
-                disabled={isDemoLoading || isLoading || isPasskeyLoading}
+                disabled={!demoLoginEnabled || isDemoLoading || isLoading || isPasskeyLoading}
               >
                 {option.label}
               </Button>
@@ -386,8 +440,8 @@ const Login = () => {
           <Button
             type="button"
             className="w-full"
-            onClick={handleDemoLogin}
-            disabled={!demoRubro || isDemoLoading || isLoading || isPasskeyLoading}
+            onClick={() => { void handleDemoLogin(); }}
+            disabled={!demoLoginEnabled || !demoRubro || isDemoLoading || isLoading || isPasskeyLoading}
           >
             {isDemoLoading ? "Ingresando demo..." : "Probar Demo"}
           </Button>
@@ -403,11 +457,39 @@ const Login = () => {
                     variant="secondary"
                     onClick={() => {
                       setDemoRubro(rubro);
-                      handleDemoLogin(rubro);
+                      const payload = entry.login_payload && Object.keys(entry.login_payload).length > 0
+                        ? entry.login_payload
+                        : { rubro };
+                      void handleDemoLogin(rubro, payload, entry.login_endpoint || demoLoginEndpoint);
                     }}
-                    disabled={isDemoLoading || isLoading || isPasskeyLoading}
+                    disabled={!demoLoginEnabled || entry.enabled === false || isDemoLoading || isLoading || isPasskeyLoading}
                   >
                     {entry.label}
+                  </Button>
+                );
+              })}
+            </div>
+          ) : null}
+          {demoTenantDemos.length > 0 ? (
+            <div className="grid gap-2">
+              {demoTenantDemos.map((tenantDemo, index) => {
+                const rubro = normalizeDemoRubro(tenantDemo.rubro || tenantDemo.tipo);
+                const payload = tenantDemo.login_payload && Object.keys(tenantDemo.login_payload).length > 0
+                  ? tenantDemo.login_payload
+                  : (rubro ? { rubro } : null);
+                return (
+                  <Button
+                    key={tenantDemo.id || tenantDemo.slug || `${tenantDemo.nombre || 'demo'}-${index}`}
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      if (rubro) setDemoRubro(rubro);
+                      if (!payload) return;
+                      void handleDemoLogin(rubro || undefined, payload, tenantDemo.login_endpoint || demoLoginEndpoint);
+                    }}
+                    disabled={!demoLoginEnabled || tenantDemo.enabled === false || !payload || isDemoLoading || isLoading || isPasskeyLoading}
+                  >
+                    {tenantDemo.nombre || tenantDemo.slug || 'Demo'}
                   </Button>
                 );
               })}
