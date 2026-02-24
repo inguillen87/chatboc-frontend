@@ -72,6 +72,25 @@ const AnalyticsPage = () => {
     return encuestasEntry?.path || buildTenantPath('/admin/encuestas', currentSlug || undefined);
   }, [hubNavigation, currentSlug]);
 
+  const visibleTabs = useMemo(() => {
+    const sectionMap: Record<string, 'overview' | 'municipio' | 'pyme' | 'geo'> = {
+      general: 'overview',
+      municipio: 'municipio',
+      ventas: 'pyme',
+      mapas: 'geo',
+    };
+
+    const tabsFromHub = Object.keys(hubSections)
+      .map((key) => sectionMap[key])
+      .filter(Boolean) as Array<'overview' | 'municipio' | 'pyme' | 'geo'>;
+
+    if (!tabsFromHub.length) {
+      return ['overview', 'municipio', 'pyme', 'geo'] as const;
+    }
+
+    return tabsFromHub;
+  }, [hubSections]);
+
   const fireAndForgetTrackEvent = (payload: { tenant_id: number; event_name: string; payload?: Record<string, unknown>; channel?: string; session_id?: string }) => {
     enterpriseService
       .trackEvent(payload, currentSlug || undefined)
@@ -288,7 +307,7 @@ const AnalyticsPage = () => {
           </div>
         </div>
 
-        <div className="grid w-full gap-2 sm:flex sm:w-auto sm:items-center sm:flex-wrap">
+        <div className="sticky top-3 z-20 grid w-full gap-2 rounded-2xl border border-border/70 bg-background/95 p-3 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/70 sm:flex sm:w-auto sm:items-center sm:flex-wrap">
           <Select value={timeRange} onValueChange={setTimeRange}>
             <SelectTrigger className="w-full sm:w-[180px]">
               <SelectValue placeholder="Periodo" />
