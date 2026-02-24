@@ -12,6 +12,12 @@ import type {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
 
+
+const shouldLogFallbackWarnings = () => {
+  const metaEnv = typeof import.meta !== 'undefined' ? (import.meta as any)?.env : undefined;
+  return Boolean(metaEnv?.DEV || metaEnv?.MODE === 'development');
+};
+
 const coerceString = (value: unknown): string | undefined => {
   if (typeof value === 'string' && value.trim()) {
     return value.trim();
@@ -186,7 +192,9 @@ export async function getTenantPublicInfo(slug: string): Promise<TenantPublicInf
 
     return normalizeTenantInfo(response, slug);
   } catch (error) {
-    console.warn(`[API] Failed to fetch public info for ${slug}, using mock data.`, error);
+    if (shouldLogFallbackWarnings()) {
+      console.warn(`[API] Failed to fetch public info for ${slug}, using mock data.`, error);
+    }
     if (slug === 'municipio-junin' || slug === 'municipalidad-de-junin') return MOCK_JUNIN_TENANT_INFO;
 
     // Check specific fallbacks
@@ -246,7 +254,9 @@ const resolveTenantInfo = async ({
       const is500 = error instanceof ApiError && error.status === 500;
 
       if (is404 || is500) {
-        console.warn(`[API] Endpoint ${endpoint} returned ${error.status}. Falling back to mock data.`);
+        if (shouldLogFallbackWarnings()) {
+          console.warn(`[API] Endpoint ${endpoint} returned ${error.status}. Falling back to mock data.`);
+        }
         if (slug === 'municipio-junin' || slug === 'municipalidad-de-junin' || widgetToken === '1146cb3e-eaef-4230-b54e-1c340ac062d8') {
            return MOCK_JUNIN_TENANT_INFO;
         }
@@ -370,7 +380,9 @@ export async function listTenantNews(slug: string): Promise<TenantNewsItem[]> {
       .map((item) => normalizeNewsItem(item))
       .filter((item): item is TenantNewsItem => Boolean(item));
   } catch (error) {
-     console.warn(`[API] Failed to fetch news for ${slug}, using mock data.`, error);
+     if (shouldLogFallbackWarnings()) {
+       console.warn(`[API] Failed to fetch news for ${slug}, using mock data.`, error);
+     }
      return MOCK_NEWS;
   }
 }
@@ -393,7 +405,9 @@ export async function listTenantEvents(slug: string): Promise<TenantEventItem[]>
       .map((item) => normalizeEventItem(item))
       .filter((item): item is TenantEventItem => Boolean(item));
   } catch (error) {
-    console.warn(`[API] Failed to fetch events for ${slug}, using mock data.`, error);
+    if (shouldLogFallbackWarnings()) {
+      console.warn(`[API] Failed to fetch events for ${slug}, using mock data.`, error);
+    }
     return MOCK_EVENTS;
   }
 }

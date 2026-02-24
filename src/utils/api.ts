@@ -93,7 +93,8 @@ const LOCAL_PLACEHOLDER_SLUGS = new Set([
   'mapas',
   'ticket',
   'tickets',
-  'admin'
+  'admin',
+  'me'
 ]);
 
 // Merge shared placeholders with API-specific ones
