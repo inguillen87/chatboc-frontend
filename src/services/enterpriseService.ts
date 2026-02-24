@@ -22,6 +22,9 @@ export interface DemoCatalogTenant {
   nombre?: string;
   tipo?: string;
   rubro?: string;
+  enabled?: boolean;
+  login_endpoint?: string;
+  login_payload?: Record<string, unknown>;
 }
 
 export interface DemoCatalogEntryPoint {
@@ -29,10 +32,16 @@ export interface DemoCatalogEntryPoint {
   rubro?: DemoRubro;
   label?: string;
   description?: string;
+  enabled?: boolean;
+  login_endpoint?: string;
+  login_payload?: Record<string, unknown>;
 }
 
 export interface DemoCatalogResponse {
+  demo_login_enabled?: boolean;
+  demo_login_endpoint?: string;
   tenants?: DemoCatalogTenant[];
+  tenant_demos?: DemoCatalogTenant[];
   entry_points?: DemoCatalogEntryPoint[];
   supported_languages?: string[];
   credentials?: Record<string, unknown>;
@@ -309,13 +318,27 @@ export const enterpriseService = {
 
   getDemoCatalog: async (ensureUsers = false): Promise<DemoCatalogResponse> => {
     const suffix = ensureUsers ? '?ensure_users=true' : '';
-    return apiFetch<DemoCatalogResponse>(`/auth/demo/catalog${suffix}`);
+    return apiFetch<DemoCatalogResponse>(`/auth/demo/catalog${suffix}`, {
+      skipAuth: true,
+      omitTenant: true,
+    });
+  },
+
+  demoLoginWithPayload: async (payload: Record<string, unknown>, endpoint = '/auth/demo'): Promise<DemoAuthResponse> => {
+    return apiFetch<DemoAuthResponse>(endpoint, {
+      method: 'POST',
+      body: payload,
+      skipAuth: true,
+      omitTenant: true,
+    });
   },
 
   demoLogin: async (rubro: DemoRubro): Promise<DemoAuthResponse> => {
     return apiFetch<DemoAuthResponse>('/auth/demo', {
       method: 'POST',
       body: { rubro },
+      skipAuth: true,
+      omitTenant: true,
     });
   },
 
