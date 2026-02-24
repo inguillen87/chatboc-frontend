@@ -61,6 +61,7 @@ const Login = () => {
   const [demoLoginEnabled, setDemoLoginEnabled] = useState(true);
   const [demoLoginEndpoint, setDemoLoginEndpoint] = useState("/auth/demo");
   const [demoFrontendContract, setDemoFrontendContract] = useState<DemoFrontendContract>({});
+  const [demoSector, setDemoSector] = useState<'gobierno' | 'empresas'>('gobierno');
   const demoAccessProfiles = getDemoAccessProfiles();
   const franchisePartner = getFranchisePartnerConfig();
 
@@ -76,6 +77,14 @@ const Login = () => {
   };
 
   const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+  const resolveSectorFromRubro = (rubro?: DemoRubro | null): 'gobierno' | 'empresas' => {
+    if (rubro === 'pyme') return 'empresas';
+    return 'gobierno';
+  };
+
+  const isSectorFirstMode = demoFrontendContract.demo_selector?.mode === 'sector_first';
+  const needsRubroSelection = !isSectorFirstMode || demoSector === 'empresas';
+
 
   const getDemoCatalogWithRetry = useCallback(async (): Promise<DemoCatalogResponse> => {
     const retryDelaysMs = [350];
@@ -146,12 +155,22 @@ const Login = () => {
     basePayload: Record<string, unknown>,
     rubro?: DemoRubro | null,
     tenantSlug?: string | null,
+    sector?: 'gobierno' | 'empresas',
   ) => {
     const payload: Record<string, unknown> = { ...basePayload };
     const selector = demoFrontendContract.demo_selector;
 
-    if (selector?.require_rubro_by_sector && rubro && payload.rubro === undefined) {
+    const resolvedSector = sector || resolveSectorFromRubro(rubro);
+    if (isSectorFirstMode && payload.sector === undefined) {
+      payload.sector = resolvedSector;
+    }
+
+    if (selector?.require_rubro_by_sector && resolvedSector === 'empresas' && rubro && payload.rubro === undefined) {
       payload.rubro = rubro;
+    }
+
+    if (isSectorFirstMode && resolvedSector === 'gobierno' && payload.rubro !== undefined) {
+      delete payload.rubro;
     }
 
     const tenantSlugField = selector?.tenant_slug_field || 'tenant_slug';
@@ -160,7 +179,7 @@ const Login = () => {
     }
 
     return payload;
-  }, [demoFrontendContract]);
+  }, [demoFrontendContract, isSectorFirstMode]);
 
   const runDemoPreloadHints = useCallback(async (tenantSlugHint?: string | null) => {
     const preloadHints = new Set((demoFrontendContract.preload_before_login || []).map((item) => item.trim().toLowerCase()));
@@ -222,6 +241,8 @@ const Login = () => {
         const resolvedCatalog = (catalog || {}) as DemoCatalogResponse;
         const frontendContract = extractDemoFrontendContract(resolvedCatalog);
         setDemoFrontendContract(frontendContract);
+        const defaultSector = frontendContract.onboarding?.default_sector || (frontendContract.demo_selector?.sector_default === 'pyme' ? 'empresas' : 'gobierno');
+        setDemoSector(defaultSector);
 
         if (!isSupportedDemoFrontendContract(frontendContract.frontend_contract_version) && isDevEnvironment()) {
           console.warn('[Login] Unsupported demo frontend contract version', frontendContract.frontend_contract_version);
@@ -247,10 +268,10 @@ const Login = () => {
         const catalogOptions = getDemoOptionsFromCatalog(tenantDemos);
         if (catalogOptions.length > 0) {
           setDemoOptions(catalogOptions);
-          const defaultSector = frontendContract.demo_selector?.sector_default;
+          const defaultRubro = frontendContract.demo_selector?.sector_default;
           setDemoRubro((prev) => {
             if (prev && catalogOptions.some((option) => option.value === prev)) return prev;
-            if (defaultSector && catalogOptions.some((option) => option.value === defaultSector)) return defaultSector;
+            if (defaultRubro && catalogOptions.some((option) => option.value === defaultRubro)) return defaultRubro;
             return catalogOptions[0].value;
           });
           return;
@@ -261,10 +282,10 @@ const Login = () => {
         const nextOptions = mapDemoOptionsFromHierarchy(hierarchy);
         if (nextOptions.length > 0) {
           setDemoOptions(nextOptions);
-          const defaultSector = frontendContract.demo_selector?.sector_default;
+          const defaultRubro = frontendContract.demo_selector?.sector_default;
           setDemoRubro((prev) => {
             if (prev && nextOptions.some((option) => option.value === prev)) return prev;
-            if (defaultSector && nextOptions.some((option) => option.value === defaultSector)) return defaultSector;
+            if (defaultRubro && nextOptions.some((option) => option.value === defaultRubro)) return defaultRubro;
             return nextOptions[0].value;
           });
         }
@@ -427,7 +448,10 @@ const Login = () => {
     setIsDemoLoading(true);
     try {
       const resolvedRubro = rubroOverride || demoRubro;
-      const resolvedPayload = payloadOverride || (resolvedRubro ? { rubro: resolvedRubro } : null);
+      const resolvedSector = isSectorFirstMode ? demoSector : resolveSectorFromRubro(resolvedRubro);
+      const resolvedPayload = payloadOverride || (needsRubroSelection
+        ? (resolvedRubro ? { rubro: resolvedRubro } : null)
+        : { sector: resolvedSector });
       if (!resolvedPayload) return;
 
       const tenantSlugHint =
@@ -438,7 +462,7 @@ const Login = () => {
         null;
 
       await runDemoPreloadHints(tenantSlugHint);
-      const requestPayload = buildDemoPayload(resolvedPayload, resolvedRubro, tenantSlugHint);
+      const requestPayload = buildDemoPayload(resolvedPayload, resolvedRubro, tenantSlugHint, resolvedSector);
       const data = await enterpriseService.demoLoginWithPayload(requestPayload, endpointOverride || demoLoginEndpoint);
       safeLocalStorage.setItem("authToken", data.token);
       safeLocalStorage.setItem("demoMode", String(Boolean(data.demo_mode)));
@@ -554,25 +578,53 @@ const Login = () => {
           {!demoLoginEnabled ? (
             <p className="text-xs text-muted-foreground">Demo no disponible actualmente.</p>
           ) : null}
-          <div className="flex gap-2">
-            {demoOptions.map((option) => (
-              <Button
-                key={option.value}
-                type="button"
-                variant={demoRubro === option.value ? "default" : "outline"}
-                className="flex-1"
-                onClick={() => setDemoRubro(option.value)}
-                disabled={!demoLoginEnabled || isDemoLoading || isLoading || isPasskeyLoading}
-              >
-                {option.label}
-              </Button>
-            ))}
-          </div>
+          {isSectorFirstMode ? (
+            <div className="flex gap-2">
+              {(demoFrontendContract.onboarding?.sector_options?.length
+                ? demoFrontendContract.onboarding.sector_options
+                : [
+                    { value: 'gobierno', label: 'Gobierno' },
+                    { value: 'empresas', label: 'Empresas' },
+                  ]).map((sectorOption) => (
+                <Button
+                  key={sectorOption.value}
+                  type="button"
+                  variant={demoSector === sectorOption.value ? "default" : "outline"}
+                  className="flex-1"
+                  onClick={() => {
+                    setDemoSector(sectorOption.value);
+                    if (sectorOption.value === 'gobierno') {
+                      setDemoRubro('municipio');
+                    }
+                  }}
+                  disabled={!demoLoginEnabled || isDemoLoading || isLoading || isPasskeyLoading}
+                >
+                  {sectorOption.label || (sectorOption.value === 'gobierno' ? 'Gobierno' : 'Empresas')}
+                </Button>
+              ))}
+            </div>
+          ) : null}
+          {needsRubroSelection ? (
+            <div className="flex gap-2">
+              {demoOptions.map((option) => (
+                <Button
+                  key={option.value}
+                  type="button"
+                  variant={demoRubro === option.value ? "default" : "outline"}
+                  className="flex-1"
+                  onClick={() => { setDemoRubro(option.value); setDemoSector(resolveSectorFromRubro(option.value)); }}
+                  disabled={!demoLoginEnabled || isDemoLoading || isLoading || isPasskeyLoading}
+                >
+                  {option.label}
+                </Button>
+              ))}
+            </div>
+          ) : null}
           <Button
             type="button"
             className="w-full"
             onClick={() => { void handleDemoLogin(); }}
-            disabled={!demoLoginEnabled || !demoRubro || isDemoLoading || isLoading || isPasskeyLoading}
+            disabled={!demoLoginEnabled || (needsRubroSelection && !demoRubro) || isDemoLoading || isLoading || isPasskeyLoading}
           >
             {isDemoLoading ? "Ingresando demo..." : "Probar Demo"}
           </Button>

@@ -61,6 +61,10 @@ export interface DemoSelectorContract {
 
 export interface DemoFrontendContract {
   frontend_contract_version?: string;
+  onboarding?: {
+    default_sector?: 'gobierno' | 'empresas';
+    sector_options?: Array<{ value: 'gobierno' | 'empresas'; label?: string }>;
+  };
   demo_selector?: DemoSelectorContract;
   preload_before_login?: string[];
 }
@@ -91,6 +95,44 @@ const normalizePreloadHints = (raw: unknown): string[] => {
   return [];
 };
 
+
+const normalizeSector = (raw: unknown): 'gobierno' | 'empresas' | undefined => {
+  if (typeof raw !== 'string') return undefined;
+  const normalized = raw.trim().toLowerCase();
+  if (normalized.includes('gob') || normalized.includes('mun') || normalized.includes('pub')) return 'gobierno';
+  if (normalized.includes('emp') || normalized.includes('pym') || normalized.includes('priv')) return 'empresas';
+  if (normalized === 'gobierno' || normalized === 'empresas') return normalized;
+  return undefined;
+};
+
+const normalizeSectorOptions = (raw: unknown): Array<{ value: 'gobierno' | 'empresas'; label?: string }> => {
+  if (!Array.isArray(raw)) return [];
+  const values = new Set<'gobierno' | 'empresas'>();
+  const options: Array<{ value: 'gobierno' | 'empresas'; label?: string }> = [];
+
+  raw.forEach((item) => {
+    if (typeof item === 'string') {
+      const value = normalizeSector(item);
+      if (!value || values.has(value)) return;
+      values.add(value);
+      options.push({ value });
+      return;
+    }
+    if (item && typeof item === 'object') {
+      const record = item as Record<string, unknown>;
+      const value = normalizeSector(record.value ?? record.key ?? record.sector ?? record.id);
+      if (!value || values.has(value)) return;
+      values.add(value);
+      options.push({
+        value,
+        label: typeof record.label === 'string' ? record.label : undefined,
+      });
+    }
+  });
+
+  return options;
+};
+
 export const extractDemoFrontendContract = (catalog?: DemoCatalogResponse | null): DemoFrontendContract => {
   const source = (catalog?.frontend as Record<string, unknown> | undefined) || (catalog as Record<string, unknown> | undefined) || {};
 
@@ -100,9 +142,19 @@ export const extractDemoFrontendContract = (catalog?: DemoCatalogResponse | null
     : undefined;
 
   const versionRaw = source.frontend_contract_version;
+  const onboardingRaw = source.onboarding;
+  const onboarding = onboardingRaw && typeof onboardingRaw === 'object'
+    ? (onboardingRaw as Record<string, unknown>)
+    : undefined;
 
   return {
     frontend_contract_version: typeof versionRaw === 'string' ? versionRaw.trim() : undefined,
+    onboarding: onboarding
+      ? {
+          default_sector: normalizeSector(onboarding.default_sector),
+          sector_options: normalizeSectorOptions(onboarding.sector_options),
+        }
+      : undefined,
     demo_selector: selector
       ? {
           mode: typeof selector.mode === 'string' ? selector.mode.trim().toLowerCase() : undefined,

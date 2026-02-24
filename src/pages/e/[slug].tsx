@@ -552,7 +552,7 @@ const PublicSurveyPage = () => {
                     </div>
                     <div className="rounded-lg border border-border/60 p-3">
                       <p className="text-xs text-muted-foreground">{safeText(liveResultsUi?.kpi_leader_label)}</p>
-                      <p className="text-lg font-semibold">{liveDashboard.kpis?.leader ?? '—'}</p>
+                      <p className="text-lg font-semibold">{toDisplayText(liveDashboard.kpis?.leader) || '—'}</p>
                     </div>
                   </div>
 
@@ -605,7 +605,7 @@ const PublicSurveyPage = () => {
                   {liveDashboard.ai_summary ? (
                     <div className="rounded-lg border border-border/60 p-3">
                       <p className="text-xs text-muted-foreground">{safeText(liveResultsUi?.ai_summary_title)}</p>
-                      <p className="text-sm">{liveDashboard.ai_summary}</p>
+                      <p className="text-sm">{toDisplayText(liveDashboard.ai_summary)}</p>
                     </div>
                   ) : null}
                 </div>

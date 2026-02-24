@@ -74,18 +74,34 @@ export function SurveyComments({ slug, tenantSlug, realtimeComments, copy }: Sur
   };
 
   useEffect(() => {
-    // Initial fetch
-    const fetchComments = async () => {
+    let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const fetchComments = async (attempt = 0) => {
       try {
         const data = await getSurveyComments(slug, tenantSlug);
-        setComments(data);
+        if (cancelled) return;
+        setComments(Array.isArray(data) ? data : []);
       } catch (error) {
-        console.error('Error fetching comments:', error);
+        if (cancelled) return;
+        if (attempt === 0) {
+          retryTimer = setTimeout(() => {
+            void fetchComments(1);
+          }, 1200);
+          return;
+        }
+        setComments([]);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
-    fetchComments();
+
+    void fetchComments(0);
+
+    return () => {
+      cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
+    };
   }, [slug, tenantSlug]);
 
   useEffect(() => {

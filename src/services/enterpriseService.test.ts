@@ -68,4 +68,24 @@ describe('demo frontend contract parsing', () => {
 
     expect(contract.preload_before_login).toEqual(['catalog', 'tenant-info', 'anon-id']);
   });
+
+  it('parses onboarding sector defaults and options', () => {
+    const contract = extractDemoFrontendContract({
+      frontend_contract_version: '1',
+      onboarding: {
+        default_sector: 'gobierno',
+        sector_options: [
+          { value: 'gobierno', label: 'Gobierno' },
+          { value: 'empresas', label: 'Empresas' },
+        ],
+      },
+    });
+
+    expect(contract.onboarding?.default_sector).toBe('gobierno');
+    expect(contract.onboarding?.sector_options).toEqual([
+      { value: 'gobierno', label: 'Gobierno' },
+      { value: 'empresas', label: 'Empresas' },
+    ]);
+  });
+
 });
