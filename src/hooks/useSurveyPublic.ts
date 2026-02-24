@@ -41,6 +41,12 @@ export function useSurveyPublic(
     enabled: Boolean(normalizedSlug),
     queryFn: () => getPublicSurvey(normalizedSlug, normalizedTenantSlug || undefined),
     staleTime: 1000 * 60,
+    retry: (failureCount, err) => {
+      if (err instanceof ApiError && [401, 403, 404].includes(err.status)) {
+        return false;
+      }
+      return failureCount < 1;
+    },
   });
 
   const mutation = useMutation({

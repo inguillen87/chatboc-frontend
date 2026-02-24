@@ -22,6 +22,9 @@ export interface DemoCatalogTenant {
   nombre?: string;
   tipo?: string;
   rubro?: string;
+  enabled?: boolean;
+  login_endpoint?: string;
+  login_payload?: Record<string, unknown>;
 }
 
 export interface DemoCatalogEntryPoint {
@@ -29,14 +32,97 @@ export interface DemoCatalogEntryPoint {
   rubro?: DemoRubro;
   label?: string;
   description?: string;
+  enabled?: boolean;
+  login_endpoint?: string;
+  login_payload?: Record<string, unknown>;
 }
 
 export interface DemoCatalogResponse {
+  frontend_contract_version?: string;
+  frontend?: Record<string, unknown>;
+  demo_selector?: Record<string, unknown>;
+  preload_before_login?: string[] | Record<string, boolean>;
+  demo_login_enabled?: boolean;
+  demo_login_endpoint?: string;
   tenants?: DemoCatalogTenant[];
+  tenant_demos?: DemoCatalogTenant[];
   entry_points?: DemoCatalogEntryPoint[];
   supported_languages?: string[];
   credentials?: Record<string, unknown>;
 }
+
+
+export interface DemoSelectorContract {
+  mode?: string;
+  sector_default?: DemoRubro;
+  require_rubro_by_sector?: boolean;
+  tenant_slug_field?: string;
+}
+
+export interface DemoFrontendContract {
+  frontend_contract_version?: string;
+  demo_selector?: DemoSelectorContract;
+  preload_before_login?: string[];
+}
+
+export const SUPPORTED_DEMO_FRONTEND_CONTRACT_VERSION = '1';
+
+const normalizeDemoRubro = (raw: unknown): DemoRubro | undefined => {
+  if (typeof raw !== 'string') return undefined;
+  const normalized = raw.trim().toLowerCase();
+  if (normalized.includes('mun')) return 'municipio';
+  if (normalized.includes('pym') || normalized.includes('emp')) return 'pyme';
+  if (normalized === 'municipio' || normalized === 'pyme') return normalized;
+  return undefined;
+};
+
+const normalizePreloadHints = (raw: unknown): string[] => {
+  if (Array.isArray(raw)) {
+    return raw.filter((item): item is string => typeof item === 'string').map((item) => item.trim().toLowerCase()).filter(Boolean);
+  }
+
+  if (raw && typeof raw === 'object') {
+    return Object.entries(raw as Record<string, unknown>)
+      .filter(([, enabled]) => enabled === true)
+      .map(([key]) => key.trim().toLowerCase())
+      .filter(Boolean);
+  }
+
+  return [];
+};
+
+export const extractDemoFrontendContract = (catalog?: DemoCatalogResponse | null): DemoFrontendContract => {
+  const source = (catalog?.frontend as Record<string, unknown> | undefined) || (catalog as Record<string, unknown> | undefined) || {};
+
+  const selectorRaw = source.demo_selector;
+  const selector = selectorRaw && typeof selectorRaw === 'object'
+    ? (selectorRaw as Record<string, unknown>)
+    : undefined;
+
+  const versionRaw = source.frontend_contract_version;
+
+  return {
+    frontend_contract_version: typeof versionRaw === 'string' ? versionRaw.trim() : undefined,
+    demo_selector: selector
+      ? {
+          mode: typeof selector.mode === 'string' ? selector.mode.trim().toLowerCase() : undefined,
+          sector_default: normalizeDemoRubro(selector.sector_default),
+          require_rubro_by_sector: selector.require_rubro_by_sector === true,
+          tenant_slug_field:
+            typeof selector.tenant_slug_field === 'string' && selector.tenant_slug_field.trim()
+              ? selector.tenant_slug_field.trim()
+              : undefined,
+        }
+      : undefined,
+    preload_before_login: normalizePreloadHints(source.preload_before_login),
+  };
+};
+
+export const isSupportedDemoFrontendContract = (version?: string | null) => {
+  if (!version) return true;
+  const normalized = version.trim();
+  return normalized === SUPPORTED_DEMO_FRONTEND_CONTRACT_VERSION || normalized.startsWith(`${SUPPORTED_DEMO_FRONTEND_CONTRACT_VERSION}.`);
+};
 
 export interface FranchiseProfilePayload {
   white_label_enabled?: boolean;
@@ -309,13 +395,27 @@ export const enterpriseService = {
 
   getDemoCatalog: async (ensureUsers = false): Promise<DemoCatalogResponse> => {
     const suffix = ensureUsers ? '?ensure_users=true' : '';
-    return apiFetch<DemoCatalogResponse>(`/auth/demo/catalog${suffix}`);
+    return apiFetch<DemoCatalogResponse>(`/auth/demo/catalog${suffix}`, {
+      skipAuth: true,
+      omitTenant: true,
+    });
+  },
+
+  demoLoginWithPayload: async (payload: Record<string, unknown>, endpoint = '/auth/demo'): Promise<DemoAuthResponse> => {
+    return apiFetch<DemoAuthResponse>(endpoint, {
+      method: 'POST',
+      body: payload,
+      skipAuth: true,
+      omitTenant: true,
+    });
   },
 
   demoLogin: async (rubro: DemoRubro): Promise<DemoAuthResponse> => {
     return apiFetch<DemoAuthResponse>('/auth/demo', {
       method: 'POST',
       body: { rubro },
+      skipAuth: true,
+      omitTenant: true,
     });
   },
 
