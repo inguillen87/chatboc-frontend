@@ -539,7 +539,13 @@ export const getSurveyComments = (
 
 export const postSurveyComment = (
   slug: string,
-  payload: { texto: string; nombre?: string; modo?: 'anonimo' | 'facebook' },
+  payload: {
+    texto: string;
+    nombre?: string;
+    nombre_autor?: string;
+    anon_id?: string;
+    modo?: 'anonimo' | 'facebook';
+  },
   tenantSlug?: string,
 ): Promise<SurveyComment> =>
   callPublicSurveyEndpoint<SurveyComment>([

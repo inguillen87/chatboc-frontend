@@ -473,7 +473,7 @@ export const enterpriseService = {
 
   getAnalyticsOverview: async (filters: EnterpriseBaseFilters, tenantSlug?: string) => {
     const query = buildQueryString(filters);
-    return apiFetch<any>(`/admin/analytics/overview?${query}`, { tenantSlug });
+    return apiFetch<any>(`/api/admin/analytics/overview?${query}`, { tenantSlug });
   },
 
   getAnalyticsHeatmap: async (filters: EnterpriseBaseFilters, tenantSlug?: string) => {

@@ -33,6 +33,14 @@ describe('enterpriseService demo endpoints', () => {
       omitTenant: true,
     });
   });
+
+  it('requests analytics overview through /api/admin namespace', async () => {
+    await enterpriseService.getAnalyticsOverview({ scope: 'municipio' });
+
+    expect(apiFetchMock).toHaveBeenCalledWith('/api/admin/analytics/overview?scope=municipio', {
+      tenantSlug: undefined,
+    });
+  });
 });
 
 

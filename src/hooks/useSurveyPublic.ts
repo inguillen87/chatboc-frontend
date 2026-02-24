@@ -13,6 +13,7 @@ interface UseSurveyPublicResult {
   survey?: SurveyPublic;
   isLoading: boolean;
   error: string | null;
+  errorReasonCode: string | null;
   submit: (payload: PublicResponsePayload) => Promise<void>;
   isSubmitting: boolean;
   lastResponseId?: number;
@@ -20,6 +21,13 @@ interface UseSurveyPublicResult {
   submitError: string | null;
   submitStatus: number | null;
 }
+
+const getSurveyPublicErrorReasonCode = (error: unknown): string | null => {
+  if (!(error instanceof ApiError)) return null;
+  const reasonCode = (error.body as Record<string, unknown> | undefined)?.reason_code;
+  return typeof reasonCode === 'string' && reasonCode.trim() ? reasonCode.trim() : null;
+};
+
 
 export function useSurveyPublic(
   slug?: string | null,
@@ -65,10 +73,12 @@ export function useSurveyPublic(
     },
   });
 
+  const errorReasonCode = getSurveyPublicErrorReasonCode(error);
   return {
     survey: data,
     isLoading,
     error: error ? getErrorMessage(error) : null,
+    errorReasonCode,
     submit: async (payload: PublicResponsePayload) => {
       try {
         await mutation.mutateAsync(payload);
