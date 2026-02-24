@@ -14,7 +14,7 @@ vi.mock('@/utils/api', () => ({
   },
 }));
 
-import { getHeatmap, getPublicSurvey } from '@/api/encuestas';
+import { getHeatmap, getPublicSurvey, listPublicSurveys } from '@/api/encuestas';
 import { ApiError } from '@/utils/api';
 
 describe('getHeatmap', () => {
@@ -74,3 +74,21 @@ describe('getPublicSurvey', () => {
     );
   });
 });
+
+
+describe('listPublicSurveys', () => {
+  beforeEach(() => {
+    apiFetchMock.mockReset();
+  });
+
+  it('keeps tenant scoping options when tenantSlug is provided', async () => {
+    apiFetchMock.mockResolvedValueOnce([{ slug: 'rio-grande', titulo: 'RG', tipo: 'opinion', inicio_at: '2026-01-01', fin_at: '2026-01-31', politica_unicidad: 'libre', preguntas: [] }]);
+
+    await listPublicSurveys('rio-grande');
+
+    const [, options] = apiFetchMock.mock.calls[0];
+    expect(options).toEqual(expect.objectContaining({ tenantSlug: 'rio-grande' }));
+    expect((options as Record<string, unknown>).omitTenant).not.toBe(true);
+  });
+});
+

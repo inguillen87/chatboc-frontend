@@ -415,7 +415,6 @@ export const listPublicSurveys = async (tenantSlug?: string): Promise<PublicSurv
       tenantSlug,
       baseUrlOverride: PUBLIC_SURVEY_API_BASE,
       omitEntityToken: true,
-      omitTenant: true,
     });
 
     if (Array.isArray(response)) {

@@ -121,7 +121,18 @@ const getHubCacheKey = (filters: AnalyticsFilters) => `${filters.tenantSlug || '
 const extractHubSectionSummary = (hub: AnalyticsHubResponse | null | undefined, section: 'general' | 'municipio' | 'ventas'): AnalyticsSummary | null => {
   const raw = hub?.sections?.[section];
   if (!raw || typeof raw !== 'object') return null;
-  return normalizeAnalyticsSummary(raw as Record<string, unknown>);
+
+  const payload = raw as Record<string, unknown>;
+  const hasSignal =
+    (payload.kpis && typeof payload.kpis === 'object' && Object.keys(payload.kpis).length > 0) ||
+    (payload.totals && typeof payload.totals === 'object' && Object.keys(payload.totals).length > 0) ||
+    (Array.isArray(payload.top_categories) && payload.top_categories.length > 0) ||
+    (Array.isArray(payload.volume_by_day) && payload.volume_by_day.length > 0) ||
+    (Array.isArray(payload.heatmap_points) && payload.heatmap_points.length > 0) ||
+    (Array.isArray(payload.insights) && payload.insights.length > 0);
+
+  if (!hasSignal) return null;
+  return normalizeAnalyticsSummary(payload);
 };
 
 export const analyticsService = {
