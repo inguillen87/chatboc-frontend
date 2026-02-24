@@ -23,6 +23,7 @@ import {
   SurveyBrief,
   SurveySegmentsCompare,
   SurveyAnomalies,
+  SurveyDashboardBundle,
 } from '@/types/encuestas';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
@@ -795,6 +796,12 @@ export const getSurveyAnomalies = (
   params?: { burst_window_minutes?: number; burst_threshold?: number },
 ): Promise<SurveyAnomalies> =>
   callAdminSurveyEndpoint(`${id}/analytics/anomalies${buildQueryString(params)}`);
+
+export const getSurveyDashboardBundle = (
+  id: number,
+  filtros?: SurveyAnalyticsFilters,
+): Promise<SurveyDashboardBundle> =>
+  callAdminSurveyEndpoint(`${id}/analytics/dashboard${buildQueryString(filtros)}`);
 
 export const downloadExportCsv = async (
   id: number,

@@ -63,6 +63,8 @@ const SurveyAnalyticsPage = () => {
     timeseries,
     heatmap,
     heatmapMeta,
+    dashboardBundle,
+    executiveSummary,
     isLoading,
     exportCsv,
     isExporting,
@@ -338,6 +340,10 @@ const SurveyAnalyticsPage = () => {
   const brief = briefQuery.data;
   const segmentsCompare = compareQuery.data;
   const anomalies = anomaliesQuery.data;
+  const backendAlerts = dashboardBundle?.modules?.alerts ?? [];
+  const effectiveAlerts = backendAlerts.length ? backendAlerts : alerts;
+  const backendBrief = dashboardBundle?.modules?.brief;
+  const effectiveBrief = backendBrief ?? brief;
 
   if ((isLoadingSurvey && !surveys) || isLoading) {
     return (
@@ -478,6 +484,34 @@ const SurveyAnalyticsPage = () => {
           ) : null}
         </CardContent>
       </Card>
+
+      {executiveSummary ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>{asRenderableText(executiveSummary.headline)}</CardTitle>
+            <CardDescription>{asRenderableText(executiveSummary.one_liner)}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {Array.isArray(executiveSummary.focus_points) && executiveSummary.focus_points.length ? (
+              <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+                {executiveSummary.focus_points.slice(0, 6).map((focusPoint, index) => (
+                  <li key={`${index}-${focusPoint}`}>{focusPoint}</li>
+                ))}
+              </ul>
+            ) : null}
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-lg border border-border/60 p-3 text-sm">
+                <p className="text-muted-foreground">alert_count</p>
+                <p className="text-xl font-semibold">{executiveSummary.alert_count ?? effectiveAlerts.length ?? 0}</p>
+              </div>
+              <div className="rounded-lg border border-border/60 p-3 text-sm">
+                <p className="text-muted-foreground">projected_additional</p>
+                <p className="text-xl font-semibold">{executiveSummary.projected_additional ?? '—'}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
       <Card>
         <CardHeader>
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -554,9 +588,9 @@ const SurveyAnalyticsPage = () => {
                 <p className="text-sm text-muted-foreground">Cargando…</p>
               ) : alertsQuery.error ? (
                 <p className="text-sm text-destructive">{getErrorMessage(alertsQuery.error)}</p>
-              ) : alerts.length ? (
+              ) : effectiveAlerts.length ? (
                 <div className="space-y-2">
-                  {alerts.slice(0, 6).map((alert, index) => (
+                  {effectiveAlerts.slice(0, 6).map((alert, index) => (
                     <div key={`${alert.id ?? index}`} className="rounded-md border border-border/60 px-3 py-2 text-sm">
                       <div className="flex items-center gap-2">
                         <Badge variant="outline">{asRenderableText(alert.severity) || 'info'}</Badge>
@@ -581,10 +615,10 @@ const SurveyAnalyticsPage = () => {
               <p className="text-sm text-destructive">{getErrorMessage(briefQuery.error)}</p>
             ) : (
               <div className="space-y-2 text-sm">
-                <p>{asRenderableText(brief?.summary) || asSafeText(enterpriseUiConfig?.brief_fallback_label)}</p>
-                {brief?.highlights?.length ? (
+                <p>{asRenderableText(effectiveBrief?.summary) || asSafeText(enterpriseUiConfig?.brief_fallback_label)}</p>
+                {effectiveBrief?.highlights?.length ? (
                   <ul className="list-disc pl-5 text-muted-foreground">
-                    {brief.highlights.slice(0, 4).map((item, index) => (
+                    {effectiveBrief.highlights.slice(0, 4).map((item, index) => (
                       <li key={`${index}-${asRenderableText(item)}`}>{asRenderableText(item)}</li>
                     ))}
                   </ul>

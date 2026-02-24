@@ -383,6 +383,42 @@ export interface SurveyAnalyticsHeatmap {
   metadata?: Record<string, unknown>;
 }
 
+export interface SurveyExecutiveSummary {
+  headline?: string;
+  one_liner?: string;
+  focus_points?: string[];
+  alert_count?: number;
+  projected_additional?: number;
+  [key: string]: unknown;
+}
+
+export interface SurveyVisualBlueprint {
+  charts?: Array<Record<string, unknown>>;
+  tables?: Array<Record<string, unknown>>;
+  frontend_contract?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export interface SurveyDashboardModules {
+  summary?: SurveySummary;
+  timeseries?: SurveyTimeseriesPoint[];
+  heatmap?: SurveyAnalyticsHeatmap;
+  forecast?: SurveyForecast;
+  alerts?: SurveyAlert[];
+  brief?: SurveyBrief;
+  segments_compare?: SurveySegmentsCompare;
+  anomalies?: SurveyAnomalies;
+  [key: string]: unknown;
+}
+
+export interface SurveyDashboardBundle {
+  executive_summary?: SurveyExecutiveSummary;
+  visual_blueprint?: SurveyVisualBlueprint;
+  modules?: SurveyDashboardModules;
+  kpis?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
 export interface SurveyAnalyticsFilters {
   desde?: string;
   hasta?: string;
