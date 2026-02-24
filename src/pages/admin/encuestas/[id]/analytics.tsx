@@ -62,6 +62,7 @@ const SurveyAnalyticsPage = () => {
     summary,
     timeseries,
     heatmap,
+    heatmapMeta,
     isLoading,
     exportCsv,
     isExporting,
@@ -514,6 +515,7 @@ const SurveyAnalyticsPage = () => {
             summary={summary}
             timeseries={timeseries}
             heatmap={heatmap}
+            heatmapMeta={heatmapMeta}
             onExport={handleExport}
             isExporting={isExporting}
             filters={filters}

@@ -13,6 +13,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { getErrorMessage } from '@/utils/api';
+import { getAutoSeedCantidad, prioritizeMendozaDemoSurveys } from '@/utils/surveyDemoPriority';
 
 const formatDate = (value?: string | null) => {
   if (!value) return null;
@@ -57,9 +58,10 @@ const TenantSurveyListPage = () => {
     staleTime: 1000 * 60 * 2,
   });
 
-  const surveys = useMemo(() => (Array.isArray(surveysQuery.data) ? surveysQuery.data : []), [
-    surveysQuery.data,
-  ]);
+  const surveys = useMemo(() => {
+    const raw = Array.isArray(surveysQuery.data) ? surveysQuery.data : [];
+    return prioritizeMendozaDemoSurveys(raw, slug);
+  }, [surveysQuery.data, slug]);
 
   return (
     <TenantShell>
@@ -90,6 +92,9 @@ const TenantSurveyListPage = () => {
                 <CardHeader className="space-y-3">
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant={status.variant}>{status.label}</Badge>
+                    {survey.es_votacion_envivo ? <Badge variant="default">En vivo</Badge> : null}
+                    {survey.mostrar_resultados_envivo ? <Badge variant="secondary">Resultados en tiempo real</Badge> : null}
+                    {survey.permitir_comentarios ? <Badge variant="outline">Comentarios abiertos</Badge> : null}
                     {formatDate(survey.fin_at) ? (
                       <Badge variant="outline">Cierra: {formatDate(survey.fin_at)}</Badge>
                     ) : null}
@@ -100,6 +105,15 @@ const TenantSurveyListPage = () => {
                   {survey.descripcion ? (
                     <p className="text-sm leading-relaxed text-muted-foreground">{survey.descripcion}</p>
                   ) : null}
+                  {(() => {
+                    const cantidad = getAutoSeedCantidad(survey);
+                    if (!cantidad) return null;
+                    return (
+                      <p className="text-xs text-muted-foreground">
+                        Datos demo precargados: {cantidad} respuestas iniciales.
+                      </p>
+                    );
+                  })()}
                   {basePath ? (
                     <Button asChild>
                       <a href={`${basePath}/encuestas/${survey.slug}`}>Responder encuesta</a>
