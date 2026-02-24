@@ -741,7 +741,7 @@ export const SurveyAnalytics = ({
           <CardTitle>Evolución diaria</CardTitle>
           <CardDescription>Visualizá el ritmo de participación a lo largo del tiempo.</CardDescription>
         </CardHeader>
-        <CardContent className="h-72">
+        <CardContent className="h-72 min-w-0">
           {timeseriesData.length ? (
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={timeseriesData}>
@@ -766,7 +766,7 @@ export const SurveyAnalytics = ({
           <CardDescription>Resultados acumulados por pregunta y opción.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-6 lg:grid-cols-2">
-          <div className="h-72">
+          <div className="h-72 min-w-0">
             {optionData.length ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={optionData}>
@@ -784,7 +784,7 @@ export const SurveyAnalytics = ({
               </div>
             )}
           </div>
-          <div className="h-72">
+          <div className="h-72 min-w-0">
             {optionData.length ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -867,25 +867,39 @@ export const SurveyAnalytics = ({
             </div>
           ) : null}
           {heatmapPoints.length ? (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-border text-sm">
-                <thead>
-                  <tr className="text-left text-muted-foreground">
-                    <th className="py-2 pr-4">Latitud</th>
-                    <th className="py-2 pr-4">Longitud</th>
-                    <th className="py-2 pr-4">Respuestas</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {heatmapPoints.map((point, index) => (
-                    <tr key={`${point.lat}-${point.lng}-${index}`} className="border-b border-border/40">
-                      <td className="py-2 pr-4">{point.lat.toFixed(4)}</td>
-                      <td className="py-2 pr-4">{point.lng.toFixed(4)}</td>
-                      <td className="py-2 pr-4">{point.respuestas}</td>
+            <div className="space-y-4">
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-border text-sm">
+                  <thead>
+                    <tr className="text-left text-muted-foreground">
+                      <th className="py-2 pr-4">Latitud</th>
+                      <th className="py-2 pr-4">Longitud</th>
+                      <th className="py-2 pr-4">Respuestas</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {heatmapPoints.map((point, index) => (
+                      <tr key={`${point.lat}-${point.lng}-${index}`} className="border-b border-border/40">
+                        <td className="py-2 pr-4">{point.lat.toFixed(4)}</td>
+                        <td className="py-2 pr-4">{point.lng.toFixed(4)}</td>
+                        <td className="py-2 pr-4">{point.respuestas}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="h-[320px] min-w-0 overflow-hidden rounded-lg border border-border/60">
+                <MapLibreMap
+                  className="h-full w-full"
+                  center={heatmapCenter}
+                  heatmapData={heatmapData}
+                  fitToBounds={heatmapBounds.length ? heatmapBounds : undefined}
+                  initialZoom={heatmapBounds.length ? 12 : 4}
+                  provider={provider}
+                  onProviderUnavailable={handleProviderUnavailable}
+                  onBoundingBoxChange={handleBoundingBoxChange}
+                />
+              </div>
             </div>
           ) : (
             <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
@@ -969,7 +983,7 @@ export const SurveyAnalytics = ({
                     Participación segmentada para este atributo.
                   </p>
                 </div>
-                <div className="h-64 w-full">
+                <div className="h-64 w-full min-w-0">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart
                       data={section.data}
