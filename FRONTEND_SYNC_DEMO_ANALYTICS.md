@@ -133,3 +133,29 @@ Nota: backend tiene degradación temporal si falta columna, pero la corrección 
 5. Validar UX:
    - Login demo municipio -> analytics sin white-screen.
    - Encuesta pública -> comentarios renderizan sin React #31.
+
+
+---
+
+## 7) Encuestas admin (auth/rol)
+
+Endpoints de referencia para panel (requieren autenticación/rol):
+- `GET /api/admin/encuestas`
+- `GET /api/municipal/encuestas`
+- `GET /api/admin/surveys`
+
+Si el usuario demo no tiene permisos sobre el tenant solicitado, la UI debe mostrar fallback de autorización sin romper la vista.
+
+---
+
+## 8) Columnas DB críticas para comentarios
+
+Tabla `enc_comentario` (mínimo operativo):
+- `id`, `encuesta_id`, `user_id`, `anon_id`, `nombre_autor`, `texto`, `estado`, `report_count`, `created_at`, `updated_at`
+
+Migración requerida:
+```bash
+flask db upgrade
+```
+
+Migración backend asociada: `20260224_add_report_count_to_enc_comentario`.

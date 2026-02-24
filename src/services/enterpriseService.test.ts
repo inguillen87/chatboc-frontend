@@ -41,6 +41,15 @@ describe('enterpriseService demo endpoints', () => {
       tenantSlug: undefined,
     });
   });
+
+
+  it('requests analytics heatmap through /api/admin namespace', async () => {
+    await enterpriseService.getAnalyticsHeatmap({ scope: 'municipio' });
+
+    expect(apiFetchMock).toHaveBeenCalledWith('/api/admin/analytics/heatmap?scope=municipio', {
+      tenantSlug: undefined,
+    });
+  });
 });
 
 

@@ -25,6 +25,15 @@ const isDevEnvironment = () => {
   return Boolean(metaEnv?.DEV || metaEnv?.MODE === "development");
 };
 
+
+const normalizeDemoLoginEndpoint = (endpoint?: string | null) => {
+  const trimmed = typeof endpoint === 'string' ? endpoint.trim() : '';
+  if (!trimmed) return '/api/auth/demo';
+  if (trimmed.startsWith('/api/')) return trimmed;
+  if (trimmed.startsWith('/auth/')) return `/api${trimmed}`;
+  return trimmed;
+};
+
 interface LoginResponse {
   token: string;
   user: {
@@ -252,7 +261,7 @@ const Login = () => {
           setDemoLoginEnabled(resolvedCatalog.demo_login_enabled);
         }
         if (typeof resolvedCatalog.demo_login_endpoint === 'string' && resolvedCatalog.demo_login_endpoint.trim()) {
-          setDemoLoginEndpoint(resolvedCatalog.demo_login_endpoint.trim());
+          setDemoLoginEndpoint(normalizeDemoLoginEndpoint(resolvedCatalog.demo_login_endpoint));
         }
 
         const backendEntryPoints = getDemoEntryPoints(resolvedCatalog.entry_points);
@@ -463,7 +472,7 @@ const Login = () => {
 
       await runDemoPreloadHints(tenantSlugHint);
       const requestPayload = buildDemoPayload(resolvedPayload, resolvedRubro, tenantSlugHint, resolvedSector);
-      const data = await enterpriseService.demoLoginWithPayload(requestPayload, endpointOverride || demoLoginEndpoint);
+      const data = await enterpriseService.demoLoginWithPayload(requestPayload, normalizeDemoLoginEndpoint(endpointOverride || demoLoginEndpoint));
       safeLocalStorage.setItem("authToken", data.token);
       safeLocalStorage.setItem("demoMode", String(Boolean(data.demo_mode)));
       if (data.tenant?.slug) safeLocalStorage.setItem("tenantSlug", data.tenant.slug);

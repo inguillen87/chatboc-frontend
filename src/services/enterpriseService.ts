@@ -478,7 +478,7 @@ export const enterpriseService = {
 
   getAnalyticsHeatmap: async (filters: EnterpriseBaseFilters, tenantSlug?: string) => {
     const query = buildQueryString(filters);
-    return apiFetch<any>(`/admin/analytics/heatmap?${query}`, { tenantSlug });
+    return apiFetch<any>(`/api/admin/analytics/heatmap?${query}`, { tenantSlug });
   },
 
   trackEvent: async (
