@@ -11,7 +11,7 @@ import GoogleLoginButton from "@/components/auth/GoogleLoginButton";
 import { isPasskeySupported, loginPasskey } from "@/services/passkeys";
 import { useTenant } from "@/context/TenantContext";
 import { buildTenantPath } from "@/utils/tenantPaths";
-import { enterpriseService, type DemoCatalogEntryPoint, type DemoCatalogTenant, type DemoRubro } from "@/services/enterpriseService";
+import { enterpriseService, type DemoCatalogEntryPoint, type DemoCatalogTenant, type DemoCatalogResponse, type DemoRubro } from "@/services/enterpriseService";
 import { getRubrosHierarchy } from "@/api/rubros";
 import { mapDemoOptionsFromHierarchy } from "@/utils/enterpriseExperience";
 import { getDemoAccessProfiles } from "@/utils/demoAccessProfiles";
@@ -48,6 +48,9 @@ const Login = () => {
   const [demoRubro, setDemoRubro] = useState<DemoRubro | null>(null);
   const [demoOptions, setDemoOptions] = useState<Array<{ value: DemoRubro; label: string }>>([]);
   const [demoEntryPoints, setDemoEntryPoints] = useState<DemoCatalogEntryPoint[]>([]);
+  const [demoTenantDemos, setDemoTenantDemos] = useState<DemoCatalogTenant[]>([]);
+  const [demoLoginEnabled, setDemoLoginEnabled] = useState(false);
+  const [demoLoginEndpoint, setDemoLoginEndpoint] = useState("/auth/demo");
   const demoAccessProfiles = getDemoAccessProfiles();
   const franchisePartner = getFranchisePartnerConfig();
 
@@ -62,8 +65,14 @@ const Login = () => {
     return null;
   };
 
+
+  const getEnabledTenants = (tenants: DemoCatalogTenant[] = []): DemoCatalogTenant[] => {
+    return tenants.filter((tenant) => tenant?.enabled !== false);
+  };
+
   const getDemoEntryPoints = (entryPoints: DemoCatalogEntryPoint[] = []): DemoCatalogEntryPoint[] => {
     return entryPoints.filter((entry) => {
+      if (entry?.enabled === false) return false;
       const rubro = normalizeDemoRubro(entry?.rubro);
       const label = typeof entry?.label === 'string' ? entry.label.trim() : '';
       return Boolean(rubro && label);
@@ -121,12 +130,23 @@ const Login = () => {
         const catalog = await enterpriseService.getDemoCatalog();
         if (!mounted) return;
 
-        const backendEntryPoints = getDemoEntryPoints(catalog?.entry_points);
+        const resolvedCatalog = (catalog || {}) as DemoCatalogResponse;
+        setDemoLoginEnabled(Boolean(resolvedCatalog.demo_login_enabled));
+        if (typeof resolvedCatalog.demo_login_endpoint === 'string' && resolvedCatalog.demo_login_endpoint.trim()) {
+          setDemoLoginEndpoint(resolvedCatalog.demo_login_endpoint.trim());
+        }
+
+        const backendEntryPoints = getDemoEntryPoints(resolvedCatalog.entry_points);
         if (backendEntryPoints.length > 0) {
           setDemoEntryPoints(backendEntryPoints);
         }
 
-        const catalogOptions = getDemoOptionsFromCatalog(catalog?.tenants);
+        const tenantDemos = getEnabledTenants(resolvedCatalog.tenant_demos ?? resolvedCatalog.tenants);
+        if (tenantDemos.length > 0) {
+          setDemoTenantDemos(tenantDemos);
+        }
+
+        const catalogOptions = getDemoOptionsFromCatalog(tenantDemos);
         if (catalogOptions.length > 0) {
           setDemoOptions(catalogOptions);
           setDemoRubro((prev) => prev || catalogOptions[0].value);
@@ -268,13 +288,14 @@ const Login = () => {
 
 
 
-  const handleDemoLogin = async (rubroOverride?: DemoRubro) => {
+  const handleDemoLogin = async (rubroOverride?: DemoRubro, payloadOverride?: Record<string, unknown>, endpointOverride?: string) => {
     setError("");
     setIsDemoLoading(true);
     try {
       const resolvedRubro = rubroOverride || demoRubro;
-      if (!resolvedRubro) return;
-      const data = await enterpriseService.demoLogin(resolvedRubro);
+      const resolvedPayload = payloadOverride || (resolvedRubro ? { rubro: resolvedRubro } : null);
+      if (!resolvedPayload) return;
+      const data = await enterpriseService.demoLoginWithPayload(resolvedPayload, endpointOverride || demoLoginEndpoint);
       safeLocalStorage.setItem("authToken", data.token);
       safeLocalStorage.setItem("demoMode", String(Boolean(data.demo_mode)));
       if (data.tenant?.slug) safeLocalStorage.setItem("tenantSlug", data.tenant.slug);
@@ -369,6 +390,9 @@ const Login = () => {
           </div>
         </form>
         <div className="mt-6 border-t border-border pt-4 space-y-3">
+          {!demoLoginEnabled ? (
+            <p className="text-xs text-muted-foreground">Demo no disponible actualmente.</p>
+          ) : null}
           <div className="flex gap-2">
             {demoOptions.map((option) => (
               <Button
@@ -377,7 +401,7 @@ const Login = () => {
                 variant={demoRubro === option.value ? "default" : "outline"}
                 className="flex-1"
                 onClick={() => setDemoRubro(option.value)}
-                disabled={isDemoLoading || isLoading || isPasskeyLoading}
+                disabled={!demoLoginEnabled || isDemoLoading || isLoading || isPasskeyLoading}
               >
                 {option.label}
               </Button>
@@ -387,7 +411,7 @@ const Login = () => {
             type="button"
             className="w-full"
             onClick={handleDemoLogin}
-            disabled={!demoRubro || isDemoLoading || isLoading || isPasskeyLoading}
+            disabled={!demoLoginEnabled || !demoRubro || isDemoLoading || isLoading || isPasskeyLoading}
           >
             {isDemoLoading ? "Ingresando demo..." : "Probar Demo"}
           </Button>
@@ -403,11 +427,39 @@ const Login = () => {
                     variant="secondary"
                     onClick={() => {
                       setDemoRubro(rubro);
-                      handleDemoLogin(rubro);
+                      const payload = entry.login_payload && Object.keys(entry.login_payload).length > 0
+                        ? entry.login_payload
+                        : { rubro };
+                      handleDemoLogin(rubro, payload, entry.login_endpoint || demoLoginEndpoint);
                     }}
-                    disabled={isDemoLoading || isLoading || isPasskeyLoading}
+                    disabled={!demoLoginEnabled || entry.enabled === false || isDemoLoading || isLoading || isPasskeyLoading}
                   >
                     {entry.label}
+                  </Button>
+                );
+              })}
+            </div>
+          ) : null}
+          {demoTenantDemos.length > 0 ? (
+            <div className="grid gap-2">
+              {demoTenantDemos.map((tenantDemo, index) => {
+                const rubro = normalizeDemoRubro(tenantDemo.rubro || tenantDemo.tipo);
+                const payload = tenantDemo.login_payload && Object.keys(tenantDemo.login_payload).length > 0
+                  ? tenantDemo.login_payload
+                  : (rubro ? { rubro } : null);
+                return (
+                  <Button
+                    key={tenantDemo.id || tenantDemo.slug || `${tenantDemo.nombre || 'demo'}-${index}`}
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      if (rubro) setDemoRubro(rubro);
+                      if (!payload) return;
+                      handleDemoLogin(rubro || undefined, payload, tenantDemo.login_endpoint || demoLoginEndpoint);
+                    }}
+                    disabled={!demoLoginEnabled || tenantDemo.enabled === false || !payload || isDemoLoading || isLoading || isPasskeyLoading}
+                  >
+                    {tenantDemo.nombre || tenantDemo.slug || 'Demo'}
                   </Button>
                 );
               })}

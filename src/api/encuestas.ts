@@ -8,6 +8,7 @@ import {
   SurveyAnalyticsFilters,
   SurveyComment,
   SurveyDraftPayload,
+  SurveyAnalyticsHeatmap,
   SurveyHeatmapPoint,
   SurveyListResponse,
   SurveyLivePublicResultsPayload,
@@ -682,11 +683,33 @@ export const getTimeseries = (
 ): Promise<SurveyTimeseriesPoint[]> =>
   callAdminSurveyEndpoint(`${id}/analytics/series${buildQueryString(filtros)}`);
 
-export const getHeatmap = (
+export const getHeatmap = async (
   id: number,
   filtros?: SurveyAnalyticsFilters,
-): Promise<SurveyHeatmapPoint[]> =>
-  callAdminSurveyEndpoint(`${id}/analytics/heatmap${buildQueryString(filtros)}`);
+): Promise<SurveyAnalyticsHeatmap> => {
+  const payload = await callAdminSurveyEndpoint<unknown>(`${id}/analytics/heatmap${buildQueryString(filtros)}`);
+
+  if (Array.isArray(payload)) {
+    return { points: payload as SurveyHeatmapPoint[] };
+  }
+
+  if (payload && typeof payload === 'object') {
+    const record = payload as Record<string, unknown>;
+    const points = Array.isArray(record.points)
+      ? (record.points as SurveyHeatmapPoint[])
+      : Array.isArray(record.data)
+        ? (record.data as SurveyHeatmapPoint[])
+        : [];
+
+    return {
+      points,
+      cells: Array.isArray(record.cells) ? (record.cells as Array<Record<string, unknown>>) : undefined,
+      metadata: record.metadata && typeof record.metadata === 'object' ? (record.metadata as Record<string, unknown>) : undefined,
+    };
+  }
+
+  return { points: [] };
+};
 
 
 export const getSurveyForecast = (
