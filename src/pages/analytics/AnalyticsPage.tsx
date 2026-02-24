@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
@@ -18,10 +18,33 @@ import SectionErrorBoundary from '@/components/errors/SectionErrorBoundary';
 import { openExportAndTrack } from '@/utils/enterpriseExperience';
 import { ApiError } from '@/utils/api';
 import { getEnterpriseErrorMessage } from '@/utils/enterpriseErrors';
+import { safeLocalStorage } from '@/utils/safeLocalStorage';
+import { buildTenantPath } from '@/utils/tenantPaths';
+
+
+const resolveDefaultScope = (tenantType?: string | null) => {
+  if (tenantType === 'pyme') return 'pyme';
+  if (tenantType === 'municipio' || tenantType === 'municipal') return 'municipio';
+
+  try {
+    const rawUser = safeLocalStorage.getItem('user');
+    if (!rawUser) return 'municipio';
+    const user = JSON.parse(rawUser);
+    if (user?.tipo_chat === 'pyme') return 'pyme';
+    if (user?.tipo_chat === 'municipio') return 'municipio';
+  } catch {
+    return 'municipio';
+  }
+
+  return 'municipio';
+};
 
 const AnalyticsPage = () => {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const location = useLocation();
   const { currentSlug, tenant } = useTenant();
+  const isEmbeddedInProfile = location.pathname === '/perfil';
 
   const tenantId = tenant?.id ? Number(tenant.id) : (parseInt(searchParams.get('tenant_id') || '0', 10));
 
@@ -30,7 +53,7 @@ const AnalyticsPage = () => {
   const [error, setError] = useState<string | null>(null);
 
   const [timeRange, setTimeRange] = useState('7d');
-  const [scope, setScope] = useState('municipio');
+  const [scope, setScope] = useState(() => resolveDefaultScope(tenant?.tipo));
   const [context, setContext] = useState<'overview' | 'municipio' | 'pyme'>('overview');
   const [executiveSummary, setExecutiveSummary] = useState<string>('');
   const [loadingSummary, setLoadingSummary] = useState(false);
@@ -41,12 +64,46 @@ const AnalyticsPage = () => {
   const [leadCursor, setLeadCursor] = useState<string | null>(null);
   const [leadPriorityFilter, setLeadPriorityFilter] = useState<string>('all');
   const [leadTenantFilter, setLeadTenantFilter] = useState<string>('all');
+  const [hubNavigation, setHubNavigation] = useState<Array<{ key?: string; path?: string; active?: boolean }>>([]);
+  const [hubSections, setHubSections] = useState<Record<string, unknown>>({});
+
+  const hubEncuestasPath = useMemo(() => {
+    const encuestasEntry = hubNavigation.find((item) => item?.key === 'encuestas' && typeof item?.path === 'string' && item.path);
+    return encuestasEntry?.path || buildTenantPath('/admin/encuestas', currentSlug || undefined);
+  }, [hubNavigation, currentSlug]);
+
+  const visibleTabs = useMemo(() => {
+    const sectionMap: Record<string, 'overview' | 'municipio' | 'pyme' | 'geo'> = {
+      general: 'overview',
+      municipio: 'municipio',
+      ventas: 'pyme',
+      mapas: 'geo',
+    };
+
+    const tabsFromHub = Object.keys(hubSections)
+      .map((key) => sectionMap[key])
+      .filter(Boolean) as Array<'overview' | 'municipio' | 'pyme' | 'geo'>;
+
+    if (!tabsFromHub.length) {
+      return ['overview', 'municipio', 'pyme', 'geo'] as const;
+    }
+
+    return tabsFromHub;
+  }, [hubSections]);
 
   const fireAndForgetTrackEvent = (payload: { tenant_id: number; event_name: string; payload?: Record<string, unknown>; channel?: string; session_id?: string }) => {
     enterpriseService
       .trackEvent(payload, currentSlug || undefined)
       .catch((trackError) => console.warn('[AnalyticsPage] tracking failed', trackError));
   };
+
+
+  useEffect(() => {
+    setScope((prevScope) => {
+      const defaultScope = resolveDefaultScope(tenant?.tipo ?? null);
+      return prevScope === defaultScope ? prevScope : defaultScope;
+    });
+  }, [tenant?.tipo]);
 
   const dateRange = useMemo(() => {
     const to = new Date();
@@ -61,14 +118,38 @@ const AnalyticsPage = () => {
     setLoading(true);
     setError(null);
     try {
-      const result = await analyticsService.getSummary({
+      const requestPayload = {
         tenant_id: tenantId,
         tenantSlug: currentSlug || undefined,
         from: dateRange.from,
         to: dateRange.to,
         context: context,
-        scope
-      });
+        scope,
+      };
+      let result: AnalyticsSummary;
+
+      const hub = await analyticsService.getHub(requestPayload).catch(() => null);
+      const primaryNavigation = Array.isArray(hub?.navigation?.primary) ? hub.navigation.primary : [];
+      setHubNavigation(primaryNavigation);
+      setHubSections((hub?.sections && typeof hub.sections === 'object') ? hub.sections as Record<string, unknown> : {});
+
+      try {
+        result = await analyticsService.getSummary(requestPayload, hub);
+      } catch (err: any) {
+        const shouldTryAlternateScope =
+          err instanceof ApiError &&
+          err.status === 400 &&
+          (scope === 'municipio' || scope === 'pyme');
+
+        if (!shouldTryAlternateScope) {
+          throw err;
+        }
+
+        const alternateScope = scope === 'municipio' ? 'pyme' : 'municipio';
+        result = await analyticsService.getSummary({ ...requestPayload, scope: alternateScope });
+        setScope(alternateScope);
+      }
+
       setData(result);
       if (tenantId) {
         fireAndForgetTrackEvent({
@@ -81,7 +162,8 @@ const AnalyticsPage = () => {
       }
     } catch (err: any) {
       console.error(err);
-      setError("No se pudo cargar el dashboard.");
+      const friendlyMessage = err instanceof ApiError ? getEnterpriseErrorMessage(err) : 'No se pudo cargar el dashboard.';
+      setError(friendlyMessage || 'No se pudo cargar el dashboard.');
     } finally {
       setLoading(false);
     }
@@ -210,16 +292,24 @@ const AnalyticsPage = () => {
   }
 
   return (
-    <div className="p-6 space-y-6 bg-gray-50 dark:bg-slate-950 min-h-screen">
+    <div className={`space-y-6 ${isEmbeddedInProfile ? 'p-0 bg-transparent min-h-0' : 'p-3 sm:p-6 bg-gray-50 dark:bg-slate-950 min-h-screen'}`}>
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Analytics & Insights</h1>
-          <p className="text-muted-foreground">Métricas clave y comportamiento de tu audiencia en tiempo real.</p>
+        <div className="space-y-2">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Analytics & Insights</h1>
+            <p className="text-muted-foreground">Métricas clave y comportamiento de tu audiencia en tiempo real.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {!isEmbeddedInProfile ? (
+              <Button variant="outline" size="sm" onClick={() => navigate('/perfil')}>Perfil</Button>
+            ) : null}
+            <Button variant="outline" size="sm" onClick={() => navigate(hubEncuestasPath)}>Encuestas</Button>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="sticky top-3 z-20 grid w-full gap-2 rounded-2xl border border-border/70 bg-background/95 p-3 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/70 sm:flex sm:w-auto sm:items-center sm:flex-wrap">
           <Select value={timeRange} onValueChange={setTimeRange}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-full sm:w-[180px]">
               <SelectValue placeholder="Periodo" />
             </SelectTrigger>
             <SelectContent>
@@ -229,7 +319,7 @@ const AnalyticsPage = () => {
             </SelectContent>
           </Select>
           <Select value={scope} onValueChange={setScope}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-full sm:w-[180px]">
               <SelectValue placeholder="Scope" />
             </SelectTrigger>
             <SelectContent>
@@ -256,11 +346,11 @@ const AnalyticsPage = () => {
       ) : null}
 
       <Tabs defaultValue="overview" className="w-full" onValueChange={(val) => { setContext(val as any); if (tenantId) { fireAndForgetTrackEvent({ tenant_id: tenantId, event_name: 'tab_click', payload: { tab: val }, channel: 'web_widget', session_id: `sess_${Date.now()}` }); } }}>
-        <TabsList className="grid w-full grid-cols-4 lg:w-[400px]">
-          <TabsTrigger value="overview">General</TabsTrigger>
-          <TabsTrigger value="municipio">Municipio</TabsTrigger>
-          <TabsTrigger value="pyme">Ventas</TabsTrigger>
-          <TabsTrigger value="geo">Mapas</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 lg:w-[400px]">
+          {visibleTabs.includes('overview') ? <TabsTrigger value="overview">General</TabsTrigger> : null}
+          {visibleTabs.includes('municipio') ? <TabsTrigger value="municipio">Municipio</TabsTrigger> : null}
+          {visibleTabs.includes('pyme') ? <TabsTrigger value="pyme">Ventas</TabsTrigger> : null}
+          {visibleTabs.includes('geo') ? <TabsTrigger value="geo">Mapas</TabsTrigger> : null}
         </TabsList>
 
         <div className="mt-6">

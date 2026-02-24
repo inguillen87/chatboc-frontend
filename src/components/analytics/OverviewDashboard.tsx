@@ -11,7 +11,17 @@ interface Props {
 }
 
 const OverviewDashboard: React.FC<Props> = ({ data, showSla, showConversion }) => {
-  const { kpis } = data;
+  const kpis = data?.kpis ?? {
+    total_interactions: 0,
+    active_users: 0,
+    avg_response_time_s: 0,
+    conversion_rate: 0,
+    backlog_open: 0,
+    sla_breaches: 0,
+  };
+  const volumeByDay = Array.isArray(data?.volume_by_day) ? data.volume_by_day : [];
+  const topCategories = Array.isArray(data?.top_categories) ? data.top_categories : [];
+
 
   return (
     <div className="space-y-6">
@@ -93,7 +103,7 @@ const OverviewDashboard: React.FC<Props> = ({ data, showSla, showConversion }) =
           </CardHeader>
           <CardContent className="pl-2">
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={data.volume_by_day}>
+              <LineChart data={volumeByDay}>
                 <XAxis dataKey="date" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
                 <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
                 <Tooltip />
@@ -111,7 +121,7 @@ const OverviewDashboard: React.FC<Props> = ({ data, showSla, showConversion }) =
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={data.top_categories} layout="vertical" margin={{ top: 0, right: 30, left: 40, bottom: 0 }}>
+              <BarChart data={topCategories} layout="vertical" margin={{ top: 0, right: 30, left: 40, bottom: 0 }}>
                 <XAxis type="number" hide />
                 <YAxis dataKey="category" type="category" width={100} tick={{ fontSize: 12 }} />
                 <Tooltip cursor={{ fill: 'transparent' }} />

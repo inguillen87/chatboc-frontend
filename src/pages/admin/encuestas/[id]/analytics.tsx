@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
-import { AlertTriangle, CalendarDays, Copy, Download, Loader2, Sparkles, TrendingUp } from 'lucide-react';
+import { AlertTriangle, CalendarDays, Copy, Download, ExternalLink, Loader2, Sparkles, TrendingUp } from 'lucide-react';
 
 import { SurveyAnalytics } from '@/components/surveys/SurveyAnalytics';
 import { SurveyQrPreview } from '@/components/surveys/SurveyQrPreview';
@@ -47,11 +47,23 @@ const asRenderableText = (value?: unknown) => {
     if (typeof candidate === 'string' || typeof candidate === 'number') return String(candidate);
   }
 
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return '';
+  return '';
+};
+
+const renderLabeledMetric = (label: string, value: string | number) => {
+  if (label.trim()) {
+    return (
+      <p>
+        {label}: <strong>{value}</strong>
+      </p>
+    );
   }
+
+  return (
+    <p>
+      <strong>{value}</strong>
+    </p>
+  );
 };
 
 const SurveyAnalyticsPage = () => {
@@ -62,6 +74,9 @@ const SurveyAnalyticsPage = () => {
     summary,
     timeseries,
     heatmap,
+    heatmapMeta,
+    dashboardBundle,
+    executiveSummary,
     isLoading,
     exportCsv,
     isExporting,
@@ -337,6 +352,11 @@ const SurveyAnalyticsPage = () => {
   const brief = briefQuery.data;
   const segmentsCompare = compareQuery.data;
   const anomalies = anomaliesQuery.data;
+  const responsesTotalHint = typeof summary?.total_respuestas === 'number' ? summary.total_respuestas : null;
+  const backendAlerts = dashboardBundle?.modules?.alerts ?? [];
+  const effectiveAlerts = backendAlerts.length ? backendAlerts : alerts;
+  const backendBrief = dashboardBundle?.modules?.brief;
+  const effectiveBrief = backendBrief ?? brief;
 
   if ((isLoadingSurvey && !surveys) || isLoading) {
     return (
@@ -477,6 +497,72 @@ const SurveyAnalyticsPage = () => {
           ) : null}
         </CardContent>
       </Card>
+
+      {executiveSummary ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>{asRenderableText(executiveSummary.headline)}</CardTitle>
+            <CardDescription>{asRenderableText(executiveSummary.one_liner)}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {Array.isArray(executiveSummary.focus_points) && executiveSummary.focus_points.length ? (
+              <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+                {executiveSummary.focus_points.slice(0, 6).map((focusPoint, index) => (
+                  <li key={`${index}-${asRenderableText(focusPoint)}`}>{asRenderableText(focusPoint)}</li>
+                ))}
+              </ul>
+            ) : null}
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-lg border border-border/60 p-3 text-sm">
+                <p className="text-muted-foreground">alert_count</p>
+                <p className="text-xl font-semibold">{executiveSummary.alert_count ?? effectiveAlerts.length ?? 0}</p>
+              </div>
+              <div className="rounded-lg border border-border/60 p-3 text-sm">
+                <p className="text-muted-foreground">projected_additional</p>
+                <p className="text-xl font-semibold">{executiveSummary.projected_additional ?? '—'}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+      <div className="sticky top-3 z-20 rounded-2xl border border-border/70 bg-background/95 p-3 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/70">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="space-y-0.5">
+            <p className="text-sm font-semibold">Centro de acciones de analytics</p>
+            <p className="text-xs text-muted-foreground">Exportá, difundí y generá demo sin salir de la vista.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExport}
+              disabled={isExporting}
+              className="inline-flex items-center gap-2"
+            >
+              {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Exportar CSV
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                void handleSeedDemoResponses();
+              }}
+              disabled={isSeeding || !effectiveSurvey.slug}
+              className="inline-flex items-center gap-2"
+            >
+              {isSeeding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />} 100 demo
+            </Button>
+            {publicUrl ? (
+              <Button variant="outline" size="sm" asChild className="inline-flex items-center gap-2">
+                <a href={publicUrl} target="_blank" rel="noreferrer">
+                  <ExternalLink className="h-4 w-4" /> Pública
+                </a>
+              </Button>
+            ) : null}
+          </div>
+        </div>
+      </div>
+
       <Card>
         <CardHeader>
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -486,22 +572,6 @@ const SurveyAnalyticsPage = () => {
                 Explorá la evolución de las respuestas, canales de difusión y trazabilidad pública.
               </CardDescription>
             </div>
-            <Button
-              variant="outline"
-              onClick={() => {
-                void handleSeedDemoResponses();
-              }}
-              disabled={isSeeding || !effectiveSurvey.slug}
-              className="inline-flex items-center gap-2"
-            >
-              {isSeeding ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" /> Generando respuestas…
-                </>
-              ) : (
-                'Inyectar 100 respuestas demo'
-              )}
-            </Button>
           </div>
         </CardHeader>
         <CardContent>
@@ -514,6 +584,7 @@ const SurveyAnalyticsPage = () => {
             summary={summary}
             timeseries={timeseries}
             heatmap={heatmap}
+            heatmapMeta={heatmapMeta}
             onExport={handleExport}
             isExporting={isExporting}
             filters={filters}
@@ -538,9 +609,9 @@ const SurveyAnalyticsPage = () => {
                 <p className="text-sm text-destructive">{getErrorMessage(forecastQuery.error)}</p>
               ) : (
                 <div className="space-y-1 text-sm">
-                  <p>{asSafeText(enterpriseUiConfig?.forecast_projected_total_label)}: <strong>{forecast?.projected_total ?? '—'}</strong></p>
-                  <p>{asSafeText(enterpriseUiConfig?.forecast_current_rate_label)}: <strong>{forecast?.current_rate ?? '—'}</strong></p>
-                  <p>{asSafeText(enterpriseUiConfig?.forecast_confidence_label)}: <strong>{forecast?.confidence ?? '—'}</strong></p>
+                  {renderLabeledMetric(asSafeText(enterpriseUiConfig?.forecast_projected_total_label), forecast?.projected_total ?? '—')}
+                  {renderLabeledMetric(asSafeText(enterpriseUiConfig?.forecast_current_rate_label), forecast?.current_rate ?? '—')}
+                  {renderLabeledMetric(asSafeText(enterpriseUiConfig?.forecast_confidence_label), forecast?.confidence ?? '—')}
                 </div>
               )}
             </div>
@@ -552,9 +623,9 @@ const SurveyAnalyticsPage = () => {
                 <p className="text-sm text-muted-foreground">Cargando…</p>
               ) : alertsQuery.error ? (
                 <p className="text-sm text-destructive">{getErrorMessage(alertsQuery.error)}</p>
-              ) : alerts.length ? (
+              ) : effectiveAlerts.length ? (
                 <div className="space-y-2">
-                  {alerts.slice(0, 6).map((alert, index) => (
+                  {effectiveAlerts.slice(0, 6).map((alert, index) => (
                     <div key={`${alert.id ?? index}`} className="rounded-md border border-border/60 px-3 py-2 text-sm">
                       <div className="flex items-center gap-2">
                         <Badge variant="outline">{asRenderableText(alert.severity) || 'info'}</Badge>
@@ -579,10 +650,10 @@ const SurveyAnalyticsPage = () => {
               <p className="text-sm text-destructive">{getErrorMessage(briefQuery.error)}</p>
             ) : (
               <div className="space-y-2 text-sm">
-                <p>{asRenderableText(brief?.summary) || asSafeText(enterpriseUiConfig?.brief_fallback_label)}</p>
-                {brief?.highlights?.length ? (
+                <p>{asRenderableText(effectiveBrief?.summary) || asSafeText(enterpriseUiConfig?.brief_fallback_label)}</p>
+                {effectiveBrief?.highlights?.length ? (
                   <ul className="list-disc pl-5 text-muted-foreground">
-                    {brief.highlights.slice(0, 4).map((item, index) => (
+                    {effectiveBrief.highlights.slice(0, 4).map((item, index) => (
                       <li key={`${index}-${asRenderableText(item)}`}>{asRenderableText(item)}</li>
                     ))}
                   </ul>
@@ -629,8 +700,8 @@ const SurveyAnalyticsPage = () => {
               <p className="text-sm text-destructive">{getErrorMessage(anomaliesQuery.error)}</p>
             ) : (
               <div className="space-y-2 text-sm">
-                <p>{asSafeText(enterpriseUiConfig?.risk_score_label)}: <strong>{anomalies?.risk_score ?? '—'}</strong></p>
-                <p>{asSafeText(enterpriseUiConfig?.risk_level_label)}: <strong>{anomalies?.risk_level ?? '—'}</strong></p>
+                {renderLabeledMetric(asSafeText(enterpriseUiConfig?.risk_score_label), anomalies?.risk_score ?? '—')}
+                {renderLabeledMetric(asSafeText(enterpriseUiConfig?.risk_level_label), anomalies?.risk_level ?? '—')}
                 {anomalies?.signals?.length ? (
                   <ul className="list-disc pl-5 text-muted-foreground">
                     {anomalies.signals.slice(0, 6).map((signal, index) => (
@@ -655,6 +726,7 @@ const SurveyAnalyticsPage = () => {
           void refetchResponses();
         }}
         emptyHintUrl={publicUrl}
+        totalResponsesHint={responsesTotalHint}
       />
       <Card>
         <CardHeader>
