@@ -236,7 +236,7 @@ export function SurveyComments({ slug, tenantSlug, realtimeComments, copy }: Sur
         </div>
 
         {/* Comments List */}
-        <div className="space-y-4">
+        <div className="space-y-3 sm:space-y-4">
             {loading ? (
                 <p className="text-muted-foreground text-center">{safeText(copy?.loadingLabel)}</p>
             ) : comments.length === 0 ? (

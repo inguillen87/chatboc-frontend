@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
-import { AlertTriangle, CalendarDays, Copy, Download, Loader2, Sparkles, TrendingUp } from 'lucide-react';
+import { AlertTriangle, CalendarDays, Copy, Download, ExternalLink, Loader2, Sparkles, TrendingUp } from 'lucide-react';
 
 import { SurveyAnalytics } from '@/components/surveys/SurveyAnalytics';
 import { SurveyQrPreview } from '@/components/surveys/SurveyQrPreview';
@@ -525,6 +525,44 @@ const SurveyAnalyticsPage = () => {
           </CardContent>
         </Card>
       ) : null}
+      <div className="sticky top-3 z-20 rounded-2xl border border-border/70 bg-background/95 p-3 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/70">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="space-y-0.5">
+            <p className="text-sm font-semibold">Centro de acciones de analytics</p>
+            <p className="text-xs text-muted-foreground">Exportá, difundí y generá demo sin salir de la vista.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExport}
+              disabled={isExporting}
+              className="inline-flex items-center gap-2"
+            >
+              {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Exportar CSV
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                void handleSeedDemoResponses();
+              }}
+              disabled={isSeeding || !effectiveSurvey.slug}
+              className="inline-flex items-center gap-2"
+            >
+              {isSeeding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />} 100 demo
+            </Button>
+            {publicUrl ? (
+              <Button variant="outline" size="sm" asChild className="inline-flex items-center gap-2">
+                <a href={publicUrl} target="_blank" rel="noreferrer">
+                  <ExternalLink className="h-4 w-4" /> Pública
+                </a>
+              </Button>
+            ) : null}
+          </div>
+        </div>
+      </div>
+
       <Card>
         <CardHeader>
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -534,22 +572,6 @@ const SurveyAnalyticsPage = () => {
                 Explorá la evolución de las respuestas, canales de difusión y trazabilidad pública.
               </CardDescription>
             </div>
-            <Button
-              variant="outline"
-              onClick={() => {
-                void handleSeedDemoResponses();
-              }}
-              disabled={isSeeding || !effectiveSurvey.slug}
-              className="inline-flex items-center gap-2"
-            >
-              {isSeeding ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" /> Generando respuestas…
-                </>
-              ) : (
-                'Inyectar 100 respuestas demo'
-              )}
-            </Button>
           </div>
         </CardHeader>
         <CardContent>
