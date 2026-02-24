@@ -68,6 +68,26 @@ const Login = () => {
     return null;
   };
 
+  const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  const getDemoCatalogWithRetry = useCallback(async (): Promise<DemoCatalogResponse> => {
+    const retryDelaysMs = [250, 700, 1500];
+    let lastError: unknown = null;
+
+    for (let attempt = 0; attempt < retryDelaysMs.length + 1; attempt += 1) {
+      try {
+        return await enterpriseService.getDemoCatalog();
+      } catch (error) {
+        lastError = error;
+        if (attempt >= retryDelaysMs.length) {
+          break;
+        }
+        await wait(retryDelaysMs[attempt]);
+      }
+    }
+
+    throw lastError ?? new Error('No se pudo cargar el catálogo demo.');
+  }, []);
 
   const getEnabledTenants = (tenants: DemoCatalogTenant[] = []): DemoCatalogTenant[] => {
     return tenants.filter((tenant) => tenant?.enabled !== false);
@@ -130,7 +150,7 @@ const Login = () => {
     let mounted = true;
     const loadDemoOptions = async () => {
       try {
-        const catalog = await enterpriseService.getDemoCatalog();
+        const catalog = await getDemoCatalogWithRetry();
         if (!mounted) return;
 
         const resolvedCatalog = (catalog || {}) as DemoCatalogResponse;

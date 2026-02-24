@@ -121,8 +121,10 @@ export function useSurveyAnalytics(
   const [summaryQuery, timeseriesQuery, heatmapQuery] = useQueries({
     queries: [
       {
-        queryKey: ['survey-analytics-dashboard', normalizedId, normalizedFilters],
-        enabled: normalizedId !== null,
+        queryKey: ['survey-analytics-summary', normalizedId, normalizedFilters],
+        enabled:
+          normalizedId !== null &&
+          (dashboardQuery.isError || !dashboardQuery.data?.modules?.summary),
         queryFn: () =>
           normalizedId !== null ? getSurveyDashboardBundle(normalizedId, normalizedFilters) : Promise.reject('No id provided'),
       },
