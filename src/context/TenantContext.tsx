@@ -106,6 +106,11 @@ const DEFAULT_TENANT_CONTEXT: TenantContextValue = {
 
 const TENANT_PATH_REGEX = new RegExp(`^/(?:${TENANT_ROUTE_PREFIXES.join('|')}|demo)/([^/]+)`, 'i');
 
+const shouldLogTenantWarnings = () => {
+  const metaEnv = typeof import.meta !== 'undefined' ? (import.meta as any)?.env : undefined;
+  return Boolean(metaEnv?.DEV || metaEnv?.MODE === 'development');
+};
+
 const sanitizeTenantSlug = (slug?: string | null) => {
   if (!slug) return null;
   const normalized = slug.trim();
@@ -331,7 +336,9 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
     }
 
     fetchTenant(slug, token ?? null).catch((error) => {
-      console.warn('[TenantContext] No se pudo cargar la información pública del tenant', error);
+      if (shouldLogTenantWarnings()) {
+        console.warn('[TenantContext] No se pudo cargar la información pública del tenant', error);
+      }
     });
   }, [fetchTenant, location.pathname, location.search]);
 
