@@ -117,6 +117,18 @@ const PublicSurveyPage = () => {
   }, [searchParams]);
 
   const safeText = (value?: unknown) => (typeof value === 'string' ? value : '');
+  const toDisplayText = (value: unknown): string => {
+    if (typeof value === 'string') return value;
+    if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+    if (value && typeof value === 'object') {
+      const record = value as Record<string, unknown>;
+      const candidate = record.texto ?? record.label ?? record.nombre ?? record.value;
+      if (typeof candidate === 'string' || typeof candidate === 'number' || typeof candidate === 'boolean') {
+        return String(candidate);
+      }
+    }
+    return '';
+  };
 
   const handleSubmit = useCallback(
     async (payload: PublicResponsePayload) => {
@@ -161,33 +173,7 @@ const PublicSurveyPage = () => {
   }, []);
 
   // Embed Mode Styles
-  const containerClass = mode === 'embed' ? "w-full min-h-screen bg-background" : "mx-auto w-full max-w-3xl py-10";
-
-  if (isLoading) {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  if (error || !survey) {
-    return (
-      <div className="mx-auto flex min-h-[60vh] w-full max-w-2xl items-center justify-center">
-        <Card className="w-full">
-          <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
-            <p className="text-lg font-medium">No pudimos cargar esta encuesta.</p>
-            <p className="text-sm text-muted-foreground">{error || 'El enlace puede estar vencido o no existe.'}</p>
-            {mode !== 'embed' && (
-                <Button asChild>
-                <Link to="/">Volver al inicio</Link>
-                </Button>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+  const containerClass = mode === 'embed' ? "w-full min-h-screen bg-background" : "mx-auto w-full max-w-5xl px-3 py-6 sm:px-4 sm:py-8 lg:py-10";
 
   const votingOptionsCount = useMemo(() => {
     const question = survey?.preguntas?.[0];
@@ -288,6 +274,32 @@ const PublicSurveyPage = () => {
     (survey as Record<string, unknown> | undefined)?.mensaje_cierre ??
     (survey as Record<string, unknown> | undefined)?.mensaje_institucional ??
     null;
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (error || !survey) {
+    return (
+      <div className="mx-auto flex min-h-[60vh] w-full max-w-2xl items-center justify-center">
+        <Card className="w-full">
+          <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
+            <p className="text-lg font-medium">No pudimos cargar esta encuesta.</p>
+            <p className="text-sm text-muted-foreground">{error || 'El enlace puede estar vencido o no existe.'}</p>
+            {mode !== 'embed' && (
+              <Button asChild>
+                <Link to="/">Volver al inicio</Link>
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (submitted && survey) {
     return (
@@ -392,8 +404,8 @@ const PublicSurveyPage = () => {
   return (
     <div className={containerClass}>
       {survey.es_votacion_envivo ? (
-        <div className="space-y-6">
-          <Card className="border border-border/60 bg-gradient-to-br from-background via-background to-primary/5">
+        <div className="space-y-6 animate-in fade-in-50 duration-500">
+          <Card className="border border-border/60 bg-gradient-to-br from-background via-background to-primary/5 shadow-sm">
             <CardContent className="space-y-6 px-6 py-8 sm:px-8">
               <div className="flex flex-col gap-4">
                 <div className="flex flex-wrap items-center gap-3">
@@ -416,14 +428,14 @@ const PublicSurveyPage = () => {
               </div>
 
               <div className="grid gap-4 sm:grid-cols-3">
-                <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-background/70 px-4 py-3">
+                <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-background/70 px-4 py-3 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
                   <Users className="h-5 w-5 text-primary" />
                   <div>
                     <p className="text-xs uppercase text-muted-foreground">{safeText(votacionUi?.stat_total_label)}</p>
                     <p className="text-lg font-semibold">{livePollTotalVotes ?? '—'}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-background/70 px-4 py-3">
+                <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-background/70 px-4 py-3 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
                   <Timer className="h-5 w-5 text-primary" />
                   <div>
                     <p className="text-xs uppercase text-muted-foreground">{safeText(votacionUi?.stat_tiempo_label)}</p>
@@ -432,7 +444,7 @@ const PublicSurveyPage = () => {
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-background/70 px-4 py-3">
+                <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-background/70 px-4 py-3 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
                   <MessageSquareText className="h-5 w-5 text-primary" />
                   <div>
                     <p className="text-xs uppercase text-muted-foreground">{safeText(votacionUi?.stat_opciones_label)}</p>
@@ -448,7 +460,7 @@ const PublicSurveyPage = () => {
               )}
 
               {survey.mostrar_resultados_envivo && liveDashboard ? (
-                <div className="space-y-4 rounded-xl border border-border/60 bg-background/70 p-4">
+                <div className="space-y-4 rounded-2xl border border-border/60 bg-background/80 p-4 shadow-sm sm:p-5">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-sm font-medium">{safeText(liveResultsUi?.header_title) || survey.titulo}</span>
@@ -526,26 +538,26 @@ const PublicSurveyPage = () => {
                   ) : null}
 
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                    <div className="rounded-lg border border-border/60 p-3">
+                    <div className="rounded-xl border border-border/60 bg-background/70 p-3 transition-all duration-300 hover:shadow-sm">
                       <p className="text-xs text-muted-foreground">{safeText(liveResultsUi?.kpi_responses_last_hour_label)}</p>
                       <p className="text-lg font-semibold">{liveDashboard.kpis?.responses_last_hour ?? '—'}</p>
                     </div>
-                    <div className="rounded-lg border border-border/60 p-3">
+                    <div className="rounded-xl border border-border/60 bg-background/70 p-3 transition-all duration-300 hover:shadow-sm">
                       <p className="text-xs text-muted-foreground">{safeText(liveResultsUi?.kpi_participation_per_minute_label)}</p>
                       <p className="text-lg font-semibold">{liveDashboard.kpis?.participation_per_minute ?? '—'}</p>
                     </div>
-                    <div className="rounded-lg border border-border/60 p-3">
+                    <div className="rounded-xl border border-border/60 bg-background/70 p-3 transition-all duration-300 hover:shadow-sm">
                       <p className="text-xs text-muted-foreground">{safeText(liveResultsUi?.kpi_heatmap_coverage_cells_label)}</p>
                       <p className="text-lg font-semibold">{liveDashboard.kpis?.heatmap_coverage_cells ?? '—'}</p>
                     </div>
-                    <div className="rounded-lg border border-border/60 p-3">
+                    <div className="rounded-xl border border-border/60 bg-background/70 p-3 transition-all duration-300 hover:shadow-sm">
                       <p className="text-xs text-muted-foreground">{safeText(liveResultsUi?.kpi_leader_label)}</p>
-                      <p className="text-lg font-semibold">{liveDashboard.kpis?.leader ?? '—'}</p>
+                      <p className="text-lg font-semibold">{toDisplayText(liveDashboard.kpis?.leader) || '—'}</p>
                     </div>
                   </div>
 
                   {liveTimeline.length > 0 ? (
-                    <div className="rounded-lg border border-border/60 p-3">
+                    <div className="rounded-xl border border-border/60 bg-background/70 p-3 transition-all duration-300 hover:shadow-sm">
                       <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
                         <TrendingUp className="h-3.5 w-3.5" />
                         {safeText(liveResultsUi?.timeline_title)}
@@ -564,17 +576,17 @@ const PublicSurveyPage = () => {
                   {liveQuestions.length > 0 ? (
                     <div className="grid gap-3 lg:grid-cols-2">
                       {liveQuestions.map((question, qIndex) => (
-                        <div key={`${question.id ?? qIndex}`} className="rounded-lg border border-border/60 p-3">
-                          <p className="mb-2 text-sm font-medium">{question.texto ?? ''}</p>
+                        <div key={`${question.id ?? qIndex}`} className="rounded-xl border border-border/60 bg-background/70 p-3">
+                          <p className="mb-2 text-sm font-medium">{toDisplayText(question.texto)}</p>
                           <div className="space-y-2">
                             {(question.opciones ?? []).map((option, optionIndex) => (
                               <div key={`${option.value ?? optionIndex}`} className="space-y-1">
                                 <div className="flex items-center justify-between text-xs">
-                                  <span>{option.value ?? ''}</span>
+                                  <span>{toDisplayText(option.value)}</span>
                                   <span>{option.porcentaje ?? 0}%</span>
                                 </div>
                                 <div className="h-2 rounded-full bg-muted">
-                                  <div className="h-2 rounded-full bg-primary transition-all" style={{ width: `${Math.max(0, Math.min(100, Number(option.porcentaje ?? 0)))}%` }} />
+                                  <div className="h-2 rounded-full bg-primary transition-all duration-700" style={{ width: `${Math.max(0, Math.min(100, Number(option.porcentaje ?? 0)))}%` }} />
                                 </div>
                               </div>
                             ))}
@@ -591,9 +603,9 @@ const PublicSurveyPage = () => {
                   ) : null}
 
                   {liveDashboard.ai_summary ? (
-                    <div className="rounded-lg border border-border/60 p-3">
+                    <div className="rounded-xl border border-border/60 bg-background/70 p-3 transition-all duration-300 hover:shadow-sm">
                       <p className="text-xs text-muted-foreground">{safeText(liveResultsUi?.ai_summary_title)}</p>
-                      <p className="text-sm">{liveDashboard.ai_summary}</p>
+                      <p className="text-sm">{toDisplayText(liveDashboard.ai_summary)}</p>
                     </div>
                   ) : null}
                 </div>
