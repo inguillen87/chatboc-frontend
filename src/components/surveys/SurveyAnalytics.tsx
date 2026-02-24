@@ -25,6 +25,7 @@ import type { MapProvider, MapProviderUnavailableReason } from '@/hooks/useMapPr
 import type {
   SurveyAnalyticsFilters,
   SurveyDemographicBreakdownItem,
+  SurveyAnalyticsHeatmap,
   SurveyHeatmapPoint,
   SurveySummary,
   SurveyTimeseriesPoint,
@@ -34,6 +35,7 @@ interface SurveyAnalyticsProps {
   summary?: SurveySummary;
   timeseries?: SurveyTimeseriesPoint[];
   heatmap?: SurveyHeatmapPoint[];
+  heatmapMeta?: SurveyAnalyticsHeatmap['metadata'];
   onExport: () => Promise<void>;
   isExporting?: boolean;
   filters?: SurveyAnalyticsFilters;
@@ -415,6 +417,7 @@ export const SurveyAnalytics = ({
   summary,
   timeseries,
   heatmap,
+  heatmapMeta,
   onExport,
   isExporting,
   filters,
@@ -436,6 +439,11 @@ export const SurveyAnalytics = ({
       })),
     [heatmapPoints],
   );
+
+  const usingSyntheticPoints = useMemo(() => {
+    if (!heatmapMeta || typeof heatmapMeta !== 'object') return false;
+    return Boolean((heatmapMeta as Record<string, unknown>).using_synthetic_points);
+  }, [heatmapMeta]);
   const { provider, setProvider } = useMapProvider();
   const googleProviderAvailable = useMemo(
     () => ((import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? '').trim().length > 0),
@@ -733,7 +741,7 @@ export const SurveyAnalytics = ({
           <CardTitle>Evolución diaria</CardTitle>
           <CardDescription>Visualizá el ritmo de participación a lo largo del tiempo.</CardDescription>
         </CardHeader>
-        <CardContent className="h-72">
+        <CardContent className="h-72 min-w-0">
           {timeseriesData.length ? (
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={timeseriesData}>
@@ -758,7 +766,7 @@ export const SurveyAnalytics = ({
           <CardDescription>Resultados acumulados por pregunta y opción.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-6 lg:grid-cols-2">
-          <div className="h-72">
+          <div className="h-72 min-w-0">
             {optionData.length ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={optionData}>
@@ -776,7 +784,7 @@ export const SurveyAnalytics = ({
               </div>
             )}
           </div>
-          <div className="h-72">
+          <div className="h-72 min-w-0">
             {optionData.length ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -853,26 +861,45 @@ export const SurveyAnalytics = ({
           <CardDescription>Ubicaciones aproximadas de participación (si están disponibles).</CardDescription>
         </CardHeader>
         <CardContent>
+          {usingSyntheticPoints ? (
+            <div className="mb-3 inline-flex rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs text-amber-700">
+              Modo demo (ubicaciones simuladas)
+            </div>
+          ) : null}
           {heatmapPoints.length ? (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-border text-sm">
-                <thead>
-                  <tr className="text-left text-muted-foreground">
-                    <th className="py-2 pr-4">Latitud</th>
-                    <th className="py-2 pr-4">Longitud</th>
-                    <th className="py-2 pr-4">Respuestas</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {heatmapPoints.map((point, index) => (
-                    <tr key={`${point.lat}-${point.lng}-${index}`} className="border-b border-border/40">
-                      <td className="py-2 pr-4">{point.lat.toFixed(4)}</td>
-                      <td className="py-2 pr-4">{point.lng.toFixed(4)}</td>
-                      <td className="py-2 pr-4">{point.respuestas}</td>
+            <div className="space-y-4">
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-border text-sm">
+                  <thead>
+                    <tr className="text-left text-muted-foreground">
+                      <th className="py-2 pr-4">Latitud</th>
+                      <th className="py-2 pr-4">Longitud</th>
+                      <th className="py-2 pr-4">Respuestas</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {heatmapPoints.map((point, index) => (
+                      <tr key={`${point.lat}-${point.lng}-${index}`} className="border-b border-border/40">
+                        <td className="py-2 pr-4">{point.lat.toFixed(4)}</td>
+                        <td className="py-2 pr-4">{point.lng.toFixed(4)}</td>
+                        <td className="py-2 pr-4">{point.respuestas}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="h-[320px] min-w-0 overflow-hidden rounded-lg border border-border/60">
+                <MapLibreMap
+                  className="h-full w-full"
+                  center={heatmapCenter}
+                  heatmapData={heatmapData}
+                  fitToBounds={heatmapBounds.length ? heatmapBounds : undefined}
+                  initialZoom={heatmapBounds.length ? 12 : 4}
+                  provider={provider}
+                  onProviderUnavailable={handleProviderUnavailable}
+                  onBoundingBoxChange={handleBoundingBoxChange}
+                />
+              </div>
             </div>
           ) : (
             <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
@@ -901,6 +928,11 @@ export const SurveyAnalytics = ({
           </div>
         </CardHeader>
         <CardContent className="h-[420px]">
+          {usingSyntheticPoints ? (
+            <div className="mb-3 inline-flex rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs text-amber-700">
+              Modo demo (ubicaciones simuladas)
+            </div>
+          ) : null}
           {boundingBoxValue ? (
             <div className="mb-3 flex flex-wrap items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-primary">
               Filtrando resultados por la zona visible del mapa.
@@ -951,7 +983,7 @@ export const SurveyAnalytics = ({
                     Participación segmentada para este atributo.
                   </p>
                 </div>
-                <div className="h-64 w-full">
+                <div className="h-64 w-full min-w-0">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart
                       data={section.data}
