@@ -117,6 +117,18 @@ const PublicSurveyPage = () => {
   }, [searchParams]);
 
   const safeText = (value?: unknown) => (typeof value === 'string' ? value : '');
+  const toDisplayText = (value: unknown): string => {
+    if (typeof value === 'string') return value;
+    if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+    if (value && typeof value === 'object') {
+      const record = value as Record<string, unknown>;
+      const candidate = record.texto ?? record.label ?? record.nombre ?? record.value;
+      if (typeof candidate === 'string' || typeof candidate === 'number' || typeof candidate === 'boolean') {
+        return String(candidate);
+      }
+    }
+    return '';
+  };
 
   const handleSubmit = useCallback(
     async (payload: PublicResponsePayload) => {
@@ -162,32 +174,6 @@ const PublicSurveyPage = () => {
 
   // Embed Mode Styles
   const containerClass = mode === 'embed' ? "w-full min-h-screen bg-background" : "mx-auto w-full max-w-3xl py-10";
-
-  if (isLoading) {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  if (error || !survey) {
-    return (
-      <div className="mx-auto flex min-h-[60vh] w-full max-w-2xl items-center justify-center">
-        <Card className="w-full">
-          <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
-            <p className="text-lg font-medium">No pudimos cargar esta encuesta.</p>
-            <p className="text-sm text-muted-foreground">{error || 'El enlace puede estar vencido o no existe.'}</p>
-            {mode !== 'embed' && (
-                <Button asChild>
-                <Link to="/">Volver al inicio</Link>
-                </Button>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
 
   const votingOptionsCount = useMemo(() => {
     const question = survey?.preguntas?.[0];
@@ -288,6 +274,32 @@ const PublicSurveyPage = () => {
     (survey as Record<string, unknown> | undefined)?.mensaje_cierre ??
     (survey as Record<string, unknown> | undefined)?.mensaje_institucional ??
     null;
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (error || !survey) {
+    return (
+      <div className="mx-auto flex min-h-[60vh] w-full max-w-2xl items-center justify-center">
+        <Card className="w-full">
+          <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
+            <p className="text-lg font-medium">No pudimos cargar esta encuesta.</p>
+            <p className="text-sm text-muted-foreground">{error || 'El enlace puede estar vencido o no existe.'}</p>
+            {mode !== 'embed' && (
+              <Button asChild>
+                <Link to="/">Volver al inicio</Link>
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (submitted && survey) {
     return (
@@ -565,12 +577,12 @@ const PublicSurveyPage = () => {
                     <div className="grid gap-3 lg:grid-cols-2">
                       {liveQuestions.map((question, qIndex) => (
                         <div key={`${question.id ?? qIndex}`} className="rounded-lg border border-border/60 p-3">
-                          <p className="mb-2 text-sm font-medium">{question.texto ?? ''}</p>
+                          <p className="mb-2 text-sm font-medium">{toDisplayText(question.texto)}</p>
                           <div className="space-y-2">
                             {(question.opciones ?? []).map((option, optionIndex) => (
                               <div key={`${option.value ?? optionIndex}`} className="space-y-1">
                                 <div className="flex items-center justify-between text-xs">
-                                  <span>{option.value ?? ''}</span>
+                                  <span>{toDisplayText(option.value)}</span>
                                   <span>{option.porcentaje ?? 0}%</span>
                                 </div>
                                 <div className="h-2 rounded-full bg-muted">

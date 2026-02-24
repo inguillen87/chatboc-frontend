@@ -55,6 +55,24 @@ export function SurveyComments({ slug, tenantSlug, realtimeComments, copy }: Sur
 
   const safeText = (value?: string) => (typeof value === 'string' ? value : '');
 
+  const toDisplayText = (value: unknown): string => {
+    if (typeof value === 'string') return value;
+    if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+    if (value && typeof value === 'object') {
+      const record = value as Record<string, unknown>;
+      const preferred = record.texto ?? record.label ?? record.nombre ?? record.value ?? record.pregunta ?? record.lider;
+      if (typeof preferred === 'string' || typeof preferred === 'number' || typeof preferred === 'boolean') {
+        return String(preferred);
+      }
+      try {
+        return JSON.stringify(value);
+      } catch {
+        return '';
+      }
+    }
+    return '';
+  };
+
   useEffect(() => {
     // Initial fetch
     const fetchComments = async () => {
@@ -212,20 +230,20 @@ export function SurveyComments({ slug, tenantSlug, realtimeComments, copy }: Sur
                     <div key={comment.id} className="flex gap-3 items-start border-b border-border/40 pb-4 last:border-0">
                         <Avatar className="h-8 w-8">
                             <AvatarImage
-                              src={`https://api.dicebear.com/7.x/initials/svg?seed=${comment.nombre_autor || safeText(copy?.authorFallback)}`}
+                              src={`https://api.dicebear.com/7.x/initials/svg?seed=${toDisplayText(comment.nombre_autor) || safeText(copy?.authorFallback)}`}
                             />
                             <AvatarFallback><User className="h-4 w-4" /></AvatarFallback>
                         </Avatar>
                         <div className="flex-1 space-y-1">
                             <div className="flex items-center justify-between">
                                 <p className="text-sm font-medium leading-none">
-                                    {comment.nombre_autor || safeText(copy?.authorFallback)}
+                                    {toDisplayText(comment.nombre_autor) || safeText(copy?.authorFallback)}
                                 </p>
                                 <span className="text-xs text-muted-foreground">
                                     {timeAgo(comment.fecha)}
                                 </span>
                             </div>
-                            <p className="text-sm text-muted-foreground">{comment.texto}</p>
+                            <p className="text-sm text-muted-foreground">{toDisplayText(comment.texto)}</p>
                             {showLikes ? (
                               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                 <Button variant="ghost" size="sm" className="h-7 px-2" disabled>
