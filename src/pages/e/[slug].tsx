@@ -163,32 +163,6 @@ const PublicSurveyPage = () => {
   // Embed Mode Styles
   const containerClass = mode === 'embed' ? "w-full min-h-screen bg-background" : "mx-auto w-full max-w-3xl py-10";
 
-  if (isLoading) {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  if (error || !survey) {
-    return (
-      <div className="mx-auto flex min-h-[60vh] w-full max-w-2xl items-center justify-center">
-        <Card className="w-full">
-          <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
-            <p className="text-lg font-medium">No pudimos cargar esta encuesta.</p>
-            <p className="text-sm text-muted-foreground">{error || 'El enlace puede estar vencido o no existe.'}</p>
-            {mode !== 'embed' && (
-                <Button asChild>
-                <Link to="/">Volver al inicio</Link>
-                </Button>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
   const votingOptionsCount = useMemo(() => {
     const question = survey?.preguntas?.[0];
     return question?.opciones?.length ?? 0;
@@ -288,6 +262,32 @@ const PublicSurveyPage = () => {
     (survey as Record<string, unknown> | undefined)?.mensaje_cierre ??
     (survey as Record<string, unknown> | undefined)?.mensaje_institucional ??
     null;
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (error || !survey) {
+    return (
+      <div className="mx-auto flex min-h-[60vh] w-full max-w-2xl items-center justify-center">
+        <Card className="w-full">
+          <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
+            <p className="text-lg font-medium">No pudimos cargar esta encuesta.</p>
+            <p className="text-sm text-muted-foreground">{error || 'El enlace puede estar vencido o no existe.'}</p>
+            {mode !== 'embed' && (
+              <Button asChild>
+                <Link to="/">Volver al inicio</Link>
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (submitted && survey) {
     return (
