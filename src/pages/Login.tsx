@@ -45,8 +45,11 @@ const Login = () => {
   const [isPasskeyAvailable, setIsPasskeyAvailable] = useState(false);
   const [isPasskeyLoading, setIsPasskeyLoading] = useState(false);
   const [isDemoLoading, setIsDemoLoading] = useState(false);
-  const [demoRubro, setDemoRubro] = useState<DemoRubro | null>(null);
-  const [demoOptions, setDemoOptions] = useState<Array<{ value: DemoRubro; label: string }>>([]);
+  const [demoRubro, setDemoRubro] = useState<DemoRubro | null>('municipio');
+  const [demoOptions, setDemoOptions] = useState<Array<{ value: DemoRubro; label: string }>>([
+    { value: 'municipio', label: 'Municipio' },
+    { value: 'pyme', label: 'PyME' },
+  ]);
   const [demoEntryPoints, setDemoEntryPoints] = useState<DemoCatalogEntryPoint[]>([]);
   const [demoTenantDemos, setDemoTenantDemos] = useState<DemoCatalogTenant[]>([]);
   const [demoLoginEnabled, setDemoLoginEnabled] = useState(true);
@@ -164,6 +167,11 @@ const Login = () => {
         }
       } catch (err) {
         console.warn('No se pudieron cargar rubros demo desde backend', err);
+        setDemoOptions((prev) => (prev.length ? prev : [
+          { value: 'municipio', label: 'Municipio' },
+          { value: 'pyme', label: 'PyME' },
+        ]));
+        setDemoRubro((prev) => prev || 'municipio');
       }
     };
     loadDemoOptions();

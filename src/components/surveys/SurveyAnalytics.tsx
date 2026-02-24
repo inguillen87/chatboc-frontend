@@ -653,6 +653,28 @@ export const SurveyAnalytics = ({
     return `${(normalized * 100).toFixed(1)}%`;
   }, [completionRateValue]);
 
+
+  const geoIntensity = useMemo(() => {
+    if (!heatmapPoints.length) return { totalWeight: 0, maxWeight: 0, avgWeight: 0, hotspots: [] as SurveyHeatmapPoint[] };
+    const sorted = [...heatmapPoints].sort((a, b) => b.respuestas - a.respuestas);
+    const totalWeight = sorted.reduce((acc, point) => acc + (point.respuestas || 0), 0);
+    const maxWeight = sorted[0]?.respuestas ?? 0;
+    const avgWeight = totalWeight / sorted.length;
+    return {
+      totalWeight,
+      maxWeight,
+      avgWeight,
+      hotspots: sorted.slice(0, 5),
+    };
+  }, [heatmapPoints]);
+
+  const geoCoverageLabel = useMemo(() => {
+    if (!heatmapPoints.length) return '—';
+    if (!totalResponsesValue || totalResponsesValue <= 0) return `${heatmapPoints.length} puntos`;
+    const ratio = Math.min(1, heatmapPoints.length / totalResponsesValue);
+    return `${(ratio * 100).toFixed(1)}%`;
+  }, [heatmapPoints.length, totalResponsesValue]);
+
   const demographicSections = useMemo(() => {
     const candidates = summaryRecord
       ? [
@@ -850,6 +872,71 @@ export const SurveyAnalytics = ({
               {!utmBreakdown.length && (
                 <li className="text-muted-foreground">Aún no se registraron campañas etiquetadas.</li>
               )}
+            </ul>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Radar geoespacial en vivo</CardTitle>
+          <CardDescription>Intensidad y focos de participación basados en los puntos del backend.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-lg border border-border/60 bg-card/40 p-3">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Cobertura geográfica</p>
+              <p className="text-xl font-semibold">{geoCoverageLabel}</p>
+            </div>
+            <div className="rounded-lg border border-border/60 bg-card/40 p-3">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Peso geoespacial total</p>
+              <p className="text-xl font-semibold">{geoIntensity.totalWeight || '—'}</p>
+            </div>
+            <div className="rounded-lg border border-border/60 bg-card/40 p-3">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Pico por punto</p>
+              <p className="text-xl font-semibold">{geoIntensity.maxWeight || '—'}</p>
+            </div>
+            <div className="rounded-lg border border-border/60 bg-card/40 p-3 sm:col-span-3">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Promedio por punto</p>
+              <p className="text-xl font-semibold">{geoIntensity.avgWeight ? geoIntensity.avgWeight.toFixed(1) : '—'}</p>
+            </div>
+            <div className="sm:col-span-3 space-y-2 rounded-lg border border-primary/20 bg-primary/5 p-3">
+              <p className="text-xs uppercase tracking-wide text-primary">Pulso de actividad</p>
+              {geoIntensity.hotspots.length ? (
+                geoIntensity.hotspots.slice(0, 3).map((point, index) => {
+                  const ratio = geoIntensity.maxWeight > 0 ? Math.max(0.08, point.respuestas / geoIntensity.maxWeight) : 0.08;
+                  return (
+                    <div key={`${point.lat}-${point.lng}-${index}`} className="space-y-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">{point.lat.toFixed(3)}, {point.lng.toFixed(3)}</span>
+                        <span className="font-medium">{point.respuestas}</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-primary/10">
+                        <div
+                          className="h-2 rounded-full bg-primary animate-pulse"
+                          style={{ width: `${Math.min(100, ratio * 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <p className="text-sm text-muted-foreground">Esperando eventos georreferenciados.</p>
+              )}
+            </div>
+          </div>
+          <div className="rounded-lg border border-border/60 p-3">
+            <p className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">Top hotspots</p>
+            <ul className="space-y-2 text-sm">
+              {geoIntensity.hotspots.map((point, index) => (
+                <li key={`${point.lat}-${point.lng}-${index}`} className="flex items-center justify-between rounded-md border border-border/50 px-2 py-1.5">
+                  <span>#{index + 1} · {point.lat.toFixed(3)}, {point.lng.toFixed(3)}</span>
+                  <span className="font-semibold">{point.respuestas}</span>
+                </li>
+              ))}
+              {!geoIntensity.hotspots.length ? (
+                <li className="text-muted-foreground">Sin hotspots para mostrar todavía.</li>
+              ) : null}
             </ul>
           </div>
         </CardContent>
