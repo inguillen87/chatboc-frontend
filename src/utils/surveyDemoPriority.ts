@@ -18,3 +18,11 @@ export const getAutoSeedCantidad = (survey: SurveyPublic | SurveyAdmin): number 
   if (typeof raw === 'number' && Number.isFinite(raw) && raw > 0) return raw;
   return null;
 };
+
+
+/**
+ * Backward-compatible export kept to avoid build failures on branches that still import
+ * the old helper name. The frontend stays backend-driven, so this function does not
+ * apply tenant-specific ordering anymore.
+ */
+export const prioritizeMendozaDemoSurveys = <T,>(surveys: T[]): T[] => surveys;
