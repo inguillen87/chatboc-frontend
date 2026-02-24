@@ -4,7 +4,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { apiFetch, ApiError } from "@/utils/api";
+import { apiFetch, ApiError, NetworkError } from "@/utils/api";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { useUser } from "@/hooks/useUser";
 import GoogleLoginButton from "@/components/auth/GoogleLoginButton";
@@ -18,6 +18,12 @@ import { getDemoAccessProfiles } from "@/utils/demoAccessProfiles";
 import { useDateSettings } from "@/hooks/useDateSettings";
 import { LOCALE_OPTIONS } from "@/utils/localeOptions";
 import { getFranchisePartnerConfig } from "@/utils/franchisePartnerConfig";
+
+
+const isDevEnvironment = () => {
+  const metaEnv = typeof import.meta !== "undefined" ? (import.meta as any)?.env : undefined;
+  return Boolean(metaEnv?.DEV || metaEnv?.MODE === "development");
+};
 
 interface LoginResponse {
   token: string;
@@ -71,15 +77,23 @@ const Login = () => {
   const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
   const getDemoCatalogWithRetry = useCallback(async (): Promise<DemoCatalogResponse> => {
-    const retryDelaysMs = [250, 700, 1500];
+    const retryDelaysMs = [350];
     let lastError: unknown = null;
+
+    const shouldRetry = (error: unknown) => {
+      if (error instanceof NetworkError) return true;
+      if (error instanceof ApiError) {
+        return error.status >= 500 || error.status === 429;
+      }
+      return false;
+    };
 
     for (let attempt = 0; attempt < retryDelaysMs.length + 1; attempt += 1) {
       try {
         return await enterpriseService.getDemoCatalog();
       } catch (error) {
         lastError = error;
-        if (attempt >= retryDelaysMs.length) {
+        if (attempt >= retryDelaysMs.length || !shouldRetry(error)) {
           break;
         }
         await wait(retryDelaysMs[attempt]);
@@ -186,7 +200,9 @@ const Login = () => {
           setDemoRubro((prev) => prev || nextOptions[0].value);
         }
       } catch (err) {
-        console.warn('No se pudieron cargar rubros demo desde backend', err);
+        if (isDevEnvironment()) {
+          console.warn('No se pudieron cargar rubros demo desde backend', err);
+        }
         setDemoOptions((prev) => (prev.length ? prev : [
           { value: 'municipio', label: 'Municipio' },
           { value: 'pyme', label: 'PyME' },
@@ -256,7 +272,9 @@ const Login = () => {
       refreshUser().catch(() => undefined);
     } catch (err) {
       if (err instanceof ApiError) {
-        setError(err.body?.error || "Credenciales inválidas o error en el servidor.");
+        setError(err.status >= 500
+          ? "Servicio temporalmente no disponible. Intentá nuevamente en unos minutos."
+          : (err.body?.error || "Credenciales inválidas o error en el servidor."));
       } else {
         setError("No se pudo conectar con el servidor.");
       }
