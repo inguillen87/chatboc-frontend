@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader2, Plus } from 'lucide-react';
 
@@ -9,11 +9,14 @@ import type { SurveyAdmin } from '@/types/encuestas';
 import { toast } from '@/components/ui/use-toast';
 import { getAbsolutePublicSurveyUrl } from '@/utils/publicSurveyUrl';
 import SectionErrorBoundary from '@/components/errors/SectionErrorBoundary';
+import { prioritizeMendozaDemoSurveys } from '@/utils/surveyDemoPriority';
+import { useTenant } from '@/context/TenantContext';
 
 const AdminSurveysIndex = () => {
   const navigate = useNavigate();
   const { surveys, isLoadingList, listError, publishSurvey, deleteSurvey, seedSurvey, isPublishing, isDeleting, isSeeding, refetchList } =
     useSurveyAdmin();
+  const { currentSlug } = useTenant();
   const [publishingId, setPublishingId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [seedingId, setSeedingId] = useState<number | null>(null);
@@ -87,7 +90,7 @@ const AdminSurveysIndex = () => {
     }
   };
 
-  const items = surveys?.data ?? [];
+  const items = useMemo(() => prioritizeMendozaDemoSurveys(surveys?.data ?? [], currentSlug), [surveys?.data, currentSlug]);
 
   return (
     <SectionErrorBoundary
