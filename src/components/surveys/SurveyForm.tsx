@@ -163,6 +163,22 @@ export const SurveyForm = ({
     dismissedErrorKey,
   ]);
 
+  const toDisplayText = (value: unknown): string => {
+    if (typeof value === 'string') return value;
+    if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+    if (value && typeof value === 'object') {
+      const candidate = (value as Record<string, unknown>).texto
+        ?? (value as Record<string, unknown>).label
+        ?? (value as Record<string, unknown>).nombre
+        ?? (value as Record<string, unknown>).value;
+      if (typeof candidate === 'string' || typeof candidate === 'number' || typeof candidate === 'boolean') {
+        return String(candidate);
+      }
+      return '';
+    }
+    return '';
+  };
+
   const normalizeString = (value?: string | null): string | undefined => {
     if (typeof value !== 'string') return undefined;
     const trimmed = value.trim();
@@ -852,7 +868,7 @@ export const SurveyForm = ({
           >
             <div className="flex flex-col gap-1">
               <h3 className="text-lg font-medium">
-                {pregunta.orden}. {pregunta.texto}
+                {pregunta.orden}. {toDisplayText(pregunta.texto)}
               </h3>
               <p className="text-sm text-muted-foreground">
                 {pregunta.obligatoria ? 'Obligatoria' : 'Opcional'} · Tipo: {pregunta.tipo}
@@ -901,7 +917,7 @@ export const SurveyForm = ({
                       )}
 
                       <span className={pregunta.tipo === 'rating_emoji' ? "text-4xl select-none" : "z-10 relative"}>
-                        {opcion.texto}
+                        {toDisplayText(opcion.texto)}
                       </span>
 
                       {showLiveResults && pregunta.tipo !== 'rating_emoji' && (
@@ -952,7 +968,7 @@ export const SurveyForm = ({
                         className="z-10"
                         disabled={readOnly}
                       />
-                      <span className="z-10 relative">{opcion.texto}</span>
+                      <span className="z-10 relative">{toDisplayText(opcion.texto)}</span>
 
                       {showLiveResults && (
                         <div
