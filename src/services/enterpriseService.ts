@@ -333,6 +333,13 @@ export const enterpriseService = {
     });
   },
 
+  demoLoginWithPayload: async (payload: Record<string, unknown>, endpoint = '/auth/demo'): Promise<DemoAuthResponse> => {
+    return apiFetch<DemoAuthResponse>(endpoint, {
+      method: 'POST',
+      body: payload,
+    });
+  },
+
   demoLogin: async (rubro: DemoRubro): Promise<DemoAuthResponse> => {
     return apiFetch<DemoAuthResponse>('/auth/demo', {
       method: 'POST',
