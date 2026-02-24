@@ -447,13 +447,13 @@ export const enterpriseService = {
 
   getDemoCatalog: async (ensureUsers = false): Promise<DemoCatalogResponse> => {
     const suffix = ensureUsers ? '?ensure_users=true' : '';
-    return apiFetch<DemoCatalogResponse>(`/auth/demo/catalog${suffix}`, {
+    return apiFetch<DemoCatalogResponse>(`/api/auth/demo/catalog${suffix}`, {
       skipAuth: true,
       omitTenant: true,
     });
   },
 
-  demoLoginWithPayload: async (payload: Record<string, unknown>, endpoint = '/auth/demo'): Promise<DemoAuthResponse> => {
+  demoLoginWithPayload: async (payload: Record<string, unknown>, endpoint = '/api/auth/demo'): Promise<DemoAuthResponse> => {
     return apiFetch<DemoAuthResponse>(endpoint, {
       method: 'POST',
       body: payload,
@@ -463,7 +463,7 @@ export const enterpriseService = {
   },
 
   demoLogin: async (rubro: DemoRubro): Promise<DemoAuthResponse> => {
-    return apiFetch<DemoAuthResponse>('/auth/demo', {
+    return apiFetch<DemoAuthResponse>('/api/auth/demo', {
       method: 'POST',
       body: { rubro },
       skipAuth: true,

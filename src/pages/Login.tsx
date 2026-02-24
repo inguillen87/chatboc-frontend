@@ -59,7 +59,7 @@ const Login = () => {
   const [demoEntryPoints, setDemoEntryPoints] = useState<DemoCatalogEntryPoint[]>([]);
   const [demoTenantDemos, setDemoTenantDemos] = useState<DemoCatalogTenant[]>([]);
   const [demoLoginEnabled, setDemoLoginEnabled] = useState(true);
-  const [demoLoginEndpoint, setDemoLoginEndpoint] = useState("/auth/demo");
+  const [demoLoginEndpoint, setDemoLoginEndpoint] = useState("/api/auth/demo");
   const [demoFrontendContract, setDemoFrontendContract] = useState<DemoFrontendContract>({});
   const [demoSector, setDemoSector] = useState<'gobierno' | 'empresas'>('gobierno');
   const demoAccessProfiles = getDemoAccessProfiles();
