@@ -1,4 +1,4 @@
-import { useMutation, useQueries, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 
 import {
@@ -111,7 +111,14 @@ export function useSurveyAnalytics(
   const fallbackCount = allowFallback ? options.fallbackCount : undefined;
   const fallbackScenario = allowFallback ? options.fallbackScenario ?? null : null;
 
-  const [dashboardQuery, summaryQuery, timeseriesQuery, heatmapQuery] = useQueries({
+  const dashboardQuery = useQuery({
+    queryKey: ['survey-analytics-dashboard', normalizedId, normalizedFilters],
+    enabled: normalizedId !== null,
+    queryFn: () =>
+      normalizedId !== null ? getSurveyDashboardBundle(normalizedId, normalizedFilters) : Promise.reject('No id provided'),
+  });
+
+  const [summaryQuery, timeseriesQuery, heatmapQuery] = useQueries({
     queries: [
       {
         queryKey: ['survey-analytics-dashboard', normalizedId, normalizedFilters],
@@ -121,19 +128,25 @@ export function useSurveyAnalytics(
       },
       {
         queryKey: ['survey-analytics-summary', normalizedId, normalizedFilters],
-        enabled: normalizedId !== null,
+        enabled:
+          normalizedId !== null &&
+          (dashboardQuery.isError || !dashboardQuery.data?.modules?.summary),
         queryFn: () =>
           normalizedId !== null ? getSummary(normalizedId, normalizedFilters) : Promise.reject('No id provided'),
       },
       {
         queryKey: ['survey-analytics-timeseries', normalizedId, normalizedFilters],
-        enabled: normalizedId !== null,
+        enabled:
+          normalizedId !== null &&
+          (dashboardQuery.isError || !dashboardQuery.data?.modules?.timeseries),
         queryFn: () =>
           normalizedId !== null ? getTimeseries(normalizedId, normalizedFilters) : Promise.reject('No id provided'),
       },
       {
         queryKey: ['survey-analytics-heatmap', normalizedId, normalizedFilters],
-        enabled: normalizedId !== null,
+        enabled:
+          normalizedId !== null &&
+          (dashboardQuery.isError || !dashboardQuery.data?.modules?.heatmap?.points),
         queryFn: () =>
           normalizedId !== null ? getHeatmap(normalizedId, normalizedFilters) : Promise.reject('No id provided'),
       },

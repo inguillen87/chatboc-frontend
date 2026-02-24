@@ -116,3 +116,26 @@ Si falla `dashboard`, recién ahí usar:
 - [ ] Sin reconexión de socket global en `/:tenant/admin/encuestas/*`.
 - [ ] `dashboard` usable como fuente principal sin romper fallback.
 
+
+
+## 7) Lectura puntual de las capturas enviadas
+
+1. **Captura pública `/e/movilidad-y-transporte-junin`**
+   - El frontend muestra error controlado de permisos, pero la consola confirma que ambos paths (`/api/public/...` y `/public/...`) devuelven 403.
+   - Acción: mantener mensaje de estado y sumar `reason_code` backend para diagnóstico comercial.
+
+2. **Capturas analytics con consola abierta**
+   - Se observa warning reiterado de Recharts por dimensiones inválidas y reconexiones de socket global.
+   - Acción aplicada: guardas de dimensiones mínimas + bloqueo de socket en rutas tenant-scoped de encuestas.
+
+3. **Captura con valores huérfanos (`:24`, `:bajo`)**
+   - Señal de labels backend ausentes renderizados con interpolación fija `label: value`.
+   - Acción aplicada: render condicional de métricas para no mostrar prefijos vacíos.
+
+4. **Captura “Últimas respuestas” vacía con 100 respuestas arriba**
+   - Inconsistencia de percepción entre agregados y detalle reciente.
+   - Acción aplicada: mensaje específico cuando hay total>0 pero aún no cargó el detalle.
+
+5. **Captura mapa sin geometría visible**
+   - El bloque puede quedar visualmente vacío aun con estado de filtro activo.
+   - Acción recomendada: fallback explícito “sin geometría compatible” y tabla top puntos (ya disponible en el dashboard actual).

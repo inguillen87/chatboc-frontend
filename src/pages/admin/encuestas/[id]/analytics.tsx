@@ -47,11 +47,23 @@ const asRenderableText = (value?: unknown) => {
     if (typeof candidate === 'string' || typeof candidate === 'number') return String(candidate);
   }
 
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return '';
+  return '';
+};
+
+const renderLabeledMetric = (label: string, value: string | number) => {
+  if (label.trim()) {
+    return (
+      <p>
+        {label}: <strong>{value}</strong>
+      </p>
+    );
   }
+
+  return (
+    <p>
+      <strong>{value}</strong>
+    </p>
+  );
 };
 
 const SurveyAnalyticsPage = () => {
@@ -340,6 +352,7 @@ const SurveyAnalyticsPage = () => {
   const brief = briefQuery.data;
   const segmentsCompare = compareQuery.data;
   const anomalies = anomaliesQuery.data;
+  const responsesTotalHint = typeof summary?.total_respuestas === 'number' ? summary.total_respuestas : null;
   const backendAlerts = dashboardBundle?.modules?.alerts ?? [];
   const effectiveAlerts = backendAlerts.length ? backendAlerts : alerts;
   const backendBrief = dashboardBundle?.modules?.brief;
@@ -495,7 +508,7 @@ const SurveyAnalyticsPage = () => {
             {Array.isArray(executiveSummary.focus_points) && executiveSummary.focus_points.length ? (
               <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
                 {executiveSummary.focus_points.slice(0, 6).map((focusPoint, index) => (
-                  <li key={`${index}-${focusPoint}`}>{focusPoint}</li>
+                  <li key={`${index}-${asRenderableText(focusPoint)}`}>{asRenderableText(focusPoint)}</li>
                 ))}
               </ul>
             ) : null}
@@ -574,9 +587,9 @@ const SurveyAnalyticsPage = () => {
                 <p className="text-sm text-destructive">{getErrorMessage(forecastQuery.error)}</p>
               ) : (
                 <div className="space-y-1 text-sm">
-                  <p>{asSafeText(enterpriseUiConfig?.forecast_projected_total_label)}: <strong>{forecast?.projected_total ?? '—'}</strong></p>
-                  <p>{asSafeText(enterpriseUiConfig?.forecast_current_rate_label)}: <strong>{forecast?.current_rate ?? '—'}</strong></p>
-                  <p>{asSafeText(enterpriseUiConfig?.forecast_confidence_label)}: <strong>{forecast?.confidence ?? '—'}</strong></p>
+                  {renderLabeledMetric(asSafeText(enterpriseUiConfig?.forecast_projected_total_label), forecast?.projected_total ?? '—')}
+                  {renderLabeledMetric(asSafeText(enterpriseUiConfig?.forecast_current_rate_label), forecast?.current_rate ?? '—')}
+                  {renderLabeledMetric(asSafeText(enterpriseUiConfig?.forecast_confidence_label), forecast?.confidence ?? '—')}
                 </div>
               )}
             </div>
@@ -665,8 +678,8 @@ const SurveyAnalyticsPage = () => {
               <p className="text-sm text-destructive">{getErrorMessage(anomaliesQuery.error)}</p>
             ) : (
               <div className="space-y-2 text-sm">
-                <p>{asSafeText(enterpriseUiConfig?.risk_score_label)}: <strong>{anomalies?.risk_score ?? '—'}</strong></p>
-                <p>{asSafeText(enterpriseUiConfig?.risk_level_label)}: <strong>{anomalies?.risk_level ?? '—'}</strong></p>
+                {renderLabeledMetric(asSafeText(enterpriseUiConfig?.risk_score_label), anomalies?.risk_score ?? '—')}
+                {renderLabeledMetric(asSafeText(enterpriseUiConfig?.risk_level_label), anomalies?.risk_level ?? '—')}
                 {anomalies?.signals?.length ? (
                   <ul className="list-disc pl-5 text-muted-foreground">
                     {anomalies.signals.slice(0, 6).map((signal, index) => (
@@ -691,6 +704,7 @@ const SurveyAnalyticsPage = () => {
           void refetchResponses();
         }}
         emptyHintUrl={publicUrl}
+        totalResponsesHint={responsesTotalHint}
       />
       <Card>
         <CardHeader>
