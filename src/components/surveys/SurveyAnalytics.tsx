@@ -1,4 +1,4 @@
-import { useMemo, useCallback, useRef } from 'react';
+import { useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   Bar,
   BarChart,
@@ -25,6 +25,7 @@ import type { MapProvider, MapProviderUnavailableReason } from '@/hooks/useMapPr
 import type {
   SurveyAnalyticsFilters,
   SurveyDemographicBreakdownItem,
+  SurveyAnalyticsHeatmap,
   SurveyHeatmapPoint,
   SurveySummary,
   SurveyTimeseriesPoint,
@@ -34,6 +35,7 @@ interface SurveyAnalyticsProps {
   summary?: SurveySummary;
   timeseries?: SurveyTimeseriesPoint[];
   heatmap?: SurveyHeatmapPoint[];
+  heatmapMeta?: SurveyAnalyticsHeatmap['metadata'];
   onExport: () => Promise<void>;
   isExporting?: boolean;
   filters?: SurveyAnalyticsFilters;
@@ -415,6 +417,7 @@ export const SurveyAnalytics = ({
   summary,
   timeseries,
   heatmap,
+  heatmapMeta,
   onExport,
   isExporting,
   filters,
@@ -436,6 +439,11 @@ export const SurveyAnalytics = ({
       })),
     [heatmapPoints],
   );
+
+  const usingSyntheticPoints = useMemo(() => {
+    if (!heatmapMeta || typeof heatmapMeta !== 'object') return false;
+    return Boolean((heatmapMeta as Record<string, unknown>).using_synthetic_points);
+  }, [heatmapMeta]);
   const { provider, setProvider } = useMapProvider();
   const googleProviderAvailable = useMemo(
     () => ((import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? '').trim().length > 0),
@@ -466,6 +474,7 @@ export const SurveyAnalytics = ({
     [setProvider],
   );
   const skipNextBoundingUpdateRef = useRef(false);
+  const boundingBoxDebounceRef = useRef<number | null>(null);
   const handleBoundingBoxChange = useCallback(
     (bbox: [number, number, number, number] | null) => {
       if (!onFiltersChange) return;
@@ -473,25 +482,32 @@ export const SurveyAnalytics = ({
         skipNextBoundingUpdateRef.current = false;
         return;
       }
-      const current = filters ?? {};
-      if (!bbox) {
-        if (!boundingBoxValue) return;
-        const nextFilters = { ...current };
-        delete nextFilters.bbox;
-        onFiltersChange(nextFilters);
-        return;
+
+      if (boundingBoxDebounceRef.current !== null) {
+        window.clearTimeout(boundingBoxDebounceRef.current);
       }
 
-      if (bbox.length !== 4 || bbox.some((value) => !Number.isFinite(value))) {
-        return;
-      }
+      boundingBoxDebounceRef.current = window.setTimeout(() => {
+        const current = filters ?? {};
+        if (!bbox) {
+          if (!boundingBoxValue) return;
+          const nextFilters = { ...current };
+          delete nextFilters.bbox;
+          onFiltersChange(nextFilters);
+          return;
+        }
 
-      const formatted = bbox.map((value) => Number(value).toFixed(6)).join(',');
-      if (formatted === boundingBoxValue) {
-        return;
-      }
+        if (bbox.length !== 4 || bbox.some((value) => !Number.isFinite(value))) {
+          return;
+        }
 
-      onFiltersChange({ ...current, bbox: formatted });
+        const formatted = bbox.map((value) => Number(value).toFixed(6)).join(',');
+        if (formatted === boundingBoxValue) {
+          return;
+        }
+
+        onFiltersChange({ ...current, bbox: formatted });
+      }, 350);
     },
     [filters, onFiltersChange, boundingBoxValue, skipNextBoundingUpdateRef],
   );
@@ -503,6 +519,14 @@ export const SurveyAnalytics = ({
     skipNextBoundingUpdateRef.current = true;
     onFiltersChange(nextFilters);
   }, [filters, onFiltersChange, boundingBoxValue, skipNextBoundingUpdateRef]);
+
+  useEffect(() => {
+    return () => {
+      if (boundingBoxDebounceRef.current !== null) {
+        window.clearTimeout(boundingBoxDebounceRef.current);
+      }
+    };
+  }, []);
   const heatmapCenter = useMemo(() => {
     if (!heatmapData.length) return undefined;
     const totalWeight = heatmapData.reduce((sum, point) => sum + (point.weight ?? 1), 0);
@@ -645,6 +669,28 @@ export const SurveyAnalytics = ({
     return `${(normalized * 100).toFixed(1)}%`;
   }, [completionRateValue]);
 
+
+  const geoIntensity = useMemo(() => {
+    if (!heatmapPoints.length) return { totalWeight: 0, maxWeight: 0, avgWeight: 0, hotspots: [] as SurveyHeatmapPoint[] };
+    const sorted = [...heatmapPoints].sort((a, b) => b.respuestas - a.respuestas);
+    const totalWeight = sorted.reduce((acc, point) => acc + (point.respuestas || 0), 0);
+    const maxWeight = sorted[0]?.respuestas ?? 0;
+    const avgWeight = totalWeight / sorted.length;
+    return {
+      totalWeight,
+      maxWeight,
+      avgWeight,
+      hotspots: sorted.slice(0, 5),
+    };
+  }, [heatmapPoints]);
+
+  const geoCoverageLabel = useMemo(() => {
+    if (!heatmapPoints.length) return '—';
+    if (!totalResponsesValue || totalResponsesValue <= 0) return `${heatmapPoints.length} puntos`;
+    const ratio = Math.min(1, heatmapPoints.length / totalResponsesValue);
+    return `${(ratio * 100).toFixed(1)}%`;
+  }, [heatmapPoints.length, totalResponsesValue]);
+
   const demographicSections = useMemo(() => {
     const candidates = summaryRecord
       ? [
@@ -733,9 +779,9 @@ export const SurveyAnalytics = ({
           <CardTitle>Evolución diaria</CardTitle>
           <CardDescription>Visualizá el ritmo de participación a lo largo del tiempo.</CardDescription>
         </CardHeader>
-        <CardContent className="h-72">
+        <CardContent className="h-72 min-w-0">
           {timeseriesData.length ? (
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220}>
               <LineChart data={timeseriesData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="fecha" />
@@ -758,9 +804,9 @@ export const SurveyAnalytics = ({
           <CardDescription>Resultados acumulados por pregunta y opción.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-6 lg:grid-cols-2">
-          <div className="h-72">
+          <div className="h-72 min-w-0">
             {optionData.length ? (
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220}>
                 <BarChart data={optionData}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="opcion" interval={0} angle={-25} textAnchor="end" height={90} />
@@ -776,9 +822,9 @@ export const SurveyAnalytics = ({
               </div>
             )}
           </div>
-          <div className="h-72">
+          <div className="h-72 min-w-0">
             {optionData.length ? (
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220}>
                 <PieChart>
                   <Pie
                     data={optionData}
@@ -849,30 +895,114 @@ export const SurveyAnalytics = ({
 
       <Card>
         <CardHeader>
+          <CardTitle>Radar geoespacial en vivo</CardTitle>
+          <CardDescription>Intensidad y focos de participación basados en los puntos del backend.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-lg border border-border/60 bg-card/40 p-3">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Cobertura geográfica</p>
+              <p className="text-xl font-semibold">{geoCoverageLabel}</p>
+            </div>
+            <div className="rounded-lg border border-border/60 bg-card/40 p-3">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Peso geoespacial total</p>
+              <p className="text-xl font-semibold">{geoIntensity.totalWeight || '—'}</p>
+            </div>
+            <div className="rounded-lg border border-border/60 bg-card/40 p-3">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Pico por punto</p>
+              <p className="text-xl font-semibold">{geoIntensity.maxWeight || '—'}</p>
+            </div>
+            <div className="rounded-lg border border-border/60 bg-card/40 p-3 sm:col-span-3">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Promedio por punto</p>
+              <p className="text-xl font-semibold">{geoIntensity.avgWeight ? geoIntensity.avgWeight.toFixed(1) : '—'}</p>
+            </div>
+            <div className="sm:col-span-3 space-y-2 rounded-lg border border-primary/20 bg-primary/5 p-3">
+              <p className="text-xs uppercase tracking-wide text-primary">Pulso de actividad</p>
+              {geoIntensity.hotspots.length ? (
+                geoIntensity.hotspots.slice(0, 3).map((point, index) => {
+                  const ratio = geoIntensity.maxWeight > 0 ? Math.max(0.08, point.respuestas / geoIntensity.maxWeight) : 0.08;
+                  return (
+                    <div key={`${point.lat}-${point.lng}-${index}`} className="space-y-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">{point.lat.toFixed(3)}, {point.lng.toFixed(3)}</span>
+                        <span className="font-medium">{point.respuestas}</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-primary/10">
+                        <div
+                          className="h-2 rounded-full bg-primary animate-pulse"
+                          style={{ width: `${Math.min(100, ratio * 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <p className="text-sm text-muted-foreground">Esperando eventos georreferenciados.</p>
+              )}
+            </div>
+          </div>
+          <div className="rounded-lg border border-border/60 p-3">
+            <p className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">Top hotspots</p>
+            <ul className="space-y-2 text-sm">
+              {geoIntensity.hotspots.map((point, index) => (
+                <li key={`${point.lat}-${point.lng}-${index}`} className="flex items-center justify-between rounded-md border border-border/50 px-2 py-1.5">
+                  <span>#{index + 1} · {point.lat.toFixed(3)}, {point.lng.toFixed(3)}</span>
+                  <span className="font-semibold">{point.respuestas}</span>
+                </li>
+              ))}
+              {!geoIntensity.hotspots.length ? (
+                <li className="text-muted-foreground">Sin hotspots para mostrar todavía.</li>
+              ) : null}
+            </ul>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>Mapa de calor</CardTitle>
           <CardDescription>Ubicaciones aproximadas de participación (si están disponibles).</CardDescription>
         </CardHeader>
         <CardContent>
+          {usingSyntheticPoints ? (
+            <div className="mb-3 inline-flex rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs text-amber-700">
+              Modo demo (ubicaciones simuladas)
+            </div>
+          ) : null}
           {heatmapPoints.length ? (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-border text-sm">
-                <thead>
-                  <tr className="text-left text-muted-foreground">
-                    <th className="py-2 pr-4">Latitud</th>
-                    <th className="py-2 pr-4">Longitud</th>
-                    <th className="py-2 pr-4">Respuestas</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {heatmapPoints.map((point, index) => (
-                    <tr key={`${point.lat}-${point.lng}-${index}`} className="border-b border-border/40">
-                      <td className="py-2 pr-4">{point.lat.toFixed(4)}</td>
-                      <td className="py-2 pr-4">{point.lng.toFixed(4)}</td>
-                      <td className="py-2 pr-4">{point.respuestas}</td>
+            <div className="space-y-4">
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-border text-sm">
+                  <thead>
+                    <tr className="text-left text-muted-foreground">
+                      <th className="py-2 pr-4">Latitud</th>
+                      <th className="py-2 pr-4">Longitud</th>
+                      <th className="py-2 pr-4">Respuestas</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {heatmapPoints.map((point, index) => (
+                      <tr key={`${point.lat}-${point.lng}-${index}`} className="border-b border-border/40">
+                        <td className="py-2 pr-4">{point.lat.toFixed(4)}</td>
+                        <td className="py-2 pr-4">{point.lng.toFixed(4)}</td>
+                        <td className="py-2 pr-4">{point.respuestas}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="h-[320px] min-w-0 overflow-hidden rounded-lg border border-border/60">
+                <MapLibreMap
+                  className="h-full w-full"
+                  center={heatmapCenter}
+                  heatmapData={heatmapData}
+                  fitToBounds={heatmapBounds.length ? heatmapBounds : undefined}
+                  initialZoom={heatmapBounds.length ? 12 : 4}
+                  provider={provider}
+                  onProviderUnavailable={handleProviderUnavailable}
+                  onBoundingBoxChange={handleBoundingBoxChange}
+                />
+              </div>
             </div>
           ) : (
             <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
@@ -901,6 +1031,11 @@ export const SurveyAnalytics = ({
           </div>
         </CardHeader>
         <CardContent className="h-[420px]">
+          {usingSyntheticPoints ? (
+            <div className="mb-3 inline-flex rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs text-amber-700">
+              Modo demo (ubicaciones simuladas)
+            </div>
+          ) : null}
           {boundingBoxValue ? (
             <div className="mb-3 flex flex-wrap items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-primary">
               Filtrando resultados por la zona visible del mapa.
@@ -951,8 +1086,8 @@ export const SurveyAnalytics = ({
                     Participación segmentada para este atributo.
                   </p>
                 </div>
-                <div className="h-64 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
+                <div className="h-64 w-full min-w-0">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220}>
                     <BarChart
                       data={section.data}
                       layout="vertical"
