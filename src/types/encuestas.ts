@@ -377,6 +377,12 @@ export interface SurveyHeatmapPoint {
   respuestas: number;
 }
 
+export interface SurveyAnalyticsHeatmap {
+  points: SurveyHeatmapPoint[];
+  cells?: Array<Record<string, unknown>>;
+  metadata?: Record<string, unknown>;
+}
+
 export interface SurveyAnalyticsFilters {
   desde?: string;
   hasta?: string;
