@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Send, ThumbsUp, User } from 'lucide-react';
+import { MessageCircleMore, Send, ThumbsUp, User } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -35,6 +35,8 @@ export interface SurveyCommentsCopy {
   toastErrorTitle?: string;
   toastErrorDescription?: string;
   authorFallback?: string;
+  helperText?: string;
+  characterCountLabel?: string;
 }
 
 
@@ -58,6 +60,27 @@ const DEFAULT_COMMENTS_COPY: Required<SurveyCommentsCopy> = {
   toastErrorTitle: 'No pudimos publicar tu comentario',
   toastErrorDescription: 'Intentá nuevamente en unos segundos.',
   authorFallback: 'Participante',
+  helperText: 'Tu comentario ayuda a sumar contexto para interpretar mejor los resultados.',
+  characterCountLabel: 'Caracteres',
+};
+
+
+const toDisplayText = (value: unknown): string => {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    const preferred = record.texto ?? record.label ?? record.nombre ?? record.value ?? record.pregunta ?? record.lider;
+    if (typeof preferred === 'string' || typeof preferred === 'number' || typeof preferred === 'boolean') {
+      return String(preferred);
+    }
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return '';
+    }
+  }
+  return '';
 };
 
 interface SurveyCommentsProps {
@@ -80,42 +103,6 @@ export function SurveyComments({ slug, tenantSlug, realtimeComments, copy }: Sur
   const copyText = (value: string | undefined, fallback: string) => {
     const normalized = typeof value === 'string' ? value.trim() : '';
     return normalized.length ? normalized : fallback;
-  };
-
-  const toDisplayText = (value: unknown): string => {
-    if (typeof value === 'string') return value;
-    if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-    if (value && typeof value === 'object') {
-      const record = value as Record<string, unknown>;
-      const preferred = record.texto ?? record.label ?? record.nombre ?? record.value ?? record.pregunta ?? record.lider;
-      if (typeof preferred === 'string' || typeof preferred === 'number' || typeof preferred === 'boolean') {
-        return String(preferred);
-      }
-      try {
-        return JSON.stringify(value);
-      } catch {
-        return '';
-      }
-    }
-    return '';
-  };
-
-  const toDisplayText = (value: unknown): string => {
-    if (typeof value === 'string') return value;
-    if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-    if (value && typeof value === 'object') {
-      const record = value as Record<string, unknown>;
-      const preferred = record.texto ?? record.label ?? record.nombre ?? record.value ?? record.pregunta ?? record.lider;
-      if (typeof preferred === 'string' || typeof preferred === 'number' || typeof preferred === 'boolean') {
-        return String(preferred);
-      }
-      try {
-        return JSON.stringify(value);
-      } catch {
-        return '';
-      }
-    }
-    return '';
   };
 
   useEffect(() => {
@@ -211,7 +198,7 @@ export function SurveyComments({ slug, tenantSlug, realtimeComments, copy }: Sur
     <Card className="w-full mt-8 border border-border/60 shadow-sm">
       <CardHeader>
         <CardTitle className="text-xl">{copyText(copy?.title, DEFAULT_COMMENTS_COPY.title)}</CardTitle>
-        <p className="text-sm text-muted-foreground">Compartí tu opinión con contexto para ayudar a otras personas a votar mejor.</p>
+        <p className="text-sm text-muted-foreground">{copyText(copy?.helperText, DEFAULT_COMMENTS_COPY.helperText)}</p>
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Comment Form */}
@@ -241,7 +228,7 @@ export function SurveyComments({ slug, tenantSlug, realtimeComments, copy }: Sur
             maxLength={maxCommentLength}
           />
           <div className="-mt-2 flex justify-end">
-            <span className="text-xs text-muted-foreground">{newComment.length}/{maxCommentLength}</span>
+            <span className="text-xs text-muted-foreground">{copyText(copy?.characterCountLabel, DEFAULT_COMMENTS_COPY.characterCountLabel)}: {newComment.length}/{maxCommentLength}</span>
           </div>
           <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
             <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
@@ -292,7 +279,10 @@ export function SurveyComments({ slug, tenantSlug, realtimeComments, copy }: Sur
             {loading ? (
                 <p className="text-muted-foreground text-center">{copyText(copy?.loadingLabel, DEFAULT_COMMENTS_COPY.loadingLabel)}</p>
             ) : comments.length === 0 ? (
-                <p className="text-muted-foreground text-center">{copyText(copy?.emptyLabel, DEFAULT_COMMENTS_COPY.emptyLabel)}</p>
+                <div className="rounded-xl border border-dashed border-border/60 bg-muted/20 p-4 text-center">
+                  <MessageCircleMore className="mx-auto mb-2 h-5 w-5 text-muted-foreground" />
+                  <p className="text-muted-foreground text-center">{copyText(copy?.emptyLabel, DEFAULT_COMMENTS_COPY.emptyLabel)}</p>
+                </div>
             ) : (
                 sortedComments.map((comment) => (
                     <div key={comment.id} className="flex gap-3 items-start rounded-xl border border-border/40 bg-background/70 p-3">
