@@ -10,6 +10,7 @@ import {
 import { ENABLE_SURVEY_ANALYTICS_FALLBACK } from '@/config';
 import type {
   SurveyAnalyticsFilters,
+  SurveyAnalyticsHeatmap,
   SurveyHeatmapPoint,
   SurveyPublic,
   SurveyAdmin,
@@ -30,6 +31,7 @@ interface UseSurveyAnalyticsResult {
   summary?: SurveySummary;
   timeseries?: SurveyTimeseriesPoint[];
   heatmap?: SurveyHeatmapPoint[];
+  heatmapMeta?: SurveyAnalyticsHeatmap['metadata'];
   isLoading: boolean;
   error: string | null;
   filters: SurveyAnalyticsFilters;
@@ -171,8 +173,13 @@ export function useSurveyAnalytics(
   );
 
   const heatmapData = useMemo(
-    () => pickHeatmap(heatmapQuery.data, fallbackAnalytics?.heatmap),
-    [heatmapQuery.data, fallbackAnalytics?.heatmap],
+    () => pickHeatmap(heatmapQuery.data?.points, fallbackAnalytics?.heatmap),
+    [heatmapQuery.data?.points, fallbackAnalytics?.heatmap],
+  );
+
+  const heatmapMeta = useMemo(
+    () => heatmapQuery.data?.metadata,
+    [heatmapQuery.data?.metadata],
   );
 
   const baseError = summaryQuery.error
@@ -195,6 +202,7 @@ export function useSurveyAnalytics(
     summary: summaryData ?? undefined,
     timeseries: timeseriesData,
     heatmap: heatmapData,
+    heatmapMeta,
     isLoading: summaryQuery.isLoading || timeseriesQuery.isLoading || heatmapQuery.isLoading,
     error: effectiveError,
     filters: normalizedFilters,
