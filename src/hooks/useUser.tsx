@@ -46,6 +46,12 @@ const UserContext = React.createContext<UserContextValue>({
   loading: false,
 });
 
+
+const shouldLogUserWarnings = () => {
+  const metaEnv = typeof import.meta !== 'undefined' ? (import.meta as any)?.env : undefined;
+  return Boolean(metaEnv?.DEV || metaEnv?.MODE === 'development');
+};
+
 const PLACEHOLDER_SLUGS = new Set(['iframe', 'embed', 'widget', 'e']);
 
 const sanitizeTenantSlug = (slug?: string | null) => {
@@ -239,7 +245,9 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(null);
       } else {
         // Network or server errors shouldn't drop an otherwise valid session.
-        console.warn('Transient error fetching user profile. Preserving session.', e);
+        if (shouldLogUserWarnings()) {
+          console.warn('Transient error fetching user profile. Preserving session.', e);
+        }
       }
     } finally {
       setLoading(false);

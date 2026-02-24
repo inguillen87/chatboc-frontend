@@ -1,8 +1,9 @@
-import { useMutation, useQueries, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 
 import {
   downloadExportCsv,
+  getSurveyDashboardBundle,
   getHeatmap,
   getSummary,
   getTimeseries,
@@ -10,6 +11,9 @@ import {
 import { ENABLE_SURVEY_ANALYTICS_FALLBACK } from '@/config';
 import type {
   SurveyAnalyticsFilters,
+  SurveyAnalyticsHeatmap,
+  SurveyDashboardBundle,
+  SurveyExecutiveSummary,
   SurveyHeatmapPoint,
   SurveyPublic,
   SurveyAdmin,
@@ -30,6 +34,9 @@ interface UseSurveyAnalyticsResult {
   summary?: SurveySummary;
   timeseries?: SurveyTimeseriesPoint[];
   heatmap?: SurveyHeatmapPoint[];
+  heatmapMeta?: SurveyAnalyticsHeatmap['metadata'];
+  dashboardBundle?: SurveyDashboardBundle;
+  executiveSummary?: SurveyExecutiveSummary;
   isLoading: boolean;
   error: string | null;
   filters: SurveyAnalyticsFilters;
@@ -104,23 +111,37 @@ export function useSurveyAnalytics(
   const fallbackCount = allowFallback ? options.fallbackCount : undefined;
   const fallbackScenario = allowFallback ? options.fallbackScenario ?? null : null;
 
+  const dashboardQuery = useQuery({
+    queryKey: ['survey-analytics-dashboard', normalizedId, normalizedFilters],
+    enabled: normalizedId !== null,
+    retry: false,
+    queryFn: () =>
+      normalizedId !== null ? getSurveyDashboardBundle(normalizedId, normalizedFilters) : Promise.reject('No id provided'),
+  });
+
   const [summaryQuery, timeseriesQuery, heatmapQuery] = useQueries({
     queries: [
       {
         queryKey: ['survey-analytics-summary', normalizedId, normalizedFilters],
-        enabled: normalizedId !== null,
+        enabled:
+          normalizedId !== null &&
+          (dashboardQuery.isError || !dashboardQuery.data?.modules?.summary || !dashboardQuery.isFetched),
         queryFn: () =>
           normalizedId !== null ? getSummary(normalizedId, normalizedFilters) : Promise.reject('No id provided'),
       },
       {
         queryKey: ['survey-analytics-timeseries', normalizedId, normalizedFilters],
-        enabled: normalizedId !== null,
+        enabled:
+          normalizedId !== null &&
+          (dashboardQuery.isError || !dashboardQuery.data?.modules?.timeseries || !dashboardQuery.isFetched),
         queryFn: () =>
           normalizedId !== null ? getTimeseries(normalizedId, normalizedFilters) : Promise.reject('No id provided'),
       },
       {
         queryKey: ['survey-analytics-heatmap', normalizedId, normalizedFilters],
-        enabled: normalizedId !== null,
+        enabled:
+          normalizedId !== null &&
+          (dashboardQuery.isError || !dashboardQuery.data?.modules?.heatmap?.points || !dashboardQuery.isFetched),
         queryFn: () =>
           normalizedId !== null ? getHeatmap(normalizedId, normalizedFilters) : Promise.reject('No id provided'),
       },
@@ -161,41 +182,76 @@ export function useSurveyAnalytics(
   }, [fallbackSurvey, fallbackDataset, normalizedFilters]);
 
   const summaryData = useMemo(
-    () => mergeSurveyAnalytics(summaryQuery.data, fallbackAnalytics?.summary),
-    [summaryQuery.data, fallbackAnalytics?.summary],
+    () => mergeSurveyAnalytics(dashboardQuery.data?.modules?.summary ?? summaryQuery.data, fallbackAnalytics?.summary),
+    [dashboardQuery.data?.modules?.summary, summaryQuery.data, fallbackAnalytics?.summary],
   );
 
   const timeseriesData = useMemo(
-    () => pickTimeseries(timeseriesQuery.data, fallbackAnalytics?.timeseries),
-    [timeseriesQuery.data, fallbackAnalytics?.timeseries],
+    () => pickTimeseries(dashboardQuery.data?.modules?.timeseries ?? timeseriesQuery.data, fallbackAnalytics?.timeseries),
+    [dashboardQuery.data?.modules?.timeseries, timeseriesQuery.data, fallbackAnalytics?.timeseries],
   );
 
   const heatmapData = useMemo(
-    () => pickHeatmap(heatmapQuery.data, fallbackAnalytics?.heatmap),
-    [heatmapQuery.data, fallbackAnalytics?.heatmap],
+    () => pickHeatmap(dashboardQuery.data?.modules?.heatmap?.points ?? heatmapQuery.data?.points, fallbackAnalytics?.heatmap),
+    [dashboardQuery.data?.modules?.heatmap?.points, heatmapQuery.data?.points, fallbackAnalytics?.heatmap],
   );
 
-  const baseError = summaryQuery.error
-    ? getErrorMessage(summaryQuery.error)
-    : timeseriesQuery.error
-      ? getErrorMessage(timeseriesQuery.error)
-      : heatmapQuery.error
-        ? getErrorMessage(heatmapQuery.error)
-        : null;
+  const heatmapMeta = useMemo(
+    () => dashboardQuery.data?.modules?.heatmap?.metadata ?? heatmapQuery.data?.metadata,
+    [dashboardQuery.data?.modules?.heatmap?.metadata, heatmapQuery.data?.metadata],
+  );
+
+  const dashboardBundle = useMemo(
+    () => dashboardQuery.data,
+    [dashboardQuery.data],
+  );
+
+  const executiveSummary = useMemo(
+    () => dashboardQuery.data?.executive_summary,
+    [dashboardQuery.data?.executive_summary],
+  );
 
   const effectiveError = useMemo(() => {
-    if (!baseError) return null;
-    if (summaryData && summaryData.total_respuestas > 0) return null;
-    if (timeseriesData && timeseriesData.length > 0) return null;
-    if (heatmapData && heatmapData.length > 0) return null;
-    return baseError;
-  }, [baseError, summaryData, timeseriesData, heatmapData]);
+    const fallbackRecovered = summaryQuery.isSuccess || timeseriesQuery.isSuccess || heatmapQuery.isSuccess;
+    if (dashboardQuery.isError && fallbackRecovered) {
+      return null;
+    }
+
+    const hasMeaningfulResult = Boolean(summaryData) || timeseriesData.length > 0 || heatmapData.length > 0;
+    if (hasMeaningfulResult) {
+      return null;
+    }
+
+    const errorCandidate =
+      summaryQuery.error ??
+      timeseriesQuery.error ??
+      heatmapQuery.error ??
+      dashboardQuery.error ??
+      null;
+
+    return errorCandidate ? getErrorMessage(errorCandidate) : null;
+  }, [
+    dashboardQuery.isError,
+    dashboardQuery.error,
+    summaryQuery.isSuccess,
+    summaryQuery.error,
+    timeseriesQuery.isSuccess,
+    timeseriesQuery.error,
+    heatmapQuery.isSuccess,
+    heatmapQuery.error,
+    summaryData,
+    timeseriesData,
+    heatmapData,
+  ]);
 
   return {
     summary: summaryData ?? undefined,
     timeseries: timeseriesData,
     heatmap: heatmapData,
-    isLoading: summaryQuery.isLoading || timeseriesQuery.isLoading || heatmapQuery.isLoading,
+    heatmapMeta,
+    dashboardBundle,
+    executiveSummary,
+    isLoading: dashboardQuery.isLoading || summaryQuery.isLoading || timeseriesQuery.isLoading || heatmapQuery.isLoading,
     error: effectiveError,
     filters: normalizedFilters,
     setFilters: (next: SurveyAnalyticsFilters) => setFiltersState(normalizeFilters(next)),
