@@ -100,6 +100,24 @@ export function SurveyComments({ slug, tenantSlug, realtimeComments, copy }: Sur
     return '';
   };
 
+  const toDisplayText = (value: unknown): string => {
+    if (typeof value === 'string') return value;
+    if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+    if (value && typeof value === 'object') {
+      const record = value as Record<string, unknown>;
+      const preferred = record.texto ?? record.label ?? record.nombre ?? record.value ?? record.pregunta ?? record.lider;
+      if (typeof preferred === 'string' || typeof preferred === 'number' || typeof preferred === 'boolean') {
+        return String(preferred);
+      }
+      try {
+        return JSON.stringify(value);
+      } catch {
+        return '';
+      }
+    }
+    return '';
+  };
+
   useEffect(() => {
     let cancelled = false;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
