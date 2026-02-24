@@ -25,6 +25,7 @@ import type { MapProvider, MapProviderUnavailableReason } from '@/hooks/useMapPr
 import type {
   SurveyAnalyticsFilters,
   SurveyDemographicBreakdownItem,
+  SurveyAnalyticsHeatmap,
   SurveyHeatmapPoint,
   SurveySummary,
   SurveyTimeseriesPoint,
@@ -34,6 +35,7 @@ interface SurveyAnalyticsProps {
   summary?: SurveySummary;
   timeseries?: SurveyTimeseriesPoint[];
   heatmap?: SurveyHeatmapPoint[];
+  heatmapMeta?: SurveyAnalyticsHeatmap['metadata'];
   onExport: () => Promise<void>;
   isExporting?: boolean;
   filters?: SurveyAnalyticsFilters;
@@ -415,6 +417,7 @@ export const SurveyAnalytics = ({
   summary,
   timeseries,
   heatmap,
+  heatmapMeta,
   onExport,
   isExporting,
   filters,
@@ -436,6 +439,11 @@ export const SurveyAnalytics = ({
       })),
     [heatmapPoints],
   );
+
+  const usingSyntheticPoints = useMemo(() => {
+    if (!heatmapMeta || typeof heatmapMeta !== 'object') return false;
+    return Boolean((heatmapMeta as Record<string, unknown>).using_synthetic_points);
+  }, [heatmapMeta]);
   const { provider, setProvider } = useMapProvider();
   const googleProviderAvailable = useMemo(
     () => ((import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? '').trim().length > 0),
@@ -853,6 +861,11 @@ export const SurveyAnalytics = ({
           <CardDescription>Ubicaciones aproximadas de participación (si están disponibles).</CardDescription>
         </CardHeader>
         <CardContent>
+          {usingSyntheticPoints ? (
+            <div className="mb-3 inline-flex rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs text-amber-700">
+              Modo demo (ubicaciones simuladas)
+            </div>
+          ) : null}
           {heatmapPoints.length ? (
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-border text-sm">
@@ -901,6 +914,11 @@ export const SurveyAnalytics = ({
           </div>
         </CardHeader>
         <CardContent className="h-[420px]">
+          {usingSyntheticPoints ? (
+            <div className="mb-3 inline-flex rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs text-amber-700">
+              Modo demo (ubicaciones simuladas)
+            </div>
+          ) : null}
           {boundingBoxValue ? (
             <div className="mb-3 flex flex-wrap items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-primary">
               Filtrando resultados por la zona visible del mapa.

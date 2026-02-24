@@ -8,6 +8,7 @@ import {
   SurveyAnalyticsFilters,
   SurveyComment,
   SurveyDraftPayload,
+  SurveyAnalyticsHeatmap,
   SurveyHeatmapPoint,
   SurveyListResponse,
   SurveyLivePublicResultsPayload,
@@ -295,7 +296,10 @@ const attemptRecoveryFromAdminList = async (): Promise<PublicSurveyListResult | 
 };
 
 export const getPublicSurvey = async (slug: string, tenantSlug?: string): Promise<SurveyPublic> => {
-  const response = await apiFetch<unknown>(`/public/encuestas/${slug}`, {
+  const response = await callPublicSurveyEndpoint<unknown>([
+    `/api/public/encuestas/${slug}`,
+    `/public/encuestas/${slug}`,
+  ], {
     skipAuth: true,
     omitCredentials: true,
     isWidgetRequest: true,
@@ -303,6 +307,7 @@ export const getPublicSurvey = async (slug: string, tenantSlug?: string): Promis
     tenantSlug,
     baseUrlOverride: PUBLIC_SURVEY_API_BASE,
     omitEntityToken: true,
+    omitTenant: true,
   });
 
   if (!response || typeof response !== 'object' || Array.isArray(response)) {
@@ -310,6 +315,31 @@ export const getPublicSurvey = async (slug: string, tenantSlug?: string): Promis
   }
 
   return normalizeSurveyPreguntas(response as SurveyPublic);
+};
+
+
+const shouldRetryPublicSurveyRequest = (error: unknown) => {
+  if (error instanceof ApiError) {
+    return error.status === 401 || error.status === 403 || error.status === 404 || error.status === 405 || error.status >= 500;
+  }
+  return false;
+};
+
+const callPublicSurveyEndpoint = async <T>(paths: string[], options: ApiFetchOptions): Promise<T> => {
+  let lastError: unknown = null;
+
+  for (const path of paths) {
+    try {
+      return await apiFetch<T>(path, options);
+    } catch (error) {
+      lastError = error;
+      if (!shouldRetryPublicSurveyRequest(error)) {
+        break;
+      }
+    }
+  }
+
+  throw lastError ?? new Error('No fue posible consultar el endpoint público de encuestas.');
 };
 
 const FALLBACK_SURVEY_URL_REGEX = /https?:\/\/[\S]+\/e\/([a-z0-9-]+)/gi;
@@ -367,7 +397,10 @@ const attemptRecoveryFromRawPayload = async (
 
 export const listPublicSurveys = async (tenantSlug?: string): Promise<PublicSurveyListResult> => {
   try {
-    const response = await apiFetch<unknown>('/public/encuestas', {
+    const response = await callPublicSurveyEndpoint<unknown>([
+      '/api/public/encuestas',
+      '/public/encuestas',
+    ], {
       skipAuth: true,
       omitCredentials: true,
       isWidgetRequest: true,
@@ -375,6 +408,7 @@ export const listPublicSurveys = async (tenantSlug?: string): Promise<PublicSurv
       tenantSlug,
       baseUrlOverride: PUBLIC_SURVEY_API_BASE,
       omitEntityToken: true,
+      omitTenant: true,
     });
 
     if (Array.isArray(response)) {
@@ -442,7 +476,10 @@ export const getPublicSurveyLiveResults = (
     provincia?: string;
   },
 ): Promise<SurveyLivePublicResultsPayload> =>
-  apiFetch(`/public/encuestas/${slug}/live-results${buildQueryString(params)}`, {
+  callPublicSurveyEndpoint<SurveyLivePublicResultsPayload>([
+    `/api/public/encuestas/${slug}/live-results${buildQueryString(params)}`,
+    `/public/encuestas/${slug}/live-results${buildQueryString(params)}`,
+  ], {
     skipAuth: true,
     omitCredentials: true,
     isWidgetRequest: true,
@@ -450,6 +487,7 @@ export const getPublicSurveyLiveResults = (
     tenantSlug,
     baseUrlOverride: PUBLIC_SURVEY_API_BASE,
     omitEntityToken: true,
+    omitTenant: true,
   });
 
 export const postPublicResponse = (
@@ -457,7 +495,10 @@ export const postPublicResponse = (
   payload: PublicResponsePayload,
   tenantSlug?: string,
 ): Promise<{ ok: boolean; id?: number }> =>
-  apiFetch(`/public/encuestas/${slug}/respuestas`, {
+  callPublicSurveyEndpoint<{ ok: boolean; id?: number }>([
+    `/api/public/encuestas/${slug}/respuestas`,
+    `/public/encuestas/${slug}/respuestas`,
+  ], {
     method: 'POST',
     body: payload,
     omitCredentials: true,
@@ -466,6 +507,7 @@ export const postPublicResponse = (
     tenantSlug,
     baseUrlOverride: PUBLIC_SURVEY_API_BASE,
     omitEntityToken: true,
+    omitTenant: true,
   });
 
 export const getSurveyComments = (
@@ -474,7 +516,10 @@ export const getSurveyComments = (
   limit = 50,
   offset = 0,
 ): Promise<SurveyComment[]> =>
-  apiFetch(`/public/encuestas/${slug}/comentarios?limit=${limit}&offset=${offset}`, {
+  callPublicSurveyEndpoint<SurveyComment[]>([
+    `/api/public/encuestas/${slug}/comentarios?limit=${limit}&offset=${offset}`,
+    `/public/encuestas/${slug}/comentarios?limit=${limit}&offset=${offset}`,
+  ], {
     skipAuth: true,
     omitCredentials: true,
     isWidgetRequest: true,
@@ -482,6 +527,7 @@ export const getSurveyComments = (
     tenantSlug,
     baseUrlOverride: PUBLIC_SURVEY_API_BASE,
     omitEntityToken: true,
+    omitTenant: true,
   });
 
 export const postSurveyComment = (
@@ -489,7 +535,10 @@ export const postSurveyComment = (
   payload: { texto: string; nombre?: string; modo?: 'anonimo' | 'facebook' },
   tenantSlug?: string,
 ): Promise<SurveyComment> =>
-  apiFetch(`/public/encuestas/${slug}/comentarios`, {
+  callPublicSurveyEndpoint<SurveyComment>([
+    `/api/public/encuestas/${slug}/comentarios`,
+    `/public/encuestas/${slug}/comentarios`,
+  ], {
     method: 'POST',
     body: payload,
     omitCredentials: true,
@@ -498,6 +547,7 @@ export const postSurveyComment = (
     tenantSlug,
     baseUrlOverride: PUBLIC_SURVEY_API_BASE,
     omitEntityToken: true,
+    omitTenant: true,
   });
 
 const isSurveyListMeta = (value: unknown): SurveyListResponse['meta'] | undefined => {
@@ -682,11 +732,33 @@ export const getTimeseries = (
 ): Promise<SurveyTimeseriesPoint[]> =>
   callAdminSurveyEndpoint(`${id}/analytics/series${buildQueryString(filtros)}`);
 
-export const getHeatmap = (
+export const getHeatmap = async (
   id: number,
   filtros?: SurveyAnalyticsFilters,
-): Promise<SurveyHeatmapPoint[]> =>
-  callAdminSurveyEndpoint(`${id}/analytics/heatmap${buildQueryString(filtros)}`);
+): Promise<SurveyAnalyticsHeatmap> => {
+  const payload = await callAdminSurveyEndpoint<unknown>(`${id}/analytics/heatmap${buildQueryString(filtros)}`);
+
+  if (Array.isArray(payload)) {
+    return { points: payload as SurveyHeatmapPoint[] };
+  }
+
+  if (payload && typeof payload === 'object') {
+    const record = payload as Record<string, unknown>;
+    const points = Array.isArray(record.points)
+      ? (record.points as SurveyHeatmapPoint[])
+      : Array.isArray(record.data)
+        ? (record.data as SurveyHeatmapPoint[])
+        : [];
+
+    return {
+      points,
+      cells: Array.isArray(record.cells) ? (record.cells as Array<Record<string, unknown>>) : undefined,
+      metadata: record.metadata && typeof record.metadata === 'object' ? (record.metadata as Record<string, unknown>) : undefined,
+    };
+  }
+
+  return { points: [] };
+};
 
 
 export const getSurveyForecast = (
