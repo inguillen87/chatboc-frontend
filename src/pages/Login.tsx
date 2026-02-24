@@ -260,6 +260,23 @@ const Login = () => {
 
       const responseRole = data.user?.rol;
       const resolvedTenantSlug = responseTenantSlug || currentSlug || safeLocalStorage.getItem("tenantSlug") || undefined;
+      const storedUserRaw = safeLocalStorage.getItem("user");
+      if (storedUserRaw) {
+        try {
+          const storedUser = JSON.parse(storedUserRaw);
+          safeLocalStorage.setItem(
+            "user",
+            JSON.stringify({
+              ...storedUser,
+              rol: responseRole || storedUser?.rol,
+              tenant_slug: resolvedTenantSlug || storedUser?.tenant_slug,
+              tenantSlug: resolvedTenantSlug || storedUser?.tenantSlug,
+            }),
+          );
+        } catch {
+          safeLocalStorage.removeItem("user");
+        }
+      }
 
       if (responseRole === "super_admin") {
         navigate("/superadmin");
@@ -348,6 +365,23 @@ const Login = () => {
       safeLocalStorage.setItem("demoMode", String(Boolean(data.demo_mode)));
       if (data.tenant?.slug) safeLocalStorage.setItem("tenantSlug", data.tenant.slug);
       if (data.tenant?.id) safeLocalStorage.setItem("tenantId", String(data.tenant.id));
+      const storedUserRaw = safeLocalStorage.getItem("user");
+      if (storedUserRaw) {
+        try {
+          const storedUser = JSON.parse(storedUserRaw);
+          safeLocalStorage.setItem(
+            "user",
+            JSON.stringify({
+              ...storedUser,
+              rol: data.user?.rol || storedUser?.rol,
+              tenant_slug: data.tenant?.slug || storedUser?.tenant_slug,
+              tenantSlug: data.tenant?.slug || storedUser?.tenantSlug,
+            }),
+          );
+        } catch {
+          safeLocalStorage.removeItem("user");
+        }
+      }
       navigate("/analytics");
       refreshUser().catch(() => undefined);
     } catch (err) {

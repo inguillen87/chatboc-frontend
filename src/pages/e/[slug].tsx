@@ -117,6 +117,18 @@ const PublicSurveyPage = () => {
   }, [searchParams]);
 
   const safeText = (value?: unknown) => (typeof value === 'string' ? value : '');
+  const toDisplayText = (value: unknown): string => {
+    if (typeof value === 'string') return value;
+    if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+    if (value && typeof value === 'object') {
+      const record = value as Record<string, unknown>;
+      const candidate = record.texto ?? record.label ?? record.nombre ?? record.value;
+      if (typeof candidate === 'string' || typeof candidate === 'number' || typeof candidate === 'boolean') {
+        return String(candidate);
+      }
+    }
+    return '';
+  };
 
   const handleSubmit = useCallback(
     async (payload: PublicResponsePayload) => {
@@ -565,12 +577,12 @@ const PublicSurveyPage = () => {
                     <div className="grid gap-3 lg:grid-cols-2">
                       {liveQuestions.map((question, qIndex) => (
                         <div key={`${question.id ?? qIndex}`} className="rounded-lg border border-border/60 p-3">
-                          <p className="mb-2 text-sm font-medium">{question.texto ?? ''}</p>
+                          <p className="mb-2 text-sm font-medium">{toDisplayText(question.texto)}</p>
                           <div className="space-y-2">
                             {(question.opciones ?? []).map((option, optionIndex) => (
                               <div key={`${option.value ?? optionIndex}`} className="space-y-1">
                                 <div className="flex items-center justify-between text-xs">
-                                  <span>{option.value ?? ''}</span>
+                                  <span>{toDisplayText(option.value)}</span>
                                   <span>{option.porcentaje ?? 0}%</span>
                                 </div>
                                 <div className="h-2 rounded-full bg-muted">

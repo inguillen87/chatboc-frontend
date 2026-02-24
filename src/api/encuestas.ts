@@ -79,6 +79,12 @@ const buildQueryString = (params?: QueryParams) => {
 
 type ApiFetchOptions = Parameters<typeof apiFetch>[1];
 
+
+const isDevEnvironment = () => {
+  const metaEnv = typeof import.meta !== 'undefined' ? (import.meta as any)?.env : undefined;
+  return Boolean(metaEnv?.DEV || metaEnv?.MODE === 'development');
+};
+
 const ADMIN_SURVEY_BASE_PATHS = [
   '/admin/encuestas',
   '/municipal/encuestas',
@@ -112,7 +118,7 @@ const shouldRetryAdminRequest = (error: unknown) => {
     }
 
     if (error.status === 401 || error.status === 403) {
-      return true;
+      return false;
     }
 
     if (error.status >= 500) {
@@ -138,7 +144,7 @@ async function callAdminSurveyEndpoint<T>(pathSuffix = '', options?: ApiFetchOpt
       const targetPath = joinAdminPath(basePath, pathSuffix);
       const result = await apiFetch<T>(targetPath, options ?? {});
 
-      if (basePath !== ADMIN_SURVEY_BASE_PATHS[0]) {
+      if (basePath !== ADMIN_SURVEY_BASE_PATHS[0] && isDevEnvironment()) {
         console.warn(
           '[encuestas] Falling back to alternate admin endpoint',
           { preferred: ADMIN_SURVEY_BASE_PATHS[0], used: basePath },
