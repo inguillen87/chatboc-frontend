@@ -114,6 +114,7 @@ export function useSurveyAnalytics(
   const dashboardQuery = useQuery({
     queryKey: ['survey-analytics-dashboard', normalizedId, normalizedFilters],
     enabled: normalizedId !== null,
+    retry: false,
     queryFn: () =>
       normalizedId !== null ? getSurveyDashboardBundle(normalizedId, normalizedFilters) : Promise.reject('No id provided'),
   });
@@ -124,7 +125,7 @@ export function useSurveyAnalytics(
         queryKey: ['survey-analytics-summary', normalizedId, normalizedFilters],
         enabled:
           normalizedId !== null &&
-          (dashboardQuery.isError || !dashboardQuery.data?.modules?.summary),
+          (dashboardQuery.isError || !dashboardQuery.data?.modules?.summary || !dashboardQuery.isFetched),
         queryFn: () =>
           normalizedId !== null ? getSummary(normalizedId, normalizedFilters) : Promise.reject('No id provided'),
       },
@@ -132,7 +133,7 @@ export function useSurveyAnalytics(
         queryKey: ['survey-analytics-timeseries', normalizedId, normalizedFilters],
         enabled:
           normalizedId !== null &&
-          (dashboardQuery.isError || !dashboardQuery.data?.modules?.timeseries),
+          (dashboardQuery.isError || !dashboardQuery.data?.modules?.timeseries || !dashboardQuery.isFetched),
         queryFn: () =>
           normalizedId !== null ? getTimeseries(normalizedId, normalizedFilters) : Promise.reject('No id provided'),
       },
@@ -140,7 +141,7 @@ export function useSurveyAnalytics(
         queryKey: ['survey-analytics-heatmap', normalizedId, normalizedFilters],
         enabled:
           normalizedId !== null &&
-          (dashboardQuery.isError || !dashboardQuery.data?.modules?.heatmap?.points),
+          (dashboardQuery.isError || !dashboardQuery.data?.modules?.heatmap?.points || !dashboardQuery.isFetched),
         queryFn: () =>
           normalizedId !== null ? getHeatmap(normalizedId, normalizedFilters) : Promise.reject('No id provided'),
       },
