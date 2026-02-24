@@ -163,13 +163,13 @@ export function SurveyComments({ slug, tenantSlug, realtimeComments, copy }: Sur
   };
 
   return (
-    <Card className="w-full mt-8">
+    <Card className="w-full mt-8 border border-border/60 shadow-sm">
       <CardHeader>
         <CardTitle className="text-xl">{safeText(copy?.title)}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Comment Form */}
-        <div className="flex flex-col gap-4 rounded-lg bg-muted/30 p-4">
+        <div className="flex flex-col gap-4 rounded-2xl border border-border/60 bg-gradient-to-br from-muted/20 to-muted/40 p-4">
           <div className="space-y-3">
             <Label className="text-xs uppercase text-muted-foreground">{safeText(copy?.modeLabel)}</Label>
             <RadioGroup
@@ -191,7 +191,7 @@ export function SurveyComments({ slug, tenantSlug, realtimeComments, copy }: Sur
             placeholder={safeText(copy?.placeholder)}
             value={newComment}
             onChange={(e) => setNewComment(e.target.value)}
-            className="min-h-[80px]"
+            className="min-h-[92px] rounded-xl"
           />
           <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
             <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
@@ -199,7 +199,7 @@ export function SurveyComments({ slug, tenantSlug, realtimeComments, copy }: Sur
                 placeholder={safeText(copy?.namePlaceholder)}
                 value={authorName}
                 onChange={(e) => setAuthorName(e.target.value)}
-                className="max-w-[200px]"
+                className="w-full max-w-[220px] rounded-xl"
               />
               {commentMode === 'facebook' ? (
                 <Button type="button" variant="outline" size="sm" className="whitespace-nowrap">
@@ -236,14 +236,14 @@ export function SurveyComments({ slug, tenantSlug, realtimeComments, copy }: Sur
         </div>
 
         {/* Comments List */}
-        <div className="space-y-4">
+        <div className="space-y-3 sm:space-y-4">
             {loading ? (
                 <p className="text-muted-foreground text-center">{safeText(copy?.loadingLabel)}</p>
             ) : comments.length === 0 ? (
                 <p className="text-muted-foreground text-center">{safeText(copy?.emptyLabel)}</p>
             ) : (
                 sortedComments.map((comment) => (
-                    <div key={comment.id} className="flex gap-3 items-start border-b border-border/40 pb-4 last:border-0">
+                    <div key={comment.id} className="flex gap-3 items-start rounded-xl border border-border/40 bg-background/70 p-3">
                         <Avatar className="h-8 w-8">
                             <AvatarImage
                               src={`https://api.dicebear.com/7.x/initials/svg?seed=${toDisplayText(comment.nombre_autor) || safeText(copy?.authorFallback)}`}

@@ -64,6 +64,13 @@ const AnalyticsPage = () => {
   const [leadCursor, setLeadCursor] = useState<string | null>(null);
   const [leadPriorityFilter, setLeadPriorityFilter] = useState<string>('all');
   const [leadTenantFilter, setLeadTenantFilter] = useState<string>('all');
+  const [hubNavigation, setHubNavigation] = useState<Array<{ key?: string; path?: string; active?: boolean }>>([]);
+  const [hubSections, setHubSections] = useState<Record<string, unknown>>({});
+
+  const hubEncuestasPath = useMemo(() => {
+    const encuestasEntry = hubNavigation.find((item) => item?.key === 'encuestas' && typeof item?.path === 'string' && item.path);
+    return encuestasEntry?.path || buildTenantPath('/admin/encuestas', currentSlug || undefined);
+  }, [hubNavigation, currentSlug]);
 
   const fireAndForgetTrackEvent = (payload: { tenant_id: number; event_name: string; payload?: Record<string, unknown>; channel?: string; session_id?: string }) => {
     enterpriseService
@@ -102,8 +109,13 @@ const AnalyticsPage = () => {
       };
       let result: AnalyticsSummary;
 
+      const hub = await analyticsService.getHub(requestPayload).catch(() => null);
+      const primaryNavigation = Array.isArray(hub?.navigation?.primary) ? hub.navigation.primary : [];
+      setHubNavigation(primaryNavigation);
+      setHubSections((hub?.sections && typeof hub.sections === 'object') ? hub.sections as Record<string, unknown> : {});
+
       try {
-        result = await analyticsService.getSummary(requestPayload);
+        result = await analyticsService.getSummary(requestPayload, hub);
       } catch (err: any) {
         const shouldTryAlternateScope =
           err instanceof ApiError &&
@@ -272,7 +284,7 @@ const AnalyticsPage = () => {
             {!isEmbeddedInProfile ? (
               <Button variant="outline" size="sm" onClick={() => navigate('/perfil')}>Perfil</Button>
             ) : null}
-            <Button variant="outline" size="sm" onClick={() => navigate(buildTenantPath('/admin/encuestas', currentSlug || undefined))}>Encuestas</Button>
+            <Button variant="outline" size="sm" onClick={() => navigate(hubEncuestasPath)}>Encuestas</Button>
           </div>
         </div>
 
@@ -315,11 +327,11 @@ const AnalyticsPage = () => {
       ) : null}
 
       <Tabs defaultValue="overview" className="w-full" onValueChange={(val) => { setContext(val as any); if (tenantId) { fireAndForgetTrackEvent({ tenant_id: tenantId, event_name: 'tab_click', payload: { tab: val }, channel: 'web_widget', session_id: `sess_${Date.now()}` }); } }}>
-        <TabsList className="grid w-full grid-cols-4 lg:w-[400px]">
-          <TabsTrigger value="overview">General</TabsTrigger>
-          <TabsTrigger value="municipio">Municipio</TabsTrigger>
-          <TabsTrigger value="pyme">Ventas</TabsTrigger>
-          <TabsTrigger value="geo">Mapas</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 lg:w-[400px]">
+          {visibleTabs.includes('overview') ? <TabsTrigger value="overview">General</TabsTrigger> : null}
+          {visibleTabs.includes('municipio') ? <TabsTrigger value="municipio">Municipio</TabsTrigger> : null}
+          {visibleTabs.includes('pyme') ? <TabsTrigger value="pyme">Ventas</TabsTrigger> : null}
+          {visibleTabs.includes('geo') ? <TabsTrigger value="geo">Mapas</TabsTrigger> : null}
         </TabsList>
 
         <div className="mt-6">
