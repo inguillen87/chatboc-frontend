@@ -460,19 +460,43 @@ export const SurveyAnalytics = ({
   );
   const optionData = useMemo(() => buildOptionBreakdown(summary, summaryRecord), [summary, summaryRecord]);
   const heatmapPoints = useMemo(() => normalizeHeatmapPoints(heatmap), [heatmap]);
+  const aggregatedHeatmapPoints = useMemo(() => {
+    if (!heatmapPoints.length) return [] as SurveyHeatmapPoint[];
+
+    const grouped = new Map<string, SurveyHeatmapPoint>();
+    heatmapPoints.forEach((point) => {
+      const lat = Number(point.lat.toFixed(4));
+      const lng = Number(point.lng.toFixed(4));
+      const key = `${lat}:${lng}`;
+      const previous = grouped.get(key);
+
+      if (!previous) {
+        grouped.set(key, { lat, lng, respuestas: Math.max(0, point.respuestas ?? 0) });
+        return;
+      }
+
+      grouped.set(key, {
+        lat,
+        lng,
+        respuestas: Math.max(0, previous.respuestas ?? 0) + Math.max(0, point.respuestas ?? 0),
+      });
+    });
+
+    return Array.from(grouped.values());
+  }, [heatmapPoints]);
   const usingSyntheticPoints = useMemo(() => {
     if (!heatmapMeta || typeof heatmapMeta !== 'object') return false;
     return Boolean((heatmapMeta as Record<string, unknown>).using_synthetic_points);
   }, [heatmapMeta]);
 
   const heatmapData = useMemo(() => {
-    const allZero = heatmapPoints.length > 0 && heatmapPoints.every((point) => point.respuestas <= 0);
-    return heatmapPoints.map((point) => ({
+    const allZero = aggregatedHeatmapPoints.length > 0 && aggregatedHeatmapPoints.every((point) => point.respuestas <= 0);
+    return aggregatedHeatmapPoints.map((point) => ({
       lat: point.lat,
       lng: point.lng,
       weight: usingSyntheticPoints || allZero ? Math.max(1, point.respuestas || 0) : point.respuestas,
     }));
-  }, [heatmapPoints, usingSyntheticPoints]);
+  }, [aggregatedHeatmapPoints, usingSyntheticPoints]);
   const { provider, setProvider } = useMapProvider();
   const googleProviderAvailable = useMemo(
     () => ((import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? '').trim().length > 0),
@@ -700,8 +724,8 @@ export const SurveyAnalytics = ({
 
 
   const geoIntensity = useMemo(() => {
-    if (!heatmapPoints.length) return { totalWeight: 0, maxWeight: 0, avgWeight: 0, hotspots: [] as SurveyHeatmapPoint[] };
-    const sorted = [...heatmapPoints].sort((a, b) => b.respuestas - a.respuestas);
+    if (!aggregatedHeatmapPoints.length) return { totalWeight: 0, maxWeight: 0, avgWeight: 0, hotspots: [] as SurveyHeatmapPoint[] };
+    const sorted = [...aggregatedHeatmapPoints].sort((a, b) => b.respuestas - a.respuestas);
     const totalWeight = sorted.reduce((acc, point) => acc + (point.respuestas || 0), 0);
     const maxWeight = sorted[0]?.respuestas ?? 0;
     const avgWeight = totalWeight / sorted.length;
@@ -711,14 +735,14 @@ export const SurveyAnalytics = ({
       avgWeight,
       hotspots: sorted.slice(0, 5),
     };
-  }, [heatmapPoints]);
+  }, [aggregatedHeatmapPoints]);
 
   const geoCoverageLabel = useMemo(() => {
-    if (!heatmapPoints.length) return '—';
-    if (!totalResponsesValue || totalResponsesValue <= 0) return `${heatmapPoints.length} puntos`;
-    const ratio = Math.min(1, heatmapPoints.length / totalResponsesValue);
+    if (!aggregatedHeatmapPoints.length) return '—';
+    if (!totalResponsesValue || totalResponsesValue <= 0) return `${aggregatedHeatmapPoints.length} zonas`;
+    const ratio = Math.min(1, aggregatedHeatmapPoints.length / totalResponsesValue);
     return `${(ratio * 100).toFixed(1)}%`;
-  }, [heatmapPoints.length, totalResponsesValue]);
+  }, [aggregatedHeatmapPoints.length, totalResponsesValue]);
 
   const demographicSections = useMemo(() => {
     const candidates = summaryRecord
@@ -998,7 +1022,7 @@ export const SurveyAnalytics = ({
               Modo demo (ubicaciones simuladas)
             </div>
           ) : null}
-          {heatmapPoints.length ? (
+          {aggregatedHeatmapPoints.length ? (
             <div className="space-y-4">
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-border text-sm">
@@ -1010,7 +1034,7 @@ export const SurveyAnalytics = ({
                     </tr>
                   </thead>
                   <tbody>
-                    {heatmapPoints.map((point, index) => (
+                    {aggregatedHeatmapPoints.slice(0, 25).map((point, index) => (
                       <tr key={`${point.lat}-${point.lng}-${index}`} className="border-b border-border/40">
                         <td className="py-2 pr-4">{point.lat.toFixed(4)}</td>
                         <td className="py-2 pr-4">{point.lng.toFixed(4)}</td>
@@ -1019,6 +1043,11 @@ export const SurveyAnalytics = ({
                     ))}
                   </tbody>
                 </table>
+                {aggregatedHeatmapPoints.length > 25 ? (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Mostrando 25 zonas principales de {aggregatedHeatmapPoints.length} detectadas.
+                  </p>
+                ) : null}
               </div>
               <div className="h-[320px] min-w-0 overflow-hidden rounded-lg border border-border/60">
                 <MapLibreMap
