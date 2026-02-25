@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { io, Socket, ManagerOptions, SocketOptions } from 'socket.io-client';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { getSocketUrl, SOCKET_PATH } from '@/config';
@@ -56,10 +57,44 @@ const resolveSocketUrl = (): string | undefined => {
 
 const SOCKET_URL = resolveSocketUrl();
 
+
+const shouldEnableGlobalSocket = (pathname: string, hasToken: boolean): boolean => {
+  if (!hasToken) return false;
+  const normalized = pathname.toLowerCase();
+
+  const blockedPrefixes = [
+    '/login',
+    '/register',
+    '/demo',
+    '/e',
+    '/encuestas',
+    '/admin/encuestas',
+    '/public/encuestas',
+  ];
+
+  const segments = normalized.split('/').filter(Boolean);
+  const knownRootSegments = new Set(['login', 'register', 'demo', 'e', 'encuestas', 'admin', 'public']);
+  const tenantScopedPath =
+    segments.length > 1 && !knownRootSegments.has(segments[0])
+      ? `/${segments.slice(1).join('/')}`
+      : normalized;
+
+  if (blockedPrefixes.some((prefix) => normalized === prefix || normalized.startsWith(`${prefix}/`))) {
+    return false;
+  }
+
+  if (blockedPrefixes.some((prefix) => tenantScopedPath === prefix || tenantScopedPath.startsWith(`${prefix}/`))) {
+    return false;
+  }
+
+  return true;
+};
+
 export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const { user } = useUser();
+  const location = useLocation();
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
@@ -77,6 +112,13 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const token =
       safeLocalStorage.getItem('authToken') ||
       safeLocalStorage.getItem('chatAuthToken');
+
+    const pathname = location.pathname || '';
+    if (!shouldEnableGlobalSocket(pathname, Boolean(token))) {
+      setSocket(null);
+      setIsConnected(false);
+      return;
+    }
 
     const socketOptions: Partial<ManagerOptions & SocketOptions> = {
       transports: ['websocket', 'polling'], // Added polling for better compatibility
@@ -103,7 +145,9 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const newSocket = io(SOCKET_URL ?? undefined, socketOptions);
 
     newSocket.on('connect', () => {
-      console.log('Global Socket connected');
+      if (import.meta.env.DEV) {
+        console.log('Global Socket connected');
+      }
       setIsConnected(true);
 
       // Subscribe to ticket updates if we have a token
@@ -113,12 +157,16 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
 
     newSocket.on('disconnect', () => {
-      console.log('Global Socket disconnected');
+      if (import.meta.env.DEV) {
+        console.log('Global Socket disconnected');
+      }
       setIsConnected(false);
     });
 
     newSocket.on('connect_error', (err) => {
-      console.error('Global Socket connection error:', err);
+      if (import.meta.env.DEV) {
+        console.error('Global Socket connection error:', err);
+      }
     });
 
     setSocket(newSocket);
@@ -127,7 +175,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return () => {
       newSocket.close();
     };
-  }, [user]); // Re-connect if user changes (e.g. login/logout or tenant switch)
+  }, [user, location.pathname]); // Re-connect if user or route changes
 
   return (
     <SocketContext.Provider value={{ socket, isConnected }}>

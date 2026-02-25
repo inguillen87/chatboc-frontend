@@ -163,6 +163,22 @@ export const SurveyForm = ({
     dismissedErrorKey,
   ]);
 
+  const toDisplayText = (value: unknown): string => {
+    if (typeof value === 'string') return value;
+    if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+    if (value && typeof value === 'object') {
+      const candidate = (value as Record<string, unknown>).texto
+        ?? (value as Record<string, unknown>).label
+        ?? (value as Record<string, unknown>).nombre
+        ?? (value as Record<string, unknown>).value;
+      if (typeof candidate === 'string' || typeof candidate === 'number' || typeof candidate === 'boolean') {
+        return String(candidate);
+      }
+      return '';
+    }
+    return '';
+  };
+
   const normalizeString = (value?: string | null): string | undefined => {
     if (typeof value !== 'string') return undefined;
     const trimmed = value.trim();
@@ -846,13 +862,13 @@ export const SurveyForm = ({
             key={pregunta.id}
             className={
               isVotingVariant
-                ? 'space-y-3 rounded-xl border border-border/70 bg-background px-4 py-4 shadow-sm'
+                ? 'space-y-3 rounded-2xl border border-border/70 bg-gradient-to-br from-background via-background to-primary/5 px-4 py-4 shadow-sm transition-all duration-300 hover:shadow-md md:px-5'
                 : 'space-y-3 border border-border rounded-lg p-4 bg-card/40'
             }
           >
             <div className="flex flex-col gap-1">
               <h3 className="text-lg font-medium">
-                {pregunta.orden}. {pregunta.texto}
+                {pregunta.orden}. {toDisplayText(pregunta.texto)}
               </h3>
               <p className="text-sm text-muted-foreground">
                 {pregunta.obligatoria ? 'Obligatoria' : 'Opcional'} · Tipo: {pregunta.tipo}
@@ -862,7 +878,7 @@ export const SurveyForm = ({
               <RadioGroup
                 value={(answers[pregunta.id]?.opcionIds?.[0] ?? '').toString()}
                 onValueChange={(value) => handleRadioChange(pregunta, value)}
-                className={pregunta.tipo === 'rating_emoji' ? "flex flex-wrap gap-4 justify-center py-4" : "space-y-2"}
+                className={pregunta.tipo === 'rating_emoji' ? "flex flex-wrap gap-4 justify-center py-4" : "space-y-2.5"}
               >
                 {pregunta.opciones?.map((opcion) => {
                   // Live results calculation
@@ -877,8 +893,8 @@ export const SurveyForm = ({
                       htmlFor={`preg-${pregunta.id}-opc-${opcion.id}`}
                       className={
                         pregunta.tipo === 'rating_emoji'
-                          ? "flex flex-col items-center gap-2 cursor-pointer p-4 rounded-xl border-2 border-transparent hover:bg-accent/50 transition-all [&:has([data-state=checked])]:border-primary [&:has([data-state=checked])]:bg-primary/5"
-                          : "flex items-center gap-3 rounded-md border border-border/70 bg-background px-3 py-2 transition hover:border-primary relative overflow-hidden"
+                          ? "group flex flex-col items-center gap-2 cursor-pointer p-4 rounded-2xl border-2 border-transparent bg-background/70 hover:bg-accent/50 transition-all duration-300 [&:has([data-state=checked])]:border-primary [&:has([data-state=checked])]:bg-primary/5"
+                          : "group flex items-center gap-3 rounded-xl border border-border/70 bg-background/90 px-3 py-2.5 transition-all duration-300 hover:border-primary hover:shadow-sm relative overflow-hidden"
                       }
                     >
                       {pregunta.tipo !== 'rating_emoji' && (
@@ -900,13 +916,13 @@ export const SurveyForm = ({
                         </div>
                       )}
 
-                      <span className={pregunta.tipo === 'rating_emoji' ? "text-4xl select-none" : "z-10 relative"}>
-                        {opcion.texto}
+                      <span className={pregunta.tipo === 'rating_emoji' ? "text-4xl select-none transition-transform duration-300 group-hover:scale-110" : "z-10 relative"}>
+                        {toDisplayText(opcion.texto)}
                       </span>
 
                       {showLiveResults && pregunta.tipo !== 'rating_emoji' && (
                         <div
-                          className="absolute left-0 top-0 bottom-0 bg-primary/10 transition-all duration-500"
+                          className="absolute left-0 top-0 bottom-0 bg-primary/15 transition-all duration-700"
                           style={{ width: `${percent}%` }}
                         />
                       )}
@@ -941,7 +957,7 @@ export const SurveyForm = ({
                     <Label
                       key={opcion.id}
                       htmlFor={`preg-${pregunta.id}-opc-${opcion.id}`}
-                      className="flex items-center gap-3 rounded-md border border-border/70 bg-background px-3 py-2 transition hover:border-primary relative overflow-hidden"
+                      className="group flex items-center gap-3 rounded-xl border border-border/70 bg-background/90 px-3 py-2.5 transition-all duration-300 hover:border-primary hover:shadow-sm relative overflow-hidden"
                     >
                       <Checkbox
                         id={`preg-${pregunta.id}-opc-${opcion.id}`}
@@ -952,11 +968,11 @@ export const SurveyForm = ({
                         className="z-10"
                         disabled={readOnly}
                       />
-                      <span className="z-10 relative">{opcion.texto}</span>
+                      <span className="z-10 relative">{toDisplayText(opcion.texto)}</span>
 
                       {showLiveResults && (
                         <div
-                          className="absolute left-0 top-0 bottom-0 bg-primary/10 transition-all duration-500"
+                          className="absolute left-0 top-0 bottom-0 bg-primary/15 transition-all duration-700"
                           style={{ width: `${percent}%` }}
                         />
                       )}
@@ -997,7 +1013,7 @@ export const SurveyForm = ({
             onClick={handleSubmit}
             className="w-full md:w-auto"
           >
-            {loading || submitting ? 'Enviando…' : submitLabel ?? 'Enviar opinión'}
+            {loading || submitting ? 'Enviando…' : (submitLabel && submitLabel.trim().length ? submitLabel : 'Enviar opinión')}
           </Button>
         )}
       </CardContent>

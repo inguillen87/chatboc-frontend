@@ -75,6 +75,7 @@ import { toast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import TicketsPanel from '@/pages/TicketsPanel';
 import EstadisticasPage from '@/pages/EstadisticasPage';
+import AnalyticsPage from '@/pages/analytics/AnalyticsPage';
 import UsuariosPage from '@/pages/UsuariosPage';
 import SmartPedidosWrapper from '@/pages/SmartPedidosWrapper';
 import InternalUsers from '@/pages/InternalUsers';
@@ -1458,11 +1459,12 @@ export default function Perfil() {
       </div>
 
       <Tabs defaultValue="perfil" className="w-full max-w-6xl mx-auto">
-        <TabsList className="grid w-full grid-cols-5 sm:grid-cols-7">
+        <TabsList className={`grid w-full ${canViewAnalytics ? "grid-cols-6 sm:grid-cols-8" : "grid-cols-5 sm:grid-cols-7"}`}>
           <TabsTrigger value="perfil">Perfil</TabsTrigger>
           <TabsTrigger value="tickets">{esMunicipio ? 'Reclamos' : 'Tickets'}</TabsTrigger>
           <TabsTrigger value="pedidos">{esMunicipio ? 'Gestión' : 'Ventas'}</TabsTrigger>
           <TabsTrigger value="estadisticas">Estadísticas</TabsTrigger>
+          {canViewAnalytics && <TabsTrigger value="analytics">Analytics</TabsTrigger>}
           <TabsTrigger value="usuarios">Usuarios</TabsTrigger>
           {isStaff && <TabsTrigger value="empleados">Empleados</TabsTrigger>}
           {isStaff && <TabsTrigger value="mapas">Mapas</TabsTrigger>}
@@ -2325,6 +2327,11 @@ export default function Perfil() {
         <TabsContent value="estadisticas">
           <EstadisticasPage />
         </TabsContent>
+        {canViewAnalytics && (
+          <TabsContent value="analytics">
+            <AnalyticsPage />
+          </TabsContent>
+        )}
         <TabsContent value="pedidos">
           <SmartPedidosWrapper />
         </TabsContent>

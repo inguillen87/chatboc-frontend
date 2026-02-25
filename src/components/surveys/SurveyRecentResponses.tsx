@@ -12,6 +12,7 @@ interface SurveyRecentResponsesProps {
   error?: string | null;
   onRefresh?: () => void;
   emptyHintUrl?: string | null;
+  totalResponsesHint?: number | null;
 }
 
 const formatDateTime = (value?: string | null) => {
@@ -22,6 +23,25 @@ const formatDateTime = (value?: string | null) => {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(date);
+};
+
+
+const toDisplayText = (value: unknown): string => {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    const candidate = record.texto ?? record.label ?? record.nombre ?? record.value ?? record.pregunta ?? record.lider;
+    if (typeof candidate === 'string' || typeof candidate === 'number' || typeof candidate === 'boolean') {
+      return String(candidate);
+    }
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return '';
+    }
+  }
+  return '';
 };
 
 const extractAnswerValue = (answer: SurveyResponseAnswer) => {
@@ -40,7 +60,7 @@ const buildPreview = (response: SurveyResponseRecord) => {
       .map((answer) => {
         const value = extractAnswerValue(answer);
         if (!value) return null;
-        const label = answer.pregunta?.trim();
+        const label = toDisplayText(answer.pregunta).trim();
         return label ? `${label}: ${value}` : value;
       })
       .filter((value): value is string => Boolean(value))
@@ -53,7 +73,7 @@ const buildPreview = (response: SurveyResponseRecord) => {
   if (Array.isArray(response.resumen) && response.resumen.length) {
     const fragments = response.resumen
       .map((item) => {
-        const label = item.pregunta?.trim();
+        const label = toDisplayText(item.pregunta).trim();
         const value = item.respuesta?.trim();
         if (!value) return null;
         return label ? `${label}: ${value}` : value;
@@ -79,7 +99,7 @@ const renderDetails = (response: SurveyResponseRecord) => {
         {response.respuestas.map((answer, index) => (
           <div key={`${response.id ?? response.respuesta_id}-${index}`} className="rounded-md border border-border/40 bg-muted/30 p-2">
             <p className="text-xs font-medium text-foreground">
-              {answer.pregunta || `Pregunta ${index + 1}`}
+              {toDisplayText(answer.pregunta) || `Pregunta ${index + 1}`}
             </p>
             <p className="text-xs text-muted-foreground break-words">
               {extractAnswerValue(answer) || 'Respuesta registrada'}
@@ -95,8 +115,8 @@ const renderDetails = (response: SurveyResponseRecord) => {
       <div className="mt-2 space-y-2">
         {response.resumen.map((item, index) => (
           <div key={`${response.id ?? response.respuesta_id}-summary-${index}`} className="rounded-md border border-border/40 bg-muted/30 p-2">
-            <p className="text-xs font-medium text-foreground">{item.pregunta || `Pregunta ${index + 1}`}</p>
-            <p className="text-xs text-muted-foreground break-words">{item.respuesta || 'Respuesta registrada'}</p>
+            <p className="text-xs font-medium text-foreground">{toDisplayText(item.pregunta) || `Pregunta ${index + 1}`}</p>
+            <p className="text-xs text-muted-foreground break-words">{toDisplayText(item.respuesta) || 'Respuesta registrada'}</p>
           </div>
         ))}
       </div>
@@ -121,6 +141,7 @@ export const SurveyRecentResponses = ({
   error,
   onRefresh,
   emptyHintUrl,
+  totalResponsesHint,
 }: SurveyRecentResponsesProps) => (
   <Card>
     <CardHeader className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
@@ -207,7 +228,9 @@ export const SurveyRecentResponses = ({
         </ul>
       ) : (
         <p className="text-sm text-muted-foreground">
-          {emptyHintUrl ? (
+          {typeof totalResponsesHint === 'number' && totalResponsesHint > 0 ? (
+            'Ya hay respuestas registradas, pero este bloque todavía no pudo cargar el detalle reciente. Probá actualizar.'
+          ) : emptyHintUrl ? (
             <>
               Todavía no recibimos respuestas. Compartí el enlace{' '}
               <code className="rounded bg-muted px-1 py-0.5 text-xs">{emptyHintUrl}</code> o el código QR para sumar
