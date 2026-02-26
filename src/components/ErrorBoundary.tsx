@@ -1,5 +1,4 @@
 import React from 'react';
-import { isLikelyExtensionNoise } from '@/utils/registerExtensionNoiseFilters';
 
 interface ErrorBoundaryProps {
   fallbackMessage?: string;
@@ -152,6 +151,12 @@ class ErrorBoundary extends React.Component<React.PropsWithChildren<ErrorBoundar
 
   componentDidCatch(error: unknown, info: unknown) {
     if (isLikelyExtensionNoise(error) || shouldSuppressTransientTdzError(error)) {
+      return;
+    }
+
+    if (shouldAttemptStaleBundleRecovery(error)) {
+      console.warn('[ErrorBoundary] Detected possible stale bundle mismatch. Attempting one-time reload.');
+      attemptStaleBundleRecovery();
       return;
     }
 

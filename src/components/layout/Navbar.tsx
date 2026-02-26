@@ -1,3 +1,5 @@
+// src/components/layout/Navbar.tsx
+
 import React, { useEffect, useMemo, useState } from "react";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { Link as RouterLink, useLocation } from "react-router-dom";
