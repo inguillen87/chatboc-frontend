@@ -34,6 +34,29 @@ interface EmployeesResponse {
   ticket_categories: Category[];
 }
 
+const EMPLOYEES_API_BASE = '/api/empleados';
+
+const getBackendErrorText = (error: unknown): string | null => {
+  if (error instanceof ApiError) {
+    const body = error.body;
+    if (typeof body === 'string' && body.trim()) return body.trim();
+    if (body && typeof body === 'object') {
+      const messageCandidates = [
+        (body as Record<string, unknown>).message,
+        (body as Record<string, unknown>).error,
+        (body as Record<string, unknown>).detail,
+      ];
+      for (const candidate of messageCandidates) {
+        if (typeof candidate === 'string' && candidate.trim()) {
+          return candidate.trim();
+        }
+      }
+    }
+  }
+
+  return null;
+};
+
 export default function InternalUsers() {
   useRequireRole(['admin', 'super_admin', 'tenant_admin'] as Role[]);
   const { user } = useUser();
@@ -61,59 +84,13 @@ export default function InternalUsers() {
     [user]
   );
 
-  const tenantAwareFetch = useCallback(
-    async <T,>(paths: string[], options: Parameters<typeof apiFetch>[1] = {}) => {
-      let lastError: unknown = null;
-      for (const path of paths) {
-        try {
-          return await apiFetch<T>(path, { ...options, tenantSlug });
-        } catch (err: any) {
-          lastError = err;
-          if (err instanceof ApiError && err.status === 404) {
-            continue;
-          }
-          throw err;
-        }
-      }
-      throw lastError ?? new Error('No se pudo completar la solicitud.');
-    },
-    [tenantSlug]
-  );
-
   const fetchData = useCallback(async () => {
     if (!tenantSlug) return;
     setLoading(true);
     setError(null);
     try {
-      // Fetch employees (tenant-scoped preferred, fallback to legacy)
-      // Note: If /api/admin/tenants/:slug/employees returns 403, we should fallback to global endpoint
-      // assuming the token has permissions but maybe not via the tenant-scoped path if routing is strict.
-      const employeesData = await tenantAwareFetch<InternalUser[] | EmployeesResponse>(
-        tenantSlug
-          ? [
-              `/api/admin/tenants/${tenantSlug}/employees`,
-              `/api/admin/employees`,
-            ]
-          : ['/api/admin/employees']
-      ).catch(async (err) => {
-         if (err instanceof ApiError && (err.status === 403 || err.status === 404)) {
-            // Try explicit fallback to non-tenant path if not already tried implicitly
-            if (tenantSlug) {
-                try {
-                    return await apiFetch<InternalUser[] | EmployeesResponse>('/api/admin/employees', {
-                        tenantSlug,
-                        headers: { 'X-Tenant': tenantSlug }
-                    });
-                } catch (fallbackErr) {
-                    throw fallbackErr;
-                }
-            }
-         }
-         throw err;
-      }).catch(err => {
-         // Fallback if the endpoint structure returns { employees: [...] }
-         if (err instanceof ApiError) throw err;
-         return [] as InternalUser[];
+      const employeesData = await apiFetch<InternalUser[] | EmployeesResponse>(EMPLOYEES_API_BASE, {
+        tenantSlug,
       });
 
       // Extract employees and categories if included in the response
@@ -127,9 +104,9 @@ export default function InternalUsers() {
 
       // Fetch categories if they were not bundled with employees
       if (cats.length === 0) {
-        const categoriesData = await tenantAwareFetch<Category[] | EmployeesResponse>([
-          `/api/admin/tenants/${tenantSlug}/ticket-categories`,
-        ]).catch(() => [] as Category[]);
+        const categoriesData = await apiFetch<Category[] | EmployeesResponse>(`${EMPLOYEES_API_BASE}/categorias`, {
+          tenantSlug,
+        }).catch(() => [] as Category[]);
 
         cats = Array.isArray(categoriesData)
           ? categoriesData
@@ -144,7 +121,7 @@ export default function InternalUsers() {
     } finally {
       setLoading(false);
     }
-  }, [tenantSlug, tenantAwareFetch]);
+  }, [tenantSlug]);
 
   useEffect(() => {
     if (tenantSlug) {
@@ -161,29 +138,28 @@ export default function InternalUsers() {
     if (!tenantSlug) return;
 
     try {
+      const selectedCategories = categories
+        .filter((cat) => categoriaIds.includes(cat.id))
+        .map((cat) => cat.slug || cat.nombre)
+        .filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
+
+      const selectedRoles = roles
+        .map((role) => role.trim())
+        .filter((role): role is string => role.length > 0);
+
       const payload = {
         name: nombre,
         email,
         password,
-        roles: roles,
-        categories: categoriaIds
+        roles: selectedRoles,
+        categorias: selectedCategories,
       };
 
-      await tenantAwareFetch(
-        tenantSlug
-          ? [
-              `/api/admin/tenants/${tenantSlug}/employees`,
-              '/api/admin/employees',
-            ]
-          : ['/api/admin/employees'],
-        {
-          method: 'POST',
-          headers: {
-            'X-Tenant': tenantSlug
-          },
-          body: payload
-        }
-      );
+      await apiFetch(EMPLOYEES_API_BASE, {
+        method: 'POST',
+        tenantSlug,
+        body: payload,
+      });
 
       toast.success("Empleado creado correctamente.");
       fetchData();
@@ -192,10 +168,10 @@ export default function InternalUsers() {
       setNombre('');
       setEmail('');
       setPassword('');
-      setRoles(['empleado']);
       setCategoriaIds([]);
     } catch (err: any) {
-      toast.error(getErrorMessage(err, 'Error al crear empleado.'));
+      const backendMessage = getBackendErrorText(err);
+      toast.error(backendMessage || getErrorMessage(err, 'Error al crear empleado.'));
     }
   };
 
@@ -221,74 +197,33 @@ export default function InternalUsers() {
     if (!editingUser || !tenantSlug) return;
 
     try {
-       // Update roles
-       await tenantAwareFetch(
-         tenantSlug
-           ? [
-               `/api/admin/tenants/${tenantSlug}/employees/${editingUser.id}/roles`,
-               `/api/admin/employees/${editingUser.id}/roles`,
-             ]
-           : [`/api/admin/employees/${editingUser.id}/roles`],
-         {
-           method: 'POST',
-           headers: { 'X-Tenant': tenantSlug },
-           body: { roles: editRoles },
-         }
-       );
+      const selectedCategories = categories
+        .filter((cat) => editCategoriaIds.includes(cat.id))
+        .map((cat) => cat.slug || cat.nombre)
+        .filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
+      const selectedRoles = editRoles
+        .map((role) => role.trim())
+        .filter((role): role is string => role.length > 0);
 
-       // Update categories
-       await tenantAwareFetch(
-         tenantSlug
-           ? [
-               `/api/admin/tenants/${tenantSlug}/employees/${editingUser.id}/categories`,
-               `/api/admin/employees/${editingUser.id}/categories`,
-             ]
-           : [`/api/admin/employees/${editingUser.id}/categories`],
-         {
-           method: 'POST',
-           headers: { 'X-Tenant': tenantSlug },
-           body: { category_ids: editCategoriaIds },
-         }
-       );
+      const payload: { name: string; roles: string[]; categorias: string[]; password?: string } = {
+        name: editNombre,
+        roles: selectedRoles,
+        categorias: selectedCategories,
+      };
+      if (editPassword) payload.password = editPassword;
 
-       // Update basic info (if endpoint exists, assuming PUT /api/admin/employees/:id)
-       // Note: The prompt didn't explicitly specify a basic info update endpoint
-       // other than creation, but implied "Mismo modal, pero precargado".
-       // We'll try a standard PUT or skip if not implemented on backend yet.
-       try {
-           const payload: any = { name: editNombre };
-           if (editPassword) payload.password = editPassword;
+      await apiFetch(`${EMPLOYEES_API_BASE}/${editingUser.id}`, {
+        method: 'PUT',
+        tenantSlug,
+        body: payload,
+      });
 
-           // We might need a specific endpoint for this.
-           // Usually PUT /api/admin/employees/:id is standard.
-           // However, if strict adherence to prompt is required, prompt says:
-           // "Botón “Editar”: Mismo modal, pero precargado y usa: PUT /api/admin/tenants/<slug>/employees/<id>."
-           // Wait, prompt has conflicting info?
-           // Section 8.1 says "PUT /api/admin/tenants/<slug>/employees/<id>"
-           // Section 3.1 lists POST endpoints.
-           // We switch to /api/admin/employees/:id to match POST /api/admin/employees convention
-           await tenantAwareFetch(
-             tenantSlug
-               ? [
-                   `/api/admin/tenants/${tenantSlug}/employees/${editingUser.id}`,
-                   `/api/admin/employees/${editingUser.id}`,
-                 ]
-               : [`/api/admin/employees/${editingUser.id}`],
-             {
-               method: 'PUT',
-               headers: { 'X-Tenant': tenantSlug },
-               body: payload,
-             }
-           );
-       } catch (innerErr) {
-           console.warn("Update info failed", innerErr);
-       }
-
-       toast.success("Empleado actualizado.");
-       setEditingUser(null);
-       fetchData();
+      toast.success("Empleado actualizado.");
+      setEditingUser(null);
+      fetchData();
     } catch (err: any) {
-       toast.error(getErrorMessage(err, "Error al actualizar empleado."));
+       const backendMessage = getBackendErrorText(err);
+       toast.error(backendMessage || getErrorMessage(err, "Error al actualizar empleado."));
     }
   };
 
