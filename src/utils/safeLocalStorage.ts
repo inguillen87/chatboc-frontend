@@ -115,11 +115,13 @@ function getSafeSessionStorage(): StorageLike {
 }
 
 /* ===== Exports principales (Lazy Proxy Object) ===== */
-// We export an object that proxies calls to the lazy getter.
-// This ensures that even if 'safeLocalStorage' is imported early in a cycle,
-// the underlying storage detection doesn't run until a method is actually called.
+// Using `var` instead of `const` to avoid TDZ if this module is involved in a cycle where
+// it is accessed before this line executes. `var` is hoisted and initialized to `undefined`,
+// which might lead to `TypeError` but avoids `ReferenceError` (TDZ).
+// However, since we assign an object literal immediately, it should be fine if execution order is correct.
+// The main fix is the lazy getter usage inside.
 
-export const safeLocalStorage: StorageLike = {
+export var safeLocalStorage: StorageLike = {
   getItem: (k) => getSafeLocalStorage().getItem(k),
   setItem: (k, v) => getSafeLocalStorage().setItem(k, v),
   removeItem: (k) => getSafeLocalStorage().removeItem(k),
@@ -127,9 +129,9 @@ export const safeLocalStorage: StorageLike = {
 };
 
 // Alias for backward compatibility if needed
-export const safeStorage = safeLocalStorage;
+export var safeStorage = safeLocalStorage;
 
-export const safeSessionStorage: StorageLike = {
+export var safeSessionStorage: StorageLike = {
   getItem: (k) => getSafeSessionStorage().getItem(k),
   setItem: (k, v) => getSafeSessionStorage().setItem(k, v),
   removeItem: (k) => getSafeSessionStorage().removeItem(k),
