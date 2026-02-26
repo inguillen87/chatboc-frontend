@@ -1,4 +1,4 @@
-const KNOWN_EXTENSION_PATTERNS = [
+export const KNOWN_EXTENSION_PATTERNS = [
   /Cannot assign to read only property '(ethereum|tronLink)' of object '#<Window>'/i,
   /Cannot assign to read only property '(ethereum|tronLink)'/i,
   /This document requires 'TrustedScript' assignment/i,
@@ -8,7 +8,7 @@ const KNOWN_EXTENSION_PATTERNS = [
   /ReferenceError: Cannot access '.*' before initialization/i, // Explicitly match ReferenceError string
 ];
 
-const EXTENSION_PROTOCOLS = ['chrome-extension://', 'moz-extension://', 'safari-extension://'];
+export const EXTENSION_PROTOCOLS = ['chrome-extension://', 'moz-extension://', 'safari-extension://'];
 
 function extractMessage(value: unknown): string {
   try {
