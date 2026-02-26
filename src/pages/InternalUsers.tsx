@@ -143,10 +143,15 @@ export default function InternalUsers() {
         .map((cat) => cat.slug || cat.nombre)
         .filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
 
+      const selectedRoles = roles
+        .map((role) => role.trim())
+        .filter((role): role is string => role.length > 0);
+
       const payload = {
         name: nombre,
         email,
         password,
+        roles: selectedRoles,
         categorias: selectedCategories,
       };
 
@@ -192,36 +197,30 @@ export default function InternalUsers() {
     if (!editingUser || !tenantSlug) return;
 
     try {
-       // Update roles
       const selectedCategories = categories
         .filter((cat) => editCategoriaIds.includes(cat.id))
         .map((cat) => cat.slug || cat.nombre)
         .filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
+      const selectedRoles = editRoles
+        .map((role) => role.trim())
+        .filter((role): role is string => role.length > 0);
 
-       // Update basic info (if endpoint exists, assuming PUT /api/admin/employees/:id)
-       // Note: The prompt didn't explicitly specify a basic info update endpoint
-       // other than creation, but implied "Mismo modal, pero precargado".
-       // We'll try a standard PUT or skip if not implemented on backend yet.
-       try {
-           const payload: any = {
-             name: editNombre,
-             roles: editRoles,
-             categorias: selectedCategories,
-           };
-           if (editPassword) payload.password = editPassword;
+      const payload: { name: string; roles: string[]; categorias: string[]; password?: string } = {
+        name: editNombre,
+        roles: selectedRoles,
+        categorias: selectedCategories,
+      };
+      if (editPassword) payload.password = editPassword;
 
-           await apiFetch(`${EMPLOYEES_API_BASE}/${editingUser.id}`, {
-             method: 'PUT',
-             tenantSlug,
-             body: payload,
-           });
-       } catch (innerErr) {
-           console.warn("Update info failed", innerErr);
-       }
+      await apiFetch(`${EMPLOYEES_API_BASE}/${editingUser.id}`, {
+        method: 'PUT',
+        tenantSlug,
+        body: payload,
+      });
 
-       toast.success("Empleado actualizado.");
-       setEditingUser(null);
-       fetchData();
+      toast.success("Empleado actualizado.");
+      setEditingUser(null);
+      fetchData();
     } catch (err: any) {
        const backendMessage = getBackendErrorText(err);
        toast.error(backendMessage || getErrorMessage(err, "Error al actualizar empleado."));
