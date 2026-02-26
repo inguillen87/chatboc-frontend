@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
 import { AlertTriangle, CalendarDays, Copy, Download, ExternalLink, Loader2, Sparkles, TrendingUp } from 'lucide-react';
@@ -27,6 +27,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { getErrorMessage } from '@/utils/api';
+import { enterpriseService } from '@/services/enterpriseService';
 
 const formatDateLabel = (value?: string | null) => {
   if (!value) return null;
@@ -132,6 +133,23 @@ const SurveyAnalyticsPage = () => {
     return surveys.data.find((item) => item.id === surveyId);
   }, [surveyId, surveys?.data]);
   const effectiveSurvey = survey ?? surveyFromList;
+  const effectiveTenantSlug = effectiveSurvey?.tenant_slug;
+
+  useEffect(() => {
+    if (!surveyId) return;
+    void enterpriseService.trackEvent(
+      {
+        event: 'analytics_dashboard_loaded',
+        payload: {
+          tenant_slug: effectiveTenantSlug || null,
+          route: '/admin/encuestas/:id/analytics',
+          build_version: import.meta.env.VITE_APP_VERSION || 'dev',
+          survey_id: surveyId,
+        },
+      },
+      effectiveTenantSlug,
+    ).catch(() => undefined);
+  }, [surveyId, effectiveTenantSlug]);
 
   const publicUrl = useMemo(
     () => (effectiveSurvey?.slug ? getAbsolutePublicSurveyUrl(effectiveSurvey.slug) : null),
@@ -589,6 +607,8 @@ const SurveyAnalyticsPage = () => {
             isExporting={isExporting}
             filters={filters}
             onFiltersChange={setFilters}
+            tenantSlug={effectiveTenantSlug}
+            route="/admin/encuestas/:id/analytics"
           />
         </CardContent>
       </Card>
