@@ -20,7 +20,7 @@ import type { TenantPublicInfo, TenantSummary } from '@/types/tenant';
 import { ApiError, getErrorMessage } from '@/utils/api';
 import { ensureRemoteAnonId } from '@/utils/anonId';
 import { normalizeEntityToken } from '@/utils/entityToken';
-import { TENANT_ROUTE_PREFIXES } from '@/utils/tenantPaths';
+import { TENANT_ROUTE_PREFIXES } from '@/constants/tenant';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
 const LOCAL_PLACEHOLDER_SLUGS = new Set([
