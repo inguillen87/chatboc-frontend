@@ -54,17 +54,7 @@ export function useSurveySocket({ slug, enabled = false, onUpdate, onComment }: 
       socket.emit('join', { room: `encuesta_${slug}` });
     };
 
-    const handleDisconnect = () => {
-      void enterpriseService.trackEvent({
-        event: 'analytics_socket_disconnected',
-        payload: {
-          tenant_slug: slug,
-          route: '/e/:slug',
-          build_version: import.meta.env.VITE_APP_VERSION || 'dev',
-          error_code: 'socket_disconnect',
-        },
-      }, slug).catch(() => undefined);
-    };
+    const handleDisconnect = () => undefined;
 
     const handleUpdate = (data: SurveyLiveResults) => {
       console.log('[SurveySocket] Received update:', data);
