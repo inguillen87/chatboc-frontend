@@ -13,6 +13,7 @@ import type { TimeseriesResponse } from '@/services/analyticsService';
 import { WidgetFrame } from './WidgetFrame';
 import ChartTooltip from './ChartTooltip';
 import { AnalyticsEmptyState } from './AnalyticsEmptyState';
+import ChartMount from './ChartMount';
 
 interface TimeSeriesChartProps {
   title: string;
@@ -55,7 +56,7 @@ export function TimeSeriesChart({ title, description, data, loading, valueFormat
 
   return (
     <WidgetFrame title={title} description={description} csvData={csv} exportFilename={exportName}>
-      <div className="h-72 w-full">
+      <ChartMount className="h-72 w-full min-w-0" minWidth={280} minHeight={220}>
         {loading ? (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
             Cargando serie...
@@ -63,7 +64,7 @@ export function TimeSeriesChart({ title, description, data, loading, valueFormat
         ) : !hasData ? (
           <AnalyticsEmptyState />
         ) : (
-          <ResponsiveContainer>
+          <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220}>
             <AreaChart data={formatted} margin={{ left: 16, right: 16, top: 10, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.3} />
               <XAxis dataKey="date" tickLine={false} axisLine={false} fontSize={12} />
@@ -93,7 +94,7 @@ export function TimeSeriesChart({ title, description, data, loading, valueFormat
             </AreaChart>
           </ResponsiveContainer>
         )}
-      </div>
+      </ChartMount>
     </WidgetFrame>
   );
 }
