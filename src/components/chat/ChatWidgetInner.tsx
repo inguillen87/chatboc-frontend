@@ -1,3 +1,5 @@
+// src/components/chat/ChatWidgetInner.tsx
+
 import React, { Suspense, useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useDarkMode } from "@/hooks/useDarkMode";
 import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
@@ -14,7 +16,7 @@ import { apiFetch, getErrorMessage } from "@/utils/api";
 import ReadingRuler from "./ReadingRuler";
 import type { Prefs } from "./AccessibilityToggle";
 import { useCartCount } from "@/hooks/useCartCount";
-import { buildTenantNavigationUrl, TENANT_ROUTE_PREFIXES } from "@/utils/tenantPaths";
+import { buildTenantNavigationUrl, TENANT_ROUTE_PREFIXES } from "@/utils/tenantPaths"; // Fixed import
 import { useTenant } from "@/context/TenantContext";
 import { toast } from "sonner";
 import { tenantService } from "@/services/tenantService";
@@ -25,50 +27,11 @@ import { apiClient } from "@/api/client";
 import { esRubroPublico } from "@/utils/chatEndpoints";
 import { getChatbocBotAvatar } from "@/utils/brandAssets";
 
-// LOCAL_PLACEHOLDER_SLUGS is used to prevent the widget from treating reserved paths as tenant slugs.
-// We also alias it to PLACEHOLDER_SLUGS_SET just in case some stale build/import relies on that name.
-const LOCAL_PLACEHOLDER_SLUGS = new Set([
-  'e',
-  'iframe',
-  'embed',
-  'widget',
-  'cart',
-  'productos',
-  'checkout',
-  'checkout-productos',
-  'perfil',
-  'user',
-  'login',
-  'register',
-  'portal',
-  'pedidos',
-  'reclamos',
-  'encuestas',
-  'tickets',
-  'opinar',
-  'integracion',
-  'documentacion',
-  'faqs',
-  'legal',
-  'chat',
-  'chatpos',
-  'chatcrm',
-  'admin',
-  'dashboard',
-  'analytics',
-  'settings',
-  'config',
-  'api',
-  "public",
-  "auth",
-  "portal",
-  "admin",
-  "pwa",
-  "static",
-  "assets",
-  "default"
-]);
-const PLACEHOLDER_SLUGS_SET = LOCAL_PLACEHOLDER_SLUGS;
+// Use constants from new file
+import { TENANT_PLACEHOLDER_SLUGS } from "@/constants/tenant";
+
+// Alias for backward compatibility if needed locally, though direct usage is preferred
+const PLACEHOLDER_SLUGS_SET = TENANT_PLACEHOLDER_SLUGS;
 
 const LS_KEY = "chatboc_accessibility";
 
@@ -106,7 +69,7 @@ function sanitizeTenantSlug(slug?: string | null) {
 
     const lowered = trimmed.toLowerCase();
 
-    if (LOCAL_PLACEHOLDER_SLUGS.has(lowered)) return null;
+    if (TENANT_PLACEHOLDER_SLUGS.has(lowered)) return null;
 
     return trimmed;
   } catch (e) {
@@ -1111,6 +1074,13 @@ function ChatWidgetInner({
       ) {
         return;
       }
+
+      // Filter Google Maps / Third-party embed noise explicitly
+      if (typeof event.origin === 'string' && (
+          event.origin.includes('maps.google') ||
+          event.origin.includes('googleusercontent') ||
+          event.origin.includes('youtube.com')
+      )) return;
 
       // Allow generic OPEN_CHAT even if widgetId doesn't match perfectly if it's a global signal
       if (data === "OPEN_CHAT" || (isObjectPayload && (data as Record<string, unknown>).type === "OPEN_CHAT")) {

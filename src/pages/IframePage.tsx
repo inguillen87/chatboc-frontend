@@ -1,10 +1,6 @@
 import React, { useEffect, useState } from "react";
-// DECOUPLE: Remove top-level lazy import to avoid module evaluation cycles during initial bundle parse
-// const ChatWidgetComponent = React.lazy(() => import("@/components/chat/ChatWidget"));
-
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { MemoryRouter, useInRouterContext } from "react-router-dom";
-// Avoid importing TenantProvider here if possible, or ensure TenantContext doesn't import IframePage (it shouldn't)
 import { TenantProvider } from "@/context/TenantContext";
 import { getChatbocConfig } from "@/utils/config";
 import { hexToHsl } from "@/utils/color";
@@ -29,7 +25,6 @@ const IframePage = () => {
   const [entityToken, setEntityToken] = useState<string | null>(null);
   const [tipoChat, setTipoChat] = useState<'pyme' | 'municipio' | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [tenantConfig, setTenantConfig] = useState<any | null>(null);
   const isInRouter = useInRouterContext();
 
   useEffect(() => {
@@ -65,7 +60,6 @@ const IframePage = () => {
           }
           const publicConfig = await response.json();
           fetchedConfig = publicConfig || {};
-          setTenantConfig(fetchedConfig);
         } catch (e) {
           console.warn("Could not fetch tenant widget config", e);
         }
@@ -217,7 +211,7 @@ const IframePage = () => {
           setTipoChat(info.tipo_chat);
         } catch (error) {
           console.error("Error fetching token info:", error);
-          // Fallback a pyme si falla la API, para no romper el widget
+          // Fallback to pyme if API fails to avoid breaking the widget
           setTipoChat('pyme');
         } finally {
           setIsLoading(false);
@@ -227,9 +221,9 @@ const IframePage = () => {
     }
   }, [entityToken, tipoChat]);
 
-  // Muestra un loader mientras se determina el tipo de chat
+  // Show a loader while determining the chat type
   if (isLoading || !widgetParams) {
-    return null; // O un componente de carga más explícito
+    return null;
   }
 
   const initialEntry =
@@ -237,41 +231,37 @@ const IframePage = () => {
       ? `${window.location.pathname}${window.location.search}`
       : '/';
 
-  const ChatWidgetRender = () => (
-    <React.Suspense fallback={<div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }} />}>
-        <ChatWidgetComponent
-        mode="iframe"
-        ownerToken={entityToken || undefined}
-        defaultOpen={widgetParams.defaultOpen}
-        widgetId={widgetParams.widgetId}
-        tipoChat={tipoChat || undefined}
-        openWidth={widgetParams.openWidth}
-        openHeight={widgetParams.openHeight}
-        closedWidth={widgetParams.closedWidth}
-        closedHeight={widgetParams.closedHeight}
-        initialPosition={{ bottom: widgetParams.bottom, right: widgetParams.right }}
-        ctaMessage={widgetParams.ctaMessage}
-        initialView={widgetParams.view}
-        initialRubro={widgetParams.rubro}
-        customLauncherLogoUrl={widgetParams.logoUrl}
-        logoAnimation={widgetParams.logoAnimation}
-        headerLogoUrl={widgetParams.headerLogoUrl}
-        welcomeTitle={widgetParams.welcomeTitle}
-        welcomeSubtitle={widgetParams.welcomeSubtitle}
-        tenantSlug={widgetParams.tenantSlug}
-        primaryColor={widgetParams.primaryColor}
-        accentColor={widgetParams.accentColor}
-        userMsgColor={widgetParams.userMsgColor}
-        chatBackground={widgetParams.chatBackground}
-        borderRadius={widgetParams.borderRadius}
-        fontFamily={widgetParams.fontFamily}
-        />
-    </React.Suspense>
-  );
-
   const widgetTree = (
     <TenantProvider>
-      <ChatWidgetRender />
+       <React.Suspense fallback={<div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }} />}>
+        <ChatWidgetComponent
+          mode="iframe"
+          ownerToken={entityToken || undefined}
+          defaultOpen={widgetParams.defaultOpen}
+          widgetId={widgetParams.widgetId}
+          tipoChat={tipoChat || undefined}
+          openWidth={widgetParams.openWidth}
+          openHeight={widgetParams.openHeight}
+          closedWidth={widgetParams.closedWidth}
+          closedHeight={widgetParams.closedHeight}
+          initialPosition={{ bottom: widgetParams.bottom, right: widgetParams.right }}
+          ctaMessage={widgetParams.ctaMessage}
+          initialView={widgetParams.view}
+          initialRubro={widgetParams.rubro}
+          customLauncherLogoUrl={widgetParams.logoUrl}
+          logoAnimation={widgetParams.logoAnimation}
+          headerLogoUrl={widgetParams.headerLogoUrl}
+          welcomeTitle={widgetParams.welcomeTitle}
+          welcomeSubtitle={widgetParams.welcomeSubtitle}
+          tenantSlug={widgetParams.tenantSlug}
+          primaryColor={widgetParams.primaryColor}
+          accentColor={widgetParams.accentColor}
+          userMsgColor={widgetParams.userMsgColor}
+          chatBackground={widgetParams.chatBackground}
+          borderRadius={widgetParams.borderRadius}
+          fontFamily={widgetParams.fontFamily}
+        />
+      </React.Suspense>
     </TenantProvider>
   );
 
@@ -281,7 +271,7 @@ const IframePage = () => {
     <MemoryRouter initialEntries={[initialEntry]}>{widgetTree}</MemoryRouter>
   );
 
-  // Si no hay Google Client ID, no renderizar el Provider para evitar que crashee.
+  // If no Google Client ID, skip the Provider to avoid crashes.
   if (!GOOGLE_CLIENT_ID) {
     return maybeWrappedInRouter;
   }
