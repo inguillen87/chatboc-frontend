@@ -28,6 +28,11 @@ export function useSurveySocket({ slug, enabled = false, onUpdate, onComment }: 
     const socket = io(socketUrl, {
       path: SOCKET_PATH,
       transports: ['websocket', 'polling'],
+      withCredentials: true,
+      auth: { channel: 'web' },
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 800,
     });
 
     socketRef.current = socket;
