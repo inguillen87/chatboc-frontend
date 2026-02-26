@@ -54,9 +54,10 @@ import CategoryManagementPage from '@/pages/admin/CategoryManagementPage';
 import CatalogManagementPage from '@/pages/admin/CatalogManagementPage';
 import OpinarArPage from '@/pages/OpinarArPage';
 import EstadisticasPage from '@/pages/EstadisticasPage';
-import Iframe from '@/pages/IframePage';
 import AnalyticsPage from '@/pages/analytics/AnalyticsPage';
 import BotSettingsEnterprise from '@/pages/BotSettingsEnterprise';
+
+const Iframe = React.lazy(() => import('@/pages/IframePage'));
 import MarketCartPage from '@/pages/market/MarketCartPage';
 import MarketplaceBlueprintPage from '@/pages/market/MarketplaceBlueprintPage';
 import PublicSurveysIndex from '@/pages/encuestas';
@@ -387,7 +388,14 @@ const routes: RouteConfig[] = [
   { path: '/admin/tenants', element: <SuperAdminDashboard />, roles: ['super_admin'] },
   { path: '/empleados', element: <InternalUsers />, roles: ['admin', 'super_admin', 'tenant_admin'] },
 
-  { path: '/iframe', element: <Iframe /> },
+  {
+    path: '/iframe',
+    element: (
+      <React.Suspense fallback={<div className="flex h-screen w-full items-center justify-center bg-transparent" />}>
+        <Iframe />
+      </React.Suspense>
+    ),
+  },
 ];
 
 export default routes;
