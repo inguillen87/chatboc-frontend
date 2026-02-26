@@ -29,6 +29,13 @@ const BottomNavigationBar: React.FC<BottomNavigationBarProps> = ({ onOpenMobileM
     return morePaths.some(path => location.pathname.startsWith(path));
   };
 
+  const bottomButtonBaseClasses = 'flex flex-col items-center justify-center p-1 w-full h-full transition-colors duration-150';
+  const moreButtonClasses = `${bottomButtonBaseClasses} ${
+    isMoreSectionActive()
+      ? 'text-primary scale-105 opacity-100'
+      : 'text-muted-foreground hover:text-primary/90 opacity-80 hover:opacity-100'
+  }`;
+
   return (
     <nav className="md:hidden bg-card border-t border-border shadow-t-lg fixed bottom-0 left-0 right-0 z-30 h-16">
       <ul className="flex justify-around items-center h-full max-w-full mx-auto">
@@ -37,13 +44,12 @@ const BottomNavigationBar: React.FC<BottomNavigationBarProps> = ({ onOpenMobileM
             <NavLink
               to={item.path}
               end={item.exact}
-              className={({ isActive }) =>
-                `flex flex-col items-center justify-center p-1 w-full h-full transition-colors duration-150
-                 ${isActive
-                    ? 'text-primary scale-105 opacity-100'
-                    : 'text-muted-foreground hover:text-primary/90 opacity-80 hover:opacity-100'
-                 }`
-              }
+              className={({ isActive }) => {
+                const stateClasses = isActive
+                  ? 'text-primary scale-105 opacity-100'
+                  : 'text-muted-foreground hover:text-primary/90 opacity-80 hover:opacity-100';
+                return `${bottomButtonBaseClasses} ${stateClasses}`;
+              }}
             >
               {item.icon}
               <span className="text-[0.65rem] mt-0.5 leading-tight">{item.label}</span>
@@ -54,11 +60,7 @@ const BottomNavigationBar: React.FC<BottomNavigationBarProps> = ({ onOpenMobileM
         <li className="flex-1">
           <button
             onClick={onOpenMobileMenu}
-            className={`flex flex-col items-center justify-center p-1 w-full h-full transition-colors duration-150
-                       ${isMoreSectionActive()
-                          ? 'text-primary scale-105 opacity-100'
-                          : 'text-muted-foreground hover:text-primary/90 opacity-80 hover:opacity-100'
-                       }`}
+            className={moreButtonClasses}
           >
             <MenuIcon className="h-5 w-5" />
             <span className="text-[0.65rem] mt-0.5 leading-tight">Más</span>
