@@ -132,7 +132,7 @@ function shouldSuppressTransientTdzError(error: unknown): boolean {
   return hasExtensionSignals;
 }
 
-function isLikelyExtensionNoiseSafe(error: unknown): boolean {
+function isLikelyExtensionNoise(error: unknown): boolean {
   const message = extractErrorMessage(error);
   const stack = extractErrorStack(error);
 
@@ -176,7 +176,7 @@ class ErrorBoundary extends React.Component<React.PropsWithChildren<ErrorBoundar
   }
 
   static getDerivedStateFromError(error: unknown): ErrorBoundaryState {
-    if (isLikelyExtensionNoiseSafe(error) || shouldSuppressTransientTdzError(error)) {
+    if (isLikelyExtensionNoise(error) || shouldSuppressTransientTdzError(error)) {
       return { hasError: false };
     }
 
@@ -184,7 +184,7 @@ class ErrorBoundary extends React.Component<React.PropsWithChildren<ErrorBoundar
   }
 
   componentDidCatch(error: unknown, info: unknown) {
-    if (isLikelyExtensionNoiseSafe(error) || shouldSuppressTransientTdzError(error)) {
+    if (isLikelyExtensionNoise(error) || shouldSuppressTransientTdzError(error)) {
       return;
     }
 
