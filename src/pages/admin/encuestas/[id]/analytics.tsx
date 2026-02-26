@@ -149,6 +149,23 @@ const SurveyAnalyticsPage = () => {
     return surveys.data.find((item) => item.id === surveyId);
   }, [surveyId, surveys?.data]);
   const effectiveSurvey = survey ?? surveyFromList;
+  const effectiveTenantSlug = effectiveSurvey?.tenant_slug;
+
+  useEffect(() => {
+    if (!surveyId) return;
+    void enterpriseService.trackEvent(
+      {
+        event: 'analytics_dashboard_loaded',
+        payload: {
+          tenant_slug: effectiveTenantSlug || null,
+          route: '/admin/encuestas/:id/analytics',
+          build_version: import.meta.env.VITE_APP_VERSION || 'dev',
+          survey_id: surveyId,
+        },
+      },
+      effectiveTenantSlug,
+    ).catch(() => undefined);
+  }, [surveyId, effectiveTenantSlug]);
 
   useEffect(() => {
     if (!surveyId) return;
@@ -622,7 +639,7 @@ const SurveyAnalyticsPage = () => {
             isExporting={isExporting}
             filters={filters}
             onFiltersChange={setFilters}
-            tenantSlug={effectiveSurvey?.tenant_slug}
+            tenantSlug={effectiveTenantSlug}
             route="/admin/encuestas/:id/analytics"
           />
         </CardContent>
