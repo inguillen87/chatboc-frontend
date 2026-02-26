@@ -1,4 +1,4 @@
-import type { PortalContent } from '@/types/unified';
+import { PortalContent } from "@/hooks/usePortalContent";
 
 export const getDemoPortalContent = (): PortalContent => ({
   notifications: [

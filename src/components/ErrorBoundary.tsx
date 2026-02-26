@@ -54,7 +54,7 @@ function isExtensionUrl(url: string | null | undefined): boolean {
   return EXTENSION_PROTOCOLS.some((protocol) => url.startsWith(protocol));
 }
 
-function isLikelyExtensionNoise(value: unknown): boolean {
+const isLikelyExtensionNoise = (value: unknown): boolean => {
   const message = extractMessage(value);
 
   if (shouldIgnore(message)) {
@@ -78,6 +78,8 @@ class ErrorBoundary extends React.Component<React.PropsWithChildren<ErrorBoundar
   }
 
   static getDerivedStateFromError(error: unknown): ErrorBoundaryState {
+    // Check if the error matches known noise patterns BEFORE attempting to render fallback
+    // This uses the locally scoped function which is guaranteed to be available
     if (isLikelyExtensionNoise(error)) {
       return { hasError: false };
     }
@@ -87,12 +89,6 @@ class ErrorBoundary extends React.Component<React.PropsWithChildren<ErrorBoundar
 
   componentDidCatch(error: unknown, info: unknown) {
     if (isLikelyExtensionNoise(error)) {
-      return;
-    }
-
-    if (shouldAttemptStaleBundleRecovery(error)) {
-      console.warn('[ErrorBoundary] Detected possible stale bundle mismatch. Attempting one-time reload.');
-      attemptStaleBundleRecovery();
       return;
     }
 

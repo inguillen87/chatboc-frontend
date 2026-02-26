@@ -1045,74 +1045,56 @@ function ChatWidgetInner({
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
-      const data = event.data as unknown;
+      // 1. Strict validation of event structure to filter out noise (e.g. extensions like MetaMask, React DevTools)
+      if (!event.data) return;
 
-      // Ignore extension/background noise (e.g. MetaMask inpage bridge chatter)
-      if (data && typeof data === 'object') {
-        const target = String((data as Record<string, unknown>).target || '');
-        if (target === 'inpage' || target === 'contentscript' || target.startsWith('metamask-')) {
-          return;
-        }
-      }
+      // Reject events that are clearly not ours or come from untrusted sources if we are in iframe
+      // In standalone mode, we might receive events from window itself, so we can't strict check source === parent always.
+      // But we can filter common noise patterns.
 
-      // In iframe mode only accept messages from parent window.
-      if (mode === 'iframe' && window.parent !== window && event.source !== window.parent) {
-        return;
-      }
+      const d = event.data;
 
-      if (!data) return;
+      // Ignore known extension noise patterns
+      if (d?.target === 'inpage' || d?.target === 'contentscript') return;
+      if (typeof d?.target === 'string' && d.target.startsWith('metamask-')) return;
+      if (d?.source === 'react-devtools-bridge') return;
 
-      // Only process known message shapes; ignore unknown payloads early.
-      const isObjectPayload = typeof data === 'object';
-      const type = isObjectPayload ? (data as Record<string, unknown>).type : data;
-      if (
-        type !== 'OPEN_CHAT' &&
-        type !== 'OPEN_CHAT_WITH_CONTEXT' &&
-        type !== 'TOGGLE_CHAT' &&
-        type !== 'SET_VIEW' &&
-        data !== 'OPEN_CHAT'
-      ) {
-        return;
-      }
+      // Filter Google Maps / Third-party embed noise explicitly
+      if (typeof event.origin === 'string' && (
+          event.origin.includes('maps.google') ||
+          event.origin.includes('googleusercontent') ||
+          event.origin.includes('youtube.com')
+      )) return;
 
       // Allow generic OPEN_CHAT even if widgetId doesn't match perfectly if it's a global signal
-      if (data === "OPEN_CHAT" || (isObjectPayload && (data as Record<string, unknown>).type === "OPEN_CHAT")) {
+      if (d === "OPEN_CHAT" || d?.type === "OPEN_CHAT") {
           setIsOpen(true);
           return;
       }
 
-      if (isObjectPayload && (data as Record<string, unknown>).type === "OPEN_CHAT_WITH_CONTEXT") {
-          const payload = data as Record<string, unknown>;
-          const tenantSlug = payload.tenantSlug;
-          const tipoChat = payload.tipoChat;
-          const context = payload.context;
-          console.log("ChatWidget: Received context override", payload);
+      if (d?.type === "OPEN_CHAT_WITH_CONTEXT") {
+          const { tenantSlug, tipoChat, context } = d;
+          console.log("ChatWidget: Received context override", d);
 
-          if (typeof tenantSlug === 'string' && tenantSlug.trim()) {
-              setContextOverride((prev: any) => ({ ...prev, tenantSlug: tenantSlug.trim() }));
+          if (tenantSlug) {
+              setContextOverride((prev: any) => ({ ...prev, tenantSlug }));
           }
-          if (tipoChat === 'municipio' || tipoChat === 'pyme') {
+          if (tipoChat) {
               setResolvedTipoChat(tipoChat);
           }
           // Note: Passing 'context' deeper into ChatPanel might require more piping,
           // but updating tenantSlug/tipoChat solves the 403 error.
 
-          void context;
-
           setIsOpen(true);
           return;
       }
 
-      if (!isObjectPayload) return;
+      if (d?.widgetId !== widgetId) return;
 
-      const payload = data as Record<string, unknown>;
-
-      if (payload.widgetId !== widgetId) return;
-
-      if (payload.type === "TOGGLE_CHAT") {
-        setIsOpen(Boolean(payload.isOpen));
-      } else if (payload.type === "SET_VIEW") {
-        const v = payload.view;
+      if (d?.type === "TOGGLE_CHAT") {
+        setIsOpen(d.isOpen);
+      } else if (d?.type === "SET_VIEW") {
+        const v = d.view;
         if (['chat', 'register', 'login', 'user', 'info'].includes(v)) {
           setView(v as any);
         }
@@ -1120,7 +1102,7 @@ function ChatWidgetInner({
     };
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
-  }, [widgetId, mode]);
+  }, [widgetId]);
 
   useEffect(() => {
     if (!ctaMessage || isOpen || showProactiveBubble) {
