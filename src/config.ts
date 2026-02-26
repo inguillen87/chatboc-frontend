@@ -184,6 +184,18 @@ export const API_BASE_CANDIDATES = [
  * @returns The full WebSocket URL.
  */
 export const getSocketUrl = (): string => {
+  // If we already determined a same-origin proxy base (e.g. /api on chatboc.ar),
+  // keep websocket traffic on the same origin to avoid cross-domain handshakes
+  // against stale backend hosts.
+  if (SAME_ORIGIN_PROXY_BASE) {
+    const locationRef = getGlobalLocation();
+    if (locationRef?.href) {
+      const url = new URL(locationRef.href);
+      url.protocol = url.protocol.replace('http', 'ws');
+      return url.origin;
+    }
+  }
+
   if (RESOLVED_BACKEND_URL) {
     // If a full backend URL is provided, derive the WebSocket URL from it.
     try {
