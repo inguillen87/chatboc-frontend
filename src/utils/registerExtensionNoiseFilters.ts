@@ -2,6 +2,8 @@ const KNOWN_EXTENSION_PATTERNS = [
   /Cannot assign to read only property '(ethereum|tronLink)' of object '#<Window>'/i,
   /Cannot assign to read only property '(ethereum|tronLink)'/i,
   /This document requires 'TrustedScript' assignment/i,
+  /No matching tab found/i,
+  /Removing unpermitted intrinsics/i,
 ];
 
 const EXTENSION_PROTOCOLS = ['chrome-extension://', 'moz-extension://', 'safari-extension://'];
@@ -22,6 +24,23 @@ function extractMessage(value: unknown): string {
 function shouldIgnore(message: string | null | undefined): boolean {
   if (!message) return false;
   return KNOWN_EXTENSION_PATTERNS.some((pattern) => pattern.test(message));
+}
+
+export function isLikelyExtensionNoise(value: unknown): boolean {
+  const message = extractMessage(value);
+
+  if (shouldIgnore(message)) {
+    return true;
+  }
+
+  if (value && typeof value === 'object' && 'stack' in value) {
+    const stack = String((value as { stack?: unknown }).stack ?? '');
+    if (isExtensionUrl(stack)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function isExtensionUrl(url: string | null | undefined): boolean {
@@ -59,7 +78,7 @@ export function registerExtensionNoiseFilters(): () => void {
   const handleRejection = (event: PromiseRejectionEvent) => {
     try {
       const reasonMessage = extractMessage(event.reason);
-      if (shouldIgnore(reasonMessage)) {
+      if (shouldIgnore(reasonMessage) || isLikelyExtensionNoise(event.reason)) {
         event.preventDefault?.();
         event.stopImmediatePropagation?.();
       }
