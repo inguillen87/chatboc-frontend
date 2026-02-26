@@ -508,15 +508,17 @@ export const mergeSurveyAnalytics = (
 export const pickTimeseries = (
   primary: SurveyTimeseriesPoint[] | undefined,
   fallback: SurveyTimeseriesPoint[] | undefined,
-): SurveyTimeseriesPoint[] | undefined => {
-  if (primary) return primary;
-  return fallback;
+): SurveyTimeseriesPoint[] => {
+  if (Array.isArray(primary)) return primary;
+  if (Array.isArray(fallback)) return fallback;
+  return [];
 };
 
 export const pickHeatmap = (
   primary: SurveyHeatmapPoint[] | undefined,
   fallback: SurveyHeatmapPoint[] | undefined,
-): SurveyHeatmapPoint[] | undefined => {
-  if (primary) return primary;
-  return fallback;
+): SurveyHeatmapPoint[] => {
+  if (Array.isArray(primary)) return primary;
+  if (Array.isArray(fallback)) return fallback;
+  return [];
 };
