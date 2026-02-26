@@ -81,10 +81,13 @@ export function registerExtensionNoiseFilters(): () => void {
 
   const handleError = (event: ErrorEvent) => {
     try {
-      const errorMessage = extractMessage(event.error ?? event.message);
-      const fromExtension = isExtensionUrl(event.filename) || isExtensionUrl((event.error as any)?.stack);
+      const errorPayload = event.error ?? event.message;
+      const errorMessage = extractMessage(errorPayload);
+      const fromExtension =
+        isExtensionUrl(event.filename) ||
+        isExtensionUrl((event.error as { stack?: unknown } | null | undefined)?.stack as string | undefined);
 
-      if (fromExtension || shouldIgnore(errorMessage)) {
+      if (fromExtension || shouldIgnore(errorMessage) || isLikelyExtensionNoise(errorPayload)) {
         event.preventDefault?.();
         event.stopImmediatePropagation?.();
         return false;

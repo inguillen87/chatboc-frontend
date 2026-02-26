@@ -49,28 +49,34 @@ function extractErrorStack(error: unknown): string {
   return '';
 }
 
+function getRecoveryAttemptsFromQuery(): number {
+  if (typeof window === 'undefined') return 0;
+
+  try {
+    const searchParams = new URLSearchParams(window.location.search);
+    const fromQuery = Number(searchParams.get('cb_attempt'));
+    return Number.isFinite(fromQuery) && fromQuery > 0 ? fromQuery : 0;
+  } catch {
+    return 0;
+  }
+}
+
 function getRecoveryAttempts(): number {
   if (typeof window === 'undefined') return 0;
   const storageKey = getRecoveryStorageKey();
+  const queryAttempts = getRecoveryAttemptsFromQuery();
+
   try {
     const raw = window.sessionStorage.getItem(storageKey);
     const parsed = Number(raw);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+    const storageAttempts = Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+    return Math.max(storageAttempts, queryAttempts);
   } catch {
-    try {
-      const searchParams = new URLSearchParams(window.location.search);
-      const fromQuery = Number(searchParams.get('cb_attempt'));
-      if (Number.isFinite(fromQuery) && fromQuery > 0) {
-        return fromQuery;
-      }
-    } catch {
-      // no-op
-    }
-
     const bag = (window as typeof window & { __chatbocStaleRecoveryAttempts?: Record<string, number> })
       .__chatbocStaleRecoveryAttempts;
     const value = bag?.[storageKey];
-    return Number.isFinite(value) && value > 0 ? Number(value) : 0;
+    const memoryAttempts = Number.isFinite(value) && value > 0 ? Number(value) : 0;
+    return Math.max(memoryAttempts, queryAttempts);
   }
 }
 
