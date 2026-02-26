@@ -128,6 +128,22 @@ const SurveyAnalyticsPage = () => {
     staleTime: 30_000,
   });
 
+  useEffect(() => {
+    if (!surveyId) return;
+    void enterpriseService.trackEvent(
+      {
+        event: 'analytics_dashboard_loaded',
+        payload: {
+          tenant_slug: effectiveSurvey?.tenant_slug || null,
+          route: '/admin/encuestas/:id/analytics',
+          build_version: import.meta.env.VITE_APP_VERSION || 'dev',
+          survey_id: surveyId,
+        },
+      },
+      effectiveSurvey?.tenant_slug,
+    ).catch(() => undefined);
+  }, [surveyId, effectiveSurvey?.tenant_slug]);
+
   const surveyFromList = useMemo(() => {
     if (!surveyId || !surveys?.data?.length) return undefined;
     return surveys.data.find((item) => item.id === surveyId);
@@ -150,6 +166,22 @@ const SurveyAnalyticsPage = () => {
       effectiveTenantSlug,
     ).catch(() => undefined);
   }, [surveyId, effectiveTenantSlug]);
+
+  useEffect(() => {
+    if (!surveyId) return;
+    void enterpriseService.trackEvent(
+      {
+        event: 'analytics_dashboard_loaded',
+        payload: {
+          tenant_slug: effectiveSurvey?.tenant_slug || null,
+          route: '/admin/encuestas/:id/analytics',
+          build_version: import.meta.env.VITE_APP_VERSION || 'dev',
+          survey_id: surveyId,
+        },
+      },
+      effectiveSurvey?.tenant_slug,
+    ).catch(() => undefined);
+  }, [surveyId, effectiveSurvey?.tenant_slug]);
 
   const publicUrl = useMemo(
     () => (effectiveSurvey?.slug ? getAbsolutePublicSurveyUrl(effectiveSurvey.slug) : null),
