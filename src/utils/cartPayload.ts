@@ -1,4 +1,38 @@
-import type { ProductDetails } from '@/components/product/ProductCard';
+type ProductModalidad = 'venta' | 'puntos' | 'donacion' | string | null;
+
+type ProductDetails = {
+  id: number | string;
+  nombre: string;
+  descripcion?: string | null;
+  precio_unitario: number;
+  precio_puntos?: number | null;
+  precio_anterior?: number | null;
+  imagen_url?: string | null;
+  presentacion?: string | null;
+  categoria?: string | null;
+  badge?: string | null;
+  badge_variant?: 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning';
+  stock_disponible?: number | null;
+  unidad_medida?: string | null;
+  sku?: string | null;
+  marca?: string | null;
+  precio_por_caja?: number | null;
+  unidades_por_caja?: number | null;
+  promocion_activa?: string | null;
+  promocion_info?: string | null;
+  precio_texto?: string | null;
+  moneda?: string | null;
+  talles?: string[] | null;
+  colores?: string[] | null;
+  precio_mayorista?: number | null;
+  cantidad_minima_mayorista?: number | null;
+  modalidad?: ProductModalidad;
+  instrucciones_entrega?: string | null;
+  origen?: 'api' | 'demo';
+  disponible?: boolean;
+  checkout_type?: 'mercadolibre' | 'tiendanube' | 'chatboc' | null;
+  external_url?: string | null;
+};
 
 export type CartEntryTuple = [productName: string, quantity: number];
 

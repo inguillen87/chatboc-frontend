@@ -197,10 +197,9 @@ export default function InternalUsers() {
     if (!editingUser || !tenantSlug) return;
 
     try {
-      const selectedCategories = categories
-        .filter((cat) => editCategoriaIds.includes(cat.id))
-        .map((cat) => cat.slug || cat.nombre)
-        .filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
+      const selectedCategoryIds = editCategoriaIds
+        .map((id) => String(id).trim())
+        .filter((value): value is string => value.length > 0);
       const selectedRoles = editRoles
         .map((role) => role.trim())
         .filter((role): role is string => role.length > 0);
@@ -208,7 +207,7 @@ export default function InternalUsers() {
       const payload: { name: string; roles: string[]; categorias: string[]; password?: string } = {
         name: editNombre,
         roles: selectedRoles,
-        categorias: selectedCategories,
+        categorias: selectedCategoryIds,
       };
       if (editPassword) payload.password = editPassword;
 
