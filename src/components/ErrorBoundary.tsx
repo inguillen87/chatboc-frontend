@@ -1,5 +1,4 @@
 import React from 'react';
-import { isLikelyExtensionNoise } from '@/utils/registerExtensionNoiseFilters';
 
 interface ErrorBoundaryProps {
   fallbackMessage?: string;
