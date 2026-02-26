@@ -1,6 +1,7 @@
 /**
  * Utility for safe cross-origin communication between the iframe widget and the host page.
  */
+import { useEffect } from "react";
 
 // Define the structure of messages sent from the iframe to the host
 interface HostMessage {
@@ -58,16 +59,24 @@ export function useHostMessageHandler(
 ) {
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
-      // Security: Always verify the origin of the message.
-      if (event.origin !== hostDomain) {
+      // Strict noise filtering
+      if (!event.data) return;
+      const d = event.data;
+
+      // Filter known extension noise
+      if (d?.target === 'inpage' || d?.target === 'contentscript') return;
+      if (typeof d?.target === 'string' && d.target.startsWith('metamask-')) return;
+      if (d?.source === 'react-devtools-bridge') return;
+
+      // Security: Always verify the origin of the message if provided.
+      // If hostDomain is '*', we rely on widgetId matching.
+      if (hostDomain !== '*' && event.origin !== hostDomain) {
         return;
       }
 
-      const data = event.data as IframeMessage;
-
       // Ensure the message is for this widget instance
-      if (data && data.widgetId === widgetId) {
-        handler(data);
+      if (d && d.widgetId === widgetId) {
+        handler(d as IframeMessage);
       }
     };
 
