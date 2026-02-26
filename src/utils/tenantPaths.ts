@@ -1,64 +1,8 @@
 import { APP_TARGET } from '@/config';
+import { TENANT_ROUTE_PREFIXES, TENANT_PLACEHOLDER_SLUGS } from '@/constants/tenant';
 
-export const TENANT_ROUTE_PREFIXES = ['m', 'market', 't', 'tenant', 'municipio', 'pyme'] as const;
-
-export const TENANT_PLACEHOLDER_SLUGS = new Set([
-  'iframe',
-  'embed',
-  'widget',
-  'cart',
-  'productos',
-  'checkout',
-  'checkout-productos',
-  'perfil',
-  'user',
-  'login',
-  'register',
-  'portal',
-  'pedidos',
-  'reclamos',
-  'encuestas',
-  'tickets',
-  'opinar',
-  'integracion',
-  'documentacion',
-  'faqs',
-  'legal',
-  'chat',
-  'chatpos',
-  'chatcrm',
-  'admin',
-  'dashboard',
-  'analytics',
-  'settings',
-  'config',
-  'api',
-  'estadisticas',
-  'empleados',
-  'municipal',
-  'pyme',
-  'logs',
-  'consultas',
-  'presupuestos',
-  'recordatorios',
-  'historial',
-  'usuarios',
-  'soluciones',
-  'demo',
-  'home',
-  'landing',
-  'incidents',
-  'stats',
-  'market',
-  'whatsapp',
-  'telegram',
-  'instagram',
-  'facebook',
-  'mapas',
-  'ticket',
-  'tickets',
-  'admin'
-]);
+// Re-export constants for backward compatibility if any file still imports from here
+export { TENANT_ROUTE_PREFIXES, TENANT_PLACEHOLDER_SLUGS };
 
 const isPlaceholderSlug = (slug?: string | null) => {
   if (!slug) return false;

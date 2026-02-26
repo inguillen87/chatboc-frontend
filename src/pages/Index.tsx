@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { safeSessionStorage } from '@/utils/safeSessionStorage';
+import { safeSessionStorage } from '@/utils/safeLocalStorage';
 import HeroSection from '@/components/sections/HeroSection';
 import ProblemsSection from '@/components/sections/ProblemsSection';
 import SolutionSection from '@/components/sections/SolutionSection';
