@@ -1,13 +1,19 @@
 import React, { useEffect, useState } from "react";
-import ChatWidgetComponent from "@/components/chat/ChatWidget";
+// DECOUPLE: Remove top-level lazy import to avoid module evaluation cycles during initial bundle parse
+// const ChatWidgetComponent = React.lazy(() => import("@/components/chat/ChatWidget"));
+
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { MemoryRouter, useInRouterContext } from "react-router-dom";
+// Avoid importing TenantProvider here if possible, or ensure TenantContext doesn't import IframePage (it shouldn't)
 import { TenantProvider } from "@/context/TenantContext";
 import { getChatbocConfig } from "@/utils/config";
 import { hexToHsl } from "@/utils/color";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { GOOGLE_CLIENT_ID } from '@/env';
 import { apiFetch } from '@/utils/api';
+
+// Dynamically import ChatWidget only when rendering to prevent TDZ cycles
+const ChatWidgetComponent = React.lazy(() => import("@/components/chat/ChatWidget"));
 
 const DEFAULTS = {
   openWidth: "460px",
@@ -232,33 +238,35 @@ const IframePage = () => {
       : '/';
 
   const ChatWidgetRender = () => (
-    <ChatWidgetComponent
-      mode="iframe"
-      ownerToken={entityToken || undefined}
-      defaultOpen={widgetParams.defaultOpen}
-      widgetId={widgetParams.widgetId}
-      tipoChat={tipoChat || undefined}
-      openWidth={widgetParams.openWidth}
-      openHeight={widgetParams.openHeight}
-      closedWidth={widgetParams.closedWidth}
-      closedHeight={widgetParams.closedHeight}
-      initialPosition={{ bottom: widgetParams.bottom, right: widgetParams.right }}
-      ctaMessage={widgetParams.ctaMessage}
-      initialView={widgetParams.view}
-      initialRubro={widgetParams.rubro}
-      customLauncherLogoUrl={widgetParams.logoUrl}
-      logoAnimation={widgetParams.logoAnimation}
-      headerLogoUrl={widgetParams.headerLogoUrl}
-      welcomeTitle={widgetParams.welcomeTitle}
-      welcomeSubtitle={widgetParams.welcomeSubtitle}
-      tenantSlug={widgetParams.tenantSlug}
-      primaryColor={widgetParams.primaryColor}
-      accentColor={widgetParams.accentColor}
-      userMsgColor={widgetParams.userMsgColor}
-      chatBackground={widgetParams.chatBackground}
-      borderRadius={widgetParams.borderRadius}
-      fontFamily={widgetParams.fontFamily}
-    />
+    <React.Suspense fallback={<div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }} />}>
+        <ChatWidgetComponent
+        mode="iframe"
+        ownerToken={entityToken || undefined}
+        defaultOpen={widgetParams.defaultOpen}
+        widgetId={widgetParams.widgetId}
+        tipoChat={tipoChat || undefined}
+        openWidth={widgetParams.openWidth}
+        openHeight={widgetParams.openHeight}
+        closedWidth={widgetParams.closedWidth}
+        closedHeight={widgetParams.closedHeight}
+        initialPosition={{ bottom: widgetParams.bottom, right: widgetParams.right }}
+        ctaMessage={widgetParams.ctaMessage}
+        initialView={widgetParams.view}
+        initialRubro={widgetParams.rubro}
+        customLauncherLogoUrl={widgetParams.logoUrl}
+        logoAnimation={widgetParams.logoAnimation}
+        headerLogoUrl={widgetParams.headerLogoUrl}
+        welcomeTitle={widgetParams.welcomeTitle}
+        welcomeSubtitle={widgetParams.welcomeSubtitle}
+        tenantSlug={widgetParams.tenantSlug}
+        primaryColor={widgetParams.primaryColor}
+        accentColor={widgetParams.accentColor}
+        userMsgColor={widgetParams.userMsgColor}
+        chatBackground={widgetParams.chatBackground}
+        borderRadius={widgetParams.borderRadius}
+        fontFamily={widgetParams.fontFamily}
+        />
+    </React.Suspense>
   );
 
   const widgetTree = (
