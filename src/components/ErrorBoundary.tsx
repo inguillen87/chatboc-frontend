@@ -49,6 +49,17 @@ function extractErrorStack(error: unknown): string {
   return '';
 }
 
+
+function extractInfoText(info: unknown): string {
+  if (!info) return '';
+  if (typeof info === 'string') return info;
+  if (typeof info === 'object' && 'componentStack' in info) {
+    const stack = (info as { componentStack?: unknown }).componentStack;
+    return typeof stack === 'string' ? stack : '';
+  }
+  return '';
+}
+
 function isTdzReferenceError(error: unknown): boolean {
   const message = extractErrorMessage(error);
   const name = extractErrorName(error);
@@ -126,20 +137,24 @@ function shouldAttemptStaleBundleRecovery(error: unknown): boolean {
   return true;
 }
 
-function shouldSuppressTransientTdzError(error: unknown): boolean {
+function shouldSuppressTransientTdzError(error: unknown, info?: unknown): boolean {
   const message = extractErrorMessage(error);
   const stack = extractErrorStack(error);
+  const infoText = extractInfoText(info);
 
   const looksLikeTdz = /Cannot access '.+' before initialization/i.test(message);
   if (!looksLikeTdz) return false;
 
-  // Extension bridges usually surface through MessagePort and injected scripts.
-  // Treat these as transient/noise to avoid crashing the full UI.
+  // Extension bridges usually surface through MessagePort/inpage scripts.
+  // Treat these as transient/noise to avoid repeated false crashes.
   const hasExtensionSignals =
     /\bMessagePort\b/i.test(stack) ||
     /\binpage\.js\b/i.test(stack) ||
     /\blockdown-install\.js\b/i.test(stack) ||
-    /\boverlay\.js\b/i.test(stack);
+    /\boverlay\.js\b/i.test(stack) ||
+    /registerExtensionNoiseFilters-[^\s)]+\.js/i.test(stack) ||
+    /\bMessagePort\b/i.test(infoText) ||
+    /registerExtensionNoiseFilters-[^\s)]+\.js/i.test(infoText);
 
   return hasExtensionSignals;
 }
@@ -252,7 +267,7 @@ class ErrorBoundary extends React.Component<React.PropsWithChildren<ErrorBoundar
   }
 
   componentDidCatch(error: unknown, info: unknown) {
-    if (isLikelyExtensionNoise(error) || shouldSuppressTransientTdzError(error)) {
+    if (isLikelyExtensionNoise(error) || shouldSuppressTransientTdzError(error, info)) {
       return;
     }
 
