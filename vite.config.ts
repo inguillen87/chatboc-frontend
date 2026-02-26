@@ -132,9 +132,11 @@ export default defineConfig(({ mode }) => {
           iframe: path.resolve(__dirname, "iframe.html"),
         },
         output: {
-          entryFileNames: `assets/[name].js`,
-          chunkFileNames: `assets/[name].js`,
-          assetFileNames: `assets/[name].[ext]`
+          // Use content hashes to avoid stale asset mixes (old chunks with new entries)
+          // that can trigger runtime errors after deployments or SW updates.
+          entryFileNames: 'assets/[name]-[hash].js',
+          chunkFileNames: 'assets/[name]-[hash].js',
+          assetFileNames: 'assets/[name]-[hash][extname]'
         }
       },
     },

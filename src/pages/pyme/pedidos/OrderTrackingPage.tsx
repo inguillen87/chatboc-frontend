@@ -233,26 +233,26 @@ export default function OrderTrackingPage() {
                       {ORDER_STEPS.map((step, index) => {
                         const isCompleted = index + 1 <= currentStep;
                         const isCurrent = index + 1 === currentStep;
+                        const indicatorClasses = [
+                          'w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all duration-500 bg-white',
+                          isCompleted ? 'border-primary text-primary shadow-sm' : 'border-gray-200 text-gray-300',
+                          isCurrent ? 'ring-4 ring-primary/10 scale-110' : '',
+                        ].join(' ');
+                        const labelClasses = [
+                          'text-[8px] sm:text-xs font-semibold uppercase tracking-wide text-center max-w-[50px] sm:max-w-[70px] leading-tight',
+                          isCompleted ? 'text-gray-900' : 'text-gray-400',
+                        ].join(' ');
 
                         return (
                           <div key={step.id} className="flex flex-col items-center gap-3">
-                            <div className={`
-                                w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all duration-500 bg-white
-                                ${isCompleted
-                                    ? 'border-primary text-primary shadow-sm'
-                                    : 'border-gray-200 text-gray-300'}
-                                ${isCurrent ? 'ring-4 ring-primary/10 scale-110' : ''}
-                            `}>
+                            <div className={indicatorClasses}>
                                 {isCompleted ? (
                                     <CheckCircle2 className="h-4 w-4" />
                                 ) : (
                                     <div className="h-2 w-2 rounded-full bg-current" />
                                 )}
                             </div>
-                            <span className={`
-                                text-[8px] sm:text-xs font-semibold uppercase tracking-wide text-center max-w-[50px] sm:max-w-[70px] leading-tight
-                                ${isCompleted ? 'text-gray-900' : 'text-gray-400'}
-                            `}>
+                            <span className={labelClasses}>
                                 {step.label}
                             </span>
                           </div>
