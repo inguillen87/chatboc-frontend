@@ -68,6 +68,20 @@ const isPlaceholderSlug = (slug?: string | null) => {
 const hasTenantPrefix = (path: string) =>
   TENANT_ROUTE_PREFIXES.some((prefix) => path.startsWith(`/${prefix}/`));
 
+const stripTenantPrefix = (path: string) => {
+  const normalized = path.startsWith('/') ? path.slice(1) : path;
+  const segments = normalized.split('/');
+  const [firstSegment, ...rest] = segments;
+
+  if (!firstSegment) return normalized;
+
+  if (TENANT_ROUTE_PREFIXES.includes(firstSegment.toLowerCase() as (typeof TENANT_ROUTE_PREFIXES)[number])) {
+    return rest.join('/');
+  }
+
+  return normalized;
+};
+
 /**
  * Builds a path that includes the tenant slug as the first segment.
  * e.g. buildTenantPath('/cart', 'municipio') -> '/municipio/cart'
@@ -80,25 +94,16 @@ export const buildTenantPath = (basePath: string, tenantSlug?: string | null) =>
   const safeSlug = normalizedSlug?.toLowerCase();
 
   const normalizedPath = basePath.startsWith('/') ? basePath.slice(1) : basePath;
+  const cleanPath = stripTenantPrefix(normalizedPath);
 
   if (normalizedSlug && safeSlug && !isPlaceholderSlug(safeSlug)) {
     // If the path already starts with the slug, don't prepend it again.
     // e.g. basePath='municipio/cart', slug='municipio' -> '/municipio/cart'
     if (normalizedPath.startsWith(`${safeSlug}/`)) {
-       return `/${normalizedPath}`;
+      return `/${normalizedPath}`;
     }
 
-    // If the path has a legacy prefix (e.g. /pyme/cart), strip it if we are adding a slug?
-    // Actually, let's just prepend the slug to the clean path.
-    // We assume 'basePath' is relative to the tenant root.
-
-    // Check if basePath contains a known prefix that should be removed
-    // e.g. if we pass '/pyme/cart' but want '/municipio/cart'
-    // This is risky if we don't know for sure.
-    // But for this specific task, we want to AVOID /pyme/municipio/
-
-    // Let's rely on the input being a relative path like '/perfil/pedidos'
-    return `/${encodeURIComponent(normalizedSlug)}/${normalizedPath}`;
+    return `/${encodeURIComponent(normalizedSlug)}/${cleanPath}`;
   }
 
   // Fallback: if no slug, return original path (maybe root path)
