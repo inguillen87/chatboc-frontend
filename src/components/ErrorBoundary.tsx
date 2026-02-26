@@ -9,6 +9,94 @@ interface ErrorBoundaryState {
   hasError: boolean;
 }
 
+const STALE_BUNDLE_RECOVERY_KEY = 'chatboc_stale_bundle_recovery_attempts';
+const MAX_STALE_BUNDLE_RECOVERY_ATTEMPTS = 2;
+
+function extractErrorName(error: unknown): string {
+  if (error && typeof error === 'object' && 'name' in error) {
+    const value = (error as { name?: unknown }).name;
+    if (typeof value === 'string') return value;
+  }
+  return '';
+}
+
+function extractErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message || '';
+  if (error && typeof error === 'object' && 'message' in error) {
+    const value = (error as { message?: unknown }).message;
+    if (typeof value === 'string') return value;
+  }
+  if (typeof error === 'string') return error;
+  return '';
+}
+
+function extractErrorStack(error: unknown): string {
+  if (error instanceof Error) return String(error.stack || '');
+  if (error && typeof error === 'object' && 'stack' in error) {
+    return String((error as { stack?: unknown }).stack || '');
+  }
+  return '';
+}
+
+function getRecoveryAttempts(): number {
+  if (typeof window === 'undefined') return 0;
+  try {
+    const raw = window.sessionStorage.getItem(STALE_BUNDLE_RECOVERY_KEY);
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+  } catch {
+    const value = (window as typeof window & { __chatbocStaleRecoveryAttempts?: number }).__chatbocStaleRecoveryAttempts;
+    return Number.isFinite(value) && value! > 0 ? Number(value) : 0;
+  }
+}
+
+function setRecoveryAttempts(value: number) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.sessionStorage.setItem(STALE_BUNDLE_RECOVERY_KEY, String(value));
+  } catch {
+    (window as typeof window & { __chatbocStaleRecoveryAttempts?: number }).__chatbocStaleRecoveryAttempts = value;
+  }
+}
+
+function shouldAttemptStaleBundleRecovery(error: unknown): boolean {
+  if (typeof window === 'undefined') return false;
+
+  const message = extractErrorMessage(error);
+  const stack = extractErrorStack(error);
+  const name = extractErrorName(error);
+
+  const seemsReferenceError = name.toLowerCase() === 'referenceerror' || /referenceerror/i.test(stack);
+  if (!seemsReferenceError) return false;
+
+  const looksLikeTdz = /Cannot access '.+' before initialization/i.test(message);
+  const referencesBundledAssets = /\/assets\/(main|IframePage)-.+\.js/i.test(stack);
+
+  if (!looksLikeTdz || !referencesBundledAssets) {
+    return false;
+  }
+
+  const attempts = getRecoveryAttempts();
+  if (attempts >= MAX_STALE_BUNDLE_RECOVERY_ATTEMPTS) {
+    return false;
+  }
+
+  return true;
+}
+
+function attemptStaleBundleRecovery() {
+  if (typeof window === 'undefined') return;
+
+  try {
+    setRecoveryAttempts(getRecoveryAttempts() + 1);
+    const url = new URL(window.location.href);
+    url.searchParams.set('cb', Date.now().toString());
+    window.location.replace(url.toString());
+  } catch {
+    window.location.reload();
+  }
+}
+
 class ErrorBoundary extends React.Component<React.PropsWithChildren<ErrorBoundaryProps>, ErrorBoundaryState> {
   constructor(props: React.PropsWithChildren<ErrorBoundaryProps>) {
     super(props);
@@ -25,6 +113,12 @@ class ErrorBoundary extends React.Component<React.PropsWithChildren<ErrorBoundar
 
   componentDidCatch(error: unknown, info: unknown) {
     if (isLikelyExtensionNoise(error)) {
+      return;
+    }
+
+    if (shouldAttemptStaleBundleRecovery(error)) {
+      console.warn('[ErrorBoundary] Detected possible stale bundle mismatch. Attempting one-time reload.');
+      attemptStaleBundleRecovery();
       return;
     }
 

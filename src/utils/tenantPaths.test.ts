@@ -17,6 +17,14 @@ describe('buildTenantPath', () => {
   it('should handle paths without leading slash', () => {
     expect(buildTenantPath('cart', 'junin')).toBe('/junin/cart');
   });
+
+  it('should replace legacy tenant prefix with current slug', () => {
+    expect(buildTenantPath('/pyme/cart', 'junin')).toBe('/junin/cart');
+  });
+
+  it('should replace long-form tenant prefix with current slug', () => {
+    expect(buildTenantPath('/tenant/perfil/pedidos', 'junin')).toBe('/junin/perfil/pedidos');
+  });
 });
 
 describe('buildTenantApiPath', () => {
