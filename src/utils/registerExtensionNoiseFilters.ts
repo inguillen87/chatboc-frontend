@@ -4,7 +4,7 @@ const KNOWN_EXTENSION_PATTERNS = [
   /This document requires 'TrustedScript' assignment/i,
   /No matching tab found/i,
   /Removing unpermitted intrinsics/i,
-  /ReferenceError: Cannot access 're' before initialization/i, // Catch the specific cyclic/TDZ error reported
+  /Cannot access '.*' before initialization/i, // Catch generic cyclic/TDZ errors (ReferenceError, etc) more broadly
 ];
 
 const EXTENSION_PROTOCOLS = ['chrome-extension://', 'moz-extension://', 'safari-extension://'];
