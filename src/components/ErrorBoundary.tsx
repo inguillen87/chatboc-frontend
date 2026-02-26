@@ -49,6 +49,12 @@ function extractErrorStack(error: unknown): string {
   return '';
 }
 
+function isTdzReferenceError(error: unknown): boolean {
+  const message = extractErrorMessage(error);
+  const name = extractErrorName(error);
+  return /Cannot access '.+' before initialization/i.test(message) && /referenceerror/i.test(name || '');
+}
+
 function getRecoveryAttemptsFromQuery(): number {
   if (typeof window === 'undefined') return 0;
 
@@ -235,7 +241,10 @@ class ErrorBoundary extends React.Component<React.PropsWithChildren<ErrorBoundar
   }
 
   static getDerivedStateFromError(error: unknown): ErrorBoundaryState {
-    if (isLikelyExtensionNoise(error) || shouldSuppressTransientTdzError(error)) {
+    // Keep the app mounted for TDZ runtime errors and let componentDidCatch
+    // decide whether to recover (stale bundle) or log. This avoids full UI
+    // fallback loops caused by transient extension/inpage noise.
+    if (isTdzReferenceError(error) || isLikelyExtensionNoise(error) || shouldSuppressTransientTdzError(error)) {
       return { hasError: false };
     }
 
