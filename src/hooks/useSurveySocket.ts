@@ -28,6 +28,11 @@ export function useSurveySocket({ slug, enabled = false, onUpdate, onComment }: 
     const socket = io(socketUrl, {
       path: SOCKET_PATH,
       transports: ['websocket', 'polling'],
+      withCredentials: true,
+      auth: { channel: 'web' },
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 800,
     });
 
     socketRef.current = socket;
@@ -38,6 +43,8 @@ export function useSurveySocket({ slug, enabled = false, onUpdate, onComment }: 
       console.log(`[SurveySocket] Connected. Joining room: encuesta_${slug}`);
       socket.emit('join', { room: `encuesta_${slug}` });
     };
+
+    const handleDisconnect = () => undefined;
 
     const handleUpdate = (data: SurveyLiveResults) => {
       console.log('[SurveySocket] Received update:', data);
@@ -50,12 +57,14 @@ export function useSurveySocket({ slug, enabled = false, onUpdate, onComment }: 
     };
 
     safeOn(socket, 'connect', handleConnect);
+    safeOn(socket, 'disconnect', handleDisconnect);
     safeOn(socket, 'survey_update', handleUpdate);
     safeOn(socket, 'survey_comment', handleComment);
 
     return () => {
       if (socket) {
         socket.off('connect', handleConnect);
+        socket.off('disconnect', handleDisconnect);
         socket.off('survey_update', handleUpdate);
         socket.off('survey_comment', handleComment);
         socket.disconnect();
