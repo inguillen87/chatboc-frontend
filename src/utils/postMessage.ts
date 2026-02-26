@@ -1,3 +1,5 @@
+// utils/postMessage.ts
+
 /**
  * Utility for safe cross-origin communication between the iframe widget and the host page.
  */
@@ -5,9 +7,9 @@ import { useEffect } from "react";
 
 // Define the structure of messages sent from the iframe to the host
 interface HostMessage {
-  type: "CHATBOC_RESIZE_CONTAINER";
-  widgetId: string;
-  style: {
+  type: "CHATBOC_RESIZE_CONTAINER" | "chatboc-state-change" | "chatboc-ready" | "chatboc:auth-token";
+  widgetId?: string;
+  style?: {
     width: string;
     height: string;
     bottom: string;
@@ -16,21 +18,25 @@ interface HostMessage {
     boxShadow: string;
     transition: string;
   };
+  dimensions?: {
+    width: string;
+    height: string;
+  };
+  isOpen?: boolean;
+  token?: string;
+  tenant?: string | null;
+  source?: string;
+  emittedAt?: number;
 }
 
 // Define the structure of messages sent from the host to the iframe
 interface IframeMessage {
-  type: "CHATBOC_OPEN" | "CHATBOC_CLOSE" | "CHATBOC_TOGGLE" | "CHATBOC_SET_VIEW";
-  widgetId: string;
+  type: "CHATBOC_OPEN" | "CHATBOC_CLOSE" | "CHATBOC_TOGGLE" | "CHATBOC_SET_VIEW" | "OPEN_CHAT_WITH_CONTEXT";
+  widgetId?: string;
   view?: 'chat' | 'register' | 'login' | 'user' | 'info';
-}
-
-interface AuthTokenMessage {
-  type: "chatboc:auth-token";
-  token: string;
-  tenant?: string | null;
-  source?: string;
-  emittedAt?: number;
+  tenantSlug?: string;
+  tipoChat?: 'pyme' | 'municipio';
+  context?: any;
 }
 
 /**
@@ -42,6 +48,7 @@ export function sendMessageToHost(message: HostMessage, hostDomain: string) {
   if (typeof window !== 'undefined' && window.parent !== window) {
     // Important: The second argument specifies the target origin.
     // This is a crucial security measure to prevent sending data to malicious sites.
+    // If hostDomain is '*', we rely on the receiver to validate the message.
     window.parent.postMessage(message, hostDomain);
   }
 }
@@ -59,23 +66,35 @@ export function useHostMessageHandler(
 ) {
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
-      // Strict noise filtering
+      // 1. Basic Availability Check
       if (!event.data) return;
       const d = event.data;
 
+      // 2. Strict Noise Filtering (Extensions, Google Maps, React DevTools)
       // Filter known extension noise
       if (d?.target === 'inpage' || d?.target === 'contentscript') return;
       if (typeof d?.target === 'string' && d.target.startsWith('metamask-')) return;
       if (d?.source === 'react-devtools-bridge') return;
+      // Filter Google Maps / Third-party embed noise
+      if (typeof event.origin === 'string' && (
+          event.origin.includes('maps.google') ||
+          event.origin.includes('googleusercontent') ||
+          event.origin.includes('youtube.com')
+      )) return;
 
-      // Security: Always verify the origin of the message if provided.
-      // If hostDomain is '*', we rely on widgetId matching.
+      // 3. Security: Verify Origin
+      // If hostDomain is '*', we accept from anywhere but must validate payload structure.
+      // If hostDomain is specific, we strictly enforce it.
       if (hostDomain !== '*' && event.origin !== hostDomain) {
         return;
       }
 
-      // Ensure the message is for this widget instance
-      if (d && d.widgetId === widgetId) {
+      // 4. Payload Validation
+      // Ensure the message is relevant to our widget
+      const isGlobalOpen = d === "OPEN_CHAT" || d?.type === "OPEN_CHAT" || d?.type === "OPEN_CHAT_WITH_CONTEXT";
+      const isTargeted = d && d.widgetId === widgetId;
+
+      if (isGlobalOpen || isTargeted) {
         handler(d as IframeMessage);
       }
     };
@@ -101,7 +120,7 @@ export function broadcastAuthTokenToHost(
   if (!token || typeof token !== "string" || !token.trim()) return;
   if (!isEmbeddedContext()) return;
 
-  const message: AuthTokenMessage = {
+  const message: HostMessage = {
     type: "chatboc:auth-token",
     token,
     tenant: tenant || undefined,
