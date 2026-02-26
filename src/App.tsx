@@ -148,20 +148,20 @@ const App = () => {
         <Toaster />
         <UserProvider>
           <DateSettingsProvider>
-            <SocketProvider>
-              <BrowserRouter
-                future={{
-                  v7_startTransition: true,
-                  v7_relativeSplatPath: true,
-                }}
-              >
+            <BrowserRouter
+              future={{
+                v7_startTransition: true,
+                v7_relativeSplatPath: true,
+              }}
+            >
+              <SocketProvider>
                 <TenantProvider>
                   <RealtimeAlertsProvider>
                     <AppRoutes />
                   </RealtimeAlertsProvider>
                 </TenantProvider>
-              </BrowserRouter>
-            </SocketProvider>
+              </SocketProvider>
+            </BrowserRouter>
           </DateSettingsProvider>
         </UserProvider>
       </TooltipProvider>
