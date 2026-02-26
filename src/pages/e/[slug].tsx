@@ -15,7 +15,7 @@ import { trackSurveySubmission } from '@/utils/surveyAnalytics';
 import { useSurveySocket } from '@/hooks/useSurveySocket';
 import { SurveyComments, type SurveyCommentsCopy } from '@/components/surveys/SurveyComments';
 import { useSurveyLiveResults, type SurveyLiveRequestParams } from '@/hooks/useSurveyLiveResults';
-import { safeSessionStorage } from '@/utils/safeSessionStorage';
+import { safeSessionStorage } from '@/utils/safeLocalStorage';
 
 const LIVE_FILTERS_STORAGE_KEY = 'survey-live-filters-v1';
 

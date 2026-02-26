@@ -3,6 +3,7 @@ import { io, Socket } from 'socket.io-client';
 import { getSocketUrl, SOCKET_PATH } from '@/config';
 import { safeOn, assertEventSource } from '@/utils/safeOn';
 import { SurveyComment, SurveyLiveResults } from '@/types/encuestas';
+import { enterpriseService } from '@/services/enterpriseService';
 
 interface UseSurveySocketOptions {
   slug: string;
@@ -41,6 +42,15 @@ export function useSurveySocket({ slug, enabled = false, onUpdate, onComment }: 
 
     const handleConnect = () => {
       console.log(`[SurveySocket] Connected. Joining room: encuesta_${slug}`);
+      void enterpriseService.trackEvent({
+        event: 'analytics_socket_connected',
+        payload: {
+          tenant_slug: slug,
+          route: '/e/:slug',
+          build_version: import.meta.env.VITE_APP_VERSION || 'dev',
+          error_code: null,
+        },
+      }, slug).catch(() => undefined);
       socket.emit('join', { room: `encuesta_${slug}` });
     };
 

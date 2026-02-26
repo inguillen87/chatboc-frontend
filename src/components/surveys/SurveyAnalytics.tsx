@@ -30,6 +30,7 @@ import type {
   SurveySummary,
   SurveyTimeseriesPoint,
 } from '@/types/encuestas';
+import { enterpriseService } from '@/services/enterpriseService';
 
 interface SurveyAnalyticsProps {
   summary?: SurveySummary;
@@ -40,6 +41,8 @@ interface SurveyAnalyticsProps {
   isExporting?: boolean;
   filters?: SurveyAnalyticsFilters;
   onFiltersChange?: (next: SurveyAnalyticsFilters) => void;
+  tenantSlug?: string;
+  route?: string;
 }
 
 const palette = ['#2563eb', '#7c3aed', '#059669', '#ea580c', '#f59e0b', '#db2777'];
@@ -452,6 +455,8 @@ export const SurveyAnalytics = ({
   isExporting,
   filters,
   onFiltersChange,
+  tenantSlug,
+  route = '/admin/encuestas/:id/analytics',
 }: SurveyAnalyticsProps) => {
   const timeseriesData = useMemo(() => buildTimeseriesData(timeseries), [timeseries]);
   const summaryRecord = useMemo(
@@ -784,6 +789,19 @@ export const SurveyAnalytics = ({
       })
       .filter((section): section is { id: string; title: string; data: ReturnType<typeof buildDemographicData> } => Boolean(section));
   }, [summaryRecord]);
+
+  useEffect(() => {
+    const event = heatmapData.length > 0 ? 'analytics_heatmap_rendered' : 'analytics_heatmap_empty';
+    const payload = {
+      tenant_slug: tenantSlug || null,
+      route,
+      build_version: import.meta.env.VITE_APP_VERSION || 'dev',
+      point_count: heatmapData.length,
+      error_code: heatmapData.length > 0 ? null : 'empty_dataset',
+    };
+
+    void enterpriseService.trackEvent({ event, payload }, tenantSlug).catch(() => undefined);
+  }, [heatmapData.length, route, tenantSlug]);
 
   return (
     <div className="space-y-6">

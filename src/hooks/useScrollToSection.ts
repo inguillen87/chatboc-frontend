@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from "react-router-dom";
-import { safeSessionStorage } from "@/utils/safeSessionStorage";
+import { safeSessionStorage } from "@/utils/safeLocalStorage";
 
 export const useScrollToSection = () => {
   const navigate = useNavigate();
