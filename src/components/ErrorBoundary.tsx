@@ -105,6 +105,24 @@ function shouldAttemptStaleBundleRecovery(error: unknown): boolean {
   return true;
 }
 
+function shouldSuppressTransientTdzError(error: unknown): boolean {
+  const message = extractErrorMessage(error);
+  const stack = extractErrorStack(error);
+
+  const looksLikeTdz = /Cannot access '.+' before initialization/i.test(message);
+  if (!looksLikeTdz) return false;
+
+  // Extension bridges usually surface through MessagePort and injected scripts.
+  // Treat these as transient/noise to avoid crashing the full UI.
+  const hasExtensionSignals =
+    /\bMessagePort\b/i.test(stack) ||
+    /\binpage\.js\b/i.test(stack) ||
+    /\blockdown-install\.js\b/i.test(stack) ||
+    /\boverlay\.js\b/i.test(stack);
+
+  return hasExtensionSignals;
+}
+
 function attemptStaleBundleRecovery() {
   if (typeof window === 'undefined') return;
 
@@ -125,7 +143,7 @@ class ErrorBoundary extends React.Component<React.PropsWithChildren<ErrorBoundar
   }
 
   static getDerivedStateFromError(error: unknown): ErrorBoundaryState {
-    if (isLikelyExtensionNoise(error)) {
+    if (isLikelyExtensionNoise(error) || shouldSuppressTransientTdzError(error)) {
       return { hasError: false };
     }
 
@@ -133,7 +151,7 @@ class ErrorBoundary extends React.Component<React.PropsWithChildren<ErrorBoundar
   }
 
   componentDidCatch(error: unknown, info: unknown) {
-    if (isLikelyExtensionNoise(error)) {
+    if (isLikelyExtensionNoise(error) || shouldSuppressTransientTdzError(error)) {
       return;
     }
 
