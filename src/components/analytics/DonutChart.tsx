@@ -4,6 +4,7 @@ import type { BreakdownResponse } from '@/services/analyticsService';
 import { WidgetFrame } from './WidgetFrame';
 import ChartTooltip from './ChartTooltip';
 import { AnalyticsEmptyState } from './AnalyticsEmptyState';
+import ChartMount from './ChartMount';
 
 interface DonutChartProps {
   title: string;
@@ -27,13 +28,13 @@ export function DonutChart({ title, description, data, exportName, loading }: Do
 
   return (
     <WidgetFrame title={title} description={description} csvData={formatted} exportFilename={exportName}>
-      <div className="h-72 w-full">
+      <ChartMount className="h-72 w-full min-w-0" minWidth={280} minHeight={220}>
         {loading ? (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Preparando datos...</div>
         ) : !hasData ? (
           <AnalyticsEmptyState />
         ) : (
-          <ResponsiveContainer>
+          <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220}>
             <PieChart>
               <Pie data={formatted} dataKey="value" nameKey="name" innerRadius={60} outerRadius={90} paddingAngle={4}>
                 {formatted.map((entry, index) => (
@@ -45,7 +46,7 @@ export function DonutChart({ title, description, data, exportName, loading }: Do
             </PieChart>
           </ResponsiveContainer>
         )}
-      </div>
+      </ChartMount>
     </WidgetFrame>
   );
 }
