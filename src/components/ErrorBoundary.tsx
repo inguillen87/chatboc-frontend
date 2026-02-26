@@ -12,6 +12,18 @@ interface ErrorBoundaryState {
 const STALE_BUNDLE_RECOVERY_KEY = 'chatboc_stale_bundle_recovery_attempts';
 const MAX_STALE_BUNDLE_RECOVERY_ATTEMPTS = 2;
 
+function getActiveBundleFingerprint(): string {
+  if (typeof document === 'undefined') return 'unknown';
+  const script = document.querySelector('script[src*="/assets/main-"]') as HTMLScriptElement | null;
+  const src = script?.src || '';
+  const match = src.match(/\/assets\/main-([^./]+)\.js/i);
+  return match?.[1] || 'unknown';
+}
+
+function getRecoveryStorageKey(): string {
+  return `${STALE_BUNDLE_RECOVERY_KEY}:${getActiveBundleFingerprint()}`;
+}
+
 function extractErrorName(error: unknown): string {
   if (error && typeof error === 'object' && 'name' in error) {
     const value = (error as { name?: unknown }).name;
@@ -40,22 +52,29 @@ function extractErrorStack(error: unknown): string {
 
 function getRecoveryAttempts(): number {
   if (typeof window === 'undefined') return 0;
+  const storageKey = getRecoveryStorageKey();
   try {
-    const raw = window.sessionStorage.getItem(STALE_BUNDLE_RECOVERY_KEY);
+    const raw = window.sessionStorage.getItem(storageKey);
     const parsed = Number(raw);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
   } catch {
-    const value = (window as typeof window & { __chatbocStaleRecoveryAttempts?: number }).__chatbocStaleRecoveryAttempts;
-    return Number.isFinite(value) && value! > 0 ? Number(value) : 0;
+    const bag = (window as typeof window & { __chatbocStaleRecoveryAttempts?: Record<string, number> })
+      .__chatbocStaleRecoveryAttempts;
+    const value = bag?.[storageKey];
+    return Number.isFinite(value) && value > 0 ? Number(value) : 0;
   }
 }
 
 function setRecoveryAttempts(value: number) {
   if (typeof window === 'undefined') return;
+  const storageKey = getRecoveryStorageKey();
   try {
-    window.sessionStorage.setItem(STALE_BUNDLE_RECOVERY_KEY, String(value));
+    window.sessionStorage.setItem(storageKey, String(value));
   } catch {
-    (window as typeof window & { __chatbocStaleRecoveryAttempts?: number }).__chatbocStaleRecoveryAttempts = value;
+    const target = window as typeof window & { __chatbocStaleRecoveryAttempts?: Record<string, number> };
+    const bag = target.__chatbocStaleRecoveryAttempts || {};
+    bag[storageKey] = value;
+    target.__chatbocStaleRecoveryAttempts = bag;
   }
 }
 
@@ -70,7 +89,9 @@ function shouldAttemptStaleBundleRecovery(error: unknown): boolean {
   if (!seemsReferenceError) return false;
 
   const looksLikeTdz = /Cannot access '.+' before initialization/i.test(message);
-  const referencesBundledAssets = /\/assets\/(main|IframePage)-.+\.js/i.test(stack);
+  const referencesBundledAssets =
+    /\/assets\/(main|IframePage|ErrorBoundary)-.+\.js/i.test(stack) ||
+    /\bmain-[^\s)]+\.js\b/i.test(stack);
 
   if (!looksLikeTdz || !referencesBundledAssets) {
     return false;

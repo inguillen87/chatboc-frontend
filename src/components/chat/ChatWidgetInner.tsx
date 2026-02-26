@@ -1075,13 +1075,6 @@ function ChatWidgetInner({
         return;
       }
 
-      // Filter Google Maps / Third-party embed noise explicitly
-      if (typeof event.origin === 'string' && (
-          event.origin.includes('maps.google') ||
-          event.origin.includes('googleusercontent') ||
-          event.origin.includes('youtube.com')
-      )) return;
-
       // Allow generic OPEN_CHAT even if widgetId doesn't match perfectly if it's a global signal
       if (data === "OPEN_CHAT" || (isObjectPayload && (data as Record<string, unknown>).type === "OPEN_CHAT")) {
           setIsOpen(true);
