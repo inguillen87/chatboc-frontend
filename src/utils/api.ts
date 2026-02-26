@@ -3,7 +3,7 @@
 import { API_BASE_CANDIDATES, BASE_API_URL, SAME_ORIGIN_PROXY_BASE } from '@/config';
 import { TENANT_ROUTE_PREFIXES } from '@/constants/tenant';
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
-import getOrCreateChatSessionId from "@/utils/chatSessionId"; // Import the new function
+import getOrCreateChatSessionId from "@/utils/chatSessionId";
 import { getOrCreateAnonId } from "@/utils/anonIdGenerator";
 import { getIframeToken } from "@/utils/config";
 
@@ -29,11 +29,11 @@ export class ApiError extends Error {
   }
 }
 
-const parseDebugFlag = (value?: string | null): boolean => {
+function parseDebugFlag(value?: string | null): boolean {
   if (typeof value !== "string") return false;
   const normalized = value.trim().toLowerCase();
   return ["1", "true", "yes", "on"].includes(normalized);
-};
+}
 
 const TENANT_PATH_REGEX = new RegExp(`^/(?:${TENANT_ROUTE_PREFIXES.join("|")})/([^/]+)`, "i");
 
@@ -103,7 +103,7 @@ const PLACEHOLDER_SLUGS = new Set([
   "public", "auth", "portal", "admin", "pwa", "static", "assets"
 ]);
 
-const readTenantFromSubdomain = () => {
+function readTenantFromSubdomain() {
   if (typeof window === "undefined") return null;
   const host = window.location?.hostname || "";
   if (!host || host === "localhost") return null;
@@ -115,9 +115,9 @@ const readTenantFromSubdomain = () => {
   if (["www", "app", "panel"].includes(normalized)) return null;
 
   return maybeSlug;
-};
+}
 
-const readTenantFromStoredUser = () => {
+function readTenantFromStoredUser() {
   try {
     const rawUser = safeLocalStorage.getItem("user");
     if (!rawUser) return null;
@@ -129,9 +129,9 @@ const readTenantFromStoredUser = () => {
     console.warn("[apiFetch] No se pudo leer tenant del usuario almacenado", error);
     return null;
   }
-};
+}
 
-const readTenantFromStorageKey = () => {
+function readTenantFromStorageKey() {
   try {
     const candidate = safeLocalStorage.getItem("tenantSlug");
     return typeof candidate === "string" ? candidate : null;
@@ -139,16 +139,16 @@ const readTenantFromStorageKey = () => {
     console.warn("[apiFetch] No se pudo leer tenantSlug de localStorage", error);
     return null;
   }
-};
+}
 
-const sanitizeTenantSlug = (slug?: string | null) => {
+function sanitizeTenantSlug(slug?: string | null) {
   if (!slug || typeof slug !== "string") return null;
   const normalized = slug.trim();
   if (!normalized) return null;
   return PLACEHOLDER_SLUGS.has(normalized.toLowerCase()) ? null : normalized;
-};
+}
 
-const readTenantFromScriptDataset = () => {
+function readTenantFromScriptDataset() {
   if (typeof document === "undefined") return null;
 
   const scripts = Array.from(
@@ -166,9 +166,9 @@ const readTenantFromScriptDataset = () => {
   }
 
   return null;
-};
+}
 
-const extractTenantFromPath = (rawPath?: string | null): string | null => {
+function extractTenantFromPath(rawPath?: string | null): string | null {
   if (typeof rawPath !== "string") return null;
 
   const normalizedPath = (() => {
@@ -224,9 +224,9 @@ const extractTenantFromPath = (rawPath?: string | null): string | null => {
   }
 
   return null;
-};
+}
 
-const inferTenantSlug = (explicitTenant?: string | null, pathForFallback?: string | null): string | null => {
+function inferTenantSlug(explicitTenant?: string | null, pathForFallback?: string | null): string | null {
   const candidate = sanitizeTenantSlug(explicitTenant);
   if (candidate) return candidate;
 
@@ -284,12 +284,12 @@ const inferTenantSlug = (explicitTenant?: string | null, pathForFallback?: strin
   if (subdomainTenant) return subdomainTenant;
 
   return null;
-};
+}
 
-export const resolveTenantSlug = (
+export function resolveTenantSlug(
   explicitTenant?: string | null,
   pathForFallback?: string | null,
-): string | null => {
+): string | null {
   const resolved = inferTenantSlug(explicitTenant, pathForFallback);
 
   if (resolved) {
@@ -303,21 +303,15 @@ export const resolveTenantSlug = (
     try {
         const entityToken = safeLocalStorage.getItem("entityToken") ||
             (typeof window !== "undefined" && (window as any).CHATBOC_CONFIG?.entityToken);
-
-        // This is a heuristic: if we have an entity token but no slug, we might be in a widget context
-        // where the slug is not yet resolved. We don't have a direct mapping here without an API call,
-        // but we can at least log this state or try to use a stored slug if available.
-        // For now, let's trust that inferTenantSlug covers most cases, but we might want to extend this
-        // to handle widget-specific config scenarios better in the future.
     } catch (e) {
         // ignore
     }
   }
 
   return resolved;
-};
+}
 
-const shouldLogVerboseApi = (): boolean => {
+function shouldLogVerboseApi(): boolean {
   const metaEnv =
     typeof import.meta !== "undefined" && (import.meta as any)?.env
       ? (import.meta as any).env
@@ -347,10 +341,10 @@ const shouldLogVerboseApi = (): boolean => {
   }
 
   return false;
-};
+}
 
 
-const resolveApiErrorMessage = (data: unknown, fallback: string) => {
+function resolveApiErrorMessage(data: unknown, fallback: string) {
   if (typeof data === 'string') {
     const trimmed = data.trim();
     return trimmed || fallback;
@@ -372,7 +366,7 @@ const resolveApiErrorMessage = (data: unknown, fallback: string) => {
   }
 
   return fallback;
-};
+}
 
 interface ApiFetchOptions {
   method?: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";

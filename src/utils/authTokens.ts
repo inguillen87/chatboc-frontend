@@ -4,7 +4,7 @@ interface JwtPayload {
   exp?: number;
 }
 
-const decodeJwtPayload = (token: string): JwtPayload | null => {
+function decodeJwtPayload(token: string): JwtPayload | null {
   const parts = token.split(".");
   if (parts.length < 2) return null;
 
@@ -18,17 +18,17 @@ const decodeJwtPayload = (token: string): JwtPayload | null => {
   } catch {
     return null;
   }
-};
+}
 
-export const isJwtExpired = (token: string, skewSeconds = 30): boolean => {
+export function isJwtExpired(token: string, skewSeconds = 30): boolean {
   const payload = decodeJwtPayload(token);
   if (!payload || typeof payload.exp !== "number") return false;
 
   const now = Math.floor(Date.now() / 1000);
   return payload.exp + skewSeconds < now;
-};
+}
 
-export const getValidStoredToken = (tokenKey: string): string | null => {
+export function getValidStoredToken(tokenKey: string): string | null {
   const token = safeLocalStorage.getItem(tokenKey);
   if (!token) return null;
 
@@ -38,4 +38,4 @@ export const getValidStoredToken = (tokenKey: string): string | null => {
   }
 
   return token;
-};
+}

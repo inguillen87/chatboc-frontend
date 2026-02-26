@@ -4,15 +4,16 @@ import { TENANT_ROUTE_PREFIXES, TENANT_PLACEHOLDER_SLUGS } from '@/constants/ten
 // Re-export constants for backward compatibility if any file still imports from here
 export { TENANT_ROUTE_PREFIXES, TENANT_PLACEHOLDER_SLUGS };
 
-const isPlaceholderSlug = (slug?: string | null) => {
+function isPlaceholderSlug(slug?: string | null) {
   if (!slug) return false;
   return TENANT_PLACEHOLDER_SLUGS.has(slug.trim().toLowerCase());
-};
+}
 
-const hasTenantPrefix = (path: string) =>
-  TENANT_ROUTE_PREFIXES.some((prefix) => path.startsWith(`/${prefix}/`));
+function hasTenantPrefix(path: string) {
+  return TENANT_ROUTE_PREFIXES.some((prefix) => path.startsWith(`/${prefix}/`));
+}
 
-const stripTenantPrefix = (path: string) => {
+function stripTenantPrefix(path: string) {
   const normalized = path.startsWith('/') ? path.slice(1) : path;
   const segments = normalized.split('/');
   const [firstSegment, ...rest] = segments;
@@ -24,7 +25,7 @@ const stripTenantPrefix = (path: string) => {
   }
 
   return normalized;
-};
+}
 
 /**
  * Builds a path that includes the tenant slug as the first segment.
@@ -33,7 +34,7 @@ const stripTenantPrefix = (path: string) => {
  * It avoids double-prefixing. If the path already has a prefix, it might replace it or leave it
  * depending on logic, but here we prioritize a clean /:slug/:path structure.
  */
-export const buildTenantPath = (basePath: string, tenantSlug?: string | null) => {
+export function buildTenantPath(basePath: string, tenantSlug?: string | null) {
   const normalizedSlug = tenantSlug?.trim();
   const safeSlug = normalizedSlug?.toLowerCase();
 
@@ -52,9 +53,9 @@ export const buildTenantPath = (basePath: string, tenantSlug?: string | null) =>
 
   // Fallback: if no slug, return original path (maybe root path)
   return `/${normalizedPath}`;
-};
+}
 
-export const buildTenantApiPath = (basePath: string, tenantSlug?: string | null) => {
+export function buildTenantApiPath(basePath: string, tenantSlug?: string | null) {
   const normalized = basePath.startsWith('/') ? basePath.slice(1) : basePath;
   const safeSlug = tenantSlug?.trim();
 
@@ -64,13 +65,13 @@ export const buildTenantApiPath = (basePath: string, tenantSlug?: string | null)
   }
 
   return `/api/${normalized}`;
-};
+}
 
-export const buildTenantAwareNavigatePath = (
+export function buildTenantAwareNavigatePath(
   basePath: string,
   tenantSlug?: string | null,
   fallbackQueryParam = 'tenant_slug',
-) => {
+) {
   if (tenantSlug) {
     return buildTenantPath(basePath, tenantSlug);
   }
@@ -79,9 +80,9 @@ export const buildTenantAwareNavigatePath = (
     return `${basePath}${separator}${fallbackQueryParam}=`;
   }
   return basePath;
-};
+}
 
-const applySlugPlaceholder = (template: string, tenantSlug?: string | null) => {
+function applySlugPlaceholder(template: string, tenantSlug?: string | null) {
   const trimmed = template.trim();
   const hasPlaceholder = trimmed.includes(':slug');
 
@@ -92,11 +93,13 @@ const applySlugPlaceholder = (template: string, tenantSlug?: string | null) => {
   }
 
   return trimmed;
-};
+}
 
-const isAbsoluteUrl = (value: string) => /^https?:\/\//i.test(value);
+function isAbsoluteUrl(value: string) {
+  return /^https?:\/\//i.test(value);
+}
 
-const toAbsoluteUrl = (raw: string, baseUrl?: string | null) => {
+function toAbsoluteUrl(raw: string, baseUrl?: string | null) {
   const candidateBase = baseUrl?.trim();
   try {
     if (isAbsoluteUrl(raw)) {
@@ -113,7 +116,7 @@ const toAbsoluteUrl = (raw: string, baseUrl?: string | null) => {
     console.warn('[tenantPaths] No se pudo construir URL absoluta', { raw, baseUrl, error });
     return null;
   }
-};
+}
 
 interface BuildTenantNavigationUrlOptions {
   basePath: string;
@@ -123,13 +126,13 @@ interface BuildTenantNavigationUrlOptions {
   fallbackQueryParam?: string | null;
 }
 
-export const buildTenantNavigationUrl = ({
+export function buildTenantNavigationUrl({
   basePath,
   tenantSlug,
   tenant,
   preferredUrl,
   fallbackQueryParam = 'tenant_slug',
-}: BuildTenantNavigationUrlOptions) => {
+}: BuildTenantNavigationUrlOptions) {
   const normalizedPath = basePath.startsWith('/') ? basePath : `/${basePath}`;
   const safeSlug = tenantSlug?.trim() || null;
   const publicBase = tenant?.public_base_url ?? null;
@@ -150,4 +153,4 @@ export const buildTenantNavigationUrl = ({
 
   const fallback = buildTenantAwareNavigatePath(normalizedPath, safeSlug, fallbackQueryParam || undefined);
   return toAbsoluteUrl(fallback, typeof window !== 'undefined' ? window.location?.origin : undefined) ?? fallback;
-};
+}

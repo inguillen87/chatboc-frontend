@@ -3,7 +3,7 @@ import { Boton } from "@/types/chat";
 
 const baseApiUrl = (BASE_API_URL || "").replace(/\/$/, "");
 
-export const ensureAbsoluteUrl = (value?: string | null): string | undefined => {
+export function ensureAbsoluteUrl(value?: string | null): string | undefined {
   if (typeof value !== "string") return undefined;
   const trimmed = value.trim();
   if (!trimmed) return undefined;
@@ -20,18 +20,18 @@ export const ensureAbsoluteUrl = (value?: string | null): string | undefined => 
     return trimmed;
   }
   return `/${trimmed}`;
-};
+}
 
-export const pickFirstString = (...values: unknown[]): string | undefined => {
+export function pickFirstString(...values: unknown[]): string | undefined {
   for (const value of values) {
     if (typeof value === "string" && value.trim()) {
       return value;
     }
   }
   return undefined;
-};
+}
 
-const extractArray = (source: any): any[] => {
+function extractArray(source: any): any[] {
   if (!source) return [];
   if (Array.isArray(source)) return source;
   if (Array.isArray(source?.botones)) return source.botones;
@@ -39,9 +39,9 @@ const extractArray = (source: any): any[] => {
   if (Array.isArray(source?.options)) return source.options;
   if (Array.isArray(source?.items)) return source.items;
   return [];
-};
+}
 
-const normalizeButton = (raw: any): Boton | null => {
+function normalizeButton(raw: any): Boton | null {
   if (!raw || typeof raw !== "object") return null;
   const texto = pickFirstString(
     raw.texto,
@@ -88,9 +88,9 @@ const normalizeButton = (raw: any): Boton | null => {
   }
 
   return boton;
-};
+}
 
-export const mergeButtons = (...sources: any[]): Boton[] => {
+export function mergeButtons(...sources: any[]): Boton[] {
   const seen = new Set<string>();
   const result: Boton[] = [];
   sources.forEach((source) => {
@@ -106,9 +106,9 @@ export const mergeButtons = (...sources: any[]): Boton[] => {
       });
   });
   return result;
-};
+}
 
-export const extractButtonsFromResponse = (data: any): Boton[] => {
+export function extractButtonsFromResponse(data: any): Boton[] {
   if (!data || typeof data !== "object") {
     return [];
   }
@@ -124,6 +124,6 @@ export const extractButtonsFromResponse = (data: any): Boton[] => {
     data.quick_replies,
     data.metadata
   );
-};
+}
 
 export default mergeButtons;
