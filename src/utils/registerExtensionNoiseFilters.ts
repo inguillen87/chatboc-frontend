@@ -4,8 +4,7 @@ export const KNOWN_EXTENSION_PATTERNS = [
   /This document requires 'TrustedScript' assignment/i,
   /No matching tab found/i,
   /Removing unpermitted intrinsics/i,
-  /Cannot access '.*' before initialization/i, // Catch generic cyclic/TDZ errors (ReferenceError, etc) more broadly
-  /ReferenceError: Cannot access '.*' before initialization/i, // Explicitly match ReferenceError string
+  /Cannot access '.+' before initialization/i,
 ];
 
 export const EXTENSION_PROTOCOLS = ['chrome-extension://', 'moz-extension://', 'safari-extension://'];
@@ -48,6 +47,16 @@ export function isLikelyExtensionNoise(value: unknown): boolean {
   if (value && typeof value === 'object' && 'stack' in value) {
     const stack = String((value as { stack?: unknown }).stack ?? '');
     if (isExtensionUrl(stack)) {
+      return true;
+    }
+
+    // Some browser wallets/extensions inject inpage bridges (MessagePort + inpage.js)
+    // that can trigger transient TDZ errors unrelated to app business logic.
+    if (
+      /\binpage\.js\b/i.test(stack) ||
+      /\blockdown-install\.js\b/i.test(stack) ||
+      /\boverlay\.js\b/i.test(stack)
+    ) {
       return true;
     }
   }
