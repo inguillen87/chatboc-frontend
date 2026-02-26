@@ -8,141 +8,67 @@ interface ErrorBoundaryState {
   hasError: boolean;
 }
 
-const STALE_BUNDLE_RECOVERY_KEY = 'chatboc_stale_bundle_recovery_attempts';
-const MAX_STALE_BUNDLE_RECOVERY_ATTEMPTS = 2;
-
-function getActiveBundleFingerprint(): string {
-  if (typeof document === 'undefined') return 'unknown';
-  const script = document.querySelector('script[src*="/assets/main-"]') as HTMLScriptElement | null;
-  const src = script?.src || '';
-  const match = src.match(/\/assets\/main-([^./]+)\.js/i);
-  return match?.[1] || 'unknown';
-}
-
-function getRecoveryStorageKey(): string {
-  return `${STALE_BUNDLE_RECOVERY_KEY}:${getActiveBundleFingerprint()}`;
-}
-
-function extractErrorName(error: unknown): string {
-  if (error && typeof error === 'object' && 'name' in error) {
-    const value = (error as { name?: unknown }).name;
-    if (typeof value === 'string') return value;
-  }
-  return '';
-}
-
-function extractErrorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message || '';
-  if (error && typeof error === 'object' && 'message' in error) {
-    const value = (error as { message?: unknown }).message;
-    if (typeof value === 'string') return value;
-  }
-  if (typeof error === 'string') return error;
-  return '';
-}
-
-function extractErrorStack(error: unknown): string {
-  if (error instanceof Error) return String(error.stack || '');
-  if (error && typeof error === 'object' && 'stack' in error) {
-    return String((error as { stack?: unknown }).stack || '');
-  }
-  return '';
-}
-
-function getRecoveryAttempts(): number {
-  if (typeof window === 'undefined') return 0;
-  const storageKey = getRecoveryStorageKey();
-  try {
-    const raw = window.sessionStorage.getItem(storageKey);
-    const parsed = Number(raw);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
-  } catch {
-    const bag = (window as typeof window & { __chatbocStaleRecoveryAttempts?: Record<string, number> })
-      .__chatbocStaleRecoveryAttempts;
-    const value = bag?.[storageKey];
-    return Number.isFinite(value) && value > 0 ? Number(value) : 0;
-  }
-}
-
-function setRecoveryAttempts(value: number) {
-  if (typeof window === 'undefined') return;
-  const storageKey = getRecoveryStorageKey();
-  try {
-    window.sessionStorage.setItem(storageKey, String(value));
-  } catch {
-    const target = window as typeof window & { __chatbocStaleRecoveryAttempts?: Record<string, number> };
-    const bag = target.__chatbocStaleRecoveryAttempts || {};
-    bag[storageKey] = value;
-    target.__chatbocStaleRecoveryAttempts = bag;
-  }
-}
-
-function shouldAttemptStaleBundleRecovery(error: unknown): boolean {
-  if (typeof window === 'undefined') return false;
-
-  const message = extractErrorMessage(error);
-  const stack = extractErrorStack(error);
-  const name = extractErrorName(error);
-
-  const seemsReferenceError = name.toLowerCase() === 'referenceerror' || /referenceerror/i.test(stack);
-  if (!seemsReferenceError) return false;
-
-  const looksLikeTdz = /Cannot access '.+' before initialization/i.test(message);
-  const referencesBundledAssets =
-    /\/assets\/(main|IframePage|ErrorBoundary)-.+\.js/i.test(stack) ||
-    /\bmain-[^\s)]+\.js\b/i.test(stack);
-
-  if (!looksLikeTdz || !referencesBundledAssets) {
-    return false;
-  }
-
-  const attempts = getRecoveryAttempts();
-  if (attempts >= MAX_STALE_BUNDLE_RECOVERY_ATTEMPTS) {
-    return false;
-  }
-
-  return true;
-}
-
-function shouldSuppressTransientTdzError(error: unknown): boolean {
-  const message = extractErrorMessage(error);
-  const stack = extractErrorStack(error);
-
-  const looksLikeTdz = /Cannot access '.+' before initialization/i.test(message);
-  if (!looksLikeTdz) return false;
-
-  // Extension bridges usually surface through MessagePort and injected scripts.
-  // Treat these as transient/noise to avoid crashing the full UI.
-  const hasExtensionSignals =
-    /\bMessagePort\b/i.test(stack) ||
-    /\binpage\.js\b/i.test(stack) ||
-    /\blockdown-install\.js\b/i.test(stack) ||
-    /\boverlay\.js\b/i.test(stack);
-
-  return hasExtensionSignals;
-}
-
-function attemptStaleBundleRecovery() {
-  if (typeof window === 'undefined') return;
-
-  try {
-    setRecoveryAttempts(getRecoveryAttempts() + 1);
-    const url = new URL(window.location.href);
-    url.searchParams.set('cb', Date.now().toString());
-    window.location.replace(url.toString());
-  } catch {
-    window.location.reload();
-  }
-}
-
 class ErrorBoundary extends React.Component<React.PropsWithChildren<ErrorBoundaryProps>, ErrorBoundaryState> {
   constructor(props: React.PropsWithChildren<ErrorBoundaryProps>) {
     super(props);
     this.state = { hasError: false };
   }
 
+  // Moved filtering logic inside the class as a static method to prevent scope/access issues
+  // during bundling or initialization.
+  static checkExtensionNoise(value: unknown): boolean {
+    const KNOWN_PATTERNS = [
+      /Cannot assign to read only property '(ethereum|tronLink)' of object '#<Window>'/i,
+      /Cannot assign to read only property '(ethereum|tronLink)'/i,
+      /This document requires 'TrustedScript' assignment/i,
+      /No matching tab found/i,
+      /Removing unpermitted intrinsics/i,
+      /Cannot access '.*' before initialization/i,
+      /ReferenceError: Cannot access '.*' before initialization/i,
+    ];
+
+    const PROTOCOLS = ['chrome-extension://', 'moz-extension://', 'safari-extension://'];
+
+    const extractMessage = (val: unknown): string => {
+      try {
+        if (typeof val === 'string') return val;
+        if (val && typeof val === 'object') {
+           if ('message' in val && typeof (val as any).message === 'string') {
+              return (val as any).message;
+           }
+           if (val.toString && val.toString() !== '[object Object]') {
+              return val.toString();
+           }
+        }
+        if (val instanceof Error) return val.message;
+      } catch (e) {
+        return '';
+      }
+      return '';
+    };
+
+    const isExtUrl = (url: string | null | undefined): boolean => {
+      if (typeof url !== 'string' || !url) return false;
+      return PROTOCOLS.some((protocol) => url.startsWith(protocol));
+    };
+
+    const message = extractMessage(value);
+    if (KNOWN_PATTERNS.some((pattern) => pattern.test(message))) {
+      return true;
+    }
+
+    if (value && typeof value === 'object' && 'stack' in value) {
+      const stack = String((value as { stack?: unknown }).stack ?? '');
+      if (isExtUrl(stack)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   static getDerivedStateFromError(error: unknown): ErrorBoundaryState {
-    if (isLikelyExtensionNoise(error) || shouldSuppressTransientTdzError(error)) {
+    if (ErrorBoundary.checkExtensionNoise(error)) {
       return { hasError: false };
     }
 
@@ -150,13 +76,7 @@ class ErrorBoundary extends React.Component<React.PropsWithChildren<ErrorBoundar
   }
 
   componentDidCatch(error: unknown, info: unknown) {
-    if (isLikelyExtensionNoise(error) || shouldSuppressTransientTdzError(error)) {
-      return;
-    }
-
-    if (shouldAttemptStaleBundleRecovery(error)) {
-      console.warn('[ErrorBoundary] Detected possible stale bundle mismatch. Attempting one-time reload.');
-      attemptStaleBundleRecovery();
+    if (ErrorBoundary.checkExtensionNoise(error)) {
       return;
     }
 

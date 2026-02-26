@@ -29,18 +29,16 @@ import {
 import { getErrorMessage } from '@/utils/api';
 import { enterpriseService } from '@/services/enterpriseService';
 
-function formatDateLabel(value?: string | null) {
+const formatDateLabel = (value?: string | null) => {
   if (!value) return null;
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return null;
   return parsed.toLocaleDateString();
-}
+};
 
-function asSafeText(value?: unknown) {
-  return typeof value === 'string' ? value : '';
-}
+const asSafeText = (value?: unknown) => (typeof value === 'string' ? value : '');
 
-function asRenderableText(value?: unknown) {
+const asRenderableText = (value?: unknown) => {
   if (typeof value === 'string' || typeof value === 'number') return String(value);
   if (!value || typeof value !== 'object') return '';
 
@@ -51,9 +49,9 @@ function asRenderableText(value?: unknown) {
   }
 
   return '';
-}
+};
 
-function renderLabeledMetric(label: string, value: string | number) {
+const renderLabeledMetric = (label: string, value: string | number) => {
   if (label.trim()) {
     return (
       <p>
@@ -67,9 +65,9 @@ function renderLabeledMetric(label: string, value: string | number) {
       <strong>{value}</strong>
     </p>
   );
-}
+};
 
-export default function SurveyAnalyticsPage() {
+const SurveyAnalyticsPage = () => {
   const params = useParams();
   const surveyId = useMemo(() => (params.id ? Number(params.id) : null), [params.id]);
   const { survey, surveys, isLoadingSurvey, surveyError } = useSurveyAdmin({ id: surveyId ?? undefined });
@@ -807,4 +805,6 @@ export default function SurveyAnalyticsPage() {
       </Card>
     </div>
   );
-}
+};
+
+export default SurveyAnalyticsPage;
