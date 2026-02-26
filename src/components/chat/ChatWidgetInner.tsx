@@ -1082,16 +1082,29 @@ function ChatWidgetInner({
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
+      // 1. Strict validation of event structure to filter out noise (e.g. extensions like MetaMask, React DevTools)
       if (!event.data) return;
+
+      // Reject events that are clearly not ours or come from untrusted sources if we are in iframe
+      // In standalone mode, we might receive events from window itself, so we can't strict check source === parent always.
+      // But we can filter common noise patterns.
+
+      const d = event.data;
+
+      // Ignore known extension noise patterns
+      if (d?.target === 'inpage' || d?.target === 'contentscript') return;
+      if (typeof d?.target === 'string' && d.target.startsWith('metamask-')) return;
+      if (d?.source === 'react-devtools-bridge') return;
+
       // Allow generic OPEN_CHAT even if widgetId doesn't match perfectly if it's a global signal
-      if (event.data === "OPEN_CHAT" || event.data.type === "OPEN_CHAT") {
+      if (d === "OPEN_CHAT" || d?.type === "OPEN_CHAT") {
           setIsOpen(true);
           return;
       }
 
-      if (event.data.type === "OPEN_CHAT_WITH_CONTEXT") {
-          const { tenantSlug, tipoChat, context } = event.data;
-          console.log("ChatWidget: Received context override", event.data);
+      if (d?.type === "OPEN_CHAT_WITH_CONTEXT") {
+          const { tenantSlug, tipoChat, context } = d;
+          console.log("ChatWidget: Received context override", d);
 
           if (tenantSlug) {
               setContextOverride((prev: any) => ({ ...prev, tenantSlug }));
@@ -1106,12 +1119,12 @@ function ChatWidgetInner({
           return;
       }
 
-      if (event.data.widgetId !== widgetId) return;
+      if (d?.widgetId !== widgetId) return;
 
-      if (event.data.type === "TOGGLE_CHAT") {
-        setIsOpen(event.data.isOpen);
-      } else if (event.data.type === "SET_VIEW") {
-        const v = event.data.view;
+      if (d?.type === "TOGGLE_CHAT") {
+        setIsOpen(d.isOpen);
+      } else if (d?.type === "SET_VIEW") {
+        const v = d.view;
         if (['chat', 'register', 'login', 'user', 'info'].includes(v)) {
           setView(v as any);
         }
