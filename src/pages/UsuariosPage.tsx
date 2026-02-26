@@ -159,7 +159,7 @@ export default function UsuariosPage() {
         const params = new URLSearchParams();
         if (search.trim()) params.set('search', search.trim());
         if (marketingOnly) params.set('marketing', 'true');
-        const url = `/crm/clientes${params.toString() ? `?${params.toString()}` : ''}`;
+        const url = `/api/crm/clientes${params.toString() ? `?${params.toString()}` : ''}`;
         const data = await apiFetch<RawUsuario[]>(url);
         if (Array.isArray(data)) {
           setUsuarios(data.map((item, index) => normalizeUsuario(item, index)));
