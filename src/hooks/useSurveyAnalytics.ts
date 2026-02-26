@@ -186,14 +186,24 @@ export function useSurveyAnalytics(
     [dashboardQuery.data?.modules?.summary, summaryQuery.data, fallbackAnalytics?.summary],
   );
 
-  const timeseriesData = useMemo(
+  const timeseriesDataRaw = useMemo(
     () => pickTimeseries(dashboardQuery.data?.modules?.timeseries ?? timeseriesQuery.data, fallbackAnalytics?.timeseries),
     [dashboardQuery.data?.modules?.timeseries, timeseriesQuery.data, fallbackAnalytics?.timeseries],
   );
 
-  const heatmapData = useMemo(
+  const heatmapDataRaw = useMemo(
     () => pickHeatmap(dashboardQuery.data?.modules?.heatmap?.points ?? heatmapQuery.data?.points, fallbackAnalytics?.heatmap),
     [dashboardQuery.data?.modules?.heatmap?.points, heatmapQuery.data?.points, fallbackAnalytics?.heatmap],
+  );
+
+  const timeseriesData = useMemo(
+    () => (Array.isArray(timeseriesDataRaw) ? timeseriesDataRaw : []),
+    [timeseriesDataRaw],
+  );
+
+  const heatmapData = useMemo(
+    () => (Array.isArray(heatmapDataRaw) ? heatmapDataRaw : []),
+    [heatmapDataRaw],
   );
 
   const heatmapMeta = useMemo(
@@ -217,7 +227,9 @@ export function useSurveyAnalytics(
       return null;
     }
 
-    const hasMeaningfulResult = Boolean(summaryData) || timeseriesData.length > 0 || heatmapData.length > 0;
+    const safeTimeseries = Array.isArray(timeseriesData) ? timeseriesData : [];
+    const safeHeatmap = Array.isArray(heatmapData) ? heatmapData : [];
+    const hasMeaningfulResult = Boolean(summaryData) || safeTimeseries.length > 0 || safeHeatmap.length > 0;
     if (hasMeaningfulResult) {
       return null;
     }
