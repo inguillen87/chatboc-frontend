@@ -7,6 +7,7 @@ import { getChatbocConfig } from "@/utils/config";
 import { hexToHsl } from "@/utils/color";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { GOOGLE_CLIENT_ID } from '@/env';
+import { apiFetch } from '@/utils/api';
 
 const DEFAULTS = {
   openWidth: "460px",
