@@ -1,7 +1,7 @@
 // utils/api.ts
 
 import { API_BASE_CANDIDATES, BASE_API_URL, SAME_ORIGIN_PROXY_BASE } from '@/config';
-import { TENANT_ROUTE_PREFIXES } from '@/utils/tenantPaths';
+import { TENANT_ROUTE_PREFIXES } from '@/constants/tenant';
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import getOrCreateChatSessionId from "@/utils/chatSessionId"; // Import the new function
 import { getOrCreateAnonId } from "@/utils/anonIdGenerator";
