@@ -1,5 +1,4 @@
 import React from 'react';
-import { isLikelyExtensionNoise } from '@/utils/registerExtensionNoiseFilters';
 
 interface ErrorBoundaryProps {
   fallbackMessage?: string;
@@ -9,6 +8,194 @@ interface ErrorBoundaryState {
   hasError: boolean;
 }
 
+const STALE_BUNDLE_RECOVERY_KEY = 'chatboc_stale_bundle_recovery_attempts';
+const MAX_STALE_BUNDLE_RECOVERY_ATTEMPTS = 2;
+
+function getActiveBundleFingerprint(): string {
+  if (typeof document === 'undefined') return 'unknown';
+  const script = document.querySelector('script[src*="/assets/main-"]') as HTMLScriptElement | null;
+  const src = script?.src || '';
+  const match = src.match(/\/assets\/main-([^./]+)\.js/i);
+  return match?.[1] || 'unknown';
+}
+
+function getRecoveryStorageKey(): string {
+  return `${STALE_BUNDLE_RECOVERY_KEY}:${getActiveBundleFingerprint()}`;
+}
+
+function extractErrorName(error: unknown): string {
+  if (error && typeof error === 'object' && 'name' in error) {
+    const value = (error as { name?: unknown }).name;
+    if (typeof value === 'string') return value;
+  }
+  return '';
+}
+
+function extractErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message || '';
+  if (error && typeof error === 'object' && 'message' in error) {
+    const value = (error as { message?: unknown }).message;
+    if (typeof value === 'string') return value;
+  }
+  if (typeof error === 'string') return error;
+  return '';
+}
+
+function extractErrorStack(error: unknown): string {
+  if (error instanceof Error) return String(error.stack || '');
+  if (error && typeof error === 'object' && 'stack' in error) {
+    return String((error as { stack?: unknown }).stack || '');
+  }
+  return '';
+}
+
+
+function extractInfoText(info: unknown): string {
+  if (!info) return '';
+  if (typeof info === 'string') return info;
+  if (typeof info === 'object' && 'componentStack' in info) {
+    const stack = (info as { componentStack?: unknown }).componentStack;
+    return typeof stack === 'string' ? stack : '';
+  }
+  return '';
+}
+
+function isTdzReferenceError(error: unknown): boolean {
+  const message = extractErrorMessage(error);
+  const name = extractErrorName(error);
+  return /Cannot access '.+' before initialization/i.test(message) && /referenceerror/i.test(name || '');
+}
+
+function getRecoveryAttemptsFromQuery(): number {
+  if (typeof window === 'undefined') return 0;
+
+  try {
+    const searchParams = new URLSearchParams(window.location.search);
+    const fromQuery = Number(searchParams.get('cb_attempt'));
+    return Number.isFinite(fromQuery) && fromQuery > 0 ? fromQuery : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function getRecoveryAttempts(): number {
+  if (typeof window === 'undefined') return 0;
+  const storageKey = getRecoveryStorageKey();
+  const queryAttempts = getRecoveryAttemptsFromQuery();
+
+  try {
+    const raw = window.sessionStorage.getItem(storageKey);
+    const parsed = Number(raw);
+    const storageAttempts = Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+    return Math.max(storageAttempts, queryAttempts);
+  } catch {
+    const bag = (window as typeof window & { __chatbocStaleRecoveryAttempts?: Record<string, number> })
+      .__chatbocStaleRecoveryAttempts;
+    const value = bag?.[storageKey];
+    const memoryAttempts = Number.isFinite(value) && value > 0 ? Number(value) : 0;
+    return Math.max(memoryAttempts, queryAttempts);
+  }
+}
+
+function setRecoveryAttempts(value: number) {
+  if (typeof window === 'undefined') return;
+  const storageKey = getRecoveryStorageKey();
+  try {
+    window.sessionStorage.setItem(storageKey, String(value));
+  } catch {
+    const target = window as typeof window & { __chatbocStaleRecoveryAttempts?: Record<string, number> };
+    const bag = target.__chatbocStaleRecoveryAttempts || {};
+    bag[storageKey] = value;
+    target.__chatbocStaleRecoveryAttempts = bag;
+  }
+}
+
+function shouldAttemptStaleBundleRecovery(error: unknown): boolean {
+  if (typeof window === 'undefined') return false;
+
+  const message = extractErrorMessage(error);
+  const stack = extractErrorStack(error);
+  const name = extractErrorName(error);
+
+  const seemsReferenceError = name.toLowerCase() === 'referenceerror' || /referenceerror/i.test(stack);
+  if (!seemsReferenceError) return false;
+
+  const looksLikeTdz = /Cannot access '.+' before initialization/i.test(message);
+  const referencesBundledAssets =
+    /\/assets\/(main|IframePage|ErrorBoundary)-.+\.js/i.test(stack) ||
+    /\bmain-[^\s)]+\.js\b/i.test(stack);
+
+  if (!looksLikeTdz || !referencesBundledAssets) {
+    return false;
+  }
+
+  const attempts = getRecoveryAttempts();
+  if (attempts >= MAX_STALE_BUNDLE_RECOVERY_ATTEMPTS) {
+    return false;
+  }
+
+  return true;
+}
+
+function shouldSuppressTransientTdzError(error: unknown, info?: unknown): boolean {
+  const message = extractErrorMessage(error);
+  const stack = extractErrorStack(error);
+  const infoText = extractInfoText(info);
+
+  const looksLikeTdz = /Cannot access '.+' before initialization/i.test(message);
+  if (!looksLikeTdz) return false;
+
+  // Extension bridges usually surface through MessagePort/inpage scripts.
+  // Treat these as transient/noise to avoid repeated false crashes.
+  const hasExtensionSignals =
+    /\bMessagePort\b/i.test(stack) ||
+    /\binpage\.js\b/i.test(stack) ||
+    /\blockdown-install\.js\b/i.test(stack) ||
+    /\boverlay\.js\b/i.test(stack) ||
+    /registerExtensionNoiseFilters-[^\s)]+\.js/i.test(stack) ||
+    /\bMessagePort\b/i.test(infoText) ||
+    /registerExtensionNoiseFilters-[^\s)]+\.js/i.test(infoText);
+
+  return hasExtensionSignals;
+}
+
+function isLikelyExtensionNoise(error: unknown): boolean {
+  const message = extractErrorMessage(error);
+  const stack = extractErrorStack(error);
+
+  if (
+    /No matching tab found/i.test(message) ||
+    /Removing unpermitted intrinsics/i.test(message) ||
+    /Cannot assign to read only property '(ethereum|tronLink)'/i.test(message)
+  ) {
+    return true;
+  }
+
+  return (
+    /chrome-extension:\/\//i.test(stack) ||
+    /moz-extension:\/\//i.test(stack) ||
+    /safari-extension:\/\//i.test(stack) ||
+    /\binpage\.js\b/i.test(stack) ||
+    /\blockdown-install\.js\b/i.test(stack) ||
+    /\boverlay\.js\b/i.test(stack)
+  );
+}
+
+function attemptStaleBundleRecovery() {
+  if (typeof window === 'undefined') return;
+
+  try {
+    const nextAttempt = getRecoveryAttempts() + 1;
+    setRecoveryAttempts(nextAttempt);
+    const url = new URL(window.location.href);
+    url.searchParams.set('cb', Date.now().toString());
+    url.searchParams.set('cb_attempt', String(nextAttempt));
+    window.location.replace(url.toString());
+  } catch {
+    window.location.reload();
+  }
+}
+
 class ErrorBoundary extends React.Component<React.PropsWithChildren<ErrorBoundaryProps>, ErrorBoundaryState> {
   constructor(props: React.PropsWithChildren<ErrorBoundaryProps>) {
     super(props);
@@ -16,7 +203,10 @@ class ErrorBoundary extends React.Component<React.PropsWithChildren<ErrorBoundar
   }
 
   static getDerivedStateFromError(error: unknown): ErrorBoundaryState {
-    if (isLikelyExtensionNoise(error)) {
+    // Keep the app mounted for TDZ runtime errors and let componentDidCatch
+    // decide whether to recover (stale bundle) or log. This avoids full UI
+    // fallback loops caused by transient extension/inpage noise.
+    if (isTdzReferenceError(error) || isLikelyExtensionNoise(error) || shouldSuppressTransientTdzError(error)) {
       return { hasError: false };
     }
 
@@ -24,7 +214,13 @@ class ErrorBoundary extends React.Component<React.PropsWithChildren<ErrorBoundar
   }
 
   componentDidCatch(error: unknown, info: unknown) {
-    if (isLikelyExtensionNoise(error)) {
+    if (isLikelyExtensionNoise(error) || shouldSuppressTransientTdzError(error, info)) {
+      return;
+    }
+
+    if (shouldAttemptStaleBundleRecovery(error)) {
+      console.warn('[ErrorBoundary] Detected possible stale bundle mismatch. Attempting one-time reload.');
+      attemptStaleBundleRecovery();
       return;
     }
 

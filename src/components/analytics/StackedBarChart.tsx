@@ -4,6 +4,7 @@ import type { BreakdownResponse } from '@/services/analyticsService';
 import { WidgetFrame } from './WidgetFrame';
 import ChartTooltip from './ChartTooltip';
 import { AnalyticsEmptyState } from './AnalyticsEmptyState';
+import ChartMount from './ChartMount';
 
 interface StackedBarChartProps {
   title: string;
@@ -27,7 +28,7 @@ export function StackedBarChart({ title, description, data, loading, exportName 
 
   return (
     <WidgetFrame title={title} description={description} csvData={csv} exportFilename={exportName}>
-      <div className="h-72 w-full">
+      <ChartMount className="h-72 w-full min-w-0" minWidth={280} minHeight={220}>
         {loading ? (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
             Generando gráfico...
@@ -35,7 +36,7 @@ export function StackedBarChart({ title, description, data, loading, exportName 
         ) : !hasData ? (
           <AnalyticsEmptyState />
         ) : (
-          <ResponsiveContainer>
+          <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220}>
             <BarChart data={formatted} margin={{ left: 16, right: 16, top: 10, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.3} />
               <XAxis dataKey="label" tickLine={false} axisLine={false} fontSize={12} interval={0} angle={-25} dy={10} />
@@ -46,7 +47,7 @@ export function StackedBarChart({ title, description, data, loading, exportName 
             </BarChart>
           </ResponsiveContainer>
         )}
-      </div>
+      </ChartMount>
     </WidgetFrame>
   );
 }

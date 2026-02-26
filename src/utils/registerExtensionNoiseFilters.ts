@@ -38,6 +38,16 @@ export function isLikelyExtensionNoise(value: unknown): boolean {
     if (isExtensionUrl(stack)) {
       return true;
     }
+
+    // Some browser wallets/extensions inject inpage bridges (MessagePort + inpage.js)
+    // that can trigger transient TDZ errors unrelated to app business logic.
+    if (
+      /\binpage\.js\b/i.test(stack) ||
+      /\blockdown-install\.js\b/i.test(stack) ||
+      /\boverlay\.js\b/i.test(stack)
+    ) {
+      return true;
+    }
   }
 
   return false;
@@ -60,10 +70,13 @@ export function registerExtensionNoiseFilters(): () => void {
 
   const handleError = (event: ErrorEvent) => {
     try {
-      const errorMessage = extractMessage(event.error ?? event.message);
-      const fromExtension = isExtensionUrl(event.filename) || isExtensionUrl((event.error as any)?.stack);
+      const errorPayload = event.error ?? event.message;
+      const errorMessage = extractMessage(errorPayload);
+      const fromExtension =
+        isExtensionUrl(event.filename) ||
+        isExtensionUrl((event.error as { stack?: unknown } | null | undefined)?.stack as string | undefined);
 
-      if (fromExtension || shouldIgnore(errorMessage)) {
+      if (fromExtension || shouldIgnore(errorMessage) || isLikelyExtensionNoise(errorPayload)) {
         event.preventDefault?.();
         event.stopImmediatePropagation?.();
         return false;
