@@ -160,12 +160,6 @@ class ErrorBoundary extends React.Component<React.PropsWithChildren<ErrorBoundar
       return;
     }
 
-    if (shouldAttemptStaleBundleRecovery(error)) {
-      console.warn('[ErrorBoundary] Detected possible stale bundle mismatch. Attempting one-time reload.');
-      attemptStaleBundleRecovery();
-      return;
-    }
-
     console.error('ErrorBoundary caught an error', error, info);
   }
 
