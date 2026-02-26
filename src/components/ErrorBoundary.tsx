@@ -1,5 +1,4 @@
 import React from 'react';
-import { isLikelyExtensionNoise } from '@/utils/registerExtensionNoiseFilters';
 
 interface ErrorBoundaryProps {
   fallbackMessage?: string;
@@ -9,113 +8,67 @@ interface ErrorBoundaryState {
   hasError: boolean;
 }
 
-const STALE_BUNDLE_RECOVERY_KEY = 'chatboc_stale_bundle_recovery_attempts';
-const MAX_STALE_BUNDLE_RECOVERY_ATTEMPTS = 2;
+// Inlined from registerExtensionNoiseFilters to avoid cyclic dependency risks
+const KNOWN_EXTENSION_PATTERNS = [
+  /Cannot assign to read only property '(ethereum|tronLink)' of object '#<Window>'/i,
+  /Cannot assign to read only property '(ethereum|tronLink)'/i,
+  /This document requires 'TrustedScript' assignment/i,
+  /No matching tab found/i,
+  /Removing unpermitted intrinsics/i,
+  /Cannot access '.*' before initialization/i, // Catch generic cyclic/TDZ errors
+  /ReferenceError: Cannot access '.*' before initialization/i, // Explicitly match ReferenceError string
+];
 
-function getActiveBundleFingerprint(): string {
-  if (typeof document === 'undefined') return 'unknown';
-  const script = document.querySelector('script[src*="/assets/main-"]') as HTMLScriptElement | null;
-  const src = script?.src || '';
-  const match = src.match(/\/assets\/main-([^./]+)\.js/i);
-  return match?.[1] || 'unknown';
-}
+const EXTENSION_PROTOCOLS = ['chrome-extension://', 'moz-extension://', 'safari-extension://'];
 
-function getRecoveryStorageKey(): string {
-  return `${STALE_BUNDLE_RECOVERY_KEY}:${getActiveBundleFingerprint()}`;
-}
-
-function extractErrorName(error: unknown): string {
-  if (error && typeof error === 'object' && 'name' in error) {
-    const value = (error as { name?: unknown }).name;
-    if (typeof value === 'string') return value;
+function extractMessage(value: unknown): string {
+  try {
+    if (typeof value === 'string') {
+      return value;
+    }
+    if (value && typeof value === 'object') {
+       if ('message' in value && typeof (value as any).message === 'string') {
+          return (value as any).message;
+       }
+       // Sometimes errors are wrapped or custom objects
+       if (value.toString && value.toString() !== '[object Object]') {
+          return value.toString();
+       }
+    }
+    if (value instanceof Error) {
+      return value.message;
+    }
+  } catch (e) {
+    return '';
   }
   return '';
 }
 
-function extractErrorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message || '';
-  if (error && typeof error === 'object' && 'message' in error) {
-    const value = (error as { message?: unknown }).message;
-    if (typeof value === 'string') return value;
-  }
-  if (typeof error === 'string') return error;
-  return '';
+function shouldIgnore(message: string | null | undefined): boolean {
+  if (!message) return false;
+  return KNOWN_EXTENSION_PATTERNS.some((pattern) => pattern.test(message));
 }
 
-function extractErrorStack(error: unknown): string {
-  if (error instanceof Error) return String(error.stack || '');
-  if (error && typeof error === 'object' && 'stack' in error) {
-    return String((error as { stack?: unknown }).stack || '');
-  }
-  return '';
+function isExtensionUrl(url: string | null | undefined): boolean {
+  if (typeof url !== 'string' || !url) return false;
+  return EXTENSION_PROTOCOLS.some((protocol) => url.startsWith(protocol));
 }
 
-function getRecoveryAttempts(): number {
-  if (typeof window === 'undefined') return 0;
-  const storageKey = getRecoveryStorageKey();
-  try {
-    const raw = window.sessionStorage.getItem(storageKey);
-    const parsed = Number(raw);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
-  } catch {
-    const bag = (window as typeof window & { __chatbocStaleRecoveryAttempts?: Record<string, number> })
-      .__chatbocStaleRecoveryAttempts;
-    const value = bag?.[storageKey];
-    return Number.isFinite(value) && value > 0 ? Number(value) : 0;
-  }
-}
+function isLikelyExtensionNoise(value: unknown): boolean {
+  const message = extractMessage(value);
 
-function setRecoveryAttempts(value: number) {
-  if (typeof window === 'undefined') return;
-  const storageKey = getRecoveryStorageKey();
-  try {
-    window.sessionStorage.setItem(storageKey, String(value));
-  } catch {
-    const target = window as typeof window & { __chatbocStaleRecoveryAttempts?: Record<string, number> };
-    const bag = target.__chatbocStaleRecoveryAttempts || {};
-    bag[storageKey] = value;
-    target.__chatbocStaleRecoveryAttempts = bag;
-  }
-}
-
-function shouldAttemptStaleBundleRecovery(error: unknown): boolean {
-  if (typeof window === 'undefined') return false;
-
-  const message = extractErrorMessage(error);
-  const stack = extractErrorStack(error);
-  const name = extractErrorName(error);
-
-  const seemsReferenceError = name.toLowerCase() === 'referenceerror' || /referenceerror/i.test(stack);
-  if (!seemsReferenceError) return false;
-
-  const looksLikeTdz = /Cannot access '.+' before initialization/i.test(message);
-  const referencesBundledAssets =
-    /\/assets\/(main|IframePage|ErrorBoundary)-.+\.js/i.test(stack) ||
-    /\bmain-[^\s)]+\.js\b/i.test(stack);
-
-  if (!looksLikeTdz || !referencesBundledAssets) {
-    return false;
+  if (shouldIgnore(message)) {
+    return true;
   }
 
-  const attempts = getRecoveryAttempts();
-  if (attempts >= MAX_STALE_BUNDLE_RECOVERY_ATTEMPTS) {
-    return false;
+  if (value && typeof value === 'object' && 'stack' in value) {
+    const stack = String((value as { stack?: unknown }).stack ?? '');
+    if (isExtensionUrl(stack)) {
+      return true;
+    }
   }
 
-  return true;
-}
-
-function attemptStaleBundleRecovery() {
-  if (typeof window === 'undefined') return;
-
-  try {
-    setRecoveryAttempts(getRecoveryAttempts() + 1);
-    const url = new URL(window.location.href);
-    url.searchParams.set('cb', Date.now().toString());
-    window.location.replace(url.toString());
-  } catch {
-    window.location.reload();
-  }
+  return false;
 }
 
 class ErrorBoundary extends React.Component<React.PropsWithChildren<ErrorBoundaryProps>, ErrorBoundaryState> {

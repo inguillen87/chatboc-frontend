@@ -127,10 +127,13 @@ function detectSessionStorage(): StorageLike | null {
 }
 
 /* ===== Exports principales ===== */
+// Use direct assignment instead of intermediate `const safeStorage = ...`
+// This avoids double assignment and potentially simplifies module evaluation order.
 export const safeStorage: StorageLike = wrapWithFallback(
   detectLocalStorage(),
   memoryLocalStorage
 );
+
 export const safeSessionStorage: StorageLike = wrapWithFallback(
   detectSessionStorage(),
   memorySessionStorage
@@ -147,5 +150,5 @@ export const safeSessionStorageSetItem = (k: string, v: string) => safeSessionSt
 export const safeSessionStorageRemoveItem = (k: string) => safeSessionStorage.removeItem(k);
 export const safeSessionStorageClear = () => safeSessionStorage.clear();
 
-/* Default (por si en algún lado lo importaste así) */
+/* Default export points to safeStorage directly */
 export default safeStorage;
