@@ -4,19 +4,31 @@ const KNOWN_EXTENSION_PATTERNS = [
   /This document requires 'TrustedScript' assignment/i,
   /No matching tab found/i,
   /Removing unpermitted intrinsics/i,
+  /Cannot access '.*' before initialization/i, // Catch generic cyclic/TDZ errors (ReferenceError, etc) more broadly
+  /ReferenceError: Cannot access '.*' before initialization/i, // Explicitly match ReferenceError string
 ];
 
 const EXTENSION_PROTOCOLS = ['chrome-extension://', 'moz-extension://', 'safari-extension://'];
 
 function extractMessage(value: unknown): string {
-  if (typeof value === 'string') {
-    return value;
-  }
-  if (value && typeof value === 'object' && 'message' in value && typeof (value as any).message === 'string') {
-    return (value as any).message;
-  }
-  if (value instanceof Error) {
-    return value.message;
+  try {
+    if (typeof value === 'string') {
+      return value;
+    }
+    if (value && typeof value === 'object') {
+       if ('message' in value && typeof (value as any).message === 'string') {
+          return (value as any).message;
+       }
+       // Sometimes errors are wrapped or custom objects
+       if (value.toString && value.toString() !== '[object Object]') {
+          return value.toString();
+       }
+    }
+    if (value instanceof Error) {
+      return value.message;
+    }
+  } catch (e) {
+    return '';
   }
   return '';
 }
