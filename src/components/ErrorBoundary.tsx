@@ -23,8 +23,7 @@ class ErrorBoundary extends React.Component<React.PropsWithChildren<ErrorBoundar
       /This document requires 'TrustedScript' assignment/i,
       /No matching tab found/i,
       /Removing unpermitted intrinsics/i,
-      /Cannot access '.*' before initialization/i,
-      /ReferenceError: Cannot access '.*' before initialization/i,
+      // Removed generic TDZ filters to avoid hiding real app bugs
     ];
 
     const PROTOCOLS = ['chrome-extension://', 'moz-extension://', 'safari-extension://'];

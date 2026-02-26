@@ -1,14 +1,18 @@
-export const KNOWN_EXTENSION_PATTERNS = [
-  /Cannot assign to read only property '(ethereum|tronLink)' of object '#<Window>'/i,
-  /Cannot assign to read only property '(ethereum|tronLink)'/i,
-  /This document requires 'TrustedScript' assignment/i,
-  /No matching tab found/i,
-  /Removing unpermitted intrinsics/i,
-  /Cannot access '.*' before initialization/i, // Catch generic cyclic/TDZ errors (ReferenceError, etc) more broadly
-  /ReferenceError: Cannot access '.*' before initialization/i, // Explicitly match ReferenceError string
-];
 
-export const EXTENSION_PROTOCOLS = ['chrome-extension://', 'moz-extension://', 'safari-extension://'];
+function getNoisePatterns() {
+  const KNOWN_PATTERNS = [
+    /Cannot assign to read only property '(ethereum|tronLink)' of object '#<Window>'/i,
+    /Cannot assign to read only property '(ethereum|tronLink)'/i,
+    /This document requires 'TrustedScript' assignment/i,
+    /No matching tab found/i,
+    /Removing unpermitted intrinsics/i,
+    // Removed generic TDZ filters to avoid hiding real app bugs
+  ];
+
+  const PROTOCOLS = ['chrome-extension://', 'moz-extension://', 'safari-extension://'];
+
+  return { KNOWN_PATTERNS, PROTOCOLS };
+}
 
 function extractMessage(value: unknown): string {
   try {
@@ -35,7 +39,14 @@ function extractMessage(value: unknown): string {
 
 function shouldIgnore(message: string | null | undefined): boolean {
   if (!message) return false;
-  return KNOWN_EXTENSION_PATTERNS.some((pattern) => pattern.test(message));
+  const { KNOWN_PATTERNS } = getNoisePatterns();
+  return KNOWN_PATTERNS.some((pattern) => pattern.test(message));
+}
+
+function isExtensionUrl(url: string | null | undefined): boolean {
+  if (typeof url !== 'string' || !url) return false;
+  const { PROTOCOLS } = getNoisePatterns();
+  return PROTOCOLS.some((protocol) => url.startsWith(protocol));
 }
 
 export function isLikelyExtensionNoise(value: unknown): boolean {
@@ -53,11 +64,6 @@ export function isLikelyExtensionNoise(value: unknown): boolean {
   }
 
   return false;
-}
-
-function isExtensionUrl(url: string | null | undefined): boolean {
-  if (typeof url !== 'string' || !url) return false;
-  return EXTENSION_PROTOCOLS.some((protocol) => url.startsWith(protocol));
 }
 
 export function registerExtensionNoiseFilters(): () => void {
