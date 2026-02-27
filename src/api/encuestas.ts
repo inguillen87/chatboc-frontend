@@ -22,6 +22,7 @@ import {
   SurveyAlert,
   SurveyBrief,
   SurveySegmentsCompare,
+  SurveySegmentsSuggestions,
   SurveyAnomalies,
   SurveyDashboardBundle,
 } from '@/types/encuestas';
@@ -802,6 +803,13 @@ export const getSurveySegmentsCompare = (
   },
 ): Promise<SurveySegmentsCompare> =>
   callAdminSurveyEndpoint(`${id}/analytics/segments/compare${buildQueryString(params)}`);
+
+
+export const getSurveySegmentsSuggestions = (
+  id: number,
+  params?: { limit?: number },
+): Promise<SurveySegmentsSuggestions> =>
+  callAdminSurveyEndpoint(`${id}/analytics/segments/suggestions${buildQueryString(params)}`);
 
 export const getSurveyAnomalies = (
   id: number,
