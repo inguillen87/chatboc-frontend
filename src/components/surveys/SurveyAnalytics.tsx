@@ -42,6 +42,7 @@ interface SurveyAnalyticsProps {
   filters?: SurveyAnalyticsFilters;
   onFiltersChange?: (next: SurveyAnalyticsFilters) => void;
   tenantSlug?: string;
+  tenantId?: number;
   route?: string;
 }
 
@@ -456,6 +457,7 @@ export const SurveyAnalytics = ({
   filters,
   onFiltersChange,
   tenantSlug,
+  tenantId,
   route = '/admin/encuestas/:id/analytics',
 }: SurveyAnalyticsProps) => {
   const timeseriesData = useMemo(() => buildTimeseriesData(timeseries), [timeseries]);
@@ -800,8 +802,8 @@ export const SurveyAnalytics = ({
       error_code: heatmapData.length > 0 ? null : 'empty_dataset',
     };
 
-    void enterpriseService.trackEvent({ event, payload }, tenantSlug).catch(() => undefined);
-  }, [heatmapData.length, route, tenantSlug]);
+    void enterpriseService.trackEvent({ event, tenant_id: tenantId, payload }, tenantSlug).catch(() => undefined);
+  }, [heatmapData.length, route, tenantId, tenantSlug]);
 
   return (
     <div className="space-y-6">
