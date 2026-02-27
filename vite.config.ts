@@ -126,12 +126,30 @@ export default defineConfig(({ mode }) => {
       }
     },
     build: {
+      chunkSizeWarningLimit: 1600,
       rollupOptions: {
         input: {
           main: path.resolve(__dirname, "index.html"),
           iframe: path.resolve(__dirname, "iframe.html"),
         },
         output: {
+          manualChunks(id) {
+            if (!id.includes('node_modules')) return;
+
+            if (id.includes('maplibre-gl')) return 'vendor-maplibre';
+            if (id.includes('recharts') || id.includes('/d3-')) return 'vendor-charts';
+            if (id.includes('html2canvas')) return 'vendor-html2canvas';
+
+            const packagePath = id.split('node_modules/')[1];
+            if (!packagePath) return 'vendor-misc';
+
+            const [rawName, maybeScopePackage] = packagePath.split('/');
+            const packageName = rawName.startsWith('@') && maybeScopePackage
+              ? `${rawName}/${maybeScopePackage}`
+              : rawName;
+            const safePackageName = packageName.replace('@', '').replace('/', '-');
+            return `vendor-${safePackageName}`;
+          },
           // Use content hashes to avoid stale asset mixes (old chunks with new entries)
           // that can trigger runtime errors after deployments or SW updates.
           entryFileNames: 'assets/[name]-[hash].js',

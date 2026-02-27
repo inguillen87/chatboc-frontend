@@ -992,11 +992,11 @@ export default function SurveyAnalyticsPage() {
             <CardDescription>{asSafeText(enterpriseUiConfig?.intelligence_center_description)}</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 lg:grid-cols-2">
-            <div className="rounded-lg border border-border/60 p-4">
+            <div className="min-w-0 rounded-lg border border-border/60 p-4">
               <p className="mb-3 text-sm font-medium">{asSafeText(enterpriseUiConfig?.segment_delta_chart_title)}</p>
               {segmentDeltaData.length ? (
-                <div className="h-[280px]">
-                  <ResponsiveContainer width="100%" height="100%">
+                <div className="h-[280px] min-w-0">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220} debounce={120}>
                     <BarChart data={segmentDeltaData} margin={{ top: 8, right: 8, left: 0, bottom: 48 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} />
                       <XAxis
@@ -1020,11 +1020,11 @@ export default function SurveyAnalyticsPage() {
                 <p className="text-sm text-muted-foreground">{asSafeText(enterpriseUiConfig?.segment_delta_chart_empty_label)}</p>
               )}
             </div>
-            <div className="rounded-lg border border-border/60 p-4">
+            <div className="min-w-0 rounded-lg border border-border/60 p-4">
               <p className="mb-3 text-sm font-medium">{asSafeText(enterpriseUiConfig?.anomaly_signals_chart_title)}</p>
               {anomalySignalsData.length ? (
-                <div className="h-[280px]">
-                  <ResponsiveContainer width="100%" height="100%">
+                <div className="h-[280px] min-w-0">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220} debounce={120}>
                     <BarChart data={anomalySignalsData} layout="vertical" margin={{ top: 4, right: 12, left: 0, bottom: 4 }}>
                       <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                       <XAxis type="number" tick={{ fontSize: 11 }} />
