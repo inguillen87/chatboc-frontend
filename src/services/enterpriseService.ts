@@ -515,6 +515,7 @@ export const enterpriseService = {
       method: 'POST',
       body: normalizedPayload,
       tenantSlug,
+      omitTenant: true,
     });
   },
 
