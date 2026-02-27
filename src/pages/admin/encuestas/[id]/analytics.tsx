@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
 import { AlertTriangle, CalendarDays, Copy, Download, ExternalLink, Loader2, Sparkles, TrendingUp } from 'lucide-react';
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 import { SurveyAnalytics } from '@/components/surveys/SurveyAnalytics';
 import { SurveyQrPreview } from '@/components/surveys/SurveyQrPreview';
@@ -68,6 +69,20 @@ function renderLabeledMetric(label: string, value: string | number) {
     </p>
   );
 }
+
+function toFiniteNumber(value: unknown, fallback = 0) {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return fallback;
+}
+
+function asPercentage(value: number) {
+  return `${value.toFixed(1)}%`;
+}
+
 
 export default function SurveyAnalyticsPage() {
   const params = useParams();
@@ -377,6 +392,48 @@ export default function SurveyAnalyticsPage() {
   const effectiveAlerts = backendAlerts.length ? backendAlerts : alerts;
   const backendBrief = dashboardBundle?.modules?.brief;
   const effectiveBrief = backendBrief ?? brief;
+
+
+  const segmentDeltaData = useMemo(
+    () =>
+      (segmentsCompare?.buckets ?? [])
+        .map((bucket, index) => {
+          const segmentA = toFiniteNumber(bucket.segment_a, 0);
+          const segmentB = toFiniteNumber(bucket.segment_b, 0);
+          const rawDelta = bucket.delta;
+          const delta =
+            typeof rawDelta === 'number' && Number.isFinite(rawDelta)
+              ? rawDelta
+              : segmentA === 0
+                ? 0
+                : ((segmentB - segmentA) / Math.max(segmentA, 1)) * 100;
+
+          return {
+            key: String(bucket.question_id ?? index + 1),
+            question: asRenderableText(bucket.question_text) || String(bucket.question_id ?? index + 1),
+            delta,
+            segmentA,
+            segmentB,
+          };
+        })
+        .slice(0, 8),
+    [segmentsCompare?.buckets],
+  );
+
+  const anomalySignalsData = useMemo(
+    () =>
+      (anomalies?.signals ?? [])
+        .map((signal, index) => ({
+          key: String(signal.id ?? index + 1),
+          signal: asRenderableText(signal.type) || String(signal.id ?? index + 1),
+          score: toFiniteNumber(signal.score, 0),
+        }))
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 8),
+    [anomalies?.signals],
+  );
+
+  const shouldRenderAdvancedVisuals = segmentDeltaData.length > 0 || anomalySignalsData.length > 0;
 
   if ((isLoadingSurvey && !surveys) || isLoading) {
     return (
@@ -738,6 +795,67 @@ export default function SurveyAnalyticsPage() {
           </div>
         </CardContent>
       </Card>
+
+
+      {shouldRenderAdvancedVisuals ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>{asSafeText(enterpriseUiConfig?.intelligence_center_title)}</CardTitle>
+            <CardDescription>{asSafeText(enterpriseUiConfig?.intelligence_center_description)}</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 lg:grid-cols-2">
+            <div className="rounded-lg border border-border/60 p-4">
+              <p className="mb-3 text-sm font-medium">{asSafeText(enterpriseUiConfig?.segment_delta_chart_title)}</p>
+              {segmentDeltaData.length ? (
+                <div className="h-[280px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={segmentDeltaData} margin={{ top: 8, right: 8, left: 0, bottom: 48 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                      <XAxis
+                        dataKey="question"
+                        interval={0}
+                        angle={-28}
+                        textAnchor="end"
+                        tick={{ fontSize: 11 }}
+                        height={70}
+                      />
+                      <YAxis tickFormatter={(value) => `${Math.round(Number(value))}%`} tick={{ fontSize: 11 }} />
+                      <Tooltip
+                        formatter={(value: number) => [asPercentage(toFiniteNumber(value, 0)), asSafeText(enterpriseUiConfig?.segment_delta_label)]}
+                        labelFormatter={(label) => `${label}`}
+                      />
+                      <Bar dataKey="delta" fill="#2563eb" radius={[6, 6, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">{asSafeText(enterpriseUiConfig?.segment_delta_chart_empty_label)}</p>
+              )}
+            </div>
+            <div className="rounded-lg border border-border/60 p-4">
+              <p className="mb-3 text-sm font-medium">{asSafeText(enterpriseUiConfig?.anomaly_signals_chart_title)}</p>
+              {anomalySignalsData.length ? (
+                <div className="h-[280px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={anomalySignalsData} layout="vertical" margin={{ top: 4, right: 12, left: 0, bottom: 4 }}>
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                      <XAxis type="number" tick={{ fontSize: 11 }} />
+                      <YAxis dataKey="signal" type="category" width={120} tick={{ fontSize: 11 }} />
+                      <Tooltip
+                        formatter={(value: number) => [toFiniteNumber(value, 0), asSafeText(enterpriseUiConfig?.anomaly_score_label)]}
+                        labelFormatter={(label) => `${label}`}
+                      />
+                      <Bar dataKey="score" fill="#f59e0b" radius={[0, 6, 6, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">{asSafeText(enterpriseUiConfig?.anomaly_signals_chart_empty_label)}</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <SurveyRecentResponses
         responses={responses}
