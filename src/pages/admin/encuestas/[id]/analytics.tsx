@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
 import { AlertTriangle, CalendarDays, Copy, Download, ExternalLink, Loader2, Sparkles, TrendingUp } from 'lucide-react';
@@ -18,7 +18,7 @@ import { useSurveyResponses } from '@/hooks/useSurveyResponses';
 import { useSurveySeedResponses } from '@/hooks/useSurveySeedResponses';
 import { toast } from '@/components/ui/use-toast';
 import { getAbsolutePublicSurveyUrl, getPublicSurveyQrUrl } from '@/utils/publicSurveyUrl';
-import { getSurveyAlerts, getSurveyAnomalies, getSurveyBrief, getSurveyForecast, getSurveySegmentsCompare } from '@/api/encuestas';
+import { getSurveyAlerts, getSurveyAnomalies, getSurveyBrief, getSurveyForecast, getSurveySegmentsCompare, getSurveySegmentsSuggestions } from '@/api/encuestas';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -79,6 +79,16 @@ function toFiniteNumber(value: unknown, fallback = 0) {
   return fallback;
 }
 
+function asPercentage(value: number) {
+  return `${value.toFixed(1)}%`;
+}
+
+function normalizePriority(value: unknown) {
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  if (typeof value === 'string' && value.trim()) return value;
+  return '';
+}
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
 }
@@ -95,10 +105,34 @@ function asStringList(value: unknown): string[] {
     .filter((item): item is string => Boolean(item.trim()));
 }
 
-function normalizePriority(value: unknown) {
-  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+function normalizeSegmentFilterValue(value: unknown): string | undefined {
   if (typeof value === 'string' && value.trim()) return value;
-  return '';
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (Array.isArray(value)) {
+    const values = value
+      .map((item) => normalizeSegmentFilterValue(item))
+      .filter((item): item is string => Boolean(item));
+    if (values.length) return values.join(',');
+  }
+  return undefined;
+}
+
+function encodeSegmentFilters(filters: Record<string, unknown>) {
+  const normalizedEntries = Object.entries(filters)
+    .map(([key, value]) => [key, normalizeSegmentFilterValue(value)] as const)
+    .filter((entry): entry is readonly [string, string] => Boolean(entry[1]))
+    .sort(([a], [b]) => a.localeCompare(b));
+  return normalizedEntries.map(([key, value]) => `${key}:${value}`).join('|');
+}
+
+function decodeSegmentFilters(encodedValue: string) {
+  if (!encodedValue) return {} as Record<string, string>;
+  return encodedValue.split('|').reduce<Record<string, string>>((acc, pair) => {
+    const [key, ...rest] = pair.split(':');
+    const value = rest.join(':');
+    if (key && value) acc[key] = value;
+    return acc;
+  }, {});
 }
 
 
@@ -131,6 +165,8 @@ export default function SurveyAnalyticsPage() {
   } = useSurveyResponses(surveyId ?? undefined);
   const queryClient = useQueryClient();
   const { seed: seedSurveyResponses, isSeeding } = useSurveySeedResponses();
+  const [segmentAKey, setSegmentAKey] = useState<string>('');
+  const [segmentBKey, setSegmentBKey] = useState<string>('');
 
   const forecastQuery = useQuery({
     queryKey: ['survey-analytics-forecast', surveyId],
@@ -150,10 +186,53 @@ export default function SurveyAnalyticsPage() {
     queryFn: () => getSurveyBrief(surveyId as number),
     staleTime: 60_000,
   });
-  const compareQuery = useQuery({
-    queryKey: ['survey-analytics-segments-compare', surveyId],
+  const segmentsSuggestionsQuery = useQuery({
+    queryKey: ['survey-analytics-segments-suggestions', surveyId],
     enabled: Boolean(surveyId),
-    queryFn: () => getSurveySegmentsCompare(surveyId as number, { a_canal: 'web', b_canal: 'whatsapp' }),
+    queryFn: () => getSurveySegmentsSuggestions(surveyId as number, { limit: 5 }),
+    staleTime: 60_000,
+  });
+
+  const segmentSuggestionOptions = useMemo(() => {
+    const dimensions = segmentsSuggestionsQuery.data?.dimensions;
+    if (!dimensions || typeof dimensions !== 'object') return [] as Array<{ key: string; label: string; dimension: string }>;
+
+    return Object.entries(dimensions).flatMap(([dimension, suggestions]) =>
+      (Array.isArray(suggestions) ? suggestions : []).map((suggestion, index) => {
+        const filters = asRecord(suggestion?.filters) ?? {};
+        const encoded = encodeSegmentFilters(filters);
+        const fallbackKey = encoded || `${dimension}:${index}`;
+        const label = asRenderableText(suggestion?.label) || `${dimension} ${index + 1}`;
+        return { key: fallbackKey, label, dimension };
+      }),
+    );
+  }, [segmentsSuggestionsQuery.data?.dimensions]);
+
+  useEffect(() => {
+    if (!segmentSuggestionOptions.length) return;
+    if (!segmentAKey) {
+      setSegmentAKey(segmentSuggestionOptions[0]?.key ?? '');
+    }
+    if (!segmentBKey) {
+      const fallback = segmentSuggestionOptions[1]?.key ?? segmentSuggestionOptions[0]?.key ?? '';
+      setSegmentBKey(fallback);
+    }
+  }, [segmentSuggestionOptions, segmentAKey, segmentBKey]);
+
+  const compareParams = useMemo(() => {
+    const aFilters = decodeSegmentFilters(segmentAKey);
+    const bFilters = decodeSegmentFilters(segmentBKey);
+
+    const aEntries = Object.entries(aFilters).map(([key, value]) => [`a_${key}`, value] as const);
+    const bEntries = Object.entries(bFilters).map(([key, value]) => [`b_${key}`, value] as const);
+
+    return Object.fromEntries([...aEntries, ...bEntries]);
+  }, [segmentAKey, segmentBKey]);
+
+  const compareQuery = useQuery({
+    queryKey: ['survey-analytics-segments-compare', surveyId, compareParams],
+    enabled: Boolean(surveyId),
+    queryFn: () => getSurveySegmentsCompare(surveyId as number, compareParams),
     staleTime: 30_000,
   });
   const anomaliesQuery = useQuery({
@@ -208,7 +287,12 @@ export default function SurveyAnalyticsPage() {
     [dashboardBundle?.admin_template],
   );
   const adminTemplateTabs = useMemo(() => asRecordList(adminTemplate?.tabs), [adminTemplate?.tabs]);
-  const adminTemplateDatasets = useMemo(() => asRecordList(adminTemplate?.datasets), [adminTemplate?.datasets]);
+  const adminTemplateDatasets = useMemo(() => {
+    if (Array.isArray(adminTemplate?.datasets)) return asRecordList(adminTemplate.datasets);
+    const datasetsRecord = asRecord(adminTemplate?.datasets);
+    if (!datasetsRecord) return [] as Array<Record<string, unknown>>;
+    return Object.entries(datasetsRecord).map(([key, value]) => ({ key, items: Array.isArray(value) ? value : [value] }));
+  }, [adminTemplate?.datasets]);
   const adminTemplateDecisionCards = useMemo(
     () => asRecordList(adminTemplate?.decision_cards),
     [adminTemplate?.decision_cards],
@@ -216,17 +300,25 @@ export default function SurveyAnalyticsPage() {
   const adminTemplateMapLayers = useMemo(() => asRecordList(adminTemplate?.map_layers), [adminTemplate?.map_layers]);
   const adminTemplateStackGroups = useMemo(() => {
     const stack = asRecord(adminTemplate?.stack);
-    if (!stack) return [] as Array<{ key: string; libs: string[] }>;
-    return Object.entries(stack)
-      .map(([key, value]) => ({ key, libs: asStringList(value) }))
-      .filter((group) => group.libs.length > 0);
-  }, [adminTemplate?.stack]);
+    const recommended = asStringList(asRecord(adminTemplate?.chart_stack)?.recommended);
+    const groups = stack
+      ? Object.entries(stack)
+          .map(([key, value]) => ({ key, libs: asStringList(value) }))
+          .filter((group) => group.libs.length > 0)
+      : [];
+    if (recommended.length) {
+      groups.unshift({ key: 'recommended', libs: recommended });
+    }
+    return groups;
+  }, [adminTemplate?.stack, adminTemplate?.chart_stack]);
+  const adminTemplateVisualModules = useMemo(() => asRecordList(adminTemplate?.visual_modules), [adminTemplate?.visual_modules]);
   const hasAdminTemplateContent = Boolean(
     adminTemplateTabs.length ||
       adminTemplateDatasets.length ||
       adminTemplateDecisionCards.length ||
       adminTemplateMapLayers.length ||
-      adminTemplateStackGroups.length,
+      adminTemplateStackGroups.length ||
+      adminTemplateVisualModules.length,
   );
 
   const demographicFilterOptions = useMemo(() => {
@@ -436,6 +528,66 @@ export default function SurveyAnalyticsPage() {
   const effectiveAlerts = backendAlerts.length ? backendAlerts : alerts;
   const backendBrief = dashboardBundle?.modules?.brief;
   const effectiveBrief = backendBrief ?? brief;
+  const executiveKpisEntries = useMemo(() => {
+    const source = dashboardBundle?.kpis_executive;
+    if (!source || typeof source !== 'object') return [] as Array<{ key: string; value: Record<string, unknown> }>;
+    return Object.entries(source).map(([key, value]) => ({ key, value: asRecord(value) ?? {} }));
+  }, [dashboardBundle?.kpis_executive]);
+  const topAnomalies = useMemo(
+    () => (Array.isArray(anomalies?.top_anomalies) && anomalies.top_anomalies.length ? anomalies.top_anomalies : anomalies?.signals ?? []),
+    [anomalies?.top_anomalies, anomalies?.signals],
+  );
+
+
+  const segmentDeltaData = useMemo(
+    () =>
+      (segmentsCompare?.buckets ?? [])
+        .map((bucket, index) => {
+          const segmentA = toFiniteNumber(bucket.segment_a, 0);
+          const segmentB = toFiniteNumber(bucket.segment_b, 0);
+          const rawDelta = bucket.delta;
+          const delta =
+            typeof rawDelta === 'number' && Number.isFinite(rawDelta)
+              ? rawDelta
+              : segmentA === 0
+                ? 0
+                : ((segmentB - segmentA) / Math.max(segmentA, 1)) * 100;
+
+          return {
+            key: String(bucket.question_id ?? index + 1),
+            question: asRenderableText(bucket.question_text) || String(bucket.question_id ?? index + 1),
+            delta,
+            segmentA,
+            segmentB,
+          };
+        })
+        .slice(0, 8),
+    [segmentsCompare?.buckets],
+  );
+
+  const anomalySignalsData = useMemo(
+    () =>
+      (topAnomalies ?? [])
+        .map((signal, index) => ({
+          key: String(signal.id ?? index + 1),
+          signal: asRenderableText(signal.type) || String(signal.id ?? index + 1),
+          score: toFiniteNumber(signal.score, 0),
+        }))
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 8),
+    [topAnomalies],
+  );
+
+  const selectedSegmentALabel = useMemo(
+    () => segmentSuggestionOptions.find((option) => option.key === segmentAKey)?.label ?? asRenderableText(segmentsCompare?.segment_a_label),
+    [segmentSuggestionOptions, segmentAKey, segmentsCompare?.segment_a_label],
+  );
+  const selectedSegmentBLabel = useMemo(
+    () => segmentSuggestionOptions.find((option) => option.key === segmentBKey)?.label ?? asRenderableText(segmentsCompare?.segment_b_label),
+    [segmentSuggestionOptions, segmentBKey, segmentsCompare?.segment_b_label],
+  );
+
+  const shouldRenderAdvancedVisuals = segmentDeltaData.length > 0 || anomalySignalsData.length > 0;
 
 
   const segmentDeltaData = useMemo(
@@ -793,6 +945,40 @@ export default function SurveyAnalyticsPage() {
           <CardDescription>{asSafeText(enterpriseUiConfig?.territorial_center_description)}</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 lg:grid-cols-2">
+          {segmentSuggestionOptions.length ? (
+            <div className="lg:col-span-2 grid gap-3 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="segment-a-selector">{asSafeText(enterpriseUiConfig?.segment_selector_a_label)}</Label>
+                <Select value={segmentAKey} onValueChange={setSegmentAKey}>
+                  <SelectTrigger id="segment-a-selector">
+                    <SelectValue placeholder={asSafeText(enterpriseUiConfig?.segment_selector_placeholder)} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {segmentSuggestionOptions.map((option) => (
+                      <SelectItem key={`segment-a-${option.key}`} value={option.key}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="segment-b-selector">{asSafeText(enterpriseUiConfig?.segment_selector_b_label)}</Label>
+                <Select value={segmentBKey} onValueChange={setSegmentBKey}>
+                  <SelectTrigger id="segment-b-selector">
+                    <SelectValue placeholder={asSafeText(enterpriseUiConfig?.segment_selector_placeholder)} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {segmentSuggestionOptions.map((option) => (
+                      <SelectItem key={`segment-b-${option.key}`} value={option.key}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          ) : null}
           <div className="rounded-lg border border-border/60 p-4">
             <p className="mb-2 text-sm font-medium">{asSafeText(enterpriseUiConfig?.segment_comparator_title)}</p>
             {compareQuery.isLoading ? (
@@ -805,8 +991,8 @@ export default function SurveyAnalyticsPage() {
                   <div key={`${bucket.question_id ?? index}`} className="space-y-1">
                     <p className="text-xs text-muted-foreground">{asRenderableText(bucket.question_text)}</p>
                     <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div className="rounded bg-primary/10 px-2 py-1">{asRenderableText(segmentsCompare.segment_a_label)}: {bucket.segment_a ?? 0}</div>
-                      <div className="rounded bg-amber-500/10 px-2 py-1">{asRenderableText(segmentsCompare.segment_b_label)}: {bucket.segment_b ?? 0}</div>
+                      <div className="rounded bg-primary/10 px-2 py-1">{selectedSegmentALabel || asRenderableText(segmentsCompare.segment_a_label)}: {bucket.segment_a ?? 0}</div>
+                      <div className="rounded bg-amber-500/10 px-2 py-1">{selectedSegmentBLabel || asRenderableText(segmentsCompare.segment_b_label)}: {bucket.segment_b ?? 0}</div>
                     </div>
                   </div>
                 ))}
@@ -987,6 +1173,18 @@ export default function SurveyAnalyticsPage() {
               </div>
             ) : null}
 
+            {adminTemplateVisualModules.length ? (
+              <div className="grid gap-3 lg:grid-cols-2">
+                {adminTemplateVisualModules.slice(0, 6).map((module, index) => (
+                  <div key={`${asRenderableText(module.key) || 'module'}-${index}`} className="rounded-lg border border-border/60 p-3 text-xs">
+                    <p className="font-medium">{asRenderableText(module.title) || asRenderableText(module.key)}</p>
+                    <p className="text-muted-foreground">{asRenderableText(module.description)}</p>
+                    <p className="text-muted-foreground">{asRenderableText(module.empty_state)}</p>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
             {adminTemplateMapLayers.length ? (
               <div className="grid gap-2 sm:grid-cols-2">
                 {adminTemplateMapLayers.map((layer, index) => (
@@ -997,6 +1195,26 @@ export default function SurveyAnalyticsPage() {
                 ))}
               </div>
             ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {executiveKpisEntries.length ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>{asSafeText(enterpriseUiConfig?.executive_kpis_title)}</CardTitle>
+            <CardDescription>{asSafeText(enterpriseUiConfig?.executive_kpis_description)}</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {executiveKpisEntries.map((item) => (
+              <div key={item.key} className="rounded-lg border border-border/60 p-3 text-sm">
+                <p className="text-muted-foreground">{asRenderableText(item.key)}</p>
+                <p className="text-xl font-semibold">{asRenderableText(item.value.value)}</p>
+                <p className="text-xs text-muted-foreground">{asRenderableText(item.value.trend)}</p>
+                <p className="text-xs text-muted-foreground">{asRenderableText(item.value.status)}</p>
+                <p className="text-xs text-muted-foreground">{asRenderableText(item.value.explanation)}</p>
+              </div>
+            ))}
           </CardContent>
         </Card>
       ) : null}
