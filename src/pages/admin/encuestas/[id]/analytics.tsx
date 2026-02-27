@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
 import { AlertTriangle, CalendarDays, Copy, Download, ExternalLink, Loader2, Sparkles, TrendingUp } from 'lucide-react';
@@ -29,6 +29,47 @@ import {
 } from '@/components/ui/select';
 import { getErrorMessage } from '@/utils/api';
 import { enterpriseService } from '@/services/enterpriseService';
+
+
+function ChartVisibilityGuard({
+  minWidth,
+  minHeight,
+  renderWhenVisible,
+  children,
+}: {
+  minWidth: number;
+  minHeight: number;
+  renderWhenVisible: boolean;
+  children: ReactNode;
+}) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [canRender, setCanRender] = useState(!renderWhenVisible);
+
+  useEffect(() => {
+    if (!renderWhenVisible) {
+      setCanRender(true);
+      return;
+    }
+
+    const node = containerRef.current;
+    if (!node) return;
+
+    const observer = new ResizeObserver(() => {
+      const { width, height } = node.getBoundingClientRect();
+      setCanRender(width > 0 && height > 0);
+    });
+
+    observer.observe(node);
+
+    return () => observer.disconnect();
+  }, [renderWhenVisible]);
+
+  return (
+    <div ref={containerRef} className="min-w-0" style={{ minWidth, minHeight }}>
+      {canRender ? children : null}
+    </div>
+  );
+}
 
 function formatDateLabel(value?: string | null) {
   if (!value) return null;
@@ -126,7 +167,7 @@ function encodeSegmentFilters(filters: Record<string, unknown>) {
 }
 
 function decodeSegmentFilters(encodedValue: string) {
-  if (!encodedValue) return {} as Record<string, string>;
+  if (!encodedValue || encodedValue.startsWith('__empty__')) return {} as Record<string, string>;
   return encodedValue.split('|').reduce<Record<string, string>>((acc, pair) => {
     const [key, ...rest] = pair.split(':');
     const value = rest.join(':');
@@ -198,26 +239,29 @@ export default function SurveyAnalyticsPage() {
     if (!dimensions || typeof dimensions !== 'object') return [] as Array<{ key: string; label: string; dimension: string }>;
 
     return Object.entries(dimensions).flatMap(([dimension, suggestions]) =>
-      (Array.isArray(suggestions) ? suggestions : []).map((suggestion, index) => {
-        const filters = asRecord(suggestion?.filters) ?? {};
-        const encoded = encodeSegmentFilters(filters);
-        const fallbackKey = encoded || `${dimension}:${index}`;
-        const label = asRenderableText(suggestion?.label) || `${dimension} ${index + 1}`;
-        return { key: fallbackKey, label, dimension };
-      }),
+      (Array.isArray(suggestions) ? suggestions : [])
+        .map((suggestion, index) => {
+          const filters = asRecord(suggestion?.filters) ?? {};
+          const encoded = encodeSegmentFilters(filters);
+          const fallbackKey = encoded || `__empty__:${dimension}:${index}`;
+          const label = asRenderableText(suggestion?.label);
+          if (!label) return null;
+          return { key: fallbackKey, label, dimension };
+        })
+        .filter((option): option is { key: string; label: string; dimension: string } => Boolean(option)),
     );
   }, [segmentsSuggestionsQuery.data?.dimensions]);
 
   useEffect(() => {
+    setSegmentAKey('');
+    setSegmentBKey('');
+  }, [surveyId]);
+
+  useEffect(() => {
     if (!segmentSuggestionOptions.length) return;
-    if (!segmentAKey) {
-      setSegmentAKey(segmentSuggestionOptions[0]?.key ?? '');
-    }
-    if (!segmentBKey) {
-      const fallback = segmentSuggestionOptions[1]?.key ?? segmentSuggestionOptions[0]?.key ?? '';
-      setSegmentBKey(fallback);
-    }
-  }, [segmentSuggestionOptions, segmentAKey, segmentBKey]);
+    setSegmentAKey((current) => current || segmentSuggestionOptions[0]?.key || '');
+    setSegmentBKey((current) => current || segmentSuggestionOptions[1]?.key || segmentSuggestionOptions[0]?.key || '');
+  }, [segmentSuggestionOptions]);
 
   const compareParams = useMemo(() => {
     const aFilters = decodeSegmentFilters(segmentAKey);
@@ -229,9 +273,14 @@ export default function SurveyAnalyticsPage() {
     return Object.fromEntries([...aEntries, ...bEntries]);
   }, [segmentAKey, segmentBKey]);
 
+  const hasCompareFiltersReady = useMemo(
+    () => Boolean(segmentAKey && segmentBKey && Object.keys(compareParams).length > 0),
+    [segmentAKey, segmentBKey, compareParams],
+  );
+
   const compareQuery = useQuery({
     queryKey: ['survey-analytics-segments-compare', surveyId, compareParams],
-    enabled: Boolean(surveyId),
+    enabled: Boolean(surveyId && hasCompareFiltersReady),
     queryFn: () => getSurveySegmentsCompare(surveyId as number, compareParams),
     staleTime: 30_000,
   });
@@ -260,10 +309,12 @@ export default function SurveyAnalyticsPage() {
           build_version: import.meta.env.VITE_APP_VERSION || 'dev',
           survey_id: surveyId,
         },
+        fallback_event_name: telemetryFallbackEventName,
+        event_endpoint_preferred: telemetryEventEndpoint,
       },
       effectiveTenantSlug,
     ).catch(() => undefined);
-  }, [surveyId, effectiveTenantSlug]);
+  }, [surveyId, effectiveTenantSlug, telemetryEventEndpoint, telemetryFallbackEventName]);
 
   const publicUrl = useMemo(
     () => (effectiveSurvey?.slug ? getAbsolutePublicSurveyUrl(effectiveSurvey.slug) : null),
@@ -301,17 +352,35 @@ export default function SurveyAnalyticsPage() {
   const adminTemplateStackGroups = useMemo(() => {
     const stack = asRecord(adminTemplate?.stack);
     const recommended = asStringList(asRecord(adminTemplate?.chart_stack)?.recommended);
+    const recommendedGroupLabel = asRenderableText(asRecord(adminTemplate?.chart_stack)?.recommended_label);
     const groups = stack
       ? Object.entries(stack)
           .map(([key, value]) => ({ key, libs: asStringList(value) }))
           .filter((group) => group.libs.length > 0)
       : [];
     if (recommended.length) {
-      groups.unshift({ key: 'recommended', libs: recommended });
+      groups.unshift({ key: recommendedGroupLabel, libs: recommended });
     }
     return groups;
   }, [adminTemplate?.stack, adminTemplate?.chart_stack]);
   const adminTemplateVisualModules = useMemo(() => asRecordList(adminTemplate?.visual_modules), [adminTemplate?.visual_modules]);
+  const adminTemplateUxGuardrails = useMemo(() => asRecord(adminTemplate?.ux_guardrails), [adminTemplate?.ux_guardrails]);
+  const chartContainerGuardrails = useMemo(
+    () => asRecord(adminTemplateUxGuardrails?.chart_container),
+    [adminTemplateUxGuardrails?.chart_container],
+  );
+  const chartContainerMinWidth = useMemo(
+    () => Math.max(280, Math.round(toFiniteNumber(chartContainerGuardrails?.default_min_width, 280))),
+    [chartContainerGuardrails?.default_min_width],
+  );
+  const chartContainerMinHeight = useMemo(
+    () => Math.max(220, Math.round(toFiniteNumber(chartContainerGuardrails?.default_min_height, 220))),
+    [chartContainerGuardrails?.default_min_height],
+  );
+  const chartRenderWhenVisible = chartContainerGuardrails?.render_when_visible === true;
+  const telemetryGuardrails = useMemo(() => asRecord(adminTemplateUxGuardrails?.telemetry), [adminTemplateUxGuardrails?.telemetry]);
+  const telemetryEventEndpoint = asRenderableText(telemetryGuardrails?.event_endpoint_preferred) || '/api/analytics/event';
+  const telemetryFallbackEventName = asRenderableText(telemetryGuardrails?.fallback_event_name) || 'frontend_analytics_event';
   const hasAdminTemplateContent = Boolean(
     adminTemplateTabs.length ||
       adminTemplateDatasets.length ||
@@ -996,7 +1065,8 @@ export default function SurveyAnalyticsPage() {
               <p className="mb-3 text-sm font-medium">{asSafeText(enterpriseUiConfig?.segment_delta_chart_title)}</p>
               {segmentDeltaData.length ? (
                 <div className="h-[280px] min-w-0">
-                  <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220} debounce={120}>
+                  <ChartVisibilityGuard minWidth={chartContainerMinWidth} minHeight={chartContainerMinHeight} renderWhenVisible={chartRenderWhenVisible}>
+                    <ResponsiveContainer width="100%" height="100%" minWidth={chartContainerMinWidth} minHeight={chartContainerMinHeight} debounce={120}>
                     <BarChart data={segmentDeltaData} margin={{ top: 8, right: 8, left: 0, bottom: 48 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} />
                       <XAxis
@@ -1015,6 +1085,7 @@ export default function SurveyAnalyticsPage() {
                       <Bar dataKey="delta" fill="#2563eb" radius={[6, 6, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
+                  </ChartVisibilityGuard>
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground">{asSafeText(enterpriseUiConfig?.segment_delta_chart_empty_label)}</p>
@@ -1024,7 +1095,8 @@ export default function SurveyAnalyticsPage() {
               <p className="mb-3 text-sm font-medium">{asSafeText(enterpriseUiConfig?.anomaly_signals_chart_title)}</p>
               {anomalySignalsData.length ? (
                 <div className="h-[280px] min-w-0">
-                  <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220} debounce={120}>
+                  <ChartVisibilityGuard minWidth={chartContainerMinWidth} minHeight={chartContainerMinHeight} renderWhenVisible={chartRenderWhenVisible}>
+                    <ResponsiveContainer width="100%" height="100%" minWidth={chartContainerMinWidth} minHeight={chartContainerMinHeight} debounce={120}>
                     <BarChart data={anomalySignalsData} layout="vertical" margin={{ top: 4, right: 12, left: 0, bottom: 4 }}>
                       <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                       <XAxis type="number" tick={{ fontSize: 11 }} />
@@ -1036,6 +1108,7 @@ export default function SurveyAnalyticsPage() {
                       <Bar dataKey="score" fill="#f59e0b" radius={[0, 6, 6, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
+                  </ChartVisibilityGuard>
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground">{asSafeText(enterpriseUiConfig?.anomaly_signals_chart_empty_label)}</p>
@@ -1066,7 +1139,9 @@ export default function SurveyAnalyticsPage() {
               <div className="grid gap-3 md:grid-cols-2">
                 {adminTemplateStackGroups.map((group) => (
                   <div key={group.key} className="rounded-lg border border-border/60 p-3">
-                    <p className="text-xs font-medium uppercase text-muted-foreground">{asRenderableText(group.key)}</p>
+                    {asRenderableText(group.key) ? (
+                      <p className="text-xs font-medium uppercase text-muted-foreground">{asRenderableText(group.key)}</p>
+                    ) : null}
                     <div className="mt-2 flex flex-wrap gap-2">
                       {group.libs.map((library, index) => (
                         <Badge key={`${group.key}-${library}-${index}`} variant="outline">
