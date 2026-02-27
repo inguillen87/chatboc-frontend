@@ -65,7 +65,7 @@ function ChartVisibilityGuard({
   }, [renderWhenVisible]);
 
   return (
-    <div ref={containerRef} className="min-w-0" style={{ minWidth, minHeight }}>
+    <div ref={containerRef} className="min-w-0" style={{ minWidth, minHeight, width: '100%', height: '100%' }}>
       {canRender ? children : null}
     </div>
   );
@@ -369,6 +369,7 @@ export default function SurveyAnalyticsPage() {
     void enterpriseService.trackEvent(
       {
         event: 'analytics_dashboard_loaded',
+        tenant_id: typeof effectiveSurvey?.tenant_id === 'number' ? effectiveSurvey.tenant_id : undefined,
         payload: {
           tenant_slug: effectiveTenantSlug || null,
           route: '/admin/encuestas/:id/analytics',
@@ -380,7 +381,7 @@ export default function SurveyAnalyticsPage() {
       },
       effectiveTenantSlug,
     ).catch(() => undefined);
-  }, [surveyId, effectiveTenantSlug, telemetryEventEndpoint, telemetryFallbackEventName]);
+  }, [surveyId, effectiveSurvey?.tenant_id, effectiveTenantSlug, telemetryEventEndpoint, telemetryFallbackEventName]);
 
   const hasAdminTemplateContent = Boolean(
     adminTemplateTabs.length ||
@@ -891,6 +892,7 @@ export default function SurveyAnalyticsPage() {
             filters={filters}
             onFiltersChange={setFilters}
             tenantSlug={effectiveTenantSlug}
+            tenantId={typeof effectiveSurvey?.tenant_id === 'number' ? effectiveSurvey.tenant_id : undefined}
             route="/admin/encuestas/:id/analytics"
           />
         </CardContent>
