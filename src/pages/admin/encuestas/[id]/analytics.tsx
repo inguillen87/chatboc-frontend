@@ -577,6 +577,48 @@ export default function SurveyAnalyticsPage() {
 
   const shouldRenderAdvancedVisuals = segmentDeltaData.length > 0 || anomalySignalsData.length > 0;
 
+
+  const segmentDeltaData = useMemo(
+    () =>
+      (segmentsCompare?.buckets ?? [])
+        .map((bucket, index) => {
+          const segmentA = toFiniteNumber(bucket.segment_a, 0);
+          const segmentB = toFiniteNumber(bucket.segment_b, 0);
+          const rawDelta = bucket.delta;
+          const delta =
+            typeof rawDelta === 'number' && Number.isFinite(rawDelta)
+              ? rawDelta
+              : segmentA === 0
+                ? 0
+                : ((segmentB - segmentA) / Math.max(segmentA, 1)) * 100;
+
+          return {
+            key: String(bucket.question_id ?? index + 1),
+            question: asRenderableText(bucket.question_text) || String(bucket.question_id ?? index + 1),
+            delta,
+            segmentA,
+            segmentB,
+          };
+        })
+        .slice(0, 8),
+    [segmentsCompare?.buckets],
+  );
+
+  const anomalySignalsData = useMemo(
+    () =>
+      (anomalies?.signals ?? [])
+        .map((signal, index) => ({
+          key: String(signal.id ?? index + 1),
+          signal: asRenderableText(signal.type) || String(signal.id ?? index + 1),
+          score: toFiniteNumber(signal.score, 0),
+        }))
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 8),
+    [anomalies?.signals],
+  );
+
+  const shouldRenderAdvancedVisuals = segmentDeltaData.length > 0 || anomalySignalsData.length > 0;
+
   if ((isLoadingSurvey && !surveys) || isLoading) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center">
