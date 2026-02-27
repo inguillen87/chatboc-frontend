@@ -411,9 +411,55 @@ export interface SurveyDashboardModules {
   [key: string]: unknown;
 }
 
+
+export interface SurveyAdminTemplateTab {
+  key?: string;
+  label?: string;
+  description?: string;
+  [key: string]: unknown;
+}
+
+export interface SurveyAdminTemplateDataset {
+  key?: string;
+  label?: string;
+  description?: string;
+  kind?: string;
+  items?: Array<Record<string, unknown>>;
+  [key: string]: unknown;
+}
+
+export interface SurveyAdminTemplateDecisionCard {
+  key?: string;
+  title?: string;
+  summary?: string;
+  priority?: string | number;
+  evidence?: string[];
+  [key: string]: unknown;
+}
+
+export interface SurveyAdminTemplateMapLayer {
+  key?: string;
+  label?: string;
+  type?: string;
+  enabled?: boolean;
+  [key: string]: unknown;
+}
+
+export interface SurveyAdminTemplate {
+  title?: string;
+  description?: string;
+  tabs?: SurveyAdminTemplateTab[];
+  stack?: Record<string, unknown>;
+  datasets?: SurveyAdminTemplateDataset[];
+  decision_cards?: SurveyAdminTemplateDecisionCard[];
+  map_layers?: SurveyAdminTemplateMapLayer[];
+  [key: string]: unknown;
+}
+
 export interface SurveyDashboardBundle {
   executive_summary?: SurveyExecutiveSummary;
   visual_blueprint?: SurveyVisualBlueprint;
+  admin_template?: SurveyAdminTemplate;
   modules?: SurveyDashboardModules;
   kpis?: Record<string, unknown>;
   [key: string]: unknown;

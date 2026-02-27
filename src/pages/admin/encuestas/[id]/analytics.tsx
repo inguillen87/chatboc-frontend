@@ -79,8 +79,26 @@ function toFiniteNumber(value: unknown, fallback = 0) {
   return fallback;
 }
 
-function asPercentage(value: number) {
-  return `${value.toFixed(1)}%`;
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+}
+
+function asRecordList(value: unknown): Array<Record<string, unknown>> {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is Record<string, unknown> => Boolean(asRecord(item)));
+}
+
+function asStringList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => asRenderableText(item))
+    .filter((item): item is string => Boolean(item.trim()));
+}
+
+function normalizePriority(value: unknown) {
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  if (typeof value === 'string' && value.trim()) return value;
+  return '';
 }
 
 
@@ -185,6 +203,32 @@ export default function SurveyAnalyticsPage() {
     [effectiveSurvey?.recursos],
   );
   
+  const adminTemplate = useMemo(
+    () => (dashboardBundle?.admin_template && typeof dashboardBundle.admin_template === 'object' ? dashboardBundle.admin_template : null),
+    [dashboardBundle?.admin_template],
+  );
+  const adminTemplateTabs = useMemo(() => asRecordList(adminTemplate?.tabs), [adminTemplate?.tabs]);
+  const adminTemplateDatasets = useMemo(() => asRecordList(adminTemplate?.datasets), [adminTemplate?.datasets]);
+  const adminTemplateDecisionCards = useMemo(
+    () => asRecordList(adminTemplate?.decision_cards),
+    [adminTemplate?.decision_cards],
+  );
+  const adminTemplateMapLayers = useMemo(() => asRecordList(adminTemplate?.map_layers), [adminTemplate?.map_layers]);
+  const adminTemplateStackGroups = useMemo(() => {
+    const stack = asRecord(adminTemplate?.stack);
+    if (!stack) return [] as Array<{ key: string; libs: string[] }>;
+    return Object.entries(stack)
+      .map(([key, value]) => ({ key, libs: asStringList(value) }))
+      .filter((group) => group.libs.length > 0);
+  }, [adminTemplate?.stack]);
+  const hasAdminTemplateContent = Boolean(
+    adminTemplateTabs.length ||
+      adminTemplateDatasets.length ||
+      adminTemplateDecisionCards.length ||
+      adminTemplateMapLayers.length ||
+      adminTemplateStackGroups.length,
+  );
+
   const demographicFilterOptions = useMemo(() => {
     const breakdowns = summary?.demografia ?? {};
     const buildOptions = (keys: string[]) => {
@@ -853,6 +897,106 @@ export default function SurveyAnalyticsPage() {
                 <p className="text-sm text-muted-foreground">{asSafeText(enterpriseUiConfig?.anomaly_signals_chart_empty_label)}</p>
               )}
             </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {hasAdminTemplateContent ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>{asRenderableText(adminTemplate?.title)}</CardTitle>
+            <CardDescription>{asRenderableText(adminTemplate?.description)}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {adminTemplateTabs.length ? (
+              <div className="flex flex-wrap gap-2">
+                {adminTemplateTabs.map((tab, index) => (
+                  <Badge key={`${asRenderableText(tab.key) || 'tab'}-${index}`} variant="secondary">
+                    {asRenderableText(tab.label) || asRenderableText(tab.key)}
+                  </Badge>
+                ))}
+              </div>
+            ) : null}
+
+            {adminTemplateStackGroups.length ? (
+              <div className="grid gap-3 md:grid-cols-2">
+                {adminTemplateStackGroups.map((group) => (
+                  <div key={group.key} className="rounded-lg border border-border/60 p-3">
+                    <p className="text-xs font-medium uppercase text-muted-foreground">{asRenderableText(group.key)}</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {group.libs.map((library, index) => (
+                        <Badge key={`${group.key}-${library}-${index}`} variant="outline">
+                          {library}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+            {adminTemplateDatasets.length ? (
+              <div className="grid gap-3 lg:grid-cols-2">
+                {adminTemplateDatasets.slice(0, 4).map((dataset, index) => {
+                  const items = asRecordList(dataset.items).slice(0, 3);
+                  return (
+                    <div key={`${asRenderableText(dataset.key) || 'dataset'}-${index}`} className="rounded-lg border border-border/60 p-3">
+                      <p className="text-sm font-medium">{asRenderableText(dataset.label) || asRenderableText(dataset.key)}</p>
+                      <p className="text-xs text-muted-foreground">{asRenderableText(dataset.description)}</p>
+                      {items.length ? (
+                        <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                          {items.map((item, itemIndex) => (
+                            <p key={`${asRenderableText(dataset.key) || 'dataset'}-item-${itemIndex}`}>
+                              {Object.entries(item)
+                                .slice(0, 3)
+                                .map(([key, value]) => `${asRenderableText(key)}: ${asRenderableText(value)}`)
+                                .filter(Boolean)
+                                .join(' · ')}
+                            </p>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
+
+            {adminTemplateDecisionCards.length ? (
+              <div className="grid gap-3 lg:grid-cols-3">
+                {adminTemplateDecisionCards.slice(0, 6).map((card, index) => {
+                  const evidence = asStringList(card.evidence).slice(0, 3);
+                  const priority = normalizePriority(card.priority);
+                  return (
+                    <div key={`${asRenderableText(card.key) || 'decision'}-${index}`} className="rounded-lg border border-border/60 p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-medium">{asRenderableText(card.title) || asRenderableText(card.key)}</p>
+                        {priority ? <Badge variant="outline">{priority}</Badge> : null}
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">{asRenderableText(card.summary)}</p>
+                      {evidence.length ? (
+                        <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-muted-foreground">
+                          {evidence.map((item, evidenceIndex) => (
+                            <li key={`${asRenderableText(card.key) || 'decision'}-evidence-${evidenceIndex}`}>{item}</li>
+                          ))}
+                        </ul>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
+
+            {adminTemplateMapLayers.length ? (
+              <div className="grid gap-2 sm:grid-cols-2">
+                {adminTemplateMapLayers.map((layer, index) => (
+                  <div key={`${asRenderableText(layer.key) || 'layer'}-${index}`} className="rounded border border-border/60 px-3 py-2 text-xs">
+                    <p className="font-medium">{asRenderableText(layer.label) || asRenderableText(layer.key)}</p>
+                    <p className="text-muted-foreground">{asRenderableText(layer.type)}</p>
+                  </div>
+                ))}
+              </div>
+            ) : null}
           </CardContent>
         </Card>
       ) : null}
