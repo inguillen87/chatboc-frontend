@@ -298,24 +298,6 @@ export default function SurveyAnalyticsPage() {
   const effectiveSurvey = survey ?? surveyFromList;
   const effectiveTenantSlug = effectiveSurvey?.tenant_slug;
 
-  useEffect(() => {
-    if (!surveyId) return;
-    void enterpriseService.trackEvent(
-      {
-        event: 'analytics_dashboard_loaded',
-        payload: {
-          tenant_slug: effectiveTenantSlug || null,
-          route: '/admin/encuestas/:id/analytics',
-          build_version: import.meta.env.VITE_APP_VERSION || 'dev',
-          survey_id: surveyId,
-        },
-        fallback_event_name: telemetryFallbackEventName,
-        event_endpoint_preferred: telemetryEventEndpoint,
-      },
-      effectiveTenantSlug,
-    ).catch(() => undefined);
-  }, [surveyId, effectiveTenantSlug, telemetryEventEndpoint, telemetryFallbackEventName]);
-
   const publicUrl = useMemo(
     () => (effectiveSurvey?.slug ? getAbsolutePublicSurveyUrl(effectiveSurvey.slug) : null),
     [effectiveSurvey?.slug],
@@ -381,6 +363,25 @@ export default function SurveyAnalyticsPage() {
   const telemetryGuardrails = useMemo(() => asRecord(adminTemplateUxGuardrails?.telemetry), [adminTemplateUxGuardrails?.telemetry]);
   const telemetryEventEndpoint = asRenderableText(telemetryGuardrails?.event_endpoint_preferred) || '/api/analytics/event';
   const telemetryFallbackEventName = asRenderableText(telemetryGuardrails?.fallback_event_name) || 'frontend_analytics_event';
+
+  useEffect(() => {
+    if (!surveyId) return;
+    void enterpriseService.trackEvent(
+      {
+        event: 'analytics_dashboard_loaded',
+        payload: {
+          tenant_slug: effectiveTenantSlug || null,
+          route: '/admin/encuestas/:id/analytics',
+          build_version: import.meta.env.VITE_APP_VERSION || 'dev',
+          survey_id: surveyId,
+        },
+        fallback_event_name: telemetryFallbackEventName,
+        event_endpoint_preferred: telemetryEventEndpoint,
+      },
+      effectiveTenantSlug,
+    ).catch(() => undefined);
+  }, [surveyId, effectiveTenantSlug, telemetryEventEndpoint, telemetryFallbackEventName]);
+
   const hasAdminTemplateContent = Boolean(
     adminTemplateTabs.length ||
       adminTemplateDatasets.length ||
