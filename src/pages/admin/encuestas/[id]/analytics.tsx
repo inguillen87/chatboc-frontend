@@ -239,13 +239,16 @@ export default function SurveyAnalyticsPage() {
     if (!dimensions || typeof dimensions !== 'object') return [] as Array<{ key: string; label: string; dimension: string }>;
 
     return Object.entries(dimensions).flatMap(([dimension, suggestions]) =>
-      (Array.isArray(suggestions) ? suggestions : []).map((suggestion, index) => {
-        const filters = asRecord(suggestion?.filters) ?? {};
-        const encoded = encodeSegmentFilters(filters);
-        const fallbackKey = encoded || `__empty__:${dimension}:${index}`;
-        const label = asRenderableText(suggestion?.label) || `${dimension} ${index + 1}`;
-        return { key: fallbackKey, label, dimension };
-      }),
+      (Array.isArray(suggestions) ? suggestions : [])
+        .map((suggestion, index) => {
+          const filters = asRecord(suggestion?.filters) ?? {};
+          const encoded = encodeSegmentFilters(filters);
+          const fallbackKey = encoded || `__empty__:${dimension}:${index}`;
+          const label = asRenderableText(suggestion?.label);
+          if (!label) return null;
+          return { key: fallbackKey, label, dimension };
+        })
+        .filter((option): option is { key: string; label: string; dimension: string } => Boolean(option)),
     );
   }, [segmentsSuggestionsQuery.data?.dimensions]);
 
@@ -270,9 +273,14 @@ export default function SurveyAnalyticsPage() {
     return Object.fromEntries([...aEntries, ...bEntries]);
   }, [segmentAKey, segmentBKey]);
 
+  const hasCompareFiltersReady = useMemo(
+    () => Boolean(segmentAKey && segmentBKey && Object.keys(compareParams).length > 0),
+    [segmentAKey, segmentBKey, compareParams],
+  );
+
   const compareQuery = useQuery({
     queryKey: ['survey-analytics-segments-compare', surveyId, compareParams],
-    enabled: Boolean(surveyId),
+    enabled: Boolean(surveyId && hasCompareFiltersReady),
     queryFn: () => getSurveySegmentsCompare(surveyId as number, compareParams),
     staleTime: 30_000,
   });
@@ -344,13 +352,14 @@ export default function SurveyAnalyticsPage() {
   const adminTemplateStackGroups = useMemo(() => {
     const stack = asRecord(adminTemplate?.stack);
     const recommended = asStringList(asRecord(adminTemplate?.chart_stack)?.recommended);
+    const recommendedGroupLabel = asRenderableText(asRecord(adminTemplate?.chart_stack)?.recommended_label);
     const groups = stack
       ? Object.entries(stack)
           .map(([key, value]) => ({ key, libs: asStringList(value) }))
           .filter((group) => group.libs.length > 0)
       : [];
     if (recommended.length) {
-      groups.unshift({ key: 'recommended', libs: recommended });
+      groups.unshift({ key: recommendedGroupLabel, libs: recommended });
     }
     return groups;
   }, [adminTemplate?.stack, adminTemplate?.chart_stack]);
@@ -1130,7 +1139,9 @@ export default function SurveyAnalyticsPage() {
               <div className="grid gap-3 md:grid-cols-2">
                 {adminTemplateStackGroups.map((group) => (
                   <div key={group.key} className="rounded-lg border border-border/60 p-3">
-                    <p className="text-xs font-medium uppercase text-muted-foreground">{asRenderableText(group.key)}</p>
+                    {asRenderableText(group.key) ? (
+                      <p className="text-xs font-medium uppercase text-muted-foreground">{asRenderableText(group.key)}</p>
+                    ) : null}
                     <div className="mt-2 flex flex-wrap gap-2">
                       {group.libs.map((library, index) => (
                         <Badge key={`${group.key}-${library}-${index}`} variant="outline">
