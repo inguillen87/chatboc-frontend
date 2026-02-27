@@ -483,17 +483,34 @@ export const enterpriseService = {
 
   trackEvent: async (
     payload: {
-      tenant_id: number;
-      event_name: string;
+      tenant_id?: number;
+      event_name?: string;
+      event?: string;
       payload?: Record<string, unknown>;
       channel?: string;
       session_id?: string;
     },
     tenantSlug?: string,
   ) => {
+    const eventName = payload.event_name || payload.event;
+    if (!eventName) {
+      return Promise.resolve({ skipped: true, reason: 'missing_event_name' });
+    }
+
+    const normalizedPayload = {
+      tenant_id: typeof payload.tenant_id === 'number' && Number.isFinite(payload.tenant_id)
+        ? payload.tenant_id
+        : undefined,
+      tenant_slug: tenantSlug || undefined,
+      event_name: eventName,
+      payload: payload.payload,
+      channel: payload.channel ?? 'web',
+      session_id: payload.session_id,
+    };
+
     return apiFetch('/analytics/event', {
       method: 'POST',
-      body: payload,
+      body: normalizedPayload,
       tenantSlug,
     });
   },
