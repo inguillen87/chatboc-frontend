@@ -489,13 +489,12 @@ export const enterpriseService = {
       payload?: Record<string, unknown>;
       channel?: string;
       session_id?: string;
+      fallback_event_name?: string;
+      event_endpoint_preferred?: string;
     },
     tenantSlug?: string,
   ) => {
-    const eventName = payload.event_name || payload.event;
-    if (!eventName) {
-      return Promise.resolve({ skipped: true, reason: 'missing_event_name' });
-    }
+    const eventName = payload.event_name || payload.event || payload.fallback_event_name || 'frontend_analytics_event';
 
     const normalizedPayload = {
       tenant_id: typeof payload.tenant_id === 'number' && Number.isFinite(payload.tenant_id)
@@ -508,7 +507,11 @@ export const enterpriseService = {
       session_id: payload.session_id,
     };
 
-    return apiFetch('/analytics/event', {
+    const preferredEndpoint = typeof payload.event_endpoint_preferred === 'string' && payload.event_endpoint_preferred.trim()
+      ? payload.event_endpoint_preferred.trim()
+      : '/analytics/event';
+
+    return apiFetch(preferredEndpoint, {
       method: 'POST',
       body: normalizedPayload,
       tenantSlug,
