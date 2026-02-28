@@ -441,7 +441,7 @@ const ChartMount = ({ className, children }: { className: string; children: Reac
   }, []);
 
   return (
-    <div ref={containerRef} className={className}>
+    <div ref={containerRef} className={`${className} w-full`} style={{ minWidth: 280, minHeight: 220 }}>
       {isReady ? children : <div className="h-full w-full" />}
     </div>
   );
