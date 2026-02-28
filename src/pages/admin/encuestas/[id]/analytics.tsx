@@ -2,6 +2,7 @@ import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
 import { AlertTriangle, CalendarDays, Copy, Download, ExternalLink, Loader2, Sparkles, TrendingUp } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 import { SurveyAnalytics } from '@/components/surveys/SurveyAnalytics';
@@ -128,6 +129,34 @@ function normalizePriority(value: unknown) {
   if (typeof value === 'number' && Number.isFinite(value)) return String(value);
   if (typeof value === 'string' && value.trim()) return value;
   return '';
+}
+
+
+function normalizeLibraryList(value: unknown): string[] {
+  if (typeof value === 'string' && value.trim()) return [value.trim()];
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => (typeof item === 'string' ? item.trim() : ''))
+      .filter((item): item is string => Boolean(item));
+  }
+  return [];
+}
+
+function toNormalizedRatio(value: unknown) {
+  const raw = toFiniteNumber(value, Number.NaN);
+  if (!Number.isFinite(raw)) return null;
+  if (raw <= 0) return 0;
+  if (raw >= 1 && raw <= 100) return raw / 100;
+  if (raw > 100) return 1;
+  return raw;
+}
+
+function getPriorityBadgeVariant(priority: string): 'outline' | 'default' | 'secondary' | 'destructive' {
+  const normalized = priority.toLowerCase();
+  if (normalized.includes('alta') || normalized.includes('high') || normalized === 'p0' || normalized === '1') return 'destructive';
+  if (normalized.includes('media') || normalized.includes('medium') || normalized === 'p1' || normalized === '2') return 'default';
+  if (normalized.includes('baja') || normalized.includes('low') || normalized === 'p2' || normalized === '3') return 'secondary';
+  return 'outline';
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -1141,18 +1170,25 @@ export default function SurveyAnalyticsPage() {
             {adminTemplateStackGroups.length ? (
               <div className="grid gap-3 md:grid-cols-2">
                 {adminTemplateStackGroups.map((group) => (
-                  <div key={group.key} className="rounded-lg border border-border/60 p-3">
+                  <motion.div
+                    key={group.key}
+                    initial={{ opacity: 0, y: 8 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true, amount: 0.35 }}
+                    transition={{ duration: 0.22 }}
+                    className="rounded-lg border border-border/60 bg-gradient-to-b from-muted/20 to-background p-3"
+                  >
                     {asRenderableText(group.key) ? (
                       <p className="text-xs font-medium uppercase text-muted-foreground">{asRenderableText(group.key)}</p>
                     ) : null}
                     <div className="mt-2 flex flex-wrap gap-2">
                       {group.libs.map((library, index) => (
-                        <Badge key={`${group.key}-${library}-${index}`} variant="outline">
+                        <Badge key={`${group.key}-${library}-${index}`} variant="outline" className="bg-background/70">
                           {library}
                         </Badge>
                       ))}
                     </div>
-                  </div>
+                  </motion.div>
                 ))}
               </div>
             ) : null}
@@ -1189,13 +1225,48 @@ export default function SurveyAnalyticsPage() {
                 {adminTemplateDecisionCards.slice(0, 6).map((card, index) => {
                   const evidence = asStringList(card.evidence).slice(0, 3);
                   const priority = normalizePriority(card.priority);
+                  const confidenceRatio = toNormalizedRatio(card.confidence ?? card.score ?? card.priority_score);
+                  const impactRatio = toNormalizedRatio(card.impact ?? card.impact_score);
+                  const owner = asRenderableText(card.owner);
+                  const horizon = asRenderableText(card.horizon);
                   return (
-                    <div key={`${asRenderableText(card.key) || 'decision'}-${index}`} className="rounded-lg border border-border/60 p-3">
+                    <motion.div
+                      key={`${asRenderableText(card.key) || 'decision'}-${index}`}
+                      initial={{ opacity: 0, y: 10 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true, amount: 0.25 }}
+                      transition={{ duration: 0.24, delay: index * 0.03 }}
+                      className="rounded-lg border border-border/60 bg-gradient-to-b from-primary/5 to-background p-3"
+                    >
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-sm font-medium">{asRenderableText(card.title) || asRenderableText(card.key)}</p>
-                        {priority ? <Badge variant="outline">{priority}</Badge> : null}
+                        {priority ? <Badge variant={getPriorityBadgeVariant(priority)}>{priority}</Badge> : null}
                       </div>
                       <p className="mt-1 text-xs text-muted-foreground">{asRenderableText(card.summary)}</p>
+                      <div className="mt-2 space-y-2">
+                        {confidenceRatio !== null ? (
+                          <div>
+                            <div className="mb-1 flex items-center justify-between text-[11px] text-muted-foreground">
+                              <span>Confianza</span>
+                              <span>{Math.round(confidenceRatio * 100)}%</span>
+                            </div>
+                            <div className="h-1.5 rounded-full bg-muted">
+                              <div className="h-1.5 rounded-full bg-primary" style={{ width: `${Math.round(confidenceRatio * 100)}%` }} />
+                            </div>
+                          </div>
+                        ) : null}
+                        {impactRatio !== null ? (
+                          <div>
+                            <div className="mb-1 flex items-center justify-between text-[11px] text-muted-foreground">
+                              <span>Impacto</span>
+                              <span>{Math.round(impactRatio * 100)}%</span>
+                            </div>
+                            <div className="h-1.5 rounded-full bg-muted">
+                              <div className="h-1.5 rounded-full bg-emerald-500" style={{ width: `${Math.round(impactRatio * 100)}%` }} />
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
                       {evidence.length ? (
                         <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-muted-foreground">
                           {evidence.map((item, evidenceIndex) => (
@@ -1203,7 +1274,13 @@ export default function SurveyAnalyticsPage() {
                           ))}
                         </ul>
                       ) : null}
-                    </div>
+                      {(owner || horizon) ? (
+                        <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+                          {owner ? <Badge variant="secondary">{owner}</Badge> : null}
+                          {horizon ? <Badge variant="outline">{horizon}</Badge> : null}
+                        </div>
+                      ) : null}
+                    </motion.div>
                   );
                 })}
               </div>
@@ -1211,24 +1288,72 @@ export default function SurveyAnalyticsPage() {
 
             {adminTemplateVisualModules.length ? (
               <div className="grid gap-3 lg:grid-cols-2">
-                {adminTemplateVisualModules.slice(0, 6).map((module, index) => (
-                  <div key={`${asRenderableText(module.key) || 'module'}-${index}`} className="rounded-lg border border-border/60 p-3 text-xs">
-                    <p className="font-medium">{asRenderableText(module.title) || asRenderableText(module.key)}</p>
-                    <p className="text-muted-foreground">{asRenderableText(module.description)}</p>
-                    <p className="text-muted-foreground">{asRenderableText(module.empty_state)}</p>
-                  </div>
-                ))}
+                {adminTemplateVisualModules.slice(0, 6).map((module, index) => {
+                  const renderHints = [
+                    ...normalizeLibraryList(module.engine),
+                    ...normalizeLibraryList(module.provider),
+                    ...normalizeLibraryList(module.renderer),
+                    ...normalizeLibraryList(module.library),
+                    ...normalizeLibraryList(module.libraries),
+                  ].filter((value, idx, list) => list.indexOf(value) === idx);
+
+                  return (
+                    <motion.div
+                      key={`${asRenderableText(module.key) || 'module'}-${index}`}
+                      initial={{ opacity: 0, y: 8 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true, amount: 0.3 }}
+                      transition={{ duration: 0.22, delay: index * 0.02 }}
+                      className="rounded-lg border border-border/60 bg-gradient-to-br from-muted/20 via-background to-background p-3 text-xs"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="font-medium">{asRenderableText(module.title) || asRenderableText(module.key)}</p>
+                        {asRenderableText(module.type) ? <Badge variant="outline">{asRenderableText(module.type)}</Badge> : null}
+                      </div>
+                      <p className="mt-1 text-muted-foreground">{asRenderableText(module.description)}</p>
+                      <p className="text-muted-foreground">{asRenderableText(module.empty_state)}</p>
+                      {renderHints.length ? (
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {renderHints.slice(0, 4).map((hint) => (
+                            <Badge key={`${asRenderableText(module.key)}-${hint}`} variant="secondary" className="text-[11px]">
+                              {hint}
+                            </Badge>
+                          ))}
+                        </div>
+                      ) : null}
+                    </motion.div>
+                  );
+                })}
               </div>
             ) : null}
 
             {adminTemplateMapLayers.length ? (
               <div className="grid gap-2 sm:grid-cols-2">
-                {adminTemplateMapLayers.map((layer, index) => (
-                  <div key={`${asRenderableText(layer.key) || 'layer'}-${index}`} className="rounded border border-border/60 px-3 py-2 text-xs">
-                    <p className="font-medium">{asRenderableText(layer.label) || asRenderableText(layer.key)}</p>
-                    <p className="text-muted-foreground">{asRenderableText(layer.type)}</p>
-                  </div>
-                ))}
+                {adminTemplateMapLayers.map((layer, index) => {
+                  const providers = [
+                    ...normalizeLibraryList(layer.provider),
+                    ...normalizeLibraryList(layer.engine),
+                    ...normalizeLibraryList(layer.map_provider),
+                  ].filter((value, idx, list) => list.indexOf(value) === idx);
+
+                  return (
+                    <div key={`${asRenderableText(layer.key) || 'layer'}-${index}`} className="rounded border border-border/60 bg-background px-3 py-2 text-xs">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="font-medium">{asRenderableText(layer.label) || asRenderableText(layer.key)}</p>
+                        {asRenderableText(layer.type) ? <Badge variant="outline">{asRenderableText(layer.type)}</Badge> : null}
+                      </div>
+                      {providers.length ? (
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {providers.slice(0, 3).map((provider) => (
+                            <Badge key={`${asRenderableText(layer.key)}-${provider}`} variant="secondary" className="text-[11px]">
+                              {provider}
+                            </Badge>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
               </div>
             ) : null}
           </CardContent>
