@@ -313,7 +313,7 @@ const Navbar: React.FC = () => {
                 </RouterLink>
                 <RouterLink to="/perfil" onClick={() => setMenuOpen(false)} className="hover:text-primary transition-colors">Mi Perfil</RouterLink>
                 <RouterLink to="/chat" onClick={() => setMenuOpen(false)} className="hover:text-primary transition-colors">Chat</RouterLink>
-                {adminLinks.length > 0 && (
+                {(adminLinks.length > 0 || FEATURE_ENCUESTAS) && (
                   <div className="w-full space-y-2 border-t border-border/40 pt-3">
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/80">Panel admin</p>
                     <div className="flex flex-col gap-2">
@@ -328,6 +328,16 @@ const Navbar: React.FC = () => {
                           {label}
                         </RouterLink>
                       ))}
+                      {FEATURE_ENCUESTAS ? (
+                        <RouterLink
+                          to="/admin/encuestas"
+                          onClick={() => setMenuOpen(false)}
+                          className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm transition-colors hover:border-primary hover:text-primary"
+                        >
+                          <BarChart3 className="h-4 w-4" />
+                          Panel de encuestas
+                        </RouterLink>
+                      ) : null}
                     </div>
                   </div>
                 )}

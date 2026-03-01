@@ -42,6 +42,7 @@ interface SurveyAnalyticsProps {
   filters?: SurveyAnalyticsFilters;
   onFiltersChange?: (next: SurveyAnalyticsFilters) => void;
   tenantSlug?: string;
+  tenantId?: number;
   route?: string;
 }
 
@@ -440,7 +441,7 @@ const ChartMount = ({ className, children }: { className: string; children: Reac
   }, []);
 
   return (
-    <div ref={containerRef} className={className}>
+    <div ref={containerRef} className={`${className} w-full`} style={{ minWidth: 280, minHeight: 220 }}>
       {isReady ? children : <div className="h-full w-full" />}
     </div>
   );
@@ -456,6 +457,7 @@ export const SurveyAnalytics = ({
   filters,
   onFiltersChange,
   tenantSlug,
+  tenantId,
   route = '/admin/encuestas/:id/analytics',
 }: SurveyAnalyticsProps) => {
   const timeseriesData = useMemo(() => buildTimeseriesData(timeseries), [timeseries]);
@@ -800,8 +802,8 @@ export const SurveyAnalytics = ({
       error_code: heatmapData.length > 0 ? null : 'empty_dataset',
     };
 
-    void enterpriseService.trackEvent({ event, payload }, tenantSlug).catch(() => undefined);
-  }, [heatmapData.length, route, tenantSlug]);
+    void enterpriseService.trackEvent({ event, tenant_id: tenantId, payload }, tenantSlug).catch(() => undefined);
+  }, [heatmapData.length, route, tenantId, tenantSlug]);
 
   return (
     <div className="space-y-6">
@@ -1067,7 +1069,7 @@ export const SurveyAnalytics = ({
                   </p>
                 ) : null}
               </div>
-              <div className="h-[320px] min-w-0 overflow-hidden rounded-lg border border-border/60">
+              <ChartMount className="h-[320px] min-w-0 overflow-hidden rounded-lg border border-border/60">
                 <MapLibreMap
                   className="h-full w-full"
                   center={heatmapCenter}
@@ -1078,7 +1080,7 @@ export const SurveyAnalytics = ({
                   onProviderUnavailable={handleProviderUnavailable}
                   onBoundingBoxChange={handleBoundingBoxChange}
                 />
-              </div>
+              </ChartMount>
             </div>
           ) : (
             <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
@@ -1128,16 +1130,18 @@ export const SurveyAnalytics = ({
             </div>
           ) : null}
           {heatmapData.length ? (
-            <MapLibreMap
-              className="h-full rounded-lg"
-              center={heatmapCenter}
-              heatmapData={heatmapData}
-              fitToBounds={heatmapBounds.length ? heatmapBounds : undefined}
-              initialZoom={heatmapBounds.length ? 12 : 4}
-              provider={provider}
-              onProviderUnavailable={handleProviderUnavailable}
-              onBoundingBoxChange={handleBoundingBoxChange}
-            />
+            <ChartMount className="h-full min-w-0">
+              <MapLibreMap
+                className="h-full rounded-lg"
+                center={heatmapCenter}
+                heatmapData={heatmapData}
+                fitToBounds={heatmapBounds.length ? heatmapBounds : undefined}
+                initialZoom={heatmapBounds.length ? 12 : 4}
+                provider={provider}
+                onProviderUnavailable={handleProviderUnavailable}
+                onBoundingBoxChange={handleBoundingBoxChange}
+              />
+            </ChartMount>
           ) : (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
               No hay datos georreferenciados para esta encuesta todavía.

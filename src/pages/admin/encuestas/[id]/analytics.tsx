@@ -1,7 +1,9 @@
-import { useEffect, useMemo } from 'react';
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
 import { AlertTriangle, CalendarDays, Copy, Download, ExternalLink, Loader2, Sparkles, TrendingUp } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 import { SurveyAnalytics } from '@/components/surveys/SurveyAnalytics';
 import { SurveyQrPreview } from '@/components/surveys/SurveyQrPreview';
@@ -17,8 +19,9 @@ import { useSurveyResponses } from '@/hooks/useSurveyResponses';
 import { useSurveySeedResponses } from '@/hooks/useSurveySeedResponses';
 import { toast } from '@/components/ui/use-toast';
 import { getAbsolutePublicSurveyUrl, getPublicSurveyQrUrl } from '@/utils/publicSurveyUrl';
-import { getSurveyAlerts, getSurveyAnomalies, getSurveyBrief, getSurveyForecast, getSurveySegmentsCompare } from '@/api/encuestas';
+import { getSurveyAlerts, getSurveyAnomalies, getSurveyBrief, getSurveyForecast, getSurveySegmentsCompare, getSurveySegmentsSuggestions } from '@/api/encuestas';
 import { Label } from '@/components/ui/label';
+import { Progress } from '@/components/ui/progress';
 import {
   Select,
   SelectContent,
@@ -28,6 +31,47 @@ import {
 } from '@/components/ui/select';
 import { getErrorMessage } from '@/utils/api';
 import { enterpriseService } from '@/services/enterpriseService';
+
+
+function ChartVisibilityGuard({
+  minWidth,
+  minHeight,
+  renderWhenVisible,
+  children,
+}: {
+  minWidth: number;
+  minHeight: number;
+  renderWhenVisible: boolean;
+  children: ReactNode;
+}) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [canRender, setCanRender] = useState(!renderWhenVisible);
+
+  useEffect(() => {
+    if (!renderWhenVisible) {
+      setCanRender(true);
+      return;
+    }
+
+    const node = containerRef.current;
+    if (!node) return;
+
+    const observer = new ResizeObserver(() => {
+      const { width, height } = node.getBoundingClientRect();
+      setCanRender(width > 0 && height > 0);
+    });
+
+    observer.observe(node);
+
+    return () => observer.disconnect();
+  }, [renderWhenVisible]);
+
+  return (
+    <div ref={containerRef} className="min-w-0" style={{ minWidth, minHeight, width: '100%', height: '100%' }}>
+      {canRender ? children : null}
+    </div>
+  );
+}
 
 function formatDateLabel(value?: string | null) {
   if (!value) return null;
@@ -69,6 +113,100 @@ function renderLabeledMetric(label: string, value: string | number) {
   );
 }
 
+function toFiniteNumber(value: unknown, fallback = 0) {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return fallback;
+}
+
+function asPercentage(value: number) {
+  return `${value.toFixed(1)}%`;
+}
+
+function normalizePriority(value: unknown) {
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  if (typeof value === 'string' && value.trim()) return value;
+  return '';
+}
+
+
+function normalizeLibraryList(value: unknown): string[] {
+  if (typeof value === 'string' && value.trim()) return [value.trim()];
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => (typeof item === 'string' ? item.trim() : ''))
+      .filter((item): item is string => Boolean(item));
+  }
+  return [];
+}
+
+function toNormalizedRatio(value: unknown) {
+  const raw = toFiniteNumber(value, Number.NaN);
+  if (!Number.isFinite(raw)) return null;
+  if (raw <= 0) return 0;
+  if (raw >= 1 && raw <= 100) return raw / 100;
+  if (raw > 100) return 1;
+  return raw;
+}
+
+function getPriorityBadgeVariant(priority: string): 'outline' | 'default' | 'secondary' | 'destructive' {
+  const normalized = priority.toLowerCase();
+  if (normalized.includes('alta') || normalized.includes('high') || normalized === 'p0' || normalized === '1') return 'destructive';
+  if (normalized.includes('media') || normalized.includes('medium') || normalized === 'p1' || normalized === '2') return 'default';
+  if (normalized.includes('baja') || normalized.includes('low') || normalized === 'p2' || normalized === '3') return 'secondary';
+  return 'outline';
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+}
+
+function asRecordList(value: unknown): Array<Record<string, unknown>> {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is Record<string, unknown> => Boolean(asRecord(item)));
+}
+
+function asStringList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => asRenderableText(item))
+    .filter((item): item is string => Boolean(item.trim()));
+}
+
+function normalizeSegmentFilterValue(value: unknown): string | undefined {
+  if (typeof value === 'string' && value.trim()) return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (Array.isArray(value)) {
+    const values = value
+      .map((item) => normalizeSegmentFilterValue(item))
+      .filter((item): item is string => Boolean(item));
+    if (values.length) return values.join(',');
+  }
+  return undefined;
+}
+
+function encodeSegmentFilters(filters: Record<string, unknown>) {
+  const normalizedEntries = Object.entries(filters)
+    .map(([key, value]) => [key, normalizeSegmentFilterValue(value)] as const)
+    .filter((entry): entry is readonly [string, string] => Boolean(entry[1]))
+    .sort(([a], [b]) => a.localeCompare(b));
+  return normalizedEntries.map(([key, value]) => `${key}:${value}`).join('|');
+}
+
+function decodeSegmentFilters(encodedValue: string) {
+  if (!encodedValue || encodedValue.startsWith('__empty__')) return {} as Record<string, string>;
+  return encodedValue.split('|').reduce<Record<string, string>>((acc, pair) => {
+    const [key, ...rest] = pair.split(':');
+    const value = rest.join(':');
+    if (key && value) acc[key] = value;
+    return acc;
+  }, {});
+}
+
+
 export default function SurveyAnalyticsPage() {
   const params = useParams();
   const surveyId = useMemo(() => (params.id ? Number(params.id) : null), [params.id]);
@@ -97,7 +235,9 @@ export default function SurveyAnalyticsPage() {
     refetch: refetchResponses,
   } = useSurveyResponses(surveyId ?? undefined);
   const queryClient = useQueryClient();
-  const { seed: seedSurveyResponses, isSeeding } = useSurveySeedResponses();
+  const { seed: seedSurveyResponses, isSeeding, progress: seedProgress } = useSurveySeedResponses();
+  const [segmentAKey, setSegmentAKey] = useState<string>('');
+  const [segmentBKey, setSegmentBKey] = useState<string>('');
 
   const forecastQuery = useQuery({
     queryKey: ['survey-analytics-forecast', surveyId],
@@ -117,10 +257,61 @@ export default function SurveyAnalyticsPage() {
     queryFn: () => getSurveyBrief(surveyId as number),
     staleTime: 60_000,
   });
-  const compareQuery = useQuery({
-    queryKey: ['survey-analytics-segments-compare', surveyId],
+  const segmentsSuggestionsQuery = useQuery({
+    queryKey: ['survey-analytics-segments-suggestions', surveyId],
     enabled: Boolean(surveyId),
-    queryFn: () => getSurveySegmentsCompare(surveyId as number, { a_canal: 'web', b_canal: 'whatsapp' }),
+    queryFn: () => getSurveySegmentsSuggestions(surveyId as number, { limit: 5 }),
+    staleTime: 60_000,
+  });
+
+  const segmentSuggestionOptions = useMemo(() => {
+    const dimensions = segmentsSuggestionsQuery.data?.dimensions;
+    if (!dimensions || typeof dimensions !== 'object') return [] as Array<{ key: string; label: string; dimension: string }>;
+
+    return Object.entries(dimensions).flatMap(([dimension, suggestions]) =>
+      (Array.isArray(suggestions) ? suggestions : [])
+        .map((suggestion, index) => {
+          const filters = asRecord(suggestion?.filters) ?? {};
+          const encoded = encodeSegmentFilters(filters);
+          const fallbackKey = encoded || `__empty__:${dimension}:${index}`;
+          const label = asRenderableText(suggestion?.label);
+          if (!label) return null;
+          return { key: fallbackKey, label, dimension };
+        })
+        .filter((option): option is { key: string; label: string; dimension: string } => Boolean(option)),
+    );
+  }, [segmentsSuggestionsQuery.data?.dimensions]);
+
+  useEffect(() => {
+    setSegmentAKey('');
+    setSegmentBKey('');
+  }, [surveyId]);
+
+  useEffect(() => {
+    if (!segmentSuggestionOptions.length) return;
+    setSegmentAKey((current) => current || segmentSuggestionOptions[0]?.key || '');
+    setSegmentBKey((current) => current || segmentSuggestionOptions[1]?.key || segmentSuggestionOptions[0]?.key || '');
+  }, [segmentSuggestionOptions]);
+
+  const compareParams = useMemo(() => {
+    const aFilters = decodeSegmentFilters(segmentAKey);
+    const bFilters = decodeSegmentFilters(segmentBKey);
+
+    const aEntries = Object.entries(aFilters).map(([key, value]) => [`a_${key}`, value] as const);
+    const bEntries = Object.entries(bFilters).map(([key, value]) => [`b_${key}`, value] as const);
+
+    return Object.fromEntries([...aEntries, ...bEntries]);
+  }, [segmentAKey, segmentBKey]);
+
+  const hasCompareFiltersReady = useMemo(
+    () => Boolean(segmentAKey && segmentBKey && Object.keys(compareParams).length > 0),
+    [segmentAKey, segmentBKey, compareParams],
+  );
+
+  const compareQuery = useQuery({
+    queryKey: ['survey-analytics-segments-compare', surveyId, compareParams],
+    enabled: Boolean(surveyId && hasCompareFiltersReady),
+    queryFn: () => getSurveySegmentsCompare(surveyId as number, compareParams),
     staleTime: 30_000,
   });
   const anomaliesQuery = useQuery({
@@ -130,60 +321,12 @@ export default function SurveyAnalyticsPage() {
     staleTime: 30_000,
   });
 
-  useEffect(() => {
-    if (!surveyId) return;
-    void enterpriseService.trackEvent(
-      {
-        event: 'analytics_dashboard_loaded',
-        payload: {
-          tenant_slug: effectiveSurvey?.tenant_slug || null,
-          route: '/admin/encuestas/:id/analytics',
-          build_version: import.meta.env.VITE_APP_VERSION || 'dev',
-          survey_id: surveyId,
-        },
-      },
-      effectiveSurvey?.tenant_slug,
-    ).catch(() => undefined);
-  }, [surveyId, effectiveSurvey?.tenant_slug]);
-
   const surveyFromList = useMemo(() => {
     if (!surveyId || !surveys?.data?.length) return undefined;
     return surveys.data.find((item) => item.id === surveyId);
   }, [surveyId, surveys?.data]);
   const effectiveSurvey = survey ?? surveyFromList;
   const effectiveTenantSlug = effectiveSurvey?.tenant_slug;
-
-  useEffect(() => {
-    if (!surveyId) return;
-    void enterpriseService.trackEvent(
-      {
-        event: 'analytics_dashboard_loaded',
-        payload: {
-          tenant_slug: effectiveTenantSlug || null,
-          route: '/admin/encuestas/:id/analytics',
-          build_version: import.meta.env.VITE_APP_VERSION || 'dev',
-          survey_id: surveyId,
-        },
-      },
-      effectiveTenantSlug,
-    ).catch(() => undefined);
-  }, [surveyId, effectiveTenantSlug]);
-
-  useEffect(() => {
-    if (!surveyId) return;
-    void enterpriseService.trackEvent(
-      {
-        event: 'analytics_dashboard_loaded',
-        payload: {
-          tenant_slug: effectiveSurvey?.tenant_slug || null,
-          route: '/admin/encuestas/:id/analytics',
-          build_version: import.meta.env.VITE_APP_VERSION || 'dev',
-          survey_id: surveyId,
-        },
-      },
-      effectiveSurvey?.tenant_slug,
-    ).catch(() => undefined);
-  }, [surveyId, effectiveSurvey?.tenant_slug]);
 
   const publicUrl = useMemo(
     () => (effectiveSurvey?.slug ? getAbsolutePublicSurveyUrl(effectiveSurvey.slug) : null),
@@ -202,6 +345,83 @@ export default function SurveyAnalyticsPage() {
     [effectiveSurvey?.recursos],
   );
   
+  const adminTemplate = useMemo(
+    () => (dashboardBundle?.admin_template && typeof dashboardBundle.admin_template === 'object' ? dashboardBundle.admin_template : null),
+    [dashboardBundle?.admin_template],
+  );
+  const adminTemplateTabs = useMemo(() => asRecordList(adminTemplate?.tabs), [adminTemplate?.tabs]);
+  const adminTemplateDatasets = useMemo(() => {
+    if (Array.isArray(adminTemplate?.datasets)) return asRecordList(adminTemplate.datasets);
+    const datasetsRecord = asRecord(adminTemplate?.datasets);
+    if (!datasetsRecord) return [] as Array<Record<string, unknown>>;
+    return Object.entries(datasetsRecord).map(([key, value]) => ({ key, items: Array.isArray(value) ? value : [value] }));
+  }, [adminTemplate?.datasets]);
+  const adminTemplateDecisionCards = useMemo(
+    () => asRecordList(adminTemplate?.decision_cards),
+    [adminTemplate?.decision_cards],
+  );
+  const adminTemplateMapLayers = useMemo(() => asRecordList(adminTemplate?.map_layers), [adminTemplate?.map_layers]);
+  const adminTemplateStackGroups = useMemo(() => {
+    const stack = asRecord(adminTemplate?.stack);
+    const recommended = asStringList(asRecord(adminTemplate?.chart_stack)?.recommended);
+    const recommendedGroupLabel = asRenderableText(asRecord(adminTemplate?.chart_stack)?.recommended_label);
+    const groups = stack
+      ? Object.entries(stack)
+          .map(([key, value]) => ({ key, libs: asStringList(value) }))
+          .filter((group) => group.libs.length > 0)
+      : [];
+    if (recommended.length) {
+      groups.unshift({ key: recommendedGroupLabel, libs: recommended });
+    }
+    return groups;
+  }, [adminTemplate?.stack, adminTemplate?.chart_stack]);
+  const adminTemplateVisualModules = useMemo(() => asRecordList(adminTemplate?.visual_modules), [adminTemplate?.visual_modules]);
+  const adminTemplateUxGuardrails = useMemo(() => asRecord(adminTemplate?.ux_guardrails), [adminTemplate?.ux_guardrails]);
+  const chartContainerGuardrails = useMemo(
+    () => asRecord(adminTemplateUxGuardrails?.chart_container),
+    [adminTemplateUxGuardrails?.chart_container],
+  );
+  const chartContainerMinWidth = useMemo(
+    () => Math.max(280, Math.round(toFiniteNumber(chartContainerGuardrails?.default_min_width, 280))),
+    [chartContainerGuardrails?.default_min_width],
+  );
+  const chartContainerMinHeight = useMemo(
+    () => Math.max(220, Math.round(toFiniteNumber(chartContainerGuardrails?.default_min_height, 220))),
+    [chartContainerGuardrails?.default_min_height],
+  );
+  const chartRenderWhenVisible = chartContainerGuardrails?.render_when_visible === true;
+  const telemetryGuardrails = useMemo(() => asRecord(adminTemplateUxGuardrails?.telemetry), [adminTemplateUxGuardrails?.telemetry]);
+  const telemetryEventEndpoint = asRenderableText(telemetryGuardrails?.event_endpoint_preferred) || '/api/analytics/event';
+  const telemetryFallbackEventName = asRenderableText(telemetryGuardrails?.fallback_event_name) || 'frontend_analytics_event';
+
+  useEffect(() => {
+    if (!surveyId) return;
+    void enterpriseService.trackEvent(
+      {
+        event: 'analytics_dashboard_loaded',
+        tenant_id: typeof effectiveSurvey?.tenant_id === 'number' ? effectiveSurvey.tenant_id : undefined,
+        payload: {
+          tenant_slug: effectiveTenantSlug || null,
+          route: '/admin/encuestas/:id/analytics',
+          build_version: import.meta.env.VITE_APP_VERSION || 'dev',
+          survey_id: surveyId,
+        },
+        fallback_event_name: telemetryFallbackEventName,
+        event_endpoint_preferred: telemetryEventEndpoint,
+      },
+      effectiveTenantSlug,
+    ).catch(() => undefined);
+  }, [surveyId, effectiveSurvey?.tenant_id, effectiveTenantSlug, telemetryEventEndpoint, telemetryFallbackEventName]);
+
+  const hasAdminTemplateContent = Boolean(
+    adminTemplateTabs.length ||
+      adminTemplateDatasets.length ||
+      adminTemplateDecisionCards.length ||
+      adminTemplateMapLayers.length ||
+      adminTemplateStackGroups.length ||
+      adminTemplateVisualModules.length,
+  );
+
   const demographicFilterOptions = useMemo(() => {
     const breakdowns = summary?.demografia ?? {};
     const buildOptions = (keys: string[]) => {
@@ -383,12 +603,13 @@ export default function SurveyAnalyticsPage() {
 
       void refetchResponses();
 
+      const duplicateHint = result.duplicates > 0 ? ` ${result.duplicates} respuestas ya existían y se omitieron.` : '';
       toast({
         title: 'Respuestas demo generadas',
         description:
           result.failures > 0
-            ? `Registramos ${result.success} de ${result.total} respuestas. ${result.failures} intentos fallaron.`
-            : `Registramos ${result.success} respuestas de demostración.`,
+            ? `Registramos ${result.success} de ${result.total} respuestas. ${result.failures} intentos fallaron.${duplicateHint}`
+            : `Registramos ${result.success} respuestas de demostración.${duplicateHint}`,
       });
     } catch (error) {
       toast({
@@ -409,6 +630,66 @@ export default function SurveyAnalyticsPage() {
   const effectiveAlerts = backendAlerts.length ? backendAlerts : alerts;
   const backendBrief = dashboardBundle?.modules?.brief;
   const effectiveBrief = backendBrief ?? brief;
+  const executiveKpisEntries = useMemo(() => {
+    const source = dashboardBundle?.kpis_executive;
+    if (!source || typeof source !== 'object') return [] as Array<{ key: string; value: Record<string, unknown> }>;
+    return Object.entries(source).map(([key, value]) => ({ key, value: asRecord(value) ?? {} }));
+  }, [dashboardBundle?.kpis_executive]);
+  const topAnomalies = useMemo(
+    () => (Array.isArray(anomalies?.top_anomalies) && anomalies.top_anomalies.length ? anomalies.top_anomalies : anomalies?.signals ?? []),
+    [anomalies?.top_anomalies, anomalies?.signals],
+  );
+
+
+  const segmentDeltaData = useMemo(
+    () =>
+      (segmentsCompare?.buckets ?? [])
+        .map((bucket, index) => {
+          const segmentA = toFiniteNumber(bucket.segment_a, 0);
+          const segmentB = toFiniteNumber(bucket.segment_b, 0);
+          const rawDelta = bucket.delta;
+          const delta =
+            typeof rawDelta === 'number' && Number.isFinite(rawDelta)
+              ? rawDelta
+              : segmentA === 0
+                ? 0
+                : ((segmentB - segmentA) / Math.max(segmentA, 1)) * 100;
+
+          return {
+            key: String(bucket.question_id ?? index + 1),
+            question: asRenderableText(bucket.question_text) || String(bucket.question_id ?? index + 1),
+            delta,
+            segmentA,
+            segmentB,
+          };
+        })
+        .slice(0, 8),
+    [segmentsCompare?.buckets],
+  );
+
+  const anomalySignalsData = useMemo(
+    () =>
+      (topAnomalies ?? [])
+        .map((signal, index) => ({
+          key: String(signal.id ?? index + 1),
+          signal: asRenderableText(signal.type) || String(signal.id ?? index + 1),
+          score: toFiniteNumber(signal.score, 0),
+        }))
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 8),
+    [topAnomalies],
+  );
+
+  const selectedSegmentALabel = useMemo(
+    () => segmentSuggestionOptions.find((option) => option.key === segmentAKey)?.label ?? asRenderableText(segmentsCompare?.segment_a_label),
+    [segmentSuggestionOptions, segmentAKey, segmentsCompare?.segment_a_label],
+  );
+  const selectedSegmentBLabel = useMemo(
+    () => segmentSuggestionOptions.find((option) => option.key === segmentBKey)?.label ?? asRenderableText(segmentsCompare?.segment_b_label),
+    [segmentSuggestionOptions, segmentBKey, segmentsCompare?.segment_b_label],
+  );
+
+  const shouldRenderAdvancedVisuals = segmentDeltaData.length > 0 || anomalySignalsData.length > 0;
 
   if ((isLoadingSurvey && !surveys) || isLoading) {
     return (
@@ -566,11 +847,11 @@ export default function SurveyAnalyticsPage() {
             ) : null}
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-lg border border-border/60 p-3 text-sm">
-                <p className="text-muted-foreground">alert_count</p>
+                <p className="text-muted-foreground">{asSafeText(enterpriseUiConfig?.alerts_count_label) || 'Alertas detectadas'}</p>
                 <p className="text-xl font-semibold">{executiveSummary.alert_count ?? effectiveAlerts.length ?? 0}</p>
               </div>
               <div className="rounded-lg border border-border/60 p-3 text-sm">
-                <p className="text-muted-foreground">projected_additional</p>
+                <p className="text-muted-foreground">{asSafeText(enterpriseUiConfig?.projected_additional_label) || 'Proyección adicional'}</p>
                 <p className="text-xl font-semibold">{executiveSummary.projected_additional ?? '—'}</p>
               </div>
             </div>
@@ -613,6 +894,23 @@ export default function SurveyAnalyticsPage() {
             ) : null}
           </div>
         </div>
+        {isSeeding && seedProgress ? (
+          <div className="mt-3 space-y-2 rounded-md border border-primary/25 bg-primary/5 p-2">
+            <div className="flex items-center justify-between text-xs text-primary">
+              <span>Generando respuestas demo…</span>
+              <span>{seedProgress.processed}/{seedProgress.total}</span>
+            </div>
+            <Progress
+              value={seedProgress.total > 0 ? (seedProgress.processed / seedProgress.total) * 100 : 0}
+              className="h-1.5"
+            />
+            <div className="flex flex-wrap gap-3 text-[11px] text-muted-foreground">
+              <span>Éxito: {seedProgress.success}</span>
+              <span>Duplicadas: {seedProgress.duplicates}</span>
+              <span>Fallidas: {seedProgress.failures}</span>
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <Card>
@@ -642,6 +940,7 @@ export default function SurveyAnalyticsPage() {
             filters={filters}
             onFiltersChange={setFilters}
             tenantSlug={effectiveTenantSlug}
+            tenantId={typeof effectiveSurvey?.tenant_id === 'number' ? effectiveSurvey.tenant_id : undefined}
             route="/admin/encuestas/:id/analytics"
           />
         </CardContent>
@@ -724,6 +1023,40 @@ export default function SurveyAnalyticsPage() {
           <CardDescription>{asSafeText(enterpriseUiConfig?.territorial_center_description)}</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 lg:grid-cols-2">
+          {segmentSuggestionOptions.length ? (
+            <div className="lg:col-span-2 grid gap-3 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="segment-a-selector">{asSafeText(enterpriseUiConfig?.segment_selector_a_label)}</Label>
+                <Select value={segmentAKey} onValueChange={setSegmentAKey}>
+                  <SelectTrigger id="segment-a-selector">
+                    <SelectValue placeholder={asSafeText(enterpriseUiConfig?.segment_selector_placeholder)} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {segmentSuggestionOptions.map((option) => (
+                      <SelectItem key={`segment-a-${option.key}`} value={option.key}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="segment-b-selector">{asSafeText(enterpriseUiConfig?.segment_selector_b_label)}</Label>
+                <Select value={segmentBKey} onValueChange={setSegmentBKey}>
+                  <SelectTrigger id="segment-b-selector">
+                    <SelectValue placeholder={asSafeText(enterpriseUiConfig?.segment_selector_placeholder)} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {segmentSuggestionOptions.map((option) => (
+                      <SelectItem key={`segment-b-${option.key}`} value={option.key}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          ) : null}
           <div className="rounded-lg border border-border/60 p-4">
             <p className="mb-2 text-sm font-medium">{asSafeText(enterpriseUiConfig?.segment_comparator_title)}</p>
             {compareQuery.isLoading ? (
@@ -736,8 +1069,8 @@ export default function SurveyAnalyticsPage() {
                   <div key={`${bucket.question_id ?? index}`} className="space-y-1">
                     <p className="text-xs text-muted-foreground">{asRenderableText(bucket.question_text)}</p>
                     <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div className="rounded bg-primary/10 px-2 py-1">{asRenderableText(segmentsCompare.segment_a_label)}: {bucket.segment_a ?? 0}</div>
-                      <div className="rounded bg-amber-500/10 px-2 py-1">{asRenderableText(segmentsCompare.segment_b_label)}: {bucket.segment_b ?? 0}</div>
+                      <div className="rounded bg-primary/10 px-2 py-1">{selectedSegmentALabel || asRenderableText(segmentsCompare.segment_a_label)}: {bucket.segment_a ?? 0}</div>
+                      <div className="rounded bg-amber-500/10 px-2 py-1">{selectedSegmentBLabel || asRenderableText(segmentsCompare.segment_b_label)}: {bucket.segment_b ?? 0}</div>
                     </div>
                   </div>
                 ))}
@@ -770,6 +1103,301 @@ export default function SurveyAnalyticsPage() {
           </div>
         </CardContent>
       </Card>
+
+
+      {shouldRenderAdvancedVisuals ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>{asSafeText(enterpriseUiConfig?.intelligence_center_title)}</CardTitle>
+            <CardDescription>{asSafeText(enterpriseUiConfig?.intelligence_center_description)}</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 lg:grid-cols-2">
+            <div className="min-w-0 rounded-lg border border-border/60 p-4">
+              <p className="mb-3 text-sm font-medium">{asSafeText(enterpriseUiConfig?.segment_delta_chart_title)}</p>
+              {segmentDeltaData.length ? (
+                <div className="h-[280px] min-w-0">
+                  <ChartVisibilityGuard minWidth={chartContainerMinWidth} minHeight={chartContainerMinHeight} renderWhenVisible={chartRenderWhenVisible}>
+                    <ResponsiveContainer width="100%" height="100%" minWidth={chartContainerMinWidth} minHeight={chartContainerMinHeight} debounce={120}>
+                    <BarChart data={segmentDeltaData} margin={{ top: 8, right: 8, left: 0, bottom: 48 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                      <XAxis
+                        dataKey="question"
+                        interval={0}
+                        angle={-28}
+                        textAnchor="end"
+                        tick={{ fontSize: 11 }}
+                        height={70}
+                      />
+                      <YAxis tickFormatter={(value) => `${Math.round(Number(value))}%`} tick={{ fontSize: 11 }} />
+                      <Tooltip
+                        formatter={(value: number) => [asPercentage(toFiniteNumber(value, 0)), asSafeText(enterpriseUiConfig?.segment_delta_label)]}
+                        labelFormatter={(label) => `${label}`}
+                      />
+                      <Bar dataKey="delta" fill="#2563eb" radius={[6, 6, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                  </ChartVisibilityGuard>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">{asSafeText(enterpriseUiConfig?.segment_delta_chart_empty_label)}</p>
+              )}
+            </div>
+            <div className="min-w-0 rounded-lg border border-border/60 p-4">
+              <p className="mb-3 text-sm font-medium">{asSafeText(enterpriseUiConfig?.anomaly_signals_chart_title)}</p>
+              {anomalySignalsData.length ? (
+                <div className="h-[280px] min-w-0">
+                  <ChartVisibilityGuard minWidth={chartContainerMinWidth} minHeight={chartContainerMinHeight} renderWhenVisible={chartRenderWhenVisible}>
+                    <ResponsiveContainer width="100%" height="100%" minWidth={chartContainerMinWidth} minHeight={chartContainerMinHeight} debounce={120}>
+                    <BarChart data={anomalySignalsData} layout="vertical" margin={{ top: 4, right: 12, left: 0, bottom: 4 }}>
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                      <XAxis type="number" tick={{ fontSize: 11 }} />
+                      <YAxis dataKey="signal" type="category" width={120} tick={{ fontSize: 11 }} />
+                      <Tooltip
+                        formatter={(value: number) => [toFiniteNumber(value, 0), asSafeText(enterpriseUiConfig?.anomaly_score_label)]}
+                        labelFormatter={(label) => `${label}`}
+                      />
+                      <Bar dataKey="score" fill="#f59e0b" radius={[0, 6, 6, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                  </ChartVisibilityGuard>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">{asSafeText(enterpriseUiConfig?.anomaly_signals_chart_empty_label)}</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {hasAdminTemplateContent ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>{asRenderableText(adminTemplate?.title)}</CardTitle>
+            <CardDescription>{asRenderableText(adminTemplate?.description)}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {adminTemplateTabs.length ? (
+              <div className="flex flex-wrap gap-2">
+                {adminTemplateTabs.map((tab, index) => (
+                  <Badge key={`${asRenderableText(tab.key) || 'tab'}-${index}`} variant="secondary">
+                    {asRenderableText(tab.label) || asRenderableText(tab.key)}
+                  </Badge>
+                ))}
+              </div>
+            ) : null}
+
+            {adminTemplateStackGroups.length ? (
+              <div className="grid gap-3 md:grid-cols-2">
+                {adminTemplateStackGroups.map((group) => (
+                  <motion.div
+                    key={group.key}
+                    initial={{ opacity: 0, y: 8 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true, amount: 0.35 }}
+                    transition={{ duration: 0.22 }}
+                    className="rounded-lg border border-border/60 bg-gradient-to-b from-muted/20 to-background p-3"
+                  >
+                    {asRenderableText(group.key) ? (
+                      <p className="text-xs font-medium uppercase text-muted-foreground">{asRenderableText(group.key)}</p>
+                    ) : null}
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {group.libs.map((library, index) => (
+                        <Badge key={`${group.key}-${library}-${index}`} variant="outline" className="bg-background/70">
+                          {library}
+                        </Badge>
+                      ))}
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            ) : null}
+
+            {adminTemplateDatasets.length ? (
+              <div className="grid gap-3 lg:grid-cols-2">
+                {adminTemplateDatasets.slice(0, 4).map((dataset, index) => {
+                  const items = asRecordList(dataset.items).slice(0, 3);
+                  return (
+                    <div key={`${asRenderableText(dataset.key) || 'dataset'}-${index}`} className="rounded-lg border border-border/60 p-3">
+                      <p className="text-sm font-medium">{asRenderableText(dataset.label) || asRenderableText(dataset.key)}</p>
+                      <p className="text-xs text-muted-foreground">{asRenderableText(dataset.description)}</p>
+                      {items.length ? (
+                        <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                          {items.map((item, itemIndex) => (
+                            <p key={`${asRenderableText(dataset.key) || 'dataset'}-item-${itemIndex}`}>
+                              {Object.entries(item)
+                                .slice(0, 3)
+                                .map(([key, value]) => `${asRenderableText(key)}: ${asRenderableText(value)}`)
+                                .filter(Boolean)
+                                .join(' · ')}
+                            </p>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
+
+            {adminTemplateDecisionCards.length ? (
+              <div className="grid gap-3 lg:grid-cols-3">
+                {adminTemplateDecisionCards.slice(0, 6).map((card, index) => {
+                  const evidence = asStringList(card.evidence).slice(0, 3);
+                  const priority = normalizePriority(card.priority);
+                  const confidenceRatio = toNormalizedRatio(card.confidence ?? card.score ?? card.priority_score);
+                  const impactRatio = toNormalizedRatio(card.impact ?? card.impact_score);
+                  const owner = asRenderableText(card.owner);
+                  const horizon = asRenderableText(card.horizon);
+                  return (
+                    <motion.div
+                      key={`${asRenderableText(card.key) || 'decision'}-${index}`}
+                      initial={{ opacity: 0, y: 10 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true, amount: 0.25 }}
+                      transition={{ duration: 0.24, delay: index * 0.03 }}
+                      className="rounded-lg border border-border/60 bg-gradient-to-b from-primary/5 to-background p-3"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-medium">{asRenderableText(card.title) || asRenderableText(card.key)}</p>
+                        {priority ? <Badge variant={getPriorityBadgeVariant(priority)}>{priority}</Badge> : null}
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">{asRenderableText(card.summary)}</p>
+                      <div className="mt-2 space-y-2">
+                        {confidenceRatio !== null ? (
+                          <div>
+                            <div className="mb-1 flex items-center justify-between text-[11px] text-muted-foreground">
+                              <span>Confianza</span>
+                              <span>{Math.round(confidenceRatio * 100)}%</span>
+                            </div>
+                            <div className="h-1.5 rounded-full bg-muted">
+                              <div className="h-1.5 rounded-full bg-primary" style={{ width: `${Math.round(confidenceRatio * 100)}%` }} />
+                            </div>
+                          </div>
+                        ) : null}
+                        {impactRatio !== null ? (
+                          <div>
+                            <div className="mb-1 flex items-center justify-between text-[11px] text-muted-foreground">
+                              <span>Impacto</span>
+                              <span>{Math.round(impactRatio * 100)}%</span>
+                            </div>
+                            <div className="h-1.5 rounded-full bg-muted">
+                              <div className="h-1.5 rounded-full bg-emerald-500" style={{ width: `${Math.round(impactRatio * 100)}%` }} />
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                      {evidence.length ? (
+                        <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-muted-foreground">
+                          {evidence.map((item, evidenceIndex) => (
+                            <li key={`${asRenderableText(card.key) || 'decision'}-evidence-${evidenceIndex}`}>{item}</li>
+                          ))}
+                        </ul>
+                      ) : null}
+                      {(owner || horizon) ? (
+                        <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+                          {owner ? <Badge variant="secondary">{owner}</Badge> : null}
+                          {horizon ? <Badge variant="outline">{horizon}</Badge> : null}
+                        </div>
+                      ) : null}
+                    </motion.div>
+                  );
+                })}
+              </div>
+            ) : null}
+
+            {adminTemplateVisualModules.length ? (
+              <div className="grid gap-3 lg:grid-cols-2">
+                {adminTemplateVisualModules.slice(0, 6).map((module, index) => {
+                  const renderHints = [
+                    ...normalizeLibraryList(module.engine),
+                    ...normalizeLibraryList(module.provider),
+                    ...normalizeLibraryList(module.renderer),
+                    ...normalizeLibraryList(module.library),
+                    ...normalizeLibraryList(module.libraries),
+                  ].filter((value, idx, list) => list.indexOf(value) === idx);
+
+                  return (
+                    <motion.div
+                      key={`${asRenderableText(module.key) || 'module'}-${index}`}
+                      initial={{ opacity: 0, y: 8 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true, amount: 0.3 }}
+                      transition={{ duration: 0.22, delay: index * 0.02 }}
+                      className="rounded-lg border border-border/60 bg-gradient-to-br from-muted/20 via-background to-background p-3 text-xs"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="font-medium">{asRenderableText(module.title) || asRenderableText(module.key)}</p>
+                        {asRenderableText(module.type) ? <Badge variant="outline">{asRenderableText(module.type)}</Badge> : null}
+                      </div>
+                      <p className="mt-1 text-muted-foreground">{asRenderableText(module.description)}</p>
+                      <p className="text-muted-foreground">{asRenderableText(module.empty_state)}</p>
+                      {renderHints.length ? (
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {renderHints.slice(0, 4).map((hint) => (
+                            <Badge key={`${asRenderableText(module.key)}-${hint}`} variant="secondary" className="text-[11px]">
+                              {hint}
+                            </Badge>
+                          ))}
+                        </div>
+                      ) : null}
+                    </motion.div>
+                  );
+                })}
+              </div>
+            ) : null}
+
+            {adminTemplateMapLayers.length ? (
+              <div className="grid gap-2 sm:grid-cols-2">
+                {adminTemplateMapLayers.map((layer, index) => {
+                  const providers = [
+                    ...normalizeLibraryList(layer.provider),
+                    ...normalizeLibraryList(layer.engine),
+                    ...normalizeLibraryList(layer.map_provider),
+                  ].filter((value, idx, list) => list.indexOf(value) === idx);
+
+                  return (
+                    <div key={`${asRenderableText(layer.key) || 'layer'}-${index}`} className="rounded border border-border/60 bg-background px-3 py-2 text-xs">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="font-medium">{asRenderableText(layer.label) || asRenderableText(layer.key)}</p>
+                        {asRenderableText(layer.type) ? <Badge variant="outline">{asRenderableText(layer.type)}</Badge> : null}
+                      </div>
+                      {providers.length ? (
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {providers.slice(0, 3).map((provider) => (
+                            <Badge key={`${asRenderableText(layer.key)}-${provider}`} variant="secondary" className="text-[11px]">
+                              {provider}
+                            </Badge>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {executiveKpisEntries.length ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>{asSafeText(enterpriseUiConfig?.executive_kpis_title)}</CardTitle>
+            <CardDescription>{asSafeText(enterpriseUiConfig?.executive_kpis_description)}</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {executiveKpisEntries.map((item) => (
+              <div key={item.key} className="rounded-lg border border-border/60 p-3 text-sm">
+                <p className="text-muted-foreground">{asRenderableText(item.key)}</p>
+                <p className="text-xl font-semibold">{asRenderableText(item.value.value)}</p>
+                <p className="text-xs text-muted-foreground">{asRenderableText(item.value.trend)}</p>
+                <p className="text-xs text-muted-foreground">{asRenderableText(item.value.status)}</p>
+                <p className="text-xs text-muted-foreground">{asRenderableText(item.value.explanation)}</p>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      ) : null}
 
       <SurveyRecentResponses
         responses={responses}
