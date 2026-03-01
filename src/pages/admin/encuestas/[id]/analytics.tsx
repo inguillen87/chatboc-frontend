@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
 import { AlertTriangle, CalendarDays, Copy, Download, ExternalLink, Loader2, Sparkles, TrendingUp } from 'lucide-react';
@@ -31,6 +31,8 @@ import {
 } from '@/components/ui/select';
 import { getErrorMessage } from '@/utils/api';
 import { enterpriseService } from '@/services/enterpriseService';
+import { MeasuredContainer } from '@/components/analytics/MeasuredContainer';
+
 
 
 function ChartVisibilityGuard({
@@ -1116,7 +1118,7 @@ export default function SurveyAnalyticsPage() {
               <p className="mb-3 text-sm font-medium">{asSafeText(enterpriseUiConfig?.segment_delta_chart_title)}</p>
               {segmentDeltaData.length ? (
                 <div className="h-[280px] min-w-0">
-                  <ChartVisibilityGuard minWidth={chartContainerMinWidth} minHeight={chartContainerMinHeight} renderWhenVisible={chartRenderWhenVisible}>
+                  <MeasuredContainer minWidth={chartContainerMinWidth} minHeight={chartContainerMinHeight} renderWhenVisible={chartRenderWhenVisible} className="min-w-0">
                     <ResponsiveContainer width="100%" height="100%" minWidth={chartContainerMinWidth} minHeight={chartContainerMinHeight} debounce={120}>
                     <BarChart data={segmentDeltaData} margin={{ top: 8, right: 8, left: 0, bottom: 48 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -1136,7 +1138,7 @@ export default function SurveyAnalyticsPage() {
                       <Bar dataKey="delta" fill="#2563eb" radius={[6, 6, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
-                  </ChartVisibilityGuard>
+                  </MeasuredContainer>
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground">{asSafeText(enterpriseUiConfig?.segment_delta_chart_empty_label)}</p>
@@ -1146,7 +1148,7 @@ export default function SurveyAnalyticsPage() {
               <p className="mb-3 text-sm font-medium">{asSafeText(enterpriseUiConfig?.anomaly_signals_chart_title)}</p>
               {anomalySignalsData.length ? (
                 <div className="h-[280px] min-w-0">
-                  <ChartVisibilityGuard minWidth={chartContainerMinWidth} minHeight={chartContainerMinHeight} renderWhenVisible={chartRenderWhenVisible}>
+                  <MeasuredContainer minWidth={chartContainerMinWidth} minHeight={chartContainerMinHeight} renderWhenVisible={chartRenderWhenVisible} className="min-w-0">
                     <ResponsiveContainer width="100%" height="100%" minWidth={chartContainerMinWidth} minHeight={chartContainerMinHeight} debounce={120}>
                     <BarChart data={anomalySignalsData} layout="vertical" margin={{ top: 4, right: 12, left: 0, bottom: 4 }}>
                       <CartesianGrid strokeDasharray="3 3" horizontal={false} />
@@ -1159,7 +1161,7 @@ export default function SurveyAnalyticsPage() {
                       <Bar dataKey="score" fill="#f59e0b" radius={[0, 6, 6, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
-                  </ChartVisibilityGuard>
+                  </MeasuredContainer>
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground">{asSafeText(enterpriseUiConfig?.anomaly_signals_chart_empty_label)}</p>
