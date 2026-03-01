@@ -34,6 +34,47 @@ import { enterpriseService } from '@/services/enterpriseService';
 import { MeasuredContainer } from '@/components/analytics/MeasuredContainer';
 
 
+
+function ChartVisibilityGuard({
+  minWidth,
+  minHeight,
+  renderWhenVisible,
+  children,
+}: {
+  minWidth: number;
+  minHeight: number;
+  renderWhenVisible: boolean;
+  children: ReactNode;
+}) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [canRender, setCanRender] = useState(!renderWhenVisible);
+
+  useEffect(() => {
+    if (!renderWhenVisible) {
+      setCanRender(true);
+      return;
+    }
+
+    const node = containerRef.current;
+    if (!node) return;
+
+    const observer = new ResizeObserver(() => {
+      const { width, height } = node.getBoundingClientRect();
+      setCanRender(width > 0 && height > 0);
+    });
+
+    observer.observe(node);
+
+    return () => observer.disconnect();
+  }, [renderWhenVisible]);
+
+  return (
+    <div ref={containerRef} className="min-w-0" style={{ minWidth, minHeight, width: '100%', height: '100%' }}>
+      {canRender ? children : null}
+    </div>
+  );
+}
+
 function formatDateLabel(value?: string | null) {
   if (!value) return null;
   const parsed = new Date(value);
