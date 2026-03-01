@@ -1043,6 +1043,53 @@ export default function MapLibreMap({
     }
   }, [fitToBounds, boundsPadding, effectiveProvider]);
 
+  useEffect(() => {
+    if (effectiveProvider !== "maplibre") return;
+
+    const container = mapContainerRef.current;
+    const map = mapRef.current;
+    if (!container || !map) return;
+
+    let rafId: number | null = null;
+    const requestResize = () => {
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+      }
+      rafId = requestAnimationFrame(() => {
+        const liveMap = mapRef.current;
+        if (!liveMap) return;
+        try {
+          liveMap.resize();
+        } catch {
+          // noop
+        }
+      });
+    };
+
+    requestResize();
+
+    const observer = typeof ResizeObserver !== "undefined"
+      ? new ResizeObserver(() => requestResize())
+      : null;
+    observer?.observe(container);
+
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        requestResize();
+      }
+    };
+
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("orientationchange", requestResize);
+
+    return () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      observer?.disconnect();
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("orientationchange", requestResize);
+    };
+  }, [effectiveProvider, fitToBounds, processedHeatmap.length]);
+
   const containerClassName = cn(
     "relative w-full rounded-2xl overflow-hidden",
     className,

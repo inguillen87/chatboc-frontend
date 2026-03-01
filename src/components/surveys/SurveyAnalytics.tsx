@@ -1069,7 +1069,7 @@ export const SurveyAnalytics = ({
                   </p>
                 ) : null}
               </div>
-              <div className="h-[320px] min-w-0 overflow-hidden rounded-lg border border-border/60">
+              <ChartMount className="h-[320px] min-w-0 overflow-hidden rounded-lg border border-border/60">
                 <MapLibreMap
                   className="h-full w-full"
                   center={heatmapCenter}
@@ -1080,7 +1080,7 @@ export const SurveyAnalytics = ({
                   onProviderUnavailable={handleProviderUnavailable}
                   onBoundingBoxChange={handleBoundingBoxChange}
                 />
-              </div>
+              </ChartMount>
             </div>
           ) : (
             <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
@@ -1130,16 +1130,18 @@ export const SurveyAnalytics = ({
             </div>
           ) : null}
           {heatmapData.length ? (
-            <MapLibreMap
-              className="h-full rounded-lg"
-              center={heatmapCenter}
-              heatmapData={heatmapData}
-              fitToBounds={heatmapBounds.length ? heatmapBounds : undefined}
-              initialZoom={heatmapBounds.length ? 12 : 4}
-              provider={provider}
-              onProviderUnavailable={handleProviderUnavailable}
-              onBoundingBoxChange={handleBoundingBoxChange}
-            />
+            <ChartMount className="h-full min-w-0">
+              <MapLibreMap
+                className="h-full rounded-lg"
+                center={heatmapCenter}
+                heatmapData={heatmapData}
+                fitToBounds={heatmapBounds.length ? heatmapBounds : undefined}
+                initialZoom={heatmapBounds.length ? 12 : 4}
+                provider={provider}
+                onProviderUnavailable={handleProviderUnavailable}
+                onBoundingBoxChange={handleBoundingBoxChange}
+              />
+            </ChartMount>
           ) : (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
               No hay datos georreferenciados para esta encuesta todavía.

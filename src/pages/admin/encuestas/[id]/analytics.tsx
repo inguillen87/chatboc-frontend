@@ -21,6 +21,7 @@ import { toast } from '@/components/ui/use-toast';
 import { getAbsolutePublicSurveyUrl, getPublicSurveyQrUrl } from '@/utils/publicSurveyUrl';
 import { getSurveyAlerts, getSurveyAnomalies, getSurveyBrief, getSurveyForecast, getSurveySegmentsCompare, getSurveySegmentsSuggestions } from '@/api/encuestas';
 import { Label } from '@/components/ui/label';
+import { Progress } from '@/components/ui/progress';
 import {
   Select,
   SelectContent,
@@ -234,7 +235,7 @@ export default function SurveyAnalyticsPage() {
     refetch: refetchResponses,
   } = useSurveyResponses(surveyId ?? undefined);
   const queryClient = useQueryClient();
-  const { seed: seedSurveyResponses, isSeeding } = useSurveySeedResponses();
+  const { seed: seedSurveyResponses, isSeeding, progress: seedProgress } = useSurveySeedResponses();
   const [segmentAKey, setSegmentAKey] = useState<string>('');
   const [segmentBKey, setSegmentBKey] = useState<string>('');
 
@@ -602,12 +603,13 @@ export default function SurveyAnalyticsPage() {
 
       void refetchResponses();
 
+      const duplicateHint = result.duplicates > 0 ? ` ${result.duplicates} respuestas ya existían y se omitieron.` : '';
       toast({
         title: 'Respuestas demo generadas',
         description:
           result.failures > 0
-            ? `Registramos ${result.success} de ${result.total} respuestas. ${result.failures} intentos fallaron.`
-            : `Registramos ${result.success} respuestas de demostración.`,
+            ? `Registramos ${result.success} de ${result.total} respuestas. ${result.failures} intentos fallaron.${duplicateHint}`
+            : `Registramos ${result.success} respuestas de demostración.${duplicateHint}`,
       });
     } catch (error) {
       toast({
@@ -845,11 +847,11 @@ export default function SurveyAnalyticsPage() {
             ) : null}
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-lg border border-border/60 p-3 text-sm">
-                <p className="text-muted-foreground">alert_count</p>
+                <p className="text-muted-foreground">{asSafeText(enterpriseUiConfig?.alerts_count_label) || 'Alertas detectadas'}</p>
                 <p className="text-xl font-semibold">{executiveSummary.alert_count ?? effectiveAlerts.length ?? 0}</p>
               </div>
               <div className="rounded-lg border border-border/60 p-3 text-sm">
-                <p className="text-muted-foreground">projected_additional</p>
+                <p className="text-muted-foreground">{asSafeText(enterpriseUiConfig?.projected_additional_label) || 'Proyección adicional'}</p>
                 <p className="text-xl font-semibold">{executiveSummary.projected_additional ?? '—'}</p>
               </div>
             </div>
@@ -892,6 +894,23 @@ export default function SurveyAnalyticsPage() {
             ) : null}
           </div>
         </div>
+        {isSeeding && seedProgress ? (
+          <div className="mt-3 space-y-2 rounded-md border border-primary/25 bg-primary/5 p-2">
+            <div className="flex items-center justify-between text-xs text-primary">
+              <span>Generando respuestas demo…</span>
+              <span>{seedProgress.processed}/{seedProgress.total}</span>
+            </div>
+            <Progress
+              value={seedProgress.total > 0 ? (seedProgress.processed / seedProgress.total) * 100 : 0}
+              className="h-1.5"
+            />
+            <div className="flex flex-wrap gap-3 text-[11px] text-muted-foreground">
+              <span>Éxito: {seedProgress.success}</span>
+              <span>Duplicadas: {seedProgress.duplicates}</span>
+              <span>Fallidas: {seedProgress.failures}</span>
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <Card>
