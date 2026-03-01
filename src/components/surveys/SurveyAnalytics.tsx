@@ -31,6 +31,7 @@ import type {
   SurveyTimeseriesPoint,
 } from '@/types/encuestas';
 import { enterpriseService } from '@/services/enterpriseService';
+import { MeasuredContainer } from '@/components/analytics/MeasuredContainer';
 
 interface SurveyAnalyticsProps {
   summary?: SurveySummary;
@@ -42,6 +43,7 @@ interface SurveyAnalyticsProps {
   filters?: SurveyAnalyticsFilters;
   onFiltersChange?: (next: SurveyAnalyticsFilters) => void;
   tenantSlug?: string;
+  tenantId?: number;
   route?: string;
 }
 
@@ -417,35 +419,6 @@ const normalizeUtmBreakdown = (raw: unknown): UtmBreakdownItem[] => {
 };
 
 
-const ChartMount = ({ className, children }: { className: string; children: React.ReactNode }) => {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const [isReady, setIsReady] = useState(false);
-
-  useEffect(() => {
-    const node = containerRef.current;
-    if (!node || typeof ResizeObserver === 'undefined') {
-      setIsReady(true);
-      return;
-    }
-
-    const update = () => {
-      const { width, height } = node.getBoundingClientRect();
-      setIsReady(width > 24 && height > 24);
-    };
-
-    update();
-    const observer = new ResizeObserver(update);
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, []);
-
-  return (
-    <div ref={containerRef} className={className}>
-      {isReady ? children : <div className="h-full w-full" />}
-    </div>
-  );
-};
-
 export const SurveyAnalytics = ({
   summary,
   timeseries,
@@ -456,6 +429,7 @@ export const SurveyAnalytics = ({
   filters,
   onFiltersChange,
   tenantSlug,
+  tenantId,
   route = '/admin/encuestas/:id/analytics',
 }: SurveyAnalyticsProps) => {
   const timeseriesData = useMemo(() => buildTimeseriesData(timeseries), [timeseries]);
@@ -800,8 +774,8 @@ export const SurveyAnalytics = ({
       error_code: heatmapData.length > 0 ? null : 'empty_dataset',
     };
 
-    void enterpriseService.trackEvent({ event, payload }, tenantSlug).catch(() => undefined);
-  }, [heatmapData.length, route, tenantSlug]);
+    void enterpriseService.trackEvent({ event, tenant_id: tenantId, payload }, tenantSlug).catch(() => undefined);
+  }, [heatmapData.length, route, tenantId, tenantSlug]);
 
   return (
     <div className="space-y-6">
@@ -850,7 +824,7 @@ export const SurveyAnalytics = ({
           <CardTitle>Evolución diaria</CardTitle>
           <CardDescription>Visualizá el ritmo de participación a lo largo del tiempo.</CardDescription>
         </CardHeader>
-        <CardContent><ChartMount className="h-72 min-w-0">
+        <CardContent><MeasuredContainer className="h-72 min-w-0">
           {timeseriesData.length ? (
             <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220}>
               <LineChart data={timeseriesData}>
@@ -866,7 +840,7 @@ export const SurveyAnalytics = ({
               Aún no hay datos de series temporales.
             </div>
           )}
-        </ChartMount></CardContent>
+        </MeasuredContainer></CardContent>
       </Card>
 
       <Card>
@@ -875,7 +849,7 @@ export const SurveyAnalytics = ({
           <CardDescription>Resultados acumulados por pregunta y opción.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-6 lg:grid-cols-2">
-          <ChartMount className="h-72 min-w-0">
+          <MeasuredContainer className="h-72 min-w-0">
             {optionData.length ? (
               <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220}>
                 <BarChart data={optionData}>
@@ -892,8 +866,8 @@ export const SurveyAnalytics = ({
                 No hay respuestas registradas para mostrar.
               </div>
             )}
-          </ChartMount>
-          <ChartMount className="h-72 min-w-0">
+          </MeasuredContainer>
+          <MeasuredContainer className="h-72 min-w-0">
             {optionData.length ? (
               <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220}>
                 <PieChart>
@@ -918,7 +892,7 @@ export const SurveyAnalytics = ({
                 Sin datos para graficar.
               </div>
             )}
-          </ChartMount>
+          </MeasuredContainer>
         </CardContent>
       </Card>
 
@@ -1067,7 +1041,7 @@ export const SurveyAnalytics = ({
                   </p>
                 ) : null}
               </div>
-              <div className="h-[320px] min-w-0 overflow-hidden rounded-lg border border-border/60">
+              <MeasuredContainer className="h-[320px] min-w-0 overflow-hidden rounded-lg border border-border/60">
                 <MapLibreMap
                   className="h-full w-full"
                   center={heatmapCenter}
@@ -1078,7 +1052,7 @@ export const SurveyAnalytics = ({
                   onProviderUnavailable={handleProviderUnavailable}
                   onBoundingBoxChange={handleBoundingBoxChange}
                 />
-              </div>
+              </MeasuredContainer>
             </div>
           ) : (
             <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
@@ -1128,16 +1102,18 @@ export const SurveyAnalytics = ({
             </div>
           ) : null}
           {heatmapData.length ? (
-            <MapLibreMap
-              className="h-full rounded-lg"
-              center={heatmapCenter}
-              heatmapData={heatmapData}
-              fitToBounds={heatmapBounds.length ? heatmapBounds : undefined}
-              initialZoom={heatmapBounds.length ? 12 : 4}
-              provider={provider}
-              onProviderUnavailable={handleProviderUnavailable}
-              onBoundingBoxChange={handleBoundingBoxChange}
-            />
+            <MeasuredContainer className="h-full min-w-0">
+              <MapLibreMap
+                className="h-full rounded-lg"
+                center={heatmapCenter}
+                heatmapData={heatmapData}
+                fitToBounds={heatmapBounds.length ? heatmapBounds : undefined}
+                initialZoom={heatmapBounds.length ? 12 : 4}
+                provider={provider}
+                onProviderUnavailable={handleProviderUnavailable}
+                onBoundingBoxChange={handleBoundingBoxChange}
+              />
+            </MeasuredContainer>
           ) : (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
               No hay datos georreferenciados para esta encuesta todavía.
@@ -1162,7 +1138,7 @@ export const SurveyAnalytics = ({
                     Participación segmentada para este atributo.
                   </p>
                 </div>
-                <ChartMount className="h-64 w-full min-w-0">
+                <MeasuredContainer className="h-64 w-full min-w-0">
                   <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220}>
                     <BarChart
                       data={section.data}
@@ -1193,7 +1169,7 @@ export const SurveyAnalytics = ({
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
-                </ChartMount>
+                </MeasuredContainer>
               </div>
             ))}
           </CardContent>
