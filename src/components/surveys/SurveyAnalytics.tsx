@@ -1148,7 +1148,7 @@ export const SurveyAnalytics = ({
               Modo demo (ubicaciones simuladas)
             </div>
           ) : null}
-          {boundingBoxValue ? (
+          {mapRenderReady && heatmapData.length && boundingBoxValue ? (
             <div className="mb-3 flex flex-wrap items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-primary">
               Filtrando resultados por la zona visible del mapa.
               <Button
