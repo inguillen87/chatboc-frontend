@@ -347,10 +347,34 @@ export interface SurveySegmentCompareBucket {
   delta?: number;
 }
 
+export interface SurveySegmentMeta {
+  label?: string;
+  filters?: Record<string, unknown>;
+  count?: number;
+  coverage?: number;
+  [key: string]: unknown;
+}
+
 export interface SurveySegmentsCompare {
   segment_a_label?: string;
   segment_b_label?: string;
+  segment_a?: { meta?: SurveySegmentMeta; [key: string]: unknown };
+  segment_b?: { meta?: SurveySegmentMeta; [key: string]: unknown };
+  comparison_meta?: Record<string, unknown>;
   buckets?: SurveySegmentCompareBucket[];
+}
+
+export interface SurveySegmentSuggestion {
+  label?: string;
+  filters?: Record<string, string | number | boolean>;
+  count?: number;
+  coverage?: number;
+  [key: string]: unknown;
+}
+
+export interface SurveySegmentsSuggestions {
+  dimensions?: Record<string, SurveySegmentSuggestion[]>;
+  [key: string]: unknown;
 }
 
 export interface SurveyAnomalySignal {
@@ -358,12 +382,20 @@ export interface SurveyAnomalySignal {
   type?: string;
   detail?: string;
   score?: number;
+  why_it_matters?: string;
+  recommended_action?: string;
+  affected_segment?: string;
+  confidence?: number | string;
+  severity?: 'low' | 'medium' | 'high' | 'critical' | string;
+  timestamp?: string;
 }
 
 export interface SurveyAnomalies {
   risk_score?: number;
   risk_level?: 'bajo' | 'medio' | 'alto' | string;
+  severity?: 'low' | 'medium' | 'high' | 'critical' | string;
   signals?: SurveyAnomalySignal[];
+  top_anomalies?: SurveyAnomalySignal[];
 }
 
 export interface SurveyTimeseriesPoint {
@@ -411,11 +443,69 @@ export interface SurveyDashboardModules {
   [key: string]: unknown;
 }
 
+
+export interface SurveyAdminTemplateTab {
+  key?: string;
+  label?: string;
+  description?: string;
+  [key: string]: unknown;
+}
+
+export interface SurveyAdminTemplateDataset {
+  key?: string;
+  label?: string;
+  description?: string;
+  kind?: string;
+  items?: Array<Record<string, unknown>>;
+  [key: string]: unknown;
+}
+
+export interface SurveyAdminTemplateDecisionCard {
+  key?: string;
+  title?: string;
+  summary?: string;
+  priority?: string | number;
+  evidence?: string[];
+  [key: string]: unknown;
+}
+
+export interface SurveyAdminTemplateMapLayer {
+  key?: string;
+  label?: string;
+  type?: string;
+  enabled?: boolean;
+  [key: string]: unknown;
+}
+
+export interface SurveyAdminTemplate {
+  title?: string;
+  description?: string;
+  layout_version?: string;
+  tabs?: SurveyAdminTemplateTab[];
+  stack?: Record<string, unknown>;
+  chart_stack?: { recommended?: string[]; [key: string]: unknown };
+  datasets?: SurveyAdminTemplateDataset[] | Record<string, unknown>;
+  decision_cards?: SurveyAdminTemplateDecisionCard[];
+  map_layers?: SurveyAdminTemplateMapLayer[];
+  visual_modules?: Array<Record<string, unknown>>;
+  [key: string]: unknown;
+}
+
+export interface SurveyExecutiveKpi {
+  value?: string | number;
+  trend?: string | number;
+  status?: string;
+  explanation?: string;
+  [key: string]: unknown;
+}
+
 export interface SurveyDashboardBundle {
   executive_summary?: SurveyExecutiveSummary;
   visual_blueprint?: SurveyVisualBlueprint;
+  admin_template?: SurveyAdminTemplate;
   modules?: SurveyDashboardModules;
   kpis?: Record<string, unknown>;
+  kpis_executive?: Record<string, SurveyExecutiveKpi>;
   [key: string]: unknown;
 }
 

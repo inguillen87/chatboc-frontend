@@ -1,6 +1,7 @@
 import { useMutation } from '@tanstack/react-query';
+import { useState } from 'react';
 
-import { postPublicResponse } from '@/api/encuestas';
+import { adminSeedSurvey, postPublicResponse } from '@/api/encuestas';
 import { ApiError } from '@/utils/api';
 import type { SurveyAdmin, SurveyPublic } from '@/types/encuestas';
 import { generateSurveySeedPayloads } from '@/utils/surveySeed';
@@ -11,6 +12,14 @@ interface SeedArgs {
   scenario?: string | null;
 }
 
+export interface SeedProgress {
+  processed: number;
+  total: number;
+  success: number;
+  duplicates: number;
+  failures: number;
+}
+
 interface SeedErrorDetail {
   index: number;
   error: unknown;
@@ -19,6 +28,7 @@ interface SeedErrorDetail {
 export interface SeedResultSummary {
   total: number;
   success: number;
+  duplicates: number;
   failures: number;
   errors: SeedErrorDetail[];
 }
@@ -109,8 +119,11 @@ const randomBetween = (min: number, max: number) => min + Math.random() * (max -
 const postBatch = async (
   slug: string,
   payloads: ReturnType<typeof generateSurveySeedPayloads>['payloads'],
+  onProgress?: (progress: SeedProgress) => void,
 ): Promise<SeedResultSummary> => {
-  const summary: SeedResultSummary = { total: payloads.length, success: 0, failures: 0, errors: [] };
+  const summary: SeedResultSummary = { total: payloads.length, success: 0, duplicates: 0, failures: 0, errors: [] };
+
+  onProgress?.({ processed: 0, total: payloads.length, success: 0, duplicates: 0, failures: 0 });
 
   for (let index = 0; index < payloads.length; index += 1) {
     const payload = payloads[index];
@@ -135,20 +148,36 @@ const postBatch = async (
     }
 
     if (!success) {
-      summary.failures += 1;
-      summary.errors.push({ index, error: lastError });
-      await sleep(computeRetryDelay(0));
+      const conflictError = lastError instanceof ApiError && lastError.status === 409;
+      if (conflictError) {
+        summary.duplicates += 1;
+      } else {
+        summary.failures += 1;
+        summary.errors.push({ index, error: lastError });
+        await sleep(computeRetryDelay(0));
+      }
     } else if (index < payloads.length - 1) {
       await sleep(randomBetween(MIN_BETWEEN_REQUESTS_MS, MAX_BETWEEN_REQUESTS_MS));
     }
+
+    onProgress?.({
+      processed: index + 1,
+      total: payloads.length,
+      success: summary.success,
+      duplicates: summary.duplicates,
+      failures: summary.failures,
+    });
   }
 
   return summary;
 };
 
 export function useSurveySeedResponses() {
+  const [progress, setProgress] = useState<SeedProgress | null>(null);
+
   const mutation = useMutation({
     mutationFn: async ({ survey, count, scenario }: SeedArgs) => {
+      setProgress(null);
       if (!survey?.slug) {
         throw new Error('La encuesta no tiene un slug público configurado.');
       }
@@ -159,7 +188,35 @@ export function useSurveySeedResponses() {
         municipalityLabel: survey?.municipio_nombre ?? undefined,
       });
 
-      return postBatch(survey.slug, payloads);
+      const surveyId = typeof (survey as { id?: unknown })?.id === 'number'
+        ? (survey as { id: number }).id
+        : null;
+
+      if (surveyId && Number.isFinite(surveyId)) {
+        try {
+          const seeded = await adminSeedSurvey(surveyId, {
+            cantidad: payloads.length,
+            municipality_label: survey?.municipio_nombre ?? undefined,
+          });
+          const success = Math.max(0, Math.min(payloads.length, Number(seeded?.creadas ?? 0)));
+          const duplicates = Math.max(0, payloads.length - success);
+          setProgress({ processed: payloads.length, total: payloads.length, success, duplicates, failures: 0 });
+          return {
+            total: payloads.length,
+            success,
+            duplicates,
+            failures: 0,
+            errors: [],
+          } satisfies SeedResultSummary;
+        } catch (error) {
+          const canFallbackToPublic = error instanceof ApiError && [400, 404, 405, 501].includes(error.status);
+          if (!canFallbackToPublic) {
+            throw error;
+          }
+        }
+      }
+
+      return postBatch(survey.slug, payloads, setProgress);
     },
   });
 
@@ -167,6 +224,10 @@ export function useSurveySeedResponses() {
     seed: mutation.mutateAsync,
     isSeeding: mutation.isPending,
     result: mutation.data,
-    reset: mutation.reset,
+    progress,
+    reset: () => {
+      setProgress(null);
+      mutation.reset();
+    },
   };
 }
