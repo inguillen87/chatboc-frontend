@@ -165,6 +165,21 @@ const toNonEmptyString = (value: unknown): string | null => {
   return null;
 };
 
+
+const normalizeMapProvider = (value: unknown): MapProvider | null => {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return null;
+  if (normalized === 'maplibre' || normalized === 'maptiler') return 'maplibre';
+  if (normalized === 'google') return 'google';
+  return null;
+};
+
+const toStringList = (value: unknown): string[] => {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
+};
+
 const extractTimeseriesPoint = (value: unknown): SurveyTimeseriesPoint | null => {
   if (!isRecord(value)) return null;
   const rawDate =
@@ -463,10 +478,40 @@ export const SurveyAnalytics = ({
 
     return Array.from(grouped.values());
   }, [heatmapPoints]);
-  const usingSyntheticPoints = useMemo(() => {
-    if (!heatmapMeta || typeof heatmapMeta !== 'object') return false;
-    return Boolean((heatmapMeta as Record<string, unknown>).using_synthetic_points);
-  }, [heatmapMeta]);
+  const heatmapMetaRecord = useMemo(
+    () => (heatmapMeta && typeof heatmapMeta === 'object' ? (heatmapMeta as Record<string, unknown>) : null),
+    [heatmapMeta],
+  );
+  const mapMetaRecord = useMemo(() => {
+    const mapValue = heatmapMetaRecord?.map;
+    return mapValue && typeof mapValue === 'object' ? (mapValue as Record<string, unknown>) : null;
+  }, [heatmapMetaRecord]);
+  const renderContractRecord = useMemo(() => {
+    const contractValue = heatmapMetaRecord?.render_contract;
+    return contractValue && typeof contractValue === 'object' ? (contractValue as Record<string, unknown>) : null;
+  }, [heatmapMetaRecord]);
+  const usingSyntheticPoints = useMemo(
+    () =>
+      Boolean(
+        heatmapMetaRecord?.using_synthetic_points ||
+          (typeof renderContractRecord?.state === 'string' && renderContractRecord.state === 'demo_fallback'),
+      ),
+    [heatmapMetaRecord, renderContractRecord],
+  );
+  const mapRenderReady = useMemo(() => {
+    if (!mapMetaRecord) return true;
+    if (typeof mapMetaRecord.render_ready === 'boolean') return mapMetaRecord.render_ready;
+    return true;
+  }, [mapMetaRecord]);
+  const providerHint = useMemo(() => normalizeMapProvider(mapMetaRecord?.provider_hint), [mapMetaRecord]);
+  const fallbackProvider = useMemo(
+    () => normalizeMapProvider(mapMetaRecord?.fallback_provider) ?? 'maplibre',
+    [mapMetaRecord],
+  );
+  const availableProviders = useMemo(
+    () => toStringList(mapMetaRecord?.available_providers).map((item) => normalizeMapProvider(item)).filter(Boolean) as MapProvider[],
+    [mapMetaRecord],
+  );
 
   const heatmapData = useMemo(() => {
     const allZero = aggregatedHeatmapPoints.length > 0 && aggregatedHeatmapPoints.every((point) => point.respuestas <= 0);
@@ -477,10 +522,16 @@ export const SurveyAnalytics = ({
     }));
   }, [aggregatedHeatmapPoints, usingSyntheticPoints]);
   const { provider, setProvider } = useMapProvider();
-  const googleProviderAvailable = useMemo(
-    () => ((import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? '').trim().length > 0),
-    [],
+  const hasGoogleKey = useMemo(() => ((import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? '').trim().length > 0), []);
+  const providerIsConfigured = useCallback(
+    (candidate: MapProvider) => {
+      if (availableProviders.length > 0 && !availableProviders.includes(candidate)) return false;
+      if (candidate === 'google') return hasGoogleKey;
+      return true;
+    },
+    [availableProviders, hasGoogleKey],
   );
+  const googleProviderAvailable = providerIsConfigured('google');
   const normalizedFilters: SurveyAnalyticsFilters = filters ?? {};
   const boundingBoxValue = useMemo(() => {
     const bbox = normalizedFilters.bbox;
@@ -494,6 +545,17 @@ export const SurveyAnalytics = ({
     return undefined;
   }, [normalizedFilters]);
 
+  useEffect(() => {
+    if (!providerIsConfigured(provider)) {
+      setProvider(fallbackProvider);
+      return;
+    }
+
+    if (providerHint && providerHint !== provider && providerIsConfigured(providerHint)) {
+      setProvider(providerHint);
+    }
+  }, [fallbackProvider, provider, providerHint, providerIsConfigured, setProvider]);
+
   const handleProviderUnavailable = useCallback(
     (currentProvider: MapProvider, reason: MapProviderUnavailableReason, details?: unknown) => {
       console.warn('[SurveyAnalytics] Map provider unavailable, falling back to MapLibre', {
@@ -501,9 +563,9 @@ export const SurveyAnalytics = ({
         reason,
         details,
       });
-      setProvider('maplibre');
+      setProvider(fallbackProvider);
     },
-    [setProvider],
+    [fallbackProvider, setProvider],
   );
   const skipNextBoundingUpdateRef = useRef(false);
   const boundingBoxDebounceRef = useRef<number | null>(null);
@@ -1014,7 +1076,7 @@ export const SurveyAnalytics = ({
               Modo demo (ubicaciones simuladas)
             </div>
           ) : null}
-          {aggregatedHeatmapPoints.length ? (
+          {mapRenderReady && aggregatedHeatmapPoints.length ? (
             <div className="space-y-4">
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-border text-sm">
@@ -1056,7 +1118,7 @@ export const SurveyAnalytics = ({
             </div>
           ) : (
             <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
-              Todavía no hay datos georreferenciados.
+              {toNonEmptyString(mapMetaRecord?.empty_state) ?? 'Todavía no hay datos georreferenciados.'}
             </div>
           )}
         </CardContent>
@@ -1101,7 +1163,7 @@ export const SurveyAnalytics = ({
               </Button>
             </div>
           ) : null}
-          {heatmapData.length ? (
+          {mapRenderReady && heatmapData.length ? (
             <MeasuredContainer className="h-full min-w-0">
               <MapLibreMap
                 className="h-full rounded-lg"
@@ -1116,7 +1178,7 @@ export const SurveyAnalytics = ({
             </MeasuredContainer>
           ) : (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-              No hay datos georreferenciados para esta encuesta todavía.
+              {toNonEmptyString(mapMetaRecord?.empty_state) ?? 'No hay datos georreferenciados para esta encuesta todavía.'}
             </div>
           )}
         </CardContent>
