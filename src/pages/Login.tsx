@@ -419,20 +419,9 @@ const Login = () => {
       if (responseTenantSlug) {
         safeLocalStorage.setItem("tenantSlug", responseTenantSlug);
       }
-      await refreshUser();
-
-      const rawUser = safeLocalStorage.getItem("user");
-      let isAdmin = false;
-      let isSuperAdmin = false;
-      if (rawUser) {
-        const parsed = JSON.parse(rawUser);
-        if (parsed?.rol === "super_admin" || parsed?.rol === "superadmin") {
-          isSuperAdmin = true;
-        }
-        if (parsed?.rol === "admin" || parsed?.rol === "superadmin" || parsed?.rol === "empleado" || parsed?.rol === "super_admin") {
-          isAdmin = true;
-        }
-      }
+      const resultRole = (result as any)?.user?.rol;
+      const isSuperAdmin = resultRole === "super_admin" || resultRole === "superadmin";
+      const isAdmin = isSuperAdmin || resultRole === "admin" || resultRole === "empleado";
 
       if (isSuperAdmin) {
         navigate("/superadmin");
@@ -441,6 +430,8 @@ const Login = () => {
       } else {
         navigateToTenantCatalog(responseTenantSlug);
       }
+
+      refreshUser().catch(() => undefined);
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "No se pudo iniciar sesión con Passkey.";
@@ -470,7 +461,7 @@ const Login = () => {
         safeLocalStorage.getItem('tenantSlug') ||
         null;
 
-      await runDemoPreloadHints(tenantSlugHint);
+      void runDemoPreloadHints(tenantSlugHint);
       const requestPayload = buildDemoPayload(resolvedPayload, resolvedRubro, tenantSlugHint, resolvedSector);
       const data = await enterpriseService.demoLoginWithPayload(requestPayload, normalizeDemoLoginEndpoint(endpointOverride || demoLoginEndpoint));
       safeLocalStorage.setItem("authToken", data.token);

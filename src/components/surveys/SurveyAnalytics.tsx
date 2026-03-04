@@ -31,6 +31,7 @@ import type {
   SurveyTimeseriesPoint,
 } from '@/types/encuestas';
 import { enterpriseService } from '@/services/enterpriseService';
+import { MeasuredContainer } from '@/components/analytics/MeasuredContainer';
 
 interface SurveyAnalyticsProps {
   summary?: SurveySummary;
@@ -42,6 +43,7 @@ interface SurveyAnalyticsProps {
   filters?: SurveyAnalyticsFilters;
   onFiltersChange?: (next: SurveyAnalyticsFilters) => void;
   tenantSlug?: string;
+  tenantId?: number;
   route?: string;
 }
 
@@ -161,6 +163,21 @@ const toNonEmptyString = (value: unknown): string | null => {
   if (typeof value === 'string' && value.trim()) return value;
   if (typeof value === 'number' && Number.isFinite(value)) return String(value);
   return null;
+};
+
+
+const normalizeMapProvider = (value: unknown): MapProvider | null => {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return null;
+  if (normalized === 'maplibre' || normalized === 'maptiler') return 'maplibre';
+  if (normalized === 'google') return 'google';
+  return null;
+};
+
+const toStringList = (value: unknown): string[] => {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
 };
 
 const extractTimeseriesPoint = (value: unknown): SurveyTimeseriesPoint | null => {
@@ -417,35 +434,6 @@ const normalizeUtmBreakdown = (raw: unknown): UtmBreakdownItem[] => {
 };
 
 
-const ChartMount = ({ className, children }: { className: string; children: React.ReactNode }) => {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const [isReady, setIsReady] = useState(false);
-
-  useEffect(() => {
-    const node = containerRef.current;
-    if (!node || typeof ResizeObserver === 'undefined') {
-      setIsReady(true);
-      return;
-    }
-
-    const update = () => {
-      const { width, height } = node.getBoundingClientRect();
-      setIsReady(width > 24 && height > 24);
-    };
-
-    update();
-    const observer = new ResizeObserver(update);
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, []);
-
-  return (
-    <div ref={containerRef} className={className}>
-      {isReady ? children : <div className="h-full w-full" />}
-    </div>
-  );
-};
-
 export const SurveyAnalytics = ({
   summary,
   timeseries,
@@ -456,6 +444,7 @@ export const SurveyAnalytics = ({
   filters,
   onFiltersChange,
   tenantSlug,
+  tenantId,
   route = '/admin/encuestas/:id/analytics',
 }: SurveyAnalyticsProps) => {
   const timeseriesData = useMemo(() => buildTimeseriesData(timeseries), [timeseries]);
@@ -489,10 +478,40 @@ export const SurveyAnalytics = ({
 
     return Array.from(grouped.values());
   }, [heatmapPoints]);
-  const usingSyntheticPoints = useMemo(() => {
-    if (!heatmapMeta || typeof heatmapMeta !== 'object') return false;
-    return Boolean((heatmapMeta as Record<string, unknown>).using_synthetic_points);
-  }, [heatmapMeta]);
+  const heatmapMetaRecord = useMemo(
+    () => (heatmapMeta && typeof heatmapMeta === 'object' ? (heatmapMeta as Record<string, unknown>) : null),
+    [heatmapMeta],
+  );
+  const mapMetaRecord = useMemo(() => {
+    const mapValue = heatmapMetaRecord?.map;
+    return mapValue && typeof mapValue === 'object' ? (mapValue as Record<string, unknown>) : null;
+  }, [heatmapMetaRecord]);
+  const renderContractRecord = useMemo(() => {
+    const contractValue = heatmapMetaRecord?.render_contract;
+    return contractValue && typeof contractValue === 'object' ? (contractValue as Record<string, unknown>) : null;
+  }, [heatmapMetaRecord]);
+  const usingSyntheticPoints = useMemo(
+    () =>
+      Boolean(
+        heatmapMetaRecord?.using_synthetic_points ||
+          (typeof renderContractRecord?.state === 'string' && renderContractRecord.state === 'demo_fallback'),
+      ),
+    [heatmapMetaRecord, renderContractRecord],
+  );
+  const mapRenderReady = useMemo(() => {
+    if (!mapMetaRecord) return true;
+    if (typeof mapMetaRecord.render_ready === 'boolean') return mapMetaRecord.render_ready;
+    return true;
+  }, [mapMetaRecord]);
+  const providerHint = useMemo(() => normalizeMapProvider(mapMetaRecord?.provider_hint), [mapMetaRecord]);
+  const fallbackProvider = useMemo(
+    () => normalizeMapProvider(mapMetaRecord?.fallback_provider) ?? 'maplibre',
+    [mapMetaRecord],
+  );
+  const availableProviders = useMemo(
+    () => toStringList(mapMetaRecord?.available_providers).map((item) => normalizeMapProvider(item)).filter(Boolean) as MapProvider[],
+    [mapMetaRecord],
+  );
 
   const heatmapData = useMemo(() => {
     const allZero = aggregatedHeatmapPoints.length > 0 && aggregatedHeatmapPoints.every((point) => point.respuestas <= 0);
@@ -503,10 +522,16 @@ export const SurveyAnalytics = ({
     }));
   }, [aggregatedHeatmapPoints, usingSyntheticPoints]);
   const { provider, setProvider } = useMapProvider();
-  const googleProviderAvailable = useMemo(
-    () => ((import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? '').trim().length > 0),
-    [],
+  const hasGoogleKey = useMemo(() => ((import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? '').trim().length > 0), []);
+  const providerIsConfigured = useCallback(
+    (candidate: MapProvider) => {
+      if (availableProviders.length > 0 && !availableProviders.includes(candidate)) return false;
+      if (candidate === 'google') return hasGoogleKey;
+      return true;
+    },
+    [availableProviders, hasGoogleKey],
   );
+  const googleProviderAvailable = providerIsConfigured('google');
   const normalizedFilters: SurveyAnalyticsFilters = filters ?? {};
   const boundingBoxValue = useMemo(() => {
     const bbox = normalizedFilters.bbox;
@@ -520,6 +545,17 @@ export const SurveyAnalytics = ({
     return undefined;
   }, [normalizedFilters]);
 
+  useEffect(() => {
+    if (!providerIsConfigured(provider)) {
+      setProvider(fallbackProvider);
+      return;
+    }
+
+    if (providerHint && providerHint !== provider && providerIsConfigured(providerHint)) {
+      setProvider(providerHint);
+    }
+  }, [fallbackProvider, provider, providerHint, providerIsConfigured, setProvider]);
+
   const handleProviderUnavailable = useCallback(
     (currentProvider: MapProvider, reason: MapProviderUnavailableReason, details?: unknown) => {
       console.warn('[SurveyAnalytics] Map provider unavailable, falling back to MapLibre', {
@@ -527,9 +563,9 @@ export const SurveyAnalytics = ({
         reason,
         details,
       });
-      setProvider('maplibre');
+      setProvider(fallbackProvider);
     },
-    [setProvider],
+    [fallbackProvider, setProvider],
   );
   const skipNextBoundingUpdateRef = useRef(false);
   const boundingBoxDebounceRef = useRef<number | null>(null);
@@ -800,8 +836,8 @@ export const SurveyAnalytics = ({
       error_code: heatmapData.length > 0 ? null : 'empty_dataset',
     };
 
-    void enterpriseService.trackEvent({ event, payload }, tenantSlug).catch(() => undefined);
-  }, [heatmapData.length, route, tenantSlug]);
+    void enterpriseService.trackEvent({ event, tenant_id: tenantId, payload }, tenantSlug).catch(() => undefined);
+  }, [heatmapData.length, route, tenantId, tenantSlug]);
 
   return (
     <div className="space-y-6">
@@ -850,7 +886,7 @@ export const SurveyAnalytics = ({
           <CardTitle>Evolución diaria</CardTitle>
           <CardDescription>Visualizá el ritmo de participación a lo largo del tiempo.</CardDescription>
         </CardHeader>
-        <CardContent><ChartMount className="h-72 min-w-0">
+        <CardContent><MeasuredContainer className="h-72 min-w-0">
           {timeseriesData.length ? (
             <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220}>
               <LineChart data={timeseriesData}>
@@ -866,7 +902,7 @@ export const SurveyAnalytics = ({
               Aún no hay datos de series temporales.
             </div>
           )}
-        </ChartMount></CardContent>
+        </MeasuredContainer></CardContent>
       </Card>
 
       <Card>
@@ -875,7 +911,7 @@ export const SurveyAnalytics = ({
           <CardDescription>Resultados acumulados por pregunta y opción.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-6 lg:grid-cols-2">
-          <ChartMount className="h-72 min-w-0">
+          <MeasuredContainer className="h-72 min-w-0">
             {optionData.length ? (
               <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220}>
                 <BarChart data={optionData}>
@@ -892,8 +928,8 @@ export const SurveyAnalytics = ({
                 No hay respuestas registradas para mostrar.
               </div>
             )}
-          </ChartMount>
-          <ChartMount className="h-72 min-w-0">
+          </MeasuredContainer>
+          <MeasuredContainer className="h-72 min-w-0">
             {optionData.length ? (
               <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220}>
                 <PieChart>
@@ -918,7 +954,7 @@ export const SurveyAnalytics = ({
                 Sin datos para graficar.
               </div>
             )}
-          </ChartMount>
+          </MeasuredContainer>
         </CardContent>
       </Card>
 
@@ -1040,7 +1076,7 @@ export const SurveyAnalytics = ({
               Modo demo (ubicaciones simuladas)
             </div>
           ) : null}
-          {aggregatedHeatmapPoints.length ? (
+          {mapRenderReady && aggregatedHeatmapPoints.length ? (
             <div className="space-y-4">
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-border text-sm">
@@ -1067,7 +1103,7 @@ export const SurveyAnalytics = ({
                   </p>
                 ) : null}
               </div>
-              <div className="h-[320px] min-w-0 overflow-hidden rounded-lg border border-border/60">
+              <MeasuredContainer className="h-[320px] min-w-0 overflow-hidden rounded-lg border border-border/60">
                 <MapLibreMap
                   className="h-full w-full"
                   center={heatmapCenter}
@@ -1078,11 +1114,11 @@ export const SurveyAnalytics = ({
                   onProviderUnavailable={handleProviderUnavailable}
                   onBoundingBoxChange={handleBoundingBoxChange}
                 />
-              </div>
+              </MeasuredContainer>
             </div>
           ) : (
             <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
-              Todavía no hay datos georreferenciados.
+              {toNonEmptyString(mapMetaRecord?.empty_state) ?? 'Todavía no hay datos georreferenciados.'}
             </div>
           )}
         </CardContent>
@@ -1112,7 +1148,7 @@ export const SurveyAnalytics = ({
               Modo demo (ubicaciones simuladas)
             </div>
           ) : null}
-          {boundingBoxValue ? (
+          {mapRenderReady && heatmapData.length && boundingBoxValue ? (
             <div className="mb-3 flex flex-wrap items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-primary">
               Filtrando resultados por la zona visible del mapa.
               <Button
@@ -1127,20 +1163,22 @@ export const SurveyAnalytics = ({
               </Button>
             </div>
           ) : null}
-          {heatmapData.length ? (
-            <MapLibreMap
-              className="h-full rounded-lg"
-              center={heatmapCenter}
-              heatmapData={heatmapData}
-              fitToBounds={heatmapBounds.length ? heatmapBounds : undefined}
-              initialZoom={heatmapBounds.length ? 12 : 4}
-              provider={provider}
-              onProviderUnavailable={handleProviderUnavailable}
-              onBoundingBoxChange={handleBoundingBoxChange}
-            />
+          {mapRenderReady && heatmapData.length ? (
+            <MeasuredContainer className="h-full min-w-0">
+              <MapLibreMap
+                className="h-full rounded-lg"
+                center={heatmapCenter}
+                heatmapData={heatmapData}
+                fitToBounds={heatmapBounds.length ? heatmapBounds : undefined}
+                initialZoom={heatmapBounds.length ? 12 : 4}
+                provider={provider}
+                onProviderUnavailable={handleProviderUnavailable}
+                onBoundingBoxChange={handleBoundingBoxChange}
+              />
+            </MeasuredContainer>
           ) : (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-              No hay datos georreferenciados para esta encuesta todavía.
+              {toNonEmptyString(mapMetaRecord?.empty_state) ?? 'No hay datos georreferenciados para esta encuesta todavía.'}
             </div>
           )}
         </CardContent>
@@ -1162,7 +1200,7 @@ export const SurveyAnalytics = ({
                     Participación segmentada para este atributo.
                   </p>
                 </div>
-                <ChartMount className="h-64 w-full min-w-0">
+                <MeasuredContainer className="h-64 w-full min-w-0">
                   <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220}>
                     <BarChart
                       data={section.data}
@@ -1193,7 +1231,7 @@ export const SurveyAnalytics = ({
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
-                </ChartMount>
+                </MeasuredContainer>
               </div>
             ))}
           </CardContent>
