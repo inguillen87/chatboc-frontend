@@ -114,6 +114,8 @@ interface ChatPanelProps {
     avatarEnabled?: boolean;
     avatarType?: string;
     avatarPersona?: string;
+    voiceLabel?: string;
+    videoLabel?: string;
   } | null;
   onA11yChange?: (p: Prefs) => void;
   a11yPrefs?: Prefs;
@@ -692,32 +694,28 @@ const ChatPanel = (props: ChatPanelProps) => {
 
   const voiceCallLabel = useMemo(() => {
     const candidates = [
-      voiceCallConfig?.label,
       voiceCallConfig?.features?.cta_label,
-      realtimeConfig?.model,
-      voiceCallConfig?.model,
-      voiceCallConfig?.provider,
+      voiceCallConfig?.label,
+      realtimeConfig?.voiceLabel,
     ];
     for (const candidate of candidates) {
       if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
     }
     return null;
-  }, [realtimeConfig?.model, voiceCallConfig?.features, voiceCallConfig?.label, voiceCallConfig?.model, voiceCallConfig?.provider]);
+  }, [realtimeConfig?.voiceLabel, voiceCallConfig?.features?.cta_label, voiceCallConfig?.label]);
 
   const videoCallLabel = useMemo(() => {
     const candidates = [
-      videoCallConfig?.label,
       videoCallConfig?.features?.cta_label,
+      videoCallConfig?.label,
+      realtimeConfig?.videoLabel,
       realtimeConfig?.avatarPersona,
-      realtimeConfig?.model,
-      videoCallConfig?.model,
-      videoCallConfig?.provider,
     ];
     for (const candidate of candidates) {
       if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
     }
     return null;
-  }, [realtimeConfig?.avatarPersona, realtimeConfig?.model, videoCallConfig?.features, videoCallConfig?.label, videoCallConfig?.model, videoCallConfig?.provider]);
+  }, [realtimeConfig?.avatarPersona, realtimeConfig?.videoLabel, videoCallConfig?.features?.cta_label, videoCallConfig?.label]);
   const chatModeLabel = useMemo(() => {
     if (typeof supportChannels?.live_chat?.label === 'string' && supportChannels.live_chat.label.trim()) {
       return supportChannels.live_chat.label.trim();

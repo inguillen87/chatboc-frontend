@@ -40,6 +40,8 @@ const resolveDefaultScope = (tenantType?: string | null) => {
   return 'municipio';
 };
 
+type AnalyticsTab = 'overview' | 'municipio' | 'pyme' | 'geo' | 'realtime';
+
 const AnalyticsPage = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -55,7 +57,6 @@ const AnalyticsPage = () => {
 
   const [timeRange, setTimeRange] = useState('7d');
   const [scope, setScope] = useState(() => resolveDefaultScope(tenant?.tipo));
-  const [context, setContext] = useState<'overview' | 'municipio' | 'pyme'>('overview');
   const [executiveSummary, setExecutiveSummary] = useState<string>('');
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
@@ -70,6 +71,7 @@ const AnalyticsPage = () => {
   const [realtimeHub, setRealtimeHub] = useState<RealtimeHubResponse | null>(null);
   const [loadingRealtimeHub, setLoadingRealtimeHub] = useState(false);
   const [autoRefreshRealtimeHub, setAutoRefreshRealtimeHub] = useState(true);
+  const [activeTab, setActiveTab] = useState<AnalyticsTab>('overview');
 
   const hubEncuestasPath = useMemo(() => {
     const encuestasEntry = hubNavigation.find((item) => item?.key === 'encuestas' && typeof item?.path === 'string' && item.path);
@@ -87,14 +89,20 @@ const AnalyticsPage = () => {
 
     const tabsFromHub = Object.keys(hubSections)
       .map((key) => sectionMap[key])
-      .filter(Boolean) as Array<'overview' | 'municipio' | 'pyme' | 'geo' | 'realtime'>;
+      .filter(Boolean) as AnalyticsTab[];
 
     if (!tabsFromHub.length) {
-      return ['overview', 'municipio', 'pyme', 'geo', 'realtime'] as const;
+      return ['overview', 'municipio', 'pyme', 'geo', 'realtime'] as AnalyticsTab[];
     }
 
     return tabsFromHub;
   }, [hubSections]);
+
+  useEffect(() => {
+    if (!visibleTabs.includes(activeTab)) {
+      setActiveTab(visibleTabs[0] || 'overview');
+    }
+  }, [activeTab, visibleTabs]);
 
   const fireAndForgetTrackEvent = (payload: { tenant_id: number; event_name: string; payload?: Record<string, unknown>; channel?: string; session_id?: string }) => {
     enterpriseService
@@ -128,7 +136,7 @@ const AnalyticsPage = () => {
         tenantSlug: currentSlug || undefined,
         from: dateRange.from,
         to: dateRange.to,
-        context: context,
+        context: activeTab === 'municipio' || activeTab === 'pyme' ? activeTab : 'overview',
         scope,
       };
       let result: AnalyticsSummary;
@@ -178,7 +186,7 @@ const AnalyticsPage = () => {
     if (tenantId || currentSlug) {
         fetchData();
     }
-  }, [tenantId, currentSlug, dateRange, context, scope]);
+  }, [tenantId, currentSlug, dateRange, activeTab, scope]);
 
   const normalizeLeadInteractions = (response: LeadInteractionsResponse | null | undefined) => {
     if (!response) return [] as LeadInteractionItem[];
@@ -390,14 +398,16 @@ const AnalyticsPage = () => {
         </div>
       ) : null}
 
-      <Tabs defaultValue="overview" className="w-full" onValueChange={(val) => { setContext(val as any); if (tenantId) { fireAndForgetTrackEvent({ tenant_id: tenantId, event_name: 'tab_click', payload: { tab: val }, channel: 'web_widget', session_id: `sess_${Date.now()}` }); } }}>
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-5 lg:w-[520px]">
+      <Tabs value={activeTab} className="w-full" onValueChange={(val) => { const tab = val as AnalyticsTab; setActiveTab(tab); if (tenantId) { fireAndForgetTrackEvent({ tenant_id: tenantId, event_name: 'tab_click', payload: { tab }, channel: 'web_widget', session_id: `sess_${Date.now()}` }); } }}>
+        <div className="overflow-x-auto pb-1">
+          <TabsList className="inline-flex min-w-max">
           {visibleTabs.includes('overview') ? <TabsTrigger value="overview">General</TabsTrigger> : null}
           {visibleTabs.includes('municipio') ? <TabsTrigger value="municipio">Municipio</TabsTrigger> : null}
           {visibleTabs.includes('pyme') ? <TabsTrigger value="pyme">Ventas</TabsTrigger> : null}
           {visibleTabs.includes('geo') ? <TabsTrigger value="geo">Mapas</TabsTrigger> : null}
           {visibleTabs.includes('realtime') ? <TabsTrigger value="realtime">Realtime Hub</TabsTrigger> : null}
-        </TabsList>
+          </TabsList>
+        </div>
 
         <div className="mt-6">
           <TabsContent value="overview">

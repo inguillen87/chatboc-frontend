@@ -59,7 +59,7 @@ const RealtimeHubDashboard: React.FC<Props> = ({ data, loading }) => {
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-2 rounded-lg border bg-card p-3 md:grid-cols-4">
+      <div className="grid gap-2 rounded-lg border bg-card p-3 sm:grid-cols-2 xl:grid-cols-4">
         <Select value={selectedChannel} onValueChange={setSelectedChannel}>
           <SelectTrigger><SelectValue placeholder={labels.filters_channel || ''} /></SelectTrigger>
           <SelectContent>
@@ -77,17 +77,17 @@ const RealtimeHubDashboard: React.FC<Props> = ({ data, loading }) => {
         <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={labels.filters_search || ''} className="md:col-span-2" />
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Card><CardHeader><CardTitle className="text-sm">{labels.cards_events || '—'}</CardTitle></CardHeader><CardContent className="text-2xl font-bold">{totals.events || 0}</CardContent></Card>
         <Card><CardHeader><CardTitle className="text-sm">{labels.cards_survey_responses || '—'}</CardTitle></CardHeader><CardContent className="text-2xl font-bold">{totals.survey_responses || 0}</CardContent></Card>
         <Card><CardHeader><CardTitle className="text-sm">{labels.cards_survey_comments || '—'}</CardTitle></CardHeader><CardContent className="text-2xl font-bold">{totals.survey_comments || 0}</CardContent></Card>
         <Card><CardHeader><CardTitle className="text-sm">{labels.cards_live_chat_comments || '—'}</CardTitle></CardHeader><CardContent className="text-2xl font-bold">{totals.live_chat_comments || 0}</CardContent></Card>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid gap-4 xl:grid-cols-3">
         <Card>
           <CardHeader><CardTitle>{labels.sections_top_channels || '—'}</CardTitle></CardHeader>
-          <CardContent className="space-y-2 text-sm">
+          <CardContent className="space-y-2 text-sm min-w-0">
             {topChannels.length ? topChannels.map((item, idx) => (
               <div key={`ch_${idx}`} className="flex items-center justify-between rounded border px-2 py-1">
                 <span>{item.channel || '—'}</span>
@@ -99,7 +99,7 @@ const RealtimeHubDashboard: React.FC<Props> = ({ data, loading }) => {
 
         <Card>
           <CardHeader><CardTitle>{labels.sections_top_events || '—'}</CardTitle></CardHeader>
-          <CardContent className="space-y-2 text-sm">
+          <CardContent className="space-y-2 text-sm min-w-0">
             {topEvents.length ? topEvents.map((item, idx) => (
               <div key={`ev_${idx}`} className="flex items-center justify-between rounded border px-2 py-1">
                 <span>{item.event || '—'}</span>
@@ -111,7 +111,7 @@ const RealtimeHubDashboard: React.FC<Props> = ({ data, loading }) => {
 
         <Card>
           <CardHeader><CardTitle>{labels.sections_sentiment || '—'}</CardTitle></CardHeader>
-          <CardContent className="space-y-2 text-sm">
+          <CardContent className="space-y-2 text-sm min-w-0">
             {Object.keys(sentiment).length ? Object.entries(sentiment).map(([key, value]) => (
               <div key={key} className="flex items-center justify-between rounded border px-2 py-1">
                 <span>{key}</span>
@@ -122,17 +122,17 @@ const RealtimeHubDashboard: React.FC<Props> = ({ data, loading }) => {
         </Card>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 xl:grid-cols-2">
         <Card>
           <CardHeader><CardTitle>{labels.sections_live_comments || '—'}</CardTitle></CardHeader>
-          <CardContent className="space-y-2 text-sm">
+          <CardContent className="space-y-2 text-sm min-w-0">
             {filteredComments.length ? filteredComments.slice(0, 12).map((item, idx) => (
               <div key={`cm_${idx}`} className="rounded border px-2 py-1">
                 <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
                   <span>{item.channel || '—'}</span>
                   <span>{item.sentiment || '—'}</span>
                 </div>
-                <p>{item.text || '—'}</p>
+                <p className="break-words">{item.text || '—'}</p>
               </div>
             )) : <p className="text-muted-foreground">{labels.empty_filtered || labels.empty || '—'}</p>}
           </CardContent>
@@ -140,7 +140,7 @@ const RealtimeHubDashboard: React.FC<Props> = ({ data, loading }) => {
 
         <Card>
           <CardHeader><CardTitle>{labels.sections_hotspots_recommendations || '—'}</CardTitle></CardHeader>
-          <CardContent className="space-y-2 text-sm">
+          <CardContent className="space-y-2 text-sm min-w-0">
             {hotspots.length ? hotspots.map((item, idx) => (
               <div key={`hs_${idx}`} className="flex items-center justify-between rounded border px-2 py-1">
                 <span>{item.label || '—'}</span>

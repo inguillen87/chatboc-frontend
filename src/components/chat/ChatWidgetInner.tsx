@@ -313,8 +313,11 @@ function ChatWidgetInner({
       avatarEnabled: toBool(attrs['data-avatar-enabled'], false),
       avatarType: toText(attrs['data-avatar-type'], 'robot'),
       avatarPersona: toText(attrs['data-avatar-persona'], ''),
+      voiceLabel: toText(attrs['data-realtime-voice-label'], toText(supportChannels?.voice_call?.label, '')),
+      videoLabel: toText(attrs['data-realtime-video-label'], toText(supportChannels?.video_call?.label, '')),
+
     };
-  }, [entityInfo?.widget?.attributes, supportChannels?.video_call?.enabled, supportChannels?.video_call?.model, supportChannels?.voice_call?.enabled, supportChannels?.voice_call?.model]);
+  }, [entityInfo?.widget?.attributes, supportChannels?.video_call?.enabled, supportChannels?.video_call?.label, supportChannels?.video_call?.model, supportChannels?.voice_call?.enabled, supportChannels?.voice_call?.label, supportChannels?.voice_call?.model]);
   const showCatalogCta =
     !!catalogCtaLabel &&
     !!catalogLinks?.view_url &&
@@ -1491,6 +1494,8 @@ function ChatWidgetInner({
         data-avatar-enabled={String(Boolean(realtimeConfig.avatarEnabled))}
         data-avatar-type={realtimeConfig.avatarType || 'robot'}
         data-avatar-persona={realtimeConfig.avatarPersona || ''}
+        data-realtime-voice-label={realtimeConfig.voiceLabel || ''}
+        data-realtime-video-label={realtimeConfig.videoLabel || ''}
         className={cn(
           "chatboc-container flex flex-col",
           mode === "standalone"
