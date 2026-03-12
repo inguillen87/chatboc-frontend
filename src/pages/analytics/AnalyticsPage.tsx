@@ -78,6 +78,9 @@ const AnalyticsPage = () => {
     return encuestasEntry?.path || buildTenantPath('/admin/encuestas', currentSlug || undefined);
   }, [hubNavigation, currentSlug]);
 
+
+  const realtimeUILabels = realtimeHub?.ui?.labels || {};
+
   const visibleTabs = useMemo(() => {
     const sectionMap: Record<string, 'overview' | 'municipio' | 'pyme' | 'geo' | 'realtime'> = {
       general: 'overview',
@@ -405,7 +408,7 @@ const AnalyticsPage = () => {
           {visibleTabs.includes('municipio') ? <TabsTrigger value="municipio">Municipio</TabsTrigger> : null}
           {visibleTabs.includes('pyme') ? <TabsTrigger value="pyme">Ventas</TabsTrigger> : null}
           {visibleTabs.includes('geo') ? <TabsTrigger value="geo">Mapas</TabsTrigger> : null}
-          {visibleTabs.includes('realtime') ? <TabsTrigger value="realtime">Realtime Hub</TabsTrigger> : null}
+          {visibleTabs.includes('realtime') ? <TabsTrigger value="realtime">{realtimeUILabels.tabs_realtime_hub || 'Realtime Hub'}</TabsTrigger> : null}
           </TabsList>
         </div>
 
@@ -429,14 +432,14 @@ const AnalyticsPage = () => {
           <TabsContent value="realtime">
             <div className="mb-3 flex flex-wrap items-center gap-2">
               <Button variant="outline" size="sm" onClick={() => fetchRealtimeHub()} disabled={loadingRealtimeHub}>
-                {loadingRealtimeHub ? 'Actualizando…' : 'Actualizar'}
+                {loadingRealtimeHub ? (realtimeUILabels.loading || 'Actualizando…') : (realtimeUILabels.actions_refresh || 'Actualizar')}
               </Button>
               <Button
                 variant={autoRefreshRealtimeHub ? 'default' : 'outline'}
                 size="sm"
                 onClick={() => setAutoRefreshRealtimeHub((prev) => !prev)}
               >
-                {autoRefreshRealtimeHub ? 'Auto refresh ON' : 'Auto refresh OFF'}
+                {autoRefreshRealtimeHub ? (realtimeUILabels.actions_auto_refresh_on || 'Auto refresh ON') : (realtimeUILabels.actions_auto_refresh_off || 'Auto refresh OFF')}
               </Button>
             </div>
             <RealtimeHubDashboard data={realtimeHub} loading={loadingRealtimeHub} />

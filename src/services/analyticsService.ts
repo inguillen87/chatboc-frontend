@@ -76,6 +76,10 @@ export interface RealtimeHubResponse {
       sections_sentiment?: string;
       sections_live_comments?: string;
       sections_hotspots_recommendations?: string;
+      actions_refresh?: string;
+      actions_auto_refresh_on?: string;
+      actions_auto_refresh_off?: string;
+      tabs_realtime_hub?: string;
     };
   };
   totals?: {
