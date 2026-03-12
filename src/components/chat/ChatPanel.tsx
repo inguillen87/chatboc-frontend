@@ -80,8 +80,32 @@ interface ChatPanelProps {
   supportChannels?: {
     live_chat?: { realtime?: boolean; available?: boolean; media?: Record<string, boolean>; label?: string };
     whatsapp?: { enabled?: boolean; realtime_bridge?: boolean; media?: Record<string, boolean>; label?: string };
-    voice_call?: { enabled?: boolean; provider?: string; model?: string; label?: string; features?: Record<string, boolean> };
-    video_call?: { enabled?: boolean; provider?: string; model?: string; label?: string; features?: Record<string, boolean> };
+    voice_call?: {
+      enabled?: boolean;
+      provider?: string;
+      model?: string;
+      label?: string;
+      features?: {
+        cta_label?: string;
+        summary_whatsapp_label?: string;
+        summary_email_label?: string;
+        captions?: boolean;
+        [key: string]: string | number | boolean | null | undefined;
+      };
+    };
+    video_call?: {
+      enabled?: boolean;
+      provider?: string;
+      model?: string;
+      label?: string;
+      features?: {
+        cta_label?: string;
+        summary_whatsapp_label?: string;
+        summary_email_label?: string;
+        captions?: boolean;
+        [key: string]: string | number | boolean | null | undefined;
+      };
+    };
   } | null;
   realtimeConfig?: {
     model?: string;
@@ -667,14 +691,33 @@ const ChatPanel = (props: ChatPanelProps) => {
   }, [channelMode, isMicMuted, sessionState]);
 
   const voiceCallLabel = useMemo(() => {
-    if (typeof voiceCallConfig?.label === 'string' && voiceCallConfig.label.trim()) return voiceCallConfig.label.trim();
+    const candidates = [
+      voiceCallConfig?.label,
+      voiceCallConfig?.features?.cta_label,
+      realtimeConfig?.model,
+      voiceCallConfig?.model,
+      voiceCallConfig?.provider,
+    ];
+    for (const candidate of candidates) {
+      if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
+    }
     return null;
-  }, [voiceCallConfig?.label]);
+  }, [realtimeConfig?.model, voiceCallConfig?.features, voiceCallConfig?.label, voiceCallConfig?.model, voiceCallConfig?.provider]);
 
   const videoCallLabel = useMemo(() => {
-    if (typeof videoCallConfig?.label === 'string' && videoCallConfig.label.trim()) return videoCallConfig.label.trim();
+    const candidates = [
+      videoCallConfig?.label,
+      videoCallConfig?.features?.cta_label,
+      realtimeConfig?.avatarPersona,
+      realtimeConfig?.model,
+      videoCallConfig?.model,
+      videoCallConfig?.provider,
+    ];
+    for (const candidate of candidates) {
+      if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
+    }
     return null;
-  }, [videoCallConfig?.label]);
+  }, [realtimeConfig?.avatarPersona, realtimeConfig?.model, videoCallConfig?.features, videoCallConfig?.label, videoCallConfig?.model, videoCallConfig?.provider]);
   const chatModeLabel = useMemo(() => {
     if (typeof supportChannels?.live_chat?.label === 'string' && supportChannels.live_chat.label.trim()) {
       return supportChannels.live_chat.label.trim();
@@ -1035,14 +1078,14 @@ const ChatPanel = (props: ChatPanelProps) => {
               {chatModeLabel}
             </Button>
           ) : <div />}
-          {realtimeVoiceEnabled && voiceCallLabel ? (
+          {realtimeVoiceEnabled ? (
             <Button size="sm" variant={channelMode === 'voice' ? 'default' : 'ghost'} onClick={() => beginRealtimeSession('voice')}>
-              <Phone className="mr-1 h-4 w-4" /> {voiceCallLabel}
+              <Phone className="mr-1 h-4 w-4" /> {voiceCallLabel || ''}
             </Button>
           ) : <div />}
-          {realtimeVideoEnabled && videoCallLabel ? (
+          {realtimeVideoEnabled ? (
             <Button size="sm" variant={channelMode === 'video' ? 'default' : 'ghost'} onClick={() => beginRealtimeSession('video')}>
-              <Video className="mr-1 h-4 w-4" /> {videoCallLabel}
+              <Video className="mr-1 h-4 w-4" /> {videoCallLabel || ''}
             </Button>
           ) : <div />}
         </div>
@@ -1238,14 +1281,14 @@ const ChatPanel = (props: ChatPanelProps) => {
             {whatsappButtonLabel}
           </Button>
         ) : null}
-        {!activeTicketId && realtimeVoiceEnabled && voiceCallLabel ? (
+        {!activeTicketId && realtimeVoiceEnabled ? (
           <Button onClick={() => beginRealtimeSession('voice')} className="w-full mb-2" variant="secondary">
-            {voiceCallLabel}
+            {voiceCallLabel || ''}
           </Button>
         ) : null}
-        {!activeTicketId && realtimeVideoEnabled && videoCallLabel ? (
+        {!activeTicketId && realtimeVideoEnabled ? (
           <Button onClick={() => beginRealtimeSession('video')} className="w-full mb-2" variant="outline">
-            {videoCallLabel}
+            {videoCallLabel || ''}
           </Button>
         ) : null}
         {sessionState === 'ended' ? (
