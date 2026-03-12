@@ -6,13 +6,14 @@ import { Button } from '@/components/ui/button';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { useTenant } from '@/context/TenantContext';
 
-import { analyticsService, AnalyticsSummary } from '@/services/analyticsService';
+import { analyticsService, AnalyticsSummary, RealtimeHubResponse } from '@/services/analyticsService';
 import { enterpriseService, type LeadInteractionItem, type LeadInteractionsResponse } from '@/services/enterpriseService';
 import OverviewDashboard from '@/components/analytics/OverviewDashboard';
 import HeatmapDashboard from '@/components/analytics/HeatmapDashboard';
 import InsightsDashboard from '@/components/analytics/InsightsDashboard';
 import MunicipioDashboard from '@/components/analytics/MunicipioDashboard';
 import PymeDashboard from '@/components/analytics/PymeDashboard';
+import RealtimeHubDashboard from '@/components/analytics/RealtimeHubDashboard';
 import EnterpriseAIPanel from '@/components/analytics/EnterpriseAIPanel';
 import SectionErrorBoundary from '@/components/errors/SectionErrorBoundary';
 import { openExportAndTrack } from '@/utils/enterpriseExperience';
@@ -66,6 +67,9 @@ const AnalyticsPage = () => {
   const [leadTenantFilter, setLeadTenantFilter] = useState<string>('all');
   const [hubNavigation, setHubNavigation] = useState<Array<{ key?: string; path?: string; active?: boolean }>>([]);
   const [hubSections, setHubSections] = useState<Record<string, unknown>>({});
+  const [realtimeHub, setRealtimeHub] = useState<RealtimeHubResponse | null>(null);
+  const [loadingRealtimeHub, setLoadingRealtimeHub] = useState(false);
+  const [autoRefreshRealtimeHub, setAutoRefreshRealtimeHub] = useState(true);
 
   const hubEncuestasPath = useMemo(() => {
     const encuestasEntry = hubNavigation.find((item) => item?.key === 'encuestas' && typeof item?.path === 'string' && item.path);
@@ -73,19 +77,20 @@ const AnalyticsPage = () => {
   }, [hubNavigation, currentSlug]);
 
   const visibleTabs = useMemo(() => {
-    const sectionMap: Record<string, 'overview' | 'municipio' | 'pyme' | 'geo'> = {
+    const sectionMap: Record<string, 'overview' | 'municipio' | 'pyme' | 'geo' | 'realtime'> = {
       general: 'overview',
       municipio: 'municipio',
       ventas: 'pyme',
       mapas: 'geo',
+      realtime_hub: 'realtime',
     };
 
     const tabsFromHub = Object.keys(hubSections)
       .map((key) => sectionMap[key])
-      .filter(Boolean) as Array<'overview' | 'municipio' | 'pyme' | 'geo'>;
+      .filter(Boolean) as Array<'overview' | 'municipio' | 'pyme' | 'geo' | 'realtime'>;
 
     if (!tabsFromHub.length) {
-      return ['overview', 'municipio', 'pyme', 'geo'] as const;
+      return ['overview', 'municipio', 'pyme', 'geo', 'realtime'] as const;
     }
 
     return tabsFromHub;
@@ -225,6 +230,46 @@ const AnalyticsPage = () => {
     fetchLeadInteractions();
   }, [tenantId, currentSlug, dateRange.from, dateRange.to, scope]);
 
+  const fetchRealtimeHub = useMemo(
+    () => async () => {
+      if (!tenantId) return;
+
+      const windowMinutes = timeRange === '24h' ? 60 : timeRange === '7d' ? 30 : 15;
+      setLoadingRealtimeHub(true);
+      analyticsService
+        .getRealtimeHub({
+          tenant_id: tenantId,
+          scope,
+          window_minutes: windowMinutes,
+          tenantSlug: currentSlug || undefined,
+        })
+        .then((response) => setRealtimeHub(response || null))
+        .catch((error) => {
+          console.warn('[AnalyticsPage] realtime hub unavailable', error);
+          setRealtimeHub(null);
+        })
+        .finally(() => setLoadingRealtimeHub(false));
+    },
+    [tenantId, timeRange, scope, currentSlug],
+  );
+
+  useEffect(() => {
+    fetchRealtimeHub();
+  }, [fetchRealtimeHub]);
+
+  useEffect(() => {
+    if (!autoRefreshRealtimeHub || !tenantId) return;
+    const timer = window.setInterval(() => {
+      fetchRealtimeHub();
+    }, 45000);
+    return () => window.clearInterval(timer);
+  }, [autoRefreshRealtimeHub, fetchRealtimeHub, tenantId]);
+
+  useEffect(() => {
+    if (!tenantId) return;
+    setAutoRefreshRealtimeHub(true);
+  }, [tenantId]);
+
 
 
   const handleExport = async (format: 'csv' | 'pdf') => {
@@ -346,11 +391,12 @@ const AnalyticsPage = () => {
       ) : null}
 
       <Tabs defaultValue="overview" className="w-full" onValueChange={(val) => { setContext(val as any); if (tenantId) { fireAndForgetTrackEvent({ tenant_id: tenantId, event_name: 'tab_click', payload: { tab: val }, channel: 'web_widget', session_id: `sess_${Date.now()}` }); } }}>
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 lg:w-[400px]">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-5 lg:w-[520px]">
           {visibleTabs.includes('overview') ? <TabsTrigger value="overview">General</TabsTrigger> : null}
           {visibleTabs.includes('municipio') ? <TabsTrigger value="municipio">Municipio</TabsTrigger> : null}
           {visibleTabs.includes('pyme') ? <TabsTrigger value="pyme">Ventas</TabsTrigger> : null}
           {visibleTabs.includes('geo') ? <TabsTrigger value="geo">Mapas</TabsTrigger> : null}
+          {visibleTabs.includes('realtime') ? <TabsTrigger value="realtime">Realtime Hub</TabsTrigger> : null}
         </TabsList>
 
         <div className="mt-6">
@@ -368,6 +414,22 @@ const AnalyticsPage = () => {
 
           <TabsContent value="geo">
             <HeatmapDashboard tenantId={tenantId} dateRange={dateRange} />
+          </TabsContent>
+
+          <TabsContent value="realtime">
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => fetchRealtimeHub()} disabled={loadingRealtimeHub}>
+                {loadingRealtimeHub ? 'Actualizando…' : 'Actualizar'}
+              </Button>
+              <Button
+                variant={autoRefreshRealtimeHub ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setAutoRefreshRealtimeHub((prev) => !prev)}
+              >
+                {autoRefreshRealtimeHub ? 'Auto refresh ON' : 'Auto refresh OFF'}
+              </Button>
+            </div>
+            <RealtimeHubDashboard data={realtimeHub} loading={loadingRealtimeHub} />
           </TabsContent>
         </div>
       </Tabs>
