@@ -3,6 +3,7 @@ import { apiFetch } from '@/utils/api';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 interface LiveChatSchedule {
   enabled?: boolean;
+  socket_transport_hint?: 'polling' | 'websocket';
   available?: boolean;
   description?: string;
   days?: string[];
@@ -10,6 +11,10 @@ interface LiveChatSchedule {
   end_time?: string;
   timezone?: string;
 }
+
+
+const resolveTransportHintKey = (tenantSlug?: string | null) =>
+  `chatboc_socket_transport_hint:${tenantSlug || 'default'}`;
 
 interface BusinessHours {
   isLiveChatEnabled: boolean;
@@ -78,6 +83,14 @@ export const useBusinessHours = (entityToken?: string, tenantSlug?: string | nul
               })();
 
         const available = Boolean(schedule?.enabled && schedule?.available);
+        const transportHint =
+          schedule?.socket_transport_hint === 'polling' || schedule?.socket_transport_hint === 'websocket'
+            ? schedule.socket_transport_hint
+            : null;
+        if (transportHint) {
+          safeLocalStorage.setItem(resolveTransportHintKey(tenantSlug), transportHint);
+        }
+
         setBusinessHours({
           isLiveChatEnabled: available,
           horariosAtencion: description,

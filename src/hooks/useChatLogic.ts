@@ -1068,6 +1068,16 @@ export function useChatLogic({
     return CHAT_BUBBLE_STYLES.has(trimmed) ? trimmed : undefined;
   };
 
+
+  const resolveTransportHintKey = (slug?: string | null) => `chatboc_socket_transport_hint:${slug || 'default'}`;
+
+  const getPreferredSocketTransports = (): Array<'websocket' | 'polling'> => {
+    const hint = safeLocalStorage.getItem(resolveTransportHintKey(tenantSlug));
+    if (hint === 'polling') return ['polling', 'websocket'];
+    if (hint === 'websocket') return ['websocket', 'polling'];
+    return ['websocket', 'polling'];
+  };
+
   useEffect(() => {
     if (!entityToken && !tenantSlug) {
       console.log("useChatLogic: No entityToken and no tenantSlug, socket connection deferred.");
@@ -1082,15 +1092,18 @@ export function useChatLogic({
     const socketUrl = getSocketUrl();
     const userAuthToken = skipAuth ? null : safeLocalStorage.getItem(tokenKey);
 
+    const transports = getPreferredSocketTransports();
+
     console.log("useChatLogic: Initializing socket", {
       socketUrl,
       entityToken,
       tenantSlug,
-      hasUserToken: !!userAuthToken
+      hasUserToken: !!userAuthToken,
+      transports,
     });
 
     const socket = io(socketUrl, {
-      transports: ['websocket', 'polling'],
+      transports,
       withCredentials: true,
       path: SOCKET_PATH,
       auth: {
@@ -1117,6 +1130,9 @@ export function useChatLogic({
 
     const handleConnectError = (err: any) => {
       console.error('Socket.IO connection error:', err.message);
+      if (String(err?.message || '').toLowerCase().includes('websocket')) {
+        safeLocalStorage.setItem(resolveTransportHintKey(tenantSlug), 'polling');
+      }
     };
 
     assertEventSource(socket, 'socket');

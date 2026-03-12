@@ -409,7 +409,7 @@ const ChatPanel = (props: ChatPanelProps) => {
   // However, a 'pyme' tenant might still have rubros? No, usually a single pyme is a specific business.
   // The 'directory' mode is when we are at the aggregator level.
   // If tenantSlug is present, we assume it's a specific entity.
-  const showRubroSelector = rubrosEnabled && !localRubro && !tenantSlug && !propEntityToken;
+  const showRubroSelector = rubrosEnabled && !localRubro;
 
   const handlePersonalDataSubmit = (data: { nombre: string; email: string; telefono: string; dni: string; }) => {
     const normalizedName = data?.nombre?.trim();
@@ -503,8 +503,8 @@ const ChatPanel = (props: ChatPanelProps) => {
   );
   const voiceCallConfig = supportChannels?.voice_call;
   const videoCallConfig = supportChannels?.video_call;
-  const realtimeVoiceEnabled = Boolean(voiceCallConfig?.enabled && realtimeConfig?.voiceEnabled !== false);
-  const realtimeVideoEnabled = Boolean(videoCallConfig?.enabled && realtimeConfig?.videoEnabled !== false);
+  const realtimeVoiceEnabled = Boolean(voiceCallConfig?.enabled || realtimeConfig?.voiceEnabled);
+  const realtimeVideoEnabled = Boolean(videoCallConfig?.enabled || realtimeConfig?.videoEnabled);
   const [channelMode, setChannelMode] = useState<'chat' | 'voice' | 'video'>('chat');
   const [sessionState, setSessionState] = useState<'idle' | 'connecting' | 'live' | 'reconnecting' | 'ended'>('idle');
   const [captionsEnabled, setCaptionsEnabled] = useState(Boolean(voiceCallConfig?.features?.captions));
