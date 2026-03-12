@@ -57,6 +57,22 @@ export interface AnalyticsHubResponse {
   };
 }
 
+export interface RealtimeHubResponse {
+  totals?: {
+    events?: number;
+    survey_responses?: number;
+    survey_comments?: number;
+    live_chat_comments?: number;
+  };
+  top_channels?: Array<{ channel?: string; count?: number }>;
+  top_events?: Array<{ event?: string; count?: number }>;
+  sentiment?: Record<string, number>;
+  geo_points?: Array<{ lat?: number; lng?: number; count?: number; channel?: string }>;
+  hotspots?: Array<{ label?: string; count?: number }>;
+  recommendations?: string[];
+  comments?: Array<{ channel?: string; text?: string; created_at?: string; sentiment?: string }>;
+}
+
 const HUB_ENDPOINTS = [
   '/api/admin/analytics/hub',
   '/api/admin/analytics/dashboard',
@@ -219,4 +235,16 @@ export const analyticsService = {
 
   exportCsvUrl: (filters: AnalyticsFilters) => `/admin/analytics/export.csv?${buildQuery(filters)}`,
   exportPdfUrl: (filters: AnalyticsFilters) => `/admin/analytics/export.pdf?${buildQuery(filters)}`,
+
+  getRealtimeHub: async (params: { tenant_id: number; scope?: string; window_minutes?: number; tenantSlug?: string }) => {
+    const query = new URLSearchParams();
+    query.set('tenant_id', String(params.tenant_id));
+    if (params.scope) query.set('scope', params.scope);
+    if (params.window_minutes) query.set('window_minutes', String(params.window_minutes));
+
+    return apiFetch<RealtimeHubResponse>(`/admin/analytics/realtime-hub?${query.toString()}`, {
+      tenantSlug: params.tenantSlug,
+      headers: buildAnalyticsHeaders(),
+    });
+  },
 };

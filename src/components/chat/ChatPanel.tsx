@@ -20,7 +20,7 @@ import { toast } from "@/components/ui/use-toast";
 import RubroSelector from "./RubroSelector";
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import TicketMap from "@/components/TicketMap";
-import { apiFetch, getErrorMessage } from "@/utils/api";
+import { ApiError, apiFetch, getErrorMessage } from "@/utils/api";
 import { getRubrosHierarchy } from "@/api/rubros";
 import { useUser } from "@/hooks/useUser";
 import { useBusinessHours } from "@/hooks/useBusinessHours";
@@ -459,6 +459,7 @@ const ChatPanel = (props: ChatPanelProps) => {
     });
     if (channelMode !== 'chat') {
       emitRealtimeAnalytics('business_action_executed', channelMode, { action: 'request_agent' });
+      postRealtimeActionEvent({ channel: channelMode, action: 'request_agent' });
     }
   };
 
@@ -486,6 +487,15 @@ const ChatPanel = (props: ChatPanelProps) => {
   const [assistantSpeaking, setAssistantSpeaking] = useState(false);
   const [networkLatency, setNetworkLatency] = useState<'good' | 'unstable'>('good');
   const [transcript, setTranscript] = useState<Array<{ id: string; text: string; role: 'assistant' | 'user' }>>([]);
+  const [realtimeTimeline, setRealtimeTimeline] = useState<Array<{ id: string; message: string; tone?: 'neutral' | 'success' | 'warning' }>>([]);
+  const [realtimeSessionId, setRealtimeSessionId] = useState<string | null>(null);
+  const [realtimeRateLimit, setRealtimeRateLimit] = useState<{ limit?: string | null; window?: string | null }>({});
+  const [realtimeErrorCode, setRealtimeErrorCode] = useState<string | null>(null);
+  const previousChannelModeRef = useRef<'chat' | 'voice' | 'video'>('chat');
+
+  const pushRealtimeTimeline = useCallback((message: string, tone: 'neutral' | 'success' | 'warning' = 'neutral') => {
+    setRealtimeTimeline((prev) => [...prev.slice(-8), { id: `${Date.now()}_${Math.random()}`, message, tone }]);
+  }, []);
 
   const emitRealtimeAnalytics = useCallback((eventName: FrontendEventName, channel: 'chat' | 'voice' | 'video', extra?: Record<string, unknown>) => {
     trackFrontendEvent(eventName, {
@@ -496,9 +506,38 @@ const ChatPanel = (props: ChatPanelProps) => {
     });
   }, [tenantSlug, activeTicketId]);
 
+  const postRealtimeActionEvent = useCallback(async (payload: {
+    channel: 'voice' | 'video';
+    action: string;
+    status?: 'ok' | 'error';
+    details?: Record<string, unknown>;
+    sessionId?: string | null;
+  }) => {
+    if (!tenantSlug || !propEntityToken) return;
+    try {
+      await apiFetch('/api/public/realtime/action-event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        tenantSlug,
+        body: JSON.stringify({
+          tenant_slug: tenantSlug,
+          widget_token: propEntityToken,
+          channel: payload.channel,
+          action: payload.action,
+          session_id: payload.sessionId || realtimeSessionId || activeTicketId || `rt_${Date.now()}`,
+          status: payload.status || 'ok',
+          details: payload.details || {},
+        }),
+      });
+    } catch (error) {
+      console.warn('[realtime/action-event] failed', error);
+    }
+  }, [activeTicketId, propEntityToken, realtimeSessionId, tenantSlug]);
+
   const beginRealtimeSession = useCallback(async (mode: 'voice' | 'video') => {
     setChannelMode(mode);
     setSessionState('connecting');
+    setRealtimeErrorCode(null);
     try {
       if (mode === 'video' && typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
         try {
@@ -517,11 +556,19 @@ const ChatPanel = (props: ChatPanelProps) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tenant_slug: tenantSlug, channel: mode }),
         tenantSlug: tenantSlug || undefined,
+        onResponse: (response) => {
+          setRealtimeRateLimit({
+            limit: response.headers.get('X-RateLimit-Limit'),
+            window: response.headers.get('X-RateLimit-Window'),
+          });
+        },
       });
 
       const sessionId = payload?.session?.id || payload?.session_id || `rt_${Date.now()}`;
+      setRealtimeSessionId(sessionId);
       setSessionState('live');
       setAssistantSpeaking(true);
+      pushRealtimeTimeline(sessionId, 'success');
       emitRealtimeAnalytics('realtime_session_started', mode, {
         session_id: sessionId,
         model: payload?.model || realtimeConfig?.model || voiceCallConfig?.model || videoCallConfig?.model,
@@ -535,17 +582,33 @@ const ChatPanel = (props: ChatPanelProps) => {
       }
     } catch (error) {
       setSessionState('ended');
+      setChannelMode('chat');
+      const errorCode = error instanceof ApiError ? String(error?.body?.error || error?.body?.code || error.status) : null;
+      setRealtimeErrorCode(errorCode);
+      pushRealtimeTimeline(errorCode || getErrorMessage(error, 'realtime_session_failed'), 'warning');
       emitRealtimeAnalytics('realtime_session_failed', mode, {
         error: getErrorMessage(error, 'realtime_session_failed'),
       });
     }
-  }, [emitRealtimeAnalytics, realtimeConfig, tenantSlug, videoCallConfig?.model, voiceCallConfig?.model]);
+  }, [emitRealtimeAnalytics, pushRealtimeTimeline, realtimeConfig, tenantSlug, videoCallConfig?.model, voiceCallConfig?.model]);
 
   const endRealtimeSession = useCallback(() => {
     setSessionState('ended');
     setIsUserSpeaking(false);
     setAssistantSpeaking(false);
-  }, []);
+    if (realtimeSessionId) {
+      pushRealtimeTimeline(realtimeSessionId);
+    }
+  }, [pushRealtimeTimeline, realtimeSessionId]);
+
+  useEffect(() => {
+    const previous = previousChannelModeRef.current;
+    if (previous !== channelMode) {
+      emitRealtimeAnalytics('realtime_mode_switched', channelMode, { from: previous, to: channelMode });
+      pushRealtimeTimeline(`${previous}->${channelMode}`);
+      previousChannelModeRef.current = channelMode;
+    }
+  }, [channelMode, emitRealtimeAnalytics, pushRealtimeTimeline]);
 
   useEffect(() => {
     if (channelMode === 'video' && sessionState === 'live' && !realtimeVideoEnabled) {
@@ -605,6 +668,24 @@ const ChatPanel = (props: ChatPanelProps) => {
     if (typeof videoCallConfig?.label === 'string' && videoCallConfig.label.trim()) return videoCallConfig.label.trim();
     return null;
   }, [videoCallConfig?.label]);
+  const chatModeLabel = useMemo(() => {
+    if (typeof supportChannels?.live_chat?.label === 'string' && supportChannels.live_chat.label.trim()) {
+      return supportChannels.live_chat.label.trim();
+    }
+    return null;
+  }, [supportChannels?.live_chat?.label]);
+  const summaryWhatsAppLabel = useMemo(() => {
+    const fromVoice = voiceCallConfig?.features?.summary_whatsapp_label;
+    const fromVideo = videoCallConfig?.features?.summary_whatsapp_label;
+    const candidate = typeof fromVoice === 'string' && fromVoice.trim() ? fromVoice : fromVideo;
+    return typeof candidate === 'string' && candidate.trim() ? candidate.trim() : null;
+  }, [videoCallConfig?.features?.summary_whatsapp_label, voiceCallConfig?.features?.summary_whatsapp_label]);
+  const summaryEmailLabel = useMemo(() => {
+    const fromVoice = voiceCallConfig?.features?.summary_email_label;
+    const fromVideo = videoCallConfig?.features?.summary_email_label;
+    const candidate = typeof fromVoice === 'string' && fromVoice.trim() ? fromVoice : fromVideo;
+    return typeof candidate === 'string' && candidate.trim() ? candidate.trim() : null;
+  }, [videoCallConfig?.features?.summary_email_label, voiceCallConfig?.features?.summary_email_label]);
   const whatsappButtonLabel =
     typeof supportChannels?.whatsapp?.label === 'string' && supportChannels.whatsapp.label.trim()
       ? supportChannels.whatsapp.label.trim()
@@ -715,9 +796,10 @@ const ChatPanel = (props: ChatPanelProps) => {
       // For other actions, the backend request was already sent. No extra handling needed.
       if (channelMode !== 'chat') {
         emitRealtimeAnalytics('business_action_executed', channelMode, { action: normalized });
+        postRealtimeActionEvent({ channel: channelMode, action: normalized });
       }
     },
-    [channelMode, emitRealtimeAnalytics, handleSend, onShowLogin, onShowRegister, onCart, toast]
+    [channelMode, emitRealtimeAnalytics, handleSend, onShowLogin, onShowRegister, onCart, postRealtimeActionEvent, toast]
   );
 
   useEffect(() => {
@@ -941,9 +1023,11 @@ const ChatPanel = (props: ChatPanelProps) => {
       />
       <div className="px-2 sm:px-4 pt-2">
         <div className="grid grid-cols-3 gap-2 rounded-xl border border-border/70 bg-muted/30 p-2">
-          <Button size="sm" variant={channelMode === 'chat' ? 'default' : 'ghost'} onClick={() => setChannelMode('chat')}>
-            {supportChannels?.live_chat?.label || 'Chat'}
-          </Button>
+          {chatModeLabel ? (
+            <Button size="sm" variant={channelMode === 'chat' ? 'default' : 'ghost'} onClick={() => setChannelMode('chat')}>
+              {chatModeLabel}
+            </Button>
+          ) : <div />}
           {realtimeVoiceEnabled && voiceCallLabel ? (
             <Button size="sm" variant={channelMode === 'voice' ? 'default' : 'ghost'} onClick={() => beginRealtimeSession('voice')}>
               <Phone className="mr-1 h-4 w-4" /> {voiceCallLabel}
@@ -967,11 +1051,21 @@ const ChatPanel = (props: ChatPanelProps) => {
               </span>
               <span>{sessionState}</span>
             </div>
+            {realtimeErrorCode ? (
+              <div className="mb-3 rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] text-amber-800">
+                {realtimeErrorCode}
+              </div>
+            ) : null}
+            {(realtimeRateLimit.limit || realtimeRateLimit.window) ? (
+              <div className="mb-3 rounded-md border border-border bg-muted/50 px-2 py-1 text-[11px] text-muted-foreground">
+                {realtimeRateLimit.limit || '—'} · {realtimeRateLimit.window || '—'}
+              </div>
+            ) : null}
 
             <div className={cn('mb-3 rounded-lg border p-3', isUserSpeaking ? 'border-primary bg-primary/5' : 'border-border')}>
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">{channelMode === 'video' ? (videoCallLabel || 'video') : (voiceCallLabel || 'voice')}</span>
-                {sessionState === 'live' && isUserSpeaking ? <span className="text-xs text-primary">listening</span> : null}
+                <span className="text-sm font-medium">{channelMode === 'video' ? videoCallLabel : voiceCallLabel}</span>
+                {sessionState === 'live' && isUserSpeaking ? <span className="text-xs text-primary">•</span> : null}
               </div>
               {channelMode === 'video' && realtimeConfig?.avatarEnabled ? (
                 <div className="mt-2 flex items-center gap-2 rounded-md bg-muted/60 px-2 py-1 text-xs">
@@ -1001,7 +1095,7 @@ const ChatPanel = (props: ChatPanelProps) => {
                 }}
               >
                 {captionsEnabled ? <Captions className="mr-1 h-4 w-4" /> : <CaptionsOff className="mr-1 h-4 w-4" />}
-                CC
+                {captionsEnabled ? 'ON' : 'OFF'}
               </Button>
               <Button type="button" size="sm" variant="destructive" onClick={endRealtimeSession}>Finalizar</Button>
             </div>
@@ -1012,6 +1106,25 @@ const ChatPanel = (props: ChatPanelProps) => {
                   <div key={`transcript_${item.id}`} className="opacity-95">
                     <span className="mr-1 uppercase text-[10px] text-white/70">{item.role}</span>
                     <span>{item.text}</span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            {realtimeTimeline.length > 0 ? (
+              <div className="mt-2 space-y-1">
+                {realtimeTimeline.map((item) => (
+                  <div
+                    key={item.id}
+                    className={cn(
+                      "rounded-md border px-2 py-1 text-[11px]",
+                      item.tone === 'success'
+                        ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                        : item.tone === 'warning'
+                          ? 'border-amber-300 bg-amber-50 text-amber-800'
+                          : 'border-border bg-muted/40 text-muted-foreground',
+                    )}
+                  >
+                    {item.message}
                   </div>
                 ))}
               </div>
@@ -1130,12 +1243,34 @@ const ChatPanel = (props: ChatPanelProps) => {
         ) : null}
         {sessionState === 'ended' ? (
           <div className="mb-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <Button size="sm" variant="outline" onClick={() => handleSend({ action: 'send_summary_whatsapp', text: 'Enviar resumen por WhatsApp' })}>
-              Enviar resumen por WhatsApp
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => handleSend({ action: 'send_summary_email', text: 'Enviar resumen por Email' })}>
-              Enviar resumen por Email
-            </Button>
+            {summaryWhatsAppLabel ? (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  handleSend({ action: 'send_summary_whatsapp', text: summaryWhatsAppLabel });
+                  if (channelMode !== 'chat') {
+                    postRealtimeActionEvent({ channel: channelMode, action: 'send_summary_whatsapp' });
+                  }
+                }}
+              >
+                {summaryWhatsAppLabel}
+              </Button>
+            ) : null}
+            {summaryEmailLabel ? (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  handleSend({ action: 'send_summary_email', text: summaryEmailLabel });
+                  if (channelMode !== 'chat') {
+                    postRealtimeActionEvent({ channel: channelMode, action: 'send_summary_email' });
+                  }
+                }}
+              >
+                {summaryEmailLabel}
+              </Button>
+            ) : null}
           </div>
         ) : null}
         <AnimatePresence>
