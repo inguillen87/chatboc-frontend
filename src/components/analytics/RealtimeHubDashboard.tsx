@@ -37,6 +37,7 @@ const RealtimeHubDashboard: React.FC<Props> = ({ data, loading }) => {
   }, [search, selectedChannel, selectedSentiment]);
 
   const totals = data?.totals || {};
+  const labels = data?.ui?.labels || {};
   const topChannels = Array.isArray(data?.top_channels) ? data!.top_channels! : [];
   const topEvents = Array.isArray(data?.top_events) ? data!.top_events! : [];
   const recommendations = Array.isArray(data?.recommendations) ? data!.recommendations! : [];
@@ -53,77 +54,77 @@ const RealtimeHubDashboard: React.FC<Props> = ({ data, loading }) => {
   });
 
   if (loading) {
-    return <div className="rounded-lg border bg-card p-4 text-sm text-muted-foreground">Cargando realtime hub…</div>;
+    return <div className="rounded-lg border bg-card p-4 text-sm text-muted-foreground">{labels.loading || '…'}</div>;
   }
 
   return (
     <div className="space-y-4">
       <div className="grid gap-2 rounded-lg border bg-card p-3 md:grid-cols-4">
         <Select value={selectedChannel} onValueChange={setSelectedChannel}>
-          <SelectTrigger><SelectValue placeholder="Canal" /></SelectTrigger>
+          <SelectTrigger><SelectValue placeholder={labels.filters_channel || ''} /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Todos</SelectItem>
+            <SelectItem value="all">{labels.option_all || '—'}</SelectItem>
             {channels.map((channel) => <SelectItem key={channel} value={channel}>{channel}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={selectedSentiment} onValueChange={setSelectedSentiment}>
-          <SelectTrigger><SelectValue placeholder="Sentimiento" /></SelectTrigger>
+          <SelectTrigger><SelectValue placeholder={labels.filters_sentiment || ''} /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Todos</SelectItem>
+            <SelectItem value="all">{labels.option_all || '—'}</SelectItem>
             {sentiments.map((sentimentValue) => <SelectItem key={sentimentValue} value={sentimentValue}>{sentimentValue}</SelectItem>)}
           </SelectContent>
         </Select>
-        <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar en comentarios" className="md:col-span-2" />
+        <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={labels.filters_search || ''} className="md:col-span-2" />
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card><CardHeader><CardTitle className="text-sm">Eventos</CardTitle></CardHeader><CardContent className="text-2xl font-bold">{totals.events || 0}</CardContent></Card>
-        <Card><CardHeader><CardTitle className="text-sm">Respuestas</CardTitle></CardHeader><CardContent className="text-2xl font-bold">{totals.survey_responses || 0}</CardContent></Card>
-        <Card><CardHeader><CardTitle className="text-sm">Comentarios encuestas</CardTitle></CardHeader><CardContent className="text-2xl font-bold">{totals.survey_comments || 0}</CardContent></Card>
-        <Card><CardHeader><CardTitle className="text-sm">Comentarios chat</CardTitle></CardHeader><CardContent className="text-2xl font-bold">{totals.live_chat_comments || 0}</CardContent></Card>
+        <Card><CardHeader><CardTitle className="text-sm">{labels.cards_events || '—'}</CardTitle></CardHeader><CardContent className="text-2xl font-bold">{totals.events || 0}</CardContent></Card>
+        <Card><CardHeader><CardTitle className="text-sm">{labels.cards_survey_responses || '—'}</CardTitle></CardHeader><CardContent className="text-2xl font-bold">{totals.survey_responses || 0}</CardContent></Card>
+        <Card><CardHeader><CardTitle className="text-sm">{labels.cards_survey_comments || '—'}</CardTitle></CardHeader><CardContent className="text-2xl font-bold">{totals.survey_comments || 0}</CardContent></Card>
+        <Card><CardHeader><CardTitle className="text-sm">{labels.cards_live_chat_comments || '—'}</CardTitle></CardHeader><CardContent className="text-2xl font-bold">{totals.live_chat_comments || 0}</CardContent></Card>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Card>
-          <CardHeader><CardTitle>Top canales</CardTitle></CardHeader>
+          <CardHeader><CardTitle>{labels.sections_top_channels || '—'}</CardTitle></CardHeader>
           <CardContent className="space-y-2 text-sm">
             {topChannels.length ? topChannels.map((item, idx) => (
               <div key={`ch_${idx}`} className="flex items-center justify-between rounded border px-2 py-1">
                 <span>{item.channel || '—'}</span>
                 <span className="font-medium">{item.count || 0}</span>
               </div>
-            )) : <p className="text-muted-foreground">Sin datos</p>}
+            )) : <p className="text-muted-foreground">{labels.empty || '—'}</p>}
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader><CardTitle>Top eventos</CardTitle></CardHeader>
+          <CardHeader><CardTitle>{labels.sections_top_events || '—'}</CardTitle></CardHeader>
           <CardContent className="space-y-2 text-sm">
             {topEvents.length ? topEvents.map((item, idx) => (
               <div key={`ev_${idx}`} className="flex items-center justify-between rounded border px-2 py-1">
                 <span>{item.event || '—'}</span>
                 <span className="font-medium">{item.count || 0}</span>
               </div>
-            )) : <p className="text-muted-foreground">Sin datos</p>}
+            )) : <p className="text-muted-foreground">{labels.empty || '—'}</p>}
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader><CardTitle>Sentimiento</CardTitle></CardHeader>
+          <CardHeader><CardTitle>{labels.sections_sentiment || '—'}</CardTitle></CardHeader>
           <CardContent className="space-y-2 text-sm">
             {Object.keys(sentiment).length ? Object.entries(sentiment).map(([key, value]) => (
               <div key={key} className="flex items-center justify-between rounded border px-2 py-1">
                 <span>{key}</span>
                 <span className="font-medium">{value}</span>
               </div>
-            )) : <p className="text-muted-foreground">Sin datos</p>}
+            )) : <p className="text-muted-foreground">{labels.empty || '—'}</p>}
           </CardContent>
         </Card>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
-          <CardHeader><CardTitle>Comentarios en vivo</CardTitle></CardHeader>
+          <CardHeader><CardTitle>{labels.sections_live_comments || '—'}</CardTitle></CardHeader>
           <CardContent className="space-y-2 text-sm">
             {filteredComments.length ? filteredComments.slice(0, 12).map((item, idx) => (
               <div key={`cm_${idx}`} className="rounded border px-2 py-1">
@@ -133,19 +134,19 @@ const RealtimeHubDashboard: React.FC<Props> = ({ data, loading }) => {
                 </div>
                 <p>{item.text || '—'}</p>
               </div>
-            )) : <p className="text-muted-foreground">Sin resultados para filtros</p>}
+            )) : <p className="text-muted-foreground">{labels.empty_filtered || labels.empty || '—'}</p>}
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader><CardTitle>Hotspots + recomendaciones</CardTitle></CardHeader>
+          <CardHeader><CardTitle>{labels.sections_hotspots_recommendations || '—'}</CardTitle></CardHeader>
           <CardContent className="space-y-2 text-sm">
             {hotspots.length ? hotspots.map((item, idx) => (
               <div key={`hs_${idx}`} className="flex items-center justify-between rounded border px-2 py-1">
                 <span>{item.label || '—'}</span>
                 <span className="font-medium">{item.count || 0}</span>
               </div>
-            )) : <p className="text-muted-foreground">Sin hotspots</p>}
+            )) : <p className="text-muted-foreground">{labels.empty || '—'}</p>}
             {recommendations.length ? (
               <div className="pt-2">
                 {recommendations.map((text, idx) => (

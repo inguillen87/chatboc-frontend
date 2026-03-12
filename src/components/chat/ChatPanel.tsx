@@ -492,6 +492,7 @@ const ChatPanel = (props: ChatPanelProps) => {
   const [realtimeRateLimit, setRealtimeRateLimit] = useState<{ limit?: string | null; window?: string | null }>({});
   const [realtimeErrorCode, setRealtimeErrorCode] = useState<string | null>(null);
   const previousChannelModeRef = useRef<'chat' | 'voice' | 'video'>('chat');
+  const realtimeSessionRequestRef = useRef(false);
 
   const pushRealtimeTimeline = useCallback((message: string, tone: 'neutral' | 'success' | 'warning' = 'neutral') => {
     setRealtimeTimeline((prev) => [...prev.slice(-8), { id: `${Date.now()}_${Math.random()}`, message, tone }]);
@@ -535,6 +536,10 @@ const ChatPanel = (props: ChatPanelProps) => {
   }, [activeTicketId, propEntityToken, realtimeSessionId, tenantSlug]);
 
   const beginRealtimeSession = useCallback(async (mode: 'voice' | 'video') => {
+    if (realtimeSessionRequestRef.current) return;
+    if (sessionState === 'connecting' || sessionState === 'live' || sessionState === 'reconnecting') return;
+
+    realtimeSessionRequestRef.current = true;
     setChannelMode(mode);
     setSessionState('connecting');
     setRealtimeErrorCode(null);
@@ -589,8 +594,10 @@ const ChatPanel = (props: ChatPanelProps) => {
       emitRealtimeAnalytics('realtime_session_failed', mode, {
         error: getErrorMessage(error, 'realtime_session_failed'),
       });
+    } finally {
+      realtimeSessionRequestRef.current = false;
     }
-  }, [emitRealtimeAnalytics, pushRealtimeTimeline, realtimeConfig, tenantSlug, videoCallConfig?.model, voiceCallConfig?.model]);
+  }, [emitRealtimeAnalytics, pushRealtimeTimeline, realtimeConfig, sessionState, tenantSlug, videoCallConfig?.model, voiceCallConfig?.model]);
 
   const endRealtimeSession = useCallback(() => {
     setSessionState('ended');
@@ -646,7 +653,7 @@ const ChatPanel = (props: ChatPanelProps) => {
       setAssistantSpeaking(false);
     };
     const onKeyUp = (event: KeyboardEvent) => {
-      if (event.code !== 'Space') return;
+      if (event.code !== 'Space' || channelMode === 'chat' || sessionState !== 'live' || isMicMuted) return;
       setIsUserSpeaking(false);
       setAssistantSpeaking(true);
     };

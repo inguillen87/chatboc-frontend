@@ -58,6 +58,26 @@ export interface AnalyticsHubResponse {
 }
 
 export interface RealtimeHubResponse {
+  ui?: {
+    labels?: {
+      filters_channel?: string;
+      filters_sentiment?: string;
+      filters_search?: string;
+      option_all?: string;
+      loading?: string;
+      empty?: string;
+      empty_filtered?: string;
+      cards_events?: string;
+      cards_survey_responses?: string;
+      cards_survey_comments?: string;
+      cards_live_chat_comments?: string;
+      sections_top_channels?: string;
+      sections_top_events?: string;
+      sections_sentiment?: string;
+      sections_live_comments?: string;
+      sections_hotspots_recommendations?: string;
+    };
+  };
   totals?: {
     events?: number;
     survey_responses?: number;
