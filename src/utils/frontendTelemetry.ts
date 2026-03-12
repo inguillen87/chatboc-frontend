@@ -3,7 +3,13 @@ export type FrontendEventName =
   | 'lead_capture_step_viewed'
   | 'lead_capture_step_completed'
   | 'catalog_quality_queue_opened'
-  | 'lead_sla_filter_enabled';
+  | 'lead_sla_filter_enabled'
+  | 'realtime_session_started'
+  | 'realtime_session_failed'
+  | 'realtime_mode_switched'
+  | 'avatar_rendered'
+  | 'accessibility_caption_enabled'
+  | 'business_action_executed';
 
 export function trackFrontendEvent(event: FrontendEventName, payload: Record<string, unknown> = {}) {
   if (typeof window === 'undefined') return;
