@@ -19,6 +19,10 @@ export interface AnalyticsSummary {
     conversion_rate?: number;
     backlog_open?: number;
     sla_breaches?: number;
+    voice_interactions_pct?: number;
+    video_avatar_interactions_pct?: number;
+    no_typing_completion_rate?: number;
+    accessibility_usage_rate?: number;
   };
   top_categories: { category: string; count: number }[];
   volume_by_day: { date: string; count: number }[];
@@ -105,6 +109,10 @@ const normalizeAnalyticsSummary = (payload: any): AnalyticsSummary => {
     conversion_rate: Number(rawKpis.conversion_rate ?? totals.conversion_rate ?? 0) || 0,
     backlog_open: Number(rawKpis.backlog_open ?? totals.backlog_open ?? 0) || 0,
     sla_breaches: Number(rawKpis.sla_breaches ?? totals.sla_breaches ?? 0) || 0,
+    voice_interactions_pct: Number(rawKpis.voice_interactions_pct ?? totals.voice_interactions_pct ?? 0) || 0,
+    video_avatar_interactions_pct: Number(rawKpis.video_avatar_interactions_pct ?? totals.video_avatar_interactions_pct ?? 0) || 0,
+    no_typing_completion_rate: Number(rawKpis.no_typing_completion_rate ?? totals.no_typing_completion_rate ?? 0) || 0,
+    accessibility_usage_rate: Number(rawKpis.accessibility_usage_rate ?? totals.accessibility_usage_rate ?? 0) || 0,
   };
 
   return {

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import ChatHeader from "./ChatHeader";
@@ -28,12 +28,12 @@ import { Button } from "@/components/ui/button";
 import { io } from 'socket.io-client';
 import { getSocketUrl, SOCKET_PATH } from "@/config";
 import { safeOn, assertEventSource } from "@/utils/safeOn";
-import { Loader2, X, Lightbulb, CheckCircle2 } from "lucide-react";
+import { Loader2, X, Lightbulb, CheckCircle2, Mic, MicOff, Captions, CaptionsOff, Phone, Video, Bot, Wifi, WifiOff } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { getInitialMunicipioContext } from "@/utils/contexto_municipio";
 import { resetChatSessionId } from "@/utils/chatSessionId";
 import { extractSmartHint } from "@/utils/smartHints";
-import { trackFrontendEvent } from '@/utils/frontendTelemetry';
+import { trackFrontendEvent, type FrontendEventName } from '@/utils/frontendTelemetry';
 
 const PENDING_TICKET_KEY = 'pending_ticket_id';
 const PENDING_GPS_KEY = 'pending_gps';
@@ -80,6 +80,16 @@ interface ChatPanelProps {
   supportChannels?: {
     live_chat?: { realtime?: boolean; available?: boolean; media?: Record<string, boolean>; label?: string };
     whatsapp?: { enabled?: boolean; realtime_bridge?: boolean; media?: Record<string, boolean>; label?: string };
+    voice_call?: { enabled?: boolean; provider?: string; model?: string; label?: string; features?: Record<string, boolean> };
+    video_call?: { enabled?: boolean; provider?: string; model?: string; label?: string; features?: Record<string, boolean> };
+  } | null;
+  realtimeConfig?: {
+    model?: string;
+    voiceEnabled?: boolean;
+    videoEnabled?: boolean;
+    avatarEnabled?: boolean;
+    avatarType?: string;
+    avatarPersona?: string;
   } | null;
   onA11yChange?: (p: Prefs) => void;
   a11yPrefs?: Prefs;
@@ -120,6 +130,7 @@ const ChatPanel = (props: ChatPanelProps) => {
     messageEnterAnimation,
     logoBadgeStyle,
     supportChannels,
+    realtimeConfig,
     onA11yChange,
     a11yPrefs,
     catalogCard,
@@ -446,6 +457,9 @@ const ChatPanel = (props: ChatPanelProps) => {
       text: "Quisiera hablar con un representante",
       action: "request_agent",
     });
+    if (channelMode !== 'chat') {
+      emitRealtimeAnalytics('business_action_executed', channelMode, { action: 'request_agent' });
+    }
   };
 
   const handleWhatsAppBridge = () => {
@@ -460,6 +474,137 @@ const ChatPanel = (props: ChatPanelProps) => {
   const canRenderWhatsAppBridge = Boolean(
     supportChannels?.whatsapp?.enabled && supportChannels?.whatsapp?.realtime_bridge,
   );
+  const voiceCallConfig = supportChannels?.voice_call;
+  const videoCallConfig = supportChannels?.video_call;
+  const realtimeVoiceEnabled = Boolean(voiceCallConfig?.enabled && realtimeConfig?.voiceEnabled !== false);
+  const realtimeVideoEnabled = Boolean(videoCallConfig?.enabled && realtimeConfig?.videoEnabled !== false);
+  const [channelMode, setChannelMode] = useState<'chat' | 'voice' | 'video'>('chat');
+  const [sessionState, setSessionState] = useState<'idle' | 'connecting' | 'live' | 'reconnecting' | 'ended'>('idle');
+  const [captionsEnabled, setCaptionsEnabled] = useState(Boolean(voiceCallConfig?.features?.captions));
+  const [isMicMuted, setIsMicMuted] = useState(false);
+  const [isUserSpeaking, setIsUserSpeaking] = useState(false);
+  const [assistantSpeaking, setAssistantSpeaking] = useState(false);
+  const [networkLatency, setNetworkLatency] = useState<'good' | 'unstable'>('good');
+  const [transcript, setTranscript] = useState<Array<{ id: string; text: string; role: 'assistant' | 'user' }>>([]);
+
+  const emitRealtimeAnalytics = useCallback((eventName: FrontendEventName, channel: 'chat' | 'voice' | 'video', extra?: Record<string, unknown>) => {
+    trackFrontendEvent(eventName, {
+      tenant: tenantSlug || 'unknown',
+      channel,
+      session_id: activeTicketId || `rt_${Date.now()}`,
+      ...extra,
+    });
+  }, [tenantSlug, activeTicketId]);
+
+  const beginRealtimeSession = useCallback(async (mode: 'voice' | 'video') => {
+    setChannelMode(mode);
+    setSessionState('connecting');
+    try {
+      if (mode === 'video' && typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+          stream.getTracks().forEach((track) => track.stop());
+        } catch {
+          setChannelMode('voice');
+          setSessionState('reconnecting');
+          emitRealtimeAnalytics('realtime_mode_switched', 'voice', { from: 'video', to: 'voice', reason: 'webcam_unavailable' });
+          mode = 'voice';
+        }
+      }
+
+      const payload = await apiFetch<any>('/api/public/realtime/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenant_slug: tenantSlug, channel: mode }),
+        tenantSlug: tenantSlug || undefined,
+      });
+
+      const sessionId = payload?.session?.id || payload?.session_id || `rt_${Date.now()}`;
+      setSessionState('live');
+      setAssistantSpeaking(true);
+      emitRealtimeAnalytics('realtime_session_started', mode, {
+        session_id: sessionId,
+        model: payload?.model || realtimeConfig?.model || voiceCallConfig?.model || videoCallConfig?.model,
+      });
+
+      if (mode === 'video' && (payload?.avatar || realtimeConfig?.avatarEnabled)) {
+        emitRealtimeAnalytics('avatar_rendered', 'video', {
+          avatar_type: payload?.avatar?.type || realtimeConfig?.avatarType || 'robot',
+          avatar_persona: payload?.avatar?.persona || realtimeConfig?.avatarPersona || null,
+        });
+      }
+    } catch (error) {
+      setSessionState('ended');
+      emitRealtimeAnalytics('realtime_session_failed', mode, {
+        error: getErrorMessage(error, 'realtime_session_failed'),
+      });
+    }
+  }, [emitRealtimeAnalytics, realtimeConfig, tenantSlug, videoCallConfig?.model, voiceCallConfig?.model]);
+
+  const endRealtimeSession = useCallback(() => {
+    setSessionState('ended');
+    setIsUserSpeaking(false);
+    setAssistantSpeaking(false);
+  }, []);
+
+  useEffect(() => {
+    if (channelMode === 'video' && sessionState === 'live' && !realtimeVideoEnabled) {
+      setChannelMode('voice');
+      setSessionState('reconnecting');
+      emitRealtimeAnalytics('realtime_mode_switched', 'voice', { from: 'video', to: 'voice', reason: 'video_unavailable' });
+      window.setTimeout(() => setSessionState('live'), 500);
+    }
+  }, [channelMode, emitRealtimeAnalytics, realtimeVideoEnabled, sessionState]);
+
+  useEffect(() => {
+    if (sessionState !== 'live') return;
+
+    const evaluateNetwork = () => {
+      const online = typeof navigator !== 'undefined' ? navigator.onLine : true;
+      const rtt = Number((navigator as any)?.connection?.rtt || 0);
+      setNetworkLatency(!online || (rtt > 0 && rtt >= 300) ? 'unstable' : 'good');
+    };
+
+    evaluateNetwork();
+    window.addEventListener('online', evaluateNetwork);
+    window.addEventListener('offline', evaluateNetwork);
+
+    return () => {
+      window.removeEventListener('online', evaluateNetwork);
+      window.removeEventListener('offline', evaluateNetwork);
+    };
+  }, [sessionState]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.code !== 'Space' || channelMode === 'chat' || sessionState !== 'live' || isMicMuted) return;
+      event.preventDefault();
+      setIsUserSpeaking(true);
+      setAssistantSpeaking(false);
+    };
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (event.code !== 'Space') return;
+      setIsUserSpeaking(false);
+      setAssistantSpeaking(true);
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+    };
+  }, [channelMode, isMicMuted, sessionState]);
+
+  const voiceCallLabel = useMemo(() => {
+    if (typeof voiceCallConfig?.label === 'string' && voiceCallConfig.label.trim()) return voiceCallConfig.label.trim();
+    return null;
+  }, [voiceCallConfig?.label]);
+
+  const videoCallLabel = useMemo(() => {
+    if (typeof videoCallConfig?.label === 'string' && videoCallConfig.label.trim()) return videoCallConfig.label.trim();
+    return null;
+  }, [videoCallConfig?.label]);
   const whatsappButtonLabel =
     typeof supportChannels?.whatsapp?.label === 'string' && supportChannels.whatsapp.label.trim()
       ? supportChannels.whatsapp.label.trim()
@@ -568,9 +713,26 @@ const ChatPanel = (props: ChatPanelProps) => {
       }
 
       // For other actions, the backend request was already sent. No extra handling needed.
+      if (channelMode !== 'chat') {
+        emitRealtimeAnalytics('business_action_executed', channelMode, { action: normalized });
+      }
     },
-    [handleSend, onShowLogin, onShowRegister, onCart, toast]
+    [channelMode, emitRealtimeAnalytics, handleSend, onShowLogin, onShowRegister, onCart, toast]
   );
+
+  useEffect(() => {
+    if (sessionState !== 'live') return;
+    const latestMessage = messages[messages.length - 1];
+    if (!latestMessage?.text) return;
+    setTranscript((prev) => {
+      const next = [...prev, {
+        id: latestMessage.id,
+        text: latestMessage.text,
+        role: latestMessage.isBot ? 'assistant' : 'user',
+      }];
+      return next.slice(-8);
+    });
+  }, [messages, sessionState]);
 
   useEffect(() => {
     // FORCE SCROLL ON NEW MESSAGE
@@ -777,6 +939,86 @@ const ChatPanel = (props: ChatPanelProps) => {
         onA11yChange={onA11yChange}
         supportChannels={supportChannels}
       />
+      <div className="px-2 sm:px-4 pt-2">
+        <div className="grid grid-cols-3 gap-2 rounded-xl border border-border/70 bg-muted/30 p-2">
+          <Button size="sm" variant={channelMode === 'chat' ? 'default' : 'ghost'} onClick={() => setChannelMode('chat')}>
+            {supportChannels?.live_chat?.label || 'Chat'}
+          </Button>
+          {realtimeVoiceEnabled && voiceCallLabel ? (
+            <Button size="sm" variant={channelMode === 'voice' ? 'default' : 'ghost'} onClick={() => beginRealtimeSession('voice')}>
+              <Phone className="mr-1 h-4 w-4" /> {voiceCallLabel}
+            </Button>
+          ) : <div />}
+          {realtimeVideoEnabled && videoCallLabel ? (
+            <Button size="sm" variant={channelMode === 'video' ? 'default' : 'ghost'} onClick={() => beginRealtimeSession('video')}>
+              <Video className="mr-1 h-4 w-4" /> {videoCallLabel}
+            </Button>
+          ) : <div />}
+        </div>
+      </div>
+
+      {channelMode !== 'chat' ? (
+        <div className="px-2 sm:px-4 pt-2">
+          <div className="rounded-xl border border-border/70 bg-background/90 p-3">
+            <div className="mb-3 flex items-center justify-between text-xs text-muted-foreground">
+              <span className="inline-flex items-center gap-1">
+                {networkLatency === 'good' ? <Wifi className="h-3.5 w-3.5 text-emerald-600" /> : <WifiOff className="h-3.5 w-3.5 text-amber-600" />}
+                {networkLatency}
+              </span>
+              <span>{sessionState}</span>
+            </div>
+
+            <div className={cn('mb-3 rounded-lg border p-3', isUserSpeaking ? 'border-primary bg-primary/5' : 'border-border')}>
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">{channelMode === 'video' ? (videoCallLabel || 'video') : (voiceCallLabel || 'voice')}</span>
+                {sessionState === 'live' && isUserSpeaking ? <span className="text-xs text-primary">listening</span> : null}
+              </div>
+              {channelMode === 'video' && realtimeConfig?.avatarEnabled ? (
+                <div className="mt-2 flex items-center gap-2 rounded-md bg-muted/60 px-2 py-1 text-xs">
+                  <Bot className="h-3.5 w-3.5" />
+                  {realtimeConfig?.avatarType || 'robot'} · {realtimeConfig?.avatarPersona || 'default'}
+                </div>
+              ) : null}
+              {assistantSpeaking ? (
+                <div className="mt-2 h-1.5 w-full overflow-hidden rounded bg-primary/15">
+                  <div className="h-full w-1/2 animate-pulse rounded bg-primary/60" />
+                </div>
+              ) : null}
+            </div>
+
+            <div className="mb-2 flex flex-wrap gap-2">
+              <Button type="button" size="sm" variant="outline" onClick={() => setIsMicMuted((prev) => !prev)}>
+                {isMicMuted ? <MicOff className="mr-1 h-4 w-4" /> : <Mic className="mr-1 h-4 w-4" />}
+                {isMicMuted ? 'Unmute' : 'Mute'}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setCaptionsEnabled((prev) => !prev);
+                  emitRealtimeAnalytics('accessibility_caption_enabled', channelMode, { enabled: !captionsEnabled });
+                }}
+              >
+                {captionsEnabled ? <Captions className="mr-1 h-4 w-4" /> : <CaptionsOff className="mr-1 h-4 w-4" />}
+                CC
+              </Button>
+              <Button type="button" size="sm" variant="destructive" onClick={endRealtimeSession}>Finalizar</Button>
+            </div>
+
+            {captionsEnabled && transcript.length > 0 ? (
+              <div className="space-y-1 rounded-md bg-black px-2 py-1 text-xs font-medium text-white">
+                {transcript.map((item) => (
+                  <div key={`transcript_${item.id}`} className="opacity-95">
+                    <span className="mr-1 uppercase text-[10px] text-white/70">{item.role}</span>
+                    <span>{item.text}</span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
       {onCart && tipoChat === 'pyme' && (
         <div className="px-2 sm:px-4 pt-2">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center rounded-xl border bg-muted/40 px-3 py-3">
@@ -875,6 +1117,26 @@ const ChatPanel = (props: ChatPanelProps) => {
           <Button onClick={handleWhatsAppBridge} variant="outline" className="w-full mb-2">
             {whatsappButtonLabel}
           </Button>
+        ) : null}
+        {!activeTicketId && realtimeVoiceEnabled && voiceCallLabel ? (
+          <Button onClick={() => beginRealtimeSession('voice')} className="w-full mb-2" variant="secondary">
+            {voiceCallLabel}
+          </Button>
+        ) : null}
+        {!activeTicketId && realtimeVideoEnabled && videoCallLabel ? (
+          <Button onClick={() => beginRealtimeSession('video')} className="w-full mb-2" variant="outline">
+            {videoCallLabel}
+          </Button>
+        ) : null}
+        {sessionState === 'ended' ? (
+          <div className="mb-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <Button size="sm" variant="outline" onClick={() => handleSend({ action: 'send_summary_whatsapp', text: 'Enviar resumen por WhatsApp' })}>
+              Enviar resumen por WhatsApp
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => handleSend({ action: 'send_summary_email', text: 'Enviar resumen por Email' })}>
+              Enviar resumen por Email
+            </Button>
+          </div>
         ) : null}
         <AnimatePresence>
           {leadSuccessTicket ? (
