@@ -87,4 +87,16 @@ describe('analyticsService.getHub', () => {
     expect(apiFetchMock).toHaveBeenNthCalledWith(2, '/admin/analytics/overview?scope=municipio', expect.any(Object));
   });
 
+  it('builds realtime hub query with tenant_id, scope and window_minutes', async () => {
+    apiFetchMock.mockResolvedValueOnce({ totals: { events: 10 } });
+
+    const result = await analyticsService.getRealtimeHub({ tenant_id: 7, scope: 'municipio', window_minutes: 30, tenantSlug: 'demo' });
+
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      '/admin/analytics/realtime-hub?tenant_id=7&scope=municipio&window_minutes=30',
+      expect.objectContaining({ tenantSlug: 'demo' }),
+    );
+    expect(result?.totals?.events).toBe(10);
+  });
+
 });
