@@ -278,7 +278,7 @@ const ChatPanel = (props: ChatPanelProps) => {
       return;
     }
 
-    if (!selectedRubro && !localRubro) {
+    if (!selectedRubro && !localRubro && propEntityToken) {
       const stored = safeLocalStorage.getItem("rubroSeleccionado");
       const storedKey = extractRubroKey(stored);
       if (storedKey) {
@@ -286,7 +286,7 @@ const ChatPanel = (props: ChatPanelProps) => {
         setLocalRubro(storedKey);
       }
     }
-  }, [rubrosEnabled, selectedRubro, localRubro]);
+  }, [rubrosEnabled, selectedRubro, localRubro, propEntityToken]);
 
   useEffect(() => {
     if (!rubrosEnabled) {

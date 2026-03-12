@@ -397,6 +397,54 @@ export function useChatLogic({
 
     const normalizedMessages: Message[] = [];
 
+
+    const extractDemoSelectorMode = (data: any, dataPayloadRaw: unknown): string | null => {
+      const payloadMode =
+        dataPayloadRaw && typeof dataPayloadRaw === 'object'
+          ? pickFirstString(
+              (dataPayloadRaw as any).demo_selector_mode,
+              (dataPayloadRaw as any).demoSelectorMode,
+              (dataPayloadRaw as any).selector_mode,
+            )
+          : null;
+      return pickFirstString(
+        data.demo_selector_mode,
+        data.demoSelectorMode,
+        data.selector_mode,
+        data.selectorMode,
+        data.metadata?.demo_selector_mode,
+        data.metadata?.demoSelectorMode,
+        payloadMode,
+      );
+    };
+
+    const normalizeActionToken = (value: unknown) =>
+      typeof value === 'string' ? value.trim().toLowerCase() : '';
+
+    const filterDemoSelectorButtons = (buttons: any[], modeRaw: string | null) => {
+      const mode = normalizeActionToken(modeRaw);
+      if (!mode) return buttons;
+
+      if (mode === 'segment_categories') {
+        const filtered = buttons.filter((btn) => {
+          const token = normalizeActionToken(pickFirstString(btn.action, btn.action_id, btn.accion_interna));
+          return token === 'demo_segment:empresas' || token === 'demo_segment:gobiernos';
+        });
+        return filtered.length ? filtered : buttons;
+      }
+
+      if (mode === 'segment_rubros') {
+        const filtered = buttons.filter((btn) => {
+          const token = normalizeActionToken(pickFirstString(btn.action, btn.action_id, btn.accion_interna));
+          if (!token) return false;
+          return token.startsWith('demo_select_rubro:') || token === 'demo_segment:all';
+        });
+        return filtered.length ? filtered : buttons;
+      }
+
+      return buttons;
+    };
+
     const normalizeStatusCandidate = (value: unknown) => {
       if (typeof value !== 'string' && typeof value !== 'number') {
         return '';
@@ -490,16 +538,20 @@ export function useChatLogic({
           data.metadata?.attachment,
       );
 
-      const botones = mergeButtons(
-        data.botones,
-        data.options_list,
-        data.optionsList,
-        data.options,
-        data.botones_sugeridos,
-        data.buttons,
-        data.botonesSugeridos,
-        data.quick_replies,
-        data.metadata,
+      const demoSelectorMode = extractDemoSelectorMode(data, dataPayloadRaw);
+      const botones = filterDemoSelectorButtons(
+        mergeButtons(
+          data.botones,
+          data.options_list,
+          data.optionsList,
+          data.options,
+          data.botones_sugeridos,
+          data.buttons,
+          data.botonesSugeridos,
+          data.quick_replies,
+          data.metadata,
+        ),
+        sourceName === 'demo_selector' ? demoSelectorMode : null,
       );
       if (sourceName && commercialSourcesForCta.has(sourceName) && botones.length > 0) {
         const idx = botones.findIndex((btn: any) => {
@@ -690,7 +742,7 @@ export function useChatLogic({
       seenMessageFingerprintsRef.current.add(fingerprint);
 
       if (isDemoSelector) {
-        trackWidgetEvent('demo_selector_rendered');
+        trackWidgetEvent('demo_selector_rendered', demoSelectorMode ? { mode: demoSelectorMode } : {});
       }
 
       const messageId =
@@ -1071,9 +1123,11 @@ export function useChatLogic({
 
   const resolveTransportHintKey = (slug?: string | null) => `chatboc_socket_transport_hint:${slug || 'default'}`;
 
+  const [socketTransportRetryKey, setSocketTransportRetryKey] = useState(0);
+
   const getPreferredSocketTransports = (): Array<'websocket' | 'polling'> => {
     const hint = safeLocalStorage.getItem(resolveTransportHintKey(tenantSlug));
-    if (hint === 'polling') return ['polling', 'websocket'];
+    if (hint === 'polling') return ['polling'];
     if (hint === 'websocket') return ['websocket', 'polling'];
     return ['websocket', 'polling'];
   };
@@ -1132,6 +1186,7 @@ export function useChatLogic({
       console.error('Socket.IO connection error:', err.message);
       if (String(err?.message || '').toLowerCase().includes('websocket')) {
         safeLocalStorage.setItem(resolveTransportHintKey(tenantSlug), 'polling');
+        setSocketTransportRetryKey((prev) => prev + 1);
       }
     };
 
@@ -1161,7 +1216,7 @@ export function useChatLogic({
       socket.off?.('disconnect', handleDisconnect);
       socket.disconnect();
     };
-}, [entityToken, tenantSlug, tipoChat, skipAuth, tokenKey]);
+}, [entityToken, tenantSlug, tipoChat, skipAuth, tokenKey, socketTransportRetryKey]);
 
   useEffect(() => {
     if (contexto.estado_conversacion === 'confirmando_reclamo' && !activeTicketId) {
@@ -1465,6 +1520,9 @@ export function useChatLogic({
       });
 
     } catch (error: any) {
+      if (error instanceof ApiError && error.status === 409) {
+        resetChatSessionId();
+      }
       const errorMsg = getErrorMessage(error, '⚠️ Ocurrió un error inesperado.');
       setMessages(prev => [...prev, { id: generateClientMessageId(), text: errorMsg, isBot: true, timestamp: new Date(), isError: true }]);
       setIsTyping(false);
