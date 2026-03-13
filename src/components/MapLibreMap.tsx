@@ -19,8 +19,14 @@ type Props = {
   className?: string;
   provider?: MapProvider;
   mapStyleUrl?: string | null;
+  mapTileUrl?: string | null;
+  mapTileAttribution?: string | null;
   maptilerKey?: string | null;
   googleMapsKey?: string | null;
+  geoLayerConfig?: {
+    source?: unknown;
+    source_options?: Record<string, unknown>;
+  } | null;
   adminLocation?: [number, number];
   fitToBounds?: [number, number][];
   boundsPadding?: number | { top?: number; bottom?: number; left?: number; right?: number };
@@ -100,6 +106,7 @@ const buildGeoJson = (points: HeatPoint[]) => ({
       id: p.id,
       ticket: p.ticket,
       categoria: p.categoria,
+      categoryColor: p.categoryColor,
       direccion: p.direccion,
       distrito: p.distrito,
       barrio: p.barrio,
@@ -123,6 +130,12 @@ const buildGeoJson = (points: HeatPoint[]) => ({
     geometry: { type: "Point", coordinates: [p.lng, p.lat] },
   })),
 });
+
+const isFeatureCollection = (value: unknown): value is { type: "FeatureCollection"; features: unknown[] } => {
+  if (!value || typeof value !== "object") return false;
+  const record = value as Record<string, unknown>;
+  return record.type === "FeatureCollection" && Array.isArray(record.features);
+};
 
 const updateHeatmapSource = (map: Map, points: HeatPoint[]) => {
   const source = map.getSource("points");
@@ -166,8 +179,11 @@ export default function MapLibreMap({
   className,
   provider = "maplibre",
   mapStyleUrl,
+  mapTileUrl,
+  mapTileAttribution,
   maptilerKey,
   googleMapsKey,
+  geoLayerConfig,
   adminLocation,
   fitToBounds,
   boundsPadding,
@@ -209,6 +225,22 @@ export default function MapLibreMap({
     () => (shouldCluster ? clusterHeatmapPoints(normalizedHeatmap) : normalizedHeatmap),
     [normalizedHeatmap, shouldCluster],
   );
+  const configuredGeoSource = useMemo(
+    () => (isFeatureCollection(geoLayerConfig?.source) ? geoLayerConfig.source : null),
+    [geoLayerConfig?.source],
+  );
+  const configuredSourceOptions = useMemo(() => {
+    const raw = geoLayerConfig?.source_options;
+    if (!raw || typeof raw !== "object") return {} as { cluster?: boolean; clusterMaxZoom?: number; clusterRadius?: number };
+    const cluster = typeof raw.cluster === "boolean" ? raw.cluster : undefined;
+    const clusterMaxZoom = Number.isFinite(Number(raw.clusterMaxZoom)) ? Number(raw.clusterMaxZoom) : undefined;
+    const clusterRadius = Number.isFinite(Number(raw.clusterRadius)) ? Number(raw.clusterRadius) : undefined;
+    return {
+      ...(cluster !== undefined ? { cluster } : {}),
+      ...(clusterMaxZoom !== undefined ? { clusterMaxZoom } : {}),
+      ...(clusterRadius !== undefined ? { clusterRadius } : {}),
+    };
+  }, [geoLayerConfig?.source_options]);
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<Map | null>(null);
   const libRef = useRef<MapLibreModule | null>(null);
@@ -335,6 +367,29 @@ export default function MapLibreMap({
 
         const key = apiKeyRef.current;
         const customStyle = (mapStyleUrl ?? "").trim();
+        const customTileUrl = (mapTileUrl ?? "").trim();
+        const customTileAttribution =
+          (mapTileAttribution ?? "").trim() || "© OpenStreetMap contributors";
+        const tileStyle = customTileUrl
+          ? {
+              version: 8,
+              sources: {
+                osm: {
+                  type: "raster",
+                  tiles: [customTileUrl],
+                  tileSize: 256,
+                  attribution: customTileAttribution,
+                },
+              },
+              layers: [
+                {
+                  id: "osm",
+                  type: "raster",
+                  source: "osm",
+                },
+              ],
+            }
+          : null;
         const styleCandidates = [
           customStyle || null,
           key ? `https://api.maptiler.com/maps/streets-v2/style.json?key=${key}` : null,
@@ -346,7 +401,7 @@ export default function MapLibreMap({
         let currentStyleIndex = 0;
         let exhaustedStyles = false;
 
-        const initialStyle = styleCandidates[0] ?? "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
+        const initialStyle = tileStyle ?? styleCandidates[0] ?? "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
 
         const mapInstance = new maplibre.Map({
           container: mapContainerRef.current,
@@ -376,7 +431,8 @@ export default function MapLibreMap({
           if (!map.getSource("points")) {
             map.addSource("points", {
               type: "geojson",
-              data: { type: "FeatureCollection", features: [] },
+              data: configuredGeoSource ?? { type: "FeatureCollection", features: [] },
+              ...configuredSourceOptions,
             });
           }
 
@@ -528,17 +584,22 @@ export default function MapLibreMap({
                 ],
               ],
               "circle-color": [
-                "interpolate",
-                ["linear"],
-                ["coalesce", ["get", "averageWeight"], 1],
-                0,
-                "#38bdf8",
-                10,
-                "#2563eb",
-                20,
-                "#1d4ed8",
-                35,
-                "#ef4444",
+                "case",
+                ["has", "categoryColor"],
+                ["get", "categoryColor"],
+                [
+                  "interpolate",
+                  ["linear"],
+                  ["coalesce", ["get", "averageWeight"], 1],
+                  0,
+                  "#38bdf8",
+                  10,
+                  "#2563eb",
+                  20,
+                  "#1d4ed8",
+                  35,
+                  "#ef4444",
+                ],
               ],
               "circle-stroke-color": [
                 "case",
@@ -557,7 +618,7 @@ export default function MapLibreMap({
         };
 
         const cycleStyle = (reason?: string) => {
-          if (exhaustedStyles || styleCandidates.length === 0) {
+          if (tileStyle || exhaustedStyles || styleCandidates.length === 0) {
             return;
           }
 
@@ -572,7 +633,7 @@ export default function MapLibreMap({
           } else {
             exhaustedStyles = true;
             setMapError(
-              "No se pudieron cargar los estilos del mapa. Verificá la clave de MapTiler o la conexión de red.",
+              "No se pudieron cargar los estilos del mapa. Verificá la conexión o usá un tile OSM del backend.",
             );
           }
         };
@@ -845,7 +906,7 @@ export default function MapLibreMap({
         adminMarkerRef.current = null;
       }
     };
-  }, [effectiveProvider, mapStyleUrl, provider, resolvedMaptilerKey]);
+  }, [configuredGeoSource, configuredSourceOptions, effectiveProvider, mapStyleUrl, provider, resolvedMaptilerKey]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -860,7 +921,11 @@ export default function MapLibreMap({
     const map = mapRef.current;
     if (!map || effectiveProvider !== "maplibre") return;
 
-    const applyData = () => updateHeatmapSource(map, processedHeatmap);
+    const applyData = () => {
+      const source = map.getSource("points");
+      if (!source || typeof (source as any).setData !== "function") return;
+      (source as any).setData(configuredGeoSource ?? buildGeoJson(processedHeatmap));
+    };
     const source = map.getSource("points");
     if (source && typeof (source as any).setData === "function") {
       applyData();
@@ -871,7 +936,7 @@ export default function MapLibreMap({
     return () => {
       map.off("load", applyData);
     };
-  }, [processedHeatmap, effectiveProvider]);
+  }, [configuredGeoSource, processedHeatmap, effectiveProvider]);
 
   useEffect(() => {
     const map = mapRef.current;

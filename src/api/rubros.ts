@@ -4,6 +4,16 @@ import { DEMO_HIERARCHY } from '@/data/demoHierarchy';
 import { Rubro } from '@/types/rubro';
 
 // Fetch rubros from the backend, including tenant-scoped hierarchy if available
+
+const sortRubrosByName = (items: Rubro[]): Rubro[] =>
+  [...items].sort((a, b) => (a.nombre || '').localeCompare(b.nombre || '', 'es', { sensitivity: 'base' }));
+
+const sortRubroTree = (items: Rubro[]): Rubro[] =>
+  sortRubrosByName(items).map((item) => ({
+    ...item,
+    subrubros: Array.isArray(item.subrubros) ? sortRubroTree(item.subrubros) : [],
+  }));
+
 export const fetchRubros = async (): Promise<Rubro[]> => {
   return await apiFetch<Rubro[]>('/rubros/', {
     omitTenant: true,
@@ -97,16 +107,20 @@ export const getRubrosHierarchy = async (): Promise<Rubro[]> => {
 
             // Final check: if tree is still "empty" or missing key roots, just fallback to full DEMO_HIERARCHY
             if (tree.length === 0) {
-                return DEMO_HIERARCHY;
+                return sortRubroTree(DEMO_HIERARCHY);
             }
 
-            return tree;
+            const prioritizedRoots = tree.filter((root) =>
+              root.id === 1 || root.id === 2 || root.clave === 'municipios_root' || root.clave === 'comerciales_root',
+            );
+
+            return sortRubroTree(prioritizedRoots.length ? prioritizedRoots : tree);
         }
 
         console.warn("Backend rubros invalid format, using fallback hierarchy");
-        return DEMO_HIERARCHY;
+        return sortRubroTree(DEMO_HIERARCHY);
     } catch (error) {
         console.warn("Error processing rubros hierarchy, using fallback hierarchy", error);
-        return DEMO_HIERARCHY;
+        return sortRubroTree(DEMO_HIERARCHY);
     }
 };

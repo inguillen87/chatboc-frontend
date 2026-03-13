@@ -7,7 +7,7 @@ export type MapProviderUnavailableReason =
   | "load-error"
   | "heatmap-unavailable";
 
-const STORAGE_KEY = "chatboc-map-provider";
+const STORAGE_KEY = "chatboc-map-provider-v2";
 const EVENT_NAME = "chatboc-map-provider-change";
 
 const isValidProvider = (value: unknown): value is MapProvider =>
@@ -24,6 +24,7 @@ const readInitialProvider = (fallback: MapProvider): MapProvider => {
 
 interface MapProviderOptions {
   preferred?: MapProvider | null;
+  googleAvailable?: boolean;
 }
 
 export function useMapProvider(
@@ -33,10 +34,20 @@ export function useMapProvider(
   const preferredProvider = isValidProvider(options.preferred)
     ? options.preferred
     : undefined;
+  const googleAvailable = options.googleAvailable ?? Boolean((import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? "").trim());
   const initialProvider = preferredProvider ?? defaultProvider;
   const [provider, setProviderState] = useState<MapProvider>(() =>
     readInitialProvider(initialProvider),
   );
+
+  useEffect(() => {
+    if (!googleAvailable && provider === "google") {
+      setProviderState("maplibre");
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(STORAGE_KEY, "maplibre");
+      }
+    }
+  }, [googleAvailable, provider]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -107,4 +118,3 @@ export function useMapProvider(
 
   return { provider, setProvider, availableProviders } as const;
 }
-
