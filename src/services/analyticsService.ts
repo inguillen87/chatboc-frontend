@@ -97,6 +97,28 @@ export interface RealtimeHubResponse {
   comments?: Array<{ channel?: string; text?: string; created_at?: string; sentiment?: string }>;
 }
 
+
+
+export interface AnalyticsGeoLayerCategory {
+  categoria?: string;
+  color?: string;
+  event_count?: number;
+  total_weight?: number;
+  intensity?: number;
+  points?: Array<{ lat?: number; lng?: number; weight?: number }>;
+}
+
+export interface AnalyticsHeatmapResponse {
+  points: Array<{ lat?: number; lng?: number; weight?: number; categoria?: string; canal?: string }>;
+  geo_layers?: {
+    provider?: string;
+    tiles?: { url?: string; attribution?: string };
+    categories?: AnalyticsGeoLayerCategory[];
+    legend?: { mode?: string; min_weight?: number; max_weight?: number };
+  };
+  segments?: Record<string, Array<{ label?: string; count?: number }>>;
+  segments_filters_applied?: Record<string, unknown>;
+}
 const HUB_ENDPOINTS = [
   '/api/admin/analytics/hub',
   '/api/admin/analytics/dashboard',
@@ -232,13 +254,34 @@ export const analyticsService = {
     return normalizeAnalyticsSummary(response);
   },
 
-  getHeatmap: async (filters: AnalyticsFilters, hubOverride?: AnalyticsHubResponse | null) => {
+  getHeatmap: async (filters: AnalyticsFilters, hubOverride?: AnalyticsHubResponse | null): Promise<AnalyticsHeatmapResponse> => {
+    const buildResponse = (raw: any): AnalyticsHeatmapResponse => {
+      const points = raw?.points || raw?.geo_points || raw?.heatmap_points || [];
+      const geoLayers = raw?.geo_layers && typeof raw.geo_layers === 'object' ? raw.geo_layers : undefined;
+      const segments = raw?.segments && typeof raw.segments === 'object' ? raw.segments : undefined;
+      const segmentsFiltersApplied =
+        raw?.segments_filters_applied && typeof raw.segments_filters_applied === 'object'
+          ? raw.segments_filters_applied
+          : undefined;
+      return {
+        points: Array.isArray(points) ? points : [],
+        ...(geoLayers ? { geo_layers: geoLayers } : {}),
+        ...(segments ? { segments } : {}),
+        ...(segmentsFiltersApplied ? { segments_filters_applied: segmentsFiltersApplied } : {}),
+      };
+    };
+
     const hub = hubOverride ?? await analyticsService.getHub(filters).catch(() => null);
     const hubMap = hub?.sections?.mapas as Record<string, unknown> | undefined;
     const hubGeo = (hubMap?.geo as Record<string, unknown> | undefined) ?? hubMap;
     const hubPoints = (hubGeo?.points ?? hubGeo?.geo_points ?? hubGeo?.heatmap_points) as unknown;
     if (Array.isArray(hubPoints)) {
-      return hubPoints;
+      return buildResponse({
+        points: hubPoints,
+        geo_layers: (hubGeo as any)?.geo_layers,
+        segments: (hubGeo as any)?.segments,
+        segments_filters_applied: (hubGeo as any)?.segments_filters_applied,
+      });
     }
 
     const query = buildQuery({ ...filters, scope: filters.scope ?? filters.context ?? 'municipio' });
@@ -246,7 +289,7 @@ export const analyticsService = {
       tenantSlug: filters.tenantSlug,
       headers: buildAnalyticsHeaders(),
     });
-    return response?.points || response?.geo_points || response?.heatmap_points || [];
+    return buildResponse(response || {});
   },
 
   getInsights: async (tenantId: number, tenantSlug?: string) => {
