@@ -130,6 +130,28 @@ describe('analyticsService.getHub', () => {
     expect(heatmapUrl).toContain('categorias=pedidos');
   });
 
+
+  it('falls back to geo_layers category points when root points are missing', async () => {
+    apiFetchMock
+      .mockResolvedValueOnce({ sections: {} })
+      .mockResolvedValueOnce({
+        geo_layers: {
+          categories: [
+            {
+              categoria: 'seguridad',
+              points: [{ lat: -34.6, lng: -58.38, weight: 4 }],
+            },
+          ],
+        },
+      });
+
+    const heatmap = await analyticsService.getHeatmap({ scope: 'municipio' });
+
+    expect(heatmap.points).toHaveLength(1);
+    expect(heatmap.points[0]?.categoria).toBe('seguridad');
+    expect(heatmap.points[0]?.weight).toBe(4);
+  });
+
   it('normalizes heatmap geo_layers and segments from hub mapas.geo', async () => {
     apiFetchMock.mockResolvedValueOnce({
       sections: {

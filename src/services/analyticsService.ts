@@ -285,8 +285,17 @@ export const analyticsService = {
 
   getHeatmap: async (filters: AnalyticsFilters, hubOverride?: AnalyticsHubResponse | null): Promise<AnalyticsHeatmapResponse> => {
     const buildResponse = (raw: any): AnalyticsHeatmapResponse => {
-      const points = raw?.points || raw?.geo_points || raw?.heatmap_points || [];
       const geoLayers = raw?.geo_layers && typeof raw.geo_layers === 'object' ? raw.geo_layers : undefined;
+      const categoryPoints = Array.isArray(geoLayers?.categories)
+        ? geoLayers.categories.flatMap((category: any) => {
+            const points = Array.isArray(category?.points) ? category.points : [];
+            return points.map((point: any) => ({
+              ...point,
+              categoria: point?.categoria ?? category?.categoria,
+            }));
+          })
+        : [];
+      const points = raw?.points || raw?.geo_points || raw?.heatmap_points || categoryPoints || [];
       const segments = raw?.segments && typeof raw.segments === 'object' ? raw.segments : undefined;
       const segmentsFiltersApplied =
         raw?.segments_filters_applied && typeof raw.segments_filters_applied === 'object'
