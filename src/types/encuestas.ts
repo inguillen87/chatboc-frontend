@@ -407,6 +407,8 @@ export interface SurveyHeatmapPoint {
   lat: number;
   lng: number;
   respuestas: number;
+  categoria?: string;
+  canal?: string;
 }
 
 export interface SurveyAnalyticsHeatmap {
