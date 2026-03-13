@@ -87,4 +87,125 @@ describe('analyticsService.getHub', () => {
     expect(apiFetchMock).toHaveBeenNthCalledWith(2, '/admin/analytics/overview?scope=municipio', expect.any(Object));
   });
 
+  it('builds realtime hub query with tenant_id, scope and window_minutes', async () => {
+    apiFetchMock.mockResolvedValueOnce({ totals: { events: 10 } });
+
+    const result = await analyticsService.getRealtimeHub({ tenant_id: 7, scope: 'municipio', window_minutes: 30, tenantSlug: 'demo' });
+
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      '/admin/analytics/realtime-hub?tenant_id=7&scope=municipio&window_minutes=30',
+      expect.objectContaining({ tenantSlug: 'demo' }),
+    );
+    expect(result?.totals?.events).toBe(10);
+  });
+
+  it('passes heatmap segmentation filters to query params', async () => {
+    apiFetchMock
+      .mockResolvedValueOnce({ sections: {} })
+      .mockResolvedValueOnce({ points: [] });
+
+    await analyticsService.getHeatmap({
+      tenant_id: 44,
+      scope: 'municipio',
+      categoria: 'seguridad',
+      sexo: 'f',
+      rango_edad: '25-34',
+      barrio: 'centro',
+      distrito: 'norte',
+      canal: 'voice',
+      categorias: ['reclamos', 'pedidos'],
+      geo_limit: 1200,
+      bbox: '-58.55,-34.72,-58.31,-34.52',
+    });
+
+    const [, heatmapUrl] = apiFetchMock.mock.calls.map((call) => call[0] as string);
+    expect(heatmapUrl).toContain('/admin/analytics/heatmap?');
+    expect(heatmapUrl).toContain('tenant_id=44');
+    expect(heatmapUrl).toContain('scope=municipio');
+    expect(heatmapUrl).toContain('categoria=seguridad');
+    expect(heatmapUrl).toContain('sexo=f');
+    expect(heatmapUrl).toContain('rango_edad=25-34');
+    expect(heatmapUrl).toContain('barrio=centro');
+    expect(heatmapUrl).toContain('distrito=norte');
+    expect(heatmapUrl).toContain('canal=voice');
+    expect(heatmapUrl).toContain('geo_limit=1200');
+    expect(heatmapUrl).toContain('bbox=-58.55%2C-34.72%2C-58.31%2C-34.52');
+    expect(heatmapUrl).toContain('categorias=reclamos');
+    expect(heatmapUrl).toContain('categorias=pedidos');
+  });
+
+
+  it('falls back to geo_layers category points when root points are missing', async () => {
+    apiFetchMock
+      .mockResolvedValueOnce({ sections: {} })
+      .mockResolvedValueOnce({
+        geo_layers: {
+          categories: [
+            {
+              categoria: 'seguridad',
+              points: [{ lat: -34.6, lng: -58.38, weight: 4 }],
+            },
+          ],
+        },
+      });
+
+    const heatmap = await analyticsService.getHeatmap({ scope: 'municipio' });
+
+    expect(heatmap.points).toHaveLength(1);
+    expect(heatmap.points[0]?.categoria).toBe('seguridad');
+    expect(heatmap.points[0]?.weight).toBe(4);
+  });
+
+  it('normalizes heatmap geo_layers and segments from hub mapas.geo', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      sections: {
+        mapas: {
+          geo: {
+            points: [{ lat: -34.6, lng: -58.38, weight: 8 }],
+            geo_layers: {
+              categories: [{ categoria: 'seguridad', color: '#EF4444', event_count: 12 }],
+            },
+            segments: {
+              sexo: [{ label: 'f', count: 7 }],
+            },
+          },
+        },
+      },
+    });
+
+    const heatmap = await analyticsService.getHeatmap({ scope: 'municipio' });
+
+    expect(heatmap.points).toHaveLength(1);
+    expect(heatmap.geo_layers?.categories?.[0]?.categoria).toBe('seguridad');
+    expect(heatmap.segments?.sexo?.[0]?.label).toBe('f');
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('extracts points from nested category_layers and hotspots payloads', async () => {
+    apiFetchMock
+      .mockResolvedValueOnce({ sections: {} })
+      .mockResolvedValueOnce({
+        payload: {
+          category_layers: [
+            {
+              category: 'alumbrado',
+              hotspots: [
+                { latitude: -34.61, longitude: -58.37, count: 3 },
+              ],
+            },
+          ],
+        },
+      });
+
+    const heatmap = await analyticsService.getHeatmap({ scope: 'municipio' });
+
+    expect(heatmap.points).toHaveLength(1);
+    expect(heatmap.points[0]).toEqual({
+      lat: -34.61,
+      lng: -58.37,
+      weight: 3,
+      categoria: 'alumbrado',
+    });
+  });
+
 });

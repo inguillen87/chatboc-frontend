@@ -6,6 +6,7 @@ import type { Map, LngLatLike } from "maplibre-gl";
 import { GoogleHeatmapMap } from "@/components/GoogleHeatmapMap";
 import type { MapProvider, MapProviderUnavailableReason } from "@/hooks/useMapProvider";
 import { clusterHeatmapPoints } from "@/utils/heatmap";
+import { trackFrontendEvent } from "@/utils/frontendTelemetry";
 
 type Props = {
   center?: [number, number]; // [lon, lat]
@@ -19,8 +20,32 @@ type Props = {
   className?: string;
   provider?: MapProvider;
   mapStyleUrl?: string | null;
+  mapTileUrl?: string | null;
+  mapTileAttribution?: string | null;
   maptilerKey?: string | null;
   googleMapsKey?: string | null;
+  geoLayerConfig?: {
+    contract_version?: string;
+    style_url?: string;
+    source?: unknown;
+    source_options?: Record<string, unknown>;
+    interactions?: {
+      hover?: boolean;
+      time_slider?: {
+        enabled?: boolean;
+        field?: string;
+      };
+    };
+    layers?: {
+      heatmap?: { id?: string };
+      clusters?: { id?: string };
+      points?: { id?: string };
+    };
+    telemetry?: {
+      event_endpoint?: string;
+      events?: string[];
+    };
+  } | null;
   adminLocation?: [number, number];
   fitToBounds?: [number, number][];
   boundsPadding?: number | { top?: number; bottom?: number; left?: number; right?: number };
@@ -100,6 +125,7 @@ const buildGeoJson = (points: HeatPoint[]) => ({
       id: p.id,
       ticket: p.ticket,
       categoria: p.categoria,
+      categoryColor: p.categoryColor,
       direccion: p.direccion,
       distrito: p.distrito,
       barrio: p.barrio,
@@ -124,6 +150,12 @@ const buildGeoJson = (points: HeatPoint[]) => ({
   })),
 });
 
+const isFeatureCollection = (value: unknown): value is { type: "FeatureCollection"; features: unknown[] } => {
+  if (!value || typeof value !== "object") return false;
+  const record = value as Record<string, unknown>;
+  return record.type === "FeatureCollection" && Array.isArray(record.features);
+};
+
 const updateHeatmapSource = (map: Map, points: HeatPoint[]) => {
   const source = map.getSource("points");
   if (source && typeof (source as any).setData === "function") {
@@ -131,17 +163,22 @@ const updateHeatmapSource = (map: Map, points: HeatPoint[]) => {
   }
 };
 
-const toggleLayers = (map: Map, showHeatmap: boolean, showPolygons: boolean) => {
-  if (map.getLayer("tickets-heat")) {
+const toggleLayers = (
+  map: Map,
+  showHeatmap: boolean,
+  showPolygons: boolean,
+  layerIds: { heat: string; circles: string },
+) => {
+  if (map.getLayer(layerIds.heat)) {
     map.setLayoutProperty(
-      "tickets-heat",
+      layerIds.heat,
       "visibility",
       showHeatmap && !showPolygons ? "visible" : "none",
     );
   }
-  if (map.getLayer("tickets-circles")) {
+  if (map.getLayer(layerIds.circles)) {
     map.setLayoutProperty(
-      "tickets-circles",
+      layerIds.circles,
       "visibility",
       !showHeatmap && !showPolygons ? "visible" : "none",
     );
@@ -166,8 +203,11 @@ export default function MapLibreMap({
   className,
   provider = "maplibre",
   mapStyleUrl,
+  mapTileUrl,
+  mapTileAttribution,
   maptilerKey,
   googleMapsKey,
+  geoLayerConfig,
   adminLocation,
   fitToBounds,
   boundsPadding,
@@ -209,6 +249,79 @@ export default function MapLibreMap({
     () => (shouldCluster ? clusterHeatmapPoints(normalizedHeatmap) : normalizedHeatmap),
     [normalizedHeatmap, shouldCluster],
   );
+  const configuredGeoSource = useMemo(
+    () => (isFeatureCollection(geoLayerConfig?.source) ? geoLayerConfig.source : null),
+    [geoLayerConfig?.source],
+  );
+  const configuredSourceOptions = useMemo(() => {
+    const raw = geoLayerConfig?.source_options;
+    if (!raw || typeof raw !== "object") return {} as { cluster?: boolean; clusterMaxZoom?: number; clusterRadius?: number };
+    const cluster = typeof raw.cluster === "boolean" ? raw.cluster : undefined;
+    const clusterMaxZoom = Number.isFinite(Number(raw.clusterMaxZoom)) ? Number(raw.clusterMaxZoom) : undefined;
+    const clusterRadius = Number.isFinite(Number(raw.clusterRadius)) ? Number(raw.clusterRadius) : undefined;
+    return {
+      ...(cluster !== undefined ? { cluster } : {}),
+      ...(clusterMaxZoom !== undefined ? { clusterMaxZoom } : {}),
+      ...(clusterRadius !== undefined ? { clusterRadius } : {}),
+    };
+  }, [geoLayerConfig?.source_options]);
+  const configuredLayerIds = useMemo(
+    () => ({
+      heat: geoLayerConfig?.layers?.heatmap?.id?.trim() || "tickets-heat",
+      circles: geoLayerConfig?.layers?.points?.id?.trim() || "tickets-circles",
+    }),
+    [geoLayerConfig?.layers?.heatmap?.id, geoLayerConfig?.layers?.points?.id],
+  );
+  const configuredInteractions = useMemo(
+    () => ({
+      hover: geoLayerConfig?.interactions?.hover !== false,
+      timeSliderEnabled: Boolean(geoLayerConfig?.interactions?.time_slider?.enabled),
+      timeSliderField: geoLayerConfig?.interactions?.time_slider?.field,
+    }),
+    [geoLayerConfig?.interactions?.hover, geoLayerConfig?.interactions?.time_slider?.enabled, geoLayerConfig?.interactions?.time_slider?.field],
+  );
+  const telemetryConfig = useMemo(() => {
+    const endpoint = typeof geoLayerConfig?.telemetry?.event_endpoint === "string"
+      ? geoLayerConfig.telemetry.event_endpoint.trim()
+      : "";
+    const events = Array.isArray(geoLayerConfig?.telemetry?.events)
+      ? geoLayerConfig.telemetry.events.filter((event): event is string => typeof event === "string" && event.trim().length > 0)
+      : [];
+    return {
+      endpoint: endpoint || null,
+      events,
+    };
+  }, [geoLayerConfig?.telemetry?.event_endpoint, geoLayerConfig?.telemetry?.events]);
+
+  const emitBackendMapEvent = useCallback((eventName: string, payload: Record<string, unknown>) => {
+    if (!telemetryConfig.endpoint) return;
+    if (telemetryConfig.events.length > 0 && !telemetryConfig.events.includes(eventName)) return;
+    if (typeof window === "undefined") return;
+
+    const body = JSON.stringify({
+      event: eventName,
+      payload,
+      source: "maplibre_frontend",
+      ts: new Date().toISOString(),
+    });
+
+    if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
+      try {
+        const blob = new Blob([body], { type: "application/json" });
+        if (navigator.sendBeacon(telemetryConfig.endpoint, blob)) return;
+      } catch {
+        // fallback fetch below
+      }
+    }
+
+    fetch(telemetryConfig.endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+      keepalive: true,
+      credentials: "include",
+    }).catch(() => undefined);
+  }, [telemetryConfig.endpoint, telemetryConfig.events]);
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<Map | null>(null);
   const libRef = useRef<MapLibreModule | null>(null);
@@ -334,7 +447,34 @@ export default function MapLibreMap({
         if (!isMounted || !mapContainerRef.current) return;
 
         const key = apiKeyRef.current;
-        const customStyle = (mapStyleUrl ?? "").trim();
+        const contractStyleUrl = typeof geoLayerConfig?.style_url === "string" ? geoLayerConfig.style_url.trim() : "";
+        const envStyleUrl = String(
+          import.meta.env.VITE_MAPLIBRE_STYLE_URL ?? import.meta.env.NEXT_PUBLIC_MAPLIBRE_STYLE_URL ?? "",
+        ).trim();
+        const customStyle = (mapStyleUrl ?? "").trim() || contractStyleUrl || envStyleUrl;
+        const customTileUrl = (mapTileUrl ?? "").trim();
+        const customTileAttribution =
+          (mapTileAttribution ?? "").trim() || "© OpenStreetMap contributors";
+        const tileStyle = customTileUrl
+          ? {
+              version: 8,
+              sources: {
+                osm: {
+                  type: "raster",
+                  tiles: [customTileUrl],
+                  tileSize: 256,
+                  attribution: customTileAttribution,
+                },
+              },
+              layers: [
+                {
+                  id: "osm",
+                  type: "raster",
+                  source: "osm",
+                },
+              ],
+            }
+          : null;
         const styleCandidates = [
           customStyle || null,
           key ? `https://api.maptiler.com/maps/streets-v2/style.json?key=${key}` : null,
@@ -346,7 +486,7 @@ export default function MapLibreMap({
         let currentStyleIndex = 0;
         let exhaustedStyles = false;
 
-        const initialStyle = styleCandidates[0] ?? "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
+        const initialStyle = tileStyle ?? styleCandidates[0] ?? "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
 
         const mapInstance = new maplibre.Map({
           container: mapContainerRef.current,
@@ -376,7 +516,8 @@ export default function MapLibreMap({
           if (!map.getSource("points")) {
             map.addSource("points", {
               type: "geojson",
-              data: { type: "FeatureCollection", features: [] },
+              data: configuredGeoSource ?? { type: "FeatureCollection", features: [] },
+              ...configuredSourceOptions,
             });
           }
 
@@ -427,7 +568,7 @@ export default function MapLibreMap({
           });
 
           addLayer(map, {
-            id: "tickets-heat",
+            id: configuredLayerIds.heat,
             type: "heatmap",
             source: "points",
             maxzoom: 15,
@@ -489,7 +630,7 @@ export default function MapLibreMap({
           });
 
           addLayer(map, {
-            id: "tickets-circles",
+            id: configuredLayerIds.circles,
             type: "circle",
             source: "points",
             minzoom: 9,
@@ -528,17 +669,22 @@ export default function MapLibreMap({
                 ],
               ],
               "circle-color": [
-                "interpolate",
-                ["linear"],
-                ["coalesce", ["get", "averageWeight"], 1],
-                0,
-                "#38bdf8",
-                10,
-                "#2563eb",
-                20,
-                "#1d4ed8",
-                35,
-                "#ef4444",
+                "case",
+                ["has", "categoryColor"],
+                ["get", "categoryColor"],
+                [
+                  "interpolate",
+                  ["linear"],
+                  ["coalesce", ["get", "averageWeight"], 1],
+                  0,
+                  "#38bdf8",
+                  10,
+                  "#2563eb",
+                  20,
+                  "#1d4ed8",
+                  35,
+                  "#ef4444",
+                ],
               ],
               "circle-stroke-color": [
                 "case",
@@ -552,12 +698,26 @@ export default function MapLibreMap({
             },
           });
 
-          toggleLayers(map, showHeatmapRef.current, showPolygonsRef.current);
+          toggleLayers(map, showHeatmapRef.current, showPolygonsRef.current, configuredLayerIds);
+          trackFrontendEvent("map_loaded", {
+            provider: "maplibre",
+            contract_version: geoLayerConfig?.contract_version ?? null,
+            hover_enabled: configuredInteractions.hover,
+            time_slider_enabled: configuredInteractions.timeSliderEnabled,
+            time_slider_field: configuredInteractions.timeSliderField ?? null,
+          });
+          emitBackendMapEvent("map_loaded", {
+            provider: "maplibre",
+            contract_version: geoLayerConfig?.contract_version ?? null,
+            hover_enabled: configuredInteractions.hover,
+            time_slider_enabled: configuredInteractions.timeSliderEnabled,
+            time_slider_field: configuredInteractions.timeSliderField ?? null,
+          });
           updateHeatmapSource(map, latestHeatmap.current);
         };
 
         const cycleStyle = (reason?: string) => {
-          if (exhaustedStyles || styleCandidates.length === 0) {
+          if (tileStyle || exhaustedStyles || styleCandidates.length === 0) {
             return;
           }
 
@@ -572,7 +732,7 @@ export default function MapLibreMap({
           } else {
             exhaustedStyles = true;
             setMapError(
-              "No se pudieron cargar los estilos del mapa. Verificá la clave de MapTiler o la conexión de red.",
+              "No se pudieron cargar los estilos del mapa. Verificá la conexión o usá un tile OSM del backend.",
             );
           }
         };
@@ -661,6 +821,19 @@ export default function MapLibreMap({
           }
 
           const sections: string[] = [];
+
+          trackFrontendEvent("map_cluster_click", {
+            provider: "maplibre",
+            cluster_id: clusterId,
+            feature_id: properties?.id ?? null,
+            contract_version: geoLayerConfig?.contract_version ?? null,
+          });
+          emitBackendMapEvent("cluster_click", {
+            provider: "maplibre",
+            cluster_id: clusterId,
+            feature_id: properties?.id ?? null,
+            contract_version: geoLayerConfig?.contract_version ?? null,
+          });
 
           if (cluster) {
             const clusterSize = Number.isFinite(cluster.clusterSize)
@@ -780,7 +953,7 @@ export default function MapLibreMap({
         };
 
         mapInstance.on("click", handleClick);
-        mapInstance.on("click", "tickets-circles", handleCircleClick);
+        mapInstance.on("click", configuredLayerIds.circles, handleCircleClick);
         mapInstance.on("styleimagemissing", handleMissingImage);
         const bboxEvents = [
           "boxzoomend",
@@ -802,7 +975,7 @@ export default function MapLibreMap({
 
         return () => {
           mapInstance.off("click", handleClick);
-          mapInstance.off("click", "tickets-circles", handleCircleClick);
+          mapInstance.off("click", configuredLayerIds.circles, handleCircleClick);
           mapInstance.off("styleimagemissing", handleMissingImage);
           if (shouldEmitBoundingBox) {
             bboxEvents.forEach((eventName) => mapInstance.off(eventName, emitBoundingBox));
@@ -845,7 +1018,7 @@ export default function MapLibreMap({
         adminMarkerRef.current = null;
       }
     };
-  }, [effectiveProvider, mapStyleUrl, provider, resolvedMaptilerKey]);
+  }, [configuredGeoSource, configuredInteractions.hover, configuredInteractions.timeSliderEnabled, configuredInteractions.timeSliderField, configuredLayerIds, configuredSourceOptions, effectiveProvider, emitBackendMapEvent, geoLayerConfig?.contract_version, geoLayerConfig?.style_url, mapStyleUrl, provider, resolvedMaptilerKey]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -860,7 +1033,11 @@ export default function MapLibreMap({
     const map = mapRef.current;
     if (!map || effectiveProvider !== "maplibre") return;
 
-    const applyData = () => updateHeatmapSource(map, processedHeatmap);
+    const applyData = () => {
+      const source = map.getSource("points");
+      if (!source || typeof (source as any).setData !== "function") return;
+      (source as any).setData(configuredGeoSource ?? buildGeoJson(processedHeatmap));
+    };
     const source = map.getSource("points");
     if (source && typeof (source as any).setData === "function") {
       applyData();
@@ -871,22 +1048,50 @@ export default function MapLibreMap({
     return () => {
       map.off("load", applyData);
     };
-  }, [processedHeatmap, effectiveProvider]);
+  }, [configuredGeoSource, processedHeatmap, effectiveProvider]);
+
+  useEffect(() => {
+    if (!configuredInteractions.timeSliderEnabled) return;
+    trackFrontendEvent("map_time_slider_changed", {
+      provider: "maplibre",
+      field: configuredInteractions.timeSliderField ?? null,
+      contract_version: geoLayerConfig?.contract_version ?? null,
+      feature_count: configuredGeoSource?.features?.length ?? processedHeatmap.length,
+    });
+    emitBackendMapEvent("time_slider_changed", {
+      provider: "maplibre",
+      field: configuredInteractions.timeSliderField ?? null,
+      contract_version: geoLayerConfig?.contract_version ?? null,
+      feature_count: configuredGeoSource?.features?.length ?? processedHeatmap.length,
+    });
+  }, [configuredGeoSource?.features?.length, configuredInteractions.timeSliderEnabled, configuredInteractions.timeSliderField, emitBackendMapEvent, geoLayerConfig?.contract_version, processedHeatmap.length]);
 
   useEffect(() => {
     const map = mapRef.current;
     if (!map || effectiveProvider !== "maplibre") return;
 
-    if (!map.getLayer("tickets-heat") || !map.getLayer("tickets-circles")) {
-      const handler = () => toggleLayers(map, showHeatmap, showPolygons);
+    if (!map.getLayer(configuredLayerIds.heat) || !map.getLayer(configuredLayerIds.circles)) {
+      const handler = () => toggleLayers(map, showHeatmap, showPolygons, configuredLayerIds);
       map.once("load", handler);
       return () => {
         map.off("load", handler);
       };
     }
 
-    toggleLayers(map, showHeatmap, showPolygons);
-  }, [showHeatmap, showPolygons, effectiveProvider]);
+    toggleLayers(map, showHeatmap, showPolygons, configuredLayerIds);
+    trackFrontendEvent("map_layer_toggle", {
+      provider: "maplibre",
+      show_heatmap: showHeatmap,
+      show_polygons: showPolygons,
+      contract_version: geoLayerConfig?.contract_version ?? null,
+    });
+    emitBackendMapEvent("layer_toggle", {
+      provider: "maplibre",
+      show_heatmap: showHeatmap,
+      show_polygons: showPolygons,
+      contract_version: geoLayerConfig?.contract_version ?? null,
+    });
+  }, [configuredLayerIds, effectiveProvider, emitBackendMapEvent, geoLayerConfig?.contract_version, showHeatmap, showPolygons]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -907,13 +1112,15 @@ export default function MapLibreMap({
       // Slower, deeper pulse for a "breathing" effect
       const t = (Date.now() % 4000) / 4000;
       const intensity = 1 + 0.3 * Math.sin(t * Math.PI * 2);
-      map.setPaintProperty("tickets-heat", "heatmap-intensity", intensity);
+      if (map.getLayer(configuredLayerIds.heat)) {
+        map.setPaintProperty(configuredLayerIds.heat, "heatmap-intensity", intensity);
+      }
       frame = requestAnimationFrame(animate);
     };
 
     animate();
     return () => cancelAnimationFrame(frame);
-  }, [showHeatmap, effectiveProvider]);
+  }, [configuredLayerIds.heat, showHeatmap, effectiveProvider]);
 
   useEffect(() => {
     const map = mapRef.current;
