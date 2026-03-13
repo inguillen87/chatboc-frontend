@@ -430,8 +430,9 @@ export default function IncidentsMap() {
               </div>
               <div className="pt-5">
                 <Label className="block text-sm font-medium text-muted-foreground mb-1">
-                  Proveedor de Mapa
+                  Motor de mapa
                 </Label>
+                <p className="mb-1 text-xs text-muted-foreground">MapLibre GL (WebGL)</p>
                 <MapProviderToggle value={provider} onChange={setProvider} />
               </div>
               <div>
@@ -650,4 +651,3 @@ export default function IncidentsMap() {
     </div>
   );
 }
-

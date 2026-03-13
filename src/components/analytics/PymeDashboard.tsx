@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { ShoppingBag, Zap, TrendingUp } from 'lucide-react';
 import { AnalyticsSummary } from '@/services/analyticsService';
+import { MeasuredContainer } from '@/components/analytics/MeasuredContainer';
 
 interface Props {
   data: AnalyticsSummary;
@@ -62,7 +63,8 @@ const PymeDashboard: React.FC<Props> = ({ data }) => {
           <CardTitle>Ventas por Categoría</CardTitle>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
+          <MeasuredContainer className="h-[300px] min-w-0">
+            <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220}>
             <BarChart data={topCategories} layout="vertical" margin={{ top: 0, right: 30, left: 40, bottom: 0 }}>
               <XAxis type="number" hide />
               <YAxis dataKey="category" type="category" width={120} tick={{ fontSize: 12 }} />
@@ -70,6 +72,7 @@ const PymeDashboard: React.FC<Props> = ({ data }) => {
               <Bar dataKey="count" fill="#10b981" radius={[0, 4, 4, 0]} barSize={24} />
             </BarChart>
           </ResponsiveContainer>
+          </MeasuredContainer>
         </CardContent>
       </Card>
     </div>

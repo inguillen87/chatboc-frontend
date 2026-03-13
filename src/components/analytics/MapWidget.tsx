@@ -140,8 +140,9 @@ export function MapWidget({
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex flex-col items-start gap-1">
             <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Mapa
+              Motor de mapa
             </span>
+            <span className="text-[10px] text-muted-foreground">MapLibre GL (WebGL)</span>
             <MapProviderToggle
               value={provider}
               onChange={setProvider}
