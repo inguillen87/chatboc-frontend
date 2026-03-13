@@ -40,9 +40,32 @@ const HeatmapDashboard: React.FC<Props> = ({ tenantId, dateRange }) => {
 
   const points = useMemo(() => (Array.isArray(heatmapResponse?.points) ? heatmapResponse.points : []), [heatmapResponse]);
   const geoCategories = useMemo(() => (Array.isArray(heatmapResponse?.geo_layers?.categories) ? heatmapResponse.geo_layers.categories : []), [heatmapResponse]);
-  const segmentCategories = useMemo(() => (Array.isArray(heatmapResponse?.segments?.categoria) ? heatmapResponse.segments.categoria : []), [heatmapResponse]);
-  const segmentSexo = useMemo(() => (Array.isArray(heatmapResponse?.segments?.sexo) ? heatmapResponse.segments.sexo : []), [heatmapResponse]);
-  const segmentEdad = useMemo(() => (Array.isArray(heatmapResponse?.segments?.rango_edad) ? heatmapResponse.segments.rango_edad : []), [heatmapResponse]);
+  const segmentGroups = useMemo(() => {
+    const segments = heatmapResponse?.segments;
+    const order: Array<{ key: string; label: string }> = [
+      { key: 'categoria', label: 'Categorías' },
+      { key: 'sexo', label: 'Sexo' },
+      { key: 'rango_edad', label: 'Rango edad' },
+      { key: 'barrio', label: 'Barrio' },
+      { key: 'distrito', label: 'Distrito' },
+      { key: 'canal', label: 'Canal' },
+    ];
+
+    return order
+      .map(({ key, label }) => ({
+        key,
+        label,
+        items: Array.isArray(segments?.[key]) ? segments[key] : [],
+      }))
+      .filter((group) => group.items.length > 0);
+  }, [heatmapResponse]);
+  const appliedFilters = useMemo(() => {
+    const filters = heatmapResponse?.segments_filters_applied;
+    if (!filters || typeof filters !== 'object') return [];
+    return Object.entries(filters)
+      .filter(([, value]) => value !== null && value !== undefined && value !== '')
+      .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : String(value)}`);
+  }, [heatmapResponse]);
 
   if (loading) return <div className="h-[320px] sm:h-[420px] flex items-center justify-center rounded-2xl border border-border/50 bg-background/60"><Loader2 className="h-6 w-6 animate-spin" /></div>;
 
@@ -53,7 +76,7 @@ const HeatmapDashboard: React.FC<Props> = ({ tenantId, dateRange }) => {
         <CardDescription>Distribución geográfica de incidentes y pedidos.</CardDescription>
       </CardHeader>
       <CardContent className="p-3 sm:p-4 space-y-3">
-        {(geoCategories.length || segmentCategories.length || segmentSexo.length || segmentEdad.length) ? (
+        {(geoCategories.length || segmentGroups.length || appliedFilters.length) ? (
           <div className="space-y-2">
             {geoCategories.length ? (
               <div className="flex flex-wrap gap-2 text-xs">
@@ -65,20 +88,22 @@ const HeatmapDashboard: React.FC<Props> = ({ tenantId, dateRange }) => {
                 ))}
               </div>
             ) : null}
-            <div className="grid gap-2 sm:grid-cols-3 text-xs">
-              <div className="rounded-md border p-2">
-                <p className="mb-1 text-muted-foreground">Categorías</p>
-                <p>{segmentCategories.slice(0, 3).map((item: any) => `${item.label || '—'} (${item.count || 0})`).join(' · ') || '—'}</p>
+            {segmentGroups.length ? (
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 text-xs">
+                {segmentGroups.map((group) => (
+                  <div key={group.key} className="rounded-md border p-2">
+                    <p className="mb-1 text-muted-foreground">{group.label}</p>
+                    <p>{group.items.slice(0, 3).map((item: any) => `${item.label || '—'} (${item.count || 0})`).join(' · ') || '—'}</p>
+                  </div>
+                ))}
               </div>
-              <div className="rounded-md border p-2">
-                <p className="mb-1 text-muted-foreground">Sexo</p>
-                <p>{segmentSexo.slice(0, 3).map((item: any) => `${item.label || '—'} (${item.count || 0})`).join(' · ') || '—'}</p>
+            ) : null}
+            {appliedFilters.length ? (
+              <div className="rounded-md border p-2 text-xs">
+                <p className="mb-1 text-muted-foreground">Filtros aplicados</p>
+                <p>{appliedFilters.join(' · ')}</p>
               </div>
-              <div className="rounded-md border p-2">
-                <p className="mb-1 text-muted-foreground">Rango edad</p>
-                <p>{segmentEdad.slice(0, 3).map((item: any) => `${item.label || '—'} (${item.count || 0})`).join(' · ') || '—'}</p>
-              </div>
-            </div>
+            ) : null}
           </div>
         ) : null}
         <div className="h-[300px] sm:h-[420px] lg:h-[520px] relative overflow-hidden rounded-xl border">

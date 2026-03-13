@@ -8,6 +8,14 @@ export interface AnalyticsFilters {
   scope?: string;
   channel?: string;
   tz?: string;
+  categoria?: string;
+  categorias?: string | string[];
+  sexo?: string;
+  genero?: string;
+  rango_edad?: string;
+  barrio?: string;
+  distrito?: string;
+  canal?: string;
   tenantSlug?: string;
 }
 
@@ -152,11 +160,32 @@ const buildAnalyticsHeaders = (etag?: string) => {
 
 const buildQuery = (filters: AnalyticsFilters) => {
   const params = new URLSearchParams();
+  const appendValue = (key: string, value: string | string[] | undefined) => {
+    if (!value) return;
+    if (Array.isArray(value)) {
+      value
+        .map((item) => item?.trim())
+        .filter(Boolean)
+        .forEach((item) => params.append(key, item));
+      return;
+    }
+    const normalized = value.trim();
+    if (normalized) params.append(key, normalized);
+  };
+
   if (filters.tenant_id) params.append('tenant_id', String(filters.tenant_id));
   if (filters.from) params.append('from', filters.from);
   if (filters.to) params.append('to', filters.to);
   if (filters.scope) params.append('scope', filters.scope);
   if (filters.tz) params.append('tz', filters.tz);
+  appendValue('categoria', filters.categoria);
+  appendValue('categorias', filters.categorias);
+  appendValue('sexo', filters.sexo);
+  appendValue('genero', filters.genero);
+  appendValue('rango_edad', filters.rango_edad);
+  appendValue('barrio', filters.barrio);
+  appendValue('distrito', filters.distrito);
+  appendValue('canal', filters.canal || filters.channel);
   return params.toString();
 };
 

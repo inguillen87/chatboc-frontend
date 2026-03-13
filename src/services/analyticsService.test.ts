@@ -99,4 +99,60 @@ describe('analyticsService.getHub', () => {
     expect(result?.totals?.events).toBe(10);
   });
 
+  it('passes heatmap segmentation filters to query params', async () => {
+    apiFetchMock
+      .mockResolvedValueOnce({ sections: {} })
+      .mockResolvedValueOnce({ points: [] });
+
+    await analyticsService.getHeatmap({
+      tenant_id: 44,
+      scope: 'municipio',
+      categoria: 'seguridad',
+      sexo: 'f',
+      rango_edad: '25-34',
+      barrio: 'centro',
+      distrito: 'norte',
+      canal: 'voice',
+      categorias: ['reclamos', 'pedidos'],
+    });
+
+    const [, heatmapUrl] = apiFetchMock.mock.calls.map((call) => call[0] as string);
+    expect(heatmapUrl).toContain('/admin/analytics/heatmap?');
+    expect(heatmapUrl).toContain('tenant_id=44');
+    expect(heatmapUrl).toContain('scope=municipio');
+    expect(heatmapUrl).toContain('categoria=seguridad');
+    expect(heatmapUrl).toContain('sexo=f');
+    expect(heatmapUrl).toContain('rango_edad=25-34');
+    expect(heatmapUrl).toContain('barrio=centro');
+    expect(heatmapUrl).toContain('distrito=norte');
+    expect(heatmapUrl).toContain('canal=voice');
+    expect(heatmapUrl).toContain('categorias=reclamos');
+    expect(heatmapUrl).toContain('categorias=pedidos');
+  });
+
+  it('normalizes heatmap geo_layers and segments from hub mapas.geo', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      sections: {
+        mapas: {
+          geo: {
+            points: [{ lat: -34.6, lng: -58.38, weight: 8 }],
+            geo_layers: {
+              categories: [{ categoria: 'seguridad', color: '#EF4444', event_count: 12 }],
+            },
+            segments: {
+              sexo: [{ label: 'f', count: 7 }],
+            },
+          },
+        },
+      },
+    });
+
+    const heatmap = await analyticsService.getHeatmap({ scope: 'municipio' });
+
+    expect(heatmap.points).toHaveLength(1);
+    expect(heatmap.geo_layers?.categories?.[0]?.categoria).toBe('seguridad');
+    expect(heatmap.segments?.sexo?.[0]?.label).toBe('f');
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  });
+
 });
