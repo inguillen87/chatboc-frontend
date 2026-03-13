@@ -41,6 +41,10 @@ type Props = {
       clusters?: { id?: string };
       points?: { id?: string };
     };
+    telemetry?: {
+      event_endpoint?: string;
+      events?: string[];
+    };
   } | null;
   adminLocation?: [number, number];
   fitToBounds?: [number, number][];
@@ -276,6 +280,48 @@ export default function MapLibreMap({
     }),
     [geoLayerConfig?.interactions?.hover, geoLayerConfig?.interactions?.time_slider?.enabled, geoLayerConfig?.interactions?.time_slider?.field],
   );
+  const telemetryConfig = useMemo(() => {
+    const endpoint = typeof geoLayerConfig?.telemetry?.event_endpoint === "string"
+      ? geoLayerConfig.telemetry.event_endpoint.trim()
+      : "";
+    const events = Array.isArray(geoLayerConfig?.telemetry?.events)
+      ? geoLayerConfig.telemetry.events.filter((event): event is string => typeof event === "string" && event.trim().length > 0)
+      : [];
+    return {
+      endpoint: endpoint || null,
+      events,
+    };
+  }, [geoLayerConfig?.telemetry?.event_endpoint, geoLayerConfig?.telemetry?.events]);
+
+  const emitBackendMapEvent = useCallback((eventName: string, payload: Record<string, unknown>) => {
+    if (!telemetryConfig.endpoint) return;
+    if (telemetryConfig.events.length > 0 && !telemetryConfig.events.includes(eventName)) return;
+    if (typeof window === "undefined") return;
+
+    const body = JSON.stringify({
+      event: eventName,
+      payload,
+      source: "maplibre_frontend",
+      ts: new Date().toISOString(),
+    });
+
+    if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
+      try {
+        const blob = new Blob([body], { type: "application/json" });
+        if (navigator.sendBeacon(telemetryConfig.endpoint, blob)) return;
+      } catch {
+        // fallback fetch below
+      }
+    }
+
+    fetch(telemetryConfig.endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+      keepalive: true,
+      credentials: "include",
+    }).catch(() => undefined);
+  }, [telemetryConfig.endpoint, telemetryConfig.events]);
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<Map | null>(null);
   const libRef = useRef<MapLibreModule | null>(null);
@@ -657,6 +703,13 @@ export default function MapLibreMap({
             time_slider_enabled: configuredInteractions.timeSliderEnabled,
             time_slider_field: configuredInteractions.timeSliderField ?? null,
           });
+          emitBackendMapEvent("map_loaded", {
+            provider: "maplibre",
+            contract_version: geoLayerConfig?.contract_version ?? null,
+            hover_enabled: configuredInteractions.hover,
+            time_slider_enabled: configuredInteractions.timeSliderEnabled,
+            time_slider_field: configuredInteractions.timeSliderField ?? null,
+          });
           updateHeatmapSource(map, latestHeatmap.current);
         };
 
@@ -767,6 +820,12 @@ export default function MapLibreMap({
           const sections: string[] = [];
 
           trackFrontendEvent("map_cluster_click", {
+            provider: "maplibre",
+            cluster_id: clusterId,
+            feature_id: properties?.id ?? null,
+            contract_version: geoLayerConfig?.contract_version ?? null,
+          });
+          emitBackendMapEvent("cluster_click", {
             provider: "maplibre",
             cluster_id: clusterId,
             feature_id: properties?.id ?? null,
@@ -956,7 +1015,7 @@ export default function MapLibreMap({
         adminMarkerRef.current = null;
       }
     };
-  }, [configuredGeoSource, configuredInteractions.hover, configuredInteractions.timeSliderEnabled, configuredInteractions.timeSliderField, configuredLayerIds, configuredSourceOptions, effectiveProvider, geoLayerConfig?.contract_version, geoLayerConfig?.style_url, mapStyleUrl, provider, resolvedMaptilerKey]);
+  }, [configuredGeoSource, configuredInteractions.hover, configuredInteractions.timeSliderEnabled, configuredInteractions.timeSliderField, configuredLayerIds, configuredSourceOptions, effectiveProvider, emitBackendMapEvent, geoLayerConfig?.contract_version, geoLayerConfig?.style_url, mapStyleUrl, provider, resolvedMaptilerKey]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -996,7 +1055,13 @@ export default function MapLibreMap({
       contract_version: geoLayerConfig?.contract_version ?? null,
       feature_count: configuredGeoSource?.features?.length ?? processedHeatmap.length,
     });
-  }, [configuredGeoSource?.features?.length, configuredInteractions.timeSliderEnabled, configuredInteractions.timeSliderField, geoLayerConfig?.contract_version, processedHeatmap.length]);
+    emitBackendMapEvent("time_slider_changed", {
+      provider: "maplibre",
+      field: configuredInteractions.timeSliderField ?? null,
+      contract_version: geoLayerConfig?.contract_version ?? null,
+      feature_count: configuredGeoSource?.features?.length ?? processedHeatmap.length,
+    });
+  }, [configuredGeoSource?.features?.length, configuredInteractions.timeSliderEnabled, configuredInteractions.timeSliderField, emitBackendMapEvent, geoLayerConfig?.contract_version, processedHeatmap.length]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -1017,7 +1082,13 @@ export default function MapLibreMap({
       show_polygons: showPolygons,
       contract_version: geoLayerConfig?.contract_version ?? null,
     });
-  }, [configuredLayerIds, effectiveProvider, geoLayerConfig?.contract_version, showHeatmap, showPolygons]);
+    emitBackendMapEvent("layer_toggle", {
+      provider: "maplibre",
+      show_heatmap: showHeatmap,
+      show_polygons: showPolygons,
+      contract_version: geoLayerConfig?.contract_version ?? null,
+    });
+  }, [configuredLayerIds, effectiveProvider, emitBackendMapEvent, geoLayerConfig?.contract_version, showHeatmap, showPolygons]);
 
   useEffect(() => {
     const map = mapRef.current;

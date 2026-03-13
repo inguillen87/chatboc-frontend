@@ -16,6 +16,8 @@ export interface AnalyticsFilters {
   barrio?: string;
   distrito?: string;
   canal?: string;
+  geo_limit?: number;
+  bbox?: string;
   tenantSlug?: string;
 }
 
@@ -120,6 +122,17 @@ export interface AnalyticsHeatmapResponse {
   points: Array<{ lat?: number; lng?: number; weight?: number; categoria?: string; canal?: string }>;
   geo_layers?: {
     provider?: string;
+    contract_version?: string;
+    style_url?: string;
+    source?: { type?: string; features?: unknown[] };
+    source_options?: { cluster?: boolean; clusterMaxZoom?: number; clusterRadius?: number };
+    interactions?: { hover?: boolean; time_slider?: { enabled?: boolean; field?: string } };
+    layers?: {
+      heatmap?: { id?: string; type?: string; source?: string };
+      clusters?: { id?: string; type?: string; source?: string };
+      points?: { id?: string; type?: string; source?: string };
+    };
+    telemetry?: { event_endpoint?: string; events?: string[] };
     tiles?: { url?: string; attribution?: string };
     categories?: AnalyticsGeoLayerCategory[];
     legend?: { mode?: string; min_weight?: number; max_weight?: number };
@@ -270,6 +283,12 @@ const buildQuery = (filters: AnalyticsFilters) => {
   appendValue('barrio', filters.barrio);
   appendValue('distrito', filters.distrito);
   appendValue('canal', filters.canal || filters.channel);
+  if (typeof filters.geo_limit === 'number' && Number.isFinite(filters.geo_limit) && filters.geo_limit > 0) {
+    params.append('geo_limit', String(Math.round(filters.geo_limit)));
+  }
+  if (typeof filters.bbox === 'string' && filters.bbox.trim().length > 0) {
+    params.append('bbox', filters.bbox.trim());
+  }
   return params.toString();
 };
 

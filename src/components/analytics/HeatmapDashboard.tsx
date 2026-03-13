@@ -176,6 +176,11 @@ const HeatmapDashboard: React.FC<Props> = ({ tenantId, dateRange }) => {
                         clusters?: { id?: string };
                         points?: { id?: string };
                       } | undefined) ?? undefined,
+                    telemetry:
+                      ((heatmapResponse?.geo_layers as Record<string, unknown> | undefined)?.telemetry as {
+                        event_endpoint?: string;
+                        events?: string[];
+                      } | undefined) ?? undefined,
                   }}
               />
           ) : (

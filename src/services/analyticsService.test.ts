@@ -114,6 +114,8 @@ describe('analyticsService.getHub', () => {
       distrito: 'norte',
       canal: 'voice',
       categorias: ['reclamos', 'pedidos'],
+      geo_limit: 1200,
+      bbox: '-58.55,-34.72,-58.31,-34.52',
     });
 
     const [, heatmapUrl] = apiFetchMock.mock.calls.map((call) => call[0] as string);
@@ -126,6 +128,8 @@ describe('analyticsService.getHub', () => {
     expect(heatmapUrl).toContain('barrio=centro');
     expect(heatmapUrl).toContain('distrito=norte');
     expect(heatmapUrl).toContain('canal=voice');
+    expect(heatmapUrl).toContain('geo_limit=1200');
+    expect(heatmapUrl).toContain('bbox=-58.55%2C-34.72%2C-58.31%2C-34.52');
     expect(heatmapUrl).toContain('categorias=reclamos');
     expect(heatmapUrl).toContain('categorias=pedidos');
   });
