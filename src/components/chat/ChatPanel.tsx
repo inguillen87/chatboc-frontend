@@ -472,6 +472,10 @@ const ChatPanel = (props: ChatPanelProps) => {
         transports = ['polling'];
       }
 
+      if (defaultPollingOnly) {
+        transports = ['polling'];
+      }
+
       const socket = io(socketUrl, { path: SOCKET_PATH, transports });
       socketRef.current = socket;
 

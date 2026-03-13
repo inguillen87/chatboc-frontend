@@ -1104,7 +1104,38 @@ export const getHeatmapPoints = async (params?: HeatmapParams): Promise<HeatPoin
 
 export const getAiReportLatest = async (params: { tenant_id?: string | number, segment: string }): Promise<AiReportResponse> => {
     const query = buildSearchParams(params as unknown as Record<string, unknown>).toString();
-    return apiFetch<AiReportResponse>(`/api/analytics/report/latest${query ? `?${query}` : ''}`, { suppressPanel401Redirect: true, preserveAuthOn401: true });
+    const candidates = [
+      `/api/analytics/report/latest${query ? `?${query}` : ''}`,
+      `/analytics/report/latest${query ? `?${query}` : ''}`,
+    ];
+
+    let lastError: unknown = null;
+    for (const endpoint of candidates) {
+      try {
+        return await apiFetch<AiReportResponse>(endpoint, {
+          suppressPanel401Redirect: true,
+          preserveAuthOn401: true,
+        });
+      } catch (error) {
+        lastError = error;
+        if (error instanceof ApiError && [401, 403, 404].includes(error.status)) {
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    if (lastError instanceof ApiError && [401, 403, 404].includes(lastError.status)) {
+      return {
+        summary: '',
+        opportunities: [],
+        threats: [],
+        tone: 'neutral',
+        _cached: true,
+      };
+    }
+
+    throw lastError ?? new Error('No latest report endpoint responded successfully');
 };
 
 export const generateAiReport = async (params: { tenant_id?: string | number, segment: string, from?: string, to?: string, force?: boolean }): Promise<AiReportResponse> => {

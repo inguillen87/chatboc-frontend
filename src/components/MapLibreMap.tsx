@@ -448,7 +448,10 @@ export default function MapLibreMap({
 
         const key = apiKeyRef.current;
         const contractStyleUrl = typeof geoLayerConfig?.style_url === "string" ? geoLayerConfig.style_url.trim() : "";
-        const customStyle = (mapStyleUrl ?? "").trim() || contractStyleUrl;
+        const envStyleUrl = String(
+          import.meta.env.VITE_MAPLIBRE_STYLE_URL ?? import.meta.env.NEXT_PUBLIC_MAPLIBRE_STYLE_URL ?? "",
+        ).trim();
+        const customStyle = (mapStyleUrl ?? "").trim() || contractStyleUrl || envStyleUrl;
         const customTileUrl = (mapTileUrl ?? "").trim();
         const customTileAttribution =
           (mapTileAttribution ?? "").trim() || "© OpenStreetMap contributors";

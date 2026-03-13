@@ -49,6 +49,10 @@ export function useSurveySocket({ slug, enabled = false, onUpdate, onComment }: 
       transports = ['polling'];
     }
 
+    if (defaultPollingOnly) {
+      transports = ['polling'];
+    }
+
     const socket = io(socketUrl, {
       path: SOCKET_PATH,
       transports,
