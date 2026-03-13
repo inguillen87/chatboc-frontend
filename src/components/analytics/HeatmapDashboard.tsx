@@ -48,6 +48,39 @@ const HeatmapDashboard: React.FC<Props> = ({ tenantId, dateRange }) => {
     const attribution = heatmapResponse?.geo_layers?.tiles?.attribution;
     return typeof attribution === 'string' && attribution.trim() ? attribution.trim() : undefined;
   }, [heatmapResponse]);
+  const mapStyleUrl = useMemo(() => {
+    const styleUrl = (heatmapResponse?.geo_layers as Record<string, unknown> | undefined)?.style_url;
+    return typeof styleUrl === 'string' && styleUrl.trim() ? styleUrl.trim() : undefined;
+  }, [heatmapResponse]);
+  const geoLayerSource = useMemo(() => {
+    const source = (heatmapResponse?.geo_layers as Record<string, unknown> | undefined)?.source;
+    if (!source || typeof source !== 'object') return null;
+    const record = source as Record<string, unknown>;
+    if (record.type !== 'FeatureCollection' || !Array.isArray(record.features)) return null;
+    return source as { type: 'FeatureCollection'; features: unknown[] };
+  }, [heatmapResponse]);
+  const sourceOptions = useMemo(() => {
+    const sourceOptionsCandidate = (heatmapResponse?.geo_layers as Record<string, unknown> | undefined)?.source_options;
+    return sourceOptionsCandidate && typeof sourceOptionsCandidate === 'object'
+      ? (sourceOptionsCandidate as Record<string, unknown>)
+      : undefined;
+  }, [heatmapResponse]);
+  const mapBounds = useMemo(
+    () =>
+      points
+        .map((point) => [Number(point.lng), Number(point.lat)] as [number, number])
+        .filter(([lng, lat]) => Number.isFinite(lng) && Number.isFinite(lat)),
+    [points],
+  );
+  const mapCenter = useMemo(() => {
+    if (!points.length) return undefined;
+    const totalWeight = points.reduce((sum, point) => sum + (Number(point.weight) || 1), 0);
+    const divisor = totalWeight > 0 ? totalWeight : points.length;
+    const avgLat = points.reduce((sum, point) => sum + (Number(point.lat) || 0) * (Number(point.weight) || 1), 0) / divisor;
+    const avgLng = points.reduce((sum, point) => sum + (Number(point.lng) || 0) * (Number(point.weight) || 1), 0) / divisor;
+    if (!Number.isFinite(avgLat) || !Number.isFinite(avgLng)) return undefined;
+    return [avgLng, avgLat] as [number, number];
+  }, [points]);
   const segmentGroups = useMemo(() => {
     const segments = heatmapResponse?.segments;
     const order: Array<{ key: string; label: string }> = [
@@ -115,13 +148,19 @@ const HeatmapDashboard: React.FC<Props> = ({ tenantId, dateRange }) => {
           </div>
         ) : null}
         <div className="h-[300px] sm:h-[420px] lg:h-[520px] relative overflow-hidden rounded-xl border">
-          {points.length > 0 ? (
+          {(points.length > 0 || (geoLayerSource?.features?.length ?? 0) > 0) ? (
               <MapLibreMap
                   heatmapData={points as any}
-                  center={[-58.38, -34.60]}
-                  initialZoom={12}
+                  center={mapCenter}
+                  fitToBounds={mapBounds.length ? mapBounds : undefined}
+                  initialZoom={mapBounds.length ? 11 : 4}
+                  mapStyleUrl={mapStyleUrl}
                   mapTileUrl={tileUrl}
                   mapTileAttribution={tileAttribution}
+                  geoLayerConfig={{
+                    source: geoLayerSource,
+                    source_options: sourceOptions,
+                  }}
               />
           ) : (
               <div className="flex h-full items-center justify-center text-muted-foreground">

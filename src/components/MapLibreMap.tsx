@@ -23,6 +23,10 @@ type Props = {
   mapTileAttribution?: string | null;
   maptilerKey?: string | null;
   googleMapsKey?: string | null;
+  geoLayerConfig?: {
+    source?: unknown;
+    source_options?: Record<string, unknown>;
+  } | null;
   adminLocation?: [number, number];
   fitToBounds?: [number, number][];
   boundsPadding?: number | { top?: number; bottom?: number; left?: number; right?: number };
@@ -127,6 +131,12 @@ const buildGeoJson = (points: HeatPoint[]) => ({
   })),
 });
 
+const isFeatureCollection = (value: unknown): value is { type: "FeatureCollection"; features: unknown[] } => {
+  if (!value || typeof value !== "object") return false;
+  const record = value as Record<string, unknown>;
+  return record.type === "FeatureCollection" && Array.isArray(record.features);
+};
+
 const updateHeatmapSource = (map: Map, points: HeatPoint[]) => {
   const source = map.getSource("points");
   if (source && typeof (source as any).setData === "function") {
@@ -173,6 +183,7 @@ export default function MapLibreMap({
   mapTileAttribution,
   maptilerKey,
   googleMapsKey,
+  geoLayerConfig,
   adminLocation,
   fitToBounds,
   boundsPadding,
@@ -214,6 +225,22 @@ export default function MapLibreMap({
     () => (shouldCluster ? clusterHeatmapPoints(normalizedHeatmap) : normalizedHeatmap),
     [normalizedHeatmap, shouldCluster],
   );
+  const configuredGeoSource = useMemo(
+    () => (isFeatureCollection(geoLayerConfig?.source) ? geoLayerConfig.source : null),
+    [geoLayerConfig?.source],
+  );
+  const configuredSourceOptions = useMemo(() => {
+    const raw = geoLayerConfig?.source_options;
+    if (!raw || typeof raw !== "object") return {} as { cluster?: boolean; clusterMaxZoom?: number; clusterRadius?: number };
+    const cluster = typeof raw.cluster === "boolean" ? raw.cluster : undefined;
+    const clusterMaxZoom = Number.isFinite(Number(raw.clusterMaxZoom)) ? Number(raw.clusterMaxZoom) : undefined;
+    const clusterRadius = Number.isFinite(Number(raw.clusterRadius)) ? Number(raw.clusterRadius) : undefined;
+    return {
+      ...(cluster !== undefined ? { cluster } : {}),
+      ...(clusterMaxZoom !== undefined ? { clusterMaxZoom } : {}),
+      ...(clusterRadius !== undefined ? { clusterRadius } : {}),
+    };
+  }, [geoLayerConfig?.source_options]);
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<Map | null>(null);
   const libRef = useRef<MapLibreModule | null>(null);
@@ -404,7 +431,8 @@ export default function MapLibreMap({
           if (!map.getSource("points")) {
             map.addSource("points", {
               type: "geojson",
-              data: { type: "FeatureCollection", features: [] },
+              data: configuredGeoSource ?? { type: "FeatureCollection", features: [] },
+              ...configuredSourceOptions,
             });
           }
 
@@ -878,7 +906,7 @@ export default function MapLibreMap({
         adminMarkerRef.current = null;
       }
     };
-  }, [effectiveProvider, mapStyleUrl, provider, resolvedMaptilerKey]);
+  }, [configuredGeoSource, configuredSourceOptions, effectiveProvider, mapStyleUrl, provider, resolvedMaptilerKey]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -893,7 +921,11 @@ export default function MapLibreMap({
     const map = mapRef.current;
     if (!map || effectiveProvider !== "maplibre") return;
 
-    const applyData = () => updateHeatmapSource(map, processedHeatmap);
+    const applyData = () => {
+      const source = map.getSource("points");
+      if (!source || typeof (source as any).setData !== "function") return;
+      (source as any).setData(configuredGeoSource ?? buildGeoJson(processedHeatmap));
+    };
     const source = map.getSource("points");
     if (source && typeof (source as any).setData === "function") {
       applyData();
@@ -904,7 +936,7 @@ export default function MapLibreMap({
     return () => {
       map.off("load", applyData);
     };
-  }, [processedHeatmap, effectiveProvider]);
+  }, [configuredGeoSource, processedHeatmap, effectiveProvider]);
 
   useEffect(() => {
     const map = mapRef.current;

@@ -21,7 +21,7 @@ export function MapProviderToggle({
   orientation = "horizontal",
   size = "default",
   googleAvailable = true,
-  showGoogleOption = false,
+  showGoogleOption = true,
 }: MapProviderToggleProps) {
   const baseId = useId();
   const mapLibreId = `${baseId}-maplibre`;
@@ -56,7 +56,7 @@ export function MapProviderToggle({
             htmlFor={googleId}
             className={cn(labelClass, !googleAvailable && "text-muted-foreground/60")}
           >
-            Google (fallback)
+            Google
           </Label>
         </div>
       ) : null}
