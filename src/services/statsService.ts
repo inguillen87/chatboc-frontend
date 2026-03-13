@@ -51,6 +51,7 @@ export interface HeatPoint {
   aggregatedCanales?: HeatmapBreakdownItem[];
   aggregatedFuentes?: HeatmapBreakdownItem[];
   dominantValues?: Record<string, string | null | undefined>;
+  categoryColor?: string;
 }
 
 type FeatureCollectionLike = {
