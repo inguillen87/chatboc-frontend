@@ -1,8 +1,9 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid } from 'recharts';
-import { BarChart3, Zap, ArrowUpRight, ArrowDownRight, Clock, Users } from 'lucide-react';
+import { BarChart3, Zap, ArrowUpRight, ArrowDownRight, Clock, Users, Mic, Video, Keyboard, Captions } from 'lucide-react';
 import { AnalyticsSummary } from '../../services/analyticsService';
+import { MeasuredContainer } from '@/components/analytics/MeasuredContainer';
 
 interface Props {
   data: AnalyticsSummary;
@@ -95,6 +96,48 @@ const OverviewDashboard: React.FC<Props> = ({ data, showSla, showConversion }) =
         )}
       </div>
 
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">% interacciones por voz</CardTitle>
+            <Mic className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{kpis.voice_interactions_pct || 0}%</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">% interacciones video/avatar</CardTitle>
+            <Video className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{kpis.video_avatar_interactions_pct || 0}%</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Finalización sin escribir</CardTitle>
+            <Keyboard className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{kpis.no_typing_completion_rate || 0}%</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Tasa accesibilidad</CardTitle>
+            <Captions className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{kpis.accessibility_usage_rate || 0}%</div>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Charts Row */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
         <Card className="col-span-4">
@@ -102,7 +145,8 @@ const OverviewDashboard: React.FC<Props> = ({ data, showSla, showConversion }) =
             <CardTitle>Volumen Diario</CardTitle>
           </CardHeader>
           <CardContent className="pl-2">
-            <ResponsiveContainer width="100%" height={300}>
+            <MeasuredContainer className="h-[300px] min-w-0">
+            <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220}>
               <LineChart data={volumeByDay}>
                 <XAxis dataKey="date" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
                 <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
@@ -111,6 +155,7 @@ const OverviewDashboard: React.FC<Props> = ({ data, showSla, showConversion }) =
                 <Line type="monotone" dataKey="count" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
               </LineChart>
             </ResponsiveContainer>
+          </MeasuredContainer>
           </CardContent>
         </Card>
 
@@ -120,7 +165,8 @@ const OverviewDashboard: React.FC<Props> = ({ data, showSla, showConversion }) =
             <CardDescription>Temas más frecuentes</CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
+            <MeasuredContainer className="h-[300px] min-w-0">
+            <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220}>
               <BarChart data={topCategories} layout="vertical" margin={{ top: 0, right: 30, left: 40, bottom: 0 }}>
                 <XAxis type="number" hide />
                 <YAxis dataKey="category" type="category" width={100} tick={{ fontSize: 12 }} />
@@ -128,6 +174,7 @@ const OverviewDashboard: React.FC<Props> = ({ data, showSla, showConversion }) =
                 <Bar dataKey="count" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} barSize={24} />
               </BarChart>
             </ResponsiveContainer>
+          </MeasuredContainer>
           </CardContent>
         </Card>
       </div>

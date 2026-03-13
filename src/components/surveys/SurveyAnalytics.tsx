@@ -48,6 +48,14 @@ interface SurveyAnalyticsProps {
 }
 
 const palette = ['#2563eb', '#7c3aed', '#059669', '#ea580c', '#f59e0b', '#db2777'];
+
+const colorFromCategory = (value: string, fallbackIndex = 0) => {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return palette[fallbackIndex % palette.length];
+  let hash = 0;
+  for (let i = 0; i < normalized.length; i += 1) hash = (hash << 5) - hash + normalized.charCodeAt(i);
+  return palette[Math.abs(hash) % palette.length];
+};
 const DEMOGRAPHIC_LABELS: Record<string, string> = {
   genero: 'Género',
   generos: 'Género',
@@ -360,10 +368,16 @@ const normalizeHeatmapPoints = (points?: SurveyHeatmapPoint[] | unknown): Survey
       const respuestas =
         toFiniteNumber(rawPoint.respuestas ?? rawPoint.weight ?? rawPoint.total ?? rawPoint.count) ?? 0;
       if (lat === null || lng === null) return null;
+      const categoria =
+        toNonEmptyString(rawPoint.categoria ?? rawPoint.category ?? rawPoint.tipo ?? rawPoint.segmento) ?? undefined;
+      const canal =
+        toNonEmptyString(rawPoint.canal ?? rawPoint.channel ?? rawPoint.source ?? rawPoint.fuente) ?? undefined;
       return {
         lat,
         lng,
         respuestas,
+        ...(categoria ? { categoria } : {}),
+        ...(canal ? { canal } : {}),
       } satisfies SurveyHeatmapPoint;
     })
     .filter((point): point is SurveyHeatmapPoint => Boolean(point));
@@ -455,9 +469,9 @@ export const SurveyAnalytics = ({
   const optionData = useMemo(() => buildOptionBreakdown(summary, summaryRecord), [summary, summaryRecord]);
   const heatmapPoints = useMemo(() => normalizeHeatmapPoints(heatmap), [heatmap]);
   const aggregatedHeatmapPoints = useMemo(() => {
-    if (!heatmapPoints.length) return [] as SurveyHeatmapPoint[];
+    if (!heatmapPoints.length) return [] as Array<SurveyHeatmapPoint & { categoria?: string; canal?: string }>;
 
-    const grouped = new Map<string, SurveyHeatmapPoint>();
+    const grouped = new Map<string, SurveyHeatmapPoint & { categoria?: string; canal?: string }>();
     heatmapPoints.forEach((point) => {
       const lat = Number(point.lat.toFixed(4));
       const lng = Number(point.lng.toFixed(4));
@@ -465,7 +479,7 @@ export const SurveyAnalytics = ({
       const previous = grouped.get(key);
 
       if (!previous) {
-        grouped.set(key, { lat, lng, respuestas: Math.max(0, point.respuestas ?? 0) });
+        grouped.set(key, { lat, lng, respuestas: Math.max(0, point.respuestas ?? 0), categoria: point.categoria, canal: point.canal });
         return;
       }
 
@@ -473,6 +487,8 @@ export const SurveyAnalytics = ({
         lat,
         lng,
         respuestas: Math.max(0, previous.respuestas ?? 0) + Math.max(0, point.respuestas ?? 0),
+        categoria: previous.categoria || point.categoria,
+        canal: previous.canal || point.canal,
       });
     });
 
@@ -513,14 +529,22 @@ export const SurveyAnalytics = ({
     [mapMetaRecord],
   );
 
+  const categoryColorMap = useMemo(() => {
+    const categories = Array.from(new Set(aggregatedHeatmapPoints.map((point) => point.categoria).filter(Boolean) as string[]));
+    return new Map(categories.map((category, index) => [category, colorFromCategory(category, index)]));
+  }, [aggregatedHeatmapPoints]);
+
   const heatmapData = useMemo(() => {
     const allZero = aggregatedHeatmapPoints.length > 0 && aggregatedHeatmapPoints.every((point) => point.respuestas <= 0);
     return aggregatedHeatmapPoints.map((point) => ({
       lat: point.lat,
       lng: point.lng,
       weight: usingSyntheticPoints || allZero ? Math.max(1, point.respuestas || 0) : point.respuestas,
+      categoria: point.categoria,
+      canal: point.canal,
+      categoryColor: point.categoria ? categoryColorMap.get(point.categoria) : undefined,
     }));
-  }, [aggregatedHeatmapPoints, usingSyntheticPoints]);
+  }, [aggregatedHeatmapPoints, categoryColorMap, usingSyntheticPoints]);
   const { provider, setProvider } = useMapProvider();
   const hasGoogleKey = useMemo(() => ((import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? '').trim().length > 0), []);
   const providerIsConfigured = useCallback(
@@ -1078,6 +1102,16 @@ export const SurveyAnalytics = ({
           ) : null}
           {mapRenderReady && aggregatedHeatmapPoints.length ? (
             <div className="space-y-4">
+              {categoryColorMap.size ? (
+                <div className="flex flex-wrap gap-2 text-xs">
+                  {Array.from(categoryColorMap.entries()).map(([category, color]) => (
+                    <span key={category} className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5">
+                      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
+                      {category}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-border text-sm">
                   <thead>
@@ -1085,6 +1119,8 @@ export const SurveyAnalytics = ({
                       <th className="py-2 pr-4">Latitud</th>
                       <th className="py-2 pr-4">Longitud</th>
                       <th className="py-2 pr-4">Respuestas</th>
+                      <th className="py-2 pr-4">Categoría</th>
+                      <th className="py-2 pr-4">Canal</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1093,6 +1129,15 @@ export const SurveyAnalytics = ({
                         <td className="py-2 pr-4">{point.lat.toFixed(4)}</td>
                         <td className="py-2 pr-4">{point.lng.toFixed(4)}</td>
                         <td className="py-2 pr-4">{point.respuestas}</td>
+                        <td className="py-2 pr-4">
+                          {point.categoria ? (
+                            <span className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs">
+                              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: categoryColorMap.get(point.categoria) || '#94a3b8' }} />
+                              {point.categoria}
+                            </span>
+                          ) : '—'}
+                        </td>
+                        <td className="py-2 pr-4">{point.canal || '—'}</td>
                       </tr>
                     ))}
                   </tbody>
