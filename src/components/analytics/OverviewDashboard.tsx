@@ -1,7 +1,7 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid } from 'recharts';
-import { BarChart3, Zap, ArrowUpRight, ArrowDownRight, Clock, Users } from 'lucide-react';
+import { BarChart3, Zap, ArrowUpRight, ArrowDownRight, Clock, Users, Mic, Video, Keyboard, Captions } from 'lucide-react';
 import { AnalyticsSummary } from '../../services/analyticsService';
 
 interface Props {
@@ -93,6 +93,48 @@ const OverviewDashboard: React.FC<Props> = ({ data, showSla, showConversion }) =
             </CardContent>
           </Card>
         )}
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">% interacciones por voz</CardTitle>
+            <Mic className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{kpis.voice_interactions_pct || 0}%</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">% interacciones video/avatar</CardTitle>
+            <Video className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{kpis.video_avatar_interactions_pct || 0}%</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Finalización sin escribir</CardTitle>
+            <Keyboard className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{kpis.no_typing_completion_rate || 0}%</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Tasa accesibilidad</CardTitle>
+            <Captions className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{kpis.accessibility_usage_rate || 0}%</div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Charts Row */}
