@@ -1177,8 +1177,9 @@ export const SurveyAnalytics = ({
           </div>
           <div className="flex flex-col items-start gap-1 md:items-end">
             <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Proveedor de mapa
+              Motor de mapa
             </span>
+            <span className="text-[11px] text-muted-foreground">MapLibre GL (WebGL)</span>
             <MapProviderToggle
               value={provider}
               onChange={setProvider}
