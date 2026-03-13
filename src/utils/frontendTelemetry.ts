@@ -9,7 +9,11 @@ export type FrontendEventName =
   | 'realtime_mode_switched'
   | 'avatar_rendered'
   | 'accessibility_caption_enabled'
-  | 'business_action_executed';
+  | 'business_action_executed'
+  | 'map_loaded'
+  | 'map_layer_toggle'
+  | 'map_cluster_click'
+  | 'map_time_slider_changed';
 
 export function trackFrontendEvent(event: FrontendEventName, payload: Record<string, unknown> = {}) {
   if (typeof window === 'undefined') return;

@@ -6,6 +6,7 @@ import type { Map, LngLatLike } from "maplibre-gl";
 import { GoogleHeatmapMap } from "@/components/GoogleHeatmapMap";
 import type { MapProvider, MapProviderUnavailableReason } from "@/hooks/useMapProvider";
 import { clusterHeatmapPoints } from "@/utils/heatmap";
+import { trackFrontendEvent } from "@/utils/frontendTelemetry";
 
 type Props = {
   center?: [number, number]; // [lon, lat]
@@ -24,8 +25,22 @@ type Props = {
   maptilerKey?: string | null;
   googleMapsKey?: string | null;
   geoLayerConfig?: {
+    contract_version?: string;
+    style_url?: string;
     source?: unknown;
     source_options?: Record<string, unknown>;
+    interactions?: {
+      hover?: boolean;
+      time_slider?: {
+        enabled?: boolean;
+        field?: string;
+      };
+    };
+    layers?: {
+      heatmap?: { id?: string };
+      clusters?: { id?: string };
+      points?: { id?: string };
+    };
   } | null;
   adminLocation?: [number, number];
   fitToBounds?: [number, number][];
@@ -144,17 +159,22 @@ const updateHeatmapSource = (map: Map, points: HeatPoint[]) => {
   }
 };
 
-const toggleLayers = (map: Map, showHeatmap: boolean, showPolygons: boolean) => {
-  if (map.getLayer("tickets-heat")) {
+const toggleLayers = (
+  map: Map,
+  showHeatmap: boolean,
+  showPolygons: boolean,
+  layerIds: { heat: string; circles: string },
+) => {
+  if (map.getLayer(layerIds.heat)) {
     map.setLayoutProperty(
-      "tickets-heat",
+      layerIds.heat,
       "visibility",
       showHeatmap && !showPolygons ? "visible" : "none",
     );
   }
-  if (map.getLayer("tickets-circles")) {
+  if (map.getLayer(layerIds.circles)) {
     map.setLayoutProperty(
-      "tickets-circles",
+      layerIds.circles,
       "visibility",
       !showHeatmap && !showPolygons ? "visible" : "none",
     );
@@ -241,6 +261,21 @@ export default function MapLibreMap({
       ...(clusterRadius !== undefined ? { clusterRadius } : {}),
     };
   }, [geoLayerConfig?.source_options]);
+  const configuredLayerIds = useMemo(
+    () => ({
+      heat: geoLayerConfig?.layers?.heatmap?.id?.trim() || "tickets-heat",
+      circles: geoLayerConfig?.layers?.points?.id?.trim() || "tickets-circles",
+    }),
+    [geoLayerConfig?.layers?.heatmap?.id, geoLayerConfig?.layers?.points?.id],
+  );
+  const configuredInteractions = useMemo(
+    () => ({
+      hover: geoLayerConfig?.interactions?.hover !== false,
+      timeSliderEnabled: Boolean(geoLayerConfig?.interactions?.time_slider?.enabled),
+      timeSliderField: geoLayerConfig?.interactions?.time_slider?.field,
+    }),
+    [geoLayerConfig?.interactions?.hover, geoLayerConfig?.interactions?.time_slider?.enabled, geoLayerConfig?.interactions?.time_slider?.field],
+  );
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<Map | null>(null);
   const libRef = useRef<MapLibreModule | null>(null);
@@ -366,7 +401,8 @@ export default function MapLibreMap({
         if (!isMounted || !mapContainerRef.current) return;
 
         const key = apiKeyRef.current;
-        const customStyle = (mapStyleUrl ?? "").trim();
+        const contractStyleUrl = typeof geoLayerConfig?.style_url === "string" ? geoLayerConfig.style_url.trim() : "";
+        const customStyle = (mapStyleUrl ?? "").trim() || contractStyleUrl;
         const customTileUrl = (mapTileUrl ?? "").trim();
         const customTileAttribution =
           (mapTileAttribution ?? "").trim() || "© OpenStreetMap contributors";
@@ -483,7 +519,7 @@ export default function MapLibreMap({
           });
 
           addLayer(map, {
-            id: "tickets-heat",
+            id: configuredLayerIds.heat,
             type: "heatmap",
             source: "points",
             maxzoom: 15,
@@ -545,7 +581,7 @@ export default function MapLibreMap({
           });
 
           addLayer(map, {
-            id: "tickets-circles",
+            id: configuredLayerIds.circles,
             type: "circle",
             source: "points",
             minzoom: 9,
@@ -613,7 +649,14 @@ export default function MapLibreMap({
             },
           });
 
-          toggleLayers(map, showHeatmapRef.current, showPolygonsRef.current);
+          toggleLayers(map, showHeatmapRef.current, showPolygonsRef.current, configuredLayerIds);
+          trackFrontendEvent("map_loaded", {
+            provider: "maplibre",
+            contract_version: geoLayerConfig?.contract_version ?? null,
+            hover_enabled: configuredInteractions.hover,
+            time_slider_enabled: configuredInteractions.timeSliderEnabled,
+            time_slider_field: configuredInteractions.timeSliderField ?? null,
+          });
           updateHeatmapSource(map, latestHeatmap.current);
         };
 
@@ -722,6 +765,13 @@ export default function MapLibreMap({
           }
 
           const sections: string[] = [];
+
+          trackFrontendEvent("map_cluster_click", {
+            provider: "maplibre",
+            cluster_id: clusterId,
+            feature_id: properties?.id ?? null,
+            contract_version: geoLayerConfig?.contract_version ?? null,
+          });
 
           if (cluster) {
             const clusterSize = Number.isFinite(cluster.clusterSize)
@@ -841,7 +891,7 @@ export default function MapLibreMap({
         };
 
         mapInstance.on("click", handleClick);
-        mapInstance.on("click", "tickets-circles", handleCircleClick);
+        mapInstance.on("click", configuredLayerIds.circles, handleCircleClick);
         mapInstance.on("styleimagemissing", handleMissingImage);
         const bboxEvents = [
           "boxzoomend",
@@ -863,7 +913,7 @@ export default function MapLibreMap({
 
         return () => {
           mapInstance.off("click", handleClick);
-          mapInstance.off("click", "tickets-circles", handleCircleClick);
+          mapInstance.off("click", configuredLayerIds.circles, handleCircleClick);
           mapInstance.off("styleimagemissing", handleMissingImage);
           if (shouldEmitBoundingBox) {
             bboxEvents.forEach((eventName) => mapInstance.off(eventName, emitBoundingBox));
@@ -906,7 +956,7 @@ export default function MapLibreMap({
         adminMarkerRef.current = null;
       }
     };
-  }, [configuredGeoSource, configuredSourceOptions, effectiveProvider, mapStyleUrl, provider, resolvedMaptilerKey]);
+  }, [configuredGeoSource, configuredInteractions.hover, configuredInteractions.timeSliderEnabled, configuredInteractions.timeSliderField, configuredLayerIds, configuredSourceOptions, effectiveProvider, geoLayerConfig?.contract_version, geoLayerConfig?.style_url, mapStyleUrl, provider, resolvedMaptilerKey]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -939,19 +989,35 @@ export default function MapLibreMap({
   }, [configuredGeoSource, processedHeatmap, effectiveProvider]);
 
   useEffect(() => {
+    if (!configuredInteractions.timeSliderEnabled) return;
+    trackFrontendEvent("map_time_slider_changed", {
+      provider: "maplibre",
+      field: configuredInteractions.timeSliderField ?? null,
+      contract_version: geoLayerConfig?.contract_version ?? null,
+      feature_count: configuredGeoSource?.features?.length ?? processedHeatmap.length,
+    });
+  }, [configuredGeoSource?.features?.length, configuredInteractions.timeSliderEnabled, configuredInteractions.timeSliderField, geoLayerConfig?.contract_version, processedHeatmap.length]);
+
+  useEffect(() => {
     const map = mapRef.current;
     if (!map || effectiveProvider !== "maplibre") return;
 
-    if (!map.getLayer("tickets-heat") || !map.getLayer("tickets-circles")) {
-      const handler = () => toggleLayers(map, showHeatmap, showPolygons);
+    if (!map.getLayer(configuredLayerIds.heat) || !map.getLayer(configuredLayerIds.circles)) {
+      const handler = () => toggleLayers(map, showHeatmap, showPolygons, configuredLayerIds);
       map.once("load", handler);
       return () => {
         map.off("load", handler);
       };
     }
 
-    toggleLayers(map, showHeatmap, showPolygons);
-  }, [showHeatmap, showPolygons, effectiveProvider]);
+    toggleLayers(map, showHeatmap, showPolygons, configuredLayerIds);
+    trackFrontendEvent("map_layer_toggle", {
+      provider: "maplibre",
+      show_heatmap: showHeatmap,
+      show_polygons: showPolygons,
+      contract_version: geoLayerConfig?.contract_version ?? null,
+    });
+  }, [configuredLayerIds, effectiveProvider, geoLayerConfig?.contract_version, showHeatmap, showPolygons]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -972,13 +1038,15 @@ export default function MapLibreMap({
       // Slower, deeper pulse for a "breathing" effect
       const t = (Date.now() % 4000) / 4000;
       const intensity = 1 + 0.3 * Math.sin(t * Math.PI * 2);
-      map.setPaintProperty("tickets-heat", "heatmap-intensity", intensity);
+      if (map.getLayer(configuredLayerIds.heat)) {
+        map.setPaintProperty(configuredLayerIds.heat, "heatmap-intensity", intensity);
+      }
       frame = requestAnimationFrame(animate);
     };
 
     animate();
     return () => cancelAnimationFrame(frame);
-  }, [showHeatmap, effectiveProvider]);
+  }, [configuredLayerIds.heat, showHeatmap, effectiveProvider]);
 
   useEffect(() => {
     const map = mapRef.current;

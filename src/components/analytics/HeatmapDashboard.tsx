@@ -158,8 +158,24 @@ const HeatmapDashboard: React.FC<Props> = ({ tenantId, dateRange }) => {
                   mapTileUrl={tileUrl}
                   mapTileAttribution={tileAttribution}
                   geoLayerConfig={{
+                    contract_version:
+                      typeof (heatmapResponse?.geo_layers as Record<string, unknown> | undefined)?.contract_version === 'string'
+                        ? String((heatmapResponse?.geo_layers as Record<string, unknown>).contract_version)
+                        : undefined,
+                    style_url: mapStyleUrl,
                     source: geoLayerSource,
                     source_options: sourceOptions,
+                    interactions:
+                      ((heatmapResponse?.geo_layers as Record<string, unknown> | undefined)?.interactions as {
+                        hover?: boolean;
+                        time_slider?: { enabled?: boolean; field?: string };
+                      } | undefined) ?? undefined,
+                    layers:
+                      ((heatmapResponse?.geo_layers as Record<string, unknown> | undefined)?.layers as {
+                        heatmap?: { id?: string };
+                        clusters?: { id?: string };
+                        points?: { id?: string };
+                      } | undefined) ?? undefined,
                   }}
               />
           ) : (
