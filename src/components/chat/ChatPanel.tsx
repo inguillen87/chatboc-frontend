@@ -448,8 +448,40 @@ const ChatPanel = (props: ChatPanelProps) => {
         return;
       }
 
-      const socket = io(socketUrl, { path: SOCKET_PATH });
+      const resolveTransportHintKey = (slug?: string | null) => `chatboc_socket_transport_hint:${slug || 'default'}`;
+      const resolveTransportListKey = (slug?: string | null) => `chatboc_socket_transports:${slug || 'default'}`;
+      const host = typeof window !== 'undefined' ? window.location.hostname.toLowerCase() : '';
+      const defaultPollingOnly = host === 'chatboc.ar' || host.endsWith('.chatboc.ar') || host === 'www.chatboc.ar';
+      const hint = safeLocalStorage.getItem(resolveTransportHintKey(tenantSlug));
+      const rawTransportList = safeLocalStorage.getItem(resolveTransportListKey(tenantSlug));
+      let transports: Array<'polling' | 'websocket'> = defaultPollingOnly ? ['polling'] : ['websocket', 'polling'];
+
+      if (rawTransportList) {
+        try {
+          const parsed = JSON.parse(rawTransportList);
+          const valid = Array.isArray(parsed)
+            ? parsed.filter((item): item is 'polling' | 'websocket' => item === 'polling' || item === 'websocket')
+            : [];
+          if (valid.length > 0) {
+            transports = valid;
+          }
+        } catch {
+          // keep defaults
+        }
+      } else if (hint === 'polling') {
+        transports = ['polling'];
+      }
+
+      const socket = io(socketUrl, { path: SOCKET_PATH, transports });
       socketRef.current = socket;
+
+      const handleConnectError = (error: unknown) => {
+        const lowered = String((error as any)?.message || '').toLowerCase();
+        if (lowered.includes('websocket') || lowered.includes('transport')) {
+          safeLocalStorage.setItem(resolveTransportHintKey(tenantSlug), 'polling');
+          safeLocalStorage.setItem(resolveTransportListKey(tenantSlug), JSON.stringify(['polling']));
+        }
+      };
 
       const room = `ticket_${tipoChat}_${liveChatTicketId}`;
       socket.emit('join', { room });
@@ -470,13 +502,15 @@ const ChatPanel = (props: ChatPanelProps) => {
       if (!ok) {
         console.warn('No pude suscribirme a "new_chat_message"');
       }
+      safeOn(socket, 'connect_error', handleConnectError);
 
       return () => {
         socket?.off?.('new_chat_message', handleIncoming);
+        socket?.off?.('connect_error', handleConnectError);
         socket?.disconnect?.();
       };
     }
-  }, [isLiveChatActive, liveChatTicketId, tipoChat, setMessages]);
+  }, [isLiveChatActive, liveChatTicketId, tipoChat, setMessages, tenantSlug]);
 
   const handleLiveChatRequest = () => {
     handleSend({

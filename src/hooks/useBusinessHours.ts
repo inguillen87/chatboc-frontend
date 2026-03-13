@@ -4,6 +4,8 @@ import { safeLocalStorage } from '@/utils/safeLocalStorage';
 interface LiveChatSchedule {
   enabled?: boolean;
   socket_transport_hint?: 'polling' | 'websocket';
+  socket_transports?: Array<'polling' | 'websocket'>;
+  socket_fallback_enabled?: boolean;
   available?: boolean;
   description?: string;
   days?: string[];
@@ -15,6 +17,10 @@ interface LiveChatSchedule {
 
 const resolveTransportHintKey = (tenantSlug?: string | null) =>
   `chatboc_socket_transport_hint:${tenantSlug || 'default'}`;
+const resolveTransportListKey = (tenantSlug?: string | null) =>
+  `chatboc_socket_transports:${tenantSlug || 'default'}`;
+const resolveTransportFallbackEnabledKey = (tenantSlug?: string | null) =>
+  `chatboc_socket_fallback_enabled:${tenantSlug || 'default'}`;
 
 interface BusinessHours {
   isLiveChatEnabled: boolean;
@@ -89,6 +95,23 @@ export const useBusinessHours = (entityToken?: string, tenantSlug?: string | nul
             : null;
         if (transportHint) {
           safeLocalStorage.setItem(resolveTransportHintKey(tenantSlug), transportHint);
+        }
+
+        const transportList = Array.isArray(schedule?.socket_transports)
+          ? schedule.socket_transports.filter(
+              (transport): transport is 'polling' | 'websocket' =>
+                transport === 'polling' || transport === 'websocket',
+            )
+          : [];
+        if (transportList.length > 0) {
+          safeLocalStorage.setItem(resolveTransportListKey(tenantSlug), JSON.stringify(transportList));
+        }
+
+        if (typeof schedule?.socket_fallback_enabled === 'boolean') {
+          safeLocalStorage.setItem(
+            resolveTransportFallbackEnabledKey(tenantSlug),
+            schedule.socket_fallback_enabled ? '1' : '0',
+          );
         }
 
         setBusinessHours({

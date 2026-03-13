@@ -1122,13 +1122,38 @@ export function useChatLogic({
 
 
   const resolveTransportHintKey = (slug?: string | null) => `chatboc_socket_transport_hint:${slug || 'default'}`;
+  const resolveTransportListKey = (slug?: string | null) => `chatboc_socket_transports:${slug || 'default'}`;
+
+  const isChatbocDomain = (): boolean => {
+    if (typeof window === 'undefined') return false;
+    const host = window.location.hostname.toLowerCase();
+    return host === 'chatboc.ar' || host.endsWith('.chatboc.ar') || host === 'www.chatboc.ar';
+  };
 
   const [socketTransportRetryKey, setSocketTransportRetryKey] = useState(0);
 
   const getPreferredSocketTransports = (): Array<'websocket' | 'polling'> => {
+    const rawTransports = safeLocalStorage.getItem(resolveTransportListKey(tenantSlug));
+    if (rawTransports) {
+      try {
+        const parsed = JSON.parse(rawTransports);
+        const valid = Array.isArray(parsed)
+          ? parsed.filter((item): item is 'websocket' | 'polling' => item === 'websocket' || item === 'polling')
+          : [];
+        if (valid.length > 0) {
+          if (valid.length === 1 && valid[0] === 'polling') return ['polling'];
+          if (valid.length === 1 && valid[0] === 'websocket') return ['websocket', 'polling'];
+          return valid;
+        }
+      } catch {
+        // ignore invalid cache and fallback to hint/domain
+      }
+    }
+
     const hint = safeLocalStorage.getItem(resolveTransportHintKey(tenantSlug));
     if (hint === 'polling') return ['polling'];
     if (hint === 'websocket') return ['websocket', 'polling'];
+    if (isChatbocDomain()) return ['polling'];
     return ['websocket', 'polling'];
   };
 
@@ -1184,8 +1209,10 @@ export function useChatLogic({
 
     const handleConnectError = (err: any) => {
       console.error('Socket.IO connection error:', err.message);
-      if (String(err?.message || '').toLowerCase().includes('websocket')) {
+      const lowered = String(err?.message || '').toLowerCase();
+      if (lowered.includes('websocket') || lowered.includes('transport') || lowered.includes('xhr poll error')) {
         safeLocalStorage.setItem(resolveTransportHintKey(tenantSlug), 'polling');
+        safeLocalStorage.setItem(resolveTransportListKey(tenantSlug), JSON.stringify(['polling']));
         setSocketTransportRetryKey((prev) => prev + 1);
       }
     };
