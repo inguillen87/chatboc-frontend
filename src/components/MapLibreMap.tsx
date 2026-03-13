@@ -19,6 +19,8 @@ type Props = {
   className?: string;
   provider?: MapProvider;
   mapStyleUrl?: string | null;
+  mapTileUrl?: string | null;
+  mapTileAttribution?: string | null;
   maptilerKey?: string | null;
   googleMapsKey?: string | null;
   adminLocation?: [number, number];
@@ -167,6 +169,8 @@ export default function MapLibreMap({
   className,
   provider = "maplibre",
   mapStyleUrl,
+  mapTileUrl,
+  mapTileAttribution,
   maptilerKey,
   googleMapsKey,
   adminLocation,
@@ -336,6 +340,29 @@ export default function MapLibreMap({
 
         const key = apiKeyRef.current;
         const customStyle = (mapStyleUrl ?? "").trim();
+        const customTileUrl = (mapTileUrl ?? "").trim();
+        const customTileAttribution =
+          (mapTileAttribution ?? "").trim() || "© OpenStreetMap contributors";
+        const tileStyle = customTileUrl
+          ? {
+              version: 8,
+              sources: {
+                osm: {
+                  type: "raster",
+                  tiles: [customTileUrl],
+                  tileSize: 256,
+                  attribution: customTileAttribution,
+                },
+              },
+              layers: [
+                {
+                  id: "osm",
+                  type: "raster",
+                  source: "osm",
+                },
+              ],
+            }
+          : null;
         const styleCandidates = [
           customStyle || null,
           key ? `https://api.maptiler.com/maps/streets-v2/style.json?key=${key}` : null,
@@ -347,7 +374,7 @@ export default function MapLibreMap({
         let currentStyleIndex = 0;
         let exhaustedStyles = false;
 
-        const initialStyle = styleCandidates[0] ?? "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
+        const initialStyle = tileStyle ?? styleCandidates[0] ?? "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
 
         const mapInstance = new maplibre.Map({
           container: mapContainerRef.current,
@@ -563,7 +590,7 @@ export default function MapLibreMap({
         };
 
         const cycleStyle = (reason?: string) => {
-          if (exhaustedStyles || styleCandidates.length === 0) {
+          if (tileStyle || exhaustedStyles || styleCandidates.length === 0) {
             return;
           }
 
@@ -578,7 +605,7 @@ export default function MapLibreMap({
           } else {
             exhaustedStyles = true;
             setMapError(
-              "No se pudieron cargar los estilos del mapa. Verificá la clave de MapTiler o la conexión de red.",
+              "No se pudieron cargar los estilos del mapa. Verificá la conexión o usá un tile OSM del backend.",
             );
           }
         };

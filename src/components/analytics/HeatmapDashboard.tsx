@@ -40,6 +40,14 @@ const HeatmapDashboard: React.FC<Props> = ({ tenantId, dateRange }) => {
 
   const points = useMemo(() => (Array.isArray(heatmapResponse?.points) ? heatmapResponse.points : []), [heatmapResponse]);
   const geoCategories = useMemo(() => (Array.isArray(heatmapResponse?.geo_layers?.categories) ? heatmapResponse.geo_layers.categories : []), [heatmapResponse]);
+  const tileUrl = useMemo(() => {
+    const url = heatmapResponse?.geo_layers?.tiles?.url;
+    return typeof url === 'string' && url.trim() ? url.trim() : undefined;
+  }, [heatmapResponse]);
+  const tileAttribution = useMemo(() => {
+    const attribution = heatmapResponse?.geo_layers?.tiles?.attribution;
+    return typeof attribution === 'string' && attribution.trim() ? attribution.trim() : undefined;
+  }, [heatmapResponse]);
   const segmentGroups = useMemo(() => {
     const segments = heatmapResponse?.segments;
     const order: Array<{ key: string; label: string }> = [
@@ -112,6 +120,8 @@ const HeatmapDashboard: React.FC<Props> = ({ tenantId, dateRange }) => {
                   heatmapData={points as any}
                   center={[-58.38, -34.60]}
                   initialZoom={12}
+                  mapTileUrl={tileUrl}
+                  mapTileAttribution={tileAttribution}
               />
           ) : (
               <div className="flex h-full items-center justify-center text-muted-foreground">
