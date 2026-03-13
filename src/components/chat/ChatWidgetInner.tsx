@@ -297,6 +297,27 @@ function ChatWidgetInner({
     () => entityInfo?.widget?.support_channels || entityInfo?.support_channels || null,
     [entityInfo],
   );
+  const realtimeConfig = useMemo(() => {
+    const attrs = entityInfo?.widget?.attributes || {};
+    const toBool = (value: unknown, fallback = false) => {
+      if (typeof value === 'boolean') return value;
+      if (typeof value === 'string') return value.trim().toLowerCase() === 'true';
+      return fallback;
+    };
+    const toText = (value: unknown, fallback = '') => (typeof value === 'string' && value.trim() ? value.trim() : fallback);
+
+    return {
+      model: toText(attrs['data-realtime-model'], supportChannels?.voice_call?.model || supportChannels?.video_call?.model || ''),
+      voiceEnabled: toBool(attrs['data-realtime-voice-enabled'], Boolean(supportChannels?.voice_call?.enabled)),
+      videoEnabled: toBool(attrs['data-realtime-video-enabled'], Boolean(supportChannels?.video_call?.enabled)),
+      avatarEnabled: toBool(attrs['data-avatar-enabled'], false),
+      avatarType: toText(attrs['data-avatar-type'], 'robot'),
+      avatarPersona: toText(attrs['data-avatar-persona'], ''),
+      voiceLabel: toText(attrs['data-realtime-voice-label'], toText(supportChannels?.voice_call?.label, '')),
+      videoLabel: toText(attrs['data-realtime-video-label'], toText(supportChannels?.video_call?.label, '')),
+
+    };
+  }, [entityInfo?.widget?.attributes, supportChannels?.video_call?.enabled, supportChannels?.video_call?.label, supportChannels?.video_call?.model, supportChannels?.voice_call?.enabled, supportChannels?.voice_call?.label, supportChannels?.voice_call?.model]);
   const showCatalogCta =
     !!catalogCtaLabel &&
     !!catalogLinks?.view_url &&
@@ -1467,6 +1488,14 @@ function ChatWidgetInner({
         data-support-whatsapp={String(
           Boolean(supportChannels?.whatsapp?.enabled && supportChannels?.whatsapp?.realtime_bridge),
         )}
+        data-realtime-model={realtimeConfig.model || ''}
+        data-realtime-voice-enabled={String(Boolean(realtimeConfig.voiceEnabled))}
+        data-realtime-video-enabled={String(Boolean(realtimeConfig.videoEnabled))}
+        data-avatar-enabled={String(Boolean(realtimeConfig.avatarEnabled))}
+        data-avatar-type={realtimeConfig.avatarType || 'robot'}
+        data-avatar-persona={realtimeConfig.avatarPersona || ''}
+        data-realtime-voice-label={realtimeConfig.voiceLabel || ''}
+        data-realtime-video-label={realtimeConfig.videoLabel || ''}
         className={cn(
           "chatboc-container flex flex-col",
           mode === "standalone"
@@ -1610,6 +1639,7 @@ function ChatWidgetInner({
                     messageEnterAnimation={widgetUx.messageEnterAnimation}
                     logoBadgeStyle={widgetUx.logoBadgeStyle}
                     supportChannels={supportChannels}
+                    realtimeConfig={realtimeConfig}
                     onA11yChange={setA11yPrefs}
                     a11yPrefs={a11yPrefs}
                   />
