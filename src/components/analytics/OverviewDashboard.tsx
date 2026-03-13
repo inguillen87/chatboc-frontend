@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid } from 'recharts';
 import { BarChart3, Zap, ArrowUpRight, ArrowDownRight, Clock, Users, Mic, Video, Keyboard, Captions } from 'lucide-react';
 import { AnalyticsSummary } from '../../services/analyticsService';
+import { MeasuredContainer } from '@/components/analytics/MeasuredContainer';
 
 interface Props {
   data: AnalyticsSummary;
@@ -144,7 +145,8 @@ const OverviewDashboard: React.FC<Props> = ({ data, showSla, showConversion }) =
             <CardTitle>Volumen Diario</CardTitle>
           </CardHeader>
           <CardContent className="pl-2">
-            <ResponsiveContainer width="100%" height={300}>
+            <MeasuredContainer className="h-[300px] min-w-0">
+            <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220}>
               <LineChart data={volumeByDay}>
                 <XAxis dataKey="date" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
                 <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
@@ -153,6 +155,7 @@ const OverviewDashboard: React.FC<Props> = ({ data, showSla, showConversion }) =
                 <Line type="monotone" dataKey="count" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
               </LineChart>
             </ResponsiveContainer>
+          </MeasuredContainer>
           </CardContent>
         </Card>
 
@@ -162,7 +165,8 @@ const OverviewDashboard: React.FC<Props> = ({ data, showSla, showConversion }) =
             <CardDescription>Temas más frecuentes</CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
+            <MeasuredContainer className="h-[300px] min-w-0">
+            <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220}>
               <BarChart data={topCategories} layout="vertical" margin={{ top: 0, right: 30, left: 40, bottom: 0 }}>
                 <XAxis type="number" hide />
                 <YAxis dataKey="category" type="category" width={100} tick={{ fontSize: 12 }} />
@@ -170,6 +174,7 @@ const OverviewDashboard: React.FC<Props> = ({ data, showSla, showConversion }) =
                 <Bar dataKey="count" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} barSize={24} />
               </BarChart>
             </ResponsiveContainer>
+          </MeasuredContainer>
           </CardContent>
         </Card>
       </div>

@@ -268,6 +268,18 @@ export function useChatLogic({
     initializeConversationRef.current = initializeConversation;
   }, [initializeConversation]);
 
+
+  useEffect(() => {
+    if (messagesRef.current.length > 0 || initSentRef.current) return;
+
+    const bootstrapTimer = setTimeout(() => {
+      if (messagesRef.current.length > 0 || initSentRef.current) return;
+      initializeConversationRef.current?.({ resetContext: true });
+    }, 180);
+
+    return () => clearTimeout(bootstrapTimer);
+  }, [tipoChat, tenantSlug, selectedRubro]);
+
   const token = skipAuth ? null : getValidStoredToken(tokenKey);
   const isAnonimo = skipAuth || !token;
 

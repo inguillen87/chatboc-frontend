@@ -1102,13 +1102,15 @@ export const getHeatmapPoints = async (params?: HeatmapParams): Promise<HeatPoin
 
 export const getAiReportLatest = async (params: { tenant_id?: string | number, segment: string }): Promise<AiReportResponse> => {
     const query = buildSearchParams(params as unknown as Record<string, unknown>).toString();
-    return apiFetch<AiReportResponse>(`/api/analytics/report/latest${query ? `?${query}` : ''}`);
+    return apiFetch<AiReportResponse>(`/api/analytics/report/latest${query ? `?${query}` : ''}`, { suppressPanel401Redirect: true, preserveAuthOn401: true });
 };
 
 export const generateAiReport = async (params: { tenant_id?: string | number, segment: string, from?: string, to?: string, force?: boolean }): Promise<AiReportResponse> => {
   return apiFetch<AiReportResponse>('/api/analytics/report/generate', {
     method: 'POST',
     body: JSON.stringify(params),
+    suppressPanel401Redirect: true,
+    preserveAuthOn401: true,
   });
 };
 
@@ -1128,17 +1130,17 @@ export const getAiReportExport = async (params: { tenant_id?: string | number, s
 
 export const getSalesAnalytics = async (params?: { tenant_id?: string | number, from?: string, to?: string }): Promise<SalesAnalyticsResponse> => {
   const query = buildSearchParams(params as unknown as Record<string, unknown>).toString();
-  return apiFetch<SalesAnalyticsResponse>(`/api/analytics/sales${query ? `?${query}` : ''}`);
+  return apiFetch<SalesAnalyticsResponse>(`/api/analytics/sales${query ? `?${query}` : ''}`, { suppressPanel401Redirect: true, preserveAuthOn401: true });
 };
 
 export const getBenchmarks = async (params?: { tenant_id?: string | number, from?: string, to?: string }): Promise<BenchmarksResponse> => {
   const query = buildSearchParams(params as unknown as Record<string, unknown>).toString();
-  return apiFetch<BenchmarksResponse>(`/api/analytics/benchmarks${query ? `?${query}` : ''}`);
+  return apiFetch<BenchmarksResponse>(`/api/analytics/benchmarks${query ? `?${query}` : ''}`, { suppressPanel401Redirect: true, preserveAuthOn401: true });
 };
 
 export const getFunnel = async (params?: { tenant_id?: string | number, from?: string, to?: string }): Promise<FunnelResponse> => {
   const query = buildSearchParams(params as unknown as Record<string, unknown>).toString();
-  return apiFetch<FunnelResponse>(`/api/analytics/funnel${query ? `?${query}` : ''}`);
+  return apiFetch<FunnelResponse>(`/api/analytics/funnel${query ? `?${query}` : ''}`, { suppressPanel401Redirect: true, preserveAuthOn401: true });
 };
 
 export const getSurveySummary = async (tenantId: string | number): Promise<SurveySummaryResponse> => {

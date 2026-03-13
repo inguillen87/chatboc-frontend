@@ -530,15 +530,26 @@ const ChatPanel = (props: ChatPanelProps) => {
     });
   };
 
+  const boolish = (value: unknown): boolean => {
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'number') return value === 1;
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      if (['true', '1', 'yes', 'si', 'on', 'enabled'].includes(normalized)) return true;
+      if (['false', '0', 'no', 'off', 'disabled'].includes(normalized)) return false;
+    }
+    return false;
+  };
+
   const liveChatAllowedByBackend = supportChannels?.live_chat?.realtime !== false;
   const canRenderLiveChat = Boolean(liveChatAllowedByBackend && isLiveChatEnabled);
   const canRenderWhatsAppBridge = Boolean(
-    supportChannels?.whatsapp?.enabled && supportChannels?.whatsapp?.realtime_bridge,
+    boolish(supportChannels?.whatsapp?.enabled) && boolish(supportChannels?.whatsapp?.realtime_bridge),
   );
   const voiceCallConfig = supportChannels?.voice_call;
   const videoCallConfig = supportChannels?.video_call;
-  const realtimeVoiceEnabled = Boolean(voiceCallConfig?.enabled || realtimeConfig?.voiceEnabled);
-  const realtimeVideoEnabled = Boolean(videoCallConfig?.enabled || realtimeConfig?.videoEnabled);
+  const realtimeVoiceEnabled = boolish(voiceCallConfig?.enabled) || boolish(realtimeConfig?.voiceEnabled);
+  const realtimeVideoEnabled = boolish(videoCallConfig?.enabled) || boolish(realtimeConfig?.videoEnabled);
   const [channelMode, setChannelMode] = useState<'chat' | 'voice' | 'video'>('chat');
   const [sessionState, setSessionState] = useState<'idle' | 'connecting' | 'live' | 'reconnecting' | 'ended'>('idle');
   const [captionsEnabled, setCaptionsEnabled] = useState(Boolean(voiceCallConfig?.features?.captions));
