@@ -51,6 +51,7 @@ export interface HeatPoint {
   aggregatedCanales?: HeatmapBreakdownItem[];
   aggregatedFuentes?: HeatmapBreakdownItem[];
   dominantValues?: Record<string, string | null | undefined>;
+  categoryColor?: string;
 }
 
 type FeatureCollectionLike = {
@@ -841,7 +842,7 @@ const gatherCandidateContainers = (root: Record<string, unknown>): Record<string
   const seen = new Set<unknown>();
   const containers: Record<string, unknown>[] = [];
   const queue: Record<string, unknown>[] = [root];
-  const nestedKeys = ['data', 'datos', 'payload', 'result', 'results', 'response', 'contenido', 'content', 'body', 'attributes', 'attributesdata', 'meta', 'metadata', 'stats', 'estadisticas', 'statistics', 'map', 'mapa'];
+  const nestedKeys = ['data', 'datos', 'payload', 'result', 'results', 'response', 'contenido', 'content', 'body', 'attributes', 'attributesdata', 'meta', 'metadata', 'stats', 'estadisticas', 'statistics', 'map', 'mapa', 'sections', 'mapas', 'geo', 'heatmap', 'category_layers', 'geo_layers', 'modules'];
   while (queue.length > 0) {
     const current = queue.shift();
     if (!current || seen.has(current)) continue;
@@ -929,7 +930,9 @@ const isFeatureCollection = (value: unknown): value is FeatureCollectionLike => 
 
 const normalizeMapConfig = (raw: unknown): MapConfig => {
   const record = asRecord(raw) ?? {};
-  return { provider: coerceString(record.provider) || 'none', google_maps_key: coerceString(record.google_maps_key) || undefined, maptiler_key: coerceString(record.maptiler_key) || undefined, style_url: coerceString(record.style_url) || undefined };
+  const tiles = asRecord(getFromRecord(record, 'tiles'));
+  const tileUrl = coerceString(getFromRecord(tiles ?? {}, 'url', 'template')) || undefined;
+  return { provider: coerceString(record.provider) || 'none', google_maps_key: coerceString(record.google_maps_key) || undefined, maptiler_key: coerceString(record.maptiler_key) || undefined, style_url: coerceString(record.style_url) || tileUrl };
 };
 
 const normalizeMapLayers = (raw: unknown): Record<string, MapLayerSource> => {
@@ -963,13 +966,13 @@ const normalizeHeatmapDataset = (raw: unknown): HeatmapDataset => {
   const geojsonCandidate = pickFirstValue(containers, ['geojson', 'feature_collection'], isFeatureCollection);
   let geojsonPoints: HeatPoint[] = [];
   if (geojsonCandidate) geojsonPoints = extractHeatmapFromPayload(geojsonCandidate);
-  const explicitPointsCandidate = pickFirstValue(containers, ['points', 'puntos', 'heatmap', 'data', 'datos'], Array.isArray);
+  const explicitPointsCandidate = pickFirstValue(containers, ['points', 'puntos', 'heatmap', 'data', 'datos', 'geo_points', 'hotspots'], Array.isArray);
   const explicitPoints = explicitPointsCandidate ? extractHeatmapFromPayload(explicitPointsCandidate) : [];
   const cellsCandidate = pickFirstValue(containers, ['cells', 'celdas', 'clusters', 'grid', 'cuadricula'], Array.isArray);
   const { points: cellPoints, raw: rawCells } = normalizeHeatmapCells(cellsCandidate);
   const points = [...geojsonPoints, ...explicitPoints, ...cellPoints];
   const mapConfig = normalizeMapConfig(pickFirstValue(containers, ['map_config', 'mapconfig', 'config'], isPlainObject));
-  const mapLayers = normalizeMapLayers(pickFirstValue(containers, ['map_layers', 'layers', 'capas'], isPlainObject));
+  const mapLayers = normalizeMapLayers(pickFirstValue(containers, ['map_layers', 'layers', 'capas', 'category_layers', 'geo_layers'], isPlainObject));
   const metadata = normalizeHeatmapMetadata(pickFirstValue(containers, ['metadata', 'meta', 'info'], isPlainObject));
   return { points, geojson: geojsonCandidate, cells: rawCells as unknown as HeatmapCell[], mapConfig, mapLayers, metadata, raw };
 };
@@ -1101,13 +1104,15 @@ export const getHeatmapPoints = async (params?: HeatmapParams): Promise<HeatPoin
 
 export const getAiReportLatest = async (params: { tenant_id?: string | number, segment: string }): Promise<AiReportResponse> => {
     const query = buildSearchParams(params as unknown as Record<string, unknown>).toString();
-    return apiFetch<AiReportResponse>(`/api/analytics/report/latest${query ? `?${query}` : ''}`);
+    return apiFetch<AiReportResponse>(`/api/analytics/report/latest${query ? `?${query}` : ''}`, { suppressPanel401Redirect: true, preserveAuthOn401: true });
 };
 
 export const generateAiReport = async (params: { tenant_id?: string | number, segment: string, from?: string, to?: string, force?: boolean }): Promise<AiReportResponse> => {
   return apiFetch<AiReportResponse>('/api/analytics/report/generate', {
     method: 'POST',
     body: JSON.stringify(params),
+    suppressPanel401Redirect: true,
+    preserveAuthOn401: true,
   });
 };
 
@@ -1127,17 +1132,17 @@ export const getAiReportExport = async (params: { tenant_id?: string | number, s
 
 export const getSalesAnalytics = async (params?: { tenant_id?: string | number, from?: string, to?: string }): Promise<SalesAnalyticsResponse> => {
   const query = buildSearchParams(params as unknown as Record<string, unknown>).toString();
-  return apiFetch<SalesAnalyticsResponse>(`/api/analytics/sales${query ? `?${query}` : ''}`);
+  return apiFetch<SalesAnalyticsResponse>(`/api/analytics/sales${query ? `?${query}` : ''}`, { suppressPanel401Redirect: true, preserveAuthOn401: true });
 };
 
 export const getBenchmarks = async (params?: { tenant_id?: string | number, from?: string, to?: string }): Promise<BenchmarksResponse> => {
   const query = buildSearchParams(params as unknown as Record<string, unknown>).toString();
-  return apiFetch<BenchmarksResponse>(`/api/analytics/benchmarks${query ? `?${query}` : ''}`);
+  return apiFetch<BenchmarksResponse>(`/api/analytics/benchmarks${query ? `?${query}` : ''}`, { suppressPanel401Redirect: true, preserveAuthOn401: true });
 };
 
 export const getFunnel = async (params?: { tenant_id?: string | number, from?: string, to?: string }): Promise<FunnelResponse> => {
   const query = buildSearchParams(params as unknown as Record<string, unknown>).toString();
-  return apiFetch<FunnelResponse>(`/api/analytics/funnel${query ? `?${query}` : ''}`);
+  return apiFetch<FunnelResponse>(`/api/analytics/funnel${query ? `?${query}` : ''}`, { suppressPanel401Redirect: true, preserveAuthOn401: true });
 };
 
 export const getSurveySummary = async (tenantId: string | number): Promise<SurveySummaryResponse> => {

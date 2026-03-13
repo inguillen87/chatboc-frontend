@@ -8,6 +8,14 @@ export interface AnalyticsFilters {
   scope?: string;
   channel?: string;
   tz?: string;
+  categoria?: string;
+  categorias?: string | string[];
+  sexo?: string;
+  genero?: string;
+  rango_edad?: string;
+  barrio?: string;
+  distrito?: string;
+  canal?: string;
   tenantSlug?: string;
 }
 
@@ -19,6 +27,10 @@ export interface AnalyticsSummary {
     conversion_rate?: number;
     backlog_open?: number;
     sla_breaches?: number;
+    voice_interactions_pct?: number;
+    video_avatar_interactions_pct?: number;
+    no_typing_completion_rate?: number;
+    accessibility_usage_rate?: number;
   };
   top_categories: { category: string; count: number }[];
   volume_by_day: { date: string; count: number }[];
@@ -53,6 +65,68 @@ export interface AnalyticsHubResponse {
   };
 }
 
+export interface RealtimeHubResponse {
+  ui?: {
+    labels?: {
+      filters_channel?: string;
+      filters_sentiment?: string;
+      filters_search?: string;
+      option_all?: string;
+      loading?: string;
+      empty?: string;
+      empty_filtered?: string;
+      cards_events?: string;
+      cards_survey_responses?: string;
+      cards_survey_comments?: string;
+      cards_live_chat_comments?: string;
+      sections_top_channels?: string;
+      sections_top_events?: string;
+      sections_sentiment?: string;
+      sections_live_comments?: string;
+      sections_hotspots_recommendations?: string;
+      actions_refresh?: string;
+      actions_auto_refresh_on?: string;
+      actions_auto_refresh_off?: string;
+      tabs_realtime_hub?: string;
+    };
+  };
+  totals?: {
+    events?: number;
+    survey_responses?: number;
+    survey_comments?: number;
+    live_chat_comments?: number;
+  };
+  top_channels?: Array<{ channel?: string; count?: number }>;
+  top_events?: Array<{ event?: string; count?: number }>;
+  sentiment?: Record<string, number>;
+  geo_points?: Array<{ lat?: number; lng?: number; count?: number; channel?: string }>;
+  hotspots?: Array<{ label?: string; count?: number }>;
+  recommendations?: string[];
+  comments?: Array<{ channel?: string; text?: string; created_at?: string; sentiment?: string }>;
+}
+
+
+
+export interface AnalyticsGeoLayerCategory {
+  categoria?: string;
+  color?: string;
+  event_count?: number;
+  total_weight?: number;
+  intensity?: number;
+  points?: Array<{ lat?: number; lng?: number; weight?: number }>;
+}
+
+export interface AnalyticsHeatmapResponse {
+  points: Array<{ lat?: number; lng?: number; weight?: number; categoria?: string; canal?: string }>;
+  geo_layers?: {
+    provider?: string;
+    tiles?: { url?: string; attribution?: string };
+    categories?: AnalyticsGeoLayerCategory[];
+    legend?: { mode?: string; min_weight?: number; max_weight?: number };
+  };
+  segments?: Record<string, Array<{ label?: string; count?: number }>>;
+  segments_filters_applied?: Record<string, unknown>;
+}
 const HUB_ENDPOINTS = [
   '/api/admin/analytics/hub',
   '/api/admin/analytics/dashboard',
@@ -86,11 +160,32 @@ const buildAnalyticsHeaders = (etag?: string) => {
 
 const buildQuery = (filters: AnalyticsFilters) => {
   const params = new URLSearchParams();
+  const appendValue = (key: string, value: string | string[] | undefined) => {
+    if (!value) return;
+    if (Array.isArray(value)) {
+      value
+        .map((item) => item?.trim())
+        .filter(Boolean)
+        .forEach((item) => params.append(key, item));
+      return;
+    }
+    const normalized = value.trim();
+    if (normalized) params.append(key, normalized);
+  };
+
   if (filters.tenant_id) params.append('tenant_id', String(filters.tenant_id));
   if (filters.from) params.append('from', filters.from);
   if (filters.to) params.append('to', filters.to);
   if (filters.scope) params.append('scope', filters.scope);
   if (filters.tz) params.append('tz', filters.tz);
+  appendValue('categoria', filters.categoria);
+  appendValue('categorias', filters.categorias);
+  appendValue('sexo', filters.sexo);
+  appendValue('genero', filters.genero);
+  appendValue('rango_edad', filters.rango_edad);
+  appendValue('barrio', filters.barrio);
+  appendValue('distrito', filters.distrito);
+  appendValue('canal', filters.canal || filters.channel);
   return params.toString();
 };
 
@@ -105,6 +200,10 @@ const normalizeAnalyticsSummary = (payload: any): AnalyticsSummary => {
     conversion_rate: Number(rawKpis.conversion_rate ?? totals.conversion_rate ?? 0) || 0,
     backlog_open: Number(rawKpis.backlog_open ?? totals.backlog_open ?? 0) || 0,
     sla_breaches: Number(rawKpis.sla_breaches ?? totals.sla_breaches ?? 0) || 0,
+    voice_interactions_pct: Number(rawKpis.voice_interactions_pct ?? totals.voice_interactions_pct ?? 0) || 0,
+    video_avatar_interactions_pct: Number(rawKpis.video_avatar_interactions_pct ?? totals.video_avatar_interactions_pct ?? 0) || 0,
+    no_typing_completion_rate: Number(rawKpis.no_typing_completion_rate ?? totals.no_typing_completion_rate ?? 0) || 0,
+    accessibility_usage_rate: Number(rawKpis.accessibility_usage_rate ?? totals.accessibility_usage_rate ?? 0) || 0,
   };
 
   return {
@@ -184,13 +283,43 @@ export const analyticsService = {
     return normalizeAnalyticsSummary(response);
   },
 
-  getHeatmap: async (filters: AnalyticsFilters, hubOverride?: AnalyticsHubResponse | null) => {
+  getHeatmap: async (filters: AnalyticsFilters, hubOverride?: AnalyticsHubResponse | null): Promise<AnalyticsHeatmapResponse> => {
+    const buildResponse = (raw: any): AnalyticsHeatmapResponse => {
+      const geoLayers = raw?.geo_layers && typeof raw.geo_layers === 'object' ? raw.geo_layers : undefined;
+      const categoryPoints = Array.isArray(geoLayers?.categories)
+        ? geoLayers.categories.flatMap((category: any) => {
+            const points = Array.isArray(category?.points) ? category.points : [];
+            return points.map((point: any) => ({
+              ...point,
+              categoria: point?.categoria ?? category?.categoria,
+            }));
+          })
+        : [];
+      const points = raw?.points || raw?.geo_points || raw?.heatmap_points || categoryPoints || [];
+      const segments = raw?.segments && typeof raw.segments === 'object' ? raw.segments : undefined;
+      const segmentsFiltersApplied =
+        raw?.segments_filters_applied && typeof raw.segments_filters_applied === 'object'
+          ? raw.segments_filters_applied
+          : undefined;
+      return {
+        points: Array.isArray(points) ? points : [],
+        ...(geoLayers ? { geo_layers: geoLayers } : {}),
+        ...(segments ? { segments } : {}),
+        ...(segmentsFiltersApplied ? { segments_filters_applied: segmentsFiltersApplied } : {}),
+      };
+    };
+
     const hub = hubOverride ?? await analyticsService.getHub(filters).catch(() => null);
     const hubMap = hub?.sections?.mapas as Record<string, unknown> | undefined;
     const hubGeo = (hubMap?.geo as Record<string, unknown> | undefined) ?? hubMap;
     const hubPoints = (hubGeo?.points ?? hubGeo?.geo_points ?? hubGeo?.heatmap_points) as unknown;
     if (Array.isArray(hubPoints)) {
-      return hubPoints;
+      return buildResponse({
+        points: hubPoints,
+        geo_layers: (hubGeo as any)?.geo_layers,
+        segments: (hubGeo as any)?.segments,
+        segments_filters_applied: (hubGeo as any)?.segments_filters_applied,
+      });
     }
 
     const query = buildQuery({ ...filters, scope: filters.scope ?? filters.context ?? 'municipio' });
@@ -198,7 +327,7 @@ export const analyticsService = {
       tenantSlug: filters.tenantSlug,
       headers: buildAnalyticsHeaders(),
     });
-    return response?.points || response?.geo_points || response?.heatmap_points || [];
+    return buildResponse(response || {});
   },
 
   getInsights: async (tenantId: number, tenantSlug?: string) => {
@@ -211,4 +340,16 @@ export const analyticsService = {
 
   exportCsvUrl: (filters: AnalyticsFilters) => `/admin/analytics/export.csv?${buildQuery(filters)}`,
   exportPdfUrl: (filters: AnalyticsFilters) => `/admin/analytics/export.pdf?${buildQuery(filters)}`,
+
+  getRealtimeHub: async (params: { tenant_id: number; scope?: string; window_minutes?: number; tenantSlug?: string }) => {
+    const query = new URLSearchParams();
+    query.set('tenant_id', String(params.tenant_id));
+    if (params.scope) query.set('scope', params.scope);
+    if (params.window_minutes) query.set('window_minutes', String(params.window_minutes));
+
+    return apiFetch<RealtimeHubResponse>(`/admin/analytics/realtime-hub?${query.toString()}`, {
+      tenantSlug: params.tenantSlug,
+      headers: buildAnalyticsHeaders(),
+    });
+  },
 };
