@@ -8,6 +8,14 @@ import type { MapProvider, MapProviderUnavailableReason } from "@/hooks/useMapPr
 import { clusterHeatmapPoints } from "@/utils/heatmap";
 import { trackFrontendEvent } from "@/utils/frontendTelemetry";
 
+const MAPLIBRE_EXTERNAL_JS_URL = String(
+  import.meta.env.VITE_MAPLIBRE_JS_URL ?? import.meta.env.NEXT_PUBLIC_MAPLIBRE_JS_URL ?? "",
+).trim();
+
+const MAPLIBRE_EXTERNAL_CSS_URL = String(
+  import.meta.env.VITE_MAPLIBRE_CSS_URL ?? import.meta.env.NEXT_PUBLIC_MAPLIBRE_CSS_URL ?? "",
+).trim();
+
 type Props = {
   center?: [number, number]; // [lon, lat]
   initialZoom?: number;
@@ -80,6 +88,50 @@ declare global {
 
 let cachedMapLibre: MapLibreModule | null = null;
 let maplibrePromise: Promise<MapLibreModule> | null = null;
+let externalMapLibrePromise: Promise<void> | null = null;
+
+const ensureExternalMapLibreAssets = async (): Promise<void> => {
+  if (typeof window === "undefined") return;
+  if (!MAPLIBRE_EXTERNAL_JS_URL) return;
+
+  if (MAPLIBRE_EXTERNAL_CSS_URL && !document.querySelector(`link[data-maplibre-css="${MAPLIBRE_EXTERNAL_CSS_URL}"]`)) {
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = MAPLIBRE_EXTERNAL_CSS_URL;
+    link.setAttribute("data-maplibre-css", MAPLIBRE_EXTERNAL_CSS_URL);
+    document.head.appendChild(link);
+  }
+
+  if (window.maplibregl?.Map) return;
+  if (externalMapLibrePromise) return externalMapLibrePromise;
+
+  externalMapLibrePromise = new Promise<void>((resolve, reject) => {
+    const existingScript = document.querySelector(`script[data-maplibre-js="${MAPLIBRE_EXTERNAL_JS_URL}"]`) as HTMLScriptElement | null;
+
+    if (existingScript) {
+      if (window.maplibregl?.Map) {
+        resolve();
+        return;
+      }
+      existingScript.addEventListener("load", () => resolve(), { once: true });
+      existingScript.addEventListener("error", () => reject(new Error("MapLibre script failed to load")), { once: true });
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = MAPLIBRE_EXTERNAL_JS_URL;
+    script.async = true;
+    script.setAttribute("data-maplibre-js", MAPLIBRE_EXTERNAL_JS_URL);
+    script.addEventListener("load", () => resolve(), { once: true });
+    script.addEventListener("error", () => reject(new Error("MapLibre script failed to load")), { once: true });
+    document.head.appendChild(script);
+  }).catch((error) => {
+    externalMapLibrePromise = null;
+    throw error;
+  });
+
+  return externalMapLibrePromise;
+};
 
 const loadMapLibre = async (): Promise<MapLibreModule> => {
   if (typeof window === "undefined") {
@@ -89,6 +141,13 @@ const loadMapLibre = async (): Promise<MapLibreModule> => {
   if (cachedMapLibre?.Map) {
     return cachedMapLibre;
   }
+
+  if (window.maplibregl?.Map) {
+    cachedMapLibre = window.maplibregl;
+    return window.maplibregl;
+  }
+
+  await ensureExternalMapLibreAssets();
 
   if (window.maplibregl?.Map) {
     cachedMapLibre = window.maplibregl;
