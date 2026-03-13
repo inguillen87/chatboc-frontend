@@ -127,6 +127,90 @@ export interface AnalyticsHeatmapResponse {
   segments?: Record<string, Array<{ label?: string; count?: number }>>;
   segments_filters_applied?: Record<string, unknown>;
 }
+
+const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+const normalizeHeatPoint = (
+  point: unknown,
+  categoryFallback?: string,
+): { lat?: number; lng?: number; weight?: number; categoria?: string; canal?: string } | null => {
+  if (!isRecord(point)) return null;
+  const latCandidate = point.lat ?? point.latitude;
+  const lngCandidate = point.lng ?? point.lon ?? point.longitude;
+  const lat = typeof latCandidate === 'number' ? latCandidate : Number(latCandidate);
+  const lng = typeof lngCandidate === 'number' ? lngCandidate : Number(lngCandidate);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+  const weightCandidate = point.weight ?? point.count ?? point.intensity;
+  const weightValue = typeof weightCandidate === 'number' ? weightCandidate : Number(weightCandidate);
+  const weight = Number.isFinite(weightValue) ? weightValue : undefined;
+  const categoriaRaw = point.categoria ?? point.category ?? point.tipo ?? categoryFallback;
+  const canalRaw = point.canal ?? point.channel;
+
+  return {
+    lat,
+    lng,
+    ...(weight !== undefined ? { weight } : {}),
+    ...(typeof categoriaRaw === 'string' && categoriaRaw.trim().length > 0 ? { categoria: categoriaRaw.trim() } : {}),
+    ...(typeof canalRaw === 'string' && canalRaw.trim().length > 0 ? { canal: canalRaw.trim() } : {}),
+  };
+};
+
+const collectHeatmapPoints = (raw: unknown): Array<{ lat?: number; lng?: number; weight?: number; categoria?: string; canal?: string }> => {
+  const visited = new Set<unknown>();
+  const points: Array<{ lat?: number; lng?: number; weight?: number; categoria?: string; canal?: string }> = [];
+
+  const visit = (candidate: unknown, categoryFallback?: string) => {
+    if (!candidate || visited.has(candidate)) return;
+
+    if (Array.isArray(candidate)) {
+      visited.add(candidate);
+      candidate.forEach((item) => visit(item, categoryFallback));
+      return;
+    }
+
+    if (!isRecord(candidate)) return;
+    visited.add(candidate);
+
+    const normalized = normalizeHeatPoint(candidate, categoryFallback);
+    if (normalized) {
+      points.push(normalized);
+      return;
+    }
+
+    const nestedCategory =
+      typeof candidate.categoria === 'string' && candidate.categoria.trim().length > 0
+        ? candidate.categoria.trim()
+        : typeof candidate.category === 'string' && candidate.category.trim().length > 0
+          ? candidate.category.trim()
+          : categoryFallback;
+
+    const layerBuckets = [
+      candidate.points,
+      candidate.geo_points,
+      candidate.heatmap_points,
+      candidate.hotspots,
+      candidate.cells,
+      candidate.category_layers,
+      candidate.geo_layers,
+      candidate.categories,
+      candidate.layers,
+      candidate.data,
+      candidate.result,
+      candidate.results,
+      candidate.response,
+      candidate.payload,
+      candidate.sections,
+      candidate.mapas,
+      candidate.geo,
+    ];
+
+    layerBuckets.forEach((next) => visit(next, nestedCategory));
+  };
+
+  visit(raw);
+  return points;
+};
 const HUB_ENDPOINTS = [
   '/api/admin/analytics/hub',
   '/api/admin/analytics/dashboard',
@@ -286,16 +370,7 @@ export const analyticsService = {
   getHeatmap: async (filters: AnalyticsFilters, hubOverride?: AnalyticsHubResponse | null): Promise<AnalyticsHeatmapResponse> => {
     const buildResponse = (raw: any): AnalyticsHeatmapResponse => {
       const geoLayers = raw?.geo_layers && typeof raw.geo_layers === 'object' ? raw.geo_layers : undefined;
-      const categoryPoints = Array.isArray(geoLayers?.categories)
-        ? geoLayers.categories.flatMap((category: any) => {
-            const points = Array.isArray(category?.points) ? category.points : [];
-            return points.map((point: any) => ({
-              ...point,
-              categoria: point?.categoria ?? category?.categoria,
-            }));
-          })
-        : [];
-      const points = raw?.points || raw?.geo_points || raw?.heatmap_points || categoryPoints || [];
+      const points = collectHeatmapPoints(raw);
       const segments = raw?.segments && typeof raw.segments === 'object' ? raw.segments : undefined;
       const segmentsFiltersApplied =
         raw?.segments_filters_applied && typeof raw.segments_filters_applied === 'object'

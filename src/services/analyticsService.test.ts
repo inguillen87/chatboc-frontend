@@ -177,4 +177,31 @@ describe('analyticsService.getHub', () => {
     expect(apiFetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it('extracts points from nested category_layers and hotspots payloads', async () => {
+    apiFetchMock
+      .mockResolvedValueOnce({ sections: {} })
+      .mockResolvedValueOnce({
+        payload: {
+          category_layers: [
+            {
+              category: 'alumbrado',
+              hotspots: [
+                { latitude: -34.61, longitude: -58.37, count: 3 },
+              ],
+            },
+          ],
+        },
+      });
+
+    const heatmap = await analyticsService.getHeatmap({ scope: 'municipio' });
+
+    expect(heatmap.points).toHaveLength(1);
+    expect(heatmap.points[0]).toEqual({
+      lat: -34.61,
+      lng: -58.37,
+      weight: 3,
+      categoria: 'alumbrado',
+    });
+  });
+
 });
