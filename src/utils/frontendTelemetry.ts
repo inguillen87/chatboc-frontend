@@ -19,7 +19,10 @@ export type FrontendEventName =
   | 'tracking_public_lookup_failed'
   | 'tracking_public_message_sent'
   | 'tracking_public_refresh_failed'
-  | 'tracking_public_maps_opened';
+  | 'tracking_public_maps_opened'
+  | 'tracking_403_detected'
+  | 'socket_reconnect'
+  | 'realtime_duplicate_dropped';
 
 export function trackFrontendEvent(event: FrontendEventName, payload: Record<string, unknown> = {}) {
   if (typeof window === 'undefined') return;

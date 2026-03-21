@@ -82,6 +82,32 @@ describe('enterpriseService demo endpoints', () => {
     });
   });
 
+
+  it('keeps team collaboration metrics in tenant dashboard bundle', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      summary: { active_viewers: 1, unread_viewers: 1 },
+      team: {
+        items: [
+          {
+            employee_name: 'Ana',
+            active_ticket_views: 4,
+            idle_ticket_views: 2,
+            unread_ticket_views: 3,
+          },
+        ],
+      },
+    });
+
+    const response = await enterpriseService.getTenantDashboardBundle('demo');
+
+    expect(response.team?.items?.[0]).toMatchObject({
+      employee_name: 'Ana',
+      active_ticket_views: 4,
+      idle_ticket_views: 2,
+      unread_ticket_views: 3,
+    });
+  });
+
   it('normalizes collaboration state in tenant unread summary items', async () => {
     apiFetchMock.mockResolvedValueOnce({
       total_tickets_with_unread: 1,

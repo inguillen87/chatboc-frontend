@@ -102,7 +102,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
     if (supportsImageInput) nextTypes.push('image/*');
     if (supportsFileUpload) nextTypes.push('application/pdf', 'video/*');
     if (supportsAudioInput) nextTypes.push('audio/*');
-    return nextTypes.length > 0 ? nextTypes : ['image/*'];
+    return nextTypes;
   }, [supportsAudioInput, supportsFileUpload, supportsImageInput]);
   const currentGuidedFieldLabel = normalizeFieldLabel(guidedFlow?.currentField);
   const guidedFields = React.useMemo(

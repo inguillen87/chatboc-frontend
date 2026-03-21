@@ -597,22 +597,39 @@ export default function BusinessMetrics() {
                       {bundleTeamItems.slice(0, 4).map((member, index) => (
                         <div
                           key={`team-workload-${index}`}
-                          className="flex items-center justify-between rounded-lg border border-border bg-muted/30 px-3 py-2"
+                          className="rounded-lg border border-border bg-muted/30 px-3 py-2"
                         >
-                          <span className="text-sm">
-                            {member?.employee_name ||
-                              member?.nombre ||
-                              member?.user_name ||
-                              member?.email ||
-                              `member_${index + 1}`}
-                          </span>
-                          <Badge variant="outline">
-                            {toNumber(
-                              member?.workload_open_tickets ??
-                                member?.open_tickets ??
-                                member?.assigned_open_tickets,
-                            ).toLocaleString("es-AR")}
-                          </Badge>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-sm">
+                              {member?.employee_name ||
+                                member?.nombre ||
+                                member?.user_name ||
+                                member?.email ||
+                                `member_${index + 1}`}
+                            </span>
+                            <Badge variant="outline">
+                              {toNumber(
+                                member?.workload_open_tickets ??
+                                  member?.open_tickets ??
+                                  member?.assigned_open_tickets,
+                              ).toLocaleString("es-AR")}
+                            </Badge>
+                          </div>
+                          {(member?.active_ticket_views !== undefined ||
+                            member?.idle_ticket_views !== undefined ||
+                            member?.unread_ticket_views !== undefined) ? (
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              <Badge variant="secondary">
+                                activos {toNumber(member?.active_ticket_views).toLocaleString("es-AR")}
+                              </Badge>
+                              <Badge variant="secondary">
+                                idle {toNumber(member?.idle_ticket_views).toLocaleString("es-AR")}
+                              </Badge>
+                              <Badge variant="secondary">
+                                unread {toNumber(member?.unread_ticket_views).toLocaleString("es-AR")}
+                              </Badge>
+                            </div>
+                          ) : null}
                         </div>
                       ))}
                       {!bundleTeamItems.length ? (

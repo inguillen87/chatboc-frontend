@@ -65,6 +65,20 @@ const pickFirstString = (...values: unknown[]): string | null => {
   return null;
 };
 
+const parseBooleanish = (...values: unknown[]): boolean => {
+  for (const value of values) {
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'number') return value !== 0;
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      if (!normalized) continue;
+      if (['1', 'true', 't', 'yes', 'y', 'si', 's'].includes(normalized)) return true;
+      if (['0', 'false', 'f', 'no', 'n'].includes(normalized)) return false;
+    }
+  }
+  return false;
+};
+
 const normalizeTimestamp = (...values: unknown[]): string => {
   const picked = pickFirstString(...values);
   if (!picked) return new Date().toISOString();
@@ -124,7 +138,7 @@ export const normalizeConversationStreamEvent = (
       message: {
         id: messageId,
         text: pickFirstString(messageNode?.comentario, messageNode?.text, raw.comentario, raw.text) || '',
-        isBot: Boolean(messageNode?.es_admin ?? messageNode?.is_admin ?? raw.es_admin ?? raw.is_admin),
+        isBot: parseBooleanish(messageNode?.es_admin, messageNode?.is_admin, raw.es_admin, raw.is_admin),
         createdAt: normalizeTimestamp(messageNode?.fecha, messageNode?.created_at, raw.fecha, raw.created_at, raw.occurred_at),
         origin: pickFirstString(messageNode?.origen, raw.origen) || undefined,
         audioUrl: pickFirstString(messageNode?.audio_url, raw.audio_url) || undefined,

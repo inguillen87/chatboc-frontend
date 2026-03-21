@@ -16,6 +16,7 @@ import {
   Message,
   TicketHistoryEvent,
   TicketRealtimeState,
+  UnifiedConversationStreamItem,
 } from "@/types/tickets";
 import { getErrorMessage, ApiError } from "@/utils/api";
 import {
@@ -309,6 +310,44 @@ const normalizeOperationalMetrics = (value: Ticket["operational_metrics"]) => {
   return [];
 };
 
+const normalizePriorityBreakdown = (value: Ticket["priority_breakdown"]) => {
+  if (!value || typeof value !== "object") return [] as Array<{ label: string; value: string }>;
+
+  return Object.entries(value)
+    .map(([label, rawValue]) => {
+      if (rawValue === null || rawValue === undefined || rawValue === "") return null;
+      return {
+        label: formatOperationalLabel(label),
+        value: String(rawValue),
+      };
+    })
+    .filter((item): item is { label: string; value: string } => Boolean(item));
+};
+
+const getUnifiedStreamAppearance = (item: UnifiedConversationStreamItem) => {
+  if (item.actor_type === "agent") {
+    return {
+      dotClassName: "bg-emerald-500",
+      badgeClassName: "border-emerald-200 bg-emerald-50 text-emerald-700",
+      label: "Atención",
+    };
+  }
+
+  if (item.actor_type === "citizen") {
+    return {
+      dotClassName: "bg-blue-500",
+      badgeClassName: "border-blue-200 bg-blue-50 text-blue-700",
+      label: "Tu actividad",
+    };
+  }
+
+  return {
+    dotClassName: "bg-violet-500",
+    badgeClassName: "border-violet-200 bg-violet-50 text-violet-700",
+    label: "Sistema",
+  };
+};
+
 const getSlaBadgeClassName = (status?: string | null) => {
   switch ((status || "").toLowerCase()) {
     case "breached":
@@ -352,6 +391,9 @@ export default function TicketLookup() {
   const [timelineHistory, setTimelineHistory] = useState<TicketHistoryEvent[]>(
     [],
   );
+  const [unifiedConversationStream, setUnifiedConversationStream] = useState<
+    UnifiedConversationStreamItem[]
+  >([]);
   const [publicMessages, setPublicMessages] = useState<Message[]>([]);
   const [realtimeState, setRealtimeState] = useState<TicketRealtimeState | null>(
     null,
@@ -459,6 +501,7 @@ export default function TicketLookup() {
               estado_chat: "",
               history: resolvedTicket.history || [],
               messages: [],
+              unified_conversation_stream: [],
             };
           }),
           getTicketMessages(
@@ -478,6 +521,11 @@ export default function TicketLookup() {
         ]);
 
         setTimelineHistory(timeline.history || []);
+        setUnifiedConversationStream(
+          Array.isArray(timeline.unified_conversation_stream)
+            ? timeline.unified_conversation_stream
+            : [],
+        );
         const messageCollection = Array.isArray((messages as any).messages)
           ? (messages as any).messages
           : Array.isArray(messages)
@@ -504,6 +552,14 @@ export default function TicketLookup() {
                     ? fallbackMessages
                     : prev.messages || [],
                 realtime_state: nextRealtimeState,
+                priority_score:
+                  resolvedTicket.priority_score ?? prev.priority_score ?? null,
+                priority_breakdown:
+                  resolvedTicket.priority_breakdown ?? prev.priority_breakdown ?? null,
+                recommended_next_action:
+                  resolvedTicket.recommended_next_action ??
+                  prev.recommended_next_action ??
+                  null,
               }
             : prev,
         );
@@ -532,6 +588,7 @@ export default function TicketLookup() {
       setLoading(true);
       setError(null);
       setTimelineHistory([]);
+      setUnifiedConversationStream([]);
       setPublicMessages([]);
       setRealtimeState(null);
       setPrimaryImageUrl(null);
@@ -568,6 +625,10 @@ export default function TicketLookup() {
         if (apiErr?.status === 404) {
           setError("No se encontró el reclamo. Verificá el número.");
         } else if (apiErr?.status === 403) {
+          trackFrontendEvent("tracking_403_detected", {
+            ticket_lookup: id,
+            access_source: publicAccessSource,
+          });
           setError("PIN incorrecto.");
         } else {
           setError(getErrorMessage(err, "Error al consultar el reclamo"));
@@ -725,10 +786,23 @@ export default function TicketLookup() {
     : undefined;
 
   const publicMessagesCountLabel = `${publicMessages.length} ${publicMessages.length === 1 ? "mensaje" : "mensajes"}`;
-  const timelineCountLabel = `${timelineHistory.length} ${timelineHistory.length === 1 ? "evento" : "eventos"}`;
+  const activityStream =
+    unifiedConversationStream.length > 0
+      ? unifiedConversationStream
+      : timelineHistory.map((event, index) => ({
+          id: `${event.date}-${event.status}-${index}`,
+          timestamp: event.date,
+          actor_type: "system" as const,
+          preview_text: event.notes || event.status,
+          status: event.status,
+          stream_type: "timeline_event",
+          badge: event.status,
+        }));
+  const timelineCountLabel = `${activityStream.length} ${activityStream.length === 1 ? "evento" : "eventos"}`;
   const activeViewers = realtimeState?.active_viewers || [];
   const readStates = realtimeState?.read_states || [];
   const latestReadState = readStates[0] || null;
+  const idleViewersCount = Number(realtimeState?.summary?.idle_count || 0);
   const collaborationState = ticket?.collaboration_state || null;
   const operationalBadges = normalizeOperationalBadges(
     ticket?.operational_badges,
@@ -742,6 +816,11 @@ export default function TicketLookup() {
     ticket?.priority !== ""
       ? String(ticket.priority)
       : null;
+  const priorityScoreLabel =
+    ticket?.priority_score !== null && ticket?.priority_score !== undefined
+      ? String(ticket.priority_score)
+      : null;
+  const priorityBreakdown = normalizePriorityBreakdown(ticket?.priority_breakdown);
 
   useEffect(() => {
     if (!ticket || isResolved || !currentPin) return;
@@ -773,6 +852,12 @@ export default function TicketLookup() {
             ticket_lookup: id,
             status: apiErr?.status || "unknown",
           });
+          if (apiErr?.status === 403) {
+            trackFrontendEvent("tracking_403_detected", {
+              ticket_lookup: id,
+              access_source: publicAccessSource,
+            });
+          }
           console.warn(pollError);
         });
     }, 10000);
@@ -784,6 +869,7 @@ export default function TicketLookup() {
     ticketId,
     currentPin,
     loadConversationData,
+    publicAccessSource,
     syncPublicAccess,
   ]);
 
@@ -808,7 +894,7 @@ export default function TicketLookup() {
 
     const syncVisibilityPresence = () => {
       const nextStatus =
-        document.visibilityState === "visible" ? "idle" : "inactive";
+        document.visibilityState === "visible" ? "active" : "inactive";
       void updateTicketPresence(ticket.id, ticketType, nextStatus, {
         public: true,
         pin: currentPin,
@@ -1045,7 +1131,10 @@ export default function TicketLookup() {
                   {ticket?.sla_status ||
                   priorityLabel ||
                   operationalBadges.length > 0 ||
-                  operationalMetrics.length > 0 ? (
+                  operationalMetrics.length > 0 ||
+                  priorityScoreLabel ||
+                  priorityBreakdown.length > 0 ||
+                  ticket?.recommended_next_action ? (
                     <div className="mx-auto mt-6 max-w-4xl rounded-3xl border border-white/80 bg-white/75 p-4 shadow-sm backdrop-blur">
                       <div className="flex flex-wrap items-center justify-center gap-2">
                         {ticket?.sla_status ? (
@@ -1084,6 +1173,41 @@ export default function TicketLookup() {
                               value={metric.value}
                             />
                           ))}
+                        </div>
+                      ) : null}
+                      {(priorityScoreLabel ||
+                        priorityBreakdown.length > 0 ||
+                        ticket?.recommended_next_action) ? (
+                        <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50/80 p-4 text-left">
+                          <div className="flex flex-wrap items-center gap-2">
+                            {priorityScoreLabel ? (
+                              <Badge variant="outline" className="border-indigo-200 bg-indigo-50 text-indigo-700">
+                                Score {priorityScoreLabel}
+                              </Badge>
+                            ) : null}
+                            {ticket?.recommended_next_action ? (
+                              <Badge variant="outline" className="border-cyan-200 bg-cyan-50 text-cyan-700">
+                                Próxima acción sugerida
+                              </Badge>
+                            ) : null}
+                          </div>
+                          {priorityBreakdown.length > 0 ? (
+                            <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                              {priorityBreakdown.map((item) => (
+                                <InfoMetric
+                                  key={`${item.label}-${item.value}`}
+                                  icon={Sparkles}
+                                  label={item.label}
+                                  value={item.value}
+                                />
+                              ))}
+                            </div>
+                          ) : null}
+                          {ticket?.recommended_next_action ? (
+                            <p className="mt-3 text-sm text-slate-600">
+                              {ticket.recommended_next_action}
+                            </p>
+                          ) : null}
                         </div>
                       ) : null}
                     </div>
@@ -1274,25 +1398,41 @@ export default function TicketLookup() {
                   <CardContent className="pt-6">
                     <div className="relative space-y-6 pl-2">
                       <div className="absolute bottom-2 left-[11px] top-2 w-[2px] bg-slate-100" />
-                      {timelineHistory.map((event, i) => (
+                      {activityStream.map((event, i) => {
+                        const appearance = getUnifiedStreamAppearance(event);
+                        return (
                         <div
-                          key={`${event.date}-${event.status}-${i}`}
+                          key={`${event.id}-${i}`}
                           className="relative flex gap-4"
                         >
-                          <div className="relative z-10 mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-blue-100 bg-white">
-                            <div className="h-2 w-2 rounded-full bg-blue-500" />
+                          <div className="relative z-10 mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-slate-200 bg-white">
+                            <div className={`h-2 w-2 rounded-full ${appearance.dotClassName}`} />
                           </div>
                           <div className="flex-1 rounded-2xl border border-slate-100 bg-slate-50/60 px-4 py-3 shadow-sm">
                             <p className="text-sm font-medium text-slate-900">
-                              {event.notes || event.status}
+                              {event.preview_text || event.status || "Actividad registrada"}
                             </p>
-                            <p className="mt-1 text-xs text-slate-500">
-                              {formatEventDate(event.date)}
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                              <Badge
+                                variant="outline"
+                                className={appearance.badgeClassName}
+                              >
+                                {event.badge ? formatOperationalLabel(String(event.badge)) : appearance.label}
+                              </Badge>
+                              {event.is_unread ? (
+                                <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
+                                  Unread
+                                </Badge>
+                              ) : null}
+                            </div>
+                            <p className="mt-2 text-xs text-slate-500">
+                              {formatEventDate(event.timestamp)}
                             </p>
                           </div>
                         </div>
-                      ))}
-                      {timelineHistory.length === 0 && (
+                        );
+                      })}
+                      {activityStream.length === 0 && (
                         <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50/80 px-6 py-10 text-center text-sm text-slate-500">
                           No hay actividad reciente registrada.
                         </div>
@@ -1341,18 +1481,30 @@ export default function TicketLookup() {
                               ? `${activeViewers.length} ${activeViewers.length === 1 ? "viewer activo" : "viewers activos"}`
                               : "Sin viewers activos"}
                           </p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            {idleViewersCount > 0
+                              ? `${idleViewersCount} ${idleViewersCount === 1 ? "viewer idle" : "viewers idle"}`
+                              : "Sin viewers idle"}
+                          </p>
                           {activeViewers.length > 0 ? (
-                            <p className="mt-1 text-xs text-slate-500">
-                              {activeViewers
-                                .map(
-                                  (viewer) =>
-                                    viewer.viewer_label ||
-                                    viewer.viewer_name ||
-                                    viewer.viewer_id ||
-                                    "viewer",
-                                )
-                                .join(", ")}
-                            </p>
+                            <div className="mt-1 space-y-1 text-xs text-slate-500">
+                              {activeViewers.map((viewer, index) => {
+                                const viewerName =
+                                  viewer.viewer_label ||
+                                  viewer.viewer_name ||
+                                  viewer.viewer_id ||
+                                  "viewer";
+                                const effectiveStatus =
+                                  viewer.effective_presence_status ||
+                                  viewer.presence_status ||
+                                  "active";
+                                return (
+                                  <p key={`presence-viewer-${viewer.session_id || viewer.viewer_id || index}`}>
+                                    {viewerName} · {effectiveStatus}
+                                  </p>
+                                );
+                              })}
+                            </div>
                           ) : null}
                         </div>
                         <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
@@ -1365,6 +1517,11 @@ export default function TicketLookup() {
                               latestReadState?.viewer_name ||
                               "Sincronizado"}
                           </p>
+                          {(latestReadState?.effective_presence_status || latestReadState?.presence_status) ? (
+                            <p className="mt-1 text-xs text-slate-500">
+                              Presence efectiva: {latestReadState?.effective_presence_status || latestReadState?.presence_status}
+                            </p>
+                          ) : null}
                           <p className="mt-1 text-xs text-slate-500">
                             {latestReadState?.read_at
                               ? `Última lectura: ${formatMessageDate(latestReadState.read_at)}`

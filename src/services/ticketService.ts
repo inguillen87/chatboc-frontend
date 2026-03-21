@@ -10,6 +10,8 @@ import {
   TicketRealtimeState,
   TicketRealtimeViewer,
   TicketCollaborationState,
+  UnifiedConversationStreamItem,
+  TicketTimelineEvent,
 } from '@/types/tickets';
 import { AttachmentInfo } from '@/types/chat';
 import getOrCreateAnonId from '@/utils/anonIdGenerator';
@@ -27,6 +29,7 @@ const normalizeRealtimeViewer = (raw: any): TicketRealtimeViewer | null => {
         viewer_name: raw.viewer_name ?? raw.viewerName ?? raw.viewer_label ?? raw.viewerLabel ?? null,
         session_id: raw.session_id ?? raw.sessionId ?? null,
         presence_status: raw.presence_status ?? raw.presenceStatus ?? raw.status ?? null,
+        effective_presence_status: raw.effective_presence_status ?? raw.effectivePresenceStatus ?? null,
         last_read_comment_id: raw.last_read_comment_id ?? raw.lastReadCommentId ?? null,
         read_at: raw.read_at ?? raw.readAt ?? null,
         updated_at: raw.updated_at ?? raw.updatedAt ?? null,
@@ -65,11 +68,13 @@ const normalizeRealtimeState = (raw: any): TicketRealtimeState | null => {
             raw.summary && typeof raw.summary === 'object'
                 ? {
                       active_count: raw.summary.active_count ?? active_viewers.length,
+                      idle_count: raw.summary.idle_count ?? raw.summary.idleCount ?? 0,
                       read_count: raw.summary.read_count ?? read_states.length,
                       last_read_comment_id: raw.summary.last_read_comment_id ?? null,
                   }
                 : {
                       active_count: active_viewers.length,
+                      idle_count: viewers.filter((viewer) => viewer.effective_presence_status === 'idle').length,
                       read_count: read_states.length,
                       last_read_comment_id: read_states[0]?.last_read_comment_id ?? null,
                   },
@@ -101,7 +106,116 @@ const normalizeCollaborationState = (raw: any): TicketCollaborationState | null 
                 : typeof raw.activeViewersCount === 'number'
                     ? raw.activeViewersCount
                     : 0,
+        idle_viewer_count:
+            typeof raw.idle_viewer_count === 'number'
+                ? raw.idle_viewer_count
+                : typeof raw.idleViewerCount === 'number'
+                    ? raw.idleViewerCount
+                    : 0,
+        idle_window_minutes:
+            typeof raw.idle_window_minutes === 'number'
+                ? raw.idle_window_minutes
+                : typeof raw.idleWindowMinutes === 'number'
+                    ? raw.idleWindowMinutes
+                    : 0,
     };
+};
+
+
+const normalizeUnifiedConversationStreamItem = (
+    raw: any,
+    index: number,
+): UnifiedConversationStreamItem | null => {
+    if (!raw || typeof raw !== 'object') return null;
+
+    const payload = raw.payload && typeof raw.payload === 'object' ? raw.payload : {};
+    const streamType = raw.stream_type ?? raw.streamType ?? raw.type ?? raw.kind ?? null;
+    const source = raw.source ?? raw.origin ?? payload.origen ?? null;
+    const actorType =
+        raw.actor_type ??
+        raw.actorType ??
+        (raw.es_admin === true || raw.es_admin === 1 || raw.user_id ? 'agent' : null) ??
+        (streamType === 'status' || streamType === 'system' ? 'system' : 'citizen');
+    const stableId =
+        raw.id ??
+        raw.item_id ??
+        raw.timeline_id ??
+        raw.comment_id ??
+        payload.id ??
+        `${streamType || source || 'stream'}:${index}`;
+    const previewText =
+        raw.preview_text ??
+        raw.previewText ??
+        raw.text ??
+        raw.comentario ??
+        raw.mensaje ??
+        payload.preview_text ??
+        payload.texto ??
+        payload.comentario ??
+        payload.mensaje ??
+        raw.status ??
+        raw.estado ??
+        '';
+    const isUnread =
+        typeof raw.is_unread === 'boolean'
+            ? raw.is_unread
+            : typeof raw.isUnread === 'boolean'
+                ? raw.isUnread
+                : false;
+    const isRead =
+        typeof raw.is_read === 'boolean'
+            ? raw.is_read
+            : typeof raw.isRead === 'boolean'
+                ? raw.isRead
+                : !isUnread;
+
+    return {
+        id: String(stableId),
+        timestamp: raw.timestamp ?? raw.date ?? raw.fecha ?? new Date().toISOString(),
+        source: source ? String(source) : null,
+        stream_type: streamType ? String(streamType) : null,
+        actor_type:
+            actorType === 'agent' || actorType === 'system' ? actorType : 'citizen',
+        preview_text: String(previewText || '').trim(),
+        status: raw.status ?? raw.estado ?? payload.estado ?? null,
+        badge: raw.badge ?? raw.operational_status ?? raw.operationalStatus ?? null,
+        is_read: Boolean(isRead),
+        is_unread: Boolean(isUnread),
+        payload: payload as Record<string, unknown>,
+        raw,
+    };
+};
+
+const buildFallbackUnifiedConversationStream = (
+    timeline: TicketTimelineEvent[] | undefined,
+): UnifiedConversationStreamItem[] => {
+    if (!Array.isArray(timeline)) return [];
+
+    return timeline
+        .map((evt, index) => {
+            const isComment = evt.tipo === 'comentario';
+            const actorType = isComment
+                ? (evt.es_admin === true || evt.es_admin === 1 || evt.user_id ? 'agent' : 'citizen')
+                : 'system';
+            const previewText =
+                (evt as any).comentario ?? (evt as any).mensaje ?? evt.texto ?? evt.estado ?? evt.tipo;
+
+            return {
+                id: `${evt.tipo}:${index}`,
+                timestamp: evt.fecha,
+                source: isComment ? 'timeline_comment' : 'timeline_event',
+                stream_type: evt.tipo,
+                actor_type: actorType,
+                preview_text: String(previewText || '').trim(),
+                status: evt.estado ?? null,
+                badge: evt.tipo === 'estado' ? 'status_changed' : evt.tipo,
+                is_read: true,
+                is_unread: false,
+                payload: evt as Record<string, unknown>,
+                raw: evt as Record<string, unknown>,
+            } as UnifiedConversationStreamItem;
+        })
+        .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 };
 
 export interface AssignableAgent extends User {
@@ -155,6 +269,12 @@ const resolvePublicTicketAccess = (pin?: string) => {
             skipAuth: true,
             sendAnonId: true,
             sendEntityToken: true,
+            headers: normalizedPin
+                ? {
+                    pin: normalizedPin,
+                    "X-Tracking-Pin": normalizedPin,
+                }
+                : undefined,
         } as const,
     };
 };
@@ -263,6 +383,10 @@ export const getTicketByNumber = async (
                 skipAuth: true,
                 sendAnonId: true,
                 sendEntityToken: true,
+                headers: {
+                    pin,
+                    "X-Tracking-Pin": pin,
+                },
             });
             const history = (response as any).history || response.historial || [];
             let messages = (response as any).mensajes || (response as any).messages || [];
@@ -714,7 +838,7 @@ export const getTicketTimeline = async (
   ticketId: number,
   tipo: 'municipio' | 'pyme',
   opts?: { public?: boolean; pin?: string }
-): Promise<{ estado_chat: string; history: TicketHistoryEvent[]; messages: Message[] }> => {
+): Promise<{ estado_chat: string; history: TicketHistoryEvent[]; messages: Message[]; unified_conversation_stream: UnifiedConversationStreamItem[] }> => {
   try {
     const endpointBase = `/tickets/${tipo}/${ticketId}/timeline`;
     const publicAccess = opts?.public ? resolvePublicTicketAccess(opts.pin) : null;
@@ -764,6 +888,11 @@ export const getTicketTimeline = async (
       estado_chat: response.estado_chat,
       history,
       messages,
+      unified_conversation_stream: Array.isArray((response as any).unified_conversation_stream)
+        ? (response as any).unified_conversation_stream
+            .map((item: any, index: number) => normalizeUnifiedConversationStreamItem(item, index))
+            .filter((item: UnifiedConversationStreamItem | null): item is UnifiedConversationStreamItem => Boolean(item))
+        : buildFallbackUnifiedConversationStream(response.timeline),
       realtime_state: normalizeRealtimeState((response as any).realtime_state),
     };
   } catch (error) {

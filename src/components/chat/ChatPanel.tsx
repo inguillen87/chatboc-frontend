@@ -642,7 +642,19 @@ const ChatPanel = (props: ChatPanelProps) => {
       };
 
       const room = `ticket_${tipoChat}_${liveChatTicketId}`;
-      socket.emit("join", { room });
+      let hasJoinedRealtimeRoom = false;
+      const joinLiveChatRoom = () => {
+        socket.emit("join", { room });
+        if (hasJoinedRealtimeRoom) {
+          trackFrontendEvent("socket_reconnect", {
+            room,
+            ticket_id: liveChatTicketId,
+            ticket_type: tipoChat,
+          });
+        }
+        hasJoinedRealtimeRoom = true;
+      };
+      joinLiveChatRoom();
 
       const appendRealtimeMessage = (envelope: ReturnType<typeof normalizeConversationStreamEvent>) => {
         if (!envelope || !envelopeMatchesTicket(envelope, liveChatTicketId)) {
@@ -656,7 +668,15 @@ const ChatPanel = (props: ChatPanelProps) => {
           const alreadyExists = prevMessages.some(
             (message) => String(message.id) === String(nextMessage.id),
           );
-          return alreadyExists ? prevMessages : [...prevMessages, nextMessage];
+          if (alreadyExists) {
+            trackFrontendEvent("realtime_duplicate_dropped", {
+              room,
+              ticket_id: liveChatTicketId,
+              message_id: nextMessage.id,
+            });
+            return prevMessages;
+          }
+          return [...prevMessages, nextMessage];
         });
       };
 
@@ -699,6 +719,7 @@ const ChatPanel = (props: ChatPanelProps) => {
         "ticket.assignment.changed",
         handleTicketAssignmentChanged,
       );
+      safeOn(socket, "connect", joinLiveChatRoom);
       safeOn(socket, "connect_error", handleConnectError);
 
       return () => {
@@ -712,6 +733,7 @@ const ChatPanel = (props: ChatPanelProps) => {
           "ticket.assignment.changed",
           handleTicketAssignmentChanged,
         );
+        socket?.off?.("connect", joinLiveChatRoom);
         socket?.off?.("connect_error", handleConnectError);
         socket?.disconnect?.();
       };

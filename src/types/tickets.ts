@@ -108,6 +108,7 @@ export interface TicketRealtimeViewer {
   viewer_name?: string | null;
   session_id?: string | null;
   presence_status?: string | null;
+  effective_presence_status?: string | null;
   last_read_comment_id?: string | number | null;
   read_at?: string | null;
   updated_at?: string | null;
@@ -120,6 +121,7 @@ export interface TicketRealtimeState {
   read_states: TicketRealtimeViewer[];
   summary?: {
     active_count?: number;
+    idle_count?: number;
     read_count?: number;
     last_read_comment_id?: string | number | null;
   } | null;
@@ -132,12 +134,31 @@ export interface TicketCollaborationState {
   has_unread?: boolean;
   unread_viewer_count?: number;
   active_viewers_count?: number;
+  idle_viewer_count?: number;
+  idle_window_minutes?: number;
+}
+
+
+export interface UnifiedConversationStreamItem {
+  id: string;
+  timestamp: string;
+  source?: string | null;
+  stream_type?: string | null;
+  actor_type: 'agent' | 'citizen' | 'system';
+  preview_text: string;
+  status?: string | null;
+  badge?: string | null;
+  is_read?: boolean;
+  is_unread?: boolean;
+  payload?: Record<string, unknown> | null;
+  raw?: Record<string, unknown> | null;
 }
 
 export interface TicketTimelineResponse {
   estado_chat: string;
   timeline: TicketTimelineEvent[];
   realtime_state?: TicketRealtimeState | null;
+  unified_conversation_stream?: UnifiedConversationStreamItem[] | Array<Record<string, unknown>> | null;
 }
 
 export interface Ticket {
@@ -223,6 +244,9 @@ export interface Ticket {
     | Record<string, unknown>
     | Array<{ label?: string; value?: string | number | null }>;
   priority?: string | number | null;
+  priority_score?: number | null;
+  priority_breakdown?: Record<string, unknown> | null;
+  recommended_next_action?: string | null;
   realtime_state?: TicketRealtimeState | null;
   collaboration_state?: TicketCollaborationState | null;
 }

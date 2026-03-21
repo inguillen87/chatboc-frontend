@@ -63,6 +63,25 @@ describe('conversationStream', () => {
     });
   });
 
+  it('parses string admin flags without treating "0" as bot', () => {
+    const envelope = normalizeConversationStreamEvent('conversation.message.created', {
+      ticket_id: 12,
+      message: {
+        id: 'msg_2',
+        text: 'Soy vecino',
+        es_admin: '0',
+        created_at: '2026-03-21T14:00:00.000Z',
+      },
+    });
+
+    expect(envelope).toMatchObject({
+      message: {
+        id: 'msg_2',
+        isBot: false,
+      },
+    });
+  });
+
   it('normalizes ticket.unread.changed envelopes', () => {
     const envelope = normalizeConversationStreamEvent('ticket.unread.changed', {
       schema_version: '2026-03-21',
