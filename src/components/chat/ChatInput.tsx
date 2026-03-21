@@ -35,6 +35,7 @@ interface Props {
     currentField?: string | null;
     fields?: string[];
   } | null;
+  supportsMultimodalIntake?: boolean;
 }
 
 
@@ -74,7 +75,7 @@ const normalizeFieldLabel = (value?: string | null) => {
     .trim();
 };
 
-const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping, inputRef, onTypingChange, onSystemMessage, validateBeforeSend, channelCapabilities, guidedFlow }, ref) => {
+const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping, inputRef, onTypingChange, onSystemMessage, validateBeforeSend, channelCapabilities, guidedFlow, supportsMultimodalIntake = true }, ref) => {
   const [input, setInput] = useState("");
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const [isLocating, setIsLocating] = useState(false);
@@ -84,10 +85,18 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
   const internalRef = inputRef || useRef<HTMLInputElement>(null);
   const { isRecording, startRecording, stopRecording } = useAudioRecorder();
   const adjRef = useRef<AdjuntarArchivoHandle>(null);
-  const supportsAudioInput = channelCapabilities?.supports_audio_input !== false;
-  const supportsFileUpload = channelCapabilities?.supports_file_upload !== false;
-  const supportsImageInput = channelCapabilities?.supports_image_input !== false;
-  const supportsLocationShare = channelCapabilities?.supports_location_share !== false;
+  const supportsAudioInput =
+    supportsMultimodalIntake &&
+    channelCapabilities?.supports_audio_input !== false;
+  const supportsFileUpload =
+    supportsMultimodalIntake &&
+    channelCapabilities?.supports_file_upload !== false;
+  const supportsImageInput =
+    supportsMultimodalIntake &&
+    channelCapabilities?.supports_image_input !== false;
+  const supportsLocationShare =
+    supportsMultimodalIntake &&
+    channelCapabilities?.supports_location_share !== false;
   const allowedFileTypes = React.useMemo(() => {
     const nextTypes: string[] = [];
     if (supportsImageInput) nextTypes.push('image/*');

@@ -1486,6 +1486,8 @@ const ChatPanel = (props: ChatPanelProps) => {
       fields: dedupedFields,
     };
   }, [messages]);
+  const supportsMultimodalIntake =
+    recommendedExperience?.supports_multimodal_intake !== false;
 
   const persistentLeadButton = [...messages]
     .flatMap((msg) => msg.botones || [])
@@ -2042,6 +2044,7 @@ const ChatPanel = (props: ChatPanelProps) => {
             validateBeforeSend={validateLeadCaptureInput}
             channelCapabilities={channelCapabilities}
             guidedFlow={guidedFlow}
+            supportsMultimodalIntake={supportsMultimodalIntake}
           />
         )}
       </div>
