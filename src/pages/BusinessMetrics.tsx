@@ -30,6 +30,7 @@ import {
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { apiFetch, getErrorMessage } from "@/utils/api";
 import ChartTooltip from "@/components/analytics/ChartTooltip";
@@ -344,6 +345,12 @@ export default function BusinessMetrics() {
   const recommendedActions = Array.isArray(dashboardBundle?.recommended_actions)
     ? dashboardBundle.recommended_actions
     : [];
+  const leadItems = Array.isArray(bundleLeads.items) ? bundleLeads.items : [];
+  const collaborationActiveViewers = toNumber(bundleSummary.active_viewers);
+  const collaborationUnreadViewers = toNumber(bundleSummary.unread_viewers);
+  const leadsWithCollaboration = leadItems.filter(
+    (item) => item?.collaboration_state,
+  );
   const heatmapPoints = Array.isArray(tenantHeatmap?.heatmap_points)
     ? tenantHeatmap.heatmap_points
         .map((point) => ({
@@ -427,6 +434,12 @@ export default function BusinessMetrics() {
                 Equipo {bundleTeamItems.length.toLocaleString("es-AR")}
               </Badge>
               <Badge variant="outline" className="rounded-full px-3 py-1">
+                Viewers activos {collaborationActiveViewers.toLocaleString("es-AR")}
+              </Badge>
+              <Badge variant="outline" className="rounded-full px-3 py-1">
+                Viewers unread {collaborationUnreadViewers.toLocaleString("es-AR")}
+              </Badge>
+              <Badge variant="outline" className="rounded-full px-3 py-1">
                 Heatmap {heatmapPoints.length.toLocaleString("es-AR")} pts
               </Badge>
             </div>
@@ -467,6 +480,18 @@ export default function BusinessMetrics() {
                   </p>
                 </div>
                 <div className="rounded-lg border border-border bg-muted/40 p-4">
+                  <p className="text-sm text-muted-foreground">Viewers activos</p>
+                  <p className="mt-1 text-2xl font-bold">
+                    {collaborationActiveViewers.toLocaleString("es-AR")}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-border bg-muted/40 p-4">
+                  <p className="text-sm text-muted-foreground">Viewers unread</p>
+                  <p className="mt-1 text-2xl font-bold">
+                    {collaborationUnreadViewers.toLocaleString("es-AR")}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-border bg-muted/40 p-4">
                   <p className="text-sm text-muted-foreground">Encuestas activas</p>
                   <p className="mt-1 text-2xl font-bold">
                     {toNumber(
@@ -478,6 +503,63 @@ export default function BusinessMetrics() {
                 </div>
               </CardContent>
             </Card>
+
+            {(collaborationActiveViewers > 0 ||
+              collaborationUnreadViewers > 0 ||
+              leadsWithCollaboration.length > 0) && (
+              <Card className="col-span-1 md:col-span-2 lg:col-span-4 border-border/60 shadow-sm">
+                <CardHeader>
+                  <CardTitle>Colaboración en vivo</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4 lg:grid-cols-[240px_240px_minmax(0,1fr)]">
+                  <div className="rounded-lg border border-border bg-muted/40 p-4">
+                    <p className="text-sm text-muted-foreground">Active viewers</p>
+                    <p className="mt-1 text-2xl font-bold">{collaborationActiveViewers.toLocaleString("es-AR")}</p>
+                  </div>
+                  <div className="rounded-lg border border-border bg-muted/40 p-4">
+                    <p className="text-sm text-muted-foreground">Unread viewers</p>
+                    <p className="mt-1 text-2xl font-bold">{collaborationUnreadViewers.toLocaleString("es-AR")}</p>
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Leads con colaboración</p>
+                    <div className="space-y-2">
+                      {leadsWithCollaboration.slice(0, 5).map((item, index) => {
+                        const leadName =
+                          item?.nombre || item?.name || `Lead ${index + 1}`;
+                        const unreadViewers = toNumber(
+                          item?.collaboration_state?.unread_viewer_count,
+                        );
+                        const activeViewers = toNumber(
+                          item?.collaboration_state?.active_viewers_count,
+                        );
+                        return (
+                          <div
+                            key={`bundle-collaboration-${item?.ticket_id || item?.nro_ticket || item?.id || index}`}
+                            className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2"
+                          >
+                            <div>
+                              <p className="text-sm font-medium">{leadName}</p>
+                              <p className="text-xs text-muted-foreground">
+                                #{item?.nro_ticket || item?.ticket_id || "—"}
+                              </p>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              <Badge variant="outline">{activeViewers} activos</Badge>
+                              <Badge variant="outline">{unreadViewers} unread</Badge>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {!leadsWithCollaboration.length ? (
+                        <p className="text-sm text-muted-foreground">
+                          Sin leads con colaboración activa en este rango.
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {(recommendedActions.length > 0 || bundleTeamItems.length > 0) && (
               <Card className="col-span-1 md:col-span-2 lg:col-span-4 border-border/60 shadow-sm">

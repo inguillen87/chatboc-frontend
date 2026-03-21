@@ -508,6 +508,71 @@ export function useChatLogic({
     [shouldUsePublicFlow],
   );
 
+  const resolvePersistentPublicContext = useCallback(
+    (
+      resolvedTipoChat: "pyme" | "municipio",
+      resolvedTenantSlug?: string | null,
+    ) => {
+      if (!shouldUsePublicFlow(resolvedTipoChat, resolvedTenantSlug)) {
+        clearStoredPublicChatContext();
+        return null;
+      }
+
+    const storedContext = readStoredPublicChatContext();
+    if (!storedContext) return null;
+
+      const storedTipoChat = pickFirstString(
+        storedContext.tipoChat,
+        storedContext.tipo_chat,
+      )?.trim();
+      const storedTenantSlug = pickFirstString(
+        storedContext.tenantSlug,
+        storedContext.tenant_slug,
+      )?.trim();
+      const normalizedResolvedTenant =
+        typeof resolvedTenantSlug === "string" ? resolvedTenantSlug.trim() : "";
+
+      if (
+        storedTipoChat &&
+        storedTipoChat !== resolvedTipoChat
+      ) {
+        clearStoredPublicChatContext();
+        return null;
+      }
+
+      if (
+        storedTenantSlug &&
+        normalizedResolvedTenant &&
+        storedTenantSlug !== normalizedResolvedTenant
+      ) {
+        clearStoredPublicChatContext();
+        return null;
+      }
+
+    const normalizedPin = pickFirstString(
+      storedContext.pin,
+      storedContext.consulta_pin,
+      storedContext.consultaPin,
+    )?.trim();
+    const ticketNumber = pickFirstString(
+      storedContext.ticketNumber,
+      storedContext.ticket_number,
+      storedContext.nro_ticket,
+    )?.trim();
+    const ticketId = storedContext.ticketId ?? storedContext.ticket_id ?? null;
+
+    if (!normalizedPin && !ticketNumber && !ticketId) return null;
+
+    return {
+      pin: normalizedPin || undefined,
+      consulta_pin: normalizedPin || undefined,
+      ticket_id: ticketId ?? undefined,
+      ticket_number: ticketNumber || undefined,
+    };
+    },
+    [shouldUsePublicFlow],
+  );
+
   const initializeConversation = useCallback(
     async (options?: {
       rubroOverride?: string | null;

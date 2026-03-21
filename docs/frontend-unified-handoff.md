@@ -31,6 +31,7 @@ Consumir `ux_context`:
 - `conversation.message.created`
 - `ticket.status.changed`
 - `ticket.assignment.changed`
+- `ticket.unread.changed`
 
 ### Prioridad operativa de tickets
 
@@ -49,6 +50,7 @@ Consumir:
 - `GET /api/admin/analytics/executive-summary`
 - `GET /api/admin/tenants/<slug>/profile-360`
 - `GET /api/admin/tenants/<slug>/dashboard-bundle`
+- `GET /api/admin/tenants/<slug>/tickets/unread-summary`
 - `GET /api/admin/tenants/<slug>/heatmap-summary`
 - `GET /api/admin/tenants/<slug>/employees/coverage`
 - `GET /api/admin/analytics/heatmap-categories-zones`
@@ -114,6 +116,7 @@ En `chatboc.ar`, el primer contacto debe abrir demo selector, pero cuando haya c
 - `conversation.message.created`
 - `ticket.status.changed`
 - `ticket.assignment.changed`
+- `ticket.unread.changed`
 
 ### UX recomendada
 
@@ -126,6 +129,21 @@ En `chatboc.ar`, el primer contacto debe abrir demo selector, pero cuando haya c
   - mapa
   - SLA
   - asignación
+
+### Campos de colaboración disponibles
+
+- `dashboard-bundle.summary.active_viewers`
+- `dashboard-bundle.summary.unread_viewers`
+- `dashboard-bundle.leads.items[*].collaboration_state`
+- `tickets/unread-summary.items[*].collaboration_state`
+
+### Regla de UI recomendada
+
+- si `collaboration_state.unread_viewer_count > 0` => mostrar badge de unread
+- si `collaboration_state.active_viewers_count > 1` => mostrar “otro agente viendo este ticket”
+- si `dashboard-bundle.summary.active_viewers > 0` => mostrar card/metric de colaboración activa en dashboards
+- si `dashboard-bundle.summary.unread_viewers > 0` => mostrar card/metric de unread viewers en dashboards
+
 
 ### Badges FE sugeridos
 
@@ -415,3 +433,11 @@ Mostrar:
 Si me pedís qué mandarle al frontend **hoy**, mandales este archivo y deciles:
 
 > “Tomen este MD como contrato único backend->frontend. Si implementan primero `ux_context`, realtime, badges SLA, `strategic-overview`, `tenant-health`, `profile-360`, `dashboard-bundle`, `heatmap-summary` y `employees/coverage`, ya podemos mostrar un producto muy serio de cara a demo, operaciones, tenant admin y superadmin.”
+
+
+## Update de colaboración realtime
+
+- escuchar `ticket.unread.changed` para reconciliar unread counters de listas
+- usar `effective_presence_status = active | idle | inactive` cuando venga en presencia/read-state
+- contemplar `response.realtime_state.presence.idle_count`
+- contemplar métricas team/agent: `active_ticket_views`, `idle_ticket_views`, `unread_ticket_views`

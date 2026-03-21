@@ -33,6 +33,11 @@ import { useBusinessHours } from "@/hooks/useBusinessHours";
 import { Button } from "@/components/ui/button";
 import { io } from "socket.io-client";
 import { getSocketUrl, SOCKET_PATH } from "@/config";
+import {
+  envelopeMatchesTicket,
+  normalizeConversationStreamEvent,
+  toRealtimeMessage,
+} from "@/utils/conversationStream";
 import { safeOn, assertEventSource } from "@/utils/safeOn";
 import {
   Loader2,
@@ -639,80 +644,48 @@ const ChatPanel = (props: ChatPanelProps) => {
       const room = `ticket_${tipoChat}_${liveChatTicketId}`;
       socket.emit("join", { room });
 
-      const handleIncoming = (data: any) => {
-        const newMessage: Message = {
-          id: data.id,
-          text: data.comentario || "",
-          isBot: data.es_admin, // Agent messages are treated as "bot" for styling
-          timestamp: new Date(data.fecha || Date.now()),
-          origen: data.origen,
-          audioUrl: data.audio_url,
-        };
-        setMessages((prevMessages) => [...prevMessages, newMessage]);
-      };
-      const handleConversationCreated = (payload: any) => {
-        const payloadTicketId =
-          payload?.ticket_id ?? payload?.ticketId ?? payload?.nro_ticket;
-        if (
-          payloadTicketId &&
-          String(payloadTicketId) !== String(liveChatTicketId)
-        )
+      const appendRealtimeMessage = (envelope: ReturnType<typeof normalizeConversationStreamEvent>) => {
+        if (!envelope || !envelopeMatchesTicket(envelope, liveChatTicketId)) {
           return;
+        }
 
-        handleIncoming({
-          id: payload?.message?.id ?? payload?.id ?? `rt-${Date.now()}`,
-          comentario:
-            payload?.message?.comentario ||
-            payload?.message?.text ||
-            payload?.comentario ||
-            payload?.text ||
-            "",
-          es_admin:
-            payload?.message?.es_admin ??
-            payload?.message?.is_admin ??
-            payload?.es_admin ??
-            true,
-          fecha:
-            payload?.message?.fecha ||
-            payload?.message?.created_at ||
-            payload?.created_at,
-          origen: payload?.message?.origen || payload?.origen,
-          audio_url: payload?.message?.audio_url || payload?.audio_url,
+        const nextMessage = toRealtimeMessage(envelope);
+        if (!nextMessage) return;
+
+        setMessages((prevMessages) => {
+          const alreadyExists = prevMessages.some(
+            (message) => String(message.id) === String(nextMessage.id),
+          );
+          return alreadyExists ? prevMessages : [...prevMessages, nextMessage];
         });
       };
-      const handleTicketStatusChanged = (payload: any) => {
-        const payloadTicketId =
-          payload?.ticket_id ?? payload?.ticketId ?? payload?.nro_ticket;
-        if (
-          payloadTicketId &&
-          String(payloadTicketId) !== String(liveChatTicketId)
-        )
-          return;
 
-        const nextStatus =
-          payload?.estado || payload?.status || payload?.new_status;
+      const handleIncoming = (data: any) => {
+        appendRealtimeMessage(
+          normalizeConversationStreamEvent('legacy.new_chat_message', data),
+        );
+      };
+
+      const handleConversationCreated = (payload: any) => {
+        appendRealtimeMessage(
+          normalizeConversationStreamEvent('conversation.message.created', payload),
+        );
+      };
+      const handleTicketStatusChanged = (payload: any) => {
+        const envelope = normalizeConversationStreamEvent('ticket.status.changed', payload);
+        if (!envelope || !envelopeMatchesTicket(envelope, liveChatTicketId)) return;
+
+        const nextStatus = envelope.statusChange?.nextStatus;
         if (!nextStatus) return;
         addSystemMessage(
           `Estado actualizado: ${String(nextStatus).replaceAll("_", " ")}.`,
         );
       };
       const handleTicketAssignmentChanged = (payload: any) => {
-        const payloadTicketId =
-          payload?.ticket_id ?? payload?.ticketId ?? payload?.nro_ticket;
-        if (
-          payloadTicketId &&
-          String(payloadTicketId) !== String(liveChatTicketId)
-        )
-          return;
+        const envelope = normalizeConversationStreamEvent('ticket.assignment.changed', payload);
+        if (!envelope || !envelopeMatchesTicket(envelope, liveChatTicketId)) return;
 
-        const assignee =
-          payload?.assigned_to?.name ||
-          payload?.assigned_to?.nombre ||
-          payload?.agent_name ||
-          payload?.assignee_name ||
-          payload?.assignee ||
-          "un responsable";
-        addSystemMessage(`Asignación actualizada: ${assignee}.`);
+        addSystemMessage(`Asignación actualizada: ${envelope.assignmentChange?.assigneeName || "un responsable"}.`);
       };
       assertEventSource(socket, "socket");
       const ok = safeOn(socket, "new_chat_message", handleIncoming);

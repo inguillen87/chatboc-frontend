@@ -1762,7 +1762,7 @@ function ChatWidgetInner({
                 key="chatboc-toggle-btn"
                 className={cn(
                   commonButtonStyles,
-                  "group relative w-full h-full border-none"
+                  "group relative w-full h-full overflow-hidden border-none"
                 )}
                 style={{
                   borderRadius: "50%",
@@ -1782,6 +1782,13 @@ function ChatWidgetInner({
                 onClick={toggleChat}
                 aria-label="Abrir chat"
               >
+                <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.38),transparent_45%)] opacity-90" />
+                <motion.span
+                  aria-hidden
+                  className="pointer-events-none absolute inset-[10%] rounded-full border border-white/15"
+                  animate={{ scale: [1, 1.08, 1], opacity: [0.35, 0.12, 0.35] }}
+                  transition={{ duration: 2.8, repeat: Infinity, ease: 'easeInOut' }}
+                />
                 {widgetUx.logoRing && widgetUx.motionLevel !== 'minimal' ? (
                   <motion.span
                     aria-hidden
@@ -1807,9 +1814,10 @@ function ChatWidgetInner({
                     transition={{ duration: widgetUx.motionLevel === 'pro' ? 2 : 3.2, repeat: Infinity, ease: 'easeInOut' }}
                   />
                 ) : null}
-                <span className="absolute inset-[4px] rounded-full bg-background/90 backdrop-blur-sm" />
+                <span className="absolute inset-[4px] rounded-full bg-background/88 backdrop-blur-md" />
+                <span className="absolute inset-[10px] rounded-full border border-white/10" />
                 <motion.div
-                  className="relative z-10"
+                  className="relative z-10 flex flex-col items-center justify-center"
                   variants={iconAnimation}
                   animate={isOpen ? "open" : "closed"}
                   transition={openSpring}
@@ -1822,6 +1830,9 @@ function ChatWidgetInner({
                     pulsing={!isOpen}
                     animation={logoAnimation}
                   />
+                  {!isMobileView ? (
+                    <span className="mt-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/75">AI</span>
+                  ) : null}
                 </motion.div>
               </motion.button>
             </motion.div>

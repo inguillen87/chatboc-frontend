@@ -58,12 +58,14 @@ export interface Attachment {
 }
 
 export interface Message {
-  id: number;
+  id: number | string;
   author: "user" | "agent";
   agentName?: string;
   content: string; // Corresponds to 'text' in ChatMessageData
   timestamp: string; // Corresponds to 'timestamp'
   isInternalNote?: boolean;
+  readAt?: string | null;
+  lastReadBy?: string | null;
 
   // Fields to align with ChatMessageData
   attachments?: Attachment[];
@@ -100,9 +102,42 @@ export interface TicketTimelineEvent {
   user_id?: number;
 }
 
+export interface TicketRealtimeViewer {
+  viewer_id?: string | null;
+  viewer_label?: string | null;
+  viewer_name?: string | null;
+  session_id?: string | null;
+  presence_status?: string | null;
+  last_read_comment_id?: string | number | null;
+  read_at?: string | null;
+  updated_at?: string | null;
+  is_current_viewer?: boolean;
+}
+
+export interface TicketRealtimeState {
+  viewers: TicketRealtimeViewer[];
+  active_viewers: TicketRealtimeViewer[];
+  read_states: TicketRealtimeViewer[];
+  summary?: {
+    active_count?: number;
+    read_count?: number;
+    last_read_comment_id?: string | number | null;
+  } | null;
+}
+
+export interface TicketCollaborationState {
+  latest_comment_id?: string | number | null;
+  latest_read_at?: string | null;
+  unread_count?: number;
+  has_unread?: boolean;
+  unread_viewer_count?: number;
+  active_viewers_count?: number;
+}
+
 export interface TicketTimelineResponse {
   estado_chat: string;
   timeline: TicketTimelineEvent[];
+  realtime_state?: TicketRealtimeState | null;
 }
 
 export interface Ticket {
@@ -188,4 +223,6 @@ export interface Ticket {
     | Record<string, unknown>
     | Array<{ label?: string; value?: string | number | null }>;
   priority?: string | number | null;
+  realtime_state?: TicketRealtimeState | null;
+  collaboration_state?: TicketCollaborationState | null;
 }

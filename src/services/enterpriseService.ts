@@ -1,4 +1,5 @@
 import { apiFetch } from "@/utils/api";
+import type { TicketCollaborationState } from "@/types/tickets";
 
 export type DemoRubro = "municipio" | "pyme";
 
@@ -266,6 +267,57 @@ export interface LeadInteractionsResponse {
   cursor?: string | null;
 }
 
+export interface EnterpriseCollaborationSummary {
+  active_viewers?: number;
+  unread_viewers?: number;
+}
+
+export interface EnterpriseLeadItem {
+  id?: number | string;
+  ticket_id?: number | string;
+  nro_ticket?: number | string;
+  ticket_type?: string;
+  tenant_slug?: string;
+  nombre?: string;
+  name?: string;
+  email?: string;
+  telefono?: string;
+  phone?: string;
+  stage?: string;
+  relevance_score?: number;
+  confidence_score?: number;
+  created_at?: string;
+  updated_at?: string;
+  collaboration_state?: TicketCollaborationState | null;
+}
+
+export interface TenantUnreadSummaryItem {
+  ticket_id?: string | number;
+  ticket_type?: string;
+  unread_count?: number;
+  last_message_at?: string;
+  collaboration_state?: TicketCollaborationState | null;
+  [key: string]: unknown;
+}
+
+export interface TenantUnreadSummaryResponse {
+  total_tickets_with_unread?: number;
+  items?: TenantUnreadSummaryItem[];
+}
+
+export interface TenantDashboardBundleResponse {
+  tenant?: Record<string, any>;
+  summary?: Record<string, any> & EnterpriseCollaborationSummary;
+  leads?: Record<string, any> & {
+    items?: EnterpriseLeadItem[];
+  };
+  surveys?: Record<string, any>;
+  unread?: Record<string, any>;
+  team?: Record<string, any>;
+  recommended_actions?: any[];
+  meta?: Record<string, any>;
+}
+
 export interface LeadsPipelineItem {
   id?: number | string;
   tenant_slug?: string;
@@ -356,6 +408,129 @@ interface EnterpriseBaseFilters {
   to?: string;
   tz?: string;
 }
+
+const normalizeCollaborationState = (raw: unknown): TicketCollaborationState | null => {
+  if (!raw || typeof raw !== "object") return null;
+  const record = raw as Record<string, unknown>;
+  const toCount = (value: unknown) => {
+    const num = typeof value === "number" ? value : Number(value);
+    return Number.isFinite(num) ? num : 0;
+  };
+
+  return {
+    latest_comment_id:
+      (record.latest_comment_id as string | number | null | undefined) ??
+      (record.latestCommentId as string | number | null | undefined) ??
+      null,
+    latest_read_at:
+      (record.latest_read_at as string | null | undefined) ??
+      (record.latestReadAt as string | null | undefined) ??
+      null,
+    unread_count: toCount(record.unread_count ?? record.unreadCount),
+    has_unread: Boolean(record.has_unread ?? record.hasUnread ?? false),
+    unread_viewer_count: toCount(
+      record.unread_viewer_count ?? record.unreadViewerCount,
+    ),
+    active_viewers_count: toCount(
+      record.active_viewers_count ?? record.activeViewersCount,
+    ),
+  };
+};
+
+const normalizeEnterpriseLeadItem = (raw: unknown): EnterpriseLeadItem | null => {
+  if (!raw || typeof raw !== "object") return null;
+  const item = raw as Record<string, unknown>;
+  return {
+    ...item,
+    id: (item.id as string | number | undefined) ?? undefined,
+    ticket_id:
+      (item.ticket_id as string | number | undefined) ??
+      (item.ticketId as string | number | undefined) ??
+      undefined,
+    nro_ticket:
+      (item.nro_ticket as string | number | undefined) ??
+      (item.nroTicket as string | number | undefined) ??
+      undefined,
+    ticket_type:
+      (item.ticket_type as string | undefined) ??
+      (item.ticketType as string | undefined) ??
+      undefined,
+    tenant_slug:
+      (item.tenant_slug as string | undefined) ??
+      (item.tenantSlug as string | undefined) ??
+      undefined,
+    collaboration_state: normalizeCollaborationState(item.collaboration_state),
+  };
+};
+
+const normalizeTenantUnreadSummaryItem = (raw: unknown): TenantUnreadSummaryItem | null => {
+  if (!raw || typeof raw !== "object") return null;
+  const item = raw as Record<string, unknown>;
+  return {
+    ...item,
+    ticket_id:
+      (item.ticket_id as string | number | undefined) ??
+      (item.ticketId as string | number | undefined) ??
+      undefined,
+    ticket_type:
+      (item.ticket_type as string | undefined) ??
+      (item.ticketType as string | undefined) ??
+      undefined,
+    unread_count:
+      typeof item.unread_count === "number"
+        ? item.unread_count
+        : typeof item.unreadCount === "number"
+          ? item.unreadCount
+          : Number(item.unread_count ?? item.unreadCount ?? 0) || 0,
+    last_message_at:
+      (item.last_message_at as string | undefined) ??
+      (item.lastMessageAt as string | undefined) ??
+      undefined,
+    collaboration_state: normalizeCollaborationState(item.collaboration_state),
+  };
+};
+
+const normalizeTenantDashboardBundle = (
+  raw: unknown,
+): TenantDashboardBundleResponse => {
+  if (!raw || typeof raw !== "object") return {};
+  const bundle = raw as Record<string, unknown>;
+  const leads =
+    bundle.leads && typeof bundle.leads === "object"
+      ? (bundle.leads as Record<string, unknown>)
+      : undefined;
+  const summary =
+    bundle.summary && typeof bundle.summary === "object"
+      ? (bundle.summary as Record<string, unknown>)
+      : undefined;
+
+  return {
+    ...bundle,
+    summary: summary
+      ? {
+          ...summary,
+          active_viewers:
+            typeof summary.active_viewers === "number"
+              ? summary.active_viewers
+              : Number(summary.active_viewers ?? 0) || 0,
+          unread_viewers:
+            typeof summary.unread_viewers === "number"
+              ? summary.unread_viewers
+              : Number(summary.unread_viewers ?? 0) || 0,
+        }
+      : undefined,
+    leads: leads
+      ? {
+          ...leads,
+          items: Array.isArray(leads.items)
+            ? leads.items
+                .map(normalizeEnterpriseLeadItem)
+                .filter((item): item is EnterpriseLeadItem => Boolean(item))
+            : [],
+        }
+      : undefined,
+  };
+};
 
 const buildQueryString = (
   filters: Record<string, string | number | boolean | undefined>,
@@ -769,10 +944,18 @@ export const enterpriseService = {
     filters: { since_minutes?: number } = {},
   ) => {
     const query = buildQueryString(filters);
-    return apiFetch<{ total_tickets_with_unread?: number; items?: any[] }>(
+    const response = await apiFetch<TenantUnreadSummaryResponse>(
       `/api/admin/tenants/${tenantSlug}/tickets/unread-summary?${query}`,
       { tenantSlug },
     );
+    return {
+      ...response,
+      items: Array.isArray(response?.items)
+        ? response.items
+            .map(normalizeTenantUnreadSummaryItem)
+            .filter((item): item is TenantUnreadSummaryItem => Boolean(item))
+        : [],
+    };
   },
 
   getTenantHealth: async (
@@ -802,19 +985,11 @@ export const enterpriseService = {
     filters: { since_days?: number } = {},
   ) => {
     const query = buildQueryString(filters);
-    return apiFetch<{
-      tenant?: any;
-      summary?: any;
-      leads?: any;
-      surveys?: any;
-      unread?: any;
-      team?: any;
-      recommended_actions?: any[];
-      meta?: any;
-    }>(
+    const response = await apiFetch<TenantDashboardBundleResponse>(
       `/api/admin/tenants/${tenantSlug}/dashboard-bundle${query ? `?${query}` : ""}`,
       { tenantSlug },
     );
+    return normalizeTenantDashboardBundle(response);
   },
 
   getTenantHeatmapSummary: async (

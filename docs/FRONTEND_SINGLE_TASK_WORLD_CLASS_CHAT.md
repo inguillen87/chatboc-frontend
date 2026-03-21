@@ -169,6 +169,7 @@ Frontend debe escuchar y actualizar vivo con:
 - `conversation.message.created`
 - `ticket.status.changed`
 - `ticket.assignment.changed`
+- `ticket.unread.changed`
 
 Y mantener compatibilidad con eventos legacy si siguen llegando.
 
@@ -176,6 +177,7 @@ Y mantener compatibilidad con eventos legacy si siguen llegando.
 - nuevo mensaje → actualizar lista + panel abierto,
 - cambio de estado → badge instantáneo,
 - cambio de asignación → refresh del item y del detail drawer,
+- `ticket.unread.changed` → reconciliar badges/counters de lista sin full refetch,
 - no romper scroll ni foco del operador.
 
 ---
@@ -201,6 +203,7 @@ Construir vistas geográficas para:
 ### 4.7 Dashboards tenant
 Construir cards y vistas para:
 - `GET /api/admin/tenants/<slug>/dashboard-bundle`
+- `GET /api/admin/tenants/<slug>/tickets/unread-summary`
 - `GET /api/admin/tenants/<slug>/heatmap-summary`
 - `GET /api/admin/tenants/<slug>/employees/coverage`
 
@@ -211,6 +214,8 @@ Construir cards y vistas para:
 - unread tickets,
 - leads/timeline,
 - surveys/widgets si vienen.
+- collaboration metrics: `summary.active_viewers`, `summary.unread_viewers`
+- lead collaboration metadata en `leads.items[*].collaboration_state`
 
 #### heatmap-summary
 - `top_categories`
@@ -272,6 +277,7 @@ Construir vistas usando:
 
 ## 5.2 Tenant admin
 - `GET /api/admin/tenants/<slug>/dashboard-bundle`
+- `GET /api/admin/tenants/<slug>/tickets/unread-summary`
 - `GET /api/admin/tenants/<slug>/heatmap-summary`
 - `GET /api/admin/tenants/<slug>/employees/coverage`
 
@@ -447,3 +453,11 @@ Si FE necesita más detalle complementario, puede mirar después:
 - `docs/frontend-task-board.md`
 - `docs/frontend-demo-widget-handoff.md`
 - `docs/frontend-next-pack.md`
+
+
+## Update de colaboración realtime
+
+- escuchar `ticket.unread.changed` para reconciliar unread counters de listas
+- usar `effective_presence_status = active | idle | inactive` cuando venga en presencia/read-state
+- contemplar `response.realtime_state.presence.idle_count`
+- contemplar métricas team/agent: `active_ticket_views`, `idle_ticket_views`, `unread_ticket_views`

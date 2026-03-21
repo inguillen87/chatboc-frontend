@@ -8,8 +8,15 @@ import {
   getTicketTimeline,
   getTicketMessages,
   sendMessage,
+  updateTicketPresence,
+  updateTicketReadState,
 } from "@/services/ticketService";
-import { Ticket, Message, TicketHistoryEvent } from "@/types/tickets";
+import {
+  Ticket,
+  Message,
+  TicketHistoryEvent,
+  TicketRealtimeState,
+} from "@/types/tickets";
 import { getErrorMessage, ApiError } from "@/utils/api";
 import {
   CheckCircle2,
@@ -32,6 +39,8 @@ import {
   Hash,
   MessagesSquare,
   Sparkles,
+  Eye,
+  CheckCheck,
 } from "lucide-react";
 import {
   Card,
@@ -344,6 +353,9 @@ export default function TicketLookup() {
     [],
   );
   const [publicMessages, setPublicMessages] = useState<Message[]>([]);
+  const [realtimeState, setRealtimeState] = useState<TicketRealtimeState | null>(
+    null,
+  );
   const [loading, setLoading] = useState(false);
   const [refreshingConversation, setRefreshingConversation] = useState(false);
   const [submittingPublicMessage, setSubmittingPublicMessage] = useState(false);
@@ -458,16 +470,30 @@ export default function TicketLookup() {
             },
           ).catch((msgErr) => {
             console.warn("Error fetching messages", msgErr);
-            return resolvedTicket.messages || [];
+            return {
+              messages: resolvedTicket.messages || [],
+              realtimeState: resolvedTicket.realtime_state || null,
+            };
           }),
         ]);
 
         setTimelineHistory(timeline.history || []);
-        const fallbackMessages =
-          Array.isArray(messages) && messages.length > 0
+        const messageCollection = Array.isArray((messages as any).messages)
+          ? (messages as any).messages
+          : Array.isArray(messages)
             ? messages
+            : [];
+        const fallbackMessages =
+          messageCollection.length > 0
+            ? messageCollection
             : timeline.messages || [];
+        const nextRealtimeState =
+          (messages as any)?.realtimeState ||
+          timeline.realtime_state ||
+          resolvedTicket.realtime_state ||
+          null;
         setPublicMessages(fallbackMessages);
+        setRealtimeState(nextRealtimeState);
         setTicket((prev) =>
           prev
             ? {
@@ -477,6 +503,7 @@ export default function TicketLookup() {
                   fallbackMessages.length > 0
                     ? fallbackMessages
                     : prev.messages || [],
+                realtime_state: nextRealtimeState,
               }
             : prev,
         );
@@ -506,6 +533,7 @@ export default function TicketLookup() {
       setError(null);
       setTimelineHistory([]);
       setPublicMessages([]);
+      setRealtimeState(null);
       setPrimaryImageUrl(null);
 
       try {
@@ -698,6 +726,10 @@ export default function TicketLookup() {
 
   const publicMessagesCountLabel = `${publicMessages.length} ${publicMessages.length === 1 ? "mensaje" : "mensajes"}`;
   const timelineCountLabel = `${timelineHistory.length} ${timelineHistory.length === 1 ? "evento" : "eventos"}`;
+  const activeViewers = realtimeState?.active_viewers || [];
+  const readStates = realtimeState?.read_states || [];
+  const latestReadState = readStates[0] || null;
+  const collaborationState = ticket?.collaboration_state || null;
   const operationalBadges = normalizeOperationalBadges(
     ticket?.operational_badges,
   );
@@ -754,6 +786,73 @@ export default function TicketLookup() {
     loadConversationData,
     syncPublicAccess,
   ]);
+
+  useEffect(() => {
+    if (!ticket || !currentPin) return;
+
+    let cancelled = false;
+    const ticketType = ticket.tipo || "municipio";
+
+    updateTicketPresence(ticket.id, ticketType, "active", {
+      public: true,
+      pin: currentPin,
+    })
+      .then((state) => {
+        if (!cancelled && state) {
+          setRealtimeState(state);
+        }
+      })
+      .catch((error) => {
+        console.warn("No se pudo actualizar el presence público", error);
+      });
+
+    const syncVisibilityPresence = () => {
+      const nextStatus =
+        document.visibilityState === "visible" ? "idle" : "inactive";
+      void updateTicketPresence(ticket.id, ticketType, nextStatus, {
+        public: true,
+        pin: currentPin,
+      }).catch(() => undefined);
+    };
+
+    document.addEventListener("visibilitychange", syncVisibilityPresence);
+    window.addEventListener("beforeunload", syncVisibilityPresence);
+
+    return () => {
+      cancelled = true;
+      document.removeEventListener("visibilitychange", syncVisibilityPresence);
+      window.removeEventListener("beforeunload", syncVisibilityPresence);
+      void updateTicketPresence(ticket.id, ticketType, "inactive", {
+        public: true,
+        pin: currentPin,
+      }).catch(() => undefined);
+    };
+  }, [ticket, currentPin]);
+
+  useEffect(() => {
+    if (!ticket || !currentPin || publicMessages.length === 0) return;
+
+    const lastMessage = publicMessages[publicMessages.length - 1];
+    if (lastMessage?.id === undefined || lastMessage?.id === null) return;
+
+    updateTicketReadState(
+      ticket.id,
+      ticket.tipo || "municipio",
+      lastMessage.id,
+      {
+        public: true,
+        pin: currentPin,
+      },
+    )
+      .then((state) => {
+        if (state) {
+          setRealtimeState(state);
+        }
+      })
+      .catch((error) => {
+        console.warn("No se pudo actualizar el read-state público", error);
+      });
+  }, [ticket, currentPin, publicMessages]);
 
   return (
     <div className="relative min-h-screen bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.10),_transparent_35%),linear-gradient(180deg,#f8fafc_0%,#eef2ff_100%)] pb-20 font-sans selection:bg-primary/10">
@@ -1230,6 +1329,75 @@ export default function TicketLookup() {
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4 pt-6">
+                    {(activeViewers.length > 0 || latestReadState) && (
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
+                          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                            <Eye className="h-3.5 w-3.5" />
+                            Presence
+                          </div>
+                          <p className="mt-2 text-sm font-semibold text-slate-900">
+                            {activeViewers.length > 0
+                              ? `${activeViewers.length} ${activeViewers.length === 1 ? "viewer activo" : "viewers activos"}`
+                              : "Sin viewers activos"}
+                          </p>
+                          {activeViewers.length > 0 ? (
+                            <p className="mt-1 text-xs text-slate-500">
+                              {activeViewers
+                                .map(
+                                  (viewer) =>
+                                    viewer.viewer_label ||
+                                    viewer.viewer_name ||
+                                    viewer.viewer_id ||
+                                    "viewer",
+                                )
+                                .join(", ")}
+                            </p>
+                          ) : null}
+                        </div>
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
+                          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                            <CheckCheck className="h-3.5 w-3.5" />
+                            Read state
+                          </div>
+                          <p className="mt-2 text-sm font-semibold text-slate-900">
+                            {latestReadState?.viewer_label ||
+                              latestReadState?.viewer_name ||
+                              "Sincronizado"}
+                          </p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            {latestReadState?.read_at
+                              ? `Última lectura: ${formatMessageDate(latestReadState.read_at)}`
+                              : "La lectura del timeline se envía automáticamente."}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    {collaborationState &&
+                    (Number(collaborationState.unread_viewer_count || 0) > 0 ||
+                      Number(collaborationState.active_viewers_count || 0) > 0) ? (
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <div className="rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-3">
+                          <div className="text-xs font-semibold uppercase tracking-[0.14em] text-amber-700">
+                            Unread
+                          </div>
+                          <p className="mt-2 text-sm font-semibold text-amber-950">
+                            {Number(collaborationState.unread_viewer_count || 0)}{" "}
+                            {Number(collaborationState.unread_viewer_count || 0) === 1
+                              ? "viewer con unread"
+                              : "viewers con unread"}
+                          </p>
+                        </div>
+                        <div className="rounded-2xl border border-violet-200 bg-violet-50/80 px-4 py-3">
+                          <div className="text-xs font-semibold uppercase tracking-[0.14em] text-violet-700">
+                            Active viewers
+                          </div>
+                          <p className="mt-2 text-sm font-semibold text-violet-950">
+                            {Number(collaborationState.active_viewers_count || 0)} activos
+                          </p>
+                        </div>
+                      </div>
+                    ) : null}
                     {publicMessages.length === 0 ? (
                       <EmptyConversationState />
                     ) : (

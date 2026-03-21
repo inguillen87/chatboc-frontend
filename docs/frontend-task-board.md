@@ -154,3 +154,11 @@ Vista embudo usando `by_stage` + filtros.
 - Respuesta chat enriquecida con `ux_context`
 - Eventos realtime normalizados: `conversation.message.created`, `ticket.status.changed`, `ticket.assignment.changed`
 - Tickets con `sla_status`, `operational_badges`, `operational_metrics`
+
+
+## Update de colaboración realtime
+
+- escuchar `ticket.unread.changed` para reconciliar unread counters de listas
+- usar `effective_presence_status = active | idle | inactive` cuando venga en presencia/read-state
+- contemplar `response.realtime_state.presence.idle_count`
+- contemplar métricas team/agent: `active_ticket_views`, `idle_ticket_views`, `unread_ticket_views`

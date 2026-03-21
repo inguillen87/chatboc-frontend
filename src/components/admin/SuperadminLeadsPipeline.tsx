@@ -31,6 +31,14 @@ type LeadStage =
   | "perdido"
   | string;
 interface LeadItem {
+  collaboration_state?: {
+    latest_comment_id?: string | number | null;
+    latest_read_at?: string | null;
+    unread_count?: number;
+    has_unread?: boolean;
+    unread_viewer_count?: number;
+    active_viewers_count?: number;
+  } | null;
   id?: string | number;
   tenant_slug?: string;
   nombre?: string;
@@ -1245,16 +1253,27 @@ const SuperadminLeadsPipeline: React.FC = () => {
                     .map((item: any, idx: number) => (
                       <div
                         key={`unread-${idx}`}
-                        className="flex items-center justify-between rounded border px-2 py-1"
+                        className="flex items-center justify-between gap-2 rounded border px-2 py-1"
                       >
                         <span>
                           {item?.ticket_type || "ticket"} #
                           {item?.ticket_id || "—"}
                         </span>
-                        <span className="text-muted-foreground">
-                          {item?.unread_count || 0} ·{" "}
-                          {item?.last_message_at || "—"}
-                        </span>
+                        <div className="flex flex-wrap items-center justify-end gap-1">
+                          <span className="text-muted-foreground">
+                            {item?.unread_count || 0} · {item?.last_message_at || "—"}
+                          </span>
+                          {Number(item?.collaboration_state?.active_viewers_count || 0) > 0 ? (
+                            <Badge variant="outline">
+                              {Number(item?.collaboration_state?.active_viewers_count || 0)} activos
+                            </Badge>
+                          ) : null}
+                          {Number(item?.collaboration_state?.unread_viewer_count || 0) > 0 ? (
+                            <Badge variant="destructive">
+                              {Number(item?.collaboration_state?.unread_viewer_count || 0)} unread viewers
+                            </Badge>
+                          ) : null}
+                        </div>
                       </div>
                     ))}
                   {!(unreadSummary?.items || []).length ? (
@@ -1295,9 +1314,28 @@ const SuperadminLeadsPipeline: React.FC = () => {
                           />
                         </td>
                         <td className="p-2">
-                          {normalizeLeadField(lead, "nombre", "name") ||
-                            "Sin nombre"}{" "}
-                          #{lead.nro_ticket || lead.ticket_id || "—"}
+                          <div className="space-y-1">
+                            <div>
+                              {normalizeLeadField(lead, "nombre", "name") ||
+                                "Sin nombre"}{" "}
+                              #{lead.nro_ticket || lead.ticket_id || "—"}
+                            </div>
+                            {(Number(lead?.collaboration_state?.active_viewers_count || 0) > 0 ||
+                              Number(lead?.collaboration_state?.unread_viewer_count || 0) > 0) ? (
+                              <div className="flex flex-wrap gap-1">
+                                {Number(lead?.collaboration_state?.active_viewers_count || 0) > 0 ? (
+                                  <Badge variant="outline">
+                                    {Number(lead?.collaboration_state?.active_viewers_count || 0)} activos
+                                  </Badge>
+                                ) : null}
+                                {Number(lead?.collaboration_state?.unread_viewer_count || 0) > 0 ? (
+                                  <Badge variant="destructive">
+                                    {Number(lead?.collaboration_state?.unread_viewer_count || 0)} unread viewers
+                                  </Badge>
+                                ) : null}
+                              </div>
+                            ) : null}
+                          </div>
                         </td>
                         <td className="p-2">
                           {normalizeLeadField(lead, "stage") || "nuevo"}

@@ -50,6 +50,67 @@ describe('enterpriseService demo endpoints', () => {
       tenantSlug: undefined,
     });
   });
+
+  it('normalizes collaboration metrics in tenant dashboard bundle', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      summary: { active_viewers: '3', unread_viewers: 2 },
+      leads: {
+        items: [
+          {
+            ticket_id: 17,
+            collaboration_state: {
+              active_viewers_count: '2',
+              unread_viewer_count: 1,
+              has_unread: true,
+            },
+          },
+        ],
+      },
+    });
+
+    const response = await enterpriseService.getTenantDashboardBundle('demo', { since_days: 30 });
+
+    expect(apiFetchMock).toHaveBeenCalledWith('/api/admin/tenants/demo/dashboard-bundle?since_days=30', {
+      tenantSlug: 'demo',
+    });
+    expect(response.summary?.active_viewers).toBe(3);
+    expect(response.summary?.unread_viewers).toBe(2);
+    expect(response.leads?.items?.[0].collaboration_state).toMatchObject({
+      active_viewers_count: 2,
+      unread_viewer_count: 1,
+      has_unread: true,
+    });
+  });
+
+  it('normalizes collaboration state in tenant unread summary items', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      total_tickets_with_unread: 1,
+      items: [
+        {
+          ticket_id: 99,
+          unread_count: '4',
+          collaboration_state: {
+            active_viewers_count: '1',
+            unread_viewer_count: '2',
+          },
+        },
+      ],
+    });
+
+    const response = await enterpriseService.getTenantUnreadSummary('demo', { since_minutes: 60 });
+
+    expect(apiFetchMock).toHaveBeenCalledWith('/api/admin/tenants/demo/tickets/unread-summary?since_minutes=60', {
+      tenantSlug: 'demo',
+    });
+    expect(response.items?.[0]).toMatchObject({
+      ticket_id: 99,
+      unread_count: 4,
+      collaboration_state: {
+        active_viewers_count: 1,
+        unread_viewer_count: 2,
+      },
+    });
+  });
 });
 
 
