@@ -1120,10 +1120,18 @@ function ChatWidgetInner({
           if (tipoChat === 'municipio' || tipoChat === 'pyme') {
               setResolvedTipoChat(tipoChat);
           }
-          // Note: Passing 'context' deeper into ChatPanel might require more piping,
-          // but updating tenantSlug/tipoChat solves the 403 error.
-
-          void context;
+          if (context && typeof context === 'object') {
+              try {
+                  safeLocalStorage.setItem('chatboc_public_chat_context', JSON.stringify({
+                      ...(context as Record<string, unknown>),
+                      tenantSlug: typeof tenantSlug === 'string' ? tenantSlug.trim() : undefined,
+                      tipoChat: tipoChat === 'municipio' || tipoChat === 'pyme' ? tipoChat : undefined,
+                      updatedAt: new Date().toISOString(),
+                  }));
+              } catch (storageError) {
+                  console.warn('ChatWidget: No se pudo persistir el contexto público del chat', storageError);
+              }
+          }
 
           setIsOpen(true);
           return;
