@@ -1,15 +1,21 @@
 import React, { useMemo } from "react";
 import {
+  Boton,
   ConfirmationCardData,
   ConfirmationCardField,
   ConfirmationCardItem,
+  SendPayload,
 } from "@/types/chat";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import ChatButtons from "./ChatButtons";
 
 interface ConfirmationCardProps {
   card: ConfirmationCardData;
+  buttons?: Boton[];
+  onButtonClick?: (payload: SendPayload) => void;
+  onInternalAction?: (action: string) => void;
 }
 
 const normalizeLabel = (value?: string | null) => {
@@ -47,7 +53,12 @@ const deriveFallbackFields = (card: ConfirmationCardData): ConfirmationCardField
     .filter((item): item is ConfirmationCardField => Boolean(item));
 };
 
-const ConfirmationCard: React.FC<ConfirmationCardProps> = ({ card }) => {
+const ConfirmationCard: React.FC<ConfirmationCardProps> = ({
+  card,
+  buttons = [],
+  onButtonClick,
+  onInternalAction,
+}) => {
   const fields = useMemo(() => {
     if (Array.isArray(card.fields) && card.fields.length > 0) {
       return card.fields.filter(
@@ -156,6 +167,14 @@ const ConfirmationCard: React.FC<ConfirmationCardProps> = ({ card }) => {
               </Badge>
             ))}
           </div>
+        ) : null}
+
+        {buttons.length > 0 && onButtonClick ? (
+          <ChatButtons
+            botones={buttons}
+            onButtonClick={onButtonClick}
+            onInternalAction={onInternalAction}
+          />
         ) : null}
       </CardContent>
     </Card>
