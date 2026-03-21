@@ -46,7 +46,9 @@ Consumir:
 - `GET /api/admin/leads/interactions`
 - `GET /api/admin/leads/strategic-overview`
 - `GET /api/admin/analytics/tenant-health`
+- `GET /api/admin/analytics/executive-summary`
 - `GET /api/admin/tenants/<slug>/profile-360`
+- `GET /api/admin/tenants/<slug>/dashboard-bundle`
 - `GET /api/admin/analytics/heatmap-categories-zones`
 
 ---
@@ -181,6 +183,14 @@ En `chatboc.ar`, el primer contacto debe abrir demo selector, pero cuando haya c
 - `sla_breached`
 - `lead_score`
 
+#### `executive-summary`
+
+- `strategic_overview`
+- `tenant_health`
+- `realtime`
+- `heatmap`
+- `recommended_actions`
+
 ### UX sugerida
 
 - kanban pipeline
@@ -188,6 +198,7 @@ En `chatboc.ar`, el primer contacto debe abrir demo selector, pero cuando haya c
 - filtro 1-click “solo SLA vencido”
 - preview + confirm para playbooks
 - dashboard ejecutivo con cards + ranking por tenant
+- usar `executive-summary` para reducir roundtrips en vistas CEO/superadmin
 
 ---
 
@@ -196,6 +207,7 @@ En `chatboc.ar`, el primer contacto debe abrir demo selector, pero cuando haya c
 ### Nuevo endpoint backend
 
 - `GET /api/admin/tenants/<slug>/profile-360?since_days=30`
+- `GET /api/admin/tenants/<slug>/dashboard-bundle?since_days=30`
 
 ### Devuelve
 
@@ -226,6 +238,34 @@ En `chatboc.ar`, el primer contacto debe abrir demo selector, pero cuando haya c
   - encuestas
   - tracking
   - analytics
+
+### Panel operativo tenant (`dashboard-bundle`)
+
+#### Devuelve
+
+- `tenant`
+- `summary`
+- `leads`
+- `surveys`
+- `unread`
+- `team`
+- `recommended_actions`
+- `meta`
+
+#### Qué desbloquea en frontend
+
+- dashboard tenant con una sola llamada
+- backlog de leads/SLA
+- tickets con mensajes sin leer
+- carga del equipo / workload operativo
+- recomendaciones priorizadas para operar
+
+#### Reemplaza roundtrips separados a
+
+- leads
+- encuestas / overview
+- tickets unread summary
+- employees workload
 
 ---
 
@@ -339,9 +379,10 @@ Mostrar:
 ### Fase 3
 
 9. tenant `profile-360`
-10. playbooks
-11. dashboards ejecutivos
-12. heatmaps avanzados
+10. tenant `dashboard-bundle`
+11. playbooks
+12. dashboards ejecutivos
+13. heatmaps avanzados
 
 ---
 
@@ -349,4 +390,4 @@ Mostrar:
 
 Si me pedís qué mandarle al frontend **hoy**, mandales este archivo y deciles:
 
-> “Tomen este MD como contrato único backend->frontend. Si implementan primero `ux_context`, realtime, badges SLA, `strategic-overview`, `tenant-health` y `profile-360`, ya podemos mostrar un producto muy serio de cara a demo, operaciones y superadmin.”
+> “Tomen este MD como contrato único backend->frontend. Si implementan primero `ux_context`, realtime, badges SLA, `strategic-overview`, `tenant-health`, `profile-360` y `dashboard-bundle`, ya podemos mostrar un producto muy serio de cara a demo, operaciones, tenant admin y superadmin.”

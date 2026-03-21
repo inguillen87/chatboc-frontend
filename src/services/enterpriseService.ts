@@ -797,6 +797,26 @@ export const enterpriseService = {
     );
   },
 
+  getTenantDashboardBundle: async (
+    tenantSlug: string,
+    filters: { since_days?: number } = {},
+  ) => {
+    const query = buildQueryString(filters);
+    return apiFetch<{
+      tenant?: any;
+      summary?: any;
+      leads?: any;
+      surveys?: any;
+      unread?: any;
+      team?: any;
+      recommended_actions?: any[];
+      meta?: any;
+    }>(
+      `/api/admin/tenants/${tenantSlug}/dashboard-bundle${query ? `?${query}` : ""}`,
+      { tenantSlug },
+    );
+  },
+
   getRealtimeAiOverview: async (
     filters: { minutes?: number } = {},
     tenantSlug?: string,
