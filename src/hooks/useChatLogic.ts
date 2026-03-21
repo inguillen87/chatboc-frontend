@@ -1741,6 +1741,44 @@ export function useChatLogic({
     }
   }, [uxContext]);
 
+  useEffect(() => {
+    if (!uxContext) return;
+    const isTrusted = uxContext.trusted_owner === true;
+    const demoShellBlocked = isTrusted && uxContext.should_render_demo_shell === false;
+    const nextState = JSON.stringify({
+      trusted_owner: uxContext.trusted_owner,
+      owner_name: uxContext.owner_name,
+      owner_tipo_chat: uxContext.owner_tipo_chat,
+      should_render_demo_shell: uxContext.should_render_demo_shell,
+    });
+
+    if (lastUxTelemetryStateRef.current === nextState) {
+      return;
+    }
+    lastUxTelemetryStateRef.current = nextState;
+
+    if (isTrusted) {
+      trackWidgetEvent('tenant_context_restored', {
+        owner_name: uxContext.owner_name,
+        owner_tipo_chat: uxContext.owner_tipo_chat,
+      });
+    }
+
+    if (demoShellBlocked) {
+      trackWidgetEvent('demo_shell_render_blocked', {
+        owner_name: uxContext.owner_name,
+        owner_tipo_chat: uxContext.owner_tipo_chat,
+      });
+    }
+
+    if (uxContext.trusted_owner === false) {
+      trackWidgetEvent('tenant_context_lost', {
+        owner_name: uxContext.owner_name,
+        owner_tipo_chat: uxContext.owner_tipo_chat,
+      });
+    }
+  }, [uxContext]);
+
   const isLiveChatActive = liveChatTicketId !== null;
 
   return {
