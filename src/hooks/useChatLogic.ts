@@ -7,6 +7,7 @@ import {
   StructuredContentItem,
   Post,
   ChatUxContext,
+  ChatUxChannelCapabilities,
 } from "@/types/chat";
 import { io, Socket } from "socket.io-client";
 import { getSocketUrl, SOCKET_PATH } from "@/config";
@@ -593,6 +594,71 @@ export function useChatLogic({
       updateMunicipioContext(prevContext, { llmResponse: rawPayload }),
     );
 
+    const normalizeChannelCapabilities = (
+      raw: unknown,
+    ): ChatUxChannelCapabilities | undefined => {
+      if (!raw || typeof raw !== "object") return undefined;
+      const record = raw as Record<string, unknown>;
+      const channelCapabilities: ChatUxChannelCapabilities = {};
+
+      const assignCapability = (
+        key: keyof ChatUxChannelCapabilities,
+        ...values: unknown[]
+      ) => {
+        for (const value of values) {
+          if (typeof value === "boolean") {
+            channelCapabilities[key] = value;
+            return;
+          }
+          if (typeof value === "number") {
+            channelCapabilities[key] = value === 1;
+            return;
+          }
+          if (typeof value === "string") {
+            const normalized = value.trim().toLowerCase();
+            if (["true", "1", "yes", "si", "sí", "enabled", "on"].includes(normalized)) {
+              channelCapabilities[key] = true;
+              return;
+            }
+            if (["false", "0", "no", "disabled", "off"].includes(normalized)) {
+              channelCapabilities[key] = false;
+              return;
+            }
+          }
+        }
+      };
+
+      assignCapability(
+        "supports_audio_input",
+        record.supports_audio_input,
+        record.supportsAudioInput,
+      );
+      assignCapability(
+        "supports_file_upload",
+        record.supports_file_upload,
+        record.supportsFileUpload,
+      );
+      assignCapability(
+        "supports_image_input",
+        record.supports_image_input,
+        record.supportsImageInput,
+      );
+      assignCapability(
+        "supports_location_share",
+        record.supports_location_share,
+        record.supportsLocationShare,
+      );
+      assignCapability(
+        "supports_realtime",
+        record.supports_realtime,
+        record.supportsRealtime,
+      );
+
+      return Object.keys(channelCapabilities).length > 0
+        ? channelCapabilities
+        : undefined;
+    };
+
     const candidateUxContext = (() => {
       const source = Array.isArray(rawPayload)
         ? rawPayload.find(
@@ -633,6 +699,9 @@ export function useChatLogic({
           : rawUx.visibilityRules && typeof rawUx.visibilityRules === "object"
             ? rawUx.visibilityRules
             : undefined;
+      const channelCapabilities = normalizeChannelCapabilities(
+        rawUx.channel_capabilities ?? rawUx.channelCapabilities,
+      );
       return {
         ...(trustedOwner !== undefined ? { trusted_owner: trustedOwner } : {}),
         ...(ownerTipoChat ? { owner_tipo_chat: ownerTipoChat } : {}),
@@ -645,6 +714,9 @@ export function useChatLogic({
           ? { suggested_next_actions: suggestedNextActions }
           : {}),
         ...(visibilityRules ? { visibility_rules: visibilityRules } : {}),
+        ...(channelCapabilities
+          ? { channel_capabilities: channelCapabilities }
+          : {}),
       } as ChatUxContext;
     })();
 

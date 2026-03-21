@@ -17,7 +17,7 @@ import ScrollToBottomButton from "@/components/ui/ScrollToBottomButton";
 import { useChatLogic } from "@/hooks/useChatLogic";
 import PersonalDataForm from "./PersonalDataForm";
 import { Rubro } from "@/types/rubro";
-import { Message } from "@/types/chat";
+import { ChatUxChannelCapabilities, Message } from "@/types/chat";
 import CatalogShareCard from "./CatalogShareCard";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { extractRubroKey, extractRubroLabel } from "@/utils/rubros";
@@ -270,6 +270,29 @@ const ChatPanel = (props: ChatPanelProps) => {
   );
   const catalogViewLabel = catalogCard?.viewLabel ?? null;
   const catalogDownloadLabel = catalogCard?.downloadLabel ?? null;
+
+
+  const channelCapabilities = useMemo<ChatUxChannelCapabilities | null>(() => {
+    const source = uxContext?.channel_capabilities;
+    if (!source) return null;
+    return {
+      ...(source.supports_audio_input !== undefined
+        ? { supports_audio_input: source.supports_audio_input }
+        : {}),
+      ...(source.supports_file_upload !== undefined
+        ? { supports_file_upload: source.supports_file_upload }
+        : {}),
+      ...(source.supports_image_input !== undefined
+        ? { supports_image_input: source.supports_image_input }
+        : {}),
+      ...(source.supports_location_share !== undefined
+        ? { supports_location_share: source.supports_location_share }
+        : {}),
+      ...(source.supports_realtime !== undefined
+        ? { supports_realtime: source.supports_realtime }
+        : {}),
+    };
+  }, [uxContext?.channel_capabilities]);
 
   // Check for pending widget action from CTA bubble
   useEffect(() => {
@@ -1426,6 +1449,24 @@ const ChatPanel = (props: ChatPanelProps) => {
     });
   }, [leadRequestedField]);
 
+  const guidedFlow = useMemo(() => {
+    const requestedFields = messages
+      .filter((msg) => msg.isBot)
+      .map((msg) => (msg.data as any)?.pedir_info)
+      .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+      .map((value) => value.trim().toLowerCase());
+
+    const dedupedFields = Array.from(new Set(requestedFields));
+    const currentField = dedupedFields.length > 0 ? dedupedFields[dedupedFields.length - 1] : null;
+
+    if (!currentField) return null;
+
+    return {
+      currentField,
+      fields: dedupedFields,
+    };
+  }, [messages]);
+
   const persistentLeadButton = [...messages]
     .flatMap((msg) => msg.botones || [])
     .find((btn) => {
@@ -1979,6 +2020,8 @@ const ChatPanel = (props: ChatPanelProps) => {
             onTypingChange={setUserTyping}
             onSystemMessage={addSystemMessage}
             validateBeforeSend={validateLeadCaptureInput}
+            channelCapabilities={channelCapabilities}
+            guidedFlow={guidedFlow}
           />
         )}
       </div>

@@ -89,6 +89,14 @@ export interface InteractiveListConfig {
 
 // Define cómo es un objeto Mensaje
 
+export interface ChatUxChannelCapabilities {
+  supports_audio_input?: boolean;
+  supports_file_upload?: boolean;
+  supports_image_input?: boolean;
+  supports_location_share?: boolean;
+  supports_realtime?: boolean;
+}
+
 export interface ChatUxContext {
   trusted_owner?: boolean;
   owner_tipo_chat?: "municipio" | "pyme" | string;
@@ -103,6 +111,7 @@ export interface ChatUxContext {
     string,
     boolean | string | number | null | undefined
   >;
+  channel_capabilities?: ChatUxChannelCapabilities;
 }
 
 export interface Message {
