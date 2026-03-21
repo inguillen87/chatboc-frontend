@@ -25,6 +25,7 @@ import {
   Package,
   MapPin,
   BrainCircuit,
+  RefreshCw,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -126,7 +127,7 @@ const TrendIndicator: FC<{ trend: number }> = ({ trend }) => {
 };
 
 const KpiCard: FC<{ title: string; data: Kpi; icon: React.ReactNode; formatAsCurrency?: boolean }> = ({ title, data, icon, formatAsCurrency = false }) => (
-  <Card>
+  <Card className="border-border/60 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
       <CardTitle className="text-sm font-medium">{title}</CardTitle>
       {icon}
@@ -214,7 +215,7 @@ const RegionChart: FC<{ data: RegionSale[] }> = ({ data }) => {
 };
 
 const MetricsSummary: FC<{ summary: string }> = ({ summary }) => (
-    <Card className="col-span-1 md:col-span-2 lg:col-span-4 bg-primary/10 border-primary/30">
+    <Card className="col-span-1 md:col-span-2 lg:col-span-4 border-primary/20 bg-gradient-to-r from-primary/10 via-primary/5 to-background shadow-sm">
         <CardHeader className="flex flex-row items-center space-x-4 pb-2">
             <BrainCircuit className="w-8 h-8 text-primary"/>
             <CardTitle className="text-xl text-primary">Resumen Inteligente</CardTitle>
@@ -387,26 +388,49 @@ export default function BusinessMetrics() {
             <AlertCircle className="mx-auto h-12 w-12" />
             <h2 className="mt-4 text-lg font-semibold">Error al cargar las métricas</h2>
             <p>{error}</p>
-            <Button onClick={fetchAllMetrics} className="mt-4">Reintentar</Button>
+        <Button onClick={fetchAllMetrics} className="mt-4 gap-2 rounded-xl">
+          <RefreshCw className="h-4 w-4" />
+          Reintentar
+        </Button>
         </div>
     )
   }
 
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6 bg-background">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <h1 className="text-3xl font-extrabold text-primary">
-          Métricas del Negocio
-        </h1>
-        <Button onClick={fetchAllMetrics} disabled={loading}>
-          {loading ? 'Actualizando...' : 'Actualizar Métricas'}
+      <div className="flex flex-col gap-4 rounded-3xl border border-border/60 bg-card/80 p-5 shadow-sm md:flex-row md:items-center md:justify-between">
+        <div className="space-y-1">
+          <h1 className="text-3xl font-extrabold text-primary">
+            Métricas del Negocio
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Panel operativo, cobertura y analíticas comerciales en una vista unificada.
+          </p>
+        </div>
+        <Button onClick={fetchAllMetrics} disabled={loading} className="gap-2 rounded-xl shadow-sm">
+          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+          {loading ? 'Actualizando...' : 'Actualizar métricas'}
         </Button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {dashboardBundle && (
           <>
-            <Card className="col-span-1 md:col-span-2 lg:col-span-4">
+            <div className="col-span-1 md:col-span-2 lg:col-span-4 flex flex-wrap gap-2">
+              <Badge variant="outline" className="rounded-full px-3 py-1">
+                Leads {toNumber(bundleSummary.open_leads ?? bundleLeads.total).toLocaleString("es-AR")}
+              </Badge>
+              <Badge variant="outline" className="rounded-full px-3 py-1">
+                Unread {toNumber(bundleUnread.total_tickets_with_unread ?? bundleUnread.total).toLocaleString("es-AR")}
+              </Badge>
+              <Badge variant="outline" className="rounded-full px-3 py-1">
+                Equipo {bundleTeamItems.length.toLocaleString("es-AR")}
+              </Badge>
+              <Badge variant="outline" className="rounded-full px-3 py-1">
+                Heatmap {heatmapPoints.length.toLocaleString("es-AR")} pts
+              </Badge>
+            </div>
+            <Card className="col-span-1 md:col-span-2 lg:col-span-4 border-border/60 shadow-sm">
               <CardHeader>
                 <CardTitle>Panel operativo tenant</CardTitle>
               </CardHeader>
@@ -456,7 +480,7 @@ export default function BusinessMetrics() {
             </Card>
 
             {(recommendedActions.length > 0 || bundleTeamItems.length > 0) && (
-              <Card className="col-span-1 md:col-span-2 lg:col-span-4">
+              <Card className="col-span-1 md:col-span-2 lg:col-span-4 border-border/60 shadow-sm">
                 <CardHeader>
                   <CardTitle>Prioridades operativas</CardTitle>
                 </CardHeader>
@@ -523,9 +547,12 @@ export default function BusinessMetrics() {
         )}
 
         {(tenantHeatmap || employeeCoverage) && (
-          <Card className="col-span-1 md:col-span-2 lg:col-span-4">
+          <Card className="col-span-1 md:col-span-2 lg:col-span-4 border-border/60 shadow-sm">
             <CardHeader>
               <CardTitle>Mapa de calor y cobertura operativa</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Lectura rápida para operación territorial, hotspots y distribución del equipo.
+              </p>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,1fr)]">
@@ -576,7 +603,7 @@ export default function BusinessMetrics() {
                     <p className="text-sm font-medium">Hotspots</p>
                     <div className="mt-3 space-y-2 text-sm">
                       {(tenantHeatmap?.hotspot_pairs || []).slice(0, 4).map((item, index) => (
-                        <div key={`hotspot-${index}`} className="flex items-center justify-between rounded-lg border px-3 py-2">
+                        <div key={`hotspot-${index}`} className="flex items-center justify-between rounded-lg border px-3 py-2 transition-colors hover:bg-muted/30">
                           <span>
                             {String(
                               item?.categoria ||
@@ -652,7 +679,7 @@ export default function BusinessMetrics() {
         {summary && <MetricsSummary summary={summary} />}
 
         {statusSummary.length > 0 && (
-          <Card className="col-span-1 md:col-span-2 lg:col-span-4">
+          <Card className="col-span-1 md:col-span-2 lg:col-span-4 border-border/60 shadow-sm">
             <CardHeader>
               <CardTitle>Estado de Tickets</CardTitle>
             </CardHeader>
@@ -688,7 +715,7 @@ export default function BusinessMetrics() {
         {regions && <RegionChart data={regions} />}
 
         {additionalCharts.length > 0 && (
-          <Card className="col-span-1 md:col-span-2 lg:col-span-4">
+          <Card className="col-span-1 md:col-span-2 lg:col-span-4 border-border/60 shadow-sm">
             <CardHeader>
               <CardTitle>Analíticas de Tickets</CardTitle>
             </CardHeader>

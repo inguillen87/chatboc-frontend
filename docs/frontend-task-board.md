@@ -1,6 +1,7 @@
 # Frontend Task Board – Demo UX + CRM Superadmin (Parallel Work)
 
-> Documento consolidado recomendado: `docs/FRONTEND_UNIFIED_HANDOFF.md`.
+> Documento consolidado recomendado: `docs/FRONTEND_SINGLE_TASK_WORLD_CLASS_CHAT.md`.
+> Documento complementario de detalle: `docs/FRONTEND_UNIFIED_HANDOFF.md`.
 
 ## Sprint objetivo
 Subir conversión de demo y velocidad comercial con UX consistente entre widget público y CRM superadmin.

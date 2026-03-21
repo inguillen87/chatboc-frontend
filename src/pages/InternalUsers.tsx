@@ -9,6 +9,7 @@ import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
+import { PencilLine, ShieldCheck, Sparkles, UserPlus } from 'lucide-react';
 
 const isValidEmail = (value: string) => /.+@.+\..+/.test(value.trim());
 
@@ -285,18 +286,32 @@ export default function InternalUsers() {
   if (error) return <div className="p-4 text-destructive">{error}</div>;
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <div className="bg-muted/20 p-4 rounded-lg">
+    <div className="mx-auto max-w-5xl space-y-6 px-4 pb-8">
+      <div className="rounded-3xl border border-border/60 bg-gradient-to-r from-primary/10 via-primary/5 to-background p-5 shadow-sm">
+          <div className="mb-3 inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+            <ShieldCheck className="h-5 w-5" />
+          </div>
           <h2 className="text-xl font-bold mb-2">Gestión de Empleados</h2>
           <p className="text-sm text-muted-foreground">
               Crea cuentas para tu equipo y asignales categorías de tickets específicas.
           </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Badge variant="outline" className="rounded-full px-3 py-1">
+              {employees.length} empleados
+            </Badge>
+            <Badge variant="outline" className="rounded-full px-3 py-1">
+              {categories.length} categorías
+            </Badge>
+            <Badge variant="outline" className="rounded-full px-3 py-1">
+              {coverageCategories.length} coberturas
+            </Badge>
+          </div>
       </div>
 
       {(lastCreatedEmployee || coverage) && (
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
           {lastCreatedEmployee ? (
-            <Card>
+            <Card className="border-border/60 shadow-sm">
               <CardHeader>
                 <CardTitle>Último empleado creado</CardTitle>
               </CardHeader>
@@ -324,7 +339,7 @@ export default function InternalUsers() {
           ) : null}
 
           {coverage ? (
-            <Card>
+            <Card className="border-border/60 shadow-sm">
               <CardHeader>
                 <CardTitle>Cobertura del equipo</CardTitle>
               </CardHeader>
@@ -364,9 +379,14 @@ export default function InternalUsers() {
 
       <Accordion type="single" collapsible className="w-full">
         <AccordionItem value="new-employee">
-          <AccordionTrigger>Registrar Nuevo Empleado</AccordionTrigger>
+          <AccordionTrigger className="rounded-2xl px-4 py-3 text-left hover:no-underline">
+            <span className="flex items-center gap-2">
+              <UserPlus className="h-4 w-4 text-primary" />
+              Registrar Nuevo Empleado
+            </span>
+          </AccordionTrigger>
           <AccordionContent>
-            <form onSubmit={handleCreate} className="space-y-4 border p-4 rounded-md">
+            <form onSubmit={handleCreate} className="space-y-4 rounded-2xl border border-border/60 bg-card p-4 shadow-sm">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                       <label className="text-sm font-medium">Nombre</label>
@@ -411,17 +431,23 @@ export default function InternalUsers() {
                   </div>
               </div>
 
-              <Button type="submit">Crear Empleado</Button>
+              <Button type="submit" className="w-full gap-2 rounded-xl sm:w-auto">
+                <UserPlus className="h-4 w-4" />
+                Crear Empleado
+              </Button>
             </form>
           </AccordionContent>
         </AccordionItem>
       </Accordion>
 
       {editingUser && (
-          <div className="border p-4 rounded-md shadow-sm bg-card text-card-foreground">
-              <div className="flex justify-between items-center mb-4">
-                  <h3 className="font-semibold text-lg">Editar Empleado: {editingUser.nombre}</h3>
-                  <Button variant="ghost" onClick={cancelEdit}>Cancelar</Button>
+          <div className="rounded-2xl border border-border/60 bg-card p-4 shadow-sm text-card-foreground">
+              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <h3 className="flex items-center gap-2 text-lg font-semibold">
+                    <PencilLine className="h-4 w-4 text-primary" />
+                    Editar Empleado: {editingUser.nombre}
+                  </h3>
+                  <Button variant="ghost" onClick={cancelEdit} className="w-full sm:w-auto">Cancelar</Button>
               </div>
               <form onSubmit={handleUpdate} className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -461,13 +487,17 @@ export default function InternalUsers() {
                           ))}
                       </div>
                   </div>
-                  <Button type="submit">Guardar Cambios</Button>
+                  <Button type="submit" className="w-full gap-2 rounded-xl sm:w-auto">
+                    <Sparkles className="h-4 w-4" />
+                    Guardar Cambios
+                  </Button>
               </form>
           </div>
       )}
 
-      <div className="rounded-md border">
-          <table className="w-full text-sm text-left">
+      <div className="overflow-hidden rounded-2xl border border-border/60 bg-card shadow-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[720px] text-sm text-left">
               <thead className="bg-muted text-muted-foreground">
                   <tr>
                       <th className="p-3 font-medium">Nombre</th>
@@ -517,7 +547,10 @@ export default function InternalUsers() {
                               ) : null}
                           </td>
                           <td className="p-3 text-right">
-                              <Button variant="ghost" size="sm" onClick={() => startEdit(emp)}>Editar</Button>
+                              <Button variant="ghost" size="sm" className="gap-2" onClick={() => startEdit(emp)}>
+                                <PencilLine className="h-4 w-4" />
+                                Editar
+                              </Button>
                           </td>
                       </tr>
                   ))}
@@ -528,6 +561,7 @@ export default function InternalUsers() {
                   )}
               </tbody>
           </table>
+          </div>
       </div>
     </div>
   );

@@ -779,7 +779,7 @@ export default function TicketLookup() {
               variant="ghost"
               size="sm"
               onClick={() => setIsSupportOpen(true)}
-              className="gap-2 text-blue-700 hover:bg-blue-50 hover:text-blue-800"
+              className="gap-2 rounded-xl text-blue-700 hover:bg-blue-50 hover:text-blue-800"
             >
               <MessageCircle className="h-4 w-4" />
               <span className="hidden sm:inline">Mesa de ayuda</span>
@@ -814,37 +814,40 @@ export default function TicketLookup() {
               <div className="h-1.5 bg-gradient-to-r from-blue-600 via-indigo-500 to-violet-500" />
               <CardContent className="space-y-6 pt-6">
                 <form onSubmit={handleSearchSubmit} className="space-y-4">
-                  <div className="space-y-2 text-left">
-                    <label className="text-sm font-medium text-slate-700">
-                      Número de Reclamo
-                    </label>
-                    <div className="relative">
-                      <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                  <div className="grid gap-4 sm:grid-cols-[minmax(0,1.3fr)_minmax(180px,0.7fr)]">
+                    <div className="space-y-2 text-left">
+                      <label className="text-sm font-medium text-slate-700">
+                        Número de Reclamo
+                      </label>
+                      <div className="relative">
+                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                        <Input
+                          placeholder="Ej: REC-12345"
+                          className="h-11 rounded-xl border-slate-200 bg-white pl-9 shadow-sm transition focus-visible:ring-2 focus-visible:ring-blue-200"
+                          value={inputTicketId}
+                          onChange={(e) => setInputTicketId(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2 text-left">
+                      <label className="text-sm font-medium text-slate-700">
+                        PIN de Seguridad
+                      </label>
                       <Input
-                        placeholder="Ej: REC-12345"
-                        className="h-11 rounded-xl border-slate-200 bg-white pl-9 shadow-sm"
-                        value={inputTicketId}
-                        onChange={(e) => setInputTicketId(e.target.value)}
+                        placeholder="••••"
+                        type="password"
+                        className="h-11 rounded-xl border-slate-200 bg-white text-center tracking-[0.35em] shadow-sm transition focus-visible:ring-2 focus-visible:ring-blue-200"
+                        value={inputPin}
+                        onChange={(e) => setInputPin(e.target.value)}
                       />
                     </div>
                   </div>
-                  <div className="space-y-2 text-left">
-                    <label className="text-sm font-medium text-slate-700">
-                      PIN de Seguridad
-                    </label>
-                    <Input
-                      placeholder="••••"
-                      type="password"
-                      className="h-11 rounded-xl border-slate-200 bg-white text-center tracking-[0.35em] shadow-sm"
-                      value={inputPin}
-                      onChange={(e) => setInputPin(e.target.value)}
-                    />
-                  </div>
                   <Button
                     type="submit"
-                    className="h-11 w-full rounded-xl bg-blue-600 text-white shadow-lg shadow-blue-500/25 hover:bg-blue-700"
+                    className="h-11 w-full gap-2 rounded-xl bg-blue-600 text-white shadow-lg shadow-blue-500/25 transition-all duration-200 hover:-translate-y-0.5 hover:bg-blue-700"
                     disabled={loading || !inputTicketId || !inputPin}
                   >
+                    <Search className="h-4 w-4" />
                     {loading ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     ) : null}
@@ -1050,7 +1053,7 @@ export default function TicketLookup() {
                       <button
                         type="button"
                         onClick={copyToClipboard}
-                        className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-100"
+                        className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:-translate-y-0.5 hover:bg-slate-100"
                       >
                         #{ticket.nro_ticket}
                         <Copy className="h-3 w-3" />
@@ -1058,6 +1061,41 @@ export default function TicketLookup() {
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-6 pt-6">
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-11 rounded-xl"
+                        onClick={copyToClipboard}
+                      >
+                        <Copy className="mr-2 h-4 w-4" />
+                        Copiar ticket
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-11 rounded-xl"
+                        onClick={() => setIsSupportOpen(true)}
+                      >
+                        <MessageCircle className="mr-2 h-4 w-4" />
+                        Escribir
+                      </Button>
+                      {mapLink ? (
+                        <Button
+                          asChild
+                          variant="outline"
+                          className="h-11 rounded-xl"
+                        >
+                          <a href={mapLink} target="_blank" rel="noreferrer">
+                            <MapPin className="mr-2 h-4 w-4" />
+                            Ver mapa
+                          </a>
+                        </Button>
+                      ) : (
+                        <div className="hidden sm:block" />
+                      )}
+                    </div>
+
                     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                       <InfoMetric
                         icon={FileText}
@@ -1454,6 +1492,40 @@ export default function TicketLookup() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {ticket ? (
+        <div className="fixed inset-x-0 bottom-3 z-40 px-4 sm:hidden">
+          <div className="mx-auto grid max-w-md grid-cols-3 gap-2 rounded-2xl border border-white/80 bg-white/90 p-2 shadow-2xl backdrop-blur">
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10 rounded-xl"
+              onClick={copyToClipboard}
+            >
+              <Copy className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              className="h-10 rounded-xl bg-blue-600 hover:bg-blue-700"
+              onClick={() => setIsSupportOpen(true)}
+            >
+              <MessageCircle className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10 rounded-xl"
+              onClick={() => {
+                if (ticketId && currentPin) {
+                  performSearch(ticketId, currentPin);
+                }
+              }}
+            >
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

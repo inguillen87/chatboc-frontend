@@ -89,6 +89,51 @@ export interface InteractiveListConfig {
 
 // Define cómo es un objeto Mensaje
 
+export interface ChatUxChannelCapabilities {
+  supports_audio_input?: boolean;
+  supports_file_upload?: boolean;
+  supports_image_input?: boolean;
+  supports_location_share?: boolean;
+  supports_realtime?: boolean;
+}
+
+export interface ChatUxRecommendedExperience {
+  supports_confirmation_cards?: boolean;
+  supports_multimodal_intake?: boolean;
+  preferred_handoff_channels?: string[];
+}
+
+export interface ConfirmationCardField {
+  label: string;
+  value: string | number;
+}
+
+export interface ConfirmationCardItem {
+  label?: string;
+  description?: string;
+  quantity?: string | number;
+  amount?: string | number;
+}
+
+export interface ConfirmationCardData {
+  title?: string;
+  subtitle?: string;
+  summary_text?: string;
+  summary_voice?: string;
+  flow_type?: string;
+  status?: string;
+  contact?: string;
+  location?: string;
+  category?: string;
+  detail?: string;
+  total?: string | number;
+  currency?: string;
+  fields?: ConfirmationCardField[];
+  items?: ConfirmationCardItem[];
+  preferred_handoff_channels?: string[];
+  raw?: Record<string, unknown>;
+}
+
 export interface ChatUxContext {
   trusted_owner?: boolean;
   owner_tipo_chat?: "municipio" | "pyme" | string;
@@ -103,6 +148,8 @@ export interface ChatUxContext {
     string,
     boolean | string | number | null | undefined
   >;
+  channel_capabilities?: ChatUxChannelCapabilities;
+  recommended_experience?: ChatUxRecommendedExperience;
 }
 
 export interface Message {
@@ -160,6 +207,7 @@ export interface Message {
   posts?: Post[]; // Array de posts para mostrar como tarjetas de eventos/noticias
   socialLinks?: Record<string, string>; // Enlaces generales a redes sociales
   listItems?: string[]; // Lista de elementos para mostrar como viñetas numeradas o con emojis
+  confirmationCard?: ConfirmationCardData;
 }
 
 // --- INTERFAZ PARA EL PAYLOAD DE ENVÍO DE MENSAJES (lo que el usuario envía al bot) ---

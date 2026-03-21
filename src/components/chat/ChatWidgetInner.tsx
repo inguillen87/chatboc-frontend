@@ -299,6 +299,9 @@ function ChatWidgetInner({
   );
   const realtimeConfig = useMemo(() => {
     const attrs = entityInfo?.widget?.attributes || {};
+    const realtimeMeta =
+      entityInfo?.builder_config?.enterprise_iteration?.realtime || {};
+    const voiceHandoff = realtimeMeta?.voice_handoff || {};
     const toBool = (value: unknown, fallback = false) => {
       if (typeof value === 'boolean') return value;
       if (typeof value === 'number') return value === 1;
@@ -310,9 +313,15 @@ function ChatWidgetInner({
       return fallback;
     };
     const toText = (value: unknown, fallback = '') => (typeof value === 'string' && value.trim() ? value.trim() : fallback);
+    const toList = (value: unknown): string[] => {
+      if (!Array.isArray(value)) return [];
+      return value
+        .map((item) => (typeof item === 'string' && item.trim() ? item.trim() : null))
+        .filter((item): item is string => Boolean(item));
+    };
 
     return {
-      model: toText(attrs['data-realtime-model'], supportChannels?.voice_call?.model || supportChannels?.video_call?.model || ''),
+      model: toText(attrs['data-realtime-model'], toText(realtimeMeta?.model, supportChannels?.voice_call?.model || supportChannels?.video_call?.model || '')),
       voiceEnabled: toBool(attrs['data-realtime-voice-enabled'], Boolean(supportChannels?.voice_call?.enabled)),
       videoEnabled: toBool(attrs['data-realtime-video-enabled'], Boolean(supportChannels?.video_call?.enabled)),
       avatarEnabled: toBool(attrs['data-avatar-enabled'], false),
@@ -320,9 +329,22 @@ function ChatWidgetInner({
       avatarPersona: toText(attrs['data-avatar-persona'], ''),
       voiceLabel: toText(attrs['data-realtime-voice-label'], toText(supportChannels?.voice_call?.label, '')),
       videoLabel: toText(attrs['data-realtime-video-label'], toText(supportChannels?.video_call?.label, '')),
-
+      voiceHandoff: {
+        enabled: toBool(voiceHandoff?.enabled, false),
+        supportsWhatsAppFollowup: toBool(
+          voiceHandoff?.supports_whatsapp_followup ?? voiceHandoff?.supportsWhatsAppFollowup,
+          false,
+        ),
+        supportsConfirmationCards: toBool(
+          voiceHandoff?.supports_confirmation_cards ?? voiceHandoff?.supportsConfirmationCards,
+          false,
+        ),
+        preferredChannels: toList(
+          voiceHandoff?.preferred_channels ?? voiceHandoff?.preferredChannels,
+        ),
+      },
     };
-  }, [entityInfo?.widget?.attributes, supportChannels?.video_call?.enabled, supportChannels?.video_call?.label, supportChannels?.video_call?.model, supportChannels?.voice_call?.enabled, supportChannels?.voice_call?.label, supportChannels?.voice_call?.model]);
+  }, [entityInfo?.builder_config?.enterprise_iteration?.realtime, entityInfo?.widget?.attributes, supportChannels?.video_call?.enabled, supportChannels?.video_call?.label, supportChannels?.video_call?.model, supportChannels?.voice_call?.enabled, supportChannels?.voice_call?.label, supportChannels?.voice_call?.model]);
   const showCatalogCta =
     !!catalogCtaLabel &&
     !!catalogLinks?.view_url &&
