@@ -6,6 +6,7 @@ import {
   Categoria,
   StructuredContentItem,
   Post,
+  ChatUxContext,
 } from "@/types/chat";
 import { io, Socket } from "socket.io-client";
 import { getSocketUrl, SOCKET_PATH } from "@/config";
@@ -124,10 +125,13 @@ export function useChatLogic({
   const [liveChatTicketId, setLiveChatTicketId] = useState<number | null>(null);
   const [liveChatStatus, setLiveChatStatus] = useState<string | null>(null);
   const [currentClaimIdempotencyKey, setCurrentClaimIdempotencyKey] = useState<string | null>(null);
+  const [uxContext, setUxContext] = useState<ChatUxContext | null>(null);
   const messagesRef = useRef<Message[]>([]);
   const initSentRef = useRef(false);
+  const initPendingResponseRef = useRef(false);
   const firstRealQuestionSentRef = useRef(false);
   const leadCompletionTrackedTicketsRef = useRef<Set<string>>(new Set());
+  const lastUxTelemetryStateRef = useRef<string | null>(null);
 
   useEffect(() => {
     messagesRef.current = messages;
@@ -149,7 +153,7 @@ export function useChatLogic({
         return;
       }
 
-      if (initSentRef.current) {
+      if (initSentRef.current || initPendingResponseRef.current) {
         return;
       }
 
@@ -214,8 +218,11 @@ export function useChatLogic({
         rubroForPayload,
       });
 
+      const sessionId = getOrCreateChatSessionId();
+
       setIsTyping(true);
       initSentRef.current = true;
+      initPendingResponseRef.current = true;
 
       const isPublicDemo = shouldUsePublicFlow(tipoChatFinal, tenantSlug);
       const effectiveSkipAuth = skipAuth || isPublicDemo;
@@ -233,6 +240,7 @@ export function useChatLogic({
             contexto_previo: contextToSend,
             tipo_chat: tipoChatFinal,
             tenant_slug: tenantSlug ?? 'municipio',
+            session_id: sessionId,
             ...(rubroForPayload && { rubro_clave: rubroForPayload }),
             ...(visitorName && { nombre_usuario: visitorName }),
           },
@@ -240,6 +248,7 @@ export function useChatLogic({
         console.log('useChatLogic: Initial greeting response', response);
         processBotPayload(response, {
           fallbackOnEmpty: !socketRef.current || !socketRef.current.connected,
+          fromInit: true,
         });
       } catch (error) {
         console.error('Error sending initial greeting:', getErrorMessage(error));
@@ -255,6 +264,7 @@ export function useChatLogic({
           },
         ]);
         setIsTyping(false);
+        initPendingResponseRef.current = false;
       } finally {
         initSentRef.current = false;
       }
@@ -270,10 +280,10 @@ export function useChatLogic({
 
 
   useEffect(() => {
-    if (messagesRef.current.length > 0 || initSentRef.current) return;
+    if (messagesRef.current.length > 0 || initSentRef.current || initPendingResponseRef.current) return;
 
     const bootstrapTimer = setTimeout(() => {
-      if (messagesRef.current.length > 0 || initSentRef.current) return;
+      if (messagesRef.current.length > 0 || initSentRef.current || initPendingResponseRef.current) return;
       initializeConversationRef.current?.({ resetContext: true });
     }, 180);
 
@@ -387,10 +397,14 @@ export function useChatLogic({
 
   const processBotPayload = (
     rawPayload: any,
-    { fallbackOnEmpty }: { fallbackOnEmpty: boolean },
+    { fallbackOnEmpty, fromInit = false }: { fallbackOnEmpty: boolean; fromInit?: boolean },
   ): boolean => {
     if (!rawPayload) {
       console.warn('useChatLogic: Received empty payload from backend.');
+      if (fromInit) {
+        initPendingResponseRef.current = false;
+        initSentRef.current = false;
+      }
       if (fallbackOnEmpty) {
         setIsTyping(false);
       }
@@ -398,6 +412,30 @@ export function useChatLogic({
     }
 
     setContexto((prevContext) => updateMunicipioContext(prevContext, { llmResponse: rawPayload }));
+
+    const candidateUxContext = (() => {
+      const source = Array.isArray(rawPayload) ? rawPayload.find((item) => item?.ux_context || item?.metadata?.ux_context) : rawPayload;
+      const rawUx = source?.ux_context || source?.metadata?.ux_context;
+      if (!rawUx || typeof rawUx !== 'object') return null;
+      const trustedOwner = typeof rawUx.trusted_owner === 'boolean' ? rawUx.trusted_owner : undefined;
+      const ownerTipoChat = pickFirstString(rawUx.owner_tipo_chat, rawUx.ownerTipoChat) || undefined;
+      const ownerName = pickFirstString(rawUx.owner_name, rawUx.ownerName) || undefined;
+      const shouldRenderDemoShell = typeof rawUx.should_render_demo_shell === 'boolean'
+        ? rawUx.should_render_demo_shell
+        : typeof rawUx.shouldRenderDemoShell === 'boolean'
+          ? rawUx.shouldRenderDemoShell
+          : undefined;
+      return {
+        ...(trustedOwner !== undefined ? { trusted_owner: trustedOwner } : {}),
+        ...(ownerTipoChat ? { owner_tipo_chat: ownerTipoChat } : {}),
+        ...(ownerName ? { owner_name: ownerName } : {}),
+        ...(shouldRenderDemoShell !== undefined ? { should_render_demo_shell: shouldRenderDemoShell } : {}),
+      } as ChatUxContext;
+    })();
+
+    if (candidateUxContext) {
+      setUxContext((prev) => ({ ...(prev || {}), ...candidateUxContext }));
+    }
 
     const asArray = Array.isArray(rawPayload)
       ? rawPayload
@@ -823,9 +861,18 @@ export function useChatLogic({
     });
 
     if (normalizedMessages.length > 0) {
+      if (fromInit) {
+        initPendingResponseRef.current = false;
+        initSentRef.current = false;
+      }
       setMessages((prev) => [...prev, ...normalizedMessages]);
       setIsTyping(false);
       return true;
+    }
+
+    if (fromInit) {
+      initPendingResponseRef.current = false;
+      initSentRef.current = false;
     }
 
     if (fallbackOnEmpty) {
@@ -1499,6 +1546,7 @@ export function useChatLogic({
 
       const visitorName = getVisitorName();
 
+      const sessionId = getOrCreateChatSessionId();
       const requestBody: Record<string, any> = {
         pregunta: questionForBackend,
         contexto_previo: updatedContext,
@@ -1512,6 +1560,8 @@ export function useChatLogic({
         ...(actionPayload && { payload: actionPayload }),
         ...(resolvedAction === "confirmar_reclamo" && currentClaimIdempotencyKey && { idempotency_key: currentClaimIdempotencyKey }),
         ...(visitorName && { nombre_usuario: visitorName }),
+        session_id: sessionId,
+        tenant_slug: tenantSlug ?? 'municipio',
       };
 
       if (sanitizedDiffers || emojiFallback) {
@@ -1579,6 +1629,44 @@ export function useChatLogic({
     entityToken, selectedRubro, user, shouldUsePublicFlow, liveChatAvailable,
   ]);
 
+  useEffect(() => {
+    if (!uxContext) return;
+    const isTrusted = uxContext.trusted_owner === true;
+    const demoShellBlocked = isTrusted && uxContext.should_render_demo_shell === false;
+    const nextState = JSON.stringify({
+      trusted_owner: uxContext.trusted_owner,
+      owner_name: uxContext.owner_name,
+      owner_tipo_chat: uxContext.owner_tipo_chat,
+      should_render_demo_shell: uxContext.should_render_demo_shell,
+    });
+
+    if (lastUxTelemetryStateRef.current === nextState) {
+      return;
+    }
+    lastUxTelemetryStateRef.current = nextState;
+
+    if (isTrusted) {
+      trackWidgetEvent('tenant_context_restored', {
+        owner_name: uxContext.owner_name,
+        owner_tipo_chat: uxContext.owner_tipo_chat,
+      });
+    }
+
+    if (demoShellBlocked) {
+      trackWidgetEvent('demo_shell_render_blocked', {
+        owner_name: uxContext.owner_name,
+        owner_tipo_chat: uxContext.owner_tipo_chat,
+      });
+    }
+
+    if (uxContext.trusted_owner === false) {
+      trackWidgetEvent('tenant_context_lost', {
+        owner_name: uxContext.owner_name,
+        owner_tipo_chat: uxContext.owner_tipo_chat,
+      });
+    }
+  }, [uxContext]);
+
   const isLiveChatActive = liveChatTicketId !== null;
 
   return {
@@ -1593,6 +1681,7 @@ export function useChatLogic({
     setContexto,
     setActiveTicketId,
     contexto,
+    uxContext,
     addSystemMessage,
     initializeConversation,
   };
