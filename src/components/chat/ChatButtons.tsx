@@ -39,30 +39,7 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
         return normalizedAction !== "subastas" && normalizedInternal !== "subastas";
     });
 
-    const hasCatalogMenu = filteredButtons.some((boton) => {
-        const actionToUse = boton.action || boton.action_id;
-        const normalizedAction = actionToUse ? normalize(actionToUse) : null;
-        const normalizedInternal = boton.accion_interna ? normalize(boton.accion_interna) : null;
-        return normalizedAction === 'catalogomenu' || normalizedInternal === 'catalogomenu';
-    });
-
-    const catalogMenuButtons: Boton[] = hasCatalogMenu
-        ? [
-            { texto: 'Ver catálogo', accion_interna: 'catalogo' },
-            { texto: 'Ver carrito', accion_interna: 'carrito' },
-            { texto: 'Donaciones', accion_interna: 'donaciones' },
-            { texto: 'Canje de puntos', accion_interna: 'canje_puntos' },
-        ]
-        : [];
-
-    const buttonsToRender = filteredButtons
-        .filter((boton) => {
-            const actionToUse = boton.action || boton.action_id;
-            const normalizedAction = actionToUse ? normalize(actionToUse) : null;
-            const normalizedInternal = boton.accion_interna ? normalize(boton.accion_interna) : null;
-            return normalizedAction !== 'catalogomenu' && normalizedInternal !== 'catalogomenu';
-        })
-        .concat(catalogMenuButtons);
+    const buttonsToRender = filteredButtons;
 
 
     const formatButtonLabel = (label: string) => {
@@ -116,15 +93,6 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
             // Handle potential UI side-effects for these actions too.
             onInternalAction?.(accionInterna);
             return;
-        }
-
-        // Priority 4: Handle URL navigation (or type: 'url')
-        if (boton.type === 'url' && boton.url) {
-             const resolvedUrl = resolveUrl(boton.url);
-             if (resolvedUrl) {
-                 openExternalLink(resolvedUrl);
-             }
-             return;
         }
 
         const resolvedUrl = boton.url ? resolveUrl(boton.url) : undefined;

@@ -1,4 +1,5 @@
 import React from "react";
+import { MessageCircleMore, Sparkles, Waves, Zap } from "lucide-react";
 import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 import AccessibilityToggle, { Prefs } from "./AccessibilityToggle";
 
@@ -92,51 +93,82 @@ const ChatHeader: React.FC<Props> = ({
   return (
     <div
       className={`
-        flex items-center justify-between flex-shrink-0 w-full
-        px-2 sm:px-4 py-3 border-b border-border
-        bg-primary backdrop-blur-md
-        text-primary-foreground
-        transition-all rounded-t-[inherit] overflow-hidden
+        relative flex items-center justify-between flex-shrink-0 w-full overflow-hidden rounded-t-[inherit]
+        border-b border-white/10 px-3 py-3.5 sm:px-4 sm:py-4
+        text-primary-foreground transition-all
       `}
+      style={{
+        background: 'linear-gradient(135deg, color-mix(in srgb, hsl(var(--primary)) 88%, #020617), color-mix(in srgb, hsl(var(--primary)) 64%, #38bdf8 36%))',
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.12)',
+      }}
     >
-      {/* Logo y nombre sin cuadrado */}
-      <div className="flex items-center gap-2 sm:gap-3"> {/* Reduced gap for mobile */}
-        <div className="flex items-center justify-center w-10 h-10">
-          <ChatbocLogoAnimated
-            src={logoUrl}
-            size={32}
-            smiling={isTyping}
-            movingEyes={isTyping}
-            blinking
-            pulsing
-            animation={logoAnimation}
-          />
+      <div className="pointer-events-none absolute inset-0 opacity-70">
+        <div className="absolute inset-y-0 left-0 w-40 bg-white/10 blur-3xl" />
+        <div className="absolute -right-10 top-0 h-24 w-24 rounded-full bg-cyan-300/20 blur-2xl" />
+        <div className="absolute bottom-0 right-10 h-20 w-20 rounded-full bg-fuchsia-300/10 blur-2xl" />
+      </div>
+      <div className="relative flex min-w-0 items-center gap-3 sm:gap-4">
+        <div className="relative flex h-11 w-11 items-center justify-center rounded-[18px] border border-white/20 bg-white/10 shadow-[0_10px_35px_rgba(0,0,0,0.22)] backdrop-blur-xl">
+          <span className="absolute inset-[2px] rounded-[16px] bg-gradient-to-br from-white/18 to-white/5" />
+          <div className="relative flex items-center justify-center">
+            <ChatbocLogoAnimated
+              src={logoUrl}
+              size={32}
+              smiling={isTyping}
+              movingEyes={isTyping}
+              blinking
+              pulsing
+              animation={logoAnimation}
+            />
+          </div>
         </div>
-        <div className="ml-1 flex flex-col leading-tight min-w-0 overflow-hidden">
-          <span className="font-extrabold text-base tracking-wide whitespace-nowrap overflow-hidden text-ellipsis block" style={{ letterSpacing: ".02em" }}>
-            {title || 'Chatboc'}
-          </span>
-          <span className="text-xs text-primary-foreground/80 whitespace-nowrap overflow-hidden text-ellipsis block" style={{ fontWeight: 500 }}>
-            {subtitle || 'Asistente Virtual'}
-          </span>
-          {((liveChatVisible && liveChatLabel) || (whatsappVisible && whatsappLabel)) ? (
-            <div className="mt-1 flex flex-wrap gap-1">
+        <div className="min-w-0 overflow-hidden">
+          <div className="flex items-center gap-2">
+            <span className="truncate text-base font-black tracking-[0.02em] sm:text-[1.02rem]">
+              {title || 'Chatboc'}
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/90 backdrop-blur">
+              <Sparkles className="h-3 w-3" />
+              Live
+            </span>
+          </div>
+          <div className="mt-0.5 flex items-center gap-1.5 text-xs text-primary-foreground/82">
+            <MessageCircleMore className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate font-medium">{subtitle || 'Asistente Virtual'}</span>
+          </div>
+          {((liveChatVisible && liveChatLabel) || (whatsappVisible && whatsappLabel) || isTyping) ? (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {isTyping ? (
+                <span className="inline-flex items-center gap-1 rounded-full border border-emerald-300/25 bg-emerald-400/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-50">
+                  <span className="relative flex h-2 w-2">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-300 opacity-75" />
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-200" />
+                  </span>
+                  Respondiendo
+                </span>
+              ) : null}
               {liveChatVisible && liveChatLabel ? (
-                <span className="rounded-full bg-primary-foreground/15 px-2 py-0.5 text-[10px] font-medium text-primary-foreground/90">{liveChatLabel}</span>
+                <span className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/12 px-2 py-0.5 text-[10px] font-medium text-primary-foreground/90 backdrop-blur">
+                  <Waves className="h-3 w-3" />
+                  {liveChatLabel}
+                </span>
               ) : null}
               {whatsappVisible && whatsappLabel ? (
-                <span className="rounded-full bg-primary-foreground/15 px-2 py-0.5 text-[10px] font-medium text-primary-foreground/90">{whatsappLabel}</span>
+                <span className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/12 px-2 py-0.5 text-[10px] font-medium text-primary-foreground/90 backdrop-blur">
+                  <Zap className="h-3 w-3" />
+                  {whatsappLabel}
+                </span>
               ) : null}
             </div>
           ) : null}
         </div>
       </div>
-      <div className="flex items-center gap-1 sm:gap-2"> {/* Reduced gap for mobile */}
+      <div className="relative flex items-center gap-1.5 sm:gap-2">
         <AccessibilityToggle onChange={onA11yChange} />
         {onBack ? (
           <button
             onClick={onBack}
-            className="text-primary-foreground/80 hover:text-primary-foreground transition"
+            className="rounded-full border border-white/10 bg-white/10 p-2 text-primary-foreground/80 backdrop-blur transition hover:scale-[1.03] hover:bg-white/16 hover:text-primary-foreground"
             aria-label="Volver"
           >
             <IconButton.Back className="h-5 w-5" />
@@ -144,7 +176,7 @@ const ChatHeader: React.FC<Props> = ({
         ) : onProfile && showProfile ? (
           <button
             onClick={onProfile}
-            className="text-primary-foreground/80 hover:text-primary-foreground transition"
+            className="rounded-full border border-white/10 bg-white/10 p-2 text-primary-foreground/80 backdrop-blur transition hover:scale-[1.03] hover:bg-white/16 hover:text-primary-foreground"
             aria-label="Mi perfil"
           >
             <IconButton.User className="h-5 w-5" />
@@ -153,7 +185,7 @@ const ChatHeader: React.FC<Props> = ({
         {onCart && (
           <button
             onClick={() => onCart()}
-            className="relative text-primary-foreground/80 hover:text-primary-foreground transition"
+            className="relative rounded-full border border-white/10 bg-white/10 p-2 text-primary-foreground/80 backdrop-blur transition hover:scale-[1.03] hover:bg-white/16 hover:text-primary-foreground"
             aria-label="Ver carrito"
           >
             <IconButton.Cart className="h-5 w-5" />
@@ -167,7 +199,7 @@ const ChatHeader: React.FC<Props> = ({
         {onToggleSound && (
           <button
             onClick={onToggleSound}
-            className="text-primary-foreground/80 hover:text-primary-foreground transition"
+            className="rounded-full border border-white/10 bg-white/10 p-2 text-primary-foreground/80 backdrop-blur transition hover:scale-[1.03] hover:bg-white/16 hover:text-primary-foreground"
             aria-label={muted ? 'Activar sonido' : 'Silenciar sonido'}
           >
             {muted ? <IconButton.VolumeOff className="h-5 w-5" /> : <IconButton.VolumeOn className="h-5 w-5" />}
@@ -175,7 +207,7 @@ const ChatHeader: React.FC<Props> = ({
         )}
         <button
           onClick={onClose}
-          className="text-primary-foreground/80 hover:text-primary-foreground transition"
+          className="rounded-full border border-white/10 bg-white/10 p-2 text-primary-foreground/80 backdrop-blur transition hover:scale-[1.03] hover:bg-white/16 hover:text-primary-foreground"
           aria-label="Cerrar chat"
         >
           <IconButton.Close className="h-5 w-5" />
