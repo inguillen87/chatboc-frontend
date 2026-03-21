@@ -110,6 +110,22 @@ const STATUS_CONFIG: Record<
     step: 2,
     description: "Ya hay una conversación en vivo activa sobre tu reclamo.",
   },
+  esperando_agente_en_vivo: {
+    label: 'Esperando agente',
+    color: 'bg-violet-100 text-violet-700 border-violet-200',
+    accent: 'from-violet-500/15 via-violet-100/70 to-white',
+    icon: MessageCircle,
+    step: 2,
+    description: 'Tu reclamo ya está derivado para atención en vivo.'
+  },
+  en_vivo: {
+    label: 'En vivo',
+    color: 'bg-violet-100 text-violet-700 border-violet-200',
+    accent: 'from-violet-500/15 via-violet-100/70 to-white',
+    icon: MessageCircle,
+    step: 2,
+    description: 'Ya hay una conversación en vivo activa sobre tu reclamo.'
+  },
   asignado: {
     label: "En Proceso",
     color: "bg-blue-100 text-blue-700 border-blue-200",

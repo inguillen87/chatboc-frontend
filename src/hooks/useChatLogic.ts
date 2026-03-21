@@ -128,7 +128,7 @@ export function useChatLogic({
   skipAuth = false,
   selectedRubro = null,
   liveChatAvailable = false,
-}: UseChatLogicOptions) {
+	}: UseChatLogicOptions) {
   const entityToken = propToken || getIframeToken();
 
   const shouldUsePublicFlow = useCallback(
@@ -180,10 +180,36 @@ export function useChatLogic({
     messagesRef.current = messages;
   }, [messages]);
 
-  const sanitizeRubroValue = (value: unknown): string | null => {
+	  const sanitizeRubroValue = (value: unknown): string | null => {
     const key = extractRubroKey(value);
     return key && key.length > 0 ? key : null;
-  };
+	  };
+
+  const resolvePersistentPublicContext = useCallback(() => {
+    const storedContext = readStoredPublicChatContext();
+    if (!storedContext) return null;
+
+    const normalizedPin = pickFirstString(
+      storedContext.pin,
+      storedContext.consulta_pin,
+      storedContext.consultaPin,
+    )?.trim();
+    const ticketNumber = pickFirstString(
+      storedContext.ticketNumber,
+      storedContext.ticket_number,
+      storedContext.nro_ticket,
+    )?.trim();
+    const ticketId = storedContext.ticketId ?? storedContext.ticket_id ?? null;
+
+    if (!normalizedPin && !ticketNumber && !ticketId) return null;
+
+    return {
+      pin: normalizedPin || undefined,
+      consulta_pin: normalizedPin || undefined,
+      ticket_id: ticketId ?? undefined,
+      ticket_number: ticketNumber || undefined,
+    };
+  }, []);
 
   const resolvePersistentPublicContext = useCallback(() => {
     const storedContext = readStoredPublicChatContext();
@@ -595,6 +621,30 @@ export function useChatLogic({
           ? { suggested_next_actions: suggestedNextActions }
           : {}),
         ...(visibilityRules ? { visibility_rules: visibilityRules } : {}),
+      } as ChatUxContext;
+    })();
+
+    if (candidateUxContext) {
+      setUxContext((prev) => ({ ...(prev || {}), ...candidateUxContext }));
+    }
+
+    const candidateUxContext = (() => {
+      const source = Array.isArray(rawPayload) ? rawPayload.find((item) => item?.ux_context || item?.metadata?.ux_context) : rawPayload;
+      const rawUx = source?.ux_context || source?.metadata?.ux_context;
+      if (!rawUx || typeof rawUx !== 'object') return null;
+      const trustedOwner = typeof rawUx.trusted_owner === 'boolean' ? rawUx.trusted_owner : undefined;
+      const ownerTipoChat = pickFirstString(rawUx.owner_tipo_chat, rawUx.ownerTipoChat) || undefined;
+      const ownerName = pickFirstString(rawUx.owner_name, rawUx.ownerName) || undefined;
+      const shouldRenderDemoShell = typeof rawUx.should_render_demo_shell === 'boolean'
+        ? rawUx.should_render_demo_shell
+        : typeof rawUx.shouldRenderDemoShell === 'boolean'
+          ? rawUx.shouldRenderDemoShell
+          : undefined;
+      return {
+        ...(trustedOwner !== undefined ? { trusted_owner: trustedOwner } : {}),
+        ...(ownerTipoChat ? { owner_tipo_chat: ownerTipoChat } : {}),
+        ...(ownerName ? { owner_name: ownerName } : {}),
+        ...(shouldRenderDemoShell !== undefined ? { should_render_demo_shell: shouldRenderDemoShell } : {}),
       } as ChatUxContext;
     })();
 
