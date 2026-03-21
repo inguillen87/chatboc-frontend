@@ -295,6 +295,17 @@ export default function InternalUsers() {
           <p className="text-sm text-muted-foreground">
               Crea cuentas para tu equipo y asignales categorías de tickets específicas.
           </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Badge variant="outline" className="rounded-full px-3 py-1">
+              {employees.length} empleados
+            </Badge>
+            <Badge variant="outline" className="rounded-full px-3 py-1">
+              {categories.length} categorías
+            </Badge>
+            <Badge variant="outline" className="rounded-full px-3 py-1">
+              {coverageCategories.length} coberturas
+            </Badge>
+          </div>
       </div>
 
       {(lastCreatedEmployee || coverage) && (

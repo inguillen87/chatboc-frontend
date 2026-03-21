@@ -416,6 +416,20 @@ export default function BusinessMetrics() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {dashboardBundle && (
           <>
+            <div className="col-span-1 md:col-span-2 lg:col-span-4 flex flex-wrap gap-2">
+              <Badge variant="outline" className="rounded-full px-3 py-1">
+                Leads {toNumber(bundleSummary.open_leads ?? bundleLeads.total).toLocaleString("es-AR")}
+              </Badge>
+              <Badge variant="outline" className="rounded-full px-3 py-1">
+                Unread {toNumber(bundleUnread.total_tickets_with_unread ?? bundleUnread.total).toLocaleString("es-AR")}
+              </Badge>
+              <Badge variant="outline" className="rounded-full px-3 py-1">
+                Equipo {bundleTeamItems.length.toLocaleString("es-AR")}
+              </Badge>
+              <Badge variant="outline" className="rounded-full px-3 py-1">
+                Heatmap {heatmapPoints.length.toLocaleString("es-AR")} pts
+              </Badge>
+            </div>
             <Card className="col-span-1 md:col-span-2 lg:col-span-4 border-border/60 shadow-sm">
               <CardHeader>
                 <CardTitle>Panel operativo tenant</CardTitle>

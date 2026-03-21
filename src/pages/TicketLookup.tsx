@@ -1061,6 +1061,41 @@ export default function TicketLookup() {
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-6 pt-6">
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-11 rounded-xl"
+                        onClick={copyToClipboard}
+                      >
+                        <Copy className="mr-2 h-4 w-4" />
+                        Copiar ticket
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-11 rounded-xl"
+                        onClick={() => setIsSupportOpen(true)}
+                      >
+                        <MessageCircle className="mr-2 h-4 w-4" />
+                        Escribir
+                      </Button>
+                      {mapLink ? (
+                        <Button
+                          asChild
+                          variant="outline"
+                          className="h-11 rounded-xl"
+                        >
+                          <a href={mapLink} target="_blank" rel="noreferrer">
+                            <MapPin className="mr-2 h-4 w-4" />
+                            Ver mapa
+                          </a>
+                        </Button>
+                      ) : (
+                        <div className="hidden sm:block" />
+                      )}
+                    </div>
+
                     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                       <InfoMetric
                         icon={FileText}
@@ -1457,6 +1492,40 @@ export default function TicketLookup() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {ticket ? (
+        <div className="fixed inset-x-0 bottom-3 z-40 px-4 sm:hidden">
+          <div className="mx-auto grid max-w-md grid-cols-3 gap-2 rounded-2xl border border-white/80 bg-white/90 p-2 shadow-2xl backdrop-blur">
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10 rounded-xl"
+              onClick={copyToClipboard}
+            >
+              <Copy className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              className="h-10 rounded-xl bg-blue-600 hover:bg-blue-700"
+              onClick={() => setIsSupportOpen(true)}
+            >
+              <MessageCircle className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10 rounded-xl"
+              onClick={() => {
+                if (ticketId && currentPin) {
+                  performSearch(ticketId, currentPin);
+                }
+              }}
+            >
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
