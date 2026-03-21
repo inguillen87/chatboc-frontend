@@ -17,25 +17,35 @@ import { enforceTipoChatForRubro } from "@/utils/tipoChat";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import getOrCreateChatSessionId from "@/utils/chatSessionId";
 import { getIframeToken } from "@/utils/config";
-import { v4 as uuidv4 } from 'uuid';
-import { MunicipioContext, updateMunicipioContext, getInitialMunicipioContext } from "@/utils/contexto_municipio";
-import { useUser } from './useUser';
+import { v4 as uuidv4 } from "uuid";
+import {
+  MunicipioContext,
+  updateMunicipioContext,
+  getInitialMunicipioContext,
+} from "@/utils/contexto_municipio";
+import { useUser } from "./useUser";
 import { safeOn, assertEventSource } from "@/utils/safeOn";
 import { getVisitorName, setVisitorName } from "@/utils/visitorName";
-import { ensureAbsoluteUrl, mergeButtons, pickFirstString } from "@/utils/chatButtons";
+import {
+  ensureAbsoluteUrl,
+  mergeButtons,
+  pickFirstString,
+} from "@/utils/chatButtons";
 import { deriveAttachmentInfo } from "@/utils/attachment";
 import { getValidStoredToken } from "@/utils/authTokens";
 import { enterpriseService } from "@/services/enterpriseService";
 import { trackWidgetEvent } from "@/utils/widgetTelemetry";
 
-const PUBLIC_CHAT_CONTEXT_KEY = 'chatboc_public_chat_context';
+const PUBLIC_CHAT_CONTEXT_KEY = "chatboc_public_chat_context";
 
 const readStoredPublicChatContext = () => {
   try {
     const raw = safeLocalStorage.getItem(PUBLIC_CHAT_CONTEXT_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : null;
+    return parsed && typeof parsed === "object"
+      ? (parsed as Record<string, unknown>)
+      : null;
   } catch {
     return null;
   }
@@ -71,28 +81,37 @@ const EMOJI_CATEGORY_MAP: Record<string, string> = {
 };
 
 const findCategoryFromEmoji = (text: string): string | undefined => {
-  return Object.entries(EMOJI_CATEGORY_MAP).find(([emoji]) => text.includes(emoji))?.[1];
+  return Object.entries(EMOJI_CATEGORY_MAP).find(([emoji]) =>
+    text.includes(emoji),
+  )?.[1];
 };
 
-const LIVE_CHAT_STATUSES = new Set(['esperando_agente_en_vivo', 'en_vivo']);
+const LIVE_CHAT_STATUSES = new Set(["esperando_agente_en_vivo", "en_vivo"]);
 
 const HIGH_INTENT_PATTERNS = [
-  'hablar con un representante',
-  'hablar con un agente',
-  'hablar con ventas',
-  'quiero comprar',
-  'necesito asesor',
-  'cotizacion',
-  'cotización',
-  'presupuesto',
-  'contacto',
-  'whatsapp',
+  "hablar con un representante",
+  "hablar con un agente",
+  "hablar con ventas",
+  "quiero comprar",
+  "necesito asesor",
+  "cotizacion",
+  "cotización",
+  "presupuesto",
+  "contacto",
+  "whatsapp",
 ];
 
-const URGENT_PATTERNS = ['urgente', 'emergencia', 'ahora', 'ya', 'inmediato', 'prioridad'];
+const URGENT_PATTERNS = [
+  "urgente",
+  "emergencia",
+  "ahora",
+  "ya",
+  "inmediato",
+  "prioridad",
+];
 
 interface UseChatLogicOptions {
-  tipoChat: 'pyme' | 'municipio';
+  tipoChat: "pyme" | "municipio";
   entityToken?: string;
   tenantSlug?: string | null;
   tokenKey?: string;
@@ -105,7 +124,7 @@ export function useChatLogic({
   tipoChat,
   entityToken: propToken,
   tenantSlug,
-  tokenKey = 'authToken',
+  tokenKey = "authToken",
   skipAuth = false,
   selectedRubro = null,
   liveChatAvailable = false,
@@ -113,32 +132,43 @@ export function useChatLogic({
   const entityToken = propToken || getIframeToken();
 
   const shouldUsePublicFlow = useCallback(
-    (resolvedTipoChat: 'pyme' | 'municipio', resolvedTenantSlug?: string | null) => {
-      if (resolvedTipoChat !== 'municipio') return false;
+    (
+      resolvedTipoChat: "pyme" | "municipio",
+      resolvedTenantSlug?: string | null,
+    ) => {
+      if (resolvedTipoChat !== "municipio") return false;
 
-      const normalizedTenant = typeof resolvedTenantSlug === 'string'
-        ? resolvedTenantSlug.trim().toLowerCase()
-        : '';
-      const isMunicipioTenant = normalizedTenant === 'municipio';
+      const normalizedTenant =
+        typeof resolvedTenantSlug === "string"
+          ? resolvedTenantSlug.trim().toLowerCase()
+          : "";
+      const isMunicipioTenant = normalizedTenant === "municipio";
       const hasAuthToken = Boolean(
-        safeLocalStorage.getItem('authToken') ||
-        safeLocalStorage.getItem('chatAuthToken') ||
+        safeLocalStorage.getItem("authToken") ||
+        safeLocalStorage.getItem("chatAuthToken") ||
         safeLocalStorage.getItem(tokenKey),
       );
 
-      return isMunicipioTenant || (!entityToken && !normalizedTenant && !hasAuthToken);
+      return (
+        isMunicipioTenant ||
+        (!entityToken && !normalizedTenant && !hasAuthToken)
+      );
     },
     [entityToken, tokenKey],
   );
   const { user } = useUser();
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
-  const [contexto, setContexto] = useState<MunicipioContext>(() => getInitialMunicipioContext());
+  const [contexto, setContexto] = useState<MunicipioContext>(() =>
+    getInitialMunicipioContext(),
+  );
   const [activeTicketId, setActiveTicketId] = useState<number | null>(null);
   const [liveChatTicketId, setLiveChatTicketId] = useState<number | null>(null);
   const [liveChatStatus, setLiveChatStatus] = useState<string | null>(null);
-  const [currentClaimIdempotencyKey, setCurrentClaimIdempotencyKey] = useState<string | null>(null);
-	  const [uxContext, setUxContext] = useState<ChatUxContext | null>(null);
+  const [currentClaimIdempotencyKey, setCurrentClaimIdempotencyKey] = useState<
+    string | null
+  >(null);
+  const [uxContext, setUxContext] = useState<ChatUxContext | null>(null);
   const messagesRef = useRef<Message[]>([]);
   const initSentRef = useRef(false);
   const initPendingResponseRef = useRef(false);
@@ -181,6 +211,32 @@ export function useChatLogic({
     };
   }, []);
 
+  const resolvePersistentPublicContext = useCallback(() => {
+    const storedContext = readStoredPublicChatContext();
+    if (!storedContext) return null;
+
+    const normalizedPin = pickFirstString(
+      storedContext.pin,
+      storedContext.consulta_pin,
+      storedContext.consultaPin,
+    )?.trim();
+    const ticketNumber = pickFirstString(
+      storedContext.ticketNumber,
+      storedContext.ticket_number,
+      storedContext.nro_ticket,
+    )?.trim();
+    const ticketId = storedContext.ticketId ?? storedContext.ticket_id ?? null;
+
+    if (!normalizedPin && !ticketNumber && !ticketId) return null;
+
+    return {
+      pin: normalizedPin || undefined,
+      consulta_pin: normalizedPin || undefined,
+      ticket_id: ticketId ?? undefined,
+      ticket_number: ticketNumber || undefined,
+    };
+  }, []);
+
   const initializeConversation = useCallback(
     async (options?: {
       rubroOverride?: string | null;
@@ -196,7 +252,7 @@ export function useChatLogic({
         return;
       }
 
-      const allowRubroInference = tipoChat !== 'municipio';
+      const allowRubroInference = tipoChat !== "municipio";
 
       let rawRubro = sanitizeRubroValue(options?.rubroOverride);
       if (!rawRubro) {
@@ -205,7 +261,9 @@ export function useChatLogic({
 
       if (allowRubroInference && !rawRubro) {
         try {
-          const storedUser = JSON.parse(safeLocalStorage.getItem('user') || 'null');
+          const storedUser = JSON.parse(
+            safeLocalStorage.getItem("user") || "null",
+          );
           rawRubro =
             sanitizeRubroValue(storedUser?.rubro) ||
             sanitizeRubroValue(storedUser?.rubro?.clave) ||
@@ -217,15 +275,31 @@ export function useChatLogic({
       }
 
       if (allowRubroInference && !rawRubro) {
-        rawRubro = sanitizeRubroValue(safeLocalStorage.getItem('rubroSeleccionado'));
+        rawRubro = sanitizeRubroValue(
+          safeLocalStorage.getItem("rubroSeleccionado"),
+        );
       }
 
       const normalizedRubro = rawRubro ? parseRubro(rawRubro) : null;
-      const tipoChatFinal = enforceTipoChatForRubro(tipoChat, normalizedRubro || undefined);
-      const rubroForPayload = tipoChatFinal === 'pyme' ? rawRubro : null;
+      const tipoChatFinal = enforceTipoChatForRubro(
+        tipoChat,
+        normalizedRubro || undefined,
+      );
+      const rubroForPayload = tipoChatFinal === "pyme" ? rawRubro : null;
 
-      if (tipoChatFinal === 'pyme' && !rubroForPayload) {
-        console.log('useChatLogic: Rubro no seleccionado para chat pyme, se omite el saludo inicial.');
+      const isBoundTenantContext = Boolean(
+        (typeof tenantSlug === "string" && tenantSlug.trim()) ||
+        (typeof entityToken === "string" && entityToken.trim()),
+      );
+
+      if (
+        tipoChatFinal === "pyme" &&
+        !rubroForPayload &&
+        !isBoundTenantContext
+      ) {
+        console.log(
+          "useChatLogic: Rubro no seleccionado para chat pyme, se omite el saludo inicial.",
+        );
         setIsTyping(false);
         return;
       }
@@ -238,8 +312,11 @@ export function useChatLogic({
         seenMessageFingerprintsRef.current.clear();
       }
 
-      const shouldResetContext = options?.resetContext ?? messagesRef.current.length === 0;
-      const contextToSend = shouldResetContext ? getInitialMunicipioContext() : contexto;
+      const shouldResetContext =
+        options?.resetContext ?? messagesRef.current.length === 0;
+      const contextToSend = shouldResetContext
+        ? getInitialMunicipioContext()
+        : contexto;
       if (shouldResetContext) {
         setContexto(contextToSend);
         seenMessageFingerprintsRef.current.clear();
@@ -251,7 +328,7 @@ export function useChatLogic({
         rubro: normalizedRubro || null,
       });
 
-      console.log('useChatLogic: Enviando saludo inicial', {
+      console.log("useChatLogic: Enviando saludo inicial", {
         endpoint,
         tipoChatFinal,
         rubroForPayload,
@@ -266,35 +343,41 @@ export function useChatLogic({
       const isPublicDemo = shouldUsePublicFlow(tipoChatFinal, tenantSlug);
       const effectiveSkipAuth = skipAuth || isPublicDemo;
 
-	      try {
+      try {
         const publicChatContext = resolvePersistentPublicContext();
-	        const response = await apiFetch<any>(endpoint, {
-          method: 'POST',
+        const response = await apiFetch<any>(endpoint, {
+          method: "POST",
           skipAuth: effectiveSkipAuth,
           isWidgetRequest: true,
           tenantSlug: tenantSlug,
           entityToken,
-	          body: {
-	            pregunta: '__INIT__',
-	            action: 'initial_greeting',
+          body: {
+            pregunta: "__INIT__",
+            action: "initial_greeting",
             contexto_previo: contextToSend,
             tipo_chat: tipoChatFinal,
-            tenant_slug: tenantSlug ?? 'municipio',
-	            session_id: sessionId,
+            tenant_slug: tenantSlug ?? "municipio",
+            session_id: sessionId,
             ...(publicChatContext || {}),
-	            ...(rubroForPayload && { rubro_clave: rubroForPayload }),
-	            ...(visitorName && { nombre_usuario: visitorName }),
-	          },
-	        });
-        console.log('useChatLogic: Initial greeting response', response);
+            ...(rubroForPayload && { rubro_clave: rubroForPayload }),
+            ...(visitorName && { nombre_usuario: visitorName }),
+          },
+        });
+        console.log("useChatLogic: Initial greeting response", response);
         processBotPayload(response, {
           fallbackOnEmpty: !socketRef.current || !socketRef.current.connected,
           fromInit: true,
         });
       } catch (error) {
-        console.error('Error sending initial greeting:', getErrorMessage(error));
-        const errorMsg = getErrorMessage(error, '⚠️ No se pudo cargar el menú inicial.');
-        setMessages(prev => [
+        console.error(
+          "Error sending initial greeting:",
+          getErrorMessage(error),
+        );
+        const errorMsg = getErrorMessage(
+          error,
+          "⚠️ No se pudo cargar el menú inicial.",
+        );
+        setMessages((prev) => [
           ...prev,
           {
             id: generateClientMessageId(),
@@ -310,8 +393,17 @@ export function useChatLogic({
         initSentRef.current = false;
       }
     },
-	    [contexto, selectedRubro, skipAuth, tipoChat, tenantSlug, entityToken, shouldUsePublicFlow, resolvePersistentPublicContext]
-	  );
+    [
+      contexto,
+      selectedRubro,
+      skipAuth,
+      tipoChat,
+      tenantSlug,
+      entityToken,
+      shouldUsePublicFlow,
+      resolvePersistentPublicContext,
+    ],
+  );
 
   const initializeConversationRef = useRef(initializeConversation);
 
@@ -319,12 +411,21 @@ export function useChatLogic({
     initializeConversationRef.current = initializeConversation;
   }, [initializeConversation]);
 
-
   useEffect(() => {
-    if (messagesRef.current.length > 0 || initSentRef.current || initPendingResponseRef.current) return;
+    if (
+      messagesRef.current.length > 0 ||
+      initSentRef.current ||
+      initPendingResponseRef.current
+    )
+      return;
 
     const bootstrapTimer = setTimeout(() => {
-      if (messagesRef.current.length > 0 || initSentRef.current || initPendingResponseRef.current) return;
+      if (
+        messagesRef.current.length > 0 ||
+        initSentRef.current ||
+        initPendingResponseRef.current
+      )
+        return;
       initializeConversationRef.current?.({ resetContext: true });
     }, 180);
 
@@ -349,14 +450,14 @@ export function useChatLogic({
 
   const serializeButtons = (btns: any[] | undefined) =>
     (btns || []).map((btn) => [
-      btn?.texto ?? btn?.text ?? btn?.label ?? btn?.title ?? '',
-      btn?.action ?? btn?.url ?? btn?.link ?? btn?.value ?? '',
-      btn?.payload ? JSON.stringify(btn.payload) : '',
+      btn?.texto ?? btn?.text ?? btn?.label ?? btn?.title ?? "",
+      btn?.action ?? btn?.url ?? btn?.link ?? btn?.value ?? "",
+      btn?.payload ? JSON.stringify(btn.payload) : "",
     ]);
 
   const serializeCategories = (cats: Categoria[] | undefined) =>
     (cats || []).map((cat) => ({
-      titulo: cat?.titulo ?? '',
+      titulo: cat?.titulo ?? "",
       botones: serializeButtons(cat?.botones),
     }));
 
@@ -382,7 +483,7 @@ export function useChatLogic({
     text: string | undefined;
     mediaUrl?: string;
     audioUrlValue?: string;
-    attachmentInfo?: Message['attachmentInfo'];
+    attachmentInfo?: Message["attachmentInfo"];
     messageType?: string;
     action?: string;
     dataPayload?: unknown;
@@ -390,58 +491,70 @@ export function useChatLogic({
     listItems?: string[];
     posts?: Post[];
     socialLinks?: Record<string, string>;
-    displayHint?: Message['displayHint'];
-    chatBubbleStyle?: Message['chatBubbleStyle'];
+    displayHint?: Message["displayHint"];
+    chatBubbleStyle?: Message["chatBubbleStyle"];
     botones: any[];
     categorias: Categoria[];
   }) => {
-    if (typeof messageIdCandidate === 'string' || typeof messageIdCandidate === 'number') {
+    if (
+      typeof messageIdCandidate === "string" ||
+      typeof messageIdCandidate === "number"
+    ) {
       return `id:${messageIdCandidate}`;
     }
 
-    const serializedAttachment = attachmentInfo ? JSON.stringify(attachmentInfo) : '';
-    const serializedPayload = dataPayload ? JSON.stringify(dataPayload) : '';
-    const serializedStructured = structuredContent ? JSON.stringify(structuredContent) : '';
-    const serializedList = listItems ? JSON.stringify(listItems) : '';
+    const serializedAttachment = attachmentInfo
+      ? JSON.stringify(attachmentInfo)
+      : "";
+    const serializedPayload = dataPayload ? JSON.stringify(dataPayload) : "";
+    const serializedStructured = structuredContent
+      ? JSON.stringify(structuredContent)
+      : "";
+    const serializedList = listItems ? JSON.stringify(listItems) : "";
     const serializedPosts = posts
       ? JSON.stringify(
           posts.map((p) => [
-            (p as any)?.id ?? (p as any)?.post_id ?? '',
-            p.url ?? (p as any)?.enlace ?? (p as any)?.link ?? '',
-            (p as any)?.titulo ?? (p as any)?.title ?? '',
+            (p as any)?.id ?? (p as any)?.post_id ?? "",
+            p.url ?? (p as any)?.enlace ?? (p as any)?.link ?? "",
+            (p as any)?.titulo ?? (p as any)?.title ?? "",
           ]),
         )
-      : '';
+      : "";
     const serializedSocial = socialLinks
-      ? JSON.stringify(Object.entries(socialLinks).sort((a, b) => a[0].localeCompare(b[0])))
-      : '';
+      ? JSON.stringify(
+          Object.entries(socialLinks).sort((a, b) => a[0].localeCompare(b[0])),
+        )
+      : "";
 
     return [
-      'fp',
-      text?.trim() || '',
-      mediaUrl || '',
-      audioUrlValue || '',
+      "fp",
+      text?.trim() || "",
+      mediaUrl || "",
+      audioUrlValue || "",
       serializedAttachment,
-      messageType || '',
-      action || '',
+      messageType || "",
+      action || "",
       serializedPayload,
       serializedStructured,
       serializedList,
       serializedPosts,
       serializedSocial,
-      displayHint || '',
-      chatBubbleStyle || '',
+      displayHint || "",
+      chatBubbleStyle || "",
       JSON.stringify(serializeButtons(botones)),
       JSON.stringify(serializeCategories(categorias)),
-    ].join('|');
+    ].join("|");
   };
 
   const processBotPayload = (
     rawPayload: any,
-    { fallbackOnEmpty, fromInit = false }: { fallbackOnEmpty: boolean; fromInit?: boolean },
+    {
+      fallbackOnEmpty,
+      fromInit = false,
+    }: { fallbackOnEmpty: boolean; fromInit?: boolean },
   ): boolean => {
     if (!rawPayload) {
-      console.warn('useChatLogic: Received empty payload from backend.');
+      console.warn("useChatLogic: Received empty payload from backend.");
       if (fromInit) {
         initPendingResponseRef.current = false;
         initSentRef.current = false;
@@ -452,7 +565,68 @@ export function useChatLogic({
       return false;
     }
 
-    setContexto((prevContext) => updateMunicipioContext(prevContext, { llmResponse: rawPayload }));
+    setContexto((prevContext) =>
+      updateMunicipioContext(prevContext, { llmResponse: rawPayload }),
+    );
+
+    const candidateUxContext = (() => {
+      const source = Array.isArray(rawPayload)
+        ? rawPayload.find(
+            (item) => item?.ux_context || item?.metadata?.ux_context,
+          )
+        : rawPayload;
+      const rawUx = source?.ux_context || source?.metadata?.ux_context;
+      if (!rawUx || typeof rawUx !== "object") return null;
+      const trustedOwner =
+        typeof rawUx.trusted_owner === "boolean"
+          ? rawUx.trusted_owner
+          : undefined;
+      const ownerTipoChat =
+        pickFirstString(rawUx.owner_tipo_chat, rawUx.ownerTipoChat) ||
+        undefined;
+      const ownerName =
+        pickFirstString(rawUx.owner_name, rawUx.ownerName) || undefined;
+      const shouldRenderDemoShell =
+        typeof rawUx.should_render_demo_shell === "boolean"
+          ? rawUx.should_render_demo_shell
+          : typeof rawUx.shouldRenderDemoShell === "boolean"
+            ? rawUx.shouldRenderDemoShell
+            : undefined;
+      const demoSelector =
+        rawUx.demo_selector && typeof rawUx.demo_selector === "object"
+          ? rawUx.demo_selector
+          : rawUx.demoSelector && typeof rawUx.demoSelector === "object"
+            ? rawUx.demoSelector
+            : null;
+      const suggestedNextActions = Array.isArray(rawUx.suggested_next_actions)
+        ? rawUx.suggested_next_actions
+        : Array.isArray(rawUx.suggestedNextActions)
+          ? rawUx.suggestedNextActions
+          : undefined;
+      const visibilityRules =
+        rawUx.visibility_rules && typeof rawUx.visibility_rules === "object"
+          ? rawUx.visibility_rules
+          : rawUx.visibilityRules && typeof rawUx.visibilityRules === "object"
+            ? rawUx.visibilityRules
+            : undefined;
+      return {
+        ...(trustedOwner !== undefined ? { trusted_owner: trustedOwner } : {}),
+        ...(ownerTipoChat ? { owner_tipo_chat: ownerTipoChat } : {}),
+        ...(ownerName ? { owner_name: ownerName } : {}),
+        ...(shouldRenderDemoShell !== undefined
+          ? { should_render_demo_shell: shouldRenderDemoShell }
+          : {}),
+        ...(demoSelector ? { demo_selector: demoSelector } : {}),
+        ...(suggestedNextActions
+          ? { suggested_next_actions: suggestedNextActions }
+          : {}),
+        ...(visibilityRules ? { visibility_rules: visibilityRules } : {}),
+      } as ChatUxContext;
+    })();
+
+    if (candidateUxContext) {
+      setUxContext((prev) => ({ ...(prev || {}), ...candidateUxContext }));
+    }
 
     const candidateUxContext = (() => {
       const source = Array.isArray(rawPayload) ? rawPayload.find((item) => item?.ux_context || item?.metadata?.ux_context) : rawPayload;
@@ -488,10 +662,12 @@ export function useChatLogic({
 
     const normalizedMessages: Message[] = [];
 
-
-    const extractDemoSelectorMode = (data: any, dataPayloadRaw: unknown): string | null => {
+    const extractDemoSelectorMode = (
+      data: any,
+      dataPayloadRaw: unknown,
+    ): string | null => {
       const payloadMode =
-        dataPayloadRaw && typeof dataPayloadRaw === 'object'
+        dataPayloadRaw && typeof dataPayloadRaw === "object"
           ? pickFirstString(
               (dataPayloadRaw as any).demo_selector_mode,
               (dataPayloadRaw as any).demoSelectorMode,
@@ -510,25 +686,38 @@ export function useChatLogic({
     };
 
     const normalizeActionToken = (value: unknown) =>
-      typeof value === 'string' ? value.trim().toLowerCase() : '';
+      typeof value === "string" ? value.trim().toLowerCase() : "";
 
-    const filterDemoSelectorButtons = (buttons: any[], modeRaw: string | null) => {
+    const filterDemoSelectorButtons = (
+      buttons: any[],
+      modeRaw: string | null,
+    ) => {
       const mode = normalizeActionToken(modeRaw);
       if (!mode) return buttons;
 
-      if (mode === 'segment_categories') {
+      if (mode === "segment_categories") {
         const filtered = buttons.filter((btn) => {
-          const token = normalizeActionToken(pickFirstString(btn.action, btn.action_id, btn.accion_interna));
-          return token === 'demo_segment:empresas' || token === 'demo_segment:gobiernos';
+          const token = normalizeActionToken(
+            pickFirstString(btn.action, btn.action_id, btn.accion_interna),
+          );
+          return (
+            token === "demo_segment:empresas" ||
+            token === "demo_segment:gobiernos"
+          );
         });
         return filtered.length ? filtered : buttons;
       }
 
-      if (mode === 'segment_rubros') {
+      if (mode === "segment_rubros") {
         const filtered = buttons.filter((btn) => {
-          const token = normalizeActionToken(pickFirstString(btn.action, btn.action_id, btn.accion_interna));
+          const token = normalizeActionToken(
+            pickFirstString(btn.action, btn.action_id, btn.accion_interna),
+          );
           if (!token) return false;
-          return token.startsWith('demo_select_rubro:') || token === 'demo_segment:all';
+          return (
+            token.startsWith("demo_select_rubro:") ||
+            token === "demo_segment:all"
+          );
         });
         return filtered.length ? filtered : buttons;
       }
@@ -537,18 +726,18 @@ export function useChatLogic({
     };
 
     const normalizeStatusCandidate = (value: unknown) => {
-      if (typeof value !== 'string' && typeof value !== 'number') {
-        return '';
+      if (typeof value !== "string" && typeof value !== "number") {
+        return "";
       }
       return value
         .toString()
         .trim()
         .toLowerCase()
-        .replace(/[\s-]+/g, '_');
+        .replace(/[\s-]+/g, "_");
     };
 
     asArray.forEach((data: any) => {
-      if (!data || typeof data !== 'object') {
+      if (!data || typeof data !== "object") {
         return;
       }
 
@@ -574,30 +763,51 @@ export function useChatLogic({
         data.metadata?.data ??
         data.metadata?.payload ??
         null;
-      const sourceName = pickFirstString(data.fuente, data.source, data.metadata?.fuente, data.metadata?.source);
-      const commercialSourcesForCta = new Set(['catalogo_qdrant_con_promos_v2', 'catalogo_fallback_faq', 'catalogo_fallback_web']);
+      const sourceName = pickFirstString(
+        data.fuente,
+        data.source,
+        data.metadata?.fuente,
+        data.metadata?.source,
+      );
+      const commercialSourcesForCta = new Set([
+        "catalogo_qdrant_con_promos_v2",
+        "catalogo_fallback_faq",
+        "catalogo_fallback_web",
+      ]);
       const dataPayload = (() => {
-        const base = dataPayloadRaw && typeof dataPayloadRaw === 'object' ? { ...(dataPayloadRaw as Record<string, unknown>) } : {};
+        const base =
+          dataPayloadRaw && typeof dataPayloadRaw === "object"
+            ? { ...(dataPayloadRaw as Record<string, unknown>) }
+            : {};
         if (sourceName && !base.fuente) base.fuente = sourceName;
-        if (data.pedir_info && !base.pedir_info) base.pedir_info = data.pedir_info;
-        if ((data.nro_ticket || data.ticket_id || data.ticketId) && !base.nro_ticket) {
+        if (data.pedir_info && !base.pedir_info)
+          base.pedir_info = data.pedir_info;
+        if (
+          (data.nro_ticket || data.ticket_id || data.ticketId) &&
+          !base.nro_ticket
+        ) {
           base.nro_ticket = data.nro_ticket ?? data.ticket_id ?? data.ticketId;
         }
         return Object.keys(base).length ? base : null;
       })();
 
-      const leadTicketCandidate = data.nro_ticket ?? data.ticket_id ?? data.ticketId ?? (dataPayload as any)?.nro_ticket;
-      if (sourceName === 'demo_lead_capture' && leadTicketCandidate) {
+      const leadTicketCandidate =
+        data.nro_ticket ??
+        data.ticket_id ??
+        data.ticketId ??
+        (dataPayload as any)?.nro_ticket;
+      if (sourceName === "demo_lead_capture" && leadTicketCandidate) {
         const ticketKey = String(leadTicketCandidate);
         if (!leadCompletionTrackedTicketsRef.current.has(ticketKey)) {
           leadCompletionTrackedTicketsRef.current.add(ticketKey);
-          trackWidgetEvent('lead_completed', { ticket_id: ticketKey });
+          trackWidgetEvent("lead_completed", { ticket_id: ticketKey });
         }
       }
 
       const isDemoSelector =
-        sourceName === 'demo_selector' &&
-        (messageType === 'interactive_list' || messageType === 'interactive_buttons');
+        sourceName === "demo_selector" &&
+        (messageType === "interactive_list" ||
+          messageType === "interactive_buttons");
 
       const rawText = pickFirstString(
         data.comentario,
@@ -642,12 +852,20 @@ export function useChatLogic({
           data.quick_replies,
           data.metadata,
         ),
-        sourceName === 'demo_selector' ? demoSelectorMode : null,
+        sourceName === "demo_selector" ? demoSelectorMode : null,
       );
-      if (sourceName && commercialSourcesForCta.has(sourceName) && botones.length > 0) {
+      if (
+        sourceName &&
+        commercialSourcesForCta.has(sourceName) &&
+        botones.length > 0
+      ) {
         const idx = botones.findIndex((btn: any) => {
-          const candidate = pickFirstString(btn.action_id, btn.action, btn.accion_interna)?.toLowerCase();
-          return candidate === 'pedir_presupuesto_pyme';
+          const candidate = pickFirstString(
+            btn.action_id,
+            btn.action,
+            btn.accion_interna,
+          )?.toLowerCase();
+          return candidate === "pedir_presupuesto_pyme";
         });
         if (idx > 0) {
           const [budgetBtn] = botones.splice(idx, 1);
@@ -719,7 +937,9 @@ export function useChatLogic({
         data.audio?.public_url,
         data.audio?.path,
       );
-      const audioUrlValue = audioCandidate ? ensureAbsoluteUrl(audioCandidate) ?? audioCandidate : undefined;
+      const audioUrlValue = audioCandidate
+        ? (ensureAbsoluteUrl(audioCandidate) ?? audioCandidate)
+        : undefined;
       const locationData = normalizeLocation(
         data.location_data ||
           data.locationData ||
@@ -758,19 +978,29 @@ export function useChatLogic({
         !!socialLinks;
 
       if (!rawText && !hasNonTextContent) {
-         console.warn("processBotPayload: Empty content detected", { data, audioCandidate, audioUrlValue });
+        console.warn("processBotPayload: Empty content detected", {
+          data,
+          audioCandidate,
+          audioUrlValue,
+        });
       }
 
-      let text = rawText ?? (hasNonTextContent ? '' : '⚠️ No se pudo generar una respuesta.');
+      let text =
+        rawText ??
+        (hasNonTextContent ? "" : "⚠️ No se pudo generar una respuesta.");
       if (text && /es el Administrador de la Municipalidad/i.test(text)) {
         text = text
-          .replace(/,?\s*[^.]*es el Administrador de la Municipalidad\.\s*/i, ' ')
-          .replace(/^Hola\s+/, 'Hola, ')
-          .replace(/\s{2,}/g, ' ')
+          .replace(
+            /,?\s*[^.]*es el Administrador de la Municipalidad\.\s*/i,
+            " ",
+          )
+          .replace(/^Hola\s+/, "Hola, ")
+          .replace(/\s{2,}/g, " ")
           .trim();
       }
 
-      const ticketCandidate = data.ticket_id ?? data.ticketId ?? data.ticket?.id;
+      const ticketCandidate =
+        data.ticket_id ?? data.ticketId ?? data.ticket?.id;
       const statusCandidate = pickFirstString(
         data.status,
         data.estado,
@@ -781,14 +1011,17 @@ export function useChatLogic({
       const normalizedStatus = normalizeStatusCandidate(statusCandidate);
       const hasLiveChatMeta = Boolean(
         data.live_chat ||
-          data.liveChat ||
-          data.metadata?.live_chat ||
-          data.metadata?.liveChat,
+        data.liveChat ||
+        data.metadata?.live_chat ||
+        data.metadata?.liveChat,
       );
       let ticketId: number | undefined;
-      if (typeof ticketCandidate === 'number' && Number.isFinite(ticketCandidate)) {
+      if (
+        typeof ticketCandidate === "number" &&
+        Number.isFinite(ticketCandidate)
+      ) {
         ticketId = ticketCandidate;
-      } else if (typeof ticketCandidate === 'string') {
+      } else if (typeof ticketCandidate === "string") {
         const parsed = Number.parseInt(ticketCandidate, 10);
         if (Number.isFinite(parsed)) {
           ticketId = parsed;
@@ -798,7 +1031,8 @@ export function useChatLogic({
       if (normalizedStatus) {
         const shouldMarkLiveChat =
           LIVE_CHAT_STATUSES.has(normalizedStatus) ||
-          (normalizedStatus === 'en_proceso' && (liveChatTicketId || hasLiveChatMeta));
+          (normalizedStatus === "en_proceso" &&
+            (liveChatTicketId || hasLiveChatMeta));
         if (shouldMarkLiveChat) {
           setLiveChatStatus(normalizedStatus);
           if (ticketId) {
@@ -833,11 +1067,15 @@ export function useChatLogic({
       seenMessageFingerprintsRef.current.add(fingerprint);
 
       if (isDemoSelector) {
-        trackWidgetEvent('demo_selector_rendered', demoSelectorMode ? { mode: demoSelectorMode } : {});
+        trackWidgetEvent(
+          "demo_selector_rendered",
+          demoSelectorMode ? { mode: demoSelectorMode } : {},
+        );
       }
 
       const messageId =
-        typeof messageIdCandidate === 'number' || typeof messageIdCandidate === 'string'
+        typeof messageIdCandidate === "number" ||
+        typeof messageIdCandidate === "string"
           ? messageIdCandidate
           : generateClientMessageId();
 
@@ -850,20 +1088,26 @@ export function useChatLogic({
         data.updatedAt ??
         Date.now();
       const timestampValue =
-        typeof timestampCandidate === 'string' || typeof timestampCandidate === 'number'
+        typeof timestampCandidate === "string" ||
+        typeof timestampCandidate === "number"
           ? timestampCandidate
           : Date.now();
 
       const explicitError = (() => {
         const candidate =
-          data.isError ?? data.is_error ?? data.error ?? data.metadata?.isError ?? data.metadata?.is_error;
-        if (typeof candidate === 'boolean') {
+          data.isError ??
+          data.is_error ??
+          data.error ??
+          data.metadata?.isError ??
+          data.metadata?.is_error;
+        if (typeof candidate === "boolean") {
           return candidate;
         }
-        if (typeof candidate === 'string') {
+        if (typeof candidate === "string") {
           const normalized = candidate.trim().toLowerCase();
-          if (['true', '1', 'yes', 'si', 'sí'].includes(normalized)) return true;
-          if (['false', '0', 'no'].includes(normalized)) return false;
+          if (["true", "1", "yes", "si", "sí"].includes(normalized))
+            return true;
+          if (["false", "0", "no"].includes(normalized)) return false;
         }
         return undefined;
       })();
@@ -917,7 +1161,7 @@ export function useChatLogic({
     }
 
     if (fallbackOnEmpty) {
-      console.warn('useChatLogic: Normalized payload produced no messages.');
+      console.warn("useChatLogic: Normalized payload produced no messages.");
       setIsTyping(false);
     }
 
@@ -938,7 +1182,14 @@ export function useChatLogic({
     const categories: Categoria[] = [];
     rawCategories.forEach((cat) => {
       if (!cat || typeof cat !== "object") return;
-      const titulo = pickFirstString(cat.titulo, cat.title, cat.nombre, cat.name, cat.label) || "Opciones";
+      const titulo =
+        pickFirstString(
+          cat.titulo,
+          cat.title,
+          cat.nombre,
+          cat.name,
+          cat.label,
+        ) || "Opciones";
       const botones = mergeButtons(cat.botones, cat.buttons, cat.options);
       if (!botones.length && !titulo) return;
       categories.push({ titulo, botones });
@@ -996,7 +1247,9 @@ export function useChatLogic({
       raw.localUrl,
     );
 
-    const resolvedUrl = urlCandidate ? ensureAbsoluteUrl(urlCandidate) ?? urlCandidate : undefined;
+    const resolvedUrl = urlCandidate
+      ? (ensureAbsoluteUrl(urlCandidate) ?? urlCandidate)
+      : undefined;
     if (!resolvedUrl) {
       return undefined;
     }
@@ -1013,7 +1266,9 @@ export function useChatLogic({
         raw.originalFilename,
         raw.document_name,
         raw.documentName,
-      ) || resolvedUrl.split("/").pop()?.split(/[?#]/)[0] || "archivo";
+      ) ||
+      resolvedUrl.split("/").pop()?.split(/[?#]/)[0] ||
+      "archivo";
 
     const mimeCandidate = pickFirstString(
       raw.mimeType,
@@ -1042,7 +1297,9 @@ export function useChatLogic({
       raw.miniatura_url,
       raw.miniaturaUrl,
     );
-    const resolvedThumb = thumbCandidate ? ensureAbsoluteUrl(thumbCandidate) ?? thumbCandidate : undefined;
+    const resolvedThumb = thumbCandidate
+      ? (ensureAbsoluteUrl(thumbCandidate) ?? thumbCandidate)
+      : undefined;
 
     const derived = deriveAttachmentInfo(
       resolvedUrl,
@@ -1063,18 +1320,27 @@ export function useChatLogic({
 
     if (derived.thumbUrl) {
       normalized.thumbUrl = derived.thumbUrl;
-      (['thumb_url', 'thumbnail_url', 'thumbnailUrl'] as const).forEach((key) => {
-        (normalized as Record<string, unknown>)[key] = derived.thumbUrl;
-      });
+      (["thumb_url", "thumbnail_url", "thumbnailUrl"] as const).forEach(
+        (key) => {
+          (normalized as Record<string, unknown>)[key] = derived.thumbUrl;
+        },
+      );
     }
 
     return normalized;
   };
 
-  const normalizeStructuredContent = (...sources: any[]): StructuredContentItem[] | undefined => {
+  const normalizeStructuredContent = (
+    ...sources: any[]
+  ): StructuredContentItem[] | undefined => {
     const items: StructuredContentItem[] = [];
     const pushItem = (item: any) => {
-      if (item && typeof item === "object" && typeof item.label === "string" && Object.prototype.hasOwnProperty.call(item, 'value')) {
+      if (
+        item &&
+        typeof item === "object" &&
+        typeof item.label === "string" &&
+        Object.prototype.hasOwnProperty.call(item, "value")
+      ) {
         items.push(item as StructuredContentItem);
       }
     };
@@ -1097,7 +1363,13 @@ export function useChatLogic({
       if (typeof value === "string" && value.trim()) {
         items.push(value);
       } else if (value && typeof value === "object") {
-        const text = pickFirstString(value.texto, value.text, value.label, value.title, value.value);
+        const text = pickFirstString(
+          value.texto,
+          value.text,
+          value.label,
+          value.title,
+          value.value,
+        );
         if (text && text.trim()) {
           items.push(text);
         }
@@ -1133,7 +1405,13 @@ export function useChatLogic({
         if (!post || typeof post !== "object") return;
         const normalized: Post = { ...post };
 
-        const imageCandidate = pickFirstString(post.imagen_url, post.image, post.imageUrl, post.thumbnail_url, post.thumbnailUrl);
+        const imageCandidate = pickFirstString(
+          post.imagen_url,
+          post.image,
+          post.imageUrl,
+          post.thumbnail_url,
+          post.thumbnailUrl,
+        );
         const resolvedImage = ensureAbsoluteUrl(imageCandidate);
         if (resolvedImage) {
           normalized.imagen_url = resolvedImage;
@@ -1141,21 +1419,28 @@ export function useChatLogic({
           normalized.imageUrl = resolvedImage;
         }
 
-        const resolvedThumb = ensureAbsoluteUrl(pickFirstString(post.thumbnail_url, post.thumbnailUrl));
+        const resolvedThumb = ensureAbsoluteUrl(
+          pickFirstString(post.thumbnail_url, post.thumbnailUrl),
+        );
         if (resolvedThumb) {
           normalized.thumbnail_url = resolvedThumb;
           normalized.thumbnailUrl = resolvedThumb;
         }
 
-        const resolvedMainLink = ensureAbsoluteUrl(pickFirstString(post.url, post.enlace, post.link));
+        const resolvedMainLink = ensureAbsoluteUrl(
+          pickFirstString(post.url, post.enlace, post.link),
+        );
         if (resolvedMainLink) {
           normalized.url = resolvedMainLink;
           normalized.enlace = resolvedMainLink;
           normalized.link = resolvedMainLink;
         } else {
-          if (post.url) normalized.url = ensureAbsoluteUrl(post.url) ?? post.url;
-          if (post.enlace) normalized.enlace = ensureAbsoluteUrl(post.enlace) ?? post.enlace;
-          if (post.link) normalized.link = ensureAbsoluteUrl(post.link) ?? post.link;
+          if (post.url)
+            normalized.url = ensureAbsoluteUrl(post.url) ?? post.url;
+          if (post.enlace)
+            normalized.enlace = ensureAbsoluteUrl(post.enlace) ?? post.enlace;
+          if (post.link)
+            normalized.link = ensureAbsoluteUrl(post.link) ?? post.link;
         }
 
         posts.push(normalized);
@@ -1165,7 +1450,9 @@ export function useChatLogic({
     return posts.length > 0 ? posts : undefined;
   };
 
-  const normalizeSocialLinks = (raw: any): Record<string, string> | undefined => {
+  const normalizeSocialLinks = (
+    raw: any,
+  ): Record<string, string> | undefined => {
     if (!raw || typeof raw !== "object") return undefined;
     const entries: [string, string][] = [];
     Object.entries(raw).forEach(([key, value]) => {
@@ -1180,11 +1467,25 @@ export function useChatLogic({
     if (!raw || typeof raw !== "object") return undefined;
     const latValue = raw.lat ?? raw.latitude;
     const lonValue = raw.lon ?? raw.lng ?? raw.longitude ?? raw.long;
-    const lat = typeof latValue === "number" ? latValue : typeof latValue === "string" ? parseFloat(latValue) : NaN;
-    const lon = typeof lonValue === "number" ? lonValue : typeof lonValue === "string" ? parseFloat(lonValue) : NaN;
+    const lat =
+      typeof latValue === "number"
+        ? latValue
+        : typeof latValue === "string"
+          ? parseFloat(latValue)
+          : NaN;
+    const lon =
+      typeof lonValue === "number"
+        ? lonValue
+        : typeof lonValue === "string"
+          ? parseFloat(lonValue)
+          : NaN;
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) return undefined;
     const name = pickFirstString(raw.name, raw.nombre, raw.title);
-    const address = pickFirstString(raw.address, raw.direccion, raw.formatted_address);
+    const address = pickFirstString(
+      raw.address,
+      raw.direccion,
+      raw.formatted_address,
+    );
     return {
       lat,
       lon,
@@ -1208,43 +1509,58 @@ export function useChatLogic({
     "alert",
   ]);
 
-  const normalizeDisplayHint = (value?: string): Message["displayHint"] | undefined => {
+  const normalizeDisplayHint = (
+    value?: string,
+  ): Message["displayHint"] | undefined => {
     if (!value) return undefined;
     const trimmed = value.trim() as Message["displayHint"];
     return DISPLAY_HINTS.has(trimmed) ? trimmed : undefined;
   };
 
-  const normalizeBubbleStyle = (value?: string): Message["chatBubbleStyle"] | undefined => {
+  const normalizeBubbleStyle = (
+    value?: string,
+  ): Message["chatBubbleStyle"] | undefined => {
     if (!value) return undefined;
     const trimmed = value.trim() as Message["chatBubbleStyle"];
     return CHAT_BUBBLE_STYLES.has(trimmed) ? trimmed : undefined;
   };
 
-
-  const resolveTransportHintKey = (slug?: string | null) => `chatboc_socket_transport_hint:${slug || 'default'}`;
-  const resolveTransportListKey = (slug?: string | null) => `chatboc_socket_transports:${slug || 'default'}`;
+  const resolveTransportHintKey = (slug?: string | null) =>
+    `chatboc_socket_transport_hint:${slug || "default"}`;
+  const resolveTransportListKey = (slug?: string | null) =>
+    `chatboc_socket_transports:${slug || "default"}`;
 
   const isChatbocDomain = (): boolean => {
-    if (typeof window === 'undefined') return false;
+    if (typeof window === "undefined") return false;
     const host = window.location.hostname.toLowerCase();
-    return host === 'chatboc.ar' || host.endsWith('.chatboc.ar') || host === 'www.chatboc.ar';
+    return (
+      host === "chatboc.ar" ||
+      host.endsWith(".chatboc.ar") ||
+      host === "www.chatboc.ar"
+    );
   };
 
   const [socketTransportRetryKey, setSocketTransportRetryKey] = useState(0);
 
-  const getPreferredSocketTransports = (): Array<'websocket' | 'polling'> => {
-    if (isChatbocDomain()) return ['polling'];
+  const getPreferredSocketTransports = (): Array<"websocket" | "polling"> => {
+    if (isChatbocDomain()) return ["polling"];
 
-    const rawTransports = safeLocalStorage.getItem(resolveTransportListKey(tenantSlug));
+    const rawTransports = safeLocalStorage.getItem(
+      resolveTransportListKey(tenantSlug),
+    );
     if (rawTransports) {
       try {
         const parsed = JSON.parse(rawTransports);
         const valid = Array.isArray(parsed)
-          ? parsed.filter((item): item is 'websocket' | 'polling' => item === 'websocket' || item === 'polling')
+          ? parsed.filter(
+              (item): item is "websocket" | "polling" =>
+                item === "websocket" || item === "polling",
+            )
           : [];
         if (valid.length > 0) {
-          if (valid.length === 1 && valid[0] === 'polling') return ['polling'];
-          if (valid.length === 1 && valid[0] === 'websocket') return ['websocket', 'polling'];
+          if (valid.length === 1 && valid[0] === "polling") return ["polling"];
+          if (valid.length === 1 && valid[0] === "websocket")
+            return ["websocket", "polling"];
           return valid;
         }
       } catch {
@@ -1253,18 +1569,22 @@ export function useChatLogic({
     }
 
     const hint = safeLocalStorage.getItem(resolveTransportHintKey(tenantSlug));
-    if (hint === 'polling') return ['polling'];
-    if (hint === 'websocket') return ['websocket', 'polling'];
-    return ['websocket', 'polling'];
+    if (hint === "polling") return ["polling"];
+    if (hint === "websocket") return ["websocket", "polling"];
+    return ["websocket", "polling"];
   };
 
   useEffect(() => {
     if (!entityToken && !tenantSlug) {
-      console.log("useChatLogic: No entityToken and no tenantSlug, socket connection deferred.");
+      console.log(
+        "useChatLogic: No entityToken and no tenantSlug, socket connection deferred.",
+      );
       return;
     }
     if (!tipoChat) {
-      console.log("useChatLogic: Deferring socket connection until tipoChat is available.");
+      console.log(
+        "useChatLogic: Deferring socket connection until tipoChat is available.",
+      );
       return;
     }
 
@@ -1289,8 +1609,8 @@ export function useChatLogic({
       auth: {
         ...(userAuthToken && { token: userAuthToken }), // Prioritize user JWT for auth
         entityToken: entityToken, // Pass entity token for context
-        tenantSlug: tenantSlug // Pass tenant slug if entity token is missing (public tenant)
-      }
+        tenantSlug: tenantSlug, // Pass tenant slug if entity token is missing (public tenant)
+      },
     });
 
     if (!socket || typeof (socket as any).on !== "function") {
@@ -1302,411 +1622,567 @@ export function useChatLogic({
     const sessionId = getOrCreateChatSessionId();
 
     const handleConnect = () => {
-      console.log('Socket.IO connected, joining room with web channel...');
-      socket.emit('join', { room: sessionId, channel: 'web' });
+      console.log("Socket.IO connected, joining room with web channel...");
+      socket.emit("join", { room: sessionId, channel: "web" });
 
       initializeConversationRef.current?.({ resetContext: true });
     };
 
     const handleConnectError = (err: any) => {
-      console.error('Socket.IO connection error:', err.message);
-      const lowered = String(err?.message || '').toLowerCase();
-      if (lowered.includes('websocket') || lowered.includes('transport') || lowered.includes('xhr poll error')) {
-        safeLocalStorage.setItem(resolveTransportHintKey(tenantSlug), 'polling');
-        safeLocalStorage.setItem(resolveTransportListKey(tenantSlug), JSON.stringify(['polling']));
+      console.error("Socket.IO connection error:", err.message);
+      const lowered = String(err?.message || "").toLowerCase();
+      if (
+        lowered.includes("websocket") ||
+        lowered.includes("transport") ||
+        lowered.includes("xhr poll error")
+      ) {
+        safeLocalStorage.setItem(
+          resolveTransportHintKey(tenantSlug),
+          "polling",
+        );
+        safeLocalStorage.setItem(
+          resolveTransportListKey(tenantSlug),
+          JSON.stringify(["polling"]),
+        );
         setSocketTransportRetryKey((prev) => prev + 1);
       }
     };
 
-    assertEventSource(socket, 'socket');
-    safeOn(socket, 'connect', handleConnect);
-    safeOn(socket, 'connect_error', handleConnectError);
+    assertEventSource(socket, "socket");
+    safeOn(socket, "connect", handleConnect);
+    safeOn(socket, "connect_error", handleConnectError);
 
     const handleBotMessage = (rawPayload: any) => {
-      console.log('Bot response received:', rawPayload);
+      console.log("Bot response received:", rawPayload);
       processBotPayload(rawPayload, { fallbackOnEmpty: true });
     };
 
     const handleDisconnect = () => {
-      console.log('Socket.IO disconnected.');
+      console.log("Socket.IO disconnected.");
     };
 
-    safeOn(socket, 'bot_response', handleBotMessage);
-    safeOn(socket, 'message', handleBotMessage);
-    safeOn(socket, 'disconnect', handleDisconnect);
+    safeOn(socket, "bot_response", handleBotMessage);
+    safeOn(socket, "message", handleBotMessage);
+    safeOn(socket, "disconnect", handleDisconnect);
 
     // Cleanup on component unmount
     return () => {
-      socket.off?.('connect', handleConnect);
-      socket.off?.('connect_error', handleConnectError);
-      socket.off?.('bot_response', handleBotMessage);
-      socket.off?.('message', handleBotMessage);
-      socket.off?.('disconnect', handleDisconnect);
+      socket.off?.("connect", handleConnect);
+      socket.off?.("connect_error", handleConnectError);
+      socket.off?.("bot_response", handleBotMessage);
+      socket.off?.("message", handleBotMessage);
+      socket.off?.("disconnect", handleDisconnect);
       socket.disconnect();
     };
-}, [entityToken, tenantSlug, tipoChat, skipAuth, tokenKey, socketTransportRetryKey]);
+  }, [
+    entityToken,
+    tenantSlug,
+    tipoChat,
+    skipAuth,
+    tokenKey,
+    socketTransportRetryKey,
+  ]);
 
   useEffect(() => {
-    if (contexto.estado_conversacion === 'confirmando_reclamo' && !activeTicketId) {
+    if (
+      contexto.estado_conversacion === "confirmando_reclamo" &&
+      !activeTicketId
+    ) {
       const newKey = uuidv4();
       setCurrentClaimIdempotencyKey(newKey);
-      console.log("useChatLogic: Generated idempotency key for claim confirmation:", newKey);
+      console.log(
+        "useChatLogic: Generated idempotency key for claim confirmation:",
+        newKey,
+      );
     }
   }, [contexto.estado_conversacion, activeTicketId]);
 
-  const addSystemMessage = useCallback((text: string, type: 'error' | 'info' = 'info') => {
-    const systemMessage: Message = {
-      id: generateClientMessageId(),
-      text,
-      isBot: true,
-      timestamp: new Date(),
-      isError: type === 'error',
-    };
-    setMessages(prev => [...prev, systemMessage]);
-    setIsTyping(false); // Ensure typing indicator is turned off for system messages
-  }, []);
-
-  const handleSend = useCallback(async (payload: string | TypeSendPayload) => {
-    const actualPayload: TypeSendPayload =
-      typeof payload === 'string'
-        ? { text: payload.trim(), source: 'system' }
-        : { ...payload, text: payload.text?.trim() || "" };
-
-    const originalText = actualPayload.text || "";
-
-	    const { text: userMessageText, attachmentInfo, ubicacion_usuario, action, action_id, location } = actualPayload;
-	    const actionPayload = 'payload' in actualPayload ? actualPayload.payload : undefined;
-
-    if (actionPayload && typeof actionPayload === 'object') {
-      const incomingPin = pickFirstString(
-        (actionPayload as Record<string, unknown>).pin,
-        (actionPayload as Record<string, unknown>).consulta_pin,
-        (actionPayload as Record<string, unknown>).consultaPin,
-      )?.trim();
-      const incomingTicketId =
-        (actionPayload as Record<string, unknown>).ticketId ??
-        (actionPayload as Record<string, unknown>).ticket_id ??
-        null;
-      const incomingTicketNumber = pickFirstString(
-        (actionPayload as Record<string, unknown>).ticketNumber,
-        (actionPayload as Record<string, unknown>).ticket_number,
-        (actionPayload as Record<string, unknown>).nro_ticket,
-      )?.trim();
-
-      if (incomingPin || incomingTicketId || incomingTicketNumber) {
-        safeLocalStorage.setItem(PUBLIC_CHAT_CONTEXT_KEY, JSON.stringify({
-          ...(readStoredPublicChatContext() || {}),
-          ...(actionPayload as Record<string, unknown>),
-          pin: incomingPin || undefined,
-          consulta_pin: incomingPin || undefined,
-          ticket_id: incomingTicketId ?? undefined,
-          ticket_number: incomingTicketNumber || undefined,
-          tenantSlug: tenantSlug ?? undefined,
-          tipoChat,
-          updatedAt: new Date().toISOString(),
-        }));
-      }
-    }
-
-    const isLikelyTypedQuestion =
-      !!originalText &&
-      originalText !== '__INIT__' &&
-      !action &&
-      !action_id &&
-      actualPayload.source !== 'button' &&
-      (actualPayload.source === 'input' || typeof payload === 'string' || typeof actualPayload.source === 'undefined');
-
-    if (!firstRealQuestionSentRef.current && isLikelyTypedQuestion) {
-      firstRealQuestionSentRef.current = true;
-      trackWidgetEvent('first_real_question_sent');
-    }
-
-    const resolvedActionId = typeof action_id === 'string' && action_id.trim() ? action_id.trim() : undefined;
-    const demoActionCandidate = resolvedActionId || (typeof action === 'string' ? action : undefined);
-    if (demoActionCandidate && demoActionCandidate.startsWith('demo_select_rubro:')) {
-      const demoKey = demoActionCandidate.split(':')[1]?.trim();
-      trackWidgetEvent('demo_option_clicked', demoKey ? { demo_key: demoKey } : {});
-    }
-
-    const emojiFallback =
-      (typeof actionPayload?.category === 'string' && actionPayload.category.trim()) ||
-      findCategoryFromEmoji(originalText);
-
-    // Sanitize text by removing emojis to prevent issues with backend services like Google Search.
-    const emojiRegex = /([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g;
-    const sanitizedCandidate = originalText.replace(emojiRegex, '').trim();
-    const sanitizedDiffers = sanitizedCandidate !== originalText;
-    const normalizedQuestionBase = sanitizedCandidate || emojiFallback || originalText;
-    const questionForBackend =
-      actualPayload.source === 'button' && sanitizedDiffers && sanitizedCandidate
-        ? originalText
-        : normalizedQuestionBase;
-
-    // Texto normalizado (sin emojis) para comparaciones locales
-    const normalizedForMatching = (normalizedQuestionBase || '').toLowerCase();
-
-    // Allow confirming/cancelling a claim with free text when awaiting confirmation
-    let resolvedAction = action;
-    const awaitingConfirmation =
-      contexto.estado_conversacion === 'confirmando_reclamo' ||
-      contexto.reclamo_flow_v2?.state === 'ESPERANDO_CONFIRMACION';
-    if (!resolvedAction && awaitingConfirmation) {
-      const normalized = normalizedForMatching;
-      const confirmWords = ['1', 'si', 'sí', 's', 'ok', 'okay', 'acepto', 'aceptar', 'confirmar', 'confirmo'];
-      const cancelWords = ['2', 'no', 'n', 'cancelar', 'cancel', 'rechazo', 'rechazar'];
-      if (confirmWords.includes(normalized)) {
-        resolvedAction = 'confirmar_reclamo';
-      } else if (cancelWords.includes(normalized)) {
-        resolvedAction = 'cancelar_reclamo';
-      }
-    }
-
-
-    if (!userMessageText && !attachmentInfo && !ubicacion_usuario && !resolvedAction && !actualPayload.archivo_url && !location) return;
-    if (isTyping) return;
-
-    const normalizedAction = typeof resolvedAction === 'string' ? resolvedAction.toLowerCase() : undefined;
-    const rawPayloadNombre = typeof actionPayload?.nombre === 'string' ? actionPayload.nombre.trim() : '';
-    const payloadNombre = rawPayloadNombre ? rawPayloadNombre : undefined;
-    if (normalizedAction && ['submit_personal_data', 'set_user_name'].includes(normalizedAction) && payloadNombre) {
-      setVisitorName(payloadNombre);
-    }
-
-
-    const isHighIntent = HIGH_INTENT_PATTERNS.some((keyword) => normalizedForMatching.includes(keyword));
-    if (isHighIntent && !leadCaptureSentRef.current) {
-      const storedUser = JSON.parse(safeLocalStorage.getItem('user') || 'null');
-      const leadName = pickFirstString(
-        actionPayload?.nombre,
-        storedUser?.name,
-        storedUser?.nombre,
-        getVisitorName(),
-      );
-      const leadEmail = pickFirstString(actionPayload?.email, storedUser?.email);
-      const leadPhone = pickFirstString(
-        actionPayload?.telefono,
-        storedUser?.telefono,
-        storedUser?.phone,
-        storedUser?.whatsapp,
-        storedUser?.celular,
-      );
-
-      if (leadName || leadEmail || leadPhone) {
-        leadCaptureSentRef.current = true;
-        enterpriseService.captureLead({
-          tenant_slug: tenantSlug || undefined,
-          name: leadName,
-          email: leadEmail,
-          phone: leadPhone,
-          interest: userMessageText || normalizedQuestionBase,
-          message: originalText,
-          source: 'widget_chat',
-          metadata: { tipo_chat: tipoChat, action: resolvedAction || null },
-        }).catch((captureError) => {
-          leadCaptureSentRef.current = false;
-          console.warn('Lead capture failed', captureError);
-        });
-      }
-    }
-
-    const isUrgentMessage = URGENT_PATTERNS.some((keyword) => normalizedForMatching.includes(keyword));
-    if (isUrgentMessage && liveChatAvailable && !liveChatTicketId && !resolvedAction) {
-      resolvedAction = 'request_agent';
-    }
-
-    if (resolvedAction === 'iniciar_creacion_reclamo') {
-      // Check for existing user data
-      const userData = user || JSON.parse(safeLocalStorage.getItem('user') || 'null');
-      if (userData?.name && userData?.email) { // Assume phone and DNI are not available in user object
-        setContexto(prev => ({
-          ...prev,
-          estado_conversacion: 'confirmando_reclamo',
-          datos_reclamo: {
-            ...prev.datos_reclamo,
-            nombre_ciudadano: userData.name,
-            email_ciudadano: userData.email,
-          }
-        }));
-        setMessages(prev => [...prev, {
-          id: generateClientMessageId(),
-          text: `Hola ${userData.name}. ¿Confirmas la creación del reclamo?`,
-          isBot: true,
-          timestamp: new Date(),
-          botones: [
-              { texto: "Confirmar Reclamo", action: "confirmar_reclamo" },
-              { texto: "Cancelar", action: "cancelar_reclamo" },
-          ]
-        }]);
-      } else {
-        setContexto(prev => ({
-          ...prev,
-          estado_conversacion: 'recolectando_datos_personales'
-        }));
-        setMessages(prev => [...prev, {
-          id: generateClientMessageId(),
-          text: "Para continuar, por favor completá tus datos.",
-          isBot: true,
-          timestamp: new Date(),
-        }]);
-      }
-      setIsTyping(false);
-      return;
-    }
-
-    if (resolvedAction === 'submit_personal_data' && actionPayload) {
-      setContexto(prev => ({
-        ...prev,
-        estado_conversacion: 'confirmando_reclamo',
-        datos_reclamo: {
-          ...prev.datos_reclamo,
-          nombre_ciudadano:
-            payloadNombre ?? (typeof actionPayload.nombre === 'string' ? actionPayload.nombre : null),
-          email_ciudadano: actionPayload.email,
-          telefono_ciudadano: actionPayload.telefono,
-          dni_ciudadano: actionPayload.dni,
-        }
-      }));
-      setMessages(prev => [...prev, {
+  const addSystemMessage = useCallback(
+    (text: string, type: "error" | "info" = "info") => {
+      const systemMessage: Message = {
         id: generateClientMessageId(),
-        text: "¡Gracias! Revisa que los datos sean correctos y confirma para generar el reclamo.",
+        text,
         isBot: true,
         timestamp: new Date(),
-        botones: [
-            { texto: "Confirmar Reclamo", action: "confirmar_reclamo" },
-            { texto: "Cancelar", action: "cancelar_reclamo" },
-        ]
-      }]);
-      setIsTyping(false);
-      return;
-    }
+        isError: type === "error",
+      };
+      setMessages((prev) => [...prev, systemMessage]);
+      setIsTyping(false); // Ensure typing indicator is turned off for system messages
+    },
+    [],
+  );
 
+  const handleSend = useCallback(
+    async (payload: string | TypeSendPayload) => {
+      const actualPayload: TypeSendPayload =
+        typeof payload === "string"
+          ? { text: payload.trim(), source: "system" }
+          : { ...payload, text: payload.text?.trim() || "" };
 
-    // Create the user message object first
-    const userMessage: Message = {
-      id: generateClientMessageId(),
-      text: userMessageText,
-      isBot: false,
-      timestamp: new Date(),
-      attachmentInfo,
-      locationData: location || ubicacion_usuario,
-    };
+      const originalText = actualPayload.text || "";
 
-    // Add user message to UI immediately if it has content
-    if (userMessageText || attachmentInfo || location) {
-      setMessages(prev => [...prev, userMessage]);
-    }
+      const {
+        text: userMessageText,
+        attachmentInfo,
+        ubicacion_usuario,
+        action,
+        action_id,
+        location,
+      } = actualPayload;
+      const actionPayload =
+        "payload" in actualPayload ? actualPayload.payload : undefined;
 
-    setIsTyping(true);
+      if (actionPayload && typeof actionPayload === "object") {
+        const incomingPin = pickFirstString(
+          (actionPayload as Record<string, unknown>).pin,
+          (actionPayload as Record<string, unknown>).consulta_pin,
+          (actionPayload as Record<string, unknown>).consultaPin,
+        )?.trim();
+        const incomingTicketId =
+          (actionPayload as Record<string, unknown>).ticketId ??
+          (actionPayload as Record<string, unknown>).ticket_id ??
+          null;
+        const incomingTicketNumber = pickFirstString(
+          (actionPayload as Record<string, unknown>).ticketNumber,
+          (actionPayload as Record<string, unknown>).ticket_number,
+          (actionPayload as Record<string, unknown>).nro_ticket,
+        )?.trim();
 
-    try {
-      const allowRubroInference = tipoChat !== 'municipio';
-      const storedUser = JSON.parse(safeLocalStorage.getItem('user') || 'null');
-      const resolvedRubro = allowRubroInference
-        ? (
-            selectedRubro || storedUser?.rubro?.clave ||
+        if (incomingPin || incomingTicketId || incomingTicketNumber) {
+          safeLocalStorage.setItem(
+            PUBLIC_CHAT_CONTEXT_KEY,
+            JSON.stringify({
+              ...(readStoredPublicChatContext() || {}),
+              ...(actionPayload as Record<string, unknown>),
+              pin: incomingPin || undefined,
+              consulta_pin: incomingPin || undefined,
+              ticket_id: incomingTicketId ?? undefined,
+              ticket_number: incomingTicketNumber || undefined,
+              tenantSlug: tenantSlug ?? undefined,
+              tipoChat,
+              updatedAt: new Date().toISOString(),
+            }),
+          );
+        }
+      }
+
+      const isLikelyTypedQuestion =
+        !!originalText &&
+        originalText !== "__INIT__" &&
+        !action &&
+        !action_id &&
+        actualPayload.source !== "button" &&
+        (actualPayload.source === "input" ||
+          typeof payload === "string" ||
+          typeof actualPayload.source === "undefined");
+
+      if (!firstRealQuestionSentRef.current && isLikelyTypedQuestion) {
+        firstRealQuestionSentRef.current = true;
+        trackWidgetEvent("first_real_question_sent");
+      }
+
+      const resolvedActionId =
+        typeof action_id === "string" && action_id.trim()
+          ? action_id.trim()
+          : undefined;
+      const demoActionCandidate =
+        resolvedActionId || (typeof action === "string" ? action : undefined);
+      if (
+        demoActionCandidate &&
+        demoActionCandidate.startsWith("demo_select_rubro:")
+      ) {
+        const demoKey = demoActionCandidate.split(":")[1]?.trim();
+        trackWidgetEvent(
+          "demo_option_clicked",
+          demoKey ? { demo_key: demoKey } : {},
+        );
+      }
+
+      const emojiFallback =
+        (typeof actionPayload?.category === "string" &&
+          actionPayload.category.trim()) ||
+        findCategoryFromEmoji(originalText);
+
+      // Sanitize text by removing emojis to prevent issues with backend services like Google Search.
+      const emojiRegex =
+        /([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g;
+      const sanitizedCandidate = originalText.replace(emojiRegex, "").trim();
+      const sanitizedDiffers = sanitizedCandidate !== originalText;
+      const normalizedQuestionBase =
+        sanitizedCandidate || emojiFallback || originalText;
+      const questionForBackend =
+        actualPayload.source === "button" &&
+        sanitizedDiffers &&
+        sanitizedCandidate
+          ? originalText
+          : normalizedQuestionBase;
+
+      // Texto normalizado (sin emojis) para comparaciones locales
+      const normalizedForMatching = (
+        normalizedQuestionBase || ""
+      ).toLowerCase();
+
+      // Allow confirming/cancelling a claim with free text when awaiting confirmation
+      let resolvedAction = action;
+      const awaitingConfirmation =
+        contexto.estado_conversacion === "confirmando_reclamo" ||
+        contexto.reclamo_flow_v2?.state === "ESPERANDO_CONFIRMACION";
+      if (!resolvedAction && awaitingConfirmation) {
+        const normalized = normalizedForMatching;
+        const confirmWords = [
+          "1",
+          "si",
+          "sí",
+          "s",
+          "ok",
+          "okay",
+          "acepto",
+          "aceptar",
+          "confirmar",
+          "confirmo",
+        ];
+        const cancelWords = [
+          "2",
+          "no",
+          "n",
+          "cancelar",
+          "cancel",
+          "rechazo",
+          "rechazar",
+        ];
+        if (confirmWords.includes(normalized)) {
+          resolvedAction = "confirmar_reclamo";
+        } else if (cancelWords.includes(normalized)) {
+          resolvedAction = "cancelar_reclamo";
+        }
+      }
+
+      if (
+        !userMessageText &&
+        !attachmentInfo &&
+        !ubicacion_usuario &&
+        !resolvedAction &&
+        !actualPayload.archivo_url &&
+        !location
+      )
+        return;
+      if (isTyping) return;
+
+      const normalizedAction =
+        typeof resolvedAction === "string"
+          ? resolvedAction.toLowerCase()
+          : undefined;
+      const rawPayloadNombre =
+        typeof actionPayload?.nombre === "string"
+          ? actionPayload.nombre.trim()
+          : "";
+      const payloadNombre = rawPayloadNombre ? rawPayloadNombre : undefined;
+      if (
+        normalizedAction &&
+        ["submit_personal_data", "set_user_name"].includes(normalizedAction) &&
+        payloadNombre
+      ) {
+        setVisitorName(payloadNombre);
+      }
+
+      const isHighIntent = HIGH_INTENT_PATTERNS.some((keyword) =>
+        normalizedForMatching.includes(keyword),
+      );
+      if (isHighIntent && !leadCaptureSentRef.current) {
+        const storedUser = JSON.parse(
+          safeLocalStorage.getItem("user") || "null",
+        );
+        const leadName = pickFirstString(
+          actionPayload?.nombre,
+          storedUser?.name,
+          storedUser?.nombre,
+          getVisitorName(),
+        );
+        const leadEmail = pickFirstString(
+          actionPayload?.email,
+          storedUser?.email,
+        );
+        const leadPhone = pickFirstString(
+          actionPayload?.telefono,
+          storedUser?.telefono,
+          storedUser?.phone,
+          storedUser?.whatsapp,
+          storedUser?.celular,
+        );
+
+        if (leadName || leadEmail || leadPhone) {
+          leadCaptureSentRef.current = true;
+          enterpriseService
+            .captureLead({
+              tenant_slug: tenantSlug || undefined,
+              name: leadName,
+              email: leadEmail,
+              phone: leadPhone,
+              interest: userMessageText || normalizedQuestionBase,
+              message: originalText,
+              source: "widget_chat",
+              metadata: { tipo_chat: tipoChat, action: resolvedAction || null },
+            })
+            .catch((captureError) => {
+              leadCaptureSentRef.current = false;
+              console.warn("Lead capture failed", captureError);
+            });
+        }
+      }
+
+      const isUrgentMessage = URGENT_PATTERNS.some((keyword) =>
+        normalizedForMatching.includes(keyword),
+      );
+      if (
+        isUrgentMessage &&
+        liveChatAvailable &&
+        !liveChatTicketId &&
+        !resolvedAction
+      ) {
+        resolvedAction = "request_agent";
+      }
+
+      if (resolvedAction === "iniciar_creacion_reclamo") {
+        // Check for existing user data
+        const userData =
+          user || JSON.parse(safeLocalStorage.getItem("user") || "null");
+        if (userData?.name && userData?.email) {
+          // Assume phone and DNI are not available in user object
+          setContexto((prev) => ({
+            ...prev,
+            estado_conversacion: "confirmando_reclamo",
+            datos_reclamo: {
+              ...prev.datos_reclamo,
+              nombre_ciudadano: userData.name,
+              email_ciudadano: userData.email,
+            },
+          }));
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: generateClientMessageId(),
+              text: `Hola ${userData.name}. ¿Confirmas la creación del reclamo?`,
+              isBot: true,
+              timestamp: new Date(),
+              botones: [
+                { texto: "Confirmar Reclamo", action: "confirmar_reclamo" },
+                { texto: "Cancelar", action: "cancelar_reclamo" },
+              ],
+            },
+          ]);
+        } else {
+          setContexto((prev) => ({
+            ...prev,
+            estado_conversacion: "recolectando_datos_personales",
+          }));
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: generateClientMessageId(),
+              text: "Para continuar, por favor completá tus datos.",
+              isBot: true,
+              timestamp: new Date(),
+            },
+          ]);
+        }
+        setIsTyping(false);
+        return;
+      }
+
+      if (resolvedAction === "submit_personal_data" && actionPayload) {
+        setContexto((prev) => ({
+          ...prev,
+          estado_conversacion: "confirmando_reclamo",
+          datos_reclamo: {
+            ...prev.datos_reclamo,
+            nombre_ciudadano:
+              payloadNombre ??
+              (typeof actionPayload.nombre === "string"
+                ? actionPayload.nombre
+                : null),
+            email_ciudadano: actionPayload.email,
+            telefono_ciudadano: actionPayload.telefono,
+            dni_ciudadano: actionPayload.dni,
+          },
+        }));
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: generateClientMessageId(),
+            text: "¡Gracias! Revisa que los datos sean correctos y confirma para generar el reclamo.",
+            isBot: true,
+            timestamp: new Date(),
+            botones: [
+              { texto: "Confirmar Reclamo", action: "confirmar_reclamo" },
+              { texto: "Cancelar", action: "cancelar_reclamo" },
+            ],
+          },
+        ]);
+        setIsTyping(false);
+        return;
+      }
+
+      // Create the user message object first
+      const userMessage: Message = {
+        id: generateClientMessageId(),
+        text: userMessageText,
+        isBot: false,
+        timestamp: new Date(),
+        attachmentInfo,
+        locationData: location || ubicacion_usuario,
+      };
+
+      // Add user message to UI immediately if it has content
+      if (userMessageText || attachmentInfo || location) {
+        setMessages((prev) => [...prev, userMessage]);
+      }
+
+      setIsTyping(true);
+
+      try {
+        const allowRubroInference = tipoChat !== "municipio";
+        const storedUser = JSON.parse(
+          safeLocalStorage.getItem("user") || "null",
+        );
+        const resolvedRubro = allowRubroInference
+          ? selectedRubro ||
+            storedUser?.rubro?.clave ||
             storedUser?.rubro?.nombre ||
             safeLocalStorage.getItem("rubroSeleccionado") ||
             null
-          )
-        : null;
+          : null;
 
-      const tipoChatFinal = enforceTipoChatForRubro(tipoChat, resolvedRubro);
-      const rubro = tipoChatFinal === 'pyme' ? resolvedRubro : null;
+        const tipoChatFinal = enforceTipoChatForRubro(tipoChat, resolvedRubro);
+        const rubro = tipoChatFinal === "pyme" ? resolvedRubro : null;
 
-      const updatedContext = updateMunicipioContext(contexto, { userInput: userMessageText, action: resolvedAction });
-      setContexto(updatedContext);
+        const updatedContext = updateMunicipioContext(contexto, {
+          userInput: userMessageText,
+          action: resolvedAction,
+        });
+        setContexto(updatedContext);
 
-      const visitorName = getVisitorName();
+        const visitorName = getVisitorName();
 
-	      const sessionId = getOrCreateChatSessionId();
-      const publicChatContext = resolvePersistentPublicContext();
-	      const requestBody: Record<string, any> = {
-	        pregunta: questionForBackend,
-        contexto_previo: updatedContext,
-        tipo_chat: tipoChatFinal,
-        ...(rubro && { rubro_clave: rubro }),
-        ...(liveChatTicketId ? { ticket_id: liveChatTicketId, tipo_ticket: tipoChatFinal } : {}),
-        ...(attachmentInfo && { attachment_info: attachmentInfo }),
-        ...(location && { location: location }),
-	        ...(resolvedAction && { action: resolvedAction }),
-	        ...(resolvedActionId && { action_id: resolvedActionId }),
-	        ...(actionPayload && { payload: actionPayload }),
+        const sessionId = getOrCreateChatSessionId();
+        const publicChatContext = resolvePersistentPublicContext();
+        const requestBody: Record<string, any> = {
+          pregunta: questionForBackend,
+          contexto_previo: updatedContext,
+          tipo_chat: tipoChatFinal,
+          ...(rubro && { rubro_clave: rubro }),
+          ...(liveChatTicketId
+            ? { ticket_id: liveChatTicketId, tipo_ticket: tipoChatFinal }
+            : {}),
+          ...(attachmentInfo && { attachment_info: attachmentInfo }),
+          ...(location && { location: location }),
+          ...(resolvedAction && { action: resolvedAction }),
+          ...(resolvedActionId && { action_id: resolvedActionId }),
+          ...(actionPayload && { payload: actionPayload }),
           ...(publicChatContext || {}),
-	        ...(resolvedAction === "confirmar_reclamo" && currentClaimIdempotencyKey && { idempotency_key: currentClaimIdempotencyKey }),
-	        ...(visitorName && { nombre_usuario: visitorName }),
-	        session_id: sessionId,
-        tenant_slug: tenantSlug ?? 'municipio',
-      };
+          ...(resolvedAction === "confirmar_reclamo" &&
+            currentClaimIdempotencyKey && {
+              idempotency_key: currentClaimIdempotencyKey,
+            }),
+          ...(visitorName && { nombre_usuario: visitorName }),
+          session_id: sessionId,
+          tenant_slug: tenantSlug ?? "municipio",
+        };
 
-      if (sanitizedDiffers || emojiFallback) {
-        requestBody.pregunta_original = originalText;
-        requestBody.pregunta_sin_emojis = sanitizedCandidate || emojiFallback || originalText;
-      }
-
-      const legacyAttachmentUrl = attachmentInfo?.url || actualPayload.archivo_url;
-      if (legacyAttachmentUrl) {
-        requestBody.archivo_url = legacyAttachmentUrl;
-      }
-
-      const shouldMarkAsPhoto =
-        actualPayload.es_foto === true ||
-        (attachmentInfo?.mimeType ? attachmentInfo.mimeType.toLowerCase().startsWith('image/') : false);
-      if (shouldMarkAsPhoto) {
-        requestBody.es_foto = true;
-      }
-
-      if (resolvedAction === 'confirmar_reclamo') {
-        requestBody.datos_personales = {
-          nombre: contexto.datos_reclamo.nombre_ciudadano,
-          email: contexto.datos_reclamo.email_ciudadano,
-          telefono: contexto.datos_reclamo.telefono_ciudadano,
-          dni: contexto.datos_reclamo.dni_ciudadano,
+        if (sanitizedDiffers || emojiFallback) {
+          requestBody.pregunta_original = originalText;
+          requestBody.pregunta_sin_emojis =
+            sanitizedCandidate || emojiFallback || originalText;
         }
+
+        const legacyAttachmentUrl =
+          attachmentInfo?.url || actualPayload.archivo_url;
+        if (legacyAttachmentUrl) {
+          requestBody.archivo_url = legacyAttachmentUrl;
+        }
+
+        const shouldMarkAsPhoto =
+          actualPayload.es_foto === true ||
+          (attachmentInfo?.mimeType
+            ? attachmentInfo.mimeType.toLowerCase().startsWith("image/")
+            : false);
+        if (shouldMarkAsPhoto) {
+          requestBody.es_foto = true;
+        }
+
+        if (resolvedAction === "confirmar_reclamo") {
+          requestBody.datos_personales = {
+            nombre: contexto.datos_reclamo.nombre_ciudadano,
+            email: contexto.datos_reclamo.email_ciudadano,
+            telefono: contexto.datos_reclamo.telefono_ciudadano,
+            dni: contexto.datos_reclamo.dni_ciudadano,
+          };
+        }
+
+        const endpoint = getAskEndpoint({ tipoChat: tipoChatFinal, rubro });
+
+        const isPublicDemo = shouldUsePublicFlow(tipoChatFinal, tenantSlug);
+        const effectiveSkipAuth = skipAuth || isPublicDemo;
+
+        console.log("useChatLogic: Sending message to backend", {
+          endpoint,
+          requestBody,
+        });
+        const response = await apiFetch<any>(endpoint, {
+          method: "POST",
+          body: requestBody,
+          skipAuth: effectiveSkipAuth,
+          isWidgetRequest: true,
+          tenantSlug: tenantSlug,
+          entityToken,
+        });
+        console.log("useChatLogic: Backend response", response);
+        processBotPayload(response, {
+          fallbackOnEmpty: !socketRef.current || !socketRef.current.connected,
+        });
+      } catch (error: any) {
+        if (error instanceof ApiError && error.status === 409) {
+          resetChatSessionId();
+        }
+        const errorMsg = getErrorMessage(
+          error,
+          "⚠️ Ocurrió un error inesperado.",
+        );
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: generateClientMessageId(),
+            text: errorMsg,
+            isBot: true,
+            timestamp: new Date(),
+            isError: true,
+          },
+        ]);
+        setIsTyping(false);
       }
-
-      const endpoint = getAskEndpoint({ tipoChat: tipoChatFinal, rubro });
-
-      const isPublicDemo = shouldUsePublicFlow(tipoChatFinal, tenantSlug);
-      const effectiveSkipAuth = skipAuth || isPublicDemo;
-
-      console.log('useChatLogic: Sending message to backend', { endpoint, requestBody });
-      const response = await apiFetch<any>(endpoint, {
-        method: 'POST',
-        body: requestBody,
-        skipAuth: effectiveSkipAuth,
-        isWidgetRequest: true,
-        tenantSlug: tenantSlug,
-        entityToken,
-      });
-      console.log('useChatLogic: Backend response', response);
-      processBotPayload(response, {
-        fallbackOnEmpty: !socketRef.current || !socketRef.current.connected,
-      });
-
-    } catch (error: any) {
-      if (error instanceof ApiError && error.status === 409) {
-        resetChatSessionId();
-      }
-      const errorMsg = getErrorMessage(error, '⚠️ Ocurrió un error inesperado.');
-      setMessages(prev => [...prev, { id: generateClientMessageId(), text: errorMsg, isBot: true, timestamp: new Date(), isError: true }]);
-      setIsTyping(false);
-    }
-  }, [
-    contexto,
-    activeTicketId,
-    liveChatTicketId,
-    isTyping,
-    isAnonimo,
-    currentClaimIdempotencyKey,
-    tipoChat,
-    tenantSlug,
-	    entityToken, selectedRubro, user, shouldUsePublicFlow, liveChatAvailable, resolvePersistentPublicContext,
-	  ]);
+    },
+    [
+      contexto,
+      activeTicketId,
+      liveChatTicketId,
+      isTyping,
+      isAnonimo,
+      currentClaimIdempotencyKey,
+      tipoChat,
+      tenantSlug,
+      entityToken,
+      selectedRubro,
+      user,
+      shouldUsePublicFlow,
+      liveChatAvailable,
+      resolvePersistentPublicContext,
+    ],
+  );
 
   useEffect(() => {
     if (!uxContext) return;
     const isTrusted = uxContext.trusted_owner === true;
-    const demoShellBlocked = isTrusted && uxContext.should_render_demo_shell === false;
+    const demoShellBlocked =
+      isTrusted && uxContext.should_render_demo_shell === false;
     const nextState = JSON.stringify({
       trusted_owner: uxContext.trusted_owner,
       owner_name: uxContext.owner_name,
@@ -1720,59 +2196,21 @@ export function useChatLogic({
     lastUxTelemetryStateRef.current = nextState;
 
     if (isTrusted) {
-      trackWidgetEvent('tenant_context_restored', {
+      trackWidgetEvent("tenant_context_restored", {
         owner_name: uxContext.owner_name,
         owner_tipo_chat: uxContext.owner_tipo_chat,
       });
     }
 
     if (demoShellBlocked) {
-      trackWidgetEvent('demo_shell_render_blocked', {
+      trackWidgetEvent("demo_shell_render_blocked", {
         owner_name: uxContext.owner_name,
         owner_tipo_chat: uxContext.owner_tipo_chat,
       });
     }
 
     if (uxContext.trusted_owner === false) {
-      trackWidgetEvent('tenant_context_lost', {
-        owner_name: uxContext.owner_name,
-        owner_tipo_chat: uxContext.owner_tipo_chat,
-      });
-    }
-  }, [uxContext]);
-
-  useEffect(() => {
-    if (!uxContext) return;
-    const isTrusted = uxContext.trusted_owner === true;
-    const demoShellBlocked = isTrusted && uxContext.should_render_demo_shell === false;
-    const nextState = JSON.stringify({
-      trusted_owner: uxContext.trusted_owner,
-      owner_name: uxContext.owner_name,
-      owner_tipo_chat: uxContext.owner_tipo_chat,
-      should_render_demo_shell: uxContext.should_render_demo_shell,
-    });
-
-    if (lastUxTelemetryStateRef.current === nextState) {
-      return;
-    }
-    lastUxTelemetryStateRef.current = nextState;
-
-    if (isTrusted) {
-      trackWidgetEvent('tenant_context_restored', {
-        owner_name: uxContext.owner_name,
-        owner_tipo_chat: uxContext.owner_tipo_chat,
-      });
-    }
-
-    if (demoShellBlocked) {
-      trackWidgetEvent('demo_shell_render_blocked', {
-        owner_name: uxContext.owner_name,
-        owner_tipo_chat: uxContext.owner_tipo_chat,
-      });
-    }
-
-    if (uxContext.trusted_owner === false) {
-      trackWidgetEvent('tenant_context_lost', {
+      trackWidgetEvent("tenant_context_lost", {
         owner_name: uxContext.owner_name,
         owner_tipo_chat: uxContext.owner_tipo_chat,
       });

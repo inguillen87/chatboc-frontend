@@ -34,6 +34,9 @@ import { apiFetch, getErrorMessage } from "@/utils/api";
 import ChartTooltip from "@/components/analytics/ChartTooltip";
 import TicketStatsCharts from "@/components/TicketStatsCharts";
 import { getTicketStats, TicketStatsResponse } from "@/services/statsService";
+import { enterpriseService } from "@/services/enterpriseService";
+import { useTenant } from "@/context/TenantContext";
+import { useParams } from "react-router-dom";
 
 // --- MOCK DATA & TYPES (as per backend spec) ---
 
@@ -65,6 +68,17 @@ interface RegionSale {
   region_code: string;
   region_name: string;
   sales: number;
+}
+
+interface TenantDashboardBundle {
+  tenant?: Record<string, any>;
+  summary?: Record<string, any>;
+  leads?: Record<string, any>;
+  surveys?: Record<string, any>;
+  unread?: Record<string, any>;
+  team?: Record<string, any>;
+  recommended_actions?: Array<Record<string, any>>;
+  meta?: Record<string, any>;
 }
 
 const formatStatusLabel = (value: string) =>
@@ -197,11 +211,16 @@ const MetricsSummary: FC<{ summary: string }> = ({ summary }) => (
 // --- Main Page Component ---
 
 export default function BusinessMetrics() {
+  const params = useParams<{ tenant: string }>();
+  const { tenant } = useTenant();
+  const tenantSlug = tenant?.slug || params.tenant || "";
   const [kpis, setKpis] = useState<KpiData | null>(null);
   const [sales, setSales] = useState<SalesDataPoint[] | null>(null);
   const [topProducts, setTopProducts] = useState<TopProduct[] | null>(null);
   const [regions, setRegions] = useState<RegionSale[] | null>(null);
   const [summary, setSummary] = useState<string | null>(null);
+  const [dashboardBundle, setDashboardBundle] =
+    useState<TenantDashboardBundle | null>(null);
   const [ticketCharts, setTicketCharts] = useState<TicketStatsResponse['charts']>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -216,6 +235,7 @@ export default function BusinessMetrics() {
       });
 
       const [
+        dashboardBundleRes,
         summaryRes,
         kpisRes,
         salesRes,
@@ -223,6 +243,11 @@ export default function BusinessMetrics() {
         regionSalesRes,
         ticketStatsRes
       ] = await Promise.all([
+        tenantSlug
+          ? enterpriseService.getTenantDashboardBundle(tenantSlug, {
+              since_days: 30,
+            })
+          : Promise.resolve(null),
         apiFetch<{ summary: string }>('/api/metrics/summary'),
         apiFetch<KpiData>('/api/metrics/kpis'),
         apiFetch<{ data: SalesDataPoint[] }>('/api/metrics/sales-over-time?period=30d'),
@@ -231,6 +256,7 @@ export default function BusinessMetrics() {
         ticketStatsPromise
       ]);
 
+      setDashboardBundle(dashboardBundleRes);
       setSummary(summaryRes.summary);
       setKpis(kpisRes);
       setSales(salesRes.data);
@@ -243,7 +269,7 @@ export default function BusinessMetrics() {
     } finally {
         setLoading(false);
     }
-  }, []);
+  }, [tenantSlug]);
 
   useEffect(() => {
     fetchAllMetrics();
@@ -273,6 +299,16 @@ export default function BusinessMetrics() {
       }),
     [ticketCharts],
   );
+  const bundleSummary = dashboardBundle?.summary || {};
+  const bundleLeads = dashboardBundle?.leads || {};
+  const bundleSurveys = dashboardBundle?.surveys || {};
+  const bundleUnread = dashboardBundle?.unread || {};
+  const bundleTeamItems = Array.isArray(dashboardBundle?.team?.items)
+    ? dashboardBundle?.team?.items
+    : [];
+  const recommendedActions = Array.isArray(dashboardBundle?.recommended_actions)
+    ? dashboardBundle.recommended_actions
+    : [];
 
   if (loading) {
     return (
@@ -313,6 +349,124 @@ export default function BusinessMetrics() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {dashboardBundle && (
+          <>
+            <Card className="col-span-1 md:col-span-2 lg:col-span-4">
+              <CardHeader>
+                <CardTitle>Panel operativo tenant</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-lg border border-border bg-muted/40 p-4">
+                  <p className="text-sm text-muted-foreground">Leads backlog</p>
+                  <p className="mt-1 text-2xl font-bold">
+                    {toNumber(
+                      bundleSummary.open_leads ??
+                        bundleLeads.open ??
+                        bundleLeads.backlog ??
+                        bundleLeads.total,
+                    ).toLocaleString("es-AR")}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-border bg-muted/40 p-4">
+                  <p className="text-sm text-muted-foreground">SLA en riesgo</p>
+                  <p className="mt-1 text-2xl font-bold">
+                    {toNumber(
+                      bundleSummary.sla_at_risk ??
+                        bundleLeads.sla_at_risk ??
+                        bundleLeads.sla_breached,
+                    ).toLocaleString("es-AR")}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-border bg-muted/40 p-4">
+                  <p className="text-sm text-muted-foreground">Tickets unread</p>
+                  <p className="mt-1 text-2xl font-bold">
+                    {toNumber(
+                      bundleSummary.unread_tickets ??
+                        bundleUnread.total_tickets_with_unread ??
+                        bundleUnread.total,
+                    ).toLocaleString("es-AR")}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-border bg-muted/40 p-4">
+                  <p className="text-sm text-muted-foreground">Encuestas activas</p>
+                  <p className="mt-1 text-2xl font-bold">
+                    {toNumber(
+                      bundleSummary.active_surveys ??
+                        bundleSurveys.active ??
+                        bundleSurveys.total,
+                    ).toLocaleString("es-AR")}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {(recommendedActions.length > 0 || bundleTeamItems.length > 0) && (
+              <Card className="col-span-1 md:col-span-2 lg:col-span-4">
+                <CardHeader>
+                  <CardTitle>Prioridades operativas</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4 lg:grid-cols-[1.2fr_minmax(0,1fr)]">
+                  <div className="space-y-3">
+                    <p className="text-sm font-medium">Acciones sugeridas</p>
+                    <div className="flex flex-wrap gap-2">
+                      {recommendedActions.length ? (
+                        recommendedActions.map((action, index) => (
+                          <span
+                            key={`tenant-dashboard-action-${index}`}
+                            className="inline-flex items-center rounded-full border px-3 py-1 text-xs"
+                          >
+                            {String(
+                              action?.label ||
+                                action?.title ||
+                                action?.action ||
+                                action?.code ||
+                                `action_${index + 1}`,
+                            )}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-sm text-muted-foreground">Sin acciones sugeridas.</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <p className="text-sm font-medium">Carga del equipo</p>
+                    <div className="space-y-2">
+                      {bundleTeamItems.slice(0, 4).map((member, index) => (
+                        <div
+                          key={`team-workload-${index}`}
+                          className="flex items-center justify-between rounded-lg border border-border bg-muted/30 px-3 py-2"
+                        >
+                          <span className="text-sm">
+                            {member?.employee_name ||
+                              member?.nombre ||
+                              member?.user_name ||
+                              member?.email ||
+                              `member_${index + 1}`}
+                          </span>
+                          <Badge variant="outline">
+                            {toNumber(
+                              member?.workload_open_tickets ??
+                                member?.open_tickets ??
+                                member?.assigned_open_tickets,
+                            ).toLocaleString("es-AR")}
+                          </Badge>
+                        </div>
+                      ))}
+                      {!bundleTeamItems.length ? (
+                        <p className="text-sm text-muted-foreground">
+                          Sin carga de equipo en el bundle actual.
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </>
+        )}
+
         {summary && <MetricsSummary summary={summary} />}
 
         {statusSummary.length > 0 && (
