@@ -458,7 +458,13 @@ function ChatWidgetInner({
   const tenantSlugFromScripts = useMemo(() => sanitizeTenantSlug(readTenantFromScripts()), []);
   const tenantSlugFromSubdomain = useMemo(() => sanitizeTenantSlug(readTenantFromSubdomain()), []);
 
-  const resolvedTenantSlug = useMemo(() => {
+  const tenantSlugFromGlobalConfig = useMemo(() => {
+    if (typeof window === "undefined") return null;
+    const cfg = (window as any).CHATBOC_CONFIG || {};
+    return sanitizeTenantSlug(cfg.tenant || cfg.tenantSlug || cfg.tenant_slug);
+  }, []);
+
+  const embeddedTenantSlug = useMemo(() => {
     const candidates = [
       contextOverride?.tenantSlug,
       explicitTenantSlug,
@@ -466,16 +472,10 @@ function ChatWidgetInner({
       tenantSlugFromLocation,
       tenantSlugFromScripts,
       tenantSlugFromSubdomain,
-      storedTenantSlug,
       currentSlug,
       tenant?.slug,
+      tenantSlugFromGlobalConfig,
     ];
-
-    // Explicitly check global config if available
-    if (typeof window !== "undefined") {
-        const cfg = (window as any).CHATBOC_CONFIG || {};
-        candidates.push(cfg.tenant, cfg.tenantSlug, cfg.tenant_slug);
-    }
 
     for (const candidate of candidates) {
       const sanitized = sanitizeTenantSlug(candidate);
@@ -488,19 +488,47 @@ function ChatWidgetInner({
     explicitTenantSlug,
     currentSlug,
     tenant?.slug,
-    storedTenantSlug,
     tenantSlugFromEntity,
     tenantSlugFromLocation,
     tenantSlugFromScripts,
     tenantSlugFromSubdomain,
+    tenantSlugFromGlobalConfig,
   ]);
+
+  const resolvedTenantSlug = useMemo(() => {
+    if (isEmbedded) {
+      return embeddedTenantSlug;
+    }
+
+    return embeddedTenantSlug || storedTenantSlug;
+  }, [embeddedTenantSlug, isEmbedded, storedTenantSlug]);
 
   useEffect(() => {
     const sanitized = sanitizeTenantSlug(resolvedTenantSlug);
     if (sanitized) {
       safeLocalStorage.setItem("tenantSlug", sanitized);
+      return;
     }
-  }, [resolvedTenantSlug]);
+
+    if (isEmbedded) {
+      safeLocalStorage.removeItem("tenantSlug");
+    }
+  }, [isEmbedded, resolvedTenantSlug]);
+
+  useEffect(() => {
+    if (!isEmbedded) return;
+
+    const embeddedSourceSlug = sanitizeTenantSlug(explicitTenantSlug) || embeddedTenantSlug;
+    setContextOverride((prev: any) => {
+      if (!prev?.tenantSlug) return prev;
+      if (!embeddedSourceSlug) {
+        const { tenantSlug: _tenantSlug, ...rest } = prev;
+        return Object.keys(rest).length ? rest : null;
+      }
+      const sanitizedPrev = sanitizeTenantSlug(prev.tenantSlug);
+      return sanitizedPrev === embeddedSourceSlug ? prev : { ...prev, tenantSlug: embeddedSourceSlug };
+    });
+  }, [embeddedTenantSlug, explicitTenantSlug, isEmbedded]);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -1138,6 +1166,12 @@ function ChatWidgetInner({
 
           if (typeof tenantSlug === 'string' && tenantSlug.trim()) {
               setContextOverride((prev: any) => ({ ...prev, tenantSlug: tenantSlug.trim() }));
+          } else if (Object.prototype.hasOwnProperty.call(payload, 'tenantSlug')) {
+              setContextOverride((prev: any) => {
+                if (!prev?.tenantSlug) return prev;
+                const { tenantSlug: _tenantSlug, ...rest } = prev;
+                return Object.keys(rest).length ? rest : null;
+              });
           }
           if (tipoChat === 'municipio' || tipoChat === 'pyme') {
               setResolvedTipoChat(tipoChat);
