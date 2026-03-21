@@ -47,6 +47,8 @@ export default function SuperAdminDashboard() {
   const [whatsappLoading, setWhatsappLoading] = useState(true);
   const [whatsappError, setWhatsappError] = useState<string | null>(null);
   const [tenantHealth, setTenantHealth] = useState<any[]>([]);
+  const [executiveSummary, setExecutiveSummary] = useState<any | null>(null);
+  const [executiveLoading, setExecutiveLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [selectedProfileSlug, setSelectedProfileSlug] = useState("");
@@ -102,13 +104,30 @@ export default function SuperAdminDashboard() {
   useEffect(() => {
     fetchTenants();
     fetchWhatsappNumbers();
+    setExecutiveLoading(true);
     enterpriseService
-      .getTenantHealth({ since_days: 30 })
-      .then((response) => setTenantHealth(response?.items || []))
-      .catch((healthError) => {
-        console.error(healthError);
-        setTenantHealth([]);
-      });
+      .getExecutiveSummary({
+        since_days: 30,
+        include_heatmap: true,
+        include_realtime: true,
+      })
+      .then((response) => {
+        setExecutiveSummary(response || null);
+        const bundledHealth = Array.isArray(response?.tenant_health)
+          ? response.tenant_health
+          : response?.tenant_health?.items || [];
+        setTenantHealth(bundledHealth);
+      })
+      .catch((executiveError) => {
+        console.error(executiveError);
+        setExecutiveSummary(null);
+        return enterpriseService.getTenantHealth({ since_days: 30 });
+      })
+      .then((healthResponse) => {
+        if (!healthResponse) return;
+        setTenantHealth(healthResponse?.items || []);
+      })
+      .finally(() => setExecutiveLoading(false));
   }, []);
 
   useEffect(() => {
@@ -222,6 +241,13 @@ export default function SuperAdminDashboard() {
   const profileOnboardingEntries = Object.entries(
     tenantProfile360?.onboarding || {},
   );
+  const executiveOverview = executiveSummary?.strategic_overview || {};
+  const executiveRealtime = executiveSummary?.realtime || {};
+  const executiveRecommendedActions = Array.isArray(
+    executiveSummary?.recommended_actions,
+  )
+    ? executiveSummary.recommended_actions
+    : [];
   const profileAlerts = Array.isArray(profileHealth?.alerts)
     ? profileHealth.alerts
     : Array.isArray(tenantProfile360?.meta?.alerts)
@@ -325,6 +351,86 @@ export default function SuperAdminDashboard() {
       </div>
 
       <SuperadminLeadsPipeline />
+
+      <Card className="border-muted/60 shadow-sm">
+        <CardHeader>
+          <CardTitle>Executive summary</CardTitle>
+          <CardDescription>
+            Bundle agregado desde `/api/admin/analytics/executive-summary` para
+            CEO/superadmin con menos roundtrips.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {executiveLoading ? (
+            <div className="text-sm text-muted-foreground">
+              Cargando executive summary...
+            </div>
+          ) : null}
+
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            <div className="rounded-xl border p-4">
+              <div className="text-xs text-muted-foreground">Leads totales</div>
+              <div className="mt-1 text-2xl font-semibold">
+                {executiveOverview?.total_leads ??
+                  executiveOverview?.totals?.total ??
+                  "—"}
+              </div>
+            </div>
+            <div className="rounded-xl border p-4">
+              <div className="text-xs text-muted-foreground">Open leads</div>
+              <div className="mt-1 text-2xl font-semibold">
+                {executiveOverview?.open_leads ??
+                  executiveOverview?.totals?.open ??
+                  "—"}
+              </div>
+            </div>
+            <div className="rounded-xl border p-4">
+              <div className="text-xs text-muted-foreground">Win rate</div>
+              <div className="mt-1 text-2xl font-semibold">
+                {formatPercent(executiveOverview?.win_rate)}
+              </div>
+            </div>
+            <div className="rounded-xl border p-4">
+              <div className="text-xs text-muted-foreground">
+                Realtime sesiones
+              </div>
+              <div className="mt-1 text-2xl font-semibold">
+                {executiveRealtime?.active_sessions ?? "—"}
+              </div>
+            </div>
+            <div className="rounded-xl border p-4">
+              <div className="text-xs text-muted-foreground">
+                Coverage ratio
+              </div>
+              <div className="mt-1 text-2xl font-semibold">
+                {formatPercent(executiveRealtime?.coverage_ratio)}
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-xl border p-4">
+            <div className="mb-2 text-sm font-medium">Recommended actions</div>
+            <div className="flex flex-wrap gap-2">
+              {executiveRecommendedActions.length ? (
+                executiveRecommendedActions.map(
+                  (action: any, index: number) => (
+                    <Badge key={`recommended-${index}`} variant="outline">
+                      {action?.label ||
+                        action?.title ||
+                        action?.action ||
+                        `action_${index + 1}`}
+                    </Badge>
+                  ),
+                )
+              ) : (
+                <span className="text-sm text-muted-foreground">
+                  Sin acciones recomendadas en el bundle actual.
+                </span>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(380px,1.2fr)]">
         <Card className="border-muted/60 shadow-sm">

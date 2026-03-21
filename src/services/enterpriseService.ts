@@ -820,23 +820,24 @@ export const enterpriseService = {
   },
 
   getExecutiveSummary: async (
-    payload: {
-      tenant_id: number;
-      scope?: string;
-      from?: string;
-      to?: string;
-      strict_no_data_message?: boolean;
-    },
+    filters: {
+      since_days?: number;
+      tenant_slug?: string;
+      include_heatmap?: boolean;
+      include_realtime?: boolean;
+    } = {},
     tenantSlug?: string,
   ) => {
-    return apiFetch<{ summary?: string; text?: string }>(
-      "/admin/ai/executive-summary",
-      {
-        method: "POST",
-        body: payload,
-        tenantSlug,
-      },
-    );
+    const query = buildQueryString(filters);
+    return apiFetch<{
+      strategic_overview?: any;
+      tenant_health?: { items?: any[] } | any[];
+      realtime?: any;
+      heatmap?: any;
+      recommended_actions?: any[];
+    }>(`/api/admin/analytics/executive-summary${query ? `?${query}` : ""}`, {
+      tenantSlug,
+    });
   },
 
   getTicketSummary: async (
