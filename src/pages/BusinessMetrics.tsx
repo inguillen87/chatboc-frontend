@@ -37,6 +37,7 @@ import { getTicketStats, TicketStatsResponse } from "@/services/statsService";
 import { enterpriseService } from "@/services/enterpriseService";
 import { useTenant } from "@/context/TenantContext";
 import { useParams } from "react-router-dom";
+import MapLibreMap from "@/components/MapLibreMap";
 
 // --- MOCK DATA & TYPES (as per backend spec) ---
 
@@ -78,6 +79,22 @@ interface TenantDashboardBundle {
   unread?: Record<string, any>;
   team?: Record<string, any>;
   recommended_actions?: Array<Record<string, any>>;
+  meta?: Record<string, any>;
+}
+
+interface TenantHeatmapSummary {
+  top_categories?: Array<Record<string, any>>;
+  top_zones?: Array<Record<string, any>>;
+  hotspot_pairs?: Array<Record<string, any>>;
+  heatmap_points?: Array<Record<string, any>>;
+  meta?: Record<string, any>;
+}
+
+interface TenantEmployeeCoverage {
+  categorias?: Array<Record<string, any>>;
+  zonas?: Array<Record<string, any>>;
+  permisos?: Array<Record<string, any>>;
+  items?: Array<Record<string, any>>;
   meta?: Record<string, any>;
 }
 
@@ -221,6 +238,10 @@ export default function BusinessMetrics() {
   const [summary, setSummary] = useState<string | null>(null);
   const [dashboardBundle, setDashboardBundle] =
     useState<TenantDashboardBundle | null>(null);
+  const [tenantHeatmap, setTenantHeatmap] =
+    useState<TenantHeatmapSummary | null>(null);
+  const [employeeCoverage, setEmployeeCoverage] =
+    useState<TenantEmployeeCoverage | null>(null);
   const [ticketCharts, setTicketCharts] = useState<TicketStatsResponse['charts']>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -236,6 +257,8 @@ export default function BusinessMetrics() {
 
       const [
         dashboardBundleRes,
+        heatmapSummaryRes,
+        employeeCoverageRes,
         summaryRes,
         kpisRes,
         salesRes,
@@ -248,6 +271,15 @@ export default function BusinessMetrics() {
               since_days: 30,
             })
           : Promise.resolve(null),
+        tenantSlug
+          ? enterpriseService.getTenantHeatmapSummary(tenantSlug, {
+              since_days: 30,
+              point_limit: 150,
+            })
+          : Promise.resolve(null),
+        tenantSlug
+          ? enterpriseService.getTenantEmployeeCoverage(tenantSlug)
+          : Promise.resolve(null),
         apiFetch<{ summary: string }>('/api/metrics/summary'),
         apiFetch<KpiData>('/api/metrics/kpis'),
         apiFetch<{ data: SalesDataPoint[] }>('/api/metrics/sales-over-time?period=30d'),
@@ -257,6 +289,8 @@ export default function BusinessMetrics() {
       ]);
 
       setDashboardBundle(dashboardBundleRes);
+      setTenantHeatmap(heatmapSummaryRes);
+      setEmployeeCoverage(employeeCoverageRes);
       setSummary(summaryRes.summary);
       setKpis(kpisRes);
       setSales(salesRes.data);
@@ -308,6 +342,27 @@ export default function BusinessMetrics() {
     : [];
   const recommendedActions = Array.isArray(dashboardBundle?.recommended_actions)
     ? dashboardBundle.recommended_actions
+    : [];
+  const heatmapPoints = Array.isArray(tenantHeatmap?.heatmap_points)
+    ? tenantHeatmap.heatmap_points
+        .map((point) => ({
+          lat: Number(point?.lat),
+          lng: Number(point?.lng),
+          weight: toNumber(point?.weight ?? point?.count ?? point?.total ?? 1),
+          categoria: point?.categoria,
+          zona: point?.zona,
+          label: point?.label,
+        }))
+        .filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng))
+    : [];
+  const coverageCategories = Array.isArray(employeeCoverage?.categorias)
+    ? employeeCoverage.categorias
+    : [];
+  const coverageZones = Array.isArray(employeeCoverage?.zonas)
+    ? employeeCoverage.zonas
+    : [];
+  const coveragePermissions = Array.isArray(employeeCoverage?.permisos)
+    ? employeeCoverage.permisos
     : [];
 
   if (loading) {
@@ -465,6 +520,133 @@ export default function BusinessMetrics() {
               </Card>
             )}
           </>
+        )}
+
+        {(tenantHeatmap || employeeCoverage) && (
+          <Card className="col-span-1 md:col-span-2 lg:col-span-4">
+            <CardHeader>
+              <CardTitle>Mapa de calor y cobertura operativa</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,1fr)]">
+                <div className="rounded-xl border border-border bg-muted/20 p-3">
+                  {heatmapPoints.length ? (
+                    <MapLibreMap
+                      className="h-[360px] w-full rounded-lg"
+                      heatmapData={heatmapPoints as any}
+                      showHeatmap
+                    />
+                  ) : (
+                    <div className="flex h-[360px] items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
+                      No hay puntos de heatmap disponibles en el rango actual.
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid gap-4">
+                  <div className="rounded-xl border p-4">
+                    <p className="text-sm font-medium">Top categorías</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {(tenantHeatmap?.top_categories || []).slice(0, 8).map((item, index) => (
+                        <Badge key={`top-category-${index}`} variant="outline">
+                          {String(item?.categoria || item?.label || item?.name || `categoria_${index + 1}`)} · {toNumber(item?.count ?? item?.total)}
+                        </Badge>
+                      ))}
+                      {!(tenantHeatmap?.top_categories || []).length ? (
+                        <span className="text-sm text-muted-foreground">Sin categorías agregadas.</span>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border p-4">
+                    <p className="text-sm font-medium">Top zonas</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {(tenantHeatmap?.top_zones || []).slice(0, 8).map((item, index) => (
+                        <Badge key={`top-zone-${index}`} variant="secondary">
+                          {String(item?.zona || item?.label || item?.name || `zona_${index + 1}`)} · {toNumber(item?.count ?? item?.total)}
+                        </Badge>
+                      ))}
+                      {!(tenantHeatmap?.top_zones || []).length ? (
+                        <span className="text-sm text-muted-foreground">Sin zonas agregadas.</span>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border p-4">
+                    <p className="text-sm font-medium">Hotspots</p>
+                    <div className="mt-3 space-y-2 text-sm">
+                      {(tenantHeatmap?.hotspot_pairs || []).slice(0, 4).map((item, index) => (
+                        <div key={`hotspot-${index}`} className="flex items-center justify-between rounded-lg border px-3 py-2">
+                          <span>
+                            {String(
+                              item?.categoria ||
+                                item?.category ||
+                                item?.label ||
+                                item?.zona ||
+                                `hotspot_${index + 1}`,
+                            )}
+                          </span>
+                          <span className="text-muted-foreground">
+                            {toNumber(item?.count ?? item?.total ?? item?.weight)}
+                          </span>
+                        </div>
+                      ))}
+                      {!(tenantHeatmap?.hotspot_pairs || []).length ? (
+                        <span className="text-muted-foreground">Sin hotspots en el resumen actual.</span>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="rounded-xl border p-4">
+                  <p className="text-sm font-medium">Cobertura por categorías</p>
+                  <div className="mt-3 space-y-2 text-sm">
+                    {coverageCategories.slice(0, 5).map((item, index) => (
+                      <div key={`coverage-category-${index}`} className="flex items-center justify-between">
+                        <span>{String(item?.categoria || item?.label || item?.name || `categoria_${index + 1}`)}</span>
+                        <Badge variant="outline">{toNumber(item?.employees ?? item?.count ?? item?.total)}</Badge>
+                      </div>
+                    ))}
+                    {!coverageCategories.length ? (
+                      <span className="text-muted-foreground">Sin cobertura cargada.</span>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="rounded-xl border p-4">
+                  <p className="text-sm font-medium">Cobertura por zonas</p>
+                  <div className="mt-3 space-y-2 text-sm">
+                    {coverageZones.slice(0, 5).map((item, index) => (
+                      <div key={`coverage-zone-${index}`} className="flex items-center justify-between">
+                        <span>{String(item?.zona || item?.label || item?.name || `zona_${index + 1}`)}</span>
+                        <Badge variant="outline">{toNumber(item?.employees ?? item?.count ?? item?.total)}</Badge>
+                      </div>
+                    ))}
+                    {!coverageZones.length ? (
+                      <span className="text-muted-foreground">Sin zonas configuradas.</span>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="rounded-xl border p-4">
+                  <p className="text-sm font-medium">Cobertura por permisos</p>
+                  <div className="mt-3 space-y-2 text-sm">
+                    {coveragePermissions.slice(0, 5).map((item, index) => (
+                      <div key={`coverage-permission-${index}`} className="flex items-center justify-between">
+                        <span>{String(item?.permiso || item?.label || item?.name || `permiso_${index + 1}`)}</span>
+                        <Badge variant="outline">{toNumber(item?.employees ?? item?.count ?? item?.total)}</Badge>
+                      </div>
+                    ))}
+                    {!coveragePermissions.length ? (
+                      <span className="text-muted-foreground">Sin permisos agregados.</span>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         )}
 
         {summary && <MetricsSummary summary={summary} />}

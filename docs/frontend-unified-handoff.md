@@ -49,6 +49,8 @@ Consumir:
 - `GET /api/admin/analytics/executive-summary`
 - `GET /api/admin/tenants/<slug>/profile-360`
 - `GET /api/admin/tenants/<slug>/dashboard-bundle`
+- `GET /api/admin/tenants/<slug>/heatmap-summary`
+- `GET /api/admin/tenants/<slug>/employees/coverage`
 - `GET /api/admin/analytics/heatmap-categories-zones`
 
 ---
@@ -139,11 +141,13 @@ En `chatboc.ar`, el primer contacto debe abrir demo selector, pero cuando haya c
 ### Endpoint backend
 
 - `GET /api/admin/analytics/heatmap-categories-zones?since_days=30`
+- `GET /api/admin/tenants/<slug>/heatmap-summary?since_days=30&point_limit=150`
 
 ### Payload esperado
 
 - `top_categories`
 - `top_zones`
+- `hotspot_pairs`
 - `heatmap_points`
 
 ### UX sugerida
@@ -151,6 +155,7 @@ En `chatboc.ar`, el primer contacto debe abrir demo selector, pero cuando haya c
 - switch `puntos | clusters | heatmap`
 - click en categoría/zona => filtra inbox/dashboard
 - layout sincronizado `lista + mapa`
+- usar `heatmap-summary` dentro del dashboard tenant para operación diaria
 
 ---
 
@@ -208,6 +213,7 @@ En `chatboc.ar`, el primer contacto debe abrir demo selector, pero cuando haya c
 
 - `GET /api/admin/tenants/<slug>/profile-360?since_days=30`
 - `GET /api/admin/tenants/<slug>/dashboard-bundle?since_days=30`
+- `GET /api/admin/tenants/<slug>/employees/coverage`
 
 ### Devuelve
 
@@ -266,6 +272,23 @@ En `chatboc.ar`, el primer contacto debe abrir demo selector, pero cuando haya c
 - encuestas / overview
 - tickets unread summary
 - employees workload
+
+### Cobertura de empleados (`employees/coverage`)
+
+#### Devuelve
+
+- `categorias`
+- `zonas`
+- `permisos`
+- `items`
+- `meta`
+
+#### Qué desbloquea en frontend
+
+- matriz de cobertura por categoría/zona/permiso
+- detección de huecos operativos
+- diversificación de roles entre gobierno / empresa
+- validación visual después de crear empleados
 
 ---
 
@@ -375,14 +398,15 @@ Mostrar:
 6. drawer ticket 360
 7. strategic overview
 8. tenant health ranking
+9. tenant heatmap summary + employee coverage
 
 ### Fase 3
 
-9. tenant `profile-360`
-10. tenant `dashboard-bundle`
-11. playbooks
-12. dashboards ejecutivos
-13. heatmaps avanzados
+10. tenant `profile-360`
+11. tenant `dashboard-bundle`
+12. playbooks
+13. dashboards ejecutivos
+14. heatmaps avanzados
 
 ---
 
@@ -390,4 +414,4 @@ Mostrar:
 
 Si me pedís qué mandarle al frontend **hoy**, mandales este archivo y deciles:
 
-> “Tomen este MD como contrato único backend->frontend. Si implementan primero `ux_context`, realtime, badges SLA, `strategic-overview`, `tenant-health`, `profile-360` y `dashboard-bundle`, ya podemos mostrar un producto muy serio de cara a demo, operaciones, tenant admin y superadmin.”
+> “Tomen este MD como contrato único backend->frontend. Si implementan primero `ux_context`, realtime, badges SLA, `strategic-overview`, `tenant-health`, `profile-360`, `dashboard-bundle`, `heatmap-summary` y `employees/coverage`, ya podemos mostrar un producto muy serio de cara a demo, operaciones, tenant admin y superadmin.”

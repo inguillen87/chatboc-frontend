@@ -38,6 +38,14 @@ import { trackWidgetEvent } from "@/utils/widgetTelemetry";
 
 const PUBLIC_CHAT_CONTEXT_KEY = "chatboc_public_chat_context";
 
+const clearStoredPublicChatContext = () => {
+  try {
+    safeLocalStorage.removeItem(PUBLIC_CHAT_CONTEXT_KEY);
+  } catch {
+    // no-op
+  }
+};
+
 const readStoredPublicChatContext = () => {
   try {
     const raw = safeLocalStorage.getItem(PUBLIC_CHAT_CONTEXT_KEY);
@@ -237,6 +245,71 @@ export function useChatLogic({
     };
   }, []);
 
+  const resolvePersistentPublicContext = useCallback(
+    (
+      resolvedTipoChat: "pyme" | "municipio",
+      resolvedTenantSlug?: string | null,
+    ) => {
+      if (!shouldUsePublicFlow(resolvedTipoChat, resolvedTenantSlug)) {
+        clearStoredPublicChatContext();
+        return null;
+      }
+
+    const storedContext = readStoredPublicChatContext();
+    if (!storedContext) return null;
+
+      const storedTipoChat = pickFirstString(
+        storedContext.tipoChat,
+        storedContext.tipo_chat,
+      )?.trim();
+      const storedTenantSlug = pickFirstString(
+        storedContext.tenantSlug,
+        storedContext.tenant_slug,
+      )?.trim();
+      const normalizedResolvedTenant =
+        typeof resolvedTenantSlug === "string" ? resolvedTenantSlug.trim() : "";
+
+      if (
+        storedTipoChat &&
+        storedTipoChat !== resolvedTipoChat
+      ) {
+        clearStoredPublicChatContext();
+        return null;
+      }
+
+      if (
+        storedTenantSlug &&
+        normalizedResolvedTenant &&
+        storedTenantSlug !== normalizedResolvedTenant
+      ) {
+        clearStoredPublicChatContext();
+        return null;
+      }
+
+    const normalizedPin = pickFirstString(
+      storedContext.pin,
+      storedContext.consulta_pin,
+      storedContext.consultaPin,
+    )?.trim();
+    const ticketNumber = pickFirstString(
+      storedContext.ticketNumber,
+      storedContext.ticket_number,
+      storedContext.nro_ticket,
+    )?.trim();
+    const ticketId = storedContext.ticketId ?? storedContext.ticket_id ?? null;
+
+    if (!normalizedPin && !ticketNumber && !ticketId) return null;
+
+    return {
+      pin: normalizedPin || undefined,
+      consulta_pin: normalizedPin || undefined,
+      ticket_id: ticketId ?? undefined,
+      ticket_number: ticketNumber || undefined,
+    };
+    },
+    [shouldUsePublicFlow],
+  );
+
   const initializeConversation = useCallback(
     async (options?: {
       rubroOverride?: string | null;
@@ -344,7 +417,10 @@ export function useChatLogic({
       const effectiveSkipAuth = skipAuth || isPublicDemo;
 
       try {
-        const publicChatContext = resolvePersistentPublicContext();
+        const publicChatContext = resolvePersistentPublicContext(
+          tipoChatFinal,
+          tenantSlug,
+        );
         const response = await apiFetch<any>(endpoint, {
           method: "POST",
           skipAuth: effectiveSkipAuth,
@@ -621,30 +697,6 @@ export function useChatLogic({
           ? { suggested_next_actions: suggestedNextActions }
           : {}),
         ...(visibilityRules ? { visibility_rules: visibilityRules } : {}),
-      } as ChatUxContext;
-    })();
-
-    if (candidateUxContext) {
-      setUxContext((prev) => ({ ...(prev || {}), ...candidateUxContext }));
-    }
-
-    const candidateUxContext = (() => {
-      const source = Array.isArray(rawPayload) ? rawPayload.find((item) => item?.ux_context || item?.metadata?.ux_context) : rawPayload;
-      const rawUx = source?.ux_context || source?.metadata?.ux_context;
-      if (!rawUx || typeof rawUx !== 'object') return null;
-      const trustedOwner = typeof rawUx.trusted_owner === 'boolean' ? rawUx.trusted_owner : undefined;
-      const ownerTipoChat = pickFirstString(rawUx.owner_tipo_chat, rawUx.ownerTipoChat) || undefined;
-      const ownerName = pickFirstString(rawUx.owner_name, rawUx.ownerName) || undefined;
-      const shouldRenderDemoShell = typeof rawUx.should_render_demo_shell === 'boolean'
-        ? rawUx.should_render_demo_shell
-        : typeof rawUx.shouldRenderDemoShell === 'boolean'
-          ? rawUx.shouldRenderDemoShell
-          : undefined;
-      return {
-        ...(trustedOwner !== undefined ? { trusted_owner: trustedOwner } : {}),
-        ...(ownerTipoChat ? { owner_tipo_chat: ownerTipoChat } : {}),
-        ...(ownerName ? { owner_name: ownerName } : {}),
-        ...(shouldRenderDemoShell !== undefined ? { should_render_demo_shell: shouldRenderDemoShell } : {}),
       } as ChatUxContext;
     })();
 
@@ -2064,7 +2116,10 @@ export function useChatLogic({
         const visitorName = getVisitorName();
 
         const sessionId = getOrCreateChatSessionId();
-        const publicChatContext = resolvePersistentPublicContext();
+        const publicChatContext = resolvePersistentPublicContext(
+          tipoChatFinal,
+          tenantSlug,
+        );
         const requestBody: Record<string, any> = {
           pregunta: questionForBackend,
           contexto_previo: updatedContext,

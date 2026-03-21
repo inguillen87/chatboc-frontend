@@ -817,6 +817,35 @@ export const enterpriseService = {
     );
   },
 
+  getTenantHeatmapSummary: async (
+    tenantSlug: string,
+    filters: { since_days?: number; point_limit?: number } = {},
+  ) => {
+    const query = buildQueryString(filters);
+    return apiFetch<{
+      top_categories?: any[];
+      top_zones?: any[];
+      hotspot_pairs?: any[];
+      heatmap_points?: any[];
+      meta?: any;
+    }>(
+      `/api/admin/tenants/${tenantSlug}/heatmap-summary${query ? `?${query}` : ""}`,
+      { tenantSlug },
+    );
+  },
+
+  getTenantEmployeeCoverage: async (tenantSlug: string) => {
+    return apiFetch<{
+      categorias?: any[];
+      zonas?: any[];
+      permisos?: any[];
+      items?: any[];
+      meta?: any;
+    }>(`/api/admin/tenants/${tenantSlug}/employees/coverage`, {
+      tenantSlug,
+    });
+  },
+
   getRealtimeAiOverview: async (
     filters: { minutes?: number } = {},
     tenantSlug?: string,
