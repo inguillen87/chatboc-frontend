@@ -4,10 +4,12 @@ import {
   Message,
   SendPayload as TypeSendPayload,
   Categoria,
+  ConfirmationCardData,
   StructuredContentItem,
   Post,
   ChatUxContext,
   ChatUxChannelCapabilities,
+  ChatUxRecommendedExperience,
 } from "@/types/chat";
 import { io, Socket } from "socket.io-client";
 import { getSocketUrl, SOCKET_PATH } from "@/config";
@@ -518,6 +520,7 @@ export function useChatLogic({
     socialLinks?: Record<string, string>;
     displayHint?: Message["displayHint"];
     chatBubbleStyle?: Message["chatBubbleStyle"];
+    confirmationCard?: Message["confirmationCard"];
     botones: any[];
     categorias: Categoria[];
   }) => {
@@ -550,6 +553,9 @@ export function useChatLogic({
           Object.entries(socialLinks).sort((a, b) => a[0].localeCompare(b[0])),
         )
       : "";
+    const serializedConfirmationCard = confirmationCard
+      ? JSON.stringify(confirmationCard)
+      : "";
 
     return [
       "fp",
@@ -564,6 +570,7 @@ export function useChatLogic({
       serializedList,
       serializedPosts,
       serializedSocial,
+      serializedConfirmationCard,
       displayHint || "",
       chatBubbleStyle || "",
       JSON.stringify(serializeButtons(botones)),
@@ -593,6 +600,18 @@ export function useChatLogic({
     setContexto((prevContext) =>
       updateMunicipioContext(prevContext, { llmResponse: rawPayload }),
     );
+
+    const normalizeStringList = (value: unknown): string[] | undefined => {
+      if (!Array.isArray(value)) return undefined;
+      const normalized = value
+        .map((item) =>
+          typeof item === "string" && item.trim().length > 0
+            ? item.trim()
+            : null,
+        )
+        .filter((item): item is string => Boolean(item));
+      return normalized.length > 0 ? normalized : undefined;
+    };
 
     const normalizeChannelCapabilities = (
       raw: unknown,
@@ -659,6 +678,259 @@ export function useChatLogic({
         : undefined;
     };
 
+    const normalizeRecommendedExperience = (
+      raw: unknown,
+    ): ChatUxRecommendedExperience | undefined => {
+      if (!raw || typeof raw !== "object") return undefined;
+      const record = raw as Record<string, unknown>;
+      const recommendedExperience: ChatUxRecommendedExperience = {};
+
+      const assignBool = (
+        key: keyof Omit<ChatUxRecommendedExperience, "preferred_handoff_channels">,
+        ...values: unknown[]
+      ) => {
+        for (const value of values) {
+          if (typeof value === "boolean") {
+            recommendedExperience[key] = value;
+            return;
+          }
+          if (typeof value === "number") {
+            recommendedExperience[key] = value === 1;
+            return;
+          }
+          if (typeof value === "string") {
+            const normalized = value.trim().toLowerCase();
+            if (
+              ["true", "1", "yes", "si", "sí", "enabled", "on"].includes(
+                normalized,
+              )
+            ) {
+              recommendedExperience[key] = true;
+              return;
+            }
+            if (
+              ["false", "0", "no", "disabled", "off"].includes(normalized)
+            ) {
+              recommendedExperience[key] = false;
+              return;
+            }
+          }
+        }
+      };
+
+      assignBool(
+        "supports_confirmation_cards",
+        record.supports_confirmation_cards,
+        record.supportsConfirmationCards,
+      );
+      assignBool(
+        "supports_multimodal_intake",
+        record.supports_multimodal_intake,
+        record.supportsMultimodalIntake,
+      );
+
+      const preferredChannels = normalizeStringList(
+        record.preferred_handoff_channels ?? record.preferredHandoffChannels,
+      );
+      if (preferredChannels?.length) {
+        recommendedExperience.preferred_handoff_channels = preferredChannels;
+      }
+
+      return Object.keys(recommendedExperience).length > 0
+        ? recommendedExperience
+        : undefined;
+    };
+
+    const normalizeConfirmationCard = (
+      raw: unknown,
+    ): ConfirmationCardData | undefined => {
+      if (!raw || typeof raw !== "object") return undefined;
+      const record = raw as Record<string, unknown>;
+
+      const normalizeFieldEntry = (
+        item: unknown,
+      ): { label: string; value: string | number } | null => {
+        if (!item || typeof item !== "object") return null;
+        const fieldRecord = item as Record<string, unknown>;
+        const label = pickFirstString(
+          fieldRecord.label,
+          fieldRecord.title,
+          fieldRecord.key,
+          fieldRecord.nombre,
+        );
+        const rawValue =
+          fieldRecord.value ??
+          fieldRecord.valor ??
+          fieldRecord.text ??
+          fieldRecord.amount ??
+          fieldRecord.quantity;
+        if (!label) return null;
+        if (
+          typeof rawValue !== "string" &&
+          typeof rawValue !== "number"
+        ) {
+          return null;
+        }
+        return { label, value: rawValue };
+      };
+
+      const normalizeItemEntry = (
+        item: unknown,
+      ): ConfirmationCardData["items"] extends Array<infer T> ? T | null : never => {
+        if (!item || typeof item !== "object") return null as never;
+        const itemRecord = item as Record<string, unknown>;
+        const label = pickFirstString(
+          itemRecord.label,
+          itemRecord.title,
+          itemRecord.nombre,
+          itemRecord.name,
+          itemRecord.producto,
+          itemRecord.product_name,
+        );
+        const description = pickFirstString(
+          itemRecord.description,
+          itemRecord.descripcion,
+          itemRecord.detail,
+          itemRecord.detalle,
+        );
+        const quantity =
+          itemRecord.quantity ?? itemRecord.cantidad ?? itemRecord.qty;
+        const amount =
+          itemRecord.amount ??
+          itemRecord.total ??
+          itemRecord.price ??
+          itemRecord.precio;
+
+        if (!label && !description && quantity == null && amount == null) {
+          return null as never;
+        }
+
+        return {
+          ...(label ? { label } : {}),
+          ...(description ? { description } : {}),
+          ...(typeof quantity === "string" || typeof quantity === "number"
+            ? { quantity }
+            : {}),
+          ...(typeof amount === "string" || typeof amount === "number"
+            ? { amount }
+            : {}),
+        } as never;
+      };
+
+      const fieldsSource = Array.isArray(record.fields)
+        ? record.fields
+        : Array.isArray(record.details)
+          ? record.details
+          : Array.isArray(record.summary_fields)
+            ? record.summary_fields
+            : [];
+      const itemsSource = Array.isArray(record.items)
+        ? record.items
+        : Array.isArray(record.preview_items)
+          ? record.preview_items
+          : Array.isArray(record.productos)
+            ? record.productos
+            : Array.isArray(record.line_items)
+              ? record.line_items
+              : [];
+      const preferredChannels = normalizeStringList(
+        record.preferred_handoff_channels ?? record.preferredHandoffChannels,
+      );
+
+      const normalizedCard: ConfirmationCardData = {
+        title: pickFirstString(record.title, record.titulo) || undefined,
+        subtitle:
+          pickFirstString(record.subtitle, record.subtitulo) || undefined,
+        summary_text:
+          pickFirstString(
+            record.summary_text,
+            record.summaryText,
+            record.text,
+            record.resumen,
+          ) || undefined,
+        summary_voice:
+          pickFirstString(
+            record.summary_voice,
+            record.summaryVoice,
+            record.voice_summary,
+            record.voiceSummary,
+          ) || undefined,
+        flow_type:
+          pickFirstString(
+            record.flow_type,
+            record.flowType,
+            record.kind,
+            record.tipo,
+          ) || undefined,
+        status:
+          pickFirstString(record.status, record.estado) || undefined,
+        contact:
+          pickFirstString(
+            record.contact,
+            record.contacto,
+            record.best_contact,
+            record.mejor_contacto,
+          ) || undefined,
+        location:
+          pickFirstString(
+            record.location,
+            record.ubicacion,
+            record.address,
+            record.direccion,
+          ) || undefined,
+        category:
+          pickFirstString(
+            record.category,
+            record.categoria,
+            record.rubro,
+          ) || undefined,
+        detail:
+          pickFirstString(
+            record.detail,
+            record.detalle,
+            record.description,
+            record.descripcion,
+          ) || undefined,
+        total:
+          typeof (record.total ?? record.estimated_total ?? record.total_estimado)
+            === "string" ||
+          typeof (record.total ?? record.estimated_total ?? record.total_estimado)
+            === "number"
+            ? (record.total ?? record.estimated_total ?? record.total_estimado) as
+                | string
+                | number
+            : undefined,
+        currency:
+          pickFirstString(record.currency, record.moneda) || undefined,
+        fields: fieldsSource
+          .map((item) => normalizeFieldEntry(item))
+          .filter((item): item is NonNullable<typeof item> => Boolean(item)),
+        items: itemsSource
+          .map((item) => normalizeItemEntry(item))
+          .filter((item): item is NonNullable<typeof item> => Boolean(item)),
+        preferred_handoff_channels: preferredChannels,
+        raw: record,
+      };
+
+      const hasContent = Boolean(
+        normalizedCard.title ||
+          normalizedCard.subtitle ||
+          normalizedCard.summary_text ||
+          normalizedCard.summary_voice ||
+          normalizedCard.flow_type ||
+          normalizedCard.contact ||
+          normalizedCard.location ||
+          normalizedCard.category ||
+          normalizedCard.detail ||
+          normalizedCard.total !== undefined ||
+          normalizedCard.fields?.length ||
+          normalizedCard.items?.length ||
+          normalizedCard.preferred_handoff_channels?.length,
+      );
+
+      return hasContent ? normalizedCard : undefined;
+    };
+
     const candidateUxContext = (() => {
       const source = Array.isArray(rawPayload)
         ? rawPayload.find(
@@ -702,6 +974,9 @@ export function useChatLogic({
       const channelCapabilities = normalizeChannelCapabilities(
         rawUx.channel_capabilities ?? rawUx.channelCapabilities,
       );
+      const recommendedExperience = normalizeRecommendedExperience(
+        rawUx.recommended_experience ?? rawUx.recommendedExperience,
+      );
       return {
         ...(trustedOwner !== undefined ? { trusted_owner: trustedOwner } : {}),
         ...(ownerTipoChat ? { owner_tipo_chat: ownerTipoChat } : {}),
@@ -716,6 +991,9 @@ export function useChatLogic({
         ...(visibilityRules ? { visibility_rules: visibilityRules } : {}),
         ...(channelCapabilities
           ? { channel_capabilities: channelCapabilities }
+          : {}),
+        ...(recommendedExperience
+          ? { recommended_experience: recommendedExperience }
           : {}),
       } as ChatUxContext;
     })();
@@ -1036,6 +1314,16 @@ export function useChatLogic({
           data.metadata?.chat_bubble_style,
         ),
       );
+      const confirmationCard = normalizeConfirmationCard(
+        (dataPayload as any)?.confirmation_card ??
+          (dataPayload as any)?.claim_confirmation ??
+          (dataPayload as any)?.order_confirmation ??
+          data.confirmation_card ??
+          data.claim_confirmation ??
+          data.order_confirmation ??
+          data.voice_confirmation ??
+          data.metadata?.confirmation_card,
+      );
 
       const hasNonTextContent =
         botones.length > 0 ||
@@ -1047,7 +1335,8 @@ export function useChatLogic({
         !!audioUrlValue ||
         !!attachmentInfo ||
         !!locationData ||
-        !!socialLinks;
+        !!socialLinks ||
+        !!confirmationCard;
 
       if (!rawText && !hasNonTextContent) {
         console.warn("processBotPayload: Empty content detected", {
@@ -1129,6 +1418,7 @@ export function useChatLogic({
         socialLinks,
         displayHint,
         chatBubbleStyle,
+        confirmationCard,
         botones,
         categorias,
       });
@@ -1205,6 +1495,7 @@ export function useChatLogic({
         ...(chatBubbleStyle ? { chatBubbleStyle } : {}),
         ...(posts ? { posts } : {}),
         ...(socialLinks ? { socialLinks } : {}),
+        ...(confirmationCard ? { confirmationCard } : {}),
         ...(ticketId ? { ticketId } : {}),
         ...(data.query ? { query: data.query } : {}),
         isError: explicitError ?? (!rawText && !hasNonTextContent),

@@ -159,6 +159,12 @@ interface ChatPanelProps {
     avatarPersona?: string;
     voiceLabel?: string;
     videoLabel?: string;
+    voiceHandoff?: {
+      enabled?: boolean;
+      supportsWhatsAppFollowup?: boolean;
+      supportsConfirmationCards?: boolean;
+      preferredChannels?: string[];
+    };
   } | null;
   onA11yChange?: (p: Prefs) => void;
   a11yPrefs?: Prefs;
@@ -293,6 +299,7 @@ const ChatPanel = (props: ChatPanelProps) => {
         : {}),
     };
   }, [uxContext?.channel_capabilities]);
+  const recommendedExperience = uxContext?.recommended_experience || null;
 
   // Check for pending widget action from CTA bubble
   useEffect(() => {
@@ -787,13 +794,26 @@ const ChatPanel = (props: ChatPanelProps) => {
     liveChatAllowedByBackend && isLiveChatEnabled,
   );
   const canRenderWhatsAppBridge = Boolean(
-    boolish(supportChannels?.whatsapp?.enabled) &&
-    boolish(supportChannels?.whatsapp?.realtime_bridge),
+    (boolish(supportChannels?.whatsapp?.enabled) &&
+      boolish(supportChannels?.whatsapp?.realtime_bridge)) ||
+      (boolish(realtimeConfig?.voiceHandoff?.enabled) &&
+        boolish(realtimeConfig?.voiceHandoff?.supportsWhatsAppFollowup)) ||
+      Boolean(
+        recommendedExperience?.preferred_handoff_channels?.some(
+          (channel) => channel.toLowerCase() === "whatsapp",
+        ),
+      ),
   );
   const voiceCallConfig = supportChannels?.voice_call;
   const videoCallConfig = supportChannels?.video_call;
   const realtimeVoiceEnabled =
-    boolish(voiceCallConfig?.enabled) || boolish(realtimeConfig?.voiceEnabled);
+    boolish(voiceCallConfig?.enabled) ||
+    boolish(realtimeConfig?.voiceEnabled) ||
+    Boolean(
+      recommendedExperience?.preferred_handoff_channels?.some(
+        (channel) => channel.toLowerCase() === "voice",
+      ),
+    );
   const realtimeVideoEnabled =
     boolish(videoCallConfig?.enabled) || boolish(realtimeConfig?.videoEnabled);
   const [channelMode, setChannelMode] = useState<"chat" | "voice" | "video">(

@@ -26,6 +26,7 @@ import UserAvatarAnimated from "./UserAvatarAnimated";
 import { Badge } from "@/components/ui/badge";
 import InteractiveMenu from "./InteractiveMenu";
 import CatalogShareCard from "./CatalogShareCard";
+import ConfirmationCard from "./ConfirmationCard";
 import { extractSmartHint } from "@/utils/smartHints";
 import ProductCard from "@/components/product/ProductCard";
 import { trackFrontendEvent } from '@/utils/frontendTelemetry';
@@ -671,6 +672,7 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
   const showStructuredContent = !!(message.structuredContent && message.structuredContent.length > 0);
   const showMenuSections = !!((message.menu_sections && message.menu_sections.length > 0) || message.interactive_list);
   const showPosts = !!(message.posts && message.posts.length > 0);
+  const showConfirmationCard = Boolean(message.confirmationCard);
   const showProductCards = !!((message.data?.cart_summary || message.data?.catalogo) && Array.isArray(message.data?.cart_summary || message.data?.catalogo));
   const isCatalogShare =
     message.messageType === 'catalog_share' ||
@@ -774,7 +776,7 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
           )}
 
           {/* Prioridad al texto si no hay otros contenidos especiales */}
-          {!showAttachmentOrMap && !showStructuredContent && !audioSrc && !showProductCards && !isCatalogShare && textAndListBlock}
+          {!showAttachmentOrMap && !showStructuredContent && !audioSrc && !showProductCards && !isCatalogShare && !showConfirmationCard && textAndListBlock}
 
           {/* Mostrar adjunto o mapa (no audio) */}
           {showAttachmentOrMap && (
@@ -847,6 +849,13 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
                 viewLabel={catalogSharePayload?.view_label ?? catalogSharePayload?.viewLabel}
                 downloadLabel={catalogSharePayload?.download_label ?? catalogSharePayload?.downloadLabel}
               />
+            </>
+          )}
+
+          {showConfirmationCard && (
+            <>
+              {textAndListBlock}
+              <ConfirmationCard card={message.confirmationCard!} />
             </>
           )}
 
