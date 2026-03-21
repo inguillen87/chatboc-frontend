@@ -28,6 +28,19 @@ import { getValidStoredToken } from "@/utils/authTokens";
 import { enterpriseService } from "@/services/enterpriseService";
 import { trackWidgetEvent } from "@/utils/widgetTelemetry";
 
+const PUBLIC_CHAT_CONTEXT_KEY = 'chatboc_public_chat_context';
+
+const readStoredPublicChatContext = () => {
+  try {
+    const raw = safeLocalStorage.getItem(PUBLIC_CHAT_CONTEXT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : null;
+  } catch {
+    return null;
+  }
+};
+
 const EMOJI_CATEGORY_MAP: Record<string, string> = {
   // Agua y saneamiento
   "💧": "agua",
@@ -96,7 +109,7 @@ export function useChatLogic({
   skipAuth = false,
   selectedRubro = null,
   liveChatAvailable = false,
-}: UseChatLogicOptions) {
+	}: UseChatLogicOptions) {
   const entityToken = propToken || getIframeToken();
 
   const shouldUsePublicFlow = useCallback(
@@ -125,7 +138,7 @@ export function useChatLogic({
   const [liveChatTicketId, setLiveChatTicketId] = useState<number | null>(null);
   const [liveChatStatus, setLiveChatStatus] = useState<string | null>(null);
   const [currentClaimIdempotencyKey, setCurrentClaimIdempotencyKey] = useState<string | null>(null);
-  const [uxContext, setUxContext] = useState<ChatUxContext | null>(null);
+	  const [uxContext, setUxContext] = useState<ChatUxContext | null>(null);
   const messagesRef = useRef<Message[]>([]);
   const initSentRef = useRef(false);
   const initPendingResponseRef = useRef(false);
@@ -137,10 +150,36 @@ export function useChatLogic({
     messagesRef.current = messages;
   }, [messages]);
 
-  const sanitizeRubroValue = (value: unknown): string | null => {
+	  const sanitizeRubroValue = (value: unknown): string | null => {
     const key = extractRubroKey(value);
     return key && key.length > 0 ? key : null;
-  };
+	  };
+
+  const resolvePersistentPublicContext = useCallback(() => {
+    const storedContext = readStoredPublicChatContext();
+    if (!storedContext) return null;
+
+    const normalizedPin = pickFirstString(
+      storedContext.pin,
+      storedContext.consulta_pin,
+      storedContext.consultaPin,
+    )?.trim();
+    const ticketNumber = pickFirstString(
+      storedContext.ticketNumber,
+      storedContext.ticket_number,
+      storedContext.nro_ticket,
+    )?.trim();
+    const ticketId = storedContext.ticketId ?? storedContext.ticket_id ?? null;
+
+    if (!normalizedPin && !ticketNumber && !ticketId) return null;
+
+    return {
+      pin: normalizedPin || undefined,
+      consulta_pin: normalizedPin || undefined,
+      ticket_id: ticketId ?? undefined,
+      ticket_number: ticketNumber || undefined,
+    };
+  }, []);
 
   const initializeConversation = useCallback(
     async (options?: {
@@ -227,24 +266,26 @@ export function useChatLogic({
       const isPublicDemo = shouldUsePublicFlow(tipoChatFinal, tenantSlug);
       const effectiveSkipAuth = skipAuth || isPublicDemo;
 
-      try {
-        const response = await apiFetch<any>(endpoint, {
+	      try {
+        const publicChatContext = resolvePersistentPublicContext();
+	        const response = await apiFetch<any>(endpoint, {
           method: 'POST',
           skipAuth: effectiveSkipAuth,
           isWidgetRequest: true,
           tenantSlug: tenantSlug,
           entityToken,
-          body: {
-            pregunta: '__INIT__',
-            action: 'initial_greeting',
+	          body: {
+	            pregunta: '__INIT__',
+	            action: 'initial_greeting',
             contexto_previo: contextToSend,
             tipo_chat: tipoChatFinal,
             tenant_slug: tenantSlug ?? 'municipio',
-            session_id: sessionId,
-            ...(rubroForPayload && { rubro_clave: rubroForPayload }),
-            ...(visitorName && { nombre_usuario: visitorName }),
-          },
-        });
+	            session_id: sessionId,
+            ...(publicChatContext || {}),
+	            ...(rubroForPayload && { rubro_clave: rubroForPayload }),
+	            ...(visitorName && { nombre_usuario: visitorName }),
+	          },
+	        });
         console.log('useChatLogic: Initial greeting response', response);
         processBotPayload(response, {
           fallbackOnEmpty: !socketRef.current || !socketRef.current.connected,
@@ -269,8 +310,8 @@ export function useChatLogic({
         initSentRef.current = false;
       }
     },
-    [contexto, selectedRubro, skipAuth, tipoChat, tenantSlug, entityToken, shouldUsePublicFlow]
-  );
+	    [contexto, selectedRubro, skipAuth, tipoChat, tenantSlug, entityToken, shouldUsePublicFlow, resolvePersistentPublicContext]
+	  );
 
   const initializeConversationRef = useRef(initializeConversation);
 
@@ -1333,8 +1374,39 @@ export function useChatLogic({
 
     const originalText = actualPayload.text || "";
 
-    const { text: userMessageText, attachmentInfo, ubicacion_usuario, action, action_id, location } = actualPayload;
-    const actionPayload = 'payload' in actualPayload ? actualPayload.payload : undefined;
+	    const { text: userMessageText, attachmentInfo, ubicacion_usuario, action, action_id, location } = actualPayload;
+	    const actionPayload = 'payload' in actualPayload ? actualPayload.payload : undefined;
+
+    if (actionPayload && typeof actionPayload === 'object') {
+      const incomingPin = pickFirstString(
+        (actionPayload as Record<string, unknown>).pin,
+        (actionPayload as Record<string, unknown>).consulta_pin,
+        (actionPayload as Record<string, unknown>).consultaPin,
+      )?.trim();
+      const incomingTicketId =
+        (actionPayload as Record<string, unknown>).ticketId ??
+        (actionPayload as Record<string, unknown>).ticket_id ??
+        null;
+      const incomingTicketNumber = pickFirstString(
+        (actionPayload as Record<string, unknown>).ticketNumber,
+        (actionPayload as Record<string, unknown>).ticket_number,
+        (actionPayload as Record<string, unknown>).nro_ticket,
+      )?.trim();
+
+      if (incomingPin || incomingTicketId || incomingTicketNumber) {
+        safeLocalStorage.setItem(PUBLIC_CHAT_CONTEXT_KEY, JSON.stringify({
+          ...(readStoredPublicChatContext() || {}),
+          ...(actionPayload as Record<string, unknown>),
+          pin: incomingPin || undefined,
+          consulta_pin: incomingPin || undefined,
+          ticket_id: incomingTicketId ?? undefined,
+          ticket_number: incomingTicketNumber || undefined,
+          tenantSlug: tenantSlug ?? undefined,
+          tipoChat,
+          updatedAt: new Date().toISOString(),
+        }));
+      }
+    }
 
     const isLikelyTypedQuestion =
       !!originalText &&
@@ -1546,21 +1618,23 @@ export function useChatLogic({
 
       const visitorName = getVisitorName();
 
-      const sessionId = getOrCreateChatSessionId();
-      const requestBody: Record<string, any> = {
-        pregunta: questionForBackend,
+	      const sessionId = getOrCreateChatSessionId();
+      const publicChatContext = resolvePersistentPublicContext();
+	      const requestBody: Record<string, any> = {
+	        pregunta: questionForBackend,
         contexto_previo: updatedContext,
         tipo_chat: tipoChatFinal,
         ...(rubro && { rubro_clave: rubro }),
         ...(liveChatTicketId ? { ticket_id: liveChatTicketId, tipo_ticket: tipoChatFinal } : {}),
         ...(attachmentInfo && { attachment_info: attachmentInfo }),
         ...(location && { location: location }),
-        ...(resolvedAction && { action: resolvedAction }),
-        ...(resolvedActionId && { action_id: resolvedActionId }),
-        ...(actionPayload && { payload: actionPayload }),
-        ...(resolvedAction === "confirmar_reclamo" && currentClaimIdempotencyKey && { idempotency_key: currentClaimIdempotencyKey }),
-        ...(visitorName && { nombre_usuario: visitorName }),
-        session_id: sessionId,
+	        ...(resolvedAction && { action: resolvedAction }),
+	        ...(resolvedActionId && { action_id: resolvedActionId }),
+	        ...(actionPayload && { payload: actionPayload }),
+          ...(publicChatContext || {}),
+	        ...(resolvedAction === "confirmar_reclamo" && currentClaimIdempotencyKey && { idempotency_key: currentClaimIdempotencyKey }),
+	        ...(visitorName && { nombre_usuario: visitorName }),
+	        session_id: sessionId,
         tenant_slug: tenantSlug ?? 'municipio',
       };
 
@@ -1626,8 +1700,46 @@ export function useChatLogic({
     currentClaimIdempotencyKey,
     tipoChat,
     tenantSlug,
-    entityToken, selectedRubro, user, shouldUsePublicFlow, liveChatAvailable,
-  ]);
+	    entityToken, selectedRubro, user, shouldUsePublicFlow, liveChatAvailable, resolvePersistentPublicContext,
+	  ]);
+
+  useEffect(() => {
+    if (!uxContext) return;
+    const isTrusted = uxContext.trusted_owner === true;
+    const demoShellBlocked = isTrusted && uxContext.should_render_demo_shell === false;
+    const nextState = JSON.stringify({
+      trusted_owner: uxContext.trusted_owner,
+      owner_name: uxContext.owner_name,
+      owner_tipo_chat: uxContext.owner_tipo_chat,
+      should_render_demo_shell: uxContext.should_render_demo_shell,
+    });
+
+    if (lastUxTelemetryStateRef.current === nextState) {
+      return;
+    }
+    lastUxTelemetryStateRef.current = nextState;
+
+    if (isTrusted) {
+      trackWidgetEvent('tenant_context_restored', {
+        owner_name: uxContext.owner_name,
+        owner_tipo_chat: uxContext.owner_tipo_chat,
+      });
+    }
+
+    if (demoShellBlocked) {
+      trackWidgetEvent('demo_shell_render_blocked', {
+        owner_name: uxContext.owner_name,
+        owner_tipo_chat: uxContext.owner_tipo_chat,
+      });
+    }
+
+    if (uxContext.trusted_owner === false) {
+      trackWidgetEvent('tenant_context_lost', {
+        owner_name: uxContext.owner_name,
+        owner_tipo_chat: uxContext.owner_tipo_chat,
+      });
+    }
+  }, [uxContext]);
 
   useEffect(() => {
     if (!uxContext) return;
