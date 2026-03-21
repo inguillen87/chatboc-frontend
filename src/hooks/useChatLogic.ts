@@ -743,9 +743,16 @@ export function useChatLogic({
 
     const normalizeConfirmationCard = (
       raw: unknown,
+      fallbackPayload?: Record<string, unknown> | null,
     ): ConfirmationCardData | undefined => {
-      if (!raw || typeof raw !== "object") return undefined;
-      const record = raw as Record<string, unknown>;
+      const baseRecord =
+        raw && typeof raw === "object"
+          ? (raw as Record<string, unknown>)
+          : fallbackPayload && typeof fallbackPayload === "object"
+            ? fallbackPayload
+            : null;
+      if (!baseRecord) return undefined;
+      const record = baseRecord;
 
       const normalizeFieldEntry = (
         item: unknown,
@@ -792,22 +799,43 @@ export function useChatLogic({
           itemRecord.descripcion,
           itemRecord.detail,
           itemRecord.detalle,
+          itemRecord.linea_original,
+          itemRecord.lineaOriginal,
         );
         const quantity =
-          itemRecord.quantity ?? itemRecord.cantidad ?? itemRecord.qty;
+          itemRecord.quantity ??
+          itemRecord.cantidad ??
+          itemRecord.qty ??
+          itemRecord.cantidad_detectada;
         const amount =
           itemRecord.amount ??
           itemRecord.total ??
           itemRecord.price ??
-          itemRecord.precio;
+          itemRecord.precio ??
+          itemRecord.subtotal ??
+          itemRecord.subtotal_estimado ??
+          itemRecord.precio_estimado;
+        const unit = pickFirstString(
+          itemRecord.unit,
+          itemRecord.unidad,
+          itemRecord.unit_label,
+          itemRecord.unitLabel,
+        );
+        const confidence = pickFirstString(
+          itemRecord.confidence_label,
+          itemRecord.confidenceLabel,
+        );
+        const secondaryDescription = [description, unit, confidence]
+          .filter((value): value is string => Boolean(value))
+          .join(" · ");
 
-        if (!label && !description && quantity == null && amount == null) {
+        if (!label && !secondaryDescription && quantity == null && amount == null) {
           return null as never;
         }
 
         return {
           ...(label ? { label } : {}),
-          ...(description ? { description } : {}),
+          ...(secondaryDescription ? { description: secondaryDescription } : {}),
           ...(typeof quantity === "string" || typeof quantity === "number"
             ? { quantity }
             : {}),
@@ -832,6 +860,8 @@ export function useChatLogic({
             ? record.productos
             : Array.isArray(record.line_items)
               ? record.line_items
+              : Array.isArray(record.items_detectados)
+                ? record.items_detectados
               : [];
       const preferredChannels = normalizeStringList(
         record.preferred_handoff_channels ?? record.preferredHandoffChannels,
@@ -1323,6 +1353,7 @@ export function useChatLogic({
           data.order_confirmation ??
           data.voice_confirmation ??
           data.metadata?.confirmation_card,
+        (dataPayload as Record<string, unknown> | null) ?? null,
       );
 
       const hasNonTextContent =
