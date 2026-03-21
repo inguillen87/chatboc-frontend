@@ -9,6 +9,7 @@ import {
   User,
 } from '@/types/tickets';
 import { AttachmentInfo } from '@/types/chat';
+import getOrCreateAnonId from '@/utils/anonIdGenerator';
 
 const generateRandomAvatar = (seed: string) => {
     return `https://i.pravatar.cc/150?u=${seed}`;
@@ -42,6 +43,30 @@ const normalizeAssignableAgent = (raw: any): AssignableAgent | null => {
         categorias: raw.categorias ?? null,
         abiertos: raw.abiertos ?? null,
         atendidos: raw.atendidos ?? null,
+	};
+};
+
+const resolvePublicTicketAccess = (pin?: string) => {
+    const params = new URLSearchParams();
+    const normalizedPin = typeof pin === 'string' ? pin.trim() : '';
+    const anonId = getOrCreateAnonId();
+
+    if (normalizedPin) {
+        params.set('pin', normalizedPin);
+        params.set('consulta_pin', normalizedPin);
+    }
+
+    if (anonId) {
+        params.set('anon_id', anonId);
+    }
+
+    return {
+        query: params.toString(),
+        fetchOptions: {
+            skipAuth: true,
+            sendAnonId: true,
+            sendEntityToken: true,
+        } as const,
     };
 };
 
@@ -145,7 +170,10 @@ export const getTicketByNumber = async (
             let messages = (response as any).mensajes || (response as any).messages || [];
             if (!messages.length) {
                 try {
-                    messages = await getTicketMessages(response.id, response.tipo);
+                    messages = await getTicketMessages(response.id, response.tipo, {
+                        public: true,
+                        pin,
+                    });
                 } catch (err) {
                     console.error(`Error fetching messages for ticket ${response.id}:`, err);
                 }
@@ -496,14 +524,22 @@ export const assignTicketToAgent = async (
 
 export const getTicketMessages = async (
   ticketId: number,
-  tipo: 'municipio' | 'pyme'
+  tipo: 'municipio' | 'pyme',
+  opts?: { public?: boolean; pin?: string }
 ): Promise<Message[]> => {
   try {
-    const endpoint =
+    const endpointBase =
       tipo === 'municipio'
         ? `/tickets/chat/${ticketId}/mensajes`
         : `/tickets/chat/pyme/${ticketId}/mensajes`;
-    const response = await apiFetch<{ mensajes?: any[]; messages?: any[] }>(endpoint);
+    const publicAccess = opts?.public ? resolvePublicTicketAccess(opts.pin) : null;
+    const endpoint = publicAccess?.query
+      ? `${endpointBase}?${publicAccess.query}`
+      : opts?.pin
+        ? `${endpointBase}?pin=${encodeURIComponent(opts.pin)}`
+        : endpointBase;
+    const fetchOptions = publicAccess?.fetchOptions ?? { sendAnonId: true, sendEntityToken: true };
+    const response = await apiFetch<{ mensajes?: any[]; messages?: any[] }>(endpoint, fetchOptions);
     const rawMsgs = response.mensajes || response.messages || [];
 
     const parseAdminFlag = (val: any): boolean => {
@@ -571,12 +607,13 @@ export const getTicketTimeline = async (
 ): Promise<{ estado_chat: string; history: TicketHistoryEvent[]; messages: Message[] }> => {
   try {
     const endpointBase = `/tickets/${tipo}/${ticketId}/timeline`;
-    const endpoint = opts?.pin
+    const publicAccess = opts?.public ? resolvePublicTicketAccess(opts.pin) : null;
+    const endpoint = publicAccess?.query
+      ? `${endpointBase}?${publicAccess.query}`
+      : opts?.pin
       ? `${endpointBase}?pin=${encodeURIComponent(opts.pin)}`
       : endpointBase;
-    const fetchOpts = opts?.public
-      ? { skipAuth: true, sendAnonId: true, sendEntityToken: true }
-      : { sendAnonId: true, sendEntityToken: true };
+    const fetchOpts = publicAccess?.fetchOptions ?? { sendAnonId: true, sendEntityToken: true };
     const response = await apiFetch<TicketTimelineResponse>(endpoint, fetchOpts);
     const history: TicketHistoryEvent[] = [];
     const messages: Message[] = [];
@@ -646,7 +683,8 @@ export const sendMessage = async (
     tipo: 'municipio' | 'pyme',
     comentario: string,
     files?: File[],
-    buttons?: Button[]
+    buttons?: Button[],
+    opts?: { public?: boolean; pin?: string }
 ): Promise<any> => {
     try {
         let body: any;
@@ -681,10 +719,21 @@ export const sendMessage = async (
             body = formData;
         }
 
-        const response = await apiFetch(`/tickets/${tipo}/${ticketId}/responder`, {
-            method: 'POST',
-            body: body,
-        });
+        const baseEndpoint = opts?.public
+            ? (tipo === 'municipio'
+                ? `/tickets/chat/${ticketId}/responder_ciudadano`
+                : `/tickets/chat/pyme/${ticketId}/responder_ciudadano`)
+            : `/tickets/${tipo}/${ticketId}/responder`;
+        const publicAccess = opts?.public ? resolvePublicTicketAccess(opts.pin) : null;
+        const endpoint = publicAccess?.query
+            ? `${baseEndpoint}?${publicAccess.query}`
+            : opts?.pin
+            ? `${baseEndpoint}?pin=${encodeURIComponent(opts.pin)}`
+            : baseEndpoint;
+        const fetchOptions = opts?.public
+            ? { method: 'POST', body, ...(publicAccess?.fetchOptions ?? { skipAuth: true, sendAnonId: true, sendEntityToken: true }) }
+            : { method: 'POST', body };
+        const response = await apiFetch(endpoint, fetchOptions);
         return response;
     } catch (error) {
         console.error(`Error sending message to ticket ${ticketId}:`, error);

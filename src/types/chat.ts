@@ -29,12 +29,25 @@ export interface Categoria {
 export interface StructuredContentItem {
   label: string; // Etiqueta del dato, ej. "Precio", "Stock"
   value: string | number; // Valor del dato
-  type?: 'text' | 'quantity' | 'price' | 'date' | 'url' | 'badge'; // Tipo de dato para formateo/estilo
+  type?: "text" | "quantity" | "price" | "date" | "url" | "badge"; // Tipo de dato para formateo/estilo
   unit?: string; // ej. "kg", "unidades", "cajas" (para type 'quantity')
   currency?: string; // ej. "ARS", "USD" (para type 'price')
   url?: string; // Si el valor debe ser un enlace (especialmente si type es 'url')
-  styleHint?: 'normal' | 'bold' | 'italic' | 'highlight' | 'success' | 'warning' | 'danger'; // Sugerencia de estilo para el valor
-  badgeVariant?: 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning'; // Para type 'badge'
+  styleHint?:
+    | "normal"
+    | "bold"
+    | "italic"
+    | "highlight"
+    | "success"
+    | "warning"
+    | "danger"; // Sugerencia de estilo para el valor
+  badgeVariant?:
+    | "default"
+    | "secondary"
+    | "destructive"
+    | "outline"
+    | "success"
+    | "warning"; // Para type 'badge'
 }
 
 // Nuevo: Define la estructura de un Post (Evento o Noticia)
@@ -43,7 +56,7 @@ export interface Post {
   titulo: string;
   subtitulo?: string;
   contenido: string;
-  tipo_post: 'noticia' | 'evento';
+  tipo_post: "noticia" | "evento";
   imagen_url?: string;
   image?: string; // compatibilidad con "image"
   imageUrl?: string; // alias adicional para imagen
@@ -75,12 +88,76 @@ export interface InteractiveListConfig {
 }
 
 // Define cómo es un objeto Mensaje
+
+export interface ChatUxChannelCapabilities {
+  supports_audio_input?: boolean;
+  supports_file_upload?: boolean;
+  supports_image_input?: boolean;
+  supports_location_share?: boolean;
+  supports_realtime?: boolean;
+}
+
+export interface ChatUxRecommendedExperience {
+  supports_confirmation_cards?: boolean;
+  supports_multimodal_intake?: boolean;
+  preferred_handoff_channels?: string[];
+}
+
+export interface ConfirmationCardField {
+  label: string;
+  value: string | number;
+}
+
+export interface ConfirmationCardItem {
+  label?: string;
+  description?: string;
+  quantity?: string | number;
+  amount?: string | number;
+}
+
+export interface ConfirmationCardData {
+  title?: string;
+  subtitle?: string;
+  summary_text?: string;
+  summary_voice?: string;
+  flow_type?: string;
+  status?: string;
+  contact?: string;
+  location?: string;
+  category?: string;
+  detail?: string;
+  total?: string | number;
+  currency?: string;
+  fields?: ConfirmationCardField[];
+  items?: ConfirmationCardItem[];
+  preferred_handoff_channels?: string[];
+  raw?: Record<string, unknown>;
+}
+
+export interface ChatUxContext {
+  trusted_owner?: boolean;
+  owner_tipo_chat?: "municipio" | "pyme" | string;
+  owner_name?: string;
+  should_render_demo_shell?: boolean;
+  demo_selector?: {
+    mode?: string;
+    items?: Array<Record<string, unknown>>;
+  } | null;
+  suggested_next_actions?: Array<Record<string, unknown>>;
+  visibility_rules?: Record<
+    string,
+    boolean | string | number | null | undefined
+  >;
+  channel_capabilities?: ChatUxChannelCapabilities;
+  recommended_experience?: ChatUxRecommendedExperience;
+}
+
 export interface Message {
   id: number | string; // Identificador único del mensaje
   text: string; // Texto principal o fallback del mensaje. Puede ser HTML sanitizado.
   isBot: boolean; // True si el mensaje es del bot, false si es del usuario
   timestamp: Date; // Fecha y hora del mensaje
-  origen?: 'chat' | 'email'; // Nuevo campo para diferenciar el origen del mensaje
+  origen?: "chat" | "email"; // Nuevo campo para diferenciar el origen del mensaje
   messageType?: string; // Tipo de mensaje enviado por backend (catalog_share, interactive_list, etc.)
   action?: string; // Acción asociada al mensaje
   data?: Record<string, unknown> | null; // Payload adicional para renderizado estructurado
@@ -95,13 +172,15 @@ export interface Message {
   // Campos para contenido multimedia y adjuntos
   mediaUrl?: string; // URL directa a una imagen/video (para compatibilidad o casos simples)
   audioUrl?: string; // URL a un archivo de audio para ser reproducido
-  locationData?: { // Datos de ubicación (para mostrar un mapa o coordenadas)
+  locationData?: {
+    // Datos de ubicación (para mostrar un mapa o coordenadas)
     lat: number;
     lon: number;
     name?: string; // Nombre del lugar (ej. "Plaza Independencia")
     address?: string; // Dirección formateada
   };
-  attachmentInfo?: { // Información detallada de un archivo adjunto
+  attachmentInfo?: {
+    // Información detallada de un archivo adjunto
     id?: string | number;
     name: string; // Nombre del archivo (ej. "documento.pdf")
     url: string; // URL para descargar/visualizar el archivo
@@ -118,11 +197,17 @@ export interface Message {
 
   // Campos para contenido estructurado y personalización de la UI
   structuredContent?: StructuredContentItem[]; // Array de items para mostrar datos clave-valor o tarjetas de información
-  displayHint?: 'default' | 'pymeProductCard' | 'municipalInfoSummary' | 'genericTable' | 'compactList'; // Sugerencia para el frontend sobre cómo renderizar la totalidad del mensaje
-  chatBubbleStyle?: 'standard' | 'compact' | 'emphasis' | 'alert'; // Para controlar el estilo visual de la burbuja del mensaje
+  displayHint?:
+    | "default"
+    | "pymeProductCard"
+    | "municipalInfoSummary"
+    | "genericTable"
+    | "compactList"; // Sugerencia para el frontend sobre cómo renderizar la totalidad del mensaje
+  chatBubbleStyle?: "standard" | "compact" | "emphasis" | "alert"; // Para controlar el estilo visual de la burbuja del mensaje
   posts?: Post[]; // Array de posts para mostrar como tarjetas de eventos/noticias
   socialLinks?: Record<string, string>; // Enlaces generales a redes sociales
   listItems?: string[]; // Lista de elementos para mostrar como viñetas numeradas o con emojis
+  confirmationCard?: ConfirmationCardData;
 }
 
 // --- INTERFAZ PARA EL PAYLOAD DE ENVÍO DE MENSAJES (lo que el usuario envía al bot) ---
@@ -133,21 +218,22 @@ export interface SendPayload {
    * Indica desde qué parte de la interfaz se originó el mensaje.
    * Permite ajustar el payload que se envía al backend (ej. preservar emojis en botones).
    */
-  source?: 'input' | 'button' | 'system';
+  source?: "input" | "button" | "system";
 
   // Para adjuntos que el usuario envía (el backend los procesa y puede devolver un Message con attachmentInfo)
   es_foto?: boolean; // Deprecar en favor de attachmentInfo con mimeType. Indica si el adjunto es una foto.
   archivo_url?: string; // Deprecar en favor de attachmentInfo. URL del archivo subido por el usuario.
 
   es_ubicacion?: boolean; // True si el payload incluye datos de ubicación del usuario
-  ubicacion_usuario?: { lat: number; lon: number; }; // Coordenadas si es_ubicacion es true
-  location?: { lat: number, lon: number }; // NUEVO: Para el envío de ubicación desde el widget
+  ubicacion_usuario?: { lat: number; lon: number }; // Coordenadas si es_ubicacion es true
+  location?: { lat: number; lon: number }; // NUEVO: Para el envío de ubicación desde el widget
 
   action?: string; // Si el envío es resultado de un clic en un botón con una acción específica que el backend debe procesar
   action_id?: string; // ID de acción explícito para compatibilidad con payloads interactivos del backend
   payload?: any; // Datos adicionales asociados a la acción del botón
 
-  attachmentInfo?: { // Información del archivo que el usuario está adjuntando (antes de que el backend lo confirme)
+  attachmentInfo?: {
+    // Información del archivo que el usuario está adjuntando (antes de que el backend lo confirme)
     name: string;
     url: string; // URL temporal o final del archivo subido por el usuario
     thumbUrl?: string;

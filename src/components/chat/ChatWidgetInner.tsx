@@ -299,6 +299,9 @@ function ChatWidgetInner({
   );
   const realtimeConfig = useMemo(() => {
     const attrs = entityInfo?.widget?.attributes || {};
+    const realtimeMeta =
+      entityInfo?.builder_config?.enterprise_iteration?.realtime || {};
+    const voiceHandoff = realtimeMeta?.voice_handoff || {};
     const toBool = (value: unknown, fallback = false) => {
       if (typeof value === 'boolean') return value;
       if (typeof value === 'number') return value === 1;
@@ -310,9 +313,15 @@ function ChatWidgetInner({
       return fallback;
     };
     const toText = (value: unknown, fallback = '') => (typeof value === 'string' && value.trim() ? value.trim() : fallback);
+    const toList = (value: unknown): string[] => {
+      if (!Array.isArray(value)) return [];
+      return value
+        .map((item) => (typeof item === 'string' && item.trim() ? item.trim() : null))
+        .filter((item): item is string => Boolean(item));
+    };
 
     return {
-      model: toText(attrs['data-realtime-model'], supportChannels?.voice_call?.model || supportChannels?.video_call?.model || ''),
+      model: toText(attrs['data-realtime-model'], toText(realtimeMeta?.model, supportChannels?.voice_call?.model || supportChannels?.video_call?.model || '')),
       voiceEnabled: toBool(attrs['data-realtime-voice-enabled'], Boolean(supportChannels?.voice_call?.enabled)),
       videoEnabled: toBool(attrs['data-realtime-video-enabled'], Boolean(supportChannels?.video_call?.enabled)),
       avatarEnabled: toBool(attrs['data-avatar-enabled'], false),
@@ -320,9 +329,22 @@ function ChatWidgetInner({
       avatarPersona: toText(attrs['data-avatar-persona'], ''),
       voiceLabel: toText(attrs['data-realtime-voice-label'], toText(supportChannels?.voice_call?.label, '')),
       videoLabel: toText(attrs['data-realtime-video-label'], toText(supportChannels?.video_call?.label, '')),
-
+      voiceHandoff: {
+        enabled: toBool(voiceHandoff?.enabled, false),
+        supportsWhatsAppFollowup: toBool(
+          voiceHandoff?.supports_whatsapp_followup ?? voiceHandoff?.supportsWhatsAppFollowup,
+          false,
+        ),
+        supportsConfirmationCards: toBool(
+          voiceHandoff?.supports_confirmation_cards ?? voiceHandoff?.supportsConfirmationCards,
+          false,
+        ),
+        preferredChannels: toList(
+          voiceHandoff?.preferred_channels ?? voiceHandoff?.preferredChannels,
+        ),
+      },
     };
-  }, [entityInfo?.widget?.attributes, supportChannels?.video_call?.enabled, supportChannels?.video_call?.label, supportChannels?.video_call?.model, supportChannels?.voice_call?.enabled, supportChannels?.voice_call?.label, supportChannels?.voice_call?.model]);
+  }, [entityInfo?.builder_config?.enterprise_iteration?.realtime, entityInfo?.widget?.attributes, supportChannels?.video_call?.enabled, supportChannels?.video_call?.label, supportChannels?.video_call?.model, supportChannels?.voice_call?.enabled, supportChannels?.voice_call?.label, supportChannels?.voice_call?.model]);
   const showCatalogCta =
     !!catalogCtaLabel &&
     !!catalogLinks?.view_url &&
@@ -436,7 +458,13 @@ function ChatWidgetInner({
   const tenantSlugFromScripts = useMemo(() => sanitizeTenantSlug(readTenantFromScripts()), []);
   const tenantSlugFromSubdomain = useMemo(() => sanitizeTenantSlug(readTenantFromSubdomain()), []);
 
-  const resolvedTenantSlug = useMemo(() => {
+  const tenantSlugFromGlobalConfig = useMemo(() => {
+    if (typeof window === "undefined") return null;
+    const cfg = (window as any).CHATBOC_CONFIG || {};
+    return sanitizeTenantSlug(cfg.tenant || cfg.tenantSlug || cfg.tenant_slug);
+  }, []);
+
+  const embeddedTenantSlug = useMemo(() => {
     const candidates = [
       contextOverride?.tenantSlug,
       explicitTenantSlug,
@@ -444,16 +472,10 @@ function ChatWidgetInner({
       tenantSlugFromLocation,
       tenantSlugFromScripts,
       tenantSlugFromSubdomain,
-      storedTenantSlug,
       currentSlug,
       tenant?.slug,
+      tenantSlugFromGlobalConfig,
     ];
-
-    // Explicitly check global config if available
-    if (typeof window !== "undefined") {
-        const cfg = (window as any).CHATBOC_CONFIG || {};
-        candidates.push(cfg.tenant, cfg.tenantSlug, cfg.tenant_slug);
-    }
 
     for (const candidate of candidates) {
       const sanitized = sanitizeTenantSlug(candidate);
@@ -466,19 +488,47 @@ function ChatWidgetInner({
     explicitTenantSlug,
     currentSlug,
     tenant?.slug,
-    storedTenantSlug,
     tenantSlugFromEntity,
     tenantSlugFromLocation,
     tenantSlugFromScripts,
     tenantSlugFromSubdomain,
+    tenantSlugFromGlobalConfig,
   ]);
+
+  const resolvedTenantSlug = useMemo(() => {
+    if (isEmbedded) {
+      return embeddedTenantSlug;
+    }
+
+    return embeddedTenantSlug || storedTenantSlug;
+  }, [embeddedTenantSlug, isEmbedded, storedTenantSlug]);
 
   useEffect(() => {
     const sanitized = sanitizeTenantSlug(resolvedTenantSlug);
     if (sanitized) {
       safeLocalStorage.setItem("tenantSlug", sanitized);
+      return;
     }
-  }, [resolvedTenantSlug]);
+
+    if (isEmbedded) {
+      safeLocalStorage.removeItem("tenantSlug");
+    }
+  }, [isEmbedded, resolvedTenantSlug]);
+
+  useEffect(() => {
+    if (!isEmbedded) return;
+
+    const embeddedSourceSlug = sanitizeTenantSlug(explicitTenantSlug) || embeddedTenantSlug;
+    setContextOverride((prev: any) => {
+      if (!prev?.tenantSlug) return prev;
+      if (!embeddedSourceSlug) {
+        const { tenantSlug: _tenantSlug, ...rest } = prev;
+        return Object.keys(rest).length ? rest : null;
+      }
+      const sanitizedPrev = sanitizeTenantSlug(prev.tenantSlug);
+      return sanitizedPrev === embeddedSourceSlug ? prev : { ...prev, tenantSlug: embeddedSourceSlug };
+    });
+  }, [embeddedTenantSlug, explicitTenantSlug, isEmbedded]);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -1116,14 +1166,28 @@ function ChatWidgetInner({
 
           if (typeof tenantSlug === 'string' && tenantSlug.trim()) {
               setContextOverride((prev: any) => ({ ...prev, tenantSlug: tenantSlug.trim() }));
+          } else if (Object.prototype.hasOwnProperty.call(payload, 'tenantSlug')) {
+              setContextOverride((prev: any) => {
+                if (!prev?.tenantSlug) return prev;
+                const { tenantSlug: _tenantSlug, ...rest } = prev;
+                return Object.keys(rest).length ? rest : null;
+              });
           }
           if (tipoChat === 'municipio' || tipoChat === 'pyme') {
               setResolvedTipoChat(tipoChat);
           }
-          // Note: Passing 'context' deeper into ChatPanel might require more piping,
-          // but updating tenantSlug/tipoChat solves the 403 error.
-
-          void context;
+          if (context && typeof context === 'object') {
+              try {
+                  safeLocalStorage.setItem('chatboc_public_chat_context', JSON.stringify({
+                      ...(context as Record<string, unknown>),
+                      tenantSlug: typeof tenantSlug === 'string' ? tenantSlug.trim() : undefined,
+                      tipoChat: tipoChat === 'municipio' || tipoChat === 'pyme' ? tipoChat : undefined,
+                      updatedAt: new Date().toISOString(),
+                  }));
+              } catch (storageError) {
+                  console.warn('ChatWidget: No se pudo persistir el contexto público del chat', storageError);
+              }
+          }
 
           setIsOpen(true);
           return;

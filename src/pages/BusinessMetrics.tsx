@@ -25,6 +25,7 @@ import {
   Package,
   MapPin,
   BrainCircuit,
+  RefreshCw,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -34,6 +35,10 @@ import { apiFetch, getErrorMessage } from "@/utils/api";
 import ChartTooltip from "@/components/analytics/ChartTooltip";
 import TicketStatsCharts from "@/components/TicketStatsCharts";
 import { getTicketStats, TicketStatsResponse } from "@/services/statsService";
+import { enterpriseService } from "@/services/enterpriseService";
+import { useTenant } from "@/context/TenantContext";
+import { useParams } from "react-router-dom";
+import MapLibreMap from "@/components/MapLibreMap";
 
 // --- MOCK DATA & TYPES (as per backend spec) ---
 
@@ -67,6 +72,33 @@ interface RegionSale {
   sales: number;
 }
 
+interface TenantDashboardBundle {
+  tenant?: Record<string, any>;
+  summary?: Record<string, any>;
+  leads?: Record<string, any>;
+  surveys?: Record<string, any>;
+  unread?: Record<string, any>;
+  team?: Record<string, any>;
+  recommended_actions?: Array<Record<string, any>>;
+  meta?: Record<string, any>;
+}
+
+interface TenantHeatmapSummary {
+  top_categories?: Array<Record<string, any>>;
+  top_zones?: Array<Record<string, any>>;
+  hotspot_pairs?: Array<Record<string, any>>;
+  heatmap_points?: Array<Record<string, any>>;
+  meta?: Record<string, any>;
+}
+
+interface TenantEmployeeCoverage {
+  categorias?: Array<Record<string, any>>;
+  zonas?: Array<Record<string, any>>;
+  permisos?: Array<Record<string, any>>;
+  items?: Array<Record<string, any>>;
+  meta?: Record<string, any>;
+}
+
 const formatStatusLabel = (value: string) =>
   value
     .split(/[_\s]+/)
@@ -95,7 +127,7 @@ const TrendIndicator: FC<{ trend: number }> = ({ trend }) => {
 };
 
 const KpiCard: FC<{ title: string; data: Kpi; icon: React.ReactNode; formatAsCurrency?: boolean }> = ({ title, data, icon, formatAsCurrency = false }) => (
-  <Card>
+  <Card className="border-border/60 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
       <CardTitle className="text-sm font-medium">{title}</CardTitle>
       {icon}
@@ -183,7 +215,7 @@ const RegionChart: FC<{ data: RegionSale[] }> = ({ data }) => {
 };
 
 const MetricsSummary: FC<{ summary: string }> = ({ summary }) => (
-    <Card className="col-span-1 md:col-span-2 lg:col-span-4 bg-primary/10 border-primary/30">
+    <Card className="col-span-1 md:col-span-2 lg:col-span-4 border-primary/20 bg-gradient-to-r from-primary/10 via-primary/5 to-background shadow-sm">
         <CardHeader className="flex flex-row items-center space-x-4 pb-2">
             <BrainCircuit className="w-8 h-8 text-primary"/>
             <CardTitle className="text-xl text-primary">Resumen Inteligente</CardTitle>
@@ -197,11 +229,20 @@ const MetricsSummary: FC<{ summary: string }> = ({ summary }) => (
 // --- Main Page Component ---
 
 export default function BusinessMetrics() {
+  const params = useParams<{ tenant: string }>();
+  const { tenant } = useTenant();
+  const tenantSlug = tenant?.slug || params.tenant || "";
   const [kpis, setKpis] = useState<KpiData | null>(null);
   const [sales, setSales] = useState<SalesDataPoint[] | null>(null);
   const [topProducts, setTopProducts] = useState<TopProduct[] | null>(null);
   const [regions, setRegions] = useState<RegionSale[] | null>(null);
   const [summary, setSummary] = useState<string | null>(null);
+  const [dashboardBundle, setDashboardBundle] =
+    useState<TenantDashboardBundle | null>(null);
+  const [tenantHeatmap, setTenantHeatmap] =
+    useState<TenantHeatmapSummary | null>(null);
+  const [employeeCoverage, setEmployeeCoverage] =
+    useState<TenantEmployeeCoverage | null>(null);
   const [ticketCharts, setTicketCharts] = useState<TicketStatsResponse['charts']>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -216,6 +257,9 @@ export default function BusinessMetrics() {
       });
 
       const [
+        dashboardBundleRes,
+        heatmapSummaryRes,
+        employeeCoverageRes,
         summaryRes,
         kpisRes,
         salesRes,
@@ -223,6 +267,20 @@ export default function BusinessMetrics() {
         regionSalesRes,
         ticketStatsRes
       ] = await Promise.all([
+        tenantSlug
+          ? enterpriseService.getTenantDashboardBundle(tenantSlug, {
+              since_days: 30,
+            })
+          : Promise.resolve(null),
+        tenantSlug
+          ? enterpriseService.getTenantHeatmapSummary(tenantSlug, {
+              since_days: 30,
+              point_limit: 150,
+            })
+          : Promise.resolve(null),
+        tenantSlug
+          ? enterpriseService.getTenantEmployeeCoverage(tenantSlug)
+          : Promise.resolve(null),
         apiFetch<{ summary: string }>('/api/metrics/summary'),
         apiFetch<KpiData>('/api/metrics/kpis'),
         apiFetch<{ data: SalesDataPoint[] }>('/api/metrics/sales-over-time?period=30d'),
@@ -231,6 +289,9 @@ export default function BusinessMetrics() {
         ticketStatsPromise
       ]);
 
+      setDashboardBundle(dashboardBundleRes);
+      setTenantHeatmap(heatmapSummaryRes);
+      setEmployeeCoverage(employeeCoverageRes);
       setSummary(summaryRes.summary);
       setKpis(kpisRes);
       setSales(salesRes.data);
@@ -243,7 +304,7 @@ export default function BusinessMetrics() {
     } finally {
         setLoading(false);
     }
-  }, []);
+  }, [tenantSlug]);
 
   useEffect(() => {
     fetchAllMetrics();
@@ -273,6 +334,37 @@ export default function BusinessMetrics() {
       }),
     [ticketCharts],
   );
+  const bundleSummary = dashboardBundle?.summary || {};
+  const bundleLeads = dashboardBundle?.leads || {};
+  const bundleSurveys = dashboardBundle?.surveys || {};
+  const bundleUnread = dashboardBundle?.unread || {};
+  const bundleTeamItems = Array.isArray(dashboardBundle?.team?.items)
+    ? dashboardBundle?.team?.items
+    : [];
+  const recommendedActions = Array.isArray(dashboardBundle?.recommended_actions)
+    ? dashboardBundle.recommended_actions
+    : [];
+  const heatmapPoints = Array.isArray(tenantHeatmap?.heatmap_points)
+    ? tenantHeatmap.heatmap_points
+        .map((point) => ({
+          lat: Number(point?.lat),
+          lng: Number(point?.lng),
+          weight: toNumber(point?.weight ?? point?.count ?? point?.total ?? 1),
+          categoria: point?.categoria,
+          zona: point?.zona,
+          label: point?.label,
+        }))
+        .filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng))
+    : [];
+  const coverageCategories = Array.isArray(employeeCoverage?.categorias)
+    ? employeeCoverage.categorias
+    : [];
+  const coverageZones = Array.isArray(employeeCoverage?.zonas)
+    ? employeeCoverage.zonas
+    : [];
+  const coveragePermissions = Array.isArray(employeeCoverage?.permisos)
+    ? employeeCoverage.permisos
+    : [];
 
   if (loading) {
     return (
@@ -296,27 +388,298 @@ export default function BusinessMetrics() {
             <AlertCircle className="mx-auto h-12 w-12" />
             <h2 className="mt-4 text-lg font-semibold">Error al cargar las métricas</h2>
             <p>{error}</p>
-            <Button onClick={fetchAllMetrics} className="mt-4">Reintentar</Button>
+        <Button onClick={fetchAllMetrics} className="mt-4 gap-2 rounded-xl">
+          <RefreshCw className="h-4 w-4" />
+          Reintentar
+        </Button>
         </div>
     )
   }
 
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6 bg-background">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <h1 className="text-3xl font-extrabold text-primary">
-          Métricas del Negocio
-        </h1>
-        <Button onClick={fetchAllMetrics} disabled={loading}>
-          {loading ? 'Actualizando...' : 'Actualizar Métricas'}
+      <div className="flex flex-col gap-4 rounded-3xl border border-border/60 bg-card/80 p-5 shadow-sm md:flex-row md:items-center md:justify-between">
+        <div className="space-y-1">
+          <h1 className="text-3xl font-extrabold text-primary">
+            Métricas del Negocio
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Panel operativo, cobertura y analíticas comerciales en una vista unificada.
+          </p>
+        </div>
+        <Button onClick={fetchAllMetrics} disabled={loading} className="gap-2 rounded-xl shadow-sm">
+          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+          {loading ? 'Actualizando...' : 'Actualizar métricas'}
         </Button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {dashboardBundle && (
+          <>
+            <div className="col-span-1 md:col-span-2 lg:col-span-4 flex flex-wrap gap-2">
+              <Badge variant="outline" className="rounded-full px-3 py-1">
+                Leads {toNumber(bundleSummary.open_leads ?? bundleLeads.total).toLocaleString("es-AR")}
+              </Badge>
+              <Badge variant="outline" className="rounded-full px-3 py-1">
+                Unread {toNumber(bundleUnread.total_tickets_with_unread ?? bundleUnread.total).toLocaleString("es-AR")}
+              </Badge>
+              <Badge variant="outline" className="rounded-full px-3 py-1">
+                Equipo {bundleTeamItems.length.toLocaleString("es-AR")}
+              </Badge>
+              <Badge variant="outline" className="rounded-full px-3 py-1">
+                Heatmap {heatmapPoints.length.toLocaleString("es-AR")} pts
+              </Badge>
+            </div>
+            <Card className="col-span-1 md:col-span-2 lg:col-span-4 border-border/60 shadow-sm">
+              <CardHeader>
+                <CardTitle>Panel operativo tenant</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-lg border border-border bg-muted/40 p-4">
+                  <p className="text-sm text-muted-foreground">Leads backlog</p>
+                  <p className="mt-1 text-2xl font-bold">
+                    {toNumber(
+                      bundleSummary.open_leads ??
+                        bundleLeads.open ??
+                        bundleLeads.backlog ??
+                        bundleLeads.total,
+                    ).toLocaleString("es-AR")}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-border bg-muted/40 p-4">
+                  <p className="text-sm text-muted-foreground">SLA en riesgo</p>
+                  <p className="mt-1 text-2xl font-bold">
+                    {toNumber(
+                      bundleSummary.sla_at_risk ??
+                        bundleLeads.sla_at_risk ??
+                        bundleLeads.sla_breached,
+                    ).toLocaleString("es-AR")}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-border bg-muted/40 p-4">
+                  <p className="text-sm text-muted-foreground">Tickets unread</p>
+                  <p className="mt-1 text-2xl font-bold">
+                    {toNumber(
+                      bundleSummary.unread_tickets ??
+                        bundleUnread.total_tickets_with_unread ??
+                        bundleUnread.total,
+                    ).toLocaleString("es-AR")}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-border bg-muted/40 p-4">
+                  <p className="text-sm text-muted-foreground">Encuestas activas</p>
+                  <p className="mt-1 text-2xl font-bold">
+                    {toNumber(
+                      bundleSummary.active_surveys ??
+                        bundleSurveys.active ??
+                        bundleSurveys.total,
+                    ).toLocaleString("es-AR")}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {(recommendedActions.length > 0 || bundleTeamItems.length > 0) && (
+              <Card className="col-span-1 md:col-span-2 lg:col-span-4 border-border/60 shadow-sm">
+                <CardHeader>
+                  <CardTitle>Prioridades operativas</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4 lg:grid-cols-[1.2fr_minmax(0,1fr)]">
+                  <div className="space-y-3">
+                    <p className="text-sm font-medium">Acciones sugeridas</p>
+                    <div className="flex flex-wrap gap-2">
+                      {recommendedActions.length ? (
+                        recommendedActions.map((action, index) => (
+                          <span
+                            key={`tenant-dashboard-action-${index}`}
+                            className="inline-flex items-center rounded-full border px-3 py-1 text-xs"
+                          >
+                            {String(
+                              action?.label ||
+                                action?.title ||
+                                action?.action ||
+                                action?.code ||
+                                `action_${index + 1}`,
+                            )}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-sm text-muted-foreground">Sin acciones sugeridas.</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <p className="text-sm font-medium">Carga del equipo</p>
+                    <div className="space-y-2">
+                      {bundleTeamItems.slice(0, 4).map((member, index) => (
+                        <div
+                          key={`team-workload-${index}`}
+                          className="flex items-center justify-between rounded-lg border border-border bg-muted/30 px-3 py-2"
+                        >
+                          <span className="text-sm">
+                            {member?.employee_name ||
+                              member?.nombre ||
+                              member?.user_name ||
+                              member?.email ||
+                              `member_${index + 1}`}
+                          </span>
+                          <Badge variant="outline">
+                            {toNumber(
+                              member?.workload_open_tickets ??
+                                member?.open_tickets ??
+                                member?.assigned_open_tickets,
+                            ).toLocaleString("es-AR")}
+                          </Badge>
+                        </div>
+                      ))}
+                      {!bundleTeamItems.length ? (
+                        <p className="text-sm text-muted-foreground">
+                          Sin carga de equipo en el bundle actual.
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </>
+        )}
+
+        {(tenantHeatmap || employeeCoverage) && (
+          <Card className="col-span-1 md:col-span-2 lg:col-span-4 border-border/60 shadow-sm">
+            <CardHeader>
+              <CardTitle>Mapa de calor y cobertura operativa</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Lectura rápida para operación territorial, hotspots y distribución del equipo.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,1fr)]">
+                <div className="rounded-xl border border-border bg-muted/20 p-3">
+                  {heatmapPoints.length ? (
+                    <MapLibreMap
+                      className="h-[360px] w-full rounded-lg"
+                      heatmapData={heatmapPoints as any}
+                      showHeatmap
+                    />
+                  ) : (
+                    <div className="flex h-[360px] items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
+                      No hay puntos de heatmap disponibles en el rango actual.
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid gap-4">
+                  <div className="rounded-xl border p-4">
+                    <p className="text-sm font-medium">Top categorías</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {(tenantHeatmap?.top_categories || []).slice(0, 8).map((item, index) => (
+                        <Badge key={`top-category-${index}`} variant="outline">
+                          {String(item?.categoria || item?.label || item?.name || `categoria_${index + 1}`)} · {toNumber(item?.count ?? item?.total)}
+                        </Badge>
+                      ))}
+                      {!(tenantHeatmap?.top_categories || []).length ? (
+                        <span className="text-sm text-muted-foreground">Sin categorías agregadas.</span>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border p-4">
+                    <p className="text-sm font-medium">Top zonas</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {(tenantHeatmap?.top_zones || []).slice(0, 8).map((item, index) => (
+                        <Badge key={`top-zone-${index}`} variant="secondary">
+                          {String(item?.zona || item?.label || item?.name || `zona_${index + 1}`)} · {toNumber(item?.count ?? item?.total)}
+                        </Badge>
+                      ))}
+                      {!(tenantHeatmap?.top_zones || []).length ? (
+                        <span className="text-sm text-muted-foreground">Sin zonas agregadas.</span>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border p-4">
+                    <p className="text-sm font-medium">Hotspots</p>
+                    <div className="mt-3 space-y-2 text-sm">
+                      {(tenantHeatmap?.hotspot_pairs || []).slice(0, 4).map((item, index) => (
+                        <div key={`hotspot-${index}`} className="flex items-center justify-between rounded-lg border px-3 py-2 transition-colors hover:bg-muted/30">
+                          <span>
+                            {String(
+                              item?.categoria ||
+                                item?.category ||
+                                item?.label ||
+                                item?.zona ||
+                                `hotspot_${index + 1}`,
+                            )}
+                          </span>
+                          <span className="text-muted-foreground">
+                            {toNumber(item?.count ?? item?.total ?? item?.weight)}
+                          </span>
+                        </div>
+                      ))}
+                      {!(tenantHeatmap?.hotspot_pairs || []).length ? (
+                        <span className="text-muted-foreground">Sin hotspots en el resumen actual.</span>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="rounded-xl border p-4">
+                  <p className="text-sm font-medium">Cobertura por categorías</p>
+                  <div className="mt-3 space-y-2 text-sm">
+                    {coverageCategories.slice(0, 5).map((item, index) => (
+                      <div key={`coverage-category-${index}`} className="flex items-center justify-between">
+                        <span>{String(item?.categoria || item?.label || item?.name || `categoria_${index + 1}`)}</span>
+                        <Badge variant="outline">{toNumber(item?.employees ?? item?.count ?? item?.total)}</Badge>
+                      </div>
+                    ))}
+                    {!coverageCategories.length ? (
+                      <span className="text-muted-foreground">Sin cobertura cargada.</span>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="rounded-xl border p-4">
+                  <p className="text-sm font-medium">Cobertura por zonas</p>
+                  <div className="mt-3 space-y-2 text-sm">
+                    {coverageZones.slice(0, 5).map((item, index) => (
+                      <div key={`coverage-zone-${index}`} className="flex items-center justify-between">
+                        <span>{String(item?.zona || item?.label || item?.name || `zona_${index + 1}`)}</span>
+                        <Badge variant="outline">{toNumber(item?.employees ?? item?.count ?? item?.total)}</Badge>
+                      </div>
+                    ))}
+                    {!coverageZones.length ? (
+                      <span className="text-muted-foreground">Sin zonas configuradas.</span>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="rounded-xl border p-4">
+                  <p className="text-sm font-medium">Cobertura por permisos</p>
+                  <div className="mt-3 space-y-2 text-sm">
+                    {coveragePermissions.slice(0, 5).map((item, index) => (
+                      <div key={`coverage-permission-${index}`} className="flex items-center justify-between">
+                        <span>{String(item?.permiso || item?.label || item?.name || `permiso_${index + 1}`)}</span>
+                        <Badge variant="outline">{toNumber(item?.employees ?? item?.count ?? item?.total)}</Badge>
+                      </div>
+                    ))}
+                    {!coveragePermissions.length ? (
+                      <span className="text-muted-foreground">Sin permisos agregados.</span>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {summary && <MetricsSummary summary={summary} />}
 
         {statusSummary.length > 0 && (
-          <Card className="col-span-1 md:col-span-2 lg:col-span-4">
+          <Card className="col-span-1 md:col-span-2 lg:col-span-4 border-border/60 shadow-sm">
             <CardHeader>
               <CardTitle>Estado de Tickets</CardTitle>
             </CardHeader>
@@ -352,7 +715,7 @@ export default function BusinessMetrics() {
         {regions && <RegionChart data={regions} />}
 
         {additionalCharts.length > 0 && (
-          <Card className="col-span-1 md:col-span-2 lg:col-span-4">
+          <Card className="col-span-1 md:col-span-2 lg:col-span-4 border-border/60 shadow-sm">
             <CardHeader>
               <CardTitle>Analíticas de Tickets</CardTitle>
             </CardHeader>

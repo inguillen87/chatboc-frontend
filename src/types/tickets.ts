@@ -1,19 +1,19 @@
-import { Boton, StructuredContentItem } from './chat';
+import { Boton, StructuredContentItem } from "./chat";
 
 export type TicketStatus =
-  | 'nuevo'
-  | 'abierto'
-  | 'en-espera'
-  | 'resuelto'
-  | 'cerrado'
-  | 'en_proceso'
-  | 'esperando_agente_en_vivo'
-  | 'en_vivo';
-export type TicketPriority = 'baja' | 'media' | 'alta' | 'urgente';
+  | "nuevo"
+  | "abierto"
+  | "en-espera"
+  | "resuelto"
+  | "cerrado"
+  | "en_proceso"
+  | "esperando_agente_en_vivo"
+  | "en_vivo";
+export type TicketPriority = "baja" | "media" | "alta" | "urgente";
 
 export interface Horario {
-    start_hour: number;
-    end_hour: number;
+  start_hour: number;
+  end_hour: number;
 }
 
 export interface User {
@@ -59,7 +59,7 @@ export interface Attachment {
 
 export interface Message {
   id: number;
-  author: 'user' | 'agent';
+  author: "user" | "agent";
   agentName?: string;
   content: string; // Corresponds to 'text' in ChatMessageData
   timestamp: string; // Corresponds to 'timestamp'
@@ -73,7 +73,7 @@ export interface Message {
 
   // Optional fields from original Message type in tickets
   media_url?: string;
-  ubicacion?: { lat: number; lon: number; name?: string; address?: string; };
+  ubicacion?: { lat: number; lon: number; name?: string; address?: string };
 }
 
 export interface InformacionPersonalVecino {
@@ -91,7 +91,7 @@ export interface TicketHistoryEvent {
 }
 
 export interface TicketTimelineEvent {
-  tipo: 'ticket_creado' | 'comentario' | 'estado';
+  tipo: "ticket_creado" | "comentario" | "estado";
   fecha: string;
   estado?: string;
   texto?: string;
@@ -108,7 +108,7 @@ export interface TicketTimelineResponse {
 export interface Ticket {
   id: number;
   tenant_id?: number; // Added for Pyme support
-  tipo: 'municipio' | 'pyme';
+  tipo: "municipio" | "pyme";
   nro_ticket: string; // For Pyme this is a string representation of an Integer
   asunto: string;
   estado: TicketStatus;
@@ -169,7 +169,7 @@ export interface Ticket {
   title?: string; // Keep for components that might still use it
   lastMessage?: string; // Keep for components that might still use it
   description?: string;
-  channel?: 'whatsapp' | 'web' | 'email' | 'phone' | 'other';
+  channel?: "whatsapp" | "web" | "email" | "phone" | "other";
   assignedAgent?: User;
   whatsapp_conversation_id?: string;
   foto_url_directa?: string;
@@ -178,4 +178,14 @@ export interface Ticket {
   tenant_slug?: string;
   tenant_logo?: string;
   tenant_theme?: any;
+
+  // Operational context
+  sla_status?: string | null;
+  operational_badges?:
+    | string[]
+    | Array<{ label?: string; text?: string; value?: string }>;
+  operational_metrics?:
+    | Record<string, unknown>
+    | Array<{ label?: string; value?: string | number | null }>;
+  priority?: string | number | null;
 }
