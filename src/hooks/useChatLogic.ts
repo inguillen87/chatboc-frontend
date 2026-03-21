@@ -136,7 +136,7 @@ export function useChatLogic({
   skipAuth = false,
   selectedRubro = null,
   liveChatAvailable = false,
-}: UseChatLogicOptions) {
+	}: UseChatLogicOptions) {
   const entityToken = propToken || getIframeToken();
 
   const shouldUsePublicFlow = useCallback(
@@ -188,10 +188,62 @@ export function useChatLogic({
     messagesRef.current = messages;
   }, [messages]);
 
-  const sanitizeRubroValue = (value: unknown): string | null => {
+	  const sanitizeRubroValue = (value: unknown): string | null => {
     const key = extractRubroKey(value);
     return key && key.length > 0 ? key : null;
-  };
+	  };
+
+  const resolvePersistentPublicContext = useCallback(() => {
+    const storedContext = readStoredPublicChatContext();
+    if (!storedContext) return null;
+
+    const normalizedPin = pickFirstString(
+      storedContext.pin,
+      storedContext.consulta_pin,
+      storedContext.consultaPin,
+    )?.trim();
+    const ticketNumber = pickFirstString(
+      storedContext.ticketNumber,
+      storedContext.ticket_number,
+      storedContext.nro_ticket,
+    )?.trim();
+    const ticketId = storedContext.ticketId ?? storedContext.ticket_id ?? null;
+
+    if (!normalizedPin && !ticketNumber && !ticketId) return null;
+
+    return {
+      pin: normalizedPin || undefined,
+      consulta_pin: normalizedPin || undefined,
+      ticket_id: ticketId ?? undefined,
+      ticket_number: ticketNumber || undefined,
+    };
+  }, []);
+
+  const resolvePersistentPublicContext = useCallback(() => {
+    const storedContext = readStoredPublicChatContext();
+    if (!storedContext) return null;
+
+    const normalizedPin = pickFirstString(
+      storedContext.pin,
+      storedContext.consulta_pin,
+      storedContext.consultaPin,
+    )?.trim();
+    const ticketNumber = pickFirstString(
+      storedContext.ticketNumber,
+      storedContext.ticket_number,
+      storedContext.nro_ticket,
+    )?.trim();
+    const ticketId = storedContext.ticketId ?? storedContext.ticket_id ?? null;
+
+    if (!normalizedPin && !ticketNumber && !ticketId) return null;
+
+    return {
+      pin: normalizedPin || undefined,
+      consulta_pin: normalizedPin || undefined,
+      ticket_id: ticketId ?? undefined,
+      ticket_number: ticketNumber || undefined,
+    };
+  }, []);
 
   const resolvePersistentPublicContext = useCallback(
     (
