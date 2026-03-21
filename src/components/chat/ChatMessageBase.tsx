@@ -817,14 +817,20 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
             <>
                 {/* Intro text if present */}
                 {textAndListBlock && !showAttachmentOrMap && !audioSrc && !showStructuredContent && textAndListBlock}
-                <InteractiveMenu
-                    sections={message.menu_sections}
-                    config={message.interactive_list}
-                    onSelect={(item) => onButtonClick({
-                        text: item.title,
-                        action: 'interactive_list_reply',
-                        payload: { id: item.id }
-                    })}
+	                <InteractiveMenu
+	                    sections={message.menu_sections}
+	                    config={message.interactive_list}
+                      isDemoSelector={((message.data as any)?.fuente || (message.data as any)?.source) === 'demo_selector'}
+	                    onSelect={(item) => {
+	                        const sourceName = (message.data as any)?.fuente || (message.data as any)?.source;
+	                        const isDemoSelector = sourceName === 'demo_selector';
+                        onButtonClick({
+                            text: item.title,
+                            action: isDemoSelector ? item.id : 'interactive_list_reply',
+                            action_id: item.id,
+                            payload: isDemoSelector ? { demo_key: item.id.split(':')[1] || item.id } : { id: item.id }
+                        });
+                    }}
                 />
             </>
           )}
