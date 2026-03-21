@@ -7,8 +7,9 @@ import { requestLocation } from "@/utils/geolocation";
 import { toast } from "@/components/ui/use-toast";
 import useAudioRecorder from "@/hooks/useAudioRecorder";
 import { AttachmentInfo, deriveAttachmentInfo } from "@/utils/attachment";
-import { SendPayload } from "@/types/chat";
+import { ChatUxChannelCapabilities, SendPayload } from "@/types/chat";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import {
   coalesceNumber,
   coalesceString,
@@ -29,6 +30,12 @@ interface Props {
   onTypingChange?: (typing: boolean) => void;
   onSystemMessage?: (text: string, type: 'error' | 'info') => void;
   validateBeforeSend?: (payload: SendPayload) => string | null;
+  channelCapabilities?: ChatUxChannelCapabilities | null;
+  guidedFlow?: {
+    currentField?: string | null;
+    fields?: string[];
+  } | null;
+  supportsMultimodalIntake?: boolean;
 }
 
 
@@ -58,7 +65,17 @@ const QUICK_EMOJIS = [
 
 type UploadResponse = UploadResponseLike;
 
-const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping, inputRef, onTypingChange, onSystemMessage, validateBeforeSend }, ref) => {
+const normalizeFieldLabel = (value?: string | null) => {
+  if (!value) return null;
+  const normalized = value.trim();
+  if (!normalized) return null;
+  return normalized
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+};
+
+const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping, inputRef, onTypingChange, onSystemMessage, validateBeforeSend, channelCapabilities, guidedFlow, supportsMultimodalIntake = true }, ref) => {
   const [input, setInput] = useState("");
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const [isLocating, setIsLocating] = useState(false);
@@ -68,6 +85,36 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
   const internalRef = inputRef || useRef<HTMLInputElement>(null);
   const { isRecording, startRecording, stopRecording } = useAudioRecorder();
   const adjRef = useRef<AdjuntarArchivoHandle>(null);
+  const supportsAudioInput =
+    supportsMultimodalIntake &&
+    channelCapabilities?.supports_audio_input !== false;
+  const supportsFileUpload =
+    supportsMultimodalIntake &&
+    channelCapabilities?.supports_file_upload !== false;
+  const supportsImageInput =
+    supportsMultimodalIntake &&
+    channelCapabilities?.supports_image_input !== false;
+  const supportsLocationShare =
+    supportsMultimodalIntake &&
+    channelCapabilities?.supports_location_share !== false;
+  const allowedFileTypes = React.useMemo(() => {
+    const nextTypes: string[] = [];
+    if (supportsImageInput) nextTypes.push('image/*');
+    if (supportsFileUpload) nextTypes.push('application/pdf', 'video/*');
+    if (supportsAudioInput) nextTypes.push('audio/*');
+    return nextTypes.length > 0 ? nextTypes : ['image/*'];
+  }, [supportsAudioInput, supportsFileUpload, supportsImageInput]);
+  const currentGuidedFieldLabel = normalizeFieldLabel(guidedFlow?.currentField);
+  const guidedFields = React.useMemo(
+    () => (guidedFlow?.fields || []).map((field) => normalizeFieldLabel(field)).filter((field): field is string => Boolean(field)),
+    [guidedFlow?.fields],
+  );
+  const currentGuidedStepIndex = currentGuidedFieldLabel
+    ? Math.max(guidedFields.findIndex((field) => field === currentGuidedFieldLabel), 0)
+    : -1;
+  const guidedProgress = guidedFields.length > 0 && currentGuidedStepIndex >= 0
+    ? ((currentGuidedStepIndex + 1) / guidedFields.length) * 100
+    : 0;
 
   useImperativeHandle(ref, () => ({
     openFilePicker: () => {
@@ -405,6 +452,36 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
 
   return (
     <div className="w-full flex flex-col gap-3 px-2 py-2 sm:px-3 sm:py-3 bg-background">
+      {guidedFields.length > 0 ? (
+        <div className="rounded-2xl border border-border/70 bg-muted/30 px-3 py-3">
+          <div className="mb-2 flex items-center justify-between gap-3 text-xs text-muted-foreground">
+            <span className="font-medium uppercase tracking-wide">{currentGuidedFieldLabel || guidedFields[0]}</span>
+            <span>{currentGuidedStepIndex >= 0 ? `${currentGuidedStepIndex + 1}/${guidedFields.length}` : guidedFields.length}</span>
+          </div>
+          <Progress value={guidedProgress || undefined} className="h-1.5 bg-background" />
+          <div className="mt-3 flex flex-wrap gap-2">
+            {guidedFields.map((field, index) => {
+              const isActive = field === currentGuidedFieldLabel;
+              const isCompleted = currentGuidedStepIndex > index;
+              return (
+                <span
+                  key={`${field}_${index}`}
+                  className={[
+                    'rounded-full border px-2.5 py-1 text-[11px] font-medium capitalize transition-colors',
+                    isActive
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : isCompleted
+                        ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                        : 'border-border bg-background text-muted-foreground',
+                  ].join(' ')}
+                >
+                  {field}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
       {attachmentPreview && (
         <div className="relative w-full p-2 bg-muted rounded-lg flex items-center gap-3">
           {attachmentPreview.previewUrl ? (
@@ -442,7 +519,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
               ${isTyping ? "opacity-60 bg-muted-foreground/10 dark:bg-muted-foreground/20" : ""}
             `}
             type="text"
-            placeholder={attachmentPreview ? "Añade un comentario..." : PLACEHOLDERS[placeholderIndex]}
+            placeholder={attachmentPreview ? "Añade un comentario..." : currentGuidedFieldLabel || PLACEHOLDERS[placeholderIndex]}
             value={input}
             onChange={(e) => {
               const val = e.target.value;
@@ -487,12 +564,15 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
             </div>
           )}
           <div className="flex items-center gap-2 flex-wrap">
-            <AdjuntarArchivo
-              ref={adjRef}
-              onFileSelected={handleFileSelected}
-              disabled={isRecording || !!attachmentPreview}
-              allowedFileTypes={['image/*', 'application/pdf', 'audio/*', 'video/*']}
-            />
+            {allowedFileTypes.length > 0 ? (
+              <AdjuntarArchivo
+                ref={adjRef}
+                onFileSelected={handleFileSelected}
+                disabled={isRecording || !!attachmentPreview}
+                allowedFileTypes={allowedFileTypes}
+              />
+            ) : null}
+            {supportsLocationShare ? (
             <button
               onClick={handleShareLocation}
               disabled={isTyping || isLocating || isRecording || !!attachmentPreview}
@@ -510,6 +590,8 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
             >
               {isLocating ? <div className="w-5 h-5 border-2 border-t-transparent border-white rounded-full animate-spin" /> : <MapPin className="w-5 h-5" />}
             </button>
+            ) : null}
+            {supportsAudioInput ? (
             <button
               onClick={async () => {
                 if (isRecording) {
@@ -541,6 +623,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
             >
               {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
             </button>
+            ) : null}
             <button
               onClick={() => setShowEmojis((v) => !v)}
               disabled={isTyping || isLocating || !!attachmentPreview}
