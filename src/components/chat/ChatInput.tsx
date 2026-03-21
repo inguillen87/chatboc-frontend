@@ -1,14 +1,15 @@
 // src/components/chat/ChatInput.tsx
 import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from "react";
-import { Send, MapPin, Mic, MicOff, X, FileText, Smile } from "lucide-react";
+import { Send, MapPin, Mic, MicOff, X, FileText, Smile, Sparkles, Paperclip, AudioLines, Navigation, ArrowUp, CheckCircle2 } from "lucide-react";
 import AdjuntarArchivo, { AdjuntarArchivoHandle } from "@/components/ui/AdjuntarArchivo";
 import { apiFetch, getErrorMessage } from "@/utils/api";
 import { requestLocation } from "@/utils/geolocation";
 import { toast } from "@/components/ui/use-toast";
 import useAudioRecorder from "@/hooks/useAudioRecorder";
 import { AttachmentInfo, deriveAttachmentInfo } from "@/utils/attachment";
-import { SendPayload } from "@/types/chat";
+import { ChatUxChannelCapabilities, SendPayload } from "@/types/chat";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import {
   coalesceNumber,
   coalesceString,
@@ -29,6 +30,12 @@ interface Props {
   onTypingChange?: (typing: boolean) => void;
   onSystemMessage?: (text: string, type: 'error' | 'info') => void;
   validateBeforeSend?: (payload: SendPayload) => string | null;
+  channelCapabilities?: ChatUxChannelCapabilities | null;
+  guidedFlow?: {
+    currentField?: string | null;
+    fields?: string[];
+  } | null;
+  supportsMultimodalIntake?: boolean;
 }
 
 
@@ -58,7 +65,17 @@ const QUICK_EMOJIS = [
 
 type UploadResponse = UploadResponseLike;
 
-const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping, inputRef, onTypingChange, onSystemMessage, validateBeforeSend }, ref) => {
+const normalizeFieldLabel = (value?: string | null) => {
+  if (!value) return null;
+  const normalized = value.trim();
+  if (!normalized) return null;
+  return normalized
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+};
+
+const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping, inputRef, onTypingChange, onSystemMessage, validateBeforeSend, channelCapabilities, guidedFlow, supportsMultimodalIntake = true }, ref) => {
   const [input, setInput] = useState("");
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const [isLocating, setIsLocating] = useState(false);
@@ -68,6 +85,36 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
   const internalRef = inputRef || useRef<HTMLInputElement>(null);
   const { isRecording, startRecording, stopRecording } = useAudioRecorder();
   const adjRef = useRef<AdjuntarArchivoHandle>(null);
+  const supportsAudioInput =
+    supportsMultimodalIntake &&
+    channelCapabilities?.supports_audio_input !== false;
+  const supportsFileUpload =
+    supportsMultimodalIntake &&
+    channelCapabilities?.supports_file_upload !== false;
+  const supportsImageInput =
+    supportsMultimodalIntake &&
+    channelCapabilities?.supports_image_input !== false;
+  const supportsLocationShare =
+    supportsMultimodalIntake &&
+    channelCapabilities?.supports_location_share !== false;
+  const allowedFileTypes = React.useMemo(() => {
+    const nextTypes: string[] = [];
+    if (supportsImageInput) nextTypes.push('image/*');
+    if (supportsFileUpload) nextTypes.push('application/pdf', 'video/*');
+    if (supportsAudioInput) nextTypes.push('audio/*');
+    return nextTypes.length > 0 ? nextTypes : ['image/*'];
+  }, [supportsAudioInput, supportsFileUpload, supportsImageInput]);
+  const currentGuidedFieldLabel = normalizeFieldLabel(guidedFlow?.currentField);
+  const guidedFields = React.useMemo(
+    () => (guidedFlow?.fields || []).map((field) => normalizeFieldLabel(field)).filter((field): field is string => Boolean(field)),
+    [guidedFlow?.fields],
+  );
+  const currentGuidedStepIndex = currentGuidedFieldLabel
+    ? Math.max(guidedFields.findIndex((field) => field === currentGuidedFieldLabel), 0)
+    : -1;
+  const guidedProgress = guidedFields.length > 0 && currentGuidedStepIndex >= 0
+    ? ((currentGuidedStepIndex + 1) / guidedFields.length) * 100
+    : 0;
 
   useImperativeHandle(ref, () => ({
     openFilePicker: () => {
@@ -405,6 +452,41 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
 
   return (
     <div className="w-full flex flex-col gap-3 px-2 py-2 sm:px-3 sm:py-3 bg-background">
+      {guidedFields.length > 0 ? (
+        <div className="rounded-[22px] border border-primary/10 bg-gradient-to-br from-primary/[0.08] via-background to-secondary/20 px-3 py-3 shadow-[0_12px_35px_rgba(2,6,23,0.06)]">
+          <div className="mb-2 flex items-center justify-between gap-3 text-xs text-muted-foreground"><div className="inline-flex items-center gap-2">
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/12 text-primary"><Sparkles className="h-3.5 w-3.5" /></span>
+            <div className="flex flex-col">
+            <span className="font-medium uppercase tracking-wide">{currentGuidedFieldLabel || guidedFields[0]}</span>
+              <span className="text-[11px] text-muted-foreground/80">Paso guiado</span>
+            </div>
+          </div>
+            <span className="rounded-full bg-background/80 px-2 py-1 font-semibold text-foreground shadow-sm">{currentGuidedStepIndex >= 0 ? `${currentGuidedStepIndex + 1}/${guidedFields.length}` : guidedFields.length}</span>
+          </div>
+          <Progress value={guidedProgress || undefined} className="h-1.5 bg-background" />
+          <div className="mt-3 flex flex-wrap gap-2">
+            {guidedFields.map((field, index) => {
+              const isActive = field === currentGuidedFieldLabel;
+              const isCompleted = currentGuidedStepIndex > index;
+              return (
+                <span
+                  key={`${field}_${index}`}
+                  className={[
+                    'rounded-full border px-2.5 py-1 text-[11px] font-medium capitalize transition-colors',
+                    isActive
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : isCompleted
+                        ? 'border-emerald-200/80 bg-emerald-500/10 text-emerald-700 dark:border-emerald-700/50 dark:bg-emerald-500/15 dark:text-emerald-300'
+                        : 'border-border/70 bg-background/80 text-muted-foreground backdrop-blur',
+                  ].join(' ')}
+                >
+                  {field}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
       {attachmentPreview && (
         <div className="relative w-full p-2 bg-muted rounded-lg flex items-center gap-3">
           {attachmentPreview.previewUrl ? (
@@ -424,25 +506,37 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
         </div>
       )}
       <div className="flex flex-col gap-2">
-        <div className="w-full">
+        <div className="rounded-[28px] border border-border/70 bg-gradient-to-br from-background via-background to-muted/30 p-2 shadow-[0_18px_40px_rgba(15,23,42,0.08)]">
+          <div className="mb-2 flex items-center justify-between gap-3 px-2 pt-1">
+            <div className="flex flex-wrap items-center gap-1.5">
+              {supportsImageInput ? <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-1 text-[11px] font-medium text-primary"><Paperclip className="h-3 w-3" /> Adjuntos</span> : null}
+              {supportsAudioInput ? <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-1 text-[11px] font-medium text-secondary-foreground"><AudioLines className="h-3 w-3" /> Audio</span> : null}
+              {supportsLocationShare ? <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-1 text-[11px] font-medium text-secondary-foreground"><Navigation className="h-3 w-3" /> GPS</span> : null}
+            </div>
+            <div className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-1 text-[11px] font-medium text-primary">
+              <Sparkles className="h-3 w-3" />
+              Smart input
+            </div>
+          </div>
+          <div className="w-full">
           <input
             ref={internalRef}
             className={`
               w-full
-              rounded-full px-4 py-3 sm:px-4 sm:py-3
+              rounded-[24px] px-4 py-3 sm:px-4 sm:py-3.5
               text-base
               outline-none transition-all duration-200
               focus:ring-2 focus:ring-primary/50 focus:border-transparent
               placeholder:text-muted-foreground
               font-medium
               disabled:cursor-not-allowed
-              bg-input text-foreground
-              border border-border
+              bg-input/80 text-foreground
+              border border-border/70 shadow-inner
               dark:bg-input dark:text-foreground dark:border-border
               ${isTyping ? "opacity-60 bg-muted-foreground/10 dark:bg-muted-foreground/20" : ""}
             `}
             type="text"
-            placeholder={attachmentPreview ? "Añade un comentario..." : PLACEHOLDERS[placeholderIndex]}
+            placeholder={attachmentPreview ? "Añade un comentario..." : currentGuidedFieldLabel || PLACEHOLDERS[placeholderIndex]}
             value={input}
             onChange={(e) => {
               const val = e.target.value;
@@ -461,14 +555,14 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
             aria-label="Escribir mensaje"
             disabled={isTyping || isRecording}
           />
-        </div>
-        <div className="relative flex w-full flex-wrap items-center gap-2">
+          </div>
+        <div className="relative mt-2 flex w-full flex-wrap items-center gap-2">
           {showEmojis && (
-            <div className="absolute bottom-full right-0 mb-2 flex flex-wrap gap-2 p-2 bg-background border border-border rounded-lg shadow-lg z-10">
+            <div className="absolute bottom-full right-0 z-10 mb-2 flex max-w-[280px] flex-wrap gap-2 rounded-2xl border border-border/70 bg-background/95 p-3 shadow-2xl backdrop-blur">
               {QUICK_EMOJIS.map((item) => (
                 <button
                   key={item.emoji}
-                  className="text-2xl p-2 hover:bg-muted rounded"
+                  className="rounded-2xl p-2 text-2xl transition hover:scale-110 hover:bg-muted"
                   onClick={() => {
                     onSendMessage({
                       text: item.emoji,
@@ -487,12 +581,17 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
             </div>
           )}
           <div className="flex items-center gap-2 flex-wrap">
-            <AdjuntarArchivo
-              ref={adjRef}
-              onFileSelected={handleFileSelected}
-              disabled={isRecording || !!attachmentPreview}
-              allowedFileTypes={['image/*', 'application/pdf', 'audio/*', 'video/*']}
-            />
+            {allowedFileTypes.length > 0 ? (
+              <div className="rounded-full border border-border/60 bg-background p-0.5 shadow-sm transition hover:shadow-md">
+              <AdjuntarArchivo
+                ref={adjRef}
+                onFileSelected={handleFileSelected}
+                disabled={isRecording || !!attachmentPreview}
+                allowedFileTypes={allowedFileTypes}
+              />
+              </div>
+            ) : null}
+            {supportsLocationShare ? (
             <button
               onClick={handleShareLocation}
               disabled={isTyping || isLocating || isRecording || !!attachmentPreview}
@@ -502,14 +601,16 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
                 shadow-md transition-all duration-150
                 focus:outline-none focus:ring-2 focus:ring-primary/60 focus:ring-offset-1 focus:ring-offset-background
                 active:scale-95
-                bg-secondary text-secondary-foreground hover:bg-secondary/80
+                border border-border/60 bg-background text-secondary-foreground hover:-translate-y-0.5 hover:bg-secondary/80 hover:shadow-lg
                 ${isTyping || isLocating || !!attachmentPreview ? "opacity-50 cursor-not-allowed" : ""}
               `}
               aria-label="Compartir ubicación"
               type="button"
             >
-              {isLocating ? <div className="w-5 h-5 border-2 border-t-transparent border-white rounded-full animate-spin" /> : <MapPin className="w-5 h-5" />}
+              {isLocating ? <div className="h-5 w-5 rounded-full border-2 border-current border-t-transparent animate-spin" /> : <MapPin className="w-5 h-5" />}
             </button>
+            ) : null}
+            {supportsAudioInput ? (
             <button
               onClick={async () => {
                 if (isRecording) {
@@ -532,7 +633,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
                 shadow-md transition-all duration-150
                 focus:outline-none focus:ring-2 focus:ring-primary/60 focus:ring-offset-1 focus:ring-offset-background
                 active:scale-95
-                bg-secondary text-secondary-foreground hover:bg-secondary/80
+                border border-border/60 bg-background text-secondary-foreground hover:-translate-y-0.5 hover:bg-secondary/80 hover:shadow-lg
                 ${isTyping || isLocating || !!attachmentPreview ? "opacity-50 cursor-not-allowed" : ""}
                 ${isRecording ? "text-destructive bg-destructive/20 hover:bg-destructive/30" : ""}
               `}
@@ -541,6 +642,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
             >
               {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
             </button>
+            ) : null}
             <button
               onClick={() => setShowEmojis((v) => !v)}
               disabled={isTyping || isLocating || !!attachmentPreview}
@@ -550,7 +652,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
                 shadow-md transition-all duration-150
                 focus:outline-none focus:ring-2 focus:ring-primary/60 focus:ring-offset-1 focus:ring-offset-background
                 active:scale-95
-                bg-secondary text-secondary-foreground hover:bg-secondary/80
+                border border-border/60 bg-background text-secondary-foreground hover:-translate-y-0.5 hover:bg-secondary/80 hover:shadow-lg
                 ${isTyping || isLocating || !!attachmentPreview ? "opacity-50 cursor-not-allowed" : ""}
               `}
               aria-label="Mostrar emojis"
@@ -567,7 +669,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
               shadow-md transition-all duration-150
               focus:outline-none focus:ring-2 focus:ring-primary/60 focus:ring-offset-1 focus:ring-offset-background
               active:scale-95
-              bg-primary text-primary-foreground hover:bg-primary/90
+              gap-1.5 bg-primary text-primary-foreground hover:-translate-y-0.5 hover:bg-primary/90 hover:shadow-[0_14px_30px_rgba(0,122,255,0.28)]
               disabled:opacity-50 disabled:cursor-not-allowed
             `}
             onClick={handleSend}
@@ -575,8 +677,18 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
             aria-label="Enviar mensaje"
             type="button"
           >
-            <Send className="w-5 h-5" />
+            {input.trim() || attachmentPreview ? <ArrowUp className="w-5 h-5" /> : <Send className="w-5 h-5" />}
           </button>
+        </div>
+        {(input.trim() || attachmentPreview || currentGuidedFieldLabel) ? (
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-2 px-2 pb-1 text-[11px] text-muted-foreground">
+            <span className="inline-flex items-center gap-1">
+              <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
+              {currentGuidedFieldLabel ? `Campo activo: ${currentGuidedFieldLabel}` : attachmentPreview ? 'Listo para enviar adjunto' : 'Mensaje listo para enviar'}
+            </span>
+            <span>{input.length}/200</span>
+          </div>
+        ) : null}
         </div>
       </div>
       {inlineError ? (
