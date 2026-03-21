@@ -191,6 +191,7 @@ const ChatPanel = (props: ChatPanelProps) => {
     setContexto,
     setActiveTicketId,
     contexto,
+    uxContext,
     addSystemMessage,
     initializeConversation,
   } = useChatLogic({
@@ -221,6 +222,7 @@ const ChatPanel = (props: ChatPanelProps) => {
             handleSend({
                 text: actionData.text || actionData.action, // Fallback text if just action
                 action: actionData.action,
+                action_id: actionData.action_id,
                 payload: actionData.payload
             });
           }, 500);
@@ -409,7 +411,8 @@ const ChatPanel = (props: ChatPanelProps) => {
   // However, a 'pyme' tenant might still have rubros? No, usually a single pyme is a specific business.
   // The 'directory' mode is when we are at the aggregator level.
   // If tenantSlug is present, we assume it's a specific entity.
-  const showRubroSelector = rubrosEnabled && !localRubro;
+  const shouldSuppressDemoShell = uxContext?.trusted_owner === true && uxContext?.should_render_demo_shell === false;
+  const showRubroSelector = rubrosEnabled && !localRubro && !shouldSuppressDemoShell;
 
   const handlePersonalDataSubmit = (data: { nombre: string; email: string; telefono: string; dni: string; }) => {
     const normalizedName = data?.nombre?.trim();

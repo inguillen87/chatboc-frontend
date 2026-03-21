@@ -75,6 +75,14 @@ export interface InteractiveListConfig {
 }
 
 // Define cómo es un objeto Mensaje
+
+export interface ChatUxContext {
+  trusted_owner?: boolean;
+  owner_tipo_chat?: 'municipio' | 'pyme' | string;
+  owner_name?: string;
+  should_render_demo_shell?: boolean;
+}
+
 export interface Message {
   id: number | string; // Identificador único del mensaje
   text: string; // Texto principal o fallback del mensaje. Puede ser HTML sanitizado.
