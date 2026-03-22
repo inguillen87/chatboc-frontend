@@ -72,11 +72,13 @@ export default function useTicketUpdates(options: UseTicketUpdatesOptions = {}) 
     safeOn(socket, 'new_ticket', handleNewTicket);
     safeOn(socket, 'ticket_update', handleTicketUpdate);
     safeOn(socket, 'new_comment', handleNewComment);
+    safeOn(socket, 'ticket.unread.changed', handleUnreadChanged);
 
     return () => {
       socket.off('new_ticket', handleNewTicket);
       socket.off('ticket_update', handleTicketUpdate);
       socket.off('new_comment', handleNewComment);
+      socket.off('ticket.unread.changed', handleUnreadChanged);
     };
   }, [socket]);
 }
