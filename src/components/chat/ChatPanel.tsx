@@ -40,14 +40,19 @@ import {
 } from "@/utils/conversationStream";
 import { safeOn, assertEventSource } from "@/utils/safeOn";
 import {
+  ArrowRightLeft,
   Loader2,
   X,
   Lightbulb,
   CheckCircle2,
+  ImagePlus,
+  MapPinned,
   Mic,
   MicOff,
   Captions,
   CaptionsOff,
+  Paperclip,
+  Sparkles,
   Phone,
   Video,
   Bot,
@@ -302,9 +307,50 @@ const ChatPanel = (props: ChatPanelProps) => {
       ...(source.supports_realtime !== undefined
         ? { supports_realtime: source.supports_realtime }
         : {}),
+      ...(source.audio_input_label ? { audio_input_label: source.audio_input_label } : {}),
+      ...(source.file_upload_label ? { file_upload_label: source.file_upload_label } : {}),
+      ...(source.image_input_label ? { image_input_label: source.image_input_label } : {}),
+      ...(source.location_share_label ? { location_share_label: source.location_share_label } : {}),
+      ...(source.realtime_label ? { realtime_label: source.realtime_label } : {}),
     };
   }, [uxContext?.channel_capabilities]);
   const recommendedExperience = uxContext?.recommended_experience || null;
+  const recommendedExperienceLabel =
+    typeof recommendedExperience?.label === "string" && recommendedExperience.label.trim().length > 0
+      ? recommendedExperience.label.trim()
+      : null;
+  const recommendedExperienceSummary =
+    typeof recommendedExperience?.summary_text === "string" && recommendedExperience.summary_text.trim().length > 0
+      ? recommendedExperience.summary_text.trim()
+      : null;
+
+  const capabilityPills = useMemo(() => {
+    if (!channelCapabilities) return [] as Array<{ label: string; icon: React.ElementType }>;
+    return [
+      channelCapabilities.supports_audio_input && channelCapabilities.audio_input_label
+        ? { label: channelCapabilities.audio_input_label, icon: Mic }
+        : null,
+      channelCapabilities.supports_image_input && channelCapabilities.image_input_label
+        ? { label: channelCapabilities.image_input_label, icon: ImagePlus }
+        : null,
+      channelCapabilities.supports_file_upload && channelCapabilities.file_upload_label
+        ? { label: channelCapabilities.file_upload_label, icon: Paperclip }
+        : null,
+      channelCapabilities.supports_location_share && channelCapabilities.location_share_label
+        ? { label: channelCapabilities.location_share_label, icon: MapPinned }
+        : null,
+      channelCapabilities.supports_realtime && channelCapabilities.realtime_label
+        ? { label: channelCapabilities.realtime_label, icon: Wifi }
+        : null,
+    ].filter((item): item is { label: string; icon: React.ElementType } => Boolean(item));
+  }, [channelCapabilities]);
+
+  const preferredHandoffChannels = Array.isArray(recommendedExperience?.preferred_handoff_channels)
+    ? recommendedExperience.preferred_handoff_channels.filter(
+        (item): item is string => typeof item === 'string' && item.trim().length > 0,
+      )
+    : [];
+
 
   // Check for pending widget action from CTA bubble
   useEffect(() => {
@@ -1604,6 +1650,9 @@ const ChatPanel = (props: ChatPanelProps) => {
         logoAnimation={logoAnimation}
         onA11yChange={onA11yChange}
         supportChannels={supportChannels}
+        ownerName={uxContext?.owner_name || null}
+        ownerType={uxContext?.owner_tipo_chat || null}
+        recommendationLabel={recommendedExperienceLabel}
       />
       <div className="px-2 sm:px-4 pt-2">
         <div className="grid grid-cols-3 gap-2 rounded-xl border border-border/70 bg-muted/30 p-2">
@@ -1777,6 +1826,46 @@ const ChatPanel = (props: ChatPanelProps) => {
           </div>
         </div>
       ) : null}
+      {(capabilityPills.length > 0 || preferredHandoffChannels.length > 0 || recommendedExperienceLabel || recommendedExperienceSummary) && (
+        <div className="px-2 sm:px-4 pt-2">
+          <div className="rounded-2xl border border-border/70 bg-muted/30 p-3 shadow-sm">
+            {recommendedExperienceLabel ? (
+              <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                <Sparkles className="h-4 w-4 text-primary" />
+                <span>{recommendedExperienceLabel}</span>
+              </div>
+            ) : null}
+            {recommendedExperienceSummary ? (
+              <p className={cn('text-sm text-muted-foreground', recommendedExperienceLabel ? 'mt-1' : '')}>
+                {recommendedExperienceSummary}
+              </p>
+            ) : null}
+            {(preferredHandoffChannels.length > 0 || capabilityPills.length > 0) ? (
+              <div className={cn('flex flex-wrap gap-2', recommendedExperienceLabel || recommendedExperienceSummary ? 'mt-3' : '')}>
+                {preferredHandoffChannels.map((channel) => (
+                  <span
+                    key={channel}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700"
+                  >
+                    <ArrowRightLeft className="h-3.5 w-3.5" />
+                    {channel}
+                  </span>
+                ))}
+                {capabilityPills.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <span key={item.label} className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-background/80 px-3 py-1 text-xs font-medium text-foreground">
+                      <Icon className="h-3.5 w-3.5 text-primary" />
+                      {item.label}
+                    </span>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      )}
+
       {onCart && tipoChat === "pyme" && (
         <div className="px-2 sm:px-4 pt-2">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center rounded-xl border bg-muted/40 px-3 py-3">

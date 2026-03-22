@@ -9,9 +9,10 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { formatCurrency } from '@/utils/currency';
+import CommercialStateCard from '@/components/market/CommercialStateCard';
 
 function CheckoutContent({ tenantSlug }: { tenantSlug: string }) {
-  const { items, totalAmount, totalPoints, isLoading, error, refreshCart } = useMarketCart();
+  const { items, totalAmount, totalPoints, isLoading, error, refreshCart, customerProfile, commercialState } = useMarketCart();
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [checkoutMessage, setCheckoutMessage] = useState<string | null>(null);
@@ -55,6 +56,10 @@ function CheckoutContent({ tenantSlug }: { tenantSlug: string }) {
           <AlertTitle>Carrito vacío</AlertTitle>
           <AlertDescription>Agregá productos para continuar con la compra.</AlertDescription>
         </Alert>
+      ) : null}
+
+      {customerProfile || commercialState ? (
+        <CommercialStateCard customerProfile={customerProfile} commercialState={commercialState} />
       ) : null}
 
       <div className="grid gap-6 lg:grid-cols-[2fr,1fr]">

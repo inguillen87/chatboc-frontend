@@ -365,6 +365,72 @@ const getSlaBadgeClassName = (status?: string | null) => {
   }
 };
 
+const TicketQuickActionCard = ({
+  icon: Icon,
+  title,
+  description,
+  onClick,
+  href,
+}: {
+  icon: React.ElementType;
+  title: string;
+  description: string;
+  onClick?: () => void;
+  href?: string;
+}) => {
+  const content = (
+    <div className="group rounded-[24px] border border-slate-200 bg-white/85 p-4 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg">
+      <div className="mb-3 inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-700 transition-colors group-hover:bg-blue-50 group-hover:text-blue-600">
+        <Icon className="h-5 w-5" />
+      </div>
+      <h3 className="text-sm font-semibold text-slate-950">{title}</h3>
+      <p className="mt-1 text-sm leading-6 text-slate-500">{description}</p>
+    </div>
+  );
+
+  if (href) {
+    return (
+      <a href={href} target="_blank" rel="noreferrer" className="block">
+        {content}
+      </a>
+    );
+  }
+
+  return (
+    <button type="button" onClick={onClick} className="block w-full text-left">
+      {content}
+    </button>
+  );
+};
+
+const LookupSidebarMetric = ({
+  icon: Icon,
+  label,
+  value,
+  tone = "slate",
+}: {
+  icon: React.ElementType;
+  label: string;
+  value: string;
+  tone?: "slate" | "blue" | "emerald";
+}) => {
+  const toneMap = {
+    slate: "bg-slate-100 text-slate-700 ring-slate-200",
+    blue: "bg-blue-100 text-blue-700 ring-blue-200",
+    emerald: "bg-emerald-100 text-emerald-700 ring-emerald-200",
+  } as const;
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm">
+      <div className={`mb-3 inline-flex h-10 w-10 items-center justify-center rounded-2xl ring-1 ${toneMap[tone]}`}>
+        <Icon className="h-4 w-4" />
+      </div>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
+      <p className="mt-1 text-sm font-semibold text-slate-900 break-words">{value}</p>
+    </div>
+  );
+};
+
 const EmptyConversationState = () => (
   <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50/80 px-6 py-10 text-center">
     <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
@@ -1110,7 +1176,7 @@ export default function TicketLookup() {
                     {statusInfo.description}
                   </p>
 
-                  <div className="mx-auto mt-8 grid max-w-3xl gap-3 sm:grid-cols-3">
+                  <div className="mx-auto mt-8 grid max-w-4xl gap-3 sm:grid-cols-2 xl:grid-cols-4">
                     <InfoMetric
                       icon={Calendar}
                       label="Creado"
@@ -1125,6 +1191,38 @@ export default function TicketLookup() {
                       icon={Sparkles}
                       label="Timeline"
                       value={timelineCountLabel}
+                    />
+                    <InfoMetric
+                      icon={ShieldCheck}
+                      label="Acceso"
+                      value={
+                        publicAccessSource === "restored"
+                          ? "Sesión restaurada"
+                          : publicAccessSource === "url"
+                            ? "Link seguro"
+                            : "PIN validado"
+                      }
+                    />
+                  </div>
+
+                  <div className="mx-auto mt-6 grid max-w-4xl gap-3 md:grid-cols-3">
+                    <TicketQuickActionCard
+                      icon={Copy}
+                      title="Copiar número"
+                      description="Guardá el identificador del ticket para futuras consultas o seguimiento."
+                      onClick={copyToClipboard}
+                    />
+                    <TicketQuickActionCard
+                      icon={MessageCircle}
+                      title="Agregar comentario"
+                      description="Dejá una observación pública asociada directamente a este reclamo."
+                      onClick={() => setIsSupportOpen(true)}
+                    />
+                    <TicketQuickActionCard
+                      icon={MapPin}
+                      title={mapLink ? "Abrir ubicación" : "Ubicación del caso"}
+                      description={mapLink ? "Abrí la ubicación del ticket en tu app de mapas para revisar el contexto." : "La ubicación aparecerá aquí cuando el backend tenga dirección o coordenadas disponibles."}
+                      {...(mapLink ? { href: mapLink } : { onClick: () => {} })}
                     />
                   </div>
 
@@ -1261,7 +1359,8 @@ export default function TicketLookup() {
 
             <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(320px,0.9fr)]">
               <div className="space-y-6">
-                <Card className="border-0 bg-white/85 shadow-lg shadow-slate-200/50 ring-1 ring-black/5 backdrop-blur">
+                <Card className="overflow-hidden border-0 bg-white/85 shadow-lg shadow-slate-200/50 ring-1 ring-black/5 backdrop-blur">
+                  <div className="h-1 bg-gradient-to-r from-blue-600 via-indigo-500 to-violet-500" />
                   <CardHeader className="border-b border-slate-100 pb-4">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
@@ -1597,6 +1696,17 @@ export default function TicketLookup() {
 
               <div className="space-y-6">
                 <Card className="overflow-hidden border-0 bg-white/85 shadow-lg shadow-slate-200/50 ring-1 ring-black/5 backdrop-blur">
+                  <div className="border-b border-slate-100 bg-gradient-to-r from-primary/5 via-sky-500/5 to-violet-500/5 px-6 py-4">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-slate-700 shadow-sm ring-1 ring-slate-200">
+                        <MapPin className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h3 className="text-base font-semibold text-slate-950">Contexto geográfico</h3>
+                        <p className="text-sm text-slate-500">Mapa, dirección y punto de referencia reportado en el ticket.</p>
+                      </div>
+                    </div>
+                  </div>
                   <div className="h-56 w-full bg-slate-100 relative">
                     {hasAnyCoordinates ? (
                       <TrackingMap
@@ -1709,29 +1819,37 @@ export default function TicketLookup() {
                   </CardContent>
                 </Card>
 
-                <Card className="border-0 bg-white/85 shadow-lg shadow-slate-200/50 ring-1 ring-black/5 backdrop-blur">
+                <Card className="overflow-hidden border-0 bg-white/85 shadow-lg shadow-slate-200/50 ring-1 ring-black/5 backdrop-blur">
+                  <CardHeader className="border-b border-slate-100 bg-gradient-to-r from-slate-50 via-white to-slate-50">
+                    <CardTitle className="text-base text-slate-950">Centro de seguimiento</CardTitle>
+                    <CardDescription>Estado operativo y datos de acceso de esta consulta pública.</CardDescription>
+                  </CardHeader>
                   <CardContent className="space-y-4 p-6">
-                    <InfoMetric
-                      icon={ShieldCheck}
-                      label="Acceso"
-                      value={
-                        publicAccessSource === "restored"
-                          ? "Restaurado desde tu sesión"
-                          : publicAccessSource === "url"
-                            ? "Validado desde link seguro"
-                            : "Validado con PIN"
-                      }
-                    />
-                    <InfoMetric
-                      icon={RefreshCw}
-                      label="Sincronización"
-                      value={formatLastSync(lastSyncedAt)}
-                    />
-                    <InfoMetric
-                      icon={Hash}
-                      label="Número"
-                      value={ticket.nro_ticket}
-                    />
+                    <div className="grid gap-3">
+                      <LookupSidebarMetric
+                        icon={ShieldCheck}
+                        label="Acceso"
+                        tone="blue"
+                        value={
+                          publicAccessSource === "restored"
+                            ? "Restaurado desde tu sesión"
+                            : publicAccessSource === "url"
+                              ? "Validado desde link seguro"
+                              : "Validado con PIN"
+                        }
+                      />
+                      <LookupSidebarMetric
+                        icon={RefreshCw}
+                        label="Sincronización"
+                        tone="emerald"
+                        value={formatLastSync(lastSyncedAt)}
+                      />
+                      <LookupSidebarMetric
+                        icon={Hash}
+                        label="Número"
+                        value={ticket.nro_ticket}
+                      />
+                    </div>
                     <Button
                       variant="link"
                       className="h-auto justify-start px-0 text-xs text-slate-400"

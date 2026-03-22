@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { CheckCircle, Clock, ExternalLink, Loader2, ShoppingBag, XCircle } from 'lucide-react';
+import { ArrowRightLeft, CheckCircle, Clock, ExternalLink, Hash, Loader2, ShoppingBag, XCircle } from 'lucide-react';
 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,7 @@ import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { cn } from '@/lib/utils';
 import { buildTenantPath } from '@/utils/tenantPaths';
 import { getProductPlaceholderImage } from '@/utils/cartPayload';
+import { getCommercialStageLabel, getCommercialStageTone, getCommercialToneClassName, normalizeChannelLabel } from '@/utils/orderCommercial';
 
 interface OrderItem {
   nombre: string;
@@ -32,6 +33,21 @@ interface OrderSummary {
   total_monetario: number;
   total_puntos: number;
   items: OrderItem[];
+  market_order_id?: string | number | null;
+  preference_id?: string | null;
+  init_point?: string | null;
+  customer_profile?: {
+    name?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    contact_key?: string | null;
+    channel_group?: string | null;
+  } | null;
+  commercial_state?: {
+    stage?: string | null;
+    channel?: string | null;
+    supports_handoff?: boolean | null;
+  } | null;
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -128,6 +144,11 @@ const normalizeOrder = (payload: unknown): OrderSummary => {
     total_monetario: totalMonetario || 0,
     total_puntos: totalPuntos || 0,
     items,
+    market_order_id: (typeof payload.market_order_id === 'string' || typeof payload.market_order_id === 'number') ? payload.market_order_id : null,
+    preference_id: typeof payload.preference_id === 'string' ? payload.preference_id : null,
+    init_point: typeof payload.init_point === 'string' ? payload.init_point : null,
+    customer_profile: isRecord(payload.customer_profile) ? payload.customer_profile as any : null,
+    commercial_state: isRecord(payload.commercial_state) ? payload.commercial_state as any : null,
   };
 };
 
@@ -209,6 +230,7 @@ const OrderConfirmationPage = () => {
 
   const effectiveStatus = (order?.estado || statusFromGateway || '').toLowerCase();
   const statusMeta = statusCopy[effectiveStatus] ?? { label: 'Estado en revisión', tone: 'info' };
+  const stageLabel = getCommercialStageLabel(order?.commercial_state?.stage || effectiveStatus || null);
 
   return (
     <div className="container mx-auto p-4 md:p-8">
@@ -249,12 +271,47 @@ const OrderConfirmationPage = () => {
                 Consulta el detalle real del pedido después de volver de la pasarela de pago.
               </CardDescription>
             </div>
-            <Badge className={cn('text-sm capitalize', toneToClasses[statusMeta.tone])}>
-              {statusMeta.label}
-            </Badge>
+            <div className="flex flex-wrap gap-2">
+              <Badge className={cn('text-sm capitalize', toneToClasses[statusMeta.tone])}>
+                {statusMeta.label}
+              </Badge>
+              {stageLabel ? (
+                <Badge variant="outline" className={getCommercialToneClassName(getCommercialStageTone(order?.commercial_state?.stage || effectiveStatus || null))}>
+                  {stageLabel}
+                </Badge>
+              ) : null}
+            </div>
           </CardHeader>
 
           <CardContent className="space-y-4">
+
+            {order ? (
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                {order.market_order_id ? (
+                  <div className="rounded-2xl border border-border/60 bg-muted/20 p-4">
+                    <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Orden operativa</p>
+                    <p className="mt-2 flex items-center gap-2 font-semibold text-foreground"><Hash className="h-4 w-4 text-primary" /> #{order.market_order_id}</p>
+                  </div>
+                ) : null}
+                <div className="rounded-2xl border border-border/60 bg-muted/20 p-4">
+                  <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Canal</p>
+                  <p className="mt-2 font-semibold text-foreground">{normalizeChannelLabel(order.commercial_state?.channel || order.customer_profile?.channel_group || null)}</p>
+                </div>
+                {(order.customer_profile?.name || order.customer_profile?.phone) ? (
+                  <div className="rounded-2xl border border-border/60 bg-muted/20 p-4">
+                    <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Perfil</p>
+                    <p className="mt-2 font-semibold text-foreground">{order.customer_profile?.name || 'Cliente'}</p>
+                    {order.customer_profile?.phone ? <p className="mt-1 text-sm text-muted-foreground">{order.customer_profile.phone}</p> : null}
+                  </div>
+                ) : null}
+                <div className="rounded-2xl border border-border/60 bg-muted/20 p-4">
+                  <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Continuidad</p>
+                  <p className="mt-2 flex items-center gap-2 font-semibold text-foreground"><ArrowRightLeft className="h-4 w-4 text-primary" /> {order.commercial_state?.supports_handoff ? 'Podés retomar por otro canal' : 'Sin handoff informado'}</p>
+                  {order.preference_id ? <p className="mt-1 text-xs text-muted-foreground">Ref. {order.preference_id}</p> : null}
+                </div>
+              </div>
+            ) : null}
+
             {isLoading && (
               <div className="flex items-center gap-3 text-muted-foreground">
                 <Loader2 className="h-5 w-5 animate-spin" />

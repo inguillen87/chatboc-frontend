@@ -48,6 +48,9 @@ const IconButton = {
 };
 
 interface Props {
+  ownerName?: string | null;
+  ownerType?: string | null;
+  recommendationLabel?: string | null;
   onClose: () => void;
   isTyping?: boolean;
   onProfile?: () => void;
@@ -84,6 +87,9 @@ const ChatHeader: React.FC<Props> = ({
   logoAnimation,
   onA11yChange,
   supportChannels,
+  ownerName,
+  ownerType,
+  recommendationLabel,
 }) => {
   const liveChatVisible = Boolean(supportChannels?.live_chat?.realtime || supportChannels?.live_chat?.available);
   const whatsappVisible = Boolean(supportChannels?.whatsapp?.enabled && supportChannels?.whatsapp?.realtime_bridge);
@@ -147,6 +153,12 @@ const ChatHeader: React.FC<Props> = ({
                   Respondiendo
                 </span>
               ) : null}
+              {ownerName ? (
+                <span className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/12 px-2 py-0.5 text-[10px] font-medium text-primary-foreground/90 backdrop-blur">
+                  <MessageCircleMore className="h-3 w-3" />
+                  {ownerType ? `${ownerType} · ${ownerName}` : ownerName}
+                </span>
+              ) : null}
               {liveChatVisible && liveChatLabel ? (
                 <span className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/12 px-2 py-0.5 text-[10px] font-medium text-primary-foreground/90 backdrop-blur">
                   <Waves className="h-3 w-3" />
@@ -157,6 +169,12 @@ const ChatHeader: React.FC<Props> = ({
                 <span className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/12 px-2 py-0.5 text-[10px] font-medium text-primary-foreground/90 backdrop-blur">
                   <Zap className="h-3 w-3" />
                   {whatsappLabel}
+                </span>
+              ) : null}
+              {recommendationLabel ? (
+                <span className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/12 px-2 py-0.5 text-[10px] font-medium text-primary-foreground/90 backdrop-blur">
+                  <Sparkles className="h-3 w-3" />
+                  {recommendationLabel}
                 </span>
               ) : null}
             </div>

@@ -29,7 +29,7 @@ const UserDashboardPage = () => {
   const navigate = useNavigate();
   const { user } = useUser();
   const { currentSlug, tenant } = useTenant();
-  const { content, isDemo, isLoading, refetch } = usePortalContent();
+  const { content, bundle, isDemo, isLoading, refetch } = usePortalContent();
 
   const getBadgeClasses = (statusType?: string): string => {
     switch (statusType?.toLowerCase()) {
@@ -64,6 +64,12 @@ const UserDashboardPage = () => {
   const activeBenefits = (content.catalog ?? []).filter((item) => item.category === 'beneficios');
   const pendingSurveys = content.surveys ?? [];
   const notifications = content.notifications ?? [];
+  const bundleHighlights = Array.isArray(bundle?.highlights) ? bundle.highlights : [];
+  const bundleQuickActions = Array.isArray(bundle?.quick_actions) ? bundle.quick_actions : [];
+  const bundleModules = Array.isArray(bundle?.modules) ? bundle.modules : [];
+  const bundleOrders = Array.isArray(bundle?.orders?.items) ? bundle.orders.items : [];
+  const bundleClaims = Array.isArray(bundle?.claims?.items) ? bundle.claims.items : [];
+  const bundlePromotions = Array.isArray(bundle?.promotions?.items) ? bundle.promotions.items : [];
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -153,6 +159,81 @@ const UserDashboardPage = () => {
           <span>{isMunicipio ? 'Nuevo Reclamo' : 'Nueva Consulta'}</span>
         </Button>
       </motion.div>
+
+
+      {(bundleHighlights.length > 0 || bundleQuickActions.length > 0 || bundleModules.length > 0) && (
+        <motion.div className="grid gap-6 lg:grid-cols-[1.3fr_0.7fr]" variants={itemVariants}>
+          <SummaryCard
+            title="Resumen premium"
+            icon={<Sparkles className="h-5 w-5 text-primary" />}
+            className="h-full"
+          >
+            <div className="space-y-4">
+              {bundleHighlights.length > 0 ? (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {bundleHighlights.slice(0, 4).map((item, index) => (
+                    <div key={`${item.title || item.label || 'highlight'}-${index}`} className="rounded-xl border border-border bg-muted/20 p-3">
+                      <p className="text-sm font-semibold text-foreground">{String(item.title || item.label || item.name || `Highlight ${index + 1}`)}</p>
+                      {(item.description || item.summary) ? <p className="mt-1 text-xs text-muted-foreground">{String(item.description || item.summary)}</p> : null}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              {bundleModules.length > 0 ? (
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {bundleModules.slice(0, 6).map((item, index) => (
+                    <div key={`${item.id || item.title || 'module'}-${index}`} className="rounded-xl border border-border bg-background/80 p-3">
+                      <p className="text-sm font-semibold text-foreground">{String(item.title || item.label || item.name || `Módulo ${index + 1}`)}</p>
+                      {(item.description || item.summary) ? <p className="mt-1 text-xs text-muted-foreground">{String(item.description || item.summary)}</p> : null}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </SummaryCard>
+          {bundleQuickActions.length > 0 ? (
+            <SummaryCard
+              title="Acciones rápidas"
+              icon={<PlusCircle className="h-5 w-5 text-primary" />}
+            >
+              <div className="space-y-3">
+                {bundleQuickActions.slice(0, 5).map((item, index) => (
+                  <button
+                    key={`${item.id || item.label || 'action'}-${index}`}
+                    type="button"
+                    onClick={() => {
+                      const href = typeof item.href === 'string' ? item.href : typeof item.path === 'string' ? item.path : null;
+                      if (href) navigate(buildTenantPath(href, currentSlug));
+                    }}
+                    className="w-full rounded-xl border border-border bg-background/80 p-3 text-left transition hover:border-primary/30 hover:bg-primary/5"
+                  >
+                    <p className="text-sm font-semibold text-foreground">{String(item.label || item.title || item.name || `Acción ${index + 1}`)}</p>
+                    {(item.description || item.summary) ? <p className="mt-1 text-xs text-muted-foreground">{String(item.description || item.summary)}</p> : null}
+                  </button>
+                ))}
+              </div>
+            </SummaryCard>
+          ) : null}
+        </motion.div>
+      )}
+
+      {(bundleOrders.length > 0 || bundleClaims.length > 0 || bundlePromotions.length > 0) && (
+        <motion.div className="grid gap-6 md:grid-cols-3" variants={itemVariants}>
+          <SummaryCard title="Compras" icon={<ShoppingBag className="h-5 w-5" />} className="h-full">
+            <div className="text-3xl font-bold text-foreground">{bundle?.orders?.active_count ?? bundleOrders.length}</div>
+            <p className="mt-1 text-sm text-muted-foreground">activas</p>
+            {bundle?.orders?.total_spent !== undefined ? <p className="mt-3 text-xs text-muted-foreground">Total gastado: {String(bundle.orders.total_spent)}</p> : null}
+          </SummaryCard>
+          <SummaryCard title="Reclamos" icon={<ClipboardList className="h-5 w-5" />} className="h-full">
+            <div className="text-3xl font-bold text-foreground">{bundle?.claims?.open_count ?? bundleClaims.length}</div>
+            <p className="mt-1 text-sm text-muted-foreground">abiertos</p>
+          </SummaryCard>
+          <SummaryCard title="Promociones" icon={<TicketPercent className="h-5 w-5" />} className="h-full">
+            <div className="text-3xl font-bold text-foreground">{bundlePromotions.length}</div>
+            <p className="mt-1 text-sm text-muted-foreground">disponibles</p>
+          </SummaryCard>
+        </motion.div>
+      )}
 
       <motion.div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3" variants={containerVariants}>
 

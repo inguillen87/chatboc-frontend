@@ -269,12 +269,7 @@ const resolvePublicTicketAccess = (pin?: string) => {
             skipAuth: true,
             sendAnonId: true,
             sendEntityToken: true,
-            headers: normalizedPin
-                ? {
-                    pin: normalizedPin,
-                    "X-Tracking-Pin": normalizedPin,
-                }
-                : undefined,
+            pin: normalizedPin || undefined,
         } as const,
     };
 };
@@ -383,10 +378,7 @@ export const getTicketByNumber = async (
                 skipAuth: true,
                 sendAnonId: true,
                 sendEntityToken: true,
-                headers: {
-                    pin,
-                    "X-Tracking-Pin": pin,
-                },
+                pin,
             });
             const history = (response as any).history || response.historial || [];
             let messages = (response as any).mensajes || (response as any).messages || [];

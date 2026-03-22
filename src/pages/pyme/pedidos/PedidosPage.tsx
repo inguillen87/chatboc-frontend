@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
+import { getCommercialStageLabel, getCommercialStageTone, getCommercialToneClassName, normalizeChannelLabel } from '@/utils/orderCommercial';
 
 const STATUS_MAP: Record<string, { label: string; color: string; icon: any }> = {
   nuevo: { label: 'Nuevo', color: 'bg-blue-100 text-blue-800', icon: Package },
@@ -35,7 +36,9 @@ const CHANNEL_LABELS: Record<string, string> = {
   mercadolibre: "Mercado Libre",
   whatsapp: "WhatsApp",
   tiendanube: "Tienda Nube",
-  web: "Web Propia"
+  web: "Web Propia",
+  manual_admin: "Manual admin",
+  phone: "Teléfono",
 };
 
 const normalizeOrders = (raw: unknown): Order[] => {
@@ -162,7 +165,8 @@ const PedidosPage = () => {
     const matchesSearch =
       o.id.toString().includes(searchTerm) ||
       (o.items || []).some(i => i.name.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesChannel = channelFilter === 'all' || (o as any).channel === channelFilter;
+    const orderChannel = (o as any).channel || (o as any).commercial_state?.channel;
+    const matchesChannel = channelFilter === 'all' || orderChannel === channelFilter;
     return matchesSearch && matchesChannel;
   });
 
@@ -252,6 +256,8 @@ const PedidosPage = () => {
                     <SelectItem value="mercadolibre">Mercado Libre</SelectItem>
                     <SelectItem value="whatsapp">WhatsApp</SelectItem>
                     <SelectItem value="tiendanube">Tienda Nube</SelectItem>
+                    <SelectItem value="manual_admin">Manual admin</SelectItem>
+                    <SelectItem value="phone">Teléfono</SelectItem>
                 </SelectContent>
             </Select>
         </div>
@@ -285,7 +291,9 @@ const PedidosPage = () => {
              </div>
           ) : (
             filteredOrders.map(order => {
-              const ChannelIcon = CHANNEL_ICONS[order.channel || 'web'] || Globe;
+              const orderChannel = (order as any).channel || (order as any).commercial_state?.channel || 'web';
+              const stageLabel = getCommercialStageLabel((order as any).commercial_stage || (order as any).commercial_state?.stage);
+              const ChannelIcon = CHANNEL_ICONS[orderChannel] || Globe;
               const isSelected = selectedOrder?.id === order.id;
 
               return (
@@ -307,14 +315,21 @@ const PedidosPage = () => {
                   <CardContent className="p-4">
                     <div className="flex justify-between items-start mb-2">
                       <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="px-1.5 h-6 w-6 flex items-center justify-center rounded-full border-muted-foreground/30" title={CHANNEL_LABELS[order.channel || 'web']}>
+                          <Badge variant="outline" className="px-1.5 h-6 w-6 flex items-center justify-center rounded-full border-muted-foreground/30" title={CHANNEL_LABELS[orderChannel] || normalizeChannelLabel(orderChannel)}>
                               <ChannelIcon className="h-3 w-3" />
                           </Badge>
                           <span className="font-mono text-sm font-bold">#{order.id}</span>
                       </div>
-                      <Badge variant="secondary" className={STATUS_MAP[order.status]?.color || 'bg-gray-100'}>
-                         {STATUS_MAP[order.status]?.label || order.status}
-                      </Badge>
+                      <div className="flex flex-wrap justify-end gap-2">
+                        <Badge variant="secondary" className={STATUS_MAP[order.status]?.color || 'bg-gray-100'}>
+                           {STATUS_MAP[order.status]?.label || order.status}
+                        </Badge>
+                        {stageLabel ? (
+                          <Badge variant="outline" className={getCommercialToneClassName(getCommercialStageTone((order as any).commercial_stage || (order as any).commercial_state?.stage))}>
+                            {stageLabel}
+                          </Badge>
+                        ) : null}
+                      </div>
                     </div>
 
                     <div className="flex justify-between items-end">
@@ -323,7 +338,7 @@ const PedidosPage = () => {
                                 {format(new Date(order.created_at), "d MMM, HH:mm", { locale: es })}
                             </div>
                             <div className="text-xs text-muted-foreground mt-1">
-                                {order.items.length} items • {order.customerName || order.contact_name || 'Cliente Final'}
+                                {order.items.length} items • {(order as any).customer_profile?.name || order.customerName || order.contact_name || 'Cliente Final'}
                             </div>
                         </div>
                         <div className="font-bold text-lg">
@@ -358,7 +373,7 @@ const PedidosPage = () => {
                             )}
                         </CardTitle>
                         <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1">
-                             Canal: {CHANNEL_LABELS[selectedOrder.channel || 'web'] || 'Web'}
+                             Canal: {CHANNEL_LABELS[(selectedOrder as any).channel || (selectedOrder as any).commercial_state?.channel || 'web'] || normalizeChannelLabel((selectedOrder as any).channel || (selectedOrder as any).commercial_state?.channel || 'web')}
                              {selectedOrder.externalUrl && (
                                  <a href={selectedOrder.externalUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-0.5 ml-2">
                                      (Ver original <ExternalLink className="h-3 w-3"/>)
@@ -375,11 +390,21 @@ const PedidosPage = () => {
 
                <CardContent className="p-6 space-y-6 overflow-y-auto flex-1">
                   {/* Status Actions */}
-                  <div className="flex flex-wrap items-center gap-3 p-4 bg-muted/30 rounded-lg border">
+                  <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/30 p-4">
                     <span className="text-sm font-medium">Estado actual:</span>
                     <Badge className={`text-sm px-3 py-1 ${STATUS_MAP[selectedOrder.status]?.color}`}>
                         {STATUS_MAP[selectedOrder.status]?.label || selectedOrder.status}
                     </Badge>
+                    {getCommercialStageLabel((selectedOrder as any).commercial_stage || (selectedOrder as any).commercial_state?.stage) ? (
+                      <Badge variant="outline" className={getCommercialToneClassName(getCommercialStageTone((selectedOrder as any).commercial_stage || (selectedOrder as any).commercial_state?.stage))}>
+                        {getCommercialStageLabel((selectedOrder as any).commercial_stage || (selectedOrder as any).commercial_state?.stage)}
+                      </Badge>
+                    ) : null}
+                    {(selectedOrder as any).market_order_id ? (
+                      <Badge variant="outline" className="border-border/60 bg-background/80">
+                        Order #{(selectedOrder as any).market_order_id}
+                      </Badge>
+                    ) : null}
                     <div className="flex-1" />
                     <div className="flex gap-2">
                         {selectedOrder.status === 'nuevo' && (
@@ -402,9 +427,19 @@ const PedidosPage = () => {
                       <div className="space-y-1">
                           <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Cliente</h3>
                           <div className="p-3 border rounded-md bg-card">
-                              <p className="font-medium">{selectedOrder.customerName || selectedOrder.contact_name || 'Consumidor Final'}</p>
-                              <p className="text-sm text-muted-foreground">{selectedOrder.customerPhone || 'Sin teléfono'}</p>
-                              <p className="text-sm text-muted-foreground">{selectedOrder.customerEmail || 'Sin email'}</p>
+                              <p className="font-medium">{(selectedOrder as any).customer_profile?.name || selectedOrder.customerName || selectedOrder.contact_name || 'Consumidor Final'}</p>
+                              <p className="text-sm text-muted-foreground">{(selectedOrder as any).customer_profile?.phone || selectedOrder.customerPhone || 'Sin teléfono'}</p>
+                              <p className="text-sm text-muted-foreground">{(selectedOrder as any).customer_profile?.email || selectedOrder.customerEmail || 'Sin email'}</p>
+                              {((selectedOrder as any).customer_profile?.contact_key || (selectedOrder as any).customer_profile?.channel_group) ? (
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                  {(selectedOrder as any).customer_profile?.contact_key ? (
+                                    <Badge variant="outline">{(selectedOrder as any).customer_profile.contact_key}</Badge>
+                                  ) : null}
+                                  {(selectedOrder as any).customer_profile?.channel_group ? (
+                                    <Badge variant="outline">{normalizeChannelLabel((selectedOrder as any).customer_profile.channel_group)}</Badge>
+                                  ) : null}
+                                </div>
+                              ) : null}
                           </div>
                       </div>
 

@@ -703,6 +703,71 @@ export function useChatLogic({
     [shouldUsePublicFlow],
   );
 
+  const resolvePersistentPublicContext = useCallback(
+    (
+      resolvedTipoChat: "pyme" | "municipio",
+      resolvedTenantSlug?: string | null,
+    ) => {
+      if (!shouldUsePublicFlow(resolvedTipoChat, resolvedTenantSlug)) {
+        clearStoredPublicChatContext();
+        return null;
+      }
+
+    const storedContext = readStoredPublicChatContext();
+    if (!storedContext) return null;
+
+      const storedTipoChat = pickFirstString(
+        storedContext.tipoChat,
+        storedContext.tipo_chat,
+      )?.trim();
+      const storedTenantSlug = pickFirstString(
+        storedContext.tenantSlug,
+        storedContext.tenant_slug,
+      )?.trim();
+      const normalizedResolvedTenant =
+        typeof resolvedTenantSlug === "string" ? resolvedTenantSlug.trim() : "";
+
+      if (
+        storedTipoChat &&
+        storedTipoChat !== resolvedTipoChat
+      ) {
+        clearStoredPublicChatContext();
+        return null;
+      }
+
+      if (
+        storedTenantSlug &&
+        normalizedResolvedTenant &&
+        storedTenantSlug !== normalizedResolvedTenant
+      ) {
+        clearStoredPublicChatContext();
+        return null;
+      }
+
+    const normalizedPin = pickFirstString(
+      storedContext.pin,
+      storedContext.consulta_pin,
+      storedContext.consultaPin,
+    )?.trim();
+    const ticketNumber = pickFirstString(
+      storedContext.ticketNumber,
+      storedContext.ticket_number,
+      storedContext.nro_ticket,
+    )?.trim();
+    const ticketId = storedContext.ticketId ?? storedContext.ticket_id ?? null;
+
+    if (!normalizedPin && !ticketNumber && !ticketId) return null;
+
+    return {
+      pin: normalizedPin || undefined,
+      consulta_pin: normalizedPin || undefined,
+      ticket_id: ticketId ?? undefined,
+      ticket_number: ticketNumber || undefined,
+    };
+    },
+    [shouldUsePublicFlow],
+  );
+
   const initializeConversation = useCallback(
     async (options?: {
       rubroOverride?: string | null;
@@ -1115,6 +1180,54 @@ export function useChatLogic({
         record.supportsRealtime,
       );
 
+      const assignLabel = (
+        key: keyof Pick<
+          ChatUxChannelCapabilities,
+          | "audio_input_label"
+          | "file_upload_label"
+          | "image_input_label"
+          | "location_share_label"
+          | "realtime_label"
+        >,
+        ...values: unknown[]
+      ) => {
+        for (const value of values) {
+          if (typeof value === "string") {
+            const normalized = value.trim();
+            if (normalized) {
+              channelCapabilities[key] = normalized;
+              return;
+            }
+          }
+        }
+      };
+
+      assignLabel(
+        "audio_input_label",
+        record.audio_input_label,
+        record.audioInputLabel,
+      );
+      assignLabel(
+        "file_upload_label",
+        record.file_upload_label,
+        record.fileUploadLabel,
+      );
+      assignLabel(
+        "image_input_label",
+        record.image_input_label,
+        record.imageInputLabel,
+      );
+      assignLabel(
+        "location_share_label",
+        record.location_share_label,
+        record.locationShareLabel,
+      );
+      assignLabel(
+        "realtime_label",
+        record.realtime_label,
+        record.realtimeLabel,
+      );
+
       return Object.keys(channelCapabilities).length > 0
         ? channelCapabilities
         : undefined;
@@ -1176,6 +1289,26 @@ export function useChatLogic({
       );
       if (preferredChannels?.length) {
         recommendedExperience.preferred_handoff_channels = preferredChannels;
+      }
+
+      const experienceLabel = pickFirstString(
+        record.label,
+        record.display_label,
+        record.displayLabel,
+        record.title,
+      );
+      if (experienceLabel) {
+        recommendedExperience.label = experienceLabel;
+      }
+
+      const summaryText = pickFirstString(
+        record.summary_text,
+        record.summaryText,
+        record.summary,
+        record.description,
+      );
+      if (summaryText) {
+        recommendedExperience.summary_text = summaryText;
       }
 
       return Object.keys(recommendedExperience).length > 0

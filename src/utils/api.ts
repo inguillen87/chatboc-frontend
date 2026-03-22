@@ -431,6 +431,11 @@ interface ApiFetchOptions {
    * otherwise shared links will break for vecinos sin credenciales.
    */
   omitEntityToken?: boolean;
+  /**
+   * Public tracking pin for ticket/timeline requests.
+   * Sent as header to preserve public access context across refresh/retry flows.
+   */
+  pin?: string | null;
 }
 
 /**
@@ -459,6 +464,7 @@ export async function apiFetch<T>(
     baseUrlOverride,
     omitEntityToken,
     omitTenant,
+    pin,
   } = options;
 
   const rawIframeToken = getIframeToken();
@@ -700,6 +706,11 @@ export async function apiFetch<T>(
   if (effectiveEntityToken && !omitEntityToken && !shouldOmitEntityTokenForRoute) {
     headers["X-Entity-Token"] = effectiveEntityToken;
     headers["X-Token"] = effectiveEntityToken;
+  }
+  if (typeof pin === "string" && pin.trim()) {
+    const normalizedPin = pin.trim();
+    headers.pin = normalizedPin;
+    headers["X-Tracking-Pin"] = normalizedPin;
   }
   // Log request details without exposing full tokens
   const mask = (t: string | null) => (t ? `${t.slice(0, 8)}...` : null);

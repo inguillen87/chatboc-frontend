@@ -9,7 +9,7 @@ import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { PencilLine, ShieldCheck, Sparkles, UserPlus } from 'lucide-react';
+import { PencilLine, Sparkles, UserPlus, Layers3, MapPinned, KeyRound, Users2 } from 'lucide-react';
 
 const isValidEmail = (value: string) => /.+@.+\..+/.test(value.trim());
 
@@ -61,6 +61,61 @@ interface EmployeeCoverageResponse {
   permisos?: CoverageItem[];
   items?: CoverageItem[];
 }
+
+
+const TeamStatCard = ({
+  label,
+  value,
+  helper,
+  icon: Icon,
+}: {
+  label: string;
+  value: string;
+  helper: string;
+  icon: React.ElementType;
+}) => (
+  <Card className="overflow-hidden border-border/60 bg-background/80 shadow-sm">
+    <CardContent className="relative p-4">
+      <div className="absolute -right-6 top-1 h-20 w-20 rounded-full bg-primary/5 blur-2xl" />
+      <div className="relative">
+        <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/15">
+          <Icon className="h-4 w-4" />
+        </div>
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
+        <p className="mt-2 text-2xl font-bold tracking-tight text-foreground">{value}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{helper}</p>
+      </div>
+    </CardContent>
+  </Card>
+);
+
+const CoverageColumn = ({
+  title,
+  items,
+  emptyLabel,
+}: {
+  title: string;
+  items: CoverageItem[];
+  emptyLabel: string;
+}) => (
+  <div className="rounded-2xl border border-border/60 bg-background/70 p-4 shadow-sm">
+    <div className="mb-3 flex items-center justify-between">
+      <p className="text-sm font-semibold text-foreground">{title}</p>
+      <Badge variant="outline" className="rounded-full px-2.5 py-0.5 text-xs">
+        {items.length}
+      </Badge>
+    </div>
+    <div className="space-y-2">
+      {items.slice(0, 5).map((item, index) => (
+        <div key={`${title}-${index}`} className="flex items-center justify-between rounded-xl border border-border/60 bg-muted/20 px-3 py-2 text-sm">
+          <span className="truncate pr-3">{item.categoria || item.zona || item.permiso || item.label || item.name || `${emptyLabel}_${index + 1}`}</span>
+          <Badge variant="secondary">{item.employees ?? item.count ?? item.total ?? 0}</Badge>
+        </div>
+      ))}
+      {!items.length ? <p className="text-sm text-muted-foreground">Sin datos disponibles.</p> : null}
+    </div>
+  </div>
+);
 
 const EMPLOYEES_API_BASE = '/api/empleados';
 
@@ -281,31 +336,40 @@ export default function InternalUsers() {
   const coverageCategories = coverage?.categorias || [];
   const coverageZones = coverage?.zonas || [];
   const coveragePermissions = coverage?.permisos || [];
+  const coverageTotal = coverageCategories.length + coverageZones.length + coveragePermissions.length;
 
   if (loading) return <div className="p-4">Cargando...</div>;
   if (error) return <div className="p-4 text-destructive">{error}</div>;
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 px-4 pb-8">
-      <div className="rounded-3xl border border-border/60 bg-gradient-to-r from-primary/10 via-primary/5 to-background p-5 shadow-sm">
-          <div className="mb-3 inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-            <ShieldCheck className="h-5 w-5" />
+      <div className="relative overflow-hidden rounded-[32px] border border-border/60 bg-gradient-to-br from-background via-primary/5 to-sky-500/10 p-6 shadow-sm">
+        <div className="absolute -right-10 top-0 h-40 w-40 rounded-full bg-primary/10 blur-3xl" />
+        <div className="absolute bottom-0 left-0 h-32 w-32 rounded-full bg-sky-500/10 blur-3xl" />
+        <div className="relative space-y-5">
+          <Badge variant="outline" className="w-fit border-primary/20 bg-background/80 px-3 py-1 text-primary">
+            <Sparkles className="mr-2 h-3.5 w-3.5" />
+            Team control center
+          </Badge>
+          <div>
+            <h2 className="text-3xl font-black tracking-tight text-foreground">Gestión de Empleados</h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+              Crea cuentas, asigna cobertura operativa y revisa rápidamente cómo está distribuido el equipo dentro del tenant.
+            </p>
           </div>
-          <h2 className="text-xl font-bold mb-2">Gestión de Empleados</h2>
-          <p className="text-sm text-muted-foreground">
-              Crea cuentas para tu equipo y asignales categorías de tickets específicas.
-          </p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Badge variant="outline" className="rounded-full px-3 py-1">
-              {employees.length} empleados
-            </Badge>
-            <Badge variant="outline" className="rounded-full px-3 py-1">
-              {categories.length} categorías
-            </Badge>
-            <Badge variant="outline" className="rounded-full px-3 py-1">
-              {coverageCategories.length} coberturas
-            </Badge>
+          <div className="flex flex-wrap gap-2">
+            <Badge variant="outline" className="rounded-full px-3 py-1">{employees.length} empleados</Badge>
+            <Badge variant="outline" className="rounded-full px-3 py-1">{categories.length} categorías</Badge>
+            <Badge variant="outline" className="rounded-full px-3 py-1">{coverageTotal} señales de cobertura</Badge>
           </div>
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <TeamStatCard label="Equipo" value={employees.length.toLocaleString('es-AR')} helper="Usuarios internos activos en la vista actual" icon={Users2} />
+        <TeamStatCard label="Categorías" value={categories.length.toLocaleString('es-AR')} helper="Dominios/categorías disponibles para asignación" icon={Layers3} />
+        <TeamStatCard label="Zonas" value={coverageZones.length.toLocaleString('es-AR')} helper="Cobertura geográfica informada por backend" icon={MapPinned} />
+        <TeamStatCard label="Permisos" value={coveragePermissions.length.toLocaleString('es-AR')} helper="Permisos o alcances relevantes del equipo" icon={KeyRound} />
       </div>
 
       {(lastCreatedEmployee || coverage) && (
@@ -339,38 +403,14 @@ export default function InternalUsers() {
           ) : null}
 
           {coverage ? (
-            <Card className="border-border/60 shadow-sm">
-              <CardHeader>
+            <Card className="overflow-hidden border-border/60 bg-background/85 shadow-sm">
+              <CardHeader className="border-b border-border/50 bg-gradient-to-r from-emerald-500/5 via-primary/5 to-transparent">
                 <CardTitle>Cobertura del equipo</CardTitle>
               </CardHeader>
-              <CardContent className="grid gap-4 md:grid-cols-3">
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">Categorías</p>
-                  {coverageCategories.slice(0, 5).map((item, index) => (
-                    <div key={`coverage-category-${index}`} className="flex items-center justify-between text-sm">
-                      <span>{item.categoria || item.label || item.name || `categoria_${index + 1}`}</span>
-                      <Badge variant="outline">{item.employees ?? item.count ?? item.total ?? 0}</Badge>
-                    </div>
-                  ))}
-                </div>
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">Zonas</p>
-                  {coverageZones.slice(0, 5).map((item, index) => (
-                    <div key={`coverage-zone-${index}`} className="flex items-center justify-between text-sm">
-                      <span>{item.zona || item.label || item.name || `zona_${index + 1}`}</span>
-                      <Badge variant="outline">{item.employees ?? item.count ?? item.total ?? 0}</Badge>
-                    </div>
-                  ))}
-                </div>
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">Permisos</p>
-                  {coveragePermissions.slice(0, 5).map((item, index) => (
-                    <div key={`coverage-permission-${index}`} className="flex items-center justify-between text-sm">
-                      <span>{item.permiso || item.label || item.name || `permiso_${index + 1}`}</span>
-                      <Badge variant="outline">{item.employees ?? item.count ?? item.total ?? 0}</Badge>
-                    </div>
-                  ))}
-                </div>
+              <CardContent className="grid gap-4 pt-6 md:grid-cols-3">
+                <CoverageColumn title="Categorías" items={coverageCategories} emptyLabel="categoria" />
+                <CoverageColumn title="Zonas" items={coverageZones} emptyLabel="zona" />
+                <CoverageColumn title="Permisos" items={coveragePermissions} emptyLabel="permiso" />
               </CardContent>
             </Card>
           ) : null}
@@ -495,10 +535,14 @@ export default function InternalUsers() {
           </div>
       )}
 
-      <div className="overflow-hidden rounded-2xl border border-border/60 bg-card shadow-sm">
+      <div className="overflow-hidden rounded-[28px] border border-border/60 bg-card shadow-sm">
+          <div className="border-b border-border/50 bg-gradient-to-r from-primary/5 via-sky-500/5 to-violet-500/5 px-5 py-4">
+            <h3 className="text-base font-semibold tracking-tight text-foreground">Directorio interno</h3>
+            <p className="mt-1 text-sm text-muted-foreground">Vista rápida de roles, categorías y alcances operativos cargados por el backend.</p>
+          </div>
           <div className="overflow-x-auto">
           <table className="w-full min-w-[720px] text-sm text-left">
-              <thead className="bg-muted text-muted-foreground">
+              <thead className="bg-muted/60 text-muted-foreground">
                   <tr>
                       <th className="p-3 font-medium">Nombre</th>
                       <th className="p-3 font-medium">Email</th>

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { toast } from '@/components/ui/use-toast';
 import { useSocket } from '@/context/SocketContext';
+import useTicketRealtime from '@/hooks/useTicketRealtime';
 import { safeOn } from '@/utils/safeOn';
 
 interface UseTicketUpdatesOptions {
@@ -29,6 +30,17 @@ export default function useTicketUpdates(options: UseTicketUpdatesOptions = {}) 
   useEffect(() => {
     unreadChangedRef.current = onUnreadChanged;
   }, [onUnreadChanged]);
+
+  useTicketRealtime({
+    onRawEvent: (eventName, data) => {
+      if (eventName === 'ticket.unread.changed') {
+        unreadChangedRef.current?.(data);
+      }
+      if (eventName === 'conversation.message.created' || eventName === 'legacy.new_chat_message') {
+        newCommentRef.current?.(data);
+      }
+    },
+  });
 
   useEffect(() => {
     if (!socket) return;

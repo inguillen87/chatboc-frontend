@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   BarChart,
   Bar,
@@ -55,6 +55,9 @@ const OverviewDashboard: React.FC<Props> = ({ data, showSla, showConversion }) =
   };
   const volumeByDay = Array.isArray(data?.volume_by_day) ? data.volume_by_day : [];
   const topCategories = Array.isArray(data?.top_categories) ? data.top_categories : [];
+  const totalVolume = useMemo(() => volumeByDay.reduce((acc, item) => acc + Number(item?.count || 0), 0), [volumeByDay]);
+  const peakDay = useMemo(() => volumeByDay.reduce((best, item) => Number(item?.count || 0) > Number(best?.count || 0) ? item : best, volumeByDay[0] || null as any), [volumeByDay]);
+  const categoryLeader = topCategories[0];
 
   const overviewCards = [
     {
@@ -103,6 +106,25 @@ const OverviewDashboard: React.FC<Props> = ({ data, showSla, showConversion }) =
 
   return (
     <div className="space-y-6">
+      <Card className="overflow-hidden border-border/60 bg-gradient-to-br from-background via-primary/5 to-sky-500/10 shadow-sm">
+        <CardContent className="grid gap-4 p-5 md:grid-cols-3">
+          <div className="rounded-2xl border border-border/60 bg-background/75 p-4 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Volumen total</p>
+            <p className="mt-2 text-3xl font-black tracking-tight text-foreground">{totalVolume.toLocaleString('es-AR')}</p>
+            <p className="mt-1 text-sm text-muted-foreground">Interacciones acumuladas durante el período seleccionado.</p>
+          </div>
+          <div className="rounded-2xl border border-border/60 bg-background/75 p-4 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Pico diario</p>
+            <p className="mt-2 text-3xl font-black tracking-tight text-foreground">{Number(peakDay?.count || 0).toLocaleString('es-AR')}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{peakDay?.date ? `Mejor jornada: ${peakDay.date}` : 'Sin día pico disponible todavía.'}</p>
+          </div>
+          <div className="rounded-2xl border border-border/60 bg-background/75 p-4 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Categoría líder</p>
+            <p className="mt-2 text-2xl font-black tracking-tight text-foreground">{categoryLeader?.category || '—'}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{categoryLeader ? `${Number(categoryLeader.count || 0).toLocaleString('es-AR')} tickets en la categoría más frecuente.` : 'Sin categorías destacadas para mostrar.'}</p>
+          </div>
+        </CardContent>
+      </Card>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {overviewCards.map((card) => (
           <KpiTile

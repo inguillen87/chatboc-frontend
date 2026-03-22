@@ -95,12 +95,19 @@ export interface ChatUxChannelCapabilities {
   supports_image_input?: boolean;
   supports_location_share?: boolean;
   supports_realtime?: boolean;
+  audio_input_label?: string;
+  file_upload_label?: string;
+  image_input_label?: string;
+  location_share_label?: string;
+  realtime_label?: string;
 }
 
 export interface ChatUxRecommendedExperience {
   supports_confirmation_cards?: boolean;
   supports_multimodal_intake?: boolean;
   preferred_handoff_channels?: string[];
+  label?: string;
+  summary_text?: string;
 }
 
 export interface ConfirmationCardField {
