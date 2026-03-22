@@ -21,7 +21,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus } from "lucide-react";
+import { Plus, Sparkles, Activity, Shield, Building2, ArrowUpRight } from "lucide-react";
 import { toast } from "sonner";
 import { Tenant } from "@/types/superAdmin";
 import { WhatsappNumberInventoryItem } from "@/types/whatsapp";
@@ -33,6 +33,38 @@ import { buildTenantPath } from "@/utils/tenantPaths";
 import SuperadminLeadsPipeline from "@/components/admin/SuperadminLeadsPipeline";
 import { enterpriseService } from "@/services/enterpriseService";
 import { Badge } from "@/components/ui/badge";
+
+const SuperAdminStatCard = ({
+  label,
+  value,
+  icon: Icon,
+  tone = "primary",
+}: {
+  label: string;
+  value: React.ReactNode;
+  icon: React.ElementType;
+  tone?: "primary" | "emerald" | "amber" | "violet";
+}) => {
+  const toneMap = {
+    primary: "bg-primary/10 text-primary ring-primary/20",
+    emerald: "bg-emerald-500/10 text-emerald-600 ring-emerald-500/20",
+    amber: "bg-amber-500/10 text-amber-600 ring-amber-500/20",
+    violet: "bg-violet-500/10 text-violet-600 ring-violet-500/20",
+  } as const;
+
+  return (
+    <div className="relative overflow-hidden rounded-3xl border border-border/60 bg-background/80 p-4 shadow-sm backdrop-blur">
+      <div className="absolute -right-6 top-2 h-20 w-20 rounded-full bg-primary/5 blur-2xl" />
+      <div className="relative">
+        <div className={`mb-3 inline-flex h-10 w-10 items-center justify-center rounded-2xl ring-1 ${toneMap[tone]}`}>
+          <Icon className="h-4 w-4" />
+        </div>
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
+        <p className="mt-2 text-2xl font-bold tracking-tight text-foreground">{value}</p>
+      </div>
+    </div>
+  );
+};
 
 export default function SuperAdminDashboard() {
   useRequireRole(["super_admin"]);
@@ -336,21 +368,325 @@ export default function SuperAdminDashboard() {
 
   return (
     <div className="container mx-auto py-10 px-4 max-w-7xl space-y-8">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-primary tracking-tight">
-            Super Admin
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Gestión centralizada de Tenants y Plataforma.
-          </p>
+      <div className="relative overflow-hidden rounded-[32px] border border-border/60 bg-gradient-to-br from-background via-primary/5 to-sky-500/10 p-6 shadow-sm">
+        <div className="absolute -right-10 top-0 h-40 w-40 rounded-full bg-primary/10 blur-3xl" />
+        <div className="absolute bottom-0 left-0 h-32 w-32 rounded-full bg-sky-500/10 blur-3xl" />
+        <div className="relative space-y-6">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="space-y-2">
+              <Badge variant="outline" className="border-primary/20 bg-background/80 px-3 py-1 text-primary">
+                <Sparkles className="mr-2 h-3.5 w-3.5" />
+                Control center
+              </Badge>
+              <div>
+                <h1 className="text-4xl font-black tracking-tight text-foreground">Super Admin</h1>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+                  Gestión centralizada de tenants, salud operativa, realtime y prioridades ejecutivas en una sola vista.
+                </p>
+              </div>
+            </div>
+            <Button onClick={handleCreate} className="rounded-2xl shadow-lg shadow-primary/15">
+              <Plus className="mr-2 h-4 w-4" /> Nuevo Tenant
+            </Button>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <SuperAdminStatCard label="Tenants" value={total.toLocaleString("es-AR")} icon={Building2} />
+            <SuperAdminStatCard label="Health rows" value={sortedTenantHealth.length.toLocaleString("es-AR")} icon={Shield} tone="emerald" />
+            <SuperAdminStatCard label="Realtime activas" value={executiveRealtime?.active_sessions ?? "—"} icon={Activity} tone="violet" />
+            <SuperAdminStatCard label="Acciones sugeridas" value={executiveRecommendedActions.length.toLocaleString("es-AR")} icon={ArrowUpRight} tone="amber" />
+          </div>
         </div>
-        <Button onClick={handleCreate} className="shadow-lg">
-          <Plus className="mr-2 h-4 w-4" /> Nuevo Tenant
-        </Button>
       </div>
 
       <SuperadminLeadsPipeline />
+
+      <Card className="overflow-hidden border-muted/60 bg-background/85 shadow-sm backdrop-blur">
+        <CardHeader className="border-b border-border/50 bg-gradient-to-r from-primary/5 via-sky-500/5 to-violet-500/5">
+          <CardTitle>Executive summary</CardTitle>
+          <CardDescription>
+            Bundle agregado desde `/api/admin/analytics/executive-summary` para CEO/superadmin con menos roundtrips.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {executiveLoading ? (
+            <div className="text-sm text-muted-foreground">
+              Cargando executive summary...
+            </div>
+          ) : null}
+
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            <div className="rounded-2xl border border-border/60 bg-background/70 p-4 shadow-sm">
+              <div className="text-xs text-muted-foreground">Leads totales</div>
+              <div className="mt-1 text-2xl font-semibold">
+                {executiveOverview?.total_leads ??
+                  executiveOverview?.totals?.total ??
+                  "—"}
+              </div>
+            </div>
+            <div className="rounded-2xl border border-border/60 bg-background/70 p-4 shadow-sm">
+              <div className="text-xs text-muted-foreground">Open leads</div>
+              <div className="mt-1 text-2xl font-semibold">
+                {executiveOverview?.open_leads ??
+                  executiveOverview?.totals?.open ??
+                  "—"}
+              </div>
+            </div>
+            <div className="rounded-2xl border border-border/60 bg-background/70 p-4 shadow-sm">
+              <div className="text-xs text-muted-foreground">Win rate</div>
+              <div className="mt-1 text-2xl font-semibold">
+                {formatPercent(executiveOverview?.win_rate)}
+              </div>
+            </div>
+            <div className="rounded-2xl border border-border/60 bg-background/70 p-4 shadow-sm">
+              <div className="text-xs text-muted-foreground">
+                Realtime sesiones
+              </div>
+              <div className="mt-1 text-2xl font-semibold">
+                {executiveRealtime?.active_sessions ?? "—"}
+              </div>
+            </div>
+            <div className="rounded-2xl border border-border/60 bg-background/70 p-4 shadow-sm">
+              <div className="text-xs text-muted-foreground">
+                Coverage ratio
+              </div>
+              <div className="mt-1 text-2xl font-semibold">
+                {formatPercent(executiveRealtime?.coverage_ratio)}
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-border/60 bg-background/70 p-4 shadow-sm">
+            <div className="mb-2 text-sm font-medium">Recommended actions</div>
+            <div className="flex flex-wrap gap-2">
+              {executiveRecommendedActions.length ? (
+                executiveRecommendedActions.map(
+                  (action: any, index: number) => (
+                    <Badge key={`recommended-${index}`} variant="outline">
+                      {action?.label ||
+                        action?.title ||
+                        action?.action ||
+                        `action_${index + 1}`}
+                    </Badge>
+                  ),
+                )
+              ) : (
+                <span className="text-sm text-muted-foreground">
+                  Sin acciones recomendadas en el bundle actual.
+                </span>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(380px,1.2fr)]">
+        <Card className="overflow-hidden border-muted/60 bg-background/85 shadow-sm backdrop-blur">
+          <CardHeader className="border-b border-border/50 bg-gradient-to-r from-emerald-500/5 via-primary/5 to-transparent">
+            <CardTitle>Tenant health ranking</CardTitle>
+            <CardDescription>
+              Ranking rápido por health score, SLA y activación para customer
+              success y comercial.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {sortedTenantHealth.slice(0, 8).map((row, index) => (
+              <button
+                key={`${row?.tenant_slug || "tenant"}-${index}`}
+                type="button"
+                onClick={() => setSelectedProfileSlug(row?.tenant_slug || "")}
+                className="flex w-full items-center justify-between rounded-xl border px-3 py-3 text-left transition hover:bg-muted/40"
+              >
+                <div className="space-y-1">
+                  <div className="font-medium">{row?.tenant_slug || "—"}</div>
+                  <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                    <span>
+                      Win rate{" "}
+                      {typeof row?.win_rate === "number"
+                        ? `${(row.win_rate * 100).toFixed(0)}%`
+                        : "—"}
+                    </span>
+                    <span>SLA {row?.sla_breached ?? 0}</span>
+                    <span>Encuestas {row?.survey_responses ?? 0}</span>
+                  </div>
+                </div>
+                <Badge
+                  variant="outline"
+                  className={formatHealthClass(row?.health_score)}
+                >
+                  {typeof row?.health_score === "number"
+                    ? `${(row.health_score * 100).toFixed(0)}%`
+                    : "—"}
+                </Badge>
+              </button>
+            ))}
+            {!sortedTenantHealth.length ? (
+              <div className="text-sm text-muted-foreground">
+                No hay datos de tenant health disponibles.
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+
+        <Card className="overflow-hidden border-muted/60 bg-background/85 shadow-sm backdrop-blur">
+          <CardHeader className="gap-4 border-b border-border/50 bg-gradient-to-r from-violet-500/5 via-primary/5 to-transparent">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <CardTitle>Tenant profile 360</CardTitle>
+                <CardDescription>
+                  Vista ejecutiva de health, owner, onboarding y métricas clave
+                  por tenant.
+                </CardDescription>
+              </div>
+              <select
+                className="h-10 min-w-[220px] rounded-md border bg-background px-3 text-sm"
+                value={selectedProfileSlug}
+                onChange={(event) => setSelectedProfileSlug(event.target.value)}
+              >
+                {tenants.map((tenant) => (
+                  <option key={tenant.slug} value={tenant.slug}>
+                    {tenant.nombre} ({tenant.slug})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {profileError ? (
+              <div className="text-sm text-red-500">{profileError}</div>
+            ) : null}
+            {profileLoading ? (
+              <div className="text-sm text-muted-foreground">
+                Cargando perfil 360...
+              </div>
+            ) : null}
+            {!profileLoading && !profileError && tenantProfile360 ? (
+              <>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-lg font-semibold">
+                    {profileHeader?.nombre ||
+                      profileHeader?.name ||
+                      selectedProfileSlug}
+                  </h3>
+                  <Badge variant="outline">
+                    {profileHeader?.plan || "Plan —"}
+                  </Badge>
+                  <Badge
+                    variant="outline"
+                    className={formatHealthClass(profileHealth?.health_score)}
+                  >
+                    Health{" "}
+                    {typeof profileHealth?.health_score === "number"
+                      ? `${(profileHealth.health_score * 100).toFixed(0)}%`
+                      : "—"}
+                  </Badge>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <div className="rounded-xl border p-3">
+                    <div className="text-xs text-muted-foreground">Owner</div>
+                    <div className="mt-1 font-medium">
+                      {profileOwner?.name ||
+                        profileOwner?.nombre ||
+                        profileOwner?.email ||
+                        "—"}
+                    </div>
+                  </div>
+                  <div className="rounded-xl border p-3">
+                    <div className="text-xs text-muted-foreground">
+                      Win rate
+                    </div>
+                    <div className="mt-1 font-medium">
+                      {formatPercent(
+                        profileHealth?.win_rate ?? profileMetrics?.win_rate,
+                      )}
+                    </div>
+                  </div>
+                  <div className="rounded-xl border p-3">
+                    <div className="text-xs text-muted-foreground">
+                      Response rate
+                    </div>
+                    <div className="mt-1 font-medium">
+                      {formatPercent(
+                        profileHealth?.response_rate ??
+                          profileMetrics?.response_rate,
+                      )}
+                    </div>
+                  </div>
+                  <div className="rounded-xl border p-3">
+                    <div className="text-xs text-muted-foreground">
+                      SLA breached
+                    </div>
+                    <div className="mt-1 font-medium">
+                      {profileHealth?.sla_breached ??
+                        profileMetrics?.sla_breached ??
+                        0}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <div className="rounded-2xl border border-border/60 bg-background/70 p-4 shadow-sm">
+                    <div className="mb-2 text-sm font-medium">Alertas</div>
+                    <div className="flex flex-wrap gap-2">
+                      {profileAlerts.length ? (
+                        profileAlerts.map((alert: any, index: number) => (
+                          <Badge
+                            key={`alert-${index}`}
+                            variant="outline"
+                            className="bg-amber-100 text-amber-700 border-amber-200"
+                          >
+                            {typeof alert === "string"
+                              ? alert
+                              : alert?.label ||
+                                alert?.code ||
+                                `alerta_${index + 1}`}
+                          </Badge>
+                        ))
+                      ) : (
+                        <span className="text-sm text-muted-foreground">
+                          Sin alertas activas.
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-border/60 bg-background/70 p-4 shadow-sm">
+                    <div className="mb-2 text-sm font-medium">Onboarding</div>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {profileOnboardingEntries.length ? (
+                        profileOnboardingEntries.map(([key, value]) => (
+                          <div
+                            key={key}
+                            className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm"
+                          >
+                            <span className="capitalize">
+                              {key.replaceAll("_", " ")}
+                            </span>
+                            <Badge
+                              variant="outline"
+                              className={
+                                value
+                                  ? "bg-emerald-100 text-emerald-700 border-emerald-200"
+                                  : "bg-slate-100 text-slate-700 border-slate-200"
+                              }
+                            >
+                              {value ? "OK" : "Pendiente"}
+                            </Badge>
+                          </div>
+                        ))
+                      ) : (
+                        <span className="text-sm text-muted-foreground">
+                          Sin checklist de onboarding disponible.
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : null}
+          </CardContent>
+        </Card>
+      </div>
 
       <Card className="border-muted/60 shadow-sm">
         <CardHeader>

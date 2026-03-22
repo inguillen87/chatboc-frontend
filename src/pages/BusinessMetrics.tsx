@@ -26,6 +26,7 @@ import {
   MapPin,
   BrainCircuit,
   RefreshCw,
+  Sparkles,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -128,16 +129,18 @@ const TrendIndicator: FC<{ trend: number }> = ({ trend }) => {
 };
 
 const KpiCard: FC<{ title: string; data: Kpi; icon: React.ReactNode; formatAsCurrency?: boolean }> = ({ title, data, icon, formatAsCurrency = false }) => (
-  <Card className="border-border/60 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
+  <Card className="group relative overflow-hidden border-border/60 bg-background/80 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-primary/5">
+    <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary/70 via-sky-400/70 to-violet-400/70 opacity-80" />
+    <div className="absolute -right-6 top-2 h-20 w-20 rounded-full bg-primary/5 blur-2xl transition-transform duration-500 group-hover:scale-125" />
     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
       <CardTitle className="text-sm font-medium">{title}</CardTitle>
-      {icon}
+      <div className="rounded-2xl border border-primary/10 bg-primary/5 p-2 text-primary shadow-sm">{icon}</div>
     </CardHeader>
     <CardContent>
-      <div className="text-2xl font-bold">
+      <div className="text-3xl font-bold tracking-tight">
         {formatAsCurrency ? `$${data.value.toLocaleString('es-AR')}` : data.value.toLocaleString('es-AR')}
       </div>
-      <div className="text-xs text-muted-foreground flex items-center">
+      <div className="mt-3 inline-flex items-center rounded-full bg-muted/60 px-2.5 py-1 text-xs text-muted-foreground">
         <TrendIndicator trend={data.trend} />
         <span className="ml-2">vs. mes anterior</span>
       </div>
@@ -146,17 +149,17 @@ const KpiCard: FC<{ title: string; data: Kpi; icon: React.ReactNode; formatAsCur
 );
 
 const SalesChart: FC<{ data: SalesDataPoint[] }> = ({ data }) => (
-    <Card className="col-span-1 md:col-span-2 lg:col-span-3">
-        <CardHeader>
+    <Card className="col-span-1 overflow-hidden border-border/60 bg-background/85 shadow-sm md:col-span-2 lg:col-span-3">
+        <CardHeader className="border-b border-border/50 bg-gradient-to-r from-primary/5 via-sky-500/5 to-violet-500/5">
             <CardTitle>Ventas en el Tiempo (Últimos 30 días)</CardTitle>
         </CardHeader>
         <CardContent>
             <ResponsiveContainer width="100%" height={300}>
                 <LineChart data={data}>
-                    <CartesianGrid strokeDasharray="3 3" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.18)" vertical={false} />
                     <XAxis dataKey="date" tick={{ fontSize: 10 }} />
                     <YAxis tickFormatter={(value) => `$${Number(value) / 1000}k`} />
-                    <Tooltip formatter={(value) => [`$${Number(value).toLocaleString('es-AR')}`, "Ventas"]} />
+                    <Tooltip formatter={(value) => [`$${Number(value).toLocaleString('es-AR')}`, "Ventas"]} contentStyle={{ borderRadius: 16, border: "1px solid rgba(148,163,184,0.2)", background: "rgba(15,23,42,0.92)", color: "#fff" }} />
                     <Legend />
                     <Line type="monotone" dataKey="sales" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
                 </LineChart>
@@ -166,14 +169,14 @@ const SalesChart: FC<{ data: SalesDataPoint[] }> = ({ data }) => (
 );
 
 const TopProductsList: FC<{ products: TopProduct[] }> = ({ products }) => (
-  <Card className="col-span-1 md:col-span-2 lg:col-span-2">
-    <CardHeader>
+  <Card className="col-span-1 overflow-hidden border-border/60 bg-background/85 shadow-sm md:col-span-2 lg:col-span-2">
+    <CardHeader className="border-b border-border/50 bg-gradient-to-r from-emerald-500/5 via-primary/5 to-transparent">
       <CardTitle>Top 5 Productos por Ingresos</CardTitle>
     </CardHeader>
     <CardContent>
       <ul className="space-y-4">
         {products.map((p) => (
-          <li key={p.rank} className="flex items-center">
+          <li key={p.rank} className="flex items-center rounded-2xl border border-border/60 bg-muted/20 px-3 py-3">
             <div className="text-lg font-bold text-primary w-6">{p.rank}</div>
             <div className="flex-1 ml-4">
               <p className="font-semibold">{p.name}</p>
@@ -190,10 +193,10 @@ const TopProductsList: FC<{ products: TopProduct[] }> = ({ products }) => (
 );
 
 const RegionChart: FC<{ data: RegionSale[] }> = ({ data }) => {
-    const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#AF19FF'];
+    const COLORS = ['#4f46e5', '#06b6d4', '#10b981', '#f59e0b', '#8b5cf6'];
     return(
-        <Card className="col-span-1 md:col-span-2 lg:col-span-1">
-            <CardHeader>
+        <Card className="col-span-1 overflow-hidden border-border/60 bg-background/85 shadow-sm md:col-span-2 lg:col-span-1">
+            <CardHeader className="border-b border-border/50 bg-gradient-to-r from-violet-500/5 via-primary/5 to-transparent">
                 <CardTitle>Ventas por Región</CardTitle>
             </CardHeader>
             <CardContent>
@@ -216,7 +219,7 @@ const RegionChart: FC<{ data: RegionSale[] }> = ({ data }) => {
 };
 
 const MetricsSummary: FC<{ summary: string }> = ({ summary }) => (
-    <Card className="col-span-1 md:col-span-2 lg:col-span-4 border-primary/20 bg-gradient-to-r from-primary/10 via-primary/5 to-background shadow-sm">
+    <Card className="col-span-1 overflow-hidden border-primary/20 bg-gradient-to-r from-primary/10 via-primary/5 to-background shadow-sm md:col-span-2 lg:col-span-4">
         <CardHeader className="flex flex-row items-center space-x-4 pb-2">
             <BrainCircuit className="w-8 h-8 text-primary"/>
             <CardTitle className="text-xl text-primary">Resumen Inteligente</CardTitle>
@@ -377,7 +380,7 @@ export default function BusinessMetrics() {
     return (
         <div className="p-4 md:p-8 max-w-7xl mx-auto">
              <h1 className="text-3xl font-extrabold text-primary mb-6">Métricas del Negocio</h1>
-             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+             <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
                 <Skeleton className="h-32 col-span-full" />
                 <Skeleton className="h-32" />
                 <Skeleton className="h-32" />
@@ -405,16 +408,22 @@ export default function BusinessMetrics() {
 
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6 bg-background">
-      <div className="flex flex-col gap-4 rounded-3xl border border-border/60 bg-card/80 p-5 shadow-sm md:flex-row md:items-center md:justify-between">
-        <div className="space-y-1">
-          <h1 className="text-3xl font-extrabold text-primary">
-            Métricas del Negocio
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Panel operativo, cobertura y analíticas comerciales en una vista unificada.
-          </p>
+      <div className="relative flex flex-col gap-4 overflow-hidden rounded-[32px] border border-border/60 bg-gradient-to-br from-background via-primary/5 to-sky-500/10 p-6 shadow-sm md:flex-row md:items-center md:justify-between">
+        <div className="space-y-2">
+          <Badge variant="outline" className="border-primary/20 bg-background/80 px-3 py-1 text-primary">
+            <Sparkles className="mr-2 h-3.5 w-3.5" />
+            Tenant command center
+          </Badge>
+          <div>
+            <h1 className="text-4xl font-black tracking-tight text-foreground">
+              Métricas del Negocio
+            </h1>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              Panel operativo, cobertura, colaboración y analíticas comerciales en una vista unificada.
+            </p>
+          </div>
         </div>
-        <Button onClick={fetchAllMetrics} disabled={loading} className="gap-2 rounded-xl shadow-sm">
+        <Button onClick={fetchAllMetrics} disabled={loading} className="gap-2 rounded-2xl shadow-lg shadow-primary/15">
           <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
           {loading ? 'Actualizando...' : 'Actualizar métricas'}
         </Button>
