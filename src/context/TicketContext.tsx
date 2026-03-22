@@ -18,6 +18,76 @@ interface TicketContextType {
 
 const TicketContext = createContext<TicketContextType | undefined>(undefined);
 
+
+const toFiniteNumber = (value: unknown, fallback = 0) => {
+  const parsed = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const normalizeUnreadDelta = (payload: any) => {
+  if (!payload || typeof payload !== 'object') return null;
+  const collaborationState =
+    payload.collaboration_state && typeof payload.collaboration_state === 'object'
+      ? payload.collaboration_state
+      : {};
+
+  const ticketId =
+    payload.ticket_id ??
+    payload.ticketId ??
+    payload.id ??
+    payload.ticket?.id ??
+    null;
+
+  if (ticketId === null || ticketId === undefined) return null;
+
+  const unreadCount = toFiniteNumber(
+    payload.unread_count ?? payload.unreadCount ?? collaborationState.unread_count,
+  );
+  const unreadViewerCount = toFiniteNumber(
+    payload.unread_viewer_count ??
+      payload.unreadViewerCount ??
+      collaborationState.unread_viewer_count,
+  );
+  const activeViewerCount = toFiniteNumber(
+    payload.active_viewers_count ??
+      payload.activeViewersCount ??
+      collaborationState.active_viewers_count,
+  );
+  const idleViewerCount = toFiniteNumber(
+    payload.idle_viewer_count ??
+      payload.idleViewerCount ??
+      collaborationState.idle_viewer_count,
+  );
+
+  return {
+    ticketId: Number(ticketId),
+    collaboration_state: {
+      latest_comment_id:
+        payload.latest_comment_id ??
+        payload.latestCommentId ??
+        collaborationState.latest_comment_id ??
+        null,
+      latest_read_at:
+        payload.latest_read_at ??
+        payload.latestReadAt ??
+        collaborationState.latest_read_at ??
+        null,
+      unread_count: unreadCount,
+      has_unread:
+        Boolean(payload.has_unread ?? payload.hasUnread) || unreadCount > 0,
+      unread_viewer_count: unreadViewerCount,
+      active_viewers_count: activeViewerCount,
+      idle_viewer_count: idleViewerCount,
+      idle_window_minutes: toFiniteNumber(
+        payload.idle_window_minutes ??
+          payload.idleWindowMinutes ??
+          collaborationState.idle_window_minutes,
+      ),
+    },
+    hasUnreadMessages: unreadCount > 0 || unreadViewerCount > 0,
+  };
+};
+
 const groupTicketsByCategory = (tickets: Ticket[]) => {
   const groups: { [key: string]: Ticket[] } = {};
   const resolved: Ticket[] = [];
@@ -319,6 +389,14 @@ export const TicketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             updateTicket(data.ticket_id, updates);
           }
       }
+    },
+    onUnreadChanged: (data) => {
+      const normalized = normalizeUnreadDelta(data);
+      if (!normalized || !Number.isFinite(normalized.ticketId)) return;
+      updateTicket(normalized.ticketId, {
+        collaboration_state: normalized.collaboration_state,
+        hasUnreadMessages: normalized.hasUnreadMessages,
+      });
     },
   });
 

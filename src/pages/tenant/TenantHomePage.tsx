@@ -1,7 +1,16 @@
 import { useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Loader2, Calendar, Newspaper, ClipboardCheck } from 'lucide-react';
+import {
+  Loader2,
+  Calendar,
+  Newspaper,
+  ClipboardCheck,
+  ArrowRight,
+  Sparkles,
+  BellRing,
+  Landmark,
+} from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { motion } from 'framer-motion';
@@ -38,6 +47,47 @@ const limitItems = <T,>(items: T[] | undefined, size: number): T[] => {
   if (!items || !items.length) return [];
   return items.slice(0, size);
 };
+
+const LandingStatCard = ({ label, value, icon: Icon }: { label: string; value: string; icon: React.ElementType }) => (
+  <div className="rounded-3xl border border-white/60 bg-white/80 p-4 shadow-sm backdrop-blur dark:border-white/10 dark:bg-white/5">
+    <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/15">
+      <Icon className="h-4 w-4" />
+    </div>
+    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">{label}</p>
+    <p className="mt-2 text-2xl font-bold tracking-tight text-foreground">{value}</p>
+  </div>
+);
+
+const LandingSectionShell = ({
+  icon: Icon,
+  title,
+  description,
+  action,
+  children,
+}: {
+  icon: React.ElementType;
+  title: string;
+  description: string;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}) => (
+  <section className="space-y-5">
+    <div className="flex flex-col gap-4 rounded-3xl border border-border/60 bg-background/70 p-6 shadow-sm backdrop-blur md:flex-row md:items-center md:justify-between">
+      <div className="space-y-2">
+        <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+          <Icon className="h-3.5 w-3.5" />
+          {title}
+        </div>
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight text-foreground">{title}</h2>
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{description}</p>
+        </div>
+      </div>
+      {action}
+    </div>
+    {children}
+  </section>
+);
 
 const TenantPublicLanding = () => {
   const params = useParams<{ tenant: string }>();
@@ -80,19 +130,21 @@ const TenantPublicLanding = () => {
     return limitItems(surveysQuery.data, 3);
   }, [surveysQuery.data]);
 
+  const tenantName = tenant?.nombre?.trim() || slug;
+
   const container = {
     hidden: { opacity: 0 },
     show: {
       opacity: 1,
       transition: {
-        staggerChildren: 0.1
-      }
-    }
+        staggerChildren: 0.08,
+      },
+    },
   };
 
   const itemAnim = {
-    hidden: { opacity: 0, y: 20 },
-    show: { opacity: 1, y: 0 }
+    hidden: { opacity: 0, y: 18 },
+    show: { opacity: 1, y: 0 },
   };
 
   return (
@@ -109,26 +161,61 @@ const TenantPublicLanding = () => {
           </CardContent>
         </Card>
       ) : (
-        <motion.div
-          className="grid gap-8"
-          variants={container}
-          initial="hidden"
-          animate="show"
-        >
-          <section className="space-y-4">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <Newspaper className="h-5 w-5 text-primary" />
-                <h2 className="text-xl font-semibold">Noticias recientes</h2>
+        <motion.div className="grid gap-10" variants={container} initial="hidden" animate="show">
+          <motion.section variants={itemAnim} className="relative overflow-hidden rounded-[32px] border border-border/60 bg-gradient-to-br from-background via-primary/5 to-sky-500/10 p-8 shadow-sm">
+            <div className="absolute -right-10 top-0 h-48 w-48 rounded-full bg-primary/10 blur-3xl" />
+            <div className="absolute bottom-0 left-0 h-40 w-40 rounded-full bg-sky-500/10 blur-3xl" />
+            <div className="relative grid gap-8 xl:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.9fr)]">
+              <div className="space-y-5">
+                <Badge variant="outline" className="border-primary/20 bg-background/80 px-3 py-1 text-primary">
+                  <Sparkles className="mr-2 h-3.5 w-3.5" />
+                  Experiencia pública del tenant
+                </Badge>
+                <div className="space-y-3">
+                  <h1 className="text-4xl font-black tracking-tight text-foreground sm:text-5xl">
+                    Todo el contenido público de {tenantName} en un solo lugar.
+                  </h1>
+                  <p className="max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
+                    Novedades, agenda y participación abiertos al público con una experiencia más clara, visual y lista para múltiples tenants.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  {basePath ? (
+                    <Button asChild size="lg" className="rounded-2xl shadow-lg shadow-primary/15">
+                      <Link to={`${basePath}/ticket`}>
+                        Ir a seguimiento
+                        <ArrowRight className="ml-2 h-4 w-4" />
+                      </Link>
+                    </Button>
+                  ) : null}
+                  {basePath ? (
+                    <Button asChild variant="outline" size="lg" className="rounded-2xl bg-background/70">
+                      <Link to={`${basePath}/encuestas`}>Ver participación</Link>
+                    </Button>
+                  ) : null}
+                </div>
               </div>
-              {basePath ? (
-                <Button asChild variant="ghost" size="sm" className="hover:bg-primary/10 hover:text-primary">
-                  <Link to={`${basePath}/noticias`}>Ver todas</Link>
-                </Button>
-              ) : null}
+
+              <div className="grid gap-4 sm:grid-cols-3 xl:grid-cols-1">
+                <LandingStatCard label="Noticias" value={String(newsItems.length)} icon={Newspaper} />
+                <LandingStatCard label="Eventos" value={String(eventItems.length)} icon={Calendar} />
+                <LandingStatCard label="Encuestas" value={String(surveyItems.length)} icon={ClipboardCheck} />
+              </div>
             </div>
+          </motion.section>
+
+          <LandingSectionShell
+            icon={Newspaper}
+            title="Noticias recientes"
+            description="Actualizaciones públicas, comunicados y contenido editorial publicados por el tenant."
+            action={basePath ? (
+              <Button asChild variant="ghost" size="sm" className="hover:bg-primary/10 hover:text-primary">
+                <Link to={`${basePath}/noticias`}>Ver todas</Link>
+              </Button>
+            ) : undefined}
+          >
             {newsQuery.isLoading ? (
-              <div className="flex min-h-[120px] items-center justify-center rounded-xl border bg-muted/30">
+              <div className="flex min-h-[160px] items-center justify-center rounded-3xl border bg-muted/30">
                 <Loader2 className="h-5 w-5 animate-spin text-primary" />
               </div>
             ) : newsQuery.error ? (
@@ -137,62 +224,59 @@ const TenantPublicLanding = () => {
                 <AlertDescription>{getErrorMessage(newsQuery.error)}</AlertDescription>
               </Alert>
             ) : newsItems.length ? (
-              <div className="grid gap-4 md:grid-cols-3">
+              <div className="grid gap-5 md:grid-cols-3">
                 {newsItems.map((item) => (
                   <motion.article
                     key={String(item.id)}
                     variants={itemAnim}
-                    whileHover={{ y: -5, transition: { duration: 0.2 } }}
-                    className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border bg-card text-card-foreground shadow-sm transition-shadow hover:shadow-md"
+                    whileHover={{ y: -6, transition: { duration: 0.2 } }}
+                    className="group relative overflow-hidden rounded-[28px] border border-border/60 bg-card/90 shadow-sm transition-all duration-300 hover:shadow-xl hover:shadow-primary/5"
                   >
-                    {item.cover_url && (
-                        <div className="aspect-video w-full overflow-hidden">
-                          <img
-                            src={item.cover_url}
-                            alt={item.titulo}
-                            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                          />
-                        </div>
-                    )}
-                    <div className="flex flex-1 flex-col p-4">
-                      <div className="space-y-2">
-                        {formatDate(item.publicado_at) ? (
-                          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                            {formatDate(item.publicado_at)}
-                          </p>
-                        ) : null}
-                        <h3 className="text-lg font-bold leading-tight tracking-tight">
-                          {item.titulo}
-                        </h3>
-                        {item.resumen ? (
-                          <p className="line-clamp-3 text-sm text-muted-foreground">{item.resumen}</p>
-                        ) : null}
+                    <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary via-sky-400 to-violet-400 opacity-80" />
+                    {item.cover_url ? (
+                      <div className="aspect-[16/9] w-full overflow-hidden">
+                        <img
+                          src={item.cover_url}
+                          alt={item.titulo}
+                          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        />
                       </div>
+                    ) : (
+                      <div className="flex aspect-[16/9] items-center justify-center bg-gradient-to-br from-primary/10 via-sky-500/10 to-transparent text-primary">
+                        <Newspaper className="h-8 w-8" />
+                      </div>
+                    )}
+                    <div className="space-y-3 p-5">
+                      {formatDate(item.publicado_at) ? (
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                          {formatDate(item.publicado_at)}
+                        </p>
+                      ) : null}
+                      <h3 className="text-lg font-bold leading-tight tracking-tight text-foreground">{item.titulo}</h3>
+                      {item.resumen ? <p className="line-clamp-3 text-sm leading-6 text-muted-foreground">{item.resumen}</p> : null}
                     </div>
                   </motion.article>
                 ))}
               </div>
             ) : (
-              <p className="rounded-xl border border-dashed bg-muted/20 p-6 text-sm text-muted-foreground">
+              <p className="rounded-3xl border border-dashed bg-muted/20 p-8 text-sm text-muted-foreground">
                 Todavía no hay novedades publicadas.
               </p>
             )}
-          </section>
+          </LandingSectionShell>
 
-          <section className="space-y-4">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <Calendar className="h-5 w-5 text-primary" />
-                <h2 className="text-xl font-semibold">Próximos eventos</h2>
-              </div>
-              {basePath ? (
-                <Button asChild variant="ghost" size="sm" className="hover:bg-primary/10 hover:text-primary">
-                  <Link to={`${basePath}/eventos`}>Ver calendario</Link>
-                </Button>
-              ) : null}
-            </div>
+          <LandingSectionShell
+            icon={Calendar}
+            title="Próximos eventos"
+            description="Agenda pública con actividades, encuentros y anuncios programados del tenant."
+            action={basePath ? (
+              <Button asChild variant="ghost" size="sm" className="hover:bg-primary/10 hover:text-primary">
+                <Link to={`${basePath}/eventos`}>Ver calendario</Link>
+              </Button>
+            ) : undefined}
+          >
             {eventsQuery.isLoading ? (
-              <div className="flex min-h-[120px] items-center justify-center rounded-xl border bg-muted/30">
+              <div className="flex min-h-[160px] items-center justify-center rounded-3xl border bg-muted/30">
                 <Loader2 className="h-5 w-5 animate-spin text-primary" />
               </div>
             ) : eventsQuery.error ? (
@@ -201,70 +285,64 @@ const TenantPublicLanding = () => {
                 <AlertDescription>{getErrorMessage(eventsQuery.error)}</AlertDescription>
               </Alert>
             ) : eventItems.length ? (
-              <div className="grid gap-4 md:grid-cols-3">
+              <div className="grid gap-5 md:grid-cols-3">
                 {eventItems.map((event) => (
                   <motion.article
                     key={String(event.id)}
                     variants={itemAnim}
-                    whileHover={{ y: -5, transition: { duration: 0.2 } }}
-                    className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border bg-card text-card-foreground shadow-sm transition-shadow hover:shadow-md"
+                    whileHover={{ y: -6, transition: { duration: 0.2 } }}
+                    className="group rounded-[28px] border border-border/60 bg-card/90 p-5 shadow-sm transition-all duration-300 hover:shadow-xl hover:shadow-primary/5"
                   >
-                    {event.cover_url && (
-                        <div className="aspect-video w-full overflow-hidden">
-                          <img
-                            src={event.cover_url}
-                            alt={event.titulo}
-                            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                          />
-                        </div>
-                    )}
-                    <div className="flex flex-1 flex-col p-4">
-                      <div className="space-y-3">
-                        {formatDate(event.starts_at) ? (
-                          <Badge variant="secondary" className="w-fit">{formatDate(event.starts_at)}</Badge>
-                        ) : null}
-                        <div className="space-y-1">
-                          <h3 className="text-lg font-bold leading-tight tracking-tight">
-                            {event.titulo}
-                          </h3>
-                          {event.descripcion ? (
-                            <p className="line-clamp-2 text-sm text-muted-foreground">{event.descripcion}</p>
-                          ) : null}
-                        </div>
-                        {formatDateTime(event.starts_at) ? (
-                          <p className="text-xs text-muted-foreground font-medium">
-                            {formatDateTime(event.starts_at)}
-                            {event.lugar ? ` · ${event.lugar}` : ''}
-                          </p>
-                        ) : event.lugar ? (
-                          <p className="text-xs text-muted-foreground font-medium">{event.lugar}</p>
-                        ) : null}
+                    {event.cover_url ? (
+                      <div className="-mx-5 -mt-5 mb-5 aspect-[16/9] overflow-hidden rounded-t-[28px]">
+                        <img
+                          src={event.cover_url}
+                          alt={event.titulo}
+                          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        />
                       </div>
+                    ) : null}
+                    <div className="space-y-3">
+                      {formatDate(event.starts_at) ? (
+                        <Badge variant="secondary" className="w-fit rounded-full border border-primary/10 bg-primary/10 text-primary">
+                          {formatDate(event.starts_at)}
+                        </Badge>
+                      ) : null}
+                      <div className="space-y-1">
+                        <h3 className="text-lg font-bold leading-tight tracking-tight text-foreground">{event.titulo}</h3>
+                        {event.descripcion ? <p className="line-clamp-2 text-sm leading-6 text-muted-foreground">{event.descripcion}</p> : null}
+                      </div>
+                      {formatDateTime(event.starts_at) ? (
+                        <p className="text-xs font-medium text-muted-foreground">
+                          {formatDateTime(event.starts_at)}
+                          {event.lugar ? ` · ${event.lugar}` : ''}
+                        </p>
+                      ) : event.lugar ? (
+                        <p className="text-xs font-medium text-muted-foreground">{event.lugar}</p>
+                      ) : null}
                     </div>
                   </motion.article>
                 ))}
               </div>
             ) : (
-              <p className="rounded-xl border border-dashed bg-muted/20 p-6 text-sm text-muted-foreground">
+              <p className="rounded-3xl border border-dashed bg-muted/20 p-8 text-sm text-muted-foreground">
                 No hay actividades próximas programadas.
               </p>
             )}
-          </section>
+          </LandingSectionShell>
 
-          <section className="space-y-4">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <ClipboardCheck className="h-5 w-5 text-primary" />
-                <h2 className="text-xl font-semibold">Encuestas abiertas</h2>
-              </div>
-              {basePath ? (
-                <Button asChild variant="ghost" size="sm" className="hover:bg-primary/10 hover:text-primary">
-                  <Link to={`${basePath}/encuestas`}>Ver listado</Link>
-                </Button>
-              ) : null}
-            </div>
+          <LandingSectionShell
+            icon={ClipboardCheck}
+            title="Encuestas abiertas"
+            description="Instancias activas para participación y relevamiento con acceso directo desde el portal público."
+            action={basePath ? (
+              <Button asChild variant="ghost" size="sm" className="hover:bg-primary/10 hover:text-primary">
+                <Link to={`${basePath}/encuestas`}>Ver listado</Link>
+              </Button>
+            ) : undefined}
+          >
             {surveysQuery.isLoading ? (
-              <div className="flex min-h-[120px] items-center justify-center rounded-xl border bg-muted/30">
+              <div className="flex min-h-[160px] items-center justify-center rounded-3xl border bg-muted/30">
                 <Loader2 className="h-5 w-5 animate-spin text-primary" />
               </div>
             ) : surveysQuery.error ? (
@@ -273,24 +351,24 @@ const TenantPublicLanding = () => {
                 <AlertDescription>{getErrorMessage(surveysQuery.error)}</AlertDescription>
               </Alert>
             ) : surveyItems.length ? (
-              <div className="grid gap-4 md:grid-cols-3">
+              <div className="grid gap-5 md:grid-cols-3">
                 {surveyItems.map((survey) => (
                   <motion.article
                     key={survey.slug}
                     variants={itemAnim}
-                    whileHover={{ scale: 1.02, transition: { duration: 0.2 } }}
-                    className="flex flex-col justify-between rounded-2xl border bg-card p-5 shadow-sm transition-shadow hover:shadow-md"
+                    whileHover={{ y: -6, transition: { duration: 0.2 } }}
+                    className="flex h-full flex-col justify-between rounded-[28px] border border-border/60 bg-card/90 p-5 shadow-sm transition-all duration-300 hover:shadow-xl hover:shadow-primary/5"
                   >
                     <div className="space-y-3">
-                      <h3 className="text-lg font-bold leading-tight">
-                        {survey.titulo}
-                      </h3>
-                      {survey.descripcion ? (
-                        <p className="line-clamp-3 text-sm text-muted-foreground">{survey.descripcion}</p>
-                      ) : null}
+                      <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+                        <BellRing className="h-3.5 w-3.5" />
+                        Participación activa
+                      </div>
+                      <h3 className="text-lg font-bold leading-tight tracking-tight text-foreground">{survey.titulo}</h3>
+                      {survey.descripcion ? <p className="line-clamp-3 text-sm leading-6 text-muted-foreground">{survey.descripcion}</p> : null}
                     </div>
-                    <div className="mt-4">
-                      <Button asChild className="w-full" size="sm">
+                    <div className="mt-6">
+                      <Button asChild className="w-full rounded-2xl" size="sm">
                         <Link to={`${basePath}/encuestas/${survey.slug}`}>Participar</Link>
                       </Button>
                     </div>
@@ -298,11 +376,42 @@ const TenantPublicLanding = () => {
                 ))}
               </div>
             ) : (
-              <p className="rounded-xl border border-dashed bg-muted/20 p-6 text-sm text-muted-foreground">
+              <p className="rounded-3xl border border-dashed bg-muted/20 p-8 text-sm text-muted-foreground">
                 No hay encuestas disponibles en este momento.
               </p>
             )}
-          </section>
+          </LandingSectionShell>
+
+          <motion.section variants={itemAnim} className="grid gap-4 xl:grid-cols-3">
+            <Card className="border-border/60 bg-background/70 shadow-sm backdrop-blur xl:col-span-2">
+              <CardContent className="flex h-full flex-col justify-between gap-4 p-6">
+                <div className="space-y-2">
+                  <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+                    <Landmark className="h-3.5 w-3.5" />
+                    Portal listo para seguimiento
+                  </div>
+                  <h3 className="text-2xl font-bold tracking-tight text-foreground">Más claridad visual para el portal y la app.</h3>
+                  <p className="text-sm leading-6 text-muted-foreground">
+                    Reordenamos el contenido público en bloques más legibles, con jerarquía visual más fuerte, métricas rápidas y tarjetas más limpias para noticias, agenda y participación.
+                  </p>
+                </div>
+                {basePath ? (
+                  <Button asChild variant="outline" className="w-fit rounded-2xl">
+                    <Link to={`${basePath}/ticket`}>Abrir seguimiento público</Link>
+                  </Button>
+                ) : null}
+              </CardContent>
+            </Card>
+            <Card className="border-border/60 bg-gradient-to-br from-primary/10 via-background to-sky-500/10 shadow-sm">
+              <CardContent className="space-y-3 p-6">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">UX/UI refresh</p>
+                <h3 className="text-xl font-bold tracking-tight text-foreground">Más contraste, más aire y mejor lectura.</h3>
+                <p className="text-sm leading-6 text-muted-foreground">
+                  Mejoramos sombras, radios, gradientes suaves, estados vacíos y tarjetas para que cada tenant se vea más premium sin personalizaciones locales hardcodeadas.
+                </p>
+              </CardContent>
+            </Card>
+          </motion.section>
         </motion.div>
       )}
     </TenantShell>
@@ -313,23 +422,14 @@ const TenantHomePage = () => {
   const { user } = useUser();
   const { tenant } = useTenant();
 
-  // Determine if user has admin access to this tenant
   const hasAdminAccess = useMemo(() => {
     if (!user) return false;
-    // Super admin can access everything
     if (user.rol === 'super_admin') return true;
-
-    // Admin/Empleado check
-    // In a real scenario, we should check if the user belongs to THIS tenant.
-    // Assuming backend validates access, we just check role presence for now.
-    // If the backend prevents cross-tenant access, any 'admin' role is fine for the UI switch
-    // because the API would fail if they are in the wrong tenant.
     const allowedRoles = ['admin', 'empleado'];
     return allowedRoles.includes(user.rol || '');
   }, [user]);
 
   if (hasAdminAccess) {
-    // Render appropriate dashboard based on tenant type
     if (tenant?.tipo === 'municipio') {
       return (
         <TenantShell>
@@ -337,7 +437,7 @@ const TenantHomePage = () => {
         </TenantShell>
       );
     }
-    // Default to Business Dashboard (Pyme)
+
     return (
       <TenantShell>
         <BusinessMetrics />
@@ -345,7 +445,6 @@ const TenantHomePage = () => {
     );
   }
 
-  // Fallback to public landing for guests / portal users
   return <TenantPublicLanding />;
 };
 

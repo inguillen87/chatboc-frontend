@@ -13,7 +13,16 @@ export type FrontendEventName =
   | 'map_loaded'
   | 'map_layer_toggle'
   | 'map_cluster_click'
-  | 'map_time_slider_changed';
+  | 'map_time_slider_changed'
+  | 'tracking_public_access_restored'
+  | 'tracking_public_lookup_succeeded'
+  | 'tracking_public_lookup_failed'
+  | 'tracking_public_message_sent'
+  | 'tracking_public_refresh_failed'
+  | 'tracking_public_maps_opened'
+  | 'tracking_403_detected'
+  | 'socket_reconnect'
+  | 'realtime_duplicate_dropped';
 
 export function trackFrontendEvent(event: FrontendEventName, payload: Record<string, unknown> = {}) {
   if (typeof window === 'undefined') return;

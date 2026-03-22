@@ -880,6 +880,48 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
                   <span className="text-muted-foreground">Categoría:</span>
                   <p className="font-medium">{ticket.categoria || 'No informada'}</p>
                 </div>
+                {(ticket.priority !== null && ticket.priority !== undefined && ticket.priority !== "") ||
+                ticket.priority_score !== null ||
+                (ticket.priority_breakdown && typeof ticket.priority_breakdown === 'object') ||
+                ticket.recommended_next_action ? (
+                  <div className="space-y-2 rounded-lg border border-border/60 bg-background/70 p-3 shadow-sm">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {ticket.priority !== null && ticket.priority !== undefined && ticket.priority !== "" ? (
+                        <Badge variant="outline" className="capitalize">
+                          Prioridad {String(ticket.priority).replaceAll('_', ' ')}
+                        </Badge>
+                      ) : null}
+                      {ticket.priority_score !== null && ticket.priority_score !== undefined ? (
+                        <Badge variant="secondary">Score {ticket.priority_score}</Badge>
+                      ) : null}
+                    </div>
+                    {ticket.priority_breakdown && typeof ticket.priority_breakdown === 'object' ? (
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {Object.entries(ticket.priority_breakdown)
+                          .filter(([, value]) => value !== null && value !== undefined && value !== '')
+                          .map(([label, value]) => (
+                            <div
+                              key={`${label}-${String(value)}`}
+                              className="rounded-md border border-border/50 bg-muted/30 px-3 py-2"
+                            >
+                              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                                {label.replaceAll('_', ' ')}
+                              </p>
+                              <p className="text-sm font-medium text-foreground">{String(value)}</p>
+                            </div>
+                          ))}
+                      </div>
+                    ) : null}
+                    {ticket.recommended_next_action ? (
+                      <div className="space-y-1">
+                        <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                          Próxima acción sugerida
+                        </p>
+                        <p className="text-sm text-foreground">{ticket.recommended_next_action}</p>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
                 {(ticket.description || ticket.detalles) && (
                   <div className="space-y-1">
                     <span className="text-muted-foreground">Descripción:</span>
