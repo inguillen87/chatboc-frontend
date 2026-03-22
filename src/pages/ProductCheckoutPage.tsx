@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import AddressAutocomplete from '@/components/ui/AddressAutocomplete';
-import { Loader2, AlertTriangle, ArrowLeft, CheckCircle, CreditCard, MapPin, User, Check } from 'lucide-react';
+import { ArrowRightLeft, Loader2, AlertTriangle, ArrowLeft, CheckCircle, CreditCard, Hash, MapPin, User, Check, MessageCircle, Phone, ExternalLink, ListChecks } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 
 import { ApiError, NetworkError, getErrorMessage } from '@/utils/api';
@@ -26,6 +26,8 @@ import usePointsBalance from '@/hooks/usePointsBalance';
 import { buildTenantPath } from '@/utils/tenantPaths';
 import { loadGuestContact, saveGuestContact } from '@/utils/guestContact';
 import { fetchMarketCart, startMarketCheckout } from '@/api/market';
+import { CheckoutStartResponse } from '@/types/market';
+import { getCommercialStageLabel, getCommercialStageTone, getCommercialToneClassName, normalizeChannelLabel } from '@/utils/orderCommercial';
 import {
   Dialog,
   DialogContent,
@@ -106,6 +108,7 @@ export default function ProductCheckoutPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [orderPlaced, setOrderPlaced] = useState(false);
+  const [checkoutResult, setCheckoutResult] = useState<CheckoutStartResponse | null>(null);
   const [showPointsAuthPrompt, setShowPointsAuthPrompt] = useState(false);
   const [checkoutMode, setCheckoutMode] = useState<'api' | 'local'>('api');
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
@@ -368,6 +371,7 @@ export default function ProductCheckoutPage() {
         });
         clearLocalCart();
         setCartItems([]);
+        setCheckoutResult({ status: 'demo', commercial_state: { stage: 'awaiting_confirmation', channel: 'web', supports_handoff: true } });
         setOrderPlaced(true);
         return;
       }
@@ -398,6 +402,8 @@ export default function ProductCheckoutPage() {
         }
       });
 
+      setCheckoutResult(response);
+
       if (response.status === 'confirmed' || response.status === 'demo') {
         setOrderPlaced(true);
         await applyPointsAdjustments();
@@ -405,6 +411,7 @@ export default function ProductCheckoutPage() {
          window.location.href = response.paymentUrl;
       } else {
          // Fallback if status is unknown but no error thrown
+         setCheckoutResult(response);
          setOrderPlaced(true);
       }
     } catch (err) {
@@ -450,6 +457,14 @@ export default function ProductCheckoutPage() {
 
   if (orderPlaced) {
     const demoSuccess = checkoutMode === 'local';
+    const stageLabel = getCommercialStageLabel(checkoutResult?.commercial_state?.stage ?? checkoutResult?.estado ?? checkoutResult?.status ?? null);
+    const marketOrderId = checkoutResult?.market_order_id ?? checkoutResult?.order_id ?? checkoutResult?.orderId ?? null;
+    const paymentReference = checkoutResult?.preference_id ?? checkoutResult?.preferenceId ?? null;
+    const handoffChannel = normalizeChannelLabel(checkoutResult?.commercial_state?.channel ?? 'web');
+    const trackingLabel = checkoutResult?.tracking?.status_label ?? null;
+    const trackingPath = checkoutResult?.tracking?.portal_path ?? null;
+    const nextSteps = Array.isArray(checkoutResult?.next_steps) ? checkoutResult.next_steps.filter((item) => item?.title || item?.description) : [];
+    const supportChannels = checkoutResult?.support_channels ?? null;
     return (
       <div className="container mx-auto p-4 md:p-8 flex flex-col items-center justify-center min-h-[calc(100vh-200px)] text-center">
         <motion.div
@@ -476,6 +491,82 @@ export default function ProductCheckoutPage() {
                 ? 'La simulación se registró con éxito en este navegador. Regístrate o inicia sesión para verlo en tu portal.'
                 : `Hemos recibido tu ${completionLabel}. Te enviamos los detalles a tu correo.`}
             </p>
+
+            <div className="mx-auto mb-8 grid max-w-4xl gap-3 text-left sm:grid-cols-2 xl:grid-cols-4">
+                {stageLabel ? (
+                  <div className="rounded-2xl border border-border/60 bg-background/80 p-4 shadow-sm">
+                    <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Estado comercial</p>
+                    <Badge variant="outline" className={`mt-2 ${getCommercialToneClassName(getCommercialStageTone(checkoutResult?.commercial_state?.stage ?? checkoutResult?.estado ?? checkoutResult?.status ?? null))}`}>
+                      {stageLabel}
+                    </Badge>
+                  </div>
+                ) : null}
+                {marketOrderId ? (
+                  <div className="rounded-2xl border border-border/60 bg-background/80 p-4 shadow-sm">
+                    <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Orden operativa</p>
+                    <p className="mt-2 flex items-center gap-2 font-semibold text-foreground"><Hash className="h-4 w-4 text-primary" /> #{marketOrderId}</p>
+                  </div>
+                ) : null}
+                <div className="rounded-2xl border border-border/60 bg-background/80 p-4 shadow-sm">
+                  <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Canal</p>
+                  <p className="mt-2 font-semibold text-foreground">{handoffChannel}</p>
+                  {trackingLabel ? <p className="mt-1 text-xs text-muted-foreground">{trackingLabel}</p> : null}
+                </div>
+                <div className="rounded-2xl border border-border/60 bg-background/80 p-4 shadow-sm">
+                  <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Continuidad</p>
+                  <p className="mt-2 flex items-center gap-2 font-semibold text-foreground">
+                    <ArrowRightLeft className="h-4 w-4 text-primary" />
+                    {checkoutResult?.commercial_state?.supports_handoff ? 'Podés retomar por otro canal' : 'Sin handoff informado'}
+                  </p>
+                  {paymentReference ? <p className="mt-1 text-xs text-muted-foreground">Ref. {paymentReference}</p> : null}
+                </div>
+            </div>
+
+            {nextSteps.length > 0 ? (
+              <div className="mx-auto mb-8 w-full max-w-3xl rounded-2xl border border-border/60 bg-background/70 p-5 text-left shadow-sm">
+                <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                  <ListChecks className="h-4 w-4 text-primary" />
+                  Próximos pasos
+                </div>
+                <div className="mt-3 space-y-3">
+                  {nextSteps.map((step, index) => (
+                    <div key={`${step.title}-${index}`} className="rounded-xl border border-border/60 bg-muted/20 px-3 py-2">
+                      {step.title ? <p className="text-sm font-medium text-foreground">{step.title}</p> : null}
+                      {step.description ? <p className="mt-1 text-xs text-muted-foreground">{step.description}</p> : null}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            {(supportChannels?.whatsapp?.label || supportChannels?.phone?.label || supportChannels?.portal?.label || trackingPath) ? (
+              <div className="mx-auto mb-8 flex w-full max-w-3xl flex-wrap justify-center gap-3">
+                {supportChannels?.whatsapp?.enabled !== false && (supportChannels?.whatsapp?.url || supportChannels?.whatsapp?.phone) ? (
+                  <Button asChild variant="outline">
+                    <a href={supportChannels.whatsapp.url || `https://wa.me/${String(supportChannels.whatsapp.phone || '').replace(/\D+/g, '')}`} target="_blank" rel="noreferrer">
+                      <MessageCircle className="mr-2 h-4 w-4" />
+                      {supportChannels.whatsapp.label || 'WhatsApp'}
+                    </a>
+                  </Button>
+                ) : null}
+                {supportChannels?.phone?.enabled !== false && supportChannels?.phone?.phone ? (
+                  <Button asChild variant="outline">
+                    <a href={`tel:${supportChannels.phone.phone}`}>
+                      <Phone className="mr-2 h-4 w-4" />
+                      {supportChannels.phone.label || supportChannels.phone.phone}
+                    </a>
+                  </Button>
+                ) : null}
+                {(supportChannels?.portal?.url || trackingPath) ? (
+                  <Button asChild variant="outline">
+                    <a href={supportChannels?.portal?.url || trackingPath || '#'}>
+                      <ExternalLink className="mr-2 h-4 w-4" />
+                      {supportChannels?.portal?.label || 'Seguir pedido'}
+                    </a>
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
 
             <div className="flex flex-col gap-4 sm:flex-row justify-center items-center">
                 {!user ? (

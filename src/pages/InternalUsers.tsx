@@ -6,7 +6,10 @@ import type { Role } from '@/utils/roles';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
+import { PencilLine, Sparkles, UserPlus, Layers3, MapPinned, KeyRound, Users2 } from 'lucide-react';
 
 const isValidEmail = (value: string) => /.+@.+\..+/.test(value.trim());
 
@@ -20,6 +23,13 @@ interface InternalUser {
   // For display purposes, mapping back from EmployeeCategoryAccess
   categorias?: Category[] | null;
   roles?: string[]; // Array of roles if backend supports it
+  zonas?: string[] | null;
+  permisos?: string[] | null;
+  scope?: {
+    categorias?: string[];
+    zonas?: string[];
+    permisos?: string[];
+  } | null;
 }
 
 type Category = {
@@ -33,6 +43,79 @@ interface EmployeesResponse {
   employees: InternalUser[];
   ticket_categories: Category[];
 }
+
+interface CoverageItem {
+  label?: string;
+  name?: string;
+  categoria?: string;
+  zona?: string;
+  permiso?: string;
+  count?: number;
+  total?: number;
+  employees?: number;
+}
+
+interface EmployeeCoverageResponse {
+  categorias?: CoverageItem[];
+  zonas?: CoverageItem[];
+  permisos?: CoverageItem[];
+  items?: CoverageItem[];
+}
+
+
+const TeamStatCard = ({
+  label,
+  value,
+  helper,
+  icon: Icon,
+}: {
+  label: string;
+  value: string;
+  helper: string;
+  icon: React.ElementType;
+}) => (
+  <Card className="overflow-hidden border-border/60 bg-background/80 shadow-sm">
+    <CardContent className="relative p-4">
+      <div className="absolute -right-6 top-1 h-20 w-20 rounded-full bg-primary/5 blur-2xl" />
+      <div className="relative">
+        <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/15">
+          <Icon className="h-4 w-4" />
+        </div>
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
+        <p className="mt-2 text-2xl font-bold tracking-tight text-foreground">{value}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{helper}</p>
+      </div>
+    </CardContent>
+  </Card>
+);
+
+const CoverageColumn = ({
+  title,
+  items,
+  emptyLabel,
+}: {
+  title: string;
+  items: CoverageItem[];
+  emptyLabel: string;
+}) => (
+  <div className="rounded-2xl border border-border/60 bg-background/70 p-4 shadow-sm">
+    <div className="mb-3 flex items-center justify-between">
+      <p className="text-sm font-semibold text-foreground">{title}</p>
+      <Badge variant="outline" className="rounded-full px-2.5 py-0.5 text-xs">
+        {items.length}
+      </Badge>
+    </div>
+    <div className="space-y-2">
+      {items.slice(0, 5).map((item, index) => (
+        <div key={`${title}-${index}`} className="flex items-center justify-between rounded-xl border border-border/60 bg-muted/20 px-3 py-2 text-sm">
+          <span className="truncate pr-3">{item.categoria || item.zona || item.permiso || item.label || item.name || `${emptyLabel}_${index + 1}`}</span>
+          <Badge variant="secondary">{item.employees ?? item.count ?? item.total ?? 0}</Badge>
+        </div>
+      ))}
+      {!items.length ? <p className="text-sm text-muted-foreground">Sin datos disponibles.</p> : null}
+    </div>
+  </div>
+);
 
 const EMPLOYEES_API_BASE = '/api/empleados';
 
@@ -64,6 +147,8 @@ export default function InternalUsers() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [coverage, setCoverage] = useState<EmployeeCoverageResponse | null>(null);
+  const [lastCreatedEmployee, setLastCreatedEmployee] = useState<InternalUser | null>(null);
 
   // Form states
   const [nombre, setNombre] = useState('');
@@ -115,6 +200,11 @@ export default function InternalUsers() {
 
       setEmployees(list);
       setCategories(cats);
+      const coverageData = await apiFetch<EmployeeCoverageResponse>(
+        `/api/admin/tenants/${tenantSlug}/employees/coverage`,
+        { tenantSlug },
+      ).catch(() => null);
+      setCoverage(coverageData);
     } catch (err: any) {
       console.error(err);
       setError(getErrorMessage(err, 'Error al cargar empleados o categorías.'));
@@ -155,11 +245,20 @@ export default function InternalUsers() {
         categorias: selectedCategories,
       };
 
-      await apiFetch(EMPLOYEES_API_BASE, {
+      const createdResponse = await apiFetch<any>(EMPLOYEES_API_BASE, {
         method: 'POST',
         tenantSlug,
         body: payload,
       });
+
+      const createdEmployee =
+        createdResponse?.employee ||
+        createdResponse?.created_employee ||
+        createdResponse?.item ||
+        createdResponse?.data ||
+        null;
+
+      setLastCreatedEmployee(createdEmployee);
 
       toast.success("Empleado creado correctamente.");
       fetchData();
@@ -234,23 +333,100 @@ export default function InternalUsers() {
       }
   };
 
+  const coverageCategories = coverage?.categorias || [];
+  const coverageZones = coverage?.zonas || [];
+  const coveragePermissions = coverage?.permisos || [];
+  const coverageTotal = coverageCategories.length + coverageZones.length + coveragePermissions.length;
+
   if (loading) return <div className="p-4">Cargando...</div>;
   if (error) return <div className="p-4 text-destructive">{error}</div>;
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <div className="bg-muted/20 p-4 rounded-lg">
-          <h2 className="text-xl font-bold mb-2">Gestión de Empleados</h2>
-          <p className="text-sm text-muted-foreground">
-              Crea cuentas para tu equipo y asignales categorías de tickets específicas.
-          </p>
+    <div className="mx-auto max-w-5xl space-y-6 px-4 pb-8">
+      <div className="relative overflow-hidden rounded-[32px] border border-border/60 bg-gradient-to-br from-background via-primary/5 to-sky-500/10 p-6 shadow-sm">
+        <div className="absolute -right-10 top-0 h-40 w-40 rounded-full bg-primary/10 blur-3xl" />
+        <div className="absolute bottom-0 left-0 h-32 w-32 rounded-full bg-sky-500/10 blur-3xl" />
+        <div className="relative space-y-5">
+          <Badge variant="outline" className="w-fit border-primary/20 bg-background/80 px-3 py-1 text-primary">
+            <Sparkles className="mr-2 h-3.5 w-3.5" />
+            Team control center
+          </Badge>
+          <div>
+            <h2 className="text-3xl font-black tracking-tight text-foreground">Gestión de Empleados</h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+              Crea cuentas, asigna cobertura operativa y revisa rápidamente cómo está distribuido el equipo dentro del tenant.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Badge variant="outline" className="rounded-full px-3 py-1">{employees.length} empleados</Badge>
+            <Badge variant="outline" className="rounded-full px-3 py-1">{categories.length} categorías</Badge>
+            <Badge variant="outline" className="rounded-full px-3 py-1">{coverageTotal} señales de cobertura</Badge>
+          </div>
+        </div>
       </div>
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <TeamStatCard label="Equipo" value={employees.length.toLocaleString('es-AR')} helper="Usuarios internos activos en la vista actual" icon={Users2} />
+        <TeamStatCard label="Categorías" value={categories.length.toLocaleString('es-AR')} helper="Dominios/categorías disponibles para asignación" icon={Layers3} />
+        <TeamStatCard label="Zonas" value={coverageZones.length.toLocaleString('es-AR')} helper="Cobertura geográfica informada por backend" icon={MapPinned} />
+        <TeamStatCard label="Permisos" value={coveragePermissions.length.toLocaleString('es-AR')} helper="Permisos o alcances relevantes del equipo" icon={KeyRound} />
+      </div>
+
+      {(lastCreatedEmployee || coverage) && (
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
+          {lastCreatedEmployee ? (
+            <Card className="border-border/60 shadow-sm">
+              <CardHeader>
+                <CardTitle>Último empleado creado</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div>
+                  <p className="font-medium">{lastCreatedEmployee.nombre}</p>
+                  <p className="text-sm text-muted-foreground">{lastCreatedEmployee.email}</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {(lastCreatedEmployee.roles || [lastCreatedEmployee.rol]).filter(Boolean).map((role) => (
+                    <Badge key={role} variant="outline">{role}</Badge>
+                  ))}
+                  {(lastCreatedEmployee.scope?.categorias || []).map((categoria) => (
+                    <Badge key={`created-category-${categoria}`} variant="secondary">{categoria}</Badge>
+                  ))}
+                  {(lastCreatedEmployee.scope?.zonas || []).map((zona) => (
+                    <Badge key={`created-zone-${zona}`} variant="secondary">{zona}</Badge>
+                  ))}
+                  {(lastCreatedEmployee.scope?.permisos || []).map((permiso) => (
+                    <Badge key={`created-permission-${permiso}`} variant="secondary">{permiso}</Badge>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {coverage ? (
+            <Card className="overflow-hidden border-border/60 bg-background/85 shadow-sm">
+              <CardHeader className="border-b border-border/50 bg-gradient-to-r from-emerald-500/5 via-primary/5 to-transparent">
+                <CardTitle>Cobertura del equipo</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4 pt-6 md:grid-cols-3">
+                <CoverageColumn title="Categorías" items={coverageCategories} emptyLabel="categoria" />
+                <CoverageColumn title="Zonas" items={coverageZones} emptyLabel="zona" />
+                <CoverageColumn title="Permisos" items={coveragePermissions} emptyLabel="permiso" />
+              </CardContent>
+            </Card>
+          ) : null}
+        </div>
+      )}
 
       <Accordion type="single" collapsible className="w-full">
         <AccordionItem value="new-employee">
-          <AccordionTrigger>Registrar Nuevo Empleado</AccordionTrigger>
+          <AccordionTrigger className="rounded-2xl px-4 py-3 text-left hover:no-underline">
+            <span className="flex items-center gap-2">
+              <UserPlus className="h-4 w-4 text-primary" />
+              Registrar Nuevo Empleado
+            </span>
+          </AccordionTrigger>
           <AccordionContent>
-            <form onSubmit={handleCreate} className="space-y-4 border p-4 rounded-md">
+            <form onSubmit={handleCreate} className="space-y-4 rounded-2xl border border-border/60 bg-card p-4 shadow-sm">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                       <label className="text-sm font-medium">Nombre</label>
@@ -295,17 +471,23 @@ export default function InternalUsers() {
                   </div>
               </div>
 
-              <Button type="submit">Crear Empleado</Button>
+              <Button type="submit" className="w-full gap-2 rounded-xl sm:w-auto">
+                <UserPlus className="h-4 w-4" />
+                Crear Empleado
+              </Button>
             </form>
           </AccordionContent>
         </AccordionItem>
       </Accordion>
 
       {editingUser && (
-          <div className="border p-4 rounded-md shadow-sm bg-card text-card-foreground">
-              <div className="flex justify-between items-center mb-4">
-                  <h3 className="font-semibold text-lg">Editar Empleado: {editingUser.nombre}</h3>
-                  <Button variant="ghost" onClick={cancelEdit}>Cancelar</Button>
+          <div className="rounded-2xl border border-border/60 bg-card p-4 shadow-sm text-card-foreground">
+              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <h3 className="flex items-center gap-2 text-lg font-semibold">
+                    <PencilLine className="h-4 w-4 text-primary" />
+                    Editar Empleado: {editingUser.nombre}
+                  </h3>
+                  <Button variant="ghost" onClick={cancelEdit} className="w-full sm:w-auto">Cancelar</Button>
               </div>
               <form onSubmit={handleUpdate} className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -345,14 +527,22 @@ export default function InternalUsers() {
                           ))}
                       </div>
                   </div>
-                  <Button type="submit">Guardar Cambios</Button>
+                  <Button type="submit" className="w-full gap-2 rounded-xl sm:w-auto">
+                    <Sparkles className="h-4 w-4" />
+                    Guardar Cambios
+                  </Button>
               </form>
           </div>
       )}
 
-      <div className="rounded-md border">
-          <table className="w-full text-sm text-left">
-              <thead className="bg-muted text-muted-foreground">
+      <div className="overflow-hidden rounded-[28px] border border-border/60 bg-card shadow-sm">
+          <div className="border-b border-border/50 bg-gradient-to-r from-primary/5 via-sky-500/5 to-violet-500/5 px-5 py-4">
+            <h3 className="text-base font-semibold tracking-tight text-foreground">Directorio interno</h3>
+            <p className="mt-1 text-sm text-muted-foreground">Vista rápida de roles, categorías y alcances operativos cargados por el backend.</p>
+          </div>
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[720px] text-sm text-left">
+              <thead className="bg-muted/60 text-muted-foreground">
                   <tr>
                       <th className="p-3 font-medium">Nombre</th>
                       <th className="p-3 font-medium">Email</th>
@@ -372,6 +562,11 @@ export default function InternalUsers() {
                                       {r}
                                   </span>
                               ))}
+                              {emp.scope?.permisos?.map((permiso) => (
+                                  <span key={`${emp.id}-${permiso}`} className="inline-block bg-muted text-foreground px-2 py-0.5 rounded text-xs mr-1 mt-1">
+                                      {permiso}
+                                  </span>
+                              ))}
                           </td>
                           <td className="p-3">
                               {emp.categorias && emp.categorias.length > 0 ? (
@@ -385,9 +580,21 @@ export default function InternalUsers() {
                               ) : (
                                   <span className="text-muted-foreground text-xs italic">Ninguna</span>
                               )}
+                              {emp.scope?.zonas?.length ? (
+                                  <div className="mt-1 flex flex-wrap gap-1">
+                                      {emp.scope.zonas.map((zona) => (
+                                          <span key={`${emp.id}-zona-${zona}`} className="bg-muted text-foreground px-2 py-0.5 rounded text-xs">
+                                              {zona}
+                                          </span>
+                                      ))}
+                                  </div>
+                              ) : null}
                           </td>
                           <td className="p-3 text-right">
-                              <Button variant="ghost" size="sm" onClick={() => startEdit(emp)}>Editar</Button>
+                              <Button variant="ghost" size="sm" className="gap-2" onClick={() => startEdit(emp)}>
+                                <PencilLine className="h-4 w-4" />
+                                Editar
+                              </Button>
                           </td>
                       </tr>
                   ))}
@@ -398,6 +605,7 @@ export default function InternalUsers() {
                   )}
               </tbody>
           </table>
+          </div>
       </div>
     </div>
   );

@@ -3,7 +3,7 @@ import { useTenant } from '@/context/TenantContext';
 import { useUser } from '@/hooks/useUser';
 import { apiClient } from '@/api/client'; // Use the central client
 import { getDemoPortalContent } from '@/data/portalDemoContent';
-import { PortalContent } from '@/types/unified';
+import { PortalContent, PortalPremiumBundle } from '@/types/unified';
 import { mergePortalExperience } from '@/utils/portalExperience';
 
 export function usePortalContent() {
@@ -13,6 +13,7 @@ export function usePortalContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [isDemo, setIsDemo] = useState(false);
   const [error, setError] = useState<unknown>(null);
+  const [bundle, setBundle] = useState<PortalPremiumBundle | null>(null);
 
   const fetchContent = useCallback(async () => {
     if (!currentSlug) return;
@@ -23,13 +24,14 @@ export function usePortalContent() {
 
     try {
       const includeNetwork = true;
-      const [contentResponse, historyResponse, feedResponse, benefitsResponse, dashboardResponse, surveysResponse] = await Promise.allSettled([
+      const [contentResponse, historyResponse, feedResponse, benefitsResponse, dashboardResponse, surveysResponse, bundleResponse] = await Promise.allSettled([
         apiClient.getPortalContent(currentSlug),
         apiClient.getPortalHistory(currentSlug, includeNetwork),
         apiClient.getPortalNetworkFeed(currentSlug),
         apiClient.getPortalBenefits(currentSlug),
         apiClient.getPortalDashboard(currentSlug, includeNetwork),
         apiClient.getPortalSurveysHistory(currentSlug, includeNetwork),
+        apiClient.getPortalPremiumBundle(currentSlug),
       ]);
 
       if (contentResponse.status !== 'fulfilled') {
@@ -46,11 +48,13 @@ export function usePortalContent() {
       );
 
       setContent(merged);
+      setBundle(bundleResponse.status === 'fulfilled' ? bundleResponse.value : null);
     } catch (err: any) {
       console.warn('Failed to fetch portal content, falling back to demo', err);
       setIsDemo(true);
       setError(err);
       setContent(getDemoPortalContent());
+      setBundle(null);
     } finally {
       setIsLoading(false);
     }
@@ -64,6 +68,7 @@ export function usePortalContent() {
 
   return {
     content,
+    bundle,
     isLoading,
     isDemo,
     error,

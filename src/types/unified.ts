@@ -1,3 +1,19 @@
+export interface CustomerProfile {
+  name?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  contact_key?: string | null;
+  channel_group?: string | null;
+  whatsapp?: string | null;
+}
+
+export interface CommercialState {
+  stage?: string | null;
+  channel?: string | null;
+  supports_handoff?: boolean | null;
+  continuation_available?: boolean | null;
+}
+
 export interface Order {
   id: string | number;
   tenant_id?: string;
@@ -20,6 +36,22 @@ export interface Order {
   // External Refs
   externalId?: string;
   externalUrl?: string;
+  external_refs?: Record<string, string | number | null | undefined> | null;
+  source_model?: string | null;
+  market_order_id?: string | number | null;
+  order_id?: string | number | null;
+  preference_id?: string | null;
+  init_point?: string | null;
+  tipo?: string | null;
+  customer_profile?: CustomerProfile | null;
+  commercial_state?: CommercialState | null;
+  commercial_stage?: string | null;
+  contact?: CustomerProfile | null;
+  totals?: {
+    subtotal?: number | null;
+    total?: number | null;
+    currency?: string | null;
+  } | null;
 }
 
 export interface OrderItem {
@@ -148,6 +180,49 @@ export interface PortalLoyaltySummary {
   claimsFiled: number;
   transactions?: LoyaltyTransaction[];
   availableRewards?: LoyaltyReward[];
+}
+
+export interface PortalQuickAction {
+  id: string;
+  label: string;
+  description?: string;
+  href?: string;
+}
+
+export interface PortalModuleCard {
+  id: string;
+  title: string;
+  description?: string;
+  href?: string;
+  badge?: string;
+}
+
+export interface PortalBundleSummarySection {
+  items?: any[];
+  open_count?: number;
+  active_count?: number;
+  total_spent?: number;
+  available?: number;
+  history?: any[];
+  wallet?: Record<string, unknown> | null;
+  benefits?: any[];
+  redeems?: any[];
+  [key: string]: unknown;
+}
+
+export interface PortalPremiumBundle {
+  member?: Record<string, unknown> | null;
+  club?: Record<string, unknown> | null;
+  orders?: PortalBundleSummarySection | null;
+  claims?: PortalBundleSummarySection | null;
+  promotions?: PortalBundleSummarySection | null;
+  surveys?: PortalBundleSummarySection | null;
+  rewards?: PortalBundleSummarySection | null;
+  suggestions?: PortalBundleSummarySection | null;
+  history?: { timeline?: any[]; [key: string]: unknown } | null;
+  highlights?: Array<Record<string, unknown>> | null;
+  quick_actions?: Array<Record<string, unknown>> | null;
+  modules?: Array<Record<string, unknown>> | null;
 }
 
 export interface PortalContent {

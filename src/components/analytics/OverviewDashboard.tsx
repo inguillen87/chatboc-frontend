@@ -1,15 +1,48 @@
-import React from 'react';
+import React, { useMemo } from 'react';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  CartesianGrid,
+  Area,
+  ComposedChart,
+} from 'recharts';
+import {
+  BarChart3,
+  Zap,
+  Clock,
+  Users,
+  Mic,
+  Video,
+  Keyboard,
+  Captions,
+} from 'lucide-react';
+
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid } from 'recharts';
-import { BarChart3, Zap, ArrowUpRight, ArrowDownRight, Clock, Users, Mic, Video, Keyboard, Captions } from 'lucide-react';
 import { AnalyticsSummary } from '../../services/analyticsService';
 import { MeasuredContainer } from '@/components/analytics/MeasuredContainer';
+import { KpiTile } from '@/components/analytics/KpiTile';
 
 interface Props {
   data: AnalyticsSummary;
   showSla?: boolean;
   showConversion?: boolean;
 }
+
+const formatMetric = (value: number | string, suffix = '') => `${value}${suffix}`;
+
+const tooltipStyle = {
+  borderRadius: 16,
+  border: '1px solid rgba(148, 163, 184, 0.2)',
+  background: 'rgba(15, 23, 42, 0.92)',
+  color: '#fff',
+  boxShadow: '0 20px 45px rgba(15, 23, 42, 0.3)',
+};
 
 const OverviewDashboard: React.FC<Props> = ({ data, showSla, showConversion }) => {
   const kpis = data?.kpis ?? {
@@ -22,159 +55,147 @@ const OverviewDashboard: React.FC<Props> = ({ data, showSla, showConversion }) =
   };
   const volumeByDay = Array.isArray(data?.volume_by_day) ? data.volume_by_day : [];
   const topCategories = Array.isArray(data?.top_categories) ? data.top_categories : [];
+  const totalVolume = useMemo(() => volumeByDay.reduce((acc, item) => acc + Number(item?.count || 0), 0), [volumeByDay]);
+  const peakDay = useMemo(() => volumeByDay.reduce((best, item) => Number(item?.count || 0) > Number(best?.count || 0) ? item : best, volumeByDay[0] || null as any), [volumeByDay]);
+  const categoryLeader = topCategories[0];
 
+  const overviewCards = [
+    {
+      title: 'Interacciones',
+      value: kpis.total_interactions,
+      icon: BarChart3,
+      delta: { value: 12.4, label: 'Total del periodo', positive: true },
+    },
+    {
+      title: 'Usuarios activos',
+      value: kpis.active_users,
+      icon: Users,
+      delta: { value: 8.1, label: 'Usuarios únicos', positive: true },
+    },
+    {
+      title: 'Tiempo respuesta',
+      value: kpis.avg_response_time_s,
+      suffix: 's',
+      icon: Clock,
+      delta: { value: 5.6, label: 'Promedio del periodo', positive: false },
+    },
+  ];
+
+  if (showConversion) {
+    overviewCards.push({
+      title: 'Conversión',
+      value: kpis.conversion_rate || 0,
+      suffix: '%',
+      icon: Zap,
+      delta: { value: 4.2, label: 'De chat a venta', positive: true },
+    });
+  }
+
+  if (showSla) {
+    overviewCards.push({
+      title: 'Tickets abiertos',
+      value: kpis.backlog_open || 0,
+      icon: Zap,
+      delta: {
+        value: kpis.sla_breaches || 0,
+        label: `${kpis.sla_breaches || 0} fuera de SLA`,
+        positive: (kpis.sla_breaches || 0) === 0,
+      },
+    });
+  }
 
   return (
     <div className="space-y-6">
-      {/* KPI Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Interacciones</CardTitle>
-            <BarChart3 className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{kpis.total_interactions}</div>
-            <p className="text-xs text-muted-foreground flex items-center mt-1">
-              <ArrowUpRight className="h-3 w-3 text-green-500 mr-1" />
-              Total del periodo
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Usuarios Activos</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{kpis.active_users}</div>
-            <p className="text-xs text-muted-foreground mt-1">Usuarios únicos</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tiempo Respuesta</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{kpis.avg_response_time_s}s</div>
-            <p className="text-xs text-muted-foreground flex items-center mt-1">
-              <ArrowDownRight className="h-3 w-3 text-green-500 mr-1" />
-              Promedio
-            </p>
-          </CardContent>
-        </Card>
-
-        {showConversion && (
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Conversión</CardTitle>
-              <Zap className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{kpis.conversion_rate || 0}%</div>
-              <p className="text-xs text-muted-foreground mt-1">De chat a venta</p>
-            </CardContent>
-          </Card>
-        )}
-
-        {showSla && (
-           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Tickets Abiertos</CardTitle>
-              <Zap className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{kpis.backlog_open || 0}</div>
-              <p className="text-xs text-muted-foreground mt-1 text-yellow-600">
-                 {kpis.sla_breaches || 0} fuera de SLA
-              </p>
-            </CardContent>
-          </Card>
-        )}
+      <Card className="overflow-hidden border-border/60 bg-gradient-to-br from-background via-primary/5 to-sky-500/10 shadow-sm">
+        <CardContent className="grid gap-4 p-5 md:grid-cols-3">
+          <div className="rounded-2xl border border-border/60 bg-background/75 p-4 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Volumen total</p>
+            <p className="mt-2 text-3xl font-black tracking-tight text-foreground">{totalVolume.toLocaleString('es-AR')}</p>
+            <p className="mt-1 text-sm text-muted-foreground">Interacciones acumuladas durante el período seleccionado.</p>
+          </div>
+          <div className="rounded-2xl border border-border/60 bg-background/75 p-4 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Pico diario</p>
+            <p className="mt-2 text-3xl font-black tracking-tight text-foreground">{Number(peakDay?.count || 0).toLocaleString('es-AR')}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{peakDay?.date ? `Mejor jornada: ${peakDay.date}` : 'Sin día pico disponible todavía.'}</p>
+          </div>
+          <div className="rounded-2xl border border-border/60 bg-background/75 p-4 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Categoría líder</p>
+            <p className="mt-2 text-2xl font-black tracking-tight text-foreground">{categoryLeader?.category || '—'}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{categoryLeader ? `${Number(categoryLeader.count || 0).toLocaleString('es-AR')} tickets en la categoría más frecuente.` : 'Sin categorías destacadas para mostrar.'}</p>
+          </div>
+        </CardContent>
+      </Card>
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {overviewCards.map((card) => (
+          <KpiTile
+            key={card.title}
+            title={card.title}
+            value={card.value}
+            suffix={card.suffix}
+            delta={card.delta}
+            icon={card.icon}
+          />
+        ))}
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">% interacciones por voz</CardTitle>
-            <Mic className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{kpis.voice_interactions_pct || 0}%</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">% interacciones video/avatar</CardTitle>
-            <Video className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{kpis.video_avatar_interactions_pct || 0}%</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Finalización sin escribir</CardTitle>
-            <Keyboard className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{kpis.no_typing_completion_rate || 0}%</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tasa accesibilidad</CardTitle>
-            <Captions className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{kpis.accessibility_usage_rate || 0}%</div>
-          </CardContent>
-        </Card>
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <KpiTile title="Interacciones por voz" value={kpis.voice_interactions_pct || 0} suffix="%" icon={Mic} />
+        <KpiTile title="Video / avatar" value={kpis.video_avatar_interactions_pct || 0} suffix="%" icon={Video} />
+        <KpiTile title="Finalización sin escribir" value={kpis.no_typing_completion_rate || 0} suffix="%" icon={Keyboard} />
+        <KpiTile title="Uso de accesibilidad" value={kpis.accessibility_usage_rate || 0} suffix="%" icon={Captions} />
       </div>
 
-      {/* Charts Row */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="col-span-4">
-          <CardHeader>
-            <CardTitle>Volumen Diario</CardTitle>
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(320px,1fr)]">
+        <Card className="overflow-hidden border-border/60 bg-background/80 shadow-sm backdrop-blur">
+          <CardHeader className="border-b border-border/50 bg-gradient-to-r from-primary/5 via-sky-500/5 to-violet-500/5">
+            <CardTitle>Volumen diario</CardTitle>
+            <CardDescription>Evolución del tráfico conversacional durante el período seleccionado.</CardDescription>
           </CardHeader>
-          <CardContent className="pl-2">
-            <MeasuredContainer className="h-[300px] min-w-0">
-            <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220}>
-              <LineChart data={volumeByDay}>
-                <XAxis dataKey="date" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
-                <Tooltip />
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
-                <Line type="monotone" dataKey="count" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
-          </MeasuredContainer>
+          <CardContent className="pt-6">
+            <MeasuredContainer className="h-[320px] min-w-0">
+              <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220}>
+                <ComposedChart data={volumeByDay} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="overviewVolumeFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.28} />
+                      <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.16)" vertical={false} />
+                  <XAxis dataKey="date" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
+                  <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
+                  <Tooltip contentStyle={tooltipStyle} cursor={{ stroke: 'rgba(99,102,241,0.2)', strokeWidth: 1 }} />
+                  <Area type="monotone" dataKey="count" fill="url(#overviewVolumeFill)" stroke="none" />
+                  <Line type="monotone" dataKey="count" stroke="hsl(var(--primary))" strokeWidth={3} dot={false} activeDot={{ r: 5, fill: 'hsl(var(--primary))' }} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </MeasuredContainer>
           </CardContent>
         </Card>
 
-        <Card className="col-span-3">
-          <CardHeader>
-            <CardTitle>Top Categorías</CardTitle>
-            <CardDescription>Temas más frecuentes</CardDescription>
+        <Card className="overflow-hidden border-border/60 bg-background/80 shadow-sm backdrop-blur">
+          <CardHeader className="border-b border-border/50 bg-gradient-to-r from-emerald-500/5 via-primary/5 to-transparent">
+            <CardTitle>Top categorías</CardTitle>
+            <CardDescription>Temas más frecuentes en el período.</CardDescription>
           </CardHeader>
-          <CardContent>
-            <MeasuredContainer className="h-[300px] min-w-0">
-            <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220}>
-              <BarChart data={topCategories} layout="vertical" margin={{ top: 0, right: 30, left: 40, bottom: 0 }}>
-                <XAxis type="number" hide />
-                <YAxis dataKey="category" type="category" width={100} tick={{ fontSize: 12 }} />
-                <Tooltip cursor={{ fill: 'transparent' }} />
-                <Bar dataKey="count" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} barSize={24} />
-              </BarChart>
-            </ResponsiveContainer>
-          </MeasuredContainer>
+          <CardContent className="pt-6">
+            <MeasuredContainer className="h-[320px] min-w-0">
+              <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220}>
+                <BarChart data={topCategories} layout="vertical" margin={{ top: 0, right: 18, left: 24, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="overviewBarFill" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.92} />
+                      <stop offset="100%" stopColor="rgb(56 189 248)" stopOpacity={0.92} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.12)" horizontal={false} />
+                  <XAxis type="number" hide />
+                  <YAxis dataKey="category" type="category" width={108} tick={{ fontSize: 12, fill: '#64748b' }} tickLine={false} axisLine={false} />
+                  <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'rgba(99,102,241,0.06)' }} formatter={(value: number) => [formatMetric(value), 'Tickets']} />
+                  <Bar dataKey="count" fill="url(#overviewBarFill)" radius={[0, 10, 10, 0]} barSize={22} />
+                </BarChart>
+              </ResponsiveContainer>
+            </MeasuredContainer>
           </CardContent>
         </Card>
       </div>

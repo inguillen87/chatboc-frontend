@@ -1,5 +1,5 @@
 import { apiFetch } from '@/utils/api';
-import { Order, Cart, Ticket, PortalContent, IntegrationStatus, PortalLoyaltySummary } from '@/types/unified';
+import { Order, Cart, Ticket, PortalContent, IntegrationStatus, PortalLoyaltySummary, PortalPremiumBundle } from '@/types/unified';
 import { Tenant, CreateTenantDTO, UpdateTenantDTO } from '@/types/superAdmin';
 import { WhatsappExternalNumberPayload, WhatsappNumberCreatePayload, WhatsappNumberInventoryItem, WhatsappNumberStatus } from '@/types/whatsapp';
 import { TenantCatalog } from '@/types/catalog';
@@ -51,6 +51,14 @@ export const apiClient = {
   getPortalDashboard: async (tenantSlug: string, includeNetwork = false): Promise<any> => {
     const suffix = includeNetwork ? '?include_network=true' : '';
     return apiFetch<any>(`/api/v1/portal/${tenantSlug}/dashboard${suffix}`, { tenantSlug });
+  },
+
+  getPortalPremiumBundle: async (tenantSlug: string): Promise<PortalPremiumBundle> => {
+    try {
+      return await apiFetch<PortalPremiumBundle>(`/api/v1/portal/${tenantSlug}/premium-bundle`, { tenantSlug });
+    } catch (error) {
+      return apiFetch<PortalPremiumBundle>(`/api/v1/portal/${tenantSlug}/dashboard-bundle`, { tenantSlug });
+    }
   },
 
   getPortalNetworkFeed: async (tenantSlug: string): Promise<any> => {

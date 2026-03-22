@@ -8,7 +8,7 @@ import React, {
   type ReactNode,
 } from 'react';
 
-import type { MarketCartItem, MarketCartResponse } from '@/types/market';
+import type { MarketCartItem, MarketCartResponse, MarketCommercialState, MarketCustomerProfile } from '@/types/market';
 import { addMarketItem, fetchMarketCart } from '@/api/market';
 
 interface MarketCartContextValue {
@@ -17,6 +17,8 @@ interface MarketCartContextValue {
   totalPoints: number | null;
   isLoading: boolean;
   error: string | null;
+  customerProfile: MarketCustomerProfile | null;
+  commercialState: MarketCommercialState | null;
   refreshCart: () => Promise<void>;
   addItem: (productId: string, quantity?: number) => Promise<void>;
 }
@@ -56,12 +58,16 @@ export function MarketCartProvider({ tenantSlug, children }: ProviderProps) {
   const [totalPoints, setTotalPoints] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [customerProfile, setCustomerProfile] = useState<MarketCustomerProfile | null>(null);
+  const [commercialState, setCommercialState] = useState<MarketCommercialState | null>(null);
 
   const refreshCart = useCallback(async () => {
     if (!tenantSlug) {
       setItems([]);
       setTotalAmount(null);
       setTotalPoints(null);
+      setCustomerProfile(null);
+      setCommercialState(null);
       return;
     }
 
@@ -73,6 +79,8 @@ export function MarketCartProvider({ tenantSlug, children }: ProviderProps) {
       setItems(resolvedItems);
       setTotalAmount(response?.totalAmount ?? null);
       setTotalPoints(response?.totalPoints ?? null);
+      setCustomerProfile(response?.customer_profile ?? null);
+      setCommercialState(response?.commercial_state ?? null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo cargar el carrito.');
     } finally {
@@ -91,6 +99,8 @@ export function MarketCartProvider({ tenantSlug, children }: ProviderProps) {
         setItems(resolvedItems);
         setTotalAmount(response?.totalAmount ?? null);
         setTotalPoints(response?.totalPoints ?? null);
+        setCustomerProfile(response?.customer_profile ?? null);
+        setCommercialState(response?.commercial_state ?? null);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'No se pudo agregar el producto.');
       } finally {
@@ -105,8 +115,8 @@ export function MarketCartProvider({ tenantSlug, children }: ProviderProps) {
   }, [refreshCart]);
 
   const value = useMemo<MarketCartContextValue>(
-    () => ({ items, totalAmount, totalPoints, isLoading, error, refreshCart, addItem }),
-    [items, totalAmount, totalPoints, isLoading, error, refreshCart, addItem],
+    () => ({ items, totalAmount, totalPoints, isLoading, error, customerProfile, commercialState, refreshCart, addItem }),
+    [items, totalAmount, totalPoints, isLoading, error, customerProfile, commercialState, refreshCart, addItem],
   );
 
   return <MarketCartContext.Provider value={value}>{children}</MarketCartContext.Provider>;

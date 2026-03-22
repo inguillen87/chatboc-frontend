@@ -26,6 +26,7 @@ import UserAvatarAnimated from "./UserAvatarAnimated";
 import { Badge } from "@/components/ui/badge";
 import InteractiveMenu from "./InteractiveMenu";
 import CatalogShareCard from "./CatalogShareCard";
+import ConfirmationCard from "./ConfirmationCard";
 import { extractSmartHint } from "@/utils/smartHints";
 import ProductCard from "@/components/product/ProductCard";
 import { trackFrontendEvent } from '@/utils/frontendTelemetry';
@@ -671,6 +672,7 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
   const showStructuredContent = !!(message.structuredContent && message.structuredContent.length > 0);
   const showMenuSections = !!((message.menu_sections && message.menu_sections.length > 0) || message.interactive_list);
   const showPosts = !!(message.posts && message.posts.length > 0);
+  const showConfirmationCard = Boolean(message.confirmationCard);
   const showProductCards = !!((message.data?.cart_summary || message.data?.catalogo) && Array.isArray(message.data?.cart_summary || message.data?.catalogo));
   const isCatalogShare =
     message.messageType === 'catalog_share' ||
@@ -774,7 +776,7 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
           )}
 
           {/* Prioridad al texto si no hay otros contenidos especiales */}
-          {!showAttachmentOrMap && !showStructuredContent && !audioSrc && !showProductCards && !isCatalogShare && textAndListBlock}
+          {!showAttachmentOrMap && !showStructuredContent && !audioSrc && !showProductCards && !isCatalogShare && !showConfirmationCard && textAndListBlock}
 
           {/* Mostrar adjunto o mapa (no audio) */}
           {showAttachmentOrMap && (
@@ -817,14 +819,20 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
             <>
                 {/* Intro text if present */}
                 {textAndListBlock && !showAttachmentOrMap && !audioSrc && !showStructuredContent && textAndListBlock}
-                <InteractiveMenu
-                    sections={message.menu_sections}
-                    config={message.interactive_list}
-                    onSelect={(item) => onButtonClick({
-                        text: item.title,
-                        action: 'interactive_list_reply',
-                        payload: { id: item.id }
-                    })}
+	                <InteractiveMenu
+	                    sections={message.menu_sections}
+	                    config={message.interactive_list}
+                      isDemoSelector={((message.data as any)?.fuente || (message.data as any)?.source) === 'demo_selector'}
+	                    onSelect={(item) => {
+	                        const sourceName = (message.data as any)?.fuente || (message.data as any)?.source;
+	                        const isDemoSelector = sourceName === 'demo_selector';
+                        onButtonClick({
+                            text: item.title,
+                            action: isDemoSelector ? item.id : 'interactive_list_reply',
+                            action_id: item.id,
+                            payload: isDemoSelector ? { demo_key: item.id.split(':')[1] || item.id } : { id: item.id }
+                        });
+                    }}
                 />
             </>
           )}
@@ -840,6 +848,18 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
                 downloadUrl={catalogSharePayload?.download_url ?? catalogSharePayload?.downloadUrl}
                 viewLabel={catalogSharePayload?.view_label ?? catalogSharePayload?.viewLabel}
                 downloadLabel={catalogSharePayload?.download_label ?? catalogSharePayload?.downloadLabel}
+              />
+            </>
+          )}
+
+          {showConfirmationCard && (
+            <>
+              {textAndListBlock}
+              <ConfirmationCard
+                card={message.confirmationCard!}
+                buttons={message.categorias?.length ? [] : combinedButtons}
+                onButtonClick={onButtonClick}
+                onInternalAction={onInternalAction}
               />
             </>
           )}
@@ -909,7 +929,6 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
 
           {isCommercialCatalogResponse && (
             <div className="mt-2 space-y-2 rounded-lg border border-primary/20 bg-primary/5 p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-primary">Resumen</p>
               <p className="text-sm">{commercialSummary}</p>
               {highlightedProducts.length > 0 ? (
                 <div className="space-y-2">
@@ -921,24 +940,17 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
                   ))}
                 </div>
               ) : null}
-              <div className="flex flex-wrap gap-2">
-                <button className="rounded border px-2 py-1 text-xs" onClick={() => onButtonClick({ text: 'Pedir presupuesto', action: 'pedir_presupuesto_pyme', action_id: 'pedir_presupuesto_pyme', source: 'button' })}>Pedir presupuesto</button>
-                <button className="rounded border px-2 py-1 text-xs" onClick={() => onButtonClick({ text: 'Hablar con asesor', action: 'hablar_con_agente_pyme_catalogo', action_id: 'hablar_con_agente_pyme_catalogo', source: 'button' })}>Hablar con asesor</button>
-                <button className="rounded border px-2 py-1 text-xs" onClick={() => onButtonClick({ text: 'Buscar otra opción', action: 'ver_catalogo_pyme_buscar_otra', action_id: 'ver_catalogo_pyme_buscar_otra', source: 'button' })}>Buscar otra opción</button>
-              </div>
             </div>
           )}
 
 
           {criticalConfirmationData ? (
             <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-amber-900">
-              <p className="text-sm font-semibold">Confirmemos antes de continuar</p>
-              <p className="mt-1 text-xs">{criticalConfirmationData?.resumen || criticalConfirmationData?.summary || 'Revisá categoría, ubicación y contacto antes de ejecutar la acción final.'}</p>
-              <p className="mt-1 text-[11px] font-medium">La acción final se ejecuta tras confirmación explícita.</p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                <button className="rounded border border-amber-500 bg-amber-100 px-2 py-1 text-xs" onClick={() => onButtonClick({ text: 'Confirmar', action: 'confirmar_reclamo', action_id: 'confirmar_reclamo', source: 'button' })}>Confirmar</button>
-                <button className="rounded border border-amber-400 bg-white px-2 py-1 text-xs" onClick={() => onButtonClick({ text: 'Corregir', action: 'corregir_datos_confirmacion', action_id: 'corregir_datos_confirmacion', source: 'button' })}>Corregir</button>
-              </div>
+              {criticalConfirmationData?.resumen || criticalConfirmationData?.summary ? (
+                <p className="text-xs">
+                  {criticalConfirmationData?.resumen || criticalConfirmationData?.summary}
+                </p>
+              ) : null}
             </div>
           ) : null}
 
@@ -960,7 +972,7 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
                 />
               )}
             </>
-          ) : isBot && combinedButtons.length > 0 ? (
+          ) : isBot && combinedButtons.length > 0 && !showConfirmationCard ? (
             <ChatButtons
               botones={combinedButtons}
               onButtonClick={onButtonClick}

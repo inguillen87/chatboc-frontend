@@ -8,6 +8,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import ProductCard from '@/components/market/ProductCard';
 import CartSummary from '@/components/market/CartSummary';
 import CheckoutDialog from '@/components/market/CheckoutDialog';
+import CommercialStateCard from '@/components/market/CommercialStateCard';
 import {
   addMarketItem,
   clearMarketCart,
@@ -168,7 +169,14 @@ export default function MarketCartPage() {
     onSuccess: (response, variables) => {
       saveMarketContact(tenantSlug, variables);
       setContact(variables);
-      setConfirmation(response?.message ?? 'Pedido registrado. Te contactaremos a la brevedad.');
+      const resolvedMarketOrderId = response?.market_order_id ?? response?.orderId ?? response?.order_id;
+      const resolvedPreference = response?.preference_id ?? response?.preferenceId;
+      const resolvedStage = response?.commercial_state?.stage ?? response?.estado ?? response?.status;
+      const confirmationParts = [response?.message ?? 'Pedido registrado correctamente.'];
+      if (resolvedMarketOrderId) confirmationParts.push(`Orden operacional #${resolvedMarketOrderId}.`);
+      if (resolvedStage) confirmationParts.push(`Estado: ${resolvedStage}.`);
+      if (resolvedPreference) confirmationParts.push(`Referencia de pago: ${resolvedPreference}.`);
+      setConfirmation(confirmationParts.join(' '));
       queryClient.invalidateQueries({ queryKey: ['marketCart', tenantSlug] });
     },
     onError: () => {
@@ -270,6 +278,12 @@ export default function MarketCartPage() {
   const isDemoCatalog = Boolean(catalogData?.isDemo || (!catalogQuery.data && catalogQuery.isError));
   const canCopy = Boolean(shareUrl && navigator?.clipboard);
   const canShareWhatsApp = Boolean(shareMessage);
+  const cartCustomerProfile = cartQuery.data?.customer_profile ?? null;
+  const cartCommercialState = cartQuery.data?.commercial_state ?? null;
+  const cartContinuity = cartQuery.data?.continuity ?? null;
+  const cartSuggestedActions = cartQuery.data?.suggested_actions ?? null;
+  const cartRecommendations = cartQuery.data?.recommendations ?? null;
+  const cartCheckoutPreview = cartQuery.data?.checkout_preview ?? null;
 
   const {
     averageRating,
@@ -578,6 +592,14 @@ export default function MarketCartPage() {
           </div>
         </section>
 
+
+        {cartCommercialState || cartCustomerProfile ? (
+          <CommercialStateCard
+            customerProfile={cartCustomerProfile}
+            commercialState={cartCommercialState}
+          />
+        ) : null}
+
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {sectionsWithItems.map((section) => (
             <div key={section.title} className="rounded-2xl border bg-white/80 p-4 shadow-sm">
@@ -709,6 +731,8 @@ export default function MarketCartPage() {
               onRemoveItem={(productId) => removeMutation.mutate(productId)}
               onClearCart={() => clearMutation.mutate()}
               isUpdating={isUpdatingCart}
+              customerProfile={cartCustomerProfile}
+              commercialState={cartCommercialState}
             />
 
             {cartServerError ? (

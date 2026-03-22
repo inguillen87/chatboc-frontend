@@ -18,6 +18,9 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
 const getInitials = (name: string) => {
     return name ? name.split(' ').map(n => n[0]).join('').toUpperCase() : '??';
   };
+  const unreadViewers = Number(ticket.collaboration_state?.unread_viewer_count || 0);
+  const activeViewers = Number(ticket.collaboration_state?.active_viewers_count || 0);
+  const hasUnread = ticket.hasUnreadMessages || unreadViewers > 0;
 
   const { timezone, locale } = useDateSettings();
   const createdDate = shiftDateByHours(ticket.fecha, -3);
@@ -37,12 +40,14 @@ const getInitials = (name: string) => {
       className={cn(
         'p-3 rounded-lg border cursor-pointer transition-colors relative',
         isSelected ? 'bg-primary/10 border-primary' : 'bg-background hover:bg-muted/50',
-        ticket.hasUnreadMessages && !isSelected && 'border-primary/50'
+        hasUnread && !isSelected && 'border-primary/50'
       )}
       onClick={onClick}
     >
-      {ticket.hasUnreadMessages && !isSelected && (
-        <span className="absolute top-2 right-2 h-3 w-3 rounded-full bg-primary" />
+      {hasUnread && !isSelected && (
+        <span className="absolute top-2 right-2 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+          {unreadViewers > 0 ? unreadViewers : '•'}
+        </span>
       )}
       <div className="flex items-start justify-between mb-1">
         <div className="flex items-center gap-3">
@@ -59,6 +64,11 @@ const getInitials = (name: string) => {
         </div>
         <div className="flex flex-col items-end gap-2">
           <span className="text-xs text-muted-foreground">{formattedTime}</span>
+          {activeViewers > 0 ? (
+            <Badge variant="secondary" className="text-[10px]">
+              {activeViewers} viendo
+            </Badge>
+          ) : null}
           {(() => {
             const normalizedStatus = normalizeTicketStatus(ticket.estado);
             const statusLabel = formatTicketStatusLabel(ticket.estado);

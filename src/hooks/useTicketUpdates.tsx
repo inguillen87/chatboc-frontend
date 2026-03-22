@@ -1,17 +1,20 @@
 import { useEffect, useRef } from 'react';
 import { toast } from '@/components/ui/use-toast';
 import { useSocket } from '@/context/SocketContext';
+import useTicketRealtime from '@/hooks/useTicketRealtime';
 import { safeOn } from '@/utils/safeOn';
 
 interface UseTicketUpdatesOptions {
   onNewTicket?: (data: any) => void;
   onNewComment?: (data: any) => void;
+  onUnreadChanged?: (data: any) => void;
 }
 
 export default function useTicketUpdates(options: UseTicketUpdatesOptions = {}) {
-  const { onNewTicket, onNewComment } = options;
+  const { onNewTicket, onNewComment, onUnreadChanged } = options;
   const newTicketRef = useRef<UseTicketUpdatesOptions['onNewTicket']>(onNewTicket);
   const newCommentRef = useRef<UseTicketUpdatesOptions['onNewComment']>(onNewComment);
+  const unreadChangedRef = useRef<UseTicketUpdatesOptions['onUnreadChanged']>(onUnreadChanged);
 
   const { socket } = useSocket();
 
@@ -23,6 +26,21 @@ export default function useTicketUpdates(options: UseTicketUpdatesOptions = {}) 
   useEffect(() => {
     newCommentRef.current = onNewComment;
   }, [onNewComment]);
+
+  useEffect(() => {
+    unreadChangedRef.current = onUnreadChanged;
+  }, [onUnreadChanged]);
+
+  useTicketRealtime({
+    onRawEvent: (eventName, data) => {
+      if (eventName === 'ticket.unread.changed') {
+        unreadChangedRef.current?.(data);
+      }
+      if (eventName === 'conversation.message.created' || eventName === 'legacy.new_chat_message') {
+        newCommentRef.current?.(data);
+      }
+    },
+  });
 
   useEffect(() => {
     if (!socket) return;
@@ -45,6 +63,10 @@ export default function useTicketUpdates(options: UseTicketUpdatesOptions = {}) 
         title: `Nuevo Comentario en Ticket #${data.ticketId}`,
         description: data.comment.comentario,
       });
+    };
+
+    const handleUnreadChanged = (data: any) => {
+      unreadChangedRef.current?.(data);
     };
 
     safeOn(socket, 'new_ticket', handleNewTicket);

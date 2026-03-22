@@ -6,9 +6,10 @@ import { Order } from '@/types/unified';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Loader2, Package, Truck, CheckCircle, XCircle, ArrowLeft, Mail, Phone, User } from 'lucide-react';
+import { ArrowLeft, ArrowRightLeft, Loader2, Package, Truck, CheckCircle, XCircle, Mail, Phone, User } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatCurrency } from '@/utils/currency';
+import { getCommercialStageLabel, getCommercialStageTone, getCommercialToneClassName, normalizeChannelLabel } from '@/utils/orderCommercial';
 
 const STATUS_MAP: Record<string, { label: string; color: string; icon: any }> = {
   nuevo: { label: 'Nuevo', color: 'bg-blue-100 text-blue-800', icon: Package },
@@ -102,6 +103,11 @@ export default function AdminOrderDetailPage() {
           <Badge className={STATUS_MAP[order.status]?.color || 'bg-gray-100'}>
               {STATUS_MAP[order.status]?.label || order.status}
           </Badge>
+          {getCommercialStageLabel((order as any).commercial_stage || (order as any).commercial_state?.stage) ? (
+            <Badge variant="outline" className={getCommercialToneClassName(getCommercialStageTone((order as any).commercial_stage || (order as any).commercial_state?.stage))}>
+              {getCommercialStageLabel((order as any).commercial_stage || (order as any).commercial_state?.stage)}
+            </Badge>
+          ) : null}
       </div>
 
       <div className="grid md:grid-cols-3 gap-6">
@@ -152,18 +158,45 @@ export default function AdminOrderDetailPage() {
                   <CardContent className="space-y-3">
                       <div className="flex items-center gap-2">
                           <User className="h-4 w-4 text-muted-foreground" />
-                          <span className="font-medium">{(order as any).contact_name || (order as any).customerName || 'Cliente Final'}</span>
+                          <span className="font-medium">{(order as any).customer_profile?.name || (order as any).contact_name || (order as any).customerName || 'Cliente Final'}</span>
                       </div>
                       <div className="flex items-center gap-2 text-sm">
                           <Mail className="h-4 w-4 text-muted-foreground" />
-                          <span>{(order as any).contact_email || (order as any).customerEmail || '-'}</span>
+                          <span>{(order as any).customer_profile?.email || (order as any).contact_email || (order as any).customerEmail || '-'}</span>
                       </div>
                       <div className="flex items-center gap-2 text-sm">
                           <Phone className="h-4 w-4 text-muted-foreground" />
-                          <span>{(order as any).contact_phone || (order as any).customerPhone || '-'}</span>
+                          <span>{(order as any).customer_profile?.phone || (order as any).contact_phone || (order as any).customerPhone || '-'}</span>
                       </div>
+                      {((order as any).customer_profile?.contact_key || (order as any).customer_profile?.channel_group) ? (
+                        <div className="flex flex-wrap gap-2">
+                          {(order as any).customer_profile?.contact_key ? <Badge variant="outline">{(order as any).customer_profile.contact_key}</Badge> : null}
+                          {(order as any).customer_profile?.channel_group ? <Badge variant="outline">{normalizeChannelLabel((order as any).customer_profile.channel_group)}</Badge> : null}
+                        </div>
+                      ) : null}
                   </CardContent>
               </Card>
+
+              {((order as any).commercial_state || (order as any).market_order_id || (order as any).source_model) ? (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Contexto comercial</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3 text-sm">
+                    {getCommercialStageLabel((order as any).commercial_stage || (order as any).commercial_state?.stage) ? (
+                      <Badge variant="outline" className={getCommercialToneClassName(getCommercialStageTone((order as any).commercial_stage || (order as any).commercial_state?.stage))}>
+                        {getCommercialStageLabel((order as any).commercial_stage || (order as any).commercial_state?.stage)}
+                      </Badge>
+                    ) : null}
+                    <p>Canal: {normalizeChannelLabel((order as any).commercial_state?.channel || order.channel || null)}</p>
+                    {(order as any).market_order_id ? <p>Market order: #{(order as any).market_order_id}</p> : null}
+                    {(order as any).source_model ? <p>Modelo fuente: {(order as any).source_model}</p> : null}
+                    {(order as any).commercial_state?.supports_handoff ? (
+                      <p className="flex items-center gap-2 text-emerald-700"><ArrowRightLeft className="h-4 w-4" /> Handoff omnicanal disponible</p>
+                    ) : null}
+                  </CardContent>
+                </Card>
+              ) : null}
 
               <Card>
                   <CardHeader>
