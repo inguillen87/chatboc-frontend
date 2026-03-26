@@ -2,7 +2,6 @@
 
 import React, { Suspense, useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useDarkMode } from "@/hooks/useDarkMode";
-import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
 import { cn } from "@/lib/utils";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
@@ -129,10 +128,10 @@ function ChatWidgetInner({
   initialRubro,
   openWidth = "480px",
   openHeight = "750px",
-  closedWidth = "100px",
-  closedHeight = "100px",
+  closedWidth = "64px",
+  closedHeight = "64px",
   tipoChat,
-  initialPosition = { bottom: 32, right: 32 },
+  initialPosition = { bottom: 24, right: 24 },
   ctaMessage,
   customLauncherLogoUrl,
   logoAnimation,
@@ -147,6 +146,14 @@ function ChatWidgetInner({
   borderRadius,
   fontFamily,
 }: ChatWidgetProps) {
+  const CHATBOC_WIDGET_ANIMATED =
+    "/chatboc_frontend_pack/branding/chatboc/widget/chatboc-widget-launcher-mini-animated.svg";
+  const CHATBOC_WIDGET_STATIC =
+    "/chatboc_frontend_pack/branding/chatboc/widget/chatboc-widget-launcher-mini-static.svg";
+  const CHATBOC_WIDGET_PNG_FALLBACK =
+    "/chatboc_frontend_pack/branding/chatboc/widget/chatboc-widget-launcher-mini-animated_96.png";
+  const CHATBOC_WIDGET_FALLBACK =
+    "/chatboc_frontend_pack/branding/chatboc/navbar/chatboc-navbar-mark-circle.svg";
   const DEFAULT_WIDGET_UX = {
     preset: 'premium',
     motionLevel: 'balanced',
@@ -243,6 +250,8 @@ function ChatWidgetInner({
   const [isMobileView, setIsMobileView] = useState(
     typeof window !== "undefined" && window.innerWidth < 640
   );
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  const [launcherImageSrc, setLauncherImageSrc] = useState(CHATBOC_WIDGET_ANIMATED);
 
   const { tenant, currentSlug } = useTenant();
   const storedTenantSlug = useMemo(
@@ -1038,22 +1047,46 @@ function ChatWidgetInner({
 
   const finalClosedWidth = closedWidth;
   const finalClosedHeight = closedHeight;
-  const logoSizeFactor = 0.62;
-  const closedWidthPx = parseInt(finalClosedWidth.replace('px', ''), 10);
-  const calculatedLogoSize = Math.floor(closedWidthPx * logoSizeFactor);
+  const isTabletView = viewport.width >= 640 && viewport.width < 1024;
+  const closedOffsetBottom = isMobileView ? 16 : isTabletView ? 20 : initialPosition.bottom;
+  const closedOffsetRight = isMobileView ? 16 : isTabletView ? 20 : initialPosition.right;
+  const launcherSize = isMobileView ? "56px" : isTabletView ? "60px" : finalClosedWidth;
+  const launcherHeight = isMobileView ? "56px" : isTabletView ? "60px" : finalClosedHeight;
 
   const commonPanelStyles = cn("chat-root bg-card border shadow-lg", "flex flex-col overflow-hidden");
   const commonButtonStyles = cn(
-    "rounded-full flex items-center justify-center",
-    "shadow-lg"
+    "chatboc-toggle-btn rounded-full flex items-center justify-center",
+    "transition-transform duration-200 ease-out",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
   );
+
+  const launcherAssetSrc = prefersReducedMotion
+    ? CHATBOC_WIDGET_STATIC
+    : CHATBOC_WIDGET_ANIMATED;
+
+  useEffect(() => {
+    setLauncherImageSrc(launcherAssetSrc);
+  }, [launcherAssetSrc]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const syncPreference = () => setPrefersReducedMotion(mediaQuery.matches);
+    syncPreference();
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", syncPreference);
+      return () => mediaQuery.removeEventListener("change", syncPreference);
+    }
+    mediaQuery.addListener(syncPreference);
+    return () => mediaQuery.removeListener(syncPreference);
+  }, []);
 
   const sendStateMessageToParent = useCallback(
     (open: boolean) => {
       if (mode === "iframe" && mode !== "preview" && typeof window !== "undefined" && window.parent !== window && widgetId) {
         const dims = open
           ? { width: openWidth, height: openHeight }
-          : { width: finalClosedWidth, height: finalClosedHeight };
+          : { width: launcherSize, height: launcherHeight };
 
         window.parent.postMessage(
           { type: "chatboc-state-change", widgetId, dimensions: dims, isOpen: open },
@@ -1061,7 +1094,7 @@ function ChatWidgetInner({
         );
       }
     },
-    [mode, widgetId, openWidth, openHeight, finalClosedWidth, finalClosedHeight]
+    [mode, widgetId, openWidth, openHeight, launcherSize, launcherHeight]
   );
 
   useEffect(() => {
@@ -1433,10 +1466,10 @@ function ChatWidgetInner({
   const containerStyle: React.CSSProperties = useMemo(() => {
     if (mode === "standalone") {
       const baseStyle = {
-        bottom: `${initialPosition.bottom}px`,
-        right: `${initialPosition.right}px`,
-        width: isOpen ? finalOpenWidth : finalClosedWidth,
-        height: isOpen ? finalOpenHeight : finalClosedHeight,
+        right: `${closedOffsetRight}px`,
+        bottom: `${closedOffsetBottom}px`,
+        width: isOpen ? finalOpenWidth : launcherSize,
+        height: isOpen ? finalOpenHeight : launcherHeight,
         zIndex: 999999,
         transition: 'width 0.3s ease, height 0.3s ease, bottom 0.3s ease, right 0.3s ease',
         // FORCE NONE ON MOBILE TO PREVENT BACKEND INJECTION ISSUES
@@ -1460,7 +1493,7 @@ function ChatWidgetInner({
       };
     }
     return {};
-  }, [mode, initialPosition.bottom, initialPosition.right, isOpen, finalOpenWidth, finalOpenHeight, finalClosedWidth, finalClosedHeight, isMobileView]);
+  }, [mode, isOpen, finalOpenWidth, finalOpenHeight, launcherSize, launcherHeight, isMobileView, closedOffsetBottom, closedOffsetRight]);
 
   const panelAnimation = {
     initial: { opacity: 0, scale: 0.95, y: 20, originY: 1 },
@@ -1507,13 +1540,6 @@ function ChatWidgetInner({
     exit: { scale: 0, opacity: 0 },
     transition: { type: "spring", stiffness: 300, damping: 20 / motionScale },
   };
-
-  const iconAnimation = {
-    open: { rotate: 180, scale: 0.8 },
-    closed: { rotate: 0, scale: 1 },
-  };
-
-  const openSpring = { type: "spring", stiffness: 200, damping: 20 / motionScale };
 
   useEffect(() => {
     if (mode === 'iframe' && typeof window !== 'undefined') {
@@ -1762,78 +1788,61 @@ function ChatWidgetInner({
                 key="chatboc-toggle-btn"
                 className={cn(
                   commonButtonStyles,
-                  "group relative w-full h-full overflow-hidden border-none"
+                  "group relative w-full h-full overflow-hidden border border-white/35 bg-white dark:bg-slate-900 dark:border-slate-600/60"
                 )}
                 style={{
                   borderRadius: "50%",
-                  background: `radial-gradient(circle at 30% 30%, ${launcherPalette.accent}, ${launcherPalette.primary})`,
-                  color: "var(--primary-foreground, #ffffff)",
                   boxShadow: isDarkMode
-                    ? presetVisualProfile.closedShadowDark
-                    : presetVisualProfile.closedShadowLight,
+                    ? "0 10px 22px rgba(2, 6, 23, 0.45)"
+                    : "0 8px 20px rgba(15, 23, 42, 0.22)",
                 }}
                 {...buttonAnimation}
                 whileHover={{
-                  scale: widgetUx.launcherAnimation.includes('pulse') ? 1.1 : 1.08,
-                  rotate: widgetUx.launcherAnimation.includes('orbit') ? 3 : 0,
-                  transition: { type: "spring", stiffness: 420, damping: 18 / motionScale },
+                  y: prefersReducedMotion ? 0 : -1,
+                  scale: prefersReducedMotion ? 1 : 1.03,
+                  transition: { type: "spring", stiffness: 420, damping: 24 },
                 }}
-                whileTap={{ scale: 0.95 }}
+                whileTap={prefersReducedMotion ? { scale: 1 } : { scale: 0.98 }}
                 onClick={toggleChat}
                 aria-label="Abrir chat"
+                title="Abrir asistente IA"
               >
-                <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.38),transparent_45%)] opacity-90" />
-                <motion.span
-                  aria-hidden
-                  className="pointer-events-none absolute inset-[10%] rounded-full border border-white/15"
-                  animate={{ scale: [1, 1.08, 1], opacity: [0.35, 0.12, 0.35] }}
-                  transition={{ duration: 2.8, repeat: Infinity, ease: 'easeInOut' }}
+                {/* Reemplazado por pack de branding Chatboc 2026-03-26 */}
+                <motion.img
+                  src={launcherImageSrc}
+                  alt=""
+                  aria-hidden="true"
+                  loading="eager"
+                  decoding="async"
+                  fetchPriority="high"
+                  className="h-full w-full object-contain drop-shadow-[0_4px_10px_rgba(0,35,110,0.18)]"
+                  animate={
+                    !isOpen && !prefersReducedMotion
+                      ? { y: [0, -1.5, 0], scale: [1, 1.018, 1] }
+                      : undefined
+                  }
+                  transition={
+                    !isOpen && !prefersReducedMotion
+                      ? { duration: 2.8, repeat: Infinity, ease: "easeInOut" }
+                      : undefined
+                  }
+                  onError={() =>
+                    setLauncherImageSrc(
+                      launcherImageSrc === CHATBOC_WIDGET_ANIMATED
+                        ? CHATBOC_WIDGET_STATIC
+                        : launcherImageSrc === CHATBOC_WIDGET_STATIC
+                          ? CHATBOC_WIDGET_PNG_FALLBACK
+                          : launcherImageSrc === CHATBOC_WIDGET_PNG_FALLBACK
+                            ? CHATBOC_WIDGET_FALLBACK
+                          : customLauncherLogoUrl || entityInfo?.logo_url || getChatbocBotAvatar(isDarkMode),
+                    )
+                  }
                 />
-                {widgetUx.logoRing && widgetUx.motionLevel !== 'minimal' ? (
-                  <motion.span
-                    aria-hidden
-                    className="pointer-events-none absolute inset-0 rounded-full"
-                    style={{
-                      background: `conic-gradient(from 0deg, ${launcherPalette.primary}, ${launcherPalette.accent}, ${launcherPalette.primary})`,
-                      filter: "blur(10px)",
-                      opacity: isOpen ? 0.45 : 0.75,
-                    }}
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: widgetUx.motionLevel === 'pro' ? 5 : 8, repeat: Infinity, ease: "linear" }}
-                  />
+                {!isMobileView && !isOpen ? (
+                  <span className="pointer-events-none absolute -top-9 right-1/2 translate-x-1/2 rounded-full border border-border/70 bg-background/95 px-3 py-1 text-[11px] font-semibold tracking-wide text-foreground/85 opacity-0 shadow-sm transition-opacity duration-200 group-hover:opacity-100">
+                    Asistente IA
+                  </span>
                 ) : null}
-                {widgetUx.motionLevel !== 'minimal' ? (
-                  <motion.span
-                    aria-hidden
-                    className="pointer-events-none absolute inset-[6px] rounded-full"
-                    style={{
-                      background: 'linear-gradient(145deg, rgba(255,255,255,0.36), rgba(255,255,255,0.04))',
-                      mixBlendMode: 'screen',
-                    }}
-                    animate={{ opacity: [0.35, 0.65, 0.35] }}
-                    transition={{ duration: widgetUx.motionLevel === 'pro' ? 2 : 3.2, repeat: Infinity, ease: 'easeInOut' }}
-                  />
-                ) : null}
-                <span className="absolute inset-[4px] rounded-full bg-background/88 backdrop-blur-md" />
-                <span className="absolute inset-[10px] rounded-full border border-white/10" />
-                <motion.div
-                  className="relative z-10 flex flex-col items-center justify-center"
-                  variants={iconAnimation}
-                  animate={isOpen ? "open" : "closed"}
-                  transition={openSpring}
-                >
-                  <ChatbocLogoAnimated
-                    src={entityInfo?.logo_url || customLauncherLogoUrl || getChatbocBotAvatar(isDarkMode)}
-                    size={calculatedLogoSize}
-                    blinking={!isOpen}
-                    floating={!isOpen}
-                    pulsing={!isOpen}
-                    animation={logoAnimation}
-                  />
-                  {!isMobileView ? (
-                    <span className="mt-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/75">AI</span>
-                  ) : null}
-                </motion.div>
               </motion.button>
             </motion.div>
             )}
