@@ -671,10 +671,15 @@ const ChatPanel = (props: ChatPanelProps) => {
 
       const handleConnectError = (error: unknown) => {
         const lowered = String((error as any)?.message || "").toLowerCase();
-        if (lowered.includes("websocket") || lowered.includes("transport")) {
-          const nextTransportHint = lowered.includes("websocket")
-            ? "polling"
-            : "websocket";
+        if (
+          lowered.includes("websocket") ||
+          lowered.includes("transport") ||
+          lowered.includes("xhr poll error")
+        ) {
+          const nextTransportHint =
+            lowered.includes("websocket") || lowered.includes("transport")
+              ? "polling"
+              : "websocket";
           safeLocalStorage.setItem(
             resolveTransportHintKey(tenantSlug),
             nextTransportHint,
