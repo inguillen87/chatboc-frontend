@@ -1807,6 +1807,31 @@ function ChatWidgetInner({
                 aria-label="Abrir chat"
                 title="Abrir asistente IA"
               >
+                {!prefersReducedMotion && !isOpen ? (
+                  <motion.span
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-0 rounded-full"
+                    style={{
+                      boxShadow: isDarkMode
+                        ? "0 0 0 0 rgba(59,130,246,0.45)"
+                        : "0 0 0 0 rgba(37,99,235,0.28)",
+                    }}
+                    animate={{
+                      boxShadow: isDarkMode
+                        ? [
+                            "0 0 0 0 rgba(59,130,246,0.45)",
+                            "0 0 0 12px rgba(59,130,246,0)",
+                            "0 0 0 0 rgba(59,130,246,0)",
+                          ]
+                        : [
+                            "0 0 0 0 rgba(37,99,235,0.28)",
+                            "0 0 0 12px rgba(37,99,235,0)",
+                            "0 0 0 0 rgba(37,99,235,0)",
+                          ],
+                    }}
+                    transition={{ duration: 2.8, repeat: Infinity, ease: "easeOut" }}
+                  />
+                ) : null}
                 {/* Reemplazado por pack de branding Chatboc 2026-03-26 */}
                 <motion.img
                   src={launcherImageSrc}

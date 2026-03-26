@@ -184,7 +184,9 @@ const Navbar: React.FC = () => {
           <img
             src={navbarLogoSrc}
             alt="Chatboc Bot"
-            className="h-8 w-8 sm:h-[34px] sm:w-[34px] lg:h-9 lg:w-9 rounded-full ring-1 ring-primary/20 shadow-[0_4px_14px_rgba(15,23,42,0.18)] transition-transform duration-300 group-hover:scale-105"
+            loading="eager"
+            decoding="async"
+            className="h-8 w-8 sm:h-[34px] sm:w-[34px] lg:h-9 lg:w-9 object-contain rounded-full ring-1 ring-primary/20 shadow-[0_4px_14px_rgba(15,23,42,0.18)] transition-transform duration-300 group-hover:scale-105"
             onError={() =>
               setNavbarLogoSrc((prev) =>
                 prev === (isDark ? NAVBAR_LOGO_DARK_PRIMARY : NAVBAR_LOGO_LIGHT_PRIMARY)
