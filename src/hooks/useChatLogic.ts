@@ -196,58 +196,6 @@ export function useChatLogic({
     return key && key.length > 0 ? key : null;
 	  };
 
-  const resolvePersistentPublicContext = useCallback(() => {
-    const storedContext = readStoredPublicChatContext();
-    if (!storedContext) return null;
-
-    const normalizedPin = pickFirstString(
-      storedContext.pin,
-      storedContext.consulta_pin,
-      storedContext.consultaPin,
-    )?.trim();
-    const ticketNumber = pickFirstString(
-      storedContext.ticketNumber,
-      storedContext.ticket_number,
-      storedContext.nro_ticket,
-    )?.trim();
-    const ticketId = storedContext.ticketId ?? storedContext.ticket_id ?? null;
-
-    if (!normalizedPin && !ticketNumber && !ticketId) return null;
-
-    return {
-      pin: normalizedPin || undefined,
-      consulta_pin: normalizedPin || undefined,
-      ticket_id: ticketId ?? undefined,
-      ticket_number: ticketNumber || undefined,
-    };
-  }, []);
-
-  const resolvePersistentPublicContext = useCallback(() => {
-    const storedContext = readStoredPublicChatContext();
-    if (!storedContext) return null;
-
-    const normalizedPin = pickFirstString(
-      storedContext.pin,
-      storedContext.consulta_pin,
-      storedContext.consultaPin,
-    )?.trim();
-    const ticketNumber = pickFirstString(
-      storedContext.ticketNumber,
-      storedContext.ticket_number,
-      storedContext.nro_ticket,
-    )?.trim();
-    const ticketId = storedContext.ticketId ?? storedContext.ticket_id ?? null;
-
-    if (!normalizedPin && !ticketNumber && !ticketId) return null;
-
-    return {
-      pin: normalizedPin || undefined,
-      consulta_pin: normalizedPin || undefined,
-      ticket_id: ticketId ?? undefined,
-      ticket_number: ticketNumber || undefined,
-    };
-  }, []);
-
   const resolvePersistentPublicContext = useCallback(
     (
       resolvedTipoChat: "pyme" | "municipio",
@@ -258,512 +206,50 @@ export function useChatLogic({
         return null;
       }
 
-    const storedContext = readStoredPublicChatContext();
-    if (!storedContext) return null;
+      const storedContext = readStoredPublicChatContext();
+      if (!storedContext) return null;
 
       const storedTipoChat = pickFirstString(
         storedContext.tipoChat,
         storedContext.tipo_chat,
       )?.trim();
-      const storedTenantSlug = pickFirstString(
+      const storedTenant = pickFirstString(
         storedContext.tenantSlug,
         storedContext.tenant_slug,
       )?.trim();
-      const normalizedResolvedTenant =
+      const normalizedTenant =
         typeof resolvedTenantSlug === "string" ? resolvedTenantSlug.trim() : "";
 
-      if (
-        storedTipoChat &&
-        storedTipoChat !== resolvedTipoChat
-      ) {
+      if (storedTipoChat && storedTipoChat !== resolvedTipoChat) {
         clearStoredPublicChatContext();
         return null;
       }
 
-      if (
-        storedTenantSlug &&
-        normalizedResolvedTenant &&
-        storedTenantSlug !== normalizedResolvedTenant
-      ) {
+      if (storedTenant && normalizedTenant && storedTenant !== normalizedTenant) {
         clearStoredPublicChatContext();
         return null;
       }
 
-    const normalizedPin = pickFirstString(
-      storedContext.pin,
-      storedContext.consulta_pin,
-      storedContext.consultaPin,
-    )?.trim();
-    const ticketNumber = pickFirstString(
-      storedContext.ticketNumber,
-      storedContext.ticket_number,
-      storedContext.nro_ticket,
-    )?.trim();
-    const ticketId = storedContext.ticketId ?? storedContext.ticket_id ?? null;
-
-    if (!normalizedPin && !ticketNumber && !ticketId) return null;
-
-    return {
-      pin: normalizedPin || undefined,
-      consulta_pin: normalizedPin || undefined,
-      ticket_id: ticketId ?? undefined,
-      ticket_number: ticketNumber || undefined,
-    };
-    },
-    [shouldUsePublicFlow],
-  );
-
-  const resolvePersistentPublicContext = useCallback(
-    (
-      resolvedTipoChat: "pyme" | "municipio",
-      resolvedTenantSlug?: string | null,
-    ) => {
-      if (!shouldUsePublicFlow(resolvedTipoChat, resolvedTenantSlug)) {
-        clearStoredPublicChatContext();
-        return null;
-      }
-
-    const storedContext = readStoredPublicChatContext();
-    if (!storedContext) return null;
-
-      const storedTipoChat = pickFirstString(
-        storedContext.tipoChat,
-        storedContext.tipo_chat,
+      const normalizedPin = pickFirstString(
+        storedContext.pin,
+        storedContext.consulta_pin,
+        storedContext.consultaPin,
       )?.trim();
-      const storedTenantSlug = pickFirstString(
-        storedContext.tenantSlug,
-        storedContext.tenant_slug,
+      const ticketNumber = pickFirstString(
+        storedContext.ticketNumber,
+        storedContext.ticket_number,
+        storedContext.nro_ticket,
       )?.trim();
-      const normalizedResolvedTenant =
-        typeof resolvedTenantSlug === "string" ? resolvedTenantSlug.trim() : "";
+      const ticketId = storedContext.ticketId ?? storedContext.ticket_id ?? null;
 
-      if (
-        storedTipoChat &&
-        storedTipoChat !== resolvedTipoChat
-      ) {
-        clearStoredPublicChatContext();
-        return null;
-      }
+      if (!normalizedPin && !ticketNumber && !ticketId) return null;
 
-      if (
-        storedTenantSlug &&
-        normalizedResolvedTenant &&
-        storedTenantSlug !== normalizedResolvedTenant
-      ) {
-        clearStoredPublicChatContext();
-        return null;
-      }
-
-    const normalizedPin = pickFirstString(
-      storedContext.pin,
-      storedContext.consulta_pin,
-      storedContext.consultaPin,
-    )?.trim();
-    const ticketNumber = pickFirstString(
-      storedContext.ticketNumber,
-      storedContext.ticket_number,
-      storedContext.nro_ticket,
-    )?.trim();
-    const ticketId = storedContext.ticketId ?? storedContext.ticket_id ?? null;
-
-    if (!normalizedPin && !ticketNumber && !ticketId) return null;
-
-    return {
-      pin: normalizedPin || undefined,
-      consulta_pin: normalizedPin || undefined,
-      ticket_id: ticketId ?? undefined,
-      ticket_number: ticketNumber || undefined,
-    };
-    },
-    [shouldUsePublicFlow],
-  );
-
-  const resolvePersistentPublicContext = useCallback(
-    (
-      resolvedTipoChat: "pyme" | "municipio",
-      resolvedTenantSlug?: string | null,
-    ) => {
-      if (!shouldUsePublicFlow(resolvedTipoChat, resolvedTenantSlug)) {
-        clearStoredPublicChatContext();
-        return null;
-      }
-
-    const storedContext = readStoredPublicChatContext();
-    if (!storedContext) return null;
-
-      const storedTipoChat = pickFirstString(
-        storedContext.tipoChat,
-        storedContext.tipo_chat,
-      )?.trim();
-      const storedTenantSlug = pickFirstString(
-        storedContext.tenantSlug,
-        storedContext.tenant_slug,
-      )?.trim();
-      const normalizedResolvedTenant =
-        typeof resolvedTenantSlug === "string" ? resolvedTenantSlug.trim() : "";
-
-      if (
-        storedTipoChat &&
-        storedTipoChat !== resolvedTipoChat
-      ) {
-        clearStoredPublicChatContext();
-        return null;
-      }
-
-      if (
-        storedTenantSlug &&
-        normalizedResolvedTenant &&
-        storedTenantSlug !== normalizedResolvedTenant
-      ) {
-        clearStoredPublicChatContext();
-        return null;
-      }
-
-    const normalizedPin = pickFirstString(
-      storedContext.pin,
-      storedContext.consulta_pin,
-      storedContext.consultaPin,
-    )?.trim();
-    const ticketNumber = pickFirstString(
-      storedContext.ticketNumber,
-      storedContext.ticket_number,
-      storedContext.nro_ticket,
-    )?.trim();
-    const ticketId = storedContext.ticketId ?? storedContext.ticket_id ?? null;
-
-    if (!normalizedPin && !ticketNumber && !ticketId) return null;
-
-    return {
-      pin: normalizedPin || undefined,
-      consulta_pin: normalizedPin || undefined,
-      ticket_id: ticketId ?? undefined,
-      ticket_number: ticketNumber || undefined,
-    };
-    },
-    [shouldUsePublicFlow],
-  );
-
-  const resolvePersistentPublicContext = useCallback(
-    (
-      resolvedTipoChat: "pyme" | "municipio",
-      resolvedTenantSlug?: string | null,
-    ) => {
-      if (!shouldUsePublicFlow(resolvedTipoChat, resolvedTenantSlug)) {
-        clearStoredPublicChatContext();
-        return null;
-      }
-
-    const storedContext = readStoredPublicChatContext();
-    if (!storedContext) return null;
-
-      const storedTipoChat = pickFirstString(
-        storedContext.tipoChat,
-        storedContext.tipo_chat,
-      )?.trim();
-      const storedTenantSlug = pickFirstString(
-        storedContext.tenantSlug,
-        storedContext.tenant_slug,
-      )?.trim();
-      const normalizedResolvedTenant =
-        typeof resolvedTenantSlug === "string" ? resolvedTenantSlug.trim() : "";
-
-      if (
-        storedTipoChat &&
-        storedTipoChat !== resolvedTipoChat
-      ) {
-        clearStoredPublicChatContext();
-        return null;
-      }
-
-      if (
-        storedTenantSlug &&
-        normalizedResolvedTenant &&
-        storedTenantSlug !== normalizedResolvedTenant
-      ) {
-        clearStoredPublicChatContext();
-        return null;
-      }
-
-    const normalizedPin = pickFirstString(
-      storedContext.pin,
-      storedContext.consulta_pin,
-      storedContext.consultaPin,
-    )?.trim();
-    const ticketNumber = pickFirstString(
-      storedContext.ticketNumber,
-      storedContext.ticket_number,
-      storedContext.nro_ticket,
-    )?.trim();
-    const ticketId = storedContext.ticketId ?? storedContext.ticket_id ?? null;
-
-    if (!normalizedPin && !ticketNumber && !ticketId) return null;
-
-    return {
-      pin: normalizedPin || undefined,
-      consulta_pin: normalizedPin || undefined,
-      ticket_id: ticketId ?? undefined,
-      ticket_number: ticketNumber || undefined,
-    };
-    },
-    [shouldUsePublicFlow],
-  );
-
-  const resolvePersistentPublicContext = useCallback(
-    (
-      resolvedTipoChat: "pyme" | "municipio",
-      resolvedTenantSlug?: string | null,
-    ) => {
-      if (!shouldUsePublicFlow(resolvedTipoChat, resolvedTenantSlug)) {
-        clearStoredPublicChatContext();
-        return null;
-      }
-
-    const storedContext = readStoredPublicChatContext();
-    if (!storedContext) return null;
-
-      const storedTipoChat = pickFirstString(
-        storedContext.tipoChat,
-        storedContext.tipo_chat,
-      )?.trim();
-      const storedTenantSlug = pickFirstString(
-        storedContext.tenantSlug,
-        storedContext.tenant_slug,
-      )?.trim();
-      const normalizedResolvedTenant =
-        typeof resolvedTenantSlug === "string" ? resolvedTenantSlug.trim() : "";
-
-      if (
-        storedTipoChat &&
-        storedTipoChat !== resolvedTipoChat
-      ) {
-        clearStoredPublicChatContext();
-        return null;
-      }
-
-      if (
-        storedTenantSlug &&
-        normalizedResolvedTenant &&
-        storedTenantSlug !== normalizedResolvedTenant
-      ) {
-        clearStoredPublicChatContext();
-        return null;
-      }
-
-    const normalizedPin = pickFirstString(
-      storedContext.pin,
-      storedContext.consulta_pin,
-      storedContext.consultaPin,
-    )?.trim();
-    const ticketNumber = pickFirstString(
-      storedContext.ticketNumber,
-      storedContext.ticket_number,
-      storedContext.nro_ticket,
-    )?.trim();
-    const ticketId = storedContext.ticketId ?? storedContext.ticket_id ?? null;
-
-    if (!normalizedPin && !ticketNumber && !ticketId) return null;
-
-    return {
-      pin: normalizedPin || undefined,
-      consulta_pin: normalizedPin || undefined,
-      ticket_id: ticketId ?? undefined,
-      ticket_number: ticketNumber || undefined,
-    };
-    },
-    [shouldUsePublicFlow],
-  );
-
-  const resolvePersistentPublicContext = useCallback(
-    (
-      resolvedTipoChat: "pyme" | "municipio",
-      resolvedTenantSlug?: string | null,
-    ) => {
-      if (!shouldUsePublicFlow(resolvedTipoChat, resolvedTenantSlug)) {
-        clearStoredPublicChatContext();
-        return null;
-      }
-
-    const storedContext = readStoredPublicChatContext();
-    if (!storedContext) return null;
-
-      const storedTipoChat = pickFirstString(
-        storedContext.tipoChat,
-        storedContext.tipo_chat,
-      )?.trim();
-      const storedTenantSlug = pickFirstString(
-        storedContext.tenantSlug,
-        storedContext.tenant_slug,
-      )?.trim();
-      const normalizedResolvedTenant =
-        typeof resolvedTenantSlug === "string" ? resolvedTenantSlug.trim() : "";
-
-      if (
-        storedTipoChat &&
-        storedTipoChat !== resolvedTipoChat
-      ) {
-        clearStoredPublicChatContext();
-        return null;
-      }
-
-      if (
-        storedTenantSlug &&
-        normalizedResolvedTenant &&
-        storedTenantSlug !== normalizedResolvedTenant
-      ) {
-        clearStoredPublicChatContext();
-        return null;
-      }
-
-    const normalizedPin = pickFirstString(
-      storedContext.pin,
-      storedContext.consulta_pin,
-      storedContext.consultaPin,
-    )?.trim();
-    const ticketNumber = pickFirstString(
-      storedContext.ticketNumber,
-      storedContext.ticket_number,
-      storedContext.nro_ticket,
-    )?.trim();
-    const ticketId = storedContext.ticketId ?? storedContext.ticket_id ?? null;
-
-    if (!normalizedPin && !ticketNumber && !ticketId) return null;
-
-    return {
-      pin: normalizedPin || undefined,
-      consulta_pin: normalizedPin || undefined,
-      ticket_id: ticketId ?? undefined,
-      ticket_number: ticketNumber || undefined,
-    };
-    },
-    [shouldUsePublicFlow],
-  );
-
-  const resolvePersistentPublicContext = useCallback(
-    (
-      resolvedTipoChat: "pyme" | "municipio",
-      resolvedTenantSlug?: string | null,
-    ) => {
-      if (!shouldUsePublicFlow(resolvedTipoChat, resolvedTenantSlug)) {
-        clearStoredPublicChatContext();
-        return null;
-      }
-
-    const storedContext = readStoredPublicChatContext();
-    if (!storedContext) return null;
-
-      const storedTipoChat = pickFirstString(
-        storedContext.tipoChat,
-        storedContext.tipo_chat,
-      )?.trim();
-      const storedTenantSlug = pickFirstString(
-        storedContext.tenantSlug,
-        storedContext.tenant_slug,
-      )?.trim();
-      const normalizedResolvedTenant =
-        typeof resolvedTenantSlug === "string" ? resolvedTenantSlug.trim() : "";
-
-      if (
-        storedTipoChat &&
-        storedTipoChat !== resolvedTipoChat
-      ) {
-        clearStoredPublicChatContext();
-        return null;
-      }
-
-      if (
-        storedTenantSlug &&
-        normalizedResolvedTenant &&
-        storedTenantSlug !== normalizedResolvedTenant
-      ) {
-        clearStoredPublicChatContext();
-        return null;
-      }
-
-    const normalizedPin = pickFirstString(
-      storedContext.pin,
-      storedContext.consulta_pin,
-      storedContext.consultaPin,
-    )?.trim();
-    const ticketNumber = pickFirstString(
-      storedContext.ticketNumber,
-      storedContext.ticket_number,
-      storedContext.nro_ticket,
-    )?.trim();
-    const ticketId = storedContext.ticketId ?? storedContext.ticket_id ?? null;
-
-    if (!normalizedPin && !ticketNumber && !ticketId) return null;
-
-    return {
-      pin: normalizedPin || undefined,
-      consulta_pin: normalizedPin || undefined,
-      ticket_id: ticketId ?? undefined,
-      ticket_number: ticketNumber || undefined,
-    };
-    },
-    [shouldUsePublicFlow],
-  );
-
-  const resolvePersistentPublicContext = useCallback(
-    (
-      resolvedTipoChat: "pyme" | "municipio",
-      resolvedTenantSlug?: string | null,
-    ) => {
-      if (!shouldUsePublicFlow(resolvedTipoChat, resolvedTenantSlug)) {
-        clearStoredPublicChatContext();
-        return null;
-      }
-
-    const storedContext = readStoredPublicChatContext();
-    if (!storedContext) return null;
-
-      const storedTipoChat = pickFirstString(
-        storedContext.tipoChat,
-        storedContext.tipo_chat,
-      )?.trim();
-      const storedTenantSlug = pickFirstString(
-        storedContext.tenantSlug,
-        storedContext.tenant_slug,
-      )?.trim();
-      const normalizedResolvedTenant =
-        typeof resolvedTenantSlug === "string" ? resolvedTenantSlug.trim() : "";
-
-      if (
-        storedTipoChat &&
-        storedTipoChat !== resolvedTipoChat
-      ) {
-        clearStoredPublicChatContext();
-        return null;
-      }
-
-      if (
-        storedTenantSlug &&
-        normalizedResolvedTenant &&
-        storedTenantSlug !== normalizedResolvedTenant
-      ) {
-        clearStoredPublicChatContext();
-        return null;
-      }
-
-    const normalizedPin = pickFirstString(
-      storedContext.pin,
-      storedContext.consulta_pin,
-      storedContext.consultaPin,
-    )?.trim();
-    const ticketNumber = pickFirstString(
-      storedContext.ticketNumber,
-      storedContext.ticket_number,
-      storedContext.nro_ticket,
-    )?.trim();
-    const ticketId = storedContext.ticketId ?? storedContext.ticket_id ?? null;
-
-    if (!normalizedPin && !ticketNumber && !ticketId) return null;
-
-    return {
-      pin: normalizedPin || undefined,
-      consulta_pin: normalizedPin || undefined,
-      ticket_id: ticketId ?? undefined,
-      ticket_number: ticketNumber || undefined,
-    };
+      return {
+        pin: normalizedPin || undefined,
+        consulta_pin: normalizedPin || undefined,
+        ticket_id: ticketId ?? undefined,
+        ticket_number: ticketNumber || undefined,
+      };
     },
     [shouldUsePublicFlow],
   );
@@ -2512,7 +1998,7 @@ export function useChatLogic({
   const [socketTransportRetryKey, setSocketTransportRetryKey] = useState(0);
 
   const getPreferredSocketTransports = (): Array<"websocket" | "polling"> => {
-    if (isChatbocDomain()) return ["polling"];
+    if (isChatbocDomain()) return ["websocket", "polling"];
 
     const rawTransports = safeLocalStorage.getItem(
       resolveTransportListKey(tenantSlug),
@@ -2605,13 +2091,19 @@ export function useChatLogic({
         lowered.includes("transport") ||
         lowered.includes("xhr poll error")
       ) {
+        const nextTransportHint =
+          lowered.includes("websocket") || lowered.includes("transport")
+            ? "polling"
+            : "websocket";
         safeLocalStorage.setItem(
           resolveTransportHintKey(tenantSlug),
-          "polling",
+          nextTransportHint,
         );
         safeLocalStorage.setItem(
           resolveTransportListKey(tenantSlug),
-          JSON.stringify(["polling"]),
+          nextTransportHint === "polling"
+            ? JSON.stringify(["polling"])
+            : JSON.stringify(["websocket", "polling"]),
         );
         setSocketTransportRetryKey((prev) => prev + 1);
       }
