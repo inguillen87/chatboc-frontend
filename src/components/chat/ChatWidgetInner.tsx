@@ -243,6 +243,9 @@ function ChatWidgetInner({
     typeof window !== "undefined" && window.innerWidth < 640
   );
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  const [launcherImageSrc, setLauncherImageSrc] = useState(
+    "/chatboc_frontend_pack/branding/chatboc/widget/chatboc-widget-launcher-animated.svg",
+  );
 
   const { tenant, currentSlug } = useTenant();
   const storedTenantSlug = useMemo(
@@ -1053,12 +1056,20 @@ function ChatWidgetInner({
     : "/chatboc_frontend_pack/branding/chatboc/widget/chatboc-widget-launcher-animated.svg";
 
   useEffect(() => {
+    setLauncherImageSrc(launcherAssetSrc);
+  }, [launcherAssetSrc]);
+
+  useEffect(() => {
     if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
     const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
     const syncPreference = () => setPrefersReducedMotion(mediaQuery.matches);
     syncPreference();
-    mediaQuery.addEventListener("change", syncPreference);
-    return () => mediaQuery.removeEventListener("change", syncPreference);
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", syncPreference);
+      return () => mediaQuery.removeEventListener("change", syncPreference);
+    }
+    mediaQuery.addListener(syncPreference);
+    return () => mediaQuery.removeListener(syncPreference);
   }, []);
 
   const sendStateMessageToParent = useCallback(
@@ -1788,10 +1799,15 @@ function ChatWidgetInner({
               >
                 {/* Reemplazado por pack de branding Chatboc 2026-03-26 */}
                 <img
-                  src={launcherAssetSrc}
+                  src={launcherImageSrc}
                   alt=""
                   aria-hidden="true"
                   className="h-full w-full object-contain"
+                  onError={() =>
+                    setLauncherImageSrc(
+                      customLauncherLogoUrl || entityInfo?.logo_url || getChatbocBotAvatar(isDarkMode),
+                    )
+                  }
                 />
               </motion.button>
             </motion.div>

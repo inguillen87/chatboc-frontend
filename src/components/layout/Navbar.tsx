@@ -37,10 +37,14 @@ import type { LucideIcon } from "lucide-react";
 import useCartCount from "@/hooks/useCartCount";
 import { useTenant } from "@/context/TenantContext";
 import { buildTenantPath } from "@/utils/tenantPaths";
+import { getChatbocBotAvatar } from "@/utils/brandAssets";
 
 const Navbar: React.FC = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [isDark, setIsDark] = useState(false);
+  const [navbarLogoSrc, setNavbarLogoSrc] = useState(
+    "/chatboc_frontend_pack/branding/chatboc/navbar/chatboc-navbar-mark-clean.svg",
+  );
   const location = useLocation();
   const { user } = useUser();
   const cartCount = useCartCount();
@@ -168,9 +172,10 @@ const Navbar: React.FC = () => {
         >
           {/* Asset anterior reemplazado por pack de branding Chatboc 2026-03-26 */}
           <img
-            src="/chatboc_frontend_pack/branding/chatboc/navbar/chatboc-navbar-mark-clean.svg"
+            src={navbarLogoSrc}
             alt="Chatboc Bot"
             className="h-8 w-8 md:h-9 md:w-9 rounded-full ring-1 ring-primary/20 shadow-[0_4px_14px_rgba(15,23,42,0.18)] transition-transform duration-300 group-hover:scale-105"
+            onError={() => setNavbarLogoSrc(getChatbocBotAvatar(isDark))}
           />
           <span className="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-blue-700 via-cyan-500 to-sky-300 bg-clip-text text-transparent dark:from-sky-200 dark:via-cyan-300 dark:to-blue-300">
             chatboc.ar
