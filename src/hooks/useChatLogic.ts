@@ -496,6 +496,7 @@ export function useChatLogic({
     socialLinks,
     displayHint,
     chatBubbleStyle,
+    confirmationCard,
     botones,
     categorias,
   }: {
@@ -1998,7 +1999,7 @@ export function useChatLogic({
   const [socketTransportRetryKey, setSocketTransportRetryKey] = useState(0);
 
   const getPreferredSocketTransports = (): Array<"websocket" | "polling"> => {
-    if (isChatbocDomain()) return ["websocket", "polling"];
+    const defaultTransports: Array<"websocket" | "polling"> = ["websocket", "polling"];
 
     const rawTransports = safeLocalStorage.getItem(
       resolveTransportListKey(tenantSlug),
@@ -2026,7 +2027,7 @@ export function useChatLogic({
     const hint = safeLocalStorage.getItem(resolveTransportHintKey(tenantSlug));
     if (hint === "polling") return ["polling"];
     if (hint === "websocket") return ["websocket", "polling"];
-    return ["websocket", "polling"];
+    return defaultTransports;
   };
 
   useEffect(() => {

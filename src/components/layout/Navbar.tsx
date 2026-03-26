@@ -195,7 +195,7 @@ const Navbar: React.FC = () => {
               )
             }
           />
-          <span className="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-[#082173] via-[#0D35C3] to-[#1A53FF] bg-clip-text text-transparent dark:from-[#7DB0FF] dark:via-[#66D8FF] dark:to-[#2A69FF]">
+          <span className="chatboc-brand-gradient text-2xl font-extrabold tracking-tight">
             chatboc.ar
           </span>
         </button>
@@ -290,13 +290,13 @@ const Navbar: React.FC = () => {
             <>
               <RouterLink
                 to="/login"
-                className="px-3 py-1 border border-[#0D35C3]/50 text-[#082173] rounded hover:bg-[#0D35C3]/10 text-sm dark:text-[#C7DBFF] dark:border-[#2A69FF]/50 dark:hover:bg-[#2A69FF]/20 transition-colors"
+                className="chatboc-cta-secondary px-3 py-1 rounded text-sm"
               >
                 Iniciar Sesión
               </RouterLink>
               <RouterLink
                 to="/demo"
-                className="px-3 py-1 bg-[#0D35C3] text-white rounded hover:bg-[#082184] text-sm dark:bg-[#1451F2] dark:hover:bg-[#0D35C3] transition-colors shadow-sm"
+                className="chatboc-cta-primary px-3 py-1 rounded text-sm"
               >
                 Prueba Gratuita
               </RouterLink>
@@ -399,7 +399,7 @@ const Navbar: React.FC = () => {
                 <RouterLink
                   to="/demo"
                   onClick={() => setMenuOpen(false)}
-                  className="bg-[#0D35C3] text-white px-4 py-2 rounded hover:bg-[#082184] dark:bg-[#1451F2] dark:hover:bg-[#0D35C3] transition-colors"
+                  className="chatboc-cta-primary px-4 py-2 rounded"
                 >
                   Prueba Gratuita
                 </RouterLink>

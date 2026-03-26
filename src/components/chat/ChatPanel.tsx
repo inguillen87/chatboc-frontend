@@ -666,10 +666,6 @@ const ChatPanel = (props: ChatPanelProps) => {
         transports = ["polling"];
       }
 
-      if (defaultPollingOnly && transports.length === 1 && transports[0] === "polling") {
-        transports = ["websocket", "polling"];
-      }
-
       const socket = io(socketUrl, { path: SOCKET_PATH, transports });
       socketRef.current = socket;
 

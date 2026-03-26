@@ -14,7 +14,7 @@ const HeroSection = () => {
           <div className="w-full lg:w-1/2 lg:pr-10 text-center lg:text-left">
             <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-6 leading-tight">
               <span
-                className="bg-gradient-to-r from-[#082173] via-[#0D35C3] to-[#1A53FF] dark:from-[#1451F2] dark:via-[#2A69FF] dark:to-[#66D8FF] text-transparent bg-clip-text"
+                className="chatboc-brand-gradient"
               >
                 Conectamos
               </span> Gobiernos y Empresas con sus Comunidades
@@ -26,19 +26,19 @@ const HeroSection = () => {
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 mb-6">
-              <Button
-                size="lg"
-                className="w-full sm:w-auto bg-[#0D35C3] hover:bg-[#082184] text-white shadow-lg hover:shadow-xl transition-shadow"
-                onClick={() => navigate("/demo")}
-              >
-                <Zap className="mr-2 h-5 w-5" /> Ver Demo en Vivo
-              </Button>
-              <Button
-                variant="outline"
-                size="lg"
-                className="w-full sm:w-auto border-[#0D35C3]/30 text-[#082173] hover:bg-[#0D35C3]/10 dark:text-[#9CC3FF] dark:border-[#2A69FF]/40 dark:hover:bg-[#2A69FF]/20 shadow-lg hover:shadow-xl transition-shadow"
-                onClick={() => navigate("/register")}
-              >
+                <Button
+                  size="lg"
+                  className="chatboc-cta-primary w-full sm:w-auto shadow-lg hover:shadow-xl transition-shadow"
+                  onClick={() => navigate("/demo")}
+                >
+                  <Zap className="mr-2 h-5 w-5" /> Ver Demo en Vivo
+                </Button>
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="chatboc-cta-secondary w-full sm:w-auto shadow-lg hover:shadow-xl transition-shadow"
+                  onClick={() => navigate("/register")}
+                >
                 <Users className="mr-2 h-5 w-5" /> Crear Cuenta Gratis
               </Button>
             </div>
