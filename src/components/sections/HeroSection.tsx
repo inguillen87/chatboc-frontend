@@ -1,7 +1,6 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Users, Zap } from "lucide-react";
-import ChatbocLogoAnimated from "../chat/ChatbocLogoAnimated";
 import { useNavigate } from "react-router-dom";
 
 const HeroSection = () => {
@@ -15,36 +14,36 @@ const HeroSection = () => {
           <div className="w-full lg:w-1/2 lg:pr-10 text-center lg:text-left">
             <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-6 leading-tight">
               <span
-                className="bg-gradient-to-r from-primary via-blue-500 to-cyan-500 text-transparent bg-clip-text"
+                className="chatboc-brand-gradient"
               >
                 Conectamos
               </span> Gobiernos y Empresas con sus Comunidades
             </h1>
-            <p className="text-lg sm:text-xl text-muted-foreground mb-8">
+            <p className="text-lg sm:text-xl text-slate-600 dark:text-slate-300 mb-8">
               Creamos <strong>Agentes IA</strong> que entienden y resuelven, no simples chatbots.
               <br className="hidden md:block" />
               Una plataforma <strong>SaaS "llave en mano"</strong>: sube tu catálogo o normativa y obtén tu Marketplace o Portal de Servicios listo para usar. Sin configuraciones técnicas complejas.
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 mb-6">
-              <Button
-                size="lg"
-                className="w-full sm:w-auto shadow-lg hover:shadow-xl transition-shadow"
-                onClick={() => navigate("/demo")}
-              >
-                <Zap className="mr-2 h-5 w-5" /> Ver Demo en Vivo
-              </Button>
-              <Button
-                variant="outline"
-                size="lg"
-                className="w-full sm:w-auto shadow-lg hover:shadow-xl transition-shadow"
-                onClick={() => navigate("/register")}
-              >
+                <Button
+                  size="lg"
+                  className="chatboc-cta-primary w-full sm:w-auto shadow-lg hover:shadow-xl transition-shadow"
+                  onClick={() => navigate("/demo")}
+                >
+                  <Zap className="mr-2 h-5 w-5" /> Ver Demo en Vivo
+                </Button>
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="chatboc-cta-secondary w-full sm:w-auto shadow-lg hover:shadow-xl transition-shadow"
+                  onClick={() => navigate("/register")}
+                >
                 <Users className="mr-2 h-5 w-5" /> Crear Cuenta Gratis
               </Button>
             </div>
 
-            <p className="text-sm text-muted-foreground text-center lg:text-left">
+            <p className="text-sm text-slate-500 dark:text-slate-400 text-center lg:text-left">
               Incluye Mapas de Calor, Puntos de Recompensa y Analíticas avanzadas.
             </p>
           </div>
@@ -54,7 +53,13 @@ const HeroSection = () => {
             <div className="bg-card text-card-foreground rounded-xl shadow-xl p-5 border border-border max-w-full sm:max-w-md mx-auto animate-float">
               <div className="flex items-center border-b border-border pb-3 mb-4">
                 <div className="mr-3">
-                  <ChatbocLogoAnimated size={36} />
+                  <img
+                    src="/chatboc_frontend_pack/branding/chatboc/navbar/chatboc-navbar-mark-circle.svg"
+                    alt="Chatboc IA"
+                    className="h-9 w-9 rounded-full object-contain ring-1 ring-primary/25"
+                    loading="lazy"
+                    decoding="async"
+                  />
                 </div>
                 <div>
                   <h3 className="font-semibold text-base text-foreground">Agente IA Inteligente</h3>

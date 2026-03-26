@@ -9,6 +9,26 @@
 @tailwind utilities;
 
 @layer components {
+  .chatboc-brand-gradient {
+    @apply bg-gradient-to-r text-transparent bg-clip-text;
+    background-image: linear-gradient(90deg, #082173 0%, #0d35c3 52%, #1a53ff 100%);
+  }
+  .dark .chatboc-brand-gradient {
+    background-image: linear-gradient(90deg, #7db0ff 0%, #66d8ff 52%, #2a69ff 100%);
+  }
+  .chatboc-cta-primary {
+    @apply bg-[#0D35C3] text-white hover:bg-[#082184] shadow-sm transition-colors;
+  }
+  .dark .chatboc-cta-primary {
+    @apply bg-[#1451F2] text-white hover:bg-[#0D35C3];
+  }
+  .chatboc-cta-secondary {
+    @apply border border-[#0D35C3]/50 text-[#082173] hover:bg-[#0D35C3]/10 transition-colors;
+  }
+  .dark .chatboc-cta-secondary {
+    @apply border-[#2A69FF]/50 text-[#C7DBFF] hover:bg-[#2A69FF]/20;
+  }
+
   .chat-bubble-user {
     @apply rounded-lg p-3 max-w-xs sm:max-w-md break-words shadow-md;
     background-color: var(--user-msg-bg, hsl(var(--primary)));
