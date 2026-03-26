@@ -644,7 +644,7 @@ const ChatPanel = (props: ChatPanelProps) => {
         resolveTransportListKey(tenantSlug),
       );
       let transports: Array<"polling" | "websocket"> = defaultPollingOnly
-        ? ["polling"]
+        ? ["websocket", "polling"]
         : ["websocket", "polling"];
 
       if (rawTransportList) {
@@ -666,8 +666,8 @@ const ChatPanel = (props: ChatPanelProps) => {
         transports = ["polling"];
       }
 
-      if (defaultPollingOnly) {
-        transports = ["polling"];
+      if (defaultPollingOnly && transports.length === 1 && transports[0] === "polling") {
+        transports = ["websocket", "polling"];
       }
 
       const socket = io(socketUrl, { path: SOCKET_PATH, transports });
@@ -678,11 +678,11 @@ const ChatPanel = (props: ChatPanelProps) => {
         if (lowered.includes("websocket") || lowered.includes("transport")) {
           safeLocalStorage.setItem(
             resolveTransportHintKey(tenantSlug),
-            "polling",
+            "websocket",
           );
           safeLocalStorage.setItem(
             resolveTransportListKey(tenantSlug),
-            JSON.stringify(["polling"]),
+            JSON.stringify(["websocket", "polling"]),
           );
         }
       };

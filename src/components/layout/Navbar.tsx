@@ -40,8 +40,17 @@ import { buildTenantPath } from "@/utils/tenantPaths";
 import { getChatbocBotAvatar } from "@/utils/brandAssets";
 
 const Navbar: React.FC = () => {
+  const NAVBAR_LOGO_LIGHT_PRIMARY =
+    "/chatboc_frontend_pack/branding/chatboc/navbar/chatboc-navbar-mark-circle.svg";
+  const NAVBAR_LOGO_DARK_PRIMARY =
+    "/chatboc_frontend_pack/branding/chatboc/navbar/chatboc-navbar-mark-clean.svg";
+  const NAVBAR_LOGO_LIGHT_PNG =
+    "/chatboc_frontend_pack/branding/chatboc/navbar/chatboc-navbar-mark-circle_64.png";
+  const NAVBAR_LOGO_DARK_PNG =
+    "/chatboc_frontend_pack/branding/chatboc/navbar/chatboc-navbar-mark-clean_64.png";
   const [menuOpen, setMenuOpen] = useState(false);
   const [isDark, setIsDark] = useState(false);
+  const [navbarLogoSrc, setNavbarLogoSrc] = useState(NAVBAR_LOGO_LIGHT_PRIMARY);
   const location = useLocation();
   const { user } = useUser();
   const cartCount = useCartCount();
@@ -116,11 +125,13 @@ const Navbar: React.FC = () => {
     if (currentTheme === "dark") {
       document.documentElement.classList.add("dark");
       setIsDark(true);
+      setNavbarLogoSrc(NAVBAR_LOGO_DARK_PRIMARY);
     } else {
       document.documentElement.classList.remove("dark");
       setIsDark(false);
+      setNavbarLogoSrc(NAVBAR_LOGO_LIGHT_PRIMARY);
     }
-  }, []);
+  }, [NAVBAR_LOGO_DARK_PRIMARY, NAVBAR_LOGO_LIGHT_PRIMARY]);
 
   const toggleDarkMode = () => {
     const html = document.documentElement;
@@ -130,10 +141,12 @@ const Navbar: React.FC = () => {
       html.classList.remove("dark");
       safeLocalStorage.setItem("theme", "light");
       setIsDark(false);
+      setNavbarLogoSrc(NAVBAR_LOGO_LIGHT_PRIMARY);
     } else {
       html.classList.add("dark");
       safeLocalStorage.setItem("theme", "dark");
       setIsDark(true);
+      setNavbarLogoSrc(NAVBAR_LOGO_DARK_PRIMARY);
     }
   };
 
@@ -167,12 +180,22 @@ const Navbar: React.FC = () => {
           className="group flex items-center gap-3 rounded-xl px-2 py-1 hover:bg-primary/5 transition-colors"
           aria-label="Ir al inicio de Chatboc"
         >
+          {/* Asset anterior reemplazado por pack de branding Chatboc 2026-03-26 */}
           <img
-            src={getChatbocBotAvatar(isDark)}
+            src={navbarLogoSrc}
             alt="Chatboc Bot"
-            className="h-9 w-9 rounded-full ring-2 ring-primary/30 shadow-[0_4px_18px_rgba(37,99,235,0.35)] transition-transform duration-300 group-hover:scale-105"
+            loading="eager"
+            decoding="async"
+            className="h-8 w-8 sm:h-[34px] sm:w-[34px] lg:h-9 lg:w-9 object-contain rounded-full ring-1 ring-primary/20 shadow-[0_4px_14px_rgba(15,23,42,0.18)] transition-transform duration-300 group-hover:scale-105"
+            onError={() =>
+              setNavbarLogoSrc((prev) =>
+                prev === (isDark ? NAVBAR_LOGO_DARK_PRIMARY : NAVBAR_LOGO_LIGHT_PRIMARY)
+                  ? (isDark ? NAVBAR_LOGO_DARK_PNG : NAVBAR_LOGO_LIGHT_PNG)
+                  : getChatbocBotAvatar(isDark),
+              )
+            }
           />
-          <span className="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-blue-700 via-cyan-500 to-sky-300 bg-clip-text text-transparent dark:from-sky-200 dark:via-cyan-300 dark:to-blue-300">
+          <span className="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-[#082173] via-[#0D35C3] to-[#1A53FF] bg-clip-text text-transparent dark:from-[#7DB0FF] dark:via-[#66D8FF] dark:to-[#2A69FF]">
             chatboc.ar
           </span>
         </button>
@@ -265,8 +288,18 @@ const Navbar: React.FC = () => {
             </DropdownMenu>
           ) : (
             <>
-              <RouterLink to="/login" className="px-3 py-1 border border-primary text-primary rounded hover:bg-primary/10 text-sm dark:text-primary-foreground dark:border-primary-foreground dark:hover:bg-primary-foreground/10 transition-colors">Iniciar Sesión</RouterLink>
-              <RouterLink to="/demo" className="px-3 py-1 bg-primary text-primary-foreground rounded hover:bg-primary/90 text-sm transition-colors">Prueba Gratuita</RouterLink>
+              <RouterLink
+                to="/login"
+                className="px-3 py-1 border border-[#0D35C3]/50 text-[#082173] rounded hover:bg-[#0D35C3]/10 text-sm dark:text-[#C7DBFF] dark:border-[#2A69FF]/50 dark:hover:bg-[#2A69FF]/20 transition-colors"
+              >
+                Iniciar Sesión
+              </RouterLink>
+              <RouterLink
+                to="/demo"
+                className="px-3 py-1 bg-[#0D35C3] text-white rounded hover:bg-[#082184] text-sm dark:bg-[#1451F2] dark:hover:bg-[#0D35C3] transition-colors shadow-sm"
+              >
+                Prueba Gratuita
+              </RouterLink>
             </>
           )}
           <button
@@ -356,8 +389,18 @@ const Navbar: React.FC = () => {
                     </span>
                   )}
                 </RouterLink>
-                <RouterLink to="/login" onClick={() => setMenuOpen(false)} className="hover:text-primary transition-colors">Iniciar Sesión</RouterLink>
-                <RouterLink to="/demo" onClick={() => setMenuOpen(false)} className="bg-primary text-primary-foreground px-4 py-2 rounded hover:bg-primary/90 transition-colors">
+                <RouterLink
+                  to="/login"
+                  onClick={() => setMenuOpen(false)}
+                  className="hover:text-[#0D35C3] dark:hover:text-[#9CC3FF] transition-colors"
+                >
+                  Iniciar Sesión
+                </RouterLink>
+                <RouterLink
+                  to="/demo"
+                  onClick={() => setMenuOpen(false)}
+                  className="bg-[#0D35C3] text-white px-4 py-2 rounded hover:bg-[#082184] dark:bg-[#1451F2] dark:hover:bg-[#0D35C3] transition-colors"
+                >
                   Prueba Gratuita
                 </RouterLink>
               </>
