@@ -1,0 +1,255 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
+
+<style>
+  #cbw-bot-float { transform-origin: 512px 586px; animation: cbwFloat 4.6s ease-in-out infinite; }
+  #cbw-left-arm { transform-origin: 372px 620px; animation: cbwWave 3.4s ease-in-out infinite; }
+  #cbw-left-hand { transform-origin: 246px 452px; animation: cbwHandPulse 3.4s ease-in-out infinite; }
+  #cbw-eye-left, #cbw-eye-right { transform-origin: center; transform-box: fill-box; animation: cbwBlink 6.4s infinite; }
+  #cbw-pupil-left, #cbw-pupil-right { animation: cbwLook 7.4s ease-in-out infinite; }
+  #cbw-badge { transform-origin: 286px 208px; animation: cbwBadgeFloat 4.2s ease-in-out infinite; }
+  #cbw-halo-pulse { transform-origin: 540px 406px; animation: cbwHalo 4.8s ease-in-out infinite; }
+  @keyframes cbwFloat {{
+    0%,100% {{ transform: translateY(0px); }}
+    50% {{ transform: translateY(-9px); }}
+  }}
+  @keyframes cbwWave {{
+    0%,100% {{ transform: rotate(0deg); }}
+    10% {{ transform: rotate(-5deg); }}
+    22% {{ transform: rotate(12deg); }}
+    34% {{ transform: rotate(-8deg); }}
+    46% {{ transform: rotate(10deg); }}
+    60% {{ transform: rotate(-3deg); }}
+    78% {{ transform: rotate(3deg); }}
+  }}
+  @keyframes cbwHandPulse {{
+    0%,100% {{ transform: scale(1); }}
+    36% {{ transform: scale(1.03); }}
+    50% {{ transform: scale(1.05); }}
+  }}
+  @keyframes cbwBlink {{
+    0%, 3%, 48%, 51%, 100% {{ transform: scaleY(1); }}
+    1.5%, 49.5% {{ transform: scaleY(0.08); }}
+  }}
+  @keyframes cbwLook {{
+    0%,100% {{ transform: translate(0px,0px); }}
+    18% {{ transform: translate(-5px,1px); }}
+    36% {{ transform: translate(6px,-1px); }}
+    58% {{ transform: translate(-3px,2px); }}
+    76% {{ transform: translate(4px,0px); }}
+  }}
+  @keyframes cbwBadgeFloat {{
+    0%,100% {{ transform: translateY(0px) rotate(0deg); }}
+    50% {{ transform: translateY(-8px) rotate(-3deg); }}
+  }}
+  @keyframes cbwHalo {{
+    0%,100% {{ transform: scale(1); opacity: 0.92; }}
+    50% {{ transform: scale(1.04); opacity: 1; }}
+  }}
+  @media (prefers-reduced-motion: reduce) {{
+    #cbw-bot-float,
+    #cbw-left-arm,
+    #cbw-left-hand,
+    #cbw-eye-left, #cbw-eye-right,
+    #cbw-pupil-left, #cbw-pupil-right,
+    #cbw-badge,
+    #cbw-halo-pulse {{
+      animation: none !important;
+    }}
+  }}
+</style>
+
+  <defs>
+    <linearGradient id="cbw-bg" x1="168" y1="118" x2="848" y2="928" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1B46E0"/>
+      <stop offset="0.44" stop-color="#112FAF"/>
+      <stop offset="0.82" stop-color="#07196B"/>
+      <stop offset="1" stop-color="#05103D"/>
+    </linearGradient>
+    <radialGradient id="cbw-halo" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(540 402) rotate(90) scale(260)">
+      <stop offset="0" stop-color="#8CEBFF" stop-opacity="0.72"/>
+      <stop offset="0.44" stop-color="#54BBFF" stop-opacity="0.24"/>
+      <stop offset="1" stop-color="#54BBFF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="cbw-shell" x1="266" y1="252" x2="704" y2="564" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="0.48" stop-color="#F0F5FF"/>
+      <stop offset="0.78" stop-color="#D9E3FF"/>
+      <stop offset="1" stop-color="#B9C8F1"/>
+    </linearGradient>
+    <linearGradient id="cbw-visor" x1="352" y1="300" x2="680" y2="460" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#06164D"/>
+      <stop offset="0.5" stop-color="#0B2C96"/>
+      <stop offset="1" stop-color="#082072"/>
+    </linearGradient>
+    <linearGradient id="cbw-blue" x1="356" y1="520" x2="688" y2="856" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2C69FF"/>
+      <stop offset="0.48" stop-color="#1247F5"/>
+      <stop offset="1" stop-color="#0A2EB0"/>
+    </linearGradient>
+    <linearGradient id="cbw-blue-light" x1="318" y1="496" x2="654" y2="772" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#5C95FF"/>
+      <stop offset="0.52" stop-color="#2663FF"/>
+      <stop offset="1" stop-color="#113CCB"/>
+    </linearGradient>
+    <linearGradient id="cbw-arm" x1="236" y1="418" x2="390" y2="606" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#5D95FF"/>
+      <stop offset="0.54" stop-color="#2964FF"/>
+      <stop offset="1" stop-color="#1035BC"/>
+    </linearGradient>
+    <linearGradient id="cbw-hand" x1="220" y1="396" x2="310" y2="516" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="0.58" stop-color="#F1F5FF"/>
+      <stop offset="1" stop-color="#CCD7F5"/>
+    </linearGradient>
+    <linearGradient id="cbw-badge-grad" x1="198" y1="148" x2="366" y2="280" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFD52E"/>
+      <stop offset="1" stop-color="#FFC816"/>
+    </linearGradient>
+    <radialGradient id="cbw-floor-glow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(512 820) rotate(90) scale(112 280)">
+      <stop offset="0" stop-color="#B4F7FF" stop-opacity="0.9"/>
+      <stop offset="0.56" stop-color="#58C8FF" stop-opacity="0.26"/>
+      <stop offset="1" stop-color="#58C8FF" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="cbw-shadow" x="-25%" y="-25%" width="160%" height="170%">
+      <feDropShadow dx="0" dy="12" stdDeviation="14" flood-color="#03103A" flood-opacity="0.4"/>
+    </filter>
+    <filter id="cbw-soft-glow" x="-25%" y="-25%" width="150%" height="150%">
+      <feGaussianBlur stdDeviation="18"/>
+    </filter>
+    <clipPath id="cbw-circle-clip">
+      <circle cx="512" cy="512" r="490"/>
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#cbw-circle-clip)">
+    <circle cx="512" cy="512" r="490" fill="url(#cbw-bg)"/>
+
+    <g id="cbw-ambient">
+      <path d="M110 792C238 766 348 766 462 784C574 802 684 826 790 814C840 808 884 798 920 786" stroke="#77E6FF" stroke-opacity="0.10" stroke-width="2"/>
+      <path d="M104 560C184 552 262 548 350 548C448 548 560 554 654 550C756 546 844 550 922 558" stroke="#76E8FF" stroke-opacity="0.2" stroke-width="5" stroke-linecap="round"/>
+      <g opacity="0.2" stroke="#79DBFF" stroke-width="2">
+        <path d="M136 932h752"/>
+        <path d="M136 884h752"/>
+        <path d="M136 836h752"/>
+        <path d="M184 764v208"/>
+        <path d="M286 764v208"/>
+        <path d="M388 764v208"/>
+        <path d="M490 764v208"/>
+        <path d="M592 764v208"/>
+        <path d="M694 764v208"/>
+        <path d="M796 764v208"/>
+      </g>
+      <g opacity="0.55">
+        <circle cx="218" cy="238" r="3.6" fill="#FFFFFF"/>
+        <circle cx="824" cy="198" r="4.2" fill="#FFFFFF"/>
+        <circle cx="742" cy="296" r="2.6" fill="#FFE48B"/>
+        <circle cx="274" cy="612" r="2.2" fill="#8EEBFF"/>
+        <circle cx="182" cy="684" r="2.4" fill="#FFE48B"/>
+        <circle cx="816" cy="664" r="2.6" fill="#FFE48B"/>
+      </g>
+      <g opacity="0.38" stroke="#A2EEFF" stroke-width="1.5">
+        <path d="M194 238h18M203 229v18"/>
+        <path d="M826 244h18M835 235v18"/>
+        <path d="M738 644h12M744 638v12"/>
+      </g>
+    </g>
+
+    <g id="cbw-halo-pulse">
+      <circle cx="538" cy="406" r="240" fill="url(#cbw-halo)"/>
+    </g>
+
+    <g id="cbw-floor">
+      <ellipse cx="512" cy="834" rx="228" ry="34" fill="#04103B" opacity="0.48"/>
+      <ellipse cx="512" cy="814" rx="242" ry="106" fill="url(#cbw-floor-glow)"/>
+      <ellipse cx="512" cy="824" rx="186" ry="24" fill="none" stroke="#56BFFF" stroke-opacity="0.84" stroke-width="18"/>
+    </g>
+
+    <g id="cbw-badge" filter="url(#cbw-shadow)">
+      <path d="M184 176C184 138 214 108 252 108H326C364 108 394 138 394 176V194C394 232 364 262 326 262H300L264 294L270 260C245 252 226 236 214 216C204 199 184 198 184 194V176Z" fill="url(#cbw-badge-grad)"/>
+      <path d="M198 176C198 146 222 122 252 122H325C355 122 380 147 380 177V193C380 223 356 248 326 248H296L274 272L278 250C251 244 231 220 231 194V176Z" fill="#FFF09A" opacity="0.18"/>
+      <circle cx="258" cy="184" r="14" fill="#FFFFFF"/>
+      <circle cx="289" cy="184" r="14" fill="#FFFFFF"/>
+      <circle cx="320" cy="184" r="14" fill="#FFFFFF"/>
+    </g>
+
+    <g id="cbw-bot-float" filter="url(#cbw-shadow)">
+      <g id="cbw-left-arm">
+        <path d="M384 612C350 578 320 536 298 500C286 480 274 464 252 454" stroke="#092590" stroke-width="90" stroke-linecap="round" fill="none"/>
+        <path d="M384 612C350 578 320 536 298 500C286 480 274 464 252 454" stroke="url(#cbw-arm)" stroke-width="72" stroke-linecap="round" fill="none"/>
+        <path d="M382 610C346 572 318 536 294 500" stroke="#9CC8FF" stroke-opacity="0.32" stroke-width="12" stroke-linecap="round" fill="none"/>
+        <g id="cbw-left-hand">
+          <path d="M240 440C220 434 200 444 190 462C180 484 190 512 212 524C234 536 260 528 274 508C284 494 288 478 284 464C279 447 263 434 240 440Z" fill="url(#cbw-hand)"/>
+          <path d="M210 432C200 424 188 426 182 438C176 450 180 464 190 470C200 476 214 474 220 464C226 454 223 440 210 432Z" fill="url(#cbw-hand)"/>
+          <path d="M232 414C222 406 208 408 201 420C194 432 198 448 210 456C222 464 238 460 245 448C252 436 247 422 232 414Z" fill="url(#cbw-hand)"/>
+          <path d="M260 412C248 402 232 406 224 418C216 432 220 448 232 458C244 468 262 464 270 450C280 436 274 420 260 412Z" fill="url(#cbw-hand)"/>
+          <path d="M288 422C278 412 264 414 256 426C248 438 252 454 262 462C272 470 286 468 294 456C304 442 300 430 288 422Z" fill="url(#cbw-hand)"/>
+          <path d="M220 462C226 448 240 442 256 444C272 446 286 458 294 474" stroke="#B7C7EE" stroke-width="4" stroke-linecap="round" opacity="0.7"/>
+        </g>
+      </g>
+
+      <g id="cbw-right-arm">
+        <path d="M640 668C670 694 694 726 710 760" stroke="#08248D" stroke-width="52" stroke-linecap="round" fill="none"/>
+        <path d="M640 668C670 694 694 726 710 760" stroke="url(#cbw-blue-light)" stroke-width="38" stroke-linecap="round" fill="none"/>
+        <circle cx="718" cy="778" r="42" fill="url(#cbw-hand)"/>
+      </g>
+
+      <g id="cbw-torso">
+        <ellipse cx="512" cy="558" rx="156" ry="50" fill="#0B2DAF"/>
+        <ellipse cx="512" cy="558" rx="164" ry="56" fill="none" stroke="#051E79" stroke-width="6" opacity="0.62"/>
+        <rect x="366" y="566" width="292" height="238" rx="136" fill="url(#cbw-blue)"/>
+        <rect x="388" y="588" width="248" height="190" rx="114" fill="url(#cbw-blue-light)" opacity="0.28"/>
+        <path d="M396 646C434 620 492 612 552 620C586 624 618 638 636 656V708C612 730 578 742 530 748C474 756 428 748 396 726V646Z" fill="#092EBB" opacity="0.22"/>
+      </g>
+
+      <g id="cbw-head-group">
+        <g id="cbw-ears">
+          <ellipse cx="314" cy="390" rx="40" ry="84" fill="#1243E3"/>
+          <ellipse cx="314" cy="390" rx="29" ry="66" fill="#2F73FF"/>
+          <ellipse cx="314" cy="390" rx="16" ry="48" fill="#0A2BA0"/>
+          <ellipse cx="710" cy="390" rx="40" ry="84" fill="#1243E3"/>
+          <ellipse cx="710" cy="390" rx="29" ry="66" fill="#2F73FF"/>
+          <ellipse cx="710" cy="390" rx="16" ry="48" fill="#0A2BA0"/>
+        </g>
+
+        <g id="cbw-head-shell">
+          <rect x="266" y="246" width="492" height="314" rx="160" fill="url(#cbw-shell)"/>
+          <rect x="280" y="260" width="464" height="286" rx="148" stroke="#9CB0E5" stroke-width="6" opacity="0.52"/>
+          <path d="M360 260C398 216 626 216 664 260" stroke="#1753FA" stroke-width="24" stroke-linecap="round"/>
+          <path d="M370 262C404 238 620 238 650 260" stroke="#8ED7FF" stroke-opacity="0.44" stroke-width="8" stroke-linecap="round"/>
+          <path d="M306 340C336 288 692 290 722 340" stroke="#FFFFFF" stroke-opacity="0.44" stroke-width="10" stroke-linecap="round"/>
+        </g>
+
+        <g id="cbw-visor-group">
+          <rect x="336" y="302" width="352" height="188" rx="96" fill="url(#cbw-visor)"/>
+          <rect x="344" y="310" width="336" height="172" rx="88" stroke="#1446DE" stroke-width="6" opacity="0.56"/>
+          <path d="M378 324C420 310 598 312 640 322" stroke="#6EA9FF" stroke-opacity="0.42" stroke-width="10" stroke-linecap="round"/>
+          <g id="cbw-eyes">
+            <g id="cbw-eye-left">
+              <ellipse cx="434" cy="392" rx="30" ry="33" fill="#FFFFFF"/>
+              <g id="cbw-pupil-left" transform-origin="444px 402px">
+                <ellipse cx="448" cy="406" rx="18" ry="22" fill="#071547"/>
+                <circle cx="456" cy="398" r="7" fill="#FFFFFF"/>
+                <circle cx="443" cy="414" r="3.6" fill="#214FDE" opacity="0.44"/>
+              </g>
+            </g>
+            <g id="cbw-eye-right">
+              <ellipse cx="590" cy="392" rx="30" ry="33" fill="#FFFFFF"/>
+              <g id="cbw-pupil-right" transform-origin="600px 402px">
+                <ellipse cx="604" cy="406" rx="18" ry="22" fill="#071547"/>
+                <circle cx="612" cy="398" r="7" fill="#FFFFFF"/>
+                <circle cx="599" cy="414" r="3.6" fill="#214FDE" opacity="0.44"/>
+              </g>
+            </g>
+          </g>
+          <g id="cbw-mouth-group">
+            <path d="M456 450C484 474 540 474 568 450C562 486 526 506 512 506C498 506 462 486 456 450Z" fill="#071547"/>
+            <path d="M476 460C492 474 532 474 548 460C542 480 522 490 512 490C502 490 482 480 476 460Z" fill="#FF5968"/>
+          </g>
+        </g>
+      </g>
+    </g>
+  </g>
+
+  <circle cx="512" cy="512" r="490" fill="none" stroke="#C8F2FF" stroke-opacity="0.36" stroke-width="10"/>
+  <circle cx="512" cy="512" r="480" fill="none" stroke="#0A35C9" stroke-opacity="0.62" stroke-width="10"/>
+</svg>
