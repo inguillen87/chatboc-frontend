@@ -213,11 +213,11 @@ export function useChatLogic({
         storedContext.tipoChat,
         storedContext.tipo_chat,
       )?.trim();
-      const storedTenantSlug = pickFirstString(
+      const storedTenant = pickFirstString(
         storedContext.tenantSlug,
         storedContext.tenant_slug,
       )?.trim();
-      const normalizedResolvedTenant =
+      const normalizedTenant =
         typeof resolvedTenantSlug === "string" ? resolvedTenantSlug.trim() : "";
 
       if (storedTipoChat && storedTipoChat !== resolvedTipoChat) {
@@ -225,11 +225,7 @@ export function useChatLogic({
         return null;
       }
 
-      if (
-        storedTenantSlug &&
-        normalizedResolvedTenant &&
-        storedTenantSlug !== normalizedResolvedTenant
-      ) {
+      if (storedTenant && normalizedTenant && storedTenant !== normalizedTenant) {
         clearStoredPublicChatContext();
         return null;
       }
@@ -2095,13 +2091,19 @@ export function useChatLogic({
         lowered.includes("transport") ||
         lowered.includes("xhr poll error")
       ) {
+        const nextTransportHint =
+          lowered.includes("websocket") || lowered.includes("transport")
+            ? "polling"
+            : "websocket";
         safeLocalStorage.setItem(
           resolveTransportHintKey(tenantSlug),
-          "websocket",
+          nextTransportHint,
         );
         safeLocalStorage.setItem(
           resolveTransportListKey(tenantSlug),
-          JSON.stringify(["websocket", "polling"]),
+          nextTransportHint === "polling"
+            ? JSON.stringify(["polling"])
+            : JSON.stringify(["websocket", "polling"]),
         );
         setSocketTransportRetryKey((prev) => prev + 1);
       }

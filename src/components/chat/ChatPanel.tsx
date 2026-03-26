@@ -676,13 +676,18 @@ const ChatPanel = (props: ChatPanelProps) => {
       const handleConnectError = (error: unknown) => {
         const lowered = String((error as any)?.message || "").toLowerCase();
         if (lowered.includes("websocket") || lowered.includes("transport")) {
+          const nextTransportHint = lowered.includes("websocket")
+            ? "polling"
+            : "websocket";
           safeLocalStorage.setItem(
             resolveTransportHintKey(tenantSlug),
-            "websocket",
+            nextTransportHint,
           );
           safeLocalStorage.setItem(
             resolveTransportListKey(tenantSlug),
-            JSON.stringify(["websocket", "polling"]),
+            nextTransportHint === "polling"
+              ? JSON.stringify(["polling"])
+              : JSON.stringify(["websocket", "polling"]),
           );
         }
       };
