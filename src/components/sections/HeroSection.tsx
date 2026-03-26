@@ -15,12 +15,12 @@ const HeroSection = () => {
           <div className="w-full lg:w-1/2 lg:pr-10 text-center lg:text-left">
             <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-6 leading-tight">
               <span
-                className="bg-gradient-to-r from-primary via-blue-500 to-cyan-500 text-transparent bg-clip-text"
+                className="bg-gradient-to-r from-[#082173] via-[#0D35C3] to-[#1A53FF] dark:from-[#1451F2] dark:via-[#2A69FF] dark:to-[#66D8FF] text-transparent bg-clip-text"
               >
                 Conectamos
               </span> Gobiernos y Empresas con sus Comunidades
             </h1>
-            <p className="text-lg sm:text-xl text-muted-foreground mb-8">
+            <p className="text-lg sm:text-xl text-slate-600 dark:text-slate-300 mb-8">
               Creamos <strong>Agentes IA</strong> que entienden y resuelven, no simples chatbots.
               <br className="hidden md:block" />
               Una plataforma <strong>SaaS "llave en mano"</strong>: sube tu catálogo o normativa y obtén tu Marketplace o Portal de Servicios listo para usar. Sin configuraciones técnicas complejas.
@@ -29,7 +29,7 @@ const HeroSection = () => {
             <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 mb-6">
               <Button
                 size="lg"
-                className="w-full sm:w-auto shadow-lg hover:shadow-xl transition-shadow"
+                className="w-full sm:w-auto bg-[#0D35C3] hover:bg-[#082184] text-white shadow-lg hover:shadow-xl transition-shadow"
                 onClick={() => navigate("/demo")}
               >
                 <Zap className="mr-2 h-5 w-5" /> Ver Demo en Vivo
@@ -37,14 +37,14 @@ const HeroSection = () => {
               <Button
                 variant="outline"
                 size="lg"
-                className="w-full sm:w-auto shadow-lg hover:shadow-xl transition-shadow"
+                className="w-full sm:w-auto border-[#0D35C3]/30 text-[#082173] hover:bg-[#0D35C3]/10 dark:text-[#9CC3FF] dark:border-[#2A69FF]/40 dark:hover:bg-[#2A69FF]/20 shadow-lg hover:shadow-xl transition-shadow"
                 onClick={() => navigate("/register")}
               >
                 <Users className="mr-2 h-5 w-5" /> Crear Cuenta Gratis
               </Button>
             </div>
 
-            <p className="text-sm text-muted-foreground text-center lg:text-left">
+            <p className="text-sm text-slate-500 dark:text-slate-400 text-center lg:text-left">
               Incluye Mapas de Calor, Puntos de Recompensa y Analíticas avanzadas.
             </p>
           </div>
