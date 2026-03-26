@@ -150,6 +150,10 @@ function ChatWidgetInner({
     "/chatboc_frontend_pack/branding/chatboc/widget/chatboc-widget-launcher-mini-animated.svg";
   const CHATBOC_WIDGET_STATIC =
     "/chatboc_frontend_pack/branding/chatboc/widget/chatboc-widget-launcher-mini-static.svg";
+  const CHATBOC_WIDGET_PNG_FALLBACK =
+    "/chatboc_frontend_pack/branding/chatboc/widget/chatboc-widget-launcher-mini-animated_96.png";
+  const CHATBOC_WIDGET_FALLBACK =
+    "/chatboc_frontend_pack/branding/chatboc/navbar/chatboc-navbar-mark-circle.svg";
   const DEFAULT_WIDGET_UX = {
     preset: 'premium',
     motionLevel: 'balanced',
@@ -1782,7 +1786,7 @@ function ChatWidgetInner({
                 key="chatboc-toggle-btn"
                 className={cn(
                   commonButtonStyles,
-                  "group relative w-full h-full overflow-hidden border border-white/35 bg-white"
+                  "group relative w-full h-full overflow-hidden border border-white/35 bg-white dark:bg-slate-900 dark:border-slate-600/60"
                 )}
                 style={{
                   borderRadius: "50%",
@@ -1805,6 +1809,9 @@ function ChatWidgetInner({
                   src={launcherImageSrc}
                   alt=""
                   aria-hidden="true"
+                  loading="eager"
+                  decoding="async"
+                  fetchPriority="high"
                   className="h-full w-full object-contain drop-shadow-[0_4px_10px_rgba(0,35,110,0.18)]"
                   animate={
                     !isOpen && !prefersReducedMotion
@@ -1820,7 +1827,11 @@ function ChatWidgetInner({
                     setLauncherImageSrc(
                       launcherImageSrc === CHATBOC_WIDGET_ANIMATED
                         ? CHATBOC_WIDGET_STATIC
-                        : customLauncherLogoUrl || entityInfo?.logo_url || getChatbocBotAvatar(isDarkMode),
+                        : launcherImageSrc === CHATBOC_WIDGET_STATIC
+                          ? CHATBOC_WIDGET_PNG_FALLBACK
+                          : launcherImageSrc === CHATBOC_WIDGET_PNG_FALLBACK
+                            ? CHATBOC_WIDGET_FALLBACK
+                          : customLauncherLogoUrl || entityInfo?.logo_url || getChatbocBotAvatar(isDarkMode),
                     )
                   }
                 />
