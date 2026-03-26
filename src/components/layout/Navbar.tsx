@@ -37,7 +37,6 @@ import type { LucideIcon } from "lucide-react";
 import useCartCount from "@/hooks/useCartCount";
 import { useTenant } from "@/context/TenantContext";
 import { buildTenantPath } from "@/utils/tenantPaths";
-import { getChatbocBotAvatar } from "@/utils/brandAssets";
 
 const Navbar: React.FC = () => {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -167,10 +166,11 @@ const Navbar: React.FC = () => {
           className="group flex items-center gap-3 rounded-xl px-2 py-1 hover:bg-primary/5 transition-colors"
           aria-label="Ir al inicio de Chatboc"
         >
+          {/* Asset anterior reemplazado por pack de branding Chatboc 2026-03-26 */}
           <img
-            src={getChatbocBotAvatar(isDark)}
+            src="/chatboc_frontend_pack/branding/chatboc/navbar/chatboc-navbar-mark-clean.svg"
             alt="Chatboc Bot"
-            className="h-9 w-9 rounded-full ring-2 ring-primary/30 shadow-[0_4px_18px_rgba(37,99,235,0.35)] transition-transform duration-300 group-hover:scale-105"
+            className="h-8 w-8 md:h-9 md:w-9 rounded-full ring-1 ring-primary/20 shadow-[0_4px_14px_rgba(15,23,42,0.18)] transition-transform duration-300 group-hover:scale-105"
           />
           <span className="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-blue-700 via-cyan-500 to-sky-300 bg-clip-text text-transparent dark:from-sky-200 dark:via-cyan-300 dark:to-blue-300">
             chatboc.ar
