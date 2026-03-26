@@ -288,8 +288,18 @@ const Navbar: React.FC = () => {
             </DropdownMenu>
           ) : (
             <>
-              <RouterLink to="/login" className="px-3 py-1 border border-primary text-primary rounded hover:bg-primary/10 text-sm dark:text-primary-foreground dark:border-primary-foreground dark:hover:bg-primary-foreground/10 transition-colors">Iniciar Sesión</RouterLink>
-              <RouterLink to="/demo" className="px-3 py-1 bg-primary text-primary-foreground rounded hover:bg-primary/90 text-sm transition-colors">Prueba Gratuita</RouterLink>
+              <RouterLink
+                to="/login"
+                className="px-3 py-1 border border-[#0D35C3]/50 text-[#082173] rounded hover:bg-[#0D35C3]/10 text-sm dark:text-[#C7DBFF] dark:border-[#2A69FF]/50 dark:hover:bg-[#2A69FF]/20 transition-colors"
+              >
+                Iniciar Sesión
+              </RouterLink>
+              <RouterLink
+                to="/demo"
+                className="px-3 py-1 bg-[#0D35C3] text-white rounded hover:bg-[#082184] text-sm dark:bg-[#1451F2] dark:hover:bg-[#0D35C3] transition-colors shadow-sm"
+              >
+                Prueba Gratuita
+              </RouterLink>
             </>
           )}
           <button
@@ -379,8 +389,18 @@ const Navbar: React.FC = () => {
                     </span>
                   )}
                 </RouterLink>
-                <RouterLink to="/login" onClick={() => setMenuOpen(false)} className="hover:text-primary transition-colors">Iniciar Sesión</RouterLink>
-                <RouterLink to="/demo" onClick={() => setMenuOpen(false)} className="bg-primary text-primary-foreground px-4 py-2 rounded hover:bg-primary/90 transition-colors">
+                <RouterLink
+                  to="/login"
+                  onClick={() => setMenuOpen(false)}
+                  className="hover:text-[#0D35C3] dark:hover:text-[#9CC3FF] transition-colors"
+                >
+                  Iniciar Sesión
+                </RouterLink>
+                <RouterLink
+                  to="/demo"
+                  onClick={() => setMenuOpen(false)}
+                  className="bg-[#0D35C3] text-white px-4 py-2 rounded hover:bg-[#082184] dark:bg-[#1451F2] dark:hover:bg-[#0D35C3] transition-colors"
+                >
                   Prueba Gratuita
                 </RouterLink>
               </>

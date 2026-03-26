@@ -1,7 +1,6 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Users, Zap } from "lucide-react";
-import ChatbocLogoAnimated from "../chat/ChatbocLogoAnimated";
 import { useNavigate } from "react-router-dom";
 
 const HeroSection = () => {
@@ -54,7 +53,13 @@ const HeroSection = () => {
             <div className="bg-card text-card-foreground rounded-xl shadow-xl p-5 border border-border max-w-full sm:max-w-md mx-auto animate-float">
               <div className="flex items-center border-b border-border pb-3 mb-4">
                 <div className="mr-3">
-                  <ChatbocLogoAnimated size={36} />
+                  <img
+                    src="/chatboc_frontend_pack/branding/chatboc/navbar/chatboc-navbar-mark-circle.svg"
+                    alt="Chatboc IA"
+                    className="h-9 w-9 rounded-full object-contain ring-1 ring-primary/25"
+                    loading="lazy"
+                    decoding="async"
+                  />
                 </div>
                 <div>
                   <h3 className="font-semibold text-base text-foreground">Agente IA Inteligente</h3>
