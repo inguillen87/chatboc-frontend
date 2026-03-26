@@ -146,6 +146,10 @@ function ChatWidgetInner({
   borderRadius,
   fontFamily,
 }: ChatWidgetProps) {
+  const CHATBOC_WIDGET_ANIMATED =
+    "/chatboc_frontend_pack/branding/chatboc/widget/chatboc-widget-launcher-mini-animated.svg";
+  const CHATBOC_WIDGET_STATIC =
+    "/chatboc_frontend_pack/branding/chatboc/widget/chatboc-widget-launcher-mini-static.svg";
   const DEFAULT_WIDGET_UX = {
     preset: 'premium',
     motionLevel: 'balanced',
@@ -243,9 +247,7 @@ function ChatWidgetInner({
     typeof window !== "undefined" && window.innerWidth < 640
   );
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
-  const [launcherImageSrc, setLauncherImageSrc] = useState(
-    "/chatboc_frontend_pack/branding/chatboc/widget/chatboc-widget-launcher-animated.svg",
-  );
+  const [launcherImageSrc, setLauncherImageSrc] = useState(CHATBOC_WIDGET_ANIMATED);
 
   const { tenant, currentSlug } = useTenant();
   const storedTenantSlug = useMemo(
@@ -1041,8 +1043,9 @@ function ChatWidgetInner({
 
   const finalClosedWidth = closedWidth;
   const finalClosedHeight = closedHeight;
-  const launcherSize = isMobileView ? "56px" : finalClosedWidth;
-  const launcherHeight = isMobileView ? "56px" : finalClosedHeight;
+  const isTabletView = viewport.width >= 640 && viewport.width < 1024;
+  const launcherSize = isMobileView ? "56px" : isTabletView ? "60px" : finalClosedWidth;
+  const launcherHeight = isMobileView ? "56px" : isTabletView ? "60px" : finalClosedHeight;
 
   const commonPanelStyles = cn("chat-root bg-card border shadow-lg", "flex flex-col overflow-hidden");
   const commonButtonStyles = cn(
@@ -1052,8 +1055,8 @@ function ChatWidgetInner({
   );
 
   const launcherAssetSrc = prefersReducedMotion
-    ? "/chatboc_frontend_pack/branding/chatboc/widget/chatboc-widget-launcher-static.svg"
-    : "/chatboc_frontend_pack/branding/chatboc/widget/chatboc-widget-launcher-animated.svg";
+    ? CHATBOC_WIDGET_STATIC
+    : CHATBOC_WIDGET_ANIMATED;
 
   useEffect(() => {
     setLauncherImageSrc(launcherAssetSrc);
@@ -1805,7 +1808,9 @@ function ChatWidgetInner({
                   className="h-full w-full object-contain"
                   onError={() =>
                     setLauncherImageSrc(
-                      customLauncherLogoUrl || entityInfo?.logo_url || getChatbocBotAvatar(isDarkMode),
+                      launcherImageSrc === CHATBOC_WIDGET_ANIMATED
+                        ? CHATBOC_WIDGET_STATIC
+                        : customLauncherLogoUrl || entityInfo?.logo_url || getChatbocBotAvatar(isDarkMode),
                     )
                   }
                 />
