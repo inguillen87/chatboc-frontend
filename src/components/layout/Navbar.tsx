@@ -176,7 +176,7 @@ const Navbar: React.FC = () => {
           <img
             src={navbarLogoSrc}
             alt="Chatboc Bot"
-            className="h-[34px] w-[34px] md:h-10 md:w-10 rounded-full ring-1 ring-primary/20 shadow-[0_6px_16px_rgba(15,23,42,0.2)] transition-transform duration-300 group-hover:scale-105"
+            className="h-9 w-9 md:h-11 md:w-11 rounded-full ring-1 ring-primary/25 bg-white/90 p-0.5 shadow-[0_8px_20px_rgba(15,23,42,0.22)] transition-transform duration-300 group-hover:scale-105"
             onError={() =>
               setNavbarLogoSrc((prev) =>
                 prev === NAVBAR_LOGO_PRIMARY

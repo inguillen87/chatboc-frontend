@@ -1801,11 +1801,21 @@ function ChatWidgetInner({
                 aria-label="Abrir chat"
               >
                 {/* Reemplazado por pack de branding Chatboc 2026-03-26 */}
-                <img
+                <motion.img
                   src={launcherImageSrc}
                   alt=""
                   aria-hidden="true"
-                  className="h-full w-full object-contain"
+                  className="h-full w-full object-contain drop-shadow-[0_4px_10px_rgba(0,35,110,0.18)]"
+                  animate={
+                    !isOpen && !prefersReducedMotion
+                      ? { y: [0, -1.5, 0], scale: [1, 1.018, 1] }
+                      : undefined
+                  }
+                  transition={
+                    !isOpen && !prefersReducedMotion
+                      ? { duration: 2.8, repeat: Infinity, ease: "easeInOut" }
+                      : undefined
+                  }
                   onError={() =>
                     setLauncherImageSrc(
                       launcherImageSrc === CHATBOC_WIDGET_ANIMATED
