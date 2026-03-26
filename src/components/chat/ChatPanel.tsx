@@ -644,7 +644,7 @@ const ChatPanel = (props: ChatPanelProps) => {
         resolveTransportListKey(tenantSlug),
       );
       let transports: Array<"polling" | "websocket"> = defaultPollingOnly
-        ? ["polling"]
+        ? ["websocket", "polling"]
         : ["websocket", "polling"];
 
       if (rawTransportList) {
