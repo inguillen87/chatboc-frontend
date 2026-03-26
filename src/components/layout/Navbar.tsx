@@ -184,7 +184,7 @@ const Navbar: React.FC = () => {
           <img
             src={navbarLogoSrc}
             alt="Chatboc Bot"
-            className="h-8 w-8 md:h-9 md:w-9 rounded-full ring-1 ring-primary/20 shadow-[0_4px_14px_rgba(15,23,42,0.18)] transition-transform duration-300 group-hover:scale-105"
+            className="h-8 w-8 sm:h-[34px] sm:w-[34px] lg:h-9 lg:w-9 rounded-full ring-1 ring-primary/20 shadow-[0_4px_14px_rgba(15,23,42,0.18)] transition-transform duration-300 group-hover:scale-105"
             onError={() =>
               setNavbarLogoSrc((prev) =>
                 prev === (isDark ? NAVBAR_LOGO_DARK_PRIMARY : NAVBAR_LOGO_LIGHT_PRIMARY)
@@ -193,7 +193,7 @@ const Navbar: React.FC = () => {
               )
             }
           />
-          <span className="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-blue-700 via-cyan-500 to-sky-300 bg-clip-text text-transparent dark:from-sky-200 dark:via-cyan-300 dark:to-blue-300">
+          <span className="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-[#082173] via-[#0D35C3] to-[#1A53FF] bg-clip-text text-transparent dark:from-[#7DB0FF] dark:via-[#66D8FF] dark:to-[#2A69FF]">
             chatboc.ar
           </span>
         </button>

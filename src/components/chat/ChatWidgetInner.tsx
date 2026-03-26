@@ -1048,6 +1048,8 @@ function ChatWidgetInner({
   const finalClosedWidth = closedWidth;
   const finalClosedHeight = closedHeight;
   const isTabletView = viewport.width >= 640 && viewport.width < 1024;
+  const closedOffsetBottom = isMobileView ? 16 : isTabletView ? 20 : initialPosition.bottom;
+  const closedOffsetRight = isMobileView ? 16 : isTabletView ? 20 : initialPosition.right;
   const launcherSize = isMobileView ? "56px" : isTabletView ? "60px" : finalClosedWidth;
   const launcherHeight = isMobileView ? "56px" : isTabletView ? "60px" : finalClosedHeight;
 
@@ -1464,8 +1466,8 @@ function ChatWidgetInner({
   const containerStyle: React.CSSProperties = useMemo(() => {
     if (mode === "standalone") {
       const baseStyle = {
-        bottom: `${isMobileView ? 16 : initialPosition.bottom}px`,
-        right: `${isMobileView ? 16 : initialPosition.right}px`,
+        right: `${closedOffsetRight}px`,
+        bottom: `${closedOffsetBottom}px`,
         width: isOpen ? finalOpenWidth : launcherSize,
         height: isOpen ? finalOpenHeight : launcherHeight,
         zIndex: 999999,
@@ -1491,7 +1493,7 @@ function ChatWidgetInner({
       };
     }
     return {};
-  }, [mode, initialPosition.bottom, initialPosition.right, isOpen, finalOpenWidth, finalOpenHeight, launcherSize, launcherHeight, isMobileView]);
+  }, [mode, isOpen, finalOpenWidth, finalOpenHeight, launcherSize, launcherHeight, isMobileView, closedOffsetBottom, closedOffsetRight]);
 
   const panelAnimation = {
     initial: { opacity: 0, scale: 0.95, y: 20, originY: 1 },
@@ -1796,13 +1798,14 @@ function ChatWidgetInner({
                 }}
                 {...buttonAnimation}
                 whileHover={{
-                  y: -1,
-                  scale: 1.03,
+                  y: prefersReducedMotion ? 0 : -1,
+                  scale: prefersReducedMotion ? 1 : 1.03,
                   transition: { type: "spring", stiffness: 420, damping: 24 },
                 }}
-                whileTap={{ scale: 0.98 }}
+                whileTap={prefersReducedMotion ? { scale: 1 } : { scale: 0.98 }}
                 onClick={toggleChat}
                 aria-label="Abrir chat"
+                title="Abrir asistente IA"
               >
                 {/* Reemplazado por pack de branding Chatboc 2026-03-26 */}
                 <motion.img
@@ -1835,6 +1838,11 @@ function ChatWidgetInner({
                     )
                   }
                 />
+                {!isMobileView && !isOpen ? (
+                  <span className="pointer-events-none absolute -top-9 right-1/2 translate-x-1/2 rounded-full border border-border/70 bg-background/95 px-3 py-1 text-[11px] font-semibold tracking-wide text-foreground/85 opacity-0 shadow-sm transition-opacity duration-200 group-hover:opacity-100">
+                    Asistente IA
+                  </span>
+                ) : null}
               </motion.button>
             </motion.div>
             )}

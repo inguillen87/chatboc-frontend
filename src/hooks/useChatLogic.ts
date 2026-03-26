@@ -2002,7 +2002,7 @@ export function useChatLogic({
   const [socketTransportRetryKey, setSocketTransportRetryKey] = useState(0);
 
   const getPreferredSocketTransports = (): Array<"websocket" | "polling"> => {
-    if (isChatbocDomain()) return ["polling"];
+    if (isChatbocDomain()) return ["websocket", "polling"];
 
     const rawTransports = safeLocalStorage.getItem(
       resolveTransportListKey(tenantSlug),
@@ -2097,11 +2097,11 @@ export function useChatLogic({
       ) {
         safeLocalStorage.setItem(
           resolveTransportHintKey(tenantSlug),
-          "polling",
+          "websocket",
         );
         safeLocalStorage.setItem(
           resolveTransportListKey(tenantSlug),
-          JSON.stringify(["polling"]),
+          JSON.stringify(["websocket", "polling"]),
         );
         setSocketTransportRetryKey((prev) => prev + 1);
       }
