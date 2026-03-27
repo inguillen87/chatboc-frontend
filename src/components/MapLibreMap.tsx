@@ -7,6 +7,7 @@ import { GoogleHeatmapMap } from "@/components/GoogleHeatmapMap";
 import type { MapProvider, MapProviderUnavailableReason } from "@/hooks/useMapProvider";
 import { clusterHeatmapPoints } from "@/utils/heatmap";
 import { trackFrontendEvent } from "@/utils/frontendTelemetry";
+import { runtimeDiagnostics } from "@/utils/runtimeDiagnostics";
 
 const MAPLIBRE_EXTERNAL_JS_URL = String(
   import.meta.env.VITE_MAPLIBRE_JS_URL ?? import.meta.env.NEXT_PUBLIC_MAPLIBRE_JS_URL ?? "",
@@ -89,6 +90,7 @@ declare global {
 let cachedMapLibre: MapLibreModule | null = null;
 let maplibrePromise: Promise<MapLibreModule> | null = null;
 let externalMapLibrePromise: Promise<void> | null = null;
+let didWarnExternalAssetsFallback = false;
 
 const ensureExternalMapLibreAssets = async (): Promise<void> => {
   if (typeof window === "undefined") return;
@@ -150,7 +152,10 @@ const loadMapLibre = async (): Promise<MapLibreModule> => {
   try {
     await ensureExternalMapLibreAssets();
   } catch (error) {
-    console.warn("[MapLibreMap] External MapLibre assets failed to load, using bundled module fallback", error);
+    if (!didWarnExternalAssetsFallback) {
+      didWarnExternalAssetsFallback = true;
+      runtimeDiagnostics.warn("[MapLibreMap] External MapLibre assets failed to load, using bundled module fallback", error);
+    }
   }
 
   if (window.maplibregl?.Map) {
@@ -538,13 +543,32 @@ export default function MapLibreMap({
               ],
             }
           : null;
-        const styleCandidates = [
+        const defaultRasterStyle = {
+          version: 8,
+          sources: {
+            osm: {
+              type: "raster",
+              tiles: [
+                "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png",
+                "https://b.tile.openstreetmap.org/{z}/{x}/{y}.png",
+                "https://c.tile.openstreetmap.org/{z}/{x}/{y}.png",
+              ],
+              tileSize: 256,
+              attribution: "© OpenStreetMap contributors",
+            },
+          },
+          layers: [{ id: "osm", type: "raster", source: "osm" }],
+        };
+        const styleCandidates: Array<string | typeof defaultRasterStyle> = [
           customStyle || null,
           key ? `https://api.maptiler.com/maps/streets-v2/style.json?key=${key}` : null,
           "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
           "https://tiles.stadiamaps.com/styles/alidade_smooth.json",
           "https://demotiles.maplibre.org/style.json",
-        ].filter((value): value is string => typeof value === "string" && value.length > 0);
+          defaultRasterStyle,
+        ].filter((value): value is string | typeof defaultRasterStyle =>
+          typeof value === "string" ? value.length > 0 : Boolean(value),
+        );
 
         let currentStyleIndex = 0;
         let exhaustedStyles = false;
@@ -787,8 +811,8 @@ export default function MapLibreMap({
           if (currentStyleIndex < styleCandidates.length - 1) {
             currentStyleIndex += 1;
             const nextStyle = styleCandidates[currentStyleIndex];
-            console.warn("[MapLibreMap] Falling back to alternate style", {
-              nextStyle,
+            runtimeDiagnostics.warn("[MapLibreMap] Falling back to alternate style", {
+              nextStyle: typeof nextStyle === "string" ? nextStyle : "inline-raster-style",
               reason,
             });
             mapInstance.setStyle(nextStyle);
@@ -1048,7 +1072,7 @@ export default function MapLibreMap({
           mapInstance.off("error", handleStyleError);
         };
       } catch (error) {
-        console.error("Failed to initialize map:", error);
+        runtimeDiagnostics.error("Failed to initialize map:", error);
         setMapError(error instanceof Error ? error.message : "No se pudo cargar el mapa");
       }
 
@@ -1296,7 +1320,7 @@ export default function MapLibreMap({
           });
           return;
         } catch (err) {
-          console.warn("No se pudo ajustar el mapa a los límites proporcionados", err);
+          runtimeDiagnostics.warn("No se pudo ajustar el mapa a los límites proporcionados", err);
         }
       }
 

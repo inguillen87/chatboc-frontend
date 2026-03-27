@@ -12,10 +12,11 @@ export function MeasuredContainer({
   className,
   minWidth = 280,
   minHeight = 220,
-  renderWhenVisible = false,
+  renderWhenVisible = true,
   children,
 }: MeasuredContainerProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const validMeasurementsRef = useRef(0);
   const [canRender, setCanRender] = useState(false);
   const [isInViewport, setIsInViewport] = useState(!renderWhenVisible);
 
@@ -44,6 +45,7 @@ export function MeasuredContainer({
   useEffect(() => {
     const node = containerRef.current;
     if (!node) {
+      validMeasurementsRef.current = 0;
       setCanRender(false);
       return;
     }
@@ -52,11 +54,20 @@ export function MeasuredContainer({
       const { width, height } = node.getBoundingClientRect();
       const styles = window.getComputedStyle(node);
       const isVisible = styles.display !== 'none' && styles.visibility !== 'hidden';
-      const hasValidDimensions = isVisible && width > 24 && height > 24;
-      setCanRender(hasValidDimensions);
+      const minValidWidth = Math.max(24, Math.min(minWidth, 120));
+      const minValidHeight = Math.max(24, Math.min(minHeight, 120));
+      const hasValidDimensions = isVisible && width >= minValidWidth && height >= minValidHeight;
+      if (!hasValidDimensions) {
+        validMeasurementsRef.current = 0;
+        setCanRender(false);
+        return;
+      }
+      validMeasurementsRef.current += 1;
+      setCanRender(validMeasurementsRef.current >= 2);
     };
 
     if (!isInViewport) {
+      validMeasurementsRef.current = 0;
       setCanRender(false);
       return;
     }
@@ -99,7 +110,7 @@ export function MeasuredContainer({
       observer.disconnect();
       mutationObserver?.disconnect();
     };
-  }, [isInViewport, renderWhenVisible]);
+  }, [isInViewport, minHeight, minWidth, renderWhenVisible]);
 
   return (
     <div ref={containerRef} className={className} style={{ minWidth, minHeight, width: '100%', height: '100%' }}>

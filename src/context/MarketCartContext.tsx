@@ -7,6 +7,7 @@ import React, {
   useState,
   type ReactNode,
 } from 'react';
+import { useLocation } from 'react-router-dom';
 
 import type { MarketCartItem, MarketCartResponse, MarketCommercialState, MarketCustomerProfile } from '@/types/market';
 import { addMarketItem, fetchMarketCart } from '@/api/market';
@@ -53,6 +54,7 @@ const normalizeCartItems = (raw: any): MarketCartItem[] => {
 };
 
 export function MarketCartProvider({ tenantSlug, children }: ProviderProps) {
+  const location = useLocation();
   const [items, setItems] = useState<MarketCartItem[]>([]);
   const [totalAmount, setTotalAmount] = useState<number | null>(null);
   const [totalPoints, setTotalPoints] = useState<number | null>(null);
@@ -60,6 +62,10 @@ export function MarketCartProvider({ tenantSlug, children }: ProviderProps) {
   const [error, setError] = useState<string | null>(null);
   const [customerProfile, setCustomerProfile] = useState<MarketCustomerProfile | null>(null);
   const [commercialState, setCommercialState] = useState<MarketCommercialState | null>(null);
+  const shouldDisableCartRequests = useMemo(() => {
+    const pathname = location.pathname || '';
+    return /^\/(?:[^/]+\/)?(?:admin|analytics|municipal)(?:\/|$)/.test(pathname);
+  }, [location.pathname]);
 
   const refreshCart = useCallback(async () => {
     if (!tenantSlug) {
@@ -68,6 +74,16 @@ export function MarketCartProvider({ tenantSlug, children }: ProviderProps) {
       setTotalPoints(null);
       setCustomerProfile(null);
       setCommercialState(null);
+      return;
+    }
+    if (shouldDisableCartRequests) {
+      setItems([]);
+      setTotalAmount(null);
+      setTotalPoints(null);
+      setCustomerProfile(null);
+      setCommercialState(null);
+      setError(null);
+      setIsLoading(false);
       return;
     }
 
@@ -86,7 +102,7 @@ export function MarketCartProvider({ tenantSlug, children }: ProviderProps) {
     } finally {
       setIsLoading(false);
     }
-  }, [tenantSlug]);
+  }, [shouldDisableCartRequests, tenantSlug]);
 
   const addItem = useCallback(
     async (productId: string, quantity = 1) => {
