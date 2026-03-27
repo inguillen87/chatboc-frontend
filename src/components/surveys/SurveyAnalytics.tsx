@@ -48,6 +48,8 @@ interface SurveyAnalyticsProps {
 }
 
 const palette = ['#2563eb', '#7c3aed', '#059669', '#ea580c', '#f59e0b', '#db2777'];
+const CHART_ANIMATION_DURATION = 650;
+const CHART_ANIMATION_EASING = 'ease-out';
 
 const colorFromCategory = (value: string, fallbackIndex = 0) => {
   const normalized = value.trim().toLowerCase();
@@ -918,7 +920,16 @@ export const SurveyAnalytics = ({
                 <XAxis dataKey="fecha" />
                 <YAxis allowDecimals={false} />
                 <Tooltip />
-                <Line type="monotone" dataKey="respuestas" stroke="#2563eb" strokeWidth={2} dot />
+                <Line
+                  type="monotone"
+                  dataKey="respuestas"
+                  stroke="#2563eb"
+                  strokeWidth={2}
+                  dot
+                  isAnimationActive
+                  animationDuration={CHART_ANIMATION_DURATION}
+                  animationEasing={CHART_ANIMATION_EASING}
+                />
               </LineChart>
             </ResponsiveContainer>
           ) : (
@@ -944,7 +955,13 @@ export const SurveyAnalytics = ({
                   <YAxis allowDecimals={false} />
                   <Tooltip />
                   <Legend />
-                  <Bar dataKey="respuestas" fill="#7c3aed" />
+                  <Bar
+                    dataKey="respuestas"
+                    fill="#7c3aed"
+                    isAnimationActive
+                    animationDuration={CHART_ANIMATION_DURATION}
+                    animationEasing={CHART_ANIMATION_EASING}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -965,6 +982,9 @@ export const SurveyAnalytics = ({
                     cy="50%"
                     outerRadius={110}
                     innerRadius={60}
+                    isAnimationActive
+                    animationDuration={CHART_ANIMATION_DURATION}
+                    animationEasing={CHART_ANIMATION_EASING}
                   >
                     {optionData.map((entry, index) => (
                       <Cell key={`${entry.opcion}-${index}`} fill={palette[index % palette.length]} />
@@ -1222,6 +1242,14 @@ export const SurveyAnalytics = ({
                 onBoundingBoxChange={handleBoundingBoxChange}
               />
             </MeasuredContainer>
+          ) : heatmapData.length ? (
+            <div className="flex h-full flex-col items-center justify-center rounded-lg border border-border/60 bg-muted/10 p-4 text-center">
+              <div className="h-2 w-40 animate-pulse rounded-full bg-primary/30" />
+              <p className="mt-3 text-sm font-medium">Preparando mapa y capas geoespaciales…</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Estamos validando proveedores y recursos antes de renderizar la vista.
+              </p>
+            </div>
           ) : (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
               {toNonEmptyString(mapMetaRecord?.empty_state) ?? 'No hay datos georreferenciados para esta encuesta todavía.'}
@@ -1270,9 +1298,18 @@ export const SurveyAnalytics = ({
                             : [`${value} respuestas`, ''];
                         }}
                       />
-                      <Bar dataKey="value" fill={palette[sectionIndex % palette.length]}>
+                      <Bar
+                        dataKey="value"
+                        fill={palette[sectionIndex % palette.length]}
+                        isAnimationActive
+                        animationDuration={CHART_ANIMATION_DURATION}
+                        animationEasing={CHART_ANIMATION_EASING}
+                      >
                         {section.data.map((item, index) => (
-                          <Cell key={item.key} fill={palette[(sectionIndex + index) % palette.length]} />
+                          <Cell
+                            key={item.key}
+                            fill={palette[(sectionIndex + index) % palette.length]}
+                          />
                         ))}
                       </Bar>
                     </BarChart>
