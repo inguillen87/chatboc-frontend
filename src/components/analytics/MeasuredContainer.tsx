@@ -27,7 +27,9 @@ export function MeasuredContainer({
 
     const update = () => {
       const { width, height } = node.getBoundingClientRect();
-      const hasValidDimensions = width > 24 && height > 24;
+      const styles = window.getComputedStyle(node);
+      const isVisible = styles.display !== 'none' && styles.visibility !== 'hidden';
+      const hasValidDimensions = isVisible && width > 24 && height > 24;
       setCanRender(hasValidDimensions);
     };
 
@@ -36,10 +38,13 @@ export function MeasuredContainer({
       return;
     }
 
-    update();
+    const raf = window.requestAnimationFrame(update);
     const observer = new ResizeObserver(update);
     observer.observe(node);
-    return () => observer.disconnect();
+    return () => {
+      window.cancelAnimationFrame(raf);
+      observer.disconnect();
+    };
   }, [renderWhenVisible]);
 
   return (
