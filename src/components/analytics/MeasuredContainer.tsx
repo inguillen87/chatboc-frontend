@@ -17,6 +17,29 @@ export function MeasuredContainer({
 }: MeasuredContainerProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [canRender, setCanRender] = useState(false);
+  const [isInViewport, setIsInViewport] = useState(!renderWhenVisible);
+
+  useEffect(() => {
+    if (!renderWhenVisible) {
+      setIsInViewport(true);
+      return;
+    }
+    const node = containerRef.current;
+    if (!node || typeof IntersectionObserver === 'undefined') {
+      setIsInViewport(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const next = entries.some((entry) => entry.isIntersecting || entry.intersectionRatio > 0);
+        setIsInViewport(next);
+      },
+      { root: null, threshold: 0.01 },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [renderWhenVisible]);
 
   useEffect(() => {
     const node = containerRef.current;
@@ -33,6 +56,11 @@ export function MeasuredContainer({
       setCanRender(hasValidDimensions);
     };
 
+    if (!isInViewport) {
+      setCanRender(false);
+      return;
+    }
+
     if (typeof ResizeObserver === 'undefined') {
       update();
       return;
@@ -45,7 +73,7 @@ export function MeasuredContainer({
       window.cancelAnimationFrame(raf);
       observer.disconnect();
     };
-  }, [renderWhenVisible]);
+  }, [isInViewport, renderWhenVisible]);
 
   return (
     <div ref={containerRef} className={className} style={{ minWidth, minHeight, width: '100%', height: '100%' }}>
