@@ -147,7 +147,11 @@ const loadMapLibre = async (): Promise<MapLibreModule> => {
     return window.maplibregl;
   }
 
-  await ensureExternalMapLibreAssets();
+  try {
+    await ensureExternalMapLibreAssets();
+  } catch (error) {
+    console.warn("[MapLibreMap] External MapLibre assets failed to load, using bundled module fallback", error);
+  }
 
   if (window.maplibregl?.Map) {
     cachedMapLibre = window.maplibregl;
