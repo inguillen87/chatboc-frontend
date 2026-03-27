@@ -69,9 +69,35 @@ export function MeasuredContainer({
     const raf = window.requestAnimationFrame(update);
     const observer = new ResizeObserver(update);
     observer.observe(node);
+
+    const mutationTargets: HTMLElement[] = [];
+    let current: HTMLElement | null = node;
+    while (current && current !== document.body) {
+      mutationTargets.push(current);
+      current = current.parentElement;
+    }
+    if (document.body) {
+      mutationTargets.push(document.body);
+    }
+
+    const mutationObserver =
+      typeof MutationObserver !== 'undefined'
+        ? new MutationObserver(() => {
+            update();
+          })
+        : null;
+
+    mutationTargets.forEach((target) => {
+      mutationObserver?.observe(target, {
+        attributes: true,
+        attributeFilter: ['style', 'class', 'hidden', 'aria-hidden'],
+      });
+    });
+
     return () => {
       window.cancelAnimationFrame(raf);
       observer.disconnect();
+      mutationObserver?.disconnect();
     };
   }, [isInViewport, renderWhenVisible]);
 

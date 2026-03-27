@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
-import { AlertTriangle, CalendarDays, Copy, Download, ExternalLink, Loader2, Sparkles, TrendingUp } from 'lucide-react';
+import { Activity, AlertTriangle, CalendarDays, Copy, Download, ExternalLink, Gauge, Loader2, ShieldCheck, Sparkles, TrendingUp } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
@@ -118,6 +118,44 @@ function normalizePriority(value: unknown) {
   if (typeof value === 'number' && Number.isFinite(value)) return String(value);
   if (typeof value === 'string' && value.trim()) return value;
   return '';
+}
+
+function formatMetricMaybe(value: unknown) {
+  const text = asRenderableText(value);
+  if (!text.trim()) return '—';
+  return text;
+}
+
+function EnterpriseMetricCard({
+  title,
+  value,
+  subtitle,
+  icon,
+  tone = 'default',
+}: {
+  title: string;
+  value: string;
+  subtitle?: string;
+  icon?: ReactNode;
+  tone?: 'default' | 'success' | 'warning';
+}) {
+  const toneClass =
+    tone === 'success'
+      ? 'border-emerald-500/20 bg-emerald-500/5'
+      : tone === 'warning'
+        ? 'border-amber-500/20 bg-amber-500/5'
+        : 'border-border/60 bg-background/80';
+
+  return (
+    <div className={`rounded-lg border p-3 ${toneClass}`}>
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{title}</p>
+        {icon ? <span className="text-muted-foreground">{icon}</span> : null}
+      </div>
+      <p className="mt-2 text-2xl font-semibold tracking-tight">{value}</p>
+      {subtitle ? <p className="mt-1 text-xs text-muted-foreground">{subtitle}</p> : null}
+    </div>
+  );
 }
 
 
@@ -627,6 +665,56 @@ export default function SurveyAnalyticsPage() {
     () => (Array.isArray(anomalies?.top_anomalies) && anomalies.top_anomalies.length ? anomalies.top_anomalies : anomalies?.signals ?? []),
     [anomalies?.top_anomalies, anomalies?.signals],
   );
+  const operationsPulse = useMemo(
+    () => [
+      {
+        id: 'alerts',
+        title: asSafeText(enterpriseUiConfig?.alerts_count_label) || 'Alertas activas',
+        value: String(effectiveAlerts.length),
+        subtitle: asSafeText(enterpriseUiConfig?.alerts_title) || 'Eventos críticos detectados por reglas',
+        icon: <AlertTriangle className="h-4 w-4" />,
+        tone: (effectiveAlerts.length > 0 ? 'warning' : 'success') as const,
+      },
+      {
+        id: 'confidence',
+        title: asSafeText(enterpriseUiConfig?.forecast_confidence_label) || 'Confianza de proyección',
+        value: formatMetricMaybe(forecast?.confidence),
+        subtitle: asSafeText(enterpriseUiConfig?.forecast_title) || 'Modelo de tendencia de participación',
+        icon: <Gauge className="h-4 w-4" />,
+        tone: 'default' as const,
+      },
+      {
+        id: 'risk',
+        title: asSafeText(enterpriseUiConfig?.risk_score_label) || 'Riesgo operativo',
+        value: formatMetricMaybe(anomalies?.risk_score),
+        subtitle: asSafeText(enterpriseUiConfig?.data_quality_title) || 'Señales de consistencia y manipulación',
+        icon: <ShieldCheck className="h-4 w-4" />,
+        tone: toFiniteNumber(anomalies?.risk_score, 0) > 70 ? ('warning' as const) : ('success' as const),
+      },
+      {
+        id: 'activity',
+        title: asSafeText(enterpriseUiConfig?.forecast_current_rate_label) || 'Ritmo actual',
+        value: formatMetricMaybe(forecast?.current_rate),
+        subtitle: asSafeText(enterpriseUiConfig?.brief_title) || 'Pulso de actividad reciente',
+        icon: <Activity className="h-4 w-4" />,
+        tone: 'default' as const,
+      },
+    ],
+    [
+      anomalies?.risk_score,
+      effectiveAlerts.length,
+      enterpriseUiConfig?.alerts_count_label,
+      enterpriseUiConfig?.alerts_title,
+      enterpriseUiConfig?.brief_title,
+      enterpriseUiConfig?.data_quality_title,
+      enterpriseUiConfig?.forecast_confidence_label,
+      enterpriseUiConfig?.forecast_current_rate_label,
+      enterpriseUiConfig?.forecast_title,
+      enterpriseUiConfig?.risk_score_label,
+      forecast?.confidence,
+      forecast?.current_rate,
+    ],
+  );
 
 
   const segmentDeltaData = useMemo(
@@ -931,6 +1019,24 @@ export default function SurveyAnalyticsPage() {
             tenantId={typeof effectiveSurvey?.tenant_id === 'number' ? effectiveSurvey.tenant_id : undefined}
             route="/admin/encuestas/:id/analytics"
           />
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>Pulso operativo enterprise</CardTitle>
+          <CardDescription>Lectura rápida de salud, riesgo y tracción en tiempo real para toma de decisiones.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {operationsPulse.map((item) => (
+            <EnterpriseMetricCard
+              key={item.id}
+              title={item.title}
+              value={item.value}
+              subtitle={item.subtitle}
+              icon={item.icon}
+              tone={item.tone}
+            />
+          ))}
         </CardContent>
       </Card>
       <Card>
