@@ -4,7 +4,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Send, PanelLeft, MessageSquare, PanelLeftClose, MessageCircle, Mic, MicOff, X, FileText, ChevronDown, Info, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Ticket, TicketStatus, Message as TicketMessage } from '@/types/tickets';
+import { Ticket, TicketStatus, Message as TicketMessage, UnifiedConversationStreamItem } from '@/types/tickets';
 import { Message as ChatMessageData, SendPayload, AttachmentInfo } from '@/types/chat';
 import ChatMessage from './ChatMessage';
 import DetailsPanel from './DetailsPanel';
@@ -15,6 +15,7 @@ import { useSocket } from '@/context/SocketContext';
 import { safeOn } from '@/utils/safeOn';
 import {
   getTicketMessages,
+  getTicketTimeline,
   requestTicketHistoryEmail,
   sendMessage,
   updateTicketStatus,
@@ -157,6 +158,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   const { selectedTicket, updateTicket } = useTickets();
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState<ChatMessageData[]>([]);
+  const [timelineItems, setTimelineItems] = useState<UnifiedConversationStreamItem[]>([]);
   const [isSending, setIsSending] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
@@ -222,6 +224,19 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   }, [lastMessage]);
   const isResponsePending = lastMessage ? !lastMessage.isBot : false;
 
+  const activeChannel = selectedTicket?.channel || 'other';
+  const composerPlaceholder = listening
+    ? 'Escuchando...'
+    : attachmentPreview
+      ? 'Añadí contexto para el adjunto...'
+      : activeChannel === 'whatsapp'
+        ? 'Responder conversación de WhatsApp...'
+        : activeChannel === 'email'
+          ? 'Responder por email...'
+          : activeChannel === 'phone'
+            ? 'Registrar respuesta de llamada...'
+            : 'Escribí tu respuesta...';
+
   useEffect(() => {
     if (transcript) {
       setMessage(prev => prev ? `${prev} ${transcript}` : transcript);
@@ -232,13 +247,27 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     const fetchMessages = async () => {
       if (!selectedTicket) {
         setMessages([]);
+        setTimelineItems([]);
         setIsLoading(false);
         return;
       }
 
       setIsLoading(true);
 
-      // Usar los mensajes existentes si vienen con el ticket
+      try {
+        const timeline = await getTicketTimeline(selectedTicket.id, selectedTicket.tipo);
+        if (Array.isArray(timeline.unified_conversation_stream)) {
+          setTimelineItems(timeline.unified_conversation_stream);
+        }
+        if (Array.isArray(timeline.messages) && timeline.messages.length > 0) {
+          setMessages(timeline.messages.map((msg) => adaptTicketMessageToChatMessage(msg, selectedTicket)));
+          setIsLoading(false);
+          return;
+        }
+      } catch (timelineError) {
+        console.warn('No se pudo cargar timeline unificado, usando fallback de mensajes.', timelineError);
+      }
+
       if (selectedTicket.messages) {
         setMessages(selectedTicket.messages.map(msg => adaptTicketMessageToChatMessage(msg, selectedTicket)));
         setIsLoading(false);
@@ -301,6 +330,28 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         socket.emit('leave', { room: `ticket-${selectedTicket.tipo}-${selectedTicket.id}` });
     };
   }, [socket, selectedTicket]);
+
+  useEffect(() => {
+    if (!selectedTicket) return;
+    if (socket?.connected) return;
+
+    const interval = window.setInterval(async () => {
+      try {
+        const polledMessages = await getTicketMessages(selectedTicket.id, selectedTicket.tipo);
+        setMessages((prev) => {
+          const known = new Set(prev.map((item) => String(item.id)));
+          const incoming = polledMessages
+            .filter((item) => !known.has(String(item.id)))
+            .map((item) => adaptTicketMessageToChatMessage(item, selectedTicket));
+          return incoming.length > 0 ? [...prev, ...incoming] : prev;
+        });
+      } catch (pollError) {
+        console.warn('Fallback polling de conversación falló', pollError);
+      }
+    }, 15000);
+
+    return () => window.clearInterval(interval);
+  }, [selectedTicket, socket?.connected]);
 
   const scrollToBottom = useCallback(() => {
     if (scrollAreaRef.current) {
@@ -604,6 +655,19 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         ) : (
           <>
             <ScrollArea className="h-full p-4" ref={scrollAreaRef} onScroll={handleScroll}>
+              {timelineItems.length > 0 && (
+                <div className="mb-4 space-y-2 rounded-xl border border-border/60 bg-background/80 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Timeline omnicanal</p>
+                  <div className="space-y-2">
+                    {timelineItems.slice(-8).map((item) => (
+                      <div key={item.id} className="rounded-lg border border-border/50 bg-muted/30 px-2 py-1">
+                        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{item.source || item.stream_type || 'evento'}</p>
+                        <p className="text-sm text-foreground">{item.preview_text}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               {isLoading ? (
                 <div className="flex h-full items-center justify-center">
                   <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -662,7 +726,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         )}
         <div className="relative">
           <Textarea
-            placeholder={listening ? "Escuchando..." : attachmentPreview ? "Añade un comentario..." : "Escribe tu respuesta..."}
+            placeholder={composerPlaceholder}
             className="pr-48 min-h-[40px]"
             value={message}
             onChange={(e) => setMessage(e.target.value)}
