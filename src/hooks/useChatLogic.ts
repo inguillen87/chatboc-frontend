@@ -1997,9 +1997,13 @@ export function useChatLogic({
   };
 
   const [socketTransportRetryKey, setSocketTransportRetryKey] = useState(0);
+  const socketTransportRetryCountRef = useRef(0);
+  const MAX_SOCKET_TRANSPORT_RETRIES = 2;
 
   const getPreferredSocketTransports = (): Array<"websocket" | "polling"> => {
-    const defaultTransports: Array<"websocket" | "polling"> = ["websocket", "polling"];
+    const defaultTransports: Array<"websocket" | "polling"> = isChatbocDomain()
+      ? ["polling"]
+      : ["websocket", "polling"];
 
     const rawTransports = safeLocalStorage.getItem(
       resolveTransportListKey(tenantSlug),
@@ -2079,6 +2083,7 @@ export function useChatLogic({
 
     const handleConnect = () => {
       console.log("Socket.IO connected, joining room with web channel...");
+      socketTransportRetryCountRef.current = 0;
       socket.emit("join", { room: sessionId, channel: "web" });
 
       initializeConversationRef.current?.({ resetContext: true });
@@ -2092,6 +2097,10 @@ export function useChatLogic({
         lowered.includes("transport") ||
         lowered.includes("xhr poll error")
       ) {
+        if (socketTransportRetryCountRef.current >= MAX_SOCKET_TRANSPORT_RETRIES) {
+          return;
+        }
+        socketTransportRetryCountRef.current += 1;
         const nextTransportHint =
           lowered.includes("websocket") || lowered.includes("transport")
             ? "polling"

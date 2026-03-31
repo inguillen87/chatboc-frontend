@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
-import { AlertTriangle, CalendarDays, Copy, Download, ExternalLink, Loader2, Sparkles, TrendingUp } from 'lucide-react';
+import { Activity, AlertTriangle, CalendarDays, Copy, Download, ExternalLink, Gauge, Loader2, ShieldCheck, Sparkles, TrendingUp } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
@@ -45,6 +45,16 @@ function asSafeText(value?: unknown) {
   return typeof value === 'string' ? value : '';
 }
 
+function humanizeMetricKey(value?: unknown) {
+  if (typeof value !== 'string') return '';
+  const normalized = value
+    .replace(/[_-]+/g, ' ')
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .trim();
+  if (!normalized) return '';
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
 function asRenderableText(value?: unknown) {
   if (typeof value === 'string' || typeof value === 'number') return String(value);
   if (!value || typeof value !== 'object') return '';
@@ -56,6 +66,23 @@ function asRenderableText(value?: unknown) {
   }
 
   return '';
+}
+
+function readMetricValue(value: Record<string, unknown>) {
+  const candidates = [
+    value.value,
+    value.metric,
+    value.current,
+    value.total,
+    value.count,
+    value.score,
+    value.amount,
+  ];
+  for (const candidate of candidates) {
+    const resolved = asRenderableText(candidate);
+    if (resolved.trim()) return resolved;
+  }
+  return '—';
 }
 
 function renderLabeledMetric(label: string, value: string | number) {
@@ -91,6 +118,44 @@ function normalizePriority(value: unknown) {
   if (typeof value === 'number' && Number.isFinite(value)) return String(value);
   if (typeof value === 'string' && value.trim()) return value;
   return '';
+}
+
+function formatMetricMaybe(value: unknown) {
+  const text = asRenderableText(value);
+  if (!text.trim()) return '—';
+  return text;
+}
+
+function EnterpriseMetricCard({
+  title,
+  value,
+  subtitle,
+  icon,
+  tone = 'default',
+}: {
+  title: string;
+  value: string;
+  subtitle?: string;
+  icon?: ReactNode;
+  tone?: 'default' | 'success' | 'warning';
+}) {
+  const toneClass =
+    tone === 'success'
+      ? 'border-emerald-500/20 bg-emerald-500/5'
+      : tone === 'warning'
+        ? 'border-amber-500/20 bg-amber-500/5'
+        : 'border-border/60 bg-background/80';
+
+  return (
+    <div className={`rounded-lg border p-3 ${toneClass}`}>
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{title}</p>
+        {icon ? <span className="text-muted-foreground">{icon}</span> : null}
+      </div>
+      <p className="mt-2 text-2xl font-semibold tracking-tight">{value}</p>
+      {subtitle ? <p className="mt-1 text-xs text-muted-foreground">{subtitle}</p> : null}
+    </div>
+  );
 }
 
 
@@ -600,6 +665,56 @@ export default function SurveyAnalyticsPage() {
     () => (Array.isArray(anomalies?.top_anomalies) && anomalies.top_anomalies.length ? anomalies.top_anomalies : anomalies?.signals ?? []),
     [anomalies?.top_anomalies, anomalies?.signals],
   );
+  const operationsPulse = useMemo(
+    () => [
+      {
+        id: 'alerts',
+        title: asSafeText(enterpriseUiConfig?.alerts_count_label) || 'Alertas activas',
+        value: String(effectiveAlerts.length),
+        subtitle: asSafeText(enterpriseUiConfig?.alerts_title) || 'Eventos críticos detectados por reglas',
+        icon: <AlertTriangle className="h-4 w-4" />,
+        tone: (effectiveAlerts.length > 0 ? 'warning' : 'success') as const,
+      },
+      {
+        id: 'confidence',
+        title: asSafeText(enterpriseUiConfig?.forecast_confidence_label) || 'Confianza de proyección',
+        value: formatMetricMaybe(forecast?.confidence),
+        subtitle: asSafeText(enterpriseUiConfig?.forecast_title) || 'Modelo de tendencia de participación',
+        icon: <Gauge className="h-4 w-4" />,
+        tone: 'default' as const,
+      },
+      {
+        id: 'risk',
+        title: asSafeText(enterpriseUiConfig?.risk_score_label) || 'Riesgo operativo',
+        value: formatMetricMaybe(anomalies?.risk_score),
+        subtitle: asSafeText(enterpriseUiConfig?.data_quality_title) || 'Señales de consistencia y manipulación',
+        icon: <ShieldCheck className="h-4 w-4" />,
+        tone: toFiniteNumber(anomalies?.risk_score, 0) > 70 ? ('warning' as const) : ('success' as const),
+      },
+      {
+        id: 'activity',
+        title: asSafeText(enterpriseUiConfig?.forecast_current_rate_label) || 'Ritmo actual',
+        value: formatMetricMaybe(forecast?.current_rate),
+        subtitle: asSafeText(enterpriseUiConfig?.brief_title) || 'Pulso de actividad reciente',
+        icon: <Activity className="h-4 w-4" />,
+        tone: 'default' as const,
+      },
+    ],
+    [
+      anomalies?.risk_score,
+      effectiveAlerts.length,
+      enterpriseUiConfig?.alerts_count_label,
+      enterpriseUiConfig?.alerts_title,
+      enterpriseUiConfig?.brief_title,
+      enterpriseUiConfig?.data_quality_title,
+      enterpriseUiConfig?.forecast_confidence_label,
+      enterpriseUiConfig?.forecast_current_rate_label,
+      enterpriseUiConfig?.forecast_title,
+      enterpriseUiConfig?.risk_score_label,
+      forecast?.confidence,
+      forecast?.current_rate,
+    ],
+  );
 
 
   const segmentDeltaData = useMemo(
@@ -908,6 +1023,24 @@ export default function SurveyAnalyticsPage() {
       </Card>
       <Card>
         <CardHeader>
+          <CardTitle>Pulso operativo enterprise</CardTitle>
+          <CardDescription>Lectura rápida de salud, riesgo y tracción en tiempo real para toma de decisiones.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {operationsPulse.map((item) => (
+            <EnterpriseMetricCard
+              key={item.id}
+              title={item.title}
+              value={item.value}
+              subtitle={item.subtitle}
+              icon={item.icon}
+              tone={item.tone}
+            />
+          ))}
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
           <CardTitle>{asSafeText(enterpriseUiConfig?.command_center_title)}</CardTitle>
           <CardDescription>{asSafeText(enterpriseUiConfig?.command_center_description)}</CardDescription>
         </CardHeader>
@@ -1179,7 +1312,7 @@ export default function SurveyAnalyticsPage() {
                   const items = asRecordList(dataset.items).slice(0, 3);
                   return (
                     <div key={`${asRenderableText(dataset.key) || 'dataset'}-${index}`} className="rounded-lg border border-border/60 p-3">
-                      <p className="text-sm font-medium">{asRenderableText(dataset.label) || asRenderableText(dataset.key)}</p>
+                      <p className="text-sm font-medium">{asRenderableText(dataset.label) || humanizeMetricKey(asRenderableText(dataset.key)) || asRenderableText(dataset.key)}</p>
                       <p className="text-xs text-muted-foreground">{asRenderableText(dataset.description)}</p>
                       {items.length ? (
                         <div className="mt-2 space-y-1 text-xs text-muted-foreground">
@@ -1187,7 +1320,7 @@ export default function SurveyAnalyticsPage() {
                             <p key={`${asRenderableText(dataset.key) || 'dataset'}-item-${itemIndex}`}>
                               {Object.entries(item)
                                 .slice(0, 3)
-                                .map(([key, value]) => `${asRenderableText(key)}: ${asRenderableText(value)}`)
+                                .map(([key, value]) => `${humanizeMetricKey(key) || asRenderableText(key)}: ${asRenderableText(value)}`)
                                 .filter(Boolean)
                                 .join(' · ')}
                             </p>
@@ -1219,7 +1352,7 @@ export default function SurveyAnalyticsPage() {
                       className="rounded-lg border border-border/60 bg-gradient-to-b from-primary/5 to-background p-3"
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <p className="text-sm font-medium">{asRenderableText(card.title) || asRenderableText(card.key)}</p>
+                        <p className="text-sm font-medium">{asRenderableText(card.title) || humanizeMetricKey(asRenderableText(card.key)) || asRenderableText(card.key)}</p>
                         {priority ? <Badge variant={getPriorityBadgeVariant(priority)}>{priority}</Badge> : null}
                       </div>
                       <p className="mt-1 text-xs text-muted-foreground">{asRenderableText(card.summary)}</p>
@@ -1287,7 +1420,7 @@ export default function SurveyAnalyticsPage() {
                       className="rounded-lg border border-border/60 bg-gradient-to-br from-muted/20 via-background to-background p-3 text-xs"
                     >
                       <div className="flex items-start justify-between gap-2">
-                        <p className="font-medium">{asRenderableText(module.title) || asRenderableText(module.key)}</p>
+                      <p className="font-medium">{asRenderableText(module.title) || humanizeMetricKey(asRenderableText(module.key)) || asRenderableText(module.key)}</p>
                         {asRenderableText(module.type) ? <Badge variant="outline">{asRenderableText(module.type)}</Badge> : null}
                       </div>
                       <p className="mt-1 text-muted-foreground">{asRenderableText(module.description)}</p>
@@ -1319,7 +1452,7 @@ export default function SurveyAnalyticsPage() {
                   return (
                     <div key={`${asRenderableText(layer.key) || 'layer'}-${index}`} className="rounded border border-border/60 bg-background px-3 py-2 text-xs">
                       <div className="flex items-center justify-between gap-2">
-                        <p className="font-medium">{asRenderableText(layer.label) || asRenderableText(layer.key)}</p>
+                        <p className="font-medium">{asRenderableText(layer.label) || humanizeMetricKey(asRenderableText(layer.key)) || asRenderableText(layer.key)}</p>
                         {asRenderableText(layer.type) ? <Badge variant="outline">{asRenderableText(layer.type)}</Badge> : null}
                       </div>
                       {providers.length ? (
@@ -1343,19 +1476,30 @@ export default function SurveyAnalyticsPage() {
       {executiveKpisEntries.length ? (
         <Card>
           <CardHeader>
-            <CardTitle>{asSafeText(enterpriseUiConfig?.executive_kpis_title)}</CardTitle>
-            <CardDescription>{asSafeText(enterpriseUiConfig?.executive_kpis_description)}</CardDescription>
+            <CardTitle>{asSafeText(enterpriseUiConfig?.executive_kpis_title) || 'Indicadores ejecutivos'}</CardTitle>
+            <CardDescription>{asSafeText(enterpriseUiConfig?.executive_kpis_description) || 'KPIs normalizados según la configuración entregada por el backend.'}</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            {executiveKpisEntries.map((item) => (
-              <div key={item.key} className="rounded-lg border border-border/60 p-3 text-sm">
-                <p className="text-muted-foreground">{asRenderableText(item.key)}</p>
-                <p className="text-xl font-semibold">{asRenderableText(item.value.value)}</p>
-                <p className="text-xs text-muted-foreground">{asRenderableText(item.value.trend)}</p>
-                <p className="text-xs text-muted-foreground">{asRenderableText(item.value.status)}</p>
-                <p className="text-xs text-muted-foreground">{asRenderableText(item.value.explanation)}</p>
-              </div>
-            ))}
+            {executiveKpisEntries.map((item) => {
+              const label = asRenderableText(item.value.label) || humanizeMetricKey(item.key) || item.key;
+              const metricValue = readMetricValue(item.value);
+              const trend = asRenderableText(item.value.trend);
+              const status = asRenderableText(item.value.status);
+              const explanation = asRenderableText(item.value.explanation);
+              return (
+                <div key={item.key} className="rounded-lg border border-border/60 bg-gradient-to-b from-background to-muted/20 p-3 text-sm">
+                  <p className="text-muted-foreground">{label}</p>
+                  <p className="text-3xl font-semibold tracking-tight">{metricValue}</p>
+                  {(trend || status) ? (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {trend ? <Badge variant="secondary">{trend}</Badge> : null}
+                      {status ? <Badge variant="outline">{status}</Badge> : null}
+                    </div>
+                  ) : null}
+                  {explanation ? <p className="mt-2 text-xs text-muted-foreground">{explanation}</p> : null}
+                </div>
+              );
+            })}
           </CardContent>
         </Card>
       ) : null}
