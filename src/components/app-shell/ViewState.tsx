@@ -1,9 +1,9 @@
 import type React from 'react';
-import { AlertTriangle, Ban, CloudOff, DatabaseZap, Inbox, Loader2 } from 'lucide-react';
+import { AlertTriangle, Ban, CloudOff, DatabaseZap, Inbox, Loader2, Layers } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 
-type AppViewStatus = 'loading' | 'empty' | 'error' | 'denied' | 'offline' | 'stale';
+type AppViewStatus = 'loading' | 'empty' | 'error' | 'denied' | 'offline' | 'stale' | 'partial';
 
 interface ViewStateProps {
   status: AppViewStatus;
@@ -19,6 +19,7 @@ const STATUS_META: Record<AppViewStatus, { icon: React.ComponentType<{ className
   denied: { icon: Ban, defaultTitle: 'Acceso denegado' },
   offline: { icon: CloudOff, defaultTitle: 'Sin conexión' },
   stale: { icon: DatabaseZap, defaultTitle: 'Mostrando datos previos' },
+  partial: { icon: Layers, defaultTitle: 'Contenido parcial disponible' },
 };
 
 export function ViewState({ status, title, description, className }: ViewStateProps) {

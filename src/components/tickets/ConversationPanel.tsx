@@ -160,6 +160,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState<ChatMessageData[]>([]);
   const [timelineItems, setTimelineItems] = useState<UnifiedConversationStreamItem[]>([]);
+  const [timelinePartial, setTimelinePartial] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
@@ -249,6 +250,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
       if (!selectedTicket) {
         setMessages([]);
         setTimelineItems([]);
+        setTimelinePartial(false);
         setIsLoading(false);
         return;
       }
@@ -260,6 +262,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         if (Array.isArray(timeline.unified_conversation_stream)) {
           setTimelineItems(timeline.unified_conversation_stream);
         }
+        setTimelinePartial(false);
         if (Array.isArray(timeline.messages) && timeline.messages.length > 0) {
           setMessages(timeline.messages.map((msg) => adaptTicketMessageToChatMessage(msg, selectedTicket)));
           setIsLoading(false);
@@ -267,6 +270,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         }
       } catch (timelineError) {
         console.warn('No se pudo cargar timeline unificado, usando fallback de mensajes.', timelineError);
+        setTimelinePartial(true);
       }
 
       if (selectedTicket.messages) {
@@ -669,6 +673,11 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         ) : (
           <>
             <ScrollArea className="h-full p-4" ref={scrollAreaRef} onScroll={handleScroll}>
+              {timelinePartial && (
+                <div className="mb-3 rounded-lg border border-amber-300/60 bg-amber-50/70 px-3 py-2 text-xs text-amber-900">
+                  Timeline parcial: se cargó conversación base y se reintentará actualizar eventos omnicanal.
+                </div>
+              )}
               {timelineItems.length > 0 && (
                 <div className="mb-4 space-y-2 rounded-xl border border-border/60 bg-background/80 p-3">
                   <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Timeline omnicanal</p>
