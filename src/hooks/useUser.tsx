@@ -20,6 +20,9 @@ interface UserData {
   tipo_chat?: 'pyme' | 'municipio';
   entityToken?: string;
   rol?: string;
+  permissions?: string[];
+  capabilities?: string[];
+  scopes?: string[];
   tenantSlug?: string;
   publicCartUrl?: string;
   publicCatalogUrl?: string;
@@ -214,6 +217,9 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         picture: data.picture,
         tipo_chat: finalTipo,
         rol: data.rol,
+        permissions: Array.isArray(data.permissions) ? data.permissions : undefined,
+        capabilities: Array.isArray(data.capabilities) ? data.capabilities : undefined,
+        scopes: Array.isArray(data.scopes) ? data.scopes : undefined,
         token: activeToken,
         entityToken: normalizedEntityToken || storedEntityToken || undefined,
         tenantSlug: resolvedTenantSlug || undefined,

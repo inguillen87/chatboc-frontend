@@ -28,7 +28,7 @@ const ITEMS_PER_PAGE = 10;
 
 const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
   const { tenant } = useTenant();
-  const { tickets, ticketsByCategory, selectedTicket, selectTicket } = useTickets();
+  const { tickets, ticketsByCategory, selectedTicket, selectTicket, filters, setFilters, filterOptions } = useTickets();
   const [searchTerm, setSearchTerm] = React.useState('');
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
   const [visibleCounts, setVisibleCounts] = React.useState<{ [key: string]: number }>({});
@@ -289,6 +289,59 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
+        </div>
+
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <select
+            className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+            value={filters.channel}
+            onChange={(e) => setFilters((prev) => ({ ...prev, channel: e.target.value }))}
+          >
+            <option value="all">Canal: todos</option>
+            {filterOptions.channels.map((channel) => (
+              <option key={channel} value={channel}>{channel}</option>
+            ))}
+          </select>
+          <select
+            className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+            value={filters.status}
+            onChange={(e) => setFilters((prev) => ({ ...prev, status: e.target.value }))}
+          >
+            <option value="all">Estado: todos</option>
+            {filterOptions.statuses.map((status) => (
+              <option key={status} value={status}>{status}</option>
+            ))}
+          </select>
+          <select
+            className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+            value={filters.area}
+            onChange={(e) => setFilters((prev) => ({ ...prev, area: e.target.value }))}
+          >
+            <option value="all">Área: todas</option>
+            {filterOptions.areas.map((area) => (
+              <option key={area} value={area}>{area}</option>
+            ))}
+          </select>
+          <select
+            className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+            value={filters.agent}
+            onChange={(e) => setFilters((prev) => ({ ...prev, agent: e.target.value }))}
+          >
+            <option value="all">Agente: todos</option>
+            {filterOptions.agents.map((agent) => (
+              <option key={agent.id} value={agent.id}>{agent.label}</option>
+            ))}
+          </select>
+          <select
+            className="h-9 rounded-md border border-input bg-background px-2 text-sm sm:col-span-2"
+            value={filters.priority}
+            onChange={(e) => setFilters((prev) => ({ ...prev, priority: e.target.value }))}
+          >
+            <option value="all">Prioridad: todas</option>
+            {filterOptions.priorities.map((priority) => (
+              <option key={priority} value={priority}>{priority}</option>
+            ))}
+          </select>
         </div>
       </div>
       <ScrollArea className="flex-1 min-h-0">
