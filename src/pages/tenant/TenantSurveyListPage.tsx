@@ -8,6 +8,7 @@ import { es } from 'date-fns/locale';
 import { TenantShell } from '@/components/tenant/TenantShell';
 import { listPublicSurveys, type PublicSurveyListResult } from '@/api/encuestas';
 import { useTenant } from '@/context/TenantContext';
+import { queryKeys } from '@/lib/queryKeys';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -52,7 +53,7 @@ const TenantSurveyListPage = () => {
   const basePath = slug ? `/${encodeURIComponent(slug)}` : null;
 
   const surveysQuery = useQuery<PublicSurveyListResult>({
-    queryKey: ['tenant-surveys', slug, 'full'],
+    queryKey: queryKeys.tenant.surveys(slug, 'full'),
     enabled: Boolean(slug),
     queryFn: () => listPublicSurveys(slug),
     staleTime: 1000 * 60 * 2,

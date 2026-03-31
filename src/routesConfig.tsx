@@ -105,6 +105,7 @@ export interface RouteConfig {
   path: string;
   element: React.ReactElement;
   roles?: string[]; // Roles para admin/empleado de Chatboc
+  requiredCapabilities?: string[]; // Capacidades dinámicas provistas por backend
   userPortal?: boolean; // Flag para rutas del portal de usuario final (cliente/vecino)
   allowGuest?: boolean; // Permite acceder sin sesión (modo demo)
 }
