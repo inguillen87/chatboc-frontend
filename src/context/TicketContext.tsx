@@ -6,6 +6,31 @@ import { mapToKnownCategory } from '@/utils/category';
 import { useUser } from '@/hooks/useUser';
 import { ApiError, resolveTenantSlug } from '@/utils/api';
 
+
+interface TicketInboxFilters {
+  channel: string;
+  status: string;
+  area: string;
+  agent: string;
+  priority: string;
+}
+
+interface TicketFilterOptions {
+  channels: string[];
+  statuses: string[];
+  areas: string[];
+  agents: Array<{ id: string; label: string }>;
+  priorities: string[];
+}
+
+const DEFAULT_TICKET_FILTERS: TicketInboxFilters = {
+  channel: 'all',
+  status: 'all',
+  area: 'all',
+  agent: 'all',
+  priority: 'all',
+};
+
 interface TicketContextType {
   tickets: Ticket[];
   selectedTicket: Ticket | null;
@@ -14,6 +39,10 @@ interface TicketContextType {
   loading: boolean;
   error: string | null;
   ticketsByCategory: { [key: string]: Ticket[] };
+  filters: TicketInboxFilters;
+  setFilters: React.Dispatch<React.SetStateAction<TicketInboxFilters>>;
+  filterOptions: TicketFilterOptions;
+  filteredTickets: Ticket[];
 }
 
 const TicketContext = createContext<TicketContextType | undefined>(undefined);
@@ -112,6 +141,25 @@ const groupTicketsByCategory = (tickets: Ticket[]) => {
   return groups;
 };
 
+
+const normalizeFilterValue = (value: unknown): string => String(value ?? '').trim().toLowerCase();
+
+const resolveAreaLabel = (ticket: Ticket): string => {
+  return (
+    ticket.distrito ||
+    ticket.categoria_principal ||
+    ticket.categoria_secundaria ||
+    ticket.categoria_simple ||
+    ticket.categoria ||
+    'General'
+  );
+};
+
+const resolveAgentFilterId = (ticket: Ticket): string => {
+  const candidate = ticket.assignedAgent?.id ?? ticket.assignedAgentId ?? ticket.assigned_agent_id ?? null;
+  return candidate === null || candidate === undefined ? '' : String(candidate);
+};
+
 const normalizeAssignedAgent = (ticket: any): User | undefined => {
   const candidate =
     ticket?.assignedAgent ||
@@ -188,6 +236,7 @@ export const TicketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [filters, setFilters] = useState<TicketInboxFilters>(DEFAULT_TICKET_FILTERS);
   const { user } = useUser();
 
   const filterTicketsForUser = useCallback(
@@ -400,7 +449,49 @@ export const TicketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     },
   });
 
-  const ticketsByCategory = groupTicketsByCategory(tickets);
+
+  const filterOptions = React.useMemo<TicketFilterOptions>(() => {
+    const channels = Array.from(new Set(tickets.map((ticket) => normalizeFilterValue(ticket.channel)).filter(Boolean))).sort();
+    const statuses = Array.from(new Set(tickets.map((ticket) => normalizeFilterValue(ticket.estado)).filter(Boolean))).sort();
+    const areas = Array.from(new Set(tickets.map((ticket) => resolveAreaLabel(ticket).trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+    const priorities = Array.from(new Set(tickets.map((ticket) => normalizeFilterValue(ticket.priority)).filter(Boolean))).sort();
+
+    const agentMap = new Map<string, string>();
+    tickets.forEach((ticket) => {
+      const id = resolveAgentFilterId(ticket);
+      if (!id) return;
+      const label =
+        ticket.assignedAgent?.nombre_usuario ||
+        ticket.assignedAgent?.email ||
+        String(ticket.assignedAgentId || ticket.assigned_agent_id || id);
+      if (!agentMap.has(id)) {
+        agentMap.set(id, label);
+      }
+    });
+
+    return {
+      channels,
+      statuses,
+      areas,
+      priorities,
+      agents: Array.from(agentMap.entries())
+        .map(([id, label]) => ({ id, label }))
+        .sort((a, b) => a.label.localeCompare(b.label)),
+    };
+  }, [tickets]);
+
+  const filteredTickets = React.useMemo(() => {
+    return tickets.filter((ticket) => {
+      if (filters.channel !== 'all' && normalizeFilterValue(ticket.channel) !== filters.channel) return false;
+      if (filters.status !== 'all' && normalizeFilterValue(ticket.estado) !== filters.status) return false;
+      if (filters.priority !== 'all' && normalizeFilterValue(ticket.priority) !== filters.priority) return false;
+      if (filters.area !== 'all' && resolveAreaLabel(ticket) !== filters.area) return false;
+      if (filters.agent !== 'all' && resolveAgentFilterId(ticket) !== filters.agent) return false;
+      return true;
+    });
+  }, [tickets, filters]);
+
+  const ticketsByCategory = groupTicketsByCategory(filteredTickets);
 
   const value = {
     tickets,
@@ -410,6 +501,10 @@ export const TicketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     loading,
     error,
     ticketsByCategory,
+    filters,
+    setFilters,
+    filterOptions,
+    filteredTickets,
   };
 
   return <TicketContext.Provider value={value}>{children}</TicketContext.Provider>;
