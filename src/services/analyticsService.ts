@@ -119,7 +119,7 @@ export interface AnalyticsGeoLayerCategory {
 }
 
 export interface AnalyticsHeatmapResponse {
-  points: Array<{ lat?: number; lng?: number; weight?: number; categoria?: string; canal?: string }>;
+  points: Array<{ lat?: number; lng?: number; weight?: number; categoria?: string; canal?: string; severidad?: string; estado?: string }>;
   geo_layers?: {
     provider?: string;
     contract_version?: string;
@@ -146,7 +146,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(v
 const normalizeHeatPoint = (
   point: unknown,
   categoryFallback?: string,
-): { lat?: number; lng?: number; weight?: number; categoria?: string; canal?: string } | null => {
+): { lat?: number; lng?: number; weight?: number; categoria?: string; canal?: string; severidad?: string; estado?: string } | null => {
   if (!isRecord(point)) return null;
   const latCandidate = point.lat ?? point.latitude;
   const lngCandidate = point.lng ?? point.lon ?? point.longitude;
@@ -159,6 +159,8 @@ const normalizeHeatPoint = (
   const weight = Number.isFinite(weightValue) ? weightValue : undefined;
   const categoriaRaw = point.categoria ?? point.category ?? point.tipo ?? categoryFallback;
   const canalRaw = point.canal ?? point.channel;
+  const severidadRaw = point.severidad ?? point.severity ?? point.priority;
+  const estadoRaw = point.estado ?? point.status ?? point.state;
 
   return {
     lat,
@@ -166,12 +168,14 @@ const normalizeHeatPoint = (
     ...(weight !== undefined ? { weight } : {}),
     ...(typeof categoriaRaw === 'string' && categoriaRaw.trim().length > 0 ? { categoria: categoriaRaw.trim() } : {}),
     ...(typeof canalRaw === 'string' && canalRaw.trim().length > 0 ? { canal: canalRaw.trim() } : {}),
+    ...(typeof severidadRaw === 'string' && severidadRaw.trim().length > 0 ? { severidad: severidadRaw.trim() } : {}),
+    ...(typeof estadoRaw === 'string' && estadoRaw.trim().length > 0 ? { estado: estadoRaw.trim() } : {}),
   };
 };
 
-const collectHeatmapPoints = (raw: unknown): Array<{ lat?: number; lng?: number; weight?: number; categoria?: string; canal?: string }> => {
+const collectHeatmapPoints = (raw: unknown): Array<{ lat?: number; lng?: number; weight?: number; categoria?: string; canal?: string; severidad?: string; estado?: string }> => {
   const visited = new Set<unknown>();
-  const points: Array<{ lat?: number; lng?: number; weight?: number; categoria?: string; canal?: string }> = [];
+  const points: Array<{ lat?: number; lng?: number; weight?: number; categoria?: string; canal?: string; severidad?: string; estado?: string }> = [];
 
   const visit = (candidate: unknown, categoryFallback?: string) => {
     if (!candidate || visited.has(candidate)) return;
