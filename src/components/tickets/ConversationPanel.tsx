@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -288,6 +289,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   }, [selectedTicket]);
 
   const { socket } = useSocket();
+  const realtimeOnline = Boolean(socket?.connected);
 
   useEffect(() => {
     if (!socket || !selectedTicket) return;
@@ -550,6 +552,18 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
           </div>
         </div>
         <div className="flex items-center space-x-2">
+          <Badge variant={realtimeOnline ? 'secondary' : 'outline'} className="hidden sm:inline-flex">
+            {realtimeOnline ? 'Realtime activo' : 'Fallback polling'}
+          </Badge>
+          <Badge variant="outline" className="hidden sm:inline-flex capitalize">
+            {activeChannel}
+          </Badge>
+          <Button asChild variant="ghost" size="sm" className="hidden md:inline-flex">
+            <Link to="/perfil/plantillas-respuesta">Templates</Link>
+          </Button>
+          <Button asChild variant="ghost" size="sm" className="hidden md:inline-flex">
+            <Link to="/notificaciones">Notificaciones</Link>
+          </Button>
           {showDetailsToggle && (
             <Button
               variant={isDetailsVisible ? 'secondary' : 'outline'}
