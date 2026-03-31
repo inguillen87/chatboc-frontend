@@ -4,6 +4,7 @@ import { Navigate } from 'react-router-dom';
 import { useCapabilities } from '@/context/CapabilitiesContext';
 import { useUser } from '@/hooks/useUser';
 import { normalizeRole, type Role } from '@/utils/roles';
+import { ViewState } from '@/components/app-shell/ViewState';
 
 interface AccessRouteProps {
   children: React.ReactElement;
@@ -16,7 +17,7 @@ const AccessRoute: React.FC<AccessRouteProps> = ({ children, roles, requiredCapa
   const { hasAllCapabilities } = useCapabilities();
 
   if (loading) {
-    return null;
+    return <ViewState status="loading" title="Validando acceso" />;
   }
 
   if (roles && roles.length > 0) {

@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Loader2, MapPin } from 'lucide-react';
+import { MapPin } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -10,9 +10,10 @@ import { listTenantEvents } from '@/api/tenant';
 import { useTenant } from '@/context/TenantContext';
 import { queryKeys } from '@/lib/queryKeys';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { getErrorMessage } from '@/utils/api';
+import { ViewState } from '@/components/app-shell/ViewState';
+import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import type { TenantEventItem } from '@/types/tenant';
 
 const formatDateTime = (value?: string | null) => {
@@ -40,6 +41,9 @@ const TenantEventsPage = () => {
     staleTime: 1000 * 60 * 5,
   });
 
+  const { isOnline } = useNetworkStatus();
+  const isStale = eventsQuery.isSuccess && eventsQuery.isFetching;
+
   return (
     <TenantShell>
       {!slug ? (
@@ -51,15 +55,20 @@ const TenantEventsPage = () => {
             Elegí un espacio para conocer la agenda pública de actividades y eventos.
           </CardContent>
         </Card>
+      ) : !isOnline && !eventsQuery.data ? (
+        <ViewState
+          status="offline"
+          title="Sin conexión para consultar eventos"
+          description="Revisá tu conexión y reintentá."
+        />
       ) : eventsQuery.isLoading ? (
-        <div className="flex min-h-[240px] items-center justify-center rounded-3xl border bg-muted/30">
-          <Loader2 className="h-6 w-6 animate-spin text-primary" />
-        </div>
+        <ViewState status="loading" title="Cargando eventos" />
       ) : eventsQuery.error ? (
-        <Alert variant="destructive">
-          <AlertTitle>No pudimos cargar los eventos</AlertTitle>
-          <AlertDescription>{getErrorMessage(eventsQuery.error)}</AlertDescription>
-        </Alert>
+        <ViewState
+          status="error"
+          title="No pudimos cargar los eventos"
+          description={getErrorMessage(eventsQuery.error)}
+        />
       ) : eventsQuery.data && eventsQuery.data.length ? (
         <div className="space-y-6">
           {eventsQuery.data.map((event) => (
@@ -92,14 +101,11 @@ const TenantEventsPage = () => {
           ))}
         </div>
       ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle>No hay eventos programados</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            Este espacio todavía no publicó actividades próximas.
-          </CardContent>
-        </Card>
+        <ViewState
+          status={isStale ? 'stale' : 'empty'}
+          title={isStale ? 'Actualizando agenda' : 'No hay eventos programados'}
+          description={isStale ? 'Se muestran datos previos mientras se actualiza la agenda.' : 'Este espacio todavía no publicó actividades próximas.'}
+        />
       )}
     </TenantShell>
   );

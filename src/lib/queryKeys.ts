@@ -5,6 +5,8 @@ export const queryKeys = {
     admin: (id: string | number) => ['surveys', 'admin', String(id)] as const,
     adminList: (serializedFilters = 'all') => ['surveys', 'admin-list', serializedFilters] as const,
     responses: (id: string | number, filters = 'all') => ['surveys', 'responses', String(id), filters] as const,
+    snapshots: (id: string | number) => ['surveys', 'snapshots', String(id)] as const,
+    submitPublic: (slug: string, tenantSlug?: string) => ['surveys', 'public-submit', slug, tenantSlug ?? 'global'] as const,
   },
   tenant: {
     news: (slug: string, mode: 'summary' | 'full' = 'summary') => ['tenant', slug, 'news', mode] as const,

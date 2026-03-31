@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -10,11 +9,12 @@ import { listPublicSurveys, type PublicSurveyListResult } from '@/api/encuestas'
 import { useTenant } from '@/context/TenantContext';
 import { queryKeys } from '@/lib/queryKeys';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { getErrorMessage } from '@/utils/api';
 import { getAutoSeedCantidad } from '@/utils/surveyDemoPriority';
+import { ViewState } from '@/components/app-shell/ViewState';
+import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 
 const formatDate = (value?: string | null) => {
   if (!value) return null;
@@ -60,6 +60,8 @@ const TenantSurveyListPage = () => {
   });
 
   const surveys = useMemo(() => (Array.isArray(surveysQuery.data) ? surveysQuery.data : []), [surveysQuery.data]);
+  const { isOnline } = useNetworkStatus();
+  const isStale = surveysQuery.isSuccess && surveysQuery.isFetching;
 
   return (
     <TenantShell>
@@ -72,15 +74,20 @@ const TenantSurveyListPage = () => {
             Elegí un espacio para ver todas las encuestas públicas disponibles.
           </CardContent>
         </Card>
+      ) : !isOnline && !surveysQuery.data ? (
+        <ViewState
+          status="offline"
+          title="Sin conexión para consultar encuestas"
+          description="Revisá tu conexión y reintentá."
+        />
       ) : surveysQuery.isLoading ? (
-        <div className="flex min-h-[240px] items-center justify-center rounded-3xl border bg-muted/30">
-          <Loader2 className="h-6 w-6 animate-spin text-primary" />
-        </div>
+        <ViewState status="loading" title="Cargando encuestas" />
       ) : surveysQuery.error ? (
-        <Alert variant="destructive">
-          <AlertTitle>No pudimos cargar las encuestas</AlertTitle>
-          <AlertDescription>{getErrorMessage(surveysQuery.error)}</AlertDescription>
-        </Alert>
+        <ViewState
+          status="error"
+          title="No pudimos cargar las encuestas"
+          description={getErrorMessage(surveysQuery.error)}
+        />
       ) : surveys.length ? (
         <div className="space-y-5">
           {surveys.map((survey) => {
@@ -123,14 +130,11 @@ const TenantSurveyListPage = () => {
           })}
         </div>
       ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle>No hay encuestas disponibles</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            Este espacio todavía no publicó encuestas públicas activas.
-          </CardContent>
-        </Card>
+        <ViewState
+          status={isStale ? 'stale' : 'empty'}
+          title={isStale ? 'Actualizando encuestas' : 'No hay encuestas disponibles'}
+          description={isStale ? 'Se muestran datos previos mientras se actualizan las encuestas.' : 'Este espacio todavía no publicó encuestas públicas activas.'}
+        />
       )}
     </TenantShell>
   );
