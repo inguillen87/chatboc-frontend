@@ -1,8 +1,8 @@
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Inbox, MessagesSquare, Users, BellRing, FileText } from 'lucide-react';
+import EnterprisePageHeader from '@/components/enterprise/EnterprisePageHeader';
 
 const modules = [
   { key: 'fe-02', title: 'Inbox omnicanal', to: '/tickets', icon: Inbox, note: 'Lista, filtros, timeline y panel 360' },
@@ -15,16 +15,18 @@ const modules = [
 const EnterpriseOpsPage = () => {
   return (
     <section className="mx-auto w-full max-w-6xl space-y-6 py-6">
-      <header className="space-y-2">
-        <Badge variant="secondary">Enterprise workspace</Badge>
-        <h1 className="text-3xl font-bold tracking-tight">Operación omnicanal</h1>
-      </header>
+      <EnterprisePageHeader
+        badge="Enterprise workspace"
+        title="Operación omnicanal"
+        description="Accedé a los módulos de operación diaria con un layout unificado y foco en productividad del equipo."
+        meta={`${modules.length} módulos disponibles`}
+      />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {modules.map((module) => {
           const Icon = module.icon;
           return (
-            <Card key={module.key} className="border-border/70">
+            <Card key={module.key} className="border-border/70 shadow-sm transition-shadow hover:shadow-md">
               <CardHeader className="space-y-3">
                 <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
                   <Icon className="h-5 w-5" />

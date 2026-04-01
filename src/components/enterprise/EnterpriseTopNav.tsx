@@ -14,7 +14,7 @@ export const EnterpriseTopNav = () => {
   const location = useLocation();
 
   return (
-    <nav className="mb-3 flex flex-wrap gap-2">
+    <nav className="mb-4 flex flex-wrap gap-2 rounded-2xl border border-border/70 bg-background/80 p-2 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       {items.map((item) => {
         const isActive = location.pathname === item.to || location.pathname.startsWith(`${item.to}/`);
         return (
@@ -22,7 +22,7 @@ export const EnterpriseTopNav = () => {
             key={item.to}
             to={item.to}
             className={cn(
-              'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+              'inline-flex rounded-full border px-3 py-1 text-xs font-medium transition-colors',
               isActive
                 ? 'border-primary bg-primary text-primary-foreground'
                 : 'border-border/70 bg-background text-muted-foreground hover:border-primary/40 hover:text-foreground',

@@ -120,6 +120,22 @@ export interface AnalyticsGeoLayerCategory {
 
 export interface AnalyticsHeatmapResponse {
   points: Array<{ lat?: number; lng?: number; weight?: number; categoria?: string; canal?: string; severidad?: string; estado?: string }>;
+  ui?: {
+    labels?: {
+      title?: string;
+      description?: string;
+      empty?: string;
+      applied_filters?: string;
+      legend?: string;
+      filter_categoria?: string;
+      filter_severidad?: string;
+      filter_estado?: string;
+      filter_canal?: string;
+      filter_all?: string;
+      layers?: string;
+    };
+    layer_labels?: Record<string, string>;
+  };
   geo_layers?: {
     provider?: string;
     contract_version?: string;

@@ -149,6 +149,8 @@ const HeatmapDashboard: React.FC<Props> = ({ tenantId, dateRange }) => {
     return [avgLng, avgLat] as [number, number];
   }, [filteredPoints]);
   const legend = useMemo(() => heatmapResponse?.geo_layers?.legend, [heatmapResponse]);
+  const uiLabels = useMemo(() => heatmapResponse?.ui?.labels || {}, [heatmapResponse]);
+  const layerLabels = useMemo(() => heatmapResponse?.ui?.layer_labels || {}, [heatmapResponse]);
 
   useEffect(() => {
     if (!availableLayers.length) return;
@@ -187,8 +189,8 @@ const HeatmapDashboard: React.FC<Props> = ({ tenantId, dateRange }) => {
   return (
     <Card className="border border-border/60 bg-gradient-to-br from-background via-background to-primary/5 shadow-sm">
       <CardHeader>
-        <CardTitle>Mapa de Calor</CardTitle>
-        <CardDescription>Distribución geográfica de incidentes y pedidos.</CardDescription>
+        <CardTitle>{uiLabels.title || 'Mapa de Calor'}</CardTitle>
+        <CardDescription>{uiLabels.description || 'Distribución geográfica de incidentes y pedidos.'}</CardDescription>
       </CardHeader>
       <CardContent className="p-3 sm:p-4 space-y-3">
         {(geoCategories.length || segmentGroups.length || appliedFilters.length) ? (
@@ -196,41 +198,44 @@ const HeatmapDashboard: React.FC<Props> = ({ tenantId, dateRange }) => {
             {(availableLayers.length || categoryOptions.length || severityOptions.length || stateOptions.length || channelOptions.length) ? (
               <div className="rounded-md border p-2 text-xs space-y-2">
                 {availableLayers.length ? (
-                  <div className="flex flex-wrap gap-1">
-                    {availableLayers.map((layer) => (
-                      <button
-                        key={layer}
-                        type="button"
-                        onClick={() => setLayerMode(layer)}
-                        className={`rounded px-2 py-1 border ${layerMode === layer ? 'bg-primary text-primary-foreground' : ''}`}
-                      >
-                        {layer}
-                      </button>
-                    ))}
+                  <div className="space-y-1">
+                    <p className="text-muted-foreground">{uiLabels.layers || 'capas'}</p>
+                    <div className="flex flex-wrap gap-1">
+                      {availableLayers.map((layer) => (
+                        <button
+                          key={layer}
+                          type="button"
+                          onClick={() => setLayerMode(layer)}
+                          className={`rounded px-2 py-1 border ${layerMode === layer ? 'bg-primary text-primary-foreground' : ''}`}
+                        >
+                          {layerLabels[layer] || layer}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 ) : null}
                 <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                   {categoryOptions.length ? (
                     <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)} className="rounded border px-2 py-1 bg-background">
-                      <option value="all">categoria</option>
+                      <option value="all">{uiLabels.filter_all || uiLabels.filter_categoria || 'categoria'}</option>
                       {categoryOptions.map((item) => <option key={item} value={item}>{item}</option>)}
                     </select>
                   ) : null}
                   {severityOptions.length ? (
                     <select value={severityFilter} onChange={(event) => setSeverityFilter(event.target.value)} className="rounded border px-2 py-1 bg-background">
-                      <option value="all">severidad</option>
+                      <option value="all">{uiLabels.filter_all || uiLabels.filter_severidad || 'severidad'}</option>
                       {severityOptions.map((item) => <option key={item} value={item}>{item}</option>)}
                     </select>
                   ) : null}
                   {stateOptions.length ? (
                     <select value={stateFilter} onChange={(event) => setStateFilter(event.target.value)} className="rounded border px-2 py-1 bg-background">
-                      <option value="all">estado</option>
+                      <option value="all">{uiLabels.filter_all || uiLabels.filter_estado || 'estado'}</option>
                       {stateOptions.map((item) => <option key={item} value={item}>{item}</option>)}
                     </select>
                   ) : null}
                   {channelOptions.length ? (
                     <select value={channelFilter} onChange={(event) => setChannelFilter(event.target.value)} className="rounded border px-2 py-1 bg-background">
-                      <option value="all">canal</option>
+                      <option value="all">{uiLabels.filter_all || uiLabels.filter_canal || 'canal'}</option>
                       {channelOptions.map((item) => <option key={item} value={item}>{item}</option>)}
                     </select>
                   ) : null}
@@ -259,14 +264,14 @@ const HeatmapDashboard: React.FC<Props> = ({ tenantId, dateRange }) => {
             ) : null}
             {appliedFilters.length ? (
               <div className="rounded-md border p-2 text-xs">
-                <p className="mb-1 text-muted-foreground">Filtros aplicados</p>
+                <p className="mb-1 text-muted-foreground">{uiLabels.applied_filters || 'Filtros aplicados'}</p>
                 <p>{appliedFilters.join(' · ')}</p>
               </div>
             ) : null}
             {legend ? (
               <div className="rounded-md border p-2 text-xs">
                 <p className="text-muted-foreground">
-                  {legend.mode || 'legend'} · {legend.min_weight ?? 0} — {legend.max_weight ?? 0}
+                  {uiLabels.legend || legend.mode || 'legend'} · {legend.min_weight ?? 0} — {legend.max_weight ?? 0}
                 </p>
               </div>
             ) : null}
@@ -311,7 +316,7 @@ const HeatmapDashboard: React.FC<Props> = ({ tenantId, dateRange }) => {
               />
           ) : (
               <div className="flex h-full items-center justify-center text-muted-foreground">
-                  No hay datos geográficos para este periodo.
+                  {uiLabels.empty || 'No hay datos geográficos para este periodo.'}
               </div>
           )}
         </div>
