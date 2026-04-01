@@ -16,6 +16,11 @@ const HeatmapDashboard: React.FC<Props> = ({ tenantId, dateRange }) => {
   const { currentSlug } = useTenant();
   const [heatmapResponse, setHeatmapResponse] = useState<AnalyticsHeatmapResponse>({ points: [] });
   const [loading, setLoading] = useState(true);
+  const [layerMode, setLayerMode] = useState<string>('heatmap');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [severityFilter, setSeverityFilter] = useState<string>('all');
+  const [stateFilter, setStateFilter] = useState<string>('all');
+  const [channelFilter, setChannelFilter] = useState<string>('all');
 
   useEffect(() => {
     const loadHeatmap = async () => {
@@ -39,6 +44,68 @@ const HeatmapDashboard: React.FC<Props> = ({ tenantId, dateRange }) => {
 
 
   const points = useMemo(() => (Array.isArray(heatmapResponse?.points) ? heatmapResponse.points : []), [heatmapResponse]);
+  const availableLayers = useMemo(() => {
+    const layers = heatmapResponse?.geo_layers?.layers;
+    if (!layers || typeof layers !== 'object') return [] as string[];
+    return Object.entries(layers)
+      .filter(([, config]) => Boolean(config && typeof config === 'object'))
+      .map(([key]) => key);
+  }, [heatmapResponse]);
+  const categoryOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          points
+            .map((point) => (typeof point.categoria === 'string' ? point.categoria.trim() : ''))
+            .filter(Boolean),
+        ),
+      ),
+    [points],
+  );
+  const severityOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          points
+            .map((point) => (typeof point.severidad === 'string' ? point.severidad.trim() : ''))
+            .filter(Boolean),
+        ),
+      ),
+    [points],
+  );
+  const stateOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          points
+            .map((point) => (typeof point.estado === 'string' ? point.estado.trim() : ''))
+            .filter(Boolean),
+        ),
+      ),
+    [points],
+  );
+  const channelOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          points
+            .map((point) => (typeof point.canal === 'string' ? point.canal.trim() : ''))
+            .filter(Boolean),
+        ),
+      ),
+    [points],
+  );
+  const filteredPoints = useMemo(
+    () =>
+      points.filter((point) => {
+        const categoryMatch = categoryFilter === 'all' || point.categoria === categoryFilter;
+        const severityMatch = severityFilter === 'all' || point.severidad === severityFilter;
+        const stateMatch = stateFilter === 'all' || point.estado === stateFilter;
+        const channelMatch = channelFilter === 'all' || point.canal === channelFilter;
+        return categoryMatch && severityMatch && stateMatch && channelMatch;
+      }),
+    [points, categoryFilter, severityFilter, stateFilter, channelFilter],
+  );
   const geoCategories = useMemo(() => (Array.isArray(heatmapResponse?.geo_layers?.categories) ? heatmapResponse.geo_layers.categories : []), [heatmapResponse]);
   const tileUrl = useMemo(() => {
     const url = heatmapResponse?.geo_layers?.tiles?.url;
@@ -67,20 +134,29 @@ const HeatmapDashboard: React.FC<Props> = ({ tenantId, dateRange }) => {
   }, [heatmapResponse]);
   const mapBounds = useMemo(
     () =>
-      points
+      filteredPoints
         .map((point) => [Number(point.lng), Number(point.lat)] as [number, number])
         .filter(([lng, lat]) => Number.isFinite(lng) && Number.isFinite(lat)),
-    [points],
+    [filteredPoints],
   );
   const mapCenter = useMemo(() => {
-    if (!points.length) return undefined;
-    const totalWeight = points.reduce((sum, point) => sum + (Number(point.weight) || 1), 0);
-    const divisor = totalWeight > 0 ? totalWeight : points.length;
-    const avgLat = points.reduce((sum, point) => sum + (Number(point.lat) || 0) * (Number(point.weight) || 1), 0) / divisor;
-    const avgLng = points.reduce((sum, point) => sum + (Number(point.lng) || 0) * (Number(point.weight) || 1), 0) / divisor;
+    if (!filteredPoints.length) return undefined;
+    const totalWeight = filteredPoints.reduce((sum, point) => sum + (Number(point.weight) || 1), 0);
+    const divisor = totalWeight > 0 ? totalWeight : filteredPoints.length;
+    const avgLat = filteredPoints.reduce((sum, point) => sum + (Number(point.lat) || 0) * (Number(point.weight) || 1), 0) / divisor;
+    const avgLng = filteredPoints.reduce((sum, point) => sum + (Number(point.lng) || 0) * (Number(point.weight) || 1), 0) / divisor;
     if (!Number.isFinite(avgLat) || !Number.isFinite(avgLng)) return undefined;
     return [avgLng, avgLat] as [number, number];
-  }, [points]);
+  }, [filteredPoints]);
+  const legend = useMemo(() => heatmapResponse?.geo_layers?.legend, [heatmapResponse]);
+  const uiLabels = useMemo(() => heatmapResponse?.ui?.labels || {}, [heatmapResponse]);
+  const layerLabels = useMemo(() => heatmapResponse?.ui?.layer_labels || {}, [heatmapResponse]);
+
+  useEffect(() => {
+    if (!availableLayers.length) return;
+    if (availableLayers.includes(layerMode)) return;
+    setLayerMode(availableLayers[0]);
+  }, [availableLayers, layerMode]);
   const segmentGroups = useMemo(() => {
     const segments = heatmapResponse?.segments;
     const order: Array<{ key: string; label: string }> = [
@@ -113,12 +189,59 @@ const HeatmapDashboard: React.FC<Props> = ({ tenantId, dateRange }) => {
   return (
     <Card className="border border-border/60 bg-gradient-to-br from-background via-background to-primary/5 shadow-sm">
       <CardHeader>
-        <CardTitle>Mapa de Calor</CardTitle>
-        <CardDescription>Distribución geográfica de incidentes y pedidos.</CardDescription>
+        <CardTitle>{uiLabels.title || 'Mapa de Calor'}</CardTitle>
+        <CardDescription>{uiLabels.description || 'Distribución geográfica de incidentes y pedidos.'}</CardDescription>
       </CardHeader>
       <CardContent className="p-3 sm:p-4 space-y-3">
         {(geoCategories.length || segmentGroups.length || appliedFilters.length) ? (
           <div className="space-y-2">
+            {(availableLayers.length || categoryOptions.length || severityOptions.length || stateOptions.length || channelOptions.length) ? (
+              <div className="rounded-md border p-2 text-xs space-y-2">
+                {availableLayers.length ? (
+                  <div className="space-y-1">
+                    <p className="text-muted-foreground">{uiLabels.layers || 'capas'}</p>
+                    <div className="flex flex-wrap gap-1">
+                      {availableLayers.map((layer) => (
+                        <button
+                          key={layer}
+                          type="button"
+                          onClick={() => setLayerMode(layer)}
+                          className={`rounded px-2 py-1 border ${layerMode === layer ? 'bg-primary text-primary-foreground' : ''}`}
+                        >
+                          {layerLabels[layer] || layer}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                  {categoryOptions.length ? (
+                    <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)} className="rounded border px-2 py-1 bg-background">
+                      <option value="all">{uiLabels.filter_all || uiLabels.filter_categoria || 'categoria'}</option>
+                      {categoryOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+                    </select>
+                  ) : null}
+                  {severityOptions.length ? (
+                    <select value={severityFilter} onChange={(event) => setSeverityFilter(event.target.value)} className="rounded border px-2 py-1 bg-background">
+                      <option value="all">{uiLabels.filter_all || uiLabels.filter_severidad || 'severidad'}</option>
+                      {severityOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+                    </select>
+                  ) : null}
+                  {stateOptions.length ? (
+                    <select value={stateFilter} onChange={(event) => setStateFilter(event.target.value)} className="rounded border px-2 py-1 bg-background">
+                      <option value="all">{uiLabels.filter_all || uiLabels.filter_estado || 'estado'}</option>
+                      {stateOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+                    </select>
+                  ) : null}
+                  {channelOptions.length ? (
+                    <select value={channelFilter} onChange={(event) => setChannelFilter(event.target.value)} className="rounded border px-2 py-1 bg-background">
+                      <option value="all">{uiLabels.filter_all || uiLabels.filter_canal || 'canal'}</option>
+                      {channelOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+                    </select>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
             {geoCategories.length ? (
               <div className="flex flex-wrap gap-2 text-xs">
                 {geoCategories.slice(0, 10).map((item, idx) => (
@@ -141,16 +264,24 @@ const HeatmapDashboard: React.FC<Props> = ({ tenantId, dateRange }) => {
             ) : null}
             {appliedFilters.length ? (
               <div className="rounded-md border p-2 text-xs">
-                <p className="mb-1 text-muted-foreground">Filtros aplicados</p>
+                <p className="mb-1 text-muted-foreground">{uiLabels.applied_filters || 'Filtros aplicados'}</p>
                 <p>{appliedFilters.join(' · ')}</p>
+              </div>
+            ) : null}
+            {legend ? (
+              <div className="rounded-md border p-2 text-xs">
+                <p className="text-muted-foreground">
+                  {uiLabels.legend || legend.mode || 'legend'} · {legend.min_weight ?? 0} — {legend.max_weight ?? 0}
+                </p>
               </div>
             ) : null}
           </div>
         ) : null}
         <div className="h-[300px] sm:h-[420px] lg:h-[520px] relative overflow-hidden rounded-xl border">
-          {(points.length > 0 || (geoLayerSource?.features?.length ?? 0) > 0) ? (
+          {(filteredPoints.length > 0 || (geoLayerSource?.features?.length ?? 0) > 0) ? (
               <MapLibreMap
-                  heatmapData={points as any}
+                  heatmapData={filteredPoints as any}
+                  showHeatmap={layerMode !== 'points'}
                   center={mapCenter}
                   fitToBounds={mapBounds.length ? mapBounds : undefined}
                   initialZoom={mapBounds.length ? 11 : 4}
@@ -185,7 +316,7 @@ const HeatmapDashboard: React.FC<Props> = ({ tenantId, dateRange }) => {
               />
           ) : (
               <div className="flex h-full items-center justify-center text-muted-foreground">
-                  No hay datos geográficos para este periodo.
+                  {uiLabels.empty || 'No hay datos geográficos para este periodo.'}
               </div>
           )}
         </div>
