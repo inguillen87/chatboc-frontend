@@ -256,6 +256,8 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
       }
 
       setIsLoading(true);
+      setTimelineItems([]);
+      setTimelinePartial(false);
 
       try {
         const timeline = await getTicketTimeline(selectedTicket.id, selectedTicket.tipo);
@@ -270,6 +272,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         }
       } catch (timelineError) {
         console.warn('No se pudo cargar timeline unificado, usando fallback de mensajes.', timelineError);
+        setTimelineItems([]);
         setTimelinePartial(true);
       }
 

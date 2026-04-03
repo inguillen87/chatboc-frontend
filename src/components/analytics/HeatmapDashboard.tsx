@@ -151,6 +151,8 @@ const HeatmapDashboard: React.FC<Props> = ({ tenantId, dateRange }) => {
   const legend = useMemo(() => heatmapResponse?.geo_layers?.legend, [heatmapResponse]);
   const uiLabels = useMemo(() => heatmapResponse?.ui?.labels || {}, [heatmapResponse]);
   const layerLabels = useMemo(() => heatmapResponse?.ui?.layer_labels || {}, [heatmapResponse]);
+  const normalizedLayerMode = String(layerMode || '').toLowerCase();
+  const showHeatLayer = normalizedLayerMode === 'heatmap' || normalizedLayerMode === 'heat';
 
   useEffect(() => {
     if (!availableLayers.length) return;
@@ -281,7 +283,7 @@ const HeatmapDashboard: React.FC<Props> = ({ tenantId, dateRange }) => {
           {(filteredPoints.length > 0 || (geoLayerSource?.features?.length ?? 0) > 0) ? (
               <MapLibreMap
                   heatmapData={filteredPoints as any}
-                  showHeatmap={layerMode !== 'points'}
+                  showHeatmap={showHeatLayer}
                   center={mapCenter}
                   fitToBounds={mapBounds.length ? mapBounds : undefined}
                   initialZoom={mapBounds.length ? 11 : 4}

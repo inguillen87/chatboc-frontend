@@ -1295,7 +1295,13 @@ function ChatWidgetInner({
         try {
           if (resolvedTenantSlug) {
              try {
-                const publicConfig = await tenantService.getPublicWidgetConfig(resolvedTenantSlug);
+                const rawPublicConfig = await tenantService.getPublicWidgetConfig(resolvedTenantSlug);
+                const publicConfig = {
+                  ...(rawPublicConfig || {}),
+                  cta_messages: Array.isArray((rawPublicConfig as any)?.cta_messages) ? (rawPublicConfig as any).cta_messages : [],
+                  theme: (rawPublicConfig as any)?.theme && typeof (rawPublicConfig as any).theme === 'object' ? (rawPublicConfig as any).theme : {},
+                  features: (rawPublicConfig as any)?.features && typeof (rawPublicConfig as any).features === 'object' ? (rawPublicConfig as any).features : {},
+                };
                 const inferredTipoChat = (() => {
                     if (publicConfig.tipo_chat === 'municipio' || publicConfig.tipo_chat === 'pyme') return publicConfig.tipo_chat;
                     if (publicConfig.type === 'municipio' || publicConfig.type === 'pyme') return publicConfig.type;
@@ -1317,6 +1323,10 @@ function ChatWidgetInner({
                     slug: resolvedTenantSlug,
                     tipo_chat: inferredTipoChat,
                 };
+
+                if (!ownerToken && !publicConfig.widget_token && !publicConfig.entity_token) {
+                  console.warn("ChatWidget: widget-config sin token explícito; se usará tenant_slug como contexto público.");
+                }
 
                 setEntityInfo(info);
                 setWidgetUx(resolveWidgetUxConfig(publicConfig, inferredTipoChat));
