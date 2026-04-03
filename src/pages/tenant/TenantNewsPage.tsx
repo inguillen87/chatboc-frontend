@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -9,8 +8,10 @@ import { TenantShell } from '@/components/tenant/TenantShell';
 import { listTenantNews } from '@/api/tenant';
 import { useTenant } from '@/context/TenantContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { getErrorMessage } from '@/utils/api';
+import { ViewState } from '@/components/app-shell/ViewState';
+import { queryKeys } from '@/lib/queryKeys';
+import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { Badge } from '@/components/ui/badge';
 import type { TenantNewsItem } from '@/types/tenant';
 
@@ -33,11 +34,14 @@ const TenantNewsPage = () => {
   }, [currentSlug, params.tenant, tenant?.slug]);
 
   const newsQuery = useQuery<TenantNewsItem[]>({
-    queryKey: ['tenant-news', slug, 'full'],
+    queryKey: queryKeys.tenant.news(slug, 'full'),
     enabled: Boolean(slug),
     queryFn: () => listTenantNews(slug),
     staleTime: 1000 * 60 * 5,
   });
+
+  const { isOnline } = useNetworkStatus();
+  const isStale = newsQuery.isSuccess && newsQuery.isFetching;
 
   return (
     <TenantShell>
@@ -50,15 +54,20 @@ const TenantNewsPage = () => {
             Elegí un espacio desde el encabezado para ver todas las noticias públicas disponibles.
           </CardContent>
         </Card>
+      ) : !isOnline && !newsQuery.data ? (
+        <ViewState
+          status="offline"
+          title="Sin conexión para consultar noticias"
+          description="Revisá tu conexión y reintentá."
+        />
       ) : newsQuery.isLoading ? (
-        <div className="flex min-h-[240px] items-center justify-center rounded-3xl border bg-muted/30">
-          <Loader2 className="h-6 w-6 animate-spin text-primary" />
-        </div>
+        <ViewState status="loading" title="Cargando noticias" />
       ) : newsQuery.error ? (
-        <Alert variant="destructive">
-          <AlertTitle>No pudimos cargar las noticias</AlertTitle>
-          <AlertDescription>{getErrorMessage(newsQuery.error)}</AlertDescription>
-        </Alert>
+        <ViewState
+          status="error"
+          title="No pudimos cargar las noticias"
+          description={getErrorMessage(newsQuery.error)}
+        />
       ) : newsQuery.data && newsQuery.data.length ? (
         <div className="space-y-6">
           {newsQuery.data.map((item) => (
@@ -92,14 +101,11 @@ const TenantNewsPage = () => {
           ))}
         </div>
       ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle>No hay noticias publicadas</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            Este espacio todavía no compartió novedades públicas.
-          </CardContent>
-        </Card>
+        <ViewState
+          status={isStale ? 'stale' : 'empty'}
+          title={isStale ? 'Actualizando novedades' : 'No hay noticias publicadas'}
+          description={isStale ? 'Se muestran datos previos mientras se actualiza la información.' : 'Este espacio todavía no compartió novedades públicas.'}
+        />
       )}
     </TenantShell>
   );

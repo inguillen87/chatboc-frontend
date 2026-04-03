@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { useTenant } from '@/context/TenantContext';
 
@@ -42,6 +43,19 @@ const resolveDefaultScope = (tenantType?: string | null) => {
 
 type AnalyticsTab = 'overview' | 'municipio' | 'pyme' | 'geo' | 'realtime';
 
+
+const KPI_DICTIONARY: Array<{ key: string; label: string; definition: string }> = [
+  { key: 'frt', label: 'FRT', definition: 'Tiempo promedio hasta la primera respuesta del equipo.' },
+  { key: 'art', label: 'ART', definition: 'Tiempo promedio entre respuestas durante la conversación.' },
+  { key: 'resolucion', label: 'Resolución', definition: 'Porcentaje de casos cerrados/resueltos en el período.' },
+  { key: 'backlog', label: 'Backlog', definition: 'Cantidad de conversaciones/tickets pendientes de resolución.' },
+  { key: 'sla_breach', label: 'SLA breach', definition: 'Casos que superaron el umbral objetivo de SLA.' },
+  { key: 'deflection', label: 'Deflection', definition: 'Interacciones resueltas sin intervención humana.' },
+  { key: 'csat', label: 'CSAT', definition: 'Satisfacción del usuario sobre conversaciones cerradas.' },
+  { key: 'nps', label: 'NPS', definition: 'Lealtad percibida medida por recomendación del servicio.' },
+];
+
+
 const AnalyticsPage = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -55,7 +69,10 @@ const AnalyticsPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [timeRange, setTimeRange] = useState('7d');
+  const [timeRange, setTimeRange] = useState(searchParams.get('range') || '7d');
+  const [channelFilter, setChannelFilter] = useState(searchParams.get('canal') || '');
+  const [categoryFilter, setCategoryFilter] = useState(searchParams.get('categoria') || '');
+  const [zoneFilter, setZoneFilter] = useState(searchParams.get('distrito') || '');
   const [scope, setScope] = useState(() => resolveDefaultScope(tenant?.tipo));
   const [executiveSummary, setExecutiveSummary] = useState<string>('');
   const [loadingSummary, setLoadingSummary] = useState(false);
@@ -114,6 +131,21 @@ const AnalyticsPage = () => {
   };
 
 
+
+  useEffect(() => {
+    const next = new URLSearchParams(searchParams.toString());
+    next.set('range', timeRange);
+    if (channelFilter.trim()) next.set('canal', channelFilter.trim()); else next.delete('canal');
+    if (categoryFilter.trim()) next.set('categoria', categoryFilter.trim()); else next.delete('categoria');
+    if (zoneFilter.trim()) next.set('distrito', zoneFilter.trim()); else next.delete('distrito');
+    next.set('scope', scope);
+    const serializedCurrent = searchParams.toString();
+    const serializedNext = next.toString();
+    if (serializedCurrent !== serializedNext) {
+      navigate({ search: `?${serializedNext}` }, { replace: true });
+    }
+  }, [timeRange, channelFilter, categoryFilter, zoneFilter, scope, searchParams, navigate]);
+
   useEffect(() => {
     setScope((prevScope) => {
       const defaultScope = resolveDefaultScope(tenant?.tipo ?? null);
@@ -141,6 +173,9 @@ const AnalyticsPage = () => {
         to: dateRange.to,
         context: activeTab === 'municipio' || activeTab === 'pyme' ? activeTab : 'overview',
         scope,
+        canal: channelFilter || undefined,
+        categoria: categoryFilter || undefined,
+        distrito: zoneFilter || undefined,
       };
       let result: AnalyticsSummary;
 
@@ -189,7 +224,7 @@ const AnalyticsPage = () => {
     if (tenantId || currentSlug) {
         fetchData();
     }
-  }, [tenantId, currentSlug, dateRange, activeTab, scope]);
+  }, [tenantId, currentSlug, dateRange, activeTab, scope, channelFilter, categoryFilter, zoneFilter]);
 
   const normalizeLeadInteractions = (response: LeadInteractionsResponse | null | undefined) => {
     if (!response) return [] as LeadInteractionItem[];
@@ -285,7 +320,7 @@ const AnalyticsPage = () => {
 
   const handleExport = async (format: 'csv' | 'pdf') => {
     if (!tenantId) return;
-    const filters = { tenant_id: tenantId, scope, from: dateRange.from, to: dateRange.to };
+    const filters = { tenant_id: tenantId, scope, from: dateRange.from, to: dateRange.to, canal: channelFilter || undefined, categoria: categoryFilter || undefined, distrito: zoneFilter || undefined };
     const url = format === 'csv' ? analyticsService.exportCsvUrl(filters) : analyticsService.exportPdfUrl(filters);
     openExportAndTrack(url, async () => {
       fireAndForgetTrackEvent({
@@ -383,6 +418,25 @@ const AnalyticsPage = () => {
               <SelectItem value="pyme">Pyme</SelectItem>
             </SelectContent>
           </Select>
+
+          <Input
+            value={channelFilter}
+            onChange={(e) => setChannelFilter(e.target.value)}
+            placeholder="Canal"
+            className="w-full sm:w-[150px]"
+          />
+          <Input
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            placeholder="Categoría"
+            className="w-full sm:w-[150px]"
+          />
+          <Input
+            value={zoneFilter}
+            onChange={(e) => setZoneFilter(e.target.value)}
+            placeholder="Zona"
+            className="w-full sm:w-[150px]"
+          />
           <Button variant="outline" onClick={() => handleExport('csv')}>Export CSV</Button>
           <Button variant="outline" onClick={() => handleExport('pdf')}>Export PDF</Button>
           <Button variant="default" onClick={handleGenerateExecutiveSummary} disabled={loadingSummary}>
@@ -400,6 +454,19 @@ const AnalyticsPage = () => {
           <p className="text-sm text-muted-foreground whitespace-pre-wrap">{executiveSummary}</p>
         </div>
       ) : null}
+
+
+      <div className="rounded-lg border bg-card p-4">
+        <h2 className="mb-2 font-semibold">Diccionario de KPIs</h2>
+        <div className="grid gap-2 md:grid-cols-2">
+          {KPI_DICTIONARY.map((item) => (
+            <div key={item.key} className="rounded-md border border-border/60 p-2">
+              <p className="text-sm font-medium">{item.label}</p>
+              <p className="text-xs text-muted-foreground">{item.definition}</p>
+            </div>
+          ))}
+        </div>
+      </div>
 
       <Tabs value={activeTab} className="w-full" onValueChange={(val) => { const tab = val as AnalyticsTab; setActiveTab(tab); if (tenantId) { fireAndForgetTrackEvent({ tenant_id: tenantId, event_name: 'tab_click', payload: { tab }, channel: 'web_widget', session_id: `sess_${Date.now()}` }); } }}>
         <div className="overflow-x-auto pb-1">

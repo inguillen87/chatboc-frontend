@@ -844,23 +844,12 @@ const ChatPanel = (props: ChatPanelProps) => {
     (boolish(supportChannels?.whatsapp?.enabled) &&
       boolish(supportChannels?.whatsapp?.realtime_bridge)) ||
       (boolish(realtimeConfig?.voiceHandoff?.enabled) &&
-        boolish(realtimeConfig?.voiceHandoff?.supportsWhatsAppFollowup)) ||
-      Boolean(
-        recommendedExperience?.preferred_handoff_channels?.some(
-          (channel) => channel.toLowerCase() === "whatsapp",
-        ),
-      ),
+        boolish(realtimeConfig?.voiceHandoff?.supportsWhatsAppFollowup)),
   );
   const voiceCallConfig = supportChannels?.voice_call;
   const videoCallConfig = supportChannels?.video_call;
   const realtimeVoiceEnabled =
-    boolish(voiceCallConfig?.enabled) ||
-    boolish(realtimeConfig?.voiceEnabled) ||
-    Boolean(
-      recommendedExperience?.preferred_handoff_channels?.some(
-        (channel) => channel.toLowerCase() === "voice",
-      ),
-    );
+    boolish(voiceCallConfig?.enabled) || boolish(realtimeConfig?.voiceEnabled);
   const realtimeVideoEnabled =
     boolish(videoCallConfig?.enabled) || boolish(realtimeConfig?.videoEnabled);
   const [channelMode, setChannelMode] = useState<"chat" | "voice" | "video">(
@@ -1205,6 +1194,53 @@ const ChatPanel = (props: ChatPanelProps) => {
     }
     return null;
   }, [supportChannels?.live_chat?.label]);
+  const modeSwitchItems = useMemo(
+    () =>
+      [
+        chatModeLabel
+          ? {
+              key: "chat",
+              label: chatModeLabel,
+              active: channelMode === "chat",
+              onClick: () => setChannelMode("chat" as const),
+              icon: null,
+            }
+          : null,
+        realtimeVoiceEnabled
+          ? {
+              key: "voice",
+              label: voiceCallLabel || "",
+              active: channelMode === "voice",
+              onClick: () => beginRealtimeSession("voice"),
+              icon: Phone,
+            }
+          : null,
+        realtimeVideoEnabled
+          ? {
+              key: "video",
+              label: videoCallLabel || "",
+              active: channelMode === "video",
+              onClick: () => beginRealtimeSession("video"),
+              icon: Video,
+            }
+          : null,
+      ].filter(Boolean) as Array<{
+        key: string;
+        label: string;
+        active: boolean;
+        onClick: () => void;
+        icon: typeof Phone | null;
+      }>,
+    [
+      beginRealtimeSession,
+      channelMode,
+      chatModeLabel,
+      realtimeVideoEnabled,
+      realtimeVoiceEnabled,
+      videoCallLabel,
+      voiceCallLabel,
+    ],
+  );
   const summaryWhatsAppLabel = useMemo(() => {
     const fromVoice = voiceCallConfig?.features?.summary_whatsapp_label;
     const fromVideo = videoCallConfig?.features?.summary_whatsapp_label;
@@ -1234,6 +1270,7 @@ const ChatPanel = (props: ChatPanelProps) => {
     supportChannels.whatsapp.label.trim()
       ? supportChannels.whatsapp.label.trim()
       : "WhatsApp";
+  const chatContentMaxWidthClass = "mx-auto w-full max-w-4xl";
 
   const handleInternalAction = useCallback(
     async (action: string) => {
@@ -1449,6 +1486,17 @@ const ChatPanel = (props: ChatPanelProps) => {
   const lastMessage = messages[messages.length - 1];
   const lastUserMessage = [...messages].reverse().find((m) => !m.isBot); // Safe find last user message
   const [smartHint, setSmartHint] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!onClose) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (event.defaultPrevented) return;
+      onClose();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
   const [leadSuccessTicket, setLeadSuccessTicket] = useState<string | null>(
     null,
   );
@@ -1638,8 +1686,10 @@ const ChatPanel = (props: ChatPanelProps) => {
 
   return (
     <div
+      role="region"
+      aria-label="Chat widget"
       className={cn(
-        "chat-root flex flex-col w-full h-full bg-card text-card-foreground overflow-hidden relative",
+        "chat-root flex flex-col w-full h-full bg-gradient-to-b from-card via-card to-card/95 text-card-foreground overflow-hidden relative",
         isMobile ? undefined : "rounded-[inherit]",
       )}
     >
@@ -1660,47 +1710,39 @@ const ChatPanel = (props: ChatPanelProps) => {
         ownerType={uxContext?.owner_tipo_chat || null}
         recommendationLabel={recommendedExperienceLabel}
       />
-      <div className="px-2 sm:px-4 pt-2">
-        <div className="grid grid-cols-3 gap-2 rounded-xl border border-border/70 bg-muted/30 p-2">
-          {chatModeLabel ? (
-            <Button
-              size="sm"
-              variant={channelMode === "chat" ? "default" : "ghost"}
-              onClick={() => setChannelMode("chat")}
-            >
-              {chatModeLabel}
-            </Button>
-          ) : (
-            <div />
-          )}
-          {realtimeVoiceEnabled ? (
-            <Button
-              size="sm"
-              variant={channelMode === "voice" ? "default" : "ghost"}
-              onClick={() => beginRealtimeSession("voice")}
-            >
-              <Phone className="mr-1 h-4 w-4" /> {voiceCallLabel || ""}
-            </Button>
-          ) : (
-            <div />
-          )}
-          {realtimeVideoEnabled ? (
-            <Button
-              size="sm"
-              variant={channelMode === "video" ? "default" : "ghost"}
-              onClick={() => beginRealtimeSession("video")}
-            >
-              <Video className="mr-1 h-4 w-4" /> {videoCallLabel || ""}
-            </Button>
-          ) : (
-            <div />
-          )}
+      {modeSwitchItems.length > 1 ? (
+        <div className="px-2 sm:px-4 pt-2">
+          <div
+            className={cn(
+              chatContentMaxWidthClass,
+              "grid gap-2 rounded-xl border border-border/70 bg-muted/30 p-2",
+            )}
+            style={{
+              gridTemplateColumns: `repeat(${modeSwitchItems.length}, minmax(0, 1fr))`,
+            }}
+          >
+            {modeSwitchItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Button
+                  key={item.key}
+                  size="sm"
+                  variant={item.active ? "default" : "ghost"}
+                  onClick={item.onClick}
+                  className="min-w-0"
+                >
+                  {Icon ? <Icon className="mr-1 h-4 w-4" /> : null}
+                  <span className="truncate">{item.label}</span>
+                </Button>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      ) : null}
 
       {channelMode !== "chat" ? (
         <div className="px-2 sm:px-4 pt-2">
-          <div className="rounded-xl border border-border/70 bg-background/90 p-3">
+          <div className={cn(chatContentMaxWidthClass, "rounded-xl border border-border/70 bg-background/90 p-3")}>
             <div className="mb-3 flex items-center justify-between text-xs text-muted-foreground">
               <span className="inline-flex items-center gap-1">
                 {networkLatency === "good" ? (
@@ -1834,7 +1876,7 @@ const ChatPanel = (props: ChatPanelProps) => {
       ) : null}
       {(capabilityPills.length > 0 || preferredHandoffChannels.length > 0 || recommendedExperienceLabel || recommendedExperienceSummary) && (
         <div className="px-2 sm:px-4 pt-2">
-          <div className="rounded-2xl border border-border/70 bg-muted/30 p-3 shadow-sm">
+          <div className={cn(chatContentMaxWidthClass, "rounded-2xl border border-border/70 bg-muted/30 p-3 shadow-sm")}>
             {recommendedExperienceLabel ? (
               <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                 <Sparkles className="h-4 w-4 text-primary" />
@@ -1874,7 +1916,7 @@ const ChatPanel = (props: ChatPanelProps) => {
 
       {onCart && tipoChat === "pyme" && (
         <div className="px-2 sm:px-4 pt-2">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center rounded-xl border bg-muted/40 px-3 py-3">
+          <div className={cn(chatContentMaxWidthClass, "flex flex-col gap-2 sm:flex-row sm:items-center rounded-xl border bg-muted/40 px-3 py-3")}>
             <div className="text-sm text-muted-foreground flex-1">
               <p className="text-sm font-medium text-foreground">
                 Explora el catálogo
@@ -1894,24 +1936,30 @@ const ChatPanel = (props: ChatPanelProps) => {
       )}
       {shouldShowCatalogCard && (catalogViewLabel || catalogDownloadLabel) && (
         <div className="px-2 sm:px-4">
-          <CatalogShareCard
-            bannerUrl={catalogCard?.bannerUrl}
-            viewUrl={catalogCard?.viewUrl}
-            downloadUrl={catalogCard?.downloadUrl}
-            viewLabel={
-              catalogCard?.viewUrl && catalogViewLabel ? catalogViewLabel : null
-            }
-            downloadLabel={
-              catalogCard?.downloadUrl && catalogDownloadLabel
-                ? catalogDownloadLabel
-                : null
-            }
-          />
+          <div className={chatContentMaxWidthClass}>
+            <CatalogShareCard
+              bannerUrl={catalogCard?.bannerUrl}
+              viewUrl={catalogCard?.viewUrl}
+              downloadUrl={catalogCard?.downloadUrl}
+              viewLabel={
+                catalogCard?.viewUrl && catalogViewLabel ? catalogViewLabel : null
+              }
+              downloadLabel={
+                catalogCard?.downloadUrl && catalogDownloadLabel
+                  ? catalogDownloadLabel
+                  : null
+              }
+            />
+          </div>
         </div>
       )}
       <div
         ref={chatContainerRef}
-        className="flex-1 p-2 sm:p-4 min-h-0 flex flex-col gap-3 overflow-y-auto"
+        aria-live="polite"
+        className={cn(
+          chatContentMaxWidthClass,
+          "flex-1 p-2 sm:p-4 lg:px-6 min-h-0 flex flex-col gap-3 overflow-y-auto",
+        )}
       >
         <div className="flex-1" />
         {messages.map((msg) => (
@@ -1942,7 +1990,7 @@ const ChatPanel = (props: ChatPanelProps) => {
         <div ref={messagesEndRef} />
       </div>
       <ScrollToBottomButton target={chatContainerRef.current} />
-      <div className="w-full bg-card px-3 py-2 border-t min-w-0 relative">
+      <div className="w-full bg-card/95 px-3 py-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] border-t min-w-0 relative backdrop-blur-sm">
         {smartHint && (
           <div className="absolute bottom-full left-0 w-full px-4 pb-2 z-10">
             <div className="bg-amber-50 text-amber-900 p-3 rounded-lg shadow-md flex justify-between items-start gap-2 text-sm border border-amber-200 animate-in slide-in-from-bottom-2 fade-in">
