@@ -463,8 +463,22 @@ export default function ProductCheckoutPage() {
     const handoffChannel = normalizeChannelLabel(checkoutResult?.commercial_state?.channel ?? 'web');
     const trackingLabel = checkoutResult?.tracking?.status_label ?? null;
     const trackingPath = checkoutResult?.tracking?.portal_path ?? null;
+    const trackingUrl = trackingPath
+      ? (trackingPath.startsWith('http://') || trackingPath.startsWith('https://')
+          ? trackingPath
+          : `${window.location.origin}${trackingPath.startsWith('/') ? trackingPath : `/${trackingPath}`}`)
+      : null;
     const nextSteps = Array.isArray(checkoutResult?.next_steps) ? checkoutResult.next_steps.filter((item) => item?.title || item?.description) : [];
     const supportChannels = checkoutResult?.support_channels ?? null;
+    const whatsappPhone = String(supportChannels?.whatsapp?.phone || '').replace(/\D+/g, '');
+    const whatsappReceiptText = trackingUrl
+      ? `Hola, quiero consultar mi pedido. Estado: ${trackingUrl}`
+      : `Hola, quiero consultar mi pedido.`;
+    const whatsappHref = supportChannels?.whatsapp?.url
+      ? supportChannels.whatsapp.url
+      : whatsappPhone
+        ? `https://wa.me/${whatsappPhone}?text=${encodeURIComponent(whatsappReceiptText)}`
+        : null;
     return (
       <div className="container mx-auto p-4 md:p-8 flex flex-col items-center justify-center min-h-[calc(100vh-200px)] text-center">
         <motion.div
@@ -541,9 +555,9 @@ export default function ProductCheckoutPage() {
 
             {(supportChannels?.whatsapp?.label || supportChannels?.phone?.label || supportChannels?.portal?.label || trackingPath) ? (
               <div className="mx-auto mb-8 flex w-full max-w-3xl flex-wrap justify-center gap-3">
-                {supportChannels?.whatsapp?.enabled !== false && (supportChannels?.whatsapp?.url || supportChannels?.whatsapp?.phone) ? (
+                {supportChannels?.whatsapp?.enabled !== false && whatsappHref ? (
                   <Button asChild variant="outline">
-                    <a href={supportChannels.whatsapp.url || `https://wa.me/${String(supportChannels.whatsapp.phone || '').replace(/\D+/g, '')}`} target="_blank" rel="noreferrer">
+                    <a href={whatsappHref} target="_blank" rel="noreferrer">
                       <MessageCircle className="mr-2 h-4 w-4" />
                       {supportChannels.whatsapp.label || 'WhatsApp'}
                     </a>
@@ -557,9 +571,9 @@ export default function ProductCheckoutPage() {
                     </a>
                   </Button>
                 ) : null}
-                {(supportChannels?.portal?.url || trackingPath) ? (
+                {(supportChannels?.portal?.url || trackingUrl) ? (
                   <Button asChild variant="outline">
-                    <a href={supportChannels?.portal?.url || trackingPath || '#'}>
+                    <a href={supportChannels?.portal?.url || trackingUrl || '#'}>
                       <ExternalLink className="mr-2 h-4 w-4" />
                       {supportChannels?.portal?.label || 'Seguir pedido'}
                     </a>
