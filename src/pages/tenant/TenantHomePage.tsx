@@ -19,6 +19,7 @@ import { TenantShell } from '@/components/tenant/TenantShell';
 import { listTenantEvents, listTenantNews } from '@/api/tenant';
 import { listPublicSurveys, type PublicSurveyListResult } from '@/api/encuestas';
 import { useTenant } from '@/context/TenantContext';
+import { queryKeys } from '@/lib/queryKeys';
 import { useUser } from '@/hooks/useUser';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -103,21 +104,21 @@ const TenantPublicLanding = () => {
   const basePath = slug ? `/${encodeURIComponent(slug)}` : null;
 
   const newsQuery = useQuery<TenantNewsItem[]>({
-    queryKey: ['tenant-news', slug],
+    queryKey: queryKeys.tenant.news(slug),
     enabled: Boolean(slug),
     queryFn: () => listTenantNews(slug),
     staleTime: 1000 * 60 * 5,
   });
 
   const eventsQuery = useQuery<TenantEventItem[]>({
-    queryKey: ['tenant-events', slug],
+    queryKey: queryKeys.tenant.events(slug),
     enabled: Boolean(slug),
     queryFn: () => listTenantEvents(slug),
     staleTime: 1000 * 60 * 5,
   });
 
   const surveysQuery = useQuery<PublicSurveyListResult>({
-    queryKey: ['tenant-surveys', slug],
+    queryKey: queryKeys.tenant.surveys(slug),
     enabled: Boolean(slug),
     queryFn: () => listPublicSurveys(slug),
     staleTime: 1000 * 60 * 2,

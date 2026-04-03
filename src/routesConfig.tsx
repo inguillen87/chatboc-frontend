@@ -86,6 +86,7 @@ import OrderTrackingPage from '@/pages/pyme/pedidos/OrderTrackingPage';
 import AdminOrderDetailPage from '@/pages/admin/AdminOrderDetailPage';
 import ClientsPage from '@/pages/pyme/crm/ClientsPage';
 import ClientDetailPage from '@/pages/pyme/crm/ClientDetailPage';
+import EnterpriseOpsPage from '@/pages/EnterpriseOpsPage';
 
 // Updated for Commerce Module & Mirror Catalog
 // Final verification: Commerce & Admin modules active
@@ -105,6 +106,7 @@ export interface RouteConfig {
   path: string;
   element: React.ReactElement;
   roles?: string[]; // Roles para admin/empleado de Chatboc
+  requiredCapabilities?: string[]; // Capacidades dinámicas provistas por backend
   userPortal?: boolean; // Flag para rutas del portal de usuario final (cliente/vecino)
   allowGuest?: boolean; // Permite acceder sin sesión (modo demo)
 }
@@ -316,13 +318,14 @@ const routes: RouteConfig[] = [
   { path: '/soluciones/gobierno', element: <Navigate to="/demo/municipio" replace /> },
   { path: '/soluciones/empresas', element: <Navigate to="/demo/empresa" replace /> },
   { path: '/perfil', element: <Perfil /> },
+  { path: '/enterprise', element: <EnterpriseOpsPage />, roles: ['admin', 'empleado', 'super_admin'] },
   { path: '/bot-settings', element: <BotSettingsEnterprise />, roles: ['admin', 'tenant_admin', 'super_admin'] },
   { path: '/perfil/pedidos', element: <Navigate to="/portal/pedidos" replace /> },
   { path: '/chat', element: <ChatPage /> },
   { path: '/chat/:ticketId', element: <TicketLookup /> },
   { path: '/checkout', element: <Checkout /> },
   { path: '/chatpos', element: <ChatPosPage /> },
-  { path: '/chatcrm', element: <ChatCRMPage /> },
+  { path: '/chatcrm', element: <ChatCRMPage />, roles: ['admin', 'empleado', 'super_admin'] },
   { path: '/opinar', element: <OpinarArPage /> },
   { path: '/integracion', element: <Integracion />, roles: ['admin'] },
   { path: '/documentacion', element: <Documentacion /> },
@@ -336,6 +339,7 @@ const routes: RouteConfig[] = [
   { path: '/legal/terms', element: <Terms /> },
   { path: '/legal/cookies', element: <Cookies /> },
   { path: '/tickets', element: <TicketsPanel />, roles: ['admin', 'empleado', 'super_admin'] },
+  { path: '/notificaciones', element: <SmartNotificationsWrapper />, roles: ['admin', 'empleado', 'super_admin'] },
   { path: '/pedidos', element: <SmartPedidosWrapper />, roles: ['admin', 'empleado', 'super_admin'] },
   { path: '/usuarios', element: <UsuariosPage />, roles: ['admin', 'empleado', 'super_admin'] },
   { path: '/notifications', element: <NotificationSettings /> },

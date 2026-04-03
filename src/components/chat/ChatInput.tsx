@@ -18,6 +18,7 @@ import {
   UploadResponseLike,
 } from "@/utils/uploadResponse";
 import { ensureAbsoluteUrl } from "@/utils/chatButtons";
+import { safeLocalStorage } from "@/utils/safeLocalStorage";
 
 export interface ChatInputHandle {
   openFilePicker: () => void;
@@ -62,6 +63,7 @@ const QUICK_EMOJIS = [
   { emoji: "🧹", category: "limpieza" },
   { emoji: "🗑️", category: "limpieza" },
 ];
+const CHAT_INPUT_DRAFT_KEY = "chat_widget_input_draft_v1";
 
 type UploadResponse = UploadResponseLike;
 
@@ -82,6 +84,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
   const [attachmentPreview, setAttachmentPreview] = useState<{ file: File; previewUrl: string } | null>(null);
   const [showEmojis, setShowEmojis] = useState(false);
   const [inlineError, setInlineError] = useState<string | null>(null);
+  const [draftRecovered, setDraftRecovered] = useState(false);
   const internalRef = inputRef || useRef<HTMLInputElement>(null);
   const { isRecording, startRecording, stopRecording } = useAudioRecorder();
   const adjRef = useRef<AdjuntarArchivoHandle>(null);
@@ -115,6 +118,11 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
   const guidedProgress = guidedFields.length > 0 && currentGuidedStepIndex >= 0
     ? ((currentGuidedStepIndex + 1) / guidedFields.length) * 100
     : 0;
+  const draftStorageKey = React.useMemo(() => {
+    if (typeof window === "undefined") return CHAT_INPUT_DRAFT_KEY;
+    const scope = window.location.pathname.replace(/[^a-z0-9/_-]+/gi, "_").toLowerCase() || "root";
+    return `${CHAT_INPUT_DRAFT_KEY}:${scope}`;
+  }, []);
 
   useImperativeHandle(ref, () => ({
     openFilePicker: () => {
@@ -128,6 +136,28 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
     }, 3500);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    const savedDraft = safeLocalStorage.getItem(draftStorageKey);
+    if (!savedDraft) return;
+    setInput(savedDraft);
+    onTypingChange?.(savedDraft.trim().length > 0);
+    setDraftRecovered(true);
+  }, [draftStorageKey, onTypingChange]);
+
+  useEffect(() => {
+    if (!draftRecovered) return;
+    const timer = window.setTimeout(() => setDraftRecovered(false), 3200);
+    return () => window.clearTimeout(timer);
+  }, [draftRecovered]);
+
+  useEffect(() => {
+    if (!input) {
+      safeLocalStorage.removeItem(draftStorageKey);
+      return;
+    }
+    safeLocalStorage.setItem(draftStorageKey, input);
+  }, [draftStorageKey, input]);
 
   const handleSend = async () => {
     if ((!input.trim() && !attachmentPreview) || isTyping) return;
@@ -284,6 +314,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
     setAttachmentPreview(null);
     setShowEmojis(false);
     onTypingChange?.(false);
+    safeLocalStorage.removeItem(draftStorageKey);
     internalRef.current?.focus();
   };
 
@@ -323,6 +354,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
     setInput("");
     setInlineError(null);
     onTypingChange?.(false);
+    safeLocalStorage.removeItem(draftStorageKey);
   };
 
   const handleSendAudio = async (audioBlob: Blob) => {
@@ -452,6 +484,11 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
 
   return (
     <div className="w-full flex flex-col gap-3 px-2 py-2 sm:px-3 sm:py-3 bg-background">
+      {draftRecovered ? (
+        <div className="rounded-xl border border-primary/30 bg-primary/10 px-3 py-2 text-xs text-primary">
+          Recuperamos tu borrador anterior automáticamente.
+        </div>
+      ) : null}
       {guidedFields.length > 0 ? (
         <div className="rounded-[22px] border border-primary/10 bg-gradient-to-br from-primary/[0.08] via-background to-secondary/20 px-3 py-3 shadow-[0_12px_35px_rgba(2,6,23,0.06)]">
           <div className="mb-2 flex items-center justify-between gap-3 text-xs text-muted-foreground"><div className="inline-flex items-center gap-2">
