@@ -1,6 +1,6 @@
 // src/components/chat/ChatInput.tsx
 import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from "react";
-import { Send, MapPin, Mic, MicOff, X, FileText, Smile, Sparkles, Paperclip, AudioLines, Navigation, ArrowUp, CheckCircle2 } from "lucide-react";
+import { Send, MapPin, Mic, MicOff, X, FileText, Smile, ArrowUp, CheckCircle2 } from "lucide-react";
 import AdjuntarArchivo, { AdjuntarArchivoHandle } from "@/components/ui/AdjuntarArchivo";
 import { apiFetch, getErrorMessage } from "@/utils/api";
 import { requestLocation } from "@/utils/geolocation";
@@ -100,8 +100,6 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
   const supportsLocationShare =
     supportsMultimodalIntake &&
     channelCapabilities?.supports_location_share === true;
-  const showInputFeaturePills =
-    supportsImageInput || supportsAudioInput || supportsLocationShare;
   const allowedFileTypes = React.useMemo(() => {
     const nextTypes: string[] = [];
     if (supportsImageInput) nextTypes.push('image/*');
@@ -546,19 +544,6 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
       )}
       <div className="flex flex-col gap-2">
         <div className="rounded-[28px] border border-border/70 bg-gradient-to-br from-background via-background to-muted/30 p-2 shadow-[0_18px_40px_rgba(15,23,42,0.08)]">
-          {showInputFeaturePills ? (
-            <div className="mb-2 flex items-center justify-between gap-3 px-2 pt-1">
-              <div className="flex flex-wrap items-center gap-1.5">
-                {supportsImageInput ? <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-1 text-[11px] font-medium text-primary"><Paperclip className="h-3 w-3" /> Adjuntos</span> : null}
-                {supportsAudioInput ? <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-1 text-[11px] font-medium text-secondary-foreground"><AudioLines className="h-3 w-3" /> Audio</span> : null}
-                {supportsLocationShare ? <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-1 text-[11px] font-medium text-secondary-foreground"><Navigation className="h-3 w-3" /> GPS</span> : null}
-              </div>
-              <div className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-1 text-[11px] font-medium text-primary">
-                <Sparkles className="h-3 w-3" />
-                Smart input
-              </div>
-            </div>
-          ) : null}
           <div className="w-full">
           <input
             ref={internalRef}

@@ -53,8 +53,6 @@ import {
   CaptionsOff,
   Paperclip,
   Sparkles,
-  Phone,
-  Video,
   Bot,
   Wifi,
   WifiOff,
@@ -666,11 +664,29 @@ const ChatPanel = (props: ChatPanelProps) => {
         transports = ["polling"];
       }
 
-      const socket = io(socketUrl, { path: SOCKET_PATH, transports });
+      const socket = io(socketUrl, {
+        path: SOCKET_PATH,
+        transports,
+        reconnectionAttempts: 2,
+        reconnectionDelay: 1500,
+        timeout: 8000,
+      });
       socketRef.current = socket;
 
       const handleConnectError = (error: unknown) => {
         const lowered = String((error as any)?.message || "").toLowerCase();
+        const httpStatus = Number(
+          (error as any)?.description?.status ||
+            (error as any)?.data?.status ||
+            (error as any)?.context?.status,
+        );
+        if (
+          (lowered.includes("xhr poll error") || lowered.includes("500")) &&
+          httpStatus === 500
+        ) {
+          socket.disconnect();
+          return;
+        }
         if (
           lowered.includes("websocket") ||
           lowered.includes("transport") ||
@@ -841,17 +857,13 @@ const ChatPanel = (props: ChatPanelProps) => {
     liveChatAllowedByBackend && isLiveChatEnabled,
   );
   const canRenderWhatsAppBridge = Boolean(
-    (boolish(supportChannels?.whatsapp?.enabled) &&
-      boolish(supportChannels?.whatsapp?.realtime_bridge)) ||
-      (boolish(realtimeConfig?.voiceHandoff?.enabled) &&
-        boolish(realtimeConfig?.voiceHandoff?.supportsWhatsAppFollowup)),
+    boolish(supportChannels?.whatsapp?.enabled) &&
+      boolish(supportChannels?.whatsapp?.realtime_bridge),
   );
   const voiceCallConfig = supportChannels?.voice_call;
   const videoCallConfig = supportChannels?.video_call;
-  const realtimeVoiceEnabled =
-    boolish(voiceCallConfig?.enabled) || boolish(realtimeConfig?.voiceEnabled);
-  const realtimeVideoEnabled =
-    boolish(videoCallConfig?.enabled) || boolish(realtimeConfig?.videoEnabled);
+  const realtimeVoiceEnabled = boolish(voiceCallConfig?.enabled);
+  const realtimeVideoEnabled = boolish(videoCallConfig?.enabled);
   const [channelMode, setChannelMode] = useState<"chat" | "voice" | "video">(
     "chat",
   );
@@ -1185,62 +1197,6 @@ const ChatPanel = (props: ChatPanelProps) => {
     videoCallConfig?.features?.cta_label,
     videoCallConfig?.label,
   ]);
-  const chatModeLabel = useMemo(() => {
-    if (
-      typeof supportChannels?.live_chat?.label === "string" &&
-      supportChannels.live_chat.label.trim()
-    ) {
-      return supportChannels.live_chat.label.trim();
-    }
-    return null;
-  }, [supportChannels?.live_chat?.label]);
-  const modeSwitchItems = useMemo(
-    () =>
-      [
-        chatModeLabel
-          ? {
-              key: "chat",
-              label: chatModeLabel,
-              active: channelMode === "chat",
-              onClick: () => setChannelMode("chat" as const),
-              icon: null,
-            }
-          : null,
-        realtimeVoiceEnabled
-          ? {
-              key: "voice",
-              label: voiceCallLabel || "",
-              active: channelMode === "voice",
-              onClick: () => beginRealtimeSession("voice"),
-              icon: Phone,
-            }
-          : null,
-        realtimeVideoEnabled
-          ? {
-              key: "video",
-              label: videoCallLabel || "",
-              active: channelMode === "video",
-              onClick: () => beginRealtimeSession("video"),
-              icon: Video,
-            }
-          : null,
-      ].filter(Boolean) as Array<{
-        key: string;
-        label: string;
-        active: boolean;
-        onClick: () => void;
-        icon: typeof Phone | null;
-      }>,
-    [
-      beginRealtimeSession,
-      channelMode,
-      chatModeLabel,
-      realtimeVideoEnabled,
-      realtimeVoiceEnabled,
-      videoCallLabel,
-      voiceCallLabel,
-    ],
-  );
   const summaryWhatsAppLabel = useMemo(() => {
     const fromVoice = voiceCallConfig?.features?.summary_whatsapp_label;
     const fromVideo = videoCallConfig?.features?.summary_whatsapp_label;
@@ -1710,36 +1666,6 @@ const ChatPanel = (props: ChatPanelProps) => {
         ownerType={uxContext?.owner_tipo_chat || null}
         recommendationLabel={recommendedExperienceLabel}
       />
-      {modeSwitchItems.length > 1 ? (
-        <div className="px-2 sm:px-4 pt-2">
-          <div
-            className={cn(
-              chatContentMaxWidthClass,
-              "grid gap-2 rounded-xl border border-border/70 bg-muted/30 p-2",
-            )}
-            style={{
-              gridTemplateColumns: `repeat(${modeSwitchItems.length}, minmax(0, 1fr))`,
-            }}
-          >
-            {modeSwitchItems.map((item) => {
-              const Icon = item.icon;
-              return (
-                <Button
-                  key={item.key}
-                  size="sm"
-                  variant={item.active ? "default" : "ghost"}
-                  onClick={item.onClick}
-                  className="min-w-0"
-                >
-                  {Icon ? <Icon className="mr-1 h-4 w-4" /> : null}
-                  <span className="truncate">{item.label}</span>
-                </Button>
-              );
-            })}
-          </div>
-        </div>
-      ) : null}
-
       {channelMode !== "chat" ? (
         <div className="px-2 sm:px-4 pt-2">
           <div className={cn(chatContentMaxWidthClass, "rounded-xl border border-border/70 bg-background/90 p-3")}>
