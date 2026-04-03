@@ -12,7 +12,7 @@ import Layout from "./components/layout/Layout";
 import NotFound from "./pages/NotFound";
 import ChatWidget from "@/components/chat/ChatWidget";
 import routes from "./routesConfig";
-import ProtectedRoute from "@/components/ProtectedRoute";
+import AccessRoute from "@/components/access/AccessRoute";
 import UserPortalGuard from "@/components/user-portal/UserPortalGuard";
 import { DateSettingsProvider } from "./hooks/useDateSettings";
 import { UserProvider } from "./hooks/useUser";
@@ -22,9 +22,17 @@ import { SocketProvider } from "@/context/SocketContext";
 import { GOOGLE_CLIENT_ID } from './env';
 import UserPortalLayout from "@/components/user-portal/layout/UserPortalLayout";
 import TokenRedirectWrapper from "@/components/TokenRedirectWrapper";
-import { apiFetch } from "@/utils/api";
+import { CapabilitiesProvider } from '@/context/CapabilitiesContext';
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000,
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 function AppRoutes() {
   const location = useLocation();
 
@@ -91,13 +99,13 @@ function AppRoutes() {
     <TokenRedirectWrapper>
       <Routes>
         <Route element={<Layout />}>
-          {layoutRoutes.map(({ path, element, roles }) => (
+          {layoutRoutes.map(({ path, element, roles, requiredCapabilities }) => (
             <Route
               key={path} // La key ya estaba correctamente aquí. No se requieren cambios.
               path={path}
               element={
-                roles ? (
-                  <ProtectedRoute roles={roles}>{element}</ProtectedRoute>
+                roles || requiredCapabilities ? (
+                  <AccessRoute roles={roles} requiredCapabilities={requiredCapabilities}>{element}</AccessRoute>
                 ) : (
                   element
                 )
@@ -118,13 +126,13 @@ function AppRoutes() {
             ))}
           </Route>
         )}
-        {standaloneRoutes.map(({ path, element, roles }) => (
+        {standaloneRoutes.map(({ path, element, roles, requiredCapabilities }) => (
           <Route
             key={path}
             path={path}
             element={
-              roles ? (
-                <ProtectedRoute roles={roles}>{element}</ProtectedRoute>
+              roles || requiredCapabilities ? (
+                <AccessRoute roles={roles} requiredCapabilities={requiredCapabilities}>{element}</AccessRoute>
               ) : (
                 element
               )
@@ -157,9 +165,11 @@ const App = () => {
             >
               <SocketProvider>
                 <TenantProvider>
-                  <RealtimeAlertsProvider>
-                    <AppRoutes />
-                  </RealtimeAlertsProvider>
+                  <CapabilitiesProvider>
+                    <RealtimeAlertsProvider>
+                      <AppRoutes />
+                    </RealtimeAlertsProvider>
+                  </CapabilitiesProvider>
                 </TenantProvider>
               </SocketProvider>
             </BrowserRouter>

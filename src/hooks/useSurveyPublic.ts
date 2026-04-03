@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import { getPublicSurvey, postPublicResponse } from '@/api/encuestas';
 import type { PublicResponsePayload, SurveyPublic } from '@/types/encuestas';
 import { ApiError, getErrorMessage } from '@/utils/api';
+import { queryKeys } from '@/lib/queryKeys';
 
 export interface UseSurveyPublicOptions {
   tenantSlug?: string | null;
@@ -45,7 +46,7 @@ export function useSurveyPublic(
     isLoading,
     error,
   } = useQuery({
-    queryKey: ['survey-public', normalizedSlug, normalizedTenantSlug],
+    queryKey: queryKeys.surveys.public(normalizedSlug, normalizedTenantSlug),
     enabled: Boolean(normalizedSlug),
     queryFn: () => getPublicSurvey(normalizedSlug, normalizedTenantSlug || undefined),
     staleTime: 1000 * 60,
@@ -58,7 +59,7 @@ export function useSurveyPublic(
   });
 
   const mutation = useMutation({
-    mutationKey: ['survey-public-submit', normalizedSlug, normalizedTenantSlug],
+    mutationKey: queryKeys.surveys.submitPublic(normalizedSlug, normalizedTenantSlug),
     mutationFn: async (payload: PublicResponsePayload) => {
       if (!normalizedSlug) throw new Error('Encuesta no disponible.');
       const response = await postPublicResponse(
@@ -67,7 +68,7 @@ export function useSurveyPublic(
         normalizedTenantSlug || undefined,
       );
       await queryClient.invalidateQueries({
-        queryKey: ['survey-public', normalizedSlug, normalizedTenantSlug],
+        queryKey: queryKeys.surveys.public(normalizedSlug, normalizedTenantSlug),
       });
       return response;
     },
