@@ -370,6 +370,15 @@ const IntegracionesPage = () => {
       }
     } catch (error: any) {
         console.error('Connection failed:', error);
+        const status = error instanceof ApiError ? error.status : Number(error?.status || 0);
+        if (status === 503) {
+          toast.error("La plataforma no está configurada todavía. Contactá soporte para habilitarla.");
+          return;
+        }
+        if (status === 403) {
+          toast.error("Tu plan actual no incluye esta integración. Contactá a ventas para habilitarla.");
+          return;
+        }
         toast.error("Error al conectar con la plataforma.");
     }
   };
