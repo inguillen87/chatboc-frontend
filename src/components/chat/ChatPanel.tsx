@@ -1497,6 +1497,17 @@ const ChatPanel = (props: ChatPanelProps) => {
   const lastMessage = messages[messages.length - 1];
   const lastUserMessage = [...messages].reverse().find((m) => !m.isBot); // Safe find last user message
   const [smartHint, setSmartHint] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!onClose) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (event.defaultPrevented) return;
+      onClose();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
   const [leadSuccessTicket, setLeadSuccessTicket] = useState<string | null>(
     null,
   );
@@ -1686,6 +1697,8 @@ const ChatPanel = (props: ChatPanelProps) => {
 
   return (
     <div
+      role="region"
+      aria-label="Chat widget"
       className={cn(
         "chat-root flex flex-col w-full h-full bg-gradient-to-b from-card via-card to-card/95 text-card-foreground overflow-hidden relative",
         isMobile ? undefined : "rounded-[inherit]",
@@ -1953,6 +1966,7 @@ const ChatPanel = (props: ChatPanelProps) => {
       )}
       <div
         ref={chatContainerRef}
+        aria-live="polite"
         className={cn(
           chatContentMaxWidthClass,
           "flex-1 p-2 sm:p-4 lg:px-6 min-h-0 flex flex-col gap-3 overflow-y-auto",
