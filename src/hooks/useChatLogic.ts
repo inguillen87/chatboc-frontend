@@ -345,12 +345,6 @@ export function useChatLogic({
         rubro: normalizedRubro || null,
       });
 
-      console.log("useChatLogic: Enviando saludo inicial", {
-        endpoint,
-        tipoChatFinal,
-        rubroForPayload,
-      });
-
       const sessionId = getOrCreateChatSessionId();
 
       setIsTyping(true);
@@ -383,7 +377,6 @@ export function useChatLogic({
             ...(visitorName && { nombre_usuario: visitorName }),
           },
         });
-        console.log("useChatLogic: Initial greeting response", response);
         processBotPayload(response, {
           fallbackOnEmpty: !socketRef.current || !socketRef.current.connected,
           fromInit: true,
@@ -2055,14 +2048,6 @@ export function useChatLogic({
 
     const transports = getPreferredSocketTransports();
 
-    console.log("useChatLogic: Initializing socket", {
-      socketUrl,
-      entityToken,
-      tenantSlug,
-      hasUserToken: !!userAuthToken,
-      transports,
-    });
-
     const socket = io(socketUrl, {
       transports,
       withCredentials: true,
@@ -2095,7 +2080,7 @@ export function useChatLogic({
     };
 
     const handleConnectError = (err: any) => {
-      console.error("Socket.IO connection error:", err.message);
+      console.warn("Socket.IO connection error:", err.message);
       const lowered = String(err?.message || "").toLowerCase();
       const httpStatus = Number(
         (err as any)?.description?.status ||
