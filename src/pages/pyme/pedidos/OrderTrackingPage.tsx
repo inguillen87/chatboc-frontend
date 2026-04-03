@@ -21,6 +21,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import TrackingMap from '@/components/ui/TrackingMap';
 import Confetti from '@/components/ui/Confetti';
+import { hexToHsl, getContrastColorHsl } from '@/utils/color';
 
 const STATUS_CONFIG = {
   pendiente: { label: 'Pendiente', color: 'bg-amber-100 text-amber-700 border-amber-200', icon: Clock, step: 1, description: 'Tu pedido ha sido recibido y está pendiente de confirmación.' },
@@ -46,6 +47,15 @@ export default function OrderTrackingPage() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [isSupportOpen, setIsSupportOpen] = useState(false);
+  const [tenantBranding, setTenantBranding] = useState<{
+    logoUrl: string | null;
+    primaryColor: string | null;
+    secondaryColor: string | null;
+  }>({
+    logoUrl: null,
+    primaryColor: null,
+    secondaryColor: null,
+  });
 
   useEffect(() => {
     const loadOrder = async () => {
@@ -67,17 +77,48 @@ export default function OrderTrackingPage() {
         }
 
         setOrder(data);
+        const rawBranding =
+          (data as any)?.tenant_branding ||
+          (data as any)?.branding ||
+          (data as any)?.tenantTheme ||
+          data.tenant_theme ||
+          null;
 
-        // Apply theme if available
-        let theme = data.tenant_theme;
-        if (typeof theme === 'string') {
-             try { theme = JSON.parse(theme); } catch (e) { console.warn('Failed to parse tenant_theme', e); }
+        let parsedBranding: Record<string, unknown> | null = null;
+        if (typeof rawBranding === 'string') {
+          try {
+            parsedBranding = JSON.parse(rawBranding);
+          } catch (e) {
+            console.warn('Failed to parse tenant branding payload', e);
+          }
+        } else if (rawBranding && typeof rawBranding === 'object') {
+          parsedBranding = rawBranding as Record<string, unknown>;
         }
 
-        if (theme && typeof theme === 'object') {
-          const root = document.documentElement;
-          if (theme.primaryColor) root.style.setProperty('--primary', theme.primaryColor);
-        }
+        const logoFromBranding =
+          typeof parsedBranding?.logo_url === 'string'
+            ? parsedBranding.logo_url
+            : typeof parsedBranding?.logoUrl === 'string'
+              ? parsedBranding.logoUrl
+              : null;
+        const primaryFromBranding =
+          typeof parsedBranding?.primary_color === 'string'
+            ? parsedBranding.primary_color
+            : typeof parsedBranding?.primaryColor === 'string'
+              ? parsedBranding.primaryColor
+              : null;
+        const secondaryFromBranding =
+          typeof parsedBranding?.secondary_color === 'string'
+            ? parsedBranding.secondary_color
+            : typeof parsedBranding?.secondaryColor === 'string'
+              ? parsedBranding.secondaryColor
+              : null;
+
+        setTenantBranding({
+          logoUrl: logoFromBranding || data.tenant_logo || null,
+          primaryColor: primaryFromBranding || null,
+          secondaryColor: secondaryFromBranding || null,
+        });
       } catch (err) {
         console.error('Failed to load order', err);
         setError('No se pudo encontrar el pedido. Verifique el número e intente nuevamente.');
@@ -88,10 +129,6 @@ export default function OrderTrackingPage() {
 
     loadOrder();
 
-    return () => {
-      const root = document.documentElement;
-      root.style.removeProperty('--primary');
-    };
   }, [nro_pedido]);
 
   const handleOpenChat = () => {
@@ -170,6 +207,25 @@ export default function OrderTrackingPage() {
   const StatusIcon = STATUS_CONFIG[order.estado]?.icon || Clock;
   const statusInfo = STATUS_CONFIG[order.estado] || STATUS_CONFIG.pendiente;
   const currentStep = STATUS_CONFIG[order.estado]?.step || 0;
+  const brandingStyle: React.CSSProperties = {
+    ...(tenantBranding.primaryColor
+      ? {
+          ['--primary' as any]: tenantBranding.primaryColor.startsWith('#')
+            ? hexToHsl(tenantBranding.primaryColor)
+            : tenantBranding.primaryColor,
+          ['--primary-foreground' as any]: tenantBranding.primaryColor.startsWith('#')
+            ? getContrastColorHsl(tenantBranding.primaryColor)
+            : undefined,
+        }
+      : {}),
+    ...(tenantBranding.secondaryColor
+      ? {
+          ['--secondary' as any]: tenantBranding.secondaryColor.startsWith('#')
+            ? hexToHsl(tenantBranding.secondaryColor)
+            : tenantBranding.secondaryColor,
+        }
+      : {}),
+  };
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(order.nro_pedido);
@@ -177,15 +233,18 @@ export default function OrderTrackingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50/50 pb-20 font-sans selection:bg-primary/10 relative">
+    <div
+      className="min-h-screen bg-slate-50/50 pb-20 font-sans selection:bg-primary/10 relative"
+      style={brandingStyle}
+    >
       {order.estado === 'entregado' && <Confetti />}
 
       {/* Navbar-like Header */}
       <div className="bg-white border-b sticky top-0 z-40 shadow-sm backdrop-blur-md bg-white/90">
           <div className="max-w-3xl mx-auto px-4 h-16 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                {order.tenant_logo ? (
-                    <img src={order.tenant_logo} alt="Logo" className="h-8 w-auto object-contain" />
+                {tenantBranding.logoUrl ? (
+                    <img src={tenantBranding.logoUrl} alt="Logo" className="h-8 w-auto object-contain" />
                 ) : (
                     <div className="h-8 w-8 bg-primary/10 rounded-lg flex items-center justify-center text-primary font-bold">
                         {order.pyme_nombre.charAt(0)}

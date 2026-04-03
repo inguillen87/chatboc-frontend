@@ -899,6 +899,18 @@ const ChatPanel = (props: ChatPanelProps) => {
   const [realtimeErrorCode, setRealtimeErrorCode] = useState<string | null>(
     null,
   );
+  const availabilityDismissKey = React.useMemo(
+    () => `chatboc_availability_dismissed:${tenantSlug || "default"}`,
+    [tenantSlug],
+  );
+  const [showAvailabilityNotice, setShowAvailabilityNotice] = useState(() => {
+    return safeLocalStorage.getItem("chatboc_availability_dismissed:default") !== "1";
+  });
+  useEffect(() => {
+    setShowAvailabilityNotice(
+      safeLocalStorage.getItem(availabilityDismissKey) !== "1",
+    );
+  }, [availabilityDismissKey]);
   const previousChannelModeRef = useRef<"chat" | "voice" | "video">("chat");
   const realtimeSessionRequestRef = useRef(false);
 
@@ -1933,8 +1945,8 @@ const ChatPanel = (props: ChatPanelProps) => {
             </div>
           </div>
         )}
-        {!activeTicketId ? (
-          <div className="mb-2 rounded-md border px-3 py-2 text-xs">
+        {!activeTicketId && showAvailabilityNotice ? (
+          <div className="relative mb-2 rounded-md border px-2.5 py-2 text-xs">
             <span
               className={cn(
                 "font-medium",
@@ -1947,11 +1959,22 @@ const ChatPanel = (props: ChatPanelProps) => {
                   : "Te respondemos en horario")}
             </span>
             {!isLiveChatEnabled && horariosAtencion ? (
-              <p className="mt-1 text-muted-foreground">
+              <p className="mt-1 text-muted-foreground pr-5">
                 {horariosAtencion}
                 {timezone ? ` · ${timezone}` : ""}
               </p>
             ) : null}
+            <button
+              type="button"
+              className="absolute right-2 mt-[-1.1rem] text-muted-foreground hover:text-foreground"
+              onClick={() => {
+                setShowAvailabilityNotice(false);
+                safeLocalStorage.setItem(availabilityDismissKey, "1");
+              }}
+              aria-label="Cerrar aviso de horario"
+            >
+              <X size={12} />
+            </button>
           </div>
         ) : null}
 
@@ -1960,19 +1983,7 @@ const ChatPanel = (props: ChatPanelProps) => {
             <Button onClick={handleLiveChatRequest} className="w-full mb-2">
               Hablar con un representante
             </Button>
-          ) : (
-            horariosAtencion && (
-              <div className="text-center text-sm text-muted-foreground p-2">
-                <p>
-                  Para hablar con un representante, nuestro horario de atención
-                  es:
-                </p>
-                <p>
-                  <strong>{horariosAtencion}</strong>
-                </p>
-              </div>
-            )
-          ))}
+          ) : null)}
         {!activeTicketId && canRenderWhatsAppBridge ? (
           <Button
             onClick={handleWhatsAppBridge}
