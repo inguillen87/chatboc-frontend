@@ -899,18 +899,34 @@ const ChatPanel = (props: ChatPanelProps) => {
   const [realtimeErrorCode, setRealtimeErrorCode] = useState<string | null>(
     null,
   );
+  const readAvailabilityDismissed = useCallback((key: string) => {
+    if (typeof window === "undefined") return false;
+    try {
+      return window.sessionStorage.getItem(key) === "1";
+    } catch {
+      return false;
+    }
+  }, []);
+  const writeAvailabilityDismissed = useCallback((key: string) => {
+    if (typeof window === "undefined") return;
+    try {
+      window.sessionStorage.setItem(key, "1");
+    } catch {
+      // no-op
+    }
+  }, []);
   const availabilityDismissKey = React.useMemo(
     () => `chatboc_availability_dismissed:${tenantSlug || "default"}`,
     [tenantSlug],
   );
   const [showAvailabilityNotice, setShowAvailabilityNotice] = useState(() => {
-    return safeLocalStorage.getItem("chatboc_availability_dismissed:default") !== "1";
+    return !readAvailabilityDismissed("chatboc_availability_dismissed:default");
   });
   useEffect(() => {
     setShowAvailabilityNotice(
-      safeLocalStorage.getItem(availabilityDismissKey) !== "1",
+      !readAvailabilityDismissed(availabilityDismissKey),
     );
-  }, [availabilityDismissKey]);
+  }, [availabilityDismissKey, readAvailabilityDismissed]);
   const previousChannelModeRef = useRef<"chat" | "voice" | "video">("chat");
   const realtimeSessionRequestRef = useRef(false);
 
@@ -1969,7 +1985,7 @@ const ChatPanel = (props: ChatPanelProps) => {
               className="absolute right-2 mt-[-1.1rem] text-muted-foreground hover:text-foreground"
               onClick={() => {
                 setShowAvailabilityNotice(false);
-                safeLocalStorage.setItem(availabilityDismissKey, "1");
+                writeAvailabilityDismissed(availabilityDismissKey);
               }}
               aria-label="Cerrar aviso de horario"
             >
