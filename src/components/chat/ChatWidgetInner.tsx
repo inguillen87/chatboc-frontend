@@ -613,6 +613,26 @@ function ChatWidgetInner({
   const [proactiveCycle, setProactiveCycle] = useState(0);
   const [widgetUx, setWidgetUx] = useState(DEFAULT_WIDGET_UX);
   const [cursorTrailPoint, setCursorTrailPoint] = useState<{ x: number; y: number } | null>(null);
+  const applyWidgetFallbackProfile = useCallback(() => {
+    const mockData = resolvedTenantSlug?.includes('junin') ? MOCK_JUNIN_TENANT_INFO : MOCK_TENANT_INFO;
+    const inferredTipo = tipoChat || (mockData.tipo === 'municipio' ? 'municipio' : 'pyme');
+    const fallbackInfo = {
+      ...mockData,
+      nombre_empresa: welcomeTitle || mockData.nombre,
+      logo_url: headerLogoUrl || customLauncherLogoUrl || mockData.logo_url,
+      cta_messages: ctaMessage ? [{ text: ctaMessage }] : mockData.cta_messages,
+      slug: resolvedTenantSlug || mockData.slug || null,
+      tipo_chat: inferredTipo,
+      default_open: (typeof defaultOpen === 'boolean') ? defaultOpen : mockData.default_open,
+    };
+    setEntityInfo(fallbackInfo);
+    setWidgetUx({
+      ...DEFAULT_WIDGET_UX,
+      preset: inferredTipo === 'municipio' ? 'civic-premium' : 'commerce-neon',
+    });
+    setResolvedTipoChat(inferredTipo === 'municipio' ? 'municipio' : 'pyme');
+    setProfileError(null);
+  }, [resolvedTenantSlug, tipoChat, welcomeTitle, headerLogoUrl, customLauncherLogoUrl, ctaMessage, defaultOpen]);
 
   // Apply Theme Config
   useEffect(() => {
@@ -1310,50 +1330,7 @@ function ChatWidgetInner({
                   const is500 = (err as any)?.status === 500 || (err as any)?.statusCode === 500;
 
                   if (is500 || !ownerToken) {
-                     // Force load mock data to prevent white screen
-                     const mockData = resolvedTenantSlug.includes('junin') ? MOCK_JUNIN_TENANT_INFO : MOCK_TENANT_INFO;
-
-                     // Construct theme config from legacy mock 'tema' if needed
-                     const themeConfig = mockData.theme_config || (mockData.tema ? {
-                        mode: 'light',
-                        light: {
-                            primary: mockData.tema.primaryColor,
-                            secondary: mockData.tema.secondaryColor,
-                            background: '#ffffff',
-                            foreground: '#0f172a',
-                        },
-                        dark: {
-                            primary: mockData.tema.primaryColor,
-                            secondary: mockData.tema.secondaryColor,
-                             background: '#020617',
-                            foreground: '#f8fafc',
-                        }
-                     } : undefined);
-
-                     const info = {
-                        ...mockData,
-                        // Branding Priority: Props > Mock
-                        nombre_empresa: welcomeTitle || mockData.nombre,
-                        // Ensure logo_url reflects props if provided
-                        logo_url: headerLogoUrl || customLauncherLogoUrl || mockData.logo_url,
-
-                        // Ensure CTA messages from props are used if available
-                        cta_messages: ctaMessage ? [{ text: ctaMessage }] : mockData.cta_messages,
-
-                        theme_config: themeConfig,
-                        default_open: (typeof defaultOpen === 'boolean') ? defaultOpen : mockData.default_open,
-                        slug: resolvedTenantSlug,
-                        tipo_chat: tipoChat || (mockData.tipo === 'municipio' ? 'municipio' : 'pyme')
-                     };
-
-                     setEntityInfo(info);
-                     setWidgetUx({
-                       ...DEFAULT_WIDGET_UX,
-                       preset: info.tipo_chat === 'municipio' ? 'civic-premium' : 'commerce-neon',
-                     });
-                     if (info.tipo_chat) {
-                         setResolvedTipoChat(info.tipo_chat === 'municipio' ? 'municipio' : 'pyme');
-                     }
+                     applyWidgetFallbackProfile();
                   } else if (ownerToken) {
                      const data = await apiFetch<any>("/perfil", {
                       entityToken: ownerToken,
@@ -1366,7 +1343,7 @@ function ChatWidgetInner({
                     }
                     setEntityInfo(data);
                   } else {
-                      setProfileError("No se pudo cargar la configuración.");
+                      applyWidgetFallbackProfile();
                   }
              }
           } else if (ownerToken) {
@@ -1383,7 +1360,7 @@ function ChatWidgetInner({
           }
         } catch (e) {
           console.error("ChatWidget: Error al obtener el perfil de la entidad:", e);
-          setEntityInfo(null);
+          applyWidgetFallbackProfile();
         } finally {
           setProfileLoading(false);
         }
@@ -1418,8 +1395,7 @@ function ChatWidgetInner({
         setEntityInfo(data);
       } catch (e) {
         console.error("ChatWidget: Error al obtener el perfil de la entidad:", e);
-        setEntityInfo(null);
-        setProfileError(getErrorMessage(e, "No se pudo cargar la configuración del widget."));
+        applyWidgetFallbackProfile();
       } finally {
         setProfileLoading(false);
       }
@@ -1456,12 +1432,12 @@ function ChatWidgetInner({
     if (!isProfileLoading) return;
     const timeout = setTimeout(() => {
       if (isProfileLoading) {
-        setProfileError("No se pudo cargar la configuración del widget.");
+        applyWidgetFallbackProfile();
         setProfileLoading(false);
       }
     }, 10000);
     return () => clearTimeout(timeout);
-  }, [isProfileLoading]);
+  }, [isProfileLoading, applyWidgetFallbackProfile]);
 
   const containerStyle: React.CSSProperties = useMemo(() => {
     if (mode === "standalone") {
