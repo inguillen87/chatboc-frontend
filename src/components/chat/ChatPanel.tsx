@@ -844,23 +844,12 @@ const ChatPanel = (props: ChatPanelProps) => {
     (boolish(supportChannels?.whatsapp?.enabled) &&
       boolish(supportChannels?.whatsapp?.realtime_bridge)) ||
       (boolish(realtimeConfig?.voiceHandoff?.enabled) &&
-        boolish(realtimeConfig?.voiceHandoff?.supportsWhatsAppFollowup)) ||
-      Boolean(
-        recommendedExperience?.preferred_handoff_channels?.some(
-          (channel) => channel.toLowerCase() === "whatsapp",
-        ),
-      ),
+        boolish(realtimeConfig?.voiceHandoff?.supportsWhatsAppFollowup)),
   );
   const voiceCallConfig = supportChannels?.voice_call;
   const videoCallConfig = supportChannels?.video_call;
   const realtimeVoiceEnabled =
-    boolish(voiceCallConfig?.enabled) ||
-    boolish(realtimeConfig?.voiceEnabled) ||
-    Boolean(
-      recommendedExperience?.preferred_handoff_channels?.some(
-        (channel) => channel.toLowerCase() === "voice",
-      ),
-    );
+    boolish(voiceCallConfig?.enabled) || boolish(realtimeConfig?.voiceEnabled);
   const realtimeVideoEnabled =
     boolish(videoCallConfig?.enabled) || boolish(realtimeConfig?.videoEnabled);
   const [channelMode, setChannelMode] = useState<"chat" | "voice" | "video">(

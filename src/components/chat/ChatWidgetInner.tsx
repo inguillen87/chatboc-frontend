@@ -615,7 +615,7 @@ function ChatWidgetInner({
   const [cursorTrailPoint, setCursorTrailPoint] = useState<{ x: number; y: number } | null>(null);
   const applyWidgetFallbackProfile = useCallback(() => {
     const mockData = resolvedTenantSlug?.includes('junin') ? MOCK_JUNIN_TENANT_INFO : MOCK_TENANT_INFO;
-    const inferredTipo = tipoChat || (mockData.tipo === 'municipio' ? 'municipio' : 'pyme');
+    const inferredTipo = tipoChat || 'pyme';
     const fallbackInfo = {
       ...mockData,
       nombre_empresa: welcomeTitle || mockData.nombre,
