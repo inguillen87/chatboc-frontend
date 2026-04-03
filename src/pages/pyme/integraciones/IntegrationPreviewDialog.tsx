@@ -21,10 +21,17 @@ interface PreviewItem {
     status: 'new' | 'update' | 'error' | 'active';
     will_create_new: boolean;
 }
+interface MappingStatusItem {
+    source_category?: string;
+    source?: string;
+    target_category?: string;
+    target?: string;
+    status?: 'mapped' | 'pending' | 'error' | string;
+}
 
 const IntegrationPreviewDialog: React.FC<IntegrationPreviewDialogProps> = ({ provider, tenantSlug, onClose }) => {
     const [loading, setLoading] = useState(true);
-    const [previewData, setPreviewData] = useState<{ summary: any; items: PreviewItem[] } | null>(null);
+    const [previewData, setPreviewData] = useState<{ summary: any; items: PreviewItem[]; mappingStatus: MappingStatusItem[] } | null>(null);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
@@ -44,7 +51,12 @@ const IntegrationPreviewDialog: React.FC<IntegrationPreviewDialogProps> = ({ pro
             } else {
                 setPreviewData({
                     summary: data.summary || { total_found: 0, new_items: 0, updates: 0 },
-                    items: data.items || []
+                    items: data.items || [],
+                    mappingStatus: Array.isArray(data.mapping_status)
+                      ? data.mapping_status
+                      : Array.isArray(data.attribute_mappings)
+                        ? data.attribute_mappings
+                        : [],
                 });
             }
         } catch (e) {
@@ -154,6 +166,30 @@ const IntegrationPreviewDialog: React.FC<IntegrationPreviewDialogProps> = ({ pro
                     </TableBody>
                 </Table>
             </div>
+            {previewData?.mappingStatus?.length ? (
+              <div className="space-y-2 rounded-md border p-3">
+                <p className="text-sm font-medium">Estado de mapeo de atributos/categorías</p>
+                <div className="space-y-1.5">
+                  {previewData.mappingStatus.slice(0, 8).map((mapping, idx) => {
+                    const sourceLabel = mapping.source_category || mapping.source || `Origen ${idx + 1}`;
+                    const targetLabel = mapping.target_category || mapping.target || "Sin mapear";
+                    const status = (mapping.status || "").toLowerCase();
+                    return (
+                      <div key={`${sourceLabel}_${targetLabel}_${idx}`} className="flex items-center justify-between rounded border px-2 py-1.5 text-xs">
+                        <span className="font-medium">{sourceLabel}</span>
+                        <span className="mx-2 text-muted-foreground">→</span>
+                        <span className="flex items-center gap-2">
+                          {targetLabel}
+                          <Badge variant={status === "mapped" ? "default" : status === "error" ? "destructive" : "secondary"}>
+                            {status === "mapped" ? "Mapeado" : status === "error" ? "Error" : "Pendiente"}
+                          </Badge>
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
 
             <div className="flex justify-end gap-3 pt-2">
                 <Button variant="outline" onClick={onClose}>Cancelar</Button>

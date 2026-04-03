@@ -345,12 +345,6 @@ export function useChatLogic({
         rubro: normalizedRubro || null,
       });
 
-      console.log("useChatLogic: Enviando saludo inicial", {
-        endpoint,
-        tipoChatFinal,
-        rubroForPayload,
-      });
-
       const sessionId = getOrCreateChatSessionId();
 
       setIsTyping(true);
@@ -383,7 +377,6 @@ export function useChatLogic({
             ...(visitorName && { nombre_usuario: visitorName }),
           },
         });
-        console.log("useChatLogic: Initial greeting response", response);
         processBotPayload(response, {
           fallbackOnEmpty: !socketRef.current || !socketRef.current.connected,
           fromInit: true,
@@ -1999,6 +1992,7 @@ export function useChatLogic({
   const [socketTransportRetryKey, setSocketTransportRetryKey] = useState(0);
   const socketTransportRetryCountRef = useRef(0);
   const MAX_SOCKET_TRANSPORT_RETRIES = 2;
+  const socketFatalErrorNotifiedRef = useRef(false);
 
   const getPreferredSocketTransports = (): Array<"websocket" | "polling"> => {
     const defaultTransports: Array<"websocket" | "polling"> = isChatbocDomain()
@@ -2054,18 +2048,13 @@ export function useChatLogic({
 
     const transports = getPreferredSocketTransports();
 
-    console.log("useChatLogic: Initializing socket", {
-      socketUrl,
-      entityToken,
-      tenantSlug,
-      hasUserToken: !!userAuthToken,
-      transports,
-    });
-
     const socket = io(socketUrl, {
       transports,
       withCredentials: true,
       path: SOCKET_PATH,
+      reconnectionAttempts: 2,
+      reconnectionDelay: 1500,
+      timeout: 8000,
       auth: {
         ...(userAuthToken && { token: userAuthToken }), // Prioritize user JWT for auth
         entityToken: entityToken, // Pass entity token for context
@@ -2084,14 +2073,28 @@ export function useChatLogic({
     const handleConnect = () => {
       console.log("Socket.IO connected, joining room with web channel...");
       socketTransportRetryCountRef.current = 0;
+      socketFatalErrorNotifiedRef.current = false;
       socket.emit("join", { room: sessionId, channel: "web" });
 
       initializeConversationRef.current?.({ resetContext: true });
     };
 
     const handleConnectError = (err: any) => {
-      console.error("Socket.IO connection error:", err.message);
+      console.warn("Socket.IO connection error:", err.message);
       const lowered = String(err?.message || "").toLowerCase();
+      const httpStatus = Number(
+        (err as any)?.description?.status ||
+          (err as any)?.data?.status ||
+          (err as any)?.context?.status,
+      );
+      if (
+        (lowered.includes("xhr poll error") || lowered.includes("500")) &&
+        httpStatus === 500
+      ) {
+        socket.disconnect();
+        socketFatalErrorNotifiedRef.current = true;
+        return;
+      }
       if (
         lowered.includes("websocket") ||
         lowered.includes("transport") ||
