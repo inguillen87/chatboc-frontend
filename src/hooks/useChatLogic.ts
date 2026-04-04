@@ -1991,7 +1991,15 @@ export function useChatLogic({
   const socketFatalErrorNotifiedRef = useRef(false);
 
   const getPreferredSocketTransports = (): Array<"websocket" | "polling"> => {
-    const defaultTransports: Array<"websocket" | "polling"> = isChatbocDomain() ? ["polling"] : ["polling", "websocket"];
+    const websocketRuleRaw = uxContext?.visibility_rules?.allow_websocket;
+    const allowWebsocketFromUx = (() => {
+      if (websocketRuleRaw === undefined || websocketRuleRaw === null) return true;
+      const normalized = String(websocketRuleRaw).trim().toLowerCase();
+      return !["false", "0", "no", "off", "disabled"].includes(normalized);
+    })();
+
+    const defaultTransports: Array<"websocket" | "polling"> =
+      isChatbocDomain() || !allowWebsocketFromUx ? ["polling"] : ["polling", "websocket"];
 
     const rawTransports = safeLocalStorage.getItem(
       resolveTransportListKey(tenantSlug),
