@@ -323,6 +323,12 @@ const ChatPanel = (props: ChatPanelProps) => {
     typeof recommendedExperience?.summary_text === "string" && recommendedExperience.summary_text.trim().length > 0
       ? recommendedExperience.summary_text.trim()
       : null;
+  const websocketRuleRaw = uxContext?.visibility_rules?.allow_websocket;
+  const allowWebsocketFromUx = (() => {
+    if (websocketRuleRaw === undefined || websocketRuleRaw === null) return true;
+    const normalized = String(websocketRuleRaw).trim().toLowerCase();
+    return !["false", "0", "no", "off", "disabled"].includes(normalized);
+  })();
 
   const capabilityPills = useMemo(() => {
     if (!channelCapabilities) return [] as Array<{ label: string; icon: React.ElementType }>;
@@ -637,7 +643,8 @@ const ChatPanel = (props: ChatPanelProps) => {
       const defaultPollingOnly =
         host === "chatboc.ar" ||
         host.endsWith(".chatboc.ar") ||
-        host === "www.chatboc.ar";
+        host === "www.chatboc.ar" ||
+        !allowWebsocketFromUx;
       const hint = safeLocalStorage.getItem(
         resolveTransportHintKey(tenantSlug),
       );
