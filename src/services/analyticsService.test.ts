@@ -208,4 +208,37 @@ describe('analyticsService.getHub', () => {
     });
   });
 
+  it('normalizes severity and state aliases for heatmap points', async () => {
+    apiFetchMock
+      .mockResolvedValueOnce({ sections: {} })
+      .mockResolvedValueOnce({
+        points: [
+          { latitude: -34.62, longitude: -58.4, count: 9, category: 'seguridad', channel: 'web', severity: 'alta', status: 'abierto' },
+          { lat: -34.63, lng: -58.41, weight: 2, categoria: 'alumbrado', canal: 'whatsapp', priority: 'media', state: 'pendiente' },
+        ],
+      });
+
+    const heatmap = await analyticsService.getHeatmap({ scope: 'municipio' });
+
+    expect(heatmap.points).toHaveLength(2);
+    expect(heatmap.points[0]).toEqual({
+      lat: -34.62,
+      lng: -58.4,
+      weight: 9,
+      categoria: 'seguridad',
+      canal: 'web',
+      severidad: 'alta',
+      estado: 'abierto',
+    });
+    expect(heatmap.points[1]).toEqual({
+      lat: -34.63,
+      lng: -58.41,
+      weight: 2,
+      categoria: 'alumbrado',
+      canal: 'whatsapp',
+      severidad: 'media',
+      estado: 'pendiente',
+    });
+  });
+
 });

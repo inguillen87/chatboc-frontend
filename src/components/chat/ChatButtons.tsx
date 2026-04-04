@@ -35,8 +35,16 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
         const actionToUse = boton.action || boton.action_id;
         const normalizedAction = actionToUse ? normalize(actionToUse) : null;
         const normalizedInternal = boton.accion_interna ? normalize(boton.accion_interna) : null;
+        const normalizedLabel = normalize(String(boton?.texto || ""));
 
-        return normalizedAction !== "subastas" && normalizedInternal !== "subastas";
+        const isUnsupportedAuction = normalizedAction === "subastas" || normalizedInternal === "subastas";
+        if (isUnsupportedAuction) return false;
+
+        const isTopChipLabel = ["widget", "whatsapp", "voice"].includes(normalizedLabel);
+        const hasValidAction = Boolean(actionToUse || boton.accion_interna || boton.url || boton.payload);
+        if (isTopChipLabel && !hasValidAction) return false;
+
+        return true;
     });
 
     const buttonsToRender = filteredButtons;

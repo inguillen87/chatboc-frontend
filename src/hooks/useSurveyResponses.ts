@@ -8,6 +8,7 @@ import type {
   SurveyResponseRecord,
 } from '@/types/encuestas';
 import { getErrorMessage } from '@/utils/api';
+import { queryKeys } from '@/lib/queryKeys';
 
 interface UseSurveyResponsesResult {
   responses: SurveyResponseRecord[];
@@ -31,7 +32,7 @@ export function useSurveyResponses(
   const normalizedFilters = useMemo(() => normalizeFilters(filters), [filters]);
 
   const query = useQuery({
-    queryKey: ['survey-responses', normalizedId, normalizedFilters],
+    queryKey: queryKeys.surveys.responses(normalizedId ?? 'missing', JSON.stringify(normalizedFilters)),
     enabled: normalizedId !== null,
     queryFn: () =>
       normalizedId !== null

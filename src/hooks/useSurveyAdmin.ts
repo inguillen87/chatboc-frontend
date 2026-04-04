@@ -14,6 +14,7 @@ import type { SurveyAdmin, SurveyDraftPayload, SurveyListResponse } from '@/type
 import { getErrorMessage } from '@/utils/api';
 import { useTenant } from '@/context/TenantContext';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
+import { queryKeys } from '@/lib/queryKeys';
 
 interface UseSurveyAdminOptions {
   id?: number | null;
@@ -60,7 +61,7 @@ export function useSurveyAdmin(options: UseSurveyAdminOptions = {}): UseSurveyAd
   const normalizedId = useMemo(() => (typeof options.id === 'number' ? options.id : null), [options.id]);
 
   const surveyQuery = useQuery({
-    queryKey: ['survey-admin', normalizedId],
+    queryKey: queryKeys.surveys.admin(normalizedId ?? 'missing'),
     enabled: normalizedId !== null,
     retry: false,
     queryFn: () =>
@@ -70,7 +71,7 @@ export function useSurveyAdmin(options: UseSurveyAdminOptions = {}): UseSurveyAd
   });
 
   const listQuery = useQuery({
-    queryKey: ['survey-admin-list', buildListKey(options.listParams)],
+    queryKey: queryKeys.surveys.adminList(buildListKey(options.listParams)),
     queryFn: () => adminListSurveys(options.listParams as any, adminRequestOptions),
     retry: false,
   });
@@ -79,8 +80,8 @@ export function useSurveyAdmin(options: UseSurveyAdminOptions = {}): UseSurveyAd
     mutationFn: async (payload: SurveyDraftPayload) => {
       if (normalizedId === null) throw new Error('No survey id provided');
       const updated = await adminUpdateSurvey(normalizedId, payload, adminRequestOptions);
-      await queryClient.invalidateQueries({ queryKey: ['survey-admin', normalizedId] });
-      await queryClient.invalidateQueries({ queryKey: ['survey-admin-list'] });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.surveys.admin(normalizedId ?? 'missing') });
+      await queryClient.invalidateQueries({ queryKey: ['surveys', 'admin-list'] });
       return updated;
     },
   });
@@ -88,7 +89,7 @@ export function useSurveyAdmin(options: UseSurveyAdminOptions = {}): UseSurveyAd
   const createMutation = useMutation({
     mutationFn: async (payload: SurveyDraftPayload) => {
       const created = await adminCreateSurvey(payload, adminRequestOptions);
-      await queryClient.invalidateQueries({ queryKey: ['survey-admin-list'] });
+      await queryClient.invalidateQueries({ queryKey: ['surveys', 'admin-list'] });
       return created;
     },
   });
@@ -98,8 +99,8 @@ export function useSurveyAdmin(options: UseSurveyAdminOptions = {}): UseSurveyAd
       const targetId = typeof payload?.id === 'number' ? payload.id : normalizedId;
       if (targetId === null) throw new Error('No survey id provided');
       const published = await adminPublishSurvey(targetId, adminRequestOptions);
-      await queryClient.invalidateQueries({ queryKey: ['survey-admin', targetId] });
-      await queryClient.invalidateQueries({ queryKey: ['survey-admin-list'] });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.surveys.admin(targetId) });
+      await queryClient.invalidateQueries({ queryKey: ['surveys', 'admin-list'] });
       return published;
     },
   });
@@ -113,8 +114,8 @@ export function useSurveyAdmin(options: UseSurveyAdminOptions = {}): UseSurveyAd
       payload: { cantidad: number; reset?: boolean; geo_profile_key?: string; municipality_label?: string };
     }) => {
       const result = await adminSeedSurvey(id, payload, adminRequestOptions);
-      await queryClient.invalidateQueries({ queryKey: ['survey-admin', id] });
-      await queryClient.invalidateQueries({ queryKey: ['survey-admin-list'] });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.surveys.admin(id) });
+      await queryClient.invalidateQueries({ queryKey: ['surveys', 'admin-list'] });
       return result;
     },
   });
@@ -122,8 +123,8 @@ export function useSurveyAdmin(options: UseSurveyAdminOptions = {}): UseSurveyAd
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
       await adminDeleteSurvey(id, adminRequestOptions);
-      await queryClient.invalidateQueries({ queryKey: ['survey-admin', id] });
-      await queryClient.invalidateQueries({ queryKey: ['survey-admin-list'] });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.surveys.admin(id) });
+      await queryClient.invalidateQueries({ queryKey: ['surveys', 'admin-list'] });
     },
   });
 
