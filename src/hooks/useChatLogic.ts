@@ -1979,13 +1979,19 @@ export function useChatLogic({
   const resolveTransportListKey = (slug?: string | null) =>
     `chatboc_socket_transports:${slug || "default"}`;
 
+  const isChatbocDomain = (): boolean => {
+    if (typeof window === "undefined") return false;
+    const host = window.location.hostname.toLowerCase();
+    return host === "chatboc.ar" || host === "www.chatboc.ar" || host.endsWith(".chatboc.ar");
+  };
+
   const [socketTransportRetryKey, setSocketTransportRetryKey] = useState(0);
   const socketTransportRetryCountRef = useRef(0);
   const MAX_SOCKET_TRANSPORT_RETRIES = 2;
   const socketFatalErrorNotifiedRef = useRef(false);
 
   const getPreferredSocketTransports = (): Array<"websocket" | "polling"> => {
-    const defaultTransports: Array<"websocket" | "polling"> = ["polling", "websocket"];
+    const defaultTransports: Array<"websocket" | "polling"> = isChatbocDomain() ? ["polling"] : ["polling", "websocket"];
 
     const rawTransports = safeLocalStorage.getItem(
       resolveTransportListKey(tenantSlug),

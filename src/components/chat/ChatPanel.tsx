@@ -26,7 +26,7 @@ import { toast } from "@/components/ui/use-toast";
 import RubroSelector from "./RubroSelector";
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import TicketMap from "@/components/TicketMap";
-import { ApiError, apiFetch, getErrorMessage } from "@/utils/api";
+import { apiFetch, getErrorMessage } from "@/utils/api";
 import { getRubrosHierarchy } from "@/api/rubros";
 import { useUser } from "@/hooks/useUser";
 import { useBusinessHours } from "@/hooks/useBusinessHours";
@@ -645,8 +645,8 @@ const ChatPanel = (props: ChatPanelProps) => {
         resolveTransportListKey(tenantSlug),
       );
       let transports: Array<"polling" | "websocket"> = defaultPollingOnly
-        ? ["websocket", "polling"]
-        : ["websocket", "polling"];
+        ? ["polling"]
+        : ["polling", "websocket"];
 
       if (rawTransportList) {
         try {
@@ -1093,9 +1093,11 @@ const ChatPanel = (props: ChatPanelProps) => {
       } catch (error) {
         setSessionState("ended");
         setChannelMode("chat");
+        const maybeStatus = (error as any)?.status;
+        const maybeBody = (error as any)?.body;
         const errorCode =
-          error instanceof ApiError
-            ? String(error?.body?.error || error?.body?.code || error.status)
+          typeof maybeStatus === "number" || maybeBody
+            ? String(maybeBody?.error || maybeBody?.code || maybeStatus)
             : null;
         setRealtimeErrorCode(errorCode);
         pushRealtimeTimeline(
@@ -1589,6 +1591,9 @@ const ChatPanel = (props: ChatPanelProps) => {
   }, [messages]);
   const supportsMultimodalIntake =
     recommendedExperience?.supports_multimodal_intake !== false;
+  const forceDemoComposerTools =
+    typeof window !== "undefined" && window.location.pathname.startsWith("/demo");
+  const effectiveChannelCapabilities = forceDemoComposerTools ? null : channelCapabilities;
 
   const persistentLeadButton = [...messages]
     .flatMap((msg) => msg.botones || [])
@@ -2153,7 +2158,7 @@ const ChatPanel = (props: ChatPanelProps) => {
             onTypingChange={setUserTyping}
             onSystemMessage={addSystemMessage}
             validateBeforeSend={validateLeadCaptureInput}
-            channelCapabilities={channelCapabilities}
+            channelCapabilities={effectiveChannelCapabilities}
             guidedFlow={guidedFlow}
             supportsMultimodalIntake={supportsMultimodalIntake}
           />
