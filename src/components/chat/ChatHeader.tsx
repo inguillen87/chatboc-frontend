@@ -93,7 +93,13 @@ const ChatHeader: React.FC<Props> = ({
   const whatsappLabel = typeof supportChannels?.whatsapp?.label === 'string' ? supportChannels.whatsapp.label.trim() : '';
   const actionButtonClass =
     "flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/10 p-2 text-primary-foreground/80 backdrop-blur transition motion-safe:hover:scale-[1.03] hover:bg-white/16 hover:text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-1 focus-visible:ring-offset-primary";
-  const statusLabel = recommendationLabel || (liveChatVisible ? liveChatLabel : whatsappVisible ? whatsappLabel : null);
+  const rawStatusLabel = recommendationLabel || (liveChatVisible ? liveChatLabel : whatsappVisible ? whatsappLabel : null);
+  const statusLabel = (() => {
+    const normalized = typeof rawStatusLabel === "string" ? rawStatusLabel.trim() : "";
+    if (!normalized) return null;
+    const blocked = new Set(["widget", "whatsapp", "voice", "chat", "canal"]);
+    return blocked.has(normalized.toLowerCase()) ? null : normalized;
+  })();
 
   return (
     <div

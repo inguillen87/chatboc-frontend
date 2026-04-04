@@ -2030,15 +2030,9 @@ export function useChatLogic({
 
   useEffect(() => {
     if (!entityToken && !tenantSlug) {
-      console.log(
-        "useChatLogic: No entityToken and no tenantSlug, socket connection deferred.",
-      );
       return;
     }
     if (!tipoChat) {
-      console.log(
-        "useChatLogic: Deferring socket connection until tipoChat is available.",
-      );
       return;
     }
 
@@ -2079,27 +2073,31 @@ export function useChatLogic({
     };
 
     const handleConnectError = (err: any) => {
-      console.warn("Socket.IO connection error:", err.message);
       const lowered = String(err?.message || "").toLowerCase();
       const httpStatus = Number(
         (err as any)?.description?.status ||
           (err as any)?.data?.status ||
           (err as any)?.context?.status,
       );
-      if (
-        (lowered.includes("xhr poll error") || lowered.includes("500")) &&
-        httpStatus === 500
-      ) {
+      const isServerFailure =
+        httpStatus >= 500 || lowered.includes("500") || lowered.includes("xhr poll error");
+
+      if (isServerFailure) {
+        if (!socketFatalErrorNotifiedRef.current) {
+          addSystemMessage("Conexión en tiempo real no disponible. Continuamos en modo normal.", "info");
+          socketFatalErrorNotifiedRef.current = true;
+        }
         socket.disconnect();
-        socketFatalErrorNotifiedRef.current = true;
         return;
       }
+
       if (
         lowered.includes("websocket") ||
         lowered.includes("transport") ||
-        lowered.includes("xhr poll error")
+        lowered.includes("timeout")
       ) {
         if (socketTransportRetryCountRef.current >= MAX_SOCKET_TRANSPORT_RETRIES) {
+          socket.disconnect();
           return;
         }
         socketTransportRetryCountRef.current += 1;
@@ -2126,17 +2124,11 @@ export function useChatLogic({
     safeOn(socket, "connect_error", handleConnectError);
 
     const handleBotMessage = (rawPayload: any) => {
-      console.log("Bot response received:", rawPayload);
       processBotPayload(rawPayload, { fallbackOnEmpty: true });
-    };
-
-    const handleDisconnect = () => {
-      console.log("Socket.IO disconnected.");
     };
 
     safeOn(socket, "bot_response", handleBotMessage);
     safeOn(socket, "message", handleBotMessage);
-    safeOn(socket, "disconnect", handleDisconnect);
 
     // Cleanup on component unmount
     return () => {
@@ -2144,7 +2136,6 @@ export function useChatLogic({
       socket.off?.("connect_error", handleConnectError);
       socket.off?.("bot_response", handleBotMessage);
       socket.off?.("message", handleBotMessage);
-      socket.off?.("disconnect", handleDisconnect);
       socket.disconnect();
     };
   }, [
@@ -2163,10 +2154,6 @@ export function useChatLogic({
     ) {
       const newKey = uuidv4();
       setCurrentClaimIdempotencyKey(newKey);
-      console.log(
-        "useChatLogic: Generated idempotency key for claim confirmation:",
-        newKey,
-      );
     }
   }, [contexto.estado_conversacion, activeTicketId]);
 
