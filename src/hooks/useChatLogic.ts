@@ -1979,25 +1979,13 @@ export function useChatLogic({
   const resolveTransportListKey = (slug?: string | null) =>
     `chatboc_socket_transports:${slug || "default"}`;
 
-  const isChatbocDomain = (): boolean => {
-    if (typeof window === "undefined") return false;
-    const host = window.location.hostname.toLowerCase();
-    return (
-      host === "chatboc.ar" ||
-      host.endsWith(".chatboc.ar") ||
-      host === "www.chatboc.ar"
-    );
-  };
-
   const [socketTransportRetryKey, setSocketTransportRetryKey] = useState(0);
   const socketTransportRetryCountRef = useRef(0);
   const MAX_SOCKET_TRANSPORT_RETRIES = 2;
   const socketFatalErrorNotifiedRef = useRef(false);
 
   const getPreferredSocketTransports = (): Array<"websocket" | "polling"> => {
-    const defaultTransports: Array<"websocket" | "polling"> = isChatbocDomain()
-      ? ["polling"]
-      : ["websocket", "polling"];
+    const defaultTransports: Array<"websocket" | "polling"> = ["polling", "websocket"];
 
     const rawTransports = safeLocalStorage.getItem(
       resolveTransportListKey(tenantSlug),
@@ -2030,15 +2018,9 @@ export function useChatLogic({
 
   useEffect(() => {
     if (!entityToken && !tenantSlug) {
-      console.log(
-        "useChatLogic: No entityToken and no tenantSlug, socket connection deferred.",
-      );
       return;
     }
     if (!tipoChat) {
-      console.log(
-        "useChatLogic: Deferring socket connection until tipoChat is available.",
-      );
       return;
     }
 
@@ -2052,8 +2034,10 @@ export function useChatLogic({
       transports,
       withCredentials: true,
       path: SOCKET_PATH,
-      reconnectionAttempts: 2,
-      reconnectionDelay: 1500,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 20000,
+      randomizationFactor: 0.5,
       timeout: 8000,
       auth: {
         ...(userAuthToken && { token: userAuthToken }), // Prioritize user JWT for auth
@@ -2070,37 +2054,64 @@ export function useChatLogic({
     socketRef.current = socket;
     const sessionId = getOrCreateChatSessionId();
 
+    trackWidgetEvent("socket_connect_attempt", {
+      tenant_slug: tenantSlug ?? null,
+      transport: transports.join(","),
+      has_entity_token: Boolean(entityToken),
+    });
+
     const handleConnect = () => {
-      console.log("Socket.IO connected, joining room with web channel...");
       socketTransportRetryCountRef.current = 0;
       socketFatalErrorNotifiedRef.current = false;
+      trackWidgetEvent("socket_connect_ok", {
+        tenant_slug: tenantSlug ?? null,
+        transport: socket.io?.engine?.transport?.name ?? null,
+      });
       socket.emit("join", { room: sessionId, channel: "web" });
 
       initializeConversationRef.current?.({ resetContext: true });
     };
 
     const handleConnectError = (err: any) => {
-      console.warn("Socket.IO connection error:", err.message);
       const lowered = String(err?.message || "").toLowerCase();
       const httpStatus = Number(
         (err as any)?.description?.status ||
           (err as any)?.data?.status ||
           (err as any)?.context?.status,
       );
-      if (
-        (lowered.includes("xhr poll error") || lowered.includes("500")) &&
-        httpStatus === 500
-      ) {
+      const isServerFailure =
+        httpStatus >= 500 || lowered.includes("500") || lowered.includes("xhr poll error");
+
+      trackWidgetEvent("socket_connect_fail", {
+        tenant_slug: tenantSlug ?? null,
+        error: lowered || "unknown",
+        status: Number.isFinite(httpStatus) ? httpStatus : null,
+      });
+
+      if (isServerFailure) {
+        if (!socketFatalErrorNotifiedRef.current) {
+          addSystemMessage("Conexión en tiempo real no disponible. Continuamos en modo normal.", "info");
+          socketFatalErrorNotifiedRef.current = true;
+        }
+        trackWidgetEvent("socket_fallback_http", {
+          tenant_slug: tenantSlug ?? null,
+          reason: lowered || "server_failure",
+        });
         socket.disconnect();
-        socketFatalErrorNotifiedRef.current = true;
         return;
       }
+
       if (
         lowered.includes("websocket") ||
         lowered.includes("transport") ||
-        lowered.includes("xhr poll error")
+        lowered.includes("timeout")
       ) {
         if (socketTransportRetryCountRef.current >= MAX_SOCKET_TRANSPORT_RETRIES) {
+          trackWidgetEvent("socket_fallback_http", {
+            tenant_slug: tenantSlug ?? null,
+            reason: "retry_exhausted",
+          });
+          socket.disconnect();
           return;
         }
         socketTransportRetryCountRef.current += 1;
@@ -2127,17 +2138,11 @@ export function useChatLogic({
     safeOn(socket, "connect_error", handleConnectError);
 
     const handleBotMessage = (rawPayload: any) => {
-      console.log("Bot response received:", rawPayload);
       processBotPayload(rawPayload, { fallbackOnEmpty: true });
-    };
-
-    const handleDisconnect = () => {
-      console.log("Socket.IO disconnected.");
     };
 
     safeOn(socket, "bot_response", handleBotMessage);
     safeOn(socket, "message", handleBotMessage);
-    safeOn(socket, "disconnect", handleDisconnect);
 
     // Cleanup on component unmount
     return () => {
@@ -2145,7 +2150,6 @@ export function useChatLogic({
       socket.off?.("connect_error", handleConnectError);
       socket.off?.("bot_response", handleBotMessage);
       socket.off?.("message", handleBotMessage);
-      socket.off?.("disconnect", handleDisconnect);
       socket.disconnect();
     };
   }, [
@@ -2164,10 +2168,6 @@ export function useChatLogic({
     ) {
       const newKey = uuidv4();
       setCurrentClaimIdempotencyKey(newKey);
-      console.log(
-        "useChatLogic: Generated idempotency key for claim confirmation:",
-        newKey,
-      );
     }
   }, [contexto.estado_conversacion, activeTicketId]);
 
@@ -2600,10 +2600,6 @@ export function useChatLogic({
         const isPublicDemo = shouldUsePublicFlow(tipoChatFinal, tenantSlug);
         const effectiveSkipAuth = skipAuth || isPublicDemo;
 
-        console.log("useChatLogic: Sending message to backend", {
-          endpoint,
-          requestBody,
-        });
         const response = await apiFetch<any>(endpoint, {
           method: "POST",
           body: requestBody,
@@ -2612,7 +2608,6 @@ export function useChatLogic({
           tenantSlug: tenantSlug,
           entityToken,
         });
-        console.log("useChatLogic: Backend response", response);
         processBotPayload(response, {
           fallbackOnEmpty: !socketRef.current || !socketRef.current.connected,
         });

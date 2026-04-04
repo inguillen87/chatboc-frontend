@@ -1,5 +1,5 @@
 import React from "react";
-import { MessageCircleMore, Sparkles, Waves, Zap } from "lucide-react";
+import { MessageCircleMore, Sparkles } from "lucide-react";
 import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 import AccessibilityToggle, { Prefs } from "./AccessibilityToggle";
 
@@ -48,8 +48,6 @@ const IconButton = {
 };
 
 interface Props {
-  ownerName?: string | null;
-  ownerType?: string | null;
   recommendationLabel?: string | null;
   onClose: () => void;
   isTyping?: boolean;
@@ -87,8 +85,6 @@ const ChatHeader: React.FC<Props> = ({
   logoAnimation,
   onA11yChange,
   supportChannels,
-  ownerName,
-  ownerType,
   recommendationLabel,
 }) => {
   const liveChatVisible = Boolean(supportChannels?.live_chat?.realtime || supportChannels?.live_chat?.available);
@@ -97,7 +93,13 @@ const ChatHeader: React.FC<Props> = ({
   const whatsappLabel = typeof supportChannels?.whatsapp?.label === 'string' ? supportChannels.whatsapp.label.trim() : '';
   const actionButtonClass =
     "flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/10 p-2 text-primary-foreground/80 backdrop-blur transition motion-safe:hover:scale-[1.03] hover:bg-white/16 hover:text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-1 focus-visible:ring-offset-primary";
-  const statusLabel = recommendationLabel || (liveChatVisible ? liveChatLabel : whatsappVisible ? whatsappLabel : null);
+  const rawStatusLabel = recommendationLabel || (liveChatVisible ? liveChatLabel : whatsappVisible ? whatsappLabel : null);
+  const statusLabel = (() => {
+    const normalized = typeof rawStatusLabel === "string" ? rawStatusLabel.trim() : "";
+    if (!normalized) return null;
+    const blocked = new Set(["widget", "whatsapp", "voice", "chat", "canal"]);
+    return blocked.has(normalized.toLowerCase()) ? null : normalized;
+  })();
 
   return (
     <div
@@ -151,41 +153,13 @@ const ChatHeader: React.FC<Props> = ({
               <span className="truncate">{statusLabel}</span>
             </div>
           ) : null}
-          {((liveChatVisible && liveChatLabel) || (whatsappVisible && whatsappLabel) || isTyping) ? (
-            <div className="mt-2 flex gap-1.5 overflow-x-auto pb-0.5 pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {isTyping ? (
-                <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-300/25 bg-emerald-400/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-50">
-                  <span className="relative flex h-2 w-2">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-300 opacity-75" />
-                    <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-200" />
-                  </span>
-                  Respondiendo
-                </span>
-              ) : null}
-              {ownerName ? (
-                <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-white/15 bg-white/12 px-2 py-0.5 text-[10px] font-medium text-primary-foreground/90 backdrop-blur">
-                  <MessageCircleMore className="h-3 w-3" />
-                  {ownerType ? `${ownerType} · ${ownerName}` : ownerName}
-                </span>
-              ) : null}
-              {liveChatVisible && liveChatLabel ? (
-                <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-white/15 bg-white/12 px-2 py-0.5 text-[10px] font-medium text-primary-foreground/90 backdrop-blur">
-                  <Waves className="h-3 w-3" />
-                  {liveChatLabel}
-                </span>
-              ) : null}
-              {whatsappVisible && whatsappLabel ? (
-                <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-white/15 bg-white/12 px-2 py-0.5 text-[10px] font-medium text-primary-foreground/90 backdrop-blur">
-                  <Zap className="h-3 w-3" />
-                  {whatsappLabel}
-                </span>
-              ) : null}
-              {recommendationLabel ? (
-                <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-white/15 bg-white/12 px-2 py-0.5 text-[10px] font-medium text-primary-foreground/90 backdrop-blur">
-                  <Sparkles className="h-3 w-3" />
-                  {recommendationLabel}
-                </span>
-              ) : null}
+          {isTyping ? (
+            <div className="mt-2 inline-flex items-center gap-1 rounded-full border border-emerald-300/25 bg-emerald-400/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-50">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-300 opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-200" />
+              </span>
+              Respondiendo
             </div>
           ) : null}
         </div>
