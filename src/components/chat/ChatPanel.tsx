@@ -130,6 +130,8 @@ interface ChatPanelProps {
       realtime_bridge?: boolean;
       media?: Record<string, boolean>;
       label?: string;
+      url?: string;
+      action?: string;
     };
     voice_call?: {
       enabled?: boolean;
@@ -832,9 +834,14 @@ const ChatPanel = (props: ChatPanelProps) => {
   };
 
   const handleWhatsAppBridge = () => {
+    const configuredAction =
+      typeof supportChannels?.whatsapp?.action === "string" && supportChannels.whatsapp.action.trim().length > 0
+        ? supportChannels.whatsapp.action.trim()
+        : "contact_whatsapp";
+
     handleSend({
-      action: "contact_whatsapp",
-      payload: { channel: "whatsapp" },
+      action: configuredAction,
+      payload: { channel: "whatsapp", url: supportChannels?.whatsapp?.url },
     });
   };
 
@@ -856,9 +863,13 @@ const ChatPanel = (props: ChatPanelProps) => {
   const canRenderLiveChat = Boolean(
     liveChatAllowedByBackend && isLiveChatEnabled,
   );
-  const canRenderWhatsAppBridge = Boolean(
-    boolish(supportChannels?.whatsapp?.enabled) &&
+  const hasWhatsAppAction = Boolean(
+    (typeof supportChannels?.whatsapp?.url === "string" && supportChannels.whatsapp.url.trim().length > 0) ||
+      (typeof supportChannels?.whatsapp?.action === "string" && supportChannels.whatsapp.action.trim().length > 0) ||
       boolish(supportChannels?.whatsapp?.realtime_bridge),
+  );
+  const canRenderWhatsAppBridge = Boolean(
+    boolish(supportChannels?.whatsapp?.enabled) && hasWhatsAppAction,
   );
   const voiceCallConfig = supportChannels?.voice_call;
   const videoCallConfig = supportChannels?.video_call;

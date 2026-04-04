@@ -1979,25 +1979,13 @@ export function useChatLogic({
   const resolveTransportListKey = (slug?: string | null) =>
     `chatboc_socket_transports:${slug || "default"}`;
 
-  const isChatbocDomain = (): boolean => {
-    if (typeof window === "undefined") return false;
-    const host = window.location.hostname.toLowerCase();
-    return (
-      host === "chatboc.ar" ||
-      host.endsWith(".chatboc.ar") ||
-      host === "www.chatboc.ar"
-    );
-  };
-
   const [socketTransportRetryKey, setSocketTransportRetryKey] = useState(0);
   const socketTransportRetryCountRef = useRef(0);
   const MAX_SOCKET_TRANSPORT_RETRIES = 2;
   const socketFatalErrorNotifiedRef = useRef(false);
 
   const getPreferredSocketTransports = (): Array<"websocket" | "polling"> => {
-    const defaultTransports: Array<"websocket" | "polling"> = isChatbocDomain()
-      ? ["polling"]
-      : ["websocket", "polling"];
+    const defaultTransports: Array<"websocket" | "polling"> = ["polling", "websocket"];
 
     const rawTransports = safeLocalStorage.getItem(
       resolveTransportListKey(tenantSlug),
@@ -2046,8 +2034,10 @@ export function useChatLogic({
       transports,
       withCredentials: true,
       path: SOCKET_PATH,
-      reconnectionAttempts: 2,
-      reconnectionDelay: 1500,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 20000,
+      randomizationFactor: 0.5,
       timeout: 8000,
       auth: {
         ...(userAuthToken && { token: userAuthToken }), // Prioritize user JWT for auth
@@ -2064,9 +2054,19 @@ export function useChatLogic({
     socketRef.current = socket;
     const sessionId = getOrCreateChatSessionId();
 
+    trackWidgetEvent("socket_connect_attempt", {
+      tenant_slug: tenantSlug ?? null,
+      transport: transports.join(","),
+      has_entity_token: Boolean(entityToken),
+    });
+
     const handleConnect = () => {
       socketTransportRetryCountRef.current = 0;
       socketFatalErrorNotifiedRef.current = false;
+      trackWidgetEvent("socket_connect_ok", {
+        tenant_slug: tenantSlug ?? null,
+        transport: socket.io?.engine?.transport?.name ?? null,
+      });
       socket.emit("join", { room: sessionId, channel: "web" });
 
       initializeConversationRef.current?.({ resetContext: true });
@@ -2082,11 +2082,21 @@ export function useChatLogic({
       const isServerFailure =
         httpStatus >= 500 || lowered.includes("500") || lowered.includes("xhr poll error");
 
+      trackWidgetEvent("socket_connect_fail", {
+        tenant_slug: tenantSlug ?? null,
+        error: lowered || "unknown",
+        status: Number.isFinite(httpStatus) ? httpStatus : null,
+      });
+
       if (isServerFailure) {
         if (!socketFatalErrorNotifiedRef.current) {
           addSystemMessage("Conexión en tiempo real no disponible. Continuamos en modo normal.", "info");
           socketFatalErrorNotifiedRef.current = true;
         }
+        trackWidgetEvent("socket_fallback_http", {
+          tenant_slug: tenantSlug ?? null,
+          reason: lowered || "server_failure",
+        });
         socket.disconnect();
         return;
       }
@@ -2097,6 +2107,10 @@ export function useChatLogic({
         lowered.includes("timeout")
       ) {
         if (socketTransportRetryCountRef.current >= MAX_SOCKET_TRANSPORT_RETRIES) {
+          trackWidgetEvent("socket_fallback_http", {
+            tenant_slug: tenantSlug ?? null,
+            reason: "retry_exhausted",
+          });
           socket.disconnect();
           return;
         }
