@@ -1,10 +1,11 @@
 import { useCallback, useMemo, useState, useEffect } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowDownRight, ArrowUpRight, Download, Loader2, MessageSquareText, RefreshCw, Timer, TrendingUp, Users } from 'lucide-react';
 
 import { SurveyForm } from '@/components/surveys/SurveyForm';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useSurveyPublic } from '@/hooks/useSurveyPublic';
 import type { PublicResponsePayload, SurveyComment, SurveyLiveResults } from '@/types/encuestas';
 import { toast } from '@/components/ui/use-toast';
@@ -42,6 +43,7 @@ const parseLiveRequestParams = (): SurveyLiveRequestParams => {
 
 const PublicSurveyPage = () => {
   const { slug } = useParams();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const tenantSlug = searchParams.get('tenant');
   const mode = searchParams.get('mode'); // 'embed' or undefined
@@ -51,7 +53,12 @@ const PublicSurveyPage = () => {
   const {
     survey,
     isLoading,
+    isRefetching,
     error,
+    errorStatus,
+    errorDetails,
+    errorReasonCode,
+    retryLoad,
     submit,
     isSubmitting,
     submitError,
@@ -62,6 +69,7 @@ const PublicSurveyPage = () => {
   const [liveResults, setLiveResults] = useState<SurveyLiveResults | undefined>(undefined);
   const [liveComments, setLiveComments] = useState<SurveyComment[]>([]);
   const [liveRequestParams, setLiveRequestParams] = useState<SurveyLiveRequestParams>(() => parseLiveRequestParams());
+  const [showLoadingSkeleton, setShowLoadingSkeleton] = useState(true);
   const {
     liveResults: liveDashboard,
     isFetching: isFetchingLiveDashboard,
@@ -76,6 +84,15 @@ const PublicSurveyPage = () => {
   useEffect(() => {
     safeSessionStorage.setItem(LIVE_FILTERS_STORAGE_KEY, JSON.stringify(liveRequestParams));
   }, [liveRequestParams]);
+
+  useEffect(() => {
+    if (isLoading) {
+      setShowLoadingSkeleton(true);
+      return;
+    }
+    const timeout = window.setTimeout(() => setShowLoadingSkeleton(false), 400);
+    return () => window.clearTimeout(timeout);
+  }, [isLoading]);
 
   // Sync initial live results from survey data
   useEffect(() => {
@@ -279,10 +296,81 @@ const PublicSurveyPage = () => {
     (survey as Record<string, unknown> | undefined)?.mensaje_institucional ??
     null;
 
-  if (isLoading) {
+  const errorView = useMemo(() => {
+    const start = typeof errorDetails?.inicio_at === 'string' ? errorDetails.inicio_at : null;
+    const end = typeof errorDetails?.fin_at === 'string' ? errorDetails.fin_at : null;
+    const formatDate = (raw: string | null) => {
+      if (!raw) return null;
+      const date = new Date(raw);
+      if (Number.isNaN(date.getTime())) return null;
+      return date.toLocaleString();
+    };
+    const formattedStart = formatDate(start);
+    const formattedEnd = formatDate(end);
+    const activeWindow = formattedStart && formattedEnd ? `${formattedStart} — ${formattedEnd}` : null;
+
+    if (errorStatus === 404) {
+      return {
+        title: 'No encontramos esta encuesta',
+        subtitle: 'Revisá el enlace o explorá otras encuestas activas.',
+        primaryLabel: 'Ver encuestas activas',
+        primaryAction: () => navigate('/encuestas'),
+        secondaryLabel: mode !== 'embed' ? 'Volver al inicio' : null,
+      };
+    }
+
+    if (errorReasonCode === 'survey_not_published') {
+      return {
+        title: 'Esta encuesta todavía no está publicada',
+        subtitle: 'Podés explorar otras encuestas disponibles en este momento.',
+        primaryLabel: 'Ver encuestas activas',
+        primaryAction: () => navigate('/encuestas'),
+        secondaryLabel: mode !== 'embed' ? 'Volver al inicio' : null,
+      };
+    }
+
+    if (errorReasonCode === 'survey_outside_active_window') {
+      return {
+        title: 'Esta encuesta no está disponible en este momento',
+        subtitle: activeWindow ?? 'La encuesta tiene una ventana de publicación específica.',
+        primaryLabel: 'Ver otras encuestas',
+        primaryAction: () => navigate('/encuestas'),
+        secondaryLabel: mode !== 'embed' ? 'Volver al inicio' : null,
+      };
+    }
+
+    return {
+      title: 'No pudimos cargar esta encuesta',
+      subtitle: 'Probá nuevamente en unos segundos.',
+      primaryLabel: 'Reintentar',
+      primaryAction: () => {
+        void retryLoad();
+      },
+      secondaryLabel: mode !== 'embed' ? 'Volver al inicio' : null,
+    };
+  }, [errorDetails, errorReasonCode, errorStatus, mode, navigate, retryLoad]);
+
+  if (showLoadingSkeleton || isLoading) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      <div className="mx-auto w-full max-w-5xl px-3 py-6 sm:px-4 sm:py-8 lg:py-10">
+        <Card className="w-full border border-border/60">
+          <CardContent className="space-y-6 px-6 py-8 sm:px-8">
+            <div className="space-y-3">
+              <Skeleton className="h-9 w-4/5" />
+              <Skeleton className="h-5 w-2/3" />
+            </div>
+            <div className="space-y-4">
+              <Skeleton className="h-20 w-full" />
+              <Skeleton className="h-20 w-full" />
+              <Skeleton className="h-20 w-full" />
+              <Skeleton className="h-20 w-full" />
+            </div>
+            <div className="space-y-3">
+              <Skeleton className="h-6 w-48" />
+              <Skeleton className="h-16 w-full" />
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -292,13 +380,19 @@ const PublicSurveyPage = () => {
       <div className="mx-auto flex min-h-[60vh] w-full max-w-2xl items-center justify-center">
         <Card className="w-full">
           <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
-            <p className="text-lg font-medium">No pudimos cargar esta encuesta.</p>
-            <p className="text-sm text-muted-foreground">{error || 'El enlace puede estar vencido o no existe.'}</p>
-            {mode !== 'embed' && (
-              <Button asChild>
-                <Link to="/">Volver al inicio</Link>
+            <p className="text-lg font-medium">{errorView.title}</p>
+            <p className="text-sm text-muted-foreground">{errorView.subtitle || error || 'El enlace puede estar vencido o no existe.'}</p>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <Button onClick={errorView.primaryAction} disabled={isRefetching}>
+                {isRefetching && errorView.primaryLabel === 'Reintentar' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                {errorView.primaryLabel}
               </Button>
-            )}
+              {errorView.secondaryLabel && mode !== 'embed' ? (
+                <Button asChild variant="outline">
+                  <Link to="/">{errorView.secondaryLabel}</Link>
+                </Button>
+              ) : null}
+            </div>
           </CardContent>
         </Card>
       </div>
