@@ -346,9 +346,10 @@ const ChatPanel = (props: ChatPanelProps) => {
   }, [channelCapabilities]);
 
   const preferredHandoffChannels = Array.isArray(recommendedExperience?.preferred_handoff_channels)
-    ? recommendedExperience.preferred_handoff_channels.filter(
-        (item): item is string => typeof item === 'string' && item.trim().length > 0,
-      )
+    ? recommendedExperience.preferred_handoff_channels
+        .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+        .map((item) => item.trim())
+        .filter((item) => !["widget", "voice"].includes(item.toLowerCase()))
     : [];
 
 
@@ -868,13 +869,23 @@ const ChatPanel = (props: ChatPanelProps) => {
       (typeof supportChannels?.whatsapp?.action === "string" && supportChannels.whatsapp.action.trim().length > 0) ||
       boolish(supportChannels?.whatsapp?.realtime_bridge),
   );
+  const hasRecommendedWhatsAppHandoff = preferredHandoffChannels.some(
+    (channel) => channel.toLowerCase() === "whatsapp",
+  );
   const canRenderWhatsAppBridge = Boolean(
-    boolish(supportChannels?.whatsapp?.enabled) && hasWhatsAppAction,
+    (boolish(supportChannels?.whatsapp?.enabled) && hasWhatsAppAction) ||
+      (boolish(realtimeConfig?.voiceHandoff?.enabled) &&
+        boolish(realtimeConfig?.voiceHandoff?.supportsWhatsAppFollowup)) ||
+      hasRecommendedWhatsAppHandoff,
   );
   const voiceCallConfig = supportChannels?.voice_call;
   const videoCallConfig = supportChannels?.video_call;
-  const realtimeVoiceEnabled = boolish(voiceCallConfig?.enabled);
-  const realtimeVideoEnabled = boolish(videoCallConfig?.enabled);
+  const realtimeVoiceEnabled = Boolean(
+    boolish(voiceCallConfig?.enabled) || boolish(realtimeConfig?.voiceEnabled),
+  );
+  const realtimeVideoEnabled = Boolean(
+    boolish(videoCallConfig?.enabled) || boolish(realtimeConfig?.videoEnabled),
+  );
   const [channelMode, setChannelMode] = useState<"chat" | "voice" | "video">(
     "chat",
   );

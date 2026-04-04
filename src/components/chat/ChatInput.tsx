@@ -77,14 +77,17 @@ const normalizeFieldLabel = (value?: string | null) => {
     .trim();
 };
 
-const boolish = (value: unknown): boolean => {
+
+const capabilityEnabledByDefault = (value: unknown): boolean => {
+  if (value === undefined || value === null) return true;
   if (typeof value === "boolean") return value;
   if (typeof value === "number") return value === 1;
   if (typeof value === "string") {
     const normalized = value.trim().toLowerCase();
+    if (["false", "0", "no", "off", "disabled"].includes(normalized)) return false;
     if (["true", "1", "yes", "si", "on", "enabled"].includes(normalized)) return true;
   }
-  return false;
+  return true;
 };
 
 const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping, inputRef, onTypingChange, onSystemMessage, validateBeforeSend, channelCapabilities, guidedFlow, supportsMultimodalIntake = true }, ref) => {
@@ -100,16 +103,16 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
   const adjRef = useRef<AdjuntarArchivoHandle>(null);
   const supportsAudioInput =
     supportsMultimodalIntake &&
-    boolish(channelCapabilities?.supports_audio_input);
+    capabilityEnabledByDefault(channelCapabilities?.supports_audio_input);
   const supportsFileUpload =
     supportsMultimodalIntake &&
-    boolish(channelCapabilities?.supports_file_upload);
+    capabilityEnabledByDefault(channelCapabilities?.supports_file_upload);
   const supportsImageInput =
     supportsMultimodalIntake &&
-    boolish(channelCapabilities?.supports_image_input);
+    capabilityEnabledByDefault(channelCapabilities?.supports_image_input);
   const supportsLocationShare =
     supportsMultimodalIntake &&
-    boolish(channelCapabilities?.supports_location_share);
+    capabilityEnabledByDefault(channelCapabilities?.supports_location_share);
   const allowedFileTypes = React.useMemo(() => {
     const nextTypes: string[] = [];
     if (supportsImageInput) nextTypes.push('image/*');
