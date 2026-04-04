@@ -1,5 +1,5 @@
 import React from "react";
-import { MessageCircleMore, Sparkles, Waves, Zap } from "lucide-react";
+import { MessageCircleMore, Sparkles } from "lucide-react";
 import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 import AccessibilityToggle, { Prefs } from "./AccessibilityToggle";
 
@@ -48,8 +48,6 @@ const IconButton = {
 };
 
 interface Props {
-  ownerName?: string | null;
-  ownerType?: string | null;
   recommendationLabel?: string | null;
   onClose: () => void;
   isTyping?: boolean;
@@ -87,14 +85,21 @@ const ChatHeader: React.FC<Props> = ({
   logoAnimation,
   onA11yChange,
   supportChannels,
-  ownerName,
-  ownerType,
   recommendationLabel,
 }) => {
   const liveChatVisible = Boolean(supportChannels?.live_chat?.realtime || supportChannels?.live_chat?.available);
   const whatsappVisible = Boolean(supportChannels?.whatsapp?.enabled && supportChannels?.whatsapp?.realtime_bridge);
   const liveChatLabel = typeof supportChannels?.live_chat?.label === 'string' ? supportChannels.live_chat.label.trim() : '';
   const whatsappLabel = typeof supportChannels?.whatsapp?.label === 'string' ? supportChannels.whatsapp.label.trim() : '';
+  const actionButtonClass =
+    "flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/10 p-2 text-primary-foreground/80 backdrop-blur transition motion-safe:hover:scale-[1.03] hover:bg-white/16 hover:text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-1 focus-visible:ring-offset-primary";
+  const rawStatusLabel = recommendationLabel || (liveChatVisible ? liveChatLabel : whatsappVisible ? whatsappLabel : null);
+  const statusLabel = (() => {
+    const normalized = typeof rawStatusLabel === "string" ? rawStatusLabel.trim() : "";
+    if (!normalized) return null;
+    const blocked = new Set(["widget", "whatsapp", "voice", "chat", "canal"]);
+    return blocked.has(normalized.toLowerCase()) ? null : normalized;
+  })();
 
   return (
     <div
@@ -133,7 +138,7 @@ const ChatHeader: React.FC<Props> = ({
             <span className="truncate text-base font-black tracking-[0.02em] sm:text-[1.02rem]">
               {title || 'Chatboc'}
             </span>
-            <span className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/90 backdrop-blur">
+            <span className="hidden sm:inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/90 backdrop-blur">
               <Sparkles className="h-3 w-3" />
               Live
             </span>
@@ -142,41 +147,19 @@ const ChatHeader: React.FC<Props> = ({
             <MessageCircleMore className="h-3.5 w-3.5 shrink-0" />
             <span className="truncate font-medium">{subtitle || 'Asistente Virtual'}</span>
           </div>
-          {((liveChatVisible && liveChatLabel) || (whatsappVisible && whatsappLabel) || isTyping) ? (
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {isTyping ? (
-                <span className="inline-flex items-center gap-1 rounded-full border border-emerald-300/25 bg-emerald-400/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-50">
-                  <span className="relative flex h-2 w-2">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-300 opacity-75" />
-                    <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-200" />
-                  </span>
-                  Respondiendo
-                </span>
-              ) : null}
-              {ownerName ? (
-                <span className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/12 px-2 py-0.5 text-[10px] font-medium text-primary-foreground/90 backdrop-blur">
-                  <MessageCircleMore className="h-3 w-3" />
-                  {ownerType ? `${ownerType} · ${ownerName}` : ownerName}
-                </span>
-              ) : null}
-              {liveChatVisible && liveChatLabel ? (
-                <span className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/12 px-2 py-0.5 text-[10px] font-medium text-primary-foreground/90 backdrop-blur">
-                  <Waves className="h-3 w-3" />
-                  {liveChatLabel}
-                </span>
-              ) : null}
-              {whatsappVisible && whatsappLabel ? (
-                <span className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/12 px-2 py-0.5 text-[10px] font-medium text-primary-foreground/90 backdrop-blur">
-                  <Zap className="h-3 w-3" />
-                  {whatsappLabel}
-                </span>
-              ) : null}
-              {recommendationLabel ? (
-                <span className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/12 px-2 py-0.5 text-[10px] font-medium text-primary-foreground/90 backdrop-blur">
-                  <Sparkles className="h-3 w-3" />
-                  {recommendationLabel}
-                </span>
-              ) : null}
+          {statusLabel ? (
+            <div className="mt-1 inline-flex items-center gap-1 text-[11px] text-primary-foreground/80">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" />
+              <span className="truncate">{statusLabel}</span>
+            </div>
+          ) : null}
+          {isTyping ? (
+            <div className="mt-2 inline-flex items-center gap-1 rounded-full border border-emerald-300/25 bg-emerald-400/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-50">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-300 opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-200" />
+              </span>
+              Respondiendo
             </div>
           ) : null}
         </div>
@@ -186,16 +169,18 @@ const ChatHeader: React.FC<Props> = ({
         {onBack ? (
           <button
             onClick={onBack}
-            className="rounded-full border border-white/10 bg-white/10 p-2 text-primary-foreground/80 backdrop-blur transition hover:scale-[1.03] hover:bg-white/16 hover:text-primary-foreground"
+            className={actionButtonClass}
             aria-label="Volver"
+            title="Volver"
           >
             <IconButton.Back className="h-5 w-5" />
           </button>
         ) : onProfile && showProfile ? (
           <button
             onClick={onProfile}
-            className="rounded-full border border-white/10 bg-white/10 p-2 text-primary-foreground/80 backdrop-blur transition hover:scale-[1.03] hover:bg-white/16 hover:text-primary-foreground"
+            className={actionButtonClass}
             aria-label="Mi perfil"
+            title="Mi perfil"
           >
             <IconButton.User className="h-5 w-5" />
           </button>
@@ -203,8 +188,9 @@ const ChatHeader: React.FC<Props> = ({
         {onCart && (
           <button
             onClick={() => onCart()}
-            className="relative rounded-full border border-white/10 bg-white/10 p-2 text-primary-foreground/80 backdrop-blur transition hover:scale-[1.03] hover:bg-white/16 hover:text-primary-foreground"
+            className={`relative ${actionButtonClass}`}
             aria-label="Ver carrito"
+            title="Ver carrito"
           >
             <IconButton.Cart className="h-5 w-5" />
             {cartCount && cartCount > 0 && (
@@ -217,16 +203,19 @@ const ChatHeader: React.FC<Props> = ({
         {onToggleSound && (
           <button
             onClick={onToggleSound}
-            className="rounded-full border border-white/10 bg-white/10 p-2 text-primary-foreground/80 backdrop-blur transition hover:scale-[1.03] hover:bg-white/16 hover:text-primary-foreground"
+            className={actionButtonClass}
             aria-label={muted ? 'Activar sonido' : 'Silenciar sonido'}
+            aria-pressed={muted}
+            title={muted ? 'Activar sonido' : 'Silenciar sonido'}
           >
             {muted ? <IconButton.VolumeOff className="h-5 w-5" /> : <IconButton.VolumeOn className="h-5 w-5" />}
           </button>
         )}
         <button
           onClick={onClose}
-          className="rounded-full border border-white/10 bg-white/10 p-2 text-primary-foreground/80 backdrop-blur transition hover:scale-[1.03] hover:bg-white/16 hover:text-primary-foreground"
+          className={actionButtonClass}
           aria-label="Cerrar chat"
+          title="Cerrar chat"
         >
           <IconButton.Close className="h-5 w-5" />
         </button>
