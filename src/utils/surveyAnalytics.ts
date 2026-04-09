@@ -73,6 +73,26 @@ interface TrackSurveyCommentSubmittedParams {
   commentLength?: number | null;
 }
 
+interface TrackSurveyAnswerSelectedParams {
+  slug?: string | null;
+  host?: string | null;
+  tenant?: string | null;
+  questionId?: number | null;
+  questionType?: string | null;
+  optionId?: number | null;
+  selectionCount?: number | null;
+}
+
+interface TrackSurveySubmitErrorParams {
+  slug?: string | null;
+  host?: string | null;
+  tenant?: string | null;
+  statusCode?: number | null;
+  reasonCode?: string | null;
+  requestId?: string | null;
+  message?: string | null;
+}
+
 const buildAnalyticsEvent = ({
   survey,
   payload,
@@ -268,6 +288,40 @@ export const trackSurveyCommentSubmitted = (params: TrackSurveyCommentSubmittedP
       timestamp: new Date().toISOString(),
     },
     'chatboc:survey-comment-submitted',
+  );
+};
+
+export const trackSurveyAnswerSelected = (params: TrackSurveyAnswerSelectedParams) => {
+  pushSurveyEvent(
+    {
+      event: 'survey_answer_selected',
+      survey_slug: params.slug ?? null,
+      host: params.host ?? null,
+      tenant: params.tenant ?? null,
+      question_id: params.questionId ?? null,
+      question_type: params.questionType ?? null,
+      option_id: params.optionId ?? null,
+      selection_count: params.selectionCount ?? null,
+      timestamp: new Date().toISOString(),
+    },
+    'chatboc:survey-answer-selected',
+  );
+};
+
+export const trackSurveySubmitError = (params: TrackSurveySubmitErrorParams) => {
+  pushSurveyEvent(
+    {
+      event: 'survey_submit_error',
+      survey_slug: params.slug ?? null,
+      host: params.host ?? null,
+      tenant: params.tenant ?? null,
+      status_code: params.statusCode ?? null,
+      reason_code: params.reasonCode ?? null,
+      request_id: params.requestId ?? null,
+      error_message: params.message ?? null,
+      timestamp: new Date().toISOString(),
+    },
+    'chatboc:survey-submit-error',
   );
 };
 

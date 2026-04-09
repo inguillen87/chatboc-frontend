@@ -96,12 +96,54 @@ export const mapSurveyError = (
     };
   }
 
+  if (reasonCode === 'social_token_required') {
+    return {
+      title: payloadTitle ?? 'Necesitás iniciar sesión social para comentar',
+      description: payloadDescription ?? 'Conectá una cuenta social válida para habilitar los comentarios.',
+      primaryCta: payloadPrimary ?? 'Conectar cuenta social',
+      secondaryCta: payloadSecondary ?? 'Volver al inicio',
+      actionHint: actionHint ?? 'retry',
+      retryable: false,
+      requestId,
+      statusCode,
+      reasonCode,
+    };
+  }
+
+  if (reasonCode === 'invalid_social_token') {
+    return {
+      title: payloadTitle ?? 'Tu sesión social expiró',
+      description: payloadDescription ?? 'Volvé a conectar tu cuenta social para continuar.',
+      primaryCta: payloadPrimary ?? 'Reconectar cuenta',
+      secondaryCta: payloadSecondary ?? 'Volver al inicio',
+      actionHint: actionHint ?? 'retry',
+      retryable: false,
+      requestId,
+      statusCode,
+      reasonCode,
+    };
+  }
+
+  if (reasonCode === 'social_identity_mismatch') {
+    return {
+      title: payloadTitle ?? 'La identidad social no coincide',
+      description: payloadDescription ?? 'Conectá la misma cuenta social para poder publicar.',
+      primaryCta: payloadPrimary ?? 'Reintentar conexión',
+      secondaryCta: payloadSecondary ?? 'Volver al inicio',
+      actionHint: actionHint ?? 'retry',
+      retryable: false,
+      requestId,
+      statusCode,
+      reasonCode,
+    };
+  }
+
   return {
     title: payloadTitle ?? 'No pudimos cargar esta encuesta',
     description: payloadDescription ?? 'Probá nuevamente en unos segundos.',
     primaryCta: payloadPrimary ?? 'Reintentar',
     secondaryCta: payloadSecondary ?? 'Volver al inicio',
-    actionHint: actionHint ?? (retryable ? 'retry' : 'go_home'),
+    actionHint: actionHint ?? 'retry',
     retryable,
     requestId,
     statusCode,

@@ -13,8 +13,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/use-toast';
 import { getSurveyComments, postSurveyComment } from '@/api/encuestas';
-import { SurveyComment } from '@/types/encuestas';
+import { SurveyComment, type SurveyCommentConfig } from '@/types/encuestas';
 import { trackSurveyCommentModeChanged, trackSurveyCommentSubmitted } from '@/utils/surveyAnalytics';
+import { ApiError } from '@/utils/api';
 
 export interface SurveyCommentsCopy {
   title?: string;
@@ -112,6 +113,7 @@ interface SurveyCommentsProps {
   tenantSlug?: string;
   realtimeComments: SurveyComment[];
   copy?: SurveyCommentsCopy;
+  commentConfig?: SurveyCommentConfig;
 }
 
 interface SocialAuthProfile {
@@ -123,7 +125,7 @@ interface SocialAuthProfile {
   fullName?: string;
 }
 
-export function SurveyComments({ slug, tenantSlug, realtimeComments, copy }: SurveyCommentsProps) {
+export function SurveyComments({ slug, tenantSlug, realtimeComments, copy, commentConfig }: SurveyCommentsProps) {
   const [comments, setComments] = useState<SurveyComment[]>([]);
   const [loading, setLoading] = useState(true);
   const [newComment, setNewComment] = useState('');
@@ -158,11 +160,45 @@ export function SurveyComments({ slug, tenantSlug, realtimeComments, copy }: Sur
       .filter((provider) => provider.id && provider.label);
   }, [copy?.socialProviders]);
 
+  const acceptedModes = useMemo(() => {
+    const modes = Array.isArray(commentConfig?.acceptedModes) ? commentConfig.acceptedModes : [];
+    return new Set(
+      modes
+        .map((mode) => (typeof mode === 'string' ? mode.trim().toLowerCase() : ''))
+        .filter(Boolean),
+    );
+  }, [commentConfig?.acceptedModes]);
+
+  const allowAnonymous = useMemo(() => {
+    if (!acceptedModes.size) return true;
+    return acceptedModes.has('anonimo') || acceptedModes.has('anonymous');
+  }, [acceptedModes]);
+
+  const allowSocial = useMemo(() => {
+    if (!acceptedModes.size) return true;
+    return (
+      acceptedModes.has('social') ||
+      acceptedModes.has('facebook') ||
+      acceptedModes.has('google') ||
+      acceptedModes.has('instagram')
+    );
+  }, [acceptedModes]);
+
   useEffect(() => {
     if (!configuredProviders.length) return;
     if (configuredProviders.some((provider) => provider.id === socialProvider)) return;
     setSocialProvider(configuredProviders[0].id);
   }, [configuredProviders, socialProvider]);
+
+  useEffect(() => {
+    if (commentMode === 'anonimo' && !allowAnonymous && allowSocial) {
+      setCommentMode('social');
+      return;
+    }
+    if (commentMode === 'social' && !allowSocial && allowAnonymous) {
+      setCommentMode('anonimo');
+    }
+  }, [allowAnonymous, allowSocial, commentMode]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -253,6 +289,15 @@ export function SurveyComments({ slug, tenantSlug, realtimeComments, copy }: Sur
   const handleSubmit = async () => {
     if (!newComment.trim()) return;
 
+    if (commentMode === 'social' && commentConfig?.requiresSocialToken && !socialAuthProfile?.userId) {
+      toast({
+        title: copyText(copy?.toastErrorTitle, DEFAULT_COMMENTS_COPY.toastErrorTitle),
+        description: 'Necesitás conectar una cuenta social válida para comentar en este espacio.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const resolvedMode =
@@ -286,10 +331,22 @@ export function SurveyComments({ slug, tenantSlug, realtimeComments, copy }: Sur
       });
       toast({ title: copyText(copy?.toastSuccess, DEFAULT_COMMENTS_COPY.toastSuccess) });
     } catch (error) {
-        console.error(error);
+      console.error(error);
+      const reasonCode = error instanceof ApiError
+        ? (error.body as Record<string, unknown> | undefined)?.reason_code
+        : null;
+      const reasonText = typeof reasonCode === 'string' ? reasonCode.trim().toLowerCase() : '';
+      let reasonDescription = copyText(copy?.toastErrorDescription, DEFAULT_COMMENTS_COPY.toastErrorDescription);
+      if (reasonText === 'social_token_required') {
+        reasonDescription = 'Este tenant requiere autenticación social para comentar.';
+      } else if (reasonText === 'invalid_social_token') {
+        reasonDescription = 'Tu sesión social expiró o es inválida. Volvé a conectar tu cuenta.';
+      } else if (reasonText === 'social_identity_mismatch') {
+        reasonDescription = 'La identidad social no coincide con el perfil activo. Reconectá la cuenta correcta.';
+      }
       toast({
         title: copyText(copy?.toastErrorTitle, DEFAULT_COMMENTS_COPY.toastErrorTitle),
-        description: copyText(copy?.toastErrorDescription, DEFAULT_COMMENTS_COPY.toastErrorDescription),
+        description: reasonDescription,
         variant: 'destructive'
       });
     } finally {
@@ -340,11 +397,11 @@ export function SurveyComments({ slug, tenantSlug, realtimeComments, copy }: Sur
               className="flex flex-wrap gap-4"
             >
               <div className="flex items-center gap-2">
-                <RadioGroupItem id="comment-anon" value="anonimo" />
+                <RadioGroupItem id="comment-anon" value="anonimo" disabled={!allowAnonymous} />
                 <Label htmlFor="comment-anon">{copyText(copy?.modeAnonymous, DEFAULT_COMMENTS_COPY.modeAnonymous)}</Label>
               </div>
               <div className="flex items-center gap-2">
-                <RadioGroupItem id="comment-social" value="social" />
+                <RadioGroupItem id="comment-social" value="social" disabled={!allowSocial} />
                 <Label htmlFor="comment-social">{copyText(copy?.socialModeLabel, DEFAULT_COMMENTS_COPY.socialModeLabel)}</Label>
               </div>
             </RadioGroup>
@@ -430,6 +487,11 @@ export function SurveyComments({ slug, tenantSlug, realtimeComments, copy }: Sur
                   {socialAuthProfile?.provider === socialProvider && (socialAuthProfile.fullName || socialAuthProfile.firstName || socialAuthProfile.lastName) ? (
                     <p className="text-xs text-emerald-600">
                       Conectado como {socialAuthProfile.fullName || `${socialAuthProfile.firstName ?? ''} ${socialAuthProfile.lastName ?? ''}`.trim()}
+                    </p>
+                  ) : null}
+                  {commentConfig?.requiresSocialToken ? (
+                    <p className="text-xs text-muted-foreground">
+                      Este espacio requiere cuenta social verificada para publicar comentarios.
                     </p>
                   ) : null}
                 </>

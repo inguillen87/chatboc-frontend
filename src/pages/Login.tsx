@@ -4,6 +4,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { apiFetch, ApiError, NetworkError } from "@/utils/api";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { useUser } from "@/hooks/useUser";
@@ -60,6 +61,7 @@ const Login = () => {
   const [isPasskeyAvailable, setIsPasskeyAvailable] = useState(false);
   const [isPasskeyLoading, setIsPasskeyLoading] = useState(false);
   const [isDemoLoading, setIsDemoLoading] = useState(false);
+  const [isActivatingDemoWhatsapp, setIsActivatingDemoWhatsapp] = useState(false);
   const [demoRubro, setDemoRubro] = useState<DemoRubro | null>('municipio');
   const [demoOptions, setDemoOptions] = useState<Array<{ value: DemoRubro; label: string }>>([
     { value: 'municipio', label: 'Municipio' },
@@ -71,6 +73,7 @@ const Login = () => {
   const [demoLoginEndpoint, setDemoLoginEndpoint] = useState("/api/auth/demo");
   const [demoFrontendContract, setDemoFrontendContract] = useState<DemoFrontendContract>({});
   const [demoSector, setDemoSector] = useState<'gobierno' | 'empresas'>('gobierno');
+  const [upgradeBlockedFeature, setUpgradeBlockedFeature] = useState<string | null>(null);
   const demoAccessProfiles = getDemoAccessProfiles();
   const franchisePartner = getFranchisePartnerConfig();
 
@@ -93,6 +96,55 @@ const Login = () => {
 
   const isSectorFirstMode = demoFrontendContract.demo_selector?.mode === 'sector_first';
   const needsRubroSelection = !isSectorFirstMode || demoSector === 'empresas';
+  const selectedRubroForDemo = demoRubro || (demoSector === 'gobierno' ? 'municipio' : 'pyme');
+  const twilioTrial = demoFrontendContract.onboarding?.twilio_trial;
+  const trialMessagesLimit = twilioTrial?.security_limits?.messages_per_session;
+  const quickActions = demoFrontendContract.onboarding?.menus_by_tipo?.[selectedRubroForDemo] || [];
+  const upgradeRequiredFor = twilioTrial?.security_limits?.upgrade_required_for || [];
+  const demoFeatureAccess = demoFrontendContract.onboarding?.demo_feature_access || {};
+  const demoActivationState = demoFrontendContract.onboarding?.activation_state;
+  const demoActivationEndpoint = demoFrontendContract.onboarding?.activation_endpoint;
+  const demoActivationLimitReached =
+    typeof demoActivationState?.max_activations === "number" &&
+    (demoActivationState.activations_used || 0) >= demoActivationState.max_activations;
+
+  const isFeatureBlockedInDemo = (featureId?: string) => {
+    if (!featureId) return false;
+    const normalized = featureId.trim().toLowerCase();
+    if (!normalized) return false;
+    if (upgradeRequiredFor.some((feature) => feature.trim().toLowerCase() === normalized)) {
+      return true;
+    }
+    if (demoFeatureAccess[normalized] === false) {
+      return true;
+    }
+    return false;
+  };
+
+  const activateDemoWhatsapp = useCallback(async () => {
+    if (!twilioTrial?.wa_deeplink) return;
+    if (demoActivationLimitReached) {
+      setUpgradeBlockedFeature("demo_limit");
+      return;
+    }
+
+    try {
+      setIsActivatingDemoWhatsapp(true);
+      if (demoActivationEndpoint) {
+        await apiFetch(demoActivationEndpoint, {
+          method: "POST",
+          omitTenant: true,
+          skipAuth: true,
+        });
+      }
+      window.open(twilioTrial.wa_deeplink, '_blank', 'noopener,noreferrer');
+    } catch (activationError) {
+      console.error("No se pudo activar la demo en WhatsApp", activationError);
+      setError("No se pudo activar la demo de WhatsApp. Probá nuevamente.");
+    } finally {
+      setIsActivatingDemoWhatsapp(false);
+    }
+  }, [demoActivationEndpoint, demoActivationLimitReached, twilioTrial?.wa_deeplink]);
 
 
   const getDemoCatalogWithRetry = useCallback(async (): Promise<DemoCatalogResponse> => {
@@ -628,6 +680,55 @@ const Login = () => {
           >
             {isDemoLoading ? "Ingresando demo..." : "Probar Demo"}
           </Button>
+          {twilioTrial?.wa_deeplink ? (
+            <div className="rounded-lg border border-border/70 bg-muted/20 p-3 space-y-2">
+              <p className="text-sm font-medium">Demo WhatsApp por rubro</p>
+              <p className="text-xs text-muted-foreground">
+                Activá el trial en {twilioTrial.display_number || 'WhatsApp'} con la frase{' '}
+                <span className="font-semibold">{twilioTrial.join_phrase || 'join demo'}</span>.
+              </p>
+              {trialMessagesLimit ? (
+                <p className="text-xs inline-flex rounded-full border px-2 py-0.5">
+                  Demo ({trialMessagesLimit} mensajes)
+                </p>
+              ) : null}
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full"
+                onClick={() => { void activateDemoWhatsapp(); }}
+                disabled={isDemoLoading || isLoading || isPasskeyLoading || isActivatingDemoWhatsapp || demoActivationLimitReached}
+              >
+                {isActivatingDemoWhatsapp ? "Activando demo..." : "Activar demo en WhatsApp"}
+              </Button>
+              {demoActivationLimitReached ? (
+                <p className="text-[11px] text-muted-foreground">
+                  Esta demo alcanzó el máximo de activaciones permitidas.
+                </p>
+              ) : null}
+              {quickActions.length ? (
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {quickActions.map((action) => (
+                    <button
+                      key={action.id || action.label}
+                      type="button"
+                      className="rounded-md border bg-background/70 p-2 text-left transition-colors hover:bg-background"
+                      onClick={() => {
+                        if (isFeatureBlockedInDemo(action.id)) {
+                          setUpgradeBlockedFeature(action.id || action.label || "feature");
+                        }
+                      }}
+                    >
+                      <p className="text-xs font-medium">{action.label}</p>
+                      {action.description ? (
+                        <p className="text-[11px] text-muted-foreground">{action.description}</p>
+                      ) : null}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           {demoEntryPoints.length > 0 ? (
             <div className="grid gap-2">
               {demoEntryPoints.map((entry) => {
@@ -720,6 +821,22 @@ const Login = () => {
             Registrate
           </button>
         </div>
+
+        <AlertDialog open={Boolean(upgradeBlockedFeature)} onOpenChange={(open) => { if (!open) setUpgradeBlockedFeature(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Límite de demo alcanzado</AlertDialogTitle>
+              <AlertDialogDescription>
+                Llegaste al límite de demo. Activá plan Full para continuar con catálogos en Qdrant y automatizaciones avanzadas.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogAction onClick={() => setUpgradeBlockedFeature(null)}>
+                Entendido
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   );

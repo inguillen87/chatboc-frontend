@@ -64,6 +64,23 @@ export interface DemoFrontendContract {
   onboarding?: {
     default_sector?: "gobierno" | "empresas";
     sector_options?: Array<{ value: "gobierno" | "empresas"; label?: string }>;
+    twilio_trial?: {
+      display_number?: string;
+      join_phrase?: string;
+      wa_deeplink?: string;
+      security_limits?: {
+        messages_per_session?: number;
+        upgrade_required_for?: string[];
+      };
+    };
+    activation_state?: {
+      activated?: boolean;
+      max_activations?: number;
+      activations_used?: number;
+    };
+    activation_endpoint?: string;
+    menus_by_tipo?: Record<DemoRubro, Array<{ id?: string; label?: string; description?: string }>>;
+    demo_feature_access?: Record<string, boolean>;
   };
   demo_selector?: DemoSelectorContract;
   preload_before_login?: string[];
@@ -149,6 +166,25 @@ const normalizeSectorOptions = (
   return options;
 };
 
+const normalizeQuickActions = (
+  raw: unknown,
+): Array<{ id?: string; label?: string; description?: string }> => {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const record = item as Record<string, unknown>;
+      const label = typeof record.label === "string" ? record.label.trim() : "";
+      if (!label) return null;
+      return {
+        id: typeof record.id === "string" ? record.id.trim() : undefined,
+        label,
+        description: typeof record.description === "string" ? record.description.trim() : undefined,
+      };
+    })
+    .filter((item): item is { id?: string; label?: string; description?: string } => Boolean(item));
+};
+
 export const extractDemoFrontendContract = (
   catalog?: DemoCatalogResponse | null,
 ): DemoFrontendContract => {
@@ -177,6 +213,73 @@ export const extractDemoFrontendContract = (
       ? {
           default_sector: normalizeSector(onboarding.default_sector),
           sector_options: normalizeSectorOptions(onboarding.sector_options),
+          twilio_trial:
+            onboarding.twilio_trial && typeof onboarding.twilio_trial === "object"
+              ? {
+                  display_number:
+                    typeof (onboarding.twilio_trial as Record<string, unknown>).display_number === "string"
+                      ? ((onboarding.twilio_trial as Record<string, unknown>).display_number as string).trim()
+                      : undefined,
+                  join_phrase:
+                    typeof (onboarding.twilio_trial as Record<string, unknown>).join_phrase === "string"
+                      ? ((onboarding.twilio_trial as Record<string, unknown>).join_phrase as string).trim()
+                      : undefined,
+                  wa_deeplink:
+                    typeof (onboarding.twilio_trial as Record<string, unknown>).wa_deeplink === "string"
+                      ? ((onboarding.twilio_trial as Record<string, unknown>).wa_deeplink as string).trim()
+                      : undefined,
+                  security_limits: {
+                    messages_per_session:
+                      typeof ((onboarding.twilio_trial as Record<string, unknown>).security_limits as Record<string, unknown> | undefined)?.messages_per_session === "number"
+                        ? (((onboarding.twilio_trial as Record<string, unknown>).security_limits as Record<string, unknown>).messages_per_session as number)
+                        : undefined,
+                    upgrade_required_for: Array.isArray(((onboarding.twilio_trial as Record<string, unknown>).security_limits as Record<string, unknown> | undefined)?.upgrade_required_for)
+                      ? (((onboarding.twilio_trial as Record<string, unknown>).security_limits as Record<string, unknown>).upgrade_required_for as unknown[])
+                          .filter((item): item is string => typeof item === "string")
+                          .map((item) => item.trim())
+                          .filter(Boolean)
+                      : undefined,
+                  },
+                }
+              : undefined,
+          activation_state:
+            onboarding.activation_state && typeof onboarding.activation_state === "object"
+              ? {
+                  activated: (onboarding.activation_state as Record<string, unknown>).activated === true,
+                  max_activations:
+                    typeof (onboarding.activation_state as Record<string, unknown>).max_activations === "number"
+                      ? ((onboarding.activation_state as Record<string, unknown>).max_activations as number)
+                      : undefined,
+                  activations_used:
+                    typeof (onboarding.activation_state as Record<string, unknown>).activations_used === "number"
+                      ? ((onboarding.activation_state as Record<string, unknown>).activations_used as number)
+                      : undefined,
+                }
+              : undefined,
+          activation_endpoint:
+            typeof onboarding.activation_endpoint === "string"
+              ? onboarding.activation_endpoint.trim()
+              : undefined,
+          menus_by_tipo: {
+            municipio: normalizeQuickActions(
+              (onboarding.menus_by_tipo as Record<string, unknown> | undefined)?.municipio,
+            ),
+            pyme: normalizeQuickActions(
+              (onboarding.menus_by_tipo as Record<string, unknown> | undefined)?.pyme,
+            ),
+          },
+          demo_feature_access:
+            onboarding.demo_feature_access && typeof onboarding.demo_feature_access === "object"
+              ? Object.entries(onboarding.demo_feature_access as Record<string, unknown>).reduce<Record<string, boolean>>(
+                  (acc, [key, value]) => {
+                    if (value === true || value === false) {
+                      acc[key] = value;
+                    }
+                    return acc;
+                  },
+                  {},
+                )
+              : undefined,
         }
       : undefined,
     demo_selector: selector
