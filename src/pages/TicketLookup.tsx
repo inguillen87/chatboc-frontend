@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -68,6 +68,7 @@ import { es } from "date-fns/locale";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import getOrCreateAnonId from "@/utils/anonIdGenerator";
 import { trackFrontendEvent } from "@/utils/frontendTelemetry";
+import { useBusinessHours } from "@/hooks/useBusinessHours";
 
 const STATUS_CONFIG: Record<
   string,
@@ -371,20 +372,28 @@ const TicketQuickActionCard = ({
   description,
   onClick,
   href,
+  disabled = false,
 }: {
   icon: React.ElementType;
   title: string;
   description: string;
   onClick?: () => void;
   href?: string;
+  disabled?: boolean;
 }) => {
   const content = (
-    <div className="group rounded-[24px] border border-slate-200 bg-white/85 p-4 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg">
-      <div className="mb-3 inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-700 transition-colors group-hover:bg-blue-50 group-hover:text-blue-600">
+    <div
+      className={`group rounded-[24px] border p-4 shadow-sm transition-all duration-300 ${
+        disabled
+          ? "cursor-not-allowed border-slate-200 bg-slate-50/80 opacity-70 dark:border-slate-800 dark:bg-slate-900/60"
+          : "border-slate-200 bg-white/85 hover:-translate-y-1 hover:shadow-lg dark:border-slate-800 dark:bg-slate-900/80"
+      }`}
+    >
+      <div className="mb-3 inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-700 transition-colors group-hover:bg-blue-50 group-hover:text-blue-600 dark:bg-slate-800 dark:text-slate-300 dark:group-hover:bg-blue-500/20 dark:group-hover:text-blue-300">
         <Icon className="h-5 w-5" />
       </div>
-      <h3 className="text-sm font-semibold text-slate-950">{title}</h3>
-      <p className="mt-1 text-sm leading-6 text-slate-500">{description}</p>
+      <h3 className="text-sm font-semibold text-slate-950 dark:text-slate-100">{title}</h3>
+      <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">{description}</p>
     </div>
   );
 
@@ -397,7 +406,13 @@ const TicketQuickActionCard = ({
   }
 
   return (
-    <button type="button" onClick={onClick} className="block w-full text-left">
+    <button
+      type="button"
+      onClick={onClick}
+      className="block w-full text-left"
+      disabled={disabled}
+      aria-disabled={disabled}
+    >
       {content}
     </button>
   );
@@ -421,25 +436,25 @@ const LookupSidebarMetric = ({
   } as const;
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm">
+    <div className="rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/75">
       <div className={`mb-3 inline-flex h-10 w-10 items-center justify-center rounded-2xl ring-1 ${toneMap[tone]}`}>
         <Icon className="h-4 w-4" />
       </div>
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
-      <p className="mt-1 text-sm font-semibold text-slate-900 break-words">{value}</p>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">{label}</p>
+      <p className="mt-1 text-sm font-semibold text-slate-900 break-words dark:text-slate-100">{value}</p>
     </div>
   );
 };
 
 const EmptyConversationState = () => (
-  <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50/80 px-6 py-10 text-center">
-    <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
-      <MessagesSquare className="h-6 w-6 text-slate-400" />
+  <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50/80 px-6 py-10 text-center dark:border-slate-700 dark:bg-slate-900/65">
+    <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700">
+      <MessagesSquare className="h-6 w-6 text-slate-400 dark:text-slate-500" />
     </div>
-    <p className="text-sm font-semibold text-slate-900">
+    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
       Todavía no hay mensajes públicos
     </p>
-    <p className="mt-2 text-sm text-slate-500">
+    <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
       Cuando exista una respuesta o comentario sobre este reclamo, lo vas a ver
       en esta conversación.
     </p>
@@ -469,12 +484,17 @@ export default function TicketLookup() {
   const [submittingPublicMessage, setSubmittingPublicMessage] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSupportOpen, setIsSupportOpen] = useState(false);
+  const presenceFailureCountRef = useRef(0);
+  const presenceCircuitUntilRef = useRef(0);
   const [message, setMessage] = useState("");
   const [primaryImageUrl, setPrimaryImageUrl] = useState<string | null>(null);
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
   const [publicAccessSource, setPublicAccessSource] = useState<
     "manual" | "url" | "restored"
   >("manual");
+  const liveChatTenantSlug = ticket?.tenant_slug || null;
+  const liveChatHours = useBusinessHours(undefined, liveChatTenantSlug);
+  const isLiveChatAvailable = liveChatHours.isLiveChatEnabled;
 
   const storedPublicAccess = useMemo(
     () => readStoredPublicAccess(),
@@ -726,38 +746,64 @@ export default function TicketLookup() {
     }
   };
 
-  const handleOpenChat = () => {
+  const handleOpenChat = useCallback(() => {
+    const tenantSlug = ticket?.tenant_slug || "municipio";
+    if (!isLiveChatAvailable) {
+      toast.info(
+        liveChatHours.horariosAtencion
+          ? `Atención en vivo fuera de horario. Horario actual: ${liveChatHours.horariosAtencion}`
+          : "Atención en vivo no disponible ahora. Podés dejar un comentario en esta gestión.",
+      );
+      setIsSupportOpen(true);
+      return;
+    }
+
+    const chatContext = {
+      ticketId: ticket?.id,
+      ticketNumber: ticket?.nro_ticket,
+      action: "consultar_reclamo",
+      consulta_pin: currentPin,
+      pin: currentPin,
+    };
+
     const contextPayload = {
       type: "OPEN_CHAT_WITH_CONTEXT",
-      tenantSlug: ticket?.tenant_slug || "municipio",
-      tipoChat: "municipio",
-      context: {
-        ticketId: ticket?.id,
-        ticketNumber: ticket?.nro_ticket,
-        action: "consultar_reclamo",
-        consulta_pin: currentPin,
-        pin: currentPin,
-      },
+      tenantSlug,
+      tipoChat: ticket?.tipo || "municipio",
+      context: chatContext,
     };
+    safeLocalStorage.setItem("tenantSlug", tenantSlug);
     safeLocalStorage.setItem(
       "pending_widget_action",
       JSON.stringify({
         action: "ticket_public_tracking",
-        payload: {
-          ticketId: ticket?.id,
-          ticketNumber: ticket?.nro_ticket,
-          consulta_pin: currentPin,
-          pin: currentPin,
-        },
+        tenantSlug,
+        payload: chatContext,
         text: ticket?.nro_ticket
           ? `Seguimiento de reclamo #${ticket.nro_ticket}`
           : undefined,
       }),
     );
-    window.postMessage(contextPayload, "*");
-    window.postMessage({ type: "OPEN_CHAT" }, "*");
+
+    try {
+      window.postMessage(contextPayload, "*");
+      window.postMessage({ type: "OPEN_CHAT" }, "*");
+      window.dispatchEvent(new CustomEvent("chatboc:open-chat", { detail: contextPayload }));
+      toast.success("Abriendo atención en vivo...");
+    } catch (error) {
+      console.warn("[ticketLookup] No se pudo abrir el chat por postMessage", error);
+    }
+
+    const fallbackUrl = `/chat?tenant=${encodeURIComponent(tenantSlug)}&tenant_slug=${encodeURIComponent(tenantSlug)}&tipo_chat=${encodeURIComponent(ticket?.tipo || "municipio")}&context=ticket_public_tracking&ticket=${encodeURIComponent(ticket?.nro_ticket || "")}&pin=${encodeURIComponent(currentPin || "")}`;
+    window.setTimeout(() => {
+      const widgetOpen = safeLocalStorage.getItem("chatWidgetOpen") === "true";
+      if (!widgetOpen) {
+        navigate(fallbackUrl);
+      }
+    }, 450);
+
     setIsSupportOpen(false);
-  };
+  }, [currentPin, isLiveChatAvailable, liveChatHours.horariosAtencion, navigate, ticket]);
 
   const handleSendMessage = useCallback(async () => {
     if (!ticket || !currentPin || !message.trim()) return;
@@ -835,6 +881,9 @@ export default function TicketLookup() {
     : ticket?.direccion
       ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ticket.direccion)}`
       : null;
+  const mapEmbedUrl = ticket?.direccion
+    ? `https://www.google.com/maps?q=${encodeURIComponent(ticket.direccion)}&output=embed`
+    : null;
 
   const mapStoreLocation = hasStoreCoordinates
     ? {
@@ -944,27 +993,42 @@ export default function TicketLookup() {
 
     let cancelled = false;
     const ticketType = ticket.tipo || "municipio";
+    const CIRCUIT_BREAKER_LIMIT = 4;
+    const CIRCUIT_BREAKER_COOLDOWN_MS = 60_000;
 
-    updateTicketPresence(ticket.id, ticketType, "active", {
-      public: true,
-      pin: currentPin,
-    })
-      .then((state) => {
+    const syncPresence = async (status: "active" | "inactive") => {
+      if (Date.now() < presenceCircuitUntilRef.current) {
+        return;
+      }
+      if (document.visibilityState === "hidden" && status === "active") {
+        return;
+      }
+      try {
+        const state = await updateTicketPresence(ticket.id, ticketType, status, {
+          public: true,
+          pin: currentPin,
+        });
+        presenceFailureCountRef.current = 0;
         if (!cancelled && state) {
           setRealtimeState(state);
         }
-      })
-      .catch((error) => {
-        console.warn("No se pudo actualizar el presence público", error);
-      });
+      } catch (error) {
+        presenceFailureCountRef.current += 1;
+        if (presenceFailureCountRef.current >= CIRCUIT_BREAKER_LIMIT) {
+          presenceCircuitUntilRef.current = Date.now() + CIRCUIT_BREAKER_COOLDOWN_MS;
+        }
+        if (import.meta.env.DEV) {
+          console.warn("No se pudo actualizar el presence público", error);
+        }
+      }
+    };
+
+    void syncPresence("active");
 
     const syncVisibilityPresence = () => {
       const nextStatus =
         document.visibilityState === "visible" ? "active" : "inactive";
-      void updateTicketPresence(ticket.id, ticketType, nextStatus, {
-        public: true,
-        pin: currentPin,
-      }).catch(() => undefined);
+      void syncPresence(nextStatus);
     };
 
     document.addEventListener("visibilitychange", syncVisibilityPresence);
@@ -974,10 +1038,7 @@ export default function TicketLookup() {
       cancelled = true;
       document.removeEventListener("visibilitychange", syncVisibilityPresence);
       window.removeEventListener("beforeunload", syncVisibilityPresence);
-      void updateTicketPresence(ticket.id, ticketType, "inactive", {
-        public: true,
-        pin: currentPin,
-      }).catch(() => undefined);
+      void syncPresence("inactive");
     };
   }, [ticket, currentPin]);
 
@@ -1222,7 +1283,8 @@ export default function TicketLookup() {
                       icon={MapPin}
                       title={mapLink ? "Abrir ubicación" : "Ubicación del caso"}
                       description={mapLink ? "Abrí la ubicación del ticket en tu app de mapas para revisar el contexto." : "La ubicación aparecerá aquí cuando el backend tenga dirección o coordenadas disponibles."}
-                      {...(mapLink ? { href: mapLink } : { onClick: () => {} })}
+                      disabled={!mapLink}
+                      {...(mapLink ? { href: mapLink } : {})}
                     />
                   </div>
 
@@ -1695,37 +1757,45 @@ export default function TicketLookup() {
               </div>
 
               <div className="space-y-6">
-                <Card className="overflow-hidden border-0 bg-white/85 shadow-lg shadow-slate-200/50 ring-1 ring-black/5 backdrop-blur">
-                  <div className="border-b border-slate-100 bg-gradient-to-r from-primary/5 via-sky-500/5 to-violet-500/5 px-6 py-4">
+                <Card className="overflow-hidden border-0 bg-white/85 shadow-lg shadow-slate-200/50 ring-1 ring-black/5 backdrop-blur dark:bg-slate-900/85 dark:shadow-black/30 dark:ring-white/10">
+                  <div className="border-b border-slate-100 bg-gradient-to-r from-primary/5 via-sky-500/5 to-violet-500/5 px-6 py-4 dark:border-slate-800 dark:from-blue-900/30 dark:via-slate-900 dark:to-violet-900/30">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-slate-700 shadow-sm ring-1 ring-slate-200">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-slate-700 shadow-sm ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700">
                         <MapPin className="h-5 w-5" />
                       </div>
                       <div>
-                        <h3 className="text-base font-semibold text-slate-950">Contexto geográfico</h3>
-                        <p className="text-sm text-slate-500">Mapa, dirección y punto de referencia reportado en el ticket.</p>
+                        <h3 className="text-base font-semibold text-slate-950 dark:text-slate-100">Contexto geográfico</h3>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">Mapa, dirección y punto de referencia reportado en el ticket.</p>
                       </div>
                     </div>
                   </div>
-                  <div className="h-56 w-full bg-slate-100 relative">
+                  <div className="relative h-56 w-full bg-slate-100 dark:bg-slate-950">
                     {hasAnyCoordinates ? (
                       <TrackingMap
                         status={currentStatusKey}
                         storeLocation={mapStoreLocation}
                         customerLocation={mapCustomerLocation}
                       />
+                    ) : mapEmbedUrl ? (
+                      <iframe
+                        title="Mapa de dirección reportada"
+                        src={mapEmbedUrl}
+                        className="h-full w-full border-0"
+                        loading="lazy"
+                        referrerPolicy="no-referrer-when-downgrade"
+                      />
                     ) : (
-                      <div className="flex h-full w-full flex-col items-center justify-center gap-3 bg-slate-50 px-6 text-center text-slate-400">
-                        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
+                      <div className="flex h-full w-full flex-col items-center justify-center gap-3 bg-slate-50 px-6 text-center text-slate-400 dark:bg-slate-900 dark:text-slate-500">
+                        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700">
                           <MapPin className="h-6 w-6 opacity-60" />
                         </div>
                         <div>
-                          <p className="text-sm font-semibold text-slate-700">
+                          <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
                             {hasLocationData
                               ? "Ubicación pendiente de geocodificación"
                               : "Sin ubicación reportada"}
                           </p>
-                          <p className="mt-1 text-xs text-slate-500">
+                          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                             La dirección y las coordenadas se mostrarán acá
                             cuando estén disponibles.
                           </p>
@@ -1733,12 +1803,12 @@ export default function TicketLookup() {
                       </div>
                     )}
                   </div>
-                  <CardHeader className="border-b border-slate-100 pb-4">
-                    <CardTitle className="flex items-center gap-2 text-lg text-slate-950">
-                      <MapPin className="h-5 w-5 text-slate-400" />
+                  <CardHeader className="border-b border-slate-100 pb-4 dark:border-slate-800">
+                    <CardTitle className="flex items-center gap-2 text-lg text-slate-950 dark:text-slate-100">
+                      <MapPin className="h-5 w-5 text-slate-400 dark:text-slate-500" />
                       Ubicación
                     </CardTitle>
-                    <CardDescription>
+                    <CardDescription className="dark:text-slate-400">
                       Fuente de verdad del ticket para el seguimiento público.
                     </CardDescription>
                   </CardHeader>
@@ -1749,11 +1819,11 @@ export default function TicketLookup() {
                       value={ticket.direccion || "No especificada"}
                     />
                     {hasCoordinates ? (
-                      <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                      <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300">
                         Coordenadas confirmadas: {ticketLat}, {ticketLng}
                       </div>
                     ) : hasLocationData ? (
-                      <div className="rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+                      <div className="rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-300">
                         Ubicación pendiente de geocodificación.
                       </div>
                     ) : null}
@@ -1783,7 +1853,7 @@ export default function TicketLookup() {
                   </CardContent>
                 </Card>
 
-                <Card className="overflow-hidden border-0 bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600 text-white shadow-xl shadow-blue-500/25">
+                <Card className="overflow-hidden border-0 bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600 text-white shadow-xl shadow-blue-500/25 dark:shadow-violet-900/40">
                   <CardContent className="relative p-6">
                     <div className="absolute -right-8 -top-8 h-28 w-28 rounded-full bg-white/10 blur-2xl" />
                     <div className="relative space-y-4">
@@ -1811,18 +1881,24 @@ export default function TicketLookup() {
                           variant="outline"
                           className="h-11 w-full rounded-xl border-white/30 bg-white/10 text-white hover:bg-white/15 hover:text-white"
                           onClick={handleOpenChat}
+                          disabled={!isLiveChatAvailable}
                         >
-                          Abrir chat en vivo
+                          {isLiveChatAvailable ? "Abrir chat en vivo" : "Chat en vivo fuera de horario"}
                         </Button>
+                        {!isLiveChatAvailable && liveChatHours.horariosAtencion ? (
+                          <p className="text-[11px] text-blue-100">
+                            Horario de atención: {liveChatHours.horariosAtencion}
+                          </p>
+                        ) : null}
                       </div>
                     </div>
                   </CardContent>
                 </Card>
 
-                <Card className="overflow-hidden border-0 bg-white/85 shadow-lg shadow-slate-200/50 ring-1 ring-black/5 backdrop-blur">
-                  <CardHeader className="border-b border-slate-100 bg-gradient-to-r from-slate-50 via-white to-slate-50">
-                    <CardTitle className="text-base text-slate-950">Centro de seguimiento</CardTitle>
-                    <CardDescription>Estado operativo y datos de acceso de esta consulta pública.</CardDescription>
+                <Card className="overflow-hidden border-0 bg-white/85 shadow-lg shadow-slate-200/50 ring-1 ring-black/5 backdrop-blur dark:bg-slate-900/85 dark:shadow-black/30 dark:ring-white/10">
+                  <CardHeader className="border-b border-slate-100 bg-gradient-to-r from-slate-50 via-white to-slate-50 dark:border-slate-800 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800">
+                    <CardTitle className="text-base text-slate-950 dark:text-slate-100">Centro de seguimiento</CardTitle>
+                    <CardDescription className="dark:text-slate-400">Estado operativo y datos de acceso de esta consulta pública.</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4 p-6">
                     <div className="grid gap-3">
@@ -1874,13 +1950,13 @@ export default function TicketLookup() {
       </motion.div>
 
       <Dialog open={isSupportOpen} onOpenChange={setIsSupportOpen}>
-        <DialogContent className="overflow-hidden border-0 bg-white p-0 shadow-2xl sm:max-w-lg">
-          <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 via-white to-blue-50 px-6 py-5">
+        <DialogContent className="overflow-hidden border-0 bg-white p-0 shadow-2xl sm:max-w-lg dark:bg-slate-900">
+          <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 via-white to-blue-50 px-6 py-5 dark:border-slate-800 dark:from-slate-900 dark:via-slate-900 dark:to-blue-950/30">
             <DialogHeader>
-              <DialogTitle className="text-left text-xl text-slate-950">
+              <DialogTitle className="text-left text-xl text-slate-950 dark:text-slate-100">
                 Mesa de Ayuda
               </DialogTitle>
-              <DialogDescription className="text-left">
+              <DialogDescription className="text-left dark:text-slate-400">
                 Gestión <b>#{ticket?.nro_ticket}</b>
               </DialogDescription>
             </DialogHeader>
@@ -1889,39 +1965,44 @@ export default function TicketLookup() {
           <div className="grid gap-5 px-6 py-6">
             <Button
               variant="outline"
-              className="group h-auto justify-start gap-4 rounded-2xl border-slate-200 px-4 py-4 transition-all hover:border-blue-500/30 hover:bg-slate-50"
+              className="group h-auto justify-start gap-4 rounded-2xl border-slate-200 px-4 py-4 transition-all hover:border-blue-500/30 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800"
               onClick={handleOpenChat}
+              disabled={!isLiveChatAvailable}
             >
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 transition-colors group-hover:bg-blue-100">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 transition-colors group-hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-300 dark:group-hover:bg-blue-900/60">
                 <MessageCircle className="h-5 w-5" />
               </div>
               <div className="text-left">
-                <div className="font-semibold text-slate-900">Chat en Vivo</div>
-                <div className="text-xs text-slate-500">
-                  Abrí la atención en tiempo real del reclamo
+                <div className="font-semibold text-slate-900 dark:text-slate-100">Chat en Vivo</div>
+                <div className="text-xs text-slate-500 dark:text-slate-400">
+                  {isLiveChatAvailable
+                    ? "Abrí la atención en tiempo real del reclamo"
+                    : liveChatHours.horariosAtencion
+                      ? `Disponible en horario: ${liveChatHours.horariosAtencion}`
+                      : "Atención en vivo no disponible ahora"}
                 </div>
               </div>
-              <ChevronRight className="ml-auto h-4 w-4 text-slate-400" />
+              <ChevronRight className="ml-auto h-4 w-4 text-slate-400 dark:text-slate-500" />
             </Button>
 
             <Separator />
 
             <div className="space-y-3">
-              <label className="text-sm font-medium text-slate-700">
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
                 Dejar un comentario / observación
               </label>
               <Textarea
                 placeholder="Escribe tu consulta aquí..."
-                className="min-h-[120px] resize-none rounded-2xl border-slate-200 bg-slate-50/70 px-4 py-3"
+                className="min-h-[120px] resize-none rounded-2xl border-slate-200 bg-slate-50/70 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-100"
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
               />
               <div className="flex items-center justify-between gap-3">
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-slate-500 dark:text-slate-400">
                   Tu mensaje quedará asociado a este ticket público.
                 </p>
                 <Button
-                  className="rounded-xl bg-blue-600 hover:bg-blue-700"
+                  className="rounded-xl bg-blue-600 text-white hover:bg-blue-700 disabled:bg-blue-300 disabled:text-blue-50 dark:disabled:bg-blue-900/60 dark:disabled:text-blue-200"
                   onClick={handleSendMessage}
                   disabled={!message.trim() || submittingPublicMessage}
                 >

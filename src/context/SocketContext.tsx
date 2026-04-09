@@ -66,6 +66,8 @@ const shouldEnableGlobalSocket = (pathname: string, hasToken: boolean): boolean 
     '/login',
     '/register',
     '/demo',
+    '/chat',
+    '/ticket',
     '/e',
     '/encuestas',
     '/admin/encuestas',
@@ -124,6 +126,10 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       transports: ['websocket', 'polling'], // Added polling for better compatibility
       withCredentials: true,
       path: socketPath,
+      reconnectionAttempts: 4,
+      reconnectionDelay: 1200,
+      reconnectionDelayMax: 8000,
+      timeout: 7000,
     };
 
     if (tenantSlug) {
@@ -164,6 +170,14 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
 
     newSocket.on('connect_error', (err) => {
+      const status = Number(
+        (err as any)?.description?.status ||
+        (err as any)?.data?.status ||
+        (err as any)?.context?.status,
+      );
+      if (status >= 500) {
+        newSocket.disconnect();
+      }
       if (import.meta.env.DEV) {
         console.error('Global Socket connection error:', err);
       }
