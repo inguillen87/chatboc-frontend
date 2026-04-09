@@ -47,7 +47,7 @@ export const mapSurveyError = (
     readString(details.action_hint) ??
     readString(details.actionHint) ??
     (retryable ? 'retry' : null);
-  const actionHint = payloadActionHint ?? 'go_home';
+  const actionHint = payloadActionHint;
 
   const payloadTitle = readString(details.title);
   const payloadDescription = readString(details.description) ?? readString(details.message);
@@ -60,7 +60,7 @@ export const mapSurveyError = (
       description: payloadDescription ?? 'Revisá el enlace o explorá otras encuestas activas.',
       primaryCta: payloadPrimary ?? 'Ver encuestas activas',
       secondaryCta: payloadSecondary ?? 'Volver al inicio',
-      actionHint: actionHint || 'view_other_surveys',
+      actionHint: actionHint ?? 'view_other_surveys',
       retryable: false,
       requestId,
       statusCode,
@@ -74,7 +74,7 @@ export const mapSurveyError = (
       description: payloadDescription ?? 'Podés explorar otras encuestas disponibles en este momento.',
       primaryCta: payloadPrimary ?? 'Ver encuestas activas',
       secondaryCta: payloadSecondary ?? 'Volver al inicio',
-      actionHint: actionHint || 'view_other_surveys',
+      actionHint: actionHint ?? 'view_other_surveys',
       retryable: false,
       requestId,
       statusCode,
@@ -88,7 +88,7 @@ export const mapSurveyError = (
       description: payloadDescription ?? 'La encuesta tiene una ventana de publicación específica.',
       primaryCta: payloadPrimary ?? 'Ver otras encuestas',
       secondaryCta: payloadSecondary ?? 'Volver al inicio',
-      actionHint: actionHint || 'view_other_surveys',
+      actionHint: actionHint ?? 'view_other_surveys',
       retryable: false,
       requestId,
       statusCode,
@@ -101,7 +101,7 @@ export const mapSurveyError = (
     description: payloadDescription ?? 'Probá nuevamente en unos segundos.',
     primaryCta: payloadPrimary ?? 'Reintentar',
     secondaryCta: payloadSecondary ?? 'Volver al inicio',
-    actionHint: actionHint || (retryable ? 'retry' : 'go_home'),
+    actionHint: actionHint ?? (retryable ? 'retry' : 'go_home'),
     retryable,
     requestId,
     statusCode,
