@@ -46,6 +46,7 @@ import { WhatsappNumberInventoryItem } from "@/types/whatsapp";
 import { tenantService } from "@/services/tenantService";
 import MenuBuilder from "@/components/tenant/MenuBuilder";
 import IntegracionesPage from "@/pages/pyme/integraciones/IntegracionesPage"; // Import new professional integrations page
+import { extractDemoExperienceSources, type DemoExperienceSources } from "@/utils/demoExperienceBlueprint";
 
 const Integracion = () => {
   const navigate = useNavigate();
@@ -59,7 +60,7 @@ const Integracion = () => {
   const [whatsappNumbers, setWhatsappNumbers] = useState<WhatsappNumberInventoryItem[]>([]);
   const [whatsappNumbersLoading, setWhatsappNumbersLoading] = useState(false);
   const [whatsappNumbersError, setWhatsappNumbersError] = useState<string | null>(null);
-  const [publicWidgetConfig, setPublicWidgetConfig] = useState<any>(null);
+  const [demoExperienceSources, setDemoExperienceSources] = useState<DemoExperienceSources>({ quickMenu: [] });
   const [selectedWhatsappNumber, setSelectedWhatsappNumber] = useState<string>("");
   const [createPayload, setCreatePayload] = useState({ phone_number: "", sender_id: "" });
   const [externalNumberPayload, setExternalNumberPayload] = useState({ number: "", sender_id: "" });
@@ -107,18 +108,21 @@ const Integracion = () => {
       const integrationData = await tenantService.getIntegrationEmbed(tenantSlug);
       const integrationWidget = integrationData?.widget || {};
       const integrationSnippet = integrationWidget?.embed_snippet || "";
+      const widgetData = await tenantService.getPublicWidgetConfig(tenantSlug);
+      const experienceSources = extractDemoExperienceSources(integrationData, widgetData);
+      setDemoExperienceSources(experienceSources);
       if (integrationSnippet) {
         setEmbedSnippet(integrationSnippet);
         return;
       }
 
-      const data = await tenantService.getPublicWidgetConfig(tenantSlug);
-      const builderConfig = data?.builder_config || data?.widget?.builder_config || {};
-      const snippet = builderConfig?.embed_snippet || data?.embed_snippet || "";
+      const builderConfig = widgetData?.builder_config || widgetData?.widget?.builder_config || {};
+      const snippet = builderConfig?.embed_snippet || widgetData?.embed_snippet || "";
       setEmbedSnippet(snippet);
     } catch (error) {
       console.error("No se pudo cargar el snippet de embed", error);
       setEmbedSnippet("");
+      setDemoExperienceSources({ quickMenu: [] });
     }
   }, [tenantSlug]);
 
@@ -637,6 +641,82 @@ const Integracion = () => {
                 </CardContent>
               </Card>
             </div>
+
+            {(demoExperienceSources.demoOnboarding || demoExperienceSources.widget || demoExperienceSources.quickMenu.length > 0) && (
+              <Card className="mt-6">
+                <CardHeader>
+                  <CardTitle>Blueprint de experiencia</CardTitle>
+                  <CardDescription>
+                    Vista previa de componentes y playbooks definidos por backend.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {demoExperienceSources.demoOnboarding?.component_pack?.length ? (
+                    <div className="space-y-3">
+                      <h4 className="text-sm font-semibold text-foreground">Demo onboarding · Component pack</h4>
+                      <div className="grid gap-2 md:grid-cols-2">
+                        {demoExperienceSources.demoOnboarding.component_pack.map((item, index) => (
+                          <div key={`${item.id || item.label}-${index}`} className="rounded-md border p-3">
+                            <p className="text-sm font-medium">{item.label}</p>
+                            {item.description ? (
+                              <p className="text-xs text-muted-foreground mt-1">{item.description}</p>
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {demoExperienceSources.widget?.component_pack?.length ? (
+                    <div className="space-y-3">
+                      <h4 className="text-sm font-semibold text-foreground">Widget · Component pack</h4>
+                      <div className="grid gap-2 md:grid-cols-2">
+                        {demoExperienceSources.widget.component_pack.map((item, index) => (
+                          <div key={`${item.id || item.label}-${index}`} className="rounded-md border p-3">
+                            <p className="text-sm font-medium">{item.label}</p>
+                            {item.description ? (
+                              <p className="text-xs text-muted-foreground mt-1">{item.description}</p>
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {Object.entries(demoExperienceSources.widget?.channel_playbooks || {}).map(([channel, items]) => (
+                    <div key={channel} className="space-y-3">
+                      <h4 className="text-sm font-semibold text-foreground">{channel} · Channel playbooks</h4>
+                      <div className="grid gap-2 md:grid-cols-2">
+                        {items.map((item, index) => (
+                          <div key={`${item.id || item.label}-${index}`} className="rounded-md border p-3">
+                            <p className="text-sm font-medium">{item.label}</p>
+                            {item.description ? (
+                              <p className="text-xs text-muted-foreground mt-1">{item.description}</p>
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+
+                  {demoExperienceSources.quickMenu.length > 0 ? (
+                    <div className="space-y-3">
+                      <h4 className="text-sm font-semibold text-foreground">Quick menu</h4>
+                      <div className="grid gap-2 md:grid-cols-2">
+                        {demoExperienceSources.quickMenu.map((item, index) => (
+                          <div key={`${item.id || item.label}-${index}`} className="rounded-md border p-3">
+                            <p className="text-sm font-medium">{item.label}</p>
+                            {item.description ? (
+                              <p className="text-xs text-muted-foreground mt-1">{item.description}</p>
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           {/* --- MENUS TAB --- */}
