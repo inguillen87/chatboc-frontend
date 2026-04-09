@@ -84,4 +84,44 @@ describe('mapSurveyError', () => {
     expect(view.primaryCta).toBe('Reintentar');
     expect(view.actionHint).toBe('retry');
   });
+
+  it('maps social_token_required with dedicated copy', () => {
+    const view = mapSurveyError({
+      errorStatus: 403,
+      reasonCode: 'social_token_required',
+      details: {
+        request_id: 'req-social-required',
+      },
+    });
+
+    expect(view.primaryCta).toBe('Conectar cuenta social');
+    expect(view.actionHint).toBe('retry');
+    expect(view.retryable).toBe(false);
+  });
+
+  it('maps invalid_social_token with reconnect CTA', () => {
+    const view = mapSurveyError({
+      errorStatus: 403,
+      reasonCode: 'invalid_social_token',
+      details: {
+        request_id: 'req-invalid-token',
+      },
+    });
+
+    expect(view.title).toContain('sesión social');
+    expect(view.primaryCta).toBe('Reconectar cuenta');
+  });
+
+  it('maps social_identity_mismatch with retry connection CTA', () => {
+    const view = mapSurveyError({
+      errorStatus: 403,
+      reasonCode: 'social_identity_mismatch',
+      details: {
+        request_id: 'req-social-mismatch',
+      },
+    });
+
+    expect(view.title).toContain('identidad social');
+    expect(view.primaryCta).toBe('Reintentar conexión');
+  });
 });

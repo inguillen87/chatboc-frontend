@@ -153,6 +153,7 @@ export interface SurveyPublic {
   es_votacion_envivo?: boolean;
   mostrar_resultados_envivo?: boolean;
   permitir_comentarios?: boolean;
+  commentConfig?: SurveyCommentConfig;
   puntos_recompensa?: number;
   resultados_envivo?: SurveyLiveResults;
 
@@ -166,7 +167,14 @@ export interface SurveyComment {
   fecha: string;
   user_id?: number | null;
   anon_id?: string | null;
+  auth_user_id?: string | null;
+  auth_provider?: string | null;
   likes?: number;
+}
+
+export interface SurveyCommentConfig {
+  requiresSocialToken?: boolean;
+  acceptedModes?: string[];
 }
 
 export type SurveyLocationPrecision = 'gps' | 'manual' | 'estimada';

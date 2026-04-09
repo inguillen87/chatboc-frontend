@@ -542,6 +542,7 @@ const PublicSurveyPage = () => {
                 tenantSlug={tenantSlug || undefined}
                 realtimeComments={liveComments}
                 copy={comentariosCopy}
+                commentConfig={survey.commentConfig}
               />
             )}
           </CardContent>
@@ -580,6 +581,7 @@ const PublicSurveyPage = () => {
                 tenantSlug={tenantSlug || undefined}
                 realtimeComments={liveComments}
                 copy={comentariosCopy}
+                commentConfig={survey.commentConfig}
               />
             )}
           </CardContent>
@@ -826,6 +828,7 @@ const PublicSurveyPage = () => {
               tenantSlug={tenantSlug || undefined}
               realtimeComments={liveComments}
               copy={comentariosCopy}
+              commentConfig={survey.commentConfig}
             />
           )}
         </div>
@@ -845,6 +848,7 @@ const PublicSurveyPage = () => {
               slug={slug || ''}
               tenantSlug={tenantSlug || undefined}
               realtimeComments={liveComments}
+              commentConfig={survey.commentConfig}
             />
           )}
         </>
