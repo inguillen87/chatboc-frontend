@@ -114,6 +114,15 @@ interface SurveyCommentsProps {
   copy?: SurveyCommentsCopy;
 }
 
+interface SocialAuthProfile {
+  provider: string;
+  userId?: string;
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+  fullName?: string;
+}
+
 export function SurveyComments({ slug, tenantSlug, realtimeComments, copy }: SurveyCommentsProps) {
   const [comments, setComments] = useState<SurveyComment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -121,6 +130,7 @@ export function SurveyComments({ slug, tenantSlug, realtimeComments, copy }: Sur
   const [authorName, setAuthorName] = useState('');
   const [commentMode, setCommentMode] = useState<'anonimo' | 'social'>('anonimo');
   const [socialProvider, setSocialProvider] = useState<string>('facebook');
+  const [socialAuthProfile, setSocialAuthProfile] = useState<SocialAuthProfile | null>(null);
   const [orderBy, setOrderBy] = useState<'recent' | 'top'>('recent');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const maxCommentLength = 500;
@@ -153,6 +163,48 @@ export function SurveyComments({ slug, tenantSlug, realtimeComments, copy }: Sur
     if (configuredProviders.some((provider) => provider.id === socialProvider)) return;
     setSocialProvider(configuredProviders[0].id);
   }, [configuredProviders, socialProvider]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleMessage = (event: MessageEvent) => {
+      const data = event.data;
+      if (!data || typeof data !== 'object') return;
+      const payload = data as Record<string, unknown>;
+      const eventType = typeof payload.type === 'string' ? payload.type : '';
+      if (eventType !== 'chatboc:survey-social-auth-success') return;
+
+      const provider = typeof payload.provider === 'string' ? payload.provider.toLowerCase().trim() : '';
+      if (!provider) return;
+      const profile: SocialAuthProfile = {
+        provider,
+        userId: typeof payload.user_id === 'string' ? payload.user_id : undefined,
+        email: typeof payload.email === 'string' ? payload.email : undefined,
+        firstName: typeof payload.first_name === 'string' ? payload.first_name : undefined,
+        lastName: typeof payload.last_name === 'string' ? payload.last_name : undefined,
+        fullName: typeof payload.full_name === 'string' ? payload.full_name : undefined,
+      };
+      setSocialAuthProfile(profile);
+      if (profile.fullName?.trim()) {
+        setAuthorName(profile.fullName.trim());
+      } else if (profile.firstName?.trim() || profile.lastName?.trim()) {
+        setAuthorName(`${profile.firstName ?? ''} ${profile.lastName ?? ''}`.trim());
+      }
+      setCommentMode('social');
+      setSocialProvider(provider);
+      trackSurveyCommentModeChanged({
+        slug,
+        tenant: tenantSlug ?? null,
+        mode: 'social_connected',
+        provider,
+      });
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => {
+      window.removeEventListener('message', handleMessage);
+    };
+  }, [slug, tenantSlug]);
 
   useEffect(() => {
     let cancelled = false;
@@ -209,9 +261,16 @@ export function SurveyComments({ slug, tenantSlug, realtimeComments, copy }: Sur
           : (configuredProviders.some((provider) => provider.id === socialProvider) ? socialProvider : 'social');
       const payload = {
         texto: newComment,
-        nombre: commentMode === 'social' ? authorName || undefined : undefined,
+        nombre:
+          commentMode === 'social'
+            ? socialAuthProfile?.fullName || authorName || undefined
+            : undefined,
         modo: resolvedMode,
         auth_provider: commentMode === 'social' ? socialProvider || undefined : undefined,
+        auth_user_id: commentMode === 'social' ? socialAuthProfile?.userId : undefined,
+        auth_email: commentMode === 'social' ? socialAuthProfile?.email : undefined,
+        auth_first_name: commentMode === 'social' ? socialAuthProfile?.firstName : undefined,
+        auth_last_name: commentMode === 'social' ? socialAuthProfile?.lastName : undefined,
       };
       const savedComment = await postSurveyComment(slug, payload, tenantSlug);
 
@@ -334,6 +393,11 @@ export function SurveyComments({ slug, tenantSlug, realtimeComments, copy }: Sur
                     value={authorName}
                     onChange={(e) => setAuthorName(e.target.value)}
                     className="w-full max-w-[220px] rounded-xl"
+                    disabled={Boolean(
+                      socialAuthProfile &&
+                      socialAuthProfile.provider === socialProvider &&
+                      (socialAuthProfile.fullName || socialAuthProfile.firstName || socialAuthProfile.lastName),
+                    )}
                   />
                   <Button
                     type="button"
@@ -349,13 +413,25 @@ export function SurveyComments({ slug, tenantSlug, realtimeComments, copy }: Sur
                         provider: socialProvider,
                       });
                       if (providerConfig?.oauthUrl && typeof window !== 'undefined') {
-                        window.open(providerConfig.oauthUrl, '_blank', 'noopener,noreferrer');
+                        const popup = window.open(providerConfig.oauthUrl, '_blank', 'noopener,noreferrer,width=580,height=680');
+                        if (!popup) {
+                          toast({
+                            title: copyText(copy?.toastErrorTitle, DEFAULT_COMMENTS_COPY.toastErrorTitle),
+                            description: copyText(copy?.toastErrorDescription, DEFAULT_COMMENTS_COPY.toastErrorDescription),
+                            variant: 'destructive',
+                          });
+                        }
                       }
                     }}
                   >
                     {configuredProviders.find((provider) => provider.id === socialProvider)?.connectLabel ||
                       copyText(copy?.connectFacebook, DEFAULT_COMMENTS_COPY.connectFacebook)}
                   </Button>
+                  {socialAuthProfile?.provider === socialProvider && (socialAuthProfile.fullName || socialAuthProfile.firstName || socialAuthProfile.lastName) ? (
+                    <p className="text-xs text-emerald-600">
+                      Conectado como {socialAuthProfile.fullName || `${socialAuthProfile.firstName ?? ''} ${socialAuthProfile.lastName ?? ''}`.trim()}
+                    </p>
+                  ) : null}
                 </>
               ) : null}
             </div>
