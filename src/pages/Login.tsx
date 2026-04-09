@@ -93,6 +93,10 @@ const Login = () => {
 
   const isSectorFirstMode = demoFrontendContract.demo_selector?.mode === 'sector_first';
   const needsRubroSelection = !isSectorFirstMode || demoSector === 'empresas';
+  const selectedRubroForDemo = demoRubro || (demoSector === 'gobierno' ? 'municipio' : 'pyme');
+  const twilioTrial = demoFrontendContract.onboarding?.twilio_trial;
+  const trialMessagesLimit = twilioTrial?.security_limits?.messages_per_session;
+  const quickActions = demoFrontendContract.onboarding?.menus_by_tipo?.[selectedRubroForDemo] || [];
 
 
   const getDemoCatalogWithRetry = useCallback(async (): Promise<DemoCatalogResponse> => {
@@ -628,6 +632,41 @@ const Login = () => {
           >
             {isDemoLoading ? "Ingresando demo..." : "Probar Demo"}
           </Button>
+          {twilioTrial?.wa_deeplink ? (
+            <div className="rounded-lg border border-border/70 bg-muted/20 p-3 space-y-2">
+              <p className="text-sm font-medium">Demo WhatsApp por rubro</p>
+              <p className="text-xs text-muted-foreground">
+                Activá el trial en {twilioTrial.display_number || 'WhatsApp'} con la frase{' '}
+                <span className="font-semibold">{twilioTrial.join_phrase || 'join demo'}</span>.
+              </p>
+              {trialMessagesLimit ? (
+                <p className="text-xs inline-flex rounded-full border px-2 py-0.5">
+                  Demo ({trialMessagesLimit} mensajes)
+                </p>
+              ) : null}
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full"
+                onClick={() => window.open(twilioTrial.wa_deeplink, '_blank', 'noopener,noreferrer')}
+                disabled={isDemoLoading || isLoading || isPasskeyLoading}
+              >
+                Activar demo en WhatsApp
+              </Button>
+              {quickActions.length ? (
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {quickActions.map((action) => (
+                    <div key={action.id || action.label} className="rounded-md border bg-background/70 p-2">
+                      <p className="text-xs font-medium">{action.label}</p>
+                      {action.description ? (
+                        <p className="text-[11px] text-muted-foreground">{action.description}</p>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           {demoEntryPoints.length > 0 ? (
             <div className="grid gap-2">
               {demoEntryPoints.map((entry) => {

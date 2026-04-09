@@ -182,6 +182,23 @@ describe('demo frontend contract parsing', () => {
           { value: 'gobierno', label: 'Gobierno' },
           { value: 'empresas', label: 'Empresas' },
         ],
+        twilio_trial: {
+          display_number: '+1 (415) 523-8886',
+          join_phrase: 'join brief-yesterday',
+          wa_deeplink: 'https://wa.me/14155238886?text=join%20brief-yesterday',
+          security_limits: {
+            messages_per_session: 10,
+            upgrade_required_for: ['qdrant_catalog', 'advanced_automation'],
+          },
+        },
+        menus_by_tipo: {
+          municipio: [{ id: 'reclamos', label: 'Reclamos' }],
+          pyme: [{ id: 'catalogo', label: 'Catálogo' }],
+        },
+        demo_feature_access: {
+          heatmap: true,
+          upload_xlsx: false,
+        },
       },
     });
 
@@ -190,6 +207,10 @@ describe('demo frontend contract parsing', () => {
       { value: 'gobierno', label: 'Gobierno' },
       { value: 'empresas', label: 'Empresas' },
     ]);
+    expect(contract.onboarding?.twilio_trial?.display_number).toBe('+1 (415) 523-8886');
+    expect(contract.onboarding?.twilio_trial?.security_limits?.messages_per_session).toBe(10);
+    expect(contract.onboarding?.menus_by_tipo?.municipio?.[0]?.label).toBe('Reclamos');
+    expect(contract.onboarding?.demo_feature_access?.heatmap).toBe(true);
   });
 
 });
