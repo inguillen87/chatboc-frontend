@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -31,6 +31,7 @@ import {
   EMPLOYMENT_STATUS_OPTIONS,
   GENDER_OPTIONS,
 } from '@/components/surveys/demographicOptions';
+import { trackSurveyAnswerSelected, trackSurveySubmitError } from '@/utils/surveyAnalytics';
 
 interface SurveyFormProps {
   survey: SurveyPublic;
@@ -90,10 +91,17 @@ export const SurveyForm = ({
   const [submissionErrorTitle, setSubmissionErrorTitle] = useState<string | null>(null);
   const [submissionErrorDetails, setSubmissionErrorDetails] = useState<string | null>(null);
   const [dismissedErrorKey, setDismissedErrorKey] = useState<string | null>(null);
+  const lastTrackedSubmitErrorKeyRef = useRef<string | null>(null);
   const currentErrorKey = useMemo(
     () => (submitErrorMessage ? `${submitErrorStatus ?? 'na'}::${submitErrorMessage}` : null),
     [submitErrorMessage, submitErrorStatus],
   );
+  const analyticsHost = typeof window !== 'undefined' ? window.location.host : null;
+  const analyticsTenant =
+    (typeof survey.municipio_slug === 'string' && survey.municipio_slug.trim().length > 0
+      ? survey.municipio_slug.trim()
+      : null) ??
+    null;
 
   type LocationStringField = 'pais' | 'provincia' | 'ciudad' | 'barrio' | 'codigoPostal';
 
@@ -162,6 +170,32 @@ export const SurveyForm = ({
     currentErrorKey,
     dismissedErrorKey,
   ]);
+
+  useEffect(() => {
+    if (!currentErrorKey || !submitErrorMessage) return;
+    if (lastTrackedSubmitErrorKeyRef.current === currentErrorKey) return;
+
+    const messageLower = submitErrorMessage.toLowerCase();
+    const inferredReasonCode =
+      messageLower.includes('not_published') || messageLower.includes('no está publicada')
+        ? 'survey_not_published'
+        : messageLower.includes('outside_active_window') || messageLower.includes('no está disponible')
+          ? 'survey_outside_active_window'
+          : submitErrorStatus && submitErrorStatus >= 500
+            ? 'internal_error'
+            : null;
+
+    trackSurveySubmitError({
+      slug: survey.slug ?? null,
+      host: analyticsHost,
+      tenant: analyticsTenant,
+      statusCode: submitErrorStatus ?? null,
+      reasonCode: inferredReasonCode,
+      requestId: null,
+      message: submitErrorMessage,
+    });
+    lastTrackedSubmitErrorKeyRef.current = currentErrorKey;
+  }, [analyticsHost, analyticsTenant, currentErrorKey, submitErrorMessage, submitErrorStatus, survey.slug]);
 
   const toDisplayText = (value: unknown): string => {
     if (typeof value === 'string') return value;
@@ -373,10 +407,20 @@ export const SurveyForm = ({
 
   const handleRadioChange = (pregunta: SurveyPregunta, value: string) => {
     const optionId = Number(value);
+    const normalizedOptionId = Number.isNaN(optionId) ? null : optionId;
     setAnswers((prev) => ({
       ...prev,
-      [pregunta.id]: { ...prev[pregunta.id], opcionIds: Number.isNaN(optionId) ? [] : [optionId] },
+      [pregunta.id]: { ...prev[pregunta.id], opcionIds: normalizedOptionId === null ? [] : [normalizedOptionId] },
     }));
+    trackSurveyAnswerSelected({
+      slug: survey.slug ?? null,
+      host: analyticsHost,
+      tenant: analyticsTenant,
+      questionId: pregunta.id,
+      questionType: pregunta.tipo,
+      optionId: normalizedOptionId,
+      selectionCount: normalizedOptionId === null ? 0 : 1,
+    });
   };
 
   const handleCheckboxToggle = (pregunta: SurveyPregunta, optionId: number, checked: boolean) => {
@@ -385,6 +429,15 @@ export const SurveyForm = ({
       const nextIds = checked
         ? Array.from(new Set([...(current.opcionIds ?? []), optionId]))
         : (current.opcionIds ?? []).filter((id) => id !== optionId);
+      trackSurveyAnswerSelected({
+        slug: survey.slug ?? null,
+        host: analyticsHost,
+        tenant: analyticsTenant,
+        questionId: pregunta.id,
+        questionType: pregunta.tipo,
+        optionId,
+        selectionCount: nextIds.length,
+      });
       return { ...prev, [pregunta.id]: { ...current, opcionIds: nextIds } };
     });
   };
@@ -394,6 +447,15 @@ export const SurveyForm = ({
       ...prev,
       [pregunta.id]: { ...prev[pregunta.id], texto: value },
     }));
+    trackSurveyAnswerSelected({
+      slug: survey.slug ?? null,
+      host: analyticsHost,
+      tenant: analyticsTenant,
+      questionId: pregunta.id,
+      questionType: pregunta.tipo,
+      optionId: null,
+      selectionCount: value.trim().length > 0 ? 1 : 0,
+    });
   };
 
   const validate = (): boolean => {

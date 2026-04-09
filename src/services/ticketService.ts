@@ -968,6 +968,7 @@ export const sendMessage = async (
 ): Promise<any> => {
     try {
         let body: any;
+        const shouldUseJsonBody = Boolean(opts?.public) && (!files || files.length === 0);
 
         // Si hay archivos, usamos FormData obligatoriamente
         if (files && files.length > 0) {
@@ -991,12 +992,16 @@ export const sendMessage = async (
             body = interactiveMessage;
         }
         // Si es solo texto, usamos FormData para evitar problemas con el backend
-        // que espera multipart/form-data según la guía, aunque JSON podría funcionar en algunos casos.
-        // La instrucción es "always use FormData".
+        // en contexto autenticado mantenemos multipart por compatibilidad.
+        // Para contexto público usamos JSON para evitar 415 en responder_ciudadano.
         else {
-            const formData = new FormData();
-            formData.append('comentario', comentario);
-            body = formData;
+            body = shouldUseJsonBody
+                ? { comentario }
+                : (() => {
+                    const formData = new FormData();
+                    formData.append('comentario', comentario);
+                    return formData;
+                })();
         }
 
         const baseEndpoint = opts?.public

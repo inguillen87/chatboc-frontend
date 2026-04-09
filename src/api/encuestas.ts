@@ -545,7 +545,12 @@ export const postSurveyComment = (
     nombre?: string;
     nombre_autor?: string;
     anon_id?: string;
-    modo?: 'anonimo' | 'facebook';
+    modo?: 'anonimo' | 'facebook' | 'google' | 'instagram' | 'social';
+    auth_provider?: string;
+    auth_user_id?: string;
+    auth_email?: string;
+    auth_first_name?: string;
+    auth_last_name?: string;
   },
   tenantSlug?: string,
 ): Promise<SurveyComment> =>
