@@ -14,6 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/use-toast';
 import { getSurveyComments, postSurveyComment } from '@/api/encuestas';
 import { SurveyComment } from '@/types/encuestas';
+import { trackSurveyCommentModeChanged, trackSurveyCommentSubmitted } from '@/utils/surveyAnalytics';
 
 export interface SurveyCommentsCopy {
   title?: string;
@@ -37,6 +38,18 @@ export interface SurveyCommentsCopy {
   authorFallback?: string;
   helperText?: string;
   characterCountLabel?: string;
+  socialModeLabel?: string;
+  providerLabel?: string;
+  modeGoogle?: string;
+  modeInstagram?: string;
+  connectGoogle?: string;
+  connectInstagram?: string;
+  socialProviders?: Array<{
+    id?: string;
+    label?: string;
+    connectLabel?: string;
+    oauthUrl?: string;
+  }>;
 }
 
 
@@ -62,6 +75,17 @@ const DEFAULT_COMMENTS_COPY: Required<SurveyCommentsCopy> = {
   authorFallback: 'Participante',
   helperText: 'Tu comentario ayuda a sumar contexto para interpretar mejor los resultados.',
   characterCountLabel: 'Caracteres',
+  socialModeLabel: 'Con cuenta verificada',
+  providerLabel: 'Red social para identificarte',
+  modeGoogle: 'Google',
+  modeInstagram: 'Instagram',
+  connectGoogle: 'Conectar Google',
+  connectInstagram: 'Conectar Instagram',
+  socialProviders: [
+    { id: 'facebook', label: 'Facebook', connectLabel: 'Conectar Facebook' },
+    { id: 'google', label: 'Google', connectLabel: 'Conectar Google' },
+    { id: 'instagram', label: 'Instagram', connectLabel: 'Conectar Instagram' },
+  ],
 };
 
 
@@ -95,7 +119,8 @@ export function SurveyComments({ slug, tenantSlug, realtimeComments, copy }: Sur
   const [loading, setLoading] = useState(true);
   const [newComment, setNewComment] = useState('');
   const [authorName, setAuthorName] = useState('');
-  const [commentMode, setCommentMode] = useState<'anonimo' | 'facebook'>('anonimo');
+  const [commentMode, setCommentMode] = useState<'anonimo' | 'social'>('anonimo');
+  const [socialProvider, setSocialProvider] = useState<string>('facebook');
   const [orderBy, setOrderBy] = useState<'recent' | 'top'>('recent');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const maxCommentLength = 500;
@@ -104,6 +129,30 @@ export function SurveyComments({ slug, tenantSlug, realtimeComments, copy }: Sur
     const normalized = typeof value === 'string' ? value.trim() : '';
     return normalized.length ? normalized : fallback;
   };
+
+  const configuredProviders = useMemo(() => {
+    const fromBackend = Array.isArray(copy?.socialProviders) ? copy.socialProviders : DEFAULT_COMMENTS_COPY.socialProviders;
+    return fromBackend
+      .map((provider) => ({
+        id: typeof provider?.id === 'string' && provider.id.trim().length > 0 ? provider.id.trim().toLowerCase() : '',
+        label: typeof provider?.label === 'string' && provider.label.trim().length > 0 ? provider.label.trim() : '',
+        connectLabel:
+          typeof provider?.connectLabel === 'string' && provider.connectLabel.trim().length > 0
+            ? provider.connectLabel.trim()
+            : '',
+        oauthUrl:
+          typeof provider?.oauthUrl === 'string' && provider.oauthUrl.trim().length > 0
+            ? provider.oauthUrl.trim()
+            : null,
+      }))
+      .filter((provider) => provider.id && provider.label);
+  }, [copy?.socialProviders]);
+
+  useEffect(() => {
+    if (!configuredProviders.length) return;
+    if (configuredProviders.some((provider) => provider.id === socialProvider)) return;
+    setSocialProvider(configuredProviders[0].id);
+  }, [configuredProviders, socialProvider]);
 
   useEffect(() => {
     let cancelled = false;
@@ -154,16 +203,28 @@ export function SurveyComments({ slug, tenantSlug, realtimeComments, copy }: Sur
 
     setIsSubmitting(true);
     try {
+      const resolvedMode =
+        commentMode === 'anonimo'
+          ? 'anonimo'
+          : (configuredProviders.some((provider) => provider.id === socialProvider) ? socialProvider : 'social');
       const payload = {
         texto: newComment,
-        nombre: commentMode === 'facebook' ? authorName || undefined : authorName || undefined,
-        modo: commentMode,
+        nombre: commentMode === 'social' ? authorName || undefined : undefined,
+        modo: resolvedMode,
+        auth_provider: commentMode === 'social' ? socialProvider || undefined : undefined,
       };
       const savedComment = await postSurveyComment(slug, payload, tenantSlug);
 
       // Optimistic update (or rely on socket, but let's add it locally just in case)
       setComments((prev) => [savedComment, ...prev]);
       setNewComment('');
+      trackSurveyCommentSubmitted({
+        slug,
+        tenant: tenantSlug ?? null,
+        mode: commentMode,
+        provider: commentMode === 'social' ? socialProvider : null,
+        commentLength: newComment.trim().length,
+      });
       toast({ title: copyText(copy?.toastSuccess, DEFAULT_COMMENTS_COPY.toastSuccess) });
     } catch (error) {
         console.error(error);
@@ -207,7 +268,16 @@ export function SurveyComments({ slug, tenantSlug, realtimeComments, copy }: Sur
             <Label className="text-xs uppercase text-muted-foreground">{copyText(copy?.modeLabel, DEFAULT_COMMENTS_COPY.modeLabel)}</Label>
             <RadioGroup
               value={commentMode}
-              onValueChange={(value) => setCommentMode(value as 'anonimo' | 'facebook')}
+              onValueChange={(value) => {
+                const nextMode = value as 'anonimo' | 'social';
+                setCommentMode(nextMode);
+                trackSurveyCommentModeChanged({
+                  slug,
+                  tenant: tenantSlug ?? null,
+                  mode: nextMode,
+                  provider: nextMode === 'social' ? socialProvider : null,
+                });
+              }}
               className="flex flex-wrap gap-4"
             >
               <div className="flex items-center gap-2">
@@ -215,8 +285,8 @@ export function SurveyComments({ slug, tenantSlug, realtimeComments, copy }: Sur
                 <Label htmlFor="comment-anon">{copyText(copy?.modeAnonymous, DEFAULT_COMMENTS_COPY.modeAnonymous)}</Label>
               </div>
               <div className="flex items-center gap-2">
-                <RadioGroupItem id="comment-facebook" value="facebook" />
-                <Label htmlFor="comment-facebook">{copyText(copy?.modeFacebook, DEFAULT_COMMENTS_COPY.modeFacebook)}</Label>
+                <RadioGroupItem id="comment-social" value="social" />
+                <Label htmlFor="comment-social">{copyText(copy?.socialModeLabel, DEFAULT_COMMENTS_COPY.socialModeLabel)}</Label>
               </div>
             </RadioGroup>
           </div>
@@ -232,16 +302,61 @@ export function SurveyComments({ slug, tenantSlug, realtimeComments, copy }: Sur
           </div>
           <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
             <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
-              <Input
-                placeholder={copyText(copy?.namePlaceholder, DEFAULT_COMMENTS_COPY.namePlaceholder)}
-                value={authorName}
-                onChange={(e) => setAuthorName(e.target.value)}
-                className="w-full max-w-[220px] rounded-xl"
-              />
-              {commentMode === 'facebook' ? (
-                <Button type="button" variant="outline" size="sm" className="whitespace-nowrap">
-                  {copyText(copy?.connectFacebook, DEFAULT_COMMENTS_COPY.connectFacebook)}
-                </Button>
+              {commentMode === 'social' ? (
+                <>
+                  <div className="w-full sm:w-[220px]">
+                    <Select
+                      value={socialProvider}
+                      onValueChange={(value) => {
+                        setSocialProvider(value);
+                        trackSurveyCommentModeChanged({
+                          slug,
+                          tenant: tenantSlug ?? null,
+                          mode: commentMode,
+                          provider: value,
+                        });
+                      }}
+                    >
+                      <SelectTrigger className="rounded-xl">
+                        <SelectValue placeholder={copyText(copy?.providerLabel, DEFAULT_COMMENTS_COPY.providerLabel)} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {configuredProviders.map((provider) => (
+                          <SelectItem key={provider.id} value={provider.id}>
+                            {provider.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Input
+                    placeholder={copyText(copy?.namePlaceholder, DEFAULT_COMMENTS_COPY.namePlaceholder)}
+                    value={authorName}
+                    onChange={(e) => setAuthorName(e.target.value)}
+                    className="w-full max-w-[220px] rounded-xl"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="whitespace-nowrap"
+                    onClick={() => {
+                      const providerConfig = configuredProviders.find((provider) => provider.id === socialProvider);
+                      trackSurveyCommentModeChanged({
+                        slug,
+                        tenant: tenantSlug ?? null,
+                        mode: 'social_connect_click',
+                        provider: socialProvider,
+                      });
+                      if (providerConfig?.oauthUrl && typeof window !== 'undefined') {
+                        window.open(providerConfig.oauthUrl, '_blank', 'noopener,noreferrer');
+                      }
+                    }}
+                  >
+                    {configuredProviders.find((provider) => provider.id === socialProvider)?.connectLabel ||
+                      copyText(copy?.connectFacebook, DEFAULT_COMMENTS_COPY.connectFacebook)}
+                  </Button>
+                </>
               ) : null}
             </div>
             <Button
