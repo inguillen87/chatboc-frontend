@@ -1,8 +1,9 @@
-import { useCallback, useMemo, useState, useEffect } from 'react';
+import { useCallback, useMemo, useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowDownRight, ArrowUpRight, Download, Loader2, MessageSquareText, RefreshCw, Timer, TrendingUp, Users } from 'lucide-react';
 
 import { SurveyForm } from '@/components/surveys/SurveyForm';
+import { SurveyErrorState } from '@/components/surveys/SurveyErrorState';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -12,7 +13,15 @@ import { toast } from '@/components/ui/use-toast';
 import { ApiError } from '@/utils/api';
 import { usePageMetadata } from '@/hooks/usePageMetadata';
 import { PublicSurveyShareActions } from '@/components/surveys/PublicSurveyShareActions';
-import { trackSurveySubmission } from '@/utils/surveyAnalytics';
+import {
+  trackSurveyLoadError,
+  trackSurveyCtaClicked,
+  trackSurveyErrorRendered,
+  trackSurveyPageView,
+  trackSurveyRetryTriggered,
+  trackSurveySubmission,
+} from '@/utils/surveyAnalytics';
+import { mapSurveyError } from '@/utils/mapSurveyError';
 import { useSurveySocket } from '@/hooks/useSurveySocket';
 import { SurveyComments, type SurveyCommentsCopy } from '@/components/surveys/SurveyComments';
 import { useSurveyLiveResults, type SurveyLiveRequestParams } from '@/hooks/useSurveyLiveResults';
@@ -54,10 +63,12 @@ const PublicSurveyPage = () => {
     survey,
     isLoading,
     isRefetching,
+    failureCount,
     error,
     errorStatus,
     errorDetails,
     errorReasonCode,
+    isTransientError,
     retryLoad,
     submit,
     isSubmitting,
@@ -93,6 +104,67 @@ const PublicSurveyPage = () => {
     const timeout = window.setTimeout(() => setShowLoadingSkeleton(false), 400);
     return () => window.clearTimeout(timeout);
   }, [isLoading]);
+
+  useEffect(() => {
+    trackSurveyPageView({
+      slug,
+      host: typeof window !== 'undefined' ? window.location.host : null,
+      tenant: tenantSlug,
+    });
+  }, [slug, tenantSlug]);
+
+  const previousFailureCount = useRef(0);
+  useEffect(() => {
+    if (!isTransientError) return;
+    if (failureCount <= 0) {
+      previousFailureCount.current = 0;
+      return;
+    }
+    if (failureCount !== previousFailureCount.current) {
+      trackSurveyRetryTriggered({
+        slug,
+        host: typeof window !== 'undefined' ? window.location.host : null,
+        tenant: tenantSlug,
+        attempt: failureCount,
+        mode: 'auto',
+      });
+      previousFailureCount.current = failureCount;
+    }
+  }, [failureCount, isTransientError, slug, tenantSlug]);
+
+  useEffect(() => {
+    if (!error) return;
+    trackSurveyLoadError({
+      slug,
+      host: typeof window !== 'undefined' ? window.location.host : null,
+      tenant: tenantSlug,
+      statusCode: errorStatus,
+      reasonCode: errorReasonCode,
+      message: error,
+    });
+  }, [error, errorReasonCode, errorStatus, slug, tenantSlug]);
+
+  useEffect(() => {
+    const host = typeof window !== 'undefined' ? window.location.host : '';
+    const expectedHostFromError = typeof errorDetails?.expected_host === 'string' ? errorDetails.expected_host : null;
+    const expectedHostFromSurvey = typeof (survey?.recursos as Record<string, unknown> | undefined)?.public_host === 'string'
+      ? String((survey?.recursos as Record<string, unknown>).public_host)
+      : null;
+    const expectedHost = expectedHostFromError ?? expectedHostFromSurvey;
+    if (!host || !expectedHost || expectedHost === host) return;
+
+    const message = `[survey-public-host-mismatch] host=${host} expected=${expectedHost} slug=${slug ?? ''}`;
+    const sentry = (window as { Sentry?: { captureMessage?: (msg: string, context?: Record<string, unknown>) => void } }).Sentry;
+    if (typeof sentry?.captureMessage === 'function') {
+      sentry.captureMessage(message, {
+        level: 'warning',
+        tags: { module: 'encuestas-public' },
+        extra: { tenantSlug, slug, host, expectedHost },
+      });
+      return;
+    }
+    console.warn(message, { tenantSlug, slug, host, expectedHost });
+  }, [errorDetails, slug, survey?.recursos, tenantSlug]);
 
   // Sync initial live results from survey data
   useEffect(() => {
@@ -299,6 +371,10 @@ const PublicSurveyPage = () => {
   const errorView = useMemo(() => {
     const start = typeof errorDetails?.inicio_at === 'string' ? errorDetails.inicio_at : null;
     const end = typeof errorDetails?.fin_at === 'string' ? errorDetails.fin_at : null;
+    const payloadTitle = typeof errorDetails?.title === 'string' ? errorDetails.title : null;
+    const payloadMessage = typeof errorDetails?.message === 'string' ? errorDetails.message : null;
+    const payloadPrimaryCta = typeof errorDetails?.primary_cta === 'string' ? errorDetails.primary_cta : null;
+    const payloadSecondaryCta = typeof errorDetails?.secondary_cta === 'string' ? errorDetails.secondary_cta : null;
     const formatDate = (raw: string | null) => {
       if (!raw) return null;
       const date = new Date(raw);
@@ -309,46 +385,67 @@ const PublicSurveyPage = () => {
     const formattedEnd = formatDate(end);
     const activeWindow = formattedStart && formattedEnd ? `${formattedStart} — ${formattedEnd}` : null;
 
-    if (errorStatus === 404) {
-      return {
-        title: 'No encontramos esta encuesta',
-        subtitle: 'Revisá el enlace o explorá otras encuestas activas.',
-        primaryLabel: 'Ver encuestas activas',
-        primaryAction: () => navigate('/encuestas'),
-        secondaryLabel: mode !== 'embed' ? 'Volver al inicio' : null,
-      };
-    }
+    const mapped = mapSurveyError({
+      errorStatus,
+      reasonCode: errorReasonCode,
+      details: errorDetails,
+    });
 
-    if (errorReasonCode === 'survey_not_published') {
-      return {
-        title: 'Esta encuesta todavía no está publicada',
-        subtitle: 'Podés explorar otras encuestas disponibles en este momento.',
-        primaryLabel: 'Ver encuestas activas',
-        primaryAction: () => navigate('/encuestas'),
-        secondaryLabel: mode !== 'embed' ? 'Volver al inicio' : null,
-      };
-    }
-
-    if (errorReasonCode === 'survey_outside_active_window') {
-      return {
-        title: 'Esta encuesta no está disponible en este momento',
-        subtitle: activeWindow ?? 'La encuesta tiene una ventana de publicación específica.',
-        primaryLabel: 'Ver otras encuestas',
-        primaryAction: () => navigate('/encuestas'),
-        secondaryLabel: mode !== 'embed' ? 'Volver al inicio' : null,
-      };
-    }
+    const normalizedDescription =
+      mapped.reasonCode === 'survey_outside_active_window' && !payloadMessage
+        ? activeWindow ?? mapped.description
+        : mapped.description;
 
     return {
-      title: 'No pudimos cargar esta encuesta',
-      subtitle: 'Probá nuevamente en unos segundos.',
-      primaryLabel: 'Reintentar',
-      primaryAction: () => {
-        void retryLoad();
-      },
-      secondaryLabel: mode !== 'embed' ? 'Volver al inicio' : null,
+      ...mapped,
+      title: payloadTitle ?? mapped.title,
+      subtitle: payloadMessage ?? normalizedDescription,
+      primaryLabel: payloadPrimaryCta ?? mapped.primaryCta,
+      secondaryLabel: mode !== 'embed' ? payloadSecondaryCta ?? mapped.secondaryCta : null,
     };
-  }, [errorDetails, errorReasonCode, errorStatus, mode, navigate, retryLoad]);
+  }, [errorDetails, errorReasonCode, errorStatus, mode]);
+
+  useEffect(() => {
+    if (!error) return;
+    trackSurveyErrorRendered({
+      slug,
+      host: typeof window !== 'undefined' ? window.location.host : null,
+      tenant: tenantSlug,
+      statusCode: errorView.statusCode,
+      reasonCode: errorView.reasonCode,
+      actionHint: errorView.actionHint,
+      requestId: errorView.requestId,
+    });
+    if (errorView.requestId) {
+      console.debug('[survey-public] request_id', errorView.requestId);
+    }
+  }, [error, errorView.actionHint, errorView.reasonCode, errorView.requestId, errorView.statusCode, slug, tenantSlug]);
+
+  const handleErrorPrimaryAction = useCallback(() => {
+    const actionHint = (errorView.actionHint || '').toLowerCase();
+    trackSurveyCtaClicked({
+      slug,
+      host: typeof window !== 'undefined' ? window.location.host : null,
+      tenant: tenantSlug,
+      actionHint: errorView.actionHint,
+      ctaLabel: errorView.primaryLabel,
+      requestId: errorView.requestId,
+    });
+
+    if (actionHint === 'view_other_surveys' || actionHint === 'go_home') {
+      navigate(actionHint === 'go_home' ? '/' : '/encuestas');
+      return;
+    }
+
+    trackSurveyRetryTriggered({
+      slug,
+      host: typeof window !== 'undefined' ? window.location.host : null,
+      tenant: tenantSlug,
+      attempt: Math.max(1, failureCount + 1),
+      mode: 'manual',
+    });
+    void retryLoad();
+  }, [errorView.actionHint, errorView.primaryLabel, errorView.requestId, failureCount, navigate, retryLoad, slug, tenantSlug]);
 
   if (showLoadingSkeleton || isLoading) {
     return (
@@ -377,25 +474,17 @@ const PublicSurveyPage = () => {
 
   if (error || !survey) {
     return (
-      <div className="mx-auto flex min-h-[60vh] w-full max-w-2xl items-center justify-center">
-        <Card className="w-full">
-          <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
-            <p className="text-lg font-medium">{errorView.title}</p>
-            <p className="text-sm text-muted-foreground">{errorView.subtitle || error || 'El enlace puede estar vencido o no existe.'}</p>
-            <div className="flex flex-wrap items-center justify-center gap-2">
-              <Button onClick={errorView.primaryAction} disabled={isRefetching}>
-                {isRefetching && errorView.primaryLabel === 'Reintentar' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                {errorView.primaryLabel}
-              </Button>
-              {errorView.secondaryLabel && mode !== 'embed' ? (
-                <Button asChild variant="outline">
-                  <Link to="/">{errorView.secondaryLabel}</Link>
-                </Button>
-              ) : null}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <SurveyErrorState
+        title={errorView.title}
+        description={errorView.subtitle || error || 'El enlace puede estar vencido o no existe.'}
+        primaryLabel={errorView.primaryLabel}
+        secondaryLabel={errorView.secondaryLabel}
+        onPrimary={handleErrorPrimaryAction}
+        onSecondaryHome
+        busy={isRefetching}
+        reasonCode={errorView.reasonCode}
+        requestId={errorView.requestId}
+      />
     );
   }
 

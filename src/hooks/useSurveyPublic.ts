@@ -14,10 +14,12 @@ interface UseSurveyPublicResult {
   survey?: SurveyPublic;
   isLoading: boolean;
   isRefetching: boolean;
+  failureCount: number;
   error: string | null;
   errorStatus: number | null;
   errorDetails: Record<string, unknown> | null;
   errorReasonCode: string | null;
+  isTransientError: boolean;
   retryLoad: () => Promise<unknown>;
   submit: (payload: PublicResponsePayload) => Promise<void>;
   isSubmitting: boolean;
@@ -57,6 +59,7 @@ export function useSurveyPublic(
     data,
     isLoading,
     isRefetching,
+    failureCount,
     error,
     refetch,
   } = useQuery({
@@ -98,10 +101,12 @@ export function useSurveyPublic(
     survey: data,
     isLoading,
     isRefetching,
+    failureCount,
     error: error ? getErrorMessage(error) : null,
     errorStatus,
     errorDetails,
     errorReasonCode,
+    isTransientError: isTransientPublicSurveyError(error),
     retryLoad: () => refetch(),
     submit: async (payload: PublicResponsePayload) => {
       try {
