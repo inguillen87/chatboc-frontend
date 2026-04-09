@@ -13,7 +13,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/use-toast';
 import { getSurveyComments, postSurveyComment } from '@/api/encuestas';
-import { SurveyComment } from '@/types/encuestas';
+import { SurveyComment, type SurveyCommentConfig } from '@/types/encuestas';
+import { trackSurveyCommentModeChanged, trackSurveyCommentSubmitted } from '@/utils/surveyAnalytics';
+import { ApiError } from '@/utils/api';
 
 export interface SurveyCommentsCopy {
   title?: string;
@@ -37,6 +39,18 @@ export interface SurveyCommentsCopy {
   authorFallback?: string;
   helperText?: string;
   characterCountLabel?: string;
+  socialModeLabel?: string;
+  providerLabel?: string;
+  modeGoogle?: string;
+  modeInstagram?: string;
+  connectGoogle?: string;
+  connectInstagram?: string;
+  socialProviders?: Array<{
+    id?: string;
+    label?: string;
+    connectLabel?: string;
+    oauthUrl?: string;
+  }>;
 }
 
 
@@ -62,6 +76,17 @@ const DEFAULT_COMMENTS_COPY: Required<SurveyCommentsCopy> = {
   authorFallback: 'Participante',
   helperText: 'Tu comentario ayuda a sumar contexto para interpretar mejor los resultados.',
   characterCountLabel: 'Caracteres',
+  socialModeLabel: 'Con cuenta verificada',
+  providerLabel: 'Red social para identificarte',
+  modeGoogle: 'Google',
+  modeInstagram: 'Instagram',
+  connectGoogle: 'Conectar Google',
+  connectInstagram: 'Conectar Instagram',
+  socialProviders: [
+    { id: 'facebook', label: 'Facebook', connectLabel: 'Conectar Facebook' },
+    { id: 'google', label: 'Google', connectLabel: 'Conectar Google' },
+    { id: 'instagram', label: 'Instagram', connectLabel: 'Conectar Instagram' },
+  ],
 };
 
 
@@ -88,14 +113,26 @@ interface SurveyCommentsProps {
   tenantSlug?: string;
   realtimeComments: SurveyComment[];
   copy?: SurveyCommentsCopy;
+  commentConfig?: SurveyCommentConfig;
 }
 
-export function SurveyComments({ slug, tenantSlug, realtimeComments, copy }: SurveyCommentsProps) {
+interface SocialAuthProfile {
+  provider: string;
+  userId?: string;
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+  fullName?: string;
+}
+
+export function SurveyComments({ slug, tenantSlug, realtimeComments, copy, commentConfig }: SurveyCommentsProps) {
   const [comments, setComments] = useState<SurveyComment[]>([]);
   const [loading, setLoading] = useState(true);
   const [newComment, setNewComment] = useState('');
   const [authorName, setAuthorName] = useState('');
-  const [commentMode, setCommentMode] = useState<'anonimo' | 'facebook'>('anonimo');
+  const [commentMode, setCommentMode] = useState<'anonimo' | 'social'>('anonimo');
+  const [socialProvider, setSocialProvider] = useState<string>('facebook');
+  const [socialAuthProfile, setSocialAuthProfile] = useState<SocialAuthProfile | null>(null);
   const [orderBy, setOrderBy] = useState<'recent' | 'top'>('recent');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const maxCommentLength = 500;
@@ -104,6 +141,106 @@ export function SurveyComments({ slug, tenantSlug, realtimeComments, copy }: Sur
     const normalized = typeof value === 'string' ? value.trim() : '';
     return normalized.length ? normalized : fallback;
   };
+
+  const configuredProviders = useMemo(() => {
+    const fromBackend = Array.isArray(copy?.socialProviders) ? copy.socialProviders : DEFAULT_COMMENTS_COPY.socialProviders;
+    return fromBackend
+      .map((provider) => ({
+        id: typeof provider?.id === 'string' && provider.id.trim().length > 0 ? provider.id.trim().toLowerCase() : '',
+        label: typeof provider?.label === 'string' && provider.label.trim().length > 0 ? provider.label.trim() : '',
+        connectLabel:
+          typeof provider?.connectLabel === 'string' && provider.connectLabel.trim().length > 0
+            ? provider.connectLabel.trim()
+            : '',
+        oauthUrl:
+          typeof provider?.oauthUrl === 'string' && provider.oauthUrl.trim().length > 0
+            ? provider.oauthUrl.trim()
+            : null,
+      }))
+      .filter((provider) => provider.id && provider.label);
+  }, [copy?.socialProviders]);
+
+  const acceptedModes = useMemo(() => {
+    const modes = Array.isArray(commentConfig?.acceptedModes) ? commentConfig.acceptedModes : [];
+    return new Set(
+      modes
+        .map((mode) => (typeof mode === 'string' ? mode.trim().toLowerCase() : ''))
+        .filter(Boolean),
+    );
+  }, [commentConfig?.acceptedModes]);
+
+  const allowAnonymous = useMemo(() => {
+    if (!acceptedModes.size) return true;
+    return acceptedModes.has('anonimo') || acceptedModes.has('anonymous');
+  }, [acceptedModes]);
+
+  const allowSocial = useMemo(() => {
+    if (!acceptedModes.size) return true;
+    return (
+      acceptedModes.has('social') ||
+      acceptedModes.has('facebook') ||
+      acceptedModes.has('google') ||
+      acceptedModes.has('instagram')
+    );
+  }, [acceptedModes]);
+
+  useEffect(() => {
+    if (!configuredProviders.length) return;
+    if (configuredProviders.some((provider) => provider.id === socialProvider)) return;
+    setSocialProvider(configuredProviders[0].id);
+  }, [configuredProviders, socialProvider]);
+
+  useEffect(() => {
+    if (commentMode === 'anonimo' && !allowAnonymous && allowSocial) {
+      setCommentMode('social');
+      return;
+    }
+    if (commentMode === 'social' && !allowSocial && allowAnonymous) {
+      setCommentMode('anonimo');
+    }
+  }, [allowAnonymous, allowSocial, commentMode]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleMessage = (event: MessageEvent) => {
+      const data = event.data;
+      if (!data || typeof data !== 'object') return;
+      const payload = data as Record<string, unknown>;
+      const eventType = typeof payload.type === 'string' ? payload.type : '';
+      if (eventType !== 'chatboc:survey-social-auth-success') return;
+
+      const provider = typeof payload.provider === 'string' ? payload.provider.toLowerCase().trim() : '';
+      if (!provider) return;
+      const profile: SocialAuthProfile = {
+        provider,
+        userId: typeof payload.user_id === 'string' ? payload.user_id : undefined,
+        email: typeof payload.email === 'string' ? payload.email : undefined,
+        firstName: typeof payload.first_name === 'string' ? payload.first_name : undefined,
+        lastName: typeof payload.last_name === 'string' ? payload.last_name : undefined,
+        fullName: typeof payload.full_name === 'string' ? payload.full_name : undefined,
+      };
+      setSocialAuthProfile(profile);
+      if (profile.fullName?.trim()) {
+        setAuthorName(profile.fullName.trim());
+      } else if (profile.firstName?.trim() || profile.lastName?.trim()) {
+        setAuthorName(`${profile.firstName ?? ''} ${profile.lastName ?? ''}`.trim());
+      }
+      setCommentMode('social');
+      setSocialProvider(provider);
+      trackSurveyCommentModeChanged({
+        slug,
+        tenant: tenantSlug ?? null,
+        mode: 'social_connected',
+        provider,
+      });
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => {
+      window.removeEventListener('message', handleMessage);
+    };
+  }, [slug, tenantSlug]);
 
   useEffect(() => {
     let cancelled = false;
@@ -152,24 +289,64 @@ export function SurveyComments({ slug, tenantSlug, realtimeComments, copy }: Sur
   const handleSubmit = async () => {
     if (!newComment.trim()) return;
 
+    if (commentMode === 'social' && commentConfig?.requiresSocialToken && !socialAuthProfile?.userId) {
+      toast({
+        title: copyText(copy?.toastErrorTitle, DEFAULT_COMMENTS_COPY.toastErrorTitle),
+        description: 'Necesitás conectar una cuenta social válida para comentar en este espacio.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     try {
+      const resolvedMode =
+        commentMode === 'anonimo'
+          ? 'anonimo'
+          : (configuredProviders.some((provider) => provider.id === socialProvider) ? socialProvider : 'social');
       const payload = {
         texto: newComment,
-        nombre: commentMode === 'facebook' ? authorName || undefined : authorName || undefined,
-        modo: commentMode,
+        nombre:
+          commentMode === 'social'
+            ? socialAuthProfile?.fullName || authorName || undefined
+            : undefined,
+        modo: resolvedMode,
+        auth_provider: commentMode === 'social' ? socialProvider || undefined : undefined,
+        auth_user_id: commentMode === 'social' ? socialAuthProfile?.userId : undefined,
+        auth_email: commentMode === 'social' ? socialAuthProfile?.email : undefined,
+        auth_first_name: commentMode === 'social' ? socialAuthProfile?.firstName : undefined,
+        auth_last_name: commentMode === 'social' ? socialAuthProfile?.lastName : undefined,
       };
       const savedComment = await postSurveyComment(slug, payload, tenantSlug);
 
       // Optimistic update (or rely on socket, but let's add it locally just in case)
       setComments((prev) => [savedComment, ...prev]);
       setNewComment('');
+      trackSurveyCommentSubmitted({
+        slug,
+        tenant: tenantSlug ?? null,
+        mode: commentMode,
+        provider: commentMode === 'social' ? socialProvider : null,
+        commentLength: newComment.trim().length,
+      });
       toast({ title: copyText(copy?.toastSuccess, DEFAULT_COMMENTS_COPY.toastSuccess) });
     } catch (error) {
-        console.error(error);
+      console.error(error);
+      const reasonCode = error instanceof ApiError
+        ? (error.body as Record<string, unknown> | undefined)?.reason_code
+        : null;
+      const reasonText = typeof reasonCode === 'string' ? reasonCode.trim().toLowerCase() : '';
+      let reasonDescription = copyText(copy?.toastErrorDescription, DEFAULT_COMMENTS_COPY.toastErrorDescription);
+      if (reasonText === 'social_token_required') {
+        reasonDescription = 'Este tenant requiere autenticación social para comentar.';
+      } else if (reasonText === 'invalid_social_token') {
+        reasonDescription = 'Tu sesión social expiró o es inválida. Volvé a conectar tu cuenta.';
+      } else if (reasonText === 'social_identity_mismatch') {
+        reasonDescription = 'La identidad social no coincide con el perfil activo. Reconectá la cuenta correcta.';
+      }
       toast({
         title: copyText(copy?.toastErrorTitle, DEFAULT_COMMENTS_COPY.toastErrorTitle),
-        description: copyText(copy?.toastErrorDescription, DEFAULT_COMMENTS_COPY.toastErrorDescription),
+        description: reasonDescription,
         variant: 'destructive'
       });
     } finally {
@@ -207,16 +384,25 @@ export function SurveyComments({ slug, tenantSlug, realtimeComments, copy }: Sur
             <Label className="text-xs uppercase text-muted-foreground">{copyText(copy?.modeLabel, DEFAULT_COMMENTS_COPY.modeLabel)}</Label>
             <RadioGroup
               value={commentMode}
-              onValueChange={(value) => setCommentMode(value as 'anonimo' | 'facebook')}
+              onValueChange={(value) => {
+                const nextMode = value as 'anonimo' | 'social';
+                setCommentMode(nextMode);
+                trackSurveyCommentModeChanged({
+                  slug,
+                  tenant: tenantSlug ?? null,
+                  mode: nextMode,
+                  provider: nextMode === 'social' ? socialProvider : null,
+                });
+              }}
               className="flex flex-wrap gap-4"
             >
               <div className="flex items-center gap-2">
-                <RadioGroupItem id="comment-anon" value="anonimo" />
+                <RadioGroupItem id="comment-anon" value="anonimo" disabled={!allowAnonymous} />
                 <Label htmlFor="comment-anon">{copyText(copy?.modeAnonymous, DEFAULT_COMMENTS_COPY.modeAnonymous)}</Label>
               </div>
               <div className="flex items-center gap-2">
-                <RadioGroupItem id="comment-facebook" value="facebook" />
-                <Label htmlFor="comment-facebook">{copyText(copy?.modeFacebook, DEFAULT_COMMENTS_COPY.modeFacebook)}</Label>
+                <RadioGroupItem id="comment-social" value="social" disabled={!allowSocial} />
+                <Label htmlFor="comment-social">{copyText(copy?.socialModeLabel, DEFAULT_COMMENTS_COPY.socialModeLabel)}</Label>
               </div>
             </RadioGroup>
           </div>
@@ -232,16 +418,83 @@ export function SurveyComments({ slug, tenantSlug, realtimeComments, copy }: Sur
           </div>
           <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
             <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
-              <Input
-                placeholder={copyText(copy?.namePlaceholder, DEFAULT_COMMENTS_COPY.namePlaceholder)}
-                value={authorName}
-                onChange={(e) => setAuthorName(e.target.value)}
-                className="w-full max-w-[220px] rounded-xl"
-              />
-              {commentMode === 'facebook' ? (
-                <Button type="button" variant="outline" size="sm" className="whitespace-nowrap">
-                  {copyText(copy?.connectFacebook, DEFAULT_COMMENTS_COPY.connectFacebook)}
-                </Button>
+              {commentMode === 'social' ? (
+                <>
+                  <div className="w-full sm:w-[220px]">
+                    <Select
+                      value={socialProvider}
+                      onValueChange={(value) => {
+                        setSocialProvider(value);
+                        trackSurveyCommentModeChanged({
+                          slug,
+                          tenant: tenantSlug ?? null,
+                          mode: commentMode,
+                          provider: value,
+                        });
+                      }}
+                    >
+                      <SelectTrigger className="rounded-xl">
+                        <SelectValue placeholder={copyText(copy?.providerLabel, DEFAULT_COMMENTS_COPY.providerLabel)} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {configuredProviders.map((provider) => (
+                          <SelectItem key={provider.id} value={provider.id}>
+                            {provider.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Input
+                    placeholder={copyText(copy?.namePlaceholder, DEFAULT_COMMENTS_COPY.namePlaceholder)}
+                    value={authorName}
+                    onChange={(e) => setAuthorName(e.target.value)}
+                    className="w-full max-w-[220px] rounded-xl"
+                    disabled={Boolean(
+                      socialAuthProfile &&
+                      socialAuthProfile.provider === socialProvider &&
+                      (socialAuthProfile.fullName || socialAuthProfile.firstName || socialAuthProfile.lastName),
+                    )}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="whitespace-nowrap"
+                    onClick={() => {
+                      const providerConfig = configuredProviders.find((provider) => provider.id === socialProvider);
+                      trackSurveyCommentModeChanged({
+                        slug,
+                        tenant: tenantSlug ?? null,
+                        mode: 'social_connect_click',
+                        provider: socialProvider,
+                      });
+                      if (providerConfig?.oauthUrl && typeof window !== 'undefined') {
+                        const popup = window.open(providerConfig.oauthUrl, '_blank', 'noopener,noreferrer,width=580,height=680');
+                        if (!popup) {
+                          toast({
+                            title: copyText(copy?.toastErrorTitle, DEFAULT_COMMENTS_COPY.toastErrorTitle),
+                            description: copyText(copy?.toastErrorDescription, DEFAULT_COMMENTS_COPY.toastErrorDescription),
+                            variant: 'destructive',
+                          });
+                        }
+                      }
+                    }}
+                  >
+                    {configuredProviders.find((provider) => provider.id === socialProvider)?.connectLabel ||
+                      copyText(copy?.connectFacebook, DEFAULT_COMMENTS_COPY.connectFacebook)}
+                  </Button>
+                  {socialAuthProfile?.provider === socialProvider && (socialAuthProfile.fullName || socialAuthProfile.firstName || socialAuthProfile.lastName) ? (
+                    <p className="text-xs text-emerald-600">
+                      Conectado como {socialAuthProfile.fullName || `${socialAuthProfile.firstName ?? ''} ${socialAuthProfile.lastName ?? ''}`.trim()}
+                    </p>
+                  ) : null}
+                  {commentConfig?.requiresSocialToken ? (
+                    <p className="text-xs text-muted-foreground">
+                      Este espacio requiere cuenta social verificada para publicar comentarios.
+                    </p>
+                  ) : null}
+                </>
               ) : null}
             </div>
             <Button
