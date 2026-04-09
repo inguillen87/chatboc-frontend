@@ -115,8 +115,15 @@ export const SurveyForm = ({
       : null) ??
     null;
   const draftStorageKey = useMemo(
-    () => (survey.slug ? `chatboc:survey:draft:${survey.slug}` : null),
-    [survey.slug],
+    () => {
+      if (!survey.slug) return null;
+      const tenantScope =
+        typeof survey.municipio_slug === 'string' && survey.municipio_slug.trim().length > 0
+          ? survey.municipio_slug.trim().toLowerCase()
+          : 'global';
+      return `chatboc:survey:draft:${tenantScope}:${survey.slug}`;
+    },
+    [survey.municipio_slug, survey.slug],
   );
 
   type LocationStringField = 'pais' | 'provincia' | 'ciudad' | 'barrio' | 'codigoPostal';

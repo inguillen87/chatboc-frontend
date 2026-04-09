@@ -41,6 +41,10 @@ export interface SurveyCommentsCopy {
   characterCountLabel?: string;
   socialModeLabel?: string;
   providerLabel?: string;
+  requiresSocialTokenLabel?: string;
+  socialTokenRequiredError?: string;
+  invalidSocialTokenError?: string;
+  socialIdentityMismatchError?: string;
   modeGoogle?: string;
   modeInstagram?: string;
   connectGoogle?: string;
@@ -78,6 +82,10 @@ const DEFAULT_COMMENTS_COPY: Required<SurveyCommentsCopy> = {
   characterCountLabel: 'Caracteres',
   socialModeLabel: 'Con cuenta verificada',
   providerLabel: 'Red social para identificarte',
+  requiresSocialTokenLabel: '',
+  socialTokenRequiredError: 'Este tenant requiere autenticación social para comentar.',
+  invalidSocialTokenError: 'Tu sesión social expiró o es inválida. Volvé a conectar tu cuenta.',
+  socialIdentityMismatchError: 'La identidad social no coincide con el perfil activo. Reconectá la cuenta correcta.',
   modeGoogle: 'Google',
   modeInstagram: 'Instagram',
   connectGoogle: 'Conectar Google',
@@ -184,11 +192,26 @@ export function SurveyComments({ slug, tenantSlug, realtimeComments, copy, comme
     );
   }, [acceptedModes]);
 
+  const allowedProviderIds = useMemo(() => {
+    if (!acceptedModes.size || acceptedModes.has('social')) {
+      return null;
+    }
+    const providerModes = Array.from(acceptedModes).filter(
+      (mode) => mode !== 'anonimo' && mode !== 'anonymous',
+    );
+    return providerModes.length ? new Set(providerModes) : null;
+  }, [acceptedModes]);
+
+  const availableProviders = useMemo(() => {
+    if (!allowedProviderIds) return configuredProviders;
+    return configuredProviders.filter((provider) => allowedProviderIds.has(provider.id));
+  }, [allowedProviderIds, configuredProviders]);
+
   useEffect(() => {
-    if (!configuredProviders.length) return;
-    if (configuredProviders.some((provider) => provider.id === socialProvider)) return;
-    setSocialProvider(configuredProviders[0].id);
-  }, [configuredProviders, socialProvider]);
+    if (!availableProviders.length) return;
+    if (availableProviders.some((provider) => provider.id === socialProvider)) return;
+    setSocialProvider(availableProviders[0].id);
+  }, [availableProviders, socialProvider]);
 
   useEffect(() => {
     if (commentMode === 'anonimo' && !allowAnonymous && allowSocial) {
@@ -292,7 +315,7 @@ export function SurveyComments({ slug, tenantSlug, realtimeComments, copy, comme
     if (commentMode === 'social' && commentConfig?.requiresSocialToken && !socialAuthProfile?.userId) {
       toast({
         title: copyText(copy?.toastErrorTitle, DEFAULT_COMMENTS_COPY.toastErrorTitle),
-        description: 'Necesitás conectar una cuenta social válida para comentar en este espacio.',
+        description: copyText(copy?.socialTokenRequiredError, DEFAULT_COMMENTS_COPY.socialTokenRequiredError),
         variant: 'destructive',
       });
       return;
@@ -303,7 +326,7 @@ export function SurveyComments({ slug, tenantSlug, realtimeComments, copy, comme
       const resolvedMode =
         commentMode === 'anonimo'
           ? 'anonimo'
-          : (configuredProviders.some((provider) => provider.id === socialProvider) ? socialProvider : 'social');
+          : (availableProviders.some((provider) => provider.id === socialProvider) ? socialProvider : 'social');
       const payload = {
         texto: newComment,
         nombre:
@@ -338,11 +361,11 @@ export function SurveyComments({ slug, tenantSlug, realtimeComments, copy, comme
       const reasonText = typeof reasonCode === 'string' ? reasonCode.trim().toLowerCase() : '';
       let reasonDescription = copyText(copy?.toastErrorDescription, DEFAULT_COMMENTS_COPY.toastErrorDescription);
       if (reasonText === 'social_token_required') {
-        reasonDescription = 'Este tenant requiere autenticación social para comentar.';
+        reasonDescription = copyText(copy?.socialTokenRequiredError, DEFAULT_COMMENTS_COPY.socialTokenRequiredError);
       } else if (reasonText === 'invalid_social_token') {
-        reasonDescription = 'Tu sesión social expiró o es inválida. Volvé a conectar tu cuenta.';
+        reasonDescription = copyText(copy?.invalidSocialTokenError, DEFAULT_COMMENTS_COPY.invalidSocialTokenError);
       } else if (reasonText === 'social_identity_mismatch') {
-        reasonDescription = 'La identidad social no coincide con el perfil activo. Reconectá la cuenta correcta.';
+        reasonDescription = copyText(copy?.socialIdentityMismatchError, DEFAULT_COMMENTS_COPY.socialIdentityMismatchError);
       }
       toast({
         title: copyText(copy?.toastErrorTitle, DEFAULT_COMMENTS_COPY.toastErrorTitle),
@@ -437,7 +460,7 @@ export function SurveyComments({ slug, tenantSlug, realtimeComments, copy, comme
                         <SelectValue placeholder={copyText(copy?.providerLabel, DEFAULT_COMMENTS_COPY.providerLabel)} />
                       </SelectTrigger>
                       <SelectContent>
-                        {configuredProviders.map((provider) => (
+                        {availableProviders.map((provider) => (
                           <SelectItem key={provider.id} value={provider.id}>
                             {provider.label}
                           </SelectItem>
@@ -462,7 +485,7 @@ export function SurveyComments({ slug, tenantSlug, realtimeComments, copy, comme
                     size="sm"
                     className="whitespace-nowrap"
                     onClick={() => {
-                      const providerConfig = configuredProviders.find((provider) => provider.id === socialProvider);
+                      const providerConfig = availableProviders.find((provider) => provider.id === socialProvider);
                       trackSurveyCommentModeChanged({
                         slug,
                         tenant: tenantSlug ?? null,
@@ -481,7 +504,7 @@ export function SurveyComments({ slug, tenantSlug, realtimeComments, copy, comme
                       }
                     }}
                   >
-                    {configuredProviders.find((provider) => provider.id === socialProvider)?.connectLabel ||
+                    {availableProviders.find((provider) => provider.id === socialProvider)?.connectLabel ||
                       copyText(copy?.connectFacebook, DEFAULT_COMMENTS_COPY.connectFacebook)}
                   </Button>
                   {socialAuthProfile?.provider === socialProvider && (socialAuthProfile.fullName || socialAuthProfile.firstName || socialAuthProfile.lastName) ? (
@@ -490,9 +513,11 @@ export function SurveyComments({ slug, tenantSlug, realtimeComments, copy, comme
                     </p>
                   ) : null}
                   {commentConfig?.requiresSocialToken ? (
-                    <p className="text-xs text-muted-foreground">
-                      Este espacio requiere cuenta social verificada para publicar comentarios.
-                    </p>
+                    copyText(copy?.requiresSocialTokenLabel, DEFAULT_COMMENTS_COPY.requiresSocialTokenLabel) ? (
+                      <p className="text-xs text-muted-foreground">
+                        {copyText(copy?.requiresSocialTokenLabel, DEFAULT_COMMENTS_COPY.requiresSocialTokenLabel)}
+                      </p>
+                    ) : null
                   ) : null}
                 </>
               ) : null}
