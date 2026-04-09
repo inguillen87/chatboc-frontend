@@ -73,6 +73,12 @@ export interface DemoFrontendContract {
         upgrade_required_for?: string[];
       };
     };
+    activation_state?: {
+      activated?: boolean;
+      max_activations?: number;
+      activations_used?: number;
+    };
+    activation_endpoint?: string;
     menus_by_tipo?: Record<DemoRubro, Array<{ id?: string; label?: string; description?: string }>>;
     demo_feature_access?: Record<string, boolean>;
   };
@@ -235,6 +241,24 @@ export const extractDemoFrontendContract = (
                       : undefined,
                   },
                 }
+              : undefined,
+          activation_state:
+            onboarding.activation_state && typeof onboarding.activation_state === "object"
+              ? {
+                  activated: (onboarding.activation_state as Record<string, unknown>).activated === true,
+                  max_activations:
+                    typeof (onboarding.activation_state as Record<string, unknown>).max_activations === "number"
+                      ? ((onboarding.activation_state as Record<string, unknown>).max_activations as number)
+                      : undefined,
+                  activations_used:
+                    typeof (onboarding.activation_state as Record<string, unknown>).activations_used === "number"
+                      ? ((onboarding.activation_state as Record<string, unknown>).activations_used as number)
+                      : undefined,
+                }
+              : undefined,
+          activation_endpoint:
+            typeof onboarding.activation_endpoint === "string"
+              ? onboarding.activation_endpoint.trim()
               : undefined,
           menus_by_tipo: {
             municipio: normalizeQuickActions(

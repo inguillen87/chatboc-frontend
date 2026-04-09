@@ -191,6 +191,12 @@ describe('demo frontend contract parsing', () => {
             upgrade_required_for: ['qdrant_catalog', 'advanced_automation'],
           },
         },
+        activation_state: {
+          activated: false,
+          max_activations: 1,
+          activations_used: 0,
+        },
+        activation_endpoint: '/api/v1/portal/demo/integration/demo/activate-whatsapp',
         menus_by_tipo: {
           municipio: [{ id: 'reclamos', label: 'Reclamos' }],
           pyme: [{ id: 'catalogo', label: 'Catálogo' }],
@@ -209,6 +215,8 @@ describe('demo frontend contract parsing', () => {
     ]);
     expect(contract.onboarding?.twilio_trial?.display_number).toBe('+1 (415) 523-8886');
     expect(contract.onboarding?.twilio_trial?.security_limits?.messages_per_session).toBe(10);
+    expect(contract.onboarding?.activation_state?.max_activations).toBe(1);
+    expect(contract.onboarding?.activation_endpoint).toContain('activate-whatsapp');
     expect(contract.onboarding?.menus_by_tipo?.municipio?.[0]?.label).toBe('Reclamos');
     expect(contract.onboarding?.demo_feature_access?.heatmap).toBe(true);
   });

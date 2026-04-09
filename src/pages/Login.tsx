@@ -61,6 +61,7 @@ const Login = () => {
   const [isPasskeyAvailable, setIsPasskeyAvailable] = useState(false);
   const [isPasskeyLoading, setIsPasskeyLoading] = useState(false);
   const [isDemoLoading, setIsDemoLoading] = useState(false);
+  const [isActivatingDemoWhatsapp, setIsActivatingDemoWhatsapp] = useState(false);
   const [demoRubro, setDemoRubro] = useState<DemoRubro | null>('municipio');
   const [demoOptions, setDemoOptions] = useState<Array<{ value: DemoRubro; label: string }>>([
     { value: 'municipio', label: 'Municipio' },
@@ -101,6 +102,11 @@ const Login = () => {
   const quickActions = demoFrontendContract.onboarding?.menus_by_tipo?.[selectedRubroForDemo] || [];
   const upgradeRequiredFor = twilioTrial?.security_limits?.upgrade_required_for || [];
   const demoFeatureAccess = demoFrontendContract.onboarding?.demo_feature_access || {};
+  const demoActivationState = demoFrontendContract.onboarding?.activation_state;
+  const demoActivationEndpoint = demoFrontendContract.onboarding?.activation_endpoint;
+  const demoActivationLimitReached =
+    typeof demoActivationState?.max_activations === "number" &&
+    (demoActivationState.activations_used || 0) >= demoActivationState.max_activations;
 
   const isFeatureBlockedInDemo = (featureId?: string) => {
     if (!featureId) return false;
@@ -114,6 +120,31 @@ const Login = () => {
     }
     return false;
   };
+
+  const activateDemoWhatsapp = useCallback(async () => {
+    if (!twilioTrial?.wa_deeplink) return;
+    if (demoActivationLimitReached) {
+      setUpgradeBlockedFeature("demo_limit");
+      return;
+    }
+
+    try {
+      setIsActivatingDemoWhatsapp(true);
+      if (demoActivationEndpoint) {
+        await apiFetch(demoActivationEndpoint, {
+          method: "POST",
+          omitTenant: true,
+          skipAuth: true,
+        });
+      }
+      window.open(twilioTrial.wa_deeplink, '_blank', 'noopener,noreferrer');
+    } catch (activationError) {
+      console.error("No se pudo activar la demo en WhatsApp", activationError);
+      setError("No se pudo activar la demo de WhatsApp. Probá nuevamente.");
+    } finally {
+      setIsActivatingDemoWhatsapp(false);
+    }
+  }, [demoActivationEndpoint, demoActivationLimitReached, twilioTrial?.wa_deeplink]);
 
 
   const getDemoCatalogWithRetry = useCallback(async (): Promise<DemoCatalogResponse> => {
@@ -665,11 +696,16 @@ const Login = () => {
                 type="button"
                 variant="secondary"
                 className="w-full"
-                onClick={() => window.open(twilioTrial.wa_deeplink, '_blank', 'noopener,noreferrer')}
-                disabled={isDemoLoading || isLoading || isPasskeyLoading}
+                onClick={() => { void activateDemoWhatsapp(); }}
+                disabled={isDemoLoading || isLoading || isPasskeyLoading || isActivatingDemoWhatsapp || demoActivationLimitReached}
               >
-                Activar demo en WhatsApp
+                {isActivatingDemoWhatsapp ? "Activando demo..." : "Activar demo en WhatsApp"}
               </Button>
+              {demoActivationLimitReached ? (
+                <p className="text-[11px] text-muted-foreground">
+                  Esta demo alcanzó el máximo de activaciones permitidas.
+                </p>
+              ) : null}
               {quickActions.length ? (
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   {quickActions.map((action) => (
