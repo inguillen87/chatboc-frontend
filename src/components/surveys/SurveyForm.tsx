@@ -7,6 +7,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Progress } from '@/components/ui/progress';
 import {
   Select,
   SelectContent,
@@ -32,6 +33,17 @@ import {
   GENDER_OPTIONS,
 } from '@/components/surveys/demographicOptions';
 import { trackSurveyAnswerSelected, trackSurveySubmitError } from '@/utils/surveyAnalytics';
+
+const SURVEY_DRAFT_TTL_MS = 30 * 60 * 1000;
+
+interface SurveyDraftSnapshot {
+  updatedAt: number;
+  answers: Record<number, AnswerState>;
+  dni?: string;
+  phone?: string;
+  demographics?: SurveyDemographicMetadata;
+  customGender?: string;
+}
 
 interface SurveyFormProps {
   survey: SurveyPublic;
@@ -102,6 +114,10 @@ export const SurveyForm = ({
       ? survey.municipio_slug.trim()
       : null) ??
     null;
+  const draftStorageKey = useMemo(
+    () => (survey.slug ? `chatboc:survey:draft:${survey.slug}` : null),
+    [survey.slug],
+  );
 
   type LocationStringField = 'pais' | 'provincia' | 'ciudad' | 'barrio' | 'codigoPostal';
 
@@ -121,6 +137,50 @@ export const SurveyForm = ({
     setGeoStatus('idle');
     setGeoMessage(null);
   }, [initialState]);
+
+  useEffect(() => {
+    if (readOnly) return;
+    if (!draftStorageKey || typeof window === 'undefined') return;
+    try {
+      const raw = window.localStorage.getItem(draftStorageKey);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as SurveyDraftSnapshot;
+      if (!parsed || typeof parsed !== 'object') return;
+      if (typeof parsed.updatedAt !== 'number' || Date.now() - parsed.updatedAt > SURVEY_DRAFT_TTL_MS) {
+        window.localStorage.removeItem(draftStorageKey);
+        return;
+      }
+      if (parsed.answers && typeof parsed.answers === 'object') {
+        setAnswers((prev) => ({ ...prev, ...parsed.answers }));
+      }
+      if (typeof parsed.dni === 'string') setDni(parsed.dni);
+      if (typeof parsed.phone === 'string') setPhone(parsed.phone);
+      if (parsed.demographics && typeof parsed.demographics === 'object') {
+        setDemographics(parsed.demographics);
+      }
+      if (typeof parsed.customGender === 'string') setCustomGender(parsed.customGender);
+    } catch {
+      // ignore malformed draft payloads
+    }
+  }, [draftStorageKey, readOnly]);
+
+  useEffect(() => {
+    if (readOnly) return;
+    if (!draftStorageKey || typeof window === 'undefined') return;
+    const snapshot: SurveyDraftSnapshot = {
+      updatedAt: Date.now(),
+      answers,
+      dni,
+      phone,
+      demographics,
+      customGender,
+    };
+    try {
+      window.localStorage.setItem(draftStorageKey, JSON.stringify(snapshot));
+    } catch {
+      // best-effort persistence
+    }
+  }, [answers, customGender, demographics, dni, draftStorageKey, phone, readOnly]);
 
   useEffect(() => {
     setIdentityError(null);
@@ -508,6 +568,30 @@ export const SurveyForm = ({
     return Object.keys(newErrors).length === 0 && !newIdentityError;
   };
 
+  const answeredQuestionsCount = useMemo(
+    () =>
+      survey.preguntas.reduce((count, pregunta) => {
+        const answer = answers[pregunta.id] ?? { opcionIds: [], texto: '' };
+        if (pregunta.tipo === 'abierta') {
+          return answer.texto?.trim() ? count + 1 : count;
+        }
+        return (answer.opcionIds?.length ?? 0) > 0 ? count + 1 : count;
+      }, 0),
+    [answers, survey.preguntas],
+  );
+
+  const totalQuestionsCount = survey.preguntas.length || 1;
+  const progressPercent = Math.round((answeredQuestionsCount / totalQuestionsCount) * 100);
+  const currentQuestionIndex = useMemo(() => {
+    const firstPending = survey.preguntas.findIndex((pregunta) => {
+      const answer = answers[pregunta.id] ?? { opcionIds: [], texto: '' };
+      if (pregunta.tipo === 'abierta') return !answer.texto?.trim();
+      return (answer.opcionIds?.length ?? 0) === 0;
+    });
+    if (firstPending >= 0) return firstPending + 1;
+    return totalQuestionsCount;
+  }, [answers, survey.preguntas, totalQuestionsCount]);
+
   const handleSubmit = async () => {
     if (readOnly) return;
     if (submitting) return;
@@ -614,6 +698,9 @@ export const SurveyForm = ({
       setGeoStatus('idle');
       setGeoMessage(null);
       setAnswers(initialState);
+      if (draftStorageKey && typeof window !== 'undefined') {
+        window.localStorage.removeItem(draftStorageKey);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -639,6 +726,15 @@ export const SurveyForm = ({
         </CardHeader>
       )}
       <CardContent className="space-y-10">
+        {!readOnly && (
+          <div className="space-y-2 rounded-lg border border-border/60 bg-muted/20 p-3">
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>Pregunta {currentQuestionIndex} de {totalQuestionsCount}</span>
+              <span>{progressPercent}% completado</span>
+            </div>
+            <Progress value={progressPercent} aria-label="Progreso de encuesta" />
+          </div>
+        )}
         {submissionErrorTitle && (
           <Alert variant="destructive" className="border-destructive/40 bg-destructive/10 text-left">
             <div className="flex flex-col gap-3">
