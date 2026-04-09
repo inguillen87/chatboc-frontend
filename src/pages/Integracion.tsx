@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { resolveTenantSlug } from "@/utils/api";
+import { apiFetch, resolveTenantSlug } from "@/utils/api";
 import { useUser } from "@/hooks/useUser";
 import {
   Card,
@@ -60,7 +60,7 @@ const Integracion = () => {
   const [whatsappNumbers, setWhatsappNumbers] = useState<WhatsappNumberInventoryItem[]>([]);
   const [whatsappNumbersLoading, setWhatsappNumbersLoading] = useState(false);
   const [whatsappNumbersError, setWhatsappNumbersError] = useState<string | null>(null);
-  const [demoExperienceSources, setDemoExperienceSources] = useState<DemoExperienceSources>({ quickMenu: [] });
+  const [demoExperienceSources, setDemoExperienceSources] = useState<DemoExperienceSources>({ quickMenu: [], onboardingQuickMenu: [] });
   const [selectedWhatsappNumber, setSelectedWhatsappNumber] = useState<string>("");
   const [createPayload, setCreatePayload] = useState({ phone_number: "", sender_id: "" });
   const [externalNumberPayload, setExternalNumberPayload] = useState({ number: "", sender_id: "" });
@@ -69,6 +69,7 @@ const Integracion = () => {
     meta: false,
     template: false,
   });
+  const [activatingDemo, setActivatingDemo] = useState(false);
 
   const tenantSlug = useMemo(() => resolveTenantSlug(user?.tenantSlug || (user as any)?.tenant_slug), [user]);
 
@@ -122,7 +123,7 @@ const Integracion = () => {
     } catch (error) {
       console.error("No se pudo cargar el snippet de embed", error);
       setEmbedSnippet("");
-      setDemoExperienceSources({ quickMenu: [] });
+      setDemoExperienceSources({ quickMenu: [], onboardingQuickMenu: [] });
     }
   }, [tenantSlug]);
 
@@ -179,6 +180,35 @@ const Integracion = () => {
       loadConfig();
     } catch (error) {
       toast.error("No hay números disponibles o ocurrió un error");
+    }
+  };
+
+  const handleActivateDemoWhatsapp = async () => {
+    const activationEndpoint = demoExperienceSources.activationEndpoint;
+    if (!activationEndpoint) return;
+
+    try {
+      setActivatingDemo(true);
+      await apiFetch(activationEndpoint, {
+        method: "POST",
+        tenantSlug,
+      });
+
+      if (demoExperienceSources.twilioTrial?.wa_deeplink) {
+        window.open(
+          demoExperienceSources.twilioTrial.wa_deeplink,
+          "_blank",
+          "noopener,noreferrer",
+        );
+      }
+
+      toast.success("Demo de WhatsApp activada correctamente.");
+      loadEmbedSnippet();
+    } catch (error) {
+      console.error("No se pudo activar la demo de WhatsApp", error);
+      toast.error("No se pudo activar la demo de WhatsApp.");
+    } finally {
+      setActivatingDemo(false);
     }
   };
 
@@ -240,6 +270,9 @@ const Integracion = () => {
   }, [whatsappNumbers]);
 
   const isVerificationReady = verificationChecklist.business && verificationChecklist.meta && verificationChecklist.template;
+  const demoMaxActivations = demoExperienceSources.activationState?.max_activations;
+  const demoActivationsUsed = demoExperienceSources.activationState?.activations_used || 0;
+  const demoActivationLimitReached = typeof demoMaxActivations === "number" && demoActivationsUsed >= demoMaxActivations;
 
   const generateEmbedCode = (type: "script" | "iframe") => {
       if (!config) return "";
@@ -425,6 +458,58 @@ const Integracion = () => {
                 <Separator />
 
                 <div className="space-y-6">
+                  {(demoExperienceSources.twilioTrial || demoExperienceSources.onboardingQuickMenu.length > 0) && (
+                    <div className="rounded-lg border p-4 space-y-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <h3 className="text-lg font-semibold text-foreground">Demo WhatsApp por rubro</h3>
+                          {demoExperienceSources.twilioTrial?.display_number && demoExperienceSources.twilioTrial?.join_phrase ? (
+                            <p className="text-sm text-muted-foreground mt-1">
+                              Enviá <span className="font-mono">{demoExperienceSources.twilioTrial.join_phrase}</span> al número{" "}
+                              <span className="font-mono">{demoExperienceSources.twilioTrial.display_number}</span>.
+                            </p>
+                          ) : null}
+                        </div>
+                        {typeof demoExperienceSources.twilioTrial?.security_limits?.messages_per_session === "number" ? (
+                          <span className="rounded-full border px-3 py-1 text-xs font-medium text-foreground bg-muted">
+                            Demo ({demoExperienceSources.twilioTrial.security_limits.messages_per_session} mensajes)
+                          </span>
+                        ) : null}
+                      </div>
+
+                      {demoExperienceSources.activationEndpoint ? (
+                        <Button
+                          onClick={handleActivateDemoWhatsapp}
+                          disabled={activatingDemo || demoActivationLimitReached}
+                        >
+                          {activatingDemo ? "Activando..." : "Activar demo en WhatsApp"}
+                        </Button>
+                      ) : null}
+
+                      {demoActivationLimitReached ? (
+                        <p className="text-xs text-muted-foreground">
+                          Esta demo ya alcanzó el máximo de activaciones permitidas para el tenant.
+                        </p>
+                      ) : null}
+
+                      {demoExperienceSources.onboardingQuickMenu.length > 0 ? (
+                        <div className="space-y-2">
+                          <p className="text-xs uppercase tracking-wide text-muted-foreground">Menú demo disponible</p>
+                          <div className="grid gap-2 md:grid-cols-2">
+                            {demoExperienceSources.onboardingQuickMenu.map((item, index) => (
+                              <div key={`${item.id || item.label}-${index}`} className="rounded-md border p-3">
+                                <p className="text-sm font-medium">{item.label}</p>
+                                {item.description ? (
+                                  <p className="text-xs text-muted-foreground mt-1">{item.description}</p>
+                                ) : null}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
+
                   <div>
                     <h3 className="text-lg font-semibold text-foreground">Onboarding Self-Serve</h3>
                     <p className="text-sm text-muted-foreground">Elegí cómo activar tu canal de WhatsApp en tres pasos.</p>

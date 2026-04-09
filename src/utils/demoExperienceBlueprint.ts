@@ -11,6 +11,23 @@ export interface ExperienceBlueprint {
 }
 
 export interface DemoExperienceSources {
+  twilioTrial?: {
+    display_number?: string;
+    join_phrase?: string;
+    wa_deeplink?: string;
+    security_limits?: {
+      messages_per_session?: number;
+      upgrade_required_for?: string[];
+    };
+  };
+  activationState?: {
+    activated?: boolean;
+    max_activations?: number;
+    activations_used?: number;
+  };
+  activationEndpoint?: string;
+  onboardingQuickMenu: ExperienceBlueprintItem[];
+  featureFlags?: Record<string, boolean>;
   demoOnboarding?: ExperienceBlueprint;
   widget?: ExperienceBlueprint;
   quickMenu: ExperienceBlueprintItem[];
@@ -81,10 +98,97 @@ export const extractDemoExperienceSources = (
   const integration = isRecord(integrationPayload) ? integrationPayload : {};
   const widget = isRecord(widgetPayload) ? widgetPayload : {};
 
-  const demoOnboarding =
+  const demoOnboarding = 
     (isRecord(integration.demoOnboarding) && integration.demoOnboarding) ||
     (isRecord(integration.demo_onboarding) && integration.demo_onboarding) ||
     undefined;
+
+  const twilioTrialRaw =
+    demoOnboarding && isRecord(demoOnboarding) && isRecord(demoOnboarding.twilio_trial)
+      ? demoOnboarding.twilio_trial
+      : undefined;
+
+  const twilioTrial = twilioTrialRaw
+    ? {
+        display_number:
+          typeof twilioTrialRaw.display_number === "string"
+            ? twilioTrialRaw.display_number.trim()
+            : undefined,
+        join_phrase:
+          typeof twilioTrialRaw.join_phrase === "string"
+            ? twilioTrialRaw.join_phrase.trim()
+            : undefined,
+        wa_deeplink:
+          typeof twilioTrialRaw.wa_deeplink === "string"
+            ? twilioTrialRaw.wa_deeplink.trim()
+            : undefined,
+        security_limits: isRecord(twilioTrialRaw.security_limits)
+          ? {
+              messages_per_session:
+                typeof twilioTrialRaw.security_limits.messages_per_session ===
+                "number"
+                  ? twilioTrialRaw.security_limits.messages_per_session
+                  : undefined,
+              upgrade_required_for: Array.isArray(
+                twilioTrialRaw.security_limits.upgrade_required_for,
+              )
+                ? twilioTrialRaw.security_limits.upgrade_required_for
+                    .filter((item): item is string => typeof item === "string")
+                    .map((item) => item.trim())
+                    .filter(Boolean)
+                : undefined,
+            }
+          : undefined,
+      }
+    : undefined;
+
+  const activationStateRaw =
+    demoOnboarding &&
+    isRecord(demoOnboarding) &&
+    isRecord(demoOnboarding.activation_state)
+      ? demoOnboarding.activation_state
+      : undefined;
+
+  const activationState = activationStateRaw
+    ? {
+        activated: activationStateRaw.activated === true,
+        max_activations:
+          typeof activationStateRaw.max_activations === "number"
+            ? activationStateRaw.max_activations
+            : undefined,
+        activations_used:
+          typeof activationStateRaw.activations_used === "number"
+            ? activationStateRaw.activations_used
+            : undefined,
+      }
+    : undefined;
+
+  const activationEndpoint =
+    demoOnboarding &&
+    isRecord(demoOnboarding) &&
+    typeof demoOnboarding.activation_endpoint === "string"
+      ? demoOnboarding.activation_endpoint.trim()
+      : undefined;
+
+  const featureFlags =
+    demoOnboarding &&
+    isRecord(demoOnboarding) &&
+    isRecord(demoOnboarding.feature_flags)
+      ? Object.entries(demoOnboarding.feature_flags).reduce<
+          Record<string, boolean>
+        >((acc, [key, value]) => {
+          if (value === true || value === false) {
+            acc[key] = value;
+          }
+          return acc;
+        }, {})
+      : undefined;
+
+  const onboardingQuickMenu = normalizeItemList(
+    demoOnboarding && isRecord(demoOnboarding)
+      ? demoOnboarding.quick_menu
+      : undefined,
+  );
 
   const demoOnboardingBlueprint = normalizeExperienceBlueprint(
     demoOnboarding && isRecord(demoOnboarding)
@@ -105,6 +209,11 @@ export const extractDemoExperienceSources = (
   );
 
   return {
+    twilioTrial,
+    activationState,
+    activationEndpoint,
+    onboardingQuickMenu,
+    featureFlags,
     demoOnboarding: demoOnboardingBlueprint,
     widget: widgetBlueprint,
     quickMenu,
