@@ -29,6 +29,7 @@
 
 ## 4) Referencias
 
+- Packet ejecutivo: `docs/frontend.stage4.handoff.packet.md`.
 - Contratos congelados: `docs/contracts/platform-contract-freeze-v1.md`.
 - Ejemplos de payload: `docs/frontend.stage4.payload_examples.md`.
 - Matriz RBAC: `docs/rbac.capability_matrix.v1.md`.

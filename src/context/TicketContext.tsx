@@ -5,6 +5,8 @@ import useTicketUpdates from '@/hooks/useTicketUpdates';
 import { mapToKnownCategory } from '@/utils/category';
 import { useUser } from '@/hooks/useUser';
 import { ApiError, resolveTenantSlug } from '@/utils/api';
+import { apiClient } from '@/api/client';
+import { useTenant } from '@/context/TenantContext';
 
 
 interface TicketInboxFilters {
@@ -19,7 +21,7 @@ interface TicketInboxFilters {
 
 interface TicketFilterOptions {
   channels: string[];
-  statuses: string[];
+  statuses: Array<{ value: string; label: string }>;
   areas: string[];
   agents: Array<{ id: string; label: string }>;
   priorities: string[];
@@ -149,6 +151,12 @@ const groupTicketsByCategory = (tickets: Ticket[]) => {
 
 
 const normalizeFilterValue = (value: unknown): string => String(value ?? '').trim().toLowerCase();
+const prettifyWorkflowStateLabel = (state: string): string =>
+  state
+    .split('_')
+    .filter(Boolean)
+    .map((chunk) => `${chunk[0]?.toUpperCase() ?? ''}${chunk.slice(1)}`)
+    .join(' ');
 
 const resolveAreaLabel = (ticket: Ticket): string => {
   return (
@@ -252,7 +260,9 @@ export const TicketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState<TicketInboxFilters>(DEFAULT_TICKET_FILTERS);
+  const [workflowStatuses, setWorkflowStatuses] = useState<Array<{ value: string; label: string }>>([]);
   const { user } = useUser();
+  const { currentSlug } = useTenant();
 
   const filterTicketsForUser = useCallback(
     (list: Ticket[]): Ticket[] => {
@@ -403,6 +413,36 @@ export const TicketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     fetchTickets();
   }, [fetchTickets]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadWorkflowMetadata = async () => {
+      try {
+        const metadata = await apiClient.getTicketWorkflowMetadata(currentSlug ?? resolveTenantSlug());
+        if (cancelled) return;
+        const normalized = metadata.states
+          .map((state, index) => ({
+            value: normalizeFilterValue(state),
+            label: prettifyWorkflowStateLabel(state),
+            order: index,
+          }))
+          .filter((state) => Boolean(state.value))
+          .sort((a, b) => a.order - b.order)
+          .map(({ value, label }) => ({ value, label }));
+        setWorkflowStatuses(normalized);
+      } catch {
+        if (!cancelled) {
+          setWorkflowStatuses([]);
+        }
+      }
+    };
+
+    loadWorkflowMetadata();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentSlug]);
+
   const selectTicket = useCallback((ticketId: number | null) => {
     if (ticketId === null) {
         setSelectedTicket(null);
@@ -467,7 +507,10 @@ export const TicketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   const filterOptions = React.useMemo<TicketFilterOptions>(() => {
     const channels = Array.from(new Set(tickets.map((ticket) => normalizeFilterValue(ticket.channel)).filter(Boolean))).sort();
-    const statuses = Array.from(new Set(tickets.map((ticket) => normalizeFilterValue(ticket.estado)).filter(Boolean))).sort();
+    const discoveredStatuses = Array.from(new Set(tickets.map((ticket) => normalizeFilterValue(ticket.estado)).filter(Boolean))).sort();
+    const statuses = workflowStatuses.length > 0
+      ? workflowStatuses
+      : discoveredStatuses.map((status) => ({ value: status, label: status }));
     const areas = Array.from(new Set(tickets.map((ticket) => resolveAreaLabel(ticket).trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b));
     const priorities = Array.from(new Set(tickets.map((ticket) => normalizeFilterValue(ticket.priority)).filter(Boolean))).sort();
     const slaStatuses = Array.from(new Set(tickets.map((ticket) => resolveSlaFilterValue(ticket)).filter(Boolean))).sort();
@@ -500,7 +543,7 @@ export const TicketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         .map(([id, label]) => ({ id, label }))
         .sort((a, b) => a.label.localeCompare(b.label)),
     };
-  }, [tickets]);
+  }, [tickets, workflowStatuses]);
 
   const filteredTickets = React.useMemo(() => {
     return tickets.filter((ticket) => {

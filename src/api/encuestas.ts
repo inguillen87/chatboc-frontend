@@ -307,6 +307,8 @@ const attemptRecoveryFromAdminList = async (): Promise<PublicSurveyListResult | 
 
 export const getPublicSurvey = async (slug: string, tenantSlug?: string): Promise<SurveyPublic> => {
   const response = await callPublicSurveyEndpoint<unknown>(buildPublicSurveyPaths(
+    `/api/public/encuestas/v1/${slug}`,
+    `/public/encuestas/v1/${slug}`,
     `/api/public/encuestas/${slug}`,
     `/public/encuestas/${slug}`,
   ), {
@@ -322,6 +324,14 @@ export const getPublicSurvey = async (slug: string, tenantSlug?: string): Promis
 
   if (!response || typeof response !== 'object' || Array.isArray(response)) {
     throw new Error('El servidor devolvió un formato inesperado para la encuesta solicitada.');
+  }
+
+  if ((response as Record<string, unknown>).contract_version === 'encuestas.public.v1') {
+    const survey = (response as Record<string, unknown>).encuesta;
+    if (!survey || typeof survey !== 'object' || Array.isArray(survey)) {
+      throw new Error('El servidor devolvió un payload inválido para el contrato encuestas.public.v1.');
+    }
+    return normalizeSurveyPreguntas(survey as SurveyPublic);
   }
 
   return normalizeSurveyPreguntas(response as SurveyPublic);
@@ -352,8 +362,14 @@ const callPublicSurveyEndpoint = async <T>(paths: string[], options: ApiFetchOpt
   throw lastError ?? new Error('No fue posible consultar el endpoint público de encuestas.');
 };
 
-const buildPublicSurveyPaths = (preferred: string, legacy: string) =>
-  ENABLE_PUBLIC_SURVEY_LEGACY_FALLBACK ? [preferred, legacy] : [preferred];
+const buildPublicSurveyPaths = (...paths: string[]) => {
+  if (paths.length === 0) return [];
+  const unique = Array.from(new Set(paths.filter(Boolean)));
+  if (!ENABLE_PUBLIC_SURVEY_LEGACY_FALLBACK) {
+    return unique.slice(0, 1);
+  }
+  return unique;
+};
 
 const FALLBACK_SURVEY_URL_REGEX = /https?:\/\/[\S]+\/e\/([a-z0-9-]+)/gi;
 
@@ -411,6 +427,8 @@ const attemptRecoveryFromRawPayload = async (
 export const listPublicSurveys = async (tenantSlug?: string): Promise<PublicSurveyListResult> => {
   try {
     const response = await callPublicSurveyEndpoint<unknown>(buildPublicSurveyPaths(
+      '/api/public/encuestas/v1',
+      '/public/encuestas/v1',
       '/api/public/encuestas',
       '/public/encuestas',
     ), {
@@ -526,8 +544,8 @@ export const postPublicResponse = (
   slug: string,
   payload: PublicResponsePayload,
   tenantSlug?: string,
-): Promise<{ ok: boolean; id?: number; contact_key?: string; conversation_id?: string }> =>
-  callPublicSurveyEndpoint<{ ok: boolean; id?: number; contact_key?: string; conversation_id?: string }>(buildPublicSurveyPaths(
+): Promise<{ ok: boolean; id?: number; contact_key?: string; conversation_id?: string; contract_version?: string }> =>
+  callPublicSurveyEndpoint<{ ok: boolean; id?: number; contact_key?: string; conversation_id?: string; contract_version?: string }>(buildPublicSurveyPaths(
     `/api/public/encuestas/${slug}/respuestas`,
     `/public/encuestas/${slug}/respuestas`,
   ), {
@@ -541,6 +559,14 @@ export const postPublicResponse = (
     omitEntityToken: true,
     omitTenant: true,
   }).then((response) => {
+    const contractVersion =
+      typeof (response as Record<string, unknown>)?.contract_version === 'string'
+        ? String((response as Record<string, unknown>).contract_version)
+        : undefined;
+    if (!ENABLE_PUBLIC_SURVEY_LEGACY_FALLBACK && contractVersion !== 'encuestas.public_response.v1') {
+      throw new Error('El backend no devolvió contract_version válido para encuestas.public_response.v1.');
+    }
+
     const contactKey = typeof response?.contact_key === 'string' ? response.contact_key.trim() : '';
     const conversationId =
       typeof response?.conversation_id === 'string' ? response.conversation_id.trim() : '';
@@ -571,7 +597,10 @@ export const postPublicResponse = (
       // no-op: identity persistence is best-effort
     }
 
-    return response;
+    return {
+      ...response,
+      ...(contractVersion ? { contract_version: contractVersion } : {}),
+    };
   });
 
 export const getSurveyComments = (

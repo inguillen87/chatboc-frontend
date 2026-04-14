@@ -53,4 +53,29 @@ describe('apiClient.getIdentityCoverage', () => {
     await expect(apiClient.getIdentityCoverage('rio-grande')).rejects.toThrow('Server error');
     expect(apiFetchMock).toHaveBeenCalledTimes(1);
   });
+
+  it('retries without emit_alert_events when backend rejects analytics.admin requirement', async () => {
+    apiFetchMock.mockRejectedValueOnce(new ApiError('Forbidden', 403));
+    apiFetchMock.mockResolvedValueOnce({
+      contract_version: 'analytics.identity_coverage.v1',
+      coverage_pct: 92,
+      slo_status: 'ok',
+      alert_count: 0,
+      alerts: [],
+    });
+
+    const response = await apiClient.getIdentityCoverage('rio-grande', { emit_alert_events: 1 });
+
+    expect(response.coverage_pct).toBe(92);
+    expect(apiFetchMock).toHaveBeenNthCalledWith(
+      1,
+      '/analytics/identity/coverage?emit_alert_events=1',
+      expect.objectContaining({ tenantSlug: 'rio-grande' }),
+    );
+    expect(apiFetchMock).toHaveBeenNthCalledWith(
+      2,
+      '/analytics/identity/coverage',
+      expect.objectContaining({ tenantSlug: 'rio-grande' }),
+    );
+  });
 });

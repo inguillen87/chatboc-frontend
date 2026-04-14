@@ -84,4 +84,24 @@ describe('apiClient stage4 contract integrations', () => {
     expect(result.ticket.nro_ticket).toBe('M-12345');
     expect(apiFetchMock).toHaveBeenCalledWith('/tickets/public/status?code=M-12345&pin=9999', { tenantSlug: 'municipio' });
   });
+
+  it('validates ticket workflow metadata contract', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      contract_version: 'tickets.workflow.v1',
+      tenant_id: 42,
+      states: ['nuevo', 'en_proceso', 'cerrado'],
+      transitions: {
+        nuevo: ['en_proceso', 'cerrado'],
+        en_proceso: ['cerrado'],
+      },
+      final_states: ['cerrado'],
+    });
+
+    const result = await apiClient.getTicketWorkflowMetadata('municipio');
+
+    expect(result.contract_version).toBe('tickets.workflow.v1');
+    expect(result.states).toEqual(['nuevo', 'en_proceso', 'cerrado']);
+    expect(result.transitions.nuevo).toEqual(['en_proceso', 'cerrado']);
+    expect(apiFetchMock).toHaveBeenCalledWith('/tickets/workflow/metadata', { tenantSlug: 'municipio' });
+  });
 });

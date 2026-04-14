@@ -309,7 +309,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
           >
             <option value="all">Estado: todos</option>
             {filterOptions.statuses.map((status) => (
-              <option key={status} value={status}>{status}</option>
+              <option key={status.value} value={status.value}>{status.label}</option>
             ))}
           </select>
           <select

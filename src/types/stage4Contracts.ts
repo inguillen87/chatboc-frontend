@@ -76,3 +76,25 @@ export interface PublicTicketStatusV1 {
     ultima_actualizacion?: string | null;
   };
 }
+
+export interface TicketWorkflowMetadataV1 {
+  contract_version: 'tickets.workflow.v1';
+  tenant_id?: number | null;
+  states: string[];
+  transitions: Record<string, string[]>;
+  final_states: string[];
+}
+
+export interface PublicSurveyV1 {
+  contract_version: 'encuestas.public.v1';
+  encuesta: Record<string, unknown>;
+}
+
+export interface PublicSurveyResponseAckV1 {
+  contract_version: 'encuestas.public_response.v1';
+  success: true;
+  respuesta_id: number;
+  anon_id: string;
+  contact_key?: string;
+  conversation_id?: string;
+}

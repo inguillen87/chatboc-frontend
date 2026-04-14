@@ -191,6 +191,54 @@ const normalizePublicTicketStatus = (value: unknown) => {
   };
 };
 
+const normalizeTicketWorkflowMetadata = (value: unknown) => {
+  if (!isRecord(value)) throw new ApiError('Ticket workflow metadata inválido', 502, value);
+  if (value.contract_version !== 'tickets.workflow.v1') {
+    throw new ApiError('Ticket workflow metadata inválido: contract_version', 502, value);
+  }
+  const statesRaw = Array.isArray(value.states) ? value.states : [];
+  const states = statesRaw
+    .map((state) => {
+      if (typeof state === 'string') {
+        const normalized = state.trim().toLowerCase();
+        return normalized || null;
+      }
+      if (!isRecord(state)) return null;
+      const fromKey = asStringOrUndefined(state.key);
+      const fromName = asStringOrUndefined(state.name);
+      const normalized = (fromKey ?? fromName ?? '').trim().toLowerCase();
+      return normalized || null;
+    })
+    .filter((state): state is string => state !== null);
+
+  if (states.length === 0) {
+    throw new ApiError('Ticket workflow metadata inválido: states vacío', 502, value);
+  }
+
+  const transitionsRaw = isRecord(value.transitions) ? value.transitions : {};
+  const transitions = Object.fromEntries(
+    Object.entries(transitionsRaw).map(([from, toList]) => {
+      const fromState = from.trim().toLowerCase();
+      const normalizedTargets = (Array.isArray(toList) ? toList : [])
+        .map((toState) => (typeof toState === 'string' ? toState.trim().toLowerCase() : ''))
+        .filter(Boolean);
+      return [fromState, normalizedTargets];
+    }),
+  );
+
+  const finalStates = (Array.isArray(value.final_states) ? value.final_states : [])
+    .map((state) => (typeof state === 'string' ? state.trim().toLowerCase() : ''))
+    .filter(Boolean);
+
+  return {
+    contract_version: 'tickets.workflow.v1' as const,
+    tenant_id: value.tenant_id === null ? null : asNumberOrUndefined(value.tenant_id),
+    states,
+    transitions,
+    final_states: finalStates,
+  };
+};
+
 /**
  * Standardized API Client for Tenant-Aware fetching.
  * All methods require an explicit tenantSlug to ensure context isolation.
@@ -219,23 +267,36 @@ export const apiClient = {
       emit_alert_events?: 0 | 1;
     },
   ): Promise<IdentityCoverageResponse> => {
-    const query = new URLSearchParams();
-    if (typeof params?.target_pct === 'number') {
-      query.set('target_pct', String(params.target_pct));
-    }
-    const targetByChannel = serializeIdentityCoverageTargetByChannel(params?.target_by_channel);
-    if (targetByChannel) {
-      query.set('target_by_channel', targetByChannel);
-    }
-    if (params?.emit_alert_events !== undefined) {
-      query.set('emit_alert_events', String(params.emit_alert_events));
-    }
+    const buildSuffix = (input?: {
+      target_pct?: number;
+      target_by_channel?: IdentityCoverageTargetByChannel;
+      emit_alert_events?: 0 | 1;
+    }) => {
+      const query = new URLSearchParams();
+      if (typeof input?.target_pct === 'number') {
+        query.set('target_pct', String(input.target_pct));
+      }
+      const targetByChannel = serializeIdentityCoverageTargetByChannel(input?.target_by_channel);
+      if (targetByChannel) {
+        query.set('target_by_channel', targetByChannel);
+      }
+      if (input?.emit_alert_events !== undefined) {
+        query.set('emit_alert_events', String(input.emit_alert_events));
+      }
+      return query.toString() ? `?${query.toString()}` : '';
+    };
 
-    const suffix = query.toString() ? `?${query.toString()}` : '';
+    const suffix = buildSuffix(params);
     try {
       const response = await apiFetch<unknown>(`/analytics/identity/coverage${suffix}`, { tenantSlug });
       return normalizeIdentityCoverageResponse(response);
     } catch (error) {
+      if (params?.emit_alert_events === 1 && error instanceof ApiError && error.status === 403) {
+        const readOnlySuffix = buildSuffix({ ...params, emit_alert_events: undefined });
+        const response = await apiFetch<unknown>(`/analytics/identity/coverage${readOnlySuffix}`, { tenantSlug });
+        return normalizeIdentityCoverageResponse(response);
+      }
+
       const shouldFallbackToApiPrefix =
         error instanceof ApiError
           ? error.status === 404 || error.status === 405
@@ -277,6 +338,11 @@ export const apiClient = {
     const query = new URLSearchParams({ code, pin }).toString();
     const response = await apiFetch<unknown>(`/tickets/public/status?${query}`, { tenantSlug });
     return normalizePublicTicketStatus(response);
+  },
+
+  getTicketWorkflowMetadata: async (tenantSlug?: string) => {
+    const response = await apiFetch<unknown>('/tickets/workflow/metadata', { tenantSlug });
+    return normalizeTicketWorkflowMetadata(response);
   },
 
   // --- Portal Methods ---
