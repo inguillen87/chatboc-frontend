@@ -13,6 +13,8 @@ interface TicketInboxFilters {
   area: string;
   agent: string;
   priority: string;
+  sla: string;
+  unread: string;
 }
 
 interface TicketFilterOptions {
@@ -21,6 +23,8 @@ interface TicketFilterOptions {
   areas: string[];
   agents: Array<{ id: string; label: string }>;
   priorities: string[];
+  slaStatuses: string[];
+  unreadModes: Array<{ value: string; label: string }>;
 }
 
 const DEFAULT_TICKET_FILTERS: TicketInboxFilters = {
@@ -29,6 +33,8 @@ const DEFAULT_TICKET_FILTERS: TicketInboxFilters = {
   area: 'all',
   agent: 'all',
   priority: 'all',
+  sla: 'all',
+  unread: 'all',
 };
 
 interface TicketContextType {
@@ -159,6 +165,15 @@ const resolveAgentFilterId = (ticket: Ticket): string => {
   const candidate = ticket.assignedAgent?.id ?? ticket.assignedAgentId ?? ticket.assigned_agent_id ?? null;
   return candidate === null || candidate === undefined ? '' : String(candidate);
 };
+
+const resolveSlaFilterValue = (ticket: Ticket): string => normalizeFilterValue(ticket.sla_status || 'sin_sla');
+const hasUnreadState = (ticket: Ticket): boolean =>
+  Boolean(
+    ticket.hasUnreadMessages ||
+      ticket.collaboration_state?.has_unread ||
+      (typeof ticket.collaboration_state?.unread_count === 'number' && ticket.collaboration_state.unread_count > 0) ||
+      (typeof ticket.collaboration_state?.unread_viewer_count === 'number' && ticket.collaboration_state.unread_viewer_count > 0),
+  );
 
 const normalizeAssignedAgent = (ticket: any): User | undefined => {
   const candidate =
@@ -455,6 +470,7 @@ export const TicketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     const statuses = Array.from(new Set(tickets.map((ticket) => normalizeFilterValue(ticket.estado)).filter(Boolean))).sort();
     const areas = Array.from(new Set(tickets.map((ticket) => resolveAreaLabel(ticket).trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b));
     const priorities = Array.from(new Set(tickets.map((ticket) => normalizeFilterValue(ticket.priority)).filter(Boolean))).sort();
+    const slaStatuses = Array.from(new Set(tickets.map((ticket) => resolveSlaFilterValue(ticket)).filter(Boolean))).sort();
 
     const agentMap = new Map<string, string>();
     tickets.forEach((ticket) => {
@@ -474,6 +490,12 @@ export const TicketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       statuses,
       areas,
       priorities,
+      slaStatuses,
+      unreadModes: [
+        { value: 'all', label: 'Lectura: todos' },
+        { value: 'unread', label: 'Lectura: no leídos' },
+        { value: 'read', label: 'Lectura: leídos' },
+      ],
       agents: Array.from(agentMap.entries())
         .map(([id, label]) => ({ id, label }))
         .sort((a, b) => a.label.localeCompare(b.label)),
@@ -485,8 +507,11 @@ export const TicketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       if (filters.channel !== 'all' && normalizeFilterValue(ticket.channel) !== filters.channel) return false;
       if (filters.status !== 'all' && normalizeFilterValue(ticket.estado) !== filters.status) return false;
       if (filters.priority !== 'all' && normalizeFilterValue(ticket.priority) !== filters.priority) return false;
+      if (filters.sla !== 'all' && resolveSlaFilterValue(ticket) !== filters.sla) return false;
       if (filters.area !== 'all' && resolveAreaLabel(ticket) !== filters.area) return false;
       if (filters.agent !== 'all' && resolveAgentFilterId(ticket) !== filters.agent) return false;
+      if (filters.unread === 'unread' && !hasUnreadState(ticket)) return false;
+      if (filters.unread === 'read' && hasUnreadState(ticket)) return false;
       return true;
     });
   }, [tickets, filters]);

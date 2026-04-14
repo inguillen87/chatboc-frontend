@@ -40,6 +40,7 @@ const Consumer = () => {
   );
 };
 
+
 describe('TicketContext unread delta reconciliation', () => {
   beforeEach(() => {
     ticketUpdateHandlers = {};
@@ -97,4 +98,5 @@ describe('TicketContext unread delta reconciliation', () => {
     });
     expect(getTicketsMock.mock.calls.length).toBeGreaterThanOrEqual(1);
   });
+
 });

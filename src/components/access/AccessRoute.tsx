@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 
 import { useCapabilities } from '@/context/CapabilitiesContext';
 import { useUser } from '@/hooks/useUser';
@@ -16,6 +16,7 @@ interface AccessRouteProps {
 const AccessRoute: React.FC<AccessRouteProps> = ({ children, roles, requiredCapabilities }) => {
   const { user, loading } = useUser();
   const { hasAllCapabilities } = useCapabilities();
+  const location = useLocation();
   const [profileSyncGrace, setProfileSyncGrace] = useState(true);
   const hasToken = Boolean(
     safeLocalStorage.getItem('authToken') || safeLocalStorage.getItem('chatAuthToken'),
@@ -37,12 +38,33 @@ const AccessRoute: React.FC<AccessRouteProps> = ({ children, roles, requiredCapa
   if (roles && roles.length > 0) {
     const role = normalizeRole(user?.rol);
     if (!roles.includes(role as Role)) {
-      return <Navigate to="/403" replace />;
+      return (
+        <Navigate
+          to="/403"
+          replace
+          state={{
+            reason: 'role',
+            requiredRoles: roles,
+            currentRole: role,
+            from: location.pathname,
+          }}
+        />
+      );
     }
   }
 
   if (requiredCapabilities && requiredCapabilities.length > 0 && !hasAllCapabilities(requiredCapabilities)) {
-    return <Navigate to="/403" replace />;
+    return (
+      <Navigate
+        to="/403"
+        replace
+        state={{
+          reason: 'capability',
+          requiredCapabilities,
+          from: location.pathname,
+        }}
+      />
+    );
   }
 
   return children;

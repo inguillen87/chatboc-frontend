@@ -38,6 +38,15 @@ import useCartCount from "@/hooks/useCartCount";
 import { useTenant } from "@/context/TenantContext";
 import { buildTenantPath } from "@/utils/tenantPaths";
 import { getChatbocBotAvatar } from "@/utils/brandAssets";
+import { useCapabilities } from "@/context/CapabilitiesContext";
+
+interface AdminNavLink {
+  to: string;
+  label: string;
+  icon: LucideIcon;
+  roles?: string[];
+  requiredAnyCapabilities?: string[];
+}
 
 const Navbar: React.FC = () => {
   const NAVBAR_LOGO_LIGHT_PRIMARY =
@@ -55,6 +64,7 @@ const Navbar: React.FC = () => {
   const { user } = useUser();
   const cartCount = useCartCount();
   const { currentSlug } = useTenant();
+  const { capabilities } = useCapabilities();
 
   const isLanding = location.pathname === "/";
   const isLoggedIn = !!safeLocalStorage.getItem("user");
@@ -67,36 +77,87 @@ const Navbar: React.FC = () => {
   const analyticsPath = isMunicipal ? "/estadisticas" : "/analytics";
   const adminLinks = useMemo(() => {
     if (!isAdminLike) {
-      return [] as Array<{ to: string; label: string; icon: LucideIcon }>;
+      return [] as AdminNavLink[];
     }
 
-    const links: Array<{ to: string; label: string; icon: LucideIcon }> = [
-      { to: "/tickets", label: "Tickets", icon: TicketIcon },
-      { to: "/pedidos", label: "Pedidos", icon: ClipboardList },
-      { to: "/usuarios", label: "Usuarios", icon: Users },
-      { to: "/empleados", label: "Empleados", icon: UserCog },
+    const links: AdminNavLink[] = [
+      {
+        to: "/tickets",
+        label: "Tickets",
+        icon: TicketIcon,
+        requiredAnyCapabilities: ["tickets.read", "crm.tickets.read", "claims.read"],
+      },
+      {
+        to: "/pedidos",
+        label: "Pedidos",
+        icon: ClipboardList,
+        requiredAnyCapabilities: ["orders.read", "market.orders.read", "commerce.orders.read"],
+      },
+      {
+        to: "/usuarios",
+        label: "Usuarios",
+        icon: Users,
+        requiredAnyCapabilities: ["users.read", "tenant.users.read", "internal_users.read"],
+      },
+      {
+        to: "/empleados",
+        label: "Empleados",
+        icon: UserCog,
+        requiredAnyCapabilities: ["employees.read", "tenant.employees.read"],
+      },
     ];
 
     if (isMunicipal) {
-      links.push({ to: "/municipal/categorias", label: "Categorías", icon: Tag });
+      links.push({
+        to: "/municipal/categorias",
+        label: "Categorías",
+        icon: Tag,
+        requiredAnyCapabilities: ["categories.manage", "municipal.categories.manage", "catalog.categories.manage"],
+      });
     }
 
     links.push({
       to: analyticsPath,
       label: isMunicipal ? "Estadísticas" : "Analytics",
       icon: BarChart3,
+      requiredAnyCapabilities: ["analytics.read", "dashboard.read", "reports.read"],
     });
 
-    links.push({ to: "/logs", label: "Logs", icon: ScrollText });
+    links.push({
+      to: "/logs",
+      label: "Logs",
+      icon: ScrollText,
+      requiredAnyCapabilities: ["logs.read", "diagnostics.read", "admin.logs.read"],
+    });
 
-    if (userRole === "super_admin" || userRole === "superadmin") {
-      links.push({ to: "/superadmin", label: "Super Admin", icon: Database });
-    }
+    links.push({
+      to: "/superadmin",
+      label: "Super Admin",
+      icon: Database,
+      roles: ["super_admin", "superadmin"],
+      requiredAnyCapabilities: ["superadmin.access", "platform.admin", "tenants.manage"],
+    });
 
     links.push({ to: buildTenantPath("/", currentSlug), label: "Ver Portal", icon: Layout });
 
-    return links;
-  }, [analyticsPath, isAdminLike, isMunicipal, currentSlug]);
+    const normalizedUserRole = userRole?.toLowerCase() || "";
+    const normalizedCapabilities = capabilities.map((capability) => capability.toLowerCase());
+    const hasBackendCapabilities = normalizedCapabilities.length > 0;
+
+    return links.filter((link) => {
+      if (link.roles?.length && !link.roles.some((role) => role.toLowerCase() === normalizedUserRole)) {
+        return false;
+      }
+
+      if (!hasBackendCapabilities || !link.requiredAnyCapabilities?.length) {
+        return true;
+      }
+
+      return link.requiredAnyCapabilities.some((requiredCapability) =>
+        normalizedCapabilities.includes(requiredCapability.toLowerCase()),
+      );
+    });
+  }, [analyticsPath, capabilities, currentSlug, isAdminLike, isMunicipal, userRole]);
   const storedUserRaw = useMemo(
     () => (isLoggedIn ? safeLocalStorage.getItem("user") : null),
     [isLoggedIn],
