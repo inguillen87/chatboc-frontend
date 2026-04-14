@@ -57,13 +57,16 @@ describe('getPublicSurvey', () => {
 
   it('uses canonical /api/public endpoint when legacy fallback is disabled', async () => {
     apiFetchMock.mockResolvedValueOnce({
-      slug: 'movilidad-y-transporte-junin',
-      titulo: 'Movilidad',
-      tipo: 'opinion',
-      inicio_at: '2026-01-01',
-      fin_at: '2026-12-31',
-      politica_unicidad: 'libre',
-      preguntas: [],
+      contract_version: 'encuestas.public.v1',
+      encuesta: {
+        slug: 'movilidad-y-transporte-junin',
+        titulo: 'Movilidad',
+        tipo: 'opinion',
+        inicio_at: '2026-01-01',
+        fin_at: '2026-12-31',
+        politica_unicidad: 'libre',
+        preguntas: [],
+      },
     });
 
     const survey = await getPublicSurvey('movilidad-y-transporte-junin');
@@ -71,7 +74,7 @@ describe('getPublicSurvey', () => {
     expect(survey.slug).toBe('movilidad-y-transporte-junin');
     expect(apiFetchMock).toHaveBeenCalledTimes(1);
     expect(apiFetchMock).toHaveBeenCalledWith(
-      '/api/public/encuestas/movilidad-y-transporte-junin',
+      '/api/public/encuestas/v1/movilidad-y-transporte-junin',
       expect.any(Object),
     );
   });
@@ -113,6 +116,7 @@ describe('postPublicResponse', () => {
 
   it('persists returned contact_key and conversation_id into public chat context', async () => {
     apiFetchMock.mockResolvedValueOnce({
+      contract_version: 'encuestas.public_response.v1',
       ok: true,
       id: 9,
       contact_key: 'ck-survey-1',
@@ -131,5 +135,21 @@ describe('postPublicResponse', () => {
         tenantSlug: 'rio-grande',
       }),
     );
+  });
+
+  it('returns contract_version in survey response ack when available', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      contract_version: 'encuestas.public_response.v1',
+      ok: true,
+      id: 99,
+    });
+
+    const response = await postPublicResponse(
+      'mi-encuesta',
+      { respuestas: [{ pregunta_id: 101, opcion_ids: [1] }] },
+      'rio-grande',
+    );
+
+    expect(response.contract_version).toBe('encuestas.public_response.v1');
   });
 });

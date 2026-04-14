@@ -84,3 +84,17 @@ export interface TicketWorkflowMetadataV1 {
   transitions: Record<string, string[]>;
   final_states: string[];
 }
+
+export interface PublicSurveyV1 {
+  contract_version: 'encuestas.public.v1';
+  encuesta: Record<string, unknown>;
+}
+
+export interface PublicSurveyResponseAckV1 {
+  contract_version: 'encuestas.public_response.v1';
+  success: true;
+  respuesta_id: number;
+  anon_id: string;
+  contact_key?: string;
+  conversation_id?: string;
+}
