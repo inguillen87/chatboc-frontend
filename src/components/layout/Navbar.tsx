@@ -39,6 +39,7 @@ import { useTenant } from "@/context/TenantContext";
 import { buildTenantPath } from "@/utils/tenantPaths";
 import { getChatbocBotAvatar } from "@/utils/brandAssets";
 import { useCapabilities } from "@/context/CapabilitiesContext";
+import { isBackofficeRole } from "@/utils/roles";
 
 interface AdminNavLink {
   to: string;
@@ -69,10 +70,7 @@ const Navbar: React.FC = () => {
   const isLanding = location.pathname === "/";
   const isLoggedIn = !!safeLocalStorage.getItem("user");
   const userRole = user?.rol;
-  const isAdminLike = useMemo(
-    () => Boolean(userRole && ["admin", "empleado", "super_admin"].includes(userRole)),
-    [userRole],
-  );
+  const isAdminLike = useMemo(() => isBackofficeRole(userRole), [userRole]);
   const isMunicipal = user?.tipo_chat === "municipio";
   const analyticsPath = isMunicipal ? "/estadisticas" : "/analytics";
   const adminLinks = useMemo(() => {

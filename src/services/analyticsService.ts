@@ -142,6 +142,24 @@ export interface IdentityCoverageResponseV1 {
   alerts: IdentityCoverageAlertV1[];
 }
 
+export interface AnalyticsEventIngestAckV1 {
+  ok: true;
+  contract_version: 'analytics.event_ingest.v1';
+  tenant_id: number;
+  event_name: string;
+  contact_key?: string;
+  conversation_id?: string;
+  identity_source?: string;
+}
+
+export interface AnalyticsEventSchemaV1 {
+  contract_version: 'analytics.event_schema.v1';
+  tenant_id: number;
+  required_dimensions: string[];
+  recommended_dimensions: string[];
+  canonical_events: string[];
+}
+
 
 
 export interface AnalyticsGeoLayerCategory {
@@ -290,6 +308,46 @@ export const parseIdentityCoverageResponseV1 = (input: unknown): IdentityCoverag
   };
 };
 
+export const parseAnalyticsEventIngestAckV1 = (input: unknown): AnalyticsEventIngestAckV1 | null => {
+  if (!isRecord(input)) return null;
+  if (input.contract_version !== 'analytics.event_ingest.v1') return null;
+  if (input.ok !== true) return null;
+
+  const tenantId = asFiniteNumber(input.tenant_id);
+  const eventName = typeof input.event_name === 'string' ? input.event_name.trim() : '';
+  if (tenantId === undefined || !eventName) return null;
+
+  return {
+    ok: true,
+    contract_version: 'analytics.event_ingest.v1',
+    tenant_id: tenantId,
+    event_name: eventName,
+    ...(typeof input.contact_key === 'string' ? { contact_key: input.contact_key } : {}),
+    ...(typeof input.conversation_id === 'string' ? { conversation_id: input.conversation_id } : {}),
+    ...(typeof input.identity_source === 'string' ? { identity_source: input.identity_source } : {}),
+  };
+};
+
+const toStringArray = (value: unknown): string[] =>
+  Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0).map((item) => item.trim())
+    : [];
+
+export const parseAnalyticsEventSchemaV1 = (input: unknown): AnalyticsEventSchemaV1 | null => {
+  if (!isRecord(input)) return null;
+  if (input.contract_version !== 'analytics.event_schema.v1') return null;
+  const tenantId = asFiniteNumber(input.tenant_id);
+  if (tenantId === undefined) return null;
+
+  return {
+    contract_version: 'analytics.event_schema.v1',
+    tenant_id: tenantId,
+    required_dimensions: toStringArray(input.required_dimensions),
+    recommended_dimensions: toStringArray(input.recommended_dimensions),
+    canonical_events: toStringArray(input.canonical_events),
+  };
+};
+
 export const getWhatsappFunnel = async (tenantSlug?: string): Promise<WhatsappFunnelResponse> => {
   try {
     const raw = await apiFetch<unknown>('/admin/analytics/whatsapp-funnel', { tenantSlug });
@@ -329,6 +387,63 @@ export const getIdentityCoverageV1 = async (tenantSlug?: string): Promise<Identi
     const parsed = parseIdentityCoverageResponseV1(raw);
     if (!parsed) {
       throw new ApiError('Respuesta inválida de identity coverage: contract_version o payload inválido.', 502, raw);
+    }
+    return parsed;
+  }
+};
+
+export const getAnalyticsEventSchema = async (
+  tenantId?: number,
+  tenantSlug?: string,
+): Promise<AnalyticsEventSchemaV1> => {
+  const query = tenantId !== undefined ? `?tenant_id=${tenantId}` : '';
+  try {
+    const raw = await apiFetch<unknown>(`/analytics/event/schema${query}`, { tenantSlug });
+    const parsed = parseAnalyticsEventSchemaV1(raw);
+    if (!parsed) {
+      throw new ApiError('Respuesta inválida de analytics event schema v1.', 502, raw);
+    }
+    return parsed;
+  } catch (error) {
+    if (!(error instanceof ApiError) || (error.status !== 404 && error.status !== 405)) {
+      throw error;
+    }
+    const raw = await apiFetch<unknown>(`/api/analytics/event/schema${query}`, { tenantSlug });
+    const parsed = parseAnalyticsEventSchemaV1(raw);
+    if (!parsed) {
+      throw new ApiError('Respuesta inválida de analytics event schema v1.', 502, raw);
+    }
+    return parsed;
+  }
+};
+
+export const postAnalyticsEvent = async (
+  payload: Record<string, unknown>,
+  tenantSlug?: string,
+): Promise<AnalyticsEventIngestAckV1> => {
+  try {
+    const raw = await apiFetch<unknown>('/analytics/event', {
+      method: 'POST',
+      body: payload,
+      tenantSlug,
+    });
+    const parsed = parseAnalyticsEventIngestAckV1(raw);
+    if (!parsed) {
+      throw new ApiError('Respuesta inválida de analytics event ingest v1.', 502, raw);
+    }
+    return parsed;
+  } catch (error) {
+    if (!(error instanceof ApiError) || (error.status !== 404 && error.status !== 405)) {
+      throw error;
+    }
+    const raw = await apiFetch<unknown>('/api/analytics/event', {
+      method: 'POST',
+      body: payload,
+      tenantSlug,
+    });
+    const parsed = parseAnalyticsEventIngestAckV1(raw);
+    if (!parsed) {
+      throw new ApiError('Respuesta inválida de analytics event ingest v1.', 502, raw);
     }
     return parsed;
   }

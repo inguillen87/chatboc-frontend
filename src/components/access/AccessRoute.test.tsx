@@ -35,11 +35,17 @@ describe('AccessRoute', () => {
 
     safeLocalStorageGetItemMock.mockReturnValue(null);
     useUserMock.mockReturnValue({ user: { rol: 'admin' }, loading: false });
-    useCapabilitiesMock.mockReturnValue({ hasAllCapabilities: () => true });
+    useCapabilitiesMock.mockReturnValue({
+      hasAllCapabilities: () => true,
+      hasAnyCapability: () => true,
+    });
   });
 
   it('redirects to /403 with capability context when missing requiredCapabilities', () => {
-    useCapabilitiesMock.mockReturnValue({ hasAllCapabilities: () => false });
+    useCapabilitiesMock.mockReturnValue({
+      hasAllCapabilities: () => false,
+      hasAnyCapability: () => false,
+    });
 
     render(
       <MemoryRouter initialEntries={['/analytics']}>
@@ -81,5 +87,52 @@ describe('AccessRoute', () => {
     );
 
     expect(screen.getByText('tickets-ok')).toBeInTheDocument();
+  });
+
+  it('accepts canonical allowed roles when user has a legacy role alias', () => {
+    useUserMock.mockReturnValue({ user: { rol: 'admin' }, loading: false });
+
+    render(
+      <MemoryRouter initialEntries={['/tickets']}>
+        <Routes>
+          <Route
+            path="/tickets"
+            element={
+              <AccessRoute roles={['tenant_admin']} requiredCapabilities={['tickets.read']}>
+                <div>tickets-role-alias-ok</div>
+              </AccessRoute>
+            }
+          />
+          <Route path="/403" element={<DeniedProbe />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText('tickets-role-alias-ok')).toBeInTheDocument();
+  });
+
+  it('allows render when the user has at least one capability from requiredCapabilities', () => {
+    useCapabilitiesMock.mockReturnValue({
+      hasAllCapabilities: () => false,
+      hasAnyCapability: (required: string[]) => required.includes('analytics.read'),
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/analytics']}>
+        <Routes>
+          <Route
+            path="/analytics"
+            element={
+              <AccessRoute requiredCapabilities={['analytics.read', 'dashboard.read', 'reports.read']}>
+                <div>analytics-ok</div>
+              </AccessRoute>
+            }
+          />
+          <Route path="/403" element={<DeniedProbe />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText('analytics-ok')).toBeInTheDocument();
   });
 });

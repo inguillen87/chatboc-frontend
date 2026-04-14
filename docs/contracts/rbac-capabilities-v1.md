@@ -25,7 +25,8 @@ Estado: **Draft congelable**
 ## Reglas frontend
 
 1. Menús y rutas protegidas deben evaluar `requiredCapabilities`/rol.
-2. Si backend niega acceso:
+2. No construir menú dinámico sin matriz de rol/capability aprobada para el tenant.
+3. Si backend niega acceso:
    - mostrar `/403`,
    - CTA de solicitud de acceso,
    - evento `permission_denied` con contexto.

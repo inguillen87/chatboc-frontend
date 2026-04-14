@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { parseIdentityCoverageResponseV1, parseWhatsappFunnelResponse } from '@/services/analyticsService';
+import {
+  parseAnalyticsEventIngestAckV1,
+  parseAnalyticsEventSchemaV1,
+  parseIdentityCoverageResponseV1,
+  parseWhatsappFunnelResponse,
+} from '@/services/analyticsService';
 
 describe('parseWhatsappFunnelResponse', () => {
   it('parses valid funnel payload with contract_version and unique_contacts', () => {
@@ -82,5 +87,49 @@ describe('parseIdentityCoverageResponseV1', () => {
     });
 
     expect(parsed).toBeNull();
+  });
+});
+
+describe('parseAnalyticsEventIngestAckV1', () => {
+  it('parses event ingest ack v1', () => {
+    const parsed = parseAnalyticsEventIngestAckV1({
+      ok: true,
+      contract_version: 'analytics.event_ingest.v1',
+      tenant_id: 42,
+      event_name: 'ticket_created',
+      contact_key: 'ck-1',
+      conversation_id: 'conv-1',
+      identity_source: 'conversation_id',
+    });
+
+    expect(parsed).toEqual({
+      ok: true,
+      contract_version: 'analytics.event_ingest.v1',
+      tenant_id: 42,
+      event_name: 'ticket_created',
+      contact_key: 'ck-1',
+      conversation_id: 'conv-1',
+      identity_source: 'conversation_id',
+    });
+  });
+});
+
+describe('parseAnalyticsEventSchemaV1', () => {
+  it('parses analytics event schema v1 catalog', () => {
+    const parsed = parseAnalyticsEventSchemaV1({
+      contract_version: 'analytics.event_schema.v1',
+      tenant_id: 42,
+      required_dimensions: ['event_name', 'channel'],
+      recommended_dimensions: ['contact_key', 'conversation_id'],
+      canonical_events: ['ticket_created', 'ticket_resolved'],
+    });
+
+    expect(parsed).toEqual({
+      contract_version: 'analytics.event_schema.v1',
+      tenant_id: 42,
+      required_dimensions: ['event_name', 'channel'],
+      recommended_dimensions: ['contact_key', 'conversation_id'],
+      canonical_events: ['ticket_created', 'ticket_resolved'],
+    });
   });
 });
