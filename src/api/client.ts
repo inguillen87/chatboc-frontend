@@ -267,23 +267,36 @@ export const apiClient = {
       emit_alert_events?: 0 | 1;
     },
   ): Promise<IdentityCoverageResponse> => {
-    const query = new URLSearchParams();
-    if (typeof params?.target_pct === 'number') {
-      query.set('target_pct', String(params.target_pct));
-    }
-    const targetByChannel = serializeIdentityCoverageTargetByChannel(params?.target_by_channel);
-    if (targetByChannel) {
-      query.set('target_by_channel', targetByChannel);
-    }
-    if (params?.emit_alert_events !== undefined) {
-      query.set('emit_alert_events', String(params.emit_alert_events));
-    }
+    const buildSuffix = (input?: {
+      target_pct?: number;
+      target_by_channel?: IdentityCoverageTargetByChannel;
+      emit_alert_events?: 0 | 1;
+    }) => {
+      const query = new URLSearchParams();
+      if (typeof input?.target_pct === 'number') {
+        query.set('target_pct', String(input.target_pct));
+      }
+      const targetByChannel = serializeIdentityCoverageTargetByChannel(input?.target_by_channel);
+      if (targetByChannel) {
+        query.set('target_by_channel', targetByChannel);
+      }
+      if (input?.emit_alert_events !== undefined) {
+        query.set('emit_alert_events', String(input.emit_alert_events));
+      }
+      return query.toString() ? `?${query.toString()}` : '';
+    };
 
-    const suffix = query.toString() ? `?${query.toString()}` : '';
+    const suffix = buildSuffix(params);
     try {
       const response = await apiFetch<unknown>(`/analytics/identity/coverage${suffix}`, { tenantSlug });
       return normalizeIdentityCoverageResponse(response);
     } catch (error) {
+      if (params?.emit_alert_events === 1 && error instanceof ApiError && error.status === 403) {
+        const readOnlySuffix = buildSuffix({ ...params, emit_alert_events: undefined });
+        const response = await apiFetch<unknown>(`/analytics/identity/coverage${readOnlySuffix}`, { tenantSlug });
+        return normalizeIdentityCoverageResponse(response);
+      }
+
       const shouldFallbackToApiPrefix =
         error instanceof ApiError
           ? error.status === 404 || error.status === 405
