@@ -1,4 +1,4 @@
-import { PUBLIC_SURVEY_BASE_URL } from '@/config';
+import { ENABLE_PUBLIC_SURVEY_LEGACY_FALLBACK, PUBLIC_SURVEY_BASE_URL } from '@/config';
 import { ApiError, apiFetch } from '@/utils/api';
 import { MOCK_SURVEYS } from '@/data/mockTenantData';
 import {
@@ -35,6 +35,8 @@ const PUBLIC_SURVEY_API_BASE =
   typeof PUBLIC_SURVEY_BASE_URL === 'string' && PUBLIC_SURVEY_BASE_URL.trim()
     ? PUBLIC_SURVEY_BASE_URL.trim().replace(/\/$/, '')
     : undefined;
+
+const PUBLIC_CHAT_CONTEXT_STORAGE_KEY = 'chatboc_public_chat_context';
 
 const buildQueryString = (params?: QueryParams) => {
   if (!params) return '';
@@ -304,10 +306,10 @@ const attemptRecoveryFromAdminList = async (): Promise<PublicSurveyListResult | 
 };
 
 export const getPublicSurvey = async (slug: string, tenantSlug?: string): Promise<SurveyPublic> => {
-  const response = await callPublicSurveyEndpoint<unknown>([
+  const response = await callPublicSurveyEndpoint<unknown>(buildPublicSurveyPaths(
     `/api/public/encuestas/${slug}`,
     `/public/encuestas/${slug}`,
-  ], {
+  ), {
     skipAuth: true,
     omitCredentials: true,
     isWidgetRequest: true,
@@ -349,6 +351,9 @@ const callPublicSurveyEndpoint = async <T>(paths: string[], options: ApiFetchOpt
 
   throw lastError ?? new Error('No fue posible consultar el endpoint público de encuestas.');
 };
+
+const buildPublicSurveyPaths = (preferred: string, legacy: string) =>
+  ENABLE_PUBLIC_SURVEY_LEGACY_FALLBACK ? [preferred, legacy] : [preferred];
 
 const FALLBACK_SURVEY_URL_REGEX = /https?:\/\/[\S]+\/e\/([a-z0-9-]+)/gi;
 
@@ -405,10 +410,10 @@ const attemptRecoveryFromRawPayload = async (
 
 export const listPublicSurveys = async (tenantSlug?: string): Promise<PublicSurveyListResult> => {
   try {
-    const response = await callPublicSurveyEndpoint<unknown>([
+    const response = await callPublicSurveyEndpoint<unknown>(buildPublicSurveyPaths(
       '/api/public/encuestas',
       '/public/encuestas',
-    ], {
+    ), {
       skipAuth: true,
       omitCredentials: true,
       isWidgetRequest: true,
@@ -424,7 +429,7 @@ export const listPublicSurveys = async (tenantSlug?: string): Promise<PublicSurv
         return response as SurveyPublic[];
       }
 
-      if (!tenantSlug) {
+      if (ENABLE_PUBLIC_SURVEY_LEGACY_FALLBACK && !tenantSlug) {
         const recoveredFromAdmin = await attemptRecoveryFromAdminList();
         if (recoveredFromAdmin) {
           return recoveredFromAdmin;
@@ -435,14 +440,19 @@ export const listPublicSurveys = async (tenantSlug?: string): Promise<PublicSurv
     }
 
     const raw = serializeUnknown(response);
-    if (raw) {
+    if (ENABLE_PUBLIC_SURVEY_LEGACY_FALLBACK && raw) {
       const recovered = await attemptRecoveryFromRawPayload(raw, undefined, tenantSlug);
       if (recovered) {
         return recovered;
       }
     }
 
-    return asFlaggedEmptyList({ raw });
+    return asFlaggedEmptyList({
+      raw,
+      fallbackNotice: ENABLE_PUBLIC_SURVEY_LEGACY_FALLBACK
+        ? undefined
+        : 'El backend devolvió un formato inválido para el contrato público de encuestas v1.',
+    });
   } catch (error) {
     if (error instanceof ApiError) {
       const rawBody =
@@ -452,16 +462,30 @@ export const listPublicSurveys = async (tenantSlug?: string): Promise<PublicSurv
             ? error.body
             : serializeUnknown(error.body);
 
-      if (rawBody) {
+      if (ENABLE_PUBLIC_SURVEY_LEGACY_FALLBACK && rawBody) {
         const recovered = await attemptRecoveryFromRawPayload(rawBody, error.status, tenantSlug);
         if (recovered) {
           return recovered;
         }
       }
 
+      if (!ENABLE_PUBLIC_SURVEY_LEGACY_FALLBACK) {
+        return asFlaggedEmptyList({
+          raw: rawBody,
+          status: error.status,
+          fallbackNotice: 'No se pudo obtener el listado público de encuestas con contrato v1.',
+        });
+      }
+
       // If recovery fails or status indicates failure, fallback to mock data
       console.warn('[encuestas] Returning mock surveys due to API failure', error);
       return MOCK_SURVEYS;
+    }
+
+    if (!ENABLE_PUBLIC_SURVEY_LEGACY_FALLBACK) {
+      return asFlaggedEmptyList({
+        fallbackNotice: 'No se pudo consultar el listado público de encuestas (contrato v1).',
+      });
     }
 
     console.warn('[encuestas] Returning mock surveys due to generic error', error);
@@ -484,10 +508,10 @@ export const getPublicSurveyLiveResults = (
     provincia?: string;
   },
 ): Promise<SurveyLivePublicResultsPayload> =>
-  callPublicSurveyEndpoint<SurveyLivePublicResultsPayload>([
+  callPublicSurveyEndpoint<SurveyLivePublicResultsPayload>(buildPublicSurveyPaths(
     `/api/public/encuestas/${slug}/live-results${buildQueryString(params)}`,
     `/public/encuestas/${slug}/live-results${buildQueryString(params)}`,
-  ], {
+  ), {
     skipAuth: true,
     omitCredentials: true,
     isWidgetRequest: true,
@@ -502,11 +526,11 @@ export const postPublicResponse = (
   slug: string,
   payload: PublicResponsePayload,
   tenantSlug?: string,
-): Promise<{ ok: boolean; id?: number }> =>
-  callPublicSurveyEndpoint<{ ok: boolean; id?: number }>([
+): Promise<{ ok: boolean; id?: number; contact_key?: string; conversation_id?: string }> =>
+  callPublicSurveyEndpoint<{ ok: boolean; id?: number; contact_key?: string; conversation_id?: string }>(buildPublicSurveyPaths(
     `/api/public/encuestas/${slug}/respuestas`,
     `/public/encuestas/${slug}/respuestas`,
-  ], {
+  ), {
     method: 'POST',
     body: payload,
     omitCredentials: true,
@@ -516,6 +540,38 @@ export const postPublicResponse = (
     baseUrlOverride: PUBLIC_SURVEY_API_BASE,
     omitEntityToken: true,
     omitTenant: true,
+  }).then((response) => {
+    const contactKey = typeof response?.contact_key === 'string' ? response.contact_key.trim() : '';
+    const conversationId =
+      typeof response?.conversation_id === 'string' ? response.conversation_id.trim() : '';
+
+    if (!contactKey && !conversationId) {
+      return response;
+    }
+
+    try {
+      const currentRaw = safeLocalStorage.getItem(PUBLIC_CHAT_CONTEXT_STORAGE_KEY);
+      const currentContext = currentRaw ? JSON.parse(currentRaw) : null;
+      const normalizedContext =
+        currentContext && typeof currentContext === 'object'
+          ? (currentContext as Record<string, unknown>)
+          : {};
+
+      safeLocalStorage.setItem(
+        PUBLIC_CHAT_CONTEXT_STORAGE_KEY,
+        JSON.stringify({
+          ...normalizedContext,
+          ...(contactKey ? { contact_key: contactKey } : {}),
+          ...(conversationId ? { conversation_id: conversationId } : {}),
+          ...(tenantSlug ? { tenantSlug } : {}),
+          updatedAt: new Date().toISOString(),
+        }),
+      );
+    } catch {
+      // no-op: identity persistence is best-effort
+    }
+
+    return response;
   });
 
 export const getSurveyComments = (
@@ -524,10 +580,10 @@ export const getSurveyComments = (
   limit = 50,
   offset = 0,
 ): Promise<SurveyComment[]> =>
-  callPublicSurveyEndpoint<SurveyComment[]>([
+  callPublicSurveyEndpoint<SurveyComment[]>(buildPublicSurveyPaths(
     `/api/public/encuestas/${slug}/comentarios?limit=${limit}&offset=${offset}`,
     `/public/encuestas/${slug}/comentarios?limit=${limit}&offset=${offset}`,
-  ], {
+  ), {
     skipAuth: true,
     omitCredentials: true,
     isWidgetRequest: true,
@@ -554,10 +610,10 @@ export const postSurveyComment = (
   },
   tenantSlug?: string,
 ): Promise<SurveyComment> =>
-  callPublicSurveyEndpoint<SurveyComment>([
+  callPublicSurveyEndpoint<SurveyComment>(buildPublicSurveyPaths(
     `/api/public/encuestas/${slug}/comentarios`,
     `/public/encuestas/${slug}/comentarios`,
-  ], {
+  ), {
     method: 'POST',
     body: payload,
     omitCredentials: true,

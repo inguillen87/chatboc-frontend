@@ -6,6 +6,7 @@ import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import getOrCreateChatSessionId from "@/utils/chatSessionId"; // Import the new function
 import { getOrCreateAnonId } from "@/utils/anonIdGenerator";
 import { getIframeToken } from "@/utils/config";
+import { trackFrontendEvent } from '@/utils/frontendTelemetry';
 
 export class NetworkError extends Error {
   public readonly cause?: unknown;
@@ -349,6 +350,25 @@ const shouldLogVerboseApi = (): boolean => {
   return false;
 };
 
+const identityTelemetryEmitted = new Set<string>();
+
+const emitIdentityContextTelemetry = (
+  event: 'identity_context_attached' | 'identity_context_missing',
+  payload: {
+    tenant_slug?: string | null;
+    has_conversation_id?: boolean;
+    path?: string;
+    method?: string;
+  },
+) => {
+  const dedupeKey = `${event}:${payload.tenant_slug || 'global'}:${payload.path || ''}:${payload.method || ''}`;
+  if (identityTelemetryEmitted.has(dedupeKey)) {
+    return;
+  }
+  identityTelemetryEmitted.add(dedupeKey);
+  trackFrontendEvent(event, payload);
+};
+
 
 const resolveApiErrorMessage = (data: unknown, fallback: string) => {
   if (typeof data === 'string') {
@@ -478,6 +498,14 @@ const buildOmnichannelIdentityStorageKey = (tenantSlug?: string | null) => {
 const readOmnichannelIdentitySnapshot = (tenantSlug?: string | null): OmnichannelIdentitySnapshot | null => {
   const key = buildOmnichannelIdentityStorageKey(tenantSlug);
   const parsed = parseStoredJsonRecord(key);
+  if (!parsed && normalizeHeaderValue(tenantSlug)) {
+    const globalParsed = parseStoredJsonRecord(buildOmnichannelIdentityStorageKey(null));
+    if (!globalParsed) return null;
+    return {
+      contactKey: normalizeHeaderValue(globalParsed.contactKey),
+      conversationId: normalizeHeaderValue(globalParsed.conversationId),
+    };
+  }
   if (!parsed) return null;
 
   return {
@@ -842,6 +870,23 @@ export async function apiFetch<T>(
   if (resolvedConversationId) {
     headers["X-Conversation-Id"] = resolvedConversationId;
   }
+
+  if (resolvedContactKey) {
+    emitIdentityContextTelemetry('identity_context_attached', {
+      tenant_slug: headerTenant,
+      has_conversation_id: Boolean(resolvedConversationId),
+      path: normalizedPathWithTenant,
+      method,
+    });
+  } else {
+    emitIdentityContextTelemetry('identity_context_missing', {
+      tenant_slug: headerTenant,
+      has_conversation_id: Boolean(resolvedConversationId),
+      path: normalizedPathWithTenant,
+      method,
+    });
+  }
+
   // Always send X-Anon-Id for session persistence, prioritizing the new key
   if (anonId) {
     headers["X-Anon-Id"] = anonId;
