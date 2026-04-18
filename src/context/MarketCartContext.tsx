@@ -11,6 +11,7 @@ import { useLocation } from 'react-router-dom';
 
 import type { MarketCartItem, MarketCartResponse, MarketCommercialState, MarketCustomerProfile } from '@/types/market';
 import { addMarketItem, fetchMarketCart } from '@/api/market';
+import { persistStoredCart, readStoredCart } from '@/utils/marketStorage';
 
 interface MarketCartContextValue {
   items: MarketCartItem[];
@@ -55,9 +56,10 @@ const normalizeCartItems = (raw: any): MarketCartItem[] => {
 
 export function MarketCartProvider({ tenantSlug, children }: ProviderProps) {
   const location = useLocation();
-  const [items, setItems] = useState<MarketCartItem[]>([]);
-  const [totalAmount, setTotalAmount] = useState<number | null>(null);
-  const [totalPoints, setTotalPoints] = useState<number | null>(null);
+  const storedCart = tenantSlug ? readStoredCart(tenantSlug) : { items: [], totalAmount: null, totalPoints: null };
+  const [items, setItems] = useState<MarketCartItem[]>(normalizeCartItems(storedCart.items ?? []));
+  const [totalAmount, setTotalAmount] = useState<number | null>(typeof storedCart.totalAmount === 'number' ? storedCart.totalAmount : null);
+  const [totalPoints, setTotalPoints] = useState<number | null>(typeof storedCart.totalPoints === 'number' ? storedCart.totalPoints : null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [customerProfile, setCustomerProfile] = useState<MarketCustomerProfile | null>(null);
@@ -95,6 +97,11 @@ export function MarketCartProvider({ tenantSlug, children }: ProviderProps) {
       setItems(resolvedItems);
       setTotalAmount(response?.totalAmount ?? null);
       setTotalPoints(response?.totalPoints ?? null);
+      persistStoredCart(tenantSlug, {
+        items: resolvedItems,
+        totalAmount: response?.totalAmount ?? null,
+        totalPoints: response?.totalPoints ?? null,
+      });
       setCustomerProfile(response?.customer_profile ?? null);
       setCommercialState(response?.commercial_state ?? null);
     } catch (err) {
@@ -115,6 +122,11 @@ export function MarketCartProvider({ tenantSlug, children }: ProviderProps) {
         setItems(resolvedItems);
         setTotalAmount(response?.totalAmount ?? null);
         setTotalPoints(response?.totalPoints ?? null);
+        persistStoredCart(tenantSlug, {
+          items: resolvedItems,
+          totalAmount: response?.totalAmount ?? null,
+          totalPoints: response?.totalPoints ?? null,
+        });
         setCustomerProfile(response?.customer_profile ?? null);
         setCommercialState(response?.commercial_state ?? null);
       } catch (err) {

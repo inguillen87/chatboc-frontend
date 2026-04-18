@@ -431,15 +431,6 @@ export const apiClient = {
       tenantSlug,
     });
   },
-
-  startCheckout: async (tenantSlug: string, payload: any): Promise<any> => {
-    return apiFetch<any>(`/api/market/${tenantSlug}/checkout/start`, {
-      method: 'POST',
-      body: payload,
-      tenantSlug,
-    });
-  },
-
   // --- Admin Methods ---
 
   adminListOrders: async (tenantSlug: string, filters?: Record<string, any>): Promise<Order[]> => {
