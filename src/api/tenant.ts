@@ -1,6 +1,5 @@
 import { apiFetch, ApiError } from '@/utils/api';
 import { normalizeEntityToken } from '@/utils/entityToken';
-import { MOCK_EVENTS, MOCK_NEWS, MOCK_TENANT_INFO, MOCK_JUNIN_TENANT_INFO, getFallbackTenantInfo } from '@/data/mockTenantData';
 import type {
   TenantEventItem,
   TenantNewsItem,
@@ -176,34 +175,15 @@ const normalizeEventItem = (input: unknown): TenantEventItem | null => {
 };
 
 export async function getTenantPublicInfo(slug: string): Promise<TenantPublicInfo> {
-  try {
-    // Demo override for Junin
-    if (slug === 'municipio-junin' || slug === 'municipalidad-de-junin') {
-      return MOCK_JUNIN_TENANT_INFO;
-    }
+  const response = await apiFetch<unknown>('/public/tenant', {
+    tenantSlug: slug,
+    skipAuth: true,
+    omitCredentials: true,
+    isWidgetRequest: true,
+    omitChatSessionId: true,
+  });
 
-    const response = await apiFetch<unknown>('/public/tenant', {
-      tenantSlug: slug,
-      skipAuth: true,
-      omitCredentials: true,
-      isWidgetRequest: true,
-      omitChatSessionId: true,
-    });
-
-    return normalizeTenantInfo(response, slug);
-  } catch (error) {
-    if (shouldLogFallbackWarnings()) {
-      console.warn(`[API] Failed to fetch public info for ${slug}, using mock data.`, error);
-    }
-    if (slug === 'municipio-junin' || slug === 'municipalidad-de-junin') return MOCK_JUNIN_TENANT_INFO;
-
-    // Check specific fallbacks
-    if (['bodega', 'ferreteria', 'almacen', 'kiosco', 'farmacia', 'restaurante', 'tienda', 'logistica', 'seguros', 'fintech', 'inmobiliaria', 'industria', 'clinica', 'medico', 'local_comercial'].some(k => slug.includes(k))) {
-       return getFallbackTenantInfo(slug);
-    }
-
-    return { ...MOCK_TENANT_INFO, slug, nombre: slug };
-  }
+  return normalizeTenantInfo(response, slug);
 }
 
 const PLACEHOLDER_SLUGS = new Set(['iframe', 'embed', 'widget']);
@@ -232,41 +212,16 @@ const resolveTenantInfo = async ({
 
   const fallbackSlug = slug ?? widgetToken ?? '';
 
-  // Helper to fallback to mock if API fails
   const fetchWithFallback = async (endpoint: string) => {
-    try {
-      return await apiFetch<unknown>(`${endpoint}${params.toString() ? `?${params.toString()}` : ''}`, {
-        tenantSlug: slug ?? undefined,
-        skipAuth: true,
-        omitCredentials: true,
-        isWidgetRequest: true,
-        omitChatSessionId: true,
-        sendAnonId: true,
-        omitEntityToken: true,
-      });
-    } catch (error) {
-      // Critical fix: If the widget config endpoint is 404, we MUST fallback to mock data
-      // to allow the iframe to render.
-      // We check if the request was for widget-config (often used for initial load) or generic info
-      const isWidgetConfig = endpoint.includes('widget-config');
-      const is404 = error instanceof ApiError && error.status === 404;
-      // Also catch 500 errors to prevent backend crashes from breaking the frontend widget
-      const is500 = error instanceof ApiError && error.status === 500;
-
-      if (is404 || is500) {
-        if (shouldLogFallbackWarnings()) {
-          console.warn(`[API] Endpoint ${endpoint} returned ${error.status}. Falling back to mock data.`);
-        }
-        if (slug === 'municipio-junin' || slug === 'municipalidad-de-junin' || widgetToken === '1146cb3e-eaef-4230-b54e-1c340ac062d8') {
-           return MOCK_JUNIN_TENANT_INFO;
-        }
-        // Generic fallback if we have a slug that looks like a tenant
-        if (slug || widgetToken) {
-           return getFallbackTenantInfo(slug, widgetToken);
-        }
-      }
-      throw error;
-    }
+    return await apiFetch<unknown>(`${endpoint}${params.toString() ? `?${params.toString()}` : ''}`, {
+      tenantSlug: slug ?? undefined,
+      skipAuth: true,
+      omitCredentials: true,
+      isWidgetRequest: true,
+      omitChatSessionId: true,
+      sendAnonId: true,
+      omitEntityToken: true,
+    });
   };
 
   try {
@@ -281,9 +236,6 @@ const resolveTenantInfo = async ({
         throw secondaryError;
       }
 
-      // Try legacy path which might be what the widget actually calls sometimes
-      // The logs showed /api/public/tenants/municipio/widget-config failing
-      // We'll try to intercept that here logically by just returning the mock if all else fails
       try {
          const legacyResponse = await apiFetch<unknown>('/public/tenant', {
           tenantSlug: slug ?? undefined,
@@ -296,14 +248,6 @@ const resolveTenantInfo = async ({
         });
         return normalizeTenantInfo(legacyResponse, fallbackSlug, forceSlug);
       } catch (tertiaryError) {
-         // Final safety net for Iframe loading
-         if (slug === 'municipio-junin' || slug === 'municipalidad-de-junin' || widgetToken === '1146cb3e-eaef-4230-b54e-1c340ac062d8') {
-            return MOCK_JUNIN_TENANT_INFO;
-         }
-         // If we are definitely in a widget context (have a token), return mock to avoid white screen
-         if (widgetToken) {
-            return getFallbackTenantInfo(slug, widgetToken);
-         }
          throw tertiaryError;
       }
     }
@@ -318,16 +262,6 @@ export async function getTenantPublicInfoFlexible(
   const safeWidgetToken = normalizeEntityToken(widgetToken) ?? null;
 
   if (safeSlug) {
-    // Specific override for Junin slug
-    if (safeSlug === 'municipio-junin' || safeSlug === 'municipalidad-de-junin') {
-      return MOCK_JUNIN_TENANT_INFO;
-    }
-
-    // Mock detection for specific demos to avoid 404 latency and ensure content
-    if (['bodega', 'almacen', 'ferreteria', 'farmacia', 'restaurante', 'tienda', 'logistica', 'seguros', 'fintech', 'inmobiliaria', 'industria', 'clinica', 'medico', 'local_comercial'].some(k => safeSlug.includes(k))) {
-        return getFallbackTenantInfo(safeSlug);
-    }
-
     try {
       // Prioriza la resolución por slug explícito sin el widget token para evitar cruces de tenant.
       return await resolveTenantInfo({ slug: safeSlug, forceSlug: safeSlug });
@@ -352,10 +286,6 @@ export async function getTenantPublicInfoFlexible(
   }
 
   if (safeWidgetToken) {
-    // Specific override for Junin token
-    if (safeWidgetToken === '1146cb3e-eaef-4230-b54e-1c340ac062d8') {
-      return MOCK_JUNIN_TENANT_INFO;
-    }
     return resolveTenantInfo({ widgetToken: safeWidgetToken });
   }
 
@@ -381,9 +311,9 @@ export async function listTenantNews(slug: string): Promise<TenantNewsItem[]> {
       .filter((item): item is TenantNewsItem => Boolean(item));
   } catch (error) {
      if (shouldLogFallbackWarnings()) {
-       console.warn(`[API] Failed to fetch news for ${slug}, using mock data.`, error);
+       console.warn(`[API] Failed to fetch news for ${slug}.`, error);
      }
-     return MOCK_NEWS;
+     return [];
   }
 }
 
@@ -406,9 +336,9 @@ export async function listTenantEvents(slug: string): Promise<TenantEventItem[]>
       .filter((item): item is TenantEventItem => Boolean(item));
   } catch (error) {
     if (shouldLogFallbackWarnings()) {
-      console.warn(`[API] Failed to fetch events for ${slug}, using mock data.`, error);
+      console.warn(`[API] Failed to fetch events for ${slug}.`, error);
     }
-    return MOCK_EVENTS;
+    return [];
   }
 }
 
