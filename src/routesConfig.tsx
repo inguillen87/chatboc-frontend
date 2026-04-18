@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useParams } from 'react-router-dom';
 
 // ... (importaciones existentes) ...
 import { FEATURE_ENCUESTAS } from '@/config/featureFlags';
@@ -110,6 +110,15 @@ export interface RouteConfig {
   userPortal?: boolean; // Flag para rutas del portal de usuario final (cliente/vecino)
   allowGuest?: boolean; // Permite acceder sin sesión (modo demo)
 }
+
+const LegacyTenantAliasRedirect = ({ suffix = '' }: { suffix?: string }) => {
+  const params = useParams();
+  const tenant = typeof params.tenant === 'string' ? params.tenant.trim() : '';
+  if (!tenant) {
+    return <Navigate to="/" replace />;
+  }
+  return <Navigate to={`/t/${encodeURIComponent(tenant)}${suffix}`} replace />;
+};
 
 const withTenantPrefixes = (
   pathSuffix: string,
@@ -290,19 +299,19 @@ const routes: RouteConfig[] = [
 
   // Clean URL Support (Root Level Tenant Routes)
   // Placing these carefully to avoid conflicts, though React Router v6 is smart about specificity.
-  { path: '/:tenant/productos', element: <ProductCatalog /> },
-  { path: '/:tenant/catalogo', element: <PublicCatalogPage /> },
-  { path: '/:tenant/cart', element: <CartPage /> },
-  { path: '/:tenant/checkout-productos', element: <ProductCheckoutPage /> },
-  { path: '/:tenant/pedido/confirmado', element: <OrderConfirmationPage /> },
+  { path: '/:tenant/productos', element: <LegacyTenantAliasRedirect suffix="/productos" /> },
+  { path: '/:tenant/catalogo', element: <LegacyTenantAliasRedirect suffix="/catalogo" /> },
+  { path: '/:tenant/cart', element: <LegacyTenantAliasRedirect suffix="/cart" /> },
+  { path: '/:tenant/checkout-productos', element: <LegacyTenantAliasRedirect suffix="/checkout-productos" /> },
+  { path: '/:tenant/pedido/confirmado', element: <LegacyTenantAliasRedirect suffix="/pedido/confirmado" /> },
   // Public Order Tracking
   { path: '/pyme/pedidos/:nro_pedido', element: <OrderTrackingPage /> },
   // Missing root integration route
-  { path: '/:tenant/integracion', element: <IntegracionesPage />, roles: ['admin'] },
+  { path: '/:tenant/integracion', element: <LegacyTenantAliasRedirect suffix="/integracion" />, roles: ['admin'] },
 
   // Generic Tenant Home (Dashboard/Landing) - Must be LAST among tenant routes to avoid swallowing others
   ...withTenantPrefixes('/:tenant', { element: <TenantHomePage /> }),
-  { path: '/:tenant', element: <TenantHomePage /> }, // Support root level /:slug
+  { path: '/:tenant', element: <LegacyTenantAliasRedirect /> }, // Legacy root tenant alias -> canonical
 
   // Global Routes
   { path: '/admin', element: <Navigate to="/perfil" replace /> },
