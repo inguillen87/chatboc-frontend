@@ -271,7 +271,9 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
 
   const isRecoverableTenantError = useCallback((error: unknown) => {
     if (error instanceof ApiError) {
-      return [400, 401, 403, 404, 405].includes(error.status);
+      // 404 must surface explicitly (no silent fallback to default tenant info).
+      // Keep only structural/request-shape recoverables.
+      return [400, 405].includes(error.status);
     }
     return false;
   }, []);
