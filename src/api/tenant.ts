@@ -232,24 +232,7 @@ const resolveTenantInfo = async ({
       const response = await fetchWithFallback('/pwa/tenant-info');
       return normalizeTenantInfo(response, fallbackSlug, forceSlug);
     } catch (secondaryError) {
-      if (!slug && !widgetToken) {
-        throw secondaryError;
-      }
-
-      try {
-         const legacyResponse = await apiFetch<unknown>('/public/tenant', {
-          tenantSlug: slug ?? undefined,
-          skipAuth: true,
-          omitCredentials: true,
-          isWidgetRequest: true,
-          omitChatSessionId: true,
-          sendAnonId: true,
-          omitEntityToken: true,
-        });
-        return normalizeTenantInfo(legacyResponse, fallbackSlug, forceSlug);
-      } catch (tertiaryError) {
-         throw tertiaryError;
-      }
+      throw secondaryError;
     }
   }
 };
