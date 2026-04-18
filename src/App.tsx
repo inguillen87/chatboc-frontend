@@ -5,7 +5,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { GoogleOAuthProvider } from "@react-oauth/google";
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation, useNavigate } from "react-router-dom";
 
 // Páginas principales
 import Layout from "./components/layout/Layout";
@@ -23,6 +23,7 @@ import { GOOGLE_CLIENT_ID } from './env';
 import UserPortalLayout from "@/components/user-portal/layout/UserPortalLayout";
 import TokenRedirectWrapper from "@/components/TokenRedirectWrapper";
 import { CapabilitiesProvider } from '@/context/CapabilitiesContext';
+import { toCanonicalTenantPath } from '@/utils/canonicalTenantRouting';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -35,6 +36,13 @@ const queryClient = new QueryClient({
 });
 function AppRoutes() {
   const location = useLocation();
+  const navigate = useNavigate();
+
+  React.useEffect(() => {
+    const canonicalPath = toCanonicalTenantPath(location.pathname);
+    if (!canonicalPath || canonicalPath === location.pathname) return;
+    navigate(`${canonicalPath}${location.search}${location.hash}`, { replace: true });
+  }, [location.hash, location.pathname, location.search, navigate]);
 
   // Ensure persistent anonymous session on app load
   React.useEffect(() => {

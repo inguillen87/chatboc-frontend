@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const getTicketsMock = vi.fn();
 const useTicketUpdatesMock = vi.fn();
+const getTicketWorkflowMetadataMock = vi.fn();
 
 vi.mock('@/services/ticketService', () => ({
   getTickets: (...args: unknown[]) => getTicketsMock(...args),
@@ -15,6 +16,16 @@ vi.mock('@/hooks/useTicketUpdates', () => ({
 
 vi.mock('@/hooks/useUser', () => ({
   useUser: () => ({ user: { tenantSlug: 'demo', rol: 'admin', id: 1 } }),
+}));
+
+vi.mock('@/context/TenantContext', () => ({
+  useTenant: () => ({ currentSlug: 'demo' }),
+}));
+
+vi.mock('@/api/client', () => ({
+  apiClient: {
+    getTicketWorkflowMetadata: (...args: unknown[]) => getTicketWorkflowMetadataMock(...args),
+  },
 }));
 
 vi.mock('@/utils/api', async () => {
@@ -40,11 +51,19 @@ const Consumer = () => {
   );
 };
 
+
 describe('TicketContext unread delta reconciliation', () => {
   beforeEach(() => {
     ticketUpdateHandlers = {};
     getTicketsMock.mockReset();
     useTicketUpdatesMock.mockReset();
+    getTicketWorkflowMetadataMock.mockReset();
+    getTicketWorkflowMetadataMock.mockResolvedValue({
+      contract_version: 'tickets.workflow.v1',
+      states: ['abierto'],
+      transitions: { abierto: ['cerrado'] },
+      final_states: ['cerrado'],
+    });
     useTicketUpdatesMock.mockImplementation((handlers) => {
       ticketUpdateHandlers = handlers;
     });
@@ -97,4 +116,5 @@ describe('TicketContext unread delta reconciliation', () => {
     });
     expect(getTicketsMock.mock.calls.length).toBeGreaterThanOrEqual(1);
   });
+
 });

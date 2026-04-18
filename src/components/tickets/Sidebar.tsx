@@ -309,7 +309,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
           >
             <option value="all">Estado: todos</option>
             {filterOptions.statuses.map((status) => (
-              <option key={status} value={status}>{status}</option>
+              <option key={status.value} value={status.value}>{status.label}</option>
             ))}
           </select>
           <select
@@ -340,6 +340,25 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
             <option value="all">Prioridad: todas</option>
             {filterOptions.priorities.map((priority) => (
               <option key={priority} value={priority}>{priority}</option>
+            ))}
+          </select>
+          <select
+            className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+            value={filters.sla}
+            onChange={(e) => setFilters((prev) => ({ ...prev, sla: e.target.value }))}
+          >
+            <option value="all">SLA: todos</option>
+            {filterOptions.slaStatuses.map((slaStatus) => (
+              <option key={slaStatus} value={slaStatus}>{slaStatus}</option>
+            ))}
+          </select>
+          <select
+            className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+            value={filters.unread}
+            onChange={(e) => setFilters((prev) => ({ ...prev, unread: e.target.value }))}
+          >
+            {filterOptions.unreadModes.map((mode) => (
+              <option key={mode.value} value={mode.value}>{mode.label}</option>
             ))}
           </select>
         </div>

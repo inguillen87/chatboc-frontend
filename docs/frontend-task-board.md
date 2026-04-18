@@ -2,6 +2,7 @@
 
 > Documento consolidado recomendado: `docs/FRONTEND_SINGLE_TASK_WORLD_CLASS_CHAT.md`.
 > Documento complementario de detalle: `docs/FRONTEND_UNIFIED_HANDOFF.md`.
+> Backlog ejecutable por ownership: `docs/backlog-omnicanal-executable.md`.
 
 ## Sprint objetivo
 Subir conversión de demo y velocidad comercial con UX consistente entre widget público y CRM superadmin.
