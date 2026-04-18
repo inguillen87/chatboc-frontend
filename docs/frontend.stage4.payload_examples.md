@@ -1,6 +1,8 @@
 # Frontend Stage 4 — Payload Examples (v1)
 
-## 1) `GET /analytics/identity/coverage`
+> Ejemplos de referencia para tipado y pruebas de integración FE.
+
+## 1) GET `/analytics/identity/coverage` (con alertas)
 
 ```json
 {
@@ -10,25 +12,17 @@
   "slo_status": "below_target",
   "alert_count": 2,
   "alerts": [
-    {
-      "channel": "whatsapp",
-      "coverage_pct": 81.0,
-      "target_pct": 95.0,
-      "gap_pct": 14.0,
-      "severity": "high"
-    }
+    { "channel": "whatsapp", "coverage_pct": 81, "target_pct": 95, "gap_pct": 14, "severity": "high" }
   ]
 }
 ```
 
-## 2) `GET /admin/analytics/whatsapp-funnel`
+## 2) GET `/admin/analytics/whatsapp-funnel`
 
 ```json
 {
   "contract_version": "admin.analytics.whatsapp_funnel.v1",
   "tenant_id": 42,
-  "scope": "tenant",
-  "window_minutes": 60,
   "stages": [
     {
       "event_name": "message_received",
@@ -41,54 +35,33 @@
 }
 ```
 
-## 3) `POST /analytics/event` (202)
+## 3) POST `/analytics/event` (ack)
 
 ```json
 {
   "ok": true,
   "contract_version": "analytics.event_ingest.v1",
   "tenant_id": 42,
-  "event_name": "portal_session_opened",
+  "event_name": "portal_opened",
   "contact_key": "wa:contact:abc123",
   "conversation_id": "conv-abc123",
   "identity_source": "conversation_id"
 }
 ```
 
-## 4) `GET /auth/widget/bootstrap`
-
-```json
-{
-  "contract_version": "auth.widget_bootstrap.v1",
-  "tenant": { "id": 42, "slug": "demo-tenant" },
-  "widget": { "token_cookie_name": "widget_token", "access_minutes": 45, "renew_days": 7 },
-  "jwks": { "url": "https://api.chatboc.ar/auth/widget/jwks.json", "alg": "HS256", "kid": "widget-hs256" }
-}
-```
-
-## 5) `POST /auth/widget-token` / `/auth/widget-refresh`
-
-```json
-{
-  "contract_version": "auth.widget_token.v1",
-  "token": "<jwt>",
-  "expires_in": 2700
-}
-```
-
-## 6) `GET /analytics/event/schema?tenant_id=42`
+## 4) GET `/analytics/event/schema?tenant_id=42`
 
 ```json
 {
   "contract_version": "analytics.event_schema.v1",
   "tenant_id": 42,
   "required_dimensions": ["event_name", "channel", "tenant_id"],
-  "recommended_dimensions": ["contact_key", "conversation_id", "screen_name"],
-  "canonical_events": ["message_received", "ticket_created", "ticket_assigned", "ticket_resolved"]
+  "recommended_dimensions": ["contact_key", "conversation_id"],
+  "canonical_events": ["message_received", "ticket_created", "portal_session_opened"]
 }
 ```
 
-## 7) `GET /tickets/public/status?code=M-12345&pin=9999`
+## 5) GET `/tickets/public/status?code=M-12345&pin=9999`
 
 ```json
 {
@@ -96,8 +69,92 @@
   "ticket": {
     "nro_ticket": "M-12345",
     "estado": "en_proceso",
-    "categoria": "alumbrado",
-    "ultima_actualizacion": "2026-01-02T12:00:00Z"
+    "categoria": "alumbrado"
   }
 }
 ```
+
+## 6) GET `/tickets/workflow/metadata`
+
+```json
+{
+  "contract_version": "tickets.workflow.v1",
+  "states": ["nuevo", "en_proceso", "cerrado"],
+  "transitions": { "nuevo": ["en_proceso", "cerrado"], "en_proceso": ["cerrado"], "cerrado": [] },
+  "final_states": ["cerrado"]
+}
+```
+
+## 7) GET `/public/encuestas/v1/<slug>` + POST respuestas
+
+```json
+{
+  "contract_version": "encuestas.public.v1",
+  "encuesta": { "id": 10, "slug": "satisfaccion-servicio", "estado": "published", "preguntas": [] }
+}
+```
+
+```json
+{
+  "contract_version": "encuestas.public_response.v1",
+  "success": true,
+  "respuesta_id": 501,
+  "anon_id": "anon_abc123",
+  "contact_key": "tenant:demo:+5491112345678",
+  "conversation_id": "wa_conv_123"
+}
+```
+
+## 8) GET `/tenant-profile` (404 sin demo fallback)
+
+```json
+{
+  "error": {
+    "code": 404,
+    "message": "Tenant slug 'foo' not found"
+  }
+}
+```
+
+## 9) GET `/tenant-profile` (educación)
+
+```json
+{
+  "contract_version": "public.tenant_profile.v1",
+  "tenant": {
+    "slug": "colegio-san-martin",
+    "rubro_profile": {
+      "education_profile": {
+        "is_education": true,
+        "institution_type": "private",
+        "modules": ["asistencia", "comunicados", "agenda_academica", "tramites_secretaria"]
+      }
+    }
+  }
+}
+```
+
+## 10) GET `/api/public/widget-config` (educación)
+
+```json
+{
+  "contract_version": "public.widget_config.v1",
+  "quick_menu": [
+    { "id": "menu_asistencia", "label": "Asistencia", "intent": "asistencia_alumno" },
+    { "id": "menu_comunicados", "label": "Comunicados", "intent": "comunicados_familias" }
+  ]
+}
+```
+
+## 11) GET `/auth/demo/catalog` (demo mode OFF)
+
+```json
+{
+  "contract_version": "auth.demo.v1",
+  "error": {
+    "code": 404,
+    "message": "Demo mode disabled"
+  }
+}
+```
+
