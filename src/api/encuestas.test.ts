@@ -106,6 +106,16 @@ describe('listPublicSurveys', () => {
     expect(result.__badPayload).toBe(true);
     expect(result.__status).toBe(500);
   });
+
+  it('never falls back to demo/mock surveys on generic public list failures', async () => {
+    apiFetchMock.mockRejectedValueOnce(new Error('network down'));
+
+    const result = await listPublicSurveys('rio-grande');
+
+    expect(Array.isArray(result)).toBe(true);
+    expect(result).toHaveLength(0);
+    expect(result.__badPayload).toBe(true);
+  });
 });
 
 describe('postPublicResponse', () => {

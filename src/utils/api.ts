@@ -498,14 +498,6 @@ const buildOmnichannelIdentityStorageKey = (tenantSlug?: string | null) => {
 const readOmnichannelIdentitySnapshot = (tenantSlug?: string | null): OmnichannelIdentitySnapshot | null => {
   const key = buildOmnichannelIdentityStorageKey(tenantSlug);
   const parsed = parseStoredJsonRecord(key);
-  if (!parsed && normalizeHeaderValue(tenantSlug)) {
-    const globalParsed = parseStoredJsonRecord(buildOmnichannelIdentityStorageKey(null));
-    if (!globalParsed) return null;
-    return {
-      contactKey: normalizeHeaderValue(globalParsed.contactKey),
-      conversationId: normalizeHeaderValue(globalParsed.conversationId),
-    };
-  }
   if (!parsed) return null;
 
   return {
@@ -1045,13 +1037,20 @@ export async function apiFetch<T>(
   }
 
   try {
+    const responseTenantSlug = sanitizeTenantSlug(
+      response.headers.get("X-Tenant-Slug") ||
+      response.headers.get("x-tenant-slug") ||
+      response.headers.get("X-Tenant") ||
+      response.headers.get("x-tenant") ||
+      headerTenant,
+    );
     const responseContactKey =
       response.headers.get("X-Contact-Key") ||
       response.headers.get("x-contact-key");
     const responseConversationId =
       response.headers.get("X-Conversation-Id") ||
       response.headers.get("x-conversation-id");
-    persistOmnichannelIdentitySnapshot(headerTenant, {
+    persistOmnichannelIdentitySnapshot(responseTenantSlug, {
       contactKey: responseContactKey,
       conversationId: responseConversationId,
     });
@@ -1110,7 +1109,7 @@ export async function apiFetch<T>(
           ? (payloadError as Record<string, unknown>)
           : null;
 
-      persistOmnichannelIdentitySnapshot(headerTenant, {
+      persistOmnichannelIdentitySnapshot(responseTenantSlug, {
         contactKey:
           normalizeHeaderValue(payload.contact_key) ||
           normalizeHeaderValue(payload.contactKey) ||

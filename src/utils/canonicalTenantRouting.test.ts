@@ -18,4 +18,8 @@ describe('toCanonicalTenantPath', () => {
     expect(toCanonicalTenantPath('/market/login')).toBeNull();
     expect(toCanonicalTenantPath('/integracion')).toBeNull();
   });
+
+  it('returns null for malformed url-encoded tenant segments', () => {
+    expect(toCanonicalTenantPath('/market/%/portal')).toBeNull();
+  });
 });
