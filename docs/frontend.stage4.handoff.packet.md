@@ -1,37 +1,53 @@
-# Frontend handoff — ejecución CRM omnicanal (alineado a backend)
+# Frontend Stage 4 Handoff Packet (abril 2026)
 
-Documento operativo para frontend (admin + portal + widget), alineado con backend y orientado a evitar drift.
+> Documento corto para pasar a frontend con foco en integración inmediata.
 
-## Prioridad de ejecución inmediata
+## 1) Qué cambió en backend y FE debe consumir ya
 
-1. **FE-01**: consolidar rutas canónicas por tenant (`/t/:tenantSlug/*`) y mantener legacy solo como redirect.
-2. **FE-03**: garantizar propagación/reinyección de `X-Contact-Key` y `X-Conversation-Id` en flujos críticos.
-3. **FE-07**: asegurar UX de denegación usable (`/403` + CTA + analytics de intento denegado).
+1. Identidad omnicanal en headers (`X-Contact-Key`, `X-Conversation-Id`) con persistencia por tenant y reinyección.
+2. Coverage endpoint `GET /analytics/identity/coverage` (`contract_version`, `coverage_pct`, `slo_status`, `alerts`, `alert_count`).
+3. Ingest ack `POST /analytics/event` con `contract_version`, `contact_key`, `conversation_id`, `identity_source`.
+4. Event schema `GET /analytics/event/schema?tenant_id=<id>` (`canonical_events`, `required_dimensions`, `recommended_dimensions`).
+5. Funnel `GET /admin/analytics/whatsapp-funnel` con `contract_version` y `unique_contacts`.
+6. Widget auth contracts: bootstrap/token/refresh.
+7. Tracking público y workflow de tickets.
+8. Encuestas públicas v1 + ack v1.
+9. Demo mode OFF por defecto (`/auth/demo/catalog` y `/auth/demo` retornan 404 `auth.demo.v1`).
+10. `tenant-profile` y `widget-config` con contratos v1 públicos.
 
-## Endpoints nuevos que FE debe consumir
+## 2) Criterios de aceptación FE
 
-- `GET /analytics/identity/coverage` (`analytics.identity_coverage.v1`)
-- `GET /admin/analytics/whatsapp-funnel` (con `contract_version`)
-- `POST /analytics/event` (`analytics.event_ingest.v1`)
-- `GET /analytics/event/schema` (`analytics.event_schema.v1`)
-- `GET /auth/widget/bootstrap` (`auth.widget_bootstrap.v1`)
-- `POST /auth/widget-token` + `POST /auth/widget-refresh` (`auth.widget_token.v1`)
-- `GET /tickets/public/status` (`tickets.public_status.v1`)
-- `GET /tickets/workflow/metadata` (`tickets.workflow.v1`)
+- Requests críticas incluyen `X-Contact-Key` cuando exista identidad.
+- Requests con continuidad incluyen `X-Conversation-Id` cuando aplique.
+- Coverage muestra banner con `alert_count > 0`.
+- Funnel/ingest validan `contract_version` antes de render/procesar.
+- Pantallas con permisos alineadas a `requiredCapabilities` RBAC v1.
 
-## Criterios de aceptación del sprint
+## 3) QA manual mínimo
 
-- Requests críticas envían `X-Contact-Key` cuando haya identidad.
-- Requests de handoff/continuidad envían `X-Conversation-Id` cuando exista.
-- Coverage muestra banner ante `alert_count > 0`.
-- Funnel/coverage rechazan payload sin `contract_version` válido.
-- Denegaciones RBAC no rompen navegación y quedan trazadas por tenant + pantalla + capability.
+1. Tenant municipio: coverage OK y funnel tolera `conversion_from_prev_pct = null`.
+2. Tenant pyme: continuidad headers en market/pedido + fallback 403 usable.
+3. Usuario nuevo: degradación elegante + persistencia de identidad al primer response.
 
-## Paquete de referencia
+## 4) Tipos TS sugeridos (resumen)
 
-- Handoff resumido: `docs/frontend.stage4.handoff.md`
-- Ejemplos de payload: `docs/frontend.stage4.payload_examples.md`
-- Matriz RBAC: `docs/rbac.capability_matrix.v1.md`
-- Contratos base: 
-  - `docs/analytics.identity_coverage.v1.contract.md`
-  - `docs/shared.error.v1.contract.md`
+- `IdentityCoverageResponseV1`
+- `WhatsappFunnelResponseV1`
+- `AnalyticsEventIngestAckV1`
+- `AnalyticsEventSchemaV1`
+- `PublicTicketStatusV1`
+- `TicketWorkflowMetadataV1`
+- `PublicSurveyV1`
+- `PublicSurveyResponseAckV1`
+- `TenantProfilePublicV1`
+- `PublicWidgetConfigV1`
+
+## 5) Tickets sugeridos FE
+
+1. `identity-headers-propagation`
+2. `analytics-coverage-ui`
+3. `analytics-event-ingest-ack-v1`
+4. `analytics-event-schema-v1`
+5. `whatsapp-funnel-contract-v1`
+6. `rbac-required-capabilities-alignment`
+

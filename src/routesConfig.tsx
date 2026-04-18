@@ -300,7 +300,7 @@ const routes: RouteConfig[] = [
   // Clean URL Support (Root Level Tenant Routes)
   // Placing these carefully to avoid conflicts, though React Router v6 is smart about specificity.
   { path: '/:tenant/productos', element: <LegacyTenantAliasRedirect suffix="/productos" /> },
-  { path: '/:tenant/catalogo', element: <LegacyTenantAliasRedirect suffix="/catalogo" /> },
+  { path: '/:tenant/catalogo', element: <LegacyTenantAliasRedirect suffix="/productos" /> },
   { path: '/:tenant/cart', element: <LegacyTenantAliasRedirect suffix="/cart" /> },
   { path: '/:tenant/checkout-productos', element: <LegacyTenantAliasRedirect suffix="/checkout-productos" /> },
   { path: '/:tenant/pedido/confirmado', element: <LegacyTenantAliasRedirect suffix="/pedido/confirmado" /> },

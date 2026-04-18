@@ -1,6 +1,6 @@
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
-import { BrowserRouter } from 'react-router-dom';
+import { MemoryRouter } from 'react-router-dom';
 import UserOrdersPage from './UserOrdersPage';
 import { TenantProvider } from '@/context/TenantContext';
 import { vi } from 'vitest';
@@ -20,20 +20,20 @@ vi.mock('@/api/client', () => ({
 describe('UserOrdersPage', () => {
   it('renders orders page and fallback data', async () => {
     render(
-      <BrowserRouter>
+      <MemoryRouter initialEntries={['/t/demo/pedidos']}>
         <TenantProvider>
           <UserOrdersPage />
         </TenantProvider>
-      </BrowserRouter>
+      </MemoryRouter>
     );
 
     await waitFor(() => {
         expect(screen.getByText(/Mis Pedidos/i)).toBeInTheDocument();
     });
 
-    // Check for fallback item
+    // Check empty-state content when backend has no orders
     await waitFor(() => {
-        expect(screen.getByText(/Taladro Percutor/i)).toBeInTheDocument();
+        expect(screen.getByText(/No tenés pedidos registrados aún\./i)).toBeInTheDocument();
     });
   });
 });

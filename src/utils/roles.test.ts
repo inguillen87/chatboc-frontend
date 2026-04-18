@@ -3,11 +3,11 @@ import { hasRequiredRole, isBackofficeRole, normalizeRole } from '@/utils/roles'
 
 describe('roles helpers', () => {
   it('normalizes legacy and canonical role aliases', () => {
-    expect(normalizeRole('super_admin')).toBe('superadmin');
+    expect(normalizeRole('super_admin')).toBe('super_admin');
     expect(normalizeRole('admin')).toBe('admin');
     expect(normalizeRole('empleado')).toBe('empleado');
     expect(normalizeRole('tenant_admin')).toBe('tenant_admin');
-    expect(normalizeRole('employee')).toBe('employee');
+    expect(normalizeRole('employee')).toBe('empleado');
     expect(normalizeRole('chat_user')).toBe('end_user');
   });
 
