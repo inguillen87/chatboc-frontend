@@ -1,4 +1,10 @@
 import { ApiError, apiFetch } from '@/utils/api';
+import {
+  type IdentityCoverageResponseV1,
+  parseIdentityCoverageResponseV1,
+} from '@/services/identityCoverageContract';
+
+export { parseIdentityCoverageResponseV1 };
 
 export interface AnalyticsFilters {
   tenant_id?: number;
@@ -107,6 +113,40 @@ export interface RealtimeHubResponse {
   comments?: Array<{ channel?: string; text?: string; created_at?: string; sentiment?: string }>;
 }
 
+export interface WhatsappFunnelStage {
+  event_name: string;
+  label: string;
+  sessions: number;
+  unique_contacts: number;
+  conversion_from_prev_pct: number | null;
+}
+
+export interface WhatsappFunnelResponse {
+  contract_version: string;
+  tenant_id?: number | null;
+  scope?: string;
+  window_minutes?: number;
+  stages: WhatsappFunnelStage[];
+}
+
+export interface AnalyticsEventIngestAckV1 {
+  ok: true;
+  contract_version: 'analytics.event_ingest.v1';
+  tenant_id: number;
+  event_name: string;
+  contact_key?: string;
+  conversation_id?: string;
+  identity_source?: string;
+}
+
+export interface AnalyticsEventSchemaV1 {
+  contract_version: 'analytics.event_schema.v1';
+  tenant_id: number;
+  required_dimensions: string[];
+  recommended_dimensions: string[];
+  canonical_events: string[];
+}
+
 
 
 export interface AnalyticsGeoLayerCategory {
@@ -158,6 +198,202 @@ export interface AnalyticsHeatmapResponse {
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+const asFiniteNumber = (value: unknown): number | undefined => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+};
+
+export const parseWhatsappFunnelResponse = (input: unknown): WhatsappFunnelResponse | null => {
+  if (!isRecord(input)) return null;
+  const contractVersion = typeof input.contract_version === 'string' ? input.contract_version.trim() : '';
+  if (!contractVersion) return null;
+
+  const stagesRaw = Array.isArray(input.stages) ? input.stages : [];
+  const stages = stagesRaw
+    .map((stage) => {
+      if (!isRecord(stage)) return null;
+      const eventName =
+        typeof stage.event_name === 'string' && stage.event_name.trim()
+          ? stage.event_name.trim()
+          : typeof stage.stage === 'string'
+            ? stage.stage.trim()
+            : '';
+      const label =
+        typeof stage.label === 'string' && stage.label.trim()
+          ? stage.label.trim()
+          : eventName;
+      const sessions =
+        asFiniteNumber(stage.sessions) ?? asFiniteNumber(stage.count);
+      const uniqueContacts = asFiniteNumber(stage.unique_contacts);
+      const conversionFromPrevPct =
+        stage.conversion_from_prev_pct === null
+          ? null
+          : asFiniteNumber(stage.conversion_from_prev_pct) ?? null;
+      if (!eventName || sessions === undefined || uniqueContacts === undefined) return null;
+      return {
+        event_name: eventName,
+        label,
+        sessions,
+        unique_contacts: uniqueContacts,
+        conversion_from_prev_pct: conversionFromPrevPct,
+      };
+    })
+    .filter((stage): stage is WhatsappFunnelStage => stage !== null);
+
+  return {
+    contract_version: contractVersion,
+    tenant_id: input.tenant_id === null ? null : asFiniteNumber(input.tenant_id),
+    scope: typeof input.scope === 'string' ? input.scope : undefined,
+    window_minutes: asFiniteNumber(input.window_minutes),
+    stages,
+  };
+};
+
+export const parseAnalyticsEventIngestAckV1 = (input: unknown): AnalyticsEventIngestAckV1 | null => {
+  if (!isRecord(input)) return null;
+  if (input.contract_version !== 'analytics.event_ingest.v1') return null;
+  if (input.ok !== true) return null;
+
+  const tenantId = asFiniteNumber(input.tenant_id);
+  const eventName = typeof input.event_name === 'string' ? input.event_name.trim() : '';
+  if (tenantId === undefined || !eventName) return null;
+
+  return {
+    ok: true,
+    contract_version: 'analytics.event_ingest.v1',
+    tenant_id: tenantId,
+    event_name: eventName,
+    ...(typeof input.contact_key === 'string' ? { contact_key: input.contact_key } : {}),
+    ...(typeof input.conversation_id === 'string' ? { conversation_id: input.conversation_id } : {}),
+    ...(typeof input.identity_source === 'string' ? { identity_source: input.identity_source } : {}),
+  };
+};
+
+const toStringArray = (value: unknown): string[] =>
+  Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0).map((item) => item.trim())
+    : [];
+
+export const parseAnalyticsEventSchemaV1 = (input: unknown): AnalyticsEventSchemaV1 | null => {
+  if (!isRecord(input)) return null;
+  if (input.contract_version !== 'analytics.event_schema.v1') return null;
+  const tenantId = asFiniteNumber(input.tenant_id);
+  if (tenantId === undefined) return null;
+
+  return {
+    contract_version: 'analytics.event_schema.v1',
+    tenant_id: tenantId,
+    required_dimensions: toStringArray(input.required_dimensions),
+    recommended_dimensions: toStringArray(input.recommended_dimensions),
+    canonical_events: toStringArray(input.canonical_events),
+  };
+};
+
+export const getWhatsappFunnel = async (tenantSlug?: string): Promise<WhatsappFunnelResponse> => {
+  try {
+    const raw = await apiFetch<unknown>('/admin/analytics/whatsapp-funnel', { tenantSlug });
+    const parsed = parseWhatsappFunnelResponse(raw);
+    if (!parsed) {
+      throw new ApiError('Respuesta inválida de WhatsApp funnel: falta contract_version o payload inválido.', 502, raw);
+    }
+    return parsed;
+  } catch (error) {
+    if (!(error instanceof ApiError) || (error.status !== 404 && error.status !== 405)) {
+      throw error;
+    }
+
+    const raw = await apiFetch<unknown>('/api/admin/analytics/whatsapp-funnel', { tenantSlug });
+    const parsed = parseWhatsappFunnelResponse(raw);
+    if (!parsed) {
+      throw new ApiError('Respuesta inválida de WhatsApp funnel: falta contract_version o payload inválido.', 502, raw);
+    }
+    return parsed;
+  }
+};
+
+export const getIdentityCoverageV1 = async (tenantSlug?: string): Promise<IdentityCoverageResponseV1> => {
+  try {
+    const raw = await apiFetch<unknown>('/analytics/identity/coverage', { tenantSlug });
+    const parsed = parseIdentityCoverageResponseV1(raw);
+    if (!parsed) {
+      throw new ApiError('Respuesta inválida de identity coverage: contract_version o payload inválido.', 502, raw);
+    }
+    return parsed;
+  } catch (error) {
+    if (!(error instanceof ApiError) || (error.status !== 404 && error.status !== 405)) {
+      throw error;
+    }
+
+    const raw = await apiFetch<unknown>('/api/analytics/identity/coverage', { tenantSlug });
+    const parsed = parseIdentityCoverageResponseV1(raw);
+    if (!parsed) {
+      throw new ApiError('Respuesta inválida de identity coverage: contract_version o payload inválido.', 502, raw);
+    }
+    return parsed;
+  }
+};
+
+export const getAnalyticsEventSchema = async (
+  tenantId?: number,
+  tenantSlug?: string,
+): Promise<AnalyticsEventSchemaV1> => {
+  const query = tenantId !== undefined ? `?tenant_id=${tenantId}` : '';
+  try {
+    const raw = await apiFetch<unknown>(`/analytics/event/schema${query}`, { tenantSlug });
+    const parsed = parseAnalyticsEventSchemaV1(raw);
+    if (!parsed) {
+      throw new ApiError('Respuesta inválida de analytics event schema v1.', 502, raw);
+    }
+    return parsed;
+  } catch (error) {
+    if (!(error instanceof ApiError) || (error.status !== 404 && error.status !== 405)) {
+      throw error;
+    }
+    const raw = await apiFetch<unknown>(`/api/analytics/event/schema${query}`, { tenantSlug });
+    const parsed = parseAnalyticsEventSchemaV1(raw);
+    if (!parsed) {
+      throw new ApiError('Respuesta inválida de analytics event schema v1.', 502, raw);
+    }
+    return parsed;
+  }
+};
+
+export const postAnalyticsEvent = async (
+  payload: Record<string, unknown>,
+  tenantSlug?: string,
+): Promise<AnalyticsEventIngestAckV1> => {
+  try {
+    const raw = await apiFetch<unknown>('/analytics/event', {
+      method: 'POST',
+      body: payload,
+      tenantSlug,
+    });
+    const parsed = parseAnalyticsEventIngestAckV1(raw);
+    if (!parsed) {
+      throw new ApiError('Respuesta inválida de analytics event ingest v1.', 502, raw);
+    }
+    return parsed;
+  } catch (error) {
+    if (!(error instanceof ApiError) || (error.status !== 404 && error.status !== 405)) {
+      throw error;
+    }
+    const raw = await apiFetch<unknown>('/api/analytics/event', {
+      method: 'POST',
+      body: payload,
+      tenantSlug,
+    });
+    const parsed = parseAnalyticsEventIngestAckV1(raw);
+    if (!parsed) {
+      throw new ApiError('Respuesta inválida de analytics event ingest v1.', 502, raw);
+    }
+    return parsed;
+  }
+};
 
 const normalizeHeatPoint = (
   point: unknown,
@@ -393,7 +629,7 @@ export const analyticsService = {
   },
 
   getSummary: async (filters: AnalyticsFilters, hubOverride?: AnalyticsHubResponse | null): Promise<AnalyticsSummary> => {
-    const hub = hubOverride ?? await analyticsService.getHub(filters).catch(() => null);
+    const hub = hubOverride ?? await analyticsService.getHub(filters).catch((): AnalyticsHubResponse | null => null);
     const contextKey = (filters.context === 'pyme' ? 'ventas' : filters.context === 'overview' ? 'general' : filters.context) as 'general' | 'municipio' | 'ventas' | undefined;
     const hubSummary = contextKey ? extractHubSectionSummary(hub, contextKey) : null;
     if (hubSummary) return hubSummary;
@@ -423,7 +659,7 @@ export const analyticsService = {
       };
     };
 
-    const hub = hubOverride ?? await analyticsService.getHub(filters).catch(() => null);
+    const hub = hubOverride ?? await analyticsService.getHub(filters).catch((): AnalyticsHubResponse | null => null);
     const hubMap = hub?.sections?.mapas as Record<string, unknown> | undefined;
     const hubGeo = (hubMap?.geo as Record<string, unknown> | undefined) ?? hubMap;
     const hubPoints = (hubGeo?.points ?? hubGeo?.geo_points ?? hubGeo?.heatmap_points) as unknown;
