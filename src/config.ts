@@ -7,6 +7,7 @@ const IS_DEV = import.meta.env.DEV;
 const VITE_DEFAULT_ENTITY_TOKEN = import.meta.env.VITE_DEFAULT_ENTITY_TOKEN;
 const VITE_PUBLIC_SURVEY_BASE_URL = import.meta.env.VITE_PUBLIC_SURVEY_BASE_URL;
 const VITE_ENABLE_SURVEY_ANALYTICS_FALLBACK = import.meta.env.VITE_ENABLE_SURVEY_ANALYTICS_FALLBACK;
+const VITE_ENABLE_PUBLIC_SURVEY_LEGACY_FALLBACK = import.meta.env.VITE_ENABLE_PUBLIC_SURVEY_LEGACY_FALLBACK;
 
 const sanitizeBaseUrl = (value?: string) => {
   if (typeof value !== 'string') return '';
@@ -279,3 +280,31 @@ const analyticsFallbackPreference = (() => {
 
 export const ENABLE_SURVEY_ANALYTICS_FALLBACK =
   analyticsFallbackPreference !== null ? analyticsFallbackPreference : IS_DEV;
+
+const publicSurveyLegacyFallbackPreference = (() => {
+  const fromEnv = parseBooleanFlag(VITE_ENABLE_PUBLIC_SURVEY_LEGACY_FALLBACK);
+  if (fromEnv !== null) {
+    return fromEnv;
+  }
+
+  if (typeof window !== 'undefined') {
+    try {
+      const fromStorage = parseBooleanFlag(window.localStorage?.getItem('CHATBOC_ENABLE_PUBLIC_SURVEY_LEGACY_FALLBACK'));
+      if (fromStorage !== null) {
+        return fromStorage;
+      }
+    } catch {
+      // Ignore storage access issues and fallback to defaults.
+    }
+
+    const fromGlobal = parseBooleanFlag((window as any)?.CHATBOC_ENABLE_PUBLIC_SURVEY_LEGACY_FALLBACK);
+    if (fromGlobal !== null) {
+      return fromGlobal;
+    }
+  }
+
+  return null;
+})();
+
+export const ENABLE_PUBLIC_SURVEY_LEGACY_FALLBACK =
+  publicSurveyLegacyFallbackPreference !== null ? publicSurveyLegacyFallbackPreference : false;
