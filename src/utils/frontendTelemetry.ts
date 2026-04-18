@@ -26,7 +26,8 @@ export type FrontendEventName =
   | 'identity_context_missing'
   | 'coverage_alert_banner_seen'
   | 'socket_reconnect'
-  | 'realtime_duplicate_dropped';
+  | 'realtime_duplicate_dropped'
+  | 'market_checkout_transition';
 
 export function trackFrontendEvent(event: FrontendEventName, payload: Record<string, unknown> = {}) {
   if (typeof window === 'undefined') return;

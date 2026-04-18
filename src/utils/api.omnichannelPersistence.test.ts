@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
 const STORAGE_PREFIX = 'chatboc_omnichannel_identity';
