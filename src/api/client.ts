@@ -246,16 +246,24 @@ const normalizeTicketWorkflowMetadata = (value: unknown) => {
 export const apiClient = {
   // Updated endpoints for Commerce module
   // Legacy generic methods for backward compatibility
-  get: async <T>(url: string, options?: any): Promise<T> => {
+  get: async <T>(url: string, options?: Omit<NonNullable<Parameters<typeof apiFetch>[1]>, 'method'>): Promise<T> => {
     return apiFetch<T>(url, { method: 'GET', ...options });
   },
-  post: async <T>(url: string, body?: any, options?: any): Promise<T> => {
+  post: async <T, TBody = unknown>(
+    url: string,
+    body?: TBody,
+    options?: Omit<NonNullable<Parameters<typeof apiFetch>[1]>, 'method' | 'body'>,
+  ): Promise<T> => {
     return apiFetch<T>(url, { method: 'POST', body, ...options });
   },
-  put: async <T>(url: string, body?: any, options?: any): Promise<T> => {
+  put: async <T, TBody = unknown>(
+    url: string,
+    body?: TBody,
+    options?: Omit<NonNullable<Parameters<typeof apiFetch>[1]>, 'method' | 'body'>,
+  ): Promise<T> => {
     return apiFetch<T>(url, { method: 'PUT', body, ...options });
   },
-  delete: async <T>(url: string, options?: any): Promise<T> => {
+  delete: async <T>(url: string, options?: Omit<NonNullable<Parameters<typeof apiFetch>[1]>, 'method'>): Promise<T> => {
     return apiFetch<T>(url, { method: 'DELETE', ...options });
   },
 

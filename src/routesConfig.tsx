@@ -115,7 +115,7 @@ const withTenantPrefixes = (
   pathSuffix: string,
   config: Omit<RouteConfig, 'path'>,
 ): RouteConfig[] =>
-  TENANT_ROUTE_PREFIXES.map((prefix) => ({
+  TENANT_ROUTE_PREFIXES.filter((prefix) => prefix === 't').map((prefix) => ({
     ...config,
     path: `/${prefix}${pathSuffix}`,
   }));

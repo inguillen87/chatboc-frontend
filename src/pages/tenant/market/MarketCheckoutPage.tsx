@@ -9,6 +9,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { formatCurrency } from '@/utils/currency';
+import { buildTenantPath } from '@/utils/tenantPaths';
 import CommercialStateCard from '@/components/market/CommercialStateCard';
 
 function CheckoutContent({ tenantSlug }: { tenantSlug: string }) {
@@ -40,7 +41,7 @@ function CheckoutContent({ tenantSlug }: { tenantSlug: string }) {
           <p className="text-muted-foreground">Revisá tu carrito y completá tus datos de contacto.</p>
         </div>
         <Button asChild variant="outline" size="sm">
-          <Link to={`/tenant/${tenantSlug}/market`}>Volver al catálogo</Link>
+          <Link to={buildTenantPath('/market', tenantSlug)}>Volver al catálogo</Link>
         </Button>
       </div>
 

@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "typecheck": "tsc -p tsconfig.app.json --noEmit",
     "preview": "vite preview",
     "setup-env": "node scripts/setupEnv.cjs",
     "postinstall": "npm run setup-env",

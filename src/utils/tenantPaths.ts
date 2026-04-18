@@ -41,13 +41,20 @@ export const buildTenantPath = (basePath: string, tenantSlug?: string | null) =>
   const cleanPath = stripTenantPrefix(normalizedPath);
 
   if (normalizedSlug && safeSlug && !isPlaceholderSlug(safeSlug)) {
-    // If the path already starts with the slug, don't prepend it again.
-    // e.g. basePath='municipio/cart', slug='municipio' -> '/municipio/cart'
-    if (normalizedPath.startsWith(`${safeSlug}/`)) {
+    const canonicalSlugPrefix = `t/${safeSlug}`;
+    if (normalizedPath.toLowerCase() === canonicalSlugPrefix || normalizedPath.toLowerCase().startsWith(`${canonicalSlugPrefix}/`)) {
       return `/${normalizedPath}`;
     }
 
-    return `/${encodeURIComponent(normalizedSlug)}/${cleanPath}`;
+    const pathWithoutCurrentSlug =
+      normalizedPath.toLowerCase() === safeSlug
+        ? ''
+        : normalizedPath.toLowerCase().startsWith(`${safeSlug}/`)
+          ? normalizedPath.slice(safeSlug.length + 1)
+          : cleanPath;
+
+    const suffix = pathWithoutCurrentSlug ? `/${pathWithoutCurrentSlug}` : '';
+    return `/t/${encodeURIComponent(normalizedSlug)}${suffix}`;
   }
 
   // Fallback: if no slug, return original path (maybe root path)
