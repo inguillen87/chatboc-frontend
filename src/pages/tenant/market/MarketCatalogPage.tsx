@@ -11,6 +11,7 @@ import { Copy, MessageCircle, QrCode, ShoppingBag } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { buildDemoMarketCatalog } from '@/data/marketDemo';
+import { buildTenantPath } from '@/utils/tenantPaths';
 
 function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
   const [products, setProducts] = useState<MarketProduct[]>([]);
@@ -25,7 +26,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
     if (shareMeta?.publicCartUrl) return shareMeta.publicCartUrl;
     if (typeof window === 'undefined' || !tenantSlug) return '';
     const url = new URL(window.location.href);
-    url.pathname = `/market/${tenantSlug}/cart`;
+    url.pathname = buildTenantPath('/cart', tenantSlug);
     url.search = '';
     return url.toString();
   }, [shareMeta?.publicCartUrl, tenantSlug]);
@@ -139,7 +140,7 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
                 isAdding={isCartLoading}
               />
               <Button asChild variant="outline" size="sm">
-                <Link to={`/tenant/${tenantSlug}/product/${encodeURIComponent(product.id)}`}>
+                <Link to={buildTenantPath(`/product/${encodeURIComponent(product.id)}`, tenantSlug)}>
                   Ver detalle
                 </Link>
               </Button>
