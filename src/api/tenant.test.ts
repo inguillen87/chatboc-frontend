@@ -55,6 +55,37 @@ describe('getTenantPublicInfoFlexible', () => {
     );
   });
 
+  it('supports tenant-profile v1 payload shape with nested tenant object', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      contract_version: 'public.tenant_profile.v1',
+      tenant: {
+        slug: 'colegio-san-martin',
+        nombre: 'Colegio San Martín',
+        tipo: 'pyme',
+      },
+    });
+
+    const tenant = await getTenantPublicInfoFlexible('colegio-san-martin');
+
+    expect(tenant.slug).toBe('colegio-san-martin');
+    expect(tenant.nombre).toBe('Colegio San Martín');
+    expect(tenant.tipo).toBe('pyme');
+  });
+
+  it('rejects tenant-profile payloads with unknown contract_version', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      contract_version: 'public.tenant_profile.v0',
+      tenant: {
+        slug: 'quilmes',
+        nombre: 'Municipio de Quilmes',
+      },
+    });
+
+    await expect(getTenantPublicInfoFlexible('quilmes')).rejects.toThrow(
+      'Contract version inválida para tenant-profile',
+    );
+  });
+
   it('does not use legacy /public/tenant fallback when tenant-profile routes fail', async () => {
     apiFetchMock
       .mockRejectedValueOnce(new MockApiError('Not found', 404))

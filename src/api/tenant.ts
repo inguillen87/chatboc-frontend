@@ -79,51 +79,72 @@ const normalizeTenantInfo = (
     throw new Error('El backend devolvió un formato inesperado para el espacio solicitado.');
   }
 
-  const slug = forceSlug ?? coerceString(payload.slug) ?? fallbackSlug;
+  const contractVersion =
+    typeof payload.contract_version === 'string' ? payload.contract_version.trim() : '';
+  if (contractVersion && contractVersion !== 'public.tenant_profile.v1') {
+    throw new Error(`Contract version inválida para tenant-profile: ${contractVersion}`);
+  }
+
+  const source = isRecord(payload.tenant) ? payload.tenant : payload;
+
+  const slug = forceSlug ?? coerceString(source.slug) ?? coerceString(payload.slug) ?? fallbackSlug;
   if (!slug) {
     throw new Error('No se pudo identificar el tenant solicitado.');
   }
 
-  const nombre = coerceString(payload.nombre) ?? slug;
+  const nombre = coerceString(source.nombre) ?? coerceString(payload.nombre) ?? slug;
 
   return {
     slug,
     nombre,
     logo_url:
+      coerceString(source.logo_url) ??
+      coerceString(source.logoUrl) ??
+      coerceString(source.logo) ??
       coerceString(payload.logo_url) ??
-      coerceString(payload.logoUrl) ??
-      coerceString(payload.logo) ??
       null,
-    tema: isRecord(payload.tema) ? (payload.tema as Record<string, unknown>) : null,
-    tipo: coerceString(payload.tipo) ?? null,
-    descripcion: coerceString(payload.descripcion) ?? null,
+    tema: isRecord(source.tema)
+      ? (source.tema as Record<string, unknown>)
+      : isRecord(payload.tema)
+        ? (payload.tema as Record<string, unknown>)
+        : null,
+    tipo: coerceString(source.tipo) ?? coerceString(payload.tipo) ?? null,
+    descripcion: coerceString(source.descripcion) ?? coerceString(payload.descripcion) ?? null,
     public_base_url:
-      coerceString(payload.public_base_url) ??
-      coerceString(payload.publicBaseUrl) ??
-      coerceString(payload.public_base) ??
-      coerceString(payload.publicBase) ??
-      coerceString(payload.public_url) ??
-      coerceString(payload.publicUrl) ??
+      coerceString(source.public_base_url) ??
+      coerceString(source.publicBaseUrl) ??
+      coerceString(source.public_base) ??
+      coerceString(source.publicBase) ??
+      coerceString(source.public_url) ??
+      coerceString(source.publicUrl) ??
       null,
     public_cart_url:
-      coerceString(payload.public_cart_url) ??
-      coerceString(payload.publicCartUrl) ??
-      coerceString(payload.cart_url) ??
-      coerceString(payload.cartUrl) ??
+      coerceString(source.public_cart_url) ??
+      coerceString(source.publicCartUrl) ??
+      coerceString(source.cart_url) ??
+      coerceString(source.cartUrl) ??
       null,
     public_catalog_url:
-      coerceString(payload.public_catalog_url) ??
-      coerceString(payload.publicCatalogUrl) ??
-      coerceString(payload.catalog_url) ??
-      coerceString(payload.catalogUrl) ??
+      coerceString(source.public_catalog_url) ??
+      coerceString(source.publicCatalogUrl) ??
+      coerceString(source.catalog_url) ??
+      coerceString(source.catalogUrl) ??
       null,
     whatsapp_share_url:
-      coerceString(payload.whatsapp_share_url) ??
-      coerceString(payload.whatsappShareUrl) ??
+      coerceString(source.whatsapp_share_url) ??
+      coerceString(source.whatsappShareUrl) ??
       null,
-    cta_messages: Array.isArray(payload.cta_messages) ? (payload.cta_messages as any[]) : undefined,
-    theme_config: isRecord(payload.theme_config) ? (payload.theme_config as any) : undefined,
-    default_open: Boolean(payload.default_open),
+    cta_messages: Array.isArray(source.cta_messages)
+      ? (source.cta_messages as any[])
+      : Array.isArray(payload.cta_messages)
+        ? (payload.cta_messages as any[])
+        : undefined,
+    theme_config: isRecord(source.theme_config)
+      ? (source.theme_config as any)
+      : isRecord(payload.theme_config)
+        ? (payload.theme_config as any)
+        : undefined,
+    default_open: Boolean(source.default_open ?? payload.default_open),
   };
 };
 
@@ -228,6 +249,12 @@ const resolveTenantInfo = async ({
     const response = await fetchWithFallback('/api/pwa/tenant-info');
     return normalizeTenantInfo(response, fallbackSlug, forceSlug);
   } catch (primaryError) {
+    const shouldTrySecondaryFallback =
+      primaryError instanceof ApiError && [404, 405].includes(primaryError.status);
+    if (!shouldTrySecondaryFallback) {
+      throw primaryError;
+    }
+
     try {
       const response = await fetchWithFallback('/pwa/tenant-info');
       return normalizeTenantInfo(response, fallbackSlug, forceSlug);
