@@ -498,14 +498,6 @@ const buildOmnichannelIdentityStorageKey = (tenantSlug?: string | null) => {
 const readOmnichannelIdentitySnapshot = (tenantSlug?: string | null): OmnichannelIdentitySnapshot | null => {
   const key = buildOmnichannelIdentityStorageKey(tenantSlug);
   const parsed = parseStoredJsonRecord(key);
-  if (!parsed && normalizeHeaderValue(tenantSlug)) {
-    const globalParsed = parseStoredJsonRecord(buildOmnichannelIdentityStorageKey(null));
-    if (!globalParsed) return null;
-    return {
-      contactKey: normalizeHeaderValue(globalParsed.contactKey),
-      conversationId: normalizeHeaderValue(globalParsed.conversationId),
-    };
-  }
   if (!parsed) return null;
 
   return {

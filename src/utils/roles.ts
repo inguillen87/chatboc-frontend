@@ -36,6 +36,10 @@ const getRoleAliases = (role?: string | null): string[] => {
 };
 
 export function normalizeRole(role?: string | null): Role {
+  const token = normalizeRoleToken(role);
+  if (token === 'admin') return 'admin';
+  if (token === 'empleado') return 'empleado';
+
   const aliases = getRoleAliases(role);
   if (aliases.includes('superadmin')) return 'superadmin';
   if (aliases.includes('tenant_admin')) return 'tenant_admin';
