@@ -3,30 +3,11 @@ import { Order, Cart, Ticket, PortalContent, IntegrationStatus, PortalLoyaltySum
 import { Tenant, CreateTenantDTO, UpdateTenantDTO } from '@/types/superAdmin';
 import { WhatsappExternalNumberPayload, WhatsappNumberCreatePayload, WhatsappNumberInventoryItem, WhatsappNumberStatus } from '@/types/whatsapp';
 import { TenantCatalog } from '@/types/catalog';
+import {
+  parseIdentityCoverageResponseV1,
+  type IdentityCoverageResponseV1 as IdentityCoverageResponse,
+} from '@/services/identityCoverageContract';
 
-export interface IdentityCoverageAlert {
-  channel?: string;
-  message?: string;
-  coverage_pct?: number;
-  current_pct?: number;
-  target_pct?: number;
-  gap_pct?: number;
-  severity?: 'low' | 'medium' | 'high';
-}
-
-export interface IdentityCoverageResponse {
-  contract_version?: string;
-  tenant_id?: number | null;
-  coverage_pct?: number;
-  contact_key_coverage_pct?: number;
-  conversation_id_coverage_pct?: number;
-  combined_coverage_pct?: number;
-  target_pct?: number;
-  slo_status?: 'ok' | 'below_target';
-  alert_count?: number;
-  summary_message?: string;
-  alerts?: IdentityCoverageAlert[];
-}
 
 export type IdentityCoverageTargetByChannel = string | Record<string, number>;
 
@@ -52,48 +33,6 @@ const asStringOrUndefined = (value: unknown): string | undefined =>
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
-
-export const normalizeIdentityCoverageResponse = (value: unknown): IdentityCoverageResponse => {
-  const raw = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
-  const alertsRaw = Array.isArray(raw.alerts) ? raw.alerts : [];
-  const alerts: IdentityCoverageAlert[] = alertsRaw
-    .map((alert) => {
-      const item = alert && typeof alert === 'object' ? (alert as Record<string, unknown>) : null;
-      if (!item) return null;
-      return {
-        channel: asStringOrUndefined(item.channel),
-        message: asStringOrUndefined(item.message),
-        coverage_pct: asNumberOrUndefined(item.coverage_pct),
-        current_pct: asNumberOrUndefined(item.current_pct),
-        target_pct: asNumberOrUndefined(item.target_pct),
-        gap_pct: asNumberOrUndefined(item.gap_pct),
-        severity:
-          item.severity === 'low' || item.severity === 'medium' || item.severity === 'high'
-            ? item.severity
-            : undefined,
-      };
-    })
-    .filter((alert): alert is IdentityCoverageAlert => alert !== null);
-
-  const normalizedSloStatus = raw.slo_status === 'ok' || raw.slo_status === 'below_target' ? raw.slo_status : undefined;
-
-  return {
-    contract_version: asStringOrUndefined(raw.contract_version),
-    tenant_id:
-      raw.tenant_id === null
-        ? null
-        : asNumberOrUndefined(raw.tenant_id),
-    coverage_pct: asNumberOrUndefined(raw.coverage_pct),
-    contact_key_coverage_pct: asNumberOrUndefined(raw.contact_key_coverage_pct),
-    conversation_id_coverage_pct: asNumberOrUndefined(raw.conversation_id_coverage_pct),
-    combined_coverage_pct: asNumberOrUndefined(raw.combined_coverage_pct),
-    target_pct: asNumberOrUndefined(raw.target_pct),
-    slo_status: normalizedSloStatus,
-    alert_count: asNumberOrUndefined(raw.alert_count),
-    summary_message: asStringOrUndefined(raw.summary_message),
-    alerts,
-  };
-};
 
 const serializeIdentityCoverageTargetByChannel = (
   targetByChannel?: IdentityCoverageTargetByChannel,
@@ -297,12 +236,16 @@ export const apiClient = {
     const suffix = buildSuffix(params);
     try {
       const response = await apiFetch<unknown>(`/analytics/identity/coverage${suffix}`, { tenantSlug });
-      return normalizeIdentityCoverageResponse(response);
+      const parsed = parseIdentityCoverageResponseV1(response);
+      if (!parsed) throw new ApiError('Respuesta inválida de identity coverage: contract_version o payload inválido.', 502, response);
+      return parsed;
     } catch (error) {
       if (params?.emit_alert_events === 1 && error instanceof ApiError && error.status === 403) {
-        const readOnlySuffix = buildSuffix({ ...params, emit_alert_events: undefined });
+        const readOnlySuffix = buildSuffix(params ? { target_pct: params.target_pct, target_by_channel: params.target_by_channel } : undefined);
         const response = await apiFetch<unknown>(`/analytics/identity/coverage${readOnlySuffix}`, { tenantSlug });
-        return normalizeIdentityCoverageResponse(response);
+        const parsed = parseIdentityCoverageResponseV1(response);
+        if (!parsed) throw new ApiError('Respuesta inválida de identity coverage: contract_version o payload inválido.', 502, response);
+        return parsed;
       }
 
       const shouldFallbackToApiPrefix =
@@ -315,7 +258,9 @@ export const apiClient = {
       }
 
       const response = await apiFetch<unknown>(`/api/analytics/identity/coverage${suffix}`, { tenantSlug });
-      return normalizeIdentityCoverageResponse(response);
+      const parsed = parseIdentityCoverageResponseV1(response);
+      if (!parsed) throw new ApiError('Respuesta inválida de identity coverage: contract_version o payload inválido.', 502, response);
+      return parsed;
     }
   },
 

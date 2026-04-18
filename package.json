@@ -14,7 +14,8 @@
     "test:watch": "vitest",
     "start": "vite preview --host",
     "seed:surveys": "node scripts/seedMunicipalSurveys.mjs",
-    "seed:survey-responses": "node scripts/seedSurveyResponses.mjs"
+    "seed:survey-responses": "node scripts/seedSurveyResponses.mjs",
+    "typecheck:scope": "tsc -p tsconfig.scope-strict.json --noEmit"
   },
   "dependencies": {
     "@headlessui/react": "^1.7.18",
