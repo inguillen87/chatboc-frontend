@@ -742,11 +742,16 @@ export const assignTicketToAgent = async (
     throw lastError || new Error('Error desconocido al asignar el ticket');
 };
 
+type TicketMessagesResult = Message[] & {
+  messages: Message[];
+  realtimeState: TicketRealtimeState | null;
+};
+
 export const getTicketMessages = async (
   ticketId: number,
   tipo: 'municipio' | 'pyme',
   opts?: { public?: boolean; pin?: string }
-): Promise<{ messages: Message[]; realtimeState: TicketRealtimeState | null }> => {
+): Promise<TicketMessagesResult> => {
   try {
     const endpointBase =
       tipo === 'municipio'
@@ -776,8 +781,7 @@ export const getTicketMessages = async (
       return Boolean(val);
     };
 
-    return {
-      messages: rawMsgs.map((m: any, idx: number) => {
+    const messages = rawMsgs.map((m: any, idx: number) => {
       const combinedAttachments: any[] = [];
       for (const value of [
         m.archivos_adjuntos,
@@ -817,9 +821,12 @@ export const getTicketMessages = async (
         readAt: m.read_at ?? m.readAt ?? null,
         lastReadBy: m.last_read_by ?? m.lastReadBy ?? null,
       };
-    }),
-      realtimeState,
-    };
+    });
+
+    const legacyCompatible = messages as TicketMessagesResult;
+    legacyCompatible.messages = messages;
+    legacyCompatible.realtimeState = realtimeState;
+    return legacyCompatible;
   } catch (error) {
     console.error(`Error fetching messages for ticket ${ticketId}:`, error);
     throw error;

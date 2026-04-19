@@ -1,0 +1,22 @@
+{
+  "name": "Chatboc Portal",
+  "short_name": "Portal",
+  "description": "Portal de usuario final Chatboc",
+  "start_url": "/portal/index.html#/portal/dashboard?pwa=1",
+  "scope": "/portal/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0f62fe",
+  "icons": [
+    {
+      "src": "favicon/favicon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "favicon/favicon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

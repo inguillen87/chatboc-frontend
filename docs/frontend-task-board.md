@@ -2,6 +2,7 @@
 
 > Documento consolidado recomendado: `docs/FRONTEND_SINGLE_TASK_WORLD_CLASS_CHAT.md`.
 > Documento complementario de detalle: `docs/FRONTEND_UNIFIED_HANDOFF.md`.
+> Backlog ejecutable por ownership: `docs/backlog-omnicanal-executable.md`.
 
 ## Sprint objetivo
 Subir conversión de demo y velocidad comercial con UX consistente entre widget público y CRM superadmin.
@@ -162,3 +163,19 @@ Vista embudo usando `by_stage` + filtros.
 - usar `effective_presence_status = active | idle | inactive` cuando venga en presencia/read-state
 - contemplar `response.realtime_state.presence.idle_count`
 - contemplar métricas team/agent: `active_ticket_views`, `idle_ticket_views`, `unread_ticket_views`
+
+---
+
+## Estado consolidado Stage 4 (actualizado 2026-04-18)
+
+### Completado
+- ✅ Contratos base FE/BE de identidad omnicanal + analytics v1 publicados en `docs/`.
+- ✅ Routing canónico por tenant (`/t/:tenantSlug/*`) documentado y alineado.
+- ✅ Portal split como app/build separado documentado (ADR + build-size).
+- ✅ Contratos públicos `tenant-profile`, `widget-config`, `auth.demo.v1` incorporados al paquete de handoff.
+- ✅ Correcciones de regresión en frontend: compatibilidad `getTicketMessages`, orden de fallback en `useBusinessHours`, y eliminación de fallback hardcodeado en `UserOrdersPage`.
+
+### Próximo bloque sugerido (sin romper v1)
+1. **Stage4-FE-08:** smoke E2E de deep links WhatsApp → ruta canónica tenant.
+2. **Stage4-FE-09:** hardening de métricas operativas SLA en inbox (badges + filtros guardables).
+3. **Stage4-FE-10:** refuerzo de telemetry dashboard-first para analytics pesado (debounce + cache/ETag hints).

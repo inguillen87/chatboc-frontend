@@ -50,7 +50,7 @@
 
 ---
 
-## 3) Handoff claro para Frontend (pendiente de producto)
+## 3) Handoff claro para Frontend (cerrado para Stage 4)
 
 ## 3.1 Contrato único recomendado
 Usar como endpoint principal:
@@ -74,6 +74,12 @@ Si falla `dashboard`, recién ahí usar:
 ## 3.3 Reglas UX de error (ventas/demo)
 - Si `/auth/demo/catalog` falla: mantener CTA demo operativa con defaults.
 - Si encuesta pública responde `403`: mostrar panel explicando que la encuesta no está activa para público y CTA de gestión (admin).
+
+### Estado de cierre (2026-04-18)
+- ✅ Contratos Stage4 documentados y versionados en `docs/frontend.stage4.handoff.md` y `docs/frontend.stage4.payload_examples.md`.
+- ✅ Demo mode OFF definido con 404 contractado (`auth.demo.v1`).
+- ✅ Identidad omnicanal (`X-Contact-Key`, `X-Conversation-Id`) consolidada en handoff/contratos.
+- ✅ Coverage/funnel/event schema definidos como base FE para dashboards.
 
 ---
 
