@@ -70,6 +70,7 @@ describe('apiClient stage4 contract integrations', () => {
   it('validates public ticket status contract', async () => {
     apiFetchMock.mockResolvedValueOnce({
       contract_version: 'tickets.public_status.v1',
+      request_id: 'req-123',
       ticket: {
         nro_ticket: 'M-12345',
         estado: 'en_proceso',
@@ -81,13 +82,33 @@ describe('apiClient stage4 contract integrations', () => {
     const result = await apiClient.getPublicTicketStatus('M-12345', '9999', 'municipio');
 
     expect(result.contract_version).toBe('tickets.public_status.v1');
+    expect(result.request_id).toBe('req-123');
     expect(result.ticket.nro_ticket).toBe('M-12345');
     expect(apiFetchMock).toHaveBeenCalledWith('/tickets/public/status?code=M-12345&pin=9999', { tenantSlug: 'municipio' });
+  });
+
+  it('accepts public ticket status contract on controlled error payloads', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      contract_version: 'tickets.public_status.v1',
+      request_id: 'req-404',
+      error: {
+        code: 404,
+        message: 'Ticket no encontrado.',
+      },
+    });
+
+    const result = await apiClient.getPublicTicketStatus('M-00000', '9999', 'municipio');
+
+    expect(result.contract_version).toBe('tickets.public_status.v1');
+    expect(result.request_id).toBe('req-404');
+    expect(result.error).toMatchObject({ code: 404, message: 'Ticket no encontrado.' });
+    expect(result.ticket).toBeUndefined();
   });
 
   it('validates ticket workflow metadata contract', async () => {
     apiFetchMock.mockResolvedValueOnce({
       contract_version: 'tickets.workflow.v1',
+      request_id: 'req-workflow',
       tenant_id: 42,
       states: ['nuevo', 'en_proceso', 'cerrado'],
       transitions: {
@@ -100,6 +121,7 @@ describe('apiClient stage4 contract integrations', () => {
     const result = await apiClient.getTicketWorkflowMetadata('municipio');
 
     expect(result.contract_version).toBe('tickets.workflow.v1');
+    expect(result.request_id).toBe('req-workflow');
     expect(result.states).toEqual(['nuevo', 'en_proceso', 'cerrado']);
     expect(result.transitions.nuevo).toEqual(['en_proceso', 'cerrado']);
     expect(apiFetchMock).toHaveBeenCalledWith('/tickets/workflow/metadata', { tenantSlug: 'municipio' });

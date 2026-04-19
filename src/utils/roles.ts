@@ -43,7 +43,7 @@ export function normalizeRole(role?: string | null): Role {
   const aliases = getRoleAliases(role);
   // Preserve legacy outputs expected by existing UI filters/components.
   if (aliases.includes('superadmin')) return 'super_admin';
-  if (aliases.includes('tenant_admin')) return 'tenant_admin';
+  if (aliases.includes('tenant_admin')) return 'admin';
   if (aliases.includes('employee')) return 'empleado';
   if (aliases.includes('catalog_manager')) return 'catalog_manager';
   if (aliases.includes('analytics_viewer')) return 'analytics_viewer';

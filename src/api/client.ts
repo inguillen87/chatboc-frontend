@@ -110,23 +110,35 @@ const normalizePublicTicketStatus = (value: unknown) => {
   if (value.contract_version !== 'tickets.public_status.v1') {
     throw new ApiError('Public ticket status inválido: contract_version', 502, value);
   }
+  const request_id = asStringOrUndefined(value.request_id);
+  const payloadError = isRecord(value.error)
+    ? {
+        code: asNumberOrUndefined(value.error.code) ?? 0,
+        message: asStringOrUndefined(value.error.message) ?? 'Error desconocido',
+      }
+    : undefined;
   const ticket = isRecord(value.ticket) ? value.ticket : null;
   const nro_ticket = asStringOrUndefined(ticket?.nro_ticket);
   const estado = asStringOrUndefined(ticket?.estado);
-  if (!ticket || !nro_ticket || !estado) {
+  if ((!ticket || !nro_ticket || !estado) && !payloadError) {
     throw new ApiError('Public ticket status inválido: payload incompleto', 502, value);
   }
   return {
     contract_version: 'tickets.public_status.v1' as const,
-    ticket: {
-      nro_ticket,
-      estado,
-      categoria: asStringOrUndefined(ticket.categoria),
-      subcategoria: asStringOrUndefined(ticket.subcategoria),
-      canal_ingreso: asStringOrUndefined(ticket.canal_ingreso),
-      fecha_creacion: ticket.fecha_creacion === null ? null : asStringOrUndefined(ticket.fecha_creacion),
-      ultima_actualizacion: ticket.ultima_actualizacion === null ? null : asStringOrUndefined(ticket.ultima_actualizacion),
-    },
+    request_id,
+    error: payloadError,
+    ticket:
+      ticket && nro_ticket && estado
+        ? {
+            nro_ticket,
+            estado,
+            categoria: asStringOrUndefined(ticket.categoria),
+            subcategoria: asStringOrUndefined(ticket.subcategoria),
+            canal_ingreso: asStringOrUndefined(ticket.canal_ingreso),
+            fecha_creacion: ticket.fecha_creacion === null ? null : asStringOrUndefined(ticket.fecha_creacion),
+            ultima_actualizacion: ticket.ultima_actualizacion === null ? null : asStringOrUndefined(ticket.ultima_actualizacion),
+          }
+        : undefined,
   };
 };
 
@@ -171,6 +183,7 @@ const normalizeTicketWorkflowMetadata = (value: unknown) => {
 
   return {
     contract_version: 'tickets.workflow.v1' as const,
+    request_id: asStringOrUndefined(value.request_id),
     tenant_id: value.tenant_id === null ? null : asNumberOrUndefined(value.tenant_id),
     states,
     transitions,

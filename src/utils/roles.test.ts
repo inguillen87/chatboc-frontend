@@ -6,7 +6,8 @@ describe('roles helpers', () => {
     expect(normalizeRole('super_admin')).toBe('super_admin');
     expect(normalizeRole('admin')).toBe('admin');
     expect(normalizeRole('empleado')).toBe('empleado');
-    expect(normalizeRole('tenant_admin')).toBe('tenant_admin');
+    expect(normalizeRole('tenant_admin')).toBe('admin');
+    expect(normalizeRole('admin_pyme')).toBe('admin');
     expect(normalizeRole('employee')).toBe('empleado');
     expect(normalizeRole('chat_user')).toBe('end_user');
   });

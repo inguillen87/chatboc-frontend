@@ -21,12 +21,14 @@ export class NetworkError extends Error {
 export class ApiError extends Error {
   public readonly status: number;
   public readonly body: any;
+  public readonly requestId?: string;
 
-  constructor(message: string, status: number, body: any) {
+  constructor(message: string, status: number, body: any = null, requestId?: string) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.body = body;
+    this.requestId = requestId;
   }
 }
 
@@ -34,6 +36,26 @@ const parseDebugFlag = (value?: string | null): boolean => {
   if (typeof value !== "string") return false;
   const normalized = value.trim().toLowerCase();
   return ["1", "true", "yes", "on"].includes(normalized);
+};
+
+const resolveResponseRequestId = (response: Response, data: unknown): string | undefined => {
+  const fromHeader =
+    response.headers.get("X-Request-Id") ||
+    response.headers.get("x-request-id") ||
+    response.headers.get("X-Correlation-Id") ||
+    response.headers.get("x-correlation-id");
+  if (typeof fromHeader === "string" && fromHeader.trim()) {
+    return fromHeader.trim();
+  }
+
+  if (data && typeof data === "object") {
+    const value = (data as Record<string, unknown>).request_id;
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+
+  return undefined;
 };
 
 const TENANT_PATH_REGEX = new RegExp(`^/(?:${TENANT_ROUTE_PREFIXES.join("|")})/([^/]+)`, "i");
@@ -1142,6 +1164,7 @@ export async function apiFetch<T>(
           raw: snippet,
           contentType: responseContentType,
         },
+        resolveResponseRequestId(response, data),
       );
     }
 
@@ -1153,6 +1176,8 @@ export async function apiFetch<T>(
         data,
       });
     }
+
+    const responseRequestId = resolveResponseRequestId(response, data);
 
     if (response.status === 401 && !skipAuth) {
       // Para peticiones del panel/admin, un 401 significa sesión expirada.
@@ -1187,7 +1212,8 @@ export async function apiFetch<T>(
       throw new ApiError(
         resolveApiErrorMessage(data, "No autorizado"),
         response.status,
-        data
+        data,
+        responseRequestId,
       );
     }
 
@@ -1199,7 +1225,8 @@ export async function apiFetch<T>(
       throw new ApiError(
         resolveApiErrorMessage(data, "Acceso prohibido"),
         response.status,
-        data
+        data,
+        responseRequestId,
       );
     }
 
@@ -1207,7 +1234,8 @@ export async function apiFetch<T>(
       throw new ApiError(
         resolveApiErrorMessage(data, "Error en la respuesta de la API"),
         response.status,
-        data
+        data,
+        responseRequestId,
       );
     }
 
