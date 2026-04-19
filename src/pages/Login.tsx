@@ -12,13 +12,14 @@ import GoogleLoginButton from "@/components/auth/GoogleLoginButton";
 import { isPasskeySupported, loginPasskey } from "@/services/passkeys";
 import { useTenant } from "@/context/TenantContext";
 import { buildTenantPath } from "@/utils/tenantPaths";
-import { enterpriseService, extractDemoFrontendContract, isSupportedDemoFrontendContract, type DemoCatalogEntryPoint, type DemoCatalogTenant, type DemoCatalogResponse, type DemoFrontendContract, type DemoRubro } from "@/services/enterpriseService";
+import { DemoModeDisabledError, enterpriseService, extractDemoFrontendContract, isSupportedDemoFrontendContract, type DemoCatalogEntryPoint, type DemoCatalogTenant, type DemoCatalogResponse, type DemoFrontendContract, type DemoRubro } from "@/services/enterpriseService";
 import { getRubrosHierarchy } from "@/api/rubros";
 import { mapDemoOptionsFromHierarchy } from "@/utils/enterpriseExperience";
 import { getDemoAccessProfiles } from "@/utils/demoAccessProfiles";
 import { useDateSettings } from "@/hooks/useDateSettings";
 import { LOCALE_OPTIONS } from "@/utils/localeOptions";
 import { getFranchisePartnerConfig } from "@/utils/franchisePartnerConfig";
+import { trackFrontendEvent } from "@/utils/frontendTelemetry";
 
 
 const isDevEnvironment = () => {
@@ -33,6 +34,11 @@ const normalizeDemoLoginEndpoint = (endpoint?: string | null) => {
   if (trimmed.startsWith('/api/')) return trimmed;
   if (trimmed.startsWith('/auth/')) return `/api${trimmed}`;
   return trimmed;
+};
+
+const withRequestIdSuffix = (baseMessage: string, requestId?: string | null) => {
+  const trimmed = typeof requestId === "string" ? requestId.trim() : "";
+  return trimmed ? `${baseMessage} (ID: ${trimmed})` : baseMessage;
 };
 
 interface LoginResponse {
@@ -152,6 +158,7 @@ const Login = () => {
     let lastError: unknown = null;
 
     const shouldRetry = (error: unknown) => {
+      if (error instanceof DemoModeDisabledError) return false;
       if (error instanceof NetworkError) return true;
       if (error instanceof ApiError) {
         return error.status >= 500 || error.status === 429;
@@ -351,6 +358,24 @@ const Login = () => {
           });
         }
       } catch (err) {
+        if (err instanceof DemoModeDisabledError) {
+          if (isDevEnvironment()) {
+            console.warn("[Login] Demo mode disabled by backend contract", {
+              requestId: err.requestId,
+              contractVersion: err.contractVersion,
+            });
+          }
+          trackFrontendEvent("demo_mode_disabled", {
+            request_id: err.requestId,
+            contract_version: err.contractVersion,
+            screen_name: "login",
+            endpoint: "GET /api/auth/demo/catalog",
+          });
+          setDemoLoginEnabled(false);
+          setError(withRequestIdSuffix("Demo mode desactivado temporalmente.", err.requestId));
+          return;
+        }
+
         if (isDevEnvironment()) {
           console.warn('No se pudieron cargar rubros demo desde backend', err);
         }
@@ -540,6 +565,16 @@ const Login = () => {
       navigate("/analytics");
       refreshUser().catch(() => undefined);
     } catch (err) {
+      if (err instanceof DemoModeDisabledError) {
+        trackFrontendEvent("demo_mode_disabled", {
+          request_id: err.requestId,
+          contract_version: err.contractVersion,
+          screen_name: "login",
+          endpoint: normalizeDemoLoginEndpoint(endpointOverride || demoLoginEndpoint),
+        });
+        setError(withRequestIdSuffix("Demo mode desactivado temporalmente.", err.requestId));
+        return;
+      }
       if (err instanceof ApiError) {
         setError(err.body?.error || "No se pudo iniciar demo.");
       } else {
