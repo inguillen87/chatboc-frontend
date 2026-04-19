@@ -58,17 +58,20 @@
 7. **Tracking público de reclamos (nuevo)**
    - `GET /tickets/public/status?code=<M-...>&pin=<...>`
    - Contrato: `tickets.public_status.v1`
-   - Respuesta acotada para tracking público (estado, categoría, timestamps).
+   - Respuesta acotada para tracking público (estado, categoría, timestamps) + `request_id`.
+   - Header de correlación: `X-Request-Id`.
 
 8. **Workflow de tickets (nuevo)**
    - `GET /tickets/workflow/metadata`
    - Contrato: `tickets.workflow.v1`
-   - Fuente de verdad para estados y transiciones permitidas en UI.
+   - Fuente de verdad para estados y transiciones permitidas en UI + `request_id`.
+   - Header de correlación: `X-Request-Id`.
 
 9. **Encuestas públicas v1 (nuevo)**
    - `GET /public/encuestas/v1/<slug>`
    - Contrato: `encuestas.public.v1`
    - `POST /public/encuestas/<slug>/respuestas` ahora devuelve `contract_version: encuestas.public_response.v1`.
+   - Metadata con `contact_key`/`conversation_id` en `null` o vacío (`""`) se normaliza con identidad resuelta si está disponible.
 
 10. **Demo mode backend (cambio operativo)**
    - `ENABLE_DEMO_MODE=false` por defecto.
@@ -161,7 +164,12 @@ export interface AnalyticsEventSchemaV1 {
 
 export interface PublicTicketStatusV1 {
   contract_version: 'tickets.public_status.v1';
-  ticket: {
+  request_id: string;
+  error?: {
+    code: number;
+    message: string;
+  };
+  ticket?: {
     nro_ticket: string;
     estado: string;
     categoria?: string;
@@ -174,6 +182,7 @@ export interface PublicTicketStatusV1 {
 
 export interface TicketWorkflowMetadataV1 {
   contract_version: 'tickets.workflow.v1';
+  request_id: string;
   states: string[];
   transitions: Record<string, string[]>;
   final_states: string[];
@@ -238,8 +247,10 @@ export interface PublicWidgetConfigV1 {
 - Si existe `X-Conversation-Id`, se reinyecta en market/tickets/encuestas/analytics.
 - Dashboard de coverage muestra banner cuando `alert_count > 0`.
 - Ingest de analytics valida `contract_version === 'analytics.event_ingest.v1'`.
+- Ingest de analytics y submit de encuestas no deben persistir `contact_key`/`conversation_id` en `null`/`""` si backend resolvió identidad.
 - Configurador de eventos valida catálogo desde `/analytics/event/schema`.
 - Vista funnel valida `contract_version` antes de renderizar.
+- Pantalla de tracking público maneja `tickets.public_status.v1` en éxito/error (`400/404`) y muestra `request_id` en soporte.
 - Pantallas con permisos usan `requiredCapabilities` alineado a RBAC v1.
 
 ---

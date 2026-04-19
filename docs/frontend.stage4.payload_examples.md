@@ -140,6 +140,8 @@
 }
 ```
 
+> Nota: si FE envía `contact_key` o `conversation_id` en `null` o `""`, backend intenta reemplazarlos con identidad resuelta del request.
+
 ---
 
 ## 5) Notas para FE QA
@@ -234,6 +236,7 @@
 ```json
 {
   "contract_version": "tickets.public_status.v1",
+  "request_id": "uuid-or-forwarded-request-id",
   "ticket": {
     "nro_ticket": "M-12345",
     "estado": "en_proceso",
@@ -242,6 +245,36 @@
     "canal_ingreso": "whatsapp",
     "fecha_creacion": "2026-01-01T12:00:00Z",
     "ultima_actualizacion": "2026-01-02T12:00:00Z"
+  }
+}
+```
+
+### Headers esperados
+
+- `X-Request-Id: <uuid|forwarded>`
+
+### Response 404 (ticket inexistente)
+
+```json
+{
+  "contract_version": "tickets.public_status.v1",
+  "request_id": "uuid-or-forwarded-request-id",
+  "error": {
+    "code": 404,
+    "message": "Ticket no encontrado."
+  }
+}
+```
+
+### Response 400 (pin faltante)
+
+```json
+{
+  "contract_version": "tickets.public_status.v1",
+  "request_id": "uuid-or-forwarded-request-id",
+  "error": {
+    "code": 400,
+    "message": "pin requerido."
   }
 }
 ```
@@ -255,6 +288,7 @@
 ```json
 {
   "contract_version": "tickets.workflow.v1",
+  "request_id": "uuid-or-forwarded-request-id",
   "states": ["nuevo", "en_proceso", "en_vivo", "esperando_agente_en_vivo", "cerrado"],
   "transitions": {
     "nuevo": ["en_proceso", "cerrado"],
@@ -266,6 +300,10 @@
   "final_states": ["cerrado"]
 }
 ```
+
+### Headers esperados
+
+- `X-Request-Id: <uuid|forwarded>`
 
 ---
 
@@ -301,6 +339,8 @@
   "conversation_id": "wa_conv_123"
 }
 ```
+
+> Nota: metadata de encuesta con `contact_key`/`conversation_id` en `null` o `""` se completa con identidad resuelta cuando existe.
 
 ---
 
