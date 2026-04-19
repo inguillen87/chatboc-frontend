@@ -23,7 +23,7 @@ export class ApiError extends Error {
   public readonly body: any;
   public readonly requestId?: string;
 
-  constructor(message: string, status: number, body: any, requestId?: string) {
+  constructor(message: string, status: number, body: any = null, requestId?: string) {
     super(message);
     this.name = "ApiError";
     this.status = status;
