@@ -339,3 +339,11 @@ Además, FE-07 (permisos) debe tomar como referencia:
    - coverage UI/banners,
    - funnel contract validation,
    - alineación RBAC.
+
+---
+
+## 11) Checklist rápido de trazabilidad (`request_id`)
+
+- [ ] `auth.demo.v1` documentado con `request_id` en body y `X-Request-Id` en headers.
+- [ ] FE captura y loggea ambos identificadores cuando recibe 404 demo mode off.
+- [ ] QA incluye evidencia de correlación FE/BE usando al menos 1 `request_id` real de staging.

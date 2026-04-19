@@ -273,3 +273,28 @@ export interface PublicWidgetConfigV1 {
   4. `analytics-event-schema-v1`
   5. `whatsapp-funnel-contract-v1`
   6. `rbac-required-capabilities-alignment`
+
+---
+
+## 6) Observabilidad mínima obligatoria (proactivo)
+
+- Log estructurado en FE para errores de contrato:
+  - `contract_version_missing`
+  - `contract_version_mismatch`
+  - `demo_mode_disabled`
+- En `demo_mode_disabled`, adjuntar siempre:
+  - `request_id` (payload)
+  - `x_request_id` (header si está disponible)
+  - `endpoint`
+  - `tenant_slug` (si aplica)
+- Dashboard FE interno: contar frecuencia por endpoint/tenant para detectar drift temprano.
+
+---
+
+## 7) Definition of Ready para tickets FE de Stage 4
+
+Antes de tomar cada ticket, debe existir:
+1. Contrato v1 linkeado en `docs/`.
+2. Payload de ejemplo feliz + error.
+3. Regla explícita de degradación elegante (sin crash).
+4. Evento de telemetry asociado.

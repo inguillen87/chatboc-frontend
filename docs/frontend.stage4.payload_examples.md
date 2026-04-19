@@ -457,3 +457,13 @@
 ### Headers esperados
 
 - `X-Request-Id: <uuid|forwarded>`
+
+---
+
+## 20) Reglas de validación FE sobre estos ejemplos
+
+1. Rechazar render de vistas críticas si falta `contract_version` cuando el contrato lo define como obligatorio.
+2. En errores demo (`auth.demo.v1`), registrar `request_id` y `X-Request-Id` para correlación backend.
+3. En funnel, tolerar `conversion_from_prev_pct = null` sin romper UI.
+4. En coverage, mostrar estado sano cuando `alert_count = 0` y `alerts=[]` (sin banner).
+5. Si un payload incluye campos extra no documentados, ignorarlos de forma segura (forward-compatible parsing).
