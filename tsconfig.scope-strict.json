@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "strict": false,
+    "noImplicitAny": true,
+    "noEmit": true,
+    "types": [
+      "vite/client",
+      "node"
+    ]
+  },
+  "include": [
+    "src/api/client.ts",
+    "src/services/analyticsService.ts",
+    "src/services/identityCoverageContract.ts"
+  ]
+}

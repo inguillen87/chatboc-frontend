@@ -132,6 +132,7 @@ export default defineConfig(({ mode }) => {
         input: {
           main: path.resolve(__dirname, "index.html"),
           iframe: path.resolve(__dirname, "iframe.html"),
+          portal: path.resolve(__dirname, "portal/index.html"),
         },
         output: {
           manualChunks(id) {

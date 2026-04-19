@@ -1,4 +1,4 @@
-import { apiFetch } from "@/utils/api";
+import { ApiError, apiFetch } from "@/utils/api";
 import type { TicketCollaborationState } from "@/types/tickets";
 
 export type DemoRubro = "municipio" | "pyme";
@@ -15,6 +15,29 @@ export interface DemoAuthResponse {
     id: number;
     rol: string;
   };
+}
+
+export interface DemoUnavailableContract {
+  contract_version?: string;
+  request_id?: string;
+  error?: {
+    code?: number;
+    message?: string;
+  };
+}
+
+export class DemoModeDisabledError extends Error {
+  public readonly requestId?: string;
+  public readonly status?: number;
+  public readonly contractVersion?: string;
+
+  constructor(message: string, options?: { requestId?: string; status?: number; contractVersion?: string }) {
+    super(message);
+    this.name = "DemoModeDisabledError";
+    this.requestId = options?.requestId;
+    this.status = options?.status;
+    this.contractVersion = options?.contractVersion;
+  }
 }
 
 export interface DemoCatalogTenant {
@@ -87,6 +110,26 @@ export interface DemoFrontendContract {
 }
 
 export const SUPPORTED_DEMO_FRONTEND_CONTRACT_VERSION = "1";
+
+const toDemoModeDisabledError = (error: unknown): DemoModeDisabledError | null => {
+  if (!(error instanceof ApiError) || error.status !== 404) return null;
+  const body = error.body as DemoUnavailableContract | undefined;
+  if (body?.contract_version !== "auth.demo.v1") return null;
+
+  const requestId = typeof body?.request_id === "string" && body.request_id.trim()
+    ? body.request_id.trim()
+    : error.requestId;
+  const backendMessage =
+    typeof body?.error?.message === "string" && body.error.message.trim()
+      ? body.error.message.trim()
+      : "Demo mode disabled";
+  const suffix = requestId ? ` (request_id: ${requestId})` : "";
+  return new DemoModeDisabledError(`${backendMessage}${suffix}`, {
+    requestId,
+    status: error.status,
+    contractVersion: body?.contract_version,
+  });
+};
 
 const normalizeDemoRubro = (raw: unknown): DemoRubro | undefined => {
   if (typeof raw !== "string") return undefined;
@@ -808,31 +851,49 @@ export const enterpriseService = {
 
   getDemoCatalog: async (ensureUsers = false): Promise<DemoCatalogResponse> => {
     const suffix = ensureUsers ? "?ensure_users=true" : "";
-    return apiFetch<DemoCatalogResponse>(`/api/auth/demo/catalog${suffix}`, {
-      skipAuth: true,
-      omitTenant: true,
-    });
+    try {
+      return await apiFetch<DemoCatalogResponse>(`/api/auth/demo/catalog${suffix}`, {
+        skipAuth: true,
+        omitTenant: true,
+      });
+    } catch (error) {
+      const normalized = toDemoModeDisabledError(error);
+      if (normalized) throw normalized;
+      throw error;
+    }
   },
 
   demoLoginWithPayload: async (
     payload: Record<string, unknown>,
     endpoint = "/api/auth/demo",
   ): Promise<DemoAuthResponse> => {
-    return apiFetch<DemoAuthResponse>(endpoint, {
-      method: "POST",
-      body: payload,
-      skipAuth: true,
-      omitTenant: true,
-    });
+    try {
+      return await apiFetch<DemoAuthResponse>(endpoint, {
+        method: "POST",
+        body: payload,
+        skipAuth: true,
+        omitTenant: true,
+      });
+    } catch (error) {
+      const normalized = toDemoModeDisabledError(error);
+      if (normalized) throw normalized;
+      throw error;
+    }
   },
 
   demoLogin: async (rubro: DemoRubro): Promise<DemoAuthResponse> => {
-    return apiFetch<DemoAuthResponse>("/api/auth/demo", {
-      method: "POST",
-      body: { rubro },
-      skipAuth: true,
-      omitTenant: true,
-    });
+    try {
+      return await apiFetch<DemoAuthResponse>("/api/auth/demo", {
+        method: "POST",
+        body: { rubro },
+        skipAuth: true,
+        omitTenant: true,
+      });
+    } catch (error) {
+      const normalized = toDemoModeDisabledError(error);
+      if (normalized) throw normalized;
+      throw error;
+    }
   },
 
   getAnalyticsOverview: async (

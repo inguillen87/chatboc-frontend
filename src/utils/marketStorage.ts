@@ -16,7 +16,7 @@ export const readStoredCart = (tenantSlug: string): MarketCartResponse => {
   }
 };
 
-const saveStoredCart = (tenantSlug: string, cart: MarketCartResponse) => {
+export const persistStoredCart = (tenantSlug: string, cart: MarketCartResponse) => {
   try {
     safeLocalStorage.setItem(getStorageKey(tenantSlug), JSON.stringify(cart));
   } catch (error) {
@@ -44,7 +44,7 @@ export const addItemToStoredCart = (
   }
 
   const updatedCart = recalculateTotals({ ...currentCart, items: updatedItems });
-  saveStoredCart(tenantSlug, updatedCart);
+  persistStoredCart(tenantSlug, updatedCart);
   return updatedCart;
 };
 
@@ -55,13 +55,13 @@ export const removeItemFromStoredCart = (
   const currentCart = readStoredCart(tenantSlug);
   const updatedItems = currentCart.items.filter((item) => item.id !== productId);
   const updatedCart = recalculateTotals({ ...currentCart, items: updatedItems });
-  saveStoredCart(tenantSlug, updatedCart);
+  persistStoredCart(tenantSlug, updatedCart);
   return updatedCart;
 };
 
 export const clearStoredCart = (tenantSlug: string): MarketCartResponse => {
   const emptyCart = { items: [], totalAmount: 0, totalPoints: 0 };
-  saveStoredCart(tenantSlug, emptyCart);
+  persistStoredCart(tenantSlug, emptyCart);
   return emptyCart;
 };
 

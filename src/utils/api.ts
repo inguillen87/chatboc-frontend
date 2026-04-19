@@ -6,6 +6,7 @@ import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import getOrCreateChatSessionId from "@/utils/chatSessionId"; // Import the new function
 import { getOrCreateAnonId } from "@/utils/anonIdGenerator";
 import { getIframeToken } from "@/utils/config";
+import { trackFrontendEvent } from '@/utils/frontendTelemetry';
 
 export class NetworkError extends Error {
   public readonly cause?: unknown;
@@ -20,12 +21,14 @@ export class NetworkError extends Error {
 export class ApiError extends Error {
   public readonly status: number;
   public readonly body: any;
+  public readonly requestId?: string;
 
-  constructor(message: string, status: number, body: any) {
+  constructor(message: string, status: number, body: any, requestId?: string) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.body = body;
+    this.requestId = requestId;
   }
 }
 
@@ -33,6 +36,26 @@ const parseDebugFlag = (value?: string | null): boolean => {
   if (typeof value !== "string") return false;
   const normalized = value.trim().toLowerCase();
   return ["1", "true", "yes", "on"].includes(normalized);
+};
+
+const resolveResponseRequestId = (response: Response, data: unknown): string | undefined => {
+  const fromHeader =
+    response.headers.get("X-Request-Id") ||
+    response.headers.get("x-request-id") ||
+    response.headers.get("X-Correlation-Id") ||
+    response.headers.get("x-correlation-id");
+  if (typeof fromHeader === "string" && fromHeader.trim()) {
+    return fromHeader.trim();
+  }
+
+  if (data && typeof data === "object") {
+    const value = (data as Record<string, unknown>).request_id;
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+
+  return undefined;
 };
 
 const TENANT_PATH_REGEX = new RegExp(`^/(?:${TENANT_ROUTE_PREFIXES.join("|")})/([^/]+)`, "i");
@@ -349,6 +372,25 @@ const shouldLogVerboseApi = (): boolean => {
   return false;
 };
 
+const identityTelemetryEmitted = new Set<string>();
+
+const emitIdentityContextTelemetry = (
+  event: 'identity_context_attached' | 'identity_context_missing',
+  payload: {
+    tenant_slug?: string | null;
+    has_conversation_id?: boolean;
+    path?: string;
+    method?: string;
+  },
+) => {
+  const dedupeKey = `${event}:${payload.tenant_slug || 'global'}:${payload.path || ''}:${payload.method || ''}`;
+  if (identityTelemetryEmitted.has(dedupeKey)) {
+    return;
+  }
+  identityTelemetryEmitted.add(dedupeKey);
+  trackFrontendEvent(event, payload);
+};
+
 
 const resolveApiErrorMessage = (data: unknown, fallback: string) => {
   if (typeof data === 'string') {
@@ -436,7 +478,142 @@ interface ApiFetchOptions {
    * Sent as header to preserve public access context across refresh/retry flows.
    */
   pin?: string | null;
+  /**
+   * Omnichannel identity key propagated to backend request headers.
+   */
+  contactKey?: string | null;
+  /**
+   * Omnichannel conversation identifier (e.g. WhatsApp handoff).
+   */
+  conversationId?: string | null;
 }
+
+const normalizeHeaderValue = (value: unknown): string | null => {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length ? trimmed : null;
+};
+
+const parseStoredJsonRecord = (key: string): Record<string, unknown> | null => {
+  try {
+    const raw = safeLocalStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+};
+
+interface OmnichannelIdentitySnapshot {
+  contactKey?: string | null;
+  conversationId?: string | null;
+}
+
+const OMNICHANNEL_IDENTITY_STORAGE_PREFIX = "chatboc_omnichannel_identity";
+
+const buildOmnichannelIdentityStorageKey = (tenantSlug?: string | null) => {
+  const normalizedTenant = normalizeHeaderValue(tenantSlug)?.toLowerCase() || "global";
+  return `${OMNICHANNEL_IDENTITY_STORAGE_PREFIX}:${normalizedTenant}`;
+};
+
+const readOmnichannelIdentitySnapshot = (tenantSlug?: string | null): OmnichannelIdentitySnapshot | null => {
+  const key = buildOmnichannelIdentityStorageKey(tenantSlug);
+  const parsed = parseStoredJsonRecord(key);
+  if (!parsed) return null;
+
+  return {
+    contactKey: normalizeHeaderValue(parsed.contactKey),
+    conversationId: normalizeHeaderValue(parsed.conversationId),
+  };
+};
+
+const persistOmnichannelIdentitySnapshot = (
+  tenantSlug: string | null | undefined,
+  identity: OmnichannelIdentitySnapshot,
+) => {
+  const contactKey = normalizeHeaderValue(identity.contactKey);
+  const conversationId = normalizeHeaderValue(identity.conversationId);
+  if (!contactKey && !conversationId) return;
+
+  const key = buildOmnichannelIdentityStorageKey(tenantSlug);
+  const existing = readOmnichannelIdentitySnapshot(tenantSlug) || {};
+  const payload = {
+    contactKey: contactKey ?? existing.contactKey ?? null,
+    conversationId: conversationId ?? existing.conversationId ?? null,
+    updatedAt: new Date().toISOString(),
+  };
+
+  try {
+    safeLocalStorage.setItem(key, JSON.stringify(payload));
+  } catch (error) {
+    console.warn("[apiFetch] Unable to persist omnichannel identity", error);
+  }
+};
+
+export const resolveOmnichannelContactKey = (
+  explicitContactKey: string | null | undefined,
+  existingHeaders: Record<string, string>,
+  anonId: string | null,
+  persistedIdentity?: OmnichannelIdentitySnapshot | null,
+): string | null => {
+  const headerContact =
+    normalizeHeaderValue(existingHeaders["X-Contact-Key"]) ||
+    normalizeHeaderValue(existingHeaders["x-contact-key"]);
+
+  if (headerContact) return headerContact;
+
+  const explicit = normalizeHeaderValue(explicitContactKey);
+  if (explicit) return explicit;
+
+  const persistedContactKey = normalizeHeaderValue(persistedIdentity?.contactKey);
+  if (persistedContactKey) return persistedContactKey;
+
+  const storedUser = parseStoredJsonRecord("user");
+  const userContact =
+    normalizeHeaderValue(storedUser?.contact_key) ||
+    normalizeHeaderValue(storedUser?.contactKey);
+  if (userContact) return userContact;
+
+  const storedContact =
+    normalizeHeaderValue(safeLocalStorage.getItem("chatboc_contact_key")) ||
+    normalizeHeaderValue(safeLocalStorage.getItem("contact_key"));
+  if (storedContact) return storedContact;
+
+  return normalizeHeaderValue(anonId);
+};
+
+export const resolveOmnichannelConversationId = (
+  explicitConversationId: string | null | undefined,
+  existingHeaders: Record<string, string>,
+  persistedIdentity?: OmnichannelIdentitySnapshot | null,
+): string | null => {
+  const headerConversationId =
+    normalizeHeaderValue(existingHeaders["X-Conversation-Id"]) ||
+    normalizeHeaderValue(existingHeaders["x-conversation-id"]);
+  if (headerConversationId) return headerConversationId;
+
+  const explicit = normalizeHeaderValue(explicitConversationId);
+  if (explicit) return explicit;
+
+  const persistedConversationId = normalizeHeaderValue(persistedIdentity?.conversationId);
+  if (persistedConversationId) return persistedConversationId;
+
+  const widgetContext = parseStoredJsonRecord("chatboc_public_chat_context");
+  const contextConversationId =
+    normalizeHeaderValue(widgetContext?.conversation_id) ||
+    normalizeHeaderValue(widgetContext?.conversationId) ||
+    normalizeHeaderValue(widgetContext?.whatsapp_conversation_id);
+
+  if (contextConversationId) return contextConversationId;
+
+  const ticketPublicAccess = parseStoredJsonRecord("ticket_public_access");
+  return (
+    normalizeHeaderValue(ticketPublicAccess?.conversation_id) ||
+    normalizeHeaderValue(ticketPublicAccess?.conversationId) ||
+    normalizeHeaderValue(ticketPublicAccess?.whatsapp_conversation_id)
+  );
+};
 
 /**
  * Helper centralizado para todas las llamadas a la API.
@@ -465,6 +642,8 @@ export async function apiFetch<T>(
     omitEntityToken,
     omitTenant,
     pin,
+    contactKey,
+    conversationId,
   } = options;
 
   const rawIframeToken = getIframeToken();
@@ -692,9 +871,36 @@ export async function apiFetch<T>(
 
   // Ensure X-Tenant is sent if we have a resolved tenant, even if not explicitly passed
   const headerTenant = effectiveTenantSlug || resolvedTenantSlug;
+  const persistedIdentity = readOmnichannelIdentitySnapshot(headerTenant);
   if (headerTenant) {
     headers["X-Tenant"] = headerTenant;
+    headers["X-Tenant-Slug"] = headerTenant;
   }
+  const resolvedContactKey = resolveOmnichannelContactKey(contactKey, headers, anonId, persistedIdentity);
+  if (resolvedContactKey) {
+    headers["X-Contact-Key"] = resolvedContactKey;
+  }
+  const resolvedConversationId = resolveOmnichannelConversationId(conversationId, headers, persistedIdentity);
+  if (resolvedConversationId) {
+    headers["X-Conversation-Id"] = resolvedConversationId;
+  }
+
+  if (resolvedContactKey) {
+    emitIdentityContextTelemetry('identity_context_attached', {
+      tenant_slug: headerTenant,
+      has_conversation_id: Boolean(resolvedConversationId),
+      path: normalizedPathWithTenant,
+      method,
+    });
+  } else {
+    emitIdentityContextTelemetry('identity_context_missing', {
+      tenant_slug: headerTenant,
+      has_conversation_id: Boolean(resolvedConversationId),
+      path: normalizedPathWithTenant,
+      method,
+    });
+  }
+
   // Always send X-Anon-Id for session persistence, prioritizing the new key
   if (anonId) {
     headers["X-Anon-Id"] = anonId;
@@ -853,6 +1059,24 @@ export async function apiFetch<T>(
   }
 
   try {
+    const responseTenantSlug = sanitizeTenantSlug(
+      response.headers.get("X-Tenant-Slug") ||
+      response.headers.get("x-tenant-slug") ||
+      response.headers.get("X-Tenant") ||
+      response.headers.get("x-tenant") ||
+      headerTenant,
+    );
+    const responseContactKey =
+      response.headers.get("X-Contact-Key") ||
+      response.headers.get("x-contact-key");
+    const responseConversationId =
+      response.headers.get("X-Conversation-Id") ||
+      response.headers.get("x-conversation-id");
+    persistOmnichannelIdentitySnapshot(responseTenantSlug, {
+      contactKey: responseContactKey,
+      conversationId: responseConversationId,
+    });
+
     const responseAnonId =
       response.headers.get("X-Anon-Id") || response.headers.get("Anon-Id");
     if (responseAnonId) {
@@ -899,6 +1123,28 @@ export async function apiFetch<T>(
       }
     }
 
+    if (data && typeof data === "object") {
+      const payload = data as Record<string, unknown>;
+      const payloadError = payload.error;
+      const payloadErrorRecord =
+        payloadError && typeof payloadError === "object"
+          ? (payloadError as Record<string, unknown>)
+          : null;
+
+      persistOmnichannelIdentitySnapshot(responseTenantSlug, {
+        contactKey:
+          normalizeHeaderValue(payload.contact_key) ||
+          normalizeHeaderValue(payload.contactKey) ||
+          normalizeHeaderValue(payloadErrorRecord?.contact_key) ||
+          normalizeHeaderValue(payloadErrorRecord?.contactKey),
+        conversationId:
+          normalizeHeaderValue(payload.conversation_id) ||
+          normalizeHeaderValue(payload.conversationId) ||
+          normalizeHeaderValue(payloadErrorRecord?.conversation_id) ||
+          normalizeHeaderValue(payloadErrorRecord?.conversationId),
+      });
+    }
+
     if (!parsedAsJson && !trimmedText) {
       data = null;
     }
@@ -918,6 +1164,7 @@ export async function apiFetch<T>(
           raw: snippet,
           contentType: responseContentType,
         },
+        resolveResponseRequestId(response, data),
       );
     }
 
@@ -929,6 +1176,8 @@ export async function apiFetch<T>(
         data,
       });
     }
+
+    const responseRequestId = resolveResponseRequestId(response, data);
 
     if (response.status === 401 && !skipAuth) {
       // Para peticiones del panel/admin, un 401 significa sesión expirada.
@@ -963,7 +1212,8 @@ export async function apiFetch<T>(
       throw new ApiError(
         resolveApiErrorMessage(data, "No autorizado"),
         response.status,
-        data
+        data,
+        responseRequestId,
       );
     }
 
@@ -975,7 +1225,8 @@ export async function apiFetch<T>(
       throw new ApiError(
         resolveApiErrorMessage(data, "Acceso prohibido"),
         response.status,
-        data
+        data,
+        responseRequestId,
       );
     }
 
@@ -983,7 +1234,8 @@ export async function apiFetch<T>(
       throw new ApiError(
         resolveApiErrorMessage(data, "Error en la respuesta de la API"),
         response.status,
-        data
+        data,
+        responseRequestId,
       );
     }
 
