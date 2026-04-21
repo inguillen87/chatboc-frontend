@@ -58,6 +58,23 @@ const TicketsPanelPage = () => {
     });
   }, [coverageAlerts.length, currentSlug, identityCoverage?.alert_count, identityCoverage?.slo_status, shouldShowCoverageAlert]);
 
+  const copyCoverageRequestId = React.useCallback(async () => {
+    const requestId = identityCoverage?.request_id?.trim();
+    if (!requestId) return;
+    if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) return;
+
+    try {
+      await navigator.clipboard.writeText(requestId);
+      trackFrontendEvent('support_request_id_copied', {
+        source: 'tickets_identity_coverage',
+        request_id: requestId,
+        tenant_slug: currentSlug ?? null,
+      });
+    } catch {
+      // no-op: avoid blocking UI if clipboard is unavailable.
+    }
+  }, [currentSlug, identityCoverage?.request_id]);
+
   return (
     <div className="flex min-h-[100dvh] flex-col bg-background dark:bg-gradient-to-tr dark:from-slate-950 dark:to-slate-900 text-foreground pt-16 pb-4 sm:pt-6 sm:pb-6 px-2 sm:px-4 md:px-5 lg:px-6 2xl:px-5">
       <div className="relative mx-auto flex w-full flex-1 min-h-0 max-w-[min(2400px,calc(100vw-2rem))] flex-col">
@@ -76,6 +93,20 @@ const TicketsPanelPage = () => {
               {(identityCoverage?.contract_version || identityCoverage?.slo_status) ? ' · ' : ''}
               {identityCoverage?.alert_count ?? 0}
             </p>
+            {identityCoverage?.request_id ? (
+              <div className="mt-2 flex items-center gap-2 text-xs">
+                <span className="font-mono">request_id: {identityCoverage.request_id}</span>
+                <button
+                  type="button"
+                  className="rounded border border-amber-300/70 px-2 py-1 hover:bg-amber-100/60 dark:border-amber-400/40 dark:hover:bg-amber-400/10"
+                  onClick={() => {
+                    void copyCoverageRequestId();
+                  }}
+                >
+                  Copiar request_id
+                </button>
+              </div>
+            ) : null}
             {coverageAlerts.length > 0 ? (
               <ul className="mt-1 list-disc pl-4">
                 {coverageAlerts.map((alert, index) => (

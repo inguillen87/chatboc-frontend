@@ -179,3 +179,17 @@ Vista embudo usando `by_stage` + filtros.
 1. **Stage4-FE-08:** smoke E2E de deep links WhatsApp → ruta canónica tenant.
 2. **Stage4-FE-09:** hardening de métricas operativas SLA en inbox (badges + filtros guardables).
 3. **Stage4-FE-10:** refuerzo de telemetry dashboard-first para analytics pesado (debounce + cache/ETag hints).
+
+---
+
+## Actualización backend → frontend (abril 2026)
+
+Fuente operativa: `docs/frontend.stage4.handoff.packet.md` + `docs/frontend.stage4.payload_examples.md`.
+
+### Tickets FE sugeridos para sincronización inmediata
+1. `identity-headers-propagation`
+2. `analytics-coverage-ui`
+3. `analytics-event-ingest-ack-v1`
+4. `analytics-event-schema-v1`
+5. `whatsapp-funnel-contract-v1`
+6. `rbac-required-capabilities-alignment`

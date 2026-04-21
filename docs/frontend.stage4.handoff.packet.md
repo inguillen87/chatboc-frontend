@@ -15,6 +15,7 @@
    - Lectura base: `analytics.read` (si se usa `emit_alert_events=1`, requiere `analytics.admin`).
    - Campos clave de UI:
      - `contract_version`
+     - `request_id`
      - `coverage_pct`
      - `slo_status` (`ok` | `below_target`)
      - `alerts` (array)
@@ -24,13 +25,16 @@
    - `POST /analytics/event`
    - Campos clave de integración:
      - `contract_version` (`analytics.event_ingest.v1`)
+     - `request_id`
      - `contact_key`
      - `conversation_id`
      - `identity_source`
+   - Si FE envía `contact_key`/`conversation_id` en `null` o vacío (`""`), backend los rellena con identidad resuelta del request cuando exista.
 
 3.1 **Analytics event schema (catálogo canónico)**
    - `GET /analytics/event/schema?tenant_id=<id>`
    - FE puede tomar de ahí:
+     - `request_id`
      - `canonical_events`
      - `required_dimensions`
      - `recommended_dimensions`
@@ -108,6 +112,7 @@ export interface IdentityCoverageAlert {
 
 export interface IdentityCoverageResponseV1 {
   contract_version: 'analytics.identity_coverage.v1';
+  request_id: string;
   tenant_id: number | null;
   coverage_pct: number;
   slo_status: SloStatus;
@@ -134,6 +139,7 @@ export interface WhatsappFunnelResponseV1 {
 export interface AnalyticsEventIngestAckV1 {
   ok: true;
   contract_version: 'analytics.event_ingest.v1';
+  request_id: string;
   tenant_id: number;
   event_name: string;
   contact_key?: string;
@@ -156,6 +162,7 @@ export interface WidgetTokenAckV1 {
 
 export interface AnalyticsEventSchemaV1 {
   contract_version: 'analytics.event_schema.v1';
+  request_id: string;
   tenant_id: number;
   required_dimensions: string[];
   recommended_dimensions: string[];
@@ -284,28 +291,3 @@ export interface PublicWidgetConfigV1 {
   4. `analytics-event-schema-v1`
   5. `whatsapp-funnel-contract-v1`
   6. `rbac-required-capabilities-alignment`
-
----
-
-## 6) Observabilidad mínima obligatoria (proactivo)
-
-- Log estructurado en FE para errores de contrato:
-  - `contract_version_missing`
-  - `contract_version_mismatch`
-  - `demo_mode_disabled`
-- En `demo_mode_disabled`, adjuntar siempre:
-  - `request_id` (payload)
-  - `x_request_id` (header si está disponible)
-  - `endpoint`
-  - `tenant_slug` (si aplica)
-- Dashboard FE interno: contar frecuencia por endpoint/tenant para detectar drift temprano.
-
----
-
-## 7) Definition of Ready para tickets FE de Stage 4
-
-Antes de tomar cada ticket, debe existir:
-1. Contrato v1 linkeado en `docs/`.
-2. Payload de ejemplo feliz + error.
-3. Regla explícita de degradación elegante (sin crash).
-4. Evento de telemetry asociado.

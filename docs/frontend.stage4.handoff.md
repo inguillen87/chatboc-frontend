@@ -195,12 +195,12 @@ Backend quedó preparado para una estrategia más segura en runtime:
 
 ## 6) Checklist de QA antes de merge
 
-- [ ] Deep links de WhatsApp abren pantalla correcta en ruta canónica.
-- [ ] Carrito persiste entre refresh y reingreso.
-- [ ] Checkout recupera estado tras error temporal de API.
-- [ ] Portal instala como PWA con `start_url` y scope correctos.
+- [x] Deep links de WhatsApp abren pantalla correcta en ruta canónica.
+- [x] Carrito persiste entre refresh y reingreso.
+- [x] Checkout recupera estado tras error temporal de API.
+- [x] Portal instala como PWA con `start_url` y scope correctos.
 - [ ] Errores 4xx/5xx muestran mensajes controlados y medibles.
-- [ ] Denegaciones RBAC no rompen navegación.
+- [x] Denegaciones RBAC no rompen navegación.
 
 ---
 
@@ -344,6 +344,6 @@ Además, FE-07 (permisos) debe tomar como referencia:
 
 ## 11) Checklist rápido de trazabilidad (`request_id`)
 
-- [ ] `auth.demo.v1` documentado con `request_id` en body y `X-Request-Id` en headers.
-- [ ] FE captura y loggea ambos identificadores cuando recibe 404 demo mode off.
+- [x] `auth.demo.v1` documentado con `request_id` en body y `X-Request-Id` en headers.
+- [x] FE captura y loggea ambos identificadores cuando recibe 404 demo mode off.
 - [ ] QA incluye evidencia de correlación FE/BE usando al menos 1 `request_id` real de staging.

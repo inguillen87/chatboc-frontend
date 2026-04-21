@@ -2,6 +2,13 @@
 
 > Ejemplos de referencia para tipado y pruebas de integración FE.
 
+## Orden sugerido de implementación FE
+
+1. Analytics ingest ack + event schema (`/analytics/event`, `/analytics/event/schema`).
+2. Analytics coverage (`/analytics/identity/coverage`) con `request_id`.
+3. Tickets públicos (`/tickets/public/status`, `/tickets/workflow/metadata`) con `request_id`.
+4. Demo auth (`/auth/demo/*` y `/api/auth/demo/*`) en modo disabled contract.
+
 ## 1) GET `/analytics/identity/coverage`
 
 ### Response 200 (con alertas)
@@ -9,6 +16,7 @@
 ```json
 {
   "contract_version": "analytics.identity_coverage.v1",
+  "request_id": "uuid-or-forwarded-request-id",
   "tenant_id": 42,
   "scope": "tenant",
   "target_pct": 90.0,
@@ -53,6 +61,7 @@
 ```json
 {
   "contract_version": "analytics.identity_coverage.v1",
+  "request_id": "uuid-or-forwarded-request-id",
   "tenant_id": 42,
   "scope": "tenant",
   "target_pct": 85.0,
@@ -63,6 +72,10 @@
   "channels": []
 }
 ```
+
+### Headers esperados
+
+- `X-Request-Id: <uuid|forwarded>`
 
 ---
 
@@ -132,6 +145,7 @@
 {
   "ok": true,
   "contract_version": "analytics.event_ingest.v1",
+  "request_id": "uuid-or-forwarded-request-id",
   "tenant_id": 42,
   "event_name": "portal_opened",
   "contact_key": "wa:contact:abc123",
@@ -139,6 +153,10 @@
   "identity_source": "conversation_id"
 }
 ```
+
+### Headers esperados
+
+- `X-Request-Id: <uuid|forwarded>`
 
 > Nota: si FE envía `contact_key` o `conversation_id` en `null` o `""`, backend intenta reemplazarlos con identidad resuelta del request.
 
@@ -200,6 +218,7 @@
 ```json
 {
   "contract_version": "analytics.event_schema.v1",
+  "request_id": "uuid-or-forwarded-request-id",
   "tenant_id": 42,
   "required_dimensions": ["event_name", "channel", "tenant_id"],
   "recommended_dimensions": [
@@ -226,6 +245,10 @@
   ]
 }
 ```
+
+### Headers esperados
+
+- `X-Request-Id: <uuid|forwarded>`
 
 ---
 
@@ -497,13 +520,3 @@
 ### Headers esperados
 
 - `X-Request-Id: <uuid|forwarded>`
-
----
-
-## 20) Reglas de validación FE sobre estos ejemplos
-
-1. Rechazar render de vistas críticas si falta `contract_version` cuando el contrato lo define como obligatorio.
-2. En errores demo (`auth.demo.v1`), registrar `request_id` y `X-Request-Id` para correlación backend.
-3. En funnel, tolerar `conversion_from_prev_pct = null` sin romper UI.
-4. En coverage, mostrar estado sano cuando `alert_count = 0` y `alerts=[]` (sin banner).
-5. Si un payload incluye campos extra no documentados, ignorarlos de forma segura (forward-compatible parsing).
