@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useUser } from './useUser';
-import { normalizeRole, Role } from '@/utils/roles';
+import { hasRequiredRole, Role } from '@/utils/roles';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
 export default function useRequireRole(allowedRoles: Role[]) {
@@ -17,8 +17,7 @@ export default function useRequireRole(allowedRoles: Role[]) {
       return;
     }
 
-    const role = normalizeRole(user?.rol);
-    if (!allowedRoles.includes(role)) {
+    if (!hasRequiredRole(user?.rol, allowedRoles)) {
       navigate('/403');
     }
   }, [user, loading, navigate, allowedRoles]);
