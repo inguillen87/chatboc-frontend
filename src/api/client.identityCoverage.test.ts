@@ -5,6 +5,7 @@ describe('parseIdentityCoverageResponseV1', () => {
   it('normalizes numeric fields and alerts with strict contract', () => {
     const normalized = parseIdentityCoverageResponseV1({
       contract_version: 'analytics.identity_coverage.v1',
+      request_id: 'req-identity-1',
       tenant_id: '12',
       coverage_pct: '91.8',
       contact_key_coverage_pct: '95.5',
@@ -29,6 +30,7 @@ describe('parseIdentityCoverageResponseV1', () => {
 
     expect(normalized).toEqual({
       contract_version: 'analytics.identity_coverage.v1',
+      request_id: 'req-identity-1',
       tenant_id: 12,
       coverage_pct: 91.8,
       contact_key_coverage_pct: 95.5,

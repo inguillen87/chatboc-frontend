@@ -12,6 +12,7 @@ export interface IdentityCoverageAlertV1 {
 
 export interface IdentityCoverageResponseV1 {
   contract_version: 'analytics.identity_coverage.v1';
+  request_id: string;
   tenant_id: number | null;
   coverage_pct: number;
   contact_key_coverage_pct?: number;
@@ -41,6 +42,8 @@ export const parseIdentityCoverageResponseV1 = (input: unknown): IdentityCoverag
   if (!isRecord(input)) return null;
   if (input.contract_version !== 'analytics.identity_coverage.v1') return null;
   if (input.slo_status !== 'ok' && input.slo_status !== 'below_target') return null;
+  const requestId = asTrimmedString(input.request_id);
+  if (!requestId) return null;
 
   const coveragePct = asFiniteNumber(input.coverage_pct);
   const alertCount = asFiniteNumber(input.alert_count);
@@ -78,6 +81,7 @@ export const parseIdentityCoverageResponseV1 = (input: unknown): IdentityCoverag
 
   return {
     contract_version: 'analytics.identity_coverage.v1',
+    request_id: requestId,
     tenant_id: input.tenant_id === null ? null : asFiniteNumber(input.tenant_id) ?? null,
     coverage_pct: coveragePct,
     contact_key_coverage_pct: asFiniteNumber(input.contact_key_coverage_pct),

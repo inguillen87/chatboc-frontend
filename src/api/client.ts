@@ -111,6 +111,9 @@ const normalizePublicTicketStatus = (value: unknown) => {
     throw new ApiError('Public ticket status inválido: contract_version', 502, value);
   }
   const request_id = asStringOrUndefined(value.request_id);
+  if (!request_id) {
+    throw new ApiError('Public ticket status inválido: request_id requerido', 502, value);
+  }
   const payloadError = isRecord(value.error)
     ? {
         code: asNumberOrUndefined(value.error.code) ?? 0,
@@ -146,6 +149,10 @@ const normalizeTicketWorkflowMetadata = (value: unknown) => {
   if (!isRecord(value)) throw new ApiError('Ticket workflow metadata inválido', 502, value);
   if (value.contract_version !== 'tickets.workflow.v1') {
     throw new ApiError('Ticket workflow metadata inválido: contract_version', 502, value);
+  }
+  const requestId = asStringOrUndefined(value.request_id);
+  if (!requestId) {
+    throw new ApiError('Ticket workflow metadata inválido: request_id requerido', 502, value);
   }
   const statesRaw = Array.isArray(value.states) ? value.states : [];
   const states = statesRaw
@@ -183,7 +190,7 @@ const normalizeTicketWorkflowMetadata = (value: unknown) => {
 
   return {
     contract_version: 'tickets.workflow.v1' as const,
-    request_id: asStringOrUndefined(value.request_id),
+    request_id: requestId,
     tenant_id: value.tenant_id === null ? null : asNumberOrUndefined(value.tenant_id),
     states,
     transitions,
@@ -270,10 +277,21 @@ export const apiClient = {
         throw error;
       }
 
-      const response = await apiFetch<unknown>(`/api/analytics/identity/coverage${suffix}`, { tenantSlug });
-      const parsed = parseIdentityCoverageResponseV1(response);
-      if (!parsed) throw new ApiError('Respuesta inválida de identity coverage: contract_version o payload inválido.', 502, response);
-      return parsed;
+      try {
+        const response = await apiFetch<unknown>(`/api/analytics/identity/coverage${suffix}`, { tenantSlug });
+        const parsed = parseIdentityCoverageResponseV1(response);
+        if (!parsed) throw new ApiError('Respuesta inválida de identity coverage: contract_version o payload inválido.', 502, response);
+        return parsed;
+      } catch (fallbackError) {
+        if (params?.emit_alert_events === 1 && fallbackError instanceof ApiError && fallbackError.status === 403) {
+          const readOnlySuffix = buildSuffix(params ? { target_pct: params.target_pct, target_by_channel: params.target_by_channel } : undefined);
+          const response = await apiFetch<unknown>(`/api/analytics/identity/coverage${readOnlySuffix}`, { tenantSlug });
+          const parsed = parseIdentityCoverageResponseV1(response);
+          if (!parsed) throw new ApiError('Respuesta inválida de identity coverage: contract_version o payload inválido.', 502, response);
+          return parsed;
+        }
+        throw fallbackError;
+      }
     }
   },
 

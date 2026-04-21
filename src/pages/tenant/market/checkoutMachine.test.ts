@@ -60,6 +60,22 @@ describe('checkoutMachine', () => {
     expect(retried.error).toBeNull();
   });
 
+  it('resets transient persisted statuses during hydration', () => {
+    const validating = hydrateCheckoutState({
+      status: 'validating',
+      message: 'Validando stock',
+    });
+    expect(validating.status).toBe('idle');
+    expect(validating.message).toBe('Validando stock');
+
+    const creatingOrder = hydrateCheckoutState({
+      status: 'creating_order',
+      error: 'timeout',
+    });
+    expect(creatingOrder.status).toBe('idle');
+    expect(creatingOrder.error).toBe('timeout');
+  });
+
   it('normalizes API response to awaiting_payment or success', () => {
     const awaiting = resolveCheckoutOutcome({
       status: 'pending',

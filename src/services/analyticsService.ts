@@ -16,6 +16,8 @@ export interface AnalyticsFilters {
   tz?: string;
   categoria?: string;
   categorias?: string | string[];
+  category?: string;
+  categories?: string | string[];
   sexo?: string;
   genero?: string;
   rango_edad?: string;
@@ -132,6 +134,7 @@ export interface WhatsappFunnelResponse {
 export interface AnalyticsEventIngestAckV1 {
   ok: true;
   contract_version: 'analytics.event_ingest.v1';
+  request_id: string;
   tenant_id: number;
   event_name: string;
   contact_key?: string;
@@ -141,6 +144,7 @@ export interface AnalyticsEventIngestAckV1 {
 
 export interface AnalyticsEventSchemaV1 {
   contract_version: 'analytics.event_schema.v1';
+  request_id: string;
   tenant_id: number;
   required_dimensions: string[];
   recommended_dimensions: string[];
@@ -159,7 +163,9 @@ export interface AnalyticsGeoLayerCategory {
 }
 
 export interface AnalyticsHeatmapResponse {
+  request_id?: string;
   points: Array<{ lat?: number; lng?: number; weight?: number; categoria?: string; canal?: string; severidad?: string; estado?: string }>;
+  map_layers?: Record<string, unknown>;
   ui?: {
     labels?: {
       title?: string;
@@ -195,6 +201,12 @@ export interface AnalyticsHeatmapResponse {
   };
   segments?: Record<string, Array<{ label?: string; count?: number }>>;
   segments_filters_applied?: Record<string, unknown>;
+}
+
+export interface AnalyticsGeoPointsResponse {
+  request_id?: string;
+  points: Array<{ lat?: number; lng?: number; weight?: number; categoria?: string; canal?: string; severidad?: string; estado?: string }>;
+  map_layers?: Record<string, unknown>;
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -261,11 +273,13 @@ export const parseAnalyticsEventIngestAckV1 = (input: unknown): AnalyticsEventIn
 
   const tenantId = asFiniteNumber(input.tenant_id);
   const eventName = typeof input.event_name === 'string' ? input.event_name.trim() : '';
-  if (tenantId === undefined || !eventName) return null;
+  const requestId = typeof input.request_id === 'string' ? input.request_id.trim() : '';
+  if (tenantId === undefined || !eventName || !requestId) return null;
 
   return {
     ok: true,
     contract_version: 'analytics.event_ingest.v1',
+    request_id: requestId,
     tenant_id: tenantId,
     event_name: eventName,
     ...(typeof input.contact_key === 'string' ? { contact_key: input.contact_key } : {}),
@@ -283,10 +297,12 @@ export const parseAnalyticsEventSchemaV1 = (input: unknown): AnalyticsEventSchem
   if (!isRecord(input)) return null;
   if (input.contract_version !== 'analytics.event_schema.v1') return null;
   const tenantId = asFiniteNumber(input.tenant_id);
-  if (tenantId === undefined) return null;
+  const requestId = typeof input.request_id === 'string' ? input.request_id.trim() : '';
+  if (tenantId === undefined || !requestId) return null;
 
   return {
     contract_version: 'analytics.event_schema.v1',
+    request_id: requestId,
     tenant_id: tenantId,
     required_dimensions: toStringArray(input.required_dimensions),
     recommended_dimensions: toStringArray(input.recommended_dimensions),
@@ -462,6 +478,7 @@ const collectHeatmapPoints = (raw: unknown): Array<{ lat?: number; lng?: number;
       candidate.cells,
       candidate.category_layers,
       candidate.geo_layers,
+      candidate.map_layers,
       candidate.categories,
       candidate.layers,
       candidate.data,
@@ -531,8 +548,12 @@ const buildQuery = (filters: AnalyticsFilters) => {
   if (filters.to) params.append('to', filters.to);
   if (filters.scope) params.append('scope', filters.scope);
   if (filters.tz) params.append('tz', filters.tz);
-  appendValue('categoria', filters.categoria);
-  appendValue('categorias', filters.categorias);
+  const singleCategory = filters.category ?? filters.categoria;
+  const multiCategories = filters.categories ?? filters.categorias;
+  appendValue('category', singleCategory);
+  appendValue('categories', multiCategories);
+  if (!filters.category && filters.categoria) appendValue('categoria', filters.categoria);
+  if (!filters.categories && filters.categorias) appendValue('categorias', filters.categorias);
   appendValue('sexo', filters.sexo);
   appendValue('genero', filters.genero);
   appendValue('rango_edad', filters.rango_edad);
@@ -645,6 +666,11 @@ export const analyticsService = {
   getHeatmap: async (filters: AnalyticsFilters, hubOverride?: AnalyticsHubResponse | null): Promise<AnalyticsHeatmapResponse> => {
     const buildResponse = (raw: any): AnalyticsHeatmapResponse => {
       const geoLayers = raw?.geo_layers && typeof raw.geo_layers === 'object' ? raw.geo_layers : undefined;
+      const mapLayers = raw?.map_layers && typeof raw.map_layers === 'object' ? raw.map_layers : undefined;
+      const requestId =
+        typeof raw?.request_id === 'string' && raw.request_id.trim().length > 0
+          ? raw.request_id.trim()
+          : undefined;
       const points = collectHeatmapPoints(raw);
       const segments = raw?.segments && typeof raw.segments === 'object' ? raw.segments : undefined;
       const segmentsFiltersApplied =
@@ -652,7 +678,9 @@ export const analyticsService = {
           ? raw.segments_filters_applied
           : undefined;
       return {
+        ...(requestId ? { request_id: requestId } : {}),
         points: Array.isArray(points) ? points : [],
+        ...(mapLayers ? { map_layers: mapLayers } : {}),
         ...(geoLayers ? { geo_layers: geoLayers } : {}),
         ...(segments ? { segments } : {}),
         ...(segmentsFiltersApplied ? { segments_filters_applied: segmentsFiltersApplied } : {}),
@@ -667,8 +695,10 @@ export const analyticsService = {
       return buildResponse({
         points: hubPoints,
         geo_layers: (hubGeo as any)?.geo_layers,
+        map_layers: (hubGeo as any)?.map_layers,
         segments: (hubGeo as any)?.segments,
         segments_filters_applied: (hubGeo as any)?.segments_filters_applied,
+        request_id: (hubGeo as any)?.request_id,
       });
     }
 
@@ -678,6 +708,70 @@ export const analyticsService = {
       headers: buildAnalyticsHeaders(),
     });
     return buildResponse(response || {});
+  },
+
+  getGeoPoints: async (
+    filters: AnalyticsFilters & { limit?: number },
+    hubOverride?: AnalyticsHubResponse | null,
+  ): Promise<AnalyticsGeoPointsResponse> => {
+    if (filters.limit !== undefined) {
+      const validLimit = Number.isInteger(filters.limit) && filters.limit >= 1 && filters.limit <= 5000;
+      if (!validLimit) {
+        throw new ApiError('Parámetro limit inválido para /analytics/geo/points. Debe ser entero entre 1 y 5000.', 400, {
+          error: { code: 400, message: 'invalid_limit' },
+        });
+      }
+    }
+
+    const buildResponse = (raw: any): AnalyticsGeoPointsResponse => {
+      const points = collectHeatmapPoints(raw);
+      const mapLayers = raw?.map_layers && typeof raw.map_layers === 'object' ? raw.map_layers : undefined;
+      const requestId =
+        typeof raw?.request_id === 'string' && raw.request_id.trim().length > 0
+          ? raw.request_id.trim()
+          : undefined;
+
+      return {
+        ...(requestId ? { request_id: requestId } : {}),
+        points: Array.isArray(points) ? points : [],
+        ...(mapLayers ? { map_layers: mapLayers } : {}),
+      };
+    };
+
+    const hub = hubOverride ?? await analyticsService.getHub(filters).catch((): AnalyticsHubResponse | null => null);
+    const hubMap = hub?.sections?.mapas as Record<string, unknown> | undefined;
+    const hubGeo = (hubMap?.geo as Record<string, unknown> | undefined) ?? hubMap;
+    const hubPoints = (hubGeo?.points ?? hubGeo?.geo_points ?? hubGeo?.heatmap_points) as unknown;
+    if (Array.isArray(hubPoints)) {
+      return buildResponse({
+        points: hubPoints,
+        map_layers: (hubGeo as any)?.map_layers,
+        request_id: (hubGeo as any)?.request_id,
+      });
+    }
+
+    const query = buildQuery({ ...filters, scope: filters.scope ?? filters.context ?? 'municipio' });
+    const limitSuffix = filters.limit !== undefined ? `${query ? '&' : ''}limit=${filters.limit}` : '';
+    const queryWithLimit = `${query}${limitSuffix}`;
+    const endpoint = `/analytics/geo/points${queryWithLimit ? `?${queryWithLimit}` : ''}`;
+
+    try {
+      const response = await apiFetch<any>(endpoint, {
+        tenantSlug: filters.tenantSlug,
+        headers: buildAnalyticsHeaders(),
+      });
+      return buildResponse(response || {});
+    } catch (error) {
+      if (!(error instanceof ApiError) || (error.status !== 404 && error.status !== 405)) {
+        throw error;
+      }
+      const fallbackEndpoint = `/api/analytics/geo/points${queryWithLimit ? `?${queryWithLimit}` : ''}`;
+      const response = await apiFetch<any>(fallbackEndpoint, {
+        tenantSlug: filters.tenantSlug,
+        headers: buildAnalyticsHeaders(),
+      });
+      return buildResponse(response || {});
+    }
   },
 
   getInsights: async (tenantId: number, tenantSlug?: string) => {

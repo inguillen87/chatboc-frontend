@@ -46,6 +46,12 @@ export interface MarketContinuity {
   resume_key?: string | null;
   preferred_handoff_channel?: string | null;
   summary?: string | null;
+  conversation_id?: string | null;
+  portal_links?: {
+    home?: string | null;
+    orders?: string | null;
+    profile?: string | null;
+  } | null;
 }
 
 export interface MarketSuggestedAction {

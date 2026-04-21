@@ -54,7 +54,11 @@ export const hydrateCheckoutState = (raw: unknown): CheckoutState => {
   if (!raw || typeof raw !== 'object') return base;
   const payload = raw as PersistedCheckoutState;
   const validStatus: CheckoutStatus[] = ['idle', 'validating', 'creating_order', 'awaiting_payment', 'success', 'error'];
-  const status = payload.status && validStatus.includes(payload.status) ? payload.status : base.status;
+  const persistedStatus = payload.status && validStatus.includes(payload.status) ? payload.status : base.status;
+  const status: CheckoutStatus =
+    persistedStatus === 'validating' || persistedStatus === 'creating_order'
+      ? 'idle'
+      : persistedStatus;
 
   return {
     status,

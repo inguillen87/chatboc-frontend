@@ -6,6 +6,7 @@ describe('identityCoverageContract parser', () => {
   it('parses valid v1 payload', () => {
     const parsed = parseIdentityCoverageResponseV1({
       contract_version: 'analytics.identity_coverage.v1',
+      request_id: 'req-123',
       tenant_id: 2,
       coverage_pct: 94,
       slo_status: 'ok',
@@ -14,12 +15,25 @@ describe('identityCoverageContract parser', () => {
     });
 
     expect(parsed?.coverage_pct).toBe(94);
+    expect(parsed?.request_id).toBe('req-123');
     expect(parsed?.alerts[0].severity).toBe('medium');
   });
 
   it('rejects payload with wrong contract', () => {
     const parsed = parseIdentityCoverageResponseV1({
       contract_version: 'legacy',
+      coverage_pct: 94,
+      slo_status: 'ok',
+      alert_count: 0,
+      alerts: [],
+    });
+
+    expect(parsed).toBeNull();
+  });
+
+  it('rejects payload when request_id is missing', () => {
+    const parsed = parseIdentityCoverageResponseV1({
+      contract_version: 'analytics.identity_coverage.v1',
       coverage_pct: 94,
       slo_status: 'ok',
       alert_count: 0,
