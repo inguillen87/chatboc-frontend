@@ -21,8 +21,13 @@ export type FrontendEventName =
   | 'tracking_public_refresh_failed'
   | 'tracking_public_maps_opened'
   | 'tracking_403_detected'
+  | 'permission_denied'
+  | 'identity_context_attached'
+  | 'identity_context_missing'
+  | 'coverage_alert_banner_seen'
   | 'socket_reconnect'
-  | 'realtime_duplicate_dropped';
+  | 'realtime_duplicate_dropped'
+  | 'market_checkout_transition';
 
 export function trackFrontendEvent(event: FrontendEventName, payload: Record<string, unknown> = {}) {
   if (typeof window === 'undefined') return;

@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { formatCurrency } from '@/utils/currency';
+import { buildTenantPath } from '@/utils/tenantPaths';
 
 function ProductContent({ tenantSlug, productSlug }: { tenantSlug: string; productSlug: string }) {
   const [product, setProduct] = useState<MarketProduct | null>(null);
@@ -63,7 +64,7 @@ function ProductContent({ tenantSlug, productSlug }: { tenantSlug: string; produ
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-8">
       <div>
         <Button asChild variant="outline" size="sm">
-          <Link to={`/tenant/${tenantSlug}/market`}>Volver al catálogo</Link>
+          <Link to={buildTenantPath('/market', tenantSlug)}>Volver al catálogo</Link>
         </Button>
       </div>
 

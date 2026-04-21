@@ -134,6 +134,23 @@ describe('analyticsService.getHub', () => {
     expect(heatmapUrl).toContain('categorias=pedidos');
   });
 
+  it('supports canonical category/categories query params for geo filters', async () => {
+    apiFetchMock
+      .mockResolvedValueOnce({ sections: {} })
+      .mockResolvedValueOnce({ points: [] });
+
+    await analyticsService.getHeatmap({
+      scope: 'municipio',
+      category: 'bache',
+      categories: ['luz', 'seguridad'],
+    });
+
+    const [, heatmapUrl] = apiFetchMock.mock.calls.map((call) => call[0] as string);
+    expect(heatmapUrl).toContain('category=bache');
+    expect(heatmapUrl).toContain('categories=luz');
+    expect(heatmapUrl).toContain('categories=seguridad');
+  });
+
 
   it('falls back to geo_layers category points when root points are missing', async () => {
     apiFetchMock
@@ -179,6 +196,31 @@ describe('analyticsService.getHub', () => {
     expect(heatmap.geo_layers?.categories?.[0]?.categoria).toBe('seguridad');
     expect(heatmap.segments?.sexo?.[0]?.label).toBe('f');
     expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('preserves request_id and map_layers from heatmap payload', async () => {
+    apiFetchMock
+      .mockResolvedValueOnce({ sections: {} })
+      .mockResolvedValueOnce({
+        request_id: 'req-geo-123',
+        map_layers: {
+          contract_version: 'analytics.geo_layers.v1',
+          provider: { name: 'openstreetmap' },
+          category_heatmap: {
+            top_categories: [{ slug: 'bache', label: 'Baches', events: 20 }],
+            applied_categories: ['bache'],
+          },
+        },
+        points: [{ lat: -34.6, lng: -58.38, weight: 8 }],
+      });
+
+    const heatmap = await analyticsService.getHeatmap({ scope: 'municipio', category: 'bache' });
+
+    expect(heatmap.request_id).toBe('req-geo-123');
+    expect(heatmap.map_layers).toMatchObject({
+      contract_version: 'analytics.geo_layers.v1',
+      provider: { name: 'openstreetmap' },
+    });
   });
 
   it('extracts points from nested category_layers and hotspots payloads', async () => {
@@ -239,6 +281,36 @@ describe('analyticsService.getHub', () => {
       severidad: 'media',
       estado: 'pendiente',
     });
+  });
+
+  it('rejects invalid limit values for geo points endpoint before issuing request', async () => {
+    await expect(analyticsService.getGeoPoints({ scope: 'municipio', limit: 0 })).rejects.toMatchObject({ status: 400 });
+    await expect(analyticsService.getGeoPoints({ scope: 'municipio', limit: 5001 })).rejects.toMatchObject({ status: 400 });
+    await expect(analyticsService.getGeoPoints({ scope: 'municipio', limit: 12.3 })).rejects.toMatchObject({ status: 400 });
+    expect(apiFetchMock).toHaveBeenCalledTimes(0);
+  });
+
+  it('reuses mapas.geo points from hub response for geo points helper when available', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      sections: {
+        mapas: {
+          geo: {
+            request_id: 'req-hub-geo-1',
+            points: [{ lat: -34.59, lng: -58.41, weight: 5 }],
+            map_layers: {
+              contract_version: 'analytics.geo_layers.v1',
+            },
+          },
+        },
+      },
+    });
+
+    const geo = await analyticsService.getGeoPoints({ scope: 'municipio', tenantSlug: 'tenant-a', limit: 100 });
+
+    expect(geo.request_id).toBe('req-hub-geo-1');
+    expect(geo.points).toHaveLength(1);
+    expect(geo.map_layers).toMatchObject({ contract_version: 'analytics.geo_layers.v1' });
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
   });
 
 });

@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useParams } from 'react-router-dom';
 
 // ... (importaciones existentes) ...
 import { FEATURE_ENCUESTAS } from '@/config/featureFlags';
@@ -111,11 +111,20 @@ export interface RouteConfig {
   allowGuest?: boolean; // Permite acceder sin sesión (modo demo)
 }
 
+const LegacyTenantAliasRedirect = ({ suffix = '' }: { suffix?: string }) => {
+  const params = useParams();
+  const tenant = typeof params.tenant === 'string' ? params.tenant.trim() : '';
+  if (!tenant) {
+    return <Navigate to="/" replace />;
+  }
+  return <Navigate to={`/t/${encodeURIComponent(tenant)}${suffix}`} replace />;
+};
+
 const withTenantPrefixes = (
   pathSuffix: string,
   config: Omit<RouteConfig, 'path'>,
 ): RouteConfig[] =>
-  TENANT_ROUTE_PREFIXES.map((prefix) => ({
+  TENANT_ROUTE_PREFIXES.filter((prefix) => prefix === 't').map((prefix) => ({
     ...config,
     path: `/${prefix}${pathSuffix}`,
   }));
@@ -290,19 +299,19 @@ const routes: RouteConfig[] = [
 
   // Clean URL Support (Root Level Tenant Routes)
   // Placing these carefully to avoid conflicts, though React Router v6 is smart about specificity.
-  { path: '/:tenant/productos', element: <ProductCatalog /> },
-  { path: '/:tenant/catalogo', element: <PublicCatalogPage /> },
-  { path: '/:tenant/cart', element: <CartPage /> },
-  { path: '/:tenant/checkout-productos', element: <ProductCheckoutPage /> },
-  { path: '/:tenant/pedido/confirmado', element: <OrderConfirmationPage /> },
+  { path: '/:tenant/productos', element: <LegacyTenantAliasRedirect suffix="/productos" /> },
+  { path: '/:tenant/catalogo', element: <LegacyTenantAliasRedirect suffix="/productos" /> },
+  { path: '/:tenant/cart', element: <LegacyTenantAliasRedirect suffix="/cart" /> },
+  { path: '/:tenant/checkout-productos', element: <LegacyTenantAliasRedirect suffix="/checkout-productos" /> },
+  { path: '/:tenant/pedido/confirmado', element: <LegacyTenantAliasRedirect suffix="/pedido/confirmado" /> },
   // Public Order Tracking
   { path: '/pyme/pedidos/:nro_pedido', element: <OrderTrackingPage /> },
   // Missing root integration route
-  { path: '/:tenant/integracion', element: <IntegracionesPage />, roles: ['admin'] },
+  { path: '/:tenant/integracion', element: <LegacyTenantAliasRedirect suffix="/integracion" />, roles: ['admin'] },
 
   // Generic Tenant Home (Dashboard/Landing) - Must be LAST among tenant routes to avoid swallowing others
   ...withTenantPrefixes('/:tenant', { element: <TenantHomePage /> }),
-  { path: '/:tenant', element: <TenantHomePage /> }, // Support root level /:slug
+  { path: '/:tenant', element: <LegacyTenantAliasRedirect /> }, // Legacy root tenant alias -> canonical
 
   // Global Routes
   { path: '/admin', element: <Navigate to="/perfil" replace /> },
@@ -338,17 +347,37 @@ const routes: RouteConfig[] = [
   { path: '/legal/privacy', element: <Privacy /> },
   { path: '/legal/terms', element: <Terms /> },
   { path: '/legal/cookies', element: <Cookies /> },
-  { path: '/tickets', element: <TicketsPanel />, roles: ['admin', 'empleado', 'super_admin'] },
+  {
+    path: '/tickets',
+    element: <TicketsPanel />,
+    roles: ['admin', 'empleado', 'super_admin'],
+    requiredCapabilities: ['tickets.read'],
+  },
   { path: '/notificaciones', element: <SmartNotificationsWrapper />, roles: ['admin', 'empleado', 'super_admin'] },
-  { path: '/pedidos', element: <SmartPedidosWrapper />, roles: ['admin', 'empleado', 'super_admin'] },
-  { path: '/usuarios', element: <UsuariosPage />, roles: ['admin', 'empleado', 'super_admin'] },
+  {
+    path: '/pedidos',
+    element: <SmartPedidosWrapper />,
+    roles: ['admin', 'empleado', 'super_admin'],
+    requiredCapabilities: ['market.orders.read'],
+  },
+  {
+    path: '/usuarios',
+    element: <UsuariosPage />,
+    roles: ['admin', 'empleado', 'super_admin'],
+    requiredCapabilities: ['settings.tenant.write'],
+  },
   { path: '/notifications', element: <NotificationSettings /> },
   { path: '/ticket', element: <TicketLookup /> },
   { path: '/ticket/:ticketId', element: <TicketLookup /> },
   { path: '/historial', element: <CustomerHistory /> },
   { path: '/presupuestos', element: <BudgetRequest /> },
   { path: '/recordatorios', element: <Reminders /> },
-  { path: '/logs', element: <LogWorkbench />, roles: ['admin', 'empleado', 'super_admin'] },
+  {
+    path: '/logs',
+    element: <LogWorkbench />,
+    roles: ['admin', 'empleado', 'super_admin'],
+    requiredCapabilities: ['tickets.admin'],
+  },
   { path: '/pyme/metrics', element: <BusinessMetrics /> },
   { path: '/crm/integrations', element: <CrmIntegrations /> },
   { path: '/consultas', element: <PredefinedQueries /> },
@@ -373,10 +402,20 @@ const routes: RouteConfig[] = [
   { path: '/municipal/analytics', element: <EstadisticasPage />, roles: ['admin', 'super_admin'] },
   { path: '/municipal/stats', element: <EstadisticasPage />, roles: ['admin', 'super_admin'] },
   { path: '/municipal/incidents', element: <EstadisticasPage />, roles: ['admin', 'super_admin'] },
-  { path: '/estadisticas', element: <EstadisticasPage />, roles: ['admin', 'super_admin'] },
+  {
+    path: '/estadisticas',
+    element: <EstadisticasPage />,
+    roles: ['admin', 'super_admin'],
+    requiredCapabilities: ['analytics.read'],
+  },
   { path: '/:tenant/estadisticas', element: <EstadisticasPage />, roles: ['admin', 'super_admin'] },
   ...withTenantPrefixes('/:tenant/estadisticas', { element: <EstadisticasPage />, roles: ['admin', 'super_admin'] }),
-  { path: '/analytics', element: <AnalyticsPage />, roles: ['admin', 'empleado', 'super_admin'] },
+  {
+    path: '/analytics',
+    element: <AnalyticsPage />,
+    roles: ['admin', 'empleado', 'super_admin'],
+    requiredCapabilities: ['analytics.read'],
+  },
   { path: '/:tenant/analytics', element: <AnalyticsPage />, roles: ['admin', 'empleado', 'super_admin'] },
   ...withTenantPrefixes('/:tenant/analytics', { element: <AnalyticsPage />, roles: ['admin', 'empleado', 'super_admin'] }),
   { path: '/perfil/plantillas-respuesta', element: <GestionPlantillasPage />, roles: ['admin', 'empleado', 'super_admin'] },
@@ -388,9 +427,19 @@ const routes: RouteConfig[] = [
   { path: '/admin/pyme/:pymeId/catalog-mappings/new', element: <CatalogMappingPage />, roles: ['admin', 'super_admin'] },
   { path: '/admin/pyme/:pymeId/catalog-mappings/:mappingId', element: <CatalogMappingPage />, roles: ['admin', 'super_admin'] },
 
-  { path: '/superadmin', element: <SuperAdminDashboard />, roles: ['super_admin'] },
+  {
+    path: '/superadmin',
+    element: <SuperAdminDashboard />,
+    roles: ['super_admin'],
+    requiredCapabilities: ['settings.tenant.write'],
+  },
   { path: '/admin/tenants', element: <SuperAdminDashboard />, roles: ['super_admin'] },
-  { path: '/empleados', element: <InternalUsers />, roles: ['admin', 'super_admin', 'tenant_admin'] },
+  {
+    path: '/empleados',
+    element: <InternalUsers />,
+    roles: ['admin', 'super_admin', 'tenant_admin'],
+    requiredCapabilities: ['settings.tenant.write'],
+  },
 
   {
     path: '/iframe',

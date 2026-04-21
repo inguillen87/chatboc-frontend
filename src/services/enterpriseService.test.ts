@@ -1,9 +1,26 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const apiFetchMock = vi.fn();
+const { MockApiError } = vi.hoisted(() => {
+  class LocalMockApiError extends Error {
+    status: number;
+    body: any;
+    requestId?: string;
+
+    constructor(message: string, status: number, body: any, requestId?: string) {
+      super(message);
+      this.name = 'ApiError';
+      this.status = status;
+      this.body = body;
+      this.requestId = requestId;
+    }
+  }
+  return { MockApiError: LocalMockApiError };
+});
 
 vi.mock('@/utils/api', () => ({
   apiFetch: (...args: unknown[]) => apiFetchMock(...args),
+  ApiError: MockApiError,
 }));
 
 import { enterpriseService, extractDemoFrontendContract, isSupportedDemoFrontendContract } from '@/services/enterpriseService';
@@ -31,6 +48,46 @@ describe('enterpriseService demo endpoints', () => {
       body: { rubro: 'municipio' },
       skipAuth: true,
       omitTenant: true,
+    });
+  });
+
+  it('normalizes demo disabled contract errors with request_id context', async () => {
+    apiFetchMock.mockRejectedValueOnce(
+      new MockApiError(
+        'Error en la respuesta de la API',
+        404,
+        {
+          contract_version: 'auth.demo.v1',
+          request_id: 'req-123',
+          error: { code: 404, message: 'Demo mode disabled' },
+        },
+      ),
+    );
+
+    await expect(enterpriseService.getDemoCatalog()).rejects.toMatchObject({
+      name: 'DemoModeDisabledError',
+      requestId: 'req-123',
+      status: 404,
+      contractVersion: 'auth.demo.v1',
+    });
+  });
+
+  it('uses ApiError requestId when contract payload omits request_id', async () => {
+    apiFetchMock.mockRejectedValueOnce(
+      new MockApiError(
+        'Error en la respuesta de la API',
+        404,
+        {
+          contract_version: 'auth.demo.v1',
+          error: { code: 404, message: 'Demo mode disabled' },
+        },
+        'req-from-header',
+      ),
+    );
+
+    await expect(enterpriseService.demoLogin('municipio')).rejects.toMatchObject({
+      name: 'DemoModeDisabledError',
+      requestId: 'req-from-header',
     });
   });
 

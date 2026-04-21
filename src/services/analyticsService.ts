@@ -1,4 +1,10 @@
 import { ApiError, apiFetch } from '@/utils/api';
+import {
+  type IdentityCoverageResponseV1,
+  parseIdentityCoverageResponseV1,
+} from '@/services/identityCoverageContract';
+
+export { parseIdentityCoverageResponseV1 };
 
 export interface AnalyticsFilters {
   tenant_id?: number;
@@ -10,6 +16,8 @@ export interface AnalyticsFilters {
   tz?: string;
   categoria?: string;
   categorias?: string | string[];
+  category?: string;
+  categories?: string | string[];
   sexo?: string;
   genero?: string;
   rango_edad?: string;
@@ -107,6 +115,42 @@ export interface RealtimeHubResponse {
   comments?: Array<{ channel?: string; text?: string; created_at?: string; sentiment?: string }>;
 }
 
+export interface WhatsappFunnelStage {
+  event_name: string;
+  label: string;
+  sessions: number;
+  unique_contacts: number;
+  conversion_from_prev_pct: number | null;
+}
+
+export interface WhatsappFunnelResponse {
+  contract_version: string;
+  tenant_id?: number | null;
+  scope?: string;
+  window_minutes?: number;
+  stages: WhatsappFunnelStage[];
+}
+
+export interface AnalyticsEventIngestAckV1 {
+  ok: true;
+  contract_version: 'analytics.event_ingest.v1';
+  request_id: string;
+  tenant_id: number;
+  event_name: string;
+  contact_key?: string;
+  conversation_id?: string;
+  identity_source?: string;
+}
+
+export interface AnalyticsEventSchemaV1 {
+  contract_version: 'analytics.event_schema.v1';
+  request_id: string;
+  tenant_id: number;
+  required_dimensions: string[];
+  recommended_dimensions: string[];
+  canonical_events: string[];
+}
+
 
 
 export interface AnalyticsGeoLayerCategory {
@@ -119,7 +163,9 @@ export interface AnalyticsGeoLayerCategory {
 }
 
 export interface AnalyticsHeatmapResponse {
+  request_id?: string;
   points: Array<{ lat?: number; lng?: number; weight?: number; categoria?: string; canal?: string; severidad?: string; estado?: string }>;
+  map_layers?: Record<string, unknown>;
   ui?: {
     labels?: {
       title?: string;
@@ -157,7 +203,213 @@ export interface AnalyticsHeatmapResponse {
   segments_filters_applied?: Record<string, unknown>;
 }
 
+export interface AnalyticsGeoPointsResponse {
+  request_id?: string;
+  points: Array<{ lat?: number; lng?: number; weight?: number; categoria?: string; canal?: string; severidad?: string; estado?: string }>;
+  map_layers?: Record<string, unknown>;
+}
+
 const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+const asFiniteNumber = (value: unknown): number | undefined => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+};
+
+export const parseWhatsappFunnelResponse = (input: unknown): WhatsappFunnelResponse | null => {
+  if (!isRecord(input)) return null;
+  const contractVersion = typeof input.contract_version === 'string' ? input.contract_version.trim() : '';
+  if (!contractVersion) return null;
+
+  const stagesRaw = Array.isArray(input.stages) ? input.stages : [];
+  const stages = stagesRaw
+    .map((stage) => {
+      if (!isRecord(stage)) return null;
+      const eventName =
+        typeof stage.event_name === 'string' && stage.event_name.trim()
+          ? stage.event_name.trim()
+          : typeof stage.stage === 'string'
+            ? stage.stage.trim()
+            : '';
+      const label =
+        typeof stage.label === 'string' && stage.label.trim()
+          ? stage.label.trim()
+          : eventName;
+      const sessions =
+        asFiniteNumber(stage.sessions) ?? asFiniteNumber(stage.count);
+      const uniqueContacts = asFiniteNumber(stage.unique_contacts);
+      const conversionFromPrevPct =
+        stage.conversion_from_prev_pct === null
+          ? null
+          : asFiniteNumber(stage.conversion_from_prev_pct) ?? null;
+      if (!eventName || sessions === undefined || uniqueContacts === undefined) return null;
+      return {
+        event_name: eventName,
+        label,
+        sessions,
+        unique_contacts: uniqueContacts,
+        conversion_from_prev_pct: conversionFromPrevPct,
+      };
+    })
+    .filter((stage): stage is WhatsappFunnelStage => stage !== null);
+
+  return {
+    contract_version: contractVersion,
+    tenant_id: input.tenant_id === null ? null : asFiniteNumber(input.tenant_id),
+    scope: typeof input.scope === 'string' ? input.scope : undefined,
+    window_minutes: asFiniteNumber(input.window_minutes),
+    stages,
+  };
+};
+
+export const parseAnalyticsEventIngestAckV1 = (input: unknown): AnalyticsEventIngestAckV1 | null => {
+  if (!isRecord(input)) return null;
+  if (input.contract_version !== 'analytics.event_ingest.v1') return null;
+  if (input.ok !== true) return null;
+
+  const tenantId = asFiniteNumber(input.tenant_id);
+  const eventName = typeof input.event_name === 'string' ? input.event_name.trim() : '';
+  const requestId = typeof input.request_id === 'string' ? input.request_id.trim() : '';
+  if (tenantId === undefined || !eventName || !requestId) return null;
+
+  return {
+    ok: true,
+    contract_version: 'analytics.event_ingest.v1',
+    request_id: requestId,
+    tenant_id: tenantId,
+    event_name: eventName,
+    ...(typeof input.contact_key === 'string' ? { contact_key: input.contact_key } : {}),
+    ...(typeof input.conversation_id === 'string' ? { conversation_id: input.conversation_id } : {}),
+    ...(typeof input.identity_source === 'string' ? { identity_source: input.identity_source } : {}),
+  };
+};
+
+const toStringArray = (value: unknown): string[] =>
+  Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0).map((item) => item.trim())
+    : [];
+
+export const parseAnalyticsEventSchemaV1 = (input: unknown): AnalyticsEventSchemaV1 | null => {
+  if (!isRecord(input)) return null;
+  if (input.contract_version !== 'analytics.event_schema.v1') return null;
+  const tenantId = asFiniteNumber(input.tenant_id);
+  const requestId = typeof input.request_id === 'string' ? input.request_id.trim() : '';
+  if (tenantId === undefined || !requestId) return null;
+
+  return {
+    contract_version: 'analytics.event_schema.v1',
+    request_id: requestId,
+    tenant_id: tenantId,
+    required_dimensions: toStringArray(input.required_dimensions),
+    recommended_dimensions: toStringArray(input.recommended_dimensions),
+    canonical_events: toStringArray(input.canonical_events),
+  };
+};
+
+export const getWhatsappFunnel = async (tenantSlug?: string): Promise<WhatsappFunnelResponse> => {
+  try {
+    const raw = await apiFetch<unknown>('/admin/analytics/whatsapp-funnel', { tenantSlug });
+    const parsed = parseWhatsappFunnelResponse(raw);
+    if (!parsed) {
+      throw new ApiError('Respuesta inválida de WhatsApp funnel: falta contract_version o payload inválido.', 502, raw);
+    }
+    return parsed;
+  } catch (error) {
+    if (!(error instanceof ApiError) || (error.status !== 404 && error.status !== 405)) {
+      throw error;
+    }
+
+    const raw = await apiFetch<unknown>('/api/admin/analytics/whatsapp-funnel', { tenantSlug });
+    const parsed = parseWhatsappFunnelResponse(raw);
+    if (!parsed) {
+      throw new ApiError('Respuesta inválida de WhatsApp funnel: falta contract_version o payload inválido.', 502, raw);
+    }
+    return parsed;
+  }
+};
+
+export const getIdentityCoverageV1 = async (tenantSlug?: string): Promise<IdentityCoverageResponseV1> => {
+  try {
+    const raw = await apiFetch<unknown>('/analytics/identity/coverage', { tenantSlug });
+    const parsed = parseIdentityCoverageResponseV1(raw);
+    if (!parsed) {
+      throw new ApiError('Respuesta inválida de identity coverage: contract_version o payload inválido.', 502, raw);
+    }
+    return parsed;
+  } catch (error) {
+    if (!(error instanceof ApiError) || (error.status !== 404 && error.status !== 405)) {
+      throw error;
+    }
+
+    const raw = await apiFetch<unknown>('/api/analytics/identity/coverage', { tenantSlug });
+    const parsed = parseIdentityCoverageResponseV1(raw);
+    if (!parsed) {
+      throw new ApiError('Respuesta inválida de identity coverage: contract_version o payload inválido.', 502, raw);
+    }
+    return parsed;
+  }
+};
+
+export const getAnalyticsEventSchema = async (
+  tenantId?: number,
+  tenantSlug?: string,
+): Promise<AnalyticsEventSchemaV1> => {
+  const query = tenantId !== undefined ? `?tenant_id=${tenantId}` : '';
+  try {
+    const raw = await apiFetch<unknown>(`/analytics/event/schema${query}`, { tenantSlug });
+    const parsed = parseAnalyticsEventSchemaV1(raw);
+    if (!parsed) {
+      throw new ApiError('Respuesta inválida de analytics event schema v1.', 502, raw);
+    }
+    return parsed;
+  } catch (error) {
+    if (!(error instanceof ApiError) || (error.status !== 404 && error.status !== 405)) {
+      throw error;
+    }
+    const raw = await apiFetch<unknown>(`/api/analytics/event/schema${query}`, { tenantSlug });
+    const parsed = parseAnalyticsEventSchemaV1(raw);
+    if (!parsed) {
+      throw new ApiError('Respuesta inválida de analytics event schema v1.', 502, raw);
+    }
+    return parsed;
+  }
+};
+
+export const postAnalyticsEvent = async (
+  payload: Record<string, unknown>,
+  tenantSlug?: string,
+): Promise<AnalyticsEventIngestAckV1> => {
+  try {
+    const raw = await apiFetch<unknown>('/analytics/event', {
+      method: 'POST',
+      body: payload,
+      tenantSlug,
+    });
+    const parsed = parseAnalyticsEventIngestAckV1(raw);
+    if (!parsed) {
+      throw new ApiError('Respuesta inválida de analytics event ingest v1.', 502, raw);
+    }
+    return parsed;
+  } catch (error) {
+    if (!(error instanceof ApiError) || (error.status !== 404 && error.status !== 405)) {
+      throw error;
+    }
+    const raw = await apiFetch<unknown>('/api/analytics/event', {
+      method: 'POST',
+      body: payload,
+      tenantSlug,
+    });
+    const parsed = parseAnalyticsEventIngestAckV1(raw);
+    if (!parsed) {
+      throw new ApiError('Respuesta inválida de analytics event ingest v1.', 502, raw);
+    }
+    return parsed;
+  }
+};
 
 const normalizeHeatPoint = (
   point: unknown,
@@ -226,6 +478,7 @@ const collectHeatmapPoints = (raw: unknown): Array<{ lat?: number; lng?: number;
       candidate.cells,
       candidate.category_layers,
       candidate.geo_layers,
+      candidate.map_layers,
       candidate.categories,
       candidate.layers,
       candidate.data,
@@ -295,8 +548,12 @@ const buildQuery = (filters: AnalyticsFilters) => {
   if (filters.to) params.append('to', filters.to);
   if (filters.scope) params.append('scope', filters.scope);
   if (filters.tz) params.append('tz', filters.tz);
-  appendValue('categoria', filters.categoria);
-  appendValue('categorias', filters.categorias);
+  const singleCategory = filters.category ?? filters.categoria;
+  const multiCategories = filters.categories ?? filters.categorias;
+  appendValue('category', singleCategory);
+  appendValue('categories', multiCategories);
+  if (!filters.category && filters.categoria) appendValue('categoria', filters.categoria);
+  if (!filters.categories && filters.categorias) appendValue('categorias', filters.categorias);
   appendValue('sexo', filters.sexo);
   appendValue('genero', filters.genero);
   appendValue('rango_edad', filters.rango_edad);
@@ -393,7 +650,7 @@ export const analyticsService = {
   },
 
   getSummary: async (filters: AnalyticsFilters, hubOverride?: AnalyticsHubResponse | null): Promise<AnalyticsSummary> => {
-    const hub = hubOverride ?? await analyticsService.getHub(filters).catch(() => null);
+    const hub = hubOverride ?? await analyticsService.getHub(filters).catch((): AnalyticsHubResponse | null => null);
     const contextKey = (filters.context === 'pyme' ? 'ventas' : filters.context === 'overview' ? 'general' : filters.context) as 'general' | 'municipio' | 'ventas' | undefined;
     const hubSummary = contextKey ? extractHubSectionSummary(hub, contextKey) : null;
     if (hubSummary) return hubSummary;
@@ -409,6 +666,11 @@ export const analyticsService = {
   getHeatmap: async (filters: AnalyticsFilters, hubOverride?: AnalyticsHubResponse | null): Promise<AnalyticsHeatmapResponse> => {
     const buildResponse = (raw: any): AnalyticsHeatmapResponse => {
       const geoLayers = raw?.geo_layers && typeof raw.geo_layers === 'object' ? raw.geo_layers : undefined;
+      const mapLayers = raw?.map_layers && typeof raw.map_layers === 'object' ? raw.map_layers : undefined;
+      const requestId =
+        typeof raw?.request_id === 'string' && raw.request_id.trim().length > 0
+          ? raw.request_id.trim()
+          : undefined;
       const points = collectHeatmapPoints(raw);
       const segments = raw?.segments && typeof raw.segments === 'object' ? raw.segments : undefined;
       const segmentsFiltersApplied =
@@ -416,14 +678,16 @@ export const analyticsService = {
           ? raw.segments_filters_applied
           : undefined;
       return {
+        ...(requestId ? { request_id: requestId } : {}),
         points: Array.isArray(points) ? points : [],
+        ...(mapLayers ? { map_layers: mapLayers } : {}),
         ...(geoLayers ? { geo_layers: geoLayers } : {}),
         ...(segments ? { segments } : {}),
         ...(segmentsFiltersApplied ? { segments_filters_applied: segmentsFiltersApplied } : {}),
       };
     };
 
-    const hub = hubOverride ?? await analyticsService.getHub(filters).catch(() => null);
+    const hub = hubOverride ?? await analyticsService.getHub(filters).catch((): AnalyticsHubResponse | null => null);
     const hubMap = hub?.sections?.mapas as Record<string, unknown> | undefined;
     const hubGeo = (hubMap?.geo as Record<string, unknown> | undefined) ?? hubMap;
     const hubPoints = (hubGeo?.points ?? hubGeo?.geo_points ?? hubGeo?.heatmap_points) as unknown;
@@ -431,8 +695,10 @@ export const analyticsService = {
       return buildResponse({
         points: hubPoints,
         geo_layers: (hubGeo as any)?.geo_layers,
+        map_layers: (hubGeo as any)?.map_layers,
         segments: (hubGeo as any)?.segments,
         segments_filters_applied: (hubGeo as any)?.segments_filters_applied,
+        request_id: (hubGeo as any)?.request_id,
       });
     }
 
@@ -442,6 +708,70 @@ export const analyticsService = {
       headers: buildAnalyticsHeaders(),
     });
     return buildResponse(response || {});
+  },
+
+  getGeoPoints: async (
+    filters: AnalyticsFilters & { limit?: number },
+    hubOverride?: AnalyticsHubResponse | null,
+  ): Promise<AnalyticsGeoPointsResponse> => {
+    if (filters.limit !== undefined) {
+      const validLimit = Number.isInteger(filters.limit) && filters.limit >= 1 && filters.limit <= 5000;
+      if (!validLimit) {
+        throw new ApiError('Parámetro limit inválido para /analytics/geo/points. Debe ser entero entre 1 y 5000.', 400, {
+          error: { code: 400, message: 'invalid_limit' },
+        });
+      }
+    }
+
+    const buildResponse = (raw: any): AnalyticsGeoPointsResponse => {
+      const points = collectHeatmapPoints(raw);
+      const mapLayers = raw?.map_layers && typeof raw.map_layers === 'object' ? raw.map_layers : undefined;
+      const requestId =
+        typeof raw?.request_id === 'string' && raw.request_id.trim().length > 0
+          ? raw.request_id.trim()
+          : undefined;
+
+      return {
+        ...(requestId ? { request_id: requestId } : {}),
+        points: Array.isArray(points) ? points : [],
+        ...(mapLayers ? { map_layers: mapLayers } : {}),
+      };
+    };
+
+    const hub = hubOverride ?? await analyticsService.getHub(filters).catch((): AnalyticsHubResponse | null => null);
+    const hubMap = hub?.sections?.mapas as Record<string, unknown> | undefined;
+    const hubGeo = (hubMap?.geo as Record<string, unknown> | undefined) ?? hubMap;
+    const hubPoints = (hubGeo?.points ?? hubGeo?.geo_points ?? hubGeo?.heatmap_points) as unknown;
+    if (Array.isArray(hubPoints)) {
+      return buildResponse({
+        points: hubPoints,
+        map_layers: (hubGeo as any)?.map_layers,
+        request_id: (hubGeo as any)?.request_id,
+      });
+    }
+
+    const query = buildQuery({ ...filters, scope: filters.scope ?? filters.context ?? 'municipio' });
+    const limitSuffix = filters.limit !== undefined ? `${query ? '&' : ''}limit=${filters.limit}` : '';
+    const queryWithLimit = `${query}${limitSuffix}`;
+    const endpoint = `/analytics/geo/points${queryWithLimit ? `?${queryWithLimit}` : ''}`;
+
+    try {
+      const response = await apiFetch<any>(endpoint, {
+        tenantSlug: filters.tenantSlug,
+        headers: buildAnalyticsHeaders(),
+      });
+      return buildResponse(response || {});
+    } catch (error) {
+      if (!(error instanceof ApiError) || (error.status !== 404 && error.status !== 405)) {
+        throw error;
+      }
+      const fallbackEndpoint = `/api/analytics/geo/points${queryWithLimit ? `?${queryWithLimit}` : ''}`;
+      const response = await apiFetch<any>(fallbackEndpoint, {
+        tenantSlug: filters.tenantSlug,
+        headers: buildAnalyticsHeaders(),
+      });
+      return buildResponse(response || {});
+    }
   },
 
   getInsights: async (tenantId: number, tenantSlug?: string) => {

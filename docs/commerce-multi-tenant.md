@@ -5,10 +5,10 @@ Este documento resume cómo implementar el marketplace de Chatboc como un SaaS m
 ## 1. Diferencias clave
 - **Multi-tenant (SaaS tipo Shopify):** cada tenant publica su tienda con dominio o slug propio, catálogo y carrito aislados. Se comparte la infraestructura, pero los datos se mantienen separados.
 - **Marketplace centralizado (tipo Amazon/Etsy):** todos los vendedores conviven en un solo sitio; suele requerir aprobaciones y administración centralizada de catálogos.
-- Para Chatboc se adopta el enfoque **multi-tenant**: cada organización tiene su ruta única (p. ej. `/market/{slug}`), catálogo público y carrito independiente.
+- Para Chatboc se adopta el enfoque **multi-tenant**: cada organización tiene su ruta única canónica (p. ej. `/t/{slug}/productos`), catálogo público y carrito independiente.
 
 ## 2. Acceso y autenticación
-- Generar enlaces y QR por tenant que apunten directo al catálogo público (ej. `/market/{slug}/cart`).
+- Generar enlaces y QR por tenant que apunten directo al catálogo público canónico (ej. `/t/{slug}/productos` o `/t/{slug}/cart`).
 - Permitir compartir el enlace en WhatsApp o embederlo en el widget de chat.
 - Para completar compras o canjes, aplicar autenticación sin fricción (OTP/SMS o inicio de sesión passwordless). Si el usuario ya está verificado por teléfono/WhatsApp, puede continuar sin formularios largos.
 
@@ -31,3 +31,7 @@ Este documento resume cómo implementar el marketplace de Chatboc como un SaaS m
 ## 6. Relación con el flujo de encuestas
 - Igual que en encuestas, cada tenant tiene un link/QR público y administración propia.
 - La diferencia es la lógica de e-commerce: stock, totales dinámicos, carrito y pagos añaden complejidad, pero se reutiliza la arquitectura multi-tenant.
+
+## 7. Nota de compatibilidad de rutas (legacy → canónica)
+- Rutas legacy (`/market`, `/tenant`, `/municipio`, `/pyme`) se mantienen solo como redirect para no romper enlaces históricos.
+- Toda generación nueva de links en frontend/backend debe salir con formato canónico `/t/:tenantSlug/*`.

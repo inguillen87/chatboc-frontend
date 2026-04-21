@@ -26,33 +26,18 @@ const UserOrdersPage = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (currentSlug) {
-      loadOrders();
-    }
+    loadOrders();
   }, [currentSlug]);
 
   const loadOrders = async () => {
     setLoading(true);
     try {
-      if (!currentSlug) return;
-      const data = await apiClient.listOrders(currentSlug);
-      if (data.length > 0) {
-        setOrders(data);
-      } else {
-        // Use Mock data for demo if empty (same consistent mock as admin)
-        setOrders([
-           {
-              id: "2000149922",
-              status: "nuevo",
-              total: 45900,
-              created_at: new Date().toISOString(),
-              items: [{ name: "Taladro Percutor 700w", quantity: 1, price: 45900, id: 1 }],
-              // Mock extra fields
-              externalUrl: "https://mercadolibre.com.ar",
-              channel: "mercadolibre"
-           } as any
-        ]);
+      if (!currentSlug) {
+        setOrders([]);
+        return;
       }
+      const data = await apiClient.listOrders(currentSlug);
+      setOrders(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error loading orders:', error);
       setOrders([]);

@@ -6,12 +6,14 @@ interface CapabilitiesContextValue {
   capabilities: string[];
   hasCapability: (capability: string) => boolean;
   hasAllCapabilities: (required: string[]) => boolean;
+  hasAnyCapability: (required: string[]) => boolean;
 }
 
 const CapabilitiesContext = createContext<CapabilitiesContextValue>({
   capabilities: [],
   hasCapability: () => false,
   hasAllCapabilities: () => false,
+  hasAnyCapability: () => false,
 });
 
 const normalizeCapabilities = (raw: unknown): string[] => {
@@ -40,6 +42,7 @@ export const CapabilitiesProvider: React.FC<{ children: React.ReactNode }> = ({ 
       capabilities,
       hasCapability: (capability: string) => capabilities.includes(capability),
       hasAllCapabilities: (required: string[]) => required.every((capability) => capabilities.includes(capability)),
+      hasAnyCapability: (required: string[]) => required.some((capability) => capabilities.includes(capability)),
     }),
     [capabilities],
   );

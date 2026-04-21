@@ -1,8 +1,202 @@
-import { apiFetch } from '@/utils/api';
+import { ApiError, apiFetch } from '@/utils/api';
 import { Order, Cart, Ticket, PortalContent, IntegrationStatus, PortalLoyaltySummary, PortalPremiumBundle } from '@/types/unified';
 import { Tenant, CreateTenantDTO, UpdateTenantDTO } from '@/types/superAdmin';
 import { WhatsappExternalNumberPayload, WhatsappNumberCreatePayload, WhatsappNumberInventoryItem, WhatsappNumberStatus } from '@/types/whatsapp';
 import { TenantCatalog } from '@/types/catalog';
+import {
+  parseIdentityCoverageResponseV1,
+  type IdentityCoverageResponseV1 as IdentityCoverageResponse,
+} from '@/services/identityCoverageContract';
+
+
+export type IdentityCoverageTargetByChannel = string | Record<string, number>;
+
+interface WidgetTokenRequestPayload {
+  tenant_id?: number;
+  tenant_slug?: string;
+  widget_token?: string;
+  contact_key?: string;
+  conversation_id?: string;
+}
+
+const asNumberOrUndefined = (value: unknown): number | undefined => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+};
+
+const asStringOrUndefined = (value: unknown): string | undefined =>
+  typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+const serializeIdentityCoverageTargetByChannel = (
+  targetByChannel?: IdentityCoverageTargetByChannel,
+): string | null => {
+  if (typeof targetByChannel === 'string') {
+    const normalized = targetByChannel.trim();
+    return normalized.length > 0 ? normalized : null;
+  }
+
+  if (!targetByChannel || typeof targetByChannel !== 'object') {
+    return null;
+  }
+
+  const normalizedEntries = Object.entries(targetByChannel).filter(
+    ([channel, target]) => typeof channel === 'string' && channel.trim().length > 0 && Number.isFinite(target),
+  );
+
+  if (!normalizedEntries.length) {
+    return null;
+  }
+
+  return JSON.stringify(Object.fromEntries(normalizedEntries));
+};
+
+const normalizeWidgetBootstrapResponse = (value: unknown) => {
+  if (!isRecord(value)) throw new ApiError('Widget bootstrap inválido', 502, value);
+  if (value.contract_version !== 'auth.widget_bootstrap.v1') {
+    throw new ApiError('Widget bootstrap inválido: contract_version', 502, value);
+  }
+
+  const tenant = isRecord(value.tenant) ? value.tenant : null;
+  const widget = isRecord(value.widget) ? value.widget : null;
+  const jwks = isRecord(value.jwks) ? value.jwks : {};
+  const tenantId = asNumberOrUndefined(tenant?.id);
+  const tenantSlug = asStringOrUndefined(tenant?.slug);
+  const tokenCookieName = asStringOrUndefined(widget?.token_cookie_name);
+  const accessMinutes = asNumberOrUndefined(widget?.access_minutes);
+  const renewDays = asNumberOrUndefined(widget?.renew_days);
+
+  if (!tenant || !widget || tenantId === undefined || !tenantSlug || !tokenCookieName || accessMinutes === undefined || renewDays === undefined) {
+    throw new ApiError('Widget bootstrap inválido: payload incompleto', 502, value);
+  }
+
+  return {
+    contract_version: 'auth.widget_bootstrap.v1' as const,
+    tenant: { id: tenantId, slug: tenantSlug },
+    widget: { token_cookie_name: tokenCookieName, access_minutes: accessMinutes, renew_days: renewDays },
+    jwks: {
+      url: asStringOrUndefined(jwks.url),
+      alg: asStringOrUndefined(jwks.alg),
+      kid: asStringOrUndefined(jwks.kid),
+    },
+  };
+};
+
+const normalizeWidgetTokenAck = (value: unknown) => {
+  if (!isRecord(value)) throw new ApiError('Widget token ack inválido', 502, value);
+  if (value.contract_version !== 'auth.widget_token.v1') {
+    throw new ApiError('Widget token ack inválido: contract_version', 502, value);
+  }
+  const token = asStringOrUndefined(value.token);
+  const expiresIn = asNumberOrUndefined(value.expires_in);
+  if (!token || expiresIn === undefined) {
+    throw new ApiError('Widget token ack inválido: payload incompleto', 502, value);
+  }
+  return {
+    contract_version: 'auth.widget_token.v1' as const,
+    token,
+    expires_in: expiresIn,
+  };
+};
+
+const normalizePublicTicketStatus = (value: unknown) => {
+  if (!isRecord(value)) throw new ApiError('Public ticket status inválido', 502, value);
+  if (value.contract_version !== 'tickets.public_status.v1') {
+    throw new ApiError('Public ticket status inválido: contract_version', 502, value);
+  }
+  const request_id = asStringOrUndefined(value.request_id);
+  if (!request_id) {
+    throw new ApiError('Public ticket status inválido: request_id requerido', 502, value);
+  }
+  const payloadError = isRecord(value.error)
+    ? {
+        code: asNumberOrUndefined(value.error.code) ?? 0,
+        message: asStringOrUndefined(value.error.message) ?? 'Error desconocido',
+      }
+    : undefined;
+  const ticket = isRecord(value.ticket) ? value.ticket : null;
+  const nro_ticket = asStringOrUndefined(ticket?.nro_ticket);
+  const estado = asStringOrUndefined(ticket?.estado);
+  if ((!ticket || !nro_ticket || !estado) && !payloadError) {
+    throw new ApiError('Public ticket status inválido: payload incompleto', 502, value);
+  }
+  return {
+    contract_version: 'tickets.public_status.v1' as const,
+    request_id,
+    error: payloadError,
+    ticket:
+      ticket && nro_ticket && estado
+        ? {
+            nro_ticket,
+            estado,
+            categoria: asStringOrUndefined(ticket.categoria),
+            subcategoria: asStringOrUndefined(ticket.subcategoria),
+            canal_ingreso: asStringOrUndefined(ticket.canal_ingreso),
+            fecha_creacion: ticket.fecha_creacion === null ? null : asStringOrUndefined(ticket.fecha_creacion),
+            ultima_actualizacion: ticket.ultima_actualizacion === null ? null : asStringOrUndefined(ticket.ultima_actualizacion),
+          }
+        : undefined,
+  };
+};
+
+const normalizeTicketWorkflowMetadata = (value: unknown) => {
+  if (!isRecord(value)) throw new ApiError('Ticket workflow metadata inválido', 502, value);
+  if (value.contract_version !== 'tickets.workflow.v1') {
+    throw new ApiError('Ticket workflow metadata inválido: contract_version', 502, value);
+  }
+  const requestId = asStringOrUndefined(value.request_id);
+  if (!requestId) {
+    throw new ApiError('Ticket workflow metadata inválido: request_id requerido', 502, value);
+  }
+  const statesRaw = Array.isArray(value.states) ? value.states : [];
+  const states = statesRaw
+    .map((state) => {
+      if (typeof state === 'string') {
+        const normalized = state.trim().toLowerCase();
+        return normalized || null;
+      }
+      if (!isRecord(state)) return null;
+      const fromKey = asStringOrUndefined(state.key);
+      const fromName = asStringOrUndefined(state.name);
+      const normalized = (fromKey ?? fromName ?? '').trim().toLowerCase();
+      return normalized || null;
+    })
+    .filter((state): state is string => state !== null);
+
+  if (states.length === 0) {
+    throw new ApiError('Ticket workflow metadata inválido: states vacío', 502, value);
+  }
+
+  const transitionsRaw = isRecord(value.transitions) ? value.transitions : {};
+  const transitions = Object.fromEntries(
+    Object.entries(transitionsRaw).map(([from, toList]) => {
+      const fromState = from.trim().toLowerCase();
+      const normalizedTargets = (Array.isArray(toList) ? toList : [])
+        .map((toState) => (typeof toState === 'string' ? toState.trim().toLowerCase() : ''))
+        .filter(Boolean);
+      return [fromState, normalizedTargets];
+    }),
+  );
+
+  const finalStates = (Array.isArray(value.final_states) ? value.final_states : [])
+    .map((state) => (typeof state === 'string' ? state.trim().toLowerCase() : ''))
+    .filter(Boolean);
+
+  return {
+    contract_version: 'tickets.workflow.v1' as const,
+    request_id: requestId,
+    tenant_id: value.tenant_id === null ? null : asNumberOrUndefined(value.tenant_id),
+    states,
+    transitions,
+    final_states: finalStates,
+  };
+};
 
 /**
  * Standardized API Client for Tenant-Aware fetching.
@@ -11,17 +205,128 @@ import { TenantCatalog } from '@/types/catalog';
 export const apiClient = {
   // Updated endpoints for Commerce module
   // Legacy generic methods for backward compatibility
-  get: async <T>(url: string, options?: any): Promise<T> => {
+  get: async <T>(url: string, options?: Omit<NonNullable<Parameters<typeof apiFetch>[1]>, 'method'>): Promise<T> => {
     return apiFetch<T>(url, { method: 'GET', ...options });
   },
-  post: async <T>(url: string, body?: any, options?: any): Promise<T> => {
+  post: async <T, TBody = unknown>(
+    url: string,
+    body?: TBody,
+    options?: Omit<NonNullable<Parameters<typeof apiFetch>[1]>, 'method' | 'body'>,
+  ): Promise<T> => {
     return apiFetch<T>(url, { method: 'POST', body, ...options });
   },
-  put: async <T>(url: string, body?: any, options?: any): Promise<T> => {
+  put: async <T, TBody = unknown>(
+    url: string,
+    body?: TBody,
+    options?: Omit<NonNullable<Parameters<typeof apiFetch>[1]>, 'method' | 'body'>,
+  ): Promise<T> => {
     return apiFetch<T>(url, { method: 'PUT', body, ...options });
   },
-  delete: async <T>(url: string, options?: any): Promise<T> => {
+  delete: async <T>(url: string, options?: Omit<NonNullable<Parameters<typeof apiFetch>[1]>, 'method'>): Promise<T> => {
     return apiFetch<T>(url, { method: 'DELETE', ...options });
+  },
+
+  getIdentityCoverage: async (
+    tenantSlug: string,
+    params?: {
+      target_pct?: number;
+      target_by_channel?: IdentityCoverageTargetByChannel;
+      emit_alert_events?: 0 | 1;
+    },
+  ): Promise<IdentityCoverageResponse> => {
+    const buildSuffix = (input?: {
+      target_pct?: number;
+      target_by_channel?: IdentityCoverageTargetByChannel;
+      emit_alert_events?: 0 | 1;
+    }) => {
+      const query = new URLSearchParams();
+      if (typeof input?.target_pct === 'number') {
+        query.set('target_pct', String(input.target_pct));
+      }
+      const targetByChannel = serializeIdentityCoverageTargetByChannel(input?.target_by_channel);
+      if (targetByChannel) {
+        query.set('target_by_channel', targetByChannel);
+      }
+      if (input?.emit_alert_events !== undefined) {
+        query.set('emit_alert_events', String(input.emit_alert_events));
+      }
+      return query.toString() ? `?${query.toString()}` : '';
+    };
+
+    const suffix = buildSuffix(params);
+    try {
+      const response = await apiFetch<unknown>(`/analytics/identity/coverage${suffix}`, { tenantSlug });
+      const parsed = parseIdentityCoverageResponseV1(response);
+      if (!parsed) throw new ApiError('Respuesta inválida de identity coverage: contract_version o payload inválido.', 502, response);
+      return parsed;
+    } catch (error) {
+      if (params?.emit_alert_events === 1 && error instanceof ApiError && error.status === 403) {
+        const readOnlySuffix = buildSuffix(params ? { target_pct: params.target_pct, target_by_channel: params.target_by_channel } : undefined);
+        const response = await apiFetch<unknown>(`/analytics/identity/coverage${readOnlySuffix}`, { tenantSlug });
+        const parsed = parseIdentityCoverageResponseV1(response);
+        if (!parsed) throw new ApiError('Respuesta inválida de identity coverage: contract_version o payload inválido.', 502, response);
+        return parsed;
+      }
+
+      const shouldFallbackToApiPrefix =
+        error instanceof ApiError
+          ? error.status === 404 || error.status === 405
+          : true;
+
+      if (!shouldFallbackToApiPrefix) {
+        throw error;
+      }
+
+      try {
+        const response = await apiFetch<unknown>(`/api/analytics/identity/coverage${suffix}`, { tenantSlug });
+        const parsed = parseIdentityCoverageResponseV1(response);
+        if (!parsed) throw new ApiError('Respuesta inválida de identity coverage: contract_version o payload inválido.', 502, response);
+        return parsed;
+      } catch (fallbackError) {
+        if (params?.emit_alert_events === 1 && fallbackError instanceof ApiError && fallbackError.status === 403) {
+          const readOnlySuffix = buildSuffix(params ? { target_pct: params.target_pct, target_by_channel: params.target_by_channel } : undefined);
+          const response = await apiFetch<unknown>(`/api/analytics/identity/coverage${readOnlySuffix}`, { tenantSlug });
+          const parsed = parseIdentityCoverageResponseV1(response);
+          if (!parsed) throw new ApiError('Respuesta inválida de identity coverage: contract_version o payload inválido.', 502, response);
+          return parsed;
+        }
+        throw fallbackError;
+      }
+    }
+  },
+
+  getWidgetBootstrap: async (tenantSlug: string) => {
+    const response = await apiFetch<unknown>('/auth/widget/bootstrap', { tenantSlug });
+    return normalizeWidgetBootstrapResponse(response);
+  },
+
+  createWidgetToken: async (tenantSlug: string, payload: WidgetTokenRequestPayload) => {
+    const response = await apiFetch<unknown>('/auth/widget-token', {
+      method: 'POST',
+      tenantSlug,
+      body: payload,
+    });
+    return normalizeWidgetTokenAck(response);
+  },
+
+  refreshWidgetToken: async (tenantSlug: string, payload: WidgetTokenRequestPayload) => {
+    const response = await apiFetch<unknown>('/auth/widget-refresh', {
+      method: 'POST',
+      tenantSlug,
+      body: payload,
+    });
+    return normalizeWidgetTokenAck(response);
+  },
+
+  getPublicTicketStatus: async (code: string, pin: string, tenantSlug?: string) => {
+    const query = new URLSearchParams({ code, pin }).toString();
+    const response = await apiFetch<unknown>(`/tickets/public/status?${query}`, { tenantSlug });
+    return normalizePublicTicketStatus(response);
+  },
+
+  getTicketWorkflowMetadata: async (tenantSlug?: string) => {
+    const response = await apiFetch<unknown>('/tickets/workflow/metadata', { tenantSlug });
+    return normalizeTicketWorkflowMetadata(response);
   },
 
   // --- Portal Methods ---
@@ -102,15 +407,6 @@ export const apiClient = {
       tenantSlug,
     });
   },
-
-  startCheckout: async (tenantSlug: string, payload: any): Promise<any> => {
-    return apiFetch<any>(`/api/market/${tenantSlug}/checkout/start`, {
-      method: 'POST',
-      body: payload,
-      tenantSlug,
-    });
-  },
-
   // --- Admin Methods ---
 
   adminListOrders: async (tenantSlug: string, filters?: Record<string, any>): Promise<Order[]> => {
