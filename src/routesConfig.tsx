@@ -256,6 +256,7 @@ const routes: RouteConfig[] = [
   // Explicit aliases to match user mental model
   ...withTenantPrefixes('/:tenant/reclamos', { element: <TicketsPanel />, roles: ['tenant_admin', 'employee', 'superadmin'] }),
   ...withTenantPrefixes('/:tenant/tickets', { element: <TicketsPanel />, roles: ['tenant_admin', 'employee', 'superadmin'] }),
+  ...withTenantPrefixes('/:tenant/inbox', { element: <TicketInboxPage />, roles: ['tenant_admin', 'employee', 'superadmin'] }),
   ...withTenantPrefixes('/:tenant/pedidos', { element: <SmartPedidosWrapper />, roles: ['tenant_admin', 'employee', 'superadmin'] }),
   ...withTenantPrefixes('/:tenant/pedidos/:id', { element: <AdminOrderDetailPage />, roles: ['tenant_admin', 'employee', 'superadmin'] }),
   ...withTenantPrefixes('/:tenant/notificaciones', { element: <SmartNotificationsWrapper />, roles: ['tenant_admin', 'employee', 'superadmin'] }),
