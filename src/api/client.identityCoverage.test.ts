@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeIdentityCoverageResponse } from '@/api/client';
+import { parseIdentityCoverageResponseV1 } from '@/services/identityCoverageContract';
 
-describe('normalizeIdentityCoverageResponse', () => {
-  it('normalizes numeric fields and alerts defensively', () => {
-    const normalized = normalizeIdentityCoverageResponse({
+describe('parseIdentityCoverageResponseV1', () => {
+  it('normalizes numeric fields and alerts with strict contract', () => {
+    const normalized = parseIdentityCoverageResponseV1({
       contract_version: 'analytics.identity_coverage.v1',
+      request_id: 'req-identity-1',
       tenant_id: '12',
       coverage_pct: '91.8',
       contact_key_coverage_pct: '95.5',
@@ -29,6 +30,7 @@ describe('normalizeIdentityCoverageResponse', () => {
 
     expect(normalized).toEqual({
       contract_version: 'analytics.identity_coverage.v1',
+      request_id: 'req-identity-1',
       tenant_id: 12,
       coverage_pct: 91.8,
       contact_key_coverage_pct: 95.5,
@@ -52,21 +54,7 @@ describe('normalizeIdentityCoverageResponse', () => {
     });
   });
 
-  it('returns safe defaults for malformed payloads', () => {
-    const normalized = normalizeIdentityCoverageResponse('invalid');
-
-    expect(normalized).toEqual({
-      contract_version: undefined,
-      tenant_id: undefined,
-      coverage_pct: undefined,
-      contact_key_coverage_pct: undefined,
-      conversation_id_coverage_pct: undefined,
-      combined_coverage_pct: undefined,
-      target_pct: undefined,
-      slo_status: undefined,
-      alert_count: undefined,
-      summary_message: undefined,
-      alerts: [],
-    });
+  it('returns null for malformed payloads', () => {
+    expect(parseIdentityCoverageResponseV1('invalid')).toBeNull();
   });
 });

@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "typecheck": "tsc -p tsconfig.app.json --noEmit",
     "preview": "vite preview",
     "setup-env": "node scripts/setupEnv.cjs",
     "postinstall": "npm run setup-env",
@@ -13,7 +14,8 @@
     "test:watch": "vitest",
     "start": "vite preview --host",
     "seed:surveys": "node scripts/seedMunicipalSurveys.mjs",
-    "seed:survey-responses": "node scripts/seedSurveyResponses.mjs"
+    "seed:survey-responses": "node scripts/seedSurveyResponses.mjs",
+    "typecheck:scope": "tsc -p tsconfig.scope-strict.json --noEmit"
   },
   "dependencies": {
     "@headlessui/react": "^1.7.18",
@@ -87,7 +89,8 @@
     "tailwindcss-animate": "^1.0.7",
     "uuid": "^11.1.0",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
-    "zod": "^3.23.8"
+    "zod": "^3.23.8",
+    "zustand": "^5.0.12"
   },
   "optionalDependencies": {
     "@rollup/rollup-linux-x64-gnu": "^4.9.5"

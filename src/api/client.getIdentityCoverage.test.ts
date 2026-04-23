@@ -26,6 +26,7 @@ describe('apiClient.getIdentityCoverage', () => {
     apiFetchMock.mockRejectedValueOnce(new ApiError('Not found', 404));
     apiFetchMock.mockResolvedValueOnce({
       contract_version: 'analytics.identity_coverage.v1',
+      request_id: 'req-404-fallback',
       coverage_pct: 98,
       slo_status: 'ok',
       alert_count: 0,
@@ -58,6 +59,7 @@ describe('apiClient.getIdentityCoverage', () => {
     apiFetchMock.mockRejectedValueOnce(new ApiError('Forbidden', 403));
     apiFetchMock.mockResolvedValueOnce({
       contract_version: 'analytics.identity_coverage.v1',
+      request_id: 'req-403-downgrade',
       coverage_pct: 92,
       slo_status: 'ok',
       alert_count: 0,
@@ -75,6 +77,38 @@ describe('apiClient.getIdentityCoverage', () => {
     expect(apiFetchMock).toHaveBeenNthCalledWith(
       2,
       '/analytics/identity/coverage',
+      expect.objectContaining({ tenantSlug: 'rio-grande' }),
+    );
+  });
+
+  it('downgrades emit_alert_events on /api fallback when prefixed endpoint returns 403', async () => {
+    apiFetchMock.mockRejectedValueOnce(new ApiError('Not found', 404));
+    apiFetchMock.mockRejectedValueOnce(new ApiError('Forbidden', 403));
+    apiFetchMock.mockResolvedValueOnce({
+      contract_version: 'analytics.identity_coverage.v1',
+      request_id: 'req-fallback',
+      coverage_pct: 89,
+      slo_status: 'below_target',
+      alert_count: 1,
+      alerts: [{ channel: 'web', coverage_pct: 89, target_pct: 90, gap_pct: 1, severity: 'low' }],
+    });
+
+    const response = await apiClient.getIdentityCoverage('rio-grande', { emit_alert_events: 1 });
+
+    expect(response.request_id).toBe('req-fallback');
+    expect(apiFetchMock).toHaveBeenNthCalledWith(
+      1,
+      '/analytics/identity/coverage?emit_alert_events=1',
+      expect.objectContaining({ tenantSlug: 'rio-grande' }),
+    );
+    expect(apiFetchMock).toHaveBeenNthCalledWith(
+      2,
+      '/api/analytics/identity/coverage?emit_alert_events=1',
+      expect.objectContaining({ tenantSlug: 'rio-grande' }),
+    );
+    expect(apiFetchMock).toHaveBeenNthCalledWith(
+      3,
+      '/api/analytics/identity/coverage',
       expect.objectContaining({ tenantSlug: 'rio-grande' }),
     );
   });

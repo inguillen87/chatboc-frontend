@@ -11,7 +11,12 @@ const normalizePath = (pathname: string) => {
 
 const hasTenantSlugSegment = (segments: string[]) => {
   if (segments.length < 2) return false;
-  const candidate = decodeURIComponent(segments[1] || '').trim().toLowerCase();
+  let candidate = '';
+  try {
+    candidate = decodeURIComponent(segments[1] || '').trim().toLowerCase();
+  } catch {
+    return false;
+  }
   if (!candidate) return false;
   return !TENANT_PLACEHOLDER_SLUGS.has(candidate);
 };
@@ -37,4 +42,3 @@ export const toCanonicalTenantPath = (pathname: string): string | null => {
   canonicalSegments[0] = CANONICAL_PREFIX;
   return `/${canonicalSegments.join('/')}`;
 };
-

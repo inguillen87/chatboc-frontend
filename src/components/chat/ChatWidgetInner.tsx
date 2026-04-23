@@ -1,5 +1,7 @@
 // src/components/chat/ChatWidgetInner.tsx
 
+import { useWidgetSessionStore } from '@/stores';
+import { MobileTicketForm } from '@/components/widget/MobileTicketForm';
 import React, { Suspense, useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useDarkMode } from "@/hooks/useDarkMode";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
@@ -859,6 +861,15 @@ function ChatWidgetInner({
   }, []);
 
   const lastOwnerTokenRef = useRef<string | null | undefined>(ownerToken);
+
+  const widgetStore = useWidgetSessionStore();
+
+  useEffect(() => {
+    if (widgetStore.status === 'idle') {
+      widgetStore.bootstrapWidget({ entityToken: ownerToken || undefined });
+    }
+  }, [widgetStore, ownerToken]);
+
 
   useEffect(() => {
     if (selectedRubro) {

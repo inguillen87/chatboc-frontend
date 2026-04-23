@@ -1,6 +1,5 @@
 import { ENABLE_PUBLIC_SURVEY_LEGACY_FALLBACK, PUBLIC_SURVEY_BASE_URL } from '@/config';
 import { ApiError, apiFetch } from '@/utils/api';
-import { MOCK_SURVEYS } from '@/data/mockTenantData';
 import {
   PreguntaTipo,
   PublicResponsePayload,
@@ -495,19 +494,17 @@ export const listPublicSurveys = async (tenantSlug?: string): Promise<PublicSurv
         });
       }
 
-      // If recovery fails or status indicates failure, fallback to mock data
-      console.warn('[encuestas] Returning mock surveys due to API failure', error);
-      return MOCK_SURVEYS;
-    }
-
-    if (!ENABLE_PUBLIC_SURVEY_LEGACY_FALLBACK) {
       return asFlaggedEmptyList({
-        fallbackNotice: 'No se pudo consultar el listado público de encuestas (contrato v1).',
+        raw: rawBody,
+        status: error.status,
+        fallbackNotice:
+          'No se pudo obtener el listado público de encuestas desde el backend.',
       });
     }
 
-    console.warn('[encuestas] Returning mock surveys due to generic error', error);
-    return MOCK_SURVEYS;
+    return asFlaggedEmptyList({
+      fallbackNotice: 'No se pudo consultar el listado público de encuestas.',
+    });
   }
 };
 

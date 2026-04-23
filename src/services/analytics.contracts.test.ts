@@ -44,6 +44,7 @@ describe('parseIdentityCoverageResponseV1', () => {
   it('parses v1 coverage payload with strict contract_version', () => {
     const parsed = parseIdentityCoverageResponseV1({
       contract_version: 'analytics.identity_coverage.v1',
+      request_id: 'req-cov-1',
       tenant_id: 5,
       coverage_pct: 93.4,
       slo_status: 'below_target',
@@ -61,6 +62,7 @@ describe('parseIdentityCoverageResponseV1', () => {
 
     expect(parsed).toEqual({
       contract_version: 'analytics.identity_coverage.v1',
+      request_id: 'req-cov-1',
       tenant_id: 5,
       coverage_pct: 93.4,
       slo_status: 'below_target',
@@ -95,6 +97,7 @@ describe('parseAnalyticsEventIngestAckV1', () => {
     const parsed = parseAnalyticsEventIngestAckV1({
       ok: true,
       contract_version: 'analytics.event_ingest.v1',
+      request_id: 'req-ingest-1',
       tenant_id: 42,
       event_name: 'ticket_created',
       contact_key: 'ck-1',
@@ -105,6 +108,7 @@ describe('parseAnalyticsEventIngestAckV1', () => {
     expect(parsed).toEqual({
       ok: true,
       contract_version: 'analytics.event_ingest.v1',
+      request_id: 'req-ingest-1',
       tenant_id: 42,
       event_name: 'ticket_created',
       contact_key: 'ck-1',
@@ -118,6 +122,7 @@ describe('parseAnalyticsEventSchemaV1', () => {
   it('parses analytics event schema v1 catalog', () => {
     const parsed = parseAnalyticsEventSchemaV1({
       contract_version: 'analytics.event_schema.v1',
+      request_id: 'req-schema-1',
       tenant_id: 42,
       required_dimensions: ['event_name', 'channel'],
       recommended_dimensions: ['contact_key', 'conversation_id'],
@@ -126,6 +131,7 @@ describe('parseAnalyticsEventSchemaV1', () => {
 
     expect(parsed).toEqual({
       contract_version: 'analytics.event_schema.v1',
+      request_id: 'req-schema-1',
       tenant_id: 42,
       required_dimensions: ['event_name', 'channel'],
       recommended_dimensions: ['contact_key', 'conversation_id'],

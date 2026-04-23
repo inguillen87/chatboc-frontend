@@ -1,7 +1,7 @@
 # Platform API + Events Contract Freeze v1
 
-Estado: **Draft congelable**  
-Última actualización: 2026-04-14
+Estado: **Activo (v1 congelado para FE/BE)**  
+Última actualización: 2026-04-18
 
 ## Objetivo
 
@@ -27,28 +27,20 @@ Congelar una base única de contratos para evitar drift entre frontend y backend
 | Identity coverage analytics | `docs/analytics.identity_coverage.v1.contract.md` | v1 |
 | Tenant routing/canonical links | `docs/tenant-routing.md` | v1 |
 
-## Superficies pendientes de cierre explícito
+## Estado de superficies (cierre de pendientes)
 
-Estas superficies deben cerrarse con documento versionado antes de ampliar features:
+| Superficie | Estado | Fuente |
+| --- | --- | --- |
+| Auth + sesión demo/widget | ✅ Cerrado v1 | `docs/auth.demo.v1.contract.md` + contratos widget en Stage4 |
+| Tickets (status público + workflow metadata) | ✅ Cerrado v1 | `docs/frontend.stage4.payload_examples.md` |
+| Encuestas públicas + respuestas | ✅ Cerrado v1 | `docs/frontend.stage4.payload_examples.md` |
+| Marketplace + rutas tenant | ✅ Cerrado v1 (routing canónico) | `docs/tenant-routing.md` + `docs/commerce-multi-tenant.md` |
+| Portal usuario | ✅ Cerrado v1 (entry/build aislado + rutas canónicas) | `docs/contracts/portal-architecture-decision.md` |
+| Heatmaps/analytics base | 🟡 Operativo v1, mejoras evolutivas abiertas | `docs/contracts/analytics-events-v1.md` |
+| Socket events operativos | 🟡 Operativo v1, extensión v2 pendiente | backlog realtime |
+| Deep links WhatsApp/widget | ✅ Cerrado v1 | `docs/tenant-routing.md` + handoff Stage4 |
 
-1. **Auth + sesión**
-   - refresh, vencimiento y scopes/capabilities
-   - token/contexto para widget y portal
-2. **Tickets**
-   - estados, prioridad, SLA, timeline, asignación
-3. **Encuestas y votaciones**
-   - modelo separado de encuesta vs votación
-   - publicación/cierre/export
-4. **Marketplace**
-   - contrato de catálogo/producto/orden
-5. **Portal usuario**
-   - rutas mínimas y compatibilidad de sesión contextual
-6. **Heatmaps**
-   - payload de capas/filtros agregado en backend
-7. **Socket events**
-   - eventos de presencia, asignación, lectura y actualización de estado
-8. **Deep links WhatsApp/widget**
-   - parámetros obligatorios y reglas de canonicalización tenant
+> Regla para nuevos cambios: cualquier ampliación de alcance sobre estas superficies se publica como **v2** sin romper `v1`.
 
 ## Regla operativa
 

@@ -66,7 +66,12 @@ export interface AnalyticsEventSchemaV1 {
 
 export interface PublicTicketStatusV1 {
   contract_version: 'tickets.public_status.v1';
-  ticket: {
+  request_id?: string;
+  error?: {
+    code: number;
+    message: string;
+  };
+  ticket?: {
     nro_ticket: string;
     estado: string;
     categoria?: string;
@@ -79,6 +84,7 @@ export interface PublicTicketStatusV1 {
 
 export interface TicketWorkflowMetadataV1 {
   contract_version: 'tickets.workflow.v1';
+  request_id?: string;
   tenant_id?: number | null;
   states: string[];
   transitions: Record<string, string[]>;

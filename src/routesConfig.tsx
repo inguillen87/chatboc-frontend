@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useParams } from 'react-router-dom';
 
 // ... (importaciones existentes) ...
 import { FEATURE_ENCUESTAS } from '@/config/featureFlags';
@@ -23,6 +23,7 @@ import Privacy from '@/pages/legal/Privacy';
 import Terms from '@/pages/legal/Terms';
 import Cookies from '@/pages/legal/Cookies';
 import TicketsPanel from '@/pages/TicketsPanel';
+import { TicketInboxPage } from '@/components/tickets/inbox';
 import PedidosPage from '@/pages/pyme/pedidos/PedidosPage';
 import IntegracionesPage from '@/pages/pyme/integraciones/IntegracionesPage';
 import UsuariosPage from '@/pages/UsuariosPage';
@@ -111,11 +112,20 @@ export interface RouteConfig {
   allowGuest?: boolean; // Permite acceder sin sesión (modo demo)
 }
 
+const LegacyTenantAliasRedirect = ({ suffix = '' }: { suffix?: string }) => {
+  const params = useParams();
+  const tenant = typeof params.tenant === 'string' ? params.tenant.trim() : '';
+  if (!tenant) {
+    return <Navigate to="/" replace />;
+  }
+  return <Navigate to={`/t/${encodeURIComponent(tenant)}${suffix}`} replace />;
+};
+
 const withTenantPrefixes = (
   pathSuffix: string,
   config: Omit<RouteConfig, 'path'>,
 ): RouteConfig[] =>
-  TENANT_ROUTE_PREFIXES.map((prefix) => ({
+  TENANT_ROUTE_PREFIXES.filter((prefix) => prefix === 't').map((prefix) => ({
     ...config,
     path: `/${prefix}${pathSuffix}`,
   }));
@@ -245,16 +255,17 @@ const routes: RouteConfig[] = [
   ...withTenantPrefixes('/:tenant/reclamos/nuevo', { element: <TenantTicketFormPage /> }),
 
   // Explicit aliases to match user mental model
-  ...withTenantPrefixes('/:tenant/reclamos', { element: <TicketsPanel />, roles: ['admin', 'empleado', 'super_admin'] }),
-  ...withTenantPrefixes('/:tenant/tickets', { element: <TicketsPanel />, roles: ['admin', 'empleado', 'super_admin'] }),
-  ...withTenantPrefixes('/:tenant/pedidos', { element: <SmartPedidosWrapper />, roles: ['admin', 'empleado', 'super_admin'] }),
-  ...withTenantPrefixes('/:tenant/pedidos/:id', { element: <AdminOrderDetailPage />, roles: ['admin', 'empleado', 'super_admin'] }),
-  ...withTenantPrefixes('/:tenant/notificaciones', { element: <SmartNotificationsWrapper />, roles: ['admin', 'empleado', 'super_admin'] }),
-  ...withTenantPrefixes('/:tenant/categorias', { element: <CategoryManagementPage />, roles: ['admin', 'super_admin'] }),
+  ...withTenantPrefixes('/:tenant/reclamos', { element: <TicketsPanel />, roles: ['tenant_admin', 'employee', 'superadmin'] }),
+  ...withTenantPrefixes('/:tenant/tickets', { element: <TicketsPanel />, roles: ['tenant_admin', 'employee', 'superadmin'] }),
+  ...withTenantPrefixes('/:tenant/inbox', { element: <TicketInboxPage />, roles: ['tenant_admin', 'employee', 'superadmin'] }),
+  ...withTenantPrefixes('/:tenant/pedidos', { element: <SmartPedidosWrapper />, roles: ['tenant_admin', 'employee', 'superadmin'] }),
+  ...withTenantPrefixes('/:tenant/pedidos/:id', { element: <AdminOrderDetailPage />, roles: ['tenant_admin', 'employee', 'superadmin'] }),
+  ...withTenantPrefixes('/:tenant/notificaciones', { element: <SmartNotificationsWrapper />, roles: ['tenant_admin', 'employee', 'superadmin'] }),
+  ...withTenantPrefixes('/:tenant/categorias', { element: <CategoryManagementPage />, roles: ['tenant_admin', 'superadmin', 'catalog_manager'] }),
 
   // CRM
-  ...withTenantPrefixes('/:tenant/crm/clientes', { element: <ClientsPage />, roles: ['admin', 'empleado', 'super_admin'] }),
-  ...withTenantPrefixes('/:tenant/crm/clientes/:contactId', { element: <ClientDetailPage />, roles: ['admin', 'empleado', 'super_admin'] }),
+  ...withTenantPrefixes('/:tenant/crm/clientes', { element: <ClientsPage />, roles: ['tenant_admin', 'employee', 'superadmin'] }),
+  ...withTenantPrefixes('/:tenant/crm/clientes/:contactId', { element: <ClientDetailPage />, roles: ['tenant_admin', 'employee', 'superadmin'] }),
 
   // Surveys
   ...(FEATURE_ENCUESTAS
@@ -274,10 +285,10 @@ const routes: RouteConfig[] = [
   ...withTenantPrefixes('/:tenant/user/register', { element: <UserRegister /> }),
 
   // Integrations & Admin (Tenant Scoped)
-  ...withTenantPrefixes('/:tenant/integracion', { element: <IntegracionesPage />, roles: ['admin'] }),
-  ...withTenantPrefixes('/:tenant/catalog-mappings/new', { element: <CatalogMappingPage />, roles: ['admin', 'super_admin'] }),
-  ...withTenantPrefixes('/:tenant/catalog-mappings/:mappingId', { element: <CatalogMappingPage />, roles: ['admin', 'super_admin'] }),
-  ...withTenantPrefixes('/:tenant/admin/catalog', { element: <CatalogManagementPage />, roles: ['admin', 'super_admin', 'empleado'] }),
+  ...withTenantPrefixes('/:tenant/integracion', { element: <IntegracionesPage />, roles: ['tenant_admin'] }),
+  ...withTenantPrefixes('/:tenant/catalog-mappings/new', { element: <CatalogMappingPage />, roles: ['tenant_admin', 'superadmin', 'catalog_manager'] }),
+  ...withTenantPrefixes('/:tenant/catalog-mappings/:mappingId', { element: <CatalogMappingPage />, roles: ['tenant_admin', 'superadmin', 'catalog_manager'] }),
+  ...withTenantPrefixes('/:tenant/admin/catalog', { element: <CatalogManagementPage />, roles: ['tenant_admin', 'superadmin', 'empleado'] }),
 
 
   // --- USER PORTAL ROUTES ---
@@ -290,19 +301,19 @@ const routes: RouteConfig[] = [
 
   // Clean URL Support (Root Level Tenant Routes)
   // Placing these carefully to avoid conflicts, though React Router v6 is smart about specificity.
-  { path: '/:tenant/productos', element: <ProductCatalog /> },
-  { path: '/:tenant/catalogo', element: <PublicCatalogPage /> },
-  { path: '/:tenant/cart', element: <CartPage /> },
-  { path: '/:tenant/checkout-productos', element: <ProductCheckoutPage /> },
-  { path: '/:tenant/pedido/confirmado', element: <OrderConfirmationPage /> },
+  { path: '/:tenant/productos', element: <LegacyTenantAliasRedirect suffix="/productos" /> },
+  { path: '/:tenant/catalogo', element: <LegacyTenantAliasRedirect suffix="/productos" /> },
+  { path: '/:tenant/cart', element: <LegacyTenantAliasRedirect suffix="/cart" /> },
+  { path: '/:tenant/checkout-productos', element: <LegacyTenantAliasRedirect suffix="/checkout-productos" /> },
+  { path: '/:tenant/pedido/confirmado', element: <LegacyTenantAliasRedirect suffix="/pedido/confirmado" /> },
   // Public Order Tracking
   { path: '/pyme/pedidos/:nro_pedido', element: <OrderTrackingPage /> },
   // Missing root integration route
-  { path: '/:tenant/integracion', element: <IntegracionesPage />, roles: ['admin'] },
+  { path: '/:tenant/integracion', element: <LegacyTenantAliasRedirect suffix="/integracion" />, roles: ['tenant_admin'] },
 
   // Generic Tenant Home (Dashboard/Landing) - Must be LAST among tenant routes to avoid swallowing others
   ...withTenantPrefixes('/:tenant', { element: <TenantHomePage /> }),
-  { path: '/:tenant', element: <TenantHomePage /> }, // Support root level /:slug
+  { path: '/:tenant', element: <LegacyTenantAliasRedirect /> }, // Legacy root tenant alias -> canonical
 
   // Global Routes
   { path: '/admin', element: <Navigate to="/perfil" replace /> },
@@ -318,16 +329,16 @@ const routes: RouteConfig[] = [
   { path: '/soluciones/gobierno', element: <Navigate to="/demo/municipio" replace /> },
   { path: '/soluciones/empresas', element: <Navigate to="/demo/empresa" replace /> },
   { path: '/perfil', element: <Perfil /> },
-  { path: '/enterprise', element: <EnterpriseOpsPage />, roles: ['admin', 'empleado', 'super_admin'] },
-  { path: '/bot-settings', element: <BotSettingsEnterprise />, roles: ['admin', 'tenant_admin', 'super_admin'] },
+  { path: '/enterprise', element: <EnterpriseOpsPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
+  { path: '/bot-settings', element: <BotSettingsEnterprise />, roles: ['tenant_admin', 'tenant_admin', 'superadmin'] },
   { path: '/perfil/pedidos', element: <Navigate to="/portal/pedidos" replace /> },
   { path: '/chat', element: <ChatPage /> },
   { path: '/chat/:ticketId', element: <TicketLookup /> },
   { path: '/checkout', element: <Checkout /> },
   { path: '/chatpos', element: <ChatPosPage /> },
-  { path: '/chatcrm', element: <ChatCRMPage />, roles: ['admin', 'empleado', 'super_admin'] },
+  { path: '/chatcrm', element: <ChatCRMPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
   { path: '/opinar', element: <OpinarArPage /> },
-  { path: '/integracion', element: <Integracion />, roles: ['admin'] },
+  { path: '/integracion', element: <Integracion />, roles: ['tenant_admin'] },
   { path: '/documentacion', element: <Documentacion /> },
   { path: '/faqs', element: <Faqs /> },
   { path: '/productos', element: <ProductCatalog /> },
@@ -341,21 +352,21 @@ const routes: RouteConfig[] = [
   {
     path: '/tickets',
     element: <TicketsPanel />,
-    roles: ['admin', 'empleado', 'super_admin'],
-    requiredCapabilities: ['tickets.read', 'crm.tickets.read', 'claims.read'],
+    roles: ['tenant_admin', 'employee', 'superadmin'],
+    requiredCapabilities: ['tickets.read'],
   },
-  { path: '/notificaciones', element: <SmartNotificationsWrapper />, roles: ['admin', 'empleado', 'super_admin'] },
+  { path: '/notificaciones', element: <SmartNotificationsWrapper />, roles: ['tenant_admin', 'employee', 'superadmin'] },
   {
     path: '/pedidos',
     element: <SmartPedidosWrapper />,
-    roles: ['admin', 'empleado', 'super_admin'],
-    requiredCapabilities: ['orders.read', 'market.orders.read', 'commerce.orders.read'],
+    roles: ['tenant_admin', 'employee', 'superadmin'],
+    requiredCapabilities: ['market.orders.read'],
   },
   {
     path: '/usuarios',
     element: <UsuariosPage />,
-    roles: ['admin', 'empleado', 'super_admin'],
-    requiredCapabilities: ['users.read', 'tenant.users.read', 'internal_users.read'],
+    roles: ['tenant_admin', 'employee', 'superadmin'],
+    requiredCapabilities: ['settings.tenant.write'],
   },
   { path: '/notifications', element: <NotificationSettings /> },
   { path: '/ticket', element: <TicketLookup /> },
@@ -366,8 +377,8 @@ const routes: RouteConfig[] = [
   {
     path: '/logs',
     element: <LogWorkbench />,
-    roles: ['admin', 'empleado', 'super_admin'],
-    requiredCapabilities: ['logs.read', 'diagnostics.read', 'admin.logs.read'],
+    roles: ['tenant_admin', 'employee', 'superadmin'],
+    requiredCapabilities: ['tickets.admin'],
   },
   { path: '/pyme/metrics', element: <BusinessMetrics /> },
   { path: '/crm/integrations', element: <CrmIntegrations /> },
@@ -375,61 +386,61 @@ const routes: RouteConfig[] = [
   { path: '/403', element: <PermissionDenied /> },
   ...(FEATURE_ENCUESTAS
     ? [
-        { path: '/admin/encuestas', element: <AdminSurveysIndex />, roles: ['admin', 'empleado', 'super_admin'] },
-        { path: '/admin/encuestas/new', element: <NewSurveyPage />, roles: ['admin', 'empleado', 'super_admin'] },
-        { path: '/admin/encuestas/:id', element: <SurveyDetailPage />, roles: ['admin', 'empleado', 'super_admin'] },
-        { path: '/admin/encuestas/:id/analytics', element: <SurveyAnalyticsPage />, roles: ['admin', 'empleado', 'super_admin'] },
+        { path: '/admin/encuestas', element: <AdminSurveysIndex />, roles: ['tenant_admin', 'employee', 'superadmin'] },
+        { path: '/admin/encuestas/new', element: <NewSurveyPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
+        { path: '/admin/encuestas/:id', element: <SurveyDetailPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
+        { path: '/admin/encuestas/:id/analytics', element: <SurveyAnalyticsPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
       ]
     : []),
-  { path: '/pyme/catalog', element: <ProductCatalog />, roles: ['admin', 'super_admin'] },
-  { path: '/municipal/tramites', element: <TramitesCatalog />, roles: ['admin', 'super_admin'] },
-  { path: '/municipal/categorias', element: <CategoryManagementPage />, roles: ['admin', 'super_admin'] },
-  { path: '/municipal/usuarios', element: <InternalUsers />, roles: ['admin', 'super_admin'] },
-  { path: '/municipal/whatsapp', element: <WhatsappIntegration />, roles: ['admin', 'super_admin'] },
-  { path: '/municipal/integrations', element: <MunicipalSystems />, roles: ['admin', 'super_admin'] },
+  { path: '/pyme/catalog', element: <ProductCatalog />, roles: ['tenant_admin', 'superadmin'] },
+  { path: '/municipal/tramites', element: <TramitesCatalog />, roles: ['tenant_admin', 'superadmin'] },
+  { path: '/municipal/categorias', element: <CategoryManagementPage />, roles: ['tenant_admin', 'superadmin'] },
+  { path: '/municipal/usuarios', element: <InternalUsers />, roles: ['tenant_admin', 'superadmin'] },
+  { path: '/municipal/whatsapp', element: <WhatsappIntegration />, roles: ['tenant_admin', 'superadmin'] },
+  { path: '/municipal/integrations', element: <MunicipalSystems />, roles: ['tenant_admin', 'superadmin'] },
   { path: '/municipal/surveys', element: <SatisfactionSurveys /> },
-  { path: '/municipal/playbook', element: <MunicipalPlaybookPage />, roles: ['admin', 'super_admin'] },
-  { path: '/municipal/message-metrics', element: <MunicipalMessageMetrics />, roles: ['admin', 'super_admin'] },
-  { path: '/municipal/analytics', element: <EstadisticasPage />, roles: ['admin', 'super_admin'] },
-  { path: '/municipal/stats', element: <EstadisticasPage />, roles: ['admin', 'super_admin'] },
-  { path: '/municipal/incidents', element: <EstadisticasPage />, roles: ['admin', 'super_admin'] },
+  { path: '/municipal/playbook', element: <MunicipalPlaybookPage />, roles: ['tenant_admin', 'superadmin'] },
+  { path: '/municipal/message-metrics', element: <MunicipalMessageMetrics />, roles: ['tenant_admin', 'superadmin'] },
+  { path: '/municipal/analytics', element: <EstadisticasPage />, roles: ['tenant_admin', 'superadmin'] },
+  { path: '/municipal/stats', element: <EstadisticasPage />, roles: ['tenant_admin', 'superadmin'] },
+  { path: '/municipal/incidents', element: <EstadisticasPage />, roles: ['tenant_admin', 'superadmin'] },
   {
     path: '/estadisticas',
     element: <EstadisticasPage />,
-    roles: ['admin', 'super_admin'],
-    requiredCapabilities: ['analytics.read', 'dashboard.read', 'reports.read'],
+    roles: ['tenant_admin', 'superadmin'],
+    requiredCapabilities: ['analytics.read'],
   },
-  { path: '/:tenant/estadisticas', element: <EstadisticasPage />, roles: ['admin', 'super_admin'] },
-  ...withTenantPrefixes('/:tenant/estadisticas', { element: <EstadisticasPage />, roles: ['admin', 'super_admin'] }),
+  { path: '/:tenant/estadisticas', element: <EstadisticasPage />, roles: ['tenant_admin', 'superadmin'] },
+  ...withTenantPrefixes('/:tenant/estadisticas', { element: <EstadisticasPage />, roles: ['tenant_admin', 'superadmin', 'analytics_viewer'] }),
   {
     path: '/analytics',
     element: <AnalyticsPage />,
-    roles: ['admin', 'empleado', 'super_admin'],
-    requiredCapabilities: ['analytics.read', 'dashboard.read', 'reports.read'],
+    roles: ['tenant_admin', 'employee', 'superadmin'],
+    requiredCapabilities: ['analytics.read'],
   },
-  { path: '/:tenant/analytics', element: <AnalyticsPage />, roles: ['admin', 'empleado', 'super_admin'] },
-  ...withTenantPrefixes('/:tenant/analytics', { element: <AnalyticsPage />, roles: ['admin', 'empleado', 'super_admin'] }),
-  { path: '/perfil/plantillas-respuesta', element: <GestionPlantillasPage />, roles: ['admin', 'empleado', 'super_admin'] },
+  { path: '/:tenant/analytics', element: <AnalyticsPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
+  ...withTenantPrefixes('/:tenant/analytics', { element: <AnalyticsPage />, roles: ['tenant_admin', 'employee', 'superadmin', 'analytics_viewer'] }),
+  { path: '/perfil/plantillas-respuesta', element: <GestionPlantillasPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
 
-  { path: '/admin/catalog', element: <CatalogManagementPage />, roles: ['admin', 'super_admin', 'empleado'] },
-  { path: '/catalog-mappings/new', element: <CatalogMappingPage />, roles: ['admin', 'super_admin'] },
-  { path: '/catalog-mappings/:mappingId', element: <CatalogMappingPage />, roles: ['admin', 'super_admin'] },
+  { path: '/admin/catalog', element: <CatalogManagementPage />, roles: ['tenant_admin', 'superadmin', 'empleado'] },
+  { path: '/catalog-mappings/new', element: <CatalogMappingPage />, roles: ['tenant_admin', 'superadmin'] },
+  { path: '/catalog-mappings/:mappingId', element: <CatalogMappingPage />, roles: ['tenant_admin', 'superadmin'] },
   // Rutas para la gestión de mapeo de catálogos por PYME
-  { path: '/admin/pyme/:pymeId/catalog-mappings/new', element: <CatalogMappingPage />, roles: ['admin', 'super_admin'] },
-  { path: '/admin/pyme/:pymeId/catalog-mappings/:mappingId', element: <CatalogMappingPage />, roles: ['admin', 'super_admin'] },
+  { path: '/admin/pyme/:pymeId/catalog-mappings/new', element: <CatalogMappingPage />, roles: ['tenant_admin', 'superadmin'] },
+  { path: '/admin/pyme/:pymeId/catalog-mappings/:mappingId', element: <CatalogMappingPage />, roles: ['tenant_admin', 'superadmin'] },
 
   {
     path: '/superadmin',
     element: <SuperAdminDashboard />,
-    roles: ['super_admin'],
-    requiredCapabilities: ['superadmin.access', 'platform.admin', 'tenants.manage'],
+    roles: ['superadmin'],
+    requiredCapabilities: ['settings.tenant.write'],
   },
-  { path: '/admin/tenants', element: <SuperAdminDashboard />, roles: ['super_admin'] },
+  { path: '/admin/tenants', element: <SuperAdminDashboard />, roles: ['superadmin'] },
   {
     path: '/empleados',
     element: <InternalUsers />,
-    roles: ['admin', 'super_admin', 'tenant_admin'],
-    requiredCapabilities: ['employees.read', 'tenant.employees.read'],
+    roles: ['tenant_admin', 'superadmin', 'tenant_admin'],
+    requiredCapabilities: ['settings.tenant.write'],
   },
 
   {

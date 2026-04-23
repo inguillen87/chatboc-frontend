@@ -47,12 +47,14 @@ export const useBusinessHours = (entityToken?: string, tenantSlug?: string | nul
         }
 
         const tenantAwarePath = tenantSlug ? `/api/${tenantSlug}/live-chat/schedule` : null;
-        const candidatePaths = [
-          '/api/live-chat/schedule',
-          tenantAwarePath,
-          '/api/demo/live-chat/schedule',
-          '/live-chat/schedule',
-        ].filter((path): path is string => Boolean(path));
+        const candidatePaths = tenantSlug
+          ? [
+              tenantAwarePath,
+              '/api/demo/live-chat/schedule',
+              '/api/live-chat/schedule',
+              '/live-chat/schedule',
+            ].filter((path): path is string => Boolean(path))
+          : ['/live-chat/schedule', '/api/live-chat/schedule'];
 
         let schedule: LiveChatSchedule | null = null;
         let lastError: unknown = null;

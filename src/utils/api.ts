@@ -1,8 +1,11 @@
+import { ZodType } from 'zod';
 // utils/api.ts
 
 import { API_BASE_CANDIDATES, BASE_API_URL, SAME_ORIGIN_PROXY_BASE } from '@/config';
 import { TENANT_ROUTE_PREFIXES } from '@/constants/tenant';
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
+import { usePanelSessionStore, useWidgetSessionStore, useTenantStore } from '@/stores';
+
 import getOrCreateChatSessionId from "@/utils/chatSessionId"; // Import the new function
 import { getOrCreateAnonId } from "@/utils/anonIdGenerator";
 import { getIframeToken } from "@/utils/config";
@@ -21,12 +24,14 @@ export class NetworkError extends Error {
 export class ApiError extends Error {
   public readonly status: number;
   public readonly body: any;
+  public readonly requestId?: string;
 
-  constructor(message: string, status: number, body: any) {
+  constructor(message: string, status: number, body: any = null, requestId?: string) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.body = body;
+    this.requestId = requestId;
   }
 }
 
@@ -34,6 +39,26 @@ const parseDebugFlag = (value?: string | null): boolean => {
   if (typeof value !== "string") return false;
   const normalized = value.trim().toLowerCase();
   return ["1", "true", "yes", "on"].includes(normalized);
+};
+
+const resolveResponseRequestId = (response: Response, data: unknown): string | undefined => {
+  const fromHeader =
+    response.headers.get("X-Request-Id") ||
+    response.headers.get("x-request-id") ||
+    response.headers.get("X-Correlation-Id") ||
+    response.headers.get("x-correlation-id");
+  if (typeof fromHeader === "string" && fromHeader.trim()) {
+    return fromHeader.trim();
+  }
+
+  if (data && typeof data === "object") {
+    const value = (data as Record<string, unknown>).request_id;
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+
+  return undefined;
 };
 
 const TENANT_PATH_REGEX = new RegExp(`^/(?:${TENANT_ROUTE_PREFIXES.join("|")})/([^/]+)`, "i");
@@ -395,6 +420,7 @@ const resolveApiErrorMessage = (data: unknown, fallback: string) => {
 };
 
 interface ApiFetchOptions {
+  schema?: ZodType<any, any, any>;
   method?: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
   headers?: Record<string, string>;
   body?: any;
@@ -498,14 +524,6 @@ const buildOmnichannelIdentityStorageKey = (tenantSlug?: string | null) => {
 const readOmnichannelIdentitySnapshot = (tenantSlug?: string | null): OmnichannelIdentitySnapshot | null => {
   const key = buildOmnichannelIdentityStorageKey(tenantSlug);
   const parsed = parseStoredJsonRecord(key);
-  if (!parsed && normalizeHeaderValue(tenantSlug)) {
-    const globalParsed = parseStoredJsonRecord(buildOmnichannelIdentityStorageKey(null));
-    if (!globalParsed) return null;
-    return {
-      contactKey: normalizeHeaderValue(globalParsed.contactKey),
-      conversationId: normalizeHeaderValue(globalParsed.conversationId),
-    };
-  }
   if (!parsed) return null;
 
   return {
@@ -678,8 +696,8 @@ export async function apiFetch<T>(
     : treatAsWidget && tenantSlug === undefined
       ? null
       : resolveTenantSlug(tenantSlug, path);
-  const panelToken = safeLocalStorage.getItem("authToken");
-  const chatToken = safeLocalStorage.getItem("chatAuthToken");
+  const panelToken = usePanelSessionStore.getState().authToken || safeLocalStorage.getItem("authToken");
+  const chatToken = useWidgetSessionStore.getState().chatAuthToken || safeLocalStorage.getItem("chatAuthToken");
   let storedRole: string | null = null;
   try {
     const rawUser = safeLocalStorage.getItem("user");
@@ -1045,13 +1063,20 @@ export async function apiFetch<T>(
   }
 
   try {
+    const responseTenantSlug = sanitizeTenantSlug(
+      response.headers.get("X-Tenant-Slug") ||
+      response.headers.get("x-tenant-slug") ||
+      response.headers.get("X-Tenant") ||
+      response.headers.get("x-tenant") ||
+      headerTenant,
+    );
     const responseContactKey =
       response.headers.get("X-Contact-Key") ||
       response.headers.get("x-contact-key");
     const responseConversationId =
       response.headers.get("X-Conversation-Id") ||
       response.headers.get("x-conversation-id");
-    persistOmnichannelIdentitySnapshot(headerTenant, {
+    persistOmnichannelIdentitySnapshot(responseTenantSlug, {
       contactKey: responseContactKey,
       conversationId: responseConversationId,
     });
@@ -1110,7 +1135,7 @@ export async function apiFetch<T>(
           ? (payloadError as Record<string, unknown>)
           : null;
 
-      persistOmnichannelIdentitySnapshot(headerTenant, {
+      persistOmnichannelIdentitySnapshot(responseTenantSlug, {
         contactKey:
           normalizeHeaderValue(payload.contact_key) ||
           normalizeHeaderValue(payload.contactKey) ||
@@ -1143,6 +1168,7 @@ export async function apiFetch<T>(
           raw: snippet,
           contentType: responseContentType,
         },
+        resolveResponseRequestId(response, data),
       );
     }
 
@@ -1155,14 +1181,24 @@ export async function apiFetch<T>(
       });
     }
 
+
+    const responseRequestId = resolveResponseRequestId(response, data);
+
+    // Si la respuesta es un objeto, le inyectamos el request_id / correlation_id para observabilidad.
+    if (data && typeof data === 'object' && !Array.isArray(data)) {
+      if (responseRequestId) {
+        (data as any).request_id = responseRequestId;
+      }
+    }
+
+
     if (response.status === 401 && !skipAuth) {
       // Para peticiones del panel/admin, un 401 significa sesión expirada.
       // Debemos limpiar todo y forzar el re-login.
       if (!treatAsWidget && !suppressPanel401Redirect) {
         console.warn("Received 401 Unauthorized for a panel request. Redirecting to login.");
-        safeLocalStorage.removeItem("authToken");
-        safeLocalStorage.removeItem("user");
-        safeLocalStorage.removeItem("chatAuthToken");
+        usePanelSessionStore.getState().clearSession();
+        useWidgetSessionStore.getState().clearSession();
 
         // Forzar redirección para limpiar el estado de la aplicación.
         if (typeof window !== 'undefined') {
@@ -1177,18 +1213,19 @@ export async function apiFetch<T>(
       // Simplemente lanzamos el error para que el componente que hizo la llamada lo maneje.
       if (tokenSource === "authToken") {
         if (!preserveAuthOn401) {
-          safeLocalStorage.removeItem("authToken");
+          usePanelSessionStore.getState().setAuthToken(null);
         }
       } else if (tokenSource === "chatAuthToken") {
         if (!preserveAuthOn401) {
-          safeLocalStorage.removeItem("chatAuthToken");
+          useWidgetSessionStore.getState().setChatAuthToken(null);
         }
       }
 
       throw new ApiError(
         resolveApiErrorMessage(data, "No autorizado"),
         response.status,
-        data
+        data,
+        responseRequestId,
       );
     }
 
@@ -1200,7 +1237,8 @@ export async function apiFetch<T>(
       throw new ApiError(
         resolveApiErrorMessage(data, "Acceso prohibido"),
         response.status,
-        data
+        data,
+        responseRequestId,
       );
     }
 
@@ -1208,11 +1246,27 @@ export async function apiFetch<T>(
       throw new ApiError(
         resolveApiErrorMessage(data, "Error en la respuesta de la API"),
         response.status,
-        data
+        data,
+        responseRequestId,
       );
     }
 
+
+    if (options.schema) {
+      const parseResult = options.schema.safeParse(data);
+      if (!parseResult.success) {
+        throw new ApiError(
+          `Error de validación del esquema para la respuesta de ${path}`,
+          response.status,
+          parseResult.error.format(),
+          responseRequestId
+        );
+      }
+      return parseResult.data as T;
+    }
+
     return data as T;
+
   } catch (error) {
     if (error instanceof ApiError) throw error;
     if (error instanceof TypeError) { // Typically a network error or CORS issue
@@ -1239,22 +1293,39 @@ export async function apiFetch<T>(
  */
 export function getErrorMessage(error: unknown, fallback = "Ocurrió un error inesperado.") {
   if (error instanceof ApiError) {
-    switch (error.status) {
-      case 400:
-        return "Hubo un problema con la solicitud. Por favor, verifica los datos enviados.";
-      case 401:
-        return "No estás autorizado para realizar esta acción. Por favor, inicia sesión de nuevo.";
-      case 403:
-        return "No tienes permiso para acceder a este recurso.";
-      case 404:
-        return "No se pudo encontrar el recurso solicitado (Error 404).";
-      case 500:
-        return "Ocurrió un error en el servidor. Por favor, intenta de nuevo más tarde.";
-      default:
-        // Usa el mensaje de la API si está disponible, si no, un genérico con el status.
-        return error.message || `Ocurrió un error (código: ${error.status})`;
+    const requestIdMsg = error.requestId ? ` (Req ID: ${error.requestId})` : "";
+    let baseMessage = error.message;
+
+    if (!baseMessage || baseMessage === "Error en la respuesta de la API") {
+      switch (error.status) {
+        case 400:
+          baseMessage = "Hubo un problema con la solicitud. Por favor, verifica los datos enviados.";
+          break;
+        case 401:
+          baseMessage = "No estás autorizado para realizar esta acción. Por favor, inicia sesión de nuevo.";
+          break;
+        case 403:
+          baseMessage = "No tienes permiso para acceder a este recurso.";
+          break;
+        case 404:
+          baseMessage = "No se pudo encontrar el recurso solicitado (Error 404).";
+          break;
+        case 500:
+          baseMessage = "Ocurrió un error en el servidor. Por favor, intenta de nuevo más tarde.";
+          break;
+        default:
+          baseMessage = `Ocurrió un error (código: ${error.status})`;
+      }
     }
+
+    // If we have validation errors from zod, we might append them
+    if (error.body && typeof error.body === 'object' && '_errors' in error.body) {
+       baseMessage += ` [Validación fallida]`;
+    }
+
+    return `${baseMessage}${requestIdMsg}`;
   }
+
   if (error instanceof NetworkError) {
     return error.message;
   }

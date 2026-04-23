@@ -253,17 +253,6 @@ const resolveTenantBootstrap = (
     return { slug: subdomain, widgetToken: null };
   }
 
-  // Fallback for public landing page demos (Chatboc.ar root)
-  // If we are on the landing page or generic paths without a tenant AND without an active session,
-  // default to 'municipio' so the public cart and widget work as a demo.
-  // Logged-in users should not be forced into the demo tenant.
-  const hasAuthSession = Boolean(
-    safeLocalStorage.getItem('authToken') || safeLocalStorage.getItem('chatAuthToken'),
-  );
-  if (!hasAuthSession && (pathname === '/' || pathname === '/cart' || pathname === '/productos' || pathname === '/demo')) {
-      return { slug: 'municipio', widgetToken: null };
-  }
-
   return { slug: null, widgetToken: null };
 };
 
@@ -282,7 +271,9 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
 
   const isRecoverableTenantError = useCallback((error: unknown) => {
     if (error instanceof ApiError) {
-      return [400, 401, 403, 404, 405].includes(error.status);
+      // 404 must surface explicitly (no silent fallback to default tenant info).
+      // Keep only structural/request-shape recoverables.
+      return [400, 405].includes(error.status);
     }
     return false;
   }, []);
@@ -294,22 +285,28 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
 
     try {
       const info = await getTenantPublicInfoFlexible(slug, token);
+
       if (activeTenantRequest.current === requestId) {
         setTenant(info);
         if (info?.slug) {
            setCurrentSlug(info.slug);
            currentSlugRef.current = info.slug;
+           useTenantStore.getState().setTenant(info.slug, info);
         }
       }
+
     } catch (error) {
       if (activeTenantRequest.current === requestId) {
         const recoverable = isRecoverableTenantError(error);
         setTenant(DEFAULT_TENANT_INFO);
         setTenantError(recoverable ? null : getErrorMessage(error));
+
         if (recoverable) {
           setCurrentSlug(null);
           currentSlugRef.current = null;
+          useTenantStore.getState().clearTenant();
         }
+
       }
       if (!isRecoverableTenantError(error)) {
         throw error;

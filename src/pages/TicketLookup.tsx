@@ -482,6 +482,7 @@ export default function TicketLookup() {
   const [refreshingConversation, setRefreshingConversation] = useState(false);
   const [submittingPublicMessage, setSubmittingPublicMessage] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [supportRequestId, setSupportRequestId] = useState<string | null>(null);
   const [isSupportOpen, setIsSupportOpen] = useState(false);
   const presenceFailureCountRef = useRef(0);
   const presenceCircuitUntilRef = useRef(0);
@@ -669,6 +670,7 @@ export default function TicketLookup() {
 
       setLoading(true);
       setError(null);
+      setSupportRequestId(null);
       setTimelineHistory([]);
       setUnifiedConversationStream([]);
       setPublicMessages([]);
@@ -699,10 +701,16 @@ export default function TicketLookup() {
         await loadConversationData(normalizedTicket, pinVal);
       } catch (err) {
         const apiErr = err as ApiError;
+        const resolvedRequestId =
+          typeof apiErr?.requestId === "string" && apiErr.requestId.trim()
+            ? apiErr.requestId.trim()
+            : null;
+        setSupportRequestId(resolvedRequestId);
         trackFrontendEvent("tracking_public_lookup_failed", {
           ticket_lookup: id,
           status: apiErr?.status || "unknown",
           access_source: publicAccessSource,
+          request_id: resolvedRequestId,
         });
         if (apiErr?.status === 404) {
           setError("No se encontró el reclamo. Verificá el número.");
@@ -788,6 +796,28 @@ export default function TicketLookup() {
 
     setIsSupportOpen(false);
   };
+
+  const copySupportRequestId = useCallback(async () => {
+    const requestId = supportRequestId?.trim();
+    if (!requestId) return;
+
+    if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
+      toast.error("No pudimos copiar el request_id en este navegador.");
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(requestId);
+      trackFrontendEvent("support_request_id_copied", {
+        source: "ticket_lookup_error",
+        request_id: requestId,
+        ticket_lookup: inputTicketId || ticketId || null,
+      });
+      toast.success("request_id copiado");
+    } catch {
+      toast.error("No se pudo copiar el request_id.");
+    }
+  }, [inputTicketId, supportRequestId, ticketId]);
 
   const handleSendMessage = useCallback(async () => {
     if (!ticket || !currentPin || !message.trim()) return;
@@ -1178,9 +1208,27 @@ export default function TicketLookup() {
             </Card>
 
             {error && (
-              <div className="flex items-center justify-center gap-2 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-600 shadow-sm">
-                <XCircle className="h-4 w-4" />
-                {error}
+              <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-600 shadow-sm">
+                <div className="flex items-center justify-center gap-2">
+                  <XCircle className="h-4 w-4" />
+                  {error}
+                </div>
+                {supportRequestId ? (
+                  <div className="mt-2 flex items-center justify-center gap-2 text-xs font-normal text-red-700">
+                    <span className="font-mono">request_id: {supportRequestId}</span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 rounded-lg border-red-200 bg-red-100 px-2 text-[11px] text-red-700 hover:bg-red-200"
+                      onClick={() => {
+                        void copySupportRequestId();
+                      }}
+                    >
+                      Copiar request_id
+                    </Button>
+                  </div>
+                ) : null}
               </div>
             )}
           </div>

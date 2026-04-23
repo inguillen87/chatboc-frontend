@@ -3,11 +3,15 @@ import { buildTenantPath, buildTenantApiPath } from './tenantPaths';
 
 describe('buildTenantPath', () => {
   it('should prepend tenant slug to clean path', () => {
-    expect(buildTenantPath('/cart', 'municipio')).toBe('/municipio/cart');
+    expect(buildTenantPath('/cart', 'municipio')).toBe('/t/municipio/cart');
   });
 
-  it('should not double prefix if slug is already there', () => {
-    expect(buildTenantPath('/municipio/cart', 'municipio')).toBe('/municipio/cart');
+  it('should canonicalize direct slug paths', () => {
+    expect(buildTenantPath('/municipio/cart', 'municipio')).toBe('/t/municipio/cart');
+  });
+
+  it('should keep canonical /t/:slug paths unchanged', () => {
+    expect(buildTenantPath('/t/municipio/cart', 'municipio')).toBe('/t/municipio/cart');
   });
 
   it('should return original path if no slug', () => {
@@ -15,15 +19,15 @@ describe('buildTenantPath', () => {
   });
 
   it('should handle paths without leading slash', () => {
-    expect(buildTenantPath('cart', 'junin')).toBe('/junin/cart');
+    expect(buildTenantPath('cart', 'junin')).toBe('/t/junin/cart');
   });
 
   it('should replace legacy tenant prefix with current slug', () => {
-    expect(buildTenantPath('/pyme/cart', 'junin')).toBe('/junin/cart');
+    expect(buildTenantPath('/pyme/cart', 'junin')).toBe('/t/junin/cart');
   });
 
   it('should replace long-form tenant prefix with current slug', () => {
-    expect(buildTenantPath('/tenant/perfil/pedidos', 'junin')).toBe('/junin/perfil/pedidos');
+    expect(buildTenantPath('/tenant/perfil/pedidos', 'junin')).toBe('/t/junin/perfil/pedidos');
   });
 });
 

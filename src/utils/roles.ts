@@ -1,30 +1,26 @@
 export type Role =
   | 'superadmin'
-  | 'super_admin'
   | 'tenant_admin'
-  | 'admin'
   | 'employee'
-  | 'agent'
-  | 'empleado'
   | 'catalog_manager'
   | 'analytics_viewer'
   | 'end_user'
   | 'chat_user'
-  | 'user'
+  | 'agent'
   | '';
 
 const ROLE_EQUIVALENCE: Record<string, string[]> = {
-  superadmin: ['superadmin', 'super_admin'],
-  tenant_admin: ['tenant_admin', 'admin', 'admin_pyme'],
+  superadmin: ['superadmin', 'super_admin', 'admin_super'],
+  tenant_admin: ['tenant_admin', 'admin', 'admin_pyme', 'admin_municipio'],
   employee: ['employee', 'agent', 'empleado'],
   catalog_manager: ['catalog_manager'],
   analytics_viewer: ['analytics_viewer'],
-  end_user: ['end_user', 'chat_user', 'user', 'usuario'],
+  end_user: ['end_user', 'chat_user', 'user', 'usuario', 'vecino', 'ciudadano'],
 };
 
 const normalizeRoleToken = (role?: string | null): string => (role || '').trim().toLowerCase();
 
-const getRoleAliases = (role?: string | null): string[] => {
+export const getRoleAliases = (role?: string | null): string[] => {
   const token = normalizeRoleToken(role);
   if (!token) return [];
 
@@ -36,6 +32,9 @@ const getRoleAliases = (role?: string | null): string[] => {
 };
 
 export function normalizeRole(role?: string | null): Role {
+  const token = normalizeRoleToken(role);
+  if (!token) return '';
+
   const aliases = getRoleAliases(role);
   if (aliases.includes('superadmin')) return 'superadmin';
   if (aliases.includes('tenant_admin')) return 'tenant_admin';
@@ -43,10 +42,13 @@ export function normalizeRole(role?: string | null): Role {
   if (aliases.includes('catalog_manager')) return 'catalog_manager';
   if (aliases.includes('analytics_viewer')) return 'analytics_viewer';
   if (aliases.includes('end_user')) return 'end_user';
+
+  // Fallback for types
   return '' as Role;
 }
 
 export function hasRequiredRole(userRole: string | null | undefined, allowedRoles: string[]): boolean {
+  if (!allowedRoles || allowedRoles.length === 0) return true;
   const userAliases = new Set(getRoleAliases(userRole));
   if (userAliases.size === 0) return false;
 
@@ -57,5 +59,5 @@ export function hasRequiredRole(userRole: string | null | undefined, allowedRole
 }
 
 export function isBackofficeRole(role: string | null | undefined): boolean {
-  return hasRequiredRole(role, ['superadmin', 'tenant_admin', 'employee']);
+  return hasRequiredRole(role, ['superadmin', 'tenant_admin', 'employee', 'catalog_manager', 'analytics_viewer']);
 }

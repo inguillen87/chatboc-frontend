@@ -49,6 +49,46 @@ const mockCartResponse = (): MarketCartResponse => {
   return loadLocalDemoCart();
 };
 
+const asStringOrNull = (value: unknown): string | null => {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim();
+  return normalized.length > 0 ? normalized : null;
+};
+
+const normalizeMarketCartResponse = (input: MarketCartResponse | null | undefined): MarketCartResponse => {
+  const payload = (input ?? {}) as MarketCartResponse & Record<string, unknown>;
+  const continuityRaw =
+    payload.continuity && typeof payload.continuity === 'object' && !Array.isArray(payload.continuity)
+      ? (payload.continuity as Record<string, unknown>)
+      : null;
+  const portalLinksRaw =
+    continuityRaw?.portal_links && typeof continuityRaw.portal_links === 'object' && !Array.isArray(continuityRaw.portal_links)
+      ? (continuityRaw.portal_links as Record<string, unknown>)
+      : null;
+
+  return {
+    ...payload,
+    items: Array.isArray(payload.items) ? payload.items : [],
+    totalAmount: typeof payload.totalAmount === 'number' ? payload.totalAmount : null,
+    totalPoints: typeof payload.totalPoints === 'number' ? payload.totalPoints : null,
+    continuity: continuityRaw
+      ? {
+          resume_key: asStringOrNull(continuityRaw.resume_key),
+          preferred_handoff_channel: asStringOrNull(continuityRaw.preferred_handoff_channel),
+          summary: asStringOrNull(continuityRaw.summary),
+          conversation_id: asStringOrNull(continuityRaw.conversation_id),
+          portal_links: portalLinksRaw
+            ? {
+                home: asStringOrNull(portalLinksRaw.home),
+                orders: asStringOrNull(portalLinksRaw.orders),
+                profile: asStringOrNull(portalLinksRaw.profile),
+              }
+            : null,
+        }
+      : null,
+  };
+};
+
 // Helper to mock catalog response
 const mockCatalogResponse = (tenantSlug?: string): MarketCatalogResponse => {
   let sourceProducts = DEFAULT_PUBLIC_PRODUCTS;
@@ -146,11 +186,12 @@ const mockPublicOrderResponse = (ticketNumber: string): PublicOrderTrackingRespo
 
 export async function fetchMarketCart(tenantSlug: string): Promise<MarketCartResponse> {
   try {
-    return await apiFetch<MarketCartResponse>(`/api/${tenantSlug}/carrito`, {
+    const response = await apiFetch<MarketCartResponse>(`/api/${tenantSlug}/carrito`, {
       tenantSlug,
       suppressPanel401Redirect: true,
       omitChatSessionId: true,
     });
+    return normalizeMarketCartResponse(response);
   } catch (error) {
     if (error instanceof ApiError || error instanceof NetworkError) {
       // Return empty demo cart on auth, not found or server failures so the UI can continue with local cart logic
@@ -248,7 +289,7 @@ export async function addMarketItem(tenantSlug: string, payload: AddToCartPayloa
 
   try {
       // Ensure we send the correct Content-Type and handle the response correctly
-      return await apiFetch<MarketCartResponse>(`/api/${tenantSlug}/carrito`, {
+      const response = await apiFetch<MarketCartResponse>(`/api/${tenantSlug}/carrito`, {
         method: 'POST',
         body: payload,
         tenantSlug,
@@ -256,6 +297,7 @@ export async function addMarketItem(tenantSlug: string, payload: AddToCartPayloa
         // Explicitly request session persistence if needed by the backend
         headers: { 'X-Persist-Session': 'true' }
       });
+      return normalizeMarketCartResponse(response);
   } catch (error) {
      const status = (error as any).status;
      if ((error instanceof ApiError || error instanceof NetworkError) && (!status || [400, 401, 403, 404].includes(status) || status >= 500)) {
@@ -267,11 +309,12 @@ export async function addMarketItem(tenantSlug: string, payload: AddToCartPayloa
 
 export async function removeMarketItem(tenantSlug: string, itemId: string): Promise<MarketCartResponse> {
   try {
-      return await apiFetch<MarketCartResponse>(`/api/${tenantSlug}/carrito/${itemId}`, {
+      const response = await apiFetch<MarketCartResponse>(`/api/${tenantSlug}/carrito/${itemId}`, {
         method: 'DELETE',
         tenantSlug,
         omitChatSessionId: true,
       });
+      return normalizeMarketCartResponse(response);
   } catch (error) {
       // Local Cart fallback
       const currentCart = loadLocalDemoCart();

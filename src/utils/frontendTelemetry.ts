@@ -1,39 +1,29 @@
-export type FrontendEventName =
-  | 'catalog_structured_rendered'
-  | 'lead_capture_step_viewed'
-  | 'lead_capture_step_completed'
-  | 'catalog_quality_queue_opened'
-  | 'lead_sla_filter_enabled'
-  | 'realtime_session_started'
-  | 'realtime_session_failed'
-  | 'realtime_mode_switched'
-  | 'avatar_rendered'
-  | 'accessibility_caption_enabled'
-  | 'business_action_executed'
-  | 'map_loaded'
-  | 'map_layer_toggle'
-  | 'map_cluster_click'
-  | 'map_time_slider_changed'
-  | 'tracking_public_access_restored'
-  | 'tracking_public_lookup_succeeded'
-  | 'tracking_public_lookup_failed'
-  | 'tracking_public_message_sent'
-  | 'tracking_public_refresh_failed'
-  | 'tracking_public_maps_opened'
-  | 'tracking_403_detected'
-  | 'permission_denied'
-  | 'identity_context_attached'
-  | 'identity_context_missing'
-  | 'coverage_alert_banner_seen'
-  | 'socket_reconnect'
-  | 'realtime_duplicate_dropped';
+// Assuming this file exists from before or we overwrite/append to it.
+import { getOrCreateAnonId } from './anonIdGenerator';
 
-export function trackFrontendEvent(event: FrontendEventName, payload: Record<string, unknown> = {}) {
-  if (typeof window === 'undefined') return;
-  const detail = { event, payload, timestamp: new Date().toISOString() };
-  window.dispatchEvent(new CustomEvent(`chatboc_frontend:${event}`, { detail }));
-  const dataLayer = (window as any).dataLayer;
-  if (Array.isArray(dataLayer)) {
-    dataLayer.push({ event: `chatboc_frontend_${event}`, ...payload });
+export function trackFrontendEvent(eventName: string, payload: Record<string, any> = {}) {
+  try {
+    const isLocalhost = typeof window !== 'undefined' && window.location.hostname === 'localhost';
+    if (isLocalhost) {
+      // In development, just log to console to not spam production DBs with debug sessions
+      console.log(`[Telemetry] ${eventName}`, payload);
+      return;
+    }
+
+    // Attempt to push to standard dataLayer or generic analytics sink
+    if (typeof window !== 'undefined') {
+       const win = window as any;
+       if (!win.dataLayer) {
+          win.dataLayer = [];
+       }
+       win.dataLayer.push({
+          event: eventName,
+          anonId: getOrCreateAnonId(),
+          timestamp: new Date().toISOString(),
+          ...payload
+       });
+    }
+  } catch (e) {
+    // Fail silently, telemetry should never break the main thread
   }
 }
