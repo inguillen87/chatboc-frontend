@@ -23,6 +23,7 @@ import Privacy from '@/pages/legal/Privacy';
 import Terms from '@/pages/legal/Terms';
 import Cookies from '@/pages/legal/Cookies';
 import TicketsPanel from '@/pages/TicketsPanel';
+import { TicketInboxPage } from '@/components/tickets/inbox';
 import PedidosPage from '@/pages/pyme/pedidos/PedidosPage';
 import IntegracionesPage from '@/pages/pyme/integraciones/IntegracionesPage';
 import UsuariosPage from '@/pages/UsuariosPage';
