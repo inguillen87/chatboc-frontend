@@ -8,6 +8,9 @@ import { TicketTimelineEvent } from '@/schemas/api';
 import { Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { AgentSuggestionBox } from '../agent-assist/AgentSuggestionBox';
+import { AgentSummaryPanel } from '../agent-assist/AgentSummaryPanel';
+
 
 interface TicketConversationPaneProps {
   ticketId?: string;
@@ -36,6 +39,14 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({ 
       </div>
 
       {/* Timeline/Conversation Area */}
+
+      {/* Agent Assist Summary */}
+      <AgentSummaryPanel
+         isLoading={false}
+         summary="El ciudadano reportó una luminaria rota en San Martin 123 el jueves. Solicita saber cuándo pasará el equipo técnico."
+         nextSteps={['Asignar a Cuadrilla Norte', 'Solicitar foto del poste']}
+      />
+
       <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
          <TimelineMergeView events={[{id: 'ev1', ticket_id: ticketId, type: 'status_changed', timestamp: new Date().toISOString(), actor: {id: 'sys', type: 'system', name: 'Sistema'}, payload: {new_status: 'en_proceso'}} as TicketTimelineEvent]} />
          <div className="text-center text-xs text-muted-foreground my-4">
@@ -44,18 +55,31 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({ 
       </div>
 
       {/* Composer Area */}
-      <div className="p-3 border-t bg-background shrink-0">
+      <div className="p-3 border-t bg-background shrink-0 flex flex-col gap-2">
+         {/* Placeholder for AgentSuggestionBox */}
+         <AgentSuggestionBox
+            suggestion="Hola. Hemos recibido tu reporte de la luminaria. Enviaremos a la cuadrilla de la Zona Norte en las próximas 48hs."
+            onAccept={() => {}}
+            onReject={() => {}}
+         />
+
+         {/* Placeholder for TypingIndicator */}
          <TypingIndicator usersTyping={[{id: 'u2', name: 'Vecino'}]} />
-         <div className="flex items-end gap-2">
+
+         <div className="flex flex-col gap-2">
             <Textarea
-              placeholder="Escribe una respuesta o nota interna..."
+              placeholder="Escribe una respuesta..."
               className="min-h-[80px] resize-none text-sm"
             />
-            <Button size="icon" className="h-10 w-10 shrink-0">
-               <Send className="w-4 h-4" />
-            </Button>
+            <div className="flex items-center justify-end gap-2">
+               <Button variant="outline" size="sm" className="h-8">Guardar borrador</Button>
+               <Button size="sm" className="h-8 gap-1.5">
+                  Enviar mensaje <Send className="w-3.5 h-3.5" />
+               </Button>
+            </div>
          </div>
       </div>
+    </div>
     </div>
   );
 };
