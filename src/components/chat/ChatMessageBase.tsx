@@ -6,6 +6,7 @@ import CategorizedButtons from "./CategorizedButtons";
 import AudioPlayer from "./AudioPlayer";
 import { motion } from "framer-motion";
 import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
+import { ChatStreamRenderer, PolicyBanner } from './stream';
 import sanitizeMessageHtml from "@/utils/sanitizeMessageHtml";
 import { simplify } from "@/lib/simplify";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
