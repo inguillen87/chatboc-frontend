@@ -80,6 +80,8 @@ function PortalRoutes() {
               element={<TenantTicketFormPage />}
             />
           </Route>
+                    <Route path="/:tenant/welcome" element={<PortalLandingPage />} />
+          <Route path="/welcome" element={<PortalLandingPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </TenantProvider>
