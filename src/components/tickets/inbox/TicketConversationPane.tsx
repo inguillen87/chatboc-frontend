@@ -80,6 +80,5 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({ 
          </div>
       </div>
     </div>
-    </div>
   );
 };

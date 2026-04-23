@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { CatalogStorefrontPreview } from '@/components/admin/catalog/CatalogStorefrontPreview';
 import { useTenant } from '@/context/TenantContext';
 import { apiClient } from '@/api/client';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';

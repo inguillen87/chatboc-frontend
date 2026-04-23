@@ -134,9 +134,9 @@ const buildDraftFromSurvey = (survey?: SurveyAdmin): SurveyDraftPayload => ({
 });
 
 const tipoOptions: Array<{ value: SurveyTipo; label: string }> = [
-  { value: 'opinion', label: 'Opinión' },
-  { value: 'votacion', label: 'Votación' },
-  { value: 'sondeo', label: 'Sondeo' },
+  { value: 'opinion', label: 'Encuesta Clásica (Opinión)' },
+  { value: 'votacion', label: 'Votación Pública (Elección única)' },
+  { value: 'sondeo', label: 'Sondeo Rápido' },
   { value: 'planificacion', label: 'Planificación' },
 ];
 
@@ -374,12 +374,20 @@ export const SurveyEditor = ({
 
   return (
     <div className="space-y-6">
-      <Card>
+      <Card className={`transition-colors border-l-4 ${formValues.tipo === 'votacion' ? 'border-l-blue-500 bg-blue-50/10' : 'border-l-primary bg-primary/5'}`}>
         <CardHeader>
-          <CardTitle>Configuración general</CardTitle>
-          <CardDescription>Definí los datos principales de la encuesta y su política de participación.</CardDescription>
+          <CardTitle className="flex items-center gap-2">
+             Configuración general
+             {formValues.tipo === 'votacion' && <span className="text-xs font-normal px-2 py-0.5 bg-blue-100 text-blue-800 rounded-md">Modo Votación Pública</span>}
+          </CardTitle>
+          <CardDescription>Definí los datos principales del instrumento y su política de participación.</CardDescription>
         </CardHeader>
         <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {formValues.tipo === 'votacion' && (
+             <div className="col-span-1 md:col-span-2 p-3 bg-blue-50 border border-blue-200 rounded-md text-xs text-blue-800 leading-relaxed mb-2">
+               <strong>Nota sobre votaciones:</strong> Las votaciones se distinguen de las encuestas en que suelen requerir verificación de identidad fuerte (DNI/Login), exhiben resultados en tiempo real y prohíben respuestas múltiples por usuario.
+             </div>
+          )}
           <div className="space-y-2">
             <Label htmlFor="survey-title">Título</Label>
             <Input
