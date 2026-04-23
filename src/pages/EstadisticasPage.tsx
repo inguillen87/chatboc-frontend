@@ -28,6 +28,8 @@ import {
   AlertDescription,
   AlertTitle,
 } from '@/components/ui/alert';
+import { AIAssistedInsights } from '@/components/analytics/AIAssistedInsights';
+
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
