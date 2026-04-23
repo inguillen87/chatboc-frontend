@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
+import { trackFrontendEvent } from '@/utils/frontendTelemetry';
 import { getOrCreateAnonId } from '@/utils/anonIdGenerator';
 import getOrCreateChatSessionId from '@/utils/chatSessionId';
 
@@ -32,6 +33,7 @@ export const useWidgetSessionStore = create<WidgetSessionState>((set) => ({
   conversationId: null,
 
   bootstrapWidget: (config = {}) => {
+    const startTime = performance.now();
     set({ status: 'bootstrapping', errorMessage: null });
     try {
       const anonId = getOrCreateAnonId();
@@ -60,8 +62,18 @@ export const useWidgetSessionStore = create<WidgetSessionState>((set) => ({
         conversationId,
         status: 'ready'
       });
+
+      trackFrontendEvent('widget_bootstrap_success', {
+         duration_ms: performance.now() - startTime,
+         has_entity_token: !!entityToken,
+         has_auth: !!chatAuthToken
+      });
     } catch (error) {
       console.error("[WidgetSessionStore] Bootstrap failed", error);
+      trackFrontendEvent('widget_bootstrap_error', {
+         duration_ms: performance.now() - startTime,
+         error: error instanceof Error ? error.message : String(error)
+      });
       set({
         status: 'error',
         errorMessage: error instanceof Error ? error.message : 'Error inicializando el widget'
