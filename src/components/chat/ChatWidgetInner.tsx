@@ -1,6 +1,7 @@
 // src/components/chat/ChatWidgetInner.tsx
 
 import { useWidgetSessionStore } from '@/stores';
+import { MobileTicketForm } from '@/components/widget/MobileTicketForm';
 import React, { Suspense, useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useDarkMode } from "@/hooks/useDarkMode";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
