@@ -1,3 +1,4 @@
+import { usePanelSessionStore, useWidgetSessionStore } from '@/stores';
 import React, { useContext, useState, useCallback, useEffect } from 'react';
 import { apiFetch, ApiError } from '@/utils/api';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
@@ -89,27 +90,11 @@ const deriveTenantSlugFromUrl = (rawUrl?: string | null) => {
   return null;
 };
 
+
 export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<UserData | null>(() => {
-    try {
-      const hasEntity = safeLocalStorage.getItem('entityToken') || getIframeToken();
-      const authToken = getValidStoredToken('authToken');
-      const chatToken = getValidStoredToken('chatAuthToken');
-      const activeToken = authToken || chatToken;
-      const stored = safeLocalStorage.getItem('user');
-
-      if (!activeToken && stored) {
-        safeLocalStorage.removeItem('user');
-        return null;
-      }
-
-      if (hasEntity && !activeToken) return null;
-      return stored ? JSON.parse(stored) : null;
-    } catch {
-      return null;
-    }
-  });
+  const { user, setUser } = usePanelSessionStore();
   const [loading, setLoading] = useState(false);
+
 
   const refreshUser = useCallback(async () => {
     const panelToken = getValidStoredToken('authToken');
@@ -236,7 +221,6 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (resolvedTenantSlug) {
         safeLocalStorage.setItem('tenantSlug', resolvedTenantSlug);
       }
-      safeLocalStorage.setItem('user', JSON.stringify(updated));
       setUser(updated);
     } catch (e) {
       const status = e instanceof ApiError ? e.status : (e as any)?.status;
@@ -244,11 +228,9 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (status === 401 || status === 403) {
         console.error('Auth error fetching user profile, logging out.', e);
         // If fetching the user fails due to auth, clear session to force re-login.
-        safeLocalStorage.removeItem('user');
-        if (tokenKey) {
-          safeLocalStorage.removeItem(tokenKey);
-        }
         setUser(null);
+        usePanelSessionStore.getState().setAuthToken(null);
+        useWidgetSessionStore.getState().setChatAuthToken(null);
       } else {
         // Network or server errors shouldn't drop an otherwise valid session.
         if (shouldLogUserWarnings()) {
