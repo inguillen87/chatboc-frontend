@@ -1,4 +1,12 @@
-export type Role =
+import re
+
+with open('src/utils/roles.ts', 'r') as f:
+    content = f.read()
+
+# Make sure roles are explicitly matching the required matrix
+# Roles mínimos: superadmin, tenant_admin, employee/agent, catalog_manager, analytics_viewer, end_user/chat_user.
+
+new_content = """export type Role =
   | 'superadmin'
   | 'tenant_admin'
   | 'employee'
@@ -61,3 +69,7 @@ export function hasRequiredRole(userRole: string | null | undefined, allowedRole
 export function isBackofficeRole(role: string | null | undefined): boolean {
   return hasRequiredRole(role, ['superadmin', 'tenant_admin', 'employee', 'catalog_manager', 'analytics_viewer']);
 }
+"""
+
+with open('src/utils/roles.ts', 'w') as f:
+    f.write(new_content)
