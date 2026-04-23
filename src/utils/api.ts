@@ -1,3 +1,4 @@
+import { ZodType } from 'zod';
 // utils/api.ts
 
 import { API_BASE_CANDIDATES, BASE_API_URL, SAME_ORIGIN_PROXY_BASE } from '@/config';
@@ -417,6 +418,7 @@ const resolveApiErrorMessage = (data: unknown, fallback: string) => {
 };
 
 interface ApiFetchOptions {
+  schema?: ZodType<any, any, any>;
   method?: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
   headers?: Record<string, string>;
   body?: any;
@@ -1177,7 +1179,16 @@ export async function apiFetch<T>(
       });
     }
 
+
     const responseRequestId = resolveResponseRequestId(response, data);
+
+    // Si la respuesta es un objeto, le inyectamos el request_id / correlation_id para observabilidad.
+    if (data && typeof data === 'object' && !Array.isArray(data)) {
+      if (responseRequestId) {
+        (data as any).request_id = responseRequestId;
+      }
+    }
+
 
     if (response.status === 401 && !skipAuth) {
       // Para peticiones del panel/admin, un 401 significa sesión expirada.
@@ -1239,7 +1250,22 @@ export async function apiFetch<T>(
       );
     }
 
+
+    if (options.schema) {
+      const parseResult = options.schema.safeParse(data);
+      if (!parseResult.success) {
+        throw new ApiError(
+          `Error de validación del esquema para la respuesta de ${path}`,
+          response.status,
+          parseResult.error.format(),
+          responseRequestId
+        );
+      }
+      return parseResult.data as T;
+    }
+
     return data as T;
+
   } catch (error) {
     if (error instanceof ApiError) throw error;
     if (error instanceof TypeError) { // Typically a network error or CORS issue
@@ -1266,22 +1292,39 @@ export async function apiFetch<T>(
  */
 export function getErrorMessage(error: unknown, fallback = "Ocurrió un error inesperado.") {
   if (error instanceof ApiError) {
-    switch (error.status) {
-      case 400:
-        return "Hubo un problema con la solicitud. Por favor, verifica los datos enviados.";
-      case 401:
-        return "No estás autorizado para realizar esta acción. Por favor, inicia sesión de nuevo.";
-      case 403:
-        return "No tienes permiso para acceder a este recurso.";
-      case 404:
-        return "No se pudo encontrar el recurso solicitado (Error 404).";
-      case 500:
-        return "Ocurrió un error en el servidor. Por favor, intenta de nuevo más tarde.";
-      default:
-        // Usa el mensaje de la API si está disponible, si no, un genérico con el status.
-        return error.message || `Ocurrió un error (código: ${error.status})`;
+    const requestIdMsg = error.requestId ? ` (Req ID: ${error.requestId})` : "";
+    let baseMessage = error.message;
+
+    if (!baseMessage || baseMessage === "Error en la respuesta de la API") {
+      switch (error.status) {
+        case 400:
+          baseMessage = "Hubo un problema con la solicitud. Por favor, verifica los datos enviados.";
+          break;
+        case 401:
+          baseMessage = "No estás autorizado para realizar esta acción. Por favor, inicia sesión de nuevo.";
+          break;
+        case 403:
+          baseMessage = "No tienes permiso para acceder a este recurso.";
+          break;
+        case 404:
+          baseMessage = "No se pudo encontrar el recurso solicitado (Error 404).";
+          break;
+        case 500:
+          baseMessage = "Ocurrió un error en el servidor. Por favor, intenta de nuevo más tarde.";
+          break;
+        default:
+          baseMessage = `Ocurrió un error (código: ${error.status})`;
+      }
     }
+
+    // If we have validation errors from zod, we might append them
+    if (error.body && typeof error.body === 'object' && '_errors' in error.body) {
+       baseMessage += ` [Validación fallida]`;
+    }
+
+    return `${baseMessage}${requestIdMsg}`;
   }
+
   if (error instanceof NetworkError) {
     return error.message;
   }
