@@ -4,6 +4,8 @@ import { ZodType } from 'zod';
 import { API_BASE_CANDIDATES, BASE_API_URL, SAME_ORIGIN_PROXY_BASE } from '@/config';
 import { TENANT_ROUTE_PREFIXES } from '@/constants/tenant';
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
+import { usePanelSessionStore, useWidgetSessionStore, useTenantStore } from '@/stores';
+
 import getOrCreateChatSessionId from "@/utils/chatSessionId"; // Import the new function
 import { getOrCreateAnonId } from "@/utils/anonIdGenerator";
 import { getIframeToken } from "@/utils/config";
@@ -694,8 +696,8 @@ export async function apiFetch<T>(
     : treatAsWidget && tenantSlug === undefined
       ? null
       : resolveTenantSlug(tenantSlug, path);
-  const panelToken = safeLocalStorage.getItem("authToken");
-  const chatToken = safeLocalStorage.getItem("chatAuthToken");
+  const panelToken = usePanelSessionStore.getState().authToken || safeLocalStorage.getItem("authToken");
+  const chatToken = useWidgetSessionStore.getState().chatAuthToken || safeLocalStorage.getItem("chatAuthToken");
   let storedRole: string | null = null;
   try {
     const rawUser = safeLocalStorage.getItem("user");
@@ -1195,9 +1197,8 @@ export async function apiFetch<T>(
       // Debemos limpiar todo y forzar el re-login.
       if (!treatAsWidget && !suppressPanel401Redirect) {
         console.warn("Received 401 Unauthorized for a panel request. Redirecting to login.");
-        safeLocalStorage.removeItem("authToken");
-        safeLocalStorage.removeItem("user");
-        safeLocalStorage.removeItem("chatAuthToken");
+        usePanelSessionStore.getState().clearSession();
+        useWidgetSessionStore.getState().clearSession();
 
         // Forzar redirección para limpiar el estado de la aplicación.
         if (typeof window !== 'undefined') {
@@ -1212,11 +1213,11 @@ export async function apiFetch<T>(
       // Simplemente lanzamos el error para que el componente que hizo la llamada lo maneje.
       if (tokenSource === "authToken") {
         if (!preserveAuthOn401) {
-          safeLocalStorage.removeItem("authToken");
+          usePanelSessionStore.getState().setAuthToken(null);
         }
       } else if (tokenSource === "chatAuthToken") {
         if (!preserveAuthOn401) {
-          safeLocalStorage.removeItem("chatAuthToken");
+          useWidgetSessionStore.getState().setChatAuthToken(null);
         }
       }
 

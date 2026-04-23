@@ -285,22 +285,28 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
 
     try {
       const info = await getTenantPublicInfoFlexible(slug, token);
+
       if (activeTenantRequest.current === requestId) {
         setTenant(info);
         if (info?.slug) {
            setCurrentSlug(info.slug);
            currentSlugRef.current = info.slug;
+           useTenantStore.getState().setTenant(info.slug, info);
         }
       }
+
     } catch (error) {
       if (activeTenantRequest.current === requestId) {
         const recoverable = isRecoverableTenantError(error);
         setTenant(DEFAULT_TENANT_INFO);
         setTenantError(recoverable ? null : getErrorMessage(error));
+
         if (recoverable) {
           setCurrentSlug(null);
           currentSlugRef.current = null;
+          useTenantStore.getState().clearTenant();
         }
+
       }
       if (!isRecoverableTenantError(error)) {
         throw error;
