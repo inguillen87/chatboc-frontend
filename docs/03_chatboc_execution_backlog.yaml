@@ -1,0 +1,300 @@
+version: 1
+project: chatboc-ar-transformation
+owner: inguillen87
+principles:
+  - seguridad_primero
+  - compatibilidad_legacy
+  - multi_tenant_estricto
+  - trazabilidad_total
+  - ia_unificada
+  - gobierno_por_evals
+
+epics:
+  - id: EPIC-001
+    name: auth-jwks-rotation
+    repo: backend
+    priority: P0
+    outcome: tokens panel/widget firmados asimétricamente con jwks público correcto
+    tasks:
+      - id: BE-001
+        title: crear tabla signing_keys y servicio de rotación
+      - id: BE-002
+        title: migrar emisión de tokens a RS256 o ES256
+      - id: BE-003
+        title: exponer GET /auth/.well-known/jwks.json
+      - id: BE-004
+        title: separar widget_access y panel_access
+      - id: BE-005
+        title: agregar revocación y refresh rotativo
+      - id: FE-001
+        title: adaptar bootstrap y refresh de widget
+      - id: FE-002
+        title: invalidación de sesión por tenant/origin
+    acceptance:
+      - jwks no expone material secreto
+      - widget bootstrap funciona con TTL corto
+      - panel y widget usan stores/cookies separadas
+
+  - id: EPIC-002
+    name: ai-gateway-responses
+    repo: backend
+    priority: P0
+    outcome: toda llamada IA pasa por un gateway único sobre Responses API
+    tasks:
+      - id: BE-010
+        title: crear services/ai_gateway.py
+      - id: BE-011
+        title: soportar sync structured outputs
+      - id: BE-012
+        title: soportar semantic streaming
+      - id: BE-013
+        title: soportar multimodal image input
+      - id: BE-014
+        title: adaptar /ask, /ask/municipio y /ask/pyme
+      - id: BE-015
+        title: medir usage, latency y cached_tokens
+    acceptance:
+      - /ask legacy sigue funcionando
+      - responses reemplaza llamadas nuevas a chat completions
+      - json estructurado validado por schema
+
+  - id: EPIC-003
+    name: prompt-registry
+    repo: backend
+    priority: P1
+    outcome: prompts versionados y auditables
+    tasks:
+      - id: BE-020
+        title: crear tabla prompt_versions
+      - id: BE-021
+        title: crear service prompt_registry
+      - id: BE-022
+        title: migrar prompts críticos a registros versionados
+      - id: BE-023
+        title: exponer endpoints admin de prompts
+      - id: FE-020
+        title: crear PromptVersionsPage
+    acceptance:
+      - cada task usa prompt_key y version
+      - rollback de prompt posible sin deploy
+
+  - id: EPIC-004
+    name: moderation-policy-engine
+    repo: backend
+    priority: P0
+    outcome: input y output moderados con reglas por tenant/canal
+    tasks:
+      - id: BE-030
+        title: integrar omni-moderation para texto e imagen
+      - id: BE-031
+        title: crear policy_sets y policy_rules
+      - id: BE-032
+        title: aplicar gate pre y post modelo
+      - id: BE-033
+        title: persistir moderation_events
+      - id: FE-030
+        title: renderizar PolicyBanner y estados blocked/redacted
+      - id: FE-031
+        title: admin UI de políticas
+    acceptance:
+      - todo flujo público pasa por policy gate
+      - bloqueos y redacciones quedan visibles y auditados
+
+  - id: EPIC-005
+    name: audit-traceability
+    repo: backend
+    priority: P0
+    outcome: prompts, tools y decisiones con audit trail
+    tasks:
+      - id: BE-040
+        title: crear tablas ai_request_logs ai_tool_call_logs policy_decision_logs
+      - id: BE-041
+        title: agregar hash chain
+      - id: BE-042
+        title: incluir correlation_id en respuestas
+      - id: BE-043
+        title: export endpoint de auditoría
+      - id: FE-040
+        title: AuditExplorerPage
+    acceptance:
+      - request_id correlaciona frontend backend y herramientas
+      - una respuesta puede reconstruirse extremo a extremo
+
+  - id: EPIC-006
+    name: semantic-streaming-ui
+    repo: frontend
+    priority: P0
+    outcome: chat con eventos tipados, progreso y citas
+    tasks:
+      - id: FE-050
+        title: definir schema AIStreamEvent con zod
+      - id: FE-051
+        title: implementar ai-stream service SSE
+      - id: FE-052
+        title: crear ChatStreamRenderer
+      - id: FE-053
+        title: crear ToolExecutionChip y UsageFootnote
+      - id: FE-054
+        title: renderizar citas incrementales
+    acceptance:
+      - usuario ve progreso real
+      - tools y citas aparecen en vivo
+      - errores y reconnects son claros
+
+  - id: EPIC-007
+    name: rag-unified
+    repo: backend
+    priority: P1
+    outcome: conocimiento unificado con citas internas
+    tasks:
+      - id: BE-050
+        title: crear source_documents source_chunks ingestion_jobs
+      - id: BE-051
+        title: diseñar chunking versionado
+      - id: BE-052
+        title: crear POST /api/rag/ingest
+      - id: BE-053
+        title: crear POST /api/rag/query
+      - id: BE-054
+        title: agregar citations internas en respuesta
+      - id: BE-055
+        title: integrar Batch API para embeddings masivos
+      - id: FE-060
+        title: CitationDrawer con navegación por fuente
+      - id: FE-061
+        title: KnowledgeSourcesPage
+    acceptance:
+      - filtros por tenant obligatorios
+      - cada chunk tiene source_id y chunk_id
+      - respuesta RAG muestra fuentes
+
+  - id: EPIC-008
+    name: realtime-ticket-inbox
+    repo: frontend
+    priority: P1
+    outcome: operación de tickets tipo inbox en tiempo real
+    tasks:
+      - id: FE-070
+        title: TicketInboxPage con lista y conversación
+      - id: FE-071
+        title: PresenceAvatars TypingIndicator ReadStateBadge
+      - id: FE-072
+        title: merge de timeline + chat
+      - id: BE-060
+        title: extender eventos socket ticket.presence.changed conversation.typing conversation.message.read
+    acceptance:
+      - desaparece polling en flujos principales
+      - presencia y unread/read son consistentes
+
+  - id: EPIC-009
+    name: multimodal-image-to-ticket
+    repo: both
+    priority: P1
+    outcome: foto -> borrador de ticket con score de confianza
+    tasks:
+      - id: BE-070
+        title: endpoint POST /tickets/{tipo}/crear_desde_imagen
+      - id: BE-071
+        title: moderación y análisis multimodal de imagen
+      - id: BE-072
+        title: schema estructurado de salida
+      - id: FE-080
+        title: ImageUploadDropzone y ImageAnalysisPreview
+      - id: FE-081
+        title: SuggestedFieldsForm y ConfidenceMeter
+    acceptance:
+      - nunca crea ticket silenciosamente
+      - muestra confianza y editable preview
+
+  - id: EPIC-010
+    name: browser-voice-webrtc
+    repo: both
+    priority: P1
+    outcome: widget/panel con voz browser-first
+    tasks:
+      - id: BE-080
+        title: crear endpoint /api/realtime/session o /api/realtime/call
+      - id: BE-081
+        title: aplicar policy checks y TTL corto de sesión
+      - id: FE-090
+        title: implementar servicio webrtc/session
+      - id: FE-091
+        title: VoiceCallButton y estados de conexión
+      - id: FE-092
+        title: transcript parcial + handoff UI
+    acceptance:
+      - navegador conecta por WebRTC
+      - si falla voz, degrada a texto
+      - handoff humano visible
+
+  - id: EPIC-011
+    name: voice-qa-and-transcription
+    repo: backend
+    priority: P2
+    outcome: QA posterior de llamadas y monitoreo
+    tasks:
+      - id: BE-090
+        title: pipeline de transcripción completa
+      - id: BE-091
+        title: diarización de llamadas seleccionadas
+      - id: BE-092
+        title: resumen, score de calidad y next actions
+      - id: FE-100
+        title: panel de QA de llamadas
+    acceptance:
+      - llamada tiene transcript resumido y score
+      - se puede revisar handoff y calidad
+
+  - id: EPIC-012
+    name: analytics-cost-control
+    repo: both
+    priority: P1
+    outcome: costo y KPI por tenant/canal/modelo
+    tasks:
+      - id: BE-100
+        title: usage_event + rollups
+      - id: BE-101
+        title: endpoints /api/analytics/kpis y /api/analytics/costs
+      - id: FE-110
+        title: AnalyticsCostsPage
+      - id: FE-111
+        title: gráficos FRT ART deflection cost per conversation
+    acceptance:
+      - operador/admin ve costo por tenant
+      - se detectan modelos caros o flujos ineficientes
+
+  - id: EPIC-013
+    name: batch-background-jobs
+    repo: backend
+    priority: P2
+    outcome: cargas masivas y tareas largas fuera del request cycle
+    tasks:
+      - id: BE-110
+        title: worker de embeddings por Batch API
+      - id: BE-111
+        title: background mode para reportes largos
+      - id: BE-112
+        title: jobs nocturnos de reclasificación y moderación
+    acceptance:
+      - reindexado masivo no bloquea tráfico interactivo
+      - tareas largas tienen estado recuperable
+
+  - id: EPIC-014
+    name: evals-release-gates
+    repo: backend
+    priority: P1
+    outcome: calidad IA medible antes de deploy
+    tasks:
+      - id: BE-120
+        title: dataset municipio-faq
+      - id: BE-121
+        title: dataset pyme-catalog-search
+      - id: BE-122
+        title: dataset policy-safety
+      - id: BE-123
+        title: graders y thresholds
+      - id: BE-124
+        title: pipeline CI para ejecutar evals
+    acceptance:
+      - cada release IA tiene score histórico
+      - cambios regresivos quedan bloqueados
