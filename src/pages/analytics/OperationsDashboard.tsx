@@ -11,7 +11,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
 
 export function OperationsDashboard() {
-  const { data, loading, error } = useAnalyticsDashboard('operaciones');
+  const { data, loading, error, warning } = useAnalyticsDashboard('operaciones');
   const { setBoundingBox } = useAnalyticsFilters();
 
   const operations = data.operations;
@@ -33,6 +33,13 @@ export function OperationsDashboard() {
             {isSelectionError ? 'Seleccioná una entidad' : 'No se pudieron cargar los datos'}
           </AlertTitle>
           <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
+      {!error && warning ? (
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Alerta de conexión</AlertTitle>
+          <AlertDescription>{warning}</AlertDescription>
         </Alert>
       ) : null}
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">

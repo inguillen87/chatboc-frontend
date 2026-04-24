@@ -1,54 +1,134 @@
 import { useState, useEffect } from 'react';
 import { apiFetch } from '@/utils/api';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
-import { Horario } from '@/types/tickets';
+interface LiveChatSchedule {
+  enabled?: boolean;
+  socket_transport_hint?: 'polling' | 'websocket';
+  socket_transports?: Array<'polling' | 'websocket'>;
+  socket_fallback_enabled?: boolean;
+  available?: boolean;
+  description?: string;
+  days?: string[];
+  start_time?: string;
+  end_time?: string;
+  timezone?: string;
+}
+
+
+const resolveTransportHintKey = (tenantSlug?: string | null) =>
+  `chatboc_socket_transport_hint:${tenantSlug || 'default'}`;
+const resolveTransportListKey = (tenantSlug?: string | null) =>
+  `chatboc_socket_transports:${tenantSlug || 'default'}`;
+const resolveTransportFallbackEnabledKey = (tenantSlug?: string | null) =>
+  `chatboc_socket_fallback_enabled:${tenantSlug || 'default'}`;
 
 interface BusinessHours {
   isLiveChatEnabled: boolean;
   horariosAtencion: string;
+  availabilityLabel: string;
+  timezone?: string;
 }
 
-export const useBusinessHours = (entityToken?: string): BusinessHours => {
+export const useBusinessHours = (entityToken?: string, tenantSlug?: string | null): BusinessHours => {
   const [businessHours, setBusinessHours] = useState<BusinessHours>({
     isLiveChatEnabled: false,
     horariosAtencion: '',
+    availabilityLabel: '',
+    timezone: '',
   });
 
   useEffect(() => {
     const fetchProfile = async () => {
       try {
         const authToken = safeLocalStorage.getItem('authToken');
-        let profile: any = null;
 
-        if (authToken) {
-          profile = await apiFetch<any>('/auth/profile');
-        } else if (entityToken) {
-          profile = await apiFetch<any>('/perfil', { skipAuth: true, entityToken });
-        } else {
-          return; // No token available; do not fetch
+        if (!authToken && !entityToken && !tenantSlug) {
+          return;
         }
 
-        if (profile && profile.horario) {
-          const { start_hour, end_hour } = profile.horario as Horario;
-          if (typeof start_hour === 'number' && typeof end_hour === 'number') {
-            const now = new Date();
-            const currentHour = now.getHours();
-            const isLiveChatEnabled = currentHour >= start_hour && currentHour < end_hour;
-            const horariosAtencion = `Lunes a Viernes de ${start_hour}:00 a ${end_hour}:00`;
+        const tenantAwarePath = tenantSlug ? `/api/${tenantSlug}/live-chat/schedule` : null;
+        const candidatePaths = tenantSlug
+          ? [
+              tenantAwarePath,
+              '/api/demo/live-chat/schedule',
+              '/api/live-chat/schedule',
+              '/live-chat/schedule',
+            ].filter((path): path is string => Boolean(path))
+          : ['/live-chat/schedule', '/api/live-chat/schedule'];
 
-            setBusinessHours({
-              isLiveChatEnabled,
-              horariosAtencion,
+        let schedule: LiveChatSchedule | null = null;
+        let lastError: unknown = null;
+
+        for (const path of candidatePaths) {
+          try {
+            schedule = await apiFetch<LiveChatSchedule>(path, {
+              skipAuth: !authToken,
+              entityToken,
+              tenantSlug,
             });
+            break;
+          } catch (error) {
+            lastError = error;
           }
         }
+
+        if (!schedule) {
+          throw lastError ?? new Error('No se pudo cargar el horario de atención');
+        }
+
+        const description =
+          typeof schedule?.description === 'string' && schedule.description.trim()
+            ? schedule.description.trim()
+            : (() => {
+                const days = Array.isArray(schedule?.days)
+                  ? schedule.days.filter((day) => typeof day === 'string' && day.trim())
+                  : [];
+                const start = typeof schedule?.start_time === 'string' ? schedule.start_time.trim() : '';
+                const end = typeof schedule?.end_time === 'string' ? schedule.end_time.trim() : '';
+                const timeRange = [start, end].filter(Boolean).join(' - ');
+                const parts = [days.length ? days.join(', ') : '', timeRange].filter(Boolean);
+                return parts.join(' ');
+              })();
+
+        const available = Boolean(schedule?.enabled && schedule?.available);
+        const transportHint =
+          schedule?.socket_transport_hint === 'polling' || schedule?.socket_transport_hint === 'websocket'
+            ? schedule.socket_transport_hint
+            : null;
+        if (transportHint) {
+          safeLocalStorage.setItem(resolveTransportHintKey(tenantSlug), transportHint);
+        }
+
+        const transportList = Array.isArray(schedule?.socket_transports)
+          ? schedule.socket_transports.filter(
+              (transport): transport is 'polling' | 'websocket' =>
+                transport === 'polling' || transport === 'websocket',
+            )
+          : [];
+        if (transportList.length > 0) {
+          safeLocalStorage.setItem(resolveTransportListKey(tenantSlug), JSON.stringify(transportList));
+        }
+
+        if (typeof schedule?.socket_fallback_enabled === 'boolean') {
+          safeLocalStorage.setItem(
+            resolveTransportFallbackEnabledKey(tenantSlug),
+            schedule.socket_fallback_enabled ? '1' : '0',
+          );
+        }
+
+        setBusinessHours({
+          isLiveChatEnabled: available,
+          horariosAtencion: description,
+          availabilityLabel: available ? 'Asesores en línea' : 'Te respondemos en horario',
+          timezone: typeof schedule?.timezone === 'string' ? schedule.timezone : '',
+        });
       } catch (error) {
         console.error('Error fetching profile:', error);
       }
     };
 
     fetchProfile();
-  }, [entityToken]);
+  }, [entityToken, tenantSlug]);
 
   return businessHours;
 };

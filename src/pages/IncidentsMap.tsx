@@ -11,11 +11,11 @@ import {
   getTicketStats,
   getHeatmapPoints,
   HeatPoint,
+  HeatmapDataset,
   TicketStatsResponse,
 } from '@/services/statsService';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   JUNIN_DEMO_CENTER,
@@ -23,6 +23,9 @@ import {
   generateJuninDemoHeatmap,
   mergeAndSortStrings,
 } from '@/utils/demoHeatmap';
+import { useMapProvider } from '@/hooks/useMapProvider';
+import type { MapProvider, MapProviderUnavailableReason } from '@/hooks/useMapProvider';
+import { MapProviderToggle } from '@/components/MapProviderToggle';
 
 const HEATMAP_CACHE_LIMIT = 20;
 
@@ -93,18 +96,82 @@ export default function IncidentsMap() {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedStates, setSelectedStates] = useState<string[]>([]);
   const [availableBarrios, setAvailableBarrios] = useState<string[]>([]);
-  const [provider, setProvider] = useState<'maplibre' | 'google'>('maplibre');
+  const [availableDistritos, setAvailableDistritos] = useState<string[]>([]);
+  const [disableClustering, setDisableClustering] = useState(false);
+  const [timeRange, setTimeRange] = useState<'custom' | '7d' | '30d' | '90d'>('30d');
+  const { provider, setProvider } = useMapProvider();
+  const handleProviderUnavailable = useCallback(
+    (currentProvider: MapProvider, reason: MapProviderUnavailableReason, details?: unknown) => {
+      console.warn('[IncidentsMap] Map provider unavailable, falling back to MapLibre', {
+        provider: currentProvider,
+        reason,
+        details,
+      });
+      setProvider('maplibre');
+    },
+    [setProvider],
+  );
 
-  const heatmapCache = useRef<Map<string, HeatPoint[]>>(new Map());
+  const [heatmapBounds, setHeatmapBounds] = useState<[number, number][]>([]);
 
-  const applyHeatmapPoints = useCallback(
-    (points: HeatPoint[], options?: { mergeFilters?: boolean; fallback?: boolean }) => {
+  const heatmapCache = useRef<Map<string, HeatmapDataset>>(new Map());
+
+  const computeDisableClustering = useCallback((dataset: HeatmapDataset | null | undefined) => {
+    if (!dataset) {
+      return false;
+    }
+
+    const points = Array.isArray(dataset.points) ? dataset.points : [];
+    if (!points.length) {
+      return false;
+    }
+
+    if (Array.isArray(dataset.cells) && dataset.cells.length > 0) {
+      return true;
+    }
+
+    const metadata = dataset.metadata?.map?.heatmap;
+    if (metadata) {
+      if (typeof metadata.cellCount === 'number' && metadata.cellCount > 0) {
+        return true;
+      }
+      if (
+        typeof metadata.pointCount === 'number' &&
+        metadata.pointCount > points.length &&
+        points.length > 0
+      ) {
+        return true;
+      }
+    }
+
+    return points.some(
+      (point) =>
+        (typeof point.clusterSize === 'number' && point.clusterSize > 1) ||
+        Boolean(point.clusterId) ||
+        (Array.isArray(point.sampleTickets) && point.sampleTickets.length > 0) ||
+        (Array.isArray(point.aggregatedCategorias) && point.aggregatedCategorias.length > 0) ||
+        (Array.isArray(point.aggregatedEstados) && point.aggregatedEstados.length > 0) ||
+        (Array.isArray(point.aggregatedTipos) && point.aggregatedTipos.length > 0) ||
+        (Array.isArray(point.aggregatedBarrios) && point.aggregatedBarrios.length > 0) ||
+        (Array.isArray(point.aggregatedSeveridades) && point.aggregatedSeveridades.length > 0),
+    );
+  }, []);
+
+  const applyHeatmapDataset = useCallback(
+    (dataset: HeatmapDataset, options?: { mergeFilters?: boolean; fallback?: boolean }) => {
+      const points = dataset.points ?? [];
       setHeatmapData(points);
+      setDisableClustering(computeDisableClustering(dataset));
 
       const barrios = Array.from(
         new Set(points.map((d) => d.barrio).filter((b): b is string => Boolean(b))),
       ).sort((a, b) => a.localeCompare(b));
       setAvailableBarrios(barrios);
+
+      const distritos = Array.from(
+        new Set(points.map((d) => d.distrito).filter((d): d is string => Boolean(d))),
+      ).sort((a, b) => a.localeCompare(b));
+      setAvailableDistritos(distritos);
 
       if (options?.mergeFilters) {
         const categoriesFromPoints = Array.from(
@@ -122,6 +189,25 @@ export default function IncidentsMap() {
         }
       }
 
+      const mapMetadata = dataset.metadata?.map?.heatmap;
+      if (mapMetadata?.bounds && mapMetadata.bounds.length === 4) {
+        const [west, south, east, north] = mapMetadata.bounds;
+        if (
+          [west, south, east, north].every(
+            (value) => typeof value === 'number' && Number.isFinite(value),
+          )
+        ) {
+          setHeatmapBounds([
+            [west, south],
+            [east, north],
+          ]);
+        } else {
+          setHeatmapBounds([]);
+        }
+      } else {
+        setHeatmapBounds([]);
+      }
+
       if (points.length > 0) {
         const totalWeight = points.reduce((sum, p) => sum + (p.weight ?? 1), 0);
         const divisor = totalWeight > 0 ? totalWeight : points.length;
@@ -129,23 +215,59 @@ export default function IncidentsMap() {
         const avgLng = points.reduce((sum, p) => sum + p.lng * (p.weight ?? 1), 0) / divisor;
         if (!Number.isNaN(avgLat) && !Number.isNaN(avgLng)) {
           setCenter({ lat: avgLat, lng: avgLng });
+          return;
         }
-      } else if (options?.fallback) {
+      }
+
+      if (mapMetadata?.centroid) {
+        const [centroidLng, centroidLat] = mapMetadata.centroid;
+        if (
+          typeof centroidLat === 'number' &&
+          typeof centroidLng === 'number' &&
+          Number.isFinite(centroidLat) &&
+          Number.isFinite(centroidLng)
+        ) {
+          setCenter({ lat: centroidLat, lng: centroidLng });
+          return;
+        }
+      }
+
+      if (options?.fallback) {
         setCenter({ lat: JUNIN_DEMO_CENTER[1], lng: JUNIN_DEMO_CENTER[0] });
       } else if (adminCoords) {
         setCenter({ lat: adminCoords[1], lng: adminCoords[0] });
       }
     },
-    [adminCoords],
+    [adminCoords, computeDisableClustering],
   );
 
   const startDateRef = useRef<HTMLInputElement>(null);
   const endDateRef = useRef<HTMLInputElement>(null);
-  const districtRef = useRef<HTMLInputElement>(null);
+  const districtRef = useRef<HTMLSelectElement>(null);
   const barrioRef = useRef<HTMLSelectElement>(null);
   const genderRef = useRef<HTMLSelectElement>(null);
   const ageMinRef = useRef<HTMLInputElement>(null);
   const ageMaxRef = useRef<HTMLInputElement>(null);
+
+  const setDateRange = useCallback((range: 'custom' | '7d' | '30d' | '90d') => {
+    setTimeRange(range);
+    if (!startDateRef.current || !endDateRef.current) return;
+
+    if (range === 'custom') {
+      startDateRef.current.value = '';
+      endDateRef.current.value = '';
+      return;
+    }
+
+    const today = new Date();
+    const end = today.toISOString().slice(0, 10);
+    const days = range === '7d' ? 7 : range === '30d' ? 30 : 90;
+    const startDate = new Date(today);
+    startDate.setDate(today.getDate() - days);
+    const start = startDate.toISOString().slice(0, 10);
+    startDateRef.current.value = start;
+    endDateRef.current.value = end;
+  }, []);
 
   const ticketType = useMemo(() => (user?.tipo_chat === 'pyme' ? 'pyme' : 'municipio'), [user]);
 
@@ -154,6 +276,10 @@ export default function IncidentsMap() {
     setError(null);
 
     try {
+      if (timeRange !== 'custom') {
+        setDateRange(timeRange);
+      }
+
       const filters = {
         fecha_inicio: sanitizeFilterValue(startDateRef.current?.value),
         fecha_fin: sanitizeFilterValue(endDateRef.current?.value),
@@ -168,14 +294,13 @@ export default function IncidentsMap() {
 
       const heatmapKey = buildHeatmapCacheKey({
         ...filters,
-        tipo_ticket: ticketType,
         tipo: ticketType,
       });
 
       const cache = heatmapCache.current;
       const heatmapPromise = !forceRefresh && cache.has(heatmapKey)
-        ? Promise.resolve(cache.get(heatmapKey) ?? [])
-        : getHeatmapPoints({ tipo_ticket: ticketType, tipo: ticketType, ...filters }).then((data) => {
+        ? Promise.resolve(cache.get(heatmapKey) ?? { points: [] })
+        : getHeatmapPoints({ tipo: ticketType, ...filters }).then((data) => {
             cache.set(heatmapKey, data);
             if (cache.size > HEATMAP_CACHE_LIMIT) {
               const firstKey = cache.keys().next().value;
@@ -186,12 +311,13 @@ export default function IncidentsMap() {
             return data;
           });
 
-      const [heatmapPoints, stats] = await Promise.all([
+      const [heatmapDatasetResult, stats] = await Promise.all([
         heatmapPromise,
         getTicketStats({ tipo: ticketType, ...filters }),
       ]);
       setCharts(stats.charts || []);
 
+      const heatmapPoints = heatmapDatasetResult.points ?? [];
       let combinedHeatmap = heatmapPoints.length > 0 ? heatmapPoints : stats.heatmap ?? [];
       const usedFallback = combinedHeatmap.length === 0;
 
@@ -200,26 +326,35 @@ export default function IncidentsMap() {
         setError(JUNIN_DEMO_NOTICE);
       }
 
-      applyHeatmapPoints(combinedHeatmap, {
-        mergeFilters: usedFallback,
-        fallback: usedFallback,
-      });
+      applyHeatmapDataset(
+        heatmapPoints.length > 0
+          ? heatmapDatasetResult
+          : { points: combinedHeatmap, metadata: undefined },
+        {
+          mergeFilters: usedFallback,
+          fallback: usedFallback,
+        },
+      );
     } catch (err) {
       const message =
         err instanceof ApiError ? err.message : 'Error al cargar datos del mapa';
       setError(`${message}. ${JUNIN_DEMO_NOTICE}`);
       setCharts([]);
       const fallbackPoints = generateJuninDemoHeatmap();
-      applyHeatmapPoints(fallbackPoints, { mergeFilters: true, fallback: true });
+      applyHeatmapDataset({ points: fallbackPoints }, { mergeFilters: true, fallback: true });
       console.error('Error fetching map data:', err);
     } finally {
       setIsLoading(false);
     }
-  }, [ticketType, adminCoords, selectedCategories, selectedStates, applyHeatmapPoints]);
+  }, [ticketType, adminCoords, selectedCategories, selectedStates, applyHeatmapDataset, setDateRange, timeRange]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useEffect(() => {
+    setDateRange(timeRange);
+  }, [setDateRange, timeRange]);
 
   useEffect(() => {
     const categoriesUrl = ticketType === 'pyme' ? '/pyme/categorias' : '/municipal/categorias';
@@ -295,26 +430,23 @@ export default function IncidentsMap() {
               </div>
               <div className="pt-5">
                 <Label className="block text-sm font-medium text-muted-foreground mb-1">
-                  Proveedor de Mapa
+                  Motor de mapa
                 </Label>
-                <RadioGroup
-                  value={provider}
-                  onValueChange={(v) => setProvider(v as 'maplibre' | 'google')}
-                  className="flex space-x-4"
+                <p className="mb-1 text-xs text-muted-foreground">MapLibre GL (WebGL)</p>
+                <MapProviderToggle value={provider} onChange={setProvider} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-muted-foreground mb-1">Rango rápido</label>
+                <select
+                  className="mt-1 block w-full px-3 py-2 bg-input border-border text-foreground rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+                  value={timeRange}
+                  onChange={(e) => setDateRange(e.target.value as typeof timeRange)}
                 >
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="maplibre" id="provider-maplibre" />
-                    <Label htmlFor="provider-maplibre" className="text-sm text-muted-foreground">
-                      MapLibre
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="google" id="provider-google" />
-                    <Label htmlFor="provider-google" className="text-sm text-muted-foreground">
-                      Google
-                    </Label>
-                  </div>
-                </RadioGroup>
+                  <option value="7d">Últimos 7 días</option>
+                  <option value="30d">Últimos 30 días</option>
+                  <option value="90d">Últimos 90 días</option>
+                  <option value="custom">Personalizado</option>
+                </select>
               </div>
               <div>
                 <label htmlFor="startDate" className="block text-sm font-medium text-muted-foreground mb-1">
@@ -325,6 +457,7 @@ export default function IncidentsMap() {
                   id="startDate"
                   ref={startDateRef}
                   className="mt-1 block w-full px-3 py-2 bg-input border-border text-foreground rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+                  disabled={timeRange !== 'custom'}
                 />
               </div>
               <div>
@@ -336,6 +469,7 @@ export default function IncidentsMap() {
                   id="endDate"
                   ref={endDateRef}
                   className="mt-1 block w-full px-3 py-2 bg-input border-border text-foreground rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+                  disabled={timeRange !== 'custom'}
                 />
               </div>
               <div>
@@ -405,13 +539,18 @@ export default function IncidentsMap() {
                 <label htmlFor="district" className="block text-sm font-medium text-muted-foreground mb-1">
                   Distrito
                 </label>
-                <input
-                  type="text"
+                <select
                   id="district"
                   ref={districtRef}
                   className="mt-1 block w-full px-3 py-2 bg-input border-border text-foreground rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
-                  placeholder="Ej: Centro"
-                />
+                >
+                  <option value="">Todos</option>
+                  {availableDistritos.map((d) => (
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label htmlFor="gender" className="block text-sm font-medium text-muted-foreground mb-1">
@@ -486,6 +625,9 @@ export default function IncidentsMap() {
           heatmapData={heatmapData}
           showHeatmap={showHeatmap}
           className="h-[600px]"
+          fitToBounds={heatmapBounds.length === 2 ? heatmapBounds : undefined}
+          onProviderUnavailable={handleProviderUnavailable}
+          disableClientClustering={disableClustering}
         />
         <div className="absolute bottom-2 left-2 bg-background/80 text-foreground px-2 py-1 rounded shadow text-xs">
           {legendText}
@@ -509,4 +651,3 @@ export default function IncidentsMap() {
     </div>
   );
 }
-

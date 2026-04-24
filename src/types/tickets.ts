@@ -1,15 +1,23 @@
-import { Boton, StructuredContentItem } from './chat';
+import { Boton, StructuredContentItem } from "./chat";
 
-export type TicketStatus = 'nuevo' | 'abierto' | 'en-espera' | 'resuelto' | 'cerrado' | 'en_proceso';
-export type TicketPriority = 'baja' | 'media' | 'alta' | 'urgente';
+export type TicketStatus =
+  | "nuevo"
+  | "abierto"
+  | "en-espera"
+  | "resuelto"
+  | "cerrado"
+  | "en_proceso"
+  | "esperando_agente_en_vivo"
+  | "en_vivo";
+export type TicketPriority = "baja" | "media" | "alta" | "urgente";
 
 export interface Horario {
-    start_hour: number;
-    end_hour: number;
+  start_hour: number;
+  end_hour: number;
 }
 
 export interface User {
-  id: string;
+  id: string | number;
   nombre_usuario: string;
   email: string;
   email_usuario?: string;
@@ -17,6 +25,8 @@ export interface User {
   location?: string;
   phone?: string;
   horario?: Horario;
+  categoria_ids?: number[];
+  categorias?: { id: number; nombre: string }[];
 }
 
 export interface AttachmentAnalysisData {
@@ -48,12 +58,14 @@ export interface Attachment {
 }
 
 export interface Message {
-  id: number;
-  author: 'user' | 'agent';
+  id: number | string;
+  author: "user" | "agent";
   agentName?: string;
   content: string; // Corresponds to 'text' in ChatMessageData
   timestamp: string; // Corresponds to 'timestamp'
   isInternalNote?: boolean;
+  readAt?: string | null;
+  lastReadBy?: string | null;
 
   // Fields to align with ChatMessageData
   attachments?: Attachment[];
@@ -63,7 +75,7 @@ export interface Message {
 
   // Optional fields from original Message type in tickets
   media_url?: string;
-  ubicacion?: { lat: number; lon: number; name?: string; address?: string; };
+  ubicacion?: { lat: number; lon: number; name?: string; address?: string };
 }
 
 export interface InformacionPersonalVecino {
@@ -81,7 +93,7 @@ export interface TicketHistoryEvent {
 }
 
 export interface TicketTimelineEvent {
-  tipo: 'ticket_creado' | 'comentario' | 'estado';
+  tipo: "ticket_creado" | "comentario" | "estado";
   fecha: string;
   estado?: string;
   texto?: string;
@@ -90,15 +102,70 @@ export interface TicketTimelineEvent {
   user_id?: number;
 }
 
+export interface TicketRealtimeViewer {
+  viewer_id?: string | null;
+  viewer_label?: string | null;
+  viewer_name?: string | null;
+  session_id?: string | null;
+  presence_status?: string | null;
+  effective_presence_status?: string | null;
+  last_read_comment_id?: string | number | null;
+  read_at?: string | null;
+  updated_at?: string | null;
+  is_current_viewer?: boolean;
+}
+
+export interface TicketRealtimeState {
+  viewers: TicketRealtimeViewer[];
+  active_viewers: TicketRealtimeViewer[];
+  read_states: TicketRealtimeViewer[];
+  summary?: {
+    active_count?: number;
+    idle_count?: number;
+    read_count?: number;
+    last_read_comment_id?: string | number | null;
+  } | null;
+}
+
+export interface TicketCollaborationState {
+  latest_comment_id?: string | number | null;
+  latest_read_at?: string | null;
+  unread_count?: number;
+  has_unread?: boolean;
+  unread_viewer_count?: number;
+  active_viewers_count?: number;
+  idle_viewer_count?: number;
+  idle_window_minutes?: number;
+}
+
+
+export interface UnifiedConversationStreamItem {
+  id: string;
+  timestamp: string;
+  source?: string | null;
+  stream_type?: string | null;
+  actor_type: 'agent' | 'citizen' | 'system';
+  preview_text: string;
+  status?: string | null;
+  badge?: string | null;
+  is_read?: boolean;
+  is_unread?: boolean;
+  payload?: Record<string, unknown> | null;
+  raw?: Record<string, unknown> | null;
+}
+
 export interface TicketTimelineResponse {
   estado_chat: string;
   timeline: TicketTimelineEvent[];
+  realtime_state?: TicketRealtimeState | null;
+  unified_conversation_stream?: UnifiedConversationStreamItem[] | Array<Record<string, unknown>> | null;
 }
 
 export interface Ticket {
   id: number;
-  tipo: 'municipio' | 'pyme';
-  nro_ticket: string;
+  tenant_id?: number; // Added for Pyme support
+  tipo: "municipio" | "pyme";
+  nro_ticket: string; // For Pyme this is a string representation of an Integer
   asunto: string;
   estado: TicketStatus;
   fecha: string; // ISO format
@@ -127,6 +194,10 @@ export interface Ticket {
   avatarUrl?: string;
   history?: TicketHistoryEvent[];
 
+  categoria_id?: number;
+  categoria_ids?: number[];
+  categorias?: { id: number; nombre?: string }[];
+
   // Pyme specific fields
   telefono?: string;
   email?: string;
@@ -145,14 +216,37 @@ export interface Ticket {
   activityLog?: any[];
   hasUnreadMessages?: boolean;
 
+  assignedAgentId?: string | number;
+  assigned_agent_id?: string | number;
+
   // For backwards compatibility and flexibility
   user?: User;
   nombre_usuario?: string;
   title?: string; // Keep for components that might still use it
   lastMessage?: string; // Keep for components that might still use it
   description?: string;
-  channel?: 'whatsapp' | 'web' | 'email' | 'phone' | 'other';
+  channel?: "whatsapp" | "web" | "email" | "phone" | "other";
   assignedAgent?: User;
   whatsapp_conversation_id?: string;
   foto_url_directa?: string;
+
+  // Tenant/Branding info
+  tenant_slug?: string;
+  tenant_logo?: string;
+  tenant_theme?: any;
+
+  // Operational context
+  sla_status?: string | null;
+  operational_badges?:
+    | string[]
+    | Array<{ label?: string; text?: string; value?: string }>;
+  operational_metrics?:
+    | Record<string, unknown>
+    | Array<{ label?: string; value?: string | number | null }>;
+  priority?: string | number | null;
+  priority_score?: number | null;
+  priority_breakdown?: Record<string, unknown> | null;
+  recommended_next_action?: string | null;
+  realtime_state?: TicketRealtimeState | null;
+  collaboration_state?: TicketCollaborationState | null;
 }

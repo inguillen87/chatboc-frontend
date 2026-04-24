@@ -1,0 +1,165 @@
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
+import { useLocation } from 'react-router-dom';
+
+import type { MarketCartItem, MarketCartResponse, MarketCommercialState, MarketContinuity, MarketCustomerProfile } from '@/types/market';
+import { addMarketItem, fetchMarketCart } from '@/api/market';
+import { persistStoredCart, readStoredCart } from '@/utils/marketStorage';
+
+interface MarketCartContextValue {
+  items: MarketCartItem[];
+  totalAmount: number | null;
+  totalPoints: number | null;
+  isLoading: boolean;
+  error: string | null;
+  customerProfile: MarketCustomerProfile | null;
+  commercialState: MarketCommercialState | null;
+  continuity: MarketContinuity | null;
+  refreshCart: () => Promise<void>;
+  addItem: (productId: string, quantity?: number) => Promise<void>;
+}
+
+const MarketCartContext = createContext<MarketCartContextValue | undefined>(undefined);
+
+interface ProviderProps {
+  tenantSlug: string | null;
+  children: ReactNode;
+}
+
+const normalizeCartItems = (raw: any): MarketCartItem[] => {
+  if (!Array.isArray(raw)) return [];
+
+  return raw.map((item, index) => {
+    const id = item?.id ?? item?.product_id ?? `product-${index}`;
+    return {
+      id: String(id),
+      name: item?.name ?? item?.nombre ?? 'Producto',
+      quantity: typeof item?.quantity === 'number' ? item.quantity : 1,
+      price: typeof item?.price === 'number' ? item.price : null,
+      points: typeof item?.points === 'number' ? item.points : null,
+      imageUrl: item?.imageUrl ?? item?.imagen ?? null,
+      priceText:
+        item?.priceText ??
+        item?.precio_texto ??
+        item?.price_text ??
+        (typeof item?.precio === 'string' ? item.precio : null),
+      currency: typeof item?.currency === 'string' ? item.currency : item?.moneda ?? null,
+    };
+  });
+};
+
+export function MarketCartProvider({ tenantSlug, children }: ProviderProps) {
+  const location = useLocation();
+  const storedCart = tenantSlug ? readStoredCart(tenantSlug) : { items: [], totalAmount: null, totalPoints: null };
+  const [items, setItems] = useState<MarketCartItem[]>(normalizeCartItems(storedCart.items ?? []));
+  const [totalAmount, setTotalAmount] = useState<number | null>(typeof storedCart.totalAmount === 'number' ? storedCart.totalAmount : null);
+  const [totalPoints, setTotalPoints] = useState<number | null>(typeof storedCart.totalPoints === 'number' ? storedCart.totalPoints : null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [customerProfile, setCustomerProfile] = useState<MarketCustomerProfile | null>(null);
+  const [commercialState, setCommercialState] = useState<MarketCommercialState | null>(null);
+  const [continuity, setContinuity] = useState<MarketContinuity | null>(null);
+  const shouldDisableCartRequests = useMemo(() => {
+    const pathname = location.pathname || '';
+    return /^\/(?:[^/]+\/)?(?:admin|analytics|municipal)(?:\/|$)/.test(pathname);
+  }, [location.pathname]);
+
+  const refreshCart = useCallback(async () => {
+    if (!tenantSlug) {
+      setItems([]);
+      setTotalAmount(null);
+      setTotalPoints(null);
+      setCustomerProfile(null);
+      setCommercialState(null);
+      setContinuity(null);
+      return;
+    }
+    if (shouldDisableCartRequests) {
+      setItems([]);
+      setTotalAmount(null);
+      setTotalPoints(null);
+      setCustomerProfile(null);
+      setCommercialState(null);
+      setContinuity(null);
+      setError(null);
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetchMarketCart(tenantSlug);
+      const resolvedItems = normalizeCartItems(response?.items ?? []);
+      setItems(resolvedItems);
+      setTotalAmount(response?.totalAmount ?? null);
+      setTotalPoints(response?.totalPoints ?? null);
+      persistStoredCart(tenantSlug, {
+        items: resolvedItems,
+        totalAmount: response?.totalAmount ?? null,
+        totalPoints: response?.totalPoints ?? null,
+      });
+      setCustomerProfile(response?.customer_profile ?? null);
+      setCommercialState(response?.commercial_state ?? null);
+      setContinuity(response?.continuity ?? null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo cargar el carrito.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [shouldDisableCartRequests, tenantSlug]);
+
+  const addItem = useCallback(
+    async (productId: string, quantity = 1) => {
+      if (!tenantSlug) return;
+      setIsLoading(true);
+      setError(null);
+      try {
+        const response = await addMarketItem(tenantSlug, { productId, quantity });
+        const resolvedItems = normalizeCartItems(response?.items ?? []);
+        setItems(resolvedItems);
+        setTotalAmount(response?.totalAmount ?? null);
+        setTotalPoints(response?.totalPoints ?? null);
+        persistStoredCart(tenantSlug, {
+          items: resolvedItems,
+          totalAmount: response?.totalAmount ?? null,
+          totalPoints: response?.totalPoints ?? null,
+        });
+        setCustomerProfile(response?.customer_profile ?? null);
+        setCommercialState(response?.commercial_state ?? null);
+        setContinuity(response?.continuity ?? null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'No se pudo agregar el producto.');
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [tenantSlug],
+  );
+
+  useEffect(() => {
+    refreshCart().catch(() => {});
+  }, [refreshCart]);
+
+  const value = useMemo<MarketCartContextValue>(
+    () => ({ items, totalAmount, totalPoints, isLoading, error, customerProfile, commercialState, continuity, refreshCart, addItem }),
+    [items, totalAmount, totalPoints, isLoading, error, customerProfile, commercialState, continuity, refreshCart, addItem],
+  );
+
+  return <MarketCartContext.Provider value={value}>{children}</MarketCartContext.Provider>;
+}
+
+export function useMarketCart() {
+  const ctx = useContext(MarketCartContext);
+  if (!ctx) {
+    throw new Error('useMarketCart debe usarse dentro de MarketCartProvider');
+  }
+  return ctx;
+}

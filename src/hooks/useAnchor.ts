@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import { createSnapshot, listSnapshots, publishSnapshot, verifyResponse } from '@/api/encuestas';
 import type { SurveySnapshot } from '@/types/encuestas';
 import { getErrorMessage } from '@/utils/api';
+import { queryKeys } from '@/lib/queryKeys';
 
 interface UseAnchorResult {
   snapshots: SurveySnapshot[] | undefined;
@@ -22,8 +23,9 @@ export function useAnchor(id?: number | null): UseAnchorResult {
   const normalizedId = useMemo(() => (typeof id === 'number' ? id : null), [id]);
 
   const query = useQuery({
-    queryKey: ['survey-snapshots', normalizedId],
+    queryKey: queryKeys.surveys.snapshots(normalizedId ?? 'missing'),
     enabled: normalizedId !== null,
+    retry: false,
     queryFn: () => (normalizedId !== null ? listSnapshots(normalizedId) : Promise.reject('No id provided')),
   });
 
@@ -31,7 +33,7 @@ export function useAnchor(id?: number | null): UseAnchorResult {
     mutationFn: async (payload?: { rango?: string }) => {
       if (normalizedId === null) throw new Error('No survey id provided');
       const snapshot = await createSnapshot(normalizedId, payload);
-      await queryClient.invalidateQueries({ queryKey: ['survey-snapshots', normalizedId] });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.surveys.snapshots(normalizedId ?? 'missing') });
       return snapshot;
     },
   });
@@ -40,7 +42,7 @@ export function useAnchor(id?: number | null): UseAnchorResult {
     mutationFn: async (snapshotId: number) => {
       if (normalizedId === null) throw new Error('No survey id provided');
       const snapshot = await publishSnapshot(normalizedId, snapshotId);
-      await queryClient.invalidateQueries({ queryKey: ['survey-snapshots', normalizedId] });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.surveys.snapshots(normalizedId ?? 'missing') });
       return snapshot;
     },
   });

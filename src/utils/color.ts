@@ -28,3 +28,20 @@ export function hexToHsl(hex: string): string {
   }
   return `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`;
 }
+
+export function getContrastColorHsl(hex: string): string {
+  const normalized = hex.trim().replace('#', '');
+  if (normalized.length !== 3 && normalized.length !== 6) {
+    return '0 0% 100%'; // Default white
+  }
+
+  const r = parseInt(normalized.length === 3 ? normalized[0] + normalized[0] : normalized.substring(0,2), 16);
+  const g = parseInt(normalized.length === 3 ? normalized[1] + normalized[1] : normalized.substring(2,4), 16);
+  const b = parseInt(normalized.length === 3 ? normalized[2] + normalized[2] : normalized.substring(4,6), 16);
+
+  // Calculate YIQ brightness
+  const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+
+  // Returns black for bright colors, white for dark colors
+  return (yiq >= 128) ? '0 0% 0%' : '0 0% 100%';
+}

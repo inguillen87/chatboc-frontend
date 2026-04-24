@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import * as db from '../server/db.cjs';
-import { getMunicipalAnalytics } from '../server/municipalAnalytics.cjs';
+import * as db from '../db.js';
+import { getMunicipalAnalytics } from '../municipalAnalytics.js';
 
 describe('getMunicipalAnalytics', () => {
   it('should return municipal analytics', () => {

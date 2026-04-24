@@ -1,19 +1,35 @@
 import React, { useEffect } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
+import { Outlet, useLocation, useSearchParams } from 'react-router-dom';
 import Navbar from './Navbar';
 import Footer from './Footer';
 import ScrollToTopButton from '../ui/ScrollToTopButton';
+import DemoModeBanner from './DemoModeBanner';
+import { AppShellStatusBar } from '@/components/app-shell/AppShellStatusBar';
 
 const Layout = () => {
   const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const isEmbed = searchParams.get('mode') === 'embed';
 
   // Scroll al top cada vez que cambias de ruta
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [location.pathname]);
 
+  if (isEmbed) {
+    return (
+      <div className="flex flex-col min-h-screen bg-transparent">
+        <main className="flex-1 w-full">
+          <Outlet />
+        </main>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col min-h-screen bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 transition-colors duration-300">
+    <div className="flex flex-col min-h-screen bg-background text-foreground transition-colors duration-300">
+      <DemoModeBanner />
+      <AppShellStatusBar />
       <Navbar />
       <main className="flex-1 pt-20 px-4 sm:px-6 md:px-8 lg:px-16 max-w-7xl mx-auto w-full">
         <Outlet />

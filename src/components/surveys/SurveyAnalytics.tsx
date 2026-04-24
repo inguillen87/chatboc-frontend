@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useCallback, useEffect, useRef, useState } from 'react';
 import {
   Bar,
   BarChart,
@@ -19,48 +19,634 @@ import MapLibreMap from '@/components/MapLibreMap';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import type { SurveyHeatmapPoint, SurveySummary, SurveyTimeseriesPoint } from '@/types/encuestas';
+import { MapProviderToggle } from '@/components/MapProviderToggle';
+import { useMapProvider } from '@/hooks/useMapProvider';
+import type { MapProvider, MapProviderUnavailableReason } from '@/hooks/useMapProvider';
+import type {
+  SurveyAnalyticsFilters,
+  SurveyDemographicBreakdownItem,
+  SurveyAnalyticsHeatmap,
+  SurveyHeatmapPoint,
+  SurveySummary,
+  SurveyTimeseriesPoint,
+} from '@/types/encuestas';
+import { enterpriseService } from '@/services/enterpriseService';
+import { MeasuredContainer } from '@/components/analytics/MeasuredContainer';
 
 interface SurveyAnalyticsProps {
   summary?: SurveySummary;
   timeseries?: SurveyTimeseriesPoint[];
   heatmap?: SurveyHeatmapPoint[];
+  heatmapMeta?: SurveyAnalyticsHeatmap['metadata'];
   onExport: () => Promise<void>;
   isExporting?: boolean;
+  filters?: SurveyAnalyticsFilters;
+  onFiltersChange?: (next: SurveyAnalyticsFilters) => void;
+  tenantSlug?: string;
+  tenantId?: number;
+  route?: string;
 }
 
 const palette = ['#2563eb', '#7c3aed', '#059669', '#ea580c', '#f59e0b', '#db2777'];
+const CHART_ANIMATION_DURATION = 650;
+const CHART_ANIMATION_EASING = 'ease-out';
 
-const buildTimeseriesData = (points?: SurveyTimeseriesPoint[]) =>
-  (points ?? []).map((point) => ({
-    fecha: new Date(point.fecha).toLocaleDateString(),
-    respuestas: point.respuestas,
-  }));
+const colorFromCategory = (value: string, fallbackIndex = 0) => {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return palette[fallbackIndex % palette.length];
+  let hash = 0;
+  for (let i = 0; i < normalized.length; i += 1) hash = (hash << 5) - hash + normalized.charCodeAt(i);
+  return palette[Math.abs(hash) % palette.length];
+};
+const DEMOGRAPHIC_LABELS: Record<string, string> = {
+  genero: 'Género',
+  generos: 'Género',
+  rango_etario: 'Rango etario',
+  rangos_etarios: 'Rangos etarios',
+  rangoEtario: 'Rango etario',
+  rangosEtarios: 'Rangos etarios',
+  pais: 'País',
+  paises: 'País',
+  provincia: 'Provincia',
+  provincias: 'Provincia',
+  ciudad: 'Ciudad',
+  ciudades: 'Ciudad',
+  barrio: 'Barrio',
+  barrios: 'Barrio',
+};
 
-const buildOptionBreakdown = (summary?: SurveySummary) =>
-  summary?.preguntas.flatMap((pregunta) =>
-    pregunta.opciones.map((opcion) => ({
-      pregunta: pregunta.texto,
-      opcion: opcion.texto,
-      respuestas: opcion.respuestas,
-      porcentaje: opcion.porcentaje,
-    })),
-  ) ?? [];
+const normalizeDemographicLabel = (key: string) =>
+  DEMOGRAPHIC_LABELS[key] ?? key.replace(/[_-]+/g, ' ').replace(/\b\w/g, (match) => match.toUpperCase());
 
-export const SurveyAnalytics = ({ summary, timeseries, heatmap, onExport, isExporting }: SurveyAnalyticsProps) => {
+const buildDemographicData = (items: SurveyDemographicBreakdownItem[]) =>
+  items
+    .filter((item) => typeof item?.respuestas === 'number')
+    .map((item, index) => {
+      const label = item.etiqueta ?? item.clave ?? 'Sin dato';
+      return {
+        label,
+        value: item.respuestas,
+        percentage: typeof item.porcentaje === 'number' ? item.porcentaje : undefined,
+        key: `${item.clave ?? label}-${index}`,
+      };
+    });
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const getNestedValue = (value: unknown, path: string[]): unknown => {
+  let current: unknown = value;
+  for (const segment of path) {
+    if (!isRecord(current)) {
+      return undefined;
+    }
+    current = current[segment];
+  }
+  return current;
+};
+
+const extractNumberFromRecord = (
+  record: Record<string, unknown> | null,
+  keys: Array<string | string[]>,
+): number | null => {
+  if (!record) return null;
+
+  for (const key of keys) {
+    const path = Array.isArray(key) ? key : [key];
+    const raw = getNestedValue(record, path);
+    const normalized = toFiniteNumber(raw);
+    if (normalized !== null) {
+      return normalized;
+    }
+  }
+
+  return null;
+};
+
+const getArray = <T = unknown,>(value: unknown): T[] => {
+  if (Array.isArray(value)) return value as T[];
+  if (isRecord(value)) {
+    const { data, items, results, values, entries, list } = value as {
+      data?: unknown;
+      items?: unknown;
+      results?: unknown;
+      values?: unknown;
+      entries?: unknown;
+      list?: unknown;
+    };
+    if (Array.isArray(data)) return data as T[];
+    if (Array.isArray(items)) return items as T[];
+    if (Array.isArray(results)) return results as T[];
+    if (Array.isArray(values)) return values as T[];
+    if (Array.isArray(entries)) return entries as T[];
+    if (Array.isArray(list)) return list as T[];
+    const numericKeys = Object.keys(value).every((key) => /^\d+$/.test(key));
+    if (numericKeys) return Object.values(value) as T[];
+  }
+  return [];
+};
+
+const getArrayOrObjectValues = <T = unknown,>(value: unknown): T[] => {
+  const directArray = getArray<T>(value);
+  if (directArray.length) return directArray;
+  if (isRecord(value)) {
+    const objectValues = Object.values(value);
+    const hasCollectionValues = objectValues.some((item) => Array.isArray(item) || isRecord(item));
+    if (hasCollectionValues) return objectValues as T[];
+    return [value as T];
+  }
+  return [];
+};
+
+const toFiniteNumber = (value: unknown): number | null => {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null;
+  }
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+};
+
+const toNonEmptyString = (value: unknown): string | null => {
+  if (typeof value === 'string' && value.trim()) return value;
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return null;
+};
+
+
+const normalizeMapProvider = (value: unknown): MapProvider | null => {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return null;
+  if (normalized === 'maplibre' || normalized === 'maptiler') return 'maplibre';
+  if (normalized === 'google') return 'google';
+  return null;
+};
+
+const toStringList = (value: unknown): string[] => {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
+};
+
+const extractTimeseriesPoint = (value: unknown): SurveyTimeseriesPoint | null => {
+  if (!isRecord(value)) return null;
+  const rawDate =
+    toNonEmptyString(value.fecha ?? value.date ?? value.dia ?? value.day ?? value.periodo ?? value.period) ?? null;
+  const respuestas =
+    toFiniteNumber(value.respuestas ?? value.total ?? value.count ?? value.valor ?? value.value) ?? null;
+  if (!rawDate || respuestas === null) return null;
+  return { fecha: rawDate, respuestas } satisfies SurveyTimeseriesPoint;
+};
+
+const buildTimeseriesData = (points?: SurveyTimeseriesPoint[] | unknown) => {
+  const candidates = getArray(points);
+  const source = candidates.length ? candidates : isRecord(points) ? [points] : [];
+  return source
+    .map((point) => extractTimeseriesPoint(point))
+    .filter((point): point is SurveyTimeseriesPoint => Boolean(point))
+    .map((point) => ({
+      fecha: new Date(point.fecha).toLocaleDateString(),
+      respuestas: point.respuestas,
+    }));
+};
+
+type OptionCandidate = { value: unknown; fallbackLabel?: string };
+
+const collectOptionCandidates = (raw: unknown): OptionCandidate[] => {
+  const arrayCandidates = getArray(raw);
+  if (arrayCandidates.length) {
+    return arrayCandidates.map((value) => ({ value }));
+  }
+  if (isRecord(raw)) {
+    const looksLikeSingleItem =
+      'texto' in raw ||
+      'opcion' in raw ||
+      'label' in raw ||
+      'nombre' in raw ||
+      'name' in raw ||
+      'respuestas' in raw ||
+      'total' in raw ||
+      'count' in raw ||
+      'valor' in raw ||
+      'value' in raw;
+    if (looksLikeSingleItem) {
+      return [{ value: raw }];
+    }
+    return Object.entries(raw).map(([key, value]) => ({ value, fallbackLabel: key }));
+  }
+  if (raw !== null && raw !== undefined) {
+    return [{ value: raw }];
+  }
+  return [];
+};
+
+const extractOptionItem = (
+  candidate: OptionCandidate,
+  preguntaLabel: string,
+  index: number,
+): { pregunta: string; opcion: string; respuestas: number; porcentaje?: number } | null => {
+  const { value, fallbackLabel } = candidate;
+  const container = isRecord(value) ? value : {};
+  const opcion =
+    toNonEmptyString(
+      container.texto ??
+        container.opcion ??
+        container.label ??
+        container.nombre ??
+        container.name ??
+        (typeof value === 'string' ? value : undefined) ??
+        fallbackLabel,
+    ) ?? `Opción ${index + 1}`;
+  const respuestas =
+    toFiniteNumber(
+      container.respuestas ??
+        container.total ??
+        container.count ??
+        container.valor ??
+        container.value ??
+        (typeof value === 'number' ? value : null),
+    );
+  if (respuestas === null) return null;
+  const porcentaje =
+    toFiniteNumber(container.porcentaje ?? container.percent ?? container.pct ?? container.percentage) ?? undefined;
+  return {
+    pregunta: preguntaLabel,
+    opcion,
+    respuestas,
+    porcentaje: porcentaje ?? undefined,
+  };
+};
+
+const buildOptionBreakdown = (
+  summary?: SurveySummary,
+  summaryRecord: Record<string, unknown> | null = null,
+) => {
+  const record =
+    summaryRecord ?? (summary && typeof summary === 'object'
+      ? (summary as unknown as Record<string, unknown>)
+      : null);
+
+  const candidates: unknown[] = [];
+
+  if (record) {
+    const questionPaths: Array<string | string[]> = [
+      'preguntas',
+      'questions',
+      ['data', 'preguntas'],
+      ['data', 'questions'],
+      ['preguntas', 'data'],
+      'items',
+      'results',
+      'questionBreakdown',
+      'question_breakdown',
+      'questionStats',
+      'preguntas_resumen',
+    ];
+
+    for (const path of questionPaths) {
+      const value = Array.isArray(path) ? getNestedValue(record, path) : record[path];
+      if (value !== undefined && value !== null) {
+        candidates.push(value);
+      }
+    }
+  }
+
+  candidates.push(summary?.preguntas);
+
+  let preguntas: unknown[] = [];
+  for (const candidate of candidates) {
+    const normalized = getArrayOrObjectValues(candidate);
+    if (normalized.length) {
+      preguntas = normalized;
+      break;
+    }
+  }
+
+  if (!preguntas.length) return [];
+
+  return preguntas.flatMap((pregunta, preguntaIndex) => {
+    if (!pregunta) return [];
+    const preguntaContainer = isRecord(pregunta) ? pregunta : {};
+    const preguntaLabel =
+      toNonEmptyString(
+        preguntaContainer.texto ??
+          preguntaContainer.pregunta ??
+          preguntaContainer.titulo ??
+          preguntaContainer.title ??
+          preguntaContainer.nombre ??
+          preguntaContainer.name,
+      ) ?? `Pregunta ${preguntaIndex + 1}`;
+    const optionCandidates = collectOptionCandidates(
+      preguntaContainer.opciones ??
+        preguntaContainer.options ??
+        preguntaContainer.choices ??
+        preguntaContainer.respuestas ??
+        preguntaContainer.answers ??
+        preguntaContainer.data,
+    );
+    if (!optionCandidates.length) return [];
+
+    return optionCandidates
+      .map((candidate, optionIndex) => extractOptionItem(candidate, preguntaLabel, optionIndex))
+      .filter(
+        (item): item is { pregunta: string; opcion: string; respuestas: number; porcentaje?: number } => Boolean(item),
+      );
+  });
+};
+
+const normalizeHeatmapPoints = (points?: SurveyHeatmapPoint[] | unknown): SurveyHeatmapPoint[] =>
+  ((): unknown[] => {
+    const rawPoints = getArray(points);
+    if (rawPoints.length) return rawPoints;
+    if (isRecord(points)) return [points];
+    return [];
+  })()
+    .map((rawPoint) => {
+      if (!isRecord(rawPoint)) return null;
+      const lat = toFiniteNumber(rawPoint.lat);
+      const lng = toFiniteNumber(rawPoint.lng ?? rawPoint.lon ?? rawPoint.longitud ?? rawPoint.long);
+      const respuestas =
+        toFiniteNumber(rawPoint.respuestas ?? rawPoint.weight ?? rawPoint.total ?? rawPoint.count) ?? 0;
+      if (lat === null || lng === null) return null;
+      const categoria =
+        toNonEmptyString(rawPoint.categoria ?? rawPoint.category ?? rawPoint.tipo ?? rawPoint.segmento) ?? undefined;
+      const canal =
+        toNonEmptyString(rawPoint.canal ?? rawPoint.channel ?? rawPoint.source ?? rawPoint.fuente) ?? undefined;
+      return {
+        lat,
+        lng,
+        respuestas,
+        ...(categoria ? { categoria } : {}),
+        ...(canal ? { canal } : {}),
+      } satisfies SurveyHeatmapPoint;
+    })
+    .filter((point): point is SurveyHeatmapPoint => Boolean(point));
+
+type ChannelBreakdownItem = { canal: string; respuestas: number };
+
+const extractChannelItem = (value: unknown, fallbackCanal?: string | null): ChannelBreakdownItem | null => {
+  if (!value && !fallbackCanal) return null;
+  const container = isRecord(value) ? value : {};
+  const canal = toNonEmptyString(container.canal ?? fallbackCanal);
+  const respuestas =
+    toFiniteNumber(container.respuestas ?? container.total ?? container.count ?? value) ?? undefined;
+  if (!canal || respuestas === undefined) return null;
+  return { canal, respuestas };
+};
+
+const normalizeChannelBreakdown = (raw: unknown): ChannelBreakdownItem[] => {
+  const normalized: ChannelBreakdownItem[] = [];
+  for (const item of getArray(raw)) {
+    const parsed = extractChannelItem(item);
+    if (parsed) normalized.push(parsed);
+  }
+  if (!normalized.length && isRecord(raw)) {
+    const singleItem = extractChannelItem(raw);
+    if (singleItem) {
+      normalized.push(singleItem);
+    } else {
+      for (const [key, value] of Object.entries(raw)) {
+        const parsed = extractChannelItem(value, key);
+        if (parsed) normalized.push(parsed);
+      }
+    }
+  }
+  return normalized;
+};
+
+type UtmBreakdownItem = { fuente: string; campania?: string; respuestas: number };
+
+const extractUtmItem = (value: unknown, fallbackFuente?: string | null): UtmBreakdownItem | null => {
+  if (!value && !fallbackFuente) return null;
+  const container = isRecord(value) ? value : {};
+  const fuente = toNonEmptyString(container.fuente ?? container.source ?? fallbackFuente);
+  const campania = toNonEmptyString(container.campania ?? container.campaign ?? container.nombre ?? container.name);
+  const respuestas =
+    toFiniteNumber(container.respuestas ?? container.total ?? container.count ?? value) ?? undefined;
+  if (!fuente || respuestas === undefined) return null;
+  return { fuente, campania: campania ?? undefined, respuestas };
+};
+
+const normalizeUtmBreakdown = (raw: unknown): UtmBreakdownItem[] => {
+  const normalized: UtmBreakdownItem[] = [];
+  for (const item of getArray(raw)) {
+    const parsed = extractUtmItem(item);
+    if (parsed) normalized.push(parsed);
+  }
+  if (!normalized.length && isRecord(raw)) {
+    const singleItem = extractUtmItem(raw);
+    if (singleItem) {
+      normalized.push(singleItem);
+    } else {
+      for (const [key, value] of Object.entries(raw)) {
+        const parsed = extractUtmItem(value, key);
+        if (parsed) normalized.push(parsed);
+      }
+    }
+  }
+  return normalized;
+};
+
+
+export const SurveyAnalytics = ({
+  summary,
+  timeseries,
+  heatmap,
+  heatmapMeta,
+  onExport,
+  isExporting,
+  filters,
+  onFiltersChange,
+  tenantSlug,
+  tenantId,
+  route = '/admin/encuestas/:id/analytics',
+}: SurveyAnalyticsProps) => {
   const timeseriesData = useMemo(() => buildTimeseriesData(timeseries), [timeseries]);
-  const optionData = useMemo(() => buildOptionBreakdown(summary), [summary]);
-  const heatmapData = useMemo(
-    () =>
-      (heatmap ?? [])
-        .filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng))
-        .map((point) => ({
-          lat: point.lat,
-          lng: point.lng,
-          weight: point.respuestas,
-        })),
-    [heatmap],
+  const summaryRecord = useMemo(
+    () => (summary && typeof summary === 'object' ? (summary as unknown as Record<string, unknown>) : null),
+    [summary],
   );
+  const optionData = useMemo(() => buildOptionBreakdown(summary, summaryRecord), [summary, summaryRecord]);
+  const heatmapPoints = useMemo(() => normalizeHeatmapPoints(heatmap), [heatmap]);
+  const aggregatedHeatmapPoints = useMemo(() => {
+    if (!heatmapPoints.length) return [] as Array<SurveyHeatmapPoint & { categoria?: string; canal?: string }>;
+
+    const grouped = new Map<string, SurveyHeatmapPoint & { categoria?: string; canal?: string }>();
+    heatmapPoints.forEach((point) => {
+      const lat = Number(point.lat.toFixed(4));
+      const lng = Number(point.lng.toFixed(4));
+      const key = `${lat}:${lng}`;
+      const previous = grouped.get(key);
+
+      if (!previous) {
+        grouped.set(key, { lat, lng, respuestas: Math.max(0, point.respuestas ?? 0), categoria: point.categoria, canal: point.canal });
+        return;
+      }
+
+      grouped.set(key, {
+        lat,
+        lng,
+        respuestas: Math.max(0, previous.respuestas ?? 0) + Math.max(0, point.respuestas ?? 0),
+        categoria: previous.categoria || point.categoria,
+        canal: previous.canal || point.canal,
+      });
+    });
+
+    return Array.from(grouped.values());
+  }, [heatmapPoints]);
+  const heatmapMetaRecord = useMemo(
+    () => (heatmapMeta && typeof heatmapMeta === 'object' ? (heatmapMeta as Record<string, unknown>) : null),
+    [heatmapMeta],
+  );
+  const mapMetaRecord = useMemo(() => {
+    const mapValue = heatmapMetaRecord?.map;
+    return mapValue && typeof mapValue === 'object' ? (mapValue as Record<string, unknown>) : null;
+  }, [heatmapMetaRecord]);
+  const renderContractRecord = useMemo(() => {
+    const contractValue = heatmapMetaRecord?.render_contract;
+    return contractValue && typeof contractValue === 'object' ? (contractValue as Record<string, unknown>) : null;
+  }, [heatmapMetaRecord]);
+  const usingSyntheticPoints = useMemo(
+    () =>
+      Boolean(
+        heatmapMetaRecord?.using_synthetic_points ||
+          (typeof renderContractRecord?.state === 'string' && renderContractRecord.state === 'demo_fallback'),
+      ),
+    [heatmapMetaRecord, renderContractRecord],
+  );
+  const mapRenderReady = useMemo(() => {
+    if (!mapMetaRecord) return true;
+    if (typeof mapMetaRecord.render_ready === 'boolean') return mapMetaRecord.render_ready;
+    return true;
+  }, [mapMetaRecord]);
+  const providerHint = useMemo(() => normalizeMapProvider(mapMetaRecord?.provider_hint), [mapMetaRecord]);
+  const fallbackProvider = useMemo(
+    () => normalizeMapProvider(mapMetaRecord?.fallback_provider) ?? 'maplibre',
+    [mapMetaRecord],
+  );
+  const availableProviders = useMemo(
+    () => toStringList(mapMetaRecord?.available_providers).map((item) => normalizeMapProvider(item)).filter(Boolean) as MapProvider[],
+    [mapMetaRecord],
+  );
+
+  const categoryColorMap = useMemo(() => {
+    const categories = Array.from(new Set(aggregatedHeatmapPoints.map((point) => point.categoria).filter(Boolean) as string[]));
+    return new Map(categories.map((category, index) => [category, colorFromCategory(category, index)]));
+  }, [aggregatedHeatmapPoints]);
+
+  const heatmapData = useMemo(() => {
+    const allZero = aggregatedHeatmapPoints.length > 0 && aggregatedHeatmapPoints.every((point) => point.respuestas <= 0);
+    return aggregatedHeatmapPoints.map((point) => ({
+      lat: point.lat,
+      lng: point.lng,
+      weight: usingSyntheticPoints || allZero ? Math.max(1, point.respuestas || 0) : point.respuestas,
+      categoria: point.categoria,
+      canal: point.canal,
+      categoryColor: point.categoria ? categoryColorMap.get(point.categoria) : undefined,
+    }));
+  }, [aggregatedHeatmapPoints, categoryColorMap, usingSyntheticPoints]);
+  const { provider, setProvider } = useMapProvider();
+  const hasGoogleKey = useMemo(() => ((import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? '').trim().length > 0), []);
+  const providerIsConfigured = useCallback(
+    (candidate: MapProvider) => {
+      if (availableProviders.length > 0 && !availableProviders.includes(candidate)) return false;
+      if (candidate === 'google') return hasGoogleKey;
+      return true;
+    },
+    [availableProviders, hasGoogleKey],
+  );
+  const googleProviderAvailable = providerIsConfigured('google');
+  const normalizedFilters: SurveyAnalyticsFilters = filters ?? {};
+  const boundingBoxValue = useMemo(() => {
+    const bbox = normalizedFilters.bbox;
+    if (!bbox) return undefined;
+    if (typeof bbox === 'string') {
+      return bbox;
+    }
+    if (Array.isArray(bbox) && bbox.length === 4 && bbox.every((value) => Number.isFinite(value))) {
+      return bbox.map((value) => Number(value).toFixed(6)).join(',');
+    }
+    return undefined;
+  }, [normalizedFilters]);
+
+  useEffect(() => {
+    if (!providerIsConfigured(provider)) {
+      setProvider(fallbackProvider);
+      return;
+    }
+
+    if (providerHint && providerHint !== provider && providerIsConfigured(providerHint)) {
+      setProvider(providerHint);
+    }
+  }, [fallbackProvider, provider, providerHint, providerIsConfigured, setProvider]);
+
+  const handleProviderUnavailable = useCallback(
+    (currentProvider: MapProvider, reason: MapProviderUnavailableReason, details?: unknown) => {
+      console.warn('[SurveyAnalytics] Map provider unavailable, falling back to MapLibre', {
+        provider: currentProvider,
+        reason,
+        details,
+      });
+      setProvider(fallbackProvider);
+    },
+    [fallbackProvider, setProvider],
+  );
+  const skipNextBoundingUpdateRef = useRef(false);
+  const boundingBoxDebounceRef = useRef<number | null>(null);
+  const handleBoundingBoxChange = useCallback(
+    (bbox: [number, number, number, number] | null) => {
+      if (!onFiltersChange) return;
+      if (skipNextBoundingUpdateRef.current) {
+        skipNextBoundingUpdateRef.current = false;
+        return;
+      }
+
+      if (boundingBoxDebounceRef.current !== null) {
+        window.clearTimeout(boundingBoxDebounceRef.current);
+      }
+
+      boundingBoxDebounceRef.current = window.setTimeout(() => {
+        const current = filters ?? {};
+        if (!bbox) {
+          if (!boundingBoxValue) return;
+          const nextFilters = { ...current };
+          delete nextFilters.bbox;
+          onFiltersChange(nextFilters);
+          return;
+        }
+
+        if (bbox.length !== 4 || bbox.some((value) => !Number.isFinite(value))) {
+          return;
+        }
+
+        const formatted = bbox.map((value) => Number(value).toFixed(6)).join(',');
+        if (formatted === boundingBoxValue) {
+          return;
+        }
+
+        onFiltersChange({ ...current, bbox: formatted });
+      }, 350);
+    },
+    [filters, onFiltersChange, boundingBoxValue, skipNextBoundingUpdateRef],
+  );
+  const handleClearBoundingBox = useCallback(() => {
+    if (!onFiltersChange || !boundingBoxValue) return;
+    const current = filters ?? {};
+    const nextFilters = { ...current };
+    delete nextFilters.bbox;
+    skipNextBoundingUpdateRef.current = true;
+    onFiltersChange(nextFilters);
+  }, [filters, onFiltersChange, boundingBoxValue, skipNextBoundingUpdateRef]);
+
+  useEffect(() => {
+    return () => {
+      if (boundingBoxDebounceRef.current !== null) {
+        window.clearTimeout(boundingBoxDebounceRef.current);
+      }
+    };
+  }, []);
   const heatmapCenter = useMemo(() => {
     if (!heatmapData.length) return undefined;
     const totalWeight = heatmapData.reduce((sum, point) => sum + (point.weight ?? 1), 0);
@@ -79,19 +665,205 @@ export const SurveyAnalytics = ({ summary, timeseries, heatmap, onExport, isExpo
         .filter(([lng, lat]) => Number.isFinite(lng) && Number.isFinite(lat)),
     [heatmapData],
   );
+  const totalResponsesValue = useMemo(
+    () =>
+      extractNumberFromRecord(summaryRecord, [
+        'total_respuestas',
+        'totalResponses',
+        'total_responses',
+        'total',
+        'responses',
+        ['totals', 'responses'],
+        ['totals', 'total'],
+        ['overview', 'responses'],
+        ['overview', 'total'],
+      ]),
+    [summaryRecord],
+  );
+
+  const uniqueParticipantsValue = useMemo(
+    () =>
+      extractNumberFromRecord(summaryRecord, [
+        'participantes_unicos',
+        'participantesUnicos',
+        'unique_participants',
+        'uniqueParticipants',
+        'participantsUnique',
+        'uniqueRespondents',
+        ['totals', 'participants'],
+        ['totals', 'unique'],
+        ['overview', 'participants'],
+      ]),
+    [summaryRecord],
+  );
+
+  const completionRateValue = useMemo(
+    () =>
+      extractNumberFromRecord(summaryRecord, [
+        'tasa_completitud',
+        'tasaCompletitud',
+        'completion_rate',
+        'completionRate',
+        'completion',
+        'completionPercentage',
+        ['totals', 'completionRate'],
+        ['totals', 'completion'],
+      ]),
+    [summaryRecord],
+  );
+
+  const channelBreakdown = useMemo(() => {
+    const candidates = summaryRecord
+      ? [
+          summaryRecord['canales'],
+          summaryRecord['channels'],
+          summaryRecord['channelBreakdown'],
+          summaryRecord['channelsBreakdown'],
+          summaryRecord['porCanal'],
+          summaryRecord['por_canal'],
+          getNestedValue(summaryRecord, ['totals', 'channels']),
+        ]
+      : [];
+
+    candidates.push(summary?.canales);
+
+    for (const candidate of candidates) {
+      const normalized = normalizeChannelBreakdown(candidate);
+      if (normalized.length) {
+        return normalized;
+      }
+    }
+
+    return [];
+  }, [summary, summaryRecord]);
+
+  const utmBreakdown = useMemo(() => {
+    const candidates = summaryRecord
+      ? [
+          summaryRecord['utms'],
+          summaryRecord['utm'],
+          summaryRecord['utmBreakdown'],
+          summaryRecord['porUtm'],
+          summaryRecord['por_utm'],
+          summaryRecord['campaigns'],
+          summaryRecord['campaignBreakdown'],
+          getNestedValue(summaryRecord, ['totals', 'utms']),
+        ]
+      : [];
+
+    candidates.push(summary?.utms);
+
+    for (const candidate of candidates) {
+      const normalized = normalizeUtmBreakdown(candidate);
+      if (normalized.length) {
+        return normalized;
+      }
+    }
+
+    return [];
+  }, [summary, summaryRecord]);
 
   const completionRateLabel = useMemo(() => {
-    if (typeof summary?.tasa_completitud !== 'number') {
+    if (completionRateValue === null) {
       return '—';
     }
-    const normalized = Number.isFinite(summary.tasa_completitud)
-      ? summary.tasa_completitud
-      : Number(summary.tasa_completitud);
+
+    let normalized = completionRateValue;
+
     if (!Number.isFinite(normalized)) {
       return '—';
     }
+
+    if (normalized > 1 && normalized <= 100) {
+      normalized /= 100;
+    }
+
+    if (normalized > 100) {
+      normalized = 1;
+    }
+
+    if (normalized < 0) {
+      normalized = 0;
+    }
+
     return `${(normalized * 100).toFixed(1)}%`;
-  }, [summary?.tasa_completitud]);
+  }, [completionRateValue]);
+
+
+  const geoIntensity = useMemo(() => {
+    if (!aggregatedHeatmapPoints.length) return { totalWeight: 0, maxWeight: 0, avgWeight: 0, hotspots: [] as SurveyHeatmapPoint[] };
+    const sorted = [...aggregatedHeatmapPoints].sort((a, b) => b.respuestas - a.respuestas);
+    const totalWeight = sorted.reduce((acc, point) => acc + (point.respuestas || 0), 0);
+    const maxWeight = sorted[0]?.respuestas ?? 0;
+    const avgWeight = totalWeight / sorted.length;
+    return {
+      totalWeight,
+      maxWeight,
+      avgWeight,
+      hotspots: sorted.slice(0, 5),
+    };
+  }, [aggregatedHeatmapPoints]);
+
+  const geoCoverageLabel = useMemo(() => {
+    if (!aggregatedHeatmapPoints.length) return '—';
+    if (!totalResponsesValue || totalResponsesValue <= 0) return `${aggregatedHeatmapPoints.length} zonas`;
+    const ratio = Math.min(1, aggregatedHeatmapPoints.length / totalResponsesValue);
+    return `${(ratio * 100).toFixed(1)}%`;
+  }, [aggregatedHeatmapPoints.length, totalResponsesValue]);
+
+  const demographicSections = useMemo(() => {
+    const candidates = summaryRecord
+      ? [
+          summaryRecord['demografia'],
+          summaryRecord['demographics'],
+          summaryRecord['demographicBreakdown'],
+          summaryRecord['demografia_resumen'],
+        ]
+      : [];
+
+    let demographics: Record<string, unknown> | null = null;
+    for (const candidate of candidates) {
+      if (isRecord(candidate) && Object.keys(candidate).length) {
+        demographics = candidate;
+        break;
+      }
+    }
+
+    if (!demographics) {
+      return [] as Array<{
+        id: string;
+        title: string;
+        data: ReturnType<typeof buildDemographicData>;
+      }>;
+    }
+
+    return Object.entries(demographics)
+      .map(([id, items]) => {
+        const normalizedItems = getArrayOrObjectValues<SurveyDemographicBreakdownItem>(items);
+        if (!normalizedItems.length) return null;
+        const data = buildDemographicData(normalizedItems);
+        if (!data.length) return null;
+        return {
+          id,
+          title: normalizeDemographicLabel(id),
+          data,
+        };
+      })
+      .filter((section): section is { id: string; title: string; data: ReturnType<typeof buildDemographicData> } => Boolean(section));
+  }, [summaryRecord]);
+
+  useEffect(() => {
+    const event = heatmapData.length > 0 ? 'analytics_heatmap_rendered' : 'analytics_heatmap_empty';
+    const payload = {
+      tenant_slug: tenantSlug || null,
+      route,
+      build_version: import.meta.env.VITE_APP_VERSION || 'dev',
+      point_count: heatmapData.length,
+      error_code: heatmapData.length > 0 ? null : 'empty_dataset',
+    };
+
+    void enterpriseService.trackEvent({ event, tenant_id: tenantId, payload }, tenantSlug).catch(() => undefined);
+  }, [heatmapData.length, route, tenantId, tenantSlug]);
 
   return (
     <div className="space-y-6">
@@ -112,7 +884,7 @@ export const SurveyAnalytics = ({ summary, timeseries, heatmap, onExport, isExpo
             <CardDescription>Incluye formularios completos recibidos.</CardDescription>
           </CardHeader>
           <CardContent className="text-3xl font-semibold">
-            {summary?.total_respuestas ?? '—'}
+            {totalResponsesValue ?? '—'}
           </CardContent>
         </Card>
         <Card>
@@ -121,7 +893,7 @@ export const SurveyAnalytics = ({ summary, timeseries, heatmap, onExport, isExpo
             <CardDescription>Personas distintas, según la política de unicidad.</CardDescription>
           </CardHeader>
           <CardContent className="text-3xl font-semibold">
-            {summary?.participantes_unicos ?? '—'}
+            {uniqueParticipantsValue ?? '—'}
           </CardContent>
         </Card>
         <Card>
@@ -140,15 +912,24 @@ export const SurveyAnalytics = ({ summary, timeseries, heatmap, onExport, isExpo
           <CardTitle>Evolución diaria</CardTitle>
           <CardDescription>Visualizá el ritmo de participación a lo largo del tiempo.</CardDescription>
         </CardHeader>
-        <CardContent className="h-72">
+        <CardContent><MeasuredContainer className="h-72 min-w-0">
           {timeseriesData.length ? (
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220}>
               <LineChart data={timeseriesData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="fecha" />
                 <YAxis allowDecimals={false} />
                 <Tooltip />
-                <Line type="monotone" dataKey="respuestas" stroke="#2563eb" strokeWidth={2} dot />
+                <Line
+                  type="monotone"
+                  dataKey="respuestas"
+                  stroke="#2563eb"
+                  strokeWidth={2}
+                  dot
+                  isAnimationActive
+                  animationDuration={CHART_ANIMATION_DURATION}
+                  animationEasing={CHART_ANIMATION_EASING}
+                />
               </LineChart>
             </ResponsiveContainer>
           ) : (
@@ -156,7 +937,7 @@ export const SurveyAnalytics = ({ summary, timeseries, heatmap, onExport, isExpo
               Aún no hay datos de series temporales.
             </div>
           )}
-        </CardContent>
+        </MeasuredContainer></CardContent>
       </Card>
 
       <Card>
@@ -165,16 +946,22 @@ export const SurveyAnalytics = ({ summary, timeseries, heatmap, onExport, isExpo
           <CardDescription>Resultados acumulados por pregunta y opción.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-6 lg:grid-cols-2">
-          <div className="h-72">
+          <MeasuredContainer className="h-72 min-w-0">
             {optionData.length ? (
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220}>
                 <BarChart data={optionData}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="opcion" interval={0} angle={-25} textAnchor="end" height={90} />
                   <YAxis allowDecimals={false} />
                   <Tooltip />
                   <Legend />
-                  <Bar dataKey="respuestas" fill="#7c3aed" />
+                  <Bar
+                    dataKey="respuestas"
+                    fill="#7c3aed"
+                    isAnimationActive
+                    animationDuration={CHART_ANIMATION_DURATION}
+                    animationEasing={CHART_ANIMATION_EASING}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -182,10 +969,10 @@ export const SurveyAnalytics = ({ summary, timeseries, heatmap, onExport, isExpo
                 No hay respuestas registradas para mostrar.
               </div>
             )}
-          </div>
-          <div className="h-72">
+          </MeasuredContainer>
+          <MeasuredContainer className="h-72 min-w-0">
             {optionData.length ? (
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220}>
                 <PieChart>
                   <Pie
                     data={optionData}
@@ -195,6 +982,9 @@ export const SurveyAnalytics = ({ summary, timeseries, heatmap, onExport, isExpo
                     cy="50%"
                     outerRadius={110}
                     innerRadius={60}
+                    isAnimationActive
+                    animationDuration={CHART_ANIMATION_DURATION}
+                    animationEasing={CHART_ANIMATION_EASING}
                   >
                     {optionData.map((entry, index) => (
                       <Cell key={`${entry.opcion}-${index}`} fill={palette[index % palette.length]} />
@@ -208,7 +998,7 @@ export const SurveyAnalytics = ({ summary, timeseries, heatmap, onExport, isExpo
                 Sin datos para graficar.
               </div>
             )}
-          </div>
+          </MeasuredContainer>
         </CardContent>
       </Card>
 
@@ -222,13 +1012,13 @@ export const SurveyAnalytics = ({ summary, timeseries, heatmap, onExport, isExpo
             <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Por canal</h3>
             <Separator className="my-2" />
             <ul className="space-y-2 text-sm">
-              {(summary?.canales ?? []).map((item, index) => (
+              {channelBreakdown.map((item, index) => (
                 <li key={`${item.canal}-${index}`} className="flex items-center justify-between">
                   <span className="font-medium capitalize">{item.canal}</span>
                   <span>{item.respuestas}</span>
                 </li>
               ))}
-              {!summary?.canales?.length && (
+              {!channelBreakdown.length && (
                 <li className="text-muted-foreground">Sin datos de canales todavía.</li>
               )}
             </ul>
@@ -237,7 +1027,7 @@ export const SurveyAnalytics = ({ summary, timeseries, heatmap, onExport, isExpo
             <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Por UTM</h3>
             <Separator className="my-2" />
             <ul className="space-y-2 text-sm">
-              {(summary?.utms ?? []).map((item, index) => (
+              {utmBreakdown.map((item, index) => (
                 <li key={`${item.fuente}-${item.campania ?? 'n/a'}-${index}`} className="flex items-center justify-between">
                   <span>
                     <span className="font-medium">{item.fuente}</span>
@@ -246,9 +1036,74 @@ export const SurveyAnalytics = ({ summary, timeseries, heatmap, onExport, isExpo
                   <span>{item.respuestas}</span>
                 </li>
               ))}
-              {!summary?.utms?.length && (
+              {!utmBreakdown.length && (
                 <li className="text-muted-foreground">Aún no se registraron campañas etiquetadas.</li>
               )}
+            </ul>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Radar geoespacial en vivo</CardTitle>
+          <CardDescription>Intensidad y focos de participación basados en los puntos del backend.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-lg border border-border/60 bg-card/40 p-3">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Cobertura geográfica</p>
+              <p className="text-xl font-semibold">{geoCoverageLabel}</p>
+            </div>
+            <div className="rounded-lg border border-border/60 bg-card/40 p-3">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Peso geoespacial total</p>
+              <p className="text-xl font-semibold">{geoIntensity.totalWeight || '—'}</p>
+            </div>
+            <div className="rounded-lg border border-border/60 bg-card/40 p-3">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Pico por punto</p>
+              <p className="text-xl font-semibold">{geoIntensity.maxWeight || '—'}</p>
+            </div>
+            <div className="rounded-lg border border-border/60 bg-card/40 p-3 sm:col-span-3">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Promedio por punto</p>
+              <p className="text-xl font-semibold">{geoIntensity.avgWeight ? geoIntensity.avgWeight.toFixed(1) : '—'}</p>
+            </div>
+            <div className="sm:col-span-3 space-y-2 rounded-lg border border-primary/20 bg-primary/5 p-3">
+              <p className="text-xs uppercase tracking-wide text-primary">Pulso de actividad</p>
+              {geoIntensity.hotspots.length ? (
+                geoIntensity.hotspots.slice(0, 3).map((point, index) => {
+                  const ratio = geoIntensity.maxWeight > 0 ? Math.max(0.08, point.respuestas / geoIntensity.maxWeight) : 0.08;
+                  return (
+                    <div key={`${point.lat}-${point.lng}-${index}`} className="space-y-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">{point.lat.toFixed(3)}, {point.lng.toFixed(3)}</span>
+                        <span className="font-medium">{point.respuestas}</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-primary/10">
+                        <div
+                          className="h-2 rounded-full bg-primary animate-pulse"
+                          style={{ width: `${Math.min(100, ratio * 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <p className="text-sm text-muted-foreground">Esperando eventos georreferenciados.</p>
+              )}
+            </div>
+          </div>
+          <div className="rounded-lg border border-border/60 p-3">
+            <p className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">Top hotspots</p>
+            <ul className="space-y-2 text-sm">
+              {geoIntensity.hotspots.map((point, index) => (
+                <li key={`${point.lat}-${point.lng}-${index}`} className="flex items-center justify-between rounded-md border border-border/50 px-2 py-1.5">
+                  <span>#{index + 1} · {point.lat.toFixed(3)}, {point.lng.toFixed(3)}</span>
+                  <span className="font-semibold">{point.respuestas}</span>
+                </li>
+              ))}
+              {!geoIntensity.hotspots.length ? (
+                <li className="text-muted-foreground">Sin hotspots para mostrar todavía.</li>
+              ) : null}
             </ul>
           </div>
         </CardContent>
@@ -260,56 +1115,211 @@ export const SurveyAnalytics = ({ summary, timeseries, heatmap, onExport, isExpo
           <CardDescription>Ubicaciones aproximadas de participación (si están disponibles).</CardDescription>
         </CardHeader>
         <CardContent>
-          {heatmap?.length ? (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-border text-sm">
-                <thead>
-                  <tr className="text-left text-muted-foreground">
-                    <th className="py-2 pr-4">Latitud</th>
-                    <th className="py-2 pr-4">Longitud</th>
-                    <th className="py-2 pr-4">Respuestas</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {heatmap.map((point, index) => (
-                    <tr key={`${point.lat}-${point.lng}-${index}`} className="border-b border-border/40">
-                      <td className="py-2 pr-4">{point.lat.toFixed(4)}</td>
-                      <td className="py-2 pr-4">{point.lng.toFixed(4)}</td>
-                      <td className="py-2 pr-4">{point.respuestas}</td>
-                    </tr>
+          {usingSyntheticPoints ? (
+            <div className="mb-3 inline-flex rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs text-amber-700">
+              Modo demo (ubicaciones simuladas)
+            </div>
+          ) : null}
+          {mapRenderReady && aggregatedHeatmapPoints.length ? (
+            <div className="space-y-4">
+              {categoryColorMap.size ? (
+                <div className="flex flex-wrap gap-2 text-xs">
+                  {Array.from(categoryColorMap.entries()).map(([category, color]) => (
+                    <span key={category} className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5">
+                      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
+                      {category}
+                    </span>
                   ))}
-                </tbody>
-              </table>
+                </div>
+              ) : null}
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-border text-sm">
+                  <thead>
+                    <tr className="text-left text-muted-foreground">
+                      <th className="py-2 pr-4">Latitud</th>
+                      <th className="py-2 pr-4">Longitud</th>
+                      <th className="py-2 pr-4">Respuestas</th>
+                      <th className="py-2 pr-4">Categoría</th>
+                      <th className="py-2 pr-4">Canal</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {aggregatedHeatmapPoints.slice(0, 25).map((point, index) => (
+                      <tr key={`${point.lat}-${point.lng}-${index}`} className="border-b border-border/40">
+                        <td className="py-2 pr-4">{point.lat.toFixed(4)}</td>
+                        <td className="py-2 pr-4">{point.lng.toFixed(4)}</td>
+                        <td className="py-2 pr-4">{point.respuestas}</td>
+                        <td className="py-2 pr-4">
+                          {point.categoria ? (
+                            <span className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs">
+                              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: categoryColorMap.get(point.categoria) || '#94a3b8' }} />
+                              {point.categoria}
+                            </span>
+                          ) : '—'}
+                        </td>
+                        <td className="py-2 pr-4">{point.canal || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {aggregatedHeatmapPoints.length > 25 ? (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Mostrando 25 zonas principales de {aggregatedHeatmapPoints.length} detectadas.
+                  </p>
+                ) : null}
+              </div>
+              <MeasuredContainer className="h-[320px] min-w-0 overflow-hidden rounded-lg border border-border/60">
+                <MapLibreMap
+                  className="h-full w-full"
+                  center={heatmapCenter}
+                  heatmapData={heatmapData}
+                  fitToBounds={heatmapBounds.length ? heatmapBounds : undefined}
+                  initialZoom={heatmapBounds.length ? 12 : 4}
+                  provider={provider}
+                  onProviderUnavailable={handleProviderUnavailable}
+                  onBoundingBoxChange={handleBoundingBoxChange}
+                />
+              </MeasuredContainer>
             </div>
           ) : (
             <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
-              Todavía no hay datos georreferenciados.
+              {toNonEmptyString(mapMetaRecord?.empty_state) ?? 'Todavía no hay datos georreferenciados.'}
             </div>
           )}
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Mapa de participación</CardTitle>
-          <CardDescription>Ubicaciones aproximadas de las respuestas recibidas.</CardDescription>
+        <CardHeader className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+          <div>
+            <CardTitle>Mapa de participación</CardTitle>
+            <CardDescription>Ubicaciones aproximadas de las respuestas recibidas.</CardDescription>
+          </div>
+          <div className="flex flex-col items-start gap-1 md:items-end">
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Motor de mapa
+            </span>
+            <span className="text-[11px] text-muted-foreground">MapLibre GL (WebGL)</span>
+            <MapProviderToggle
+              value={provider}
+              onChange={setProvider}
+              size="sm"
+              googleAvailable={googleProviderAvailable}
+            />
+          </div>
         </CardHeader>
         <CardContent className="h-[420px]">
-          {heatmapData.length ? (
-            <MapLibreMap
-              className="h-full rounded-lg"
-              center={heatmapCenter}
-              heatmapData={heatmapData}
-              fitToBounds={heatmapBounds.length ? heatmapBounds : undefined}
-              initialZoom={heatmapBounds.length ? 12 : 4}
-            />
+          {usingSyntheticPoints ? (
+            <div className="mb-3 inline-flex rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs text-amber-700">
+              Modo demo (ubicaciones simuladas)
+            </div>
+          ) : null}
+          {mapRenderReady && heatmapData.length && boundingBoxValue ? (
+            <div className="mb-3 flex flex-wrap items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-primary">
+              Filtrando resultados por la zona visible del mapa.
+              <Button
+                type="button"
+                variant="link"
+                size="sm"
+                className="h-auto px-0 text-primary"
+                onClick={handleClearBoundingBox}
+                disabled={!onFiltersChange}
+              >
+                Quitar filtro
+              </Button>
+            </div>
+          ) : null}
+          {mapRenderReady && heatmapData.length ? (
+            <MeasuredContainer className="h-full min-w-0">
+              <MapLibreMap
+                className="h-full rounded-lg"
+                center={heatmapCenter}
+                heatmapData={heatmapData}
+                fitToBounds={heatmapBounds.length ? heatmapBounds : undefined}
+                initialZoom={heatmapBounds.length ? 12 : 4}
+                provider={provider}
+                onProviderUnavailable={handleProviderUnavailable}
+                onBoundingBoxChange={handleBoundingBoxChange}
+              />
+            </MeasuredContainer>
+          ) : heatmapData.length ? (
+            <div className="flex h-full flex-col items-center justify-center rounded-lg border border-border/60 bg-muted/10 p-4 text-center">
+              <div className="h-2 w-40 animate-pulse rounded-full bg-primary/30" />
+              <p className="mt-3 text-sm font-medium">Preparando mapa y capas geoespaciales…</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Estamos validando proveedores y recursos antes de renderizar la vista.
+              </p>
+            </div>
           ) : (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-              No hay datos georreferenciados para esta encuesta todavía.
+              {toNonEmptyString(mapMetaRecord?.empty_state) ?? 'No hay datos georreferenciados para esta encuesta todavía.'}
             </div>
           )}
         </CardContent>
       </Card>
+      {demographicSections.length ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Segmentación demográfica</CardTitle>
+            <CardDescription>Distribución de respuestas según género, edad y territorio declarado.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-8">
+            {demographicSections.map((section, sectionIndex) => (
+              <div key={section.id} className="space-y-3">
+                <div className="space-y-1">
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                    {section.title}
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    Participación segmentada para este atributo.
+                  </p>
+                </div>
+                <MeasuredContainer className="h-64 w-full min-w-0">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220}>
+                    <BarChart
+                      data={section.data}
+                      layout="vertical"
+                      margin={{ left: 0, right: 16, top: 16, bottom: 16 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                      <XAxis type="number" allowDecimals={false} />
+                      <YAxis
+                        type="category"
+                        dataKey="label"
+                        width={160}
+                        tick={{ fontSize: 12 }}
+                        interval={0}
+                      />
+                      <Tooltip
+                        formatter={(value: number, _name, payload) => {
+                          const percentage = payload?.payload?.percentage;
+                          return percentage
+                            ? [`${value} respuestas (${percentage.toFixed(1)}%)`, '']
+                            : [`${value} respuestas`, ''];
+                        }}
+                      />
+                      <Bar
+                        dataKey="value"
+                        fill={palette[sectionIndex % palette.length]}
+                        isAnimationActive
+                        animationDuration={CHART_ANIMATION_DURATION}
+                        animationEasing={CHART_ANIMATION_EASING}
+                      >
+                        {section.data.map((item, index) => (
+                          <Cell
+                            key={item.key}
+                            fill={palette[(sectionIndex + index) % palette.length]}
+                          />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </MeasuredContainer>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   );
 };

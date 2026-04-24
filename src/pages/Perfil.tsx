@@ -4,6 +4,7 @@ import React, {
   useCallback,
   FormEvent,
   useRef,
+  useMemo,
 } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -74,18 +75,21 @@ import { toast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import TicketsPanel from '@/pages/TicketsPanel';
 import EstadisticasPage from '@/pages/EstadisticasPage';
+import AnalyticsPage from '@/pages/analytics/AnalyticsPage';
 import UsuariosPage from '@/pages/UsuariosPage';
-import PedidosPage from '@/pages/PedidosPage';
+import SmartPedidosWrapper from '@/pages/SmartPedidosWrapper';
 import InternalUsers from '@/pages/InternalUsers';
 import IncidentsMap from '@/pages/IncidentsMap';
-import { getTicketStats, getHeatmapPoints } from "@/services/statsService";
+import { getTicketStats, getHeatmapPoints, HeatmapDataset } from "@/services/statsService";
 import AnalyticsHeatmap from "@/components/analytics/Heatmap";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import MiniChatWidgetPreview from "@/components/ui/MiniChatWidgetPreview"; // Importar el nuevo componente
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import { useUser } from "@/hooks/useUser";
+import { normalizeRole } from "@/utils/roles";
 import { useMunicipalPosts } from "@/hooks/useMunicipalPosts";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
+import { TENANT_ROUTE_PREFIXES } from "@/utils/tenantPaths";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
 import { apiFetch, getErrorMessage, ApiError } from "@/utils/api"; // Importa apiFetch y getErrorMessage
 import { toLocalISOString } from "@/utils/fecha";
@@ -99,8 +103,8 @@ import MapLibreMap from "@/components/MapLibreMap";
 import {
   CatalogVectorSyncStatus,
   fetchCatalogVectorSyncStatus,
-  triggerCatalogVectorSync,
 } from '@/services/catalogService';
+import { requestDocumentPreview } from '@/services/documentIntelligenceService';
 import {
   JUNIN_DEMO_BARRIOS,
   JUNIN_DEMO_CATEGORIES,
@@ -109,6 +113,7 @@ import {
   generateJuninDemoHeatmap,
   mergeAndSortStrings,
 } from '@/utils/demoHeatmap';
+import ImportWizard from "@/components/catalog/ImportWizard";
 
 
 // Durante el desarrollo usamos "/api" para evitar problemas de CORS.
@@ -139,6 +144,72 @@ const PROVINCIAS = [
   "Tierra del Fuego",
   "Tucumán",
 ];
+
+const MODAL_PREVIEW_ROWS = 6;
+
+const slugify = (value?: string | null) => {
+  if (!value) return null;
+  const normalized = value
+    .toString()
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/gi, "-")
+    .replace(/^-+|-+$/g, "");
+  return normalized || null;
+};
+
+const humanizeDocumentSource = (value?: string | null): string => {
+  if (!value) return 'documento';
+  const normalized = value.toLowerCase();
+  switch (normalized) {
+    case 'pdf':
+      return 'PDF';
+    case 'excel':
+    case 'xls':
+    case 'xlsx':
+      return 'Excel';
+    case 'csv':
+      return 'CSV';
+    case 'image':
+      return 'Imagen';
+    case 'audio':
+      return 'Audio';
+    case 'text':
+      return 'Texto';
+    default:
+      return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+  }
+};
+
+const buildPreviewRecords = (columns: string[], rows: any[]): Record<string, string>[] => {
+  if (!Array.isArray(columns) || columns.length === 0 || !Array.isArray(rows)) {
+    return [];
+  }
+
+  return rows.map((row) => {
+    const normalizedRow: Record<string, string> = {};
+
+    columns.forEach((columnName, columnIndex) => {
+      if (!columnName) {
+        return;
+      }
+
+      let value: unknown = '';
+      if (Array.isArray(row)) {
+        value = row[columnIndex];
+      } else if (row && typeof row === 'object' && columnName in row) {
+        value = (row as Record<string, unknown>)[columnName];
+      }
+
+      normalizedRow[columnName] =
+        value === null || value === undefined || value === ''
+          ? ''
+          : String(value);
+    });
+
+    return normalizedRow;
+  });
+};
 const DIAS = [
   "Lunes",
   "Martes",
@@ -153,6 +224,7 @@ const DIAS = [
 export default function Perfil() {
   const navigate = useNavigate();
   const { user, refreshUser } = useUser(); // Usa refreshUser del hook
+  const isPyme = user?.tipo_chat === "pyme";
   const parseCoordinate = (value: unknown): number | null => {
     if (typeof value === "number" && !Number.isNaN(value)) {
       return value;
@@ -184,6 +256,48 @@ export default function Perfil() {
     })),
     logo_url: "",
   });
+  const storedTenantSlug = useMemo(() => slugify(safeLocalStorage.getItem("tenantSlug")), []);
+  const derivedTenantSlug = useMemo(() => {
+    const candidates = [
+      (user as any)?.tenantSlug,
+      (user as any)?.tenant_slug,
+      (perfil as any)?.tenant_slug,
+      (perfil as any)?.slug,
+      (perfil as any)?.endpoint,
+      (perfil as any)?.municipio,
+      (user as any)?.tenant,
+      (user as any)?.empresa,
+      (user as any)?.nombre_empresa,
+      storedTenantSlug,
+      user?.name,
+      user?.email?.split("@")[0],
+    ];
+
+    for (const candidate of candidates) {
+      const normalized = slugify(candidate);
+      if (normalized) return normalized;
+    }
+
+    return null;
+  }, [perfil, storedTenantSlug, user]);
+  const isAdminUser = useMemo(
+    () => (user?.rol || "").toLowerCase() === "admin",
+    [user?.rol],
+  );
+  const isProOrFullPlan = useMemo(
+    () => perfil.plan === "pro" || perfil.plan === "full",
+    [perfil.plan],
+  );
+  const location = useLocation();
+  const tenantPrefix = useMemo(() => {
+    const currentPath = location.pathname ?? "";
+    return TENANT_ROUTE_PREFIXES.find((prefix) => currentPath.startsWith(`/${prefix}/`)) ?? null;
+  }, [location.pathname]);
+  const buildMappingPath = useCallback(
+    (path: string) =>
+      tenantPrefix && derivedTenantSlug ? `/${tenantPrefix}/${derivedTenantSlug}${path}` : path,
+    [derivedTenantSlug, tenantPrefix],
+  );
   const [modoHorario, setModoHorario] = useState("comercial");
   const [archivo, setArchivo] = useState<File | null>(null); // Tipado para archivo
   const [resultadoCatalogo, setResultadoCatalogo] = useState<{ message: string; type: "success" | "error" } | null>(null);
@@ -206,7 +320,12 @@ export default function Perfil() {
   const [geocodingError, setGeocodingError] = useState<string | null>(null);
   const geocodeAbortRef = useRef<AbortController | null>(null);
   const [isMapLoading, setIsMapLoading] = useState(true);
-  const isStaff = ['admin', 'empleado', 'super_admin'].includes(user?.rol ?? '');
+  const normalizedRole = normalizeRole(user?.rol);
+  const isStaff = normalizedRole === 'admin' || normalizedRole === 'empleado';
+  const canViewAnalytics =
+    isStaff || user?.tipo_chat === 'pyme' || user?.tipo_chat === 'municipio';
+  const esMunicipio = (user?.tipo_chat || perfil.rubro) === "municipio" || perfil.rubro === "municipios";
+
   const {
     posts: municipalPosts,
     isLoading: isLoadingMunicipalPosts,
@@ -216,7 +335,7 @@ export default function Perfil() {
     setFilters: updateMunicipalPostFilters,
     loadMore: loadMoreMunicipalPosts,
     refresh: refreshMunicipalPosts,
-  } = useMunicipalPosts({ limit: 10 });
+  } = useMunicipalPosts({ limit: 10, enabled: esMunicipio });
 
   const handleTipoPostFilterChange = useCallback(
     (value: string) => {
@@ -423,6 +542,7 @@ export default function Perfil() {
   };
 
   const [heatmapData, setHeatmapData] = useState<HeatPoint[]>([]);
+  const [heatmapDetails, setHeatmapDetails] = useState<HeatmapDataset | null>(null);
   const [availableCategories, setAvailableCategories] = useState<string[]>([]);
   const [availableBarrios, setAvailableBarrios] = useState<string[]>([]);
   const [availableTipos, setAvailableTipos] = useState<string[]>([]);
@@ -450,13 +570,27 @@ export default function Perfil() {
   const [suggestedMappings, setSuggestedMappings] = useState<Record<string, string | null>>({});
   const [fileProcessingError, setFileProcessingError] = useState<string | null>(null);
   const [systemFields] = useState<SystemField[]>(DEFAULT_SYSTEM_FIELDS);
+  const [previewRecords, setPreviewRecords] = useState<Record<string, string>[]>([]);
+  const [analysisSummary, setAnalysisSummary] = useState<string | null>(null);
+  const [analysisWarnings, setAnalysisWarnings] = useState<string[]>([]);
+  const [analysisSource, setAnalysisSource] = useState<string | null>(null);
+  const [analysisConfidence, setAnalysisConfidence] = useState<number | null>(null);
+  const [analysisEngine, setAnalysisEngine] = useState<string | null>(null);
   // --- Fin de estados para el modal ---
+
+  const previewColumnNames = parsedColumns.length > 0
+    ? parsedColumns
+    : previewRecords.length > 0
+      ? Object.keys(previewRecords[0])
+      : [];
 
 
   // Estados para la gestión de mapeos
   interface MappingConfig {
     id: string; // o number, según tu backend
     name: string;
+    is_default?: boolean;
+    isDefault?: boolean;
     // Podríamos añadir más detalles si fueran necesarios en la lista, como fileType o ultimaModificacion
   }
   const [mappingConfigs, setMappingConfigs] = useState<MappingConfig[]>([]);
@@ -510,6 +644,12 @@ export default function Perfil() {
             typeof h.cerrado === "boolean" ? h.cerrado : idx === 5 || idx === 6,
         }));
       }
+      const resolvedPlan =
+        data.plan ||
+        data.tenant?.plan ||
+        data.tenant_plan ||
+        "gratis";
+
       setPerfil((prev) => ({
         ...prev,
         nombre_empresa: data.nombre_empresa || "",
@@ -521,7 +661,7 @@ export default function Perfil() {
         latitud,
         longitud,
         link_web: data.link_web || "",
-        plan: data.plan || "gratis",
+        plan: resolvedPlan,
         preguntas_usadas: data.preguntas_usadas ?? 0,
         limite_preguntas: data.limite_preguntas ?? 100,
         rubro: data.rubro?.toLowerCase() || "",
@@ -530,9 +670,10 @@ export default function Perfil() {
       }));
 
       const trimmedAddress = direccion.trim();
+      const hasCoordinates = latitud !== null && longitud !== null;
       setLastGeocodedAddress(trimmedAddress ? trimmedAddress : null);
-      setIsManualLocation(Boolean(latitud !== null && longitud !== null));
-      setPendingGeocode(null);
+      setIsManualLocation(hasCoordinates);
+      setPendingGeocode(!hasCoordinates && trimmedAddress ? trimmedAddress : null);
       setGeocodingError(null);
       if (geocodeAbortRef.current) {
         geocodeAbortRef.current.abort();
@@ -557,9 +698,9 @@ export default function Perfil() {
     try {
       const tipo = user?.tipo_chat ?? getCurrentTipoChat();
 
-      const [stats, heatmapPoints, categoryData] = await Promise.all([
+      const [stats, heatmapDataset, categoryData] = await Promise.all([
         getTicketStats({ tipo }),
-        getHeatmapPoints({ tipo_ticket: tipo, tipo }),
+        getHeatmapPoints({ tipo }),
         apiFetch<{ categorias: { id: number; nombre: string }[] }>(
           '/municipal/categorias',
         ).catch((err) => {
@@ -568,7 +709,11 @@ export default function Perfil() {
         }),
       ]);
 
-      let combinedHeatmap = (heatmapPoints?.length ? heatmapPoints : stats.heatmap) ?? [];
+      const statsHeatmapDataset = stats.heatmapDataset;
+      const statsHeatmap = statsHeatmapDataset?.points ?? stats.heatmap ?? [];
+      const heatmapPoints = heatmapDataset?.points ?? [];
+
+      let combinedHeatmap = heatmapPoints.length > 0 ? heatmapPoints : statsHeatmap;
       const usedFallback = combinedHeatmap.length === 0;
 
       if (usedFallback) {
@@ -580,6 +725,11 @@ export default function Perfil() {
       }
 
       setHeatmapData(combinedHeatmap);
+      setHeatmapDetails(
+        heatmapPoints.length > 0
+          ? heatmapDataset ?? { points: combinedHeatmap }
+          : statsHeatmapDataset ?? { points: combinedHeatmap },
+      );
 
       const barriosFromHeatmap = Array.from(
         new Set(combinedHeatmap.map((d) => d.barrio).filter((b): b is string => Boolean(b))),
@@ -617,6 +767,7 @@ export default function Perfil() {
       });
       const fallbackPoints = generateJuninDemoHeatmap();
       setHeatmapData(fallbackPoints);
+      setHeatmapDetails({ points: fallbackPoints });
       const barrios = mergeAndSortStrings(
         Array.from(new Set(fallbackPoints.map((d) => d.barrio).filter((b): b is string => Boolean(b)))),
         [...JUNIN_DEMO_BARRIOS],
@@ -648,18 +799,31 @@ export default function Perfil() {
       navigate("/login"); // Usar navigate para la redirección
       return;
     }
-    (async () => {
+    void (async () => {
       await fetchPerfil();
-      await fetchMapData();
     })();
-  }, [fetchPerfil, fetchMapData, navigate]);
+  }, [fetchPerfil, navigate]);
+
+  useEffect(() => {
+    if (!canViewAnalytics) {
+      return;
+    }
+
+    const token = safeLocalStorage.getItem("authToken");
+    if (!token) {
+      return;
+    }
+
+    void fetchMapData();
+  }, [canViewAnalytics, fetchMapData]);
 
   // Función para cargar las configuraciones de mapeo
   const fetchMappingConfigs = useCallback(async () => {
-    if (!user?.id) return; // Asegurarse que tenemos el ID de la PYME (user.id)
+    if (!user?.id) return; // Asegurarse que tenemos el ID de la organización
     setLoadingMappings(true);
+    const entityType = isPyme ? 'pymes' : 'municipal';
     try {
-      const data = await apiFetch<MappingConfig[]>(`/pymes/${user.id}/catalog-mappings`);
+      const data = await apiFetch<MappingConfig[]>(`/${entityType}/${user.id}/catalog-mappings`);
       setMappingConfigs(data || []);
     } catch (err) {
       toast({
@@ -671,10 +835,13 @@ export default function Perfil() {
     } finally {
       setLoadingMappings(false);
     }
-  }, [user?.id]);
+  }, [isPyme, user?.id]);
 
   const refreshVectorSyncStatus = useCallback(async () => {
-    if (!user?.id) return;
+    if (!user?.id || !isPyme) {
+      setVectorSyncStatus(null);
+      return;
+    }
     setLoadingVectorSync(true);
     try {
       const status = await fetchCatalogVectorSyncStatus(user.id);
@@ -688,7 +855,7 @@ export default function Perfil() {
     } finally {
       setLoadingVectorSync(false);
     }
-  }, [user?.id]);
+  }, [user?.id, isPyme]);
 
   // Cargar mapeos cuando el diálogo se va a mostrar
   useEffect(() => {
@@ -698,10 +865,14 @@ export default function Perfil() {
   }, [showManageMappingsDialog, user?.id, fetchMappingConfigs]);
 
   useEffect(() => {
+    if (!isPyme) {
+      setVectorSyncStatus(null);
+      return;
+    }
     if (user?.id) {
       refreshVectorSyncStatus();
     }
-  }, [user?.id, refreshVectorSyncStatus]);
+  }, [user?.id, isPyme, refreshVectorSyncStatus]);
 
   useEffect(() => {
     if (!pendingGeocode) {
@@ -951,6 +1122,52 @@ export default function Perfil() {
       setArchivo(null);
     }
     setResultadoCatalogo(null);
+    setParsedColumns([]);
+    setSuggestedMappings({});
+    setPreviewRecords([]);
+    setAnalysisSummary(null);
+    setAnalysisWarnings([]);
+    setAnalysisSource(null);
+    setAnalysisConfidence(null);
+    setAnalysisEngine(null);
+  };
+
+  const processFileWithMapping = async (fileToProcess: File, mappingId: string, mappingName?: string) => {
+    setLoadingCatalogo(true);
+    setResultadoCatalogo(null);
+    const entityType = isPyme ? 'pymes' : 'municipal';
+
+    try {
+      if (!user?.id) {
+        setResultadoCatalogo({ message: "Usuario no identificado.", type: "error" });
+        return;
+      }
+      const formData = new FormData();
+      formData.append("file", fileToProcess, fileToProcess.name);
+      formData.append("mappingId", mappingId);
+
+      const processingResult = await apiFetch<any>(`/${entityType}/${user?.id}/process-catalog-file`, {
+        method: "POST",
+        body: formData,
+        omitEntityToken: true,
+        suppressPanel401Redirect: true,
+        preserveAuthOn401: true,
+      });
+
+      setResultadoCatalogo({
+        message: processingResult.mensaje || "¡Catálogo subido, procesado y enviado al vector store!",
+        type: "success",
+      });
+      setArchivo(null);
+      setIsMappingModalOpen(false);
+      refreshVectorSyncStatus();
+
+    } catch (err) {
+      const errorMessage = getErrorMessage(err, "Ocurrió un error en el proceso.");
+      setResultadoCatalogo({ message: errorMessage, type: "error" });
+    } finally {
+      setLoadingCatalogo(false);
+    }
   };
 
   const handleSubirArchivo = async () => {
@@ -966,9 +1183,10 @@ export default function Perfil() {
     setResultadoCatalogo(null);
 
     // 1. Intentar obtener mapeos existentes para decidir el flujo
-    let pymeId = user?.id;
-    if (!pymeId) {
-      toast({ variant: "destructive", title: "Error", description: "No se pudo identificar la PYME." });
+    const entityId = user?.id;
+    const entityType = isPyme ? 'pymes' : 'municipal';
+    if (!entityId) {
+      toast({ variant: "destructive", title: "Error", description: "No se pudo identificar la entidad." });
       setLoadingCatalogo(false);
       return;
     }
@@ -979,7 +1197,7 @@ export default function Perfil() {
     // Por simplicidad inicial, si no están en estado, las cargamos.
     if (configs.length === 0 && !loadingMappings) { // Evitar recargar si ya se están cargando
         try {
-            configs = await apiFetch<MappingConfig[]>(`/pymes/${pymeId}/catalog-mappings`) || [];
+            configs = await apiFetch<MappingConfig[]>(`/${entityType}/${entityId}/catalog-mappings`) || [];
             setMappingConfigs(configs); // Actualizar estado si se cargan aquí
         } catch (fetchErr) {
             // No bloquear la subida si esto falla, se procederá como si no hubiera mapeos
@@ -987,65 +1205,144 @@ export default function Perfil() {
         }
     }
 
-    // TODO: Implementar lógica para elegir mapeo predeterminado o único
-    // Por ahora, si no hay mapeos, o si hay más de uno y no hay predeterminado,
-    // redirigimos a la creación de mapeo con el archivo.
-    const shouldGoToMappingPage = configs.length === 0; // Simplificación: siempre ir si no hay mapeos.
-                                                        // Futuro: ir si hay >1 y ninguno es default, o si el usuario elige configurar.
+    // Lógica para elegir mapeo predeterminado o único
+    let selectedMapping: MappingConfig | undefined;
 
-    if (shouldGoToMappingPage) {
-      // En lugar de redirigir, ahora abrimos el modal.
+    if (configs.length === 1) {
+      selectedMapping = configs[0];
+    } else if (configs.length > 1) {
+      selectedMapping = configs.find(c => c.is_default || c.isDefault);
+    }
+
+    if (selectedMapping) {
+      // Si encontramos un mapeo adecuado, procesamos directamente
+      await processFileWithMapping(archivo, selectedMapping.id, selectedMapping.name);
+    } else {
+      // Si no hay mapeos o hay ambigüedad sin default, abrimos el modal para crear o configurar
       setIsMappingModalOpen(true);
-      // El resto de la lógica (parseo, etc.) se manejará dentro del modal y sus funciones.
+      setLoadingCatalogo(false);
     }
   };
 
   // Lógica de parseo y guardado para el nuevo flujo del modal
-  const parseFileAndSuggest = useCallback(async (fileToParse: File) => {
-    if (!fileToParse) return;
-    setIsParsing(true);
-    setFileProcessingError(null);
-    setParsedColumns([]);
-    setSuggestedMappings({});
+  const parseFileAndSuggest = useCallback(
+    async (fileToParse: File, options: { forceAi?: boolean } = {}) => {
+      if (!fileToParse) return;
+      setIsParsing(true);
+      setFileProcessingError(null);
+      setParsedColumns([]);
+      setSuggestedMappings({});
+      setPreviewRecords([]);
+      setAnalysisSummary(null);
+      setAnalysisWarnings([]);
+      setAnalysisSource(null);
+      setAnalysisConfidence(null);
+      setAnalysisEngine(null);
 
-    try {
-      let headers: string[] = [];
-      const fileType = fileToParse.name.split('.').pop()?.toLowerCase();
+      try {
+        let headers: string[] = [];
+        const fileType = fileToParse.name.split('.').pop()?.toLowerCase() || '';
+        const isStructured = ['csv', 'txt', 'xls', 'xlsx'].includes(fileType);
+        const shouldUseAi = options.forceAi || !isStructured;
 
-      if (fileType === 'csv' || fileType === 'txt') {
-        const text = await fileToParse.text();
-        const result = Papa.parse(text, { preview: 1, skipEmptyLines: true });
-        if (result.errors.length > 0) throw new Error(`Error al parsear CSV: ${result.errors[0].message}`);
-        headers = result.data[0] as string[];
-      } else if (fileType === 'xlsx' || fileType === 'xls') {
-        const arrayBuffer = await fileToParse.arrayBuffer();
-        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' }) as string[][];
-        if (jsonData.length > 0) headers = jsonData[0].map(String);
-      } else {
-        throw new Error("Tipo de archivo no soportado. Por favor, sube un CSV o Excel.");
+        if (shouldUseAi) {
+          if (!user?.id) {
+            throw new Error('Necesitamos el identificador de tu cuenta para ejecutar el análisis inteligente.');
+          }
+          const entityType = isPyme ? 'pymes' : 'municipal';
+
+          const preview = await requestDocumentPreview({
+            entityId: user.id,
+            entityType,
+            file: fileToParse,
+            options: {
+              hasHeaders: true,
+              skipRows: 0,
+              useAi: true,
+              aiProvider: 'openai',
+              fallbackProviders: ['docai'],
+            },
+          });
+
+          const normalizedHeaders = (preview.columns ?? []).map((header, index) =>
+            typeof header === 'string' && header.trim()
+              ? header.trim()
+              : `Columna ${index + 1}`,
+          );
+
+          headers = normalizedHeaders.length > 0
+            ? normalizedHeaders
+            : Array.from(
+                { length: Object.keys(preview.records?.[0] ?? {}).length || 0 },
+                (_, index) => `Columna ${index + 1}`,
+              );
+
+          setPreviewRecords(
+            buildPreviewRecords(headers, (preview.records ?? []).slice(0, MODAL_PREVIEW_ROWS)),
+          );
+
+          const combinedWarnings = [
+            ...(preview.warnings ?? []),
+            ...(preview.metadata?.warnings ?? []),
+          ].filter((warning): warning is string => Boolean(warning && warning.trim()));
+
+          setAnalysisWarnings(combinedWarnings);
+          setAnalysisSummary(preview.summary ?? preview.metadata?.summary ?? null);
+          setAnalysisSource((preview.metadata?.sourceType ?? fileType) || 'documento');
+          setAnalysisConfidence(
+            typeof preview.metadata?.confidence === 'number'
+              ? preview.metadata.confidence
+              : null,
+          );
+          setAnalysisEngine(preview.metadata?.engine ?? 'OpenAI');
+        } else if (fileType === 'csv' || fileType === 'txt') {
+          const text = await fileToParse.text();
+          const result = Papa.parse<string[]>(text, { preview: MODAL_PREVIEW_ROWS + 1, skipEmptyLines: true });
+          if (result.errors.length > 0) {
+            throw new Error(`Error al parsear CSV: ${result.errors[0].message}`);
+          }
+
+          const rows = result.data as string[][];
+          headers = (rows[0] || []).map((value, index) => value?.trim() || `Columna ${index + 1}`);
+          const previewRows = rows.slice(1, MODAL_PREVIEW_ROWS + 1);
+          setPreviewRecords(buildPreviewRecords(headers, previewRows));
+          setAnalysisSource(fileType);
+        } else if (fileType === 'xlsx' || fileType === 'xls') {
+          const arrayBuffer = await fileToParse.arrayBuffer();
+          const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+          const sheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[sheetName];
+          const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' }) as string[][];
+
+          if (jsonData.length > 0) {
+            headers = jsonData[0].map((value, index) => String(value || '').trim() || `Columna ${index + 1}`);
+            const previewRows = jsonData.slice(1, MODAL_PREVIEW_ROWS + 1);
+            setPreviewRecords(buildPreviewRecords(headers, previewRows));
+          }
+          setAnalysisSource('excel');
+        } else {
+          throw new Error('Tipo de archivo no soportado. Activá el análisis inteligente para procesar PDFs u otros formatos.');
+        }
+
+        if (headers.length === 0) {
+          throw new Error('No se encontraron columnas/encabezados en el archivo.');
+        }
+
+        setParsedColumns(headers);
+        const suggestions = suggestMappings(headers, systemFields);
+        const newMappings: Record<string, string | null> = {};
+        suggestions.forEach((s) => {
+          newMappings[s.systemFieldKey] = s.userColumn;
+        });
+        setSuggestedMappings(newMappings);
+      } catch (e) {
+        setFileProcessingError(getErrorMessage(e, 'Error al procesar el archivo.'));
+      } finally {
+        setIsParsing(false);
       }
-
-      if (headers.length === 0) {
-        throw new Error("No se encontraron columnas/encabezados en el archivo.");
-      }
-
-      setParsedColumns(headers);
-      const suggestions = suggestMappings(headers, systemFields);
-      const newMappings: Record<string, string | null> = {};
-      suggestions.forEach(s => {
-        newMappings[s.systemFieldKey] = s.userColumn;
-      });
-      setSuggestedMappings(newMappings);
-
-    } catch (e) {
-      setFileProcessingError(getErrorMessage(e, "Error al procesar el archivo."));
-    } finally {
-      setIsParsing(false);
-    }
-  }, [systemFields]);
+    },
+    [systemFields, user?.id],
+  );
 
   useEffect(() => {
     if (isMappingModalOpen && archivo) {
@@ -1064,6 +1361,7 @@ export default function Perfil() {
 
     // 1. Guardar la configuración de mapeo generada automáticamente
     const mappingName = `Mapeo para ${archivo.name} (${new Date().toLocaleString()})`;
+    const entityType = isPyme ? 'pymes' : 'municipal';
     const configToSave = {
       pymeId: user.id,
       name: mappingName,
@@ -1073,66 +1371,33 @@ export default function Perfil() {
 
     try {
       // Asumimos que el backend está listo para recibir esto.
-      const savedMapping = await apiFetch<any>(`/pymes/${user.id}/catalog-mappings`, {
+      const savedMapping = await apiFetch<any>(`/${entityType}/${user.id}/catalog-mappings`, {
         method: 'POST',
         body: configToSave,
+        omitEntityToken: true,
       });
 
       toast({ title: "Paso 1/2: Formato guardado", description: `Se guardó la configuración "${mappingName}".` });
 
       // 2. Ahora, procesar el archivo usando este nuevo mapeo
-      // (Esta parte sigue siendo hipotética hasta que el backend la implemente por completo)
-      const formData = new FormData();
-      formData.append("file", archivo);
-      formData.append("mappingId", savedMapping.id);
-
-      const processingResult = await apiFetch<any>(`/pymes/${user.id}/process-catalog-file`, {
-        method: "POST",
-        body: formData,
-      });
-
-      try {
-        const vectorResult = await triggerCatalogVectorSync({
-          pymeId: user.id,
-          mappingId: savedMapping.id,
-          sourceFileName: archivo.name,
-          metadata: {
-            fileSize: archivo.size,
-            mimeType: archivo.type,
-          },
-        });
-        setVectorSyncStatus(vectorResult);
-      } catch (vectorErr) {
-        toast({
-          variant: 'destructive',
-          title: 'Catálogo procesado con advertencias',
-          description: getErrorMessage(vectorErr, 'Se subió el archivo pero no se pudo sincronizar con Qdrant.'),
-        });
-      }
-
-      setResultadoCatalogo({
-        message: processingResult.mensaje || "¡Catálogo subido, procesado y enviado al vector store!",
-        type: "success",
-      });
-      setArchivo(null);
-      setIsMappingModalOpen(false);
-      refreshVectorSyncStatus();
+      await processFileWithMapping(archivo, savedMapping.id, mappingName);
 
     } catch (err) {
       const errorMessage = getErrorMessage(err, "Ocurrió un error en el proceso.");
       setResultadoCatalogo({ message: errorMessage, type: "error" });
-      // Mantener el modal abierto en caso de error para que el usuario pueda reintentar o cancelar.
-    } finally {
       setLoadingCatalogo(false);
+      // Mantener el modal abierto en caso de error para que el usuario pueda reintentar o cancelar.
     }
   };
 
   const handleDeleteMapping = async () => {
     if (!mappingToDelete || !user?.id) return;
     setLoadingMappings(true); // Reutilizar loading para el diálogo
+    const entityType = isPyme ? 'pymes' : 'municipal';
     try {
-      await apiFetch<void>(`/pymes/${user.id}/catalog-mappings/${mappingToDelete.id}`, {
+      await apiFetch<void>(`/${entityType}/${user.id}/catalog-mappings/${mappingToDelete.id}`, {
         method: 'DELETE',
+        omitEntityToken: true,
       });
       toast({
         title: "Configuración eliminada",
@@ -1166,7 +1431,6 @@ export default function Perfil() {
       : limitePlan > 0
       ? Math.min((perfil.preguntas_usadas / limitePlan) * 100, 100)
       : 0;
-  const esMunicipio = (user?.tipo_chat || perfil.rubro) === "municipio" || perfil.rubro === "municipios";
 
   return (
     <div className="flex flex-col min-h-screen bg-background dark:bg-gradient-to-tr dark:from-slate-950 dark:to-slate-900 text-foreground py-8 px-2 sm:px-4 md:px-6 lg:px-8">
@@ -1195,11 +1459,12 @@ export default function Perfil() {
       </div>
 
       <Tabs defaultValue="perfil" className="w-full max-w-6xl mx-auto">
-        <TabsList className="grid w-full grid-cols-5 sm:grid-cols-7">
+        <TabsList className={`grid w-full ${canViewAnalytics ? "grid-cols-6 sm:grid-cols-8" : "grid-cols-5 sm:grid-cols-7"}`}>
           <TabsTrigger value="perfil">Perfil</TabsTrigger>
-          <TabsTrigger value="tickets">Tickets</TabsTrigger>
-          <TabsTrigger value="pedidos">Pedidos</TabsTrigger>
+          <TabsTrigger value="tickets">{esMunicipio ? 'Reclamos' : 'Tickets'}</TabsTrigger>
+          <TabsTrigger value="pedidos">{esMunicipio ? 'Gestión' : 'Ventas'}</TabsTrigger>
           <TabsTrigger value="estadisticas">Estadísticas</TabsTrigger>
+          {canViewAnalytics && <TabsTrigger value="analytics">Analytics</TabsTrigger>}
           <TabsTrigger value="usuarios">Usuarios</TabsTrigger>
           {isStaff && <TabsTrigger value="empleados">Empleados</TabsTrigger>}
           {isStaff && <TabsTrigger value="mapas">Mapas</TabsTrigger>}
@@ -1461,7 +1726,7 @@ export default function Perfil() {
                   </form>
                 </CardContent>
               </Card>
-              {isStaff && (
+              {canViewAnalytics && (
                 isMapLoading ? (
                   <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm flex items-center justify-center h-[600px]">
                     <p className="text-muted-foreground">Cargando mapa de calor...</p>
@@ -1473,6 +1738,7 @@ export default function Perfil() {
                     availableCategories={availableCategories}
                     availableBarrios={availableBarrios}
                     availableTipos={availableTipos}
+                    metadata={heatmapDetails?.metadata?.map?.heatmap}
                     onSelect={handleMapSelect}
                   />
                 )
@@ -1521,17 +1787,6 @@ export default function Perfil() {
                           {perfil.plan !== "full" && perfil.plan !== "pro" && (
                             <div className="space-y-2 mt-3">
                               <Button
-                                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
-                                onClick={() =>
-                                  window.open(
-                                    "https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=2c9380849764e81a01976585767f0040",
-                                    "_blank",
-                                  )
-                                }
-                              >
-                                Mejorar a PRO ($65.000/mes)
-                              </Button>
-                              <Button
                                 className="w-full bg-accent hover:bg-accent/90 text-accent-foreground font-semibold"
                                 onClick={() =>
                                   window.open(
@@ -1540,7 +1795,18 @@ export default function Perfil() {
                                   )
                                 }
                               >
-                                Mejorar a FULL ($95.000/mes)
+                                Mejorar a FULL ($350.000/mes)
+                              </Button>
+                              <Button
+                                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
+                                onClick={() =>
+                                  window.open(
+                                    "https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=2c9380849764e81a01976585767f0040",
+                                    "_blank",
+                                  )
+                                }
+                              >
+                                Mejorar a PRO ($300.000/mes)
                               </Button>
                             </div>
                           )}
@@ -1604,17 +1870,6 @@ export default function Perfil() {
                   {perfil.plan !== "full" && perfil.plan !== "pro" && (
                     <div className="space-y-2 mt-3">
                       <Button
-                        className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
-                        onClick={() =>
-                          window.open(
-                            "https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=2c9380849764e81a01976585767f0040",
-                            "_blank",
-                          )
-                        }
-                      >
-                        Mejorar a PRO ($65.000/mes)
-                      </Button>
-                      <Button
                         className="w-full bg-accent hover:bg-accent/90 text-accent-foreground font-semibold"
                         onClick={() =>
                           window.open(
@@ -1623,7 +1878,18 @@ export default function Perfil() {
                           )
                         }
                       >
-                        Mejorar a FULL ($95.000/mes)
+                        Mejorar a FULL ($350.000/mes)
+                      </Button>
+                      <Button
+                        className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
+                        onClick={() =>
+                          window.open(
+                            "https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=2c9380849764e81a01976585767f0040",
+                            "_blank",
+                          )
+                        }
+                      >
+                        Mejorar a PRO ($300.000/mes)
                       </Button>
                     </div>
                   )}
@@ -1645,199 +1911,91 @@ export default function Perfil() {
                 </CardContent>
               </Card>
 
-              {/* Cargar Catálogo Card */}
-              <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm flex flex-col flex-grow">
-                <CardHeader>
-                  <CardTitle className="text-lg font-semibold text-primary">
-                    {esMunicipio
-                      ? "Cargar Catálogo de Trámites"
-                      : "Cargar Catálogo de Productos"}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4 flex flex-col flex-grow">
-                  <div>
-                    <Label
-                      htmlFor="catalogoFile"
-                      className="text-sm text-muted-foreground mb-1 block"
-                    >
-                      Subir nuevo o actualizar (PDF, Excel, CSV)
-                    </Label>
-                    <Input
-                      id="catalogoFile"
-                      type="file"
-                      accept=".xlsx,.xls,.csv,.pdf"
-                      onChange={handleArchivoChange}
-                      className="text-muted-foreground file:mr-2 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90 cursor-pointer"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1.5">
-                      Tip: Para mayor precisión, usá Excel/CSV con columnas claras
-                      (ej: Nombre, Precio, Descripción).
-                    </p>
-                  </div>
+              {/* Cargar Catálogo Wizard */}
+              <div className="flex flex-col gap-6 flex-grow">
+                <ImportWizard
+                  tenantId={Number(user?.id)}
+                  tenantSlug={derivedTenantSlug || undefined}
+                  onComplete={() => {
+                    refreshVectorSyncStatus();
+                    toast({ title: "Catálogo actualizado", description: "El proceso de importación ha finalizado." });
+                  }}
+                />
 
-                  {/* Gestión de Mapeos */}
-                  <div className="mt-3 pt-3 border-t border-border/60">
-                    <Dialog open={showManageMappingsDialog} onOpenChange={setShowManageMappingsDialog}>
-                      <DialogTrigger asChild>
-                        <Button variant="outline" size="sm" className="w-full text-sm">
-                          <Settings2 className="w-4 h-4 mr-2" />
-                          Configurar Formatos de Archivo...
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="sm:max-w-[625px]">
-                        <DialogHeader>
-                          <DialogTitle className="text-xl flex items-center">
-                            <FileCog className="w-5 h-5 mr-2 text-primary"/>
-                            Mis Formatos de Archivo de Catálogo
-                          </DialogTitle>
-                          <DialogDescription>
-                            Gestiona cómo se leen las columnas de tus archivos de catálogo. Puedes tener múltiples formatos.
-                          </DialogDescription>
-                        </DialogHeader>
-                        <div className="py-2 max-h-[60vh] overflow-y-auto">
-                          {loadingMappings && <p className="text-muted-foreground text-sm p-4 text-center">Cargando formatos...</p>}
-                          {!loadingMappings && mappingConfigs.length === 0 && (
-                            <p className="text-muted-foreground text-sm p-4 text-center">
-                              Aún no has guardado ninguna configuración de formato.
-                              Se intentará detectar las columnas automáticamente al subir un archivo.
-                            </p>
-                          )}
-                          {!loadingMappings && mappingConfigs.length > 0 && (
-                            <ul className="space-y-2">
-                              {mappingConfigs.map((config) => (
-                                <li key={config.id} className="flex items-center justify-between p-3 bg-muted/30 hover:bg-muted/60 rounded-md border border-border">
-                                  <span className="text-sm font-medium text-foreground">{config.name}</span>
-                                  <div className="space-x-2">
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-8 w-8"
-                                      onClick={() => navigate(`/admin/pyme/${user?.id}/catalog-mappings/${config.id}`)}
-                                      title="Editar"
-                                    >
-                                      <Edit3 className="w-4 h-4" />
-                                    </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                      onClick={() => setMappingToDelete(config)}
-                                      title="Eliminar"
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                    </Button>
-                                  </div>
-                                </li>
-                              ))}
-                            </ul>
-                          )}
+                {isPyme && (
+                  <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm">
+                    <CardHeader>
+                      <CardTitle className="text-sm font-semibold text-primary">Estado de Sincronización</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="rounded-lg border border-border/60 bg-muted/30 p-3 space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium text-foreground">Estado en Qdrant</span>
+                          <Badge
+                            variant={
+                              loadingVectorSync
+                                ? 'secondary'
+                                : vectorSyncStatus?.status === 'ready'
+                                  ? 'success'
+                                  : vectorSyncStatus?.status === 'error'
+                                    ? 'destructive'
+                                    : 'outline'
+                            }
+                          >
+                            {loadingVectorSync
+                              ? 'Sincronizando...'
+                              : vectorSyncStatus?.status === 'ready'
+                                ? 'Listo'
+                                : vectorSyncStatus?.status === 'processing'
+                                  ? 'Procesando'
+                                  : vectorSyncStatus?.status === 'pending'
+                                    ? 'Pendiente'
+                                    : vectorSyncStatus?.status === 'error'
+                                      ? 'Error'
+                                      : 'Sin datos'}
+                          </Badge>
                         </div>
-                        <DialogFooter className="mt-4 sm:justify-between gap-2">
-                           <DialogClose asChild>
-                             <Button variant="outline" className="w-full sm:w-auto">Cerrar</Button>
-                           </DialogClose>
-                           <Button
-                             className="w-full sm:w-auto"
-                             onClick={() => navigate(`/admin/pyme/${user?.id}/catalog-mappings/new`)}
-                           >
-                             <PlusCircle className="w-4 h-4 mr-2" />
-                             Crear Nuevo Formato
-                           </Button>
-                        </DialogFooter>
-                      </DialogContent>
-                    </Dialog>
-                  </div>
-                  {/* Fin Gestión de Mapeos */}
-
-                  <div className="flex-grow"></div> {/* Spacer element */}
-                  <div className="rounded-lg border border-border/60 bg-muted/30 p-3 space-y-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-foreground">Estado en Qdrant</span>
-                      <Badge
-                        variant={
-                          loadingVectorSync
-                            ? 'secondary'
-                            : vectorSyncStatus?.status === 'ready'
-                              ? 'success'
-                              : vectorSyncStatus?.status === 'error'
-                                ? 'destructive'
-                                : 'outline'
-                        }
-                      >
-                        {loadingVectorSync
-                          ? 'Sincronizando...'
-                          : vectorSyncStatus?.status === 'ready'
-                            ? 'Listo'
-                            : vectorSyncStatus?.status === 'processing'
-                              ? 'Procesando'
-                              : vectorSyncStatus?.status === 'pending'
-                                ? 'Pendiente'
-                                : vectorSyncStatus?.status === 'error'
-                                  ? 'Error'
-                                  : 'Sin datos'}
-                      </Badge>
-                    </div>
-                    {loadingVectorSync ? (
-                      <p className="text-xs text-muted-foreground">Consultando sincronización...</p>
-                    ) : (
-                      <>
-                        <p className="text-xs text-muted-foreground">
-                          {vectorSyncStatus?.message || 'Tus catálogos se indexan para búsquedas de precios y promociones.'}
-                        </p>
-                        {vectorSyncStatus?.lastSyncedAt && (
-                          <p className="text-xs text-muted-foreground">
-                            Última actualización: {formatVectorSyncDate(vectorSyncStatus.lastSyncedAt)}
-                          </p>
+                        {loadingVectorSync ? (
+                          <p className="text-xs text-muted-foreground">Consultando sincronización...</p>
+                        ) : (
+                          <>
+                            <p className="text-xs text-muted-foreground">
+                              {vectorSyncStatus?.message || 'Tus catálogos se indexan para búsquedas de precios y promociones.'}
+                            </p>
+                            {vectorSyncStatus?.lastSyncedAt && (
+                              <p className="text-xs text-muted-foreground">
+                                Última actualización: {formatVectorSyncDate(vectorSyncStatus.lastSyncedAt)}
+                              </p>
+                            )}
+                            {typeof vectorSyncStatus?.documentCount === 'number' && (
+                              <p className="text-xs text-muted-foreground">
+                                Documentos indexados: {vectorSyncStatus.documentCount}
+                              </p>
+                            )}
+                            {vectorSyncStatus?.lastSourceFileName && (
+                              <p className="text-xs text-muted-foreground truncate">
+                                Archivo más reciente: {vectorSyncStatus.lastSourceFileName}
+                              </p>
+                            )}
+                          </>
                         )}
-                        {typeof vectorSyncStatus?.documentCount === 'number' && (
-                          <p className="text-xs text-muted-foreground">
-                            Documentos indexados: {vectorSyncStatus.documentCount}
-                          </p>
-                        )}
-                        {vectorSyncStatus?.lastSourceFileName && (
-                          <p className="text-xs text-muted-foreground truncate">
-                            Archivo más reciente: {vectorSyncStatus.lastSourceFileName}
-                          </p>
-                        )}
-                      </>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="w-full"
-                      onClick={refreshVectorSyncStatus}
-                      disabled={loadingVectorSync || !user?.id}
-                    >
-                      Actualizar estado
-                    </Button>
-                  </div>
-                  <Button
-                    onClick={handleSubirArchivo}
-                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-2.5 mt-auto"
-                    disabled={loadingCatalogo || !archivo}
-                  >
-                    <UploadCloud className="w-4 h-4 mr-2" />{" "}
-                    {loadingCatalogo
-                      ? "Procesando Catálogo..."
-                      : "Subir y Procesar Catálogo"}
-                  </Button>
-                  {resultadoCatalogo && (
-                    <div
-                      className={`text-sm p-3 rounded-md flex items-center gap-2 ${resultadoCatalogo.type === "error" ? "bg-destructive text-destructive-foreground" : "bg-green-100 text-green-800"}`}
-                    >
-                      {resultadoCatalogo.type === "error" ? (
-                        <XCircle className="w-5 h-5" />
-                      ) : (
-                        <CheckCircle className="w-5 h-5" />
-                      )}{" "}
-                      {resultadoCatalogo.message}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="w-full"
+                          onClick={refreshVectorSyncStatus}
+                          disabled={loadingVectorSync || !user?.id}
+                        >
+                          Actualizar estado
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
 
               {/* Gestión de Eventos y Noticias Card */}
-              {isStaff && (
+              {isStaff && esMunicipio && (
                 <>
                   <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm flex flex-col flex-grow">
                     <CardHeader>
@@ -2113,10 +2271,16 @@ export default function Perfil() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3 flex flex-col flex-grow">
-                  {perfil.plan === "pro" || perfil.plan === "full" ? (
+                  {isProOrFullPlan && isAdminUser ? (
                     <Button
                       className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
-                      onClick={() => navigate("/integracion")}
+                      onClick={() => {
+                        const integrationPath = derivedTenantSlug
+                          ? `/${derivedTenantSlug}/integracion`
+                          : "/integracion";
+
+                        navigate(integrationPath);
+                      }}
                     >
                       Ir a la guía de integración
                     </Button>
@@ -2124,10 +2288,16 @@ export default function Perfil() {
                     <Button
                       className="w-full bg-muted text-muted-foreground cursor-not-allowed"
                       disabled
-                      title="Solo para clientes con Plan PRO o FULL"
+                      title={
+                        !isProOrFullPlan
+                          ? "Solo para clientes con Plan PRO o FULL"
+                          : "Solo administradores pueden gestionar la integración"
+                      }
                       style={{ pointerEvents: "none" }}
                     >
-                      Plan PRO requerido para activar integración
+                      {!isProOrFullPlan
+                        ? "Plan PRO requerido para activar integración"
+                        : "Acceso disponible solo para administradores"}
                     </Button>
                   )}
                   <div className="flex-grow flex items-center justify-center p-4">
@@ -2135,7 +2305,8 @@ export default function Perfil() {
                   </div>
                   <div className="text-xs text-muted-foreground mt-auto pt-2">
                     Accedé a los códigos e instrucciones para pegar el widget de
-                    Chatboc en tu web solo si tu plan es PRO o superior.
+                    Chatboc en tu web solo si tu plan es PRO o superior y tenés
+                    rol de administrador.
                     <br />
                     Cualquier duda, escribinos a{" "}
                     <a
@@ -2156,8 +2327,13 @@ export default function Perfil() {
         <TabsContent value="estadisticas">
           <EstadisticasPage />
         </TabsContent>
+        {canViewAnalytics && (
+          <TabsContent value="analytics">
+            <AnalyticsPage />
+          </TabsContent>
+        )}
         <TabsContent value="pedidos">
-          <PedidosPage />
+          <SmartPedidosWrapper />
         </TabsContent>
         <TabsContent value="usuarios">
           <UsuariosPage />
@@ -2174,101 +2350,6 @@ export default function Perfil() {
         )}
       </Tabs>
 
-      {/* AlertDialog para confirmar eliminación de mapeo */}
-      <AlertDialog open={!!mappingToDelete} onOpenChange={(open) => !open && setMappingToDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>¿Estás seguro de eliminar este formato?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Formato: <span className="font-semibold">{mappingToDelete?.name}</span>
-              <br />
-              Esta acción no se puede deshacer.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setMappingToDelete(null)}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteMapping}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              disabled={loadingMappings}
-            >
-              {loadingMappings ? "Eliminando..." : "Sí, eliminar"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* --- Modal de Mapeo Simplificado --- */}
-      <Dialog open={isMappingModalOpen} onOpenChange={setIsMappingModalOpen}>
-        <DialogContent className="sm:max-w-[625px]">
-          <DialogHeader>
-            <DialogTitle className="text-xl flex items-center">
-              <Wand2 className="w-5 h-5 mr-2 text-primary"/>
-              Confirmar Columnas del Catálogo
-            </DialogTitle>
-            <DialogDescription>
-              Hemos detectado las siguientes columnas en tu archivo <strong>{archivo?.name}</strong>.
-              Confirma si el mapeo es correcto para procesarlo.
-            </DialogDescription>
-          </DialogHeader>
-
-          {isParsing && (
-            <div className="flex items-center justify-center p-8">
-              <Loader2 className="h-8 w-8 animate-spin text-primary mr-3" />
-              <p className="text-muted-foreground">Analizando archivo...</p>
-            </div>
-          )}
-
-          {fileProcessingError && (
-              <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">
-                  <strong>Error:</strong> {fileProcessingError}
-              </div>
-          )}
-
-          {!isParsing && !fileProcessingError && parsedColumns.length > 0 && (
-            <div className="py-2 max-h-[50vh] overflow-y-auto">
-                <ul className="space-y-2 text-sm">
-                  {systemFields.map(field => {
-                    const mappedColumn = suggestedMappings[field.key];
-                    if (mappedColumn) {
-                      return (
-                        <li key={field.key} className="flex items-center justify-between p-2 bg-muted/30 rounded-md">
-                          <span className="font-semibold text-foreground">{field.label}</span>
-                          <span className="text-primary font-mono text-xs p-1 bg-primary/10 rounded">{mappedColumn}</span>
-                        </li>
-                      );
-                    }
-                    return null;
-                  })}
-                </ul>
-                <p className="text-xs text-muted-foreground mt-3">
-                  Campos no encontrados en el archivo serán ignorados.
-                </p>
-            </div>
-          )}
-
-          <DialogFooter className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-2">
-            <Button
-              variant="outline"
-              className="w-full sm:col-span-1"
-              onClick={() => navigate(`/admin/pyme/${user?.id}/catalog-mappings/new`, { state: { preloadedFile: archivo }})}
-            >
-              Configuración Avanzada...
-            </Button>
-            <DialogClose asChild className="sm:col-start-2">
-              <Button variant="ghost" className="w-full">Cancelar</Button>
-            </DialogClose>
-            <Button
-              className="w-full sm:col-span-1"
-              onClick={handleConfirmAndProcess}
-              disabled={isParsing || loadingCatalogo || !!fileProcessingError}
-            >
-              {(isParsing || loadingCatalogo) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              Confirmar y Procesar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
        {/* --- Modal para Crear Evento/Noticia --- */}
       <Dialog

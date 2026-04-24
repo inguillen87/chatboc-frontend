@@ -15,6 +15,7 @@ Este documento resume los lineamientos para que el widget de Chatboc funcione de
 ## Aislamiento de estilos
 - El CSS del sitio host no debe afectar al widget. Usar Shadow DOM o clases únicas si es necesario.
 - Probar con páginas externas que tengan estilos agresivos o reglas globales.
+- Al incrustar con `widget.js`, incluir `data-shadow-dom="true"` para aislar los estilos del widget.
 
 ## Aislamiento de JavaScript
 - Los errores de otros scripts en la página no deben interferir con la lógica del chat.
@@ -71,4 +72,3 @@ Este documento resume los lineamientos para que el widget de Chatboc funcione de
 
 ## Soporte y mensajes de error
 - Si ocurre un fallo de carga se muestra un mensaje amigable con enlace a soporte.
-

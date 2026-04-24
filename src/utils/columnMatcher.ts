@@ -90,6 +90,7 @@ export const DEFAULT_SYSTEM_FIELDS: SystemField[] = [
   { key: "marca", label: "Marca" },
   { key: "ean", label: "EAN / Código de Barras" },
   { key: "imagen_url", label: "URL de Imagen" },
+  { key: "disponible", label: "Disponible (Sí/No)" },
 ];
 
 const SIMILARITY_THRESHOLD = 0.45; // Adjusted after testing - provides a balance. Original was 0.6

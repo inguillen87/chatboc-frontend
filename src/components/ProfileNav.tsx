@@ -12,6 +12,9 @@ import { Menu } from 'lucide-react';
 import { useUser } from '@/hooks/useUser';
 import { normalizeRole } from '@/utils/roles';
 import useEndpointAvailable from '@/hooks/useEndpointAvailable';
+import { useRealtimeAlerts } from '@/context/RealtimeAlertsContext';
+import { useTenant } from '@/context/TenantContext';
+import { buildTenantPath } from '@/utils/tenantPaths';
 
 interface NavItem {
   label: string;
@@ -29,7 +32,7 @@ const NAV_ITEMS: NavItem[] = [
   // Municipio specific items
   { label: 'Trámites', path: '/municipal/tramites', roles: ['admin', 'super_admin'], tipo: 'municipio' },
   { label: 'Estadísticas', path: '/municipal/stats', roles: ['admin', 'super_admin'], tipo: 'municipio' },
-  { label: 'Analíticas', path: '/municipal/analytics', roles: ['admin', 'super_admin'], tipo: 'municipio' },
+  { label: 'Analytics', path: '/analytics', roles: ['admin', 'empleado', 'super_admin'] },
   { label: 'Empleados', path: '/municipal/usuarios', roles: ['admin', 'super_admin'], tipo: 'municipio' },
   { label: 'Mapa de Incidentes', path: '/municipal/incidents', roles: ['admin', 'super_admin'], tipo: 'municipio' },
 ];
@@ -38,11 +41,13 @@ export default function ProfileNav() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useUser();
+  const { currentSlug } = useTenant();
+  const { ticketUnreadCount, orderUnreadCount } = useRealtimeAlerts();
 
   // Hooks to check endpoint availability
   const tramitesAvailable = useEndpointAvailable('/municipal/tramites');
   const statsAvailable = useEndpointAvailable('/municipal/stats');
-  const analyticsAvailable = useEndpointAvailable('/municipal/analytics');
+  const analyticsAvailable = useEndpointAvailable('/api/admin/analytics/overview');
   const empleadosAvailable = useEndpointAvailable('/municipal/usuarios');
   const incidentsMapAvailable = useEndpointAvailable('/municipal/incidents'); // Check for Mapa de Incidentes
 
@@ -61,7 +66,7 @@ export default function ProfileNav() {
     // Check endpoint availability for relevant items
     if (it.path === '/municipal/tramites' && tramitesAvailable === false) return false;
     if (it.path === '/municipal/stats' && statsAvailable === false) return false;
-    if (it.path === '/municipal/analytics' && analyticsAvailable === false) return false;
+    if (it.path === '/analytics' && analyticsAvailable === false) return false;
     if (it.path === '/municipal/usuarios' && empleadosAvailable === false) return false;
     if (it.path === '/municipal/incidents' && incidentsMapAvailable === false) return false; // Check for Mapa
 
@@ -73,20 +78,49 @@ export default function ProfileNav() {
   // Example: Pyme items first, then Municipio items.
   // items.sort((a, b) => (a.tipo === 'pyme' ? -1 : 1)); // Simple sort, might need refinement
 
-  if (!items.length) return null;
+
+  const resolvedItems = items.map((it) => {
+    if (it.path === '/analytics') {
+      return {
+        ...it,
+        path: buildTenantPath('/analytics', currentSlug || undefined),
+      };
+    }
+    return it;
+  });
+
+  const currentPath = location.pathname;
+  const selectedPath =
+    resolvedItems.find((it) => it.path === currentPath)?.path
+    ?? resolvedItems.find((it) => currentPath.endsWith(it.path))?.path
+    ?? resolvedItems[0]?.path;
+
+  if (!resolvedItems.length) return null;
 
   return (
     <div className="w-full">
       <div className="hidden sm:block">
-        <Tabs value={location.pathname} onValueChange={(v) => navigate(v)}>
-          <TabsList className="rounded-xl border border-border bg-muted/50 shadow-sm p-1">
-            {items.map((it) => (
+        <Tabs value={selectedPath} onValueChange={(v) => navigate(v)}>
+          <TabsList className="flex w-full flex-wrap items-stretch gap-2 overflow-x-auto rounded-xl border border-border bg-muted/50 p-1 shadow-sm">
+            {resolvedItems.map((it) => (
               <TabsTrigger
                 key={it.path}
                 value={it.path}
-                className="rounded-lg px-5 py-3 text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg hover:bg-accent/70 hover:shadow-md transition-all duration-200"
+                className="rounded-lg px-4 py-2 text-sm font-semibold leading-snug text-center transition-all duration-200 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg hover:bg-accent/70 hover:shadow-md whitespace-normal"
               >
-                {it.label}
+                <span className="flex items-center gap-2">
+                  {it.label}
+                  {it.path === '/tickets' && ticketUnreadCount > 0 && (
+                    <span className="inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
+                      {ticketUnreadCount}
+                    </span>
+                  )}
+                  {it.path === '/pedidos' && orderUnreadCount > 0 && (
+                    <span className="inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
+                      {orderUnreadCount}
+                    </span>
+                  )}
+                </span>
               </TabsTrigger>
             ))}
           </TabsList>
@@ -103,9 +137,21 @@ export default function ProfileNav() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
-            {items.map((it) => (
+            {resolvedItems.map((it) => (
               <DropdownMenuItem key={it.path} onSelect={() => navigate(it.path)}>
-                {it.label}
+                <span className="flex items-center gap-2">
+                  {it.label}
+                  {it.path === '/tickets' && ticketUnreadCount > 0 && (
+                    <span className="inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
+                      {ticketUnreadCount}
+                    </span>
+                  )}
+                  {it.path === '/pedidos' && orderUnreadCount > 0 && (
+                    <span className="inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
+                      {orderUnreadCount}
+                    </span>
+                  )}
+                </span>
               </DropdownMenuItem>
             ))}
           </DropdownMenuContent>

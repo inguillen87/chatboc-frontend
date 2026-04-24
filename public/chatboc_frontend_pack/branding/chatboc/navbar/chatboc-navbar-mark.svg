@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <linearGradient id="cb-shell" x1="138" y1="116" x2="366" y2="300" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="0.46" stop-color="#F1F5FF"/>
+      <stop offset="0.78" stop-color="#DBE5FF"/>
+      <stop offset="1" stop-color="#BAC9F2"/>
+    </linearGradient>
+    <linearGradient id="cb-visor" x1="180" y1="166" x2="338" y2="258" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#06164D"/>
+      <stop offset="0.52" stop-color="#0C2E98"/>
+      <stop offset="1" stop-color="#082173"/>
+    </linearGradient>
+    <linearGradient id="cb-ear" x1="132" y1="162" x2="162" y2="272" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1A53FF"/>
+      <stop offset="0.7" stop-color="#0D35C3"/>
+      <stop offset="1" stop-color="#082184"/>
+    </linearGradient>
+    <linearGradient id="cb-blue" x1="172" y1="108" x2="350" y2="288" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2A69FF"/>
+      <stop offset="0.55" stop-color="#1451F2"/>
+      <stop offset="1" stop-color="#0D35C3"/>
+    </linearGradient>
+    <linearGradient id="cb-mouth" x1="225" y1="278" x2="287" y2="314" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#061447"/>
+      <stop offset="1" stop-color="#0B1E67"/>
+    </linearGradient>
+    <radialGradient id="cb-shadowGlow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(256 248) rotate(90) scale(150 170)">
+      <stop offset="0" stop-color="#66D8FF" stop-opacity="0.18"/>
+      <stop offset="0.6" stop-color="#66D8FF" stop-opacity="0.06"/>
+      <stop offset="1" stop-color="#66D8FF" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="cb-nav-bg" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(256 212) rotate(90) scale(320)">
+      <stop offset="0" stop-color="#1848E3"/>
+      <stop offset="0.44" stop-color="#112FBA"/>
+      <stop offset="0.82" stop-color="#081B72"/>
+      <stop offset="1" stop-color="#051040"/>
+    </radialGradient>
+    <radialGradient id="cb-nav-halo" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(260 226) rotate(90) scale(156)">
+      <stop offset="0" stop-color="#7AE8FF" stop-opacity="0.55"/>
+      <stop offset="0.46" stop-color="#49B7FF" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#49B7FF" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="cb-nav-shadow" x="-20%" y="-20%" width="140%" height="160%">
+      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#04113A" flood-opacity="0.42"/>
+    </filter>
+    
+  </defs>
+  
+  <g filter="url(#cb-nav-shadow)">
+    <ellipse cx="256" cy="248" rx="138" ry="118" fill="url(#cb-shadowGlow)"/>
+    <g id="cb-nav-bot">
+      <g id="cb-nav-ears">
+        <ellipse cx="152" cy="228" rx="30" ry="62" fill="url(#cb-ear)"/>
+        <ellipse cx="152" cy="228" rx="21" ry="49" fill="#3477FF"/>
+        <ellipse cx="152" cy="228" rx="12" ry="35" fill="#0B2DA0"/>
+        <ellipse cx="360" cy="228" rx="30" ry="62" fill="url(#cb-ear)"/>
+        <ellipse cx="360" cy="228" rx="21" ry="49" fill="#3477FF"/>
+        <ellipse cx="360" cy="228" rx="12" ry="35" fill="#0B2DA0"/>
+      </g>
+      <g id="cb-nav-head">
+        <rect x="122" y="118" width="268" height="192" rx="96" fill="url(#cb-shell)"/>
+        <rect x="132" y="128" width="248" height="172" rx="86" stroke="#98AFE5" stroke-width="4" opacity="0.5"/>
+        <path d="M170 128C194 102 318 102 342 128" stroke="url(#cb-blue)" stroke-width="16" stroke-linecap="round"/>
+        <path d="M180 132C198 116 312 116 330 132" stroke="#8FD7FF" stroke-opacity="0.42" stroke-width="5" stroke-linecap="round"/>
+        <path d="M148 178C182 150 328 148 362 174C370 180 376 188 380 198" stroke="#FFFFFF" stroke-opacity="0.46" stroke-width="8" stroke-linecap="round"/>
+      </g>
+      <g id="cb-nav-visor">
+        <rect x="164" y="160" width="184" height="106" rx="54" fill="url(#cb-visor)"/>
+        <rect x="168" y="164" width="176" height="98" rx="50" stroke="#1446DE" stroke-width="4" opacity="0.55"/>
+        <path d="M186 176C214 166 296 166 324 174" stroke="#67A5FF" stroke-opacity="0.38" stroke-width="6" stroke-linecap="round"/>
+      </g>
+      <g id="cb-nav-eyes">
+        <g id="cb-nav-eye-left">
+          <ellipse cx="218" cy="212" rx="16" ry="18" fill="#FFFFFF"/>
+          <ellipse cx="228" cy="220" rx="10" ry="12" fill="#071547"/>
+          <circle cx="234" cy="214" r="4.6" fill="#FFFFFF"/>
+          <circle cx="224" cy="225" r="2.4" fill="#2551D7" opacity="0.45"/>
+        </g>
+        <g id="cb-nav-eye-right">
+          <ellipse cx="292" cy="212" rx="16" ry="18" fill="#FFFFFF"/>
+          <ellipse cx="302" cy="220" rx="10" ry="12" fill="#071547"/>
+          <circle cx="308" cy="214" r="4.6" fill="#FFFFFF"/>
+          <circle cx="298" cy="225" r="2.4" fill="#2551D7" opacity="0.45"/>
+        </g>
+      </g>
+      <g id="cb-nav-mouth">
+        <path d="M220 246C236 262 276 262 292 246C287 274 266 286 256 286C245 286 225 274 220 246Z" fill="url(#cb-mouth)"/>
+        <path d="M233 252C242 260 270 260 279 252C274 269 262 276 256 276C249 276 238 269 233 252Z" fill="#FF5968"/>
+      </g>
+    </g>
+  </g>
+  
+</svg>

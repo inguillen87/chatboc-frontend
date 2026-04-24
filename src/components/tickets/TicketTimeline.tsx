@@ -29,7 +29,7 @@ const formatStatus = (status: string) =>
 
 const TicketTimeline: React.FC<TicketTimelineProps> = ({ history, messages = [], ticket }) => {
   const events: TimelineEvent[] = [
-    ...history.map((h) => ({ type: 'status', ...h })),
+    ...(history || []).map((h) => ({ type: 'status', ...h })),
     ...messages.map((m) => ({
       type: 'message',
       date: m.timestamp,

@@ -1,23 +1,63 @@
 // src/components/chat/ChatButtons.tsx
-import React from 'react';
+import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Boton, SendPayload } from '@/types/chat';
 import { openExternalLink } from '@/utils/openExternalLink';
+import { useTenant } from '@/context/TenantContext';
+import { buildTenantAwareUrl } from '@/utils/tenantUrls';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface ChatButtonsProps {
     botones: Boton[];
     // onButtonClick ahora puede enviar un payload estructurado
     onButtonClick: (payload: SendPayload) => void;
     onInternalAction?: (action: string) => void;
+    isDemoSelector?: boolean;
 }
 
 const ChatButtons: React.FC<ChatButtonsProps> = ({
     botones,
     onButtonClick,
     onInternalAction,
+    isDemoSelector = false,
 }) => {
+    const { currentSlug } = useTenant();
+    const isMobile = useIsMobile();
+
+    const resolveUrl = useMemo(
+        () => (url?: string) => (url ? buildTenantAwareUrl(url, currentSlug) : undefined),
+        [currentSlug],
+    );
+
     const normalize = (v: string) =>
         v.toLowerCase().replace(/[\s_-]+/g, "");
+
+    // Filter out unsupported "subastas" actions so they are not rendered or dispatched.
+    const filteredButtons = botones.filter(boton => {
+        const actionToUse = boton.action || boton.action_id;
+        const normalizedAction = actionToUse ? normalize(actionToUse) : null;
+        const normalizedInternal = boton.accion_interna ? normalize(boton.accion_interna) : null;
+        const normalizedLabel = normalize(String(boton?.texto || ""));
+
+        const isUnsupportedAuction = normalizedAction === "subastas" || normalizedInternal === "subastas";
+        if (isUnsupportedAuction) return false;
+
+        const isTopChipLabel = ["widget", "whatsapp", "voice"].includes(normalizedLabel);
+        const hasValidAction = Boolean(actionToUse || boton.accion_interna || boton.url || boton.payload);
+        if (isTopChipLabel && !hasValidAction) return false;
+
+        return true;
+    });
+
+    const buttonsToRender = filteredButtons;
+
+
+    const formatButtonLabel = (label: string) => {
+        const trimmed = label?.trim?.() || '';
+        if (!trimmed) return '';
+        const max = isMobile ? 28 : 44;
+        return trimmed.length > max ? `${trimmed.slice(0, max - 1)}…` : trimmed;
+    };
 
     const loginActions = [
         "login",
@@ -46,12 +86,23 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
             return; // Stop further processing for these auth actions
         }
 
+        const isBackendOnlyAction = (actionStr: string | null) => {
+            if (!actionStr) return false;
+            const str = actionStr.toLowerCase();
+            return str.startsWith("demo_segment:") ||
+                   str.startsWith("demo_select_rubro:") ||
+                   str.startsWith("demo_menu:");
+        };
+
         // Priority 2: Handle other `boton.action` (non-auth internal actions or backend actions)
         if (actionToUse) { // Will be non-auth at this point
+            const actionId = boton.action_id || undefined;
             // Send raw action to backend so it can match exactly.
-            onButtonClick({ text: boton.texto, action: actionToUse, payload: boton.payload, source: 'button' });
-            // Trigger potential frontend side-effects for this action.
-            onInternalAction?.(actionToUse);
+            onButtonClick({ text: boton.texto, action: actionToUse, action_id: actionId, payload: boton.payload, source: 'button' });
+            // Trigger potential frontend side-effects for this action, unless it's strictly backend.
+            if (!isBackendOnlyAction(actionToUse)) {
+                onInternalAction?.(actionToUse);
+            }
             return;
         }
 
@@ -60,13 +111,16 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
             // Send raw internal action to backend.
             onButtonClick({ text: boton.texto, action: accionInterna, source: 'button' });
             // Handle potential UI side-effects for these actions too.
-            onInternalAction?.(accionInterna);
+            if (!isBackendOnlyAction(accionInterna)) {
+                onInternalAction?.(accionInterna);
+            }
             return;
         }
 
-        // Priority 4: Handle URL navigation
-        if (boton.url) {
-            openExternalLink(boton.url);
+        const resolvedUrl = boton.url ? resolveUrl(boton.url) : undefined;
+
+        if (resolvedUrl) {
+            openExternalLink(resolvedUrl);
             return;
         }
 
@@ -74,43 +128,51 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
         onButtonClick({ text: boton.texto, payload: boton.payload, source: 'button' });
     };
 
-    const baseClass =
-        "rounded-xl px-3 py-1 text-sm font-semibold bg-white text-blue-800 border border-blue-200 hover:bg-blue-50 hover:shadow transition-all";
+    const baseClass = isDemoSelector
+        ? "w-full min-h-11 rounded-xl px-3 py-2 text-left font-semibold bg-white text-blue-800 border border-blue-200 hover:bg-blue-50 hover:shadow transition-all shadow-sm"
+        : "rounded-xl px-3 py-1 text-sm font-semibold bg-white text-blue-800 border border-blue-200 hover:bg-blue-50 hover:shadow transition-all";
+
+    const containerClass = isDemoSelector
+        ? "grid grid-cols-1 gap-2 mt-3 w-full"
+        : "flex flex-wrap gap-2 mt-3";
 
     return (
         <motion.div
-            className="flex flex-wrap gap-2 mt-3"
+            className={containerClass}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.2, duration: 0.3 }}
         >
-            {botones.map((boton, index) =>
+            {buttonsToRender.map((boton, index) =>
                 boton.url ? (
                     <a
                         key={index}
-                        href={boton.url}
+                        href={resolveUrl(boton.url)}
                         target="_blank"
                         rel="noopener noreferrer"
                         referrerPolicy="no-referrer"
                         onClick={(event) => {
                             event.preventDefault();
-                            openExternalLink(boton.url);
+                            const resolvedUrl = resolveUrl(boton.url);
+                            if (resolvedUrl) {
+                                openExternalLink(resolvedUrl);
+                            }
                         }}
                         className={baseClass + " no-underline inline-flex items-center justify-center"}
-                        style={{ maxWidth: 180 }}
-                        title={boton.texto}
+                        style={!isDemoSelector ? { maxWidth: 180 } : { maxWidth: "100%" }}
+                        title={formatButtonLabel(boton.texto)}
                     >
-                        {boton.texto}
+                        {formatButtonLabel(boton.texto)}
                     </a>
                 ) : (
                     <button
                         key={index}
                         onClick={() => handleButtonClick(boton)}
                         className={baseClass}
-                        style={{ maxWidth: 180 }}
-                        title={boton.texto}
+                        style={!isDemoSelector ? { maxWidth: 180 } : { maxWidth: "100%" }}
+                        title={formatButtonLabel(boton.texto)}
                     >
-                        {boton.texto}
+                        {formatButtonLabel(boton.texto)}
                     </button>
                 )
             )}

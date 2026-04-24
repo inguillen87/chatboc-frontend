@@ -1,16 +1,43 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Lexend&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer components {
+  .chatboc-brand-gradient {
+    @apply bg-gradient-to-r text-transparent bg-clip-text;
+    background-image: linear-gradient(90deg, #082173 0%, #0d35c3 52%, #1a53ff 100%);
+  }
+  .dark .chatboc-brand-gradient {
+    background-image: linear-gradient(90deg, #7db0ff 0%, #66d8ff 52%, #2a69ff 100%);
+  }
+  .chatboc-cta-primary {
+    @apply bg-[#0D35C3] text-white hover:bg-[#082184] shadow-sm transition-colors;
+  }
+  .dark .chatboc-cta-primary {
+    @apply bg-[#1451F2] text-white hover:bg-[#0D35C3];
+  }
+  .chatboc-cta-secondary {
+    @apply border border-[#0D35C3]/50 text-[#082173] hover:bg-[#0D35C3]/10 transition-colors;
+  }
+  .dark .chatboc-cta-secondary {
+    @apply border-[#2A69FF]/50 text-[#C7DBFF] hover:bg-[#2A69FF]/20;
+  }
+
   .chat-bubble-user {
-    @apply bg-primary text-primary-foreground rounded-lg p-3 max-w-xs sm:max-w-md break-words shadow-md;
+    @apply rounded-lg p-3 max-w-xs sm:max-w-md break-words shadow-md;
+    background-color: var(--user-msg-bg, hsl(var(--primary)));
+    color: var(--user-msg-fg, hsl(var(--primary-foreground)));
   }
   .chat-bubble-bot {
-    @apply bg-secondary text-secondary-foreground rounded-lg p-3 max-w-xs sm:max-w-md break-words shadow-md border border-primary/20;
+    @apply rounded-lg p-3 max-w-xs sm:max-w-md break-words shadow-md border border-primary/20;
+    background-color: var(--bot-msg-bg, hsl(var(--secondary)));
+    color: var(--bot-msg-fg, hsl(var(--secondary-foreground)));
   }
   .chat-container {
     @apply flex flex-col gap-4 p-4;
@@ -30,104 +57,119 @@
 
 @layer base {
   :root {
-    --primary-dark: 217 100% 30%;
-    --background: 0 0% 100%;
-    --foreground: 224 71.4% 4.1%;
+    /* Modern Neutral Palette - Light Mode */
+    --background: 210 33% 98%;
+    --foreground: 224 22% 12%;
 
     --card: 0 0% 100%;
-    --card-foreground: 224 71.4% 4.1%;
+    --card-foreground: 224 22% 12%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 224 71.4% 4.1%;
+    --popover-foreground: 224 22% 12%;
 
-    --primary: 217 100% 50%; /* #007AFF - Propuesta Jules (ajustado para mayor saturación) */
-    --primary-foreground: 210 20% 98%;
+    --primary: 221 83% 53%; /* Blue-600 */
+    --primary-dark: 221 83% 45%;
+    --primary-foreground: 210 40% 98%;
 
-    --secondary: 220 14.3% 95.9%;
-    --secondary-foreground: 220.9 39.3% 11%;
+    --secondary: 210 24% 96%;
+    --secondary-foreground: 224 22% 16%;
 
-    --muted: 220 14.3% 95.9%;
-    --muted-foreground: 210 9% 45%; /* #6c757d - Gris neutro para texto secundario (propuesta Jules) */
+    --muted: 210 24% 96%;
+    --muted-foreground: 215 14% 46%;
 
-    --accent: 220 14.3% 95.9%;
-    --accent-foreground: 220.9 39.3% 11%;
+    --accent: 210 28% 94%;
+    --accent-foreground: 224 22% 16%;
 
     --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 20% 98%;
+    --destructive-foreground: 0 0% 98%;
 
-    --success: 134 61% 41%; /* #28a745 - Verde (propuesta Jules) */
-    --success-foreground: 0 0% 100%; /* Blanco */
+    --success: 142 72% 35%;
+    --success-foreground: 0 0% 100%;
 
-    --warning: 45 100% 51%; /* #ffc107 - Amarillo (propuesta Jules) */
-    --warning-foreground: 0 0% 0%; /* Negro o gris muy oscuro */
+    --warning: 38 92% 48%;
+    --warning-foreground: 48 96% 12%;
 
-    --border: 220 13% 91%;
-    --input: 0 0% 98%;
-    --ring: 217 91.2% 59.8%;
+    --border: 214 22% 90%;
+    --input: 214 22% 94%;
+    --ring: 221 83% 53%;
 
-    --radius: 0.25rem; /* Propuesta Jules - más nítido */
+    --radius: 0.75rem;
 
     /* Sidebar specific colors for light mode */
-    --sidebar-background: 0 0% 97%;
-    --sidebar-foreground: 224 71.4% 4.1%;
-    --sidebar-primary: 217 100% 50%;
-    --sidebar-primary-foreground: 210 20% 98%;
-    --sidebar-accent: 220 14.3% 93%;
-    --sidebar-accent-foreground: 220.9 39.3% 11%;
-    --sidebar-border: 220 13% 88%;
-    --sidebar-ring: 217 91.2% 59.8%;
+    --sidebar-background: 210 24% 96%;
+    --sidebar-foreground: 224 22% 12%;
+    --sidebar-primary: 221 83% 53%;
+    --sidebar-primary-foreground: 210 40% 98%;
+    --sidebar-accent: 210 28% 94%;
+    --sidebar-accent-foreground: 224 22% 16%;
+    --sidebar-border: 214 22% 88%;
+    --sidebar-ring: 221 83% 53%;
   }
 
   .dark {
-    --primary-dark: 217 91.2% 59.8%;
-    --background: 220 15% 10%;
-    --foreground: 210 30% 95%;
+    /* Modern Neutral Palette - Dark Mode */
+    --background: 222 30% 6%;
+    --foreground: 210 20% 96%;
 
-    --card: 220 15% 13%;
-    --card-foreground: 210 30% 95%;
+    --card: 222 28% 10%;
+    --card-foreground: 210 20% 96%;
 
-    --popover: 220 15% 8%;
-    --popover-foreground: 210 30% 95%;
+    --popover: 222 30% 8%;
+    --popover-foreground: 210 20% 96%;
 
-    --primary: 217 91.2% 59.8%; /* Vibrant blue, same as light mode for consistency */
-    --primary-foreground: 210 20% 98%;
+    --primary: 217 92% 65%;
+    --primary-dark: 217 92% 72%;
+    --primary-foreground: 222 36% 12%;
 
-    --secondary: 220 15% 20%;
-    --secondary-foreground: 210 30% 90%;
+    --secondary: 223 20% 14%;
+    --secondary-foreground: 210 20% 96%;
 
-    --muted: 220 15% 20%;
-    --muted-foreground: 215 15% 60%; /* Ajustado para mayor contraste con el --secondary-foreground */
+    --muted: 223 20% 14%;
+    --muted-foreground: 215 16% 68%;
 
-    --accent: 220 15% 20%;
-    --accent-foreground: 210 30% 90%;
+    --accent: 223 18% 16%;
+    --accent-foreground: 210 20% 96%;
 
-    --destructive: 0 72.2% 50.6%;
-    --destructive-foreground: 210 20% 98%;
+    --destructive: 0 70% 45%;
+    --destructive-foreground: 0 0% 98%;
 
-    --success: 134 61% 41%; /* Mantenemos el mismo verde */
+    --success: 142 70% 38%;
     --success-foreground: 0 0% 100%;
 
-    --warning: 45 100% 51%; /* Mantenemos el mismo amarillo */
-    --warning-foreground: 0 0% 0%;
+    --warning: 38 92% 55%;
+    --warning-foreground: 30 24% 12%;
 
-    --border: 220 15% 25%;
-    --input: 220 15% 16%;
-    --ring: 217 91.2% 59.8%;
+    --border: 223 18% 18%;
+    --input: 223 18% 16%;
+    --ring: 217 92% 65%;
 
     /* Sidebar specific colors for dark mode */
-    --sidebar-background: 220 15% 8%;
-    --sidebar-foreground: 210 30% 90%;
-    --sidebar-primary: 217 91.2% 59.8%; /* Ajustado para coincidir con el primario general del dark mode */
-    --sidebar-primary-foreground: 210 20% 98%;
-    --sidebar-accent: 220 15% 18%;
-    --sidebar-accent-foreground: 210 30% 90%;
-    --sidebar-border: 220 15% 22%;
-    --sidebar-ring: 217 91.2% 59.8%;
+    --sidebar-background: 222 28% 10%;
+    --sidebar-foreground: 210 20% 96%;
+    --sidebar-primary: 217 92% 65%;
+    --sidebar-primary-foreground: 222 36% 12%;
+    --sidebar-accent: 223 18% 16%;
+    --sidebar-accent-foreground: 210 20% 96%;
+    --sidebar-border: 223 18% 18%;
+    --sidebar-ring: 217 92% 65%;
   }
 
   html {
     scroll-behavior: smooth;
   }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', sans-serif;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
 
 @keyframes pulse {
   0% {
@@ -142,23 +184,12 @@
     opacity: 0;
   }
 }
-  * {
-    @apply border-border;
-  }
-  body {
-    @apply bg-background text-foreground;
-    font-family: 'Inter', sans-serif; /* Simplificado a Inter */
-    line-height: 1.6; /* Slightly increased line height for better readability */
-    -webkit-font-smoothing: antialiased; /* Safari & Chrome */
-    -moz-osx-font-smoothing: grayscale; /* Firefox */
-  }
-}
 
 .pac-target-input {
   background-color: hsl(var(--input)) !important;
   color: hsl(var(--foreground)) !important;
   border: 1px solid hsl(var(--border)) !important;
-  border-radius: var(--radius) !important; /* Usar la variable de radius */
+  border-radius: var(--radius) !important;
   padding: 0.5rem 0.75rem !important;
   font-size: 1rem !important;
   transition: background 0.2s;
@@ -171,26 +202,59 @@
 .pac-container {
   background: hsl(var(--card)) !important;
   color: hsl(var(--foreground)) !important;
-  border-radius: var(--radius) !important; /* Usar la variable de radius */
+  border-radius: var(--radius) !important;
   z-index: 999999 !important;
+  border: 1px solid hsl(var(--border)) !important;
 }
 .pac-item {
   color: inherit !important;
   background: transparent !important;
-  border-radius: calc(var(--radius) - 2px) !important; /* Ligeramente menor para items internos */
+  border-radius: calc(var(--radius) - 2px) !important;
   padding: 0.4rem 1rem !important;
 }
 .pac-item:hover {
   background: hsl(var(--accent)) !important;
 }
+
+/* Scoped transparency for iframe/widget mode */
+html.iframe-mode,
+html.iframe-mode body {
+  background: transparent !important;
+}
+
+html.iframe-mode #root,
+html.iframe-mode #__next,
+html.iframe-mode #app {
+  /* Only force transparent if we are sure we are in iframe mode */
+  /* This prevents the root div from having a background if it was set elsewhere */
+  background: transparent !important;
+}
+
+/* Ensure the chatboc-container (and its children) have a solid background when inside iframe-mode */
+html.iframe-mode .chatboc-container .chat-root {
+  background-color: hsl(var(--card)) !important;
+  color: hsl(var(--card-foreground)) !important;
+}
+
+/* Force opacity on inputs/textareas inside the widget to prevent transparency bleed-through */
+html.iframe-mode .chatboc-container input,
+html.iframe-mode .chatboc-container textarea {
+  background-color: hsl(var(--input)) !important;
+  color: hsl(var(--foreground)) !important;
+  opacity: 1 !important;
+}
+
+/* Ensure background color is reapplied if NOT in iframe mode */
+/* This is a safeguard against class leakage */
+html:not(.iframe-mode) body {
+    background-color: hsl(var(--background));
+}
+
 html,
 body,
 #root,
 #__next,
 #app {
-  background: transparent !important;
-  margin: 0;
-  padding: 0;
   width: 100%;
   min-width: 100%;
   min-height: 100dvh;
@@ -200,9 +264,10 @@ body,
 
 @media (max-width: 639px) {
   body {
-    padding-bottom: 6rem; /* espacio para el widget flotante */
+    padding-bottom: 6rem;
   }
 }
+
 @keyframes pulse-subtle {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.8; }
@@ -213,7 +278,8 @@ body,
 
 @layer utilities {
   .text-primary-dark {
-    color: hsl(var(--primary-dark));
+    color: hsl(var(--primary));
+    filter: brightness(0.8);
   }
 }
 
@@ -229,7 +295,7 @@ body,
 }
 
 .chat-root {
-  font-family: var(--chat-font, system-ui);
+  font-family: var(--font-sans, var(--chat-font, system-ui));
 }
 
 .chat-message {
@@ -296,4 +362,20 @@ body,
 @keyframes pulse-shadow {
   0%,100% { box-shadow: var(--shadow); }
   50% { box-shadow: 0 0 20px rgba(0,108,63,.4); }
+}
+
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(-25%);
+    animation-timing-function: cubic-bezier(0.8, 0, 1, 1);
+  }
+  50% {
+    transform: translateY(0);
+    animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
+  }
+}
+
+@keyframes fade-in {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
 }

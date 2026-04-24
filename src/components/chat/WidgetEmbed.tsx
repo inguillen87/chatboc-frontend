@@ -4,26 +4,72 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
+import { apiClient } from "@/api/client";
 
 const WidgetEmbed = ({ token }: { token: string }) => {
-  const [tipoChat, setTipoChat] = useState('pyme');
+  const [tenantSlug, setTenantSlug] = useState<string | null>(null);
+  const [embedSnippet, setEmbedSnippet] = useState<string>("");
 
-  useEffect(() => {
+  const slugify = (value?: string | null) => {
+    if (!value) return null;
+    const normalized = value
+      .toString()
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/gi, "-")
+      .replace(/^-+|-+$/g, "");
+    return normalized || null;
+  };
+
+  const resolveTenantSlug = () => {
     try {
       const storedUser = safeLocalStorage.getItem("user");
-      const user = storedUser ? JSON.parse(storedUser) : null;
-      if (user && user.tipo_chat === 'municipio') {
-        setTipoChat('municipio');
+      const parsedUser = storedUser ? JSON.parse(storedUser) : null;
+      const fromUser =
+        slugify(parsedUser?.tenant_slug) ||
+        slugify(parsedUser?.tenantSlug) ||
+        slugify(parsedUser?.slug) ||
+        slugify(parsedUser?.endpoint);
+
+      if (fromUser) return fromUser;
+
+      const fromStorage = slugify(safeLocalStorage.getItem("tenantSlug"));
+      if (fromStorage) return fromStorage;
+
+      if (typeof window !== "undefined") {
+        const segments = window.location.pathname.split("/").filter(Boolean);
+        if (segments[0] === "t" && segments[1]) {
+          return slugify(segments[1]);
+        }
       }
-    } catch (e) {
-      console.error("Could not determine user type for widget, defaulting to pyme.", e);
+    } catch (error) {
+      console.warn("No se pudo determinar el tenant para el embed del widget", error);
     }
+    return null;
+  };
+
+  useEffect(() => {
+    setTenantSlug(resolveTenantSlug());
   }, []);
 
-    const apiBase = (import.meta.env.VITE_WIDGET_API_BASE || "https://chatboc.ar").replace(/\/+$/, "");
-    const defaultWidgetScriptUrl = `${apiBase}/widget.js`;
-    const widgetScriptUrl = import.meta.env.VITE_WIDGET_SCRIPT_URL || defaultWidgetScriptUrl;
-  const embedCode = `<script async src="${widgetScriptUrl}" data-api-base="${apiBase}" data-owner-token="${token}" data-endpoint="${tipoChat}" data-default-open="false" data-width="460px" data-height="680px" data-closed-width="112px" data-closed-height="112px" data-bottom="20px" data-right="20px"></script>`;
+  useEffect(() => {
+    const loadEmbedSnippet = async () => {
+      if (!tenantSlug) return;
+      try {
+        const data = await apiClient.get<any>(`/api/public/tenants/${tenantSlug}/widget-config`, { tenantSlug });
+        const builderConfig = data?.builder_config || data?.widget?.builder_config || {};
+        const snippet = builderConfig?.embed_snippet || data?.embed_snippet || "";
+        setEmbedSnippet(snippet);
+      } catch (error) {
+        console.error("No se pudo cargar el snippet de embed", error);
+        setEmbedSnippet("");
+      }
+    };
+
+    loadEmbedSnippet();
+  }, [tenantSlug]);
+
+  const embedCode = embedSnippet || "";
 
   const copiar = () => {
     navigator.clipboard.writeText(embedCode)
@@ -55,7 +101,7 @@ const WidgetEmbed = ({ token }: { token: string }) => {
           rows={4}
           value={embedCode}
         />
-        <Button onClick={copiar}>📋 Copiar código</Button>
+        <Button onClick={copiar} disabled={!embedCode}>📋 Copiar código</Button>
       </CardContent>
     </Card>
   );

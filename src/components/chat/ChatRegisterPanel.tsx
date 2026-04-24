@@ -2,9 +2,10 @@ import React, { useState, useEffect, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import GoogleLoginButton from "@/components/auth/GoogleLoginButton";
-import { apiFetch, ApiError } from "@/utils/api";
+import { apiFetch, ApiError, resolveTenantSlug } from "@/utils/api";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { useUser } from "@/hooks/useUser";
+import { broadcastAuthTokenToHost } from "@/utils/postMessage";
 
 
 interface RegisterResponse {
@@ -56,6 +57,7 @@ const ChatUserRegisterPanel: React.FC<Props> = ({ onSuccess, onShowLogin }) => {
       });
       safeLocalStorage.setItem("authToken", data.token);
       safeLocalStorage.setItem("chatAuthToken", data.token);
+      broadcastAuthTokenToHost(data.token, resolveTenantSlug(), "register-panel");
       await refreshUser();
       onSuccess();
     } catch (err) {

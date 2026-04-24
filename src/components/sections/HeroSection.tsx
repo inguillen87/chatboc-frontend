@@ -1,7 +1,6 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Users, Zap } from "lucide-react"; // MessageSquareText no se usa aquí
-import ChatbocLogoAnimated from "../chat/ChatbocLogoAnimated";
+import { ArrowRight, Users, Zap } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 const HeroSection = () => {
@@ -14,55 +13,62 @@ const HeroSection = () => {
           {/* Texto principal */}
           <div className="w-full lg:w-1/2 lg:pr-10 text-center lg:text-left">
             <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-6 leading-tight">
-              {/* Aplicando el efecto degradado a "Conectamos" */}
               <span
-                className="bg-gradient-to-r from-primary via-blue-500 to-cyan-500 text-transparent bg-clip-text"
+                className="chatboc-brand-gradient"
               >
                 Conectamos
               </span> Gobiernos y Empresas con sus Comunidades
             </h1>
-            <p className="text-lg sm:text-xl text-muted-foreground mb-8">
-              Transforma la interacción con ciudadanos y clientes mediante nuestra plataforma IA con CRM inteligente y Chatbots que realmente entienden y resuelven.
+            <p className="text-lg sm:text-xl text-slate-600 dark:text-slate-300 mb-8">
+              Creamos <strong>Agentes IA</strong> que entienden y resuelven, no simples chatbots.
+              <br className="hidden md:block" />
+              Una plataforma <strong>SaaS "llave en mano"</strong>: sube tu catálogo o normativa y obtén tu Marketplace o Portal de Servicios listo para usar. Sin configuraciones técnicas complejas.
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 mb-6">
-              <Button
-                size="lg"
-                className="w-full sm:w-auto shadow-lg hover:shadow-xl transition-shadow"
-                onClick={() => navigate("/demo")}
-              >
-                <Zap className="mr-2 h-5 w-5" /> Probar Demo Interactiva
-              </Button>
-              <Button
-                variant="outline"
-                size="lg"
-                className="w-full sm:w-auto shadow-lg hover:shadow-xl transition-shadow"
-                onClick={() => navigate("/register")}
-              >
-                <Users className="mr-2 h-5 w-5" /> Conocer Soluciones
+                <Button
+                  size="lg"
+                  className="chatboc-cta-primary w-full sm:w-auto shadow-lg hover:shadow-xl transition-shadow"
+                  onClick={() => navigate("/demo")}
+                >
+                  <Zap className="mr-2 h-5 w-5" /> Ver Demo en Vivo
+                </Button>
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="chatboc-cta-secondary w-full sm:w-auto shadow-lg hover:shadow-xl transition-shadow"
+                  onClick={() => navigate("/register")}
+                >
+                <Users className="mr-2 h-5 w-5" /> Crear Cuenta Gratis
               </Button>
             </div>
 
-            <p className="text-sm text-muted-foreground text-center lg:text-left">
-              Impulsa la eficiencia y la satisfacción. Simple de empezar, poderoso para crecer.
+            <p className="text-sm text-slate-500 dark:text-slate-400 text-center lg:text-left">
+              Incluye Mapas de Calor, Puntos de Recompensa y Analíticas avanzadas.
             </p>
           </div>
 
-          {/* Visual: Simulación de chat ... (el resto del código de la simulación de chat se mantiene igual) ... */}
+          {/* Visual: Simulación de chat */}
           <div className="w-full lg:w-1/2 relative mt-8 lg:mt-0">
             <div className="bg-card text-card-foreground rounded-xl shadow-xl p-5 border border-border max-w-full sm:max-w-md mx-auto animate-float">
               <div className="flex items-center border-b border-border pb-3 mb-4">
                 <div className="mr-3">
-                  <ChatbocLogoAnimated size={36} />
+                  <img
+                    src="/chatboc_frontend_pack/branding/chatboc/navbar/chatboc-navbar-mark-circle.svg"
+                    alt="Chatboc IA"
+                    className="h-9 w-9 rounded-full object-contain ring-1 ring-primary/25"
+                    loading="lazy"
+                    decoding="async"
+                  />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-base text-foreground">Asistente Inteligente</h3>
+                  <h3 className="font-semibold text-base text-foreground">Agente IA Inteligente</h3>
                   <p className="text-xs text-muted-foreground">Potenciado por Chatboc IA</p>
                 </div>
                 <div className="ml-auto">
                   <span className="inline-flex items-center px-2.5 py-1 bg-success/10 text-success text-xs font-medium rounded-full">
                     <span className="w-2 h-2 bg-success rounded-full mr-1.5" />
-                    Online
+                    En línea
                   </span>
                 </div>
               </div>
@@ -71,25 +77,29 @@ const HeroSection = () => {
                 <div className="flex">
                   <div className="bg-primary/10 text-primary-dark p-3 rounded-lg rounded-bl-none max-w-[85%]">
                     <p className="font-medium text-primary">Vecino:</p>
-                    Hola, necesito información sobre cómo renovar mi licencia de conducir.
+                    Hola, ¿cómo puedo participar en la votación del presupuesto participativo?
                   </div>
                 </div>
                 <div className="flex justify-end">
                   <div className="bg-muted text-foreground p-3 rounded-lg rounded-br-none max-w-[85%]">
-                    <p className="font-medium text-foreground">Asistente IA:</p>
-                    ¡Hola! Para renovar tu licencia necesitas: DNI vigente, licencia anterior, y no tener multas pendientes. El trámite se inicia online aquí: [enlace]. ¿Te puedo ayudar con algo más?
+                    <p className="font-medium text-foreground">Agente IA:</p>
+                    ¡Hola! 👋 Es muy fácil. La votación está abierta y puedes elegir los proyectos para tu barrio.
+                    <br/><br/>
+                    Ingresa a la <strong>Planilla de Votación</strong> aquí para ver las opciones y registrar tu voto de forma segura:
+                    <br/>
+                    <span className="text-primary underline cursor-pointer">🔗 Acceder al Formulario de Votación</span>
                   </div>
                 </div>
                 <div className="flex">
                   <div className="bg-primary/10 text-primary-dark p-3 rounded-lg rounded-bl-none max-w-[85%]">
                     <p className="font-medium text-primary">Vecino:</p>
-                    ¿Dónde puedo verificar si tengo multas?
+                    Genial, ¿y sumo puntos por participar?
                   </div>
                 </div>
                 <div className="flex justify-end">
                   <div className="bg-muted text-foreground p-3 rounded-lg rounded-br-none max-w-[85%]">
-                    <p className="font-medium text-foreground">Asistente IA:</p>
-                    Puedes consultar tus multas pendientes en el portal de infracciones de la ciudad: [enlace]. ¿Alguna otra consulta?
+                    <p className="font-medium text-foreground">Agente IA:</p>
+                    ¡Exacto! 🎁 Al completar la votación sumarás <strong>50 Puntos Ciudadanos</strong> que podrás canjear por beneficios en comercios locales adheridos.
                   </div>
                 </div>
               </div>
@@ -97,7 +107,7 @@ const HeroSection = () => {
               <div className="mt-4 flex">
                 <input
                   type="text"
-                  placeholder="Escribe tu consulta aquí..."
+                  placeholder="Escribe tu consulta..."
                   className="flex-1 border border-input bg-background text-foreground rounded-l-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                 />
                 <Button variant="default" size="icon" className="rounded-l-none">

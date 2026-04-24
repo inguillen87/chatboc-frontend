@@ -1,10 +1,12 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { formatCurrency } from '@/utils/currency';
-import { ShoppingCart } from 'lucide-react';
+import { getProductPlaceholderImage } from '@/utils/cartPayload';
+import { ShoppingCart, ExternalLink } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // Interfaz detallada del producto
 export interface ProductDetails {
@@ -12,6 +14,7 @@ export interface ProductDetails {
   nombre: string;
   descripcion?: string | null;
   precio_unitario: number;
+  precio_puntos?: number | null;
   precio_anterior?: number | null;
   imagen_url?: string | null;
   presentacion?: string | null;
@@ -25,8 +28,20 @@ export interface ProductDetails {
   precio_por_caja?: number | null;
   unidades_por_caja?: number | null;
   promocion_activa?: string | null;
+  promocion_info?: string | null;
+  precio_texto?: string | null;
+  moneda?: string | null;
+  talles?: string[] | null;
+  colores?: string[] | null;
   precio_mayorista?: number | null;
   cantidad_minima_mayorista?: number | null;
+  modalidad?: 'venta' | 'puntos' | 'donacion' | string | null;
+  instrucciones_entrega?: string | null;
+  origen?: 'api' | 'demo';
+  disponible?: boolean;
+  // Mirror Catalog fields
+  checkout_type?: 'mercadolibre' | 'tiendanube' | 'chatboc' | null;
+  external_url?: string | null;
 }
 
 export interface AddToCartOptions {
@@ -39,11 +54,14 @@ interface ProductCardProps {
   onAddToCart: (product: ProductDetails, options: AddToCartOptions) => void; // Callback para añadir al carrito
 }
 
+const MotionButton = motion(Button);
+
 const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
   const {
     nombre,
     descripcion,
     precio_unitario,
+    precio_puntos,
     precio_anterior,
     imagen_url,
     presentacion,
@@ -55,43 +73,85 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
     precio_por_caja,
     unidades_por_caja,
     promocion_activa,
+    promocion_info,
+    precio_texto,
+    moneda,
     precio_mayorista,
     cantidad_minima_mayorista,
+    modalidad: modalidadRaw,
+    checkout_type,
+    external_url,
   } = product;
+
+  const modalidad = typeof modalidadRaw === 'string' ? modalidadRaw.toLowerCase() : 'venta';
+  const isDonation = modalidad === 'donacion';
+  const isPoints = modalidad === 'puntos';
+  const modalityBadgeLabel = isDonation ? 'Donación' : isPoints ? 'Canje' : 'Venta';
+  const pointsValue = isPoints
+    ? Number.isFinite(Number(precio_puntos)) && precio_puntos !== null
+      ? Number(precio_puntos)
+      : Math.max(Math.round(precio_unitario || 0), 0)
+    : null;
 
   const hasStock = typeof stock_disponible === 'number' && stock_disponible > 0;
   const stockText = typeof stock_disponible === 'number'
     ? `${stock_disponible} ${unidad_medida || 'disponible(s)'}`
     : (stock_disponible === null || stock_disponible === undefined) ? null : 'No disponible';
+  const currency = moneda || 'ARS';
+  const unitPriceLabel = precio_texto && precio_texto.trim()
+    ? precio_texto
+    : formatCurrency(precio_unitario, currency);
 
   const [mode, setMode] = useState<'unit' | 'case'>(
     precio_por_caja && unidades_por_caja ? 'case' : 'unit'
   );
   const [quantity, setQuantity] = useState<number>(1);
+  const [lastAddedQty, setLastAddedQty] = useState<number>(1);
+  const [addedFeedback, setAddedFeedback] = useState(false);
 
   const casePriceLabel = useMemo(() => {
     if (!precio_por_caja || !unidades_por_caja) return null;
-    return `${formatCurrency(precio_por_caja)} por ${unidades_por_caja} unidades`;
+    return `${formatCurrency(precio_por_caja, currency)} por ${unidades_por_caja} unidades`;
   }, [precio_por_caja, unidades_por_caja]);
 
   const wholesaleLabel = useMemo(() => {
     if (!precio_mayorista || !cantidad_minima_mayorista) return null;
-    return `Mayorista: ${formatCurrency(precio_mayorista)} (mín. ${cantidad_minima_mayorista} ${cantidad_minima_mayorista === 1 ? 'caja' : 'cajas'})`;
-  }, [precio_mayorista, cantidad_minima_mayorista]);
+    return `Mayorista: ${formatCurrency(precio_mayorista, currency)} (mín. ${cantidad_minima_mayorista} ${cantidad_minima_mayorista === 1 ? 'caja' : 'cajas'})`;
+  }, [cantidad_minima_mayorista, currency, precio_mayorista]);
+
+  const placeholderImage = useMemo(() => getProductPlaceholderImage(product), [product]);
+  const [imageSrc, setImageSrc] = useState<string | null>(product.imagen_url ?? placeholderImage);
+
+  useEffect(() => {
+    setImageSrc(product.imagen_url ?? placeholderImage);
+  }, [product, placeholderImage]);
 
   const handleAddToCartClick = () => {
     if (quantity <= 0) return;
-    onAddToCart(product, { quantity, mode });
+    const added = quantity;
+    onAddToCart(product, { quantity: added, mode });
+    setLastAddedQty(added);
     setQuantity(1);
+    setAddedFeedback(true);
+    setTimeout(() => setAddedFeedback(false), 900);
   };
 
+  const isExternalCheckout = (checkout_type === 'mercadolibre' || checkout_type === 'tiendanube') && external_url;
+
   return (
-    <Card className="flex flex-col justify-between w-full max-w-sm bg-card rounded-lg shadow-md hover:shadow-xl transition-shadow duration-300 overflow-hidden">
+    <Card className="relative flex flex-col justify-between w-full max-w-sm bg-card rounded-lg shadow-md hover:shadow-xl transition-shadow duration-300 overflow-hidden">
       <CardHeader className="p-0 relative">
-        {imagen_url ? (
+        {imageSrc ? (
           <img
-            src={imagen_url}
+            src={imageSrc}
             alt={nombre}
+            loading="lazy"
+            onError={(event) => {
+              const fallback = placeholderImage;
+              if (event.currentTarget.src !== fallback) {
+                setImageSrc(fallback);
+              }
+            }}
             className="w-full h-48 object-cover" // Ajustar altura de imagen
           />
         ) : (
@@ -104,6 +164,22 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
             {badge}
           </Badge>
         )}
+        <Badge variant={isDonation ? 'success' : isPoints ? 'outline' : 'secondary'} className="absolute top-2 left-2">
+          {modalityBadgeLabel}
+        </Badge>
+        <AnimatePresence>
+          {addedFeedback && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8, y: -6 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.8, y: -6 }}
+              transition={{ duration: 0.18 }}
+              className="absolute top-3 left-3 rounded-full bg-primary text-primary-foreground text-xs px-3 py-1 shadow"
+            >
+              +{lastAddedQty} agregado
+            </motion.div>
+          )}
+        </AnimatePresence>
       </CardHeader>
 
       <CardContent className="p-4 flex-grow">
@@ -142,65 +218,107 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
         {promocion_activa && (
           <Badge variant="success" className="mt-2">{promocion_activa}</Badge>
         )}
+        {promocion_info && !promocion_activa && (
+          <Badge
+            variant={promocion_info.includes('%') ? 'destructive' : 'secondary'}
+            className="mt-2"
+          >
+            {promocion_info}
+          </Badge>
+        )}
 
         <div className="mt-3">
-          <p className="text-xl font-bold text-primary">
-            {formatCurrency(precio_unitario)}
-          </p>
-          {precio_anterior && precio_anterior > precio_unitario && (
-            <span className="text-xs text-muted-foreground line-through">
-              {formatCurrency(precio_anterior)}
-            </span>
+          {isDonation ? (
+            <p className="text-lg font-semibold text-green-700">Donación</p>
+          ) : isPoints ? (
+            <p className="text-xl font-bold text-primary">{pointsValue ?? 0} pts</p>
+          ) : (
+            <>
+              <p className="text-xl font-bold text-primary">
+                {unitPriceLabel}
+              </p>
+              {precio_anterior && precio_anterior > precio_unitario && (
+                <span className="text-xs text-muted-foreground line-through">
+                  {formatCurrency(precio_anterior, currency)}
+                </span>
+              )}
+            </>
           )}
         </div>
       </CardContent>
 
       <CardFooter className="p-4 flex flex-col gap-3 border-t">
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant={mode === 'unit' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setMode('unit')}
-            disabled={!precio_unitario}
-          >
-            {formatCurrency(precio_unitario)} c/u
-          </Button>
-          {precio_por_caja && unidades_por_caja && (
+        {!isDonation && !isExternalCheckout && (
+          <div className="flex flex-wrap gap-2">
             <Button
-              variant={mode === 'case' ? 'default' : 'outline'}
+              variant={mode === 'unit' ? 'default' : 'outline'}
               size="sm"
-              onClick={() => setMode('case')}
+              onClick={() => setMode('unit')}
+              disabled={!precio_unitario && !isPoints}
             >
-              {formatCurrency(precio_por_caja)} caja
+              {isPoints ? `${pointsValue ?? 0} pts` : `${unitPriceLabel} c/u`}
             </Button>
-          )}
-        </div>
+            {precio_por_caja && unidades_por_caja && (
+              <Button
+                variant={mode === 'case' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setMode('case')}
+              >
+                {isPoints && pointsValue
+                  ? `${pointsValue * (unidades_por_caja || 1)} pts caja`
+                  : `${formatCurrency(precio_por_caja, currency)} caja`}
+              </Button>
+            )}
+          </div>
+        )}
 
-        <div className="flex items-center gap-2">
-          <Input
-            type="number"
-            min={1}
-            value={quantity}
-            onChange={(event) => {
-              const next = Number(event.target.value);
-              if (!Number.isFinite(next) || next <= 0) {
-                setQuantity(1);
-                return;
-              }
-              setQuantity(Math.floor(next));
-            }}
-            className="w-20"
-          />
-          <Button
-            size="sm"
-            onClick={handleAddToCartClick}
-            disabled={stock_disponible === 0}
-            className="flex-1"
-          >
-            <ShoppingCart className="mr-2 h-4 w-4" />
-            {mode === 'case' ? 'Agregar cajas' : 'Agregar'}
-          </Button>
-        </div>
+        {isExternalCheckout ? (
+           <Button
+             className="w-full"
+             variant={checkout_type === 'mercadolibre' ? 'secondary' : 'default'}
+             asChild
+           >
+             <a href={external_url || '#'} target="_blank" rel="noopener noreferrer">
+                {checkout_type === 'mercadolibre' ? 'Comprar en Mercado Libre' : 'Comprar en Tienda Online'}
+                <ExternalLink className="ml-2 h-4 w-4" />
+             </a>
+           </Button>
+        ) : (
+          <div className="flex items-center gap-2">
+            <Input
+              type="number"
+              min={1}
+              value={quantity}
+              onChange={(event) => {
+                const next = Number(event.target.value);
+                if (!Number.isFinite(next) || next <= 0) {
+                  setQuantity(1);
+                  return;
+                }
+                setQuantity(Math.floor(next));
+              }}
+              className="w-20"
+            />
+            <MotionButton
+              size="sm"
+              onClick={handleAddToCartClick}
+              disabled={stock_disponible === 0}
+              className="flex-1"
+              whileTap={{ scale: 0.96 }}
+              whileHover={{ scale: 1.01 }}
+              animate={addedFeedback ? { scale: [1, 1.05, 1], transition: { duration: 0.3 } } : undefined}
+            >
+              <ShoppingCart className="mr-2 h-4 w-4" />
+              {isDonation
+                ? 'Donar este ítem'
+                : isPoints
+                  ? `Canjear${pointsValue ? ` (${pointsValue} pts)` : ''}`
+                  : mode === 'case'
+                    ? 'Agregar cajas'
+                    : 'Agregar'}
+            </MotionButton>
+          </div>
+        )}
       </CardFooter>
     </Card>
   );

@@ -1,12 +1,10 @@
 import React from 'react';
+import ProductCatalog from '@/pages/ProductCatalog';
 
 const UserCatalogPage = () => {
-  return (
-    <div>
-      <h1>User Catalog Page</h1>
-      <p>Contenido de Catálogos (productos/servicios/trámites) irá aquí.</p>
-    </div>
-  );
+  // ProductCatalog is self-contained with its own layout, search, and logic.
+  // We render it directly here to provide the full catalog experience within the user portal.
+  return <ProductCatalog />;
 };
 
 export default UserCatalogPage;

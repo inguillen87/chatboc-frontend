@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { getMunicipalStatsFiltersData } from '../server/municipalStats.cjs';
-import * as db from '../server/db.cjs';
+import { getMunicipalStatsFiltersData } from '../municipalStats.js';
+import * as db from '../db.js';
 
-vi.mock('../server/db.cjs', () => {
+vi.mock('../db.js', () => {
   let tickets = [];
   return {
     getTickets: () => tickets,

@@ -1,4 +1,4 @@
-const { getTickets } = require('./db');
+import { getTickets } from './db.js';
 
 function getAgeRange(age) {
   if (age < 18) return '0-17';
@@ -7,7 +7,7 @@ function getAgeRange(age) {
   return '50+';
 }
 
-function getMunicipalAnalytics() {
+export function getMunicipalAnalytics() {
   const tickets = getTickets();
   const statsMap = new Map();
   const genderTotals = {};
@@ -51,5 +51,3 @@ function getMunicipalAnalytics() {
   }
   return { municipalities: result, genderTotals, ageRanges: ageTotals };
 }
-
-module.exports = { getMunicipalAnalytics };

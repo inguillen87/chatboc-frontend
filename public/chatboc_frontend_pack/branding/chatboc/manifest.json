@@ -1,0 +1,38 @@
+{
+  "package": "chatboc-frontend-branding",
+  "version": "2026-03-26",
+  "recommended": {
+    "navbar_icon": "branding/chatboc/navbar/chatboc-navbar-mark-circle.svg",
+    "navbar_icon_transparent": "branding/chatboc/navbar/chatboc-navbar-mark-clean.svg",
+    "widget_launcher_animated": "branding/chatboc/widget/chatboc-widget-launcher-animated.svg",
+    "widget_launcher_static": "branding/chatboc/widget/chatboc-widget-launcher-static.svg"
+  },
+  "alternates": {
+    "navbar_glow": "branding/chatboc/navbar/chatboc-navbar-mark.svg",
+    "widget_launcher_rich_animated": "branding/chatboc/widget/chatboc-widget-launcher-rich-animated.svg",
+    "widget_launcher_rich_static": "branding/chatboc/widget/chatboc-widget-launcher-rich-static.svg",
+    "widget_launcher_mini_animated": "branding/chatboc/widget/chatboc-widget-launcher-mini-animated.svg",
+    "widget_launcher_mini_static": "branding/chatboc/widget/chatboc-widget-launcher-mini-static.svg"
+  },
+  "exports": {
+    "navbar_png_sizes": [
+      32,
+      64,
+      128,
+      256,
+      512
+    ],
+    "widget_png_sizes": [
+      64,
+      96,
+      128,
+      256,
+      512,
+      1024
+    ]
+  },
+  "notes": {
+    "navbar": "Usar la versión circle si el navbar necesita contraste garantizado. Usar clean si ya existe contenedor propio.",
+    "widget": "Usar la versión launcher mini como botón real de chat. La versión rich es para piezas grandes o presentaciones."
+  }
+}

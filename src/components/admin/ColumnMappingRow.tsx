@@ -51,11 +51,11 @@ const ColumnMappingRow: React.FC<ColumnMappingRowProps> = ({
           <Badge variant="outline" className="text-xs bg-green-100 text-green-700 border-green-300">
             Sugerido ✨
           </Badge>
-          {/* Optionally display similarity score
-          {similarity && (
-            <span className="text-xs text-muted-foreground">({(similarity * 100).toFixed(0)}%)</span>
+          {similarity !== undefined && (
+            <span className="text-xs text-muted-foreground" title="Nivel de confianza">
+              ({(similarity * 100).toFixed(0)}%)
+            </span>
           )}
-          */}
         </div>
       )}
     </div>

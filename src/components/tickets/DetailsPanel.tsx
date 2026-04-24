@@ -20,9 +20,17 @@ import { buildFullAddress } from '../TicketMap';
 import TicketTimeline from './TicketTimeline';
 import TicketAttachments from './TicketAttachments';
 import TicketLogisticsSummary from './TicketLogisticsSummary';
+import TicketAssignment from './TicketAssignment';
 import { useTickets } from '@/context/TicketContext';
 import { exportToPdf, exportToXlsx } from '@/services/exportService';
-import { sendTicketHistory, getTicketById, getTicketMessages } from '@/services/ticketService';
+import {
+  sendTicketHistory,
+  getTicketById,
+  getTicketMessages,
+  isTicketHistoryDeliveryErrorResult,
+  formatTicketHistoryDeliveryErrorMessage,
+  normalizeTicketHistoryDeliveryError,
+} from '@/services/ticketService';
 import { Ticket, Message, TicketHistoryEvent, Attachment } from '@/types/tickets';
 import {
   DropdownMenu,
@@ -40,6 +48,7 @@ import { getSpecializedContact, SpecializedContact } from '@/utils/contacts';
 import { deriveAttachmentInfo } from '@/utils/attachment';
 import { formatTicketStatusLabel, normalizeTicketStatus } from '@/utils/ticketStatus';
 import { pickFirstCoordinate } from '@/utils/location';
+import { ApiError } from '@/utils/api';
 
 const sanitizeMediaUrl = (value?: string | null): string | undefined => {
   if (typeof value !== 'string') {
@@ -445,10 +454,35 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
     setIsSendingEmail(true);
     toast.info('Enviando historial por correo...');
     try {
-        await sendTicketHistory(ticket);
-        toast.success('Historial enviado por correo con éxito.');
+        const result = await sendTicketHistory(ticket, {
+          reason: 'manual',
+          actor: 'agent',
+        });
+        if (result.status === 'sent') {
+          toast.success('Historial enviado por correo con éxito.');
+        } else if (isTicketHistoryDeliveryErrorResult(result)) {
+          toast.warning(
+            formatTicketHistoryDeliveryErrorMessage(
+              result,
+              'No se pudo enviar el historial por correo. Se registró un error de entrega.',
+            ),
+          );
+          console.warn('Ticket history email delivery error:', result);
+        }
     } catch (error) {
-        toast.error('Error al enviar el historial por correo.');
+        if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+          toast.error('No tienes permisos para enviar el historial en este momento.');
+          console.error('Error sending ticket history:', error);
+          return;
+        }
+
+        const deliveryError = normalizeTicketHistoryDeliveryError(error);
+        toast.warning(
+          formatTicketHistoryDeliveryErrorMessage(
+            deliveryError,
+            'El historial no pudo enviarse por correo por un problema con el servidor de email.',
+          ),
+        );
         console.error('Error sending ticket history:', error);
     } finally {
         setIsSendingEmail(false);
@@ -457,9 +491,26 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
 
   React.useEffect(() => {
     if (normalizedCurrentStatus === 'resuelto' && !completionSent) {
-      sendTicketHistory(ticket).catch((err) =>
-        console.error('Error sending completion email:', err),
-      );
+      sendTicketHistory(ticket, {
+        reason: 'auto_completion',
+        estado: normalizedCurrentStatus,
+        actor: 'agent',
+        notifyChannels: ['email', 'sms'],
+      })
+        .then((result) => {
+          if (isTicketHistoryDeliveryErrorResult(result)) {
+            toast.warning(
+              formatTicketHistoryDeliveryErrorMessage(
+                result,
+                'El ticket se completó, pero no se pudo enviar el correo automático al ciudadano.',
+              ),
+            );
+            console.warn('Completion email delivery failed:', result);
+          }
+        })
+        .catch((err) =>
+          console.error('Error sending completion email:', err),
+        );
       setCompletionSent(true);
     }
   }, [normalizedCurrentStatus, completionSent, ticket]);
@@ -829,6 +880,48 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
                   <span className="text-muted-foreground">Categoría:</span>
                   <p className="font-medium">{ticket.categoria || 'No informada'}</p>
                 </div>
+                {(ticket.priority !== null && ticket.priority !== undefined && ticket.priority !== "") ||
+                ticket.priority_score !== null ||
+                (ticket.priority_breakdown && typeof ticket.priority_breakdown === 'object') ||
+                ticket.recommended_next_action ? (
+                  <div className="space-y-2 rounded-lg border border-border/60 bg-background/70 p-3 shadow-sm">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {ticket.priority !== null && ticket.priority !== undefined && ticket.priority !== "" ? (
+                        <Badge variant="outline" className="capitalize">
+                          Prioridad {String(ticket.priority).replaceAll('_', ' ')}
+                        </Badge>
+                      ) : null}
+                      {ticket.priority_score !== null && ticket.priority_score !== undefined ? (
+                        <Badge variant="secondary">Score {ticket.priority_score}</Badge>
+                      ) : null}
+                    </div>
+                    {ticket.priority_breakdown && typeof ticket.priority_breakdown === 'object' ? (
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {Object.entries(ticket.priority_breakdown)
+                          .filter(([, value]) => value !== null && value !== undefined && value !== '')
+                          .map(([label, value]) => (
+                            <div
+                              key={`${label}-${String(value)}`}
+                              className="rounded-md border border-border/50 bg-muted/30 px-3 py-2"
+                            >
+                              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                                {label.replaceAll('_', ' ')}
+                              </p>
+                              <p className="text-sm font-medium text-foreground">{String(value)}</p>
+                            </div>
+                          ))}
+                      </div>
+                    ) : null}
+                    {ticket.recommended_next_action ? (
+                      <div className="space-y-1">
+                        <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                          Próxima acción sugerida
+                        </p>
+                        <p className="text-sm text-foreground">{ticket.recommended_next_action}</p>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
                 {(ticket.description || ticket.detalles) && (
                   <div className="space-y-1">
                     <span className="text-muted-foreground">Descripción:</span>
@@ -841,6 +934,7 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
                       ))}
                   </div>
                 )}
+                <TicketAssignment className="mt-2" />
                  {ticket.assignedAgent && (
                     <div className="space-y-2 pt-2">
                         <h4 className="font-semibold">Agente Asignado</h4>

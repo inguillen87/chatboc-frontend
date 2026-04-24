@@ -252,3 +252,19 @@ export function clearStoredEntityToken() {
     console.warn("entityToken: unable to clear storage", err);
   }
 }
+
+export function resolveOwnerToken(user: any | null): string | null {
+  const stored = getStoredEntityToken();
+  if (stored) return stored;
+
+  const fromUser = normalizeEntityToken(
+    user?.entityToken || (user as any)?.entity_token || (user as any)?.token_integracion,
+  );
+
+  if (fromUser) {
+    persistEntityToken(fromUser);
+    return fromUser;
+  }
+
+  return null;
+}

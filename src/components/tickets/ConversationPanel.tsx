@@ -1,18 +1,29 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Send, PanelLeft, MessageSquare, PanelLeftClose, MessageCircle, Mic, MicOff, X, FileText, ChevronDown, Info, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Ticket, TicketStatus, Message as TicketMessage } from '@/types/tickets';
+import { Ticket, TicketStatus, Message as TicketMessage, UnifiedConversationStreamItem } from '@/types/tickets';
 import { Message as ChatMessageData, SendPayload, AttachmentInfo } from '@/types/chat';
 import ChatMessage from './ChatMessage';
 import DetailsPanel from './DetailsPanel';
 import { AnimatePresence, motion } from 'framer-motion';
 import PredefinedMessagesModal from './PredefinedMessagesModal';
 import useSpeechRecognition from '@/hooks/useSpeechRecognition';
-import { usePusher } from '@/hooks/usePusher';
-import { getTicketMessages, sendMessage, updateTicketStatus } from '@/services/ticketService';
+import { useSocket } from '@/context/SocketContext';
+import { safeOn } from '@/utils/safeOn';
+import {
+  getTicketMessages,
+  getTicketTimeline,
+  requestTicketHistoryEmail,
+  sendMessage,
+  updateTicketStatus,
+  type TicketHistoryDeliveryResult,
+  isTicketHistoryDeliveryErrorResult,
+  formatTicketHistoryDeliveryErrorMessage,
+} from '@/services/ticketService';
 import { toast } from 'sonner';
 import { useUser } from '@/hooks/useUser';
 import { useTickets } from '@/context/TicketContext';
@@ -148,14 +159,14 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   const { selectedTicket, updateTicket } = useTickets();
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState<ChatMessageData[]>([]);
+  const [timelineItems, setTimelineItems] = useState<UnifiedConversationStreamItem[]>([]);
+  const [timelinePartial, setTimelinePartial] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [attachmentPreview, setAttachmentPreview] = useState<{ file: File; previewUrl: string } | null>(null);
   const { user } = useUser();
   const { supported, listening, transcript, start, stop } = useSpeechRecognition();
-  const channelName = selectedTicket ? `ticket-${selectedTicket.tipo}-${selectedTicket.id}` : null;
-  const channel = usePusher(channelName);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const statusOptions = ALLOWED_TICKET_STATUSES;
   const lastMessage = useMemo(() => (messages.length > 0 ? messages[messages.length - 1] : null), [messages]);
@@ -215,6 +226,19 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   }, [lastMessage]);
   const isResponsePending = lastMessage ? !lastMessage.isBot : false;
 
+  const activeChannel = selectedTicket?.channel || 'other';
+  const composerPlaceholder = listening
+    ? 'Escuchando...'
+    : attachmentPreview
+      ? 'Añadí contexto para el adjunto...'
+      : activeChannel === 'whatsapp'
+        ? 'Responder conversación de WhatsApp...'
+        : activeChannel === 'email'
+          ? 'Responder por email...'
+          : activeChannel === 'phone'
+            ? 'Registrar respuesta de llamada...'
+            : 'Escribí tu respuesta...';
+
   useEffect(() => {
     if (transcript) {
       setMessage(prev => prev ? `${prev} ${transcript}` : transcript);
@@ -225,13 +249,33 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     const fetchMessages = async () => {
       if (!selectedTicket) {
         setMessages([]);
+        setTimelineItems([]);
+        setTimelinePartial(false);
         setIsLoading(false);
         return;
       }
 
       setIsLoading(true);
+      setTimelineItems([]);
+      setTimelinePartial(false);
 
-      // Usar los mensajes existentes si vienen con el ticket
+      try {
+        const timeline = await getTicketTimeline(selectedTicket.id, selectedTicket.tipo);
+        if (Array.isArray(timeline.unified_conversation_stream)) {
+          setTimelineItems(timeline.unified_conversation_stream);
+        }
+        setTimelinePartial(false);
+        if (Array.isArray(timeline.messages) && timeline.messages.length > 0) {
+          setMessages(timeline.messages.map((msg) => adaptTicketMessageToChatMessage(msg, selectedTicket)));
+          setIsLoading(false);
+          return;
+        }
+      } catch (timelineError) {
+        console.warn('No se pudo cargar timeline unificado, usando fallback de mensajes.', timelineError);
+        setTimelineItems([]);
+        setTimelinePartial(true);
+      }
+
       if (selectedTicket.messages) {
         setMessages(selectedTicket.messages.map(msg => adaptTicketMessageToChatMessage(msg, selectedTicket)));
         setIsLoading(false);
@@ -251,23 +295,72 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     fetchMessages();
   }, [selectedTicket]);
 
-  useEffect(() => {
-    if (channel) {
-      const callback = (newMessage: TicketMessage) => {
-        setMessages(prevMessages => {
-            if (prevMessages.find(m => m.id === newMessage.id)) {
-                return prevMessages;
-            }
-            return [...prevMessages, adaptTicketMessageToChatMessage(newMessage, selectedTicket!)];
-        });
-      };
-      channel.bind('nuevo-mensaje', callback);
+  const { socket } = useSocket();
+  const realtimeOnline = Boolean(socket?.connected);
 
-      return () => {
-        channel.unbind('nuevo-mensaje', callback);
+  useEffect(() => {
+    if (!socket || !selectedTicket) return;
+
+    // Join the ticket-specific room if the backend requires it
+    // Based on user feedback: "Socket join por tenant/ticket"
+    // We emit an event to join the room. The event name is hypothetical or generic 'join'.
+    // If the backend handles 'subscribe_ticket_updates' globally for the tenant, this might be redundant but safe.
+    socket.emit('join', { room: `ticket-${selectedTicket.tipo}-${selectedTicket.id}` });
+
+    const handleNewComment = (data: any) => {
+       // Check if the comment belongs to the current ticket
+       if (data.ticket_id === selectedTicket.id && data.comment) {
+           const newMsg = data.comment;
+
+           const ticketMessage: TicketMessage = {
+               id: newMsg.id,
+               content: newMsg.comentario || newMsg.mensaje || newMsg.text,
+               timestamp: newMsg.fecha || new Date().toISOString(),
+               author: (newMsg.es_admin || newMsg.esAdmin || newMsg.isAdmin) ? 'agent' : 'user',
+               attachments: newMsg.attachments || newMsg.archivos_adjuntos || newMsg.archivo_adjunto ? [newMsg.archivo_adjunto] : [],
+           };
+
+           setMessages(prevMessages => {
+               // Evitar duplicados si el mensaje ya existe (por optimismo o retransmisión)
+               if (prevMessages.some(m => m.id === ticketMessage.id)) {
+                   return prevMessages;
+               }
+               // Si hay un mensaje optimista pendiente (id temporal grande), podríamos reemplazarlo aquí
+               // pero simple deduplicación es un buen comienzo.
+               return [...prevMessages, adaptTicketMessageToChatMessage(ticketMessage, selectedTicket)];
+           });
+       }
+    };
+
+    safeOn(socket, 'new_comment', handleNewComment);
+
+    return () => {
+        socket.off('new_comment', handleNewComment);
+        socket.emit('leave', { room: `ticket-${selectedTicket.tipo}-${selectedTicket.id}` });
+    };
+  }, [socket, selectedTicket]);
+
+  useEffect(() => {
+    if (!selectedTicket) return;
+    if (socket?.connected) return;
+
+    const interval = window.setInterval(async () => {
+      try {
+        const polledMessages = await getTicketMessages(selectedTicket.id, selectedTicket.tipo);
+        setMessages((prev) => {
+          const known = new Set(prev.map((item) => String(item.id)));
+          const incoming = polledMessages
+            .filter((item) => !known.has(String(item.id)))
+            .map((item) => adaptTicketMessageToChatMessage(item, selectedTicket));
+          return incoming.length > 0 ? [...prev, ...incoming] : prev;
+        });
+      } catch (pollError) {
+        console.warn('Fallback polling de conversación falló', pollError);
       }
-    }
-  }, [channel, selectedTicket]);
+    }, 15000);
+
+    return () => window.clearInterval(interval);
+  }, [selectedTicket, socket?.connected]);
 
   const scrollToBottom = useCallback(() => {
     if (scrollAreaRef.current) {
@@ -306,123 +399,16 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     let attachmentData: AttachmentInfo | undefined = payload?.attachmentInfo;
 
     if (attachmentPreview) {
-      toast.info("Subiendo archivo...");
-      const formData = new FormData();
-      formData.append('file', attachmentPreview.file);
-
-      try {
-        const response = await apiFetch<UploadResponse>('/archivos/upload/chat_attachment', {
-          method: 'POST',
-          body: formData,
-        });
-        const normalized = normalizeUploadResponse(response);
-        const responsePayload =
-          response && typeof response === 'object'
-            ? (response as UploadResponsePayload)
-            : undefined;
-        const fallbackRawUrl =
-          coalesceString(
-            responsePayload?.url,
-            responsePayload?.attachmentUrl,
-            responsePayload?.attachment_url,
-            responsePayload?.fileUrl,
-            responsePayload?.file_url,
-            responsePayload?.archivo_url,
-            responsePayload?.public_url,
-            responsePayload?.publicUrl,
-            responsePayload?.secure_url,
-            responsePayload?.fallbackUrl,
-            responsePayload?.fallback_url,
-            responsePayload?.fallbackPublicUrl,
-            responsePayload?.fallback_public_url,
-            responsePayload?.local_url,
-            responsePayload?.localUrl,
-            responsePayload?.local_path,
-            responsePayload?.localPath,
-            responsePayload?.local_relative_path,
-            responsePayload?.localRelativePath,
-            responsePayload?.storage_path,
-            responsePayload?.storagePath,
-            responsePayload?.storage_url,
-            responsePayload?.storageUrl,
-            responsePayload?.static_url,
-            responsePayload?.staticUrl,
-            responsePayload?.relative_url,
-            responsePayload?.relativeUrl,
-            responsePayload?.full_path,
-            responsePayload?.fullPath,
-            responsePayload?.public_path,
-            responsePayload?.publicPath,
-            responsePayload?.path,
-            responsePayload?.web_path,
-            responsePayload?.webPath,
-            typeof response === 'string' ? response : undefined,
-          );
-        const uploadedUrlCandidate =
-          normalized.url ||
-          (fallbackRawUrl
-            ? normalizeUploadResponse(fallbackRawUrl).url || fallbackRawUrl
-            : undefined);
-
-        const uploadedUrl =
-          uploadedUrlCandidate
-            ? ensureAbsoluteUrl(uploadedUrlCandidate) ?? uploadedUrlCandidate
-            : undefined;
-
-        if (!uploadedUrl) {
-          throw new Error('La respuesta del servidor no incluyó la URL del archivo subido.');
-        }
-
-        const originalFile = attachmentPreview.file;
-        const uploadedName =
-          normalized.name ||
-          coalesceString(
-            responsePayload?.name,
-            responsePayload?.filename,
-            responsePayload?.fileName,
-          ) ||
-          originalFile.name;
-        const uploadedMime =
-          normalized.mimeType ||
-          coalesceString(
-            responsePayload?.mimeType,
-            responsePayload?.mime_type,
-          ) ||
-          originalFile.type;
-        const uploadedSize =
-          normalized.size ??
-          coalesceNumber(responsePayload?.size, responsePayload?.fileSize) ??
-          originalFile.size;
-        const uploadedThumbCandidate =
-          normalized.thumbUrl ||
-          coalesceString(
-            responsePayload?.thumbUrl,
-            responsePayload?.thumb_url,
-            responsePayload?.thumbnailUrl,
-            responsePayload?.thumbnail_url,
-          );
-        const resolvedThumb =
-          uploadedThumbCandidate
-            ? ensureAbsoluteUrl(uploadedThumbCandidate) ?? uploadedThumbCandidate
-            : undefined;
-
-        attachmentData = {
-          url: uploadedUrl,
-          ...(resolvedThumb ? { thumbUrl: resolvedThumb } : {}),
-          name: uploadedName,
-          mimeType: uploadedMime,
-          size: uploadedSize,
-        };
-        toast.success("Archivo subido con éxito.");
-      } catch (error) {
-        console.error("Error uploading file:", error);
-        toast.error("Error al subir el archivo.");
-        setAttachmentPreview(null); // Clear preview on error
-        setIsSending(false);
-        return;
-      }
+      // Create local preview attachment data for optimistic update
+      // We don't have the real URL yet, but we have the blob URL from the preview
+      attachmentData = {
+        name: attachmentPreview.file.name,
+        url: attachmentPreview.previewUrl, // Use blob URL for immediate display
+        mimeType: attachmentPreview.file.type,
+        size: attachmentPreview.file.size,
+        isUploading: true, // Optional: UI could show a spinner on the image
+      };
     }
-
 
     // Optimistic update
     const optimisticMessage: ChatMessageData = {
@@ -434,23 +420,41 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     };
     setMessages(prev => [...prev, optimisticMessage]);
     setMessage('');
-    setAttachmentPreview(null);
-
+    setAttachmentPreview(null); // Clear input immediately
 
     try {
-        await sendMessage(
-            selectedTicket.id,
-            selectedTicket.tipo,
-            text,
-            attachmentData,
-            payload?.action ? [{ type: 'reply', reply: { id: payload.action, title: payload.action } }] : undefined
-        );
-        // Message will be updated via Pusher with the real ID
+      await sendMessage(
+        selectedTicket.id,
+        selectedTicket.tipo,
+        text,
+        attachmentPreview ? [attachmentPreview.file] : undefined, // Send raw file
+        payload?.action
+          ? [{ type: 'reply', reply: { id: payload.action, title: payload.action } }]
+          : undefined,
+      );
+      requestTicketHistoryEmail({
+        tipo: selectedTicket.tipo,
+        ticketId: selectedTicket.id,
+        options: {
+          reason: 'message_update',
+          actor: 'agent',
+        },
+      })
+        .then((result) => {
+          notifyDeliveryIssue(
+            result,
+            'El mensaje fue enviado, pero el correo automático de seguimiento falló.',
+          );
+        })
+        .catch((error) => {
+          console.error('Error triggering ticket update email after message:', error);
+        });
+      // Message will be updated via Pusher with the real ID
     } catch (error) {
-        toast.error("No se pudo enviar el mensaje.");
-        setMessages(prev => prev.filter(m => m.id !== optimisticMessage.id)); // Rollback on error
+      toast.error("No se pudo enviar el mensaje.");
+      setMessages(prev => prev.filter(m => m.id !== optimisticMessage.id)); // Rollback on error
     } finally {
-        setIsSending(false);
+      setIsSending(false);
     }
   };
 
@@ -468,6 +472,17 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     );
   }
 
+  const notifyDeliveryIssue = useCallback(
+    (result: TicketHistoryDeliveryResult, contextMessage: string) => {
+      if (isTicketHistoryDeliveryErrorResult(result)) {
+        toast.warning(
+          formatTicketHistoryDeliveryErrorMessage(result, contextMessage),
+        );
+      }
+    },
+    [],
+  );
+
   const handleSelectPredefinedMessage = (predefinedMessage: string) => {
     setMessage(prev => prev ? `${prev}\n${predefinedMessage}` : predefinedMessage);
   };
@@ -478,6 +493,25 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
       await updateTicketStatus(selectedTicket.id, selectedTicket.tipo, newStatus);
       updateTicket(selectedTicket.id, { estado: newStatus });
       toast.success(`Estado actualizado a ${formatTicketStatusLabel(newStatus)}`);
+      requestTicketHistoryEmail({
+        tipo: selectedTicket.tipo,
+        ticketId: selectedTicket.id,
+        options: {
+          reason: 'status_change',
+          estado: newStatus,
+          actor: 'agent',
+          notifyChannels: ['email', 'sms'],
+        },
+      })
+        .then((result) => {
+          notifyDeliveryIssue(
+            result,
+            'El estado se actualizó, pero el aviso por correo no se pudo entregar.',
+          );
+        })
+        .catch((error) => {
+          console.error('Error triggering ticket update email after status change:', error);
+        });
     } catch (error) {
       console.error('Error updating ticket status:', error);
       toast.error('No se pudo actualizar el estado.');
@@ -525,6 +559,18 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
           </div>
         </div>
         <div className="flex items-center space-x-2">
+          <Badge variant={realtimeOnline ? 'secondary' : 'outline'} className="hidden sm:inline-flex">
+            {realtimeOnline ? 'Realtime activo' : 'Fallback polling'}
+          </Badge>
+          <Badge variant="outline" className="hidden sm:inline-flex capitalize">
+            {activeChannel}
+          </Badge>
+          <Button asChild variant="ghost" size="sm" className="hidden md:inline-flex">
+            <Link to="/perfil/plantillas-respuesta">Templates</Link>
+          </Button>
+          <Button asChild variant="ghost" size="sm" className="hidden md:inline-flex">
+            <Link to="/notificaciones">Notificaciones</Link>
+          </Button>
           {showDetailsToggle && (
             <Button
               variant={isDetailsVisible ? 'secondary' : 'outline'}
@@ -630,6 +676,24 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         ) : (
           <>
             <ScrollArea className="h-full p-4" ref={scrollAreaRef} onScroll={handleScroll}>
+              {timelinePartial && (
+                <div className="mb-3 rounded-lg border border-amber-300/60 bg-amber-50/70 px-3 py-2 text-xs text-amber-900">
+                  Timeline parcial: se cargó conversación base y se reintentará actualizar eventos omnicanal.
+                </div>
+              )}
+              {timelineItems.length > 0 && (
+                <div className="mb-4 space-y-2 rounded-xl border border-border/60 bg-background/80 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Timeline omnicanal</p>
+                  <div className="space-y-2">
+                    {timelineItems.slice(-8).map((item) => (
+                      <div key={item.id} className="rounded-lg border border-border/50 bg-muted/30 px-2 py-1">
+                        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{item.source || item.stream_type || 'evento'}</p>
+                        <p className="text-sm text-foreground">{item.preview_text}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               {isLoading ? (
                 <div className="flex h-full items-center justify-center">
                   <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -688,7 +752,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         )}
         <div className="relative">
           <Textarea
-            placeholder={listening ? "Escuchando..." : attachmentPreview ? "Añade un comentario..." : "Escribe tu respuesta..."}
+            placeholder={composerPlaceholder}
             className="pr-48 min-h-[40px]"
             value={message}
             onChange={(e) => setMessage(e.target.value)}

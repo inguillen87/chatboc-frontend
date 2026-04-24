@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Link, Outlet, useNavigate } from 'react-router-dom'; // import useNavigate
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -11,27 +11,60 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { Menu as MenuIconLucide, Bell, Settings, LogOut, Building, ChevronDown } from 'lucide-react';
+import { Menu as MenuIconLucide, Settings, LogOut, Building, ChevronDown, Moon, Sun } from 'lucide-react';
 import SideNavigationBar from '../navigation/SideNavigationBar';
 import BottomNavigationBar from '../navigation/BottomNavigationBar';
 import { useUser } from '@/hooks/useUser';
+import { safeLocalStorage } from '@/utils/safeLocalStorage';
+import { usePortalTheme } from '@/hooks/usePortalTheme';
+import { usePortalContent } from '@/hooks/usePortalContent';
+import NotificationCenter from '@/components/user-portal/notifications/NotificationCenter';
+import { Badge } from '@/components/ui/badge';
 
 
 const UserPortalLayout: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
-  const { user } = useUser();
+  const { user, setUser } = useUser();
+  const { content } = usePortalContent();
+  const notifications = content.notifications ?? [];
+  const { toggle, active, setTheme } = usePortalTheme();
+
+  const themeLabel = useMemo(() => {
+    switch (active) {
+      case 'dark':
+        return 'Modo oscuro';
+      case 'light':
+        return 'Modo claro';
+      default:
+        return 'Modo automático';
+    }
+  }, [active]);
 
   const handleLogout = () => {
     console.log("Cerrar Sesión");
-    // TODO: Lógica de logout real: limpiar tokens, redirigir
-    navigate('/login');
+
+    // Limpiar tokens y sesión
+    safeLocalStorage.removeItem('authToken');
+    safeLocalStorage.removeItem('chatAuthToken');
+    safeLocalStorage.removeItem('user');
+
+    // Actualizar contexto
+    setUser(null);
+
+    // Redirigir
+    const tenantSlug = user?.tenantSlug;
+    if (tenantSlug) {
+      navigate(`/${tenantSlug}/user/login`);
+    } else {
+      navigate('/login');
+    }
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-light">
+    <div className="flex flex-col min-h-screen bg-light bg-gradient-to-b from-background via-background to-muted/40 dark:from-background dark:via-background dark:to-muted/20 transition-colors">
       {/* Navbar Superior */}
-      <header className="bg-background border-b border-border shadow-sm sticky top-0 z-40 h-16">
+      <header className="bg-background/95 backdrop-blur-md border-b border-border/80 shadow-sm sticky top-0 z-40 h-16">
         <div className="container mx-auto px-4 flex items-center justify-between h-full">
           <div className="flex items-center gap-2">
             {/* Logo de la Organización */}
@@ -52,11 +85,48 @@ const UserPortalLayout: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2 md:gap-3">
-            <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-primary rounded-full">
-              <Bell className="h-5 w-5" />
-              <span className="sr-only">Notificaciones</span>
-              {/* TODO: Añadir badge de notificaciones */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="rounded-full md:hidden"
+              aria-label="Cambiar tema"
+              onClick={toggle}
+            >
+              {active === 'dark' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
             </Button>
+            <div className="hidden lg:flex items-center gap-2">
+              <Badge variant="secondary" className="hidden xl:inline-flex">{themeLabel}</Badge>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="rounded-full" aria-label="Cambiar tema">
+                    {active === 'dark' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-44">
+                  <DropdownMenuLabel>Tema del portal</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => setTheme('light')}>
+                    <Sun className="mr-2 h-4 w-4" />
+                    Claro
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setTheme('dark')}>
+                    <Moon className="mr-2 h-4 w-4" />
+                    Oscuro
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setTheme('system')}>
+                    <ChevronDown className="mr-2 h-4 w-4" />
+                    Automático
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+            <div className="relative">
+              <NotificationCenter
+                notifications={notifications}
+                onMarkAsRead={(id) => console.log('Mark read', id)}
+                onClearAll={() => console.log('Clear all')}
+              />
+            </div>
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -108,7 +178,7 @@ const UserPortalLayout: React.FC = () => {
                   </Button>
                 </SheetTrigger>
                 <SheetContent side="right" className="w-72 p-0">
-                  <SideNavigationBar onLinkClick={() => setMobileMenuOpen(false)} />
+                  <SideNavigationBar onLinkClick={() => setMobileMenuOpen(false)} onLogout={handleLogout} />
                 </SheetContent>
               </Sheet>
             </div>
@@ -119,12 +189,12 @@ const UserPortalLayout: React.FC = () => {
       <div className="flex flex-1 pt-16 md:pt-0"> {/* pt-16 en mobile para compensar navbar fijo */}
         {/* Menú Lateral (Desktop) */}
         <div className="hidden md:block md:fixed md:top-16 md:left-0 md:h-[calc(100vh-4rem)] md:z-30 shadow-md">
-            <SideNavigationBar />
+            <SideNavigationBar onLogout={handleLogout} />
         </div>
 
         {/* Contenido Principal */}
         {/* El ml-64 para desktop debe ser condicional si el sidebar es colapsable */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 bg-light md:ml-64">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 bg-gradient-to-b from-background via-background to-muted/30 dark:from-background dark:via-background dark:to-muted/10 md:ml-64 transition-colors">
           <Outlet />
         </main>
       </div>

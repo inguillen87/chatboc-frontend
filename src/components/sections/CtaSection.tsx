@@ -10,7 +10,7 @@ const CtaSection = () => {
     <section className="py-16 md:py-24 bg-background text-foreground transition-colors"> {/* Fondo según alternancia */}
       <div className="container px-4 mx-auto">
         <div className="text-center max-w-2xl md:max-w-3xl mx-auto">
-          <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-6 text-dark">
+          <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-6 text-foreground">
             ¿Listo para Transformar la Interacción con tus Usuarios?
           </h2>
           <p className="text-lg md:text-xl text-muted-foreground mb-8 md:mb-10">

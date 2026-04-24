@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { CalendarDays, BarChart3, Edit, LinkIcon, Send, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import { SeedButton } from '@/components/surveys/SeedButton';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -16,6 +17,8 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import type { SurveyAdmin } from '@/types/encuestas';
+import { getAbsolutePublicSurveyUrl } from '@/utils/publicSurveyUrl';
+import { getAutoSeedCantidad } from '@/utils/surveyDemoPriority';
 
 interface SurveyCardProps {
   survey: SurveyAdmin;
@@ -26,6 +29,8 @@ interface SurveyCardProps {
   onCopyLink?: () => void;
   onDelete?: () => Promise<void> | void;
   deleting?: boolean;
+  onSeed?: () => Promise<void>;
+  seeding?: boolean;
 }
 
 const formatDate = (value?: string) =>
@@ -47,8 +52,26 @@ export const SurveyCard = ({
   onCopyLink,
   onDelete,
   deleting,
+  onSeed,
+  seeding,
 }: SurveyCardProps) => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+
+  const autoSeedCantidad = getAutoSeedCantidad(survey);
+  const publicUrl = survey.slug ? getAbsolutePublicSurveyUrl(survey.slug) : null;
+
+  const seedLabels =
+    (survey.recursos as Record<string, unknown> | undefined)?.seed_ui as
+      | {
+          button?: string;
+          buttonTitle?: string;
+          dialogTitle?: string;
+          dialogDescription?: string;
+          confirmLabel?: string;
+          loadingLabel?: string;
+          cancelLabel?: string;
+        }
+      | undefined;
 
   const handleConfirmDelete = async () => {
     if (!onDelete) return;
@@ -65,8 +88,8 @@ export const SurveyCard = ({
       <CardHeader className="flex flex-col gap-2">
         <div className="flex items-center justify-between gap-3">
           <CardTitle className="text-xl font-semibold">{survey.titulo}</CardTitle>
-          <Badge variant={statusVariants[survey.estado]} className="uppercase tracking-wide">
-            {survey.estado}
+          <Badge variant={statusVariants[survey.estado] ?? 'outline'} className="uppercase tracking-wide">
+            {survey.estado || 'sin estado'}
           </Badge>
         </div>
         <p className="line-clamp-2 text-sm text-muted-foreground">{survey.descripcion || 'Sin descripción'}</p>
@@ -74,13 +97,19 @@ export const SurveyCard = ({
           <span className="inline-flex items-center gap-1">
             <CalendarDays className="h-4 w-4" /> {formatDate(survey.inicio_at)} – {formatDate(survey.fin_at)}
           </span>
-          <span className="inline-flex items-center gap-1">Tipo: {survey.tipo}</span>
-          <span className="inline-flex items-center gap-1">Slug: {survey.slug}</span>
+          <span className="inline-flex items-center gap-1">Tipo: {survey.tipo || '—'}</span>
+          <span className="inline-flex items-center gap-1">Slug: {survey.slug || '—'}</span>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {survey.es_votacion_envivo ? <Badge variant="default">En vivo</Badge> : null}
+          {survey.mostrar_resultados_envivo ? <Badge variant="secondary">Resultados en tiempo real</Badge> : null}
+          {survey.permitir_comentarios ? <Badge variant="outline">Comentarios abiertos</Badge> : null}
+          {autoSeedCantidad ? <Badge variant="outline">Demo precargada: {autoSeedCantidad}</Badge> : null}
         </div>
       </CardHeader>
       <CardContent className="space-y-1 text-sm text-muted-foreground">
-        <p>Preguntas: {survey.preguntas.length}</p>
-        <p>Política de unicidad: {survey.politica_unicidad}</p>
+        <p>Preguntas: {Array.isArray(survey.preguntas) ? survey.preguntas.length : 0}</p>
+        <p>Política de unicidad: {survey.politica_unicidad || '—'}</p>
       </CardContent>
       <CardFooter className="flex flex-wrap gap-2">
         <Button variant="outline" size="sm" onClick={onEdit} className="inline-flex items-center gap-2">
@@ -98,6 +127,16 @@ export const SurveyCard = ({
           <Button variant="ghost" size="sm" onClick={onCopyLink} className="inline-flex items-center gap-2">
             <LinkIcon className="h-4 w-4" /> Copiar link
           </Button>
+        )}
+        {survey.estado === 'publicada' && publicUrl ? (
+          <Button variant="ghost" size="sm" asChild>
+            <a href={publicUrl} target="_blank" rel="noopener noreferrer">
+              Ver en vivo
+            </a>
+          </Button>
+        ) : null}
+        {onSeed && (
+          <SeedButton onSeed={onSeed} loading={seeding} surveyTitle={survey.titulo} labels={seedLabels} />
         )}
         {onDelete ? (
           <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

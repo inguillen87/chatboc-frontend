@@ -11,7 +11,7 @@ const Checkout = () => {
   const planInfo = {
     pro: {
       title: "Plan Pro",
-      price: "$65.000 / mes",
+      price: "$300.000 / mes",
       benefits: [
         "Hasta 250 preguntas e interacciones personalizadas por mes",
         "Entrenamiento optimizado para el rubro de tu empresa",
@@ -25,7 +25,7 @@ const Checkout = () => {
     },
     full: {
       title: "Plan Full",
-      price: "$95.000 / mes",
+      price: "$350.000 / mes",
       benefits: [
         "Consultas ilimitadas sin tope de mensajes",
         "Automatización completa de respuestas, seguimientos y derivaciones",
@@ -74,6 +74,24 @@ const Checkout = () => {
         }
       >
         Solicitar activación por WhatsApp
+      </Button>
+
+      {/* Hidden button for demo flow simulation */}
+      <Button
+         variant="outline"
+         className="mt-4 w-full"
+         onClick={() => {
+            const path = window.location.pathname;
+            const slug = path.split('/')[2]; // /demo/:slug/checkout
+            if (slug) {
+                // If in demo mode, redirect to portal after "purchase"
+                window.location.href = `/demo/${slug}/portal`;
+            } else {
+                 navigate("/perfil");
+            }
+         }}
+      >
+        Simular Compra (Demo)
       </Button>
 
       <p className="text-xs text-muted-foreground mt-3">

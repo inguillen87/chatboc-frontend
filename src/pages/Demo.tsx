@@ -8,6 +8,7 @@ import ChatMessage from "@/components/chat/ChatMessage";
 import RubroSelector, { Rubro } from "@/components/chat/RubroSelector";
 import { Message, SendPayload } from "@/types/chat";
 import { apiFetch, getErrorMessage } from "@/utils/api";
+import { getRubrosHierarchy } from "@/api/rubros";
 import { getCurrentTipoChat, enforceTipoChatForRubro, parseRubro } from "@/utils/tipoChat";
 import { getAskEndpoint, esRubroPublico } from "@/utils/chatEndpoints";
 import { extractRubroKey, extractRubroLabel } from "@/utils/rubros";
@@ -51,7 +52,7 @@ const Demo = () => {
     lastQueryRef.current = null;
     // The useEffect for loading rubros will trigger again due to rubroSeleccionado being null
     // or rather, we explicitly set esperandoRubro to true and then the rubro loading logic runs
-    apiFetch<any[]>("/rubros/", { skipAuth: true })
+    getRubrosHierarchy()
         .then((data) => setRubrosDisponibles(Array.isArray(data) ? data : []))
         .catch(() => {
           setRubrosDisponibles([]);
@@ -147,7 +148,7 @@ const Demo = () => {
     } else if (!storedClave) {
       setEsperandoRubro(true);
       setMessages([]);
-      apiFetch<any[]>("/rubros/", { skipAuth: true })
+      getRubrosHierarchy()
         .then((data) => setRubrosDisponibles(Array.isArray(data) ? data : []))
         .catch(() => {
           setRubrosDisponibles([]);

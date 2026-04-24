@@ -1,28 +1,79 @@
+import { ENABLE_PUBLIC_SURVEY_LEGACY_FALLBACK, PUBLIC_SURVEY_BASE_URL } from '@/config';
 import { ApiError, apiFetch } from '@/utils/api';
 import {
+  PreguntaTipo,
   PublicResponsePayload,
   SurveyAdmin,
   SurveyAnalyticsFilters,
+  SurveyComment,
   SurveyDraftPayload,
+  SurveyAnalyticsHeatmap,
   SurveyHeatmapPoint,
   SurveyListResponse,
+  SurveyLivePublicResultsPayload,
   SurveyPublic,
   SurveyResponseFilters,
   SurveyResponseList,
   SurveySnapshot,
   SurveySummary,
   SurveyTimeseriesPoint,
+  SurveyForecast,
+  SurveyAlert,
+  SurveyBrief,
+  SurveySegmentsCompare,
+  SurveySegmentsSuggestions,
+  SurveyAnomalies,
+  SurveyDashboardBundle,
 } from '@/types/encuestas';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
-type QueryParams = Record<string, string | number | boolean | undefined | null>;
+type PrimitiveParam = string | number | boolean | undefined | null;
+type QueryParams = Record<string, PrimitiveParam | PrimitiveParam[]>;
+
+const PUBLIC_SURVEY_API_BASE =
+  typeof PUBLIC_SURVEY_BASE_URL === 'string' && PUBLIC_SURVEY_BASE_URL.trim()
+    ? PUBLIC_SURVEY_BASE_URL.trim().replace(/\/$/, '')
+    : undefined;
+
+const PUBLIC_CHAT_CONTEXT_STORAGE_KEY = 'chatboc_public_chat_context';
 
 const buildQueryString = (params?: QueryParams) => {
   if (!params) return '';
   const search = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
     if (value === undefined || value === null || value === '') return;
-    search.set(key, String(value));
+
+    const appendValue = (input: PrimitiveParam) => {
+      if (input === undefined || input === null || input === '') return;
+      if (typeof input === 'number' && !Number.isFinite(input)) return;
+      if (typeof input === 'boolean') {
+        search.set(key, input ? '1' : '0');
+        return;
+      }
+      search.set(key, String(input));
+    };
+
+    if (Array.isArray(value)) {
+      const normalized = value
+        .map((item) => {
+          if (item === undefined || item === null || item === '') return null;
+          if (typeof item === 'number') {
+            return Number.isFinite(item) ? String(item) : null;
+          }
+          if (typeof item === 'boolean') {
+            return item ? '1' : '0';
+          }
+          return String(item);
+        })
+        .filter((item): item is string => item !== null);
+
+      if (normalized.length) {
+        search.set(key, normalized.join(','));
+      }
+      return;
+    }
+
+    appendValue(value);
   });
   const query = search.toString();
   return query ? `?${query}` : '';
@@ -30,11 +81,19 @@ const buildQueryString = (params?: QueryParams) => {
 
 type ApiFetchOptions = Parameters<typeof apiFetch>[1];
 
+
+const isDevEnvironment = () => {
+  const metaEnv = typeof import.meta !== 'undefined' ? (import.meta as any)?.env : undefined;
+  return Boolean(metaEnv?.DEV || metaEnv?.MODE === 'development');
+};
+
 const ADMIN_SURVEY_BASE_PATHS = [
   '/admin/encuestas',
   '/municipal/encuestas',
   '/admin/surveys',
   '/municipal/surveys/admin',
+  // Fallback to explicit tenant paths if generic ones fail
+  '/api/admin/encuestas',
 ] as const;
 
 const joinAdminPath = (base: string, suffix?: string) => {
@@ -49,7 +108,26 @@ const joinAdminPath = (base: string, suffix?: string) => {
 
 const shouldRetryAdminRequest = (error: unknown) => {
   if (error instanceof ApiError) {
-    return [0, 400, 401, 402, 403].every((code) => error.status !== code);
+    if (error.status === 0) {
+      return true;
+    }
+
+    // Retry 403/404 because we might be hitting a tenant-scoped endpoint
+    // that the current token isn't authorized for in that specific way,
+    // but a generic admin endpoint might work with X-Tenant.
+    if (error.status === 404 || error.status === 405) {
+      return true;
+    }
+
+    if (error.status === 401 || error.status === 403) {
+      return false;
+    }
+
+    if (error.status >= 500) {
+      return true;
+    }
+
+    return false;
   }
 
   if (error instanceof Error) {
@@ -68,7 +146,7 @@ async function callAdminSurveyEndpoint<T>(pathSuffix = '', options?: ApiFetchOpt
       const targetPath = joinAdminPath(basePath, pathSuffix);
       const result = await apiFetch<T>(targetPath, options ?? {});
 
-      if (basePath !== ADMIN_SURVEY_BASE_PATHS[0]) {
+      if (basePath !== ADMIN_SURVEY_BASE_PATHS[0] && isDevEnvironment()) {
         console.warn(
           '[encuestas] Falling back to alternate admin endpoint',
           { preferred: ADMIN_SURVEY_BASE_PATHS[0], used: basePath },
@@ -99,6 +177,74 @@ const serializeUnknown = (value: unknown) => {
     console.warn('[encuestas] No se pudo serializar la respuesta inesperada', error);
     return '';
   }
+};
+
+const normalizePreguntaTipo = (value: unknown): PreguntaTipo => {
+  if (typeof value !== 'string') {
+    return 'opcion_unica';
+  }
+
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[\s-]+/g, '_')
+    .replace(/[^a-z_]/g, '');
+
+  switch (normalized) {
+    case 'opcion_unica':
+    case 'opcion_simple':
+    case 'opcion':
+    case 'single':
+    case 'single_choice':
+    case 'radio':
+      return 'opcion_unica';
+    case 'multiple':
+    case 'seleccion_multiple':
+    case 'seleccionmultiple':
+    case 'multiple_choice':
+    case 'multiplechoice':
+    case 'checkbox':
+    case 'checkboxes':
+      return 'multiple';
+    case 'abierta':
+    case 'respuesta_abierta':
+    case 'texto':
+    case 'text':
+    case 'open':
+    case 'open_text':
+    case 'open_texto':
+      return 'abierta';
+    case 'rating':
+    case 'rating_emoji':
+    case 'emoji':
+    case 'estrellas':
+    case 'stars':
+      return 'rating_emoji';
+    default:
+      return 'opcion_unica';
+  }
+};
+
+const normalizeSurveyPreguntas = <T extends { preguntas?: Array<{ tipo?: unknown }> }>(survey: T): T => {
+  if (!survey || !Array.isArray(survey.preguntas)) {
+    return survey;
+  }
+
+  return {
+    ...survey,
+    preguntas: survey.preguntas.map((pregunta) => {
+      if (!pregunta || typeof pregunta !== 'object') {
+        return pregunta;
+      }
+
+      return {
+        ...pregunta,
+        tipo: normalizePreguntaTipo((pregunta as { tipo?: unknown }).tipo),
+      };
+    }) as T['preguntas'],
+  };
 };
 
 export type PublicSurveyListResult = SurveyPublic[] & {
@@ -158,19 +304,70 @@ const attemptRecoveryFromAdminList = async (): Promise<PublicSurveyListResult | 
   }
 };
 
-export const getPublicSurvey = async (slug: string): Promise<SurveyPublic> => {
-  const response = await apiFetch<unknown>(`/public/encuestas/${slug}`, {
+export const getPublicSurvey = async (slug: string, tenantSlug?: string): Promise<SurveyPublic> => {
+  const response = await callPublicSurveyEndpoint<unknown>(buildPublicSurveyPaths(
+    `/api/public/encuestas/v1/${slug}`,
+    `/public/encuestas/v1/${slug}`,
+    `/api/public/encuestas/${slug}`,
+    `/public/encuestas/${slug}`,
+  ), {
     skipAuth: true,
     omitCredentials: true,
     isWidgetRequest: true,
     omitChatSessionId: true,
+    tenantSlug,
+    baseUrlOverride: PUBLIC_SURVEY_API_BASE,
+    omitEntityToken: true,
+    omitTenant: true,
   });
 
   if (!response || typeof response !== 'object' || Array.isArray(response)) {
     throw new Error('El servidor devolvió un formato inesperado para la encuesta solicitada.');
   }
 
-  return response as SurveyPublic;
+  if ((response as Record<string, unknown>).contract_version === 'encuestas.public.v1') {
+    const survey = (response as Record<string, unknown>).encuesta;
+    if (!survey || typeof survey !== 'object' || Array.isArray(survey)) {
+      throw new Error('El servidor devolvió un payload inválido para el contrato encuestas.public.v1.');
+    }
+    return normalizeSurveyPreguntas(survey as SurveyPublic);
+  }
+
+  return normalizeSurveyPreguntas(response as SurveyPublic);
+};
+
+
+const shouldRetryPublicSurveyRequest = (error: unknown) => {
+  if (error instanceof ApiError) {
+    return error.status === 401 || error.status === 403 || error.status === 404 || error.status === 405 || error.status >= 500;
+  }
+  return false;
+};
+
+const callPublicSurveyEndpoint = async <T>(paths: string[], options: ApiFetchOptions): Promise<T> => {
+  let lastError: unknown = null;
+
+  for (const path of paths) {
+    try {
+      return await apiFetch<T>(path, options);
+    } catch (error) {
+      lastError = error;
+      if (!shouldRetryPublicSurveyRequest(error)) {
+        break;
+      }
+    }
+  }
+
+  throw lastError ?? new Error('No fue posible consultar el endpoint público de encuestas.');
+};
+
+const buildPublicSurveyPaths = (...paths: string[]) => {
+  if (paths.length === 0) return [];
+  const unique = Array.from(new Set(paths.filter(Boolean)));
+  if (!ENABLE_PUBLIC_SURVEY_LEGACY_FALLBACK) {
+    return unique.slice(0, 1);
+  }
+  return unique;
 };
 
 const FALLBACK_SURVEY_URL_REGEX = /https?:\/\/[\S]+\/e\/([a-z0-9-]+)/gi;
@@ -191,6 +388,7 @@ const extractSlugsFromRawPayload = (raw?: string | null): string[] => {
 const attemptRecoveryFromRawPayload = async (
   raw: string,
   status?: number,
+  tenantSlug?: string,
 ): Promise<PublicSurveyListResult | null> => {
   const slugs = extractSlugsFromRawPayload(raw);
   if (!slugs.length) {
@@ -200,7 +398,7 @@ const attemptRecoveryFromRawPayload = async (
   const recovered = await Promise.all(
     slugs.map(async (slug) => {
       try {
-        return await getPublicSurvey(slug);
+        return await getPublicSurvey(slug, tenantSlug);
       } catch (fetchError) {
         console.warn('[encuestas] No se pudo recuperar la encuesta pública a partir del enlace', {
           slug,
@@ -225,13 +423,22 @@ const attemptRecoveryFromRawPayload = async (
   });
 };
 
-export const listPublicSurveys = async (): Promise<PublicSurveyListResult> => {
+export const listPublicSurveys = async (tenantSlug?: string): Promise<PublicSurveyListResult> => {
   try {
-    const response = await apiFetch<unknown>('/public/encuestas', {
+    const response = await callPublicSurveyEndpoint<unknown>(buildPublicSurveyPaths(
+      '/api/public/encuestas/v1',
+      '/public/encuestas/v1',
+      '/api/public/encuestas',
+      '/public/encuestas',
+    ), {
       skipAuth: true,
       omitCredentials: true,
       isWidgetRequest: true,
       omitChatSessionId: true,
+      tenantSlug,
+      baseUrlOverride: PUBLIC_SURVEY_API_BASE,
+      omitEntityToken: true,
+      omitTenant: true,
     });
 
     if (Array.isArray(response)) {
@@ -239,23 +446,30 @@ export const listPublicSurveys = async (): Promise<PublicSurveyListResult> => {
         return response as SurveyPublic[];
       }
 
-      const recoveredFromAdmin = await attemptRecoveryFromAdminList();
-      if (recoveredFromAdmin) {
-        return recoveredFromAdmin;
+      if (ENABLE_PUBLIC_SURVEY_LEGACY_FALLBACK && !tenantSlug) {
+        const recoveredFromAdmin = await attemptRecoveryFromAdminList();
+        if (recoveredFromAdmin) {
+          return recoveredFromAdmin;
+        }
       }
 
       return response as SurveyPublic[];
     }
 
     const raw = serializeUnknown(response);
-    if (raw) {
-      const recovered = await attemptRecoveryFromRawPayload(raw);
+    if (ENABLE_PUBLIC_SURVEY_LEGACY_FALLBACK && raw) {
+      const recovered = await attemptRecoveryFromRawPayload(raw, undefined, tenantSlug);
       if (recovered) {
         return recovered;
       }
     }
 
-    return asFlaggedEmptyList({ raw });
+    return asFlaggedEmptyList({
+      raw,
+      fallbackNotice: ENABLE_PUBLIC_SURVEY_LEGACY_FALLBACK
+        ? undefined
+        : 'El backend devolvió un formato inválido para el contrato público de encuestas v1.',
+    });
   } catch (error) {
     if (error instanceof ApiError) {
       const rawBody =
@@ -265,87 +479,350 @@ export const listPublicSurveys = async (): Promise<PublicSurveyListResult> => {
             ? error.body
             : serializeUnknown(error.body);
 
-      if (rawBody) {
-        const recovered = await attemptRecoveryFromRawPayload(rawBody, error.status);
+      if (ENABLE_PUBLIC_SURVEY_LEGACY_FALLBACK && rawBody) {
+        const recovered = await attemptRecoveryFromRawPayload(rawBody, error.status, tenantSlug);
         if (recovered) {
           return recovered;
         }
       }
 
-      return asFlaggedEmptyList({ raw: rawBody, status: error.status });
+      if (!ENABLE_PUBLIC_SURVEY_LEGACY_FALLBACK) {
+        return asFlaggedEmptyList({
+          raw: rawBody,
+          status: error.status,
+          fallbackNotice: 'No se pudo obtener el listado público de encuestas con contrato v1.',
+        });
+      }
+
+      return asFlaggedEmptyList({
+        raw: rawBody,
+        status: error.status,
+        fallbackNotice:
+          'No se pudo obtener el listado público de encuestas desde el backend.',
+      });
     }
 
-    throw error;
+    return asFlaggedEmptyList({
+      fallbackNotice: 'No se pudo consultar el listado público de encuestas.',
+    });
   }
 };
+
+
+export const getPublicSurveyLiveResults = (
+  slug: string,
+  tenantSlug?: string,
+  params?: {
+    include_heatmap?: 0 | 1;
+    window_minutes?: number;
+    max_points?: number;
+    max_cells?: number;
+    canal?: string;
+    barrio?: string;
+    ciudad?: string;
+    provincia?: string;
+  },
+): Promise<SurveyLivePublicResultsPayload> =>
+  callPublicSurveyEndpoint<SurveyLivePublicResultsPayload>(buildPublicSurveyPaths(
+    `/api/public/encuestas/${slug}/live-results${buildQueryString(params)}`,
+    `/public/encuestas/${slug}/live-results${buildQueryString(params)}`,
+  ), {
+    skipAuth: true,
+    omitCredentials: true,
+    isWidgetRequest: true,
+    omitChatSessionId: true,
+    tenantSlug,
+    baseUrlOverride: PUBLIC_SURVEY_API_BASE,
+    omitEntityToken: true,
+    omitTenant: true,
+  });
 
 export const postPublicResponse = (
   slug: string,
   payload: PublicResponsePayload,
-): Promise<{ ok: boolean; id?: number }> =>
-  apiFetch(`/public/encuestas/${slug}/respuestas`, {
+  tenantSlug?: string,
+): Promise<{ ok: boolean; id?: number; contact_key?: string; conversation_id?: string; contract_version?: string }> =>
+  callPublicSurveyEndpoint<{ ok: boolean; id?: number; contact_key?: string; conversation_id?: string; contract_version?: string }>(buildPublicSurveyPaths(
+    `/api/public/encuestas/${slug}/respuestas`,
+    `/public/encuestas/${slug}/respuestas`,
+  ), {
     method: 'POST',
     body: payload,
     omitCredentials: true,
     isWidgetRequest: true,
-    skipAuth: true,
     omitChatSessionId: true,
+    tenantSlug,
+    baseUrlOverride: PUBLIC_SURVEY_API_BASE,
+    omitEntityToken: true,
+    omitTenant: true,
+  }).then((response) => {
+    const contractVersion =
+      typeof (response as Record<string, unknown>)?.contract_version === 'string'
+        ? String((response as Record<string, unknown>).contract_version)
+        : undefined;
+    if (!ENABLE_PUBLIC_SURVEY_LEGACY_FALLBACK && contractVersion !== 'encuestas.public_response.v1') {
+      throw new Error('El backend no devolvió contract_version válido para encuestas.public_response.v1.');
+    }
+
+    const contactKey = typeof response?.contact_key === 'string' ? response.contact_key.trim() : '';
+    const conversationId =
+      typeof response?.conversation_id === 'string' ? response.conversation_id.trim() : '';
+
+    if (!contactKey && !conversationId) {
+      return response;
+    }
+
+    try {
+      const currentRaw = safeLocalStorage.getItem(PUBLIC_CHAT_CONTEXT_STORAGE_KEY);
+      const currentContext = currentRaw ? JSON.parse(currentRaw) : null;
+      const normalizedContext =
+        currentContext && typeof currentContext === 'object'
+          ? (currentContext as Record<string, unknown>)
+          : {};
+
+      safeLocalStorage.setItem(
+        PUBLIC_CHAT_CONTEXT_STORAGE_KEY,
+        JSON.stringify({
+          ...normalizedContext,
+          ...(contactKey ? { contact_key: contactKey } : {}),
+          ...(conversationId ? { conversation_id: conversationId } : {}),
+          ...(tenantSlug ? { tenantSlug } : {}),
+          updatedAt: new Date().toISOString(),
+        }),
+      );
+    } catch {
+      // no-op: identity persistence is best-effort
+    }
+
+    return {
+      ...response,
+      ...(contractVersion ? { contract_version: contractVersion } : {}),
+    };
   });
 
-const normalizeSurveyListResponse = (payload: unknown): SurveyListResponse => {
-  if (Array.isArray(payload)) {
-    return { data: payload };
+export const getSurveyComments = (
+  slug: string,
+  tenantSlug?: string,
+  limit = 50,
+  offset = 0,
+): Promise<SurveyComment[]> =>
+  callPublicSurveyEndpoint<SurveyComment[]>(buildPublicSurveyPaths(
+    `/api/public/encuestas/${slug}/comentarios?limit=${limit}&offset=${offset}`,
+    `/public/encuestas/${slug}/comentarios?limit=${limit}&offset=${offset}`,
+  ), {
+    skipAuth: true,
+    omitCredentials: true,
+    isWidgetRequest: true,
+    omitChatSessionId: true,
+    tenantSlug,
+    baseUrlOverride: PUBLIC_SURVEY_API_BASE,
+    omitEntityToken: true,
+    omitTenant: true,
+  });
+
+export const postSurveyComment = (
+  slug: string,
+  payload: {
+    texto: string;
+    nombre?: string;
+    nombre_autor?: string;
+    anon_id?: string;
+    modo?: 'anonimo' | 'facebook' | 'google' | 'instagram' | 'social';
+    auth_provider?: string;
+    auth_user_id?: string;
+    auth_email?: string;
+    auth_first_name?: string;
+    auth_last_name?: string;
+  },
+  tenantSlug?: string,
+): Promise<SurveyComment> =>
+  callPublicSurveyEndpoint<SurveyComment>(buildPublicSurveyPaths(
+    `/api/public/encuestas/${slug}/comentarios`,
+    `/public/encuestas/${slug}/comentarios`,
+  ), {
+    method: 'POST',
+    body: payload,
+    omitCredentials: true,
+    isWidgetRequest: true,
+    omitChatSessionId: true,
+    tenantSlug,
+    baseUrlOverride: PUBLIC_SURVEY_API_BASE,
+    omitEntityToken: true,
+    omitTenant: true,
+  });
+
+const isSurveyListMeta = (value: unknown): SurveyListResponse['meta'] | undefined => {
+  if (!value || typeof value !== 'object') {
+    return undefined;
   }
 
-  if (payload && typeof payload === 'object') {
-    const { data, meta, results } = payload as {
-      data?: unknown;
-      results?: unknown;
-      meta?: unknown;
-    };
+  const candidate = value as SurveyListResponse['meta'];
+  const knownKeys = ['total', 'draftCount', 'activeCount'] as const;
+  if (knownKeys.some((key) => Object.prototype.hasOwnProperty.call(candidate, key))) {
+    return candidate;
+  }
 
-    if (Array.isArray(data)) {
-      return { data, meta: typeof meta === 'object' && meta ? (meta as SurveyListResponse['meta']) : undefined };
-    }
+  return undefined;
+};
 
-    if (Array.isArray(results)) {
-      return { data: results, meta: typeof meta === 'object' && meta ? (meta as SurveyListResponse['meta']) : undefined };
+const SURVEY_ARRAY_KEYS = [
+  'data',
+  'results',
+  'items',
+  'records',
+  'encuestas',
+  'surveys',
+  'docs',
+  'rows',
+] as const;
+
+const looksLikeSurveyRecord = (value: unknown) => {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Record<string, unknown>;
+  return (
+    Object.prototype.hasOwnProperty.call(candidate, 'titulo') ||
+    Object.prototype.hasOwnProperty.call(candidate, 'slug') ||
+    Object.prototype.hasOwnProperty.call(candidate, 'id')
+  );
+};
+
+const extractSurveyArray = (
+  payload: unknown,
+  parentMeta?: SurveyListResponse['meta'],
+  depth = 0,
+  visited: Set<unknown> = new Set(),
+): SurveyListResponse | null => {
+  if (depth > 6 || payload === null || payload === undefined) {
+    return null;
+  }
+
+  if (visited.has(payload)) {
+    return null;
+  }
+
+  if (Array.isArray(payload)) {
+    if (!payload.length || looksLikeSurveyRecord(payload[0])) {
+      return { data: payload, meta: parentMeta };
     }
+    return null;
+  }
+
+  if (typeof payload !== 'object') {
+    return null;
+  }
+
+  visited.add(payload);
+
+  const container = payload as Record<string, unknown>;
+  const metaFromCurrent = isSurveyListMeta(container.meta) ?? parentMeta;
+
+  for (const key of SURVEY_ARRAY_KEYS) {
+    if (Object.prototype.hasOwnProperty.call(container, key)) {
+      const extracted = extractSurveyArray(container[key], metaFromCurrent, depth + 1, visited);
+      if (extracted) {
+        return {
+          data: extracted.data,
+          meta: extracted.meta ?? metaFromCurrent,
+        };
+      }
+    }
+  }
+
+  for (const value of Object.values(container)) {
+    const extracted = extractSurveyArray(value, metaFromCurrent, depth + 1, visited);
+    if (extracted) {
+      return extracted;
+    }
+  }
+
+  return null;
+};
+
+const normalizeSurveyListResponse = (payload: unknown): SurveyListResponse => {
+  const extracted = extractSurveyArray(payload);
+
+  if (extracted) {
+    return extracted;
   }
 
   console.warn('[encuestas] Respuesta inesperada para el listado de encuestas del panel', payload);
   return { data: [] };
 };
 
-export const adminListSurveys = async (params?: QueryParams): Promise<SurveyListResponse> => {
-  const rawResponse = await callAdminSurveyEndpoint<SurveyListResponse | SurveyAdmin[]>(buildQueryString(params));
-  return normalizeSurveyListResponse(rawResponse);
+export const adminListSurveys = async (
+  params?: QueryParams,
+  options?: ApiFetchOptions,
+): Promise<SurveyListResponse> => {
+  const rawResponse = await callAdminSurveyEndpoint<SurveyListResponse | SurveyAdmin[]>(
+    buildQueryString(params),
+    options,
+  );
+  const normalized = normalizeSurveyListResponse(rawResponse);
+  if (!Array.isArray(normalized.data)) {
+    return normalized;
+  }
+
+  return {
+    ...normalized,
+    data: normalized.data.map((survey) => normalizeSurveyPreguntas(survey)),
+  };
 };
 
-export const adminCreateSurvey = (payload: SurveyDraftPayload): Promise<SurveyAdmin> =>
-  callAdminSurveyEndpoint('', {
+export const adminCreateSurvey = async (
+  payload: SurveyDraftPayload,
+  options?: ApiFetchOptions,
+): Promise<SurveyAdmin> => {
+  const survey = await callAdminSurveyEndpoint<SurveyAdmin>('', {
     method: 'POST',
     body: payload,
+    ...options,
   });
+  return normalizeSurveyPreguntas(survey);
+};
 
-export const adminUpdateSurvey = (id: number, payload: SurveyDraftPayload): Promise<SurveyAdmin> =>
-  callAdminSurveyEndpoint(`${id}`, {
+export const adminUpdateSurvey = async (
+  id: number,
+  payload: SurveyDraftPayload,
+  options?: ApiFetchOptions,
+): Promise<SurveyAdmin> => {
+  const survey = await callAdminSurveyEndpoint<SurveyAdmin>(`${id}`, {
     method: 'PUT',
     body: payload,
+    ...options,
   });
+  return normalizeSurveyPreguntas(survey);
+};
 
-export const adminDeleteSurvey = (id: number): Promise<void> =>
+export const adminDeleteSurvey = (id: number, options?: ApiFetchOptions): Promise<void> =>
   callAdminSurveyEndpoint(`${id}`, {
     method: 'DELETE',
+    ...options,
   });
 
-export const adminGetSurvey = (id: number): Promise<SurveyAdmin> =>
-  callAdminSurveyEndpoint(`${id}`);
+export const adminGetSurvey = async (id: number, options?: ApiFetchOptions): Promise<SurveyAdmin> => {
+  const survey = await callAdminSurveyEndpoint<SurveyAdmin>(`${id}`, options);
+  return normalizeSurveyPreguntas(survey);
+};
 
-export const adminPublishSurvey = (id: number): Promise<SurveyAdmin> =>
-  callAdminSurveyEndpoint(`${id}/publicar`, {
+export const adminPublishSurvey = async (id: number, options?: ApiFetchOptions): Promise<SurveyAdmin> => {
+  const survey = await callAdminSurveyEndpoint<SurveyAdmin>(`${id}/publicar`, {
     method: 'POST',
+    ...options,
   });
+  return normalizeSurveyPreguntas(survey);
+};
+
+export const adminSeedSurvey = async (
+  id: number,
+  payload: { cantidad: number; reset?: boolean; geo_profile_key?: string; municipality_label?: string },
+  options?: ApiFetchOptions,
+): Promise<{ creadas: number; reset?: { respuestas?: number; comentarios?: number } }> => {
+  return callAdminSurveyEndpoint<{ creadas: number }>(`${id}/seed-demo`, {
+    method: 'POST',
+    body: payload,
+    ...options,
+  });
+};
 
 export const getSummary = (id: number, filtros?: SurveyAnalyticsFilters): Promise<SurveySummary> =>
   callAdminSurveyEndpoint(`${id}/analytics/resumen${buildQueryString(filtros)}`);
@@ -356,11 +833,82 @@ export const getTimeseries = (
 ): Promise<SurveyTimeseriesPoint[]> =>
   callAdminSurveyEndpoint(`${id}/analytics/series${buildQueryString(filtros)}`);
 
-export const getHeatmap = (
+export const getHeatmap = async (
   id: number,
   filtros?: SurveyAnalyticsFilters,
-): Promise<SurveyHeatmapPoint[]> =>
-  callAdminSurveyEndpoint(`${id}/analytics/heatmap${buildQueryString(filtros)}`);
+): Promise<SurveyAnalyticsHeatmap> => {
+  const payload = await callAdminSurveyEndpoint<unknown>(`${id}/analytics/heatmap${buildQueryString(filtros)}`);
+
+  if (Array.isArray(payload)) {
+    return { points: payload as SurveyHeatmapPoint[] };
+  }
+
+  if (payload && typeof payload === 'object') {
+    const record = payload as Record<string, unknown>;
+    const points = Array.isArray(record.points)
+      ? (record.points as SurveyHeatmapPoint[])
+      : Array.isArray(record.data)
+        ? (record.data as SurveyHeatmapPoint[])
+        : [];
+
+    return {
+      points,
+      cells: Array.isArray(record.cells) ? (record.cells as Array<Record<string, unknown>>) : undefined,
+      metadata: record.metadata && typeof record.metadata === 'object' ? (record.metadata as Record<string, unknown>) : undefined,
+    };
+  }
+
+  return { points: [] };
+};
+
+
+export const getSurveyForecast = (
+  id: number,
+  params?: { window_minutes?: number; horizon_minutes?: number },
+): Promise<SurveyForecast> =>
+  callAdminSurveyEndpoint(`${id}/analytics/forecast${buildQueryString(params)}`);
+
+export const getSurveyAlerts = (
+  id: number,
+  params?: { window_minutes?: number; min_activity?: number },
+): Promise<SurveyAlert[]> =>
+  callAdminSurveyEndpoint(`${id}/analytics/alerts${buildQueryString(params)}`);
+
+export const getSurveyBrief = (id: number): Promise<SurveyBrief> =>
+  callAdminSurveyEndpoint(`${id}/analytics/brief`);
+
+
+export const getSurveySegmentsCompare = (
+  id: number,
+  params?: {
+    a_canal?: string;
+    b_canal?: string;
+    a_genero?: string;
+    b_genero?: string;
+    a_territorio?: string;
+    b_territorio?: string;
+  },
+): Promise<SurveySegmentsCompare> =>
+  callAdminSurveyEndpoint(`${id}/analytics/segments/compare${buildQueryString(params)}`);
+
+
+export const getSurveySegmentsSuggestions = (
+  id: number,
+  params?: { limit?: number },
+): Promise<SurveySegmentsSuggestions> =>
+  callAdminSurveyEndpoint(`${id}/analytics/segments/suggestions${buildQueryString(params)}`);
+
+export const getSurveyAnomalies = (
+  id: number,
+  params?: { burst_window_minutes?: number; burst_threshold?: number },
+): Promise<SurveyAnomalies> =>
+  callAdminSurveyEndpoint(`${id}/analytics/anomalies${buildQueryString(params)}`);
+
+export const getSurveyDashboardBundle = (
+  id: number,
+  filtros?: SurveyAnalyticsFilters,
+): Promise<SurveyDashboardBundle> =>
+  callAdminSurveyEndpoint(`${id}/analytics/dashboard${buildQueryString(filtros)}`);
 
 export const downloadExportCsv = async (
   id: number,

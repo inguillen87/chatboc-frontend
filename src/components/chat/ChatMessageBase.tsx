@@ -1,11 +1,12 @@
 // src/components/chat/ChatMessageBase.tsx
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { Boton, Message, SendPayload, StructuredContentItem } from "@/types/chat";
 import ChatButtons from "./ChatButtons";
 import CategorizedButtons from "./CategorizedButtons";
 import AudioPlayer from "./AudioPlayer";
 import { motion } from "framer-motion";
 import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
+import { ChatStreamRenderer, PolicyBanner } from './stream';
 import sanitizeMessageHtml from "@/utils/sanitizeMessageHtml";
 import { simplify } from "@/lib/simplify";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
@@ -14,6 +15,9 @@ import { deriveAttachmentInfo, AttachmentInfo } from "@/utils/attachment";
 import MessageBubble from "./MessageBubble";
 import EventCard from './EventCard';
 import SocialLinks from './SocialLinks';
+import { useTenant } from "@/context/TenantContext";
+import { buildTenantAwareUrl } from "@/utils/tenantUrls";
+import openExternalLink from "@/utils/openExternalLink";
 
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { useUser } from "@/hooks/useUser";
@@ -21,6 +25,12 @@ import { User as UserIcon, ExternalLink } from "lucide-react";
 import { getInitials, cn } from "@/lib/utils";
 import UserAvatarAnimated from "./UserAvatarAnimated";
 import { Badge } from "@/components/ui/badge";
+import InteractiveMenu from "./InteractiveMenu";
+import CatalogShareCard from "./CatalogShareCard";
+import ConfirmationCard from "./ConfirmationCard";
+import { extractSmartHint } from "@/utils/smartHints";
+import ProductCard from "@/components/product/ProductCard";
+import { trackFrontendEvent } from '@/utils/frontendTelemetry';
 
 type RawAttachment = {
   url: string;
@@ -33,34 +43,45 @@ type RawAttachment = {
   thumbnailUrl?: string;
 };
 
-function normalizeAttachment(msg: any): RawAttachment | null {
+function normalizeAttachments(msg: any): RawAttachment[] {
+  const results: RawAttachment[] = [];
+
   if (msg?.attachmentInfo && msg.attachmentInfo.url && msg.attachmentInfo.name) {
     const a = msg.attachmentInfo;
-    return {
+    results.push({
       url: a.url,
       name: a.name,
       mimeType: a.mimeType || a.mime_type,
       size: a.size,
       thumbUrl: a.thumbUrl || a.thumb_url || a.thumbnail_url || a.thumbnailUrl,
-    };
+    });
   }
-  if (Array.isArray(msg?.attachments) && msg.attachments.length > 0) {
-    const first = msg.attachments[0];
-    if (first?.url && (first?.name || first?.filename)) {
-      return {
-        url: first.url,
-        name: first.name || first.filename,
-        mimeType: first.mimeType || first.mime_type,
-        size: first.size,
-        thumbUrl: first.thumbUrl || first.thumb_url || first.thumbnail_url || first.thumbnailUrl,
-      };
-    }
+
+  const attachmentsList = msg?.attachments || msg?.adjuntos;
+
+  if (Array.isArray(attachmentsList) && attachmentsList.length > 0) {
+    attachmentsList.forEach((att: any) => {
+      if (att?.url && (att?.name || att?.filename)) {
+        // Avoid duplicates if attachmentInfo was already added and matches
+        const isDuplicate = results.some(r => r.url === att.url);
+        if (!isDuplicate) {
+          results.push({
+            url: att.url,
+            name: att.name || att.filename,
+            mimeType: att.mimeType || att.mime_type,
+            size: att.size,
+            thumbUrl: att.thumbUrl || att.thumb_url || att.thumbnail_url || att.thumbnailUrl,
+          });
+        }
+      }
+    });
   }
-  return null;
+  return results;
 }
 
 const LINK_LABEL_MAX_LENGTH = 48;
 const FALLBACK_URL_BASE = "https://chatboc.local";
+const URL_TEXT_REGEX = /((?:https?:\/\/|www\.)[^\s<>"]+)/gi;
 
 const createDomParser = () => {
   if (typeof window !== "undefined" && typeof window.DOMParser !== "undefined") {
@@ -133,6 +154,94 @@ const stableSerialize = (value: unknown): string => {
     return JSON.stringify(normalise(value));
   } catch {
     return String(value);
+  }
+};
+
+const normalizeUrlFromText = (raw: string): string => {
+  const trimmed = raw.trim();
+  if (!trimmed) return trimmed;
+  const cleaned = trimmed.replace(/[),.]+$/, "");
+
+  if (/^https?:\/\//i.test(cleaned)) return cleaned;
+  if (/^www\./i.test(cleaned)) return `https://${cleaned}`;
+
+  return cleaned;
+};
+
+const autoLinkifyHtml = (html: string): string => {
+  if (!html) return html;
+
+  URL_TEXT_REGEX.lastIndex = 0;
+
+  const parser = createDomParser();
+  if (!parser) {
+    return html.replace(URL_TEXT_REGEX, (match) => {
+      const normalized = normalizeUrlFromText(match);
+      return `<a href="${normalized}">${match}</a>`;
+    });
+  }
+
+  try {
+    const doc = parser.parseFromString(`<div>${html}</div>`, "text/html");
+    const container = doc.body.firstElementChild as HTMLElement | null;
+    if (!container) return html;
+
+    const walker = doc.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+    const nodesToProcess: Text[] = [];
+
+    while (walker.nextNode()) {
+      const node = walker.currentNode as Text;
+      URL_TEXT_REGEX.lastIndex = 0;
+      if (node?.nodeValue && URL_TEXT_REGEX.test(node.nodeValue)) {
+        nodesToProcess.push(node);
+      }
+    }
+
+    nodesToProcess.forEach((textNode) => {
+      const original = textNode.nodeValue || "";
+      const fragment = doc.createDocumentFragment();
+      let lastIndex = 0;
+
+      URL_TEXT_REGEX.lastIndex = 0;
+      original.replace(URL_TEXT_REGEX, (match, _group, offset) => {
+        if (offset > lastIndex) {
+          fragment.appendChild(doc.createTextNode(original.slice(lastIndex, offset)));
+        }
+
+        const anchor = doc.createElement("a");
+        const normalized = normalizeUrlFromText(match);
+        anchor.setAttribute("href", normalized);
+        anchor.setAttribute("target", "_blank");
+        anchor.setAttribute("rel", "noopener noreferrer");
+        anchor.textContent = match;
+        fragment.appendChild(anchor);
+
+        lastIndex = offset + match.length;
+        return match;
+      });
+
+      if (lastIndex < original.length) {
+        fragment.appendChild(doc.createTextNode(original.slice(lastIndex)));
+      }
+
+      textNode.replaceWith(fragment);
+    });
+
+    return container.innerHTML;
+  } catch {
+    return html;
+  }
+};
+
+const describeUrl = (href?: string | null) => {
+  if (!href) return { hostname: "", path: "" };
+  try {
+    const parsed = new URL(href, href.startsWith("http") ? undefined : FALLBACK_URL_BASE);
+    const hostname = parsed.hostname.replace(/^www\./i, "");
+    const path = parsed.pathname === "/" ? "" : parsed.pathname;
+    return { hostname, path };
+  } catch {
+    return { hostname: href, path: "" };
   }
 };
 
@@ -362,6 +471,9 @@ export interface ChatMessageBaseProps {
   tipoChat?: "pyme" | "municipio"; // Puede usarse para alguna lógica residual muy específica
   botLogoUrl?: string;
   logoAnimation?: string;
+  messageEnterAnimation?: string;
+  bubbleAnimation?: string;
+  logoBadgeStyle?: string;
 }
 
 const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( (
@@ -372,6 +484,9 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
     onInternalAction,
     botLogoUrl,
     logoAnimation,
+    messageEnterAnimation,
+    bubbleAnimation,
+    logoBadgeStyle,
     // tipoChat, // tipoChat podría usarse si hay alguna variación mínima que no dependa del contenido del mensaje
   },
   ref
@@ -387,13 +502,22 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
   const isBot = message.isBot;
 
   const safeText = typeof message.text === "string" && message.text !== "NaN" ? message.text : "";
-  const sanitizedHtml = sanitizeMessageHtml(safeText);
+  const { cleanText } = extractSmartHint(safeText);
+  const sanitizedHtml = sanitizeMessageHtml(cleanText);
+  const linkifiedHtml = useMemo(() => (isBot ? autoLinkifyHtml(sanitizedHtml) : sanitizedHtml), [isBot, sanitizedHtml]);
   const { cleanedHtml, linkButtons } = useMemo(() => {
     if (!isBot) {
       return { cleanedHtml: sanitizedHtml, linkButtons: [] as Boton[] };
     }
-    return extractLinkButtons(sanitizedHtml);
-  }, [isBot, sanitizedHtml]);
+    return extractLinkButtons(linkifiedHtml);
+  }, [isBot, sanitizedHtml, linkifiedHtml]);
+
+  const { currentSlug } = useTenant();
+
+  const resolveUrl = useMemo(
+    () => (url?: string | null) => (url ? buildTenantAwareUrl(url, currentSlug) : undefined),
+    [currentSlug],
+  );
 
   const { combinedButtons, derivedLinkButtons } = useMemo(() => {
     const existing = Array.isArray(message.botones) ? message.botones : [];
@@ -425,7 +549,23 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
     return { combinedButtons: combined, derivedLinkButtons: derivedOnly };
   }, [message.botones, linkButtons]);
 
-  const plainText = useMemo(() => safeText.replace(/<[^>]+>/g, ""), [safeText]);
+  const linkPreviews = useMemo(() => {
+    if (!isBot || derivedLinkButtons.length === 0) return [] as Array<Boton & {
+      resolvedUrl?: string;
+      prettyLabel: string;
+      meta: { hostname: string; path: string };
+    }>;
+
+    return derivedLinkButtons.map((btn) => {
+      const resolvedUrl = resolveUrl(btn.url);
+      const prettyLabel = formatLinkLabel(btn.texto, resolvedUrl || btn.url || "");
+      const meta = describeUrl(resolvedUrl || btn.url);
+
+      return { ...btn, resolvedUrl, prettyLabel, meta };
+    });
+  }, [isBot, derivedLinkButtons, resolveUrl]);
+
+  const plainText = useMemo(() => cleanText.replace(/<[^>]+>/g, ""), [cleanText]);
   const simplified = useMemo(() => simplify(plainText), [plainText]);
   const [simple, setSimple] = useState<boolean>(() => {
     try {
@@ -482,31 +622,39 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
       </>
     ) : null;
 
-  let processedAttachmentInfo: AttachmentInfo | null = null;
+  const handleOpenLink = (url?: string | null) => {
+    const resolved = resolveUrl(url || undefined);
+    if (resolved) {
+      openExternalLink(resolved);
+    }
+  };
 
-  const normalized = normalizeAttachment(message);
-  if (normalized) {
-    processedAttachmentInfo = deriveAttachmentInfo(
-      normalized.url,
-      normalized.name,
-      normalized.mimeType,
-      normalized.size,
-      normalized.thumbUrl
+  const normalizedAttachments = normalizeAttachments(message);
+  let processedAttachments: AttachmentInfo[] = [];
+
+  if (normalizedAttachments.length > 0) {
+    processedAttachments = normalizedAttachments.map(att =>
+      deriveAttachmentInfo(att.url, att.name, att.mimeType, att.size, att.thumbUrl)
     );
   } else if (message.mediaUrl && isBot) {
-    // Esto es para mediaUrl en mensajes de bot, no relevante para adjuntos de usuario ahora mismo
-    processedAttachmentInfo = deriveAttachmentInfo(message.mediaUrl, message.mediaUrl.split('/').pop() || "archivo_adjunto");
+     processedAttachments.push(deriveAttachmentInfo(message.mediaUrl, message.mediaUrl.split('/').pop() || "archivo_adjunto"));
   }
+
+  // Separate audio from other attachments to use AudioPlayer
+  // If multiple audios, maybe we render multiple players? For now, let's pick the first valid audio source.
+  const audioAttachment = processedAttachments.find(a => a.type === 'audio');
 
   const audioSrc = useMemo(() => {
     if (message.audioUrl) {
       return message.audioUrl;
     }
-    if (processedAttachmentInfo?.type === 'audio') {
-      return processedAttachmentInfo.url;
+    if (audioAttachment) {
+      return audioAttachment.url;
     }
     return null;
-  }, [message.audioUrl, processedAttachmentInfo]);
+  }, [message.audioUrl, audioAttachment]);
+
+  const nonAudioAttachments = processedAttachments.filter(a => a.type !== 'audio');
 
   const bubbleBaseClass = isBot ? "chat-bubble-bot" : "chat-bubble-user";
   let bubbleStyleClass = "";
@@ -518,13 +666,36 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
 
   // Determinar si se muestra la sección de adjuntos/mapa o el contenido estructurado
   const showAttachmentOrMap = !!(
-    (processedAttachmentInfo && processedAttachmentInfo.type !== 'audio' && (processedAttachmentInfo.type !== 'other' || !!processedAttachmentInfo.extension)) ||
+    (nonAudioAttachments.length > 0) ||
     message.locationData
   );
 
   const showStructuredContent = !!(message.structuredContent && message.structuredContent.length > 0);
+  const showMenuSections = !!((message.menu_sections && message.menu_sections.length > 0) || message.interactive_list);
   const showPosts = !!(message.posts && message.posts.length > 0);
+  const showConfirmationCard = Boolean(message.confirmationCard);
+  const showProductCards = !!((message.data?.cart_summary || message.data?.catalogo) && Array.isArray(message.data?.cart_summary || message.data?.catalogo));
+  const isCatalogShare =
+    message.messageType === 'catalog_share' ||
+    message.data?.type === 'catalog_share';
+
+  const catalogSharePayload =
+    (isCatalogShare ? (message.data as any) : null) || null;
   const showSocialLinks = message.socialLinks && Object.keys(message.socialLinks).length > 0;
+  const dataAny = (message.data || {}) as any;
+  const sourceForCommercial = typeof dataAny?.fuente === 'string' ? dataAny.fuente : undefined;
+  const commercialCatalogSources = new Set(['catalogo_qdrant_con_promos_v2', 'catalogo_fallback_faq', 'catalogo_fallback_web']);
+  const isCommercialCatalogResponse = Boolean(sourceForCommercial && commercialCatalogSources.has(sourceForCommercial));
+  const commercialSummary = typeof dataAny?.resumen === 'string' ? dataAny.resumen : (typeof message.text === 'string' ? message.text : '');
+  const highlightedProducts = Array.isArray(dataAny?.productos) ? dataAny.productos.slice(0, 3) : [];
+  const structuredTelemetrySentRef = useRef(false);
+  useEffect(() => {
+    if (isCommercialCatalogResponse && !structuredTelemetrySentRef.current) {
+      structuredTelemetrySentRef.current = true;
+      trackFrontendEvent('catalog_structured_rendered', { source: sourceForCommercial || 'unknown' });
+    }
+  }, [isCommercialCatalogResponse, sourceForCommercial]);
+
   const now = new Date();
   const postsToShow = showPosts
     ? message.posts!
@@ -550,16 +721,46 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
   // Display hint puede usarse para aplicar un contenedor especial alrededor del mensaje, o pasar a MessageBubble
   // Por ahora, lo mantendremos simple.
 
+  const isHandover = message.action === 'agent_handover' || message.text?.includes('Derivando a un representante') || !!message.ticket_id;
+  const criticalConfirmationData = dataAny?.confirmacion_critica || dataAny?.critical_confirmation || null;
+
+  const normalizedEnter = (messageEnterAnimation || 'fade-up').toLowerCase();
+  const enterInitial = normalizedEnter.includes('slide')
+    ? { opacity: 0, x: isBot ? -16 : 16 }
+    : normalizedEnter.includes('zoom')
+      ? { opacity: 0, scale: 0.95, y: 8 }
+      : { opacity: 0, y: 10 };
+  const enterAnimate = normalizedEnter.includes('slide')
+    ? { opacity: 1, x: 0 }
+    : normalizedEnter.includes('zoom')
+      ? { opacity: 1, scale: 1, y: 0 }
+      : { opacity: 1, y: 0 };
+
+  const bubbleAnimClass = (() => {
+    const normalizedBubble = (bubbleAnimation || 'soft-rise').toLowerCase();
+    if (normalizedBubble.includes('glow')) return 'shadow-[0_0_0_1px_hsl(var(--primary)/0.25),0_12px_28px_-16px_hsl(var(--primary)/0.55)]';
+    if (normalizedBubble.includes('soft')) return 'shadow-lg';
+    return '';
+  })();
+
+  const botBadgeClass = logoBadgeStyle === 'rounded-square' ? 'rounded-2xl' : 'rounded-full';
+
   return (
     <motion.div
       ref={ref}
       className={`flex w-full ${isBot ? "justify-start" : "justify-end"} mb-2`}
-      // layout // Podría causar problemas con scroll, evaluar
+      initial={enterInitial}
+      animate={enterAnimate}
+      transition={{ duration: 0.28, ease: 'easeOut' }}
     >
       <div className={`flex items-end gap-2 ${isBot ? "" : "flex-row-reverse"}`}>
-        {isBot && <AvatarBot isTyping={isTyping} logoUrl={botLogoUrl} logoAnimation={logoAnimation} />}
+        {isBot && (
+          <div className={botBadgeClass}>
+            <AvatarBot isTyping={isTyping} logoUrl={botLogoUrl} logoAnimation={logoAnimation} />
+          </div>
+        )}
 
-        <MessageBubble className={cn(bubbleBaseClass, bubbleStyleClass, message.isError && "bg-destructive/20 border border-destructive/50")}>
+        <MessageBubble className={cn(bubbleBaseClass, bubbleStyleClass, bubbleAnimClass, message.isError && "bg-destructive/20 border border-destructive/50", isHandover && "bg-yellow-50 border-yellow-200")}>
           {/* Icono de error */}
           {message.isError && (
             <div className="flex items-center gap-2 mb-2 text-destructive">
@@ -568,17 +769,41 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
             </div>
           )}
 
+          {isHandover && (
+             <div className="flex items-center gap-2 mb-2 text-yellow-800 text-xs font-semibold uppercase tracking-wide">
+                <span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"/>
+                {message.ticket_id ? `Ticket #${message.ticket_id} Creado` : 'Conectando con un humano...'}
+             </div>
+          )}
+
           {/* Prioridad al texto si no hay otros contenidos especiales */}
-          {!showAttachmentOrMap && !showStructuredContent && !audioSrc && textAndListBlock}
+          {!showAttachmentOrMap && !showStructuredContent && !audioSrc && !showProductCards && !isCatalogShare && !showConfirmationCard && textAndListBlock}
 
           {/* Mostrar adjunto o mapa (no audio) */}
           {showAttachmentOrMap && (
-              <AttachmentPreview
-                message={message} // Pasamos el mensaje completo para que AttachmentPreview decida
-                attachmentInfo={processedAttachmentInfo}
-                // Si hay adjunto pero también texto, el texto puede ser un caption o fallback
-                fallbackText={cleanedHtml && !showStructuredContent && !audioSrc ? cleanedHtml : undefined}
-              />
+            <div className="flex flex-col gap-2">
+               {nonAudioAttachments.map((att, idx) => (
+                  <AttachmentPreview
+                    key={`${att.url}-${idx}`}
+                    message={message}
+                    attachmentInfo={att}
+                    // Si hay adjunto pero también texto, el texto puede ser un caption o fallback
+                    // Only show caption on first attachment to avoid repetition? Or allow repetition if meaningful?
+                    // Typically caption applies to the set. Let's put it on the first one or separate it.
+                    // For now, let's put it on the first one if we are in this block.
+                    fallbackText={idx === 0 && cleanedHtml && !showStructuredContent && !audioSrc ? cleanedHtml : undefined}
+                  />
+               ))}
+
+               {/* Fallback for Map if no attachments but location data exists */}
+               {(!nonAudioAttachments.length && message.locationData) && (
+                 <AttachmentPreview
+                    message={message}
+                    attachmentInfo={null}
+                    fallbackText={cleanedHtml && !showStructuredContent && !audioSrc ? cleanedHtml : undefined}
+                 />
+               )}
+            </div>
           )}
 
           {/* Mostrar contenido estructurado */}
@@ -587,6 +812,56 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
               {/* Si hay texto Y contenido estructurado, el texto puede ser una introducción */}
               {textAndListBlock && !showAttachmentOrMap && !audioSrc && textAndListBlock}
               <StructuredContentDisplay items={message.structuredContent!} />
+            </>
+          )}
+
+          {/* Interactive Menus / Lists */}
+          {showMenuSections && (
+            <>
+                {/* Intro text if present */}
+                {textAndListBlock && !showAttachmentOrMap && !audioSrc && !showStructuredContent && textAndListBlock}
+	                <InteractiveMenu
+	                    sections={message.menu_sections}
+	                    config={message.interactive_list}
+                      isDemoSelector={((message.data as any)?.fuente || (message.data as any)?.source) === 'demo_selector'}
+	                    onSelect={(item) => {
+	                        const sourceName = (message.data as any)?.fuente || (message.data as any)?.source;
+	                        const isDemoSelector = sourceName === 'demo_selector';
+                        onButtonClick({
+                            text: item.title,
+                            action: isDemoSelector ? item.id : 'interactive_list_reply',
+                            action_id: item.id,
+                            payload: isDemoSelector ? { demo_key: item.id.split(':')[1] || item.id } : { id: item.id }
+                        });
+                    }}
+                />
+            </>
+          )}
+
+          {isCatalogShare && (
+            <>
+              {textAndListBlock}
+              <CatalogShareCard
+                title={catalogSharePayload?.title ?? catalogSharePayload?.titulo}
+                text={catalogSharePayload?.text ?? catalogSharePayload?.mensaje}
+                bannerUrl={catalogSharePayload?.banner_url ?? catalogSharePayload?.bannerUrl}
+                viewUrl={catalogSharePayload?.view_url ?? catalogSharePayload?.viewUrl}
+                downloadUrl={catalogSharePayload?.download_url ?? catalogSharePayload?.downloadUrl}
+                viewLabel={catalogSharePayload?.view_label ?? catalogSharePayload?.viewLabel}
+                downloadLabel={catalogSharePayload?.download_label ?? catalogSharePayload?.downloadLabel}
+              />
+            </>
+          )}
+
+          {showConfirmationCard && (
+            <>
+              {textAndListBlock}
+              <ConfirmationCard
+                card={message.confirmationCard!}
+                buttons={message.categorias?.length ? [] : combinedButtons}
+                onButtonClick={onButtonClick}
+                onInternalAction={onInternalAction}
+              />
             </>
           )}
 
@@ -599,6 +874,27 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
             </>
           )}
 
+          {/* Product Cards (Catalog/Cart) */}
+          {showProductCards && (
+            <div className="mt-2 flex flex-col gap-3">
+               {textAndListBlock}
+               <div className="flex gap-2 overflow-x-auto pb-2 snap-x">
+                  {((message.data?.cart_summary || message.data?.catalogo) as any[]).map((prod: any, i: number) => (
+                      <div key={i} className="min-w-[200px] max-w-[240px] snap-center">
+                          <ProductCard
+                             product={prod}
+                             onAddToCart={(p, opts) => onButtonClick({
+                                 text: `Agregar ${p.nombre}`,
+                                 action: 'add_to_cart',
+                                 payload: { productId: p.id, quantity: opts.quantity }
+                             })}
+                          />
+                      </div>
+                  ))}
+               </div>
+            </div>
+          )}
+
           {/* Render Event/News Posts */}
           {postsToShow.length > 0 && (
             <div className="flex flex-col gap-3 mt-2">
@@ -607,6 +903,57 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
               ))}
             </div>
           )}
+
+          {linkPreviews.length > 0 && (
+            <div className="mt-3 space-y-2">
+              {linkPreviews.map((preview) => (
+                <button
+                  key={`${buttonKey(preview)}-preview`}
+                  onClick={() => handleOpenLink(preview.resolvedUrl || preview.url)}
+                  className="w-full text-left rounded-xl border border-white/15 bg-white/5 hover:bg-white/10 transition-all px-3 py-2 shadow-sm"
+                >
+                  <div className="flex items-center justify-between gap-2 text-sm font-semibold text-white">
+                    <span className="line-clamp-1">{preview.prettyLabel}</span>
+                    <ExternalLink size={14} className="shrink-0 text-blue-100" />
+                  </div>
+                  {(preview.meta.hostname || preview.meta.path) && (
+                    <p className="mt-1 text-xs text-white/70 break-all">
+                      {preview.meta.hostname}
+                      {preview.meta.path && ` · ${preview.meta.path}`}
+                    </p>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+
+
+          {isCommercialCatalogResponse && (
+            <div className="mt-2 space-y-2 rounded-lg border border-primary/20 bg-primary/5 p-3">
+              <p className="text-sm">{commercialSummary}</p>
+              {highlightedProducts.length > 0 ? (
+                <div className="space-y-2">
+                  {highlightedProducts.map((prod: any, idx: number) => (
+                    <div key={`featured-${idx}`} className="rounded border bg-background p-2 text-xs">
+                      <p className="font-semibold">{prod?.nombre || prod?.name || `Producto ${idx + 1}`}</p>
+                      {prod?.precio ? <p className="text-muted-foreground">{prod.precio}</p> : null}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          )}
+
+
+          {criticalConfirmationData ? (
+            <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-amber-900">
+              {criticalConfirmationData?.resumen || criticalConfirmationData?.summary ? (
+                <p className="text-xs">
+                  {criticalConfirmationData?.resumen || criticalConfirmationData?.summary}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
 
           {showSocialLinks && <SocialLinks links={message.socialLinks!} />}
 
@@ -626,11 +973,12 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
                 />
               )}
             </>
-          ) : isBot && combinedButtons.length > 0 ? (
+          ) : isBot && combinedButtons.length > 0 && !showConfirmationCard ? (
             <ChatButtons
               botones={combinedButtons}
               onButtonClick={onButtonClick}
               onInternalAction={onInternalAction}
+              isDemoSelector={message.data?.fuente === "demo_selector" || message.data?.demo_selector_mode === "segment_categories" || message.data?.demo_selector_mode === "segment_rubros"}
             />
           ) : null}
         </MessageBubble>

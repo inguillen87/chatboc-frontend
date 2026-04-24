@@ -1,5 +1,7 @@
 export const ALLOWED_TICKET_STATUSES = [
   'nuevo',
+  'esperando_agente_en_vivo',
+  'en_vivo',
   'en_proceso',
   'resuelto',
 ] as const;
@@ -12,6 +14,11 @@ const STATUS_ALIASES: Record<string, AllowedTicketStatus> = {
   'en-espera': 'en_proceso',
   en_espera: 'en_proceso',
   enespera: 'en_proceso',
+  esperando_agente: 'esperando_agente_en_vivo',
+  esperando_agente_en_vivo: 'esperando_agente_en_vivo',
+  'esperando agente en vivo': 'esperando_agente_en_vivo',
+  'en vivo': 'en_vivo',
+  'en-vivo': 'en_vivo',
   en_camino: 'en_proceso',
   llegando: 'en_proceso',
   'en camino': 'en_proceso',
@@ -26,6 +33,8 @@ const STATUS_ALIASES: Record<string, AllowedTicketStatus> = {
 
 const HUMAN_LABELS: Record<AllowedTicketStatus, string> = {
   nuevo: 'Nuevo',
+  esperando_agente_en_vivo: 'Esperando agente',
+  en_vivo: 'En vivo',
   en_proceso: 'En proceso',
   resuelto: 'Resuelto',
 };

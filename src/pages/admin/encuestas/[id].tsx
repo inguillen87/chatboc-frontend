@@ -4,6 +4,7 @@ import { Loader2 } from 'lucide-react';
 
 import { SurveyEditor } from '@/components/surveys/SurveyEditor';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { useSurveyAdmin } from '@/hooks/useSurveyAdmin';
 import type { SurveyDraftPayload } from '@/types/encuestas';
 import { toast } from '@/components/ui/use-toast';
@@ -12,7 +13,17 @@ const SurveyDetailPage = () => {
   const params = useParams();
   const navigate = useNavigate();
   const surveyId = useMemo(() => (params.id ? Number(params.id) : null), [params.id]);
-  const { survey, isLoadingSurvey, surveyError, saveSurvey, publishSurvey, isSaving, isPublishing, refetchSurvey } = useSurveyAdmin({ id: surveyId ?? undefined });
+  const {
+    survey,
+    isLoadingSurvey,
+    surveyError,
+    saveSurvey,
+    publishSurvey,
+    seedSurvey,
+    isSaving,
+    isPublishing,
+    refetchSurvey,
+  } = useSurveyAdmin({ id: surveyId ?? undefined });
 
   const handleSave = async (payload: SurveyDraftPayload) => {
     try {
@@ -34,6 +45,20 @@ const SurveyDetailPage = () => {
     }
   };
 
+  const seedDemoData = async () => {
+    if (!surveyId) return;
+    try {
+      const result = await seedSurvey(surveyId, { cantidad: 100, reset: true });
+      const resetInfo = result.reset
+        ? ` (${result.reset.respuestas ?? 0} respuestas, ${result.reset.comentarios ?? 0} comentarios)`
+        : '';
+      toast({ title: "Demo actualizada", description: `Se generaron ${result.creadas} respuestas.${resetInfo}` });
+    } catch (error) {
+      console.error('Seeding failed:', error);
+      toast({ title: 'Error al generar demo', variant: 'destructive' });
+    }
+  };
+
   if (isLoadingSurvey) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center">
@@ -49,9 +74,14 @@ const SurveyDetailPage = () => {
   return (
     <div className="space-y-6">
       <Card>
-        <CardHeader>
-          <CardTitle>Editar encuesta</CardTitle>
-          <CardDescription>Actualizá contenido, reglas y preguntas antes de compartirla.</CardDescription>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <div className="space-y-1">
+            <CardTitle>Editar encuesta</CardTitle>
+            <CardDescription>Actualizá contenido, reglas y preguntas antes de compartirla.</CardDescription>
+          </div>
+          <Button variant="outline" size="sm" onClick={seedDemoData}>
+            Reset y generar 100 seeds
+          </Button>
         </CardHeader>
         <CardContent>
           <SurveyEditor

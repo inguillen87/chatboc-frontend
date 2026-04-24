@@ -1,8 +1,12 @@
+import { usePanelSessionStore, useWidgetSessionStore } from '@/stores';
 import React, { useContext, useState, useCallback, useEffect } from 'react';
-import { apiFetch } from '@/utils/api';
+import { apiFetch, ApiError } from '@/utils/api';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { enforceTipoChatForRubro, parseRubro } from '@/utils/tipoChat';
 import { getIframeToken } from '@/utils/config';
+import { getStoredEntityToken, normalizeEntityToken, persistEntityToken } from '@/utils/entityToken';
+import { getValidStoredToken } from '@/utils/authTokens';
+import { TENANT_ROUTE_PREFIXES } from '@/utils/tenantPaths';
 
 interface UserData {
   id?: number;
@@ -15,7 +19,17 @@ interface UserData {
   logo_url?: string;
   picture?: string;
   tipo_chat?: 'pyme' | 'municipio';
+  entityToken?: string;
   rol?: string;
+  permissions?: string[];
+  capabilities?: string[];
+  scopes?: string[];
+  tenantSlug?: string;
+  publicCartUrl?: string;
+  publicCatalogUrl?: string;
+  categoria_id?: number;
+  categoria_ids?: number[];
+  categorias?: { id: number; nombre?: string }[];
   widget_icon_url?: string;
   widget_animation?: string;
   latitud?: number;
@@ -36,23 +50,55 @@ const UserContext = React.createContext<UserContextValue>({
   loading: false,
 });
 
-export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<UserData | null>(() => {
-    try {
-      const hasEntity = safeLocalStorage.getItem('entityToken') || getIframeToken();
-      const chatToken = safeLocalStorage.getItem('chatAuthToken');
-      if (hasEntity && !chatToken) return null;
-      const stored = safeLocalStorage.getItem('user');
-      return stored ? JSON.parse(stored) : null;
-    } catch {
-      return null;
+
+const shouldLogUserWarnings = () => {
+  const metaEnv = typeof import.meta !== 'undefined' ? (import.meta as any)?.env : undefined;
+  return Boolean(metaEnv?.DEV || metaEnv?.MODE === 'development');
+};
+
+const PLACEHOLDER_SLUGS = new Set(['iframe', 'embed', 'widget', 'e']);
+
+const sanitizeTenantSlug = (slug?: string | null) => {
+  if (!slug || typeof slug !== 'string') return null;
+  const normalized = slug.trim();
+  if (!normalized) return null;
+  return PLACEHOLDER_SLUGS.has(normalized.toLowerCase()) ? null : normalized;
+};
+
+const deriveTenantSlugFromUrl = (rawUrl?: string | null) => {
+  if (!rawUrl || typeof rawUrl !== 'string') return null;
+
+  try {
+    const url = new URL(rawUrl, 'http://localhost');
+    const params = url.searchParams;
+    const fromQuery = params.get('tenant') || params.get('tenant_slug') || params.get('endpoint');
+    if (fromQuery?.trim()) {
+      return fromQuery.trim();
     }
-  });
+
+    const segments = url.pathname.split('/').filter(Boolean);
+    const tenantPrefixIndex = segments.findIndex((segment) =>
+      TENANT_ROUTE_PREFIXES.includes(segment.toLowerCase() as typeof TENANT_ROUTE_PREFIXES[number]),
+    );
+    if (tenantPrefixIndex >= 0 && segments[tenantPrefixIndex + 1]) {
+      return decodeURIComponent(segments[tenantPrefixIndex + 1]);
+    }
+  } catch (error) {
+    console.warn('[useUser] No se pudo derivar tenantSlug desde URL pública', { rawUrl, error });
+  }
+
+  return null;
+};
+
+
+export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user, setUser } = usePanelSessionStore();
   const [loading, setLoading] = useState(false);
 
+
   const refreshUser = useCallback(async () => {
-    const panelToken = safeLocalStorage.getItem('authToken');
-    const chatToken = safeLocalStorage.getItem('chatAuthToken');
+    const panelToken = getValidStoredToken('authToken');
+    const chatToken = getValidStoredToken('chatAuthToken');
     const activeToken = panelToken ?? chatToken;
     const tokenKey: 'authToken' | 'chatAuthToken' | null = panelToken
       ? 'authToken'
@@ -62,7 +108,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!activeToken) return;
     setLoading(true);
     try {
-      const data = await apiFetch<any>('/me');
+      const data = await apiFetch<any>('/api/me');
       const rubroNorm = parseRubro(data.rubro) || '';
       if (!data.tipo_chat) {
         console.warn('tipo_chat faltante en respuesta de /me');
@@ -73,34 +119,124 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const finalTipo = data.tipo_chat
         ? enforceTipoChatForRubro(data.tipo_chat as 'pyme' | 'municipio', rubroNorm)
         : undefined;
+      const normalizeCategoryIds = (value: any): number[] | undefined => {
+        const values = Array.isArray(value) ? value : value === undefined ? [] : [value];
+        const normalized = values
+          .map((val) => {
+            const parsed = typeof val === 'number' ? val : Number(val);
+            return Number.isFinite(parsed) ? Number(parsed) : null;
+          })
+          .filter((val): val is number => val !== null);
+        return normalized.length > 0 ? normalized : undefined;
+      };
+
+      const normalizedCategories = Array.isArray(data.categorias)
+        ? data.categorias
+            .map((cat: any) => {
+              if (!cat || typeof cat !== 'object') return null;
+              const id = Number(cat.id);
+              if (!Number.isFinite(id)) return null;
+              return { id, nombre: cat.nombre };
+            })
+            .filter((cat): cat is { id: number; nombre?: string } => Boolean(cat))
+        : undefined;
+
+      const normalizedEntityToken = normalizeEntityToken(
+        data.entityToken || data.entity_token || data.token_integracion,
+      );
+      const normalizedTenantSlug =
+        typeof data.tenantSlug === 'string'
+          ? data.tenantSlug
+          : typeof data.tenant_slug === 'string'
+            ? data.tenant_slug
+            : undefined;
+      const derivedTenantSlug =
+        normalizedTenantSlug ||
+        deriveTenantSlugFromUrl(
+          typeof data.public_catalog_url === 'string'
+            ? data.public_catalog_url
+            : typeof data.publicCatalogUrl === 'string'
+              ? data.publicCatalogUrl
+              : undefined,
+        ) ||
+        deriveTenantSlugFromUrl(
+          typeof data.public_cart_url === 'string'
+            ? data.public_cart_url
+            : typeof data.publicCartUrl === 'string'
+              ? data.publicCartUrl
+              : undefined,
+        );
+      const resolvedTenantSlug = sanitizeTenantSlug(derivedTenantSlug);
+      const normalizedPublicCartUrl =
+        typeof data.public_cart_url === 'string'
+          ? data.public_cart_url
+          : typeof data.publicCartUrl === 'string'
+            ? data.publicCartUrl
+            : undefined;
+      const normalizedPublicCatalogUrl =
+        typeof data.public_catalog_url === 'string'
+          ? data.public_catalog_url
+          : typeof data.publicCatalogUrl === 'string'
+            ? data.publicCatalogUrl
+            : undefined;
+      const storedEntityToken = getStoredEntityToken();
+
+      if (normalizedEntityToken) {
+        persistEntityToken(normalizedEntityToken);
+      }
+
+      const resolvedPlan =
+        data.plan ||
+        data.tenant?.plan ||
+        data.tenant_plan ||
+        'free';
+
       const updated: UserData = {
         id: data.id,
         name: data.name,
         email: data.email,
-        plan: data.plan || 'free',
+        plan: resolvedPlan,
         rubro: rubroNorm,
         nombre_empresa: data.nombre_empresa,
         logo_url: data.logo_url,
         picture: data.picture,
         tipo_chat: finalTipo,
         rol: data.rol,
+        permissions: Array.isArray(data.permissions) ? data.permissions : undefined,
+        capabilities: Array.isArray(data.capabilities) ? data.capabilities : undefined,
+        scopes: Array.isArray(data.scopes) ? data.scopes : undefined,
         token: activeToken,
+        entityToken: normalizedEntityToken || storedEntityToken || undefined,
+        tenantSlug: resolvedTenantSlug || undefined,
+        publicCartUrl: normalizedPublicCartUrl,
+        publicCatalogUrl: normalizedPublicCatalogUrl,
+        categoria_id: Number.isFinite(data.categoria_id) ? Number(data.categoria_id) : undefined,
+        categoria_ids: normalizeCategoryIds(data.categoria_ids),
+        categorias: normalizedCategories,
         widget_icon_url: data.widget_icon_url,
         widget_animation: data.widget_animation,
         latitud: typeof data.latitud === 'number' ? data.latitud : Number(data.latitud),
         longitud: typeof data.longitud === 'number' ? data.longitud : Number(data.longitud),
       };
-      safeLocalStorage.setItem('user', JSON.stringify(updated));
+      if (resolvedTenantSlug) {
+        safeLocalStorage.setItem('tenantSlug', resolvedTenantSlug);
+      }
       setUser(updated);
     } catch (e) {
-      console.error('Error fetching user profile, logging out.', e);
-      // If fetching the user fails, the token is likely invalid or expired.
-      // Clear the user data and token to force a re-login.
-      safeLocalStorage.removeItem('user');
-      if (tokenKey) {
-        safeLocalStorage.removeItem(tokenKey);
+      const status = e instanceof ApiError ? e.status : (e as any)?.status;
+
+      if (status === 401 || status === 403) {
+        console.error('Auth error fetching user profile, logging out.', e);
+        // If fetching the user fails due to auth, clear session to force re-login.
+        setUser(null);
+        usePanelSessionStore.getState().setAuthToken(null);
+        useWidgetSessionStore.getState().setChatAuthToken(null);
+      } else {
+        // Network or server errors shouldn't drop an otherwise valid session.
+        if (shouldLogUserWarnings()) {
+          console.warn('Transient error fetching user profile. Preserving session.', e);
+        }
       }
-      setUser(null);
     } finally {
       setLoading(false);
     }
@@ -108,8 +244,8 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     const token =
-      safeLocalStorage.getItem('authToken') ||
-      safeLocalStorage.getItem('chatAuthToken');
+      getValidStoredToken('authToken') ||
+      getValidStoredToken('chatAuthToken');
     if (token && (!user || !user.rubro)) {
       refreshUser();
     }

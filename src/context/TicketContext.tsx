@@ -1,8 +1,43 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode, useCallback } from 'react';
-import { Ticket } from '@/types/tickets';
+import { Ticket, User } from '@/types/tickets';
 import { getTickets } from '@/services/ticketService';
 import useTicketUpdates from '@/hooks/useTicketUpdates';
 import { mapToKnownCategory } from '@/utils/category';
+import { useUser } from '@/hooks/useUser';
+import { ApiError, resolveTenantSlug } from '@/utils/api';
+import { apiClient } from '@/api/client';
+import { useTenant } from '@/context/TenantContext';
+
+
+interface TicketInboxFilters {
+  channel: string;
+  status: string;
+  area: string;
+  agent: string;
+  priority: string;
+  sla: string;
+  unread: string;
+}
+
+interface TicketFilterOptions {
+  channels: string[];
+  statuses: Array<{ value: string; label: string }>;
+  areas: string[];
+  agents: Array<{ id: string; label: string }>;
+  priorities: string[];
+  slaStatuses: string[];
+  unreadModes: Array<{ value: string; label: string }>;
+}
+
+const DEFAULT_TICKET_FILTERS: TicketInboxFilters = {
+  channel: 'all',
+  status: 'all',
+  area: 'all',
+  agent: 'all',
+  priority: 'all',
+  sla: 'all',
+  unread: 'all',
+};
 
 interface TicketContextType {
   tickets: Ticket[];
@@ -12,9 +47,83 @@ interface TicketContextType {
   loading: boolean;
   error: string | null;
   ticketsByCategory: { [key: string]: Ticket[] };
+  filters: TicketInboxFilters;
+  setFilters: React.Dispatch<React.SetStateAction<TicketInboxFilters>>;
+  filterOptions: TicketFilterOptions;
+  filteredTickets: Ticket[];
 }
 
 const TicketContext = createContext<TicketContextType | undefined>(undefined);
+
+
+const toFiniteNumber = (value: unknown, fallback = 0) => {
+  const parsed = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const normalizeUnreadDelta = (payload: any) => {
+  if (!payload || typeof payload !== 'object') return null;
+  const collaborationState =
+    payload.collaboration_state && typeof payload.collaboration_state === 'object'
+      ? payload.collaboration_state
+      : {};
+
+  const ticketId =
+    payload.ticket_id ??
+    payload.ticketId ??
+    payload.id ??
+    payload.ticket?.id ??
+    null;
+
+  if (ticketId === null || ticketId === undefined) return null;
+
+  const unreadCount = toFiniteNumber(
+    payload.unread_count ?? payload.unreadCount ?? collaborationState.unread_count,
+  );
+  const unreadViewerCount = toFiniteNumber(
+    payload.unread_viewer_count ??
+      payload.unreadViewerCount ??
+      collaborationState.unread_viewer_count,
+  );
+  const activeViewerCount = toFiniteNumber(
+    payload.active_viewers_count ??
+      payload.activeViewersCount ??
+      collaborationState.active_viewers_count,
+  );
+  const idleViewerCount = toFiniteNumber(
+    payload.idle_viewer_count ??
+      payload.idleViewerCount ??
+      collaborationState.idle_viewer_count,
+  );
+
+  return {
+    ticketId: Number(ticketId),
+    collaboration_state: {
+      latest_comment_id:
+        payload.latest_comment_id ??
+        payload.latestCommentId ??
+        collaborationState.latest_comment_id ??
+        null,
+      latest_read_at:
+        payload.latest_read_at ??
+        payload.latestReadAt ??
+        collaborationState.latest_read_at ??
+        null,
+      unread_count: unreadCount,
+      has_unread:
+        Boolean(payload.has_unread ?? payload.hasUnread) || unreadCount > 0,
+      unread_viewer_count: unreadViewerCount,
+      active_viewers_count: activeViewerCount,
+      idle_viewer_count: idleViewerCount,
+      idle_window_minutes: toFiniteNumber(
+        payload.idle_window_minutes ??
+          payload.idleWindowMinutes ??
+          collaborationState.idle_window_minutes,
+      ),
+    },
+    hasUnreadMessages: unreadCount > 0 || unreadViewerCount > 0,
+  };
+};
 
 const groupTicketsByCategory = (tickets: Ticket[]) => {
   const groups: { [key: string]: Ticket[] } = {};
@@ -40,41 +149,299 @@ const groupTicketsByCategory = (tickets: Ticket[]) => {
   return groups;
 };
 
+
+const normalizeFilterValue = (value: unknown): string => String(value ?? '').trim().toLowerCase();
+const prettifyWorkflowStateLabel = (state: string): string =>
+  state
+    .split('_')
+    .filter(Boolean)
+    .map((chunk) => `${chunk[0]?.toUpperCase() ?? ''}${chunk.slice(1)}`)
+    .join(' ');
+
+const resolveAreaLabel = (ticket: Ticket): string => {
+  return (
+    ticket.distrito ||
+    ticket.categoria_principal ||
+    ticket.categoria_secundaria ||
+    ticket.categoria_simple ||
+    ticket.categoria ||
+    'General'
+  );
+};
+
+const resolveAgentFilterId = (ticket: Ticket): string => {
+  const candidate = ticket.assignedAgent?.id ?? ticket.assignedAgentId ?? ticket.assigned_agent_id ?? null;
+  return candidate === null || candidate === undefined ? '' : String(candidate);
+};
+
+const resolveSlaFilterValue = (ticket: Ticket): string => normalizeFilterValue(ticket.sla_status || 'sin_sla');
+const hasUnreadState = (ticket: Ticket): boolean =>
+  Boolean(
+    ticket.hasUnreadMessages ||
+      ticket.collaboration_state?.has_unread ||
+      (typeof ticket.collaboration_state?.unread_count === 'number' && ticket.collaboration_state.unread_count > 0) ||
+      (typeof ticket.collaboration_state?.unread_viewer_count === 'number' && ticket.collaboration_state.unread_viewer_count > 0),
+  );
+
+const normalizeAssignedAgent = (ticket: any): User | undefined => {
+  const candidate =
+    ticket?.assignedAgent ||
+    ticket?.assigned_agent ||
+    ticket?.assigned_user ||
+    ticket?.agente_asignado ||
+    ticket?.agenteAsignado ||
+    ticket?.agente ||
+    ticket?.responsable ||
+    ticket?.usuario_asignado ||
+    ticket?.usuarioAsignado;
+
+  const resolveAgentFromPayload = (payload: any): User | undefined => {
+    if (!payload || typeof payload !== 'object') return undefined;
+
+    const id =
+      payload.id ??
+      payload.user_id ??
+      payload.usuario_id ??
+      payload.userId ??
+      payload.usuarioId ??
+      payload.assigned_user_id;
+    const nombre =
+      payload.nombre_usuario ||
+      payload.nombre ||
+      payload.name ||
+      payload.display_name ||
+      payload.username;
+
+    const email = payload.email || payload.email_usuario || payload.emailUsuario;
+
+    if (id === undefined && !nombre) return undefined;
+
+    return {
+      id: id ?? nombre ?? email ?? 'agent',
+      nombre_usuario: nombre || 'Agente',
+      email: email || 'desconocido@chatboc.local',
+      avatarUrl: payload.avatarUrl || payload.avatar_url || payload.avatar,
+      phone: payload.phone || payload.telefono,
+      categoria_ids: payload.categoria_ids,
+      categorias: payload.categorias,
+    };
+  };
+
+  const resolved = resolveAgentFromPayload(candidate);
+  if (resolved) return resolved;
+
+  const directId =
+    ticket?.assigned_user_id ||
+    ticket?.assignedAgentId ||
+    ticket?.assigned_agent_id ||
+    ticket?.asigned_user_id;
+
+  if (directId !== undefined) {
+    return {
+      id: directId,
+      nombre_usuario:
+        ticket?.assigned_user_name ||
+        ticket?.assignedUserName ||
+        ticket?.agente_asignado_nombre ||
+        'Agente asignado',
+      email:
+        ticket?.assigned_user_email ||
+        ticket?.assignedUserEmail ||
+        'desconocido@chatboc.local',
+    };
+  }
+
+  return undefined;
+};
+
 export const TicketProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [filters, setFilters] = useState<TicketInboxFilters>(DEFAULT_TICKET_FILTERS);
+  const [workflowStatuses, setWorkflowStatuses] = useState<Array<{ value: string; label: string }>>([]);
+  const { user } = useUser();
+  const { currentSlug } = useTenant();
+
+  const filterTicketsForUser = useCallback(
+    (list: Ticket[]): Ticket[] => {
+      const role = (user?.rol || '').toString().toLowerCase();
+      const isSuperAdmin = role.includes('super_admin');
+      const shouldRestrict = !isSuperAdmin && role.includes('empleado');
+
+      if (!shouldRestrict) return list;
+
+      const userId = user?.id;
+      const normalizeId = (value: unknown) =>
+        value === undefined || value === null ? null : String(value);
+
+      const allowedCategoryIds = new Set<number>();
+      const allowedCategoryNames = new Set<string>();
+
+      const collectUserCategory = (value: unknown) => {
+        if (value === undefined || value === null) return;
+        const numeric = Number(value);
+        if (Number.isFinite(numeric)) {
+          allowedCategoryIds.add(Number(numeric));
+        }
+        const label = String(value).trim().toLowerCase();
+        if (label) {
+          allowedCategoryNames.add(label);
+        }
+      };
+
+      collectUserCategory(user?.categoria_id);
+      (user?.categoria_ids || []).forEach(collectUserCategory);
+      (user?.categorias || []).forEach((cat) => {
+        collectUserCategory(cat?.id);
+        if (cat?.nombre) {
+          allowedCategoryNames.add(cat.nombre.toLowerCase().trim());
+        }
+      });
+
+      const hasCategoryRestrictions =
+        allowedCategoryIds.size > 0 || allowedCategoryNames.size > 0;
+
+      if (!hasCategoryRestrictions) {
+        return list;
+      }
+
+      return list.filter((ticket) => {
+        const matchesAssignee =
+          userId !== undefined && userId !== null &&
+          [ticket.assignedAgentId, ticket.assigned_agent_id, ticket.assignedAgent?.id]
+            .map(normalizeId)
+            .some((id) => id !== null && id === normalizeId(userId));
+
+        const ticketCategoryIds = new Set<number>();
+        const ticketCategoryNames = new Set<string>();
+
+        const collectTicketCategory = (value: unknown) => {
+          if (value === undefined || value === null) return;
+          const numeric = Number(value);
+          if (Number.isFinite(numeric)) {
+            ticketCategoryIds.add(Number(numeric));
+          }
+          const label = String(value).trim().toLowerCase();
+          if (label) {
+            ticketCategoryNames.add(label);
+          }
+        };
+
+        [
+          ticket.categoria_principal,
+          ticket.categoria_secundaria,
+          ticket.categoria_simple,
+          ticket.categoria,
+          ticket.categoria_id,
+        ].forEach(collectTicketCategory);
+        (ticket.categories || []).forEach(collectTicketCategory);
+        (ticket.categoria_ids || []).forEach(collectTicketCategory);
+        (ticket.categorias || []).forEach((cat) => {
+          collectTicketCategory(cat?.id);
+          collectTicketCategory(cat?.nombre);
+        });
+
+        const matchesCategoryById =
+          allowedCategoryIds.size > 0 &&
+          Array.from(ticketCategoryIds).some((id) => allowedCategoryIds.has(id));
+        const matchesCategoryByName =
+          allowedCategoryNames.size > 0 &&
+          Array.from(ticketCategoryNames).some((name) => allowedCategoryNames.has(name));
+
+        const matchesCategory = matchesCategoryById || matchesCategoryByName;
+
+        return matchesAssignee || matchesCategory;
+      });
+    },
+    [user]
+  );
 
   const fetchTickets = useCallback(async () => {
+    const tenantSlug = resolveTenantSlug(user?.tenantSlug);
+
     try {
-      const apiResponse = await getTickets();
+      const apiResponse = await getTickets(tenantSlug);
       const fetchedTickets = (apiResponse as any)?.tickets;
 
       if (Array.isArray(fetchedTickets)) {
-        const normalizedTickets = fetchedTickets.map((t: Ticket) => ({
-          ...t,
-          categoria: mapToKnownCategory(t.categoria, t.categories),
-        }));
-        setTickets(normalizedTickets);
-        setSelectedTicket((prev) => prev ?? (normalizedTickets[0] || null));
+        const normalizedTickets = fetchedTickets.map((t: Ticket) => {
+          const assignedAgent = normalizeAssignedAgent(t);
+          return {
+            ...t,
+            categoria: mapToKnownCategory(t.categoria, t.categories),
+            assignedAgent,
+            assignedAgentId:
+              t.assignedAgentId ||
+              t.assigned_agent_id ||
+              t.assigned_user_id ||
+              (assignedAgent ? assignedAgent.id : undefined),
+          } as Ticket;
+        });
+        const filteredTickets = filterTicketsForUser(normalizedTickets);
+        setTickets(filteredTickets);
+        setSelectedTicket((prev) => {
+          if (prev && filteredTickets.some((ticket) => ticket.id === prev.id)) {
+            return prev;
+          }
+          return filteredTickets[0] || null;
+        });
       } else {
         console.warn("La respuesta de la API no contiene un array de tickets:", apiResponse);
         setTickets([]);
       }
     } catch (err) {
       console.error('Error fetching tickets:', err);
-      setError('No se pudieron cargar los tickets.');
+      if (err instanceof ApiError) {
+        if (err.status >= 500) {
+          setError('Ocurrió un error en el servidor.');
+        } else {
+          setError('Error al obtener los tickets.');
+        }
+      } else {
+        setError('Error al obtener los tickets.');
+      }
       setTickets([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [filterTicketsForUser, user?.tenantSlug]);
 
   useEffect(() => {
     setLoading(true);
     fetchTickets();
   }, [fetchTickets]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadWorkflowMetadata = async () => {
+      try {
+        const metadata = await apiClient.getTicketWorkflowMetadata(currentSlug ?? resolveTenantSlug());
+        if (cancelled) return;
+        const normalized = metadata.states
+          .map((state, index) => ({
+            value: normalizeFilterValue(state),
+            label: prettifyWorkflowStateLabel(state),
+            order: index,
+          }))
+          .filter((state) => Boolean(state.value))
+          .sort((a, b) => a.order - b.order)
+          .map(({ value, label }) => ({ value, label }));
+        setWorkflowStatuses(normalized);
+      } catch {
+        if (!cancelled) {
+          setWorkflowStatuses([]);
+        }
+      }
+    };
+
+    loadWorkflowMetadata();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentSlug]);
 
   const selectTicket = useCallback((ticketId: number | null) => {
     if (ticketId === null) {
@@ -97,13 +464,102 @@ export const TicketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   }, [selectedTicket]);
 
   useTicketUpdates({
-    onNewTicket: fetchTickets,
+    onNewTicket: (data) => {
+      // Optimistic addition if we have enough data, otherwise fetch
+      if (data && data.ticket && typeof data.ticket === 'object') {
+        const newTicket = {
+            ...data.ticket,
+            categoria: mapToKnownCategory(data.ticket.categoria, data.ticket.categories),
+            // Default fields if missing
+            estado: data.ticket.estado || 'nuevo',
+            priority: data.ticket.priority || 'medium',
+        } as Ticket;
+
+        // Check if filter allows it
+        const filtered = filterTicketsForUser([newTicket]);
+        if (filtered.length > 0) {
+            setTickets(prev => [filtered[0], ...prev]);
+            return;
+        }
+      }
+      fetchTickets();
+    },
     onNewComment: (data) => {
-      updateTicket(data.ticketId, { estado: data.estado });
+      // Si la data incluye cambios de estado u otros campos del ticket, actualizarlos
+      if (data && data.ticket_id) {
+          const updates: Partial<Ticket> = {};
+          if (data.estado) updates.estado = data.estado;
+          if (Object.keys(updates).length > 0) {
+            updateTicket(data.ticket_id, updates);
+          }
+      }
+    },
+    onUnreadChanged: (data) => {
+      const normalized = normalizeUnreadDelta(data);
+      if (!normalized || !Number.isFinite(normalized.ticketId)) return;
+      updateTicket(normalized.ticketId, {
+        collaboration_state: normalized.collaboration_state,
+        hasUnreadMessages: normalized.hasUnreadMessages,
+      });
     },
   });
 
-  const ticketsByCategory = groupTicketsByCategory(tickets);
+
+  const filterOptions = React.useMemo<TicketFilterOptions>(() => {
+    const channels = Array.from(new Set(tickets.map((ticket) => normalizeFilterValue(ticket.channel)).filter(Boolean))).sort();
+    const discoveredStatuses = Array.from(new Set(tickets.map((ticket) => normalizeFilterValue(ticket.estado)).filter(Boolean))).sort();
+    const statuses = workflowStatuses.length > 0
+      ? workflowStatuses
+      : discoveredStatuses.map((status) => ({ value: status, label: status }));
+    const areas = Array.from(new Set(tickets.map((ticket) => resolveAreaLabel(ticket).trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+    const priorities = Array.from(new Set(tickets.map((ticket) => normalizeFilterValue(ticket.priority)).filter(Boolean))).sort();
+    const slaStatuses = Array.from(new Set(tickets.map((ticket) => resolveSlaFilterValue(ticket)).filter(Boolean))).sort();
+
+    const agentMap = new Map<string, string>();
+    tickets.forEach((ticket) => {
+      const id = resolveAgentFilterId(ticket);
+      if (!id) return;
+      const label =
+        ticket.assignedAgent?.nombre_usuario ||
+        ticket.assignedAgent?.email ||
+        String(ticket.assignedAgentId || ticket.assigned_agent_id || id);
+      if (!agentMap.has(id)) {
+        agentMap.set(id, label);
+      }
+    });
+
+    return {
+      channels,
+      statuses,
+      areas,
+      priorities,
+      slaStatuses,
+      unreadModes: [
+        { value: 'all', label: 'Lectura: todos' },
+        { value: 'unread', label: 'Lectura: no leídos' },
+        { value: 'read', label: 'Lectura: leídos' },
+      ],
+      agents: Array.from(agentMap.entries())
+        .map(([id, label]) => ({ id, label }))
+        .sort((a, b) => a.label.localeCompare(b.label)),
+    };
+  }, [tickets, workflowStatuses]);
+
+  const filteredTickets = React.useMemo(() => {
+    return tickets.filter((ticket) => {
+      if (filters.channel !== 'all' && normalizeFilterValue(ticket.channel) !== filters.channel) return false;
+      if (filters.status !== 'all' && normalizeFilterValue(ticket.estado) !== filters.status) return false;
+      if (filters.priority !== 'all' && normalizeFilterValue(ticket.priority) !== filters.priority) return false;
+      if (filters.sla !== 'all' && resolveSlaFilterValue(ticket) !== filters.sla) return false;
+      if (filters.area !== 'all' && resolveAreaLabel(ticket) !== filters.area) return false;
+      if (filters.agent !== 'all' && resolveAgentFilterId(ticket) !== filters.agent) return false;
+      if (filters.unread === 'unread' && !hasUnreadState(ticket)) return false;
+      if (filters.unread === 'read' && hasUnreadState(ticket)) return false;
+      return true;
+    });
+  }, [tickets, filters]);
+
+  const ticketsByCategory = groupTicketsByCategory(filteredTickets);
 
   const value = {
     tickets,
@@ -113,6 +569,10 @@ export const TicketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     loading,
     error,
     ticketsByCategory,
+    filters,
+    setFilters,
+    filterOptions,
+    filteredTickets,
   };
 
   return <TicketContext.Provider value={value}>{children}</TicketContext.Provider>;

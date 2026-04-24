@@ -52,10 +52,10 @@ const ComingSoonSection = () => {
 
 
   return (
-    <section id="proximamente" className="py-16 md:py-24 bg-light text-foreground"> {/* Fondo alterno */}
+    <section id="proximamente" className="py-16 md:py-24 bg-muted text-foreground"> {/* Fondo alterno */}
       <div className="container px-4 mx-auto">
         <div className="text-center max-w-3xl mx-auto mb-12 md:mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4 text-dark">
+          <h2 className="text-3xl md:text-4xl font-bold mb-4 text-foreground">
             Descubre Nuestras Soluciones Avanzadas
           </h2>
           <p className="text-lg text-muted-foreground">

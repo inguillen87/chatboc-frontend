@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="es" style="background:transparent">
+  <head>
+    <script>
+      try {
+        if (
+          localStorage.theme === 'dark' ||
+          (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)
+        ) {
+          document.documentElement.classList.add('dark');
+        }
+      } catch (e) {
+        // ignore if storage is not accessible
+      }
+    </script>
+
+    <link rel="icon" href="/favicon/favicon_chatboc.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon/favicon-32x32.png">
+    <link rel="apple-touch-icon" sizes="192x192" href="/favicon/favicon-192x192.png">
+
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover, shrink-to-fit=no"
+    />
+    <title>Chatboc Widget</title>
+    <meta name="theme-color" content="#007AFF">
+  </head>
+  <body style="background:transparent;margin:0;padding:0;">
+    <div id="root"></div>
+    <script type="module" src="/src/pages/iframe.tsx"></script>
+  </body>
+</html>

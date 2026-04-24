@@ -13,26 +13,30 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
 
 export function MunicipioDashboard() {
-  const { data, loading, error } = useAnalyticsDashboard('municipio');
+  const { data, loading, error, warning } = useAnalyticsDashboard('municipio');
   const { setBoundingBox } = useAnalyticsFilters();
 
   const summary = data.summary;
   const qualityRows = useMemo(() => {
     const quality = summary?.quality;
     if (!quality) return [];
+
+    const byType = Array.isArray(quality.byType) ? quality.byType : [];
+    const byAgent = Array.isArray(quality.byAgent) ? quality.byAgent : [];
+
     return [
-      ...quality.byType.map((item) => ({
+      ...byType.map((item) => ({
         scope: item.label,
         average: item.average,
         responses: item.responses,
       })),
-      ...quality.byAgent.map((item) => ({
+      ...byAgent.map((item) => ({
         scope: item.label,
         average: item.average,
         responses: item.responses,
       })),
     ];
-  }, [data.summary]);
+  }, [summary]);
 
   const automationRate = summary?.efficiency?.automationRate ?? 0;
   const firstContact = summary?.efficiency?.firstContact ?? 0;
@@ -50,6 +54,13 @@ export function MunicipioDashboard() {
             {isSelectionError ? 'Seleccioná una entidad' : 'No se pudieron cargar los datos'}
           </AlertTitle>
           <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
+      {!error && warning ? (
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Alerta de conexión</AlertTitle>
+          <AlertDescription>{warning}</AlertDescription>
         </Alert>
       ) : null}
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -120,10 +131,10 @@ export function MunicipioDashboard() {
           exportName="municipio-canales"
         />
         <StackedBarChart
-          title="Estados"
-          data={data.breakdownEstado ?? undefined}
+          title="Tickets por barrio"
+          data={data.breakdownZona ?? undefined}
           loading={loading}
-          exportName="municipio-estados"
+          exportName="municipio-barrios"
         />
       </section>
 

@@ -13,6 +13,7 @@ Include the widget script to mint and refresh tokens automatically:
         data-logo-animation="bounce 2s infinite"
         data-welcome-title="Hola"
         data-welcome-subtitle="¿En qué podemos ayudarte?"
+        data-shadow-dom="true"
         data-bottom="20px"
         data-right="20px"
         data-width="460px"
@@ -34,6 +35,7 @@ You can customize the chat widget by adding the following attributes to the scri
 * `data-logo-url`, `data-header-logo-url`: URLs for launcher and header logos.
 * `data-logo-animation`: CSS animation for the launcher image.
 * `data-welcome-title`, `data-welcome-subtitle`: Texts displayed on the welcome screen.
+* `data-shadow-dom`: Set to `true` to isolate widget styles from host pages.
 * `data-bottom`, `data-right`: Offsets to tweak widget position.
 * `data-width`, `data-height`: Open widget size.
 * `data-closed-width`, `data-closed-height`: Closed launcher size.

@@ -7,10 +7,10 @@ const MiniChatWidgetPreview: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between pb-2 mb-2 border-b border-border">
         <div className="flex items-center">
-          <img 
-            src="/chatboc_widget_64x64.webp" 
-            alt="Chatboc Icon" 
-            className="w-7 h-7 mr-2 rounded-full border border-border" 
+          <img
+            src="/chatboc_widget_64x64.webp"
+            alt="Chatboc Icon"
+            className="w-7 h-7 mr-2 rounded-full border border-border"
           />
           <div>
             <p className="text-sm font-semibold text-primary">Asistente Virtual</p>
@@ -39,7 +39,7 @@ const MiniChatWidgetPreview: React.FC = () => {
           </div>
           {/* User avatar can be added here if desired */}
         </div>
-        
+
         {/* Bot Message */}
         <div className="flex items-start space-x-2">
            <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xs flex-shrink-0 mt-1">
@@ -63,7 +63,7 @@ const MiniChatWidgetPreview: React.FC = () => {
       {/* Input Area */}
       <div className="pt-2 mt-auto"> {/* mt-auto pushes this to the bottom */}
         <div className="flex items-center bg-background rounded-md p-1.5 border border-input shadow-sm">
-          <button 
+          <button
             aria-label="Adjuntar archivo"
             className="p-1 text-muted-foreground hover:text-primary focus:outline-none focus:ring-1 focus:ring-primary rounded"
           >
@@ -73,9 +73,9 @@ const MiniChatWidgetPreview: React.FC = () => {
             type="text"
             placeholder="Escribe tu mensaje..."
             className="flex-grow bg-transparent text-sm focus:outline-none px-1 text-foreground placeholder-muted-foreground"
-            disabled 
+            disabled
           />
-          <button 
+          <button
             aria-label="Insertar emoji"
             className="p-1 text-muted-foreground hover:text-primary focus:outline-none focus:ring-1 focus:ring-primary rounded"
           >

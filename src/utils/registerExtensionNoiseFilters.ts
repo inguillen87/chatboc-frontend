@@ -1,0 +1,127 @@
+export const KNOWN_EXTENSION_PATTERNS = [
+  /Cannot assign to read only property '(ethereum|tronLink)' of object '#<Window>'/i,
+  /Cannot assign to read only property '(ethereum|tronLink)'/i,
+  /This document requires 'TrustedScript' assignment/i,
+  /No matching tab found/i,
+  /Removing unpermitted intrinsics/i,
+  /Cannot access '.+' before initialization/i,
+];
+
+export const EXTENSION_PROTOCOLS = ['chrome-extension://', 'moz-extension://', 'safari-extension://'];
+
+function extractMessage(value: unknown): string {
+  try {
+    if (typeof value === 'string') {
+      return value;
+    }
+    if (value && typeof value === 'object') {
+       if ('message' in value && typeof (value as any).message === 'string') {
+          return (value as any).message;
+       }
+       // Sometimes errors are wrapped or custom objects
+       if (value.toString && value.toString() !== '[object Object]') {
+          return value.toString();
+       }
+    }
+    if (value instanceof Error) {
+      return value.message;
+    }
+  } catch (e) {
+    return '';
+  }
+  return '';
+}
+
+function shouldIgnore(message: string | null | undefined): boolean {
+  if (!message) return false;
+  return KNOWN_EXTENSION_PATTERNS.some((pattern) => pattern.test(message));
+}
+
+export function isLikelyExtensionNoise(value: unknown): boolean {
+  const message = extractMessage(value);
+
+  if (shouldIgnore(message)) {
+    return true;
+  }
+
+  if (value && typeof value === 'object' && 'stack' in value) {
+    const stack = String((value as { stack?: unknown }).stack ?? '');
+    if (isExtensionUrl(stack)) {
+      return true;
+    }
+
+    // Some browser wallets/extensions inject inpage bridges (MessagePort + inpage.js)
+    // that can trigger transient TDZ errors unrelated to app business logic.
+    if (
+      /\binpage\.js\b/i.test(stack) ||
+      /\blockdown-install\.js\b/i.test(stack) ||
+      /\boverlay\.js\b/i.test(stack)
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function isExtensionUrl(url: string | null | undefined): boolean {
+  if (typeof url !== 'string' || !url) return false;
+  return EXTENSION_PROTOCOLS.some((protocol) => url.startsWith(protocol));
+}
+
+export function registerExtensionNoiseFilters(): () => void {
+  if (typeof window === 'undefined') {
+    return () => {};
+  }
+
+  const win = window as typeof window & { __chatbocExtensionNoiseCleanup?: () => void };
+  if (typeof win.__chatbocExtensionNoiseCleanup === 'function') {
+    return win.__chatbocExtensionNoiseCleanup;
+  }
+
+  const handleError = (event: ErrorEvent) => {
+    try {
+      const errorPayload = event.error ?? event.message;
+      const errorMessage = extractMessage(errorPayload);
+      const fromExtension =
+        isExtensionUrl(event.filename) ||
+        isExtensionUrl((event.error as { stack?: unknown } | null | undefined)?.stack as string | undefined);
+
+      if (fromExtension || shouldIgnore(errorMessage) || isLikelyExtensionNoise(errorPayload)) {
+        event.preventDefault?.();
+        event.stopImmediatePropagation?.();
+        return false;
+      }
+    } catch (error) {
+      // Never let the noise filter crash the app – swallow unexpected shapes.
+      console.error('registerExtensionNoiseFilters error handler failed', error);
+    }
+    return undefined;
+  };
+
+  const handleRejection = (event: PromiseRejectionEvent) => {
+    try {
+      const reasonMessage = extractMessage(event.reason);
+      if (shouldIgnore(reasonMessage) || isLikelyExtensionNoise(event.reason)) {
+        event.preventDefault?.();
+        event.stopImmediatePropagation?.();
+      }
+    } catch (error) {
+      console.error('registerExtensionNoiseFilters rejection handler failed', error);
+    }
+  };
+
+  window.addEventListener('error', handleError);
+  window.addEventListener('unhandledrejection', handleRejection);
+
+  const cleanup = () => {
+    window.removeEventListener('error', handleError);
+    window.removeEventListener('unhandledrejection', handleRejection);
+    delete win.__chatbocExtensionNoiseCleanup;
+  };
+
+  win.__chatbocExtensionNoiseCleanup = cleanup;
+  return cleanup;
+}
+
+export default registerExtensionNoiseFilters;

@@ -1,0 +1,181 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
+
+<style>
+  #cbm-head-bob { transform-origin: 512px 520px; animation: cbmBob 4.8s ease-in-out infinite; }
+  #cbm-left-arm { transform-origin: 364px 612px; animation: cbmWave 3.6s ease-in-out infinite; }
+  #cbm-left-hand { transform-origin: 202px 488px; animation: cbmHand 3.6s ease-in-out infinite; }
+  #cbm-eye-left, #cbm-eye-right { transform-origin: center; transform-box: fill-box; animation: cbmBlink 6.2s infinite; }
+  #cbm-pupil-left, #cbm-pupil-right { animation: cbmLook 7.1s ease-in-out infinite; }
+  #cbm-badge { transform-origin: 274px 216px; animation: cbmBadge 4.4s ease-in-out infinite; }
+  @keyframes cbmBob {
+    0%,100% { transform: translateY(0px); }
+    50% { transform: translateY(-7px); }
+  }
+  @keyframes cbmWave {
+    0%,100% { transform: rotate(0deg); }
+    12% { transform: rotate(-5deg); }
+    24% { transform: rotate(10deg); }
+    38% { transform: rotate(-7deg); }
+    52% { transform: rotate(8deg); }
+    70% { transform: rotate(-2deg); }
+  }
+  @keyframes cbmHand {
+    0%,100% { transform: scale(1); }
+    44% { transform: scale(1.05); }
+  }
+  @keyframes cbmBlink {
+    0%, 3%, 47%, 50%, 100% { transform: scaleY(1); }
+    1.5%, 48.5% { transform: scaleY(0.09); }
+  }
+  @keyframes cbmLook {
+    0%,100% { transform: translate(0px,0px); }
+    18% { transform: translate(-4px,1px); }
+    36% { transform: translate(5px,-1px); }
+    60% { transform: translate(-3px,2px); }
+    78% { transform: translate(3px,0px); }
+  }
+  @keyframes cbmBadge {
+    0%,100% { transform: translateY(0px) rotate(0deg); }
+    50% { transform: translateY(-7px) rotate(-3deg); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #cbm-head-bob, #cbm-left-arm, #cbm-left-hand,
+    #cbm-eye-left, #cbm-eye-right,
+    #cbm-pupil-left, #cbm-pupil-right,
+    #cbm-badge { animation: none !important; }
+  }
+</style>
+  <defs>
+    <linearGradient id="cbm-bg" x1="180" y1="116" x2="850" y2="922" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1A49E6"/>
+      <stop offset="0.44" stop-color="#1133B7"/>
+      <stop offset="0.82" stop-color="#071A71"/>
+      <stop offset="1" stop-color="#05103D"/>
+    </linearGradient>
+    <radialGradient id="cbm-halo" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(520 434) rotate(90) scale(260)">
+      <stop offset="0" stop-color="#8BECFF" stop-opacity="0.74"/>
+      <stop offset="0.46" stop-color="#54BCFF" stop-opacity="0.26"/>
+      <stop offset="1" stop-color="#54BCFF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="cbm-shell" x1="208" y1="228" x2="760" y2="592" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="0.46" stop-color="#F0F5FF"/>
+      <stop offset="0.78" stop-color="#D8E3FF"/>
+      <stop offset="1" stop-color="#BAC8F2"/>
+    </linearGradient>
+    <linearGradient id="cbm-visor" x1="314" y1="312" x2="708" y2="500" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#06164D"/>
+      <stop offset="0.5" stop-color="#0B2C96"/>
+      <stop offset="1" stop-color="#082071"/>
+    </linearGradient>
+    <linearGradient id="cbm-blue" x1="294" y1="546" x2="640" y2="862" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#64A0FF"/>
+      <stop offset="0.48" stop-color="#2764FF"/>
+      <stop offset="1" stop-color="#0E34BD"/>
+    </linearGradient>
+    <linearGradient id="cbm-blue-deep" x1="286" y1="544" x2="624" y2="844" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#174FFF"/>
+      <stop offset="0.56" stop-color="#113DD4"/>
+      <stop offset="1" stop-color="#0A2DA9"/>
+    </linearGradient>
+    <linearGradient id="cbm-hand" x1="154" y1="412" x2="260" y2="560" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="0.58" stop-color="#F1F5FF"/>
+      <stop offset="1" stop-color="#CCD7F5"/>
+    </linearGradient>
+    <linearGradient id="cbm-badge-grad" x1="188" y1="148" x2="342" y2="264" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFD533"/>
+      <stop offset="1" stop-color="#FFC813"/>
+    </linearGradient>
+    <filter id="cbm-shadow" x="-25%" y="-25%" width="160%" height="170%">
+      <feDropShadow dx="0" dy="12" stdDeviation="14" flood-color="#03103A" flood-opacity="0.4"/>
+    </filter>
+    <clipPath id="cbm-circle-clip"><circle cx="512" cy="512" r="490"/></clipPath>
+  </defs>
+  <g clip-path="url(#cbm-circle-clip)">
+    <circle cx="512" cy="512" r="490" fill="url(#cbm-bg)"/>
+    <circle cx="512" cy="418" r="250" fill="url(#cbm-halo)"/>
+    <path d="M112 676C230 660 332 654 434 658C552 662 670 676 786 674C836 674 878 670 918 664" stroke="#7DE9FF" stroke-opacity="0.18" stroke-width="5" stroke-linecap="round"/>
+    <g opacity="0.5">
+      <circle cx="182" cy="214" r="3" fill="#FFFFFF"/>
+      <circle cx="816" cy="184" r="3.8" fill="#FFFFFF"/>
+      <circle cx="748" cy="286" r="2.3" fill="#FFE48B"/>
+      <circle cx="240" cy="694" r="2.2" fill="#8EEBFF"/>
+    </g>
+    <g opacity="0.34" stroke="#A2EEFF" stroke-width="1.5">
+      <path d="M190 238h18M199 229v18"/>
+      <path d="M814 246h16M822 238v16"/>
+    </g>
+
+    <g id="cbm-badge" filter="url(#cbm-shadow)">
+      <path d="M182 180C182 146 209 120 243 120H308C342 120 369 147 369 181V198C369 232 342 259 308 259H286L255 286L260 258C235 252 214 235 200 214C189 198 182 206 182 198V180Z" fill="url(#cbm-badge-grad)"/>
+      <circle cx="248" cy="190" r="12" fill="#FFFFFF"/>
+      <circle cx="275" cy="190" r="12" fill="#FFFFFF"/>
+      <circle cx="302" cy="190" r="12" fill="#FFFFFF"/>
+    </g>
+
+    <g id="cbm-head-bob" filter="url(#cbm-shadow)">
+      <g id="cbm-left-arm">
+        <path d="M378 640C342 598 306 550 274 506C254 478 236 462 214 460" stroke="#09258F" stroke-width="96" stroke-linecap="round" fill="none"/>
+        <path d="M378 640C342 598 306 550 274 506C254 478 236 462 214 460" stroke="url(#cbm-blue)" stroke-width="78" stroke-linecap="round" fill="none"/>
+        <path d="M372 632C338 594 304 550 276 510" stroke="#9CC8FF" stroke-opacity="0.28" stroke-width="12" stroke-linecap="round" fill="none"/>
+        <g id="cbm-left-hand">
+          <path d="M198 446C176 440 156 450 146 470C136 492 146 520 170 532C194 544 222 536 238 516C248 502 252 484 248 468C243 452 224 440 198 446Z" fill="url(#cbm-hand)"/>
+          <path d="M166 438C156 430 144 432 138 444C132 456 136 470 146 476C156 482 170 480 176 470C182 460 179 446 166 438Z" fill="url(#cbm-hand)"/>
+          <path d="M190 420C178 410 162 414 154 428C146 442 150 458 164 468C178 478 196 472 204 458C214 442 208 428 190 420Z" fill="url(#cbm-hand)"/>
+          <path d="M220 420C208 410 192 414 184 428C176 442 180 458 194 468C208 478 226 472 234 458C244 442 238 428 220 420Z" fill="url(#cbm-hand)"/>
+          <path d="M244 432C234 422 220 424 212 436C204 448 208 464 218 472C228 480 242 478 250 466C260 452 256 440 244 432Z" fill="url(#cbm-hand)"/>
+          <path d="M176 470C182 456 198 450 214 452C230 454 244 466 252 482" stroke="#B7C7EE" stroke-width="4" stroke-linecap="round" opacity="0.7"/>
+        </g>
+      </g>
+
+      <g id="cbm-neck-body">
+        <ellipse cx="512" cy="676" rx="172" ry="42" fill="#0B2EAF"/>
+        <path d="M330 712C388 688 448 676 512 676C576 676 636 688 694 712V818H330V712Z" fill="url(#cbm-blue-deep)"/>
+        <path d="M360 726C408 704 456 694 512 694C568 694 616 704 664 726V794H360V726Z" fill="url(#cbm-blue)" opacity="0.26"/>
+      </g>
+
+      <g id="cbm-head">
+        <g id="cbm-ears">
+          <ellipse cx="260" cy="444" rx="46" ry="94" fill="#1243E3"/>
+          <ellipse cx="260" cy="444" rx="32" ry="74" fill="#2F73FF"/>
+          <ellipse cx="260" cy="444" rx="18" ry="54" fill="#0A2BA0"/>
+          <ellipse cx="764" cy="444" rx="46" ry="94" fill="#1243E3"/>
+          <ellipse cx="764" cy="444" rx="32" ry="74" fill="#2F73FF"/>
+          <ellipse cx="764" cy="444" rx="18" ry="54" fill="#0A2BA0"/>
+        </g>
+        <rect x="198" y="236" width="628" height="430" rx="214" fill="url(#cbm-shell)"/>
+        <rect x="214" y="252" width="596" height="398" rx="198" stroke="#9CB0E5" stroke-width="8" opacity="0.48"/>
+        <path d="M312 254C360 194 664 194 712 254" stroke="#1753FA" stroke-width="28" stroke-linecap="round"/>
+        <path d="M328 258C368 228 648 228 688 258" stroke="#8ED7FF" stroke-opacity="0.44" stroke-width="9" stroke-linecap="round"/>
+        <path d="M246 362C284 290 740 292 778 366" stroke="#FFFFFF" stroke-opacity="0.44" stroke-width="12" stroke-linecap="round"/>
+
+        <rect x="286" y="336" width="452" height="236" rx="122" fill="url(#cbm-visor)"/>
+        <rect x="296" y="346" width="432" height="216" rx="112" stroke="#1446DE" stroke-width="8" opacity="0.56"/>
+        <path d="M340 364C396 348 624 350 678 362" stroke="#6EA9FF" stroke-opacity="0.42" stroke-width="12" stroke-linecap="round"/>
+
+        <g id="cbm-eye-left">
+          <ellipse cx="422" cy="454" rx="36" ry="40" fill="#FFFFFF"/>
+          <g id="cbm-pupil-left" transform-origin="434px 466px">
+            <ellipse cx="438" cy="470" rx="22" ry="28" fill="#071547"/>
+            <circle cx="446" cy="458" r="8" fill="#FFFFFF"/>
+            <circle cx="430" cy="480" r="4" fill="#214FDE" opacity="0.44"/>
+          </g>
+        </g>
+        <g id="cbm-eye-right">
+          <ellipse cx="602" cy="454" rx="36" ry="40" fill="#FFFFFF"/>
+          <g id="cbm-pupil-right" transform-origin="614px 466px">
+            <ellipse cx="618" cy="470" rx="22" ry="28" fill="#071547"/>
+            <circle cx="626" cy="458" r="8" fill="#FFFFFF"/>
+            <circle cx="610" cy="480" r="4" fill="#214FDE" opacity="0.44"/>
+          </g>
+        </g>
+
+        <path d="M446 532C478 560 546 560 578 532C572 574 528 596 512 596C496 596 452 574 446 532Z" fill="#071547"/>
+        <path d="M470 544C488 560 536 560 554 544C546 568 522 580 512 580C502 580 478 568 470 544Z" fill="#FF5968"/>
+      </g>
+    </g>
+  </g>
+  <circle cx="512" cy="512" r="490" fill="none" stroke="#C8F2FF" stroke-opacity="0.36" stroke-width="10"/>
+  <circle cx="512" cy="512" r="480" fill="none" stroke="#0A35C9" stroke-opacity="0.62" stroke-width="10"/>
+</svg>

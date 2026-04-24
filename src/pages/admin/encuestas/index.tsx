@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader2, Plus } from 'lucide-react';
 
@@ -8,13 +8,18 @@ import { useSurveyAdmin } from '@/hooks/useSurveyAdmin';
 import type { SurveyAdmin } from '@/types/encuestas';
 import { toast } from '@/components/ui/use-toast';
 import { getAbsolutePublicSurveyUrl } from '@/utils/publicSurveyUrl';
+import SectionErrorBoundary from '@/components/errors/SectionErrorBoundary';
+import { prioritizeMendozaDemoSurveys } from '@/utils/surveyDemoPriority';
+import { useTenant } from '@/context/TenantContext';
 
 const AdminSurveysIndex = () => {
   const navigate = useNavigate();
-  const { surveys, isLoadingList, listError, publishSurvey, deleteSurvey, isPublishing, isDeleting, refetchList } =
+  const { surveys, isLoadingList, listError, publishSurvey, deleteSurvey, seedSurvey, isPublishing, isDeleting, isSeeding, refetchList } =
     useSurveyAdmin();
+  const { currentSlug } = useTenant();
   const [publishingId, setPublishingId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [seedingId, setSeedingId] = useState<number | null>(null);
 
   const handlePublish = async (survey: SurveyAdmin) => {
     try {
@@ -64,10 +69,36 @@ const AdminSurveysIndex = () => {
     }
   };
 
-  const items = surveys?.data ?? [];
+  const handleSeed = async (survey: SurveyAdmin) => {
+    try {
+      setSeedingId(survey.id);
+      const result = await seedSurvey(survey.id, { cantidad: 100, reset: true });
+      toast({
+        title: 'Datos generados',
+        description: `Se agregaron ${result.creadas} respuestas de prueba.`
+      });
+      // Optionally refresh analytics data if needed, but refetchList might not be enough if it doesn't return analytics counts
+      await refetchList();
+    } catch (error) {
+      toast({
+        title: 'Error al generar datos',
+        description: String((error as Error)?.message ?? error),
+        variant: 'destructive',
+      });
+    } finally {
+      setSeedingId(null);
+    }
+  };
+
+  const items = useMemo(() => prioritizeMendozaDemoSurveys(surveys?.data ?? [], currentSlug), [surveys?.data, currentSlug]);
 
   return (
-    <div className="space-y-6">
+    <SectionErrorBoundary
+      title="No pudimos cargar las encuestas"
+      description="Reintentá o volvé al inicio mientras recuperamos el panel de encuestas."
+      onRetry={() => refetchList()}
+    >
+      <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">Encuestas ciudadanas</h1>
@@ -97,6 +128,8 @@ const AdminSurveysIndex = () => {
               onCopyLink={survey.estado === 'publicada' ? () => handleCopyLink(survey) : undefined}
               onDelete={() => handleDelete(survey)}
               deleting={isDeleting && deletingId === survey.id}
+              onSeed={() => handleSeed(survey)}
+              seeding={isSeeding && seedingId === survey.id}
             />
           ))}
           {!items.length && (
@@ -106,7 +139,8 @@ const AdminSurveysIndex = () => {
           )}
         </div>
       )}
-    </div>
+      </div>
+    </SectionErrorBoundary>
   );
 };
 

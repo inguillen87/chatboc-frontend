@@ -134,6 +134,7 @@ The `<script>` tag accepts several extra `data-*` attributes to control the widg
 - `data-domain` – custom domain hosting the widget, if different from `chatboc.ar`.
 - `data-rubro` – optional category so the chat knows the business type from the start.
 - `data-cta-message` – optional text that appears once as a bubble inviting the user to open the chat.
+- `data-shadow-dom="true"` – isolates the widget styles from the host page.
 
 ### Attention bubble rotation
 
@@ -422,4 +423,3 @@ Más información en [docs/roles.md](docs/roles.md).
 
 ## Chatboc para gobiernos y opinar.ar
 Para detalles sobre la oferta enfocada en municipios y la nueva empresa de encuestas, consultá [docs/opinar-ar.md](docs/opinar-ar.md).
-

@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import type { TopResponse } from '@/services/analyticsService';
 import { WidgetFrame } from './WidgetFrame';
+import { AnalyticsEmptyState } from './AnalyticsEmptyState';
 
 interface TopTableProps {
   title: string;
@@ -20,6 +21,8 @@ export function TopTable({ title, description, data, exportName, loading }: TopT
           <div className="flex h-32 items-center justify-center text-sm text-muted-foreground">
             Cargando tabla...
           </div>
+        ) : rows.length === 0 ? (
+          <AnalyticsEmptyState className="h-32" message="No hay resultados para mostrar." />
         ) : (
           <Table>
             <TableHeader>

@@ -18,7 +18,13 @@ import { toast } from "@/components/ui/use-toast";
 import { requestLocation } from "@/utils/geolocation";
 import { fmtAR } from "@/utils/date";
 import { getContactPhone } from "@/utils/ticket";
-import { getTicketTimeline } from "@/services/ticketService";
+import {
+  getTicketTimeline,
+  requestTicketHistoryEmail,
+  type TicketHistoryDeliveryResult,
+  isTicketHistoryDeliveryErrorResult,
+  formatTicketHistoryDeliveryErrorMessage,
+} from "@/services/ticketService";
 import { TicketHistoryEvent, Message as TicketMessage } from "@/types/tickets";
 import { extractButtonsFromResponse } from "@/utils/chatButtons";
 // Importar AttachmentInfo y SendPayload desde @/types/chat o un lugar centralizado
@@ -73,6 +79,23 @@ const ChatPage = () => {
   const authToken = safeLocalStorage.getItem("authToken");
   const isAnonimo = !authToken;
   const anonId = getOrCreateAnonId();
+
+  const notifyCitizenDeliveryIssue = useCallback(
+    (result: TicketHistoryDeliveryResult, contextMessage: string) => {
+      if (isTicketHistoryDeliveryErrorResult(result)) {
+        toast({
+          title: 'Aviso: entrega parcial',
+          description: formatTicketHistoryDeliveryErrorMessage(
+            result,
+            contextMessage,
+          ),
+          variant: 'destructive',
+          duration: 6000,
+        });
+      }
+    },
+    [],
+  );
 
   const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
   const demoRubroNameParam = urlParams?.get('rubroName');
@@ -296,6 +319,23 @@ const ChatPage = () => {
             sendAnonId: isAnonimo,
             sendEntityToken: true,
           });
+          requestTicketHistoryEmail({
+            tipo: tipoChat,
+            ticketId: activeTicketId,
+            options: {
+              reason: 'message_update',
+              actor: 'user',
+            },
+          })
+            .then((result) => {
+              notifyCitizenDeliveryIssue(
+                result,
+                'Tu mensaje llegó al municipio, pero el correo automático no se pudo entregar.',
+              );
+            })
+            .catch((error) => {
+              console.error('Error triggering ticket email after citizen response:', error);
+            });
         } else {
           const requestPayload: Record<string, any> = { 
             pregunta: userMessageText, 
@@ -348,8 +388,28 @@ const ChatPage = () => {
           lastQueryRef.current = null;
 
           if (data.ticket_id) {
+            const wasNewTicket = !activeTicketId;
             setActiveTicketId(data.ticket_id);
             ultimoMensajeIdRef.current = 0;
+            if (wasNewTicket) {
+              requestTicketHistoryEmail({
+                tipo: tipoChat,
+                ticketId: data.ticket_id,
+                options: {
+                  reason: 'ticket_created',
+                  actor: 'user',
+                },
+              })
+                .then((result) => {
+                  notifyCitizenDeliveryIssue(
+                    result,
+                    'El ticket se creó correctamente, pero el correo de confirmación falló.',
+                  );
+                })
+                .catch((error) => {
+                  console.error('Error triggering ticket creation email:', error);
+                });
+            }
           }
           if (!isAnonimo) await refreshUser();
         }

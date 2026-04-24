@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
 import { Reorder } from 'framer-motion';
 import { CalendarDays, Copy, GripVertical, Plus, Trash2, UploadCloud } from 'lucide-react';
 
@@ -16,10 +16,11 @@ import type {
   SurveyDraftPayload,
   SurveyTipo,
 } from '@/types/encuestas';
-import { getAbsolutePublicSurveyUrl } from '@/utils/publicSurveyUrl';
+import { getAbsolutePublicSurveyUrl, getPublicSurveyQrUrl } from '@/utils/publicSurveyUrl';
 
 interface SurveyEditorProps {
   survey?: SurveyAdmin;
+  initialDraft?: SurveyDraftPayload;
   onSave: (payload: SurveyDraftPayload) => Promise<void>;
   onPublish?: () => Promise<void>;
   isSaving?: boolean;
@@ -68,10 +69,12 @@ const createLocalQuestion = (index: number, partial?: Partial<LocalQuestion>): L
   ...partial,
 });
 
-const mapSurveyToLocal = (survey?: SurveyAdmin): LocalQuestion[] =>
-  survey?.preguntas?.map((pregunta) => ({
+const mapQuestionsToLocal = (
+  preguntas?: SurveyDraftPayload['preguntas'] | SurveyAdmin['preguntas'],
+): LocalQuestion[] =>
+  preguntas?.map((pregunta) => ({
     localId: generateId(),
-    id: pregunta.id,
+    id: 'id' in pregunta ? pregunta.id : undefined,
     orden: pregunta.orden,
     tipo: pregunta.tipo,
     texto: pregunta.texto,
@@ -80,17 +83,61 @@ const mapSurveyToLocal = (survey?: SurveyAdmin): LocalQuestion[] =>
     max_selecciones: pregunta.max_selecciones ?? null,
     opciones: pregunta.opciones?.map((opcion) => ({
       localId: generateId(),
-      id: opcion.id,
+      id: 'id' in opcion ? opcion.id : undefined,
       orden: opcion.orden,
       texto: opcion.texto,
       valor: opcion.valor,
     })),
   })) ?? [];
 
+const cloneDraft = (draft: SurveyDraftPayload): SurveyDraftPayload => ({
+  ...draft,
+  preguntas: draft.preguntas.map((pregunta) => ({
+    ...pregunta,
+    opciones: pregunta.opciones?.map((opcion) => ({ ...opcion })),
+  })),
+});
+
+const buildDraftFromSurvey = (survey?: SurveyAdmin): SurveyDraftPayload => ({
+  titulo: survey?.titulo ?? '',
+  slug: survey?.slug ?? '',
+  descripcion: survey?.descripcion ?? '',
+  tipo: survey?.tipo ?? 'opinion',
+  inicio_at: survey?.inicio_at ?? null,
+  fin_at: survey?.fin_at ?? null,
+  politica_unicidad: survey?.politica_unicidad ?? 'libre',
+  anonimato: survey?.anonimato ?? false,
+  requiere_datos_contacto:
+    typeof survey?.requiere_datos_contacto === 'boolean'
+      ? survey.requiere_datos_contacto
+      : !(survey?.anonimato ?? false),
+  es_votacion_envivo: survey?.es_votacion_envivo ?? false,
+  mostrar_resultados_envivo: survey?.mostrar_resultados_envivo ?? false,
+  permitir_comentarios: survey?.permitir_comentarios ?? false,
+  puntos_recompensa: survey?.puntos_recompensa ?? undefined,
+  preguntas:
+    survey?.preguntas?.map((pregunta, index) => ({
+      id: pregunta.id,
+      orden: typeof pregunta.orden === 'number' ? pregunta.orden : index + 1,
+      tipo: pregunta.tipo,
+      texto: pregunta.texto,
+      obligatoria: pregunta.obligatoria,
+      min_selecciones: pregunta.min_selecciones ?? null,
+      max_selecciones: pregunta.max_selecciones ?? null,
+      opciones: pregunta.opciones?.map((opcion, optIndex) => ({
+        id: opcion.id,
+        orden: typeof opcion.orden === 'number' ? opcion.orden : optIndex + 1,
+        texto: opcion.texto,
+        valor: opcion.valor,
+      })),
+    })) ?? [],
+});
+
 const tipoOptions: Array<{ value: SurveyTipo; label: string }> = [
-  { value: 'opinion', label: 'Opinión' },
-  { value: 'votacion', label: 'Votación' },
-  { value: 'sondeo', label: 'Sondeo' },
+  { value: 'opinion', label: 'Encuesta Clásica (Opinión)' },
+  { value: 'votacion', label: 'Votación Pública (Elección única)' },
+  { value: 'sondeo', label: 'Sondeo Rápido' },
+  { value: 'planificacion', label: 'Planificación' },
 ];
 
 const preguntaTipoOptions: Array<{ value: PreguntaTipo; label: string }> = [
@@ -112,50 +159,73 @@ const fallbackDraft: SurveyDraftPayload = {
   slug: '',
   descripcion: '',
   tipo: 'opinion',
-  inicio_at: '',
-  fin_at: '',
+  inicio_at: null,
+  fin_at: null,
   politica_unicidad: 'libre',
   anonimato: false,
   requiere_datos_contacto: false,
+  es_votacion_envivo: false,
+  mostrar_resultados_envivo: false,
+  permitir_comentarios: false,
+  puntos_recompensa: undefined,
   preguntas: [],
 };
 
-export const SurveyEditor = ({ survey, onSave, onPublish, isSaving, isPublishing }: SurveyEditorProps) => {
-  const [formValues, setFormValues] = useState<SurveyDraftPayload>(fallbackDraft);
-  const [questions, setQuestions] = useState<LocalQuestion[]>(mapSurveyToLocal(survey));
+const buildInitialDraft = (survey?: SurveyAdmin, initialDraft?: SurveyDraftPayload) => {
+  if (survey) {
+    return buildDraftFromSurvey(survey);
+  }
+  if (initialDraft) {
+    return cloneDraft(initialDraft);
+  }
+  return { ...fallbackDraft };
+};
+
+const buildInitialQuestions = (survey?: SurveyAdmin, initialDraft?: SurveyDraftPayload) => {
+  if (survey) {
+    const mapped = mapQuestionsToLocal(survey.preguntas);
+    return mapped.length ? mapped : [createLocalQuestion(1)];
+  }
+  if (initialDraft) {
+    const mapped = mapQuestionsToLocal(initialDraft.preguntas);
+    return mapped.length ? mapped : [createLocalQuestion(1)];
+  }
+  return [createLocalQuestion(1)];
+};
+
+export const SurveyEditor = ({
+  survey,
+  initialDraft,
+  onSave,
+  onPublish,
+  isSaving,
+  isPublishing,
+}: SurveyEditorProps) => {
+  const [formValues, setFormValues] = useState<SurveyDraftPayload>(() => buildInitialDraft(survey, initialDraft));
+  const [questions, setQuestions] = useState<LocalQuestion[]>(() => buildInitialQuestions(survey, initialDraft));
 
   useEffect(() => {
-    setFormValues({
-      titulo: survey?.titulo ?? '',
-      slug: survey?.slug ?? '',
-      descripcion: survey?.descripcion ?? '',
-      tipo: survey?.tipo ?? 'opinion',
-      inicio_at: survey?.inicio_at ?? '',
-      fin_at: survey?.fin_at ?? '',
-      politica_unicidad: survey?.politica_unicidad ?? 'libre',
-      anonimato: survey?.anonimato ?? false,
-      requiere_datos_contacto: !(survey?.anonimato ?? false),
-      preguntas: survey?.preguntas?.map((pregunta, index) => ({
-        id: pregunta.id,
-        orden: index + 1,
-        tipo: pregunta.tipo,
-        texto: pregunta.texto,
-        obligatoria: pregunta.obligatoria,
-        min_selecciones: pregunta.min_selecciones ?? null,
-        max_selecciones: pregunta.max_selecciones ?? null,
-        opciones: pregunta.opciones?.map((opcion, optIndex) => ({
-          id: opcion.id,
-          orden: optIndex + 1,
-          texto: opcion.texto,
-          valor: opcion.valor,
-        })),
-      })) ?? [],
-    });
-    setQuestions((prev) => {
-      const next = mapSurveyToLocal(survey);
-      return next.length ? next : prev.length ? prev : [createLocalQuestion(1)];
-    });
-  }, [survey]);
+    if (survey) {
+      setFormValues(buildDraftFromSurvey(survey));
+      setQuestions(() => {
+        const next = mapQuestionsToLocal(survey.preguntas);
+        return next.length ? next : [createLocalQuestion(1)];
+      });
+      return;
+    }
+
+    if (initialDraft) {
+      setFormValues(cloneDraft(initialDraft));
+      setQuestions(() => {
+        const next = mapQuestionsToLocal(initialDraft.preguntas);
+        return next.length ? next : [createLocalQuestion(1)];
+      });
+      return;
+    }
+
+    setFormValues({ ...fallbackDraft });
+    setQuestions((prev) => (prev.length ? prev : [createLocalQuestion(1)]));
+  }, [survey, initialDraft]);
 
   useEffect(() => {
     if (!questions.length) {
@@ -210,8 +280,44 @@ export const SurveyEditor = ({ survey, onSave, onPublish, isSaving, isPublishing
     );
   };
 
+  const normalizeDateValue = (value?: string | null) => {
+    if (!value) return null;
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const parsed = new Date(trimmed);
+    if (Number.isNaN(parsed.getTime())) {
+      return trimmed;
+    }
+    return parsed.toISOString();
+  };
+
+  const formatDateInputValue = (value?: string | null) => {
+    if (!value) return '';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+      return '';
+    }
+    const year = parsed.getFullYear();
+    const month = String(parsed.getMonth() + 1).padStart(2, '0');
+    const day = String(parsed.getDate()).padStart(2, '0');
+    const hours = String(parsed.getHours()).padStart(2, '0');
+    const minutes = String(parsed.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  };
+
+  const handleDateChange = (key: 'inicio_at' | 'fin_at') => (event: ChangeEvent<HTMLInputElement>) => {
+    const { value } = event.target;
+    setFormValues((prev) => ({
+      ...prev,
+      [key]: value ? new Date(value).toISOString() : null,
+    }));
+  };
+
   const preparedPayload = useMemo<SurveyDraftPayload>(() => ({
     ...formValues,
+    slug: formValues.slug?.trim() || undefined,
+    inicio_at: normalizeDateValue(formValues.inicio_at),
+    fin_at: normalizeDateValue(formValues.fin_at),
     preguntas: questions.map((question, index) => ({
       id: question.id,
       orden: index + 1,
@@ -264,16 +370,24 @@ export const SurveyEditor = ({ survey, onSave, onPublish, isSaving, isPublishing
     [survey?.slug],
   );
 
-  const qrUrl = survey?.slug ? `/api/public/encuestas/${survey.slug}/qr?size=512` : '';
+  const qrUrl = survey?.slug ? getPublicSurveyQrUrl(survey.slug, { size: 512 }) : '';
 
   return (
     <div className="space-y-6">
-      <Card>
+      <Card className={`transition-colors border-l-4 ${formValues.tipo === 'votacion' ? 'border-l-blue-500 bg-blue-50/10' : 'border-l-primary bg-primary/5'}`}>
         <CardHeader>
-          <CardTitle>Configuración general</CardTitle>
-          <CardDescription>Definí los datos principales de la encuesta y su política de participación.</CardDescription>
+          <CardTitle className="flex items-center gap-2">
+             Configuración general
+             {formValues.tipo === 'votacion' && <span className="text-xs font-normal px-2 py-0.5 bg-blue-100 text-blue-800 rounded-md">Modo Votación Pública</span>}
+          </CardTitle>
+          <CardDescription>Definí los datos principales del instrumento y su política de participación.</CardDescription>
         </CardHeader>
         <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {formValues.tipo === 'votacion' && (
+             <div className="col-span-1 md:col-span-2 p-3 bg-blue-50 border border-blue-200 rounded-md text-xs text-blue-800 leading-relaxed mb-2">
+               <strong>Nota sobre votaciones:</strong> Las votaciones se distinguen de las encuestas en que suelen requerir verificación de identidad fuerte (DNI/Login), exhiben resultados en tiempo real y prohíben respuestas múltiples por usuario.
+             </div>
+          )}
           <div className="space-y-2">
             <Label htmlFor="survey-title">Título</Label>
             <Input
@@ -345,8 +459,8 @@ export const SurveyEditor = ({ survey, onSave, onPublish, isSaving, isPublishing
             <Input
               id="inicio-at"
               type="datetime-local"
-              value={formValues.inicio_at?.slice(0, 16) ?? ''}
-              onChange={(event) => setFormValues((prev) => ({ ...prev, inicio_at: event.target.value }))}
+              value={formatDateInputValue(formValues.inicio_at)}
+              onChange={handleDateChange('inicio_at')}
             />
           </div>
           <div className="space-y-2">
@@ -354,8 +468,8 @@ export const SurveyEditor = ({ survey, onSave, onPublish, isSaving, isPublishing
             <Input
               id="fin-at"
               type="datetime-local"
-              value={formValues.fin_at?.slice(0, 16) ?? ''}
-              onChange={(event) => setFormValues((prev) => ({ ...prev, fin_at: event.target.value }))}
+              value={formatDateInputValue(formValues.fin_at)}
+              onChange={handleDateChange('fin_at')}
             />
           </div>
           <div className="space-y-2">
@@ -385,6 +499,73 @@ export const SurveyEditor = ({ survey, onSave, onPublish, isSaving, isPublishing
                 onCheckedChange={(checked) => setFormValues((prev) => ({ ...prev, requiere_datos_contacto: checked }))}
               />
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Votación en vivo</CardTitle>
+          <CardDescription>Configurá el comportamiento en tiempo real y los comentarios de la plantilla.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="space-y-2">
+            <Label className="flex items-center justify-between">Modo en vivo</Label>
+            <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
+              <div>
+                <p className="text-sm font-medium">Activar votación en vivo</p>
+                <p className="text-xs text-muted-foreground">Habilita el layout estilo YouTube y resultados dinámicos.</p>
+              </div>
+              <Switch
+                checked={Boolean(formValues.es_votacion_envivo)}
+                onCheckedChange={(checked) => setFormValues((prev) => ({ ...prev, es_votacion_envivo: checked }))}
+              />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label className="flex items-center justify-between">Resultados en tiempo real</Label>
+            <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
+              <div>
+                <p className="text-sm font-medium">Mostrar resultados en vivo</p>
+                <p className="text-xs text-muted-foreground">Actualiza barras y porcentajes automáticamente.</p>
+              </div>
+              <Switch
+                checked={Boolean(formValues.mostrar_resultados_envivo)}
+                onCheckedChange={(checked) =>
+                  setFormValues((prev) => ({ ...prev, mostrar_resultados_envivo: checked }))
+                }
+              />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label className="flex items-center justify-between">Comentarios</Label>
+            <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
+              <div>
+                <p className="text-sm font-medium">Permitir comentarios</p>
+                <p className="text-xs text-muted-foreground">Agregá debate anónimo y login social.</p>
+              </div>
+              <Switch
+                checked={Boolean(formValues.permitir_comentarios)}
+                onCheckedChange={(checked) => setFormValues((prev) => ({ ...prev, permitir_comentarios: checked }))}
+              />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="survey-reward-points">Puntos de recompensa</Label>
+            <Input
+              id="survey-reward-points"
+              type="number"
+              inputMode="numeric"
+              min={0}
+              value={formValues.puntos_recompensa ?? ''}
+              onChange={(event) =>
+                setFormValues((prev) => ({
+                  ...prev,
+                  puntos_recompensa: event.target.value ? Number(event.target.value) : undefined,
+                }))
+              }
+              placeholder="Ej: 50"
+            />
           </div>
         </CardContent>
       </Card>

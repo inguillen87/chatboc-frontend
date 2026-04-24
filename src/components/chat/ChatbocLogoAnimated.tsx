@@ -16,6 +16,16 @@ const ChatbocLogoAnimated = ({
 }) => {
   const actualSize = Math.max(size, 1); // Asegurar que el tamaño no sea 0 o negativo
 
+  const getAnimationString = (anim: string | undefined) => {
+    if (!anim || anim === 'none') return undefined;
+    if (anim === 'pulse') return 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite';
+    if (anim === 'bounce') return 'bounce 1s infinite';
+    if (anim === 'fade') return 'fade-in 1s ease-out forwards';
+    return anim;
+  };
+
+  const animationStyle = getAnimationString(animation);
+
   if (src) {
     return (
       <img
@@ -25,7 +35,8 @@ const ChatbocLogoAnimated = ({
           width: actualSize,
           height: actualSize,
           borderRadius: "50%",
-          animation: animation || undefined,
+          animation: animationStyle,
+          objectFit: "cover",
           ...style,
         }}
       />
