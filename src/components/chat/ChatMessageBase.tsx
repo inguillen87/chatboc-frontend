@@ -978,6 +978,7 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
               botones={combinedButtons}
               onButtonClick={onButtonClick}
               onInternalAction={onInternalAction}
+              isDemoSelector={message.data?.fuente === "demo_selector" || message.data?.demo_selector_mode === "segment_categories" || message.data?.demo_selector_mode === "segment_rubros"}
             />
           ) : null}
         </MessageBubble>
