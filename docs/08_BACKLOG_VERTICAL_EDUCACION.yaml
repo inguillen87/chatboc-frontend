@@ -1,0 +1,302 @@
+vertical: educacion
+scope: colegios_publicos_y_privados_mendoza_argentina
+strategy:
+  thesis: >
+    montar la vertical educación sobre la base actual de chatboc.ar
+    como sistema operativo de comunicación, operaciones, conocimiento
+    y atención escolar, sin convertir V1 en ERP académico completo.
+  principles:
+    - preserve_existing_contracts
+    - additive_not_rewrite
+    - minors_privacy_first
+    - reuse_ticket_engine
+    - reuse_qdrant_rag
+    - role_first_mobile_first
+    - no_cross_tenant_cache
+
+phases:
+  - id: P0
+    name: hardening_plataforma
+    objective: dejar lista la base para un vertical sensible
+    epics:
+      - id: EDU-PLAT-001
+        area: backend
+        title: capability_vertical_educacion
+        priority: critical
+        deliverables:
+          - tenant vertical/subvertical flags
+          - policy pack base
+          - feature flags backend
+      - id: EDU-PLAT-002
+        area: backend
+        title: guardian_identity_and_verification_foundation
+        priority: critical
+        deliverables:
+          - guardian verification states
+          - family context resolver
+          - audit hooks
+      - id: EDU-PLAT-003
+        area: frontend
+        title: education_shell_and_role_navigation
+        priority: critical
+        deliverables:
+          - role-based navigation
+          - education shell
+          - public vs verified routing
+      - id: EDU-PLAT-004
+        area: shared
+        title: minors_sensitive_data_policy
+        priority: critical
+        deliverables:
+          - sensitivity levels
+          - public widget guardrails
+          - redaction and export rules
+
+  - id: P1
+    name: foundation_educacion
+    objective: abrir el vertical con flujos concretos y vendibles
+    epics:
+      - id: EDU-BE-001
+        area: backend
+        title: school_domain_model
+        priority: critical
+        deliverables:
+          - School
+          - Campus
+          - AcademicLevel
+          - Shift
+          - CourseSection
+          - Student
+          - Guardian
+          - StudentGuardianRelation
+        acceptance:
+          - school structure is tenant-scoped
+          - guardian can link to multiple students
+      - id: EDU-BE-002
+        area: backend
+        title: school_cases_on_top_of_tickets
+        priority: critical
+        dependencies: [EDU-BE-001]
+        deliverables:
+          - school case taxonomy
+          - education case aliases
+          - routing to existing ticket engine
+        acceptance:
+          - no duplicate case engine
+          - existing tickets remain intact
+      - id: EDU-BE-003
+        area: backend
+        title: knowledge_base_alias_on_top_of_catalog_qdrant
+        priority: high
+        deliverables:
+          - education knowledge aliases
+          - tenant + school filters
+          - citations metadata
+      - id: EDU-FE-001
+        area: frontend
+        title: family_portal_home
+        priority: critical
+        dependencies: [EDU-BE-001]
+        deliverables:
+          - family home
+          - student switcher
+          - family context summary
+      - id: EDU-FE-002
+        area: frontend
+        title: staff_inbox_on_top_of_existing_tickets_ui
+        priority: critical
+        dependencies: [EDU-BE-002]
+        deliverables:
+          - inbox shell
+          - case filters
+          - case timeline context
+      - id: EDU-FE-003
+        area: frontend
+        title: public_school_widget_mode
+        priority: high
+        dependencies: [EDU-BE-003]
+        deliverables:
+          - school widget mode
+          - verified family escalation step
+          - emergency banner support
+
+  - id: P2
+    name: operaciones_escolares
+    objective: consolidar procesos diarios de alto valor
+    epics:
+      - id: EDU-BE-004
+        area: backend
+        title: attendance_and_justifications
+        priority: critical
+        dependencies: [EDU-BE-001]
+        deliverables:
+          - AttendanceRecord
+          - AbsenceJustification
+          - approval flow
+          - bulk import
+      - id: EDU-FE-004
+        area: frontend
+        title: attendance_ui
+        priority: critical
+        dependencies: [EDU-BE-004]
+        deliverables:
+          - attendance history
+          - justify absence wizard
+          - staff review queue
+      - id: EDU-BE-005
+        area: backend
+        title: document_requests_factory
+        priority: high
+        deliverables:
+          - DocumentRequest
+          - templates
+          - generation and delivery flow
+      - id: EDU-FE-005
+        area: frontend
+        title: documents_ui
+        priority: high
+        dependencies: [EDU-BE-005]
+        deliverables:
+          - request wizard
+          - request status
+          - secure download
+      - id: EDU-BE-006
+        area: backend
+        title: campaigns_and_ack
+        priority: high
+        deliverables:
+          - BroadcastCampaign
+          - BroadcastAck
+          - audience filters
+          - per-channel delivery tracking
+      - id: EDU-FE-006
+        area: frontend
+        title: campaigns_ui
+        priority: high
+        dependencies: [EDU-BE-006]
+        deliverables:
+          - campaign composer
+          - audience builder
+          - ack metrics
+      - id: EDU-BE-007
+        area: backend
+        title: incidents_and_maintenance
+        priority: high
+        deliverables:
+          - school incident taxonomy
+          - sensitivity and escalation rules
+      - id: EDU-FE-007
+        area: frontend
+        title: incident_and_maintenance_flows
+        priority: high
+        dependencies: [EDU-BE-007]
+        deliverables:
+          - incident inbox filters
+          - contextual student drawer
+          - maintenance request form
+
+  - id: P3
+    name: privados_y_premium
+    objective: expandir ticket medio y valor por cuenta
+    epics:
+      - id: EDU-BE-008
+        area: backend
+        title: admissions_funnel
+        priority: medium
+        deliverables:
+          - AdmissionLead
+          - visit scheduling
+          - lead stages
+      - id: EDU-FE-008
+        area: frontend
+        title: admissions_ui
+        priority: medium
+        dependencies: [EDU-BE-008]
+        deliverables:
+          - lead board
+          - visit booking flow
+          - public admissions path
+      - id: EDU-BE-009
+        area: backend
+        title: private_school_billing_notices
+        priority: medium
+        deliverables:
+          - BillingNotice
+          - PaymentAgreement
+          - scoped access rules
+      - id: EDU-FE-009
+        area: frontend
+        title: billing_ui_private
+        priority: medium
+        dependencies: [EDU-BE-009]
+        deliverables:
+          - payment notice panel
+          - management queue
+      - id: EDU-BE-010
+        area: backend
+        title: voice_front_desk
+        priority: medium
+        deliverables:
+          - school voice sessions
+          - human handoff
+          - call metrics
+      - id: EDU-FE-010
+        area: frontend
+        title: voice_entrypoints
+        priority: medium
+        dependencies: [EDU-BE-010]
+        deliverables:
+          - click-to-call or browser voice entry
+          - call status UI
+      - id: EDU-BE-011
+        area: backend
+        title: advanced_analytics
+        priority: medium
+        deliverables:
+          - FRT/TTR by school
+          - self-service rate
+          - cost per conversation
+      - id: EDU-FE-011
+        area: frontend
+        title: school_analytics_dashboards
+        priority: medium
+        dependencies: [EDU-BE-011]
+        deliverables:
+          - director dashboard
+          - network dashboard
+          - private school dashboard
+
+non_goals_v1:
+  - gradebook_full
+  - full_lms
+  - academic_scheduling_engine
+  - payroll
+  - deep_finance_erp
+  - independent_microservice_per_module
+
+release_rules:
+  - one_repo_one_branch_one_slice
+  - no_breaking_public_contracts_without_adapter
+  - tests_and_manual_qa_required
+  - rollback_plan_required
+  - minors_data_must_be_role_scoped
+  - public_widget_must_not_expose_individual_student_data
+
+kpis:
+  public:
+    - self_service_rate
+    - first_response_time
+    - resolution_time
+    - campaigns_read_rate
+    - justifications_processed_within_sla
+    - backlog_per_school
+  private:
+    - admissions_conversion
+    - payment_notice_response_rate
+    - family_engagement
+    - certificate_turnaround_time
+  cross_vertical:
+    - ai_cost_per_conversation
+    - verified_guardian_success_rate
+    - escalation_rate
+    - p95_latency
