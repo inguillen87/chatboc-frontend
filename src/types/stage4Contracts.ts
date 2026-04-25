@@ -1,3 +1,4 @@
+// Re-apply stage4Contracts.ts properly
 export type SloStatus = 'ok' | 'below_target';
 
 export interface IdentityCoverageAlert {
@@ -10,6 +11,7 @@ export interface IdentityCoverageAlert {
 
 export interface IdentityCoverageResponseV1 {
   contract_version: 'analytics.identity_coverage.v1';
+  request_id: string;
   tenant_id: number | null;
   coverage_pct: number;
   slo_status: SloStatus;
@@ -36,6 +38,7 @@ export interface WhatsappFunnelResponseV1 {
 export interface AnalyticsEventIngestAckV1 {
   ok: true;
   contract_version: 'analytics.event_ingest.v1';
+  request_id: string;
   tenant_id: number;
   event_name: string;
   contact_key?: string;
@@ -47,7 +50,7 @@ export interface WidgetBootstrapV1 {
   contract_version: 'auth.widget_bootstrap.v1';
   tenant: { id: number; slug: string };
   widget: { token_cookie_name: string; access_minutes: number; renew_days: number };
-  jwks: { url?: string; alg?: string; kid?: string };
+  jwks: { url?: string };
 }
 
 export interface WidgetTokenAckV1 {
@@ -58,6 +61,7 @@ export interface WidgetTokenAckV1 {
 
 export interface AnalyticsEventSchemaV1 {
   contract_version: 'analytics.event_schema.v1';
+  request_id: string;
   tenant_id: number;
   required_dimensions: string[];
   recommended_dimensions: string[];
@@ -66,7 +70,7 @@ export interface AnalyticsEventSchemaV1 {
 
 export interface PublicTicketStatusV1 {
   contract_version: 'tickets.public_status.v1';
-  request_id?: string;
+  request_id: string;
   error?: {
     code: number;
     message: string;
@@ -84,8 +88,7 @@ export interface PublicTicketStatusV1 {
 
 export interface TicketWorkflowMetadataV1 {
   contract_version: 'tickets.workflow.v1';
-  request_id?: string;
-  tenant_id?: number | null;
+  request_id: string;
   states: string[];
   transitions: Record<string, string[]>;
   final_states: string[];
@@ -103,4 +106,41 @@ export interface PublicSurveyResponseAckV1 {
   anon_id: string;
   contact_key?: string;
   conversation_id?: string;
+}
+
+export interface TenantEducationProfileV1 {
+  is_education: boolean;
+  institution_type: 'public' | 'private' | 'general';
+  modules: string[];
+}
+
+export interface TenantProfilePublicV1 {
+  contract_version: 'public.tenant_profile.v1';
+  tenant: {
+    slug: string;
+    tipo?: string;
+    rubro_profile?: {
+      tenant_type?: string;
+      rubro_label?: string;
+      rubro_slug?: string;
+      education_profile?: TenantEducationProfileV1;
+    };
+  };
+}
+
+export interface WidgetQuickMenuItemV1 {
+  id: string;
+  label: string;
+  intent: string;
+  institution_type?: 'public' | 'private' | 'general';
+}
+
+export interface PublicWidgetConfigV1 {
+  contract_version: 'public.widget_config.v1';
+  tenant: { slug: string; tipo?: string };
+  widget: Record<string, unknown>;
+  builder_config: Record<string, unknown>;
+  suppress_global_widget: boolean;
+  integration_preview: boolean;
+  quick_menu?: WidgetQuickMenuItemV1[];
 }

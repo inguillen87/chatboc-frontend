@@ -100,6 +100,7 @@ interface ChatPanelProps {
   tenantSlug?: string | null;
   onClose?: () => void;
   tipoChat: "pyme" | "municipio";
+  quickMenu?: any[];
   onRequireAuth?: () => void;
   onOpenUserPanel?: () => void;
   onShowLogin?: () => void;
@@ -202,6 +203,7 @@ const ChatPanel = (props: ChatPanelProps) => {
     onRequireAuth,
     selectedRubro,
     onRubroSelect,
+    quickMenu,
     mode,
     entityToken: propEntityToken,
     tenantSlug,
@@ -1917,6 +1919,25 @@ const ChatPanel = (props: ChatPanelProps) => {
             >
               Ver catálogo
             </Button>
+          </div>
+        </div>
+      )}
+      {quickMenu && quickMenu.length > 0 && messages.length <= 1 && (
+        <div className="px-2 sm:px-4 pt-2">
+          <div className={cn(chatContentMaxWidthClass, "grid grid-cols-2 gap-2 sm:grid-cols-4")}>
+            {quickMenu.map((item, idx) => (
+              <Button
+                key={idx}
+                variant="outline"
+                size="sm"
+                className="w-full text-xs font-medium h-auto py-2 px-2"
+                onClick={() => {
+                  handleSend({ text: item.label, action: item.intent, source: 'button' });
+                }}
+              >
+                {item.label}
+              </Button>
+            ))}
           </div>
         </div>
       )}

@@ -1589,6 +1589,13 @@ export function useChatLogic({
         isError: explicitError ?? (!rawText && !hasNonTextContent),
       };
 
+      if (demoSelectorMode) {
+        if (!botMessage.data) {
+          botMessage.data = {};
+        }
+        botMessage.data.demo_selector_mode = demoSelectorMode;
+      }
+
       normalizedMessages.push(botMessage);
 
       if (ticketId) {

@@ -29,7 +29,8 @@ import {
   AlertTitle,
 } from '@/components/ui/alert';
 import { AIAssistedInsights } from '@/components/analytics/AIAssistedInsights';
-
+import IdentityCoverageBanner from '@/components/analytics/IdentityCoverageBanner';
+import WhatsappFunnelWidget from '@/components/analytics/WhatsappFunnelWidget';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -1239,6 +1240,7 @@ export default function EstadisticasPage() {
 
   return (
     <div className="space-y-8 p-4 md:p-8 bg-gray-50/50 dark:bg-zinc-950 min-h-screen">
+      <IdentityCoverageBanner tenantSlug={resolvedTenant ?? undefined} />
       <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
         <div className="space-y-1">
           <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400">
@@ -1351,6 +1353,10 @@ export default function EstadisticasPage() {
         </TabsList>
 
         <TabsContent value="operativo" className="space-y-8 focus-visible:outline-none">
+          <div className="mb-6">
+            <WhatsappFunnelWidget tenantSlug={resolvedTenant ?? undefined} />
+          </div>
+
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <SummaryCard
               title={labels.total}
