@@ -10,6 +10,7 @@ import { useTenant } from '@/context/TenantContext';
 import { analyticsService, AnalyticsSummary, RealtimeHubResponse } from '@/services/analyticsService';
 import { enterpriseService, type LeadInteractionItem, type LeadInteractionsResponse } from '@/services/enterpriseService';
 import OverviewDashboard from '@/components/analytics/OverviewDashboard';
+import IdentityCoverageBanner from '@/components/analytics/IdentityCoverageBanner';
 import HeatmapDashboard from '@/components/analytics/HeatmapDashboard';
 import InsightsDashboard from '@/components/analytics/InsightsDashboard';
 import MunicipioDashboard from '@/components/analytics/MunicipioDashboard';

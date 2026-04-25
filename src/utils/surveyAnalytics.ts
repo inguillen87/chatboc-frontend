@@ -144,13 +144,29 @@ export const trackSurveySubmission = (params: TrackSurveySubmissionParams) => {
   } catch (error) {
     console.warn('[surveyAnalytics] No se pudo enviar el evento al contexto padre', error);
   }
+
+  try {
+    const tenantSlug = typeof params.survey.tenant_slug === 'string' ? params.survey.tenant_slug : undefined;
+    const backendPayload = {
+      ...analyticsEvent,
+      event_name: typeof analyticsEvent.event === 'string' ? analyticsEvent.event : 'survey_response_submitted',
+    };
+    postAnalyticsEvent(backendPayload, tenantSlug).catch(err => {
+      console.warn('[surveyAnalytics] Failed to ingest survey submission event', err);
+    });
+  } catch (e) {
+     console.warn('[surveyAnalytics] Ingestion error on survey submission', e);
+  }
 };
+
+import { postAnalyticsEvent } from '@/services/analyticsService';
 
 const pushSurveyEvent = (eventPayload: Record<string, unknown>, domEventName: string) => {
   if (typeof window === 'undefined') {
     return;
   }
 
+  // Push to GTM/DataLayer
   try {
     const globalLayer = (window as { dataLayer?: Array<Record<string, unknown>> }).dataLayer;
     if (Array.isArray(globalLayer)) {
@@ -160,10 +176,27 @@ const pushSurveyEvent = (eventPayload: Record<string, unknown>, domEventName: st
     console.warn('[surveyAnalytics] No se pudo enviar el evento al dataLayer', error);
   }
 
+  // Dispatch DOM event for other listeners
   try {
     window.dispatchEvent(new CustomEvent(domEventName, { detail: eventPayload }));
   } catch (error) {
     console.warn('[surveyAnalytics] No se pudo despachar el evento personalizado', error);
+  }
+
+  // Send to backend via analytics.event_ingest.v1 contract
+  try {
+    const backendPayload = {
+      ...eventPayload,
+      event_name: typeof eventPayload.event === 'string' ? eventPayload.event : 'unknown', // Map GTM "event" to canonical "event_name"
+    };
+    const tenantSlug = typeof eventPayload.tenant === 'string' ? eventPayload.tenant : undefined;
+
+    // We intentionally don't block UI on this network request.
+    postAnalyticsEvent(backendPayload, tenantSlug).catch(err => {
+      console.warn('[surveyAnalytics] Failed to ingest analytics event', err);
+    });
+  } catch (e) {
+    console.warn('[surveyAnalytics] Ingestion error', e);
   }
 };
 
