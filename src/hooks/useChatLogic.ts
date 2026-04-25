@@ -1192,6 +1192,7 @@ export function useChatLogic({
         data.metadata?.action,
         data.metadata?.accion,
       );
+      const interactiveSections = data.interactive_sections || data.metadata?.interactive_sections;
       const dataPayloadRaw =
         data.data ??
         data.payload ??
@@ -1584,6 +1585,7 @@ export function useChatLogic({
         ...(confirmationCard ? { confirmationCard } : {}),
         ...(ticketId ? { ticketId } : {}),
         ...(data.query ? { query: data.query } : {}),
+        ...(interactiveSections ? { menu_sections: interactiveSections } : {}),
         isError: explicitError ?? (!rawText && !hasNonTextContent),
       };
 
@@ -2568,6 +2570,7 @@ export function useChatLogic({
           ...(location && { location: location }),
           ...(resolvedAction && { action: resolvedAction }),
           ...(resolvedActionId && { action_id: resolvedActionId }),
+          ...(actualPayload.source && { button_source: actualPayload.source }),
           ...(actionPayload && { payload: actionPayload }),
           ...(publicChatContext || {}),
           ...(resolvedAction === "confirmar_reclamo" &&
