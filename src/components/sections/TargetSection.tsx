@@ -63,7 +63,10 @@ const TargetSection = () => {
             <Button
               variant="outline"
               className="mt-auto w-full sm:w-auto" // mt-auto para alinear botones si las listas son de diferente largo
-              onClick={() => navigate('/soluciones/gobierno')} // Enlace a una página específica si existe
+              onClick={() => {
+                const el = document.getElementById('demos');
+                if (el) el.scrollIntoView({ behavior: 'smooth' });
+              }}
             >
               Soluciones para Sector Público <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
@@ -91,7 +94,10 @@ const TargetSection = () => {
             <Button
               variant="outline"
               className="mt-auto w-full sm:w-auto"
-              onClick={() => navigate('/soluciones/empresas')} // Enlace a una página específica si existe
+              onClick={() => {
+                const el = document.getElementById('demos');
+                if (el) el.scrollIntoView({ behavior: 'smooth' });
+              }}
             >
               Soluciones para Empresas <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
