@@ -1,7 +1,7 @@
 import React from 'react';
 import useRequireRole from '@/hooks/useRequireRole';
 import type { Role } from '@/utils/roles';
-import NewTicketsPanel from '@/components/tickets/NewTicketsPanel';
+import { TicketInboxPage } from '@/components/tickets/inbox/TicketInboxPage'; // Cambiado a la nueva UI
 import { TicketProvider } from '@/context/TicketContext';
 import SectionErrorBoundary from '@/components/errors/SectionErrorBoundary';
 import EnterpriseTopNav from '@/components/enterprise/EnterpriseTopNav';
@@ -80,8 +80,8 @@ const TicketsPanelPage = () => {
       <div className="relative mx-auto flex w-full flex-1 min-h-0 max-w-[min(2400px,calc(100vw-2rem))] flex-col">
         <EnterprisePageHeader
           badge="Inbox enterprise"
-          title="Gestión omnicanal"
-          description="Supervisá conversaciones, aplicá filtros operativos y mantené continuidad entre canales."
+          title="Bandeja de Entrada y Tickets"
+          description="Gestión unificada de conversaciones, tickets operativos, seguimiento de SLA y herramientas de asistencia por IA."
         />
         {shouldShowCoverageAlert ? (
           <div className="mb-3 rounded-xl border border-amber-300/60 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-100">
@@ -117,14 +117,14 @@ const TicketsPanelPage = () => {
           </div>
         ) : null}
         <EnterpriseTopNav />
-        <div className="relative flex w-full flex-1 min-h-0">
+        <div className="relative flex w-full flex-1 min-h-0 mt-4 rounded-xl overflow-hidden border border-border shadow-sm">
         <SectionErrorBoundary
           title="Ocurrió un problema al cargar Tickets"
           description="Recargá la página o volvé a la sección principal del panel."
           onRetry={() => window.location.reload()}
         >
           <TicketProvider>
-            <NewTicketsPanel />
+            <TicketInboxPage />
           </TicketProvider>
         </SectionErrorBoundary>
         </div>

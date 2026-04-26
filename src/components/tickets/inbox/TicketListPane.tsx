@@ -1,15 +1,17 @@
 import React from 'react';
 import { Badge } from '@/components/ui/badge';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow, differenceInHours } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { AlertCircle, Clock } from 'lucide-react';
 
-interface TicketSummary {
+export interface TicketSummary {
   id: string;
   status: string;
   title: string;
   category?: string;
   lastMessageAt: string;
   unreadCount: number;
+  slaLimitAt?: string; // Nuevo campo para SLA
 }
 
 interface TicketListPaneProps {
@@ -19,6 +21,28 @@ interface TicketListPaneProps {
 }
 
 export const TicketListPane: React.FC<TicketListPaneProps> = ({ tickets, selectedTicketId, onSelect }) => {
+  const getSLAIndicator = (slaLimitAt?: string) => {
+    if (!slaLimitAt) return null;
+    const limitDate = new Date(slaLimitAt);
+    const now = new Date();
+    const diffHours = differenceInHours(limitDate, now);
+
+    if (limitDate < now) {
+      return (
+        <Badge variant="destructive" className="text-[10px] px-1.5 h-4 font-normal gap-1 mt-1">
+          <AlertCircle className="w-3 h-3" /> Vencido
+        </Badge>
+      );
+    } else if (diffHours <= 2) {
+      return (
+        <Badge variant="secondary" className="bg-orange-100 text-orange-800 hover:bg-orange-200 border-transparent text-[10px] px-1.5 h-4 font-normal gap-1 mt-1">
+          <Clock className="w-3 h-3" /> Por vencer ({diffHours}h)
+        </Badge>
+      );
+    }
+    return null;
+  };
+
   return (
     <div className="flex flex-col w-full h-full border-r bg-background overflow-hidden">
       <div className="p-4 border-b shrink-0 flex items-center justify-between">
@@ -47,16 +71,21 @@ export const TicketListPane: React.FC<TicketListPaneProps> = ({ tickets, selecte
                     {formatDistanceToNow(new Date(ticket.lastMessageAt), { addSuffix: true, locale: es })}
                   </span>
                 </div>
-                <div className="flex justify-between items-center mt-1">
-                  <div className="flex gap-1.5">
-                     <Badge variant="outline" className="text-[10px] px-1.5 h-4 font-normal">{ticket.status}</Badge>
-                     {ticket.category && <Badge variant="secondary" className="text-[10px] px-1.5 h-4 font-normal">{ticket.category}</Badge>}
-                  </div>
-                  {ticket.unreadCount > 0 && (
-                    <Badge variant="destructive" className="rounded-full w-5 h-5 p-0 flex items-center justify-center text-[10px]">
-                      {ticket.unreadCount}
-                    </Badge>
-                  )}
+                <div className="flex flex-col gap-1">
+                   <div className="flex justify-between items-center mt-1">
+                     <div className="flex gap-1.5">
+                        <Badge variant="outline" className="text-[10px] px-1.5 h-4 font-normal">{ticket.status}</Badge>
+                        {ticket.category && <Badge variant="secondary" className="text-[10px] px-1.5 h-4 font-normal">{ticket.category}</Badge>}
+                     </div>
+                     {ticket.unreadCount > 0 && (
+                       <Badge variant="destructive" className="rounded-full w-5 h-5 p-0 flex items-center justify-center text-[10px]">
+                         {ticket.unreadCount}
+                       </Badge>
+                     )}
+                   </div>
+                   <div className="flex items-center justify-start">
+                     {getSLAIndicator(ticket.slaLimitAt)}
+                   </div>
                 </div>
               </li>
             ))}
