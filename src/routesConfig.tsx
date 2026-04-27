@@ -3,7 +3,7 @@ import React from 'react';
 import { Navigate, useParams } from 'react-router-dom';
 
 // ... (importaciones existentes) ...
-import { FEATURE_ENCUESTAS } from '@/config/featureFlags';
+import { EDUCATION_FEATURE_FLAGS, FEATURE_ENCUESTAS } from '@/config/featureFlags';
 import Index from '@/pages/Index';
 import Login from '@/pages/Login';
 import Register from '@/pages/Register';
@@ -88,6 +88,13 @@ import AdminOrderDetailPage from '@/pages/admin/AdminOrderDetailPage';
 import ClientsPage from '@/pages/pyme/crm/ClientsPage';
 import ClientDetailPage from '@/pages/pyme/crm/ClientDetailPage';
 import EnterpriseOpsPage from '@/pages/EnterpriseOpsPage';
+import EducationPublicPage from '@/pages/education/EducationPublicPage';
+import EducationFamilyHomePage from '@/pages/education/EducationFamilyHomePage';
+import EducationStaffInboxPage from '@/pages/education/EducationStaffInboxPage';
+import EducationAttendancePage from '@/pages/education/EducationAttendancePage';
+import EducationDocumentsPage from '@/pages/education/EducationDocumentsPage';
+import EducationAdmissionsPage from '@/pages/education/EducationAdmissionsPage';
+import EducationBillingPage from '@/pages/education/EducationBillingPage';
 
 // Updated for Commerce Module & Mirror Catalog
 // Final verification: Commerce & Admin modules active
@@ -290,6 +297,29 @@ const routes: RouteConfig[] = [
   ...withTenantPrefixes('/:tenant/catalog-mappings/:mappingId', { element: <CatalogMappingPage />, roles: ['tenant_admin', 'superadmin', 'catalog_manager'] }),
   ...withTenantPrefixes('/:tenant/admin/catalog', { element: <CatalogManagementPage />, roles: ['tenant_admin', 'superadmin', 'empleado'] }),
 
+
+  // --- EDUCATION FOUNDATION ROUTES ---
+  ...(EDUCATION_FEATURE_FLAGS.education_enabled
+    ? [
+        { path: '/educacion', element: <EducationPublicPage /> },
+        ...(EDUCATION_FEATURE_FLAGS.family_portal_enabled
+          ? [{ path: '/educacion/familia', element: <EducationFamilyHomePage />, allowGuest: true }]
+          : []),
+        ...(EDUCATION_FEATURE_FLAGS.attendance_enabled
+          ? [{ path: '/educacion/familia/asistencia', element: <EducationAttendancePage />, allowGuest: true }]
+          : []),
+        ...(EDUCATION_FEATURE_FLAGS.documents_enabled
+          ? [{ path: '/educacion/familia/documentos', element: <EducationDocumentsPage />, allowGuest: true }]
+          : []),
+        { path: '/educacion/staff/inbox', element: <EducationStaffInboxPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
+        ...(EDUCATION_FEATURE_FLAGS.admissions_enabled
+          ? [{ path: '/educacion/staff/admisiones', element: <EducationAdmissionsPage />, roles: ['tenant_admin', 'employee', 'superadmin'] }]
+          : []),
+        ...(EDUCATION_FEATURE_FLAGS.billing_enabled
+          ? [{ path: '/educacion/staff/cobranzas', element: <EducationBillingPage />, roles: ['tenant_admin', 'employee', 'superadmin'] }]
+          : []),
+      ]
+    : []),
 
   // --- USER PORTAL ROUTES ---
   ...userPortalRoutes,
