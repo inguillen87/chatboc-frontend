@@ -13,7 +13,6 @@ import { getCurrentTipoChat, enforceTipoChatForRubro, parseRubro } from "@/utils
 import { getAskEndpoint, esRubroPublico } from "@/utils/chatEndpoints";
 import { extractRubroKey, extractRubroLabel } from "@/utils/rubros";
 import { extractButtonsFromResponse } from "@/utils/chatButtons";
-import { ShoppingCart } from "lucide-react";
 
 const MAX_PREGUNTAS = 15;
 
@@ -34,11 +33,7 @@ const Demo = () => {
   const rubroNormalizado = parseRubro(rubroClave);
   const isMunicipioRubro = esRubroPublico(rubroNormalizado || undefined);
 
-  // Actions like openCart, changeRubro
-  const openCart = useCallback(() => {
-    window.open('/cart', '_blank');
-  }, []);
-
+  // Action: reset demo and choose another rubro
   const handleChangeRubro = () => {
     safeLocalStorage.removeItem("rubroSeleccionado");
     safeLocalStorage.removeItem("rubroSeleccionado_label");
@@ -59,6 +54,14 @@ const Demo = () => {
         });
   };
 
+
+  const openDemoWidget = useCallback(() => {
+    try {
+      (window as any).chatbocOpenWidget?.();
+    } catch (error) {
+      console.debug('No se pudo abrir el widget en demo', error);
+    }
+  }, []);
 
   const startDemoConversation = useCallback(
     async (rubroNombre: string) => {
@@ -144,6 +147,7 @@ const Demo = () => {
         setRubroSeleccionado(storedLabel || storedClave);
       }
       setEsperandoRubro(false);
+      openDemoWidget();
       void startDemoConversation(normalizedClave);
     } else if (!storedClave) {
       setEsperandoRubro(true);
@@ -154,7 +158,7 @@ const Demo = () => {
           setRubrosDisponibles([]);
         });
     }
-  }, [rubroClaveSeleccionado, rubroSeleccionado, startDemoConversation]);
+  }, [rubroClaveSeleccionado, rubroSeleccionado, startDemoConversation, openDemoWidget]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -303,6 +307,7 @@ const Demo = () => {
               setRubroSeleccionado(etiqueta || clave || null);
               setRubroClaveSeleccionado(clave ?? null);
               setEsperandoRubro(false);
+              openDemoWidget();
               void startDemoConversation(clave ?? etiqueta ?? rubro.nombre);
             }}
           />
