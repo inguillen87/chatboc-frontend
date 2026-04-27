@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { resetChatSessionId } from "@/utils/chatSessionId";
 import getOrCreateAnonId from "@/utils/anonId";
@@ -8,12 +8,14 @@ import ChatMessage from "@/components/chat/ChatMessage";
 import RubroSelector, { Rubro } from "@/components/chat/RubroSelector";
 import { Message, SendPayload } from "@/types/chat";
 import { apiFetch, getErrorMessage } from "@/utils/api";
-import { getRubrosHierarchy } from "@/api/rubros";
 import { getCurrentTipoChat, enforceTipoChatForRubro, parseRubro } from "@/utils/tipoChat";
 import { getAskEndpoint, esRubroPublico } from "@/utils/chatEndpoints";
 import { extractRubroKey, extractRubroLabel } from "@/utils/rubros";
 import { extractButtonsFromResponse } from "@/utils/chatButtons";
-import { ShoppingCart } from "lucide-react";
+import DemoWorkspace from '@/features/demo/DemoWorkspace';
+import DemoSectorStep from '@/features/demo/DemoSectorStep';
+import { createDemoSession, getDemoCatalog } from '@/features/demo/demoApi';
+import type { DemoSector } from '@/features/demo/demoTypes';
 
 const MAX_PREGUNTAS = 15;
 
@@ -26,6 +28,8 @@ const Demo = () => {
   const [rubrosDisponibles, setRubrosDisponibles] = useState<Rubro[]>([]);
   const [esperandoRubro, setEsperandoRubro] = useState(true); // Initialize to true
   const [anonId, setAnonId] = useState<string>("");
+  const [sectorSeleccionado, setSectorSeleccionado] = useState<DemoSector | null>(null);
+  const [demoSessionId, setDemoSessionId] = useState<string | null>(null);
   const [contexto, setContexto] = useState({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const lastQueryRef = useRef<string | null>(null);
@@ -34,11 +38,13 @@ const Demo = () => {
   const rubroNormalizado = parseRubro(rubroClave);
   const isMunicipioRubro = esRubroPublico(rubroNormalizado || undefined);
 
-  // Actions like openCart, changeRubro
-  const openCart = useCallback(() => {
-    window.open('/cart', '_blank');
-  }, []);
+  const guidedActions = useMemo(() => {
+    const lastBotMessage = [...messages].reverse().find((message) => message.isBot && Array.isArray(message.botones) && message.botones.length > 0);
+    return lastBotMessage?.botones ?? [];
+  }, [messages]);
 
+
+  // Action: reset demo and choose another rubro
   const handleChangeRubro = () => {
     safeLocalStorage.removeItem("rubroSeleccionado");
     safeLocalStorage.removeItem("rubroSeleccionado_label");
@@ -49,16 +55,26 @@ const Demo = () => {
     setMessages([]);
     setPreguntasUsadas(0);
     setContexto({});
+    setSectorSeleccionado(null);
+    setDemoSessionId(null);
     lastQueryRef.current = null;
     // The useEffect for loading rubros will trigger again due to rubroSeleccionado being null
     // or rather, we explicitly set esperandoRubro to true and then the rubro loading logic runs
-    getRubrosHierarchy()
-        .then((data) => setRubrosDisponibles(Array.isArray(data) ? data : []))
+    getDemoCatalog()
+        .then((data) => setRubrosDisponibles(Array.isArray(data?.rubros) ? data.rubros : []))
         .catch(() => {
           setRubrosDisponibles([]);
         });
   };
 
+
+  const openDemoWidget = useCallback(() => {
+    try {
+      (window as any).chatbocOpenWidget?.();
+    } catch (error) {
+      console.debug('No se pudo abrir el widget en demo', error);
+    }
+  }, []);
 
   const startDemoConversation = useCallback(
     async (rubroNombre: string) => {
@@ -144,17 +160,18 @@ const Demo = () => {
         setRubroSeleccionado(storedLabel || storedClave);
       }
       setEsperandoRubro(false);
+      openDemoWidget();
       void startDemoConversation(normalizedClave);
     } else if (!storedClave) {
       setEsperandoRubro(true);
       setMessages([]);
-      getRubrosHierarchy()
-        .then((data) => setRubrosDisponibles(Array.isArray(data) ? data : []))
+      getDemoCatalog()
+        .then((data) => setRubrosDisponibles(Array.isArray(data?.rubros) ? data.rubros : []))
         .catch(() => {
           setRubrosDisponibles([]);
         });
     }
-  }, [rubroClaveSeleccionado, rubroSeleccionado, startDemoConversation]);
+  }, [rubroClaveSeleccionado, rubroSeleccionado, startDemoConversation, openDemoWidget]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -277,8 +294,14 @@ const Demo = () => {
           <p className="mb-4 text-sm text-muted-foreground">
             Seleccioná el rubro que más se parece a tu negocio:
           </p>
+          <div className="mb-4">
+            <DemoSectorStep onSelect={setSectorSeleccionado} />
+          </div>
+          {sectorSeleccionado ? null : (
+            <p className="mb-3 text-xs text-muted-foreground">Primero seleccioná el sector para iniciar la demo.</p>
+          )}
           <RubroSelector
-            rubros={rubrosDisponibles}
+            rubros={sectorSeleccionado ? rubrosDisponibles : []}
             onSelect={(rubro) => {
               const clave = extractRubroKey(rubro);
               const etiqueta = extractRubroLabel(rubro) || rubro.nombre;
@@ -300,10 +323,26 @@ const Demo = () => {
                 safeLocalStorage.removeItem("rubroSeleccionado_label");
               }
 
+              if (!sectorSeleccionado) {
+                return;
+              }
+
               setRubroSeleccionado(etiqueta || clave || null);
               setRubroClaveSeleccionado(clave ?? null);
               setEsperandoRubro(false);
-              void startDemoConversation(clave ?? etiqueta ?? rubro.nombre);
+              openDemoWidget();
+              void (async () => {
+                try {
+                  const session = await createDemoSession({
+                    sector: sectorSeleccionado,
+                    rubro: clave ?? etiqueta ?? rubro.nombre,
+                  });
+                  setDemoSessionId(session.demo_session_id ?? null);
+                } catch {
+                  setDemoSessionId(null);
+                }
+                await startDemoConversation(clave ?? etiqueta ?? rubro.nombre);
+              })();
             }}
           />
         </div>
@@ -354,6 +393,7 @@ const Demo = () => {
       {/* CHAT AREA */}
       {/* Increased max-w for chat content area for better desktop view, maintains padding */}
       <main className="w-full max-w-3xl flex flex-col flex-1 px-4 sm:px-6 py-5 space-y-4 overflow-y-auto custom-scroll">
+        <DemoWorkspace tenantSlug={demoSessionId} sector={sectorSeleccionado} rubro={rubroSeleccionado} />
         {messages.map((msg) => (
           <ChatMessage
             key={msg.id}
@@ -372,6 +412,30 @@ const Demo = () => {
       {/* Consistent padding and background, sticky to bottom */}
       <footer className="w-full bg-card/80 backdrop-blur-md border-t border-border p-3 sm:p-4 sticky bottom-0 z-10">
         <div className="max-w-3xl mx-auto">
+          {guidedActions.length > 0 ? (
+            <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-border/60 bg-muted/20 p-2">
+              <span className="text-xs text-muted-foreground">¿Sobre qué te gustaría preguntar?</span>
+              {guidedActions.slice(0, 4).map((action, index) => (
+                <button
+                  key={`${action.texto}-${index}`}
+                  type="button"
+                  className="rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs text-primary transition hover:bg-primary/20"
+                  onClick={() => {
+                    if (action.url) {
+                      window.open(action.url, '_blank', 'noopener,noreferrer');
+                      return;
+                    }
+                    void handleSendMessage({
+                      text: action.texto,
+                      action: action.action ?? action.action_id ?? action.accion_interna,
+                    });
+                  }}
+                >
+                  {action.texto}
+                </button>
+              ))}
+            </div>
+          ) : null}
           <ChatInput
             onSendMessage={handleSendMessage}
             isTyping={isTyping}

@@ -1,6 +1,7 @@
 import React from 'react';
 import { GoogleLogin, CredentialResponse } from '@react-oauth/google';
-import { apiFetch, ApiError, resolveTenantSlug } from '@/utils/api';
+import { ApiError, resolveTenantSlug } from '@/utils/api';
+import { loginWithGoogle } from '@/api/v2/auth';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { useUser } from '@/hooks/useUser';
 import { useNavigate } from 'react-router-dom';
@@ -40,12 +41,7 @@ const GoogleLoginButton: React.FC<Props> = ({
     console.log('Google login success:', cred);
     if (!cred || !cred.credential) return;
     try {
-      const data = await apiFetch<LoginResponse>('/api/google-login', {
-        method: 'POST',
-        body: { id_token: cred.credential },
-        sendAnonId: true,
-        sendEntityToken: true,
-      });
+      const data = await loginWithGoogle({ id_token: cred.credential });
       safeLocalStorage.setItem('authToken', data.token);
       safeLocalStorage.setItem('chatAuthToken', data.token);
       broadcastAuthTokenToHost(data.token, resolveTenantSlug(), 'google-login');
