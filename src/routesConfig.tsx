@@ -28,6 +28,7 @@ import PedidosPage from '@/pages/pyme/pedidos/PedidosPage';
 import IntegracionesPage from '@/pages/pyme/integraciones/IntegracionesPage';
 import UsuariosPage from '@/pages/UsuariosPage';
 import { TENANT_ROUTE_PREFIXES } from '@/utils/tenantPaths';
+import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import ProductCatalog from '@/pages/ProductCatalog';
 import MunicipalMessageMetrics from '@/pages/MunicipalMessageMetrics';
 import NotificationSettings from '@/pages/NotificationSettings';
@@ -130,6 +131,27 @@ const LegacyTenantAliasRedirect = ({ suffix = '' }: { suffix?: string }) => {
     return <Navigate to="/" replace />;
   }
   return <Navigate to={`/t/${encodeURIComponent(tenant)}${suffix}`} replace />;
+};
+
+const resolvePreferredTenantForEducation = (): string | null => {
+  try {
+    const storedSlug = safeLocalStorage.getItem('tenantSlug');
+    if (storedSlug?.trim()) return storedSlug.trim();
+
+    const rawUser = safeLocalStorage.getItem('user');
+    if (!rawUser) return null;
+    const parsed = JSON.parse(rawUser);
+    const candidate = parsed?.tenant_slug || parsed?.tenantSlug || parsed?.tenant;
+    return typeof candidate === 'string' && candidate.trim() ? candidate.trim() : null;
+  } catch {
+    return null;
+  }
+};
+
+const EducationStaffLegacyRedirect = () => {
+  const preferredTenant = resolvePreferredTenantForEducation();
+  if (!preferredTenant) return <Navigate to="/educacion" replace />;
+  return <Navigate to={`/t/${encodeURIComponent(preferredTenant)}/educacion/staff/inbox`} replace />;
 };
 
 const withTenantPrefixes = (
@@ -318,7 +340,8 @@ const routes: RouteConfig[] = [
         ...(EDUCATION_FEATURE_FLAGS.documents_enabled
           ? [{ path: '/educacion/familia/documentos', element: <EducationDocumentsPage />, allowGuest: true }]
           : []),
-        { path: '/educacion/staff/inbox', element: <EducationStaffInboxPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
+        { path: '/educacion/staff/inbox', element: <EducationStaffLegacyRedirect />, roles: ['tenant_admin', 'employee', 'superadmin'] },
+        { path: '/t/:tenant/educacion/staff/inbox', element: <EducationStaffInboxPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
         ...(EDUCATION_FEATURE_FLAGS.admissions_enabled
           ? [{ path: '/educacion/staff/admisiones', element: <EducationAdmissionsPage />, roles: ['tenant_admin', 'employee', 'superadmin'] }]
           : []),

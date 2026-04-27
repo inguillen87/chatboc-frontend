@@ -13,6 +13,13 @@ const getFallbackPayload = (persona: EducationPersona): EducationShellPayload =>
   family_context: {
     verification_state: persona === 'public' ? 'anonymous' : persona === 'staff' ? 'staff' : 'known',
     students: [],
+    access_gate: {
+      title: 'Verificación requerida',
+      description: 'Necesitás validar tu vínculo familiar para acceder a la información protegida.',
+      cta_label: 'Continuar verificación',
+      cta_path: '/educacion/familia/verificacion',
+      loading_label: 'Validando perfil familiar...',
+    },
   },
 });
 

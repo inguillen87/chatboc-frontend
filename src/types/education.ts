@@ -32,6 +32,13 @@ export interface EducationFamilyContext {
   selected_student_id?: string | null;
   verification_state?: 'anonymous' | 'known' | 'verified' | 'staff' | null;
   students?: EducationStudentSummary[];
+  access_gate?: {
+    title?: string;
+    description?: string;
+    cta_label?: string;
+    cta_path?: string;
+    loading_label?: string;
+  };
 }
 
 export interface EducationShellPayload {

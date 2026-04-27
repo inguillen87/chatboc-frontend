@@ -13,9 +13,15 @@ const VERIFIED_STATES = new Set(['verified', 'staff']);
 export default function EducationFamilyAccessGate({ children }: EducationFamilyAccessGateProps) {
   const { data, isLoading } = useEducationShellData('family');
   const verificationState = data?.family_context?.verification_state ?? 'anonymous';
+  const gateCopy = data?.family_context?.access_gate;
+  const loadingLabel = gateCopy?.loading_label || 'Validando perfil familiar...';
+  const title = gateCopy?.title || 'Verificación requerida';
+  const description = gateCopy?.description || 'Necesitás validar tu vínculo familiar para acceder a la información protegida.';
+  const ctaLabel = gateCopy?.cta_label || 'Continuar verificación';
+  const ctaPath = gateCopy?.cta_path || '/educacion/familia/verificacion';
 
   if (isLoading) {
-    return <div className="p-4 text-sm text-muted-foreground">Validando perfil familiar...</div>;
+    return <div className="p-4 text-sm text-muted-foreground">{loadingLabel}</div>;
   }
 
   if (VERIFIED_STATES.has(verificationState)) {
@@ -24,12 +30,12 @@ export default function EducationFamilyAccessGate({ children }: EducationFamilyA
 
   return (
     <Alert>
-      <AlertTitle>Verificación requerida</AlertTitle>
+      <AlertTitle>{title}</AlertTitle>
       <AlertDescription className="space-y-3">
-        <p>Para acceder a datos de asistencia y documentos, necesitás validar tu vínculo familiar.</p>
+        <p>{description}</p>
         <div>
           <Button asChild size="sm">
-            <Link to="/educacion/familia/verificacion">Continuar verificación</Link>
+            <Link to={ctaPath}>{ctaLabel}</Link>
           </Button>
         </div>
       </AlertDescription>

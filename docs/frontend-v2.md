@@ -24,6 +24,7 @@
 - Analytics overview v2: `/api/v2/analytics/overview` -> fallback `/analytics/overview`.
 - Demo catalog/session: intenta `/api/v2/demo/*` con fallback local/rubros y `/api/v1/demo/session`.
 - Demo session normaliza `demo_session_id` y `session_id` para compatibilidad entre contratos backend.
+- Educación staff inbox se resuelve en ruta tenant-aware (`/t/:tenant/educacion/staff/inbox`) para evitar slug incorrecto en `useTenant()`.
 
 ## Próximo paso recomendado
 - Seguir desacoplando `apiFetch` en clientes por dominio (`panel/public/widget/demo`) para reducir lógica centralizada sin romper compatibilidad.
