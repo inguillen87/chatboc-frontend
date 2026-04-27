@@ -96,6 +96,9 @@ import EducationDocumentsPage from '@/pages/education/EducationDocumentsPage';
 import EducationAdmissionsPage from '@/pages/education/EducationAdmissionsPage';
 import EducationBillingPage from '@/pages/education/EducationBillingPage';
 import EducationFamilyVerificationPage from '@/pages/education/EducationFamilyVerificationPage';
+import TicketsBoardPage from '@/features/tickets/TicketsBoardPage';
+import SurveyBuilderPage from '@/features/surveys/SurveyBuilderPage';
+import AnalyticsHubPage from '@/features/analytics/AnalyticsHubPage';
 
 // Updated for Commerce Module & Mirror Catalog
 // Final verification: Commerce & Admin modules active
@@ -390,6 +393,9 @@ const routes: RouteConfig[] = [
     requiredCapabilities: ['tickets.read'],
   },
   { path: '/notificaciones', element: <SmartNotificationsWrapper />, roles: ['tenant_admin', 'employee', 'superadmin'] },
+  { path: '/tickets/board', element: <TicketsBoardPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
+  { path: '/surveys', element: <SurveyBuilderPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
+  { path: '/analytics/hub', element: <AnalyticsHubPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
   {
     path: '/pedidos',
     element: <SmartPedidosWrapper />,
