@@ -100,6 +100,21 @@ To connect a domain, navigate to Project > Settings > Domains and click Connect 
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
 
+## E2E smoke tests (Playwright)
+
+Se agregó una suite mínima de regresión en `tests/e2e/chatboc-smoke.spec.ts`
+para cubrir flujos críticos (demo, login, tickets, surveys y widget) usando
+mocks de API para no depender de producción.
+
+Ejecutar localmente:
+
+```bash
+npm run test:e2e
+```
+
+Opcionalmente podés setear `PLAYWRIGHT_BASE_URL` o `PLAYWRIGHT_PORT` para
+apuntar a otro host/puerto.
+
 ## Embedding the Chatboc widget
 
 
@@ -135,6 +150,20 @@ The `<script>` tag accepts several extra `data-*` attributes to control the widg
 - `data-rubro` – optional category so the chat knows the business type from the start.
 - `data-cta-message` – optional text that appears once as a bubble inviting the user to open the chat.
 - `data-shadow-dom="true"` – isolates the widget styles from the host page.
+
+### Widget compatibility (chat v2 UX)
+
+The chat v2 UX keeps backward compatibility with existing embeds. The public
+contract for these attributes remains unchanged:
+
+- `data-theme`
+- `data-domain`
+- `data-rubro`
+- `data-default-open`
+- `data-width` / `data-height`
+
+The widget continues to request `clipboard-write; geolocation; microphone; camera`
+permissions in the iframe `allow` attribute as before.
 
 ### Attention bubble rotation
 
