@@ -8,14 +8,13 @@ import ChatMessage from "@/components/chat/ChatMessage";
 import RubroSelector, { Rubro } from "@/components/chat/RubroSelector";
 import { Message, SendPayload } from "@/types/chat";
 import { apiFetch, getErrorMessage } from "@/utils/api";
-import { getRubrosHierarchy } from "@/api/rubros";
 import { getCurrentTipoChat, enforceTipoChatForRubro, parseRubro } from "@/utils/tipoChat";
 import { getAskEndpoint, esRubroPublico } from "@/utils/chatEndpoints";
 import { extractRubroKey, extractRubroLabel } from "@/utils/rubros";
 import { extractButtonsFromResponse } from "@/utils/chatButtons";
 import DemoWorkspace from '@/features/demo/DemoWorkspace';
 import DemoSectorStep from '@/features/demo/DemoSectorStep';
-import { createDemoSession } from '@/features/demo/demoApi';
+import { createDemoSession, getDemoCatalog } from '@/features/demo/demoApi';
 import type { DemoSector } from '@/features/demo/demoTypes';
 
 const MAX_PREGUNTAS = 15;
@@ -61,8 +60,8 @@ const Demo = () => {
     lastQueryRef.current = null;
     // The useEffect for loading rubros will trigger again due to rubroSeleccionado being null
     // or rather, we explicitly set esperandoRubro to true and then the rubro loading logic runs
-    getRubrosHierarchy()
-        .then((data) => setRubrosDisponibles(Array.isArray(data) ? data : []))
+    getDemoCatalog()
+        .then((data) => setRubrosDisponibles(Array.isArray(data?.rubros) ? data.rubros : []))
         .catch(() => {
           setRubrosDisponibles([]);
         });
@@ -166,8 +165,8 @@ const Demo = () => {
     } else if (!storedClave) {
       setEsperandoRubro(true);
       setMessages([]);
-      getRubrosHierarchy()
-        .then((data) => setRubrosDisponibles(Array.isArray(data) ? data : []))
+      getDemoCatalog()
+        .then((data) => setRubrosDisponibles(Array.isArray(data?.rubros) ? data.rubros : []))
         .catch(() => {
           setRubrosDisponibles([]);
         });
@@ -338,7 +337,7 @@ const Demo = () => {
                     sector: sectorSeleccionado,
                     rubro: clave ?? etiqueta ?? rubro.nombre,
                   });
-                  setDemoSessionId(session.demo_session_id);
+                  setDemoSessionId(session.demo_session_id ?? null);
                 } catch {
                   setDemoSessionId(null);
                 }

@@ -14,4 +14,7 @@ export const getDemoCatalog = async (): Promise<DemoCatalogResponse> => {
 export const createDemoSession = (payload: { sector: DemoSector; rubro: string }) =>
   demoApi.post<DemoSessionResponse>('/api/v2/demo/session', payload, {
     legacyFallbackPath: '/api/v1/demo/session',
-  });
+  }).then((response) => ({
+    ...response,
+    demo_session_id: response.demo_session_id ?? response.session_id ?? null,
+  }));

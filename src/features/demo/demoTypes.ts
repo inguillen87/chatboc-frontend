@@ -8,6 +8,7 @@ export interface DemoCatalogResponse {
 }
 
 export interface DemoSessionResponse {
-  session_id: string;
+  session_id?: string;
+  demo_session_id?: string;
   tenant_slug?: string | null;
 }

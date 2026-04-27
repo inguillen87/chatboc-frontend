@@ -1,63 +1,63 @@
-import { apiFetch } from '@/utils/api';
+import { ApiError, apiFetch } from '@/utils/api';
+
+type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 export interface V2RequestOptions {
-  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+  method?: HttpMethod;
   body?: unknown;
   headers?: Record<string, string>;
   tenantSlug?: string | null;
   skipAuth?: boolean;
+  omitCredentials?: boolean;
+  isWidgetRequest?: boolean;
   legacyFallbackPath?: string;
 }
 
+const withTenantHeader = (headers: Record<string, string> | undefined, tenantSlug?: string | null) => {
+  if (!tenantSlug) return headers;
+  return {
+    ...(headers ?? {}),
+    'X-Tenant-Slug': tenantSlug,
+  };
+};
+
+const shouldRunLegacyFallback = (error: unknown) => {
+  if (!(error instanceof ApiError)) return false;
+  return [404, 405, 501].includes(error.status);
+};
+
 const requestV2 = async <T>(path: string, options: V2RequestOptions = {}): Promise<T> => {
-  const {
-    method = 'GET',
+  const { method = 'GET', body, headers, tenantSlug, skipAuth, omitCredentials, isWidgetRequest, legacyFallbackPath } = options;
+
+  const sharedOptions = {
+    method,
     body,
-    headers,
-    tenantSlug,
     skipAuth,
-    legacyFallbackPath,
-  } = options;
+    omitCredentials,
+    isWidgetRequest,
+    tenantSlug,
+    headers: withTenantHeader(headers, tenantSlug),
+    omitTenant: !tenantSlug,
+  };
 
   try {
-    return await apiFetch<T>(path, {
-      method,
-      body,
-      headers,
-      tenantSlug,
-      skipAuth,
-      omitTenant: !tenantSlug,
-    });
+    return await apiFetch<T>(path, sharedOptions);
   } catch (error) {
-    if (!legacyFallbackPath) throw error;
-    return apiFetch<T>(legacyFallbackPath, {
-      method,
-      body,
-      headers,
-      tenantSlug,
-      skipAuth,
-      omitTenant: !tenantSlug,
-    });
+    if (!legacyFallbackPath || !shouldRunLegacyFallback(error)) throw error;
+    return apiFetch<T>(legacyFallbackPath, sharedOptions);
   }
 };
 
-export const panelApi = {
-  get: <T>(path: string, options?: Omit<V2RequestOptions, 'method'>) => requestV2<T>(path, { ...options, method: 'GET' }),
+const makeApi = (defaults: Partial<V2RequestOptions> = {}) => ({
+  get: <T>(path: string, options?: Omit<V2RequestOptions, 'method' | 'body'>) =>
+    requestV2<T>(path, { ...defaults, ...options, method: 'GET' }),
   post: <T>(path: string, body?: unknown, options?: Omit<V2RequestOptions, 'method' | 'body'>) =>
-    requestV2<T>(path, { ...options, method: 'POST', body }),
-};
+    requestV2<T>(path, { ...defaults, ...options, method: 'POST', body }),
+  patch: <T>(path: string, body?: unknown, options?: Omit<V2RequestOptions, 'method' | 'body'>) =>
+    requestV2<T>(path, { ...defaults, ...options, method: 'PATCH', body }),
+});
 
-export const publicApi = {
-  get: <T>(path: string, options?: Omit<V2RequestOptions, 'method'>) => requestV2<T>(path, { ...options, method: 'GET', skipAuth: true }),
-};
-
-export const widgetApi = {
-  post: <T>(path: string, body?: unknown, options?: Omit<V2RequestOptions, 'method' | 'body'>) =>
-    requestV2<T>(path, { ...options, method: 'POST', body, skipAuth: true }),
-};
-
-export const demoApi = {
-  get: <T>(path: string, options?: Omit<V2RequestOptions, 'method'>) => requestV2<T>(path, { ...options, method: 'GET', skipAuth: true }),
-  post: <T>(path: string, body?: unknown, options?: Omit<V2RequestOptions, 'method' | 'body'>) =>
-    requestV2<T>(path, { ...options, method: 'POST', body, skipAuth: true }),
-};
+export const panelApi = makeApi();
+export const publicApi = makeApi({ skipAuth: true, omitCredentials: true });
+export const widgetApi = makeApi({ skipAuth: true, isWidgetRequest: true, omitCredentials: true });
+export const demoApi = makeApi({ skipAuth: true, omitCredentials: true });
