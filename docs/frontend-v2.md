@@ -27,3 +27,12 @@
 
 ## Próximo paso recomendado
 - Seguir desacoplando `apiFetch` en clientes por dominio (`panel/public/widget/demo`) para reducir lógica centralizada sin romper compatibilidad.
+
+## QA mínimo automatizado
+- Suite Playwright agregada en `tests/e2e/chatboc-smoke.spec.ts`.
+- Script: `npm run test:e2e`.
+- La suite mockea rutas API para evitar dependencia de producción y validar regresión de:
+  - demo gobierno/pyme
+  - login inválido
+  - tickets/surveys base
+  - apertura/cierre de widget

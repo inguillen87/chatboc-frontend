@@ -100,6 +100,21 @@ To connect a domain, navigate to Project > Settings > Domains and click Connect 
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
 
+## E2E smoke tests (Playwright)
+
+Se agregó una suite mínima de regresión en `tests/e2e/chatboc-smoke.spec.ts`
+para cubrir flujos críticos (demo, login, tickets, surveys y widget) usando
+mocks de API para no depender de producción.
+
+Ejecutar localmente:
+
+```bash
+npm run test:e2e
+```
+
+Opcionalmente podés setear `PLAYWRIGHT_BASE_URL` o `PLAYWRIGHT_PORT` para
+apuntar a otro host/puerto.
+
 ## Embedding the Chatboc widget
 
 
