@@ -55,7 +55,7 @@ function SafeAnimatePresence({ children = null, ...rest }: AnimatePresenceProps 
 }
 
 const ChatHeader = React.lazy(() => import("./ChatHeader"));
-const ChatPanel = React.lazy(() => import("./ChatPanel"));
+const ChatPanel = React.lazy(() => import("@/features/chat/ChatPanel"));
 const ChatUserRegisterPanel = React.lazy(() => import("./ChatUserRegisterPanel"));
 const ChatUserLoginPanel = React.lazy(() => import("./ChatUserLoginPanel"));
 const ChatUserPanel = React.lazy(() => import("./ChatUserPanel"));
@@ -1333,6 +1333,7 @@ function ChatWidgetInner({
                     default_open: (typeof defaultOpen === 'boolean') ? defaultOpen : publicConfig.default_open,
                     slug: resolvedTenantSlug,
                     tipo_chat: inferredTipoChat,
+                    quick_menu: Array.isArray(publicConfig.quick_menu) ? publicConfig.quick_menu : [],
                 };
 
                 if (!ownerToken && !publicConfig.widget_token && !publicConfig.entity_token) {
@@ -1706,6 +1707,7 @@ function ChatWidgetInner({
                     mode={mode}
                     widgetId={widgetId}
                     entityToken={resolvedOwnerToken ?? undefined}
+                    quickMenu={entityInfo?.quick_menu}
                     tenantSlug={resolvedTenantSlug}
                     openWidth={finalOpenWidth}
                     openHeight={finalOpenHeight}

@@ -1948,7 +1948,21 @@ const ChatPanel = (props: ChatPanelProps) => {
         )}
       >
         <div className="flex-1" />
-        {messages.map((msg) => (
+
+        {messages.length === 0 ? (
+             <div className="flex-1 flex flex-col justify-center items-center text-center p-6 mt-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="w-16 h-16 bg-primary/10 text-primary rounded-2xl flex items-center justify-center mb-4">
+                   <MessageSquare className="w-8 h-8" />
+                </div>
+                <h3 className="text-lg font-semibold mb-2">¿En qué podemos ayudarte?</h3>
+                <p className="text-sm text-muted-foreground mb-8 max-w-[260px]">
+                   Escribí tu consulta abajo o usá las opciones del menú.
+                </p>
+             </div>
+        ) : (
+          <>
+            {messages.map((msg) => (
+
           <ChatMessage
             key={`${msg.id}-${a11yPrefs?.simplified ? "s" : "f"}`}
             message={msg}
@@ -1963,6 +1977,8 @@ const ChatPanel = (props: ChatPanelProps) => {
             logoBadgeStyle={logoBadgeStyle}
           />
         ))}
+          </>
+        )}
         {isTyping && (
           <TypingIndicator
             logoUrl={headerLogoUrl}

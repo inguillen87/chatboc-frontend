@@ -3,7 +3,7 @@ import React from 'react';
 import { Navigate, useParams } from 'react-router-dom';
 
 // ... (importaciones existentes) ...
-import { FEATURE_ENCUESTAS } from '@/config/featureFlags';
+import { EDUCATION_FEATURE_FLAGS, FEATURE_ENCUESTAS } from '@/config/featureFlags';
 import Index from '@/pages/Index';
 import Login from '@/pages/Login';
 import Register from '@/pages/Register';
@@ -28,6 +28,7 @@ import PedidosPage from '@/pages/pyme/pedidos/PedidosPage';
 import IntegracionesPage from '@/pages/pyme/integraciones/IntegracionesPage';
 import UsuariosPage from '@/pages/UsuariosPage';
 import { TENANT_ROUTE_PREFIXES } from '@/utils/tenantPaths';
+import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import ProductCatalog from '@/pages/ProductCatalog';
 import MunicipalMessageMetrics from '@/pages/MunicipalMessageMetrics';
 import NotificationSettings from '@/pages/NotificationSettings';
@@ -88,6 +89,17 @@ import AdminOrderDetailPage from '@/pages/admin/AdminOrderDetailPage';
 import ClientsPage from '@/pages/pyme/crm/ClientsPage';
 import ClientDetailPage from '@/pages/pyme/crm/ClientDetailPage';
 import EnterpriseOpsPage from '@/pages/EnterpriseOpsPage';
+import EducationPublicPage from '@/pages/education/EducationPublicPage';
+import EducationFamilyHomePage from '@/pages/education/EducationFamilyHomePage';
+import EducationStaffInboxPage from '@/pages/education/EducationStaffInboxPage';
+import EducationAttendancePage from '@/pages/education/EducationAttendancePage';
+import EducationDocumentsPage from '@/pages/education/EducationDocumentsPage';
+import EducationAdmissionsPage from '@/pages/education/EducationAdmissionsPage';
+import EducationBillingPage from '@/pages/education/EducationBillingPage';
+import EducationFamilyVerificationPage from '@/pages/education/EducationFamilyVerificationPage';
+import TicketsBoardPage from '@/features/tickets/TicketsBoardPage';
+import SurveyBuilderPage from '@/features/surveys/SurveyBuilderPage';
+import AnalyticsHubPage from '@/features/analytics/AnalyticsHubPage';
 
 // Updated for Commerce Module & Mirror Catalog
 // Final verification: Commerce & Admin modules active
@@ -119,6 +131,27 @@ const LegacyTenantAliasRedirect = ({ suffix = '' }: { suffix?: string }) => {
     return <Navigate to="/" replace />;
   }
   return <Navigate to={`/t/${encodeURIComponent(tenant)}${suffix}`} replace />;
+};
+
+const resolvePreferredTenantForEducation = (): string | null => {
+  try {
+    const storedSlug = safeLocalStorage.getItem('tenantSlug');
+    if (storedSlug?.trim()) return storedSlug.trim();
+
+    const rawUser = safeLocalStorage.getItem('user');
+    if (!rawUser) return null;
+    const parsed = JSON.parse(rawUser);
+    const candidate = parsed?.tenant_slug || parsed?.tenantSlug || parsed?.tenant;
+    return typeof candidate === 'string' && candidate.trim() ? candidate.trim() : null;
+  } catch {
+    return null;
+  }
+};
+
+const EducationStaffLegacyRedirect = () => {
+  const preferredTenant = resolvePreferredTenantForEducation();
+  if (!preferredTenant) return <Navigate to="/educacion" replace />;
+  return <Navigate to={`/t/${encodeURIComponent(preferredTenant)}/educacion/staff/inbox`} replace />;
 };
 
 const withTenantPrefixes = (
@@ -291,6 +324,33 @@ const routes: RouteConfig[] = [
   ...withTenantPrefixes('/:tenant/admin/catalog', { element: <CatalogManagementPage />, roles: ['tenant_admin', 'superadmin', 'empleado'] }),
 
 
+  // --- EDUCATION FOUNDATION ROUTES ---
+  ...(EDUCATION_FEATURE_FLAGS.education_enabled
+    ? [
+        { path: '/educacion', element: <EducationPublicPage /> },
+        ...(EDUCATION_FEATURE_FLAGS.family_portal_enabled
+          ? [
+              { path: '/educacion/familia', element: <EducationFamilyHomePage />, allowGuest: true },
+              { path: '/educacion/familia/verificacion', element: <EducationFamilyVerificationPage />, allowGuest: true },
+            ]
+          : []),
+        ...(EDUCATION_FEATURE_FLAGS.attendance_enabled
+          ? [{ path: '/educacion/familia/asistencia', element: <EducationAttendancePage />, allowGuest: true }]
+          : []),
+        ...(EDUCATION_FEATURE_FLAGS.documents_enabled
+          ? [{ path: '/educacion/familia/documentos', element: <EducationDocumentsPage />, allowGuest: true }]
+          : []),
+        { path: '/educacion/staff/inbox', element: <EducationStaffLegacyRedirect />, roles: ['tenant_admin', 'employee', 'superadmin'] },
+        { path: '/t/:tenant/educacion/staff/inbox', element: <EducationStaffInboxPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
+        ...(EDUCATION_FEATURE_FLAGS.admissions_enabled
+          ? [{ path: '/educacion/staff/admisiones', element: <EducationAdmissionsPage />, roles: ['tenant_admin', 'employee', 'superadmin'] }]
+          : []),
+        ...(EDUCATION_FEATURE_FLAGS.billing_enabled
+          ? [{ path: '/educacion/staff/cobranzas', element: <EducationBillingPage />, roles: ['tenant_admin', 'employee', 'superadmin'] }]
+          : []),
+      ]
+    : []),
+
   // --- USER PORTAL ROUTES ---
   ...userPortalRoutes,
   ...tenantPortalRoutes,
@@ -356,6 +416,9 @@ const routes: RouteConfig[] = [
     requiredCapabilities: ['tickets.read'],
   },
   { path: '/notificaciones', element: <SmartNotificationsWrapper />, roles: ['tenant_admin', 'employee', 'superadmin'] },
+  { path: '/tickets/board', element: <TicketsBoardPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
+  { path: '/surveys', element: <SurveyBuilderPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
+  { path: '/analytics/hub', element: <AnalyticsHubPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
   {
     path: '/pedidos',
     element: <SmartPedidosWrapper />,

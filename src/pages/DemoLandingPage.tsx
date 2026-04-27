@@ -13,6 +13,7 @@ import ProductCatalog from '@/pages/ProductCatalog';
 import { MarketCartProvider } from '@/context/MarketCartContext';
 import { VotingWidget } from '@/components/demo/VotingWidget';
 import { ContextualSurvey } from '@/components/demo/ContextualSurvey';
+import DemoWorkspace from '@/features/demo/DemoWorkspace';
 
 // --- Components for Visual Enhancement ---
 
@@ -198,6 +199,9 @@ const DemoLandingPage = () => {
       <DemoHero tenant={tenant} />
 
       <main className="flex-grow container mx-auto px-4 py-20">
+        <div className="mb-10">
+          <DemoWorkspace tenantSlug={tenant.slug} sector={isMunicipio ? 'gobierno' : 'empresas'} />
+        </div>
         <div className="text-center max-w-3xl mx-auto mb-16">
             <h2 className="text-3xl font-bold mb-4">Tecnología Transparente</h2>
             <p className="text-muted-foreground text-lg">

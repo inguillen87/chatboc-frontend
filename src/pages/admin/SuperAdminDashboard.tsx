@@ -688,28 +688,41 @@ export default function SuperAdminDashboard() {
         </Card>
       </div>
 
-      <Card className="border-muted/60 shadow-sm">
-        <CardHeader>
-          <CardTitle>Tenants ({total})</CardTitle>
-          <CardDescription>
-            Listado completo de municipios y pymes registrados en la plataforma.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {error ? (
-            <div className="text-center text-red-500 py-8">{error}</div>
-          ) : (
-            <TenantTable
-              tenants={tenants}
-              loading={loading}
-              onEdit={handleEdit}
-              onImpersonate={handleImpersonate}
-              onToggleStatus={handleToggleStatus}
-              onPurge={handlePurge}
-            />
-          )}
-        </CardContent>
-      </Card>
+      <Tabs defaultValue="pipeline" className="w-full">
+         <TabsList className="mb-4">
+            <TabsTrigger value="pipeline">Pipeline Kanban</TabsTrigger>
+            <TabsTrigger value="list">Directorio</TabsTrigger>
+         </TabsList>
+
+         <TabsContent value="pipeline" className="mt-0">
+            <TenantPipelineKanban tenants={tenants as any} onStatusChange={handleKanbanStatusChange} />
+         </TabsContent>
+
+         <TabsContent value="list" className="mt-0 space-y-6">
+            <Card className="border-muted/60 shadow-sm">
+              <CardHeader>
+                <CardTitle>Tenants ({total})</CardTitle>
+                <CardDescription>
+                  Listado completo de municipios y pymes registrados en la plataforma.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {error ? (
+                  <div className="text-center text-red-500 py-8">{error}</div>
+                ) : (
+                  <TenantTable
+                    tenants={tenants}
+                    loading={loading}
+                    onEdit={handleEdit}
+                    onImpersonate={handleImpersonate}
+                    onToggleStatus={handleToggleStatus}
+                    onPurge={handlePurge}
+                  />
+                )}
+              </CardContent>
+            </Card>
+         </TabsContent>
+      </Tabs>
 
       <TenantModal
         isOpen={isModalOpen}
