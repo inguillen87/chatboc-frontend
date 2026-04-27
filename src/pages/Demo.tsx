@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { resetChatSessionId } from "@/utils/chatSessionId";
 import getOrCreateAnonId from "@/utils/anonId";
@@ -32,6 +32,12 @@ const Demo = () => {
   const rubroClave = rubroClaveSeleccionado || extractRubroKey(rubroSeleccionado);
   const rubroNormalizado = parseRubro(rubroClave);
   const isMunicipioRubro = esRubroPublico(rubroNormalizado || undefined);
+
+  const guidedActions = useMemo(() => {
+    const lastBotMessage = [...messages].reverse().find((message) => message.isBot && Array.isArray(message.botones) && message.botones.length > 0);
+    return lastBotMessage?.botones ?? [];
+  }, [messages]);
+
 
   // Action: reset demo and choose another rubro
   const handleChangeRubro = () => {
@@ -377,6 +383,30 @@ const Demo = () => {
       {/* Consistent padding and background, sticky to bottom */}
       <footer className="w-full bg-card/80 backdrop-blur-md border-t border-border p-3 sm:p-4 sticky bottom-0 z-10">
         <div className="max-w-3xl mx-auto">
+          {guidedActions.length > 0 ? (
+            <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-border/60 bg-muted/20 p-2">
+              <span className="text-xs text-muted-foreground">¿Sobre qué te gustaría preguntar?</span>
+              {guidedActions.slice(0, 4).map((action, index) => (
+                <button
+                  key={`${action.texto}-${index}`}
+                  type="button"
+                  className="rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs text-primary transition hover:bg-primary/20"
+                  onClick={() => {
+                    if (action.url) {
+                      window.open(action.url, '_blank', 'noopener,noreferrer');
+                      return;
+                    }
+                    void handleSendMessage({
+                      text: action.texto,
+                      action: action.action ?? action.action_id ?? action.accion_interna,
+                    });
+                  }}
+                >
+                  {action.texto}
+                </button>
+              ))}
+            </div>
+          ) : null}
           <ChatInput
             onSendMessage={handleSendMessage}
             isTyping={isTyping}
