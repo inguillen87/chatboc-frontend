@@ -100,7 +100,6 @@ interface ChatPanelProps {
   tenantSlug?: string | null;
   onClose?: () => void;
   tipoChat: "pyme" | "municipio";
-  quickMenu?: any[];
   onRequireAuth?: () => void;
   onOpenUserPanel?: () => void;
   onShowLogin?: () => void;
@@ -203,7 +202,6 @@ const ChatPanel = (props: ChatPanelProps) => {
     onRequireAuth,
     selectedRubro,
     onRubroSelect,
-    quickMenu,
     mode,
     entityToken: propEntityToken,
     tenantSlug,
@@ -1922,25 +1920,6 @@ const ChatPanel = (props: ChatPanelProps) => {
           </div>
         </div>
       )}
-      {quickMenu && quickMenu.length > 0 && messages.length <= 1 && (
-        <div className="px-2 sm:px-4 pt-2">
-          <div className={cn(chatContentMaxWidthClass, "grid grid-cols-2 gap-2 sm:grid-cols-4")}>
-            {quickMenu.map((item, idx) => (
-              <Button
-                key={idx}
-                variant="outline"
-                size="sm"
-                className="w-full text-xs font-medium h-auto py-2 px-2"
-                onClick={() => {
-                  handleSend({ text: item.label, action: item.intent, source: 'button' });
-                }}
-              >
-                {item.label}
-              </Button>
-            ))}
-          </div>
-        </div>
-      )}
       {shouldShowCatalogCard && (catalogViewLabel || catalogDownloadLabel) && (
         <div className="px-2 sm:px-4">
           <div className={chatContentMaxWidthClass}>
@@ -1969,7 +1948,21 @@ const ChatPanel = (props: ChatPanelProps) => {
         )}
       >
         <div className="flex-1" />
-        {messages.map((msg) => (
+
+        {messages.length === 0 ? (
+             <div className="flex-1 flex flex-col justify-center items-center text-center p-6 mt-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="w-16 h-16 bg-primary/10 text-primary rounded-2xl flex items-center justify-center mb-4">
+                   <MessageSquare className="w-8 h-8" />
+                </div>
+                <h3 className="text-lg font-semibold mb-2">¿En qué podemos ayudarte?</h3>
+                <p className="text-sm text-muted-foreground mb-8 max-w-[260px]">
+                   Escribí tu consulta abajo o usá las opciones del menú.
+                </p>
+             </div>
+        ) : (
+          <>
+            {messages.map((msg) => (
+
           <ChatMessage
             key={`${msg.id}-${a11yPrefs?.simplified ? "s" : "f"}`}
             message={msg}
@@ -1984,6 +1977,8 @@ const ChatPanel = (props: ChatPanelProps) => {
             logoBadgeStyle={logoBadgeStyle}
           />
         ))}
+          </>
+        )}
         {isTyping && (
           <TypingIndicator
             logoUrl={headerLogoUrl}
