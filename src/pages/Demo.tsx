@@ -13,6 +13,10 @@ import { getCurrentTipoChat, enforceTipoChatForRubro, parseRubro } from "@/utils
 import { getAskEndpoint, esRubroPublico } from "@/utils/chatEndpoints";
 import { extractRubroKey, extractRubroLabel } from "@/utils/rubros";
 import { extractButtonsFromResponse } from "@/utils/chatButtons";
+import DemoWorkspace from '@/features/demo/DemoWorkspace';
+import DemoSectorStep from '@/features/demo/DemoSectorStep';
+import { createDemoSession } from '@/features/demo/demoApi';
+import type { DemoSector } from '@/features/demo/demoTypes';
 
 const MAX_PREGUNTAS = 15;
 
@@ -25,6 +29,8 @@ const Demo = () => {
   const [rubrosDisponibles, setRubrosDisponibles] = useState<Rubro[]>([]);
   const [esperandoRubro, setEsperandoRubro] = useState(true); // Initialize to true
   const [anonId, setAnonId] = useState<string>("");
+  const [sectorSeleccionado, setSectorSeleccionado] = useState<DemoSector | null>(null);
+  const [demoSessionId, setDemoSessionId] = useState<string | null>(null);
   const [contexto, setContexto] = useState({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const lastQueryRef = useRef<string | null>(null);
@@ -50,6 +56,8 @@ const Demo = () => {
     setMessages([]);
     setPreguntasUsadas(0);
     setContexto({});
+    setSectorSeleccionado(null);
+    setDemoSessionId(null);
     lastQueryRef.current = null;
     // The useEffect for loading rubros will trigger again due to rubroSeleccionado being null
     // or rather, we explicitly set esperandoRubro to true and then the rubro loading logic runs
@@ -287,8 +295,14 @@ const Demo = () => {
           <p className="mb-4 text-sm text-muted-foreground">
             Seleccioná el rubro que más se parece a tu negocio:
           </p>
+          <div className="mb-4">
+            <DemoSectorStep onSelect={setSectorSeleccionado} />
+          </div>
+          {sectorSeleccionado ? null : (
+            <p className="mb-3 text-xs text-muted-foreground">Primero seleccioná el sector para iniciar la demo.</p>
+          )}
           <RubroSelector
-            rubros={rubrosDisponibles}
+            rubros={sectorSeleccionado ? rubrosDisponibles : []}
             onSelect={(rubro) => {
               const clave = extractRubroKey(rubro);
               const etiqueta = extractRubroLabel(rubro) || rubro.nombre;
@@ -310,11 +324,26 @@ const Demo = () => {
                 safeLocalStorage.removeItem("rubroSeleccionado_label");
               }
 
+              if (!sectorSeleccionado) {
+                return;
+              }
+
               setRubroSeleccionado(etiqueta || clave || null);
               setRubroClaveSeleccionado(clave ?? null);
               setEsperandoRubro(false);
               openDemoWidget();
-              void startDemoConversation(clave ?? etiqueta ?? rubro.nombre);
+              void (async () => {
+                try {
+                  const session = await createDemoSession({
+                    sector: sectorSeleccionado,
+                    rubro: clave ?? etiqueta ?? rubro.nombre,
+                  });
+                  setDemoSessionId(session.demo_session_id);
+                } catch {
+                  setDemoSessionId(null);
+                }
+                await startDemoConversation(clave ?? etiqueta ?? rubro.nombre);
+              })();
             }}
           />
         </div>
@@ -365,6 +394,7 @@ const Demo = () => {
       {/* CHAT AREA */}
       {/* Increased max-w for chat content area for better desktop view, maintains padding */}
       <main className="w-full max-w-3xl flex flex-col flex-1 px-4 sm:px-6 py-5 space-y-4 overflow-y-auto custom-scroll">
+        <DemoWorkspace tenantSlug={demoSessionId} />
         {messages.map((msg) => (
           <ChatMessage
             key={msg.id}
