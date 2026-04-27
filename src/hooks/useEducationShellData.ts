@@ -1,0 +1,26 @@
+import { useQuery } from '@tanstack/react-query';
+import { apiClient } from '@/api/client';
+import type { EducationPersona, EducationShellPayload } from '@/types/education';
+
+const getFallbackPayload = (persona: EducationPersona): EducationShellPayload => ({
+  persona,
+  nav_items: [],
+  quick_actions: [],
+  family_context: {
+    verification_state: persona === 'public' ? 'anonymous' : persona === 'staff' ? 'staff' : 'known',
+    students: [],
+  },
+});
+
+export const useEducationShellData = (persona: EducationPersona) => {
+  return useQuery({
+    queryKey: ['education-shell', persona],
+    queryFn: async () => {
+      const response = await apiClient.get<EducationShellPayload>(`/api/v1/education/shell?persona=${encodeURIComponent(persona)}`);
+      return { ...getFallbackPayload(persona), ...response };
+    },
+    retry: 0,
+    staleTime: 30_000,
+    placeholderData: getFallbackPayload(persona),
+  });
+};
