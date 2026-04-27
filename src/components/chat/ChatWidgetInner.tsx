@@ -55,7 +55,7 @@ function SafeAnimatePresence({ children = null, ...rest }: AnimatePresenceProps 
 }
 
 const ChatHeader = React.lazy(() => import("./ChatHeader"));
-const ChatPanel = React.lazy(() => import("./ChatPanel"));
+const ChatPanel = React.lazy(() => import("@/features/chat/ChatPanel"));
 const ChatUserRegisterPanel = React.lazy(() => import("./ChatUserRegisterPanel"));
 const ChatUserLoginPanel = React.lazy(() => import("./ChatUserLoginPanel"));
 const ChatUserPanel = React.lazy(() => import("./ChatUserPanel"));

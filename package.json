@@ -15,7 +15,8 @@
     "start": "vite preview --host",
     "seed:surveys": "node scripts/seedMunicipalSurveys.mjs",
     "seed:survey-responses": "node scripts/seedSurveyResponses.mjs",
-    "typecheck:scope": "tsc -p tsconfig.scope-strict.json --noEmit"
+    "typecheck:scope": "tsc -p tsconfig.scope-strict.json --noEmit",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@headlessui/react": "^1.7.18",
