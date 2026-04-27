@@ -6,6 +6,10 @@ const getFallbackPayload = (persona: EducationPersona): EducationShellPayload =>
   persona,
   nav_items: [],
   quick_actions: [],
+  staff_filters: [],
+  staff_sensitivity_filters: [],
+  staff_context_fields: [],
+  staff_case_timeline: [],
   family_context: {
     verification_state: persona === 'public' ? 'anonymous' : persona === 'staff' ? 'staff' : 'known',
     students: [],

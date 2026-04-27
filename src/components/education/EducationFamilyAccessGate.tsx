@@ -29,7 +29,7 @@ export default function EducationFamilyAccessGate({ children }: EducationFamilyA
         <p>Para acceder a datos de asistencia y documentos, necesitás validar tu vínculo familiar.</p>
         <div>
           <Button asChild size="sm">
-            <Link to="/educacion">Ir al acceso institucional</Link>
+            <Link to="/educacion/familia/verificacion">Continuar verificación</Link>
           </Button>
         </div>
       </AlertDescription>

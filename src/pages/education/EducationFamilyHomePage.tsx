@@ -4,9 +4,17 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import EducationShell from '@/components/education/EducationShell';
 import { useEducationFamilyContext } from '@/hooks/useEducationFamilyContext';
+import { EDUCATION_FEATURE_FLAGS } from '@/config/featureFlags';
+
+const isQuickActionPathEnabled = (path: string) => {
+  if (path === '/educacion/familia/asistencia') return EDUCATION_FEATURE_FLAGS.attendance_enabled;
+  if (path === '/educacion/familia/documentos') return EDUCATION_FEATURE_FLAGS.documents_enabled;
+  return true;
+};
 
 export default function EducationFamilyHomePage() {
   const { data, students, selectedStudentId, selectedStudent, setSelectedStudentId } = useEducationFamilyContext();
+  const backendQuickActions = (data?.quick_actions ?? []).filter((action) => isQuickActionPathEnabled(action.path));
 
   return (
     <EducationShell persona="family">
@@ -45,23 +53,17 @@ export default function EducationFamilyHomePage() {
             <CardTitle>Acciones rápidas</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm text-muted-foreground">
-            {(data?.quick_actions ?? []).length === 0 ? (
+            {backendQuickActions.length === 0 ? (
               <p>El backend todavía no publicó acciones para este perfil.</p>
             ) : (
-              <ul className="list-disc pl-4">
-                {data?.quick_actions?.map((action) => (
-                  <li key={action.id}>{action.label}</li>
+              <div className="flex flex-wrap gap-2">
+                {backendQuickActions.map((action) => (
+                  <Button asChild size="sm" variant="outline" key={action.id}>
+                    <Link to={action.path}>{action.label}</Link>
+                  </Button>
                 ))}
-              </ul>
+              </div>
             )}
-            <div className="flex flex-wrap gap-2">
-              <Button asChild size="sm" variant="outline">
-                <Link to="/educacion/familia/asistencia">Asistencia</Link>
-              </Button>
-              <Button asChild size="sm" variant="outline">
-                <Link to="/educacion/familia/documentos">Documentos</Link>
-              </Button>
-            </div>
           </CardContent>
         </Card>
       </div>

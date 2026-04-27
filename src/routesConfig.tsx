@@ -95,6 +95,7 @@ import EducationAttendancePage from '@/pages/education/EducationAttendancePage';
 import EducationDocumentsPage from '@/pages/education/EducationDocumentsPage';
 import EducationAdmissionsPage from '@/pages/education/EducationAdmissionsPage';
 import EducationBillingPage from '@/pages/education/EducationBillingPage';
+import EducationFamilyVerificationPage from '@/pages/education/EducationFamilyVerificationPage';
 
 // Updated for Commerce Module & Mirror Catalog
 // Final verification: Commerce & Admin modules active
@@ -303,7 +304,10 @@ const routes: RouteConfig[] = [
     ? [
         { path: '/educacion', element: <EducationPublicPage /> },
         ...(EDUCATION_FEATURE_FLAGS.family_portal_enabled
-          ? [{ path: '/educacion/familia', element: <EducationFamilyHomePage />, allowGuest: true }]
+          ? [
+              { path: '/educacion/familia', element: <EducationFamilyHomePage />, allowGuest: true },
+              { path: '/educacion/familia/verificacion', element: <EducationFamilyVerificationPage />, allowGuest: true },
+            ]
           : []),
         ...(EDUCATION_FEATURE_FLAGS.attendance_enabled
           ? [{ path: '/educacion/familia/asistencia', element: <EducationAttendancePage />, allowGuest: true }]

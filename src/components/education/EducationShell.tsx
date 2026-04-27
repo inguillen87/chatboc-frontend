@@ -6,7 +6,6 @@ import type { EducationPersona } from '@/types/education';
 import {
   EDUCATION_FEATURE_FLAGS,
   isEducationFlagEnabled,
-  type EducationFeatureFlag,
 } from '@/config/featureFlags';
 
 interface EducationShellProps {
@@ -14,27 +13,12 @@ interface EducationShellProps {
   children: React.ReactNode;
 }
 
-const defaultNavByPersona: Record<EducationPersona, Array<{ key: string; label: string; path: string; enabledFlag?: EducationFeatureFlag }>> = {
-  public: [{ key: 'help', label: 'Ayuda', path: '/educacion' }],
-  family: [
-    { key: 'home', label: 'Inicio', path: '/educacion/familia' },
-    { key: 'attendance', label: 'Asistencia', path: '/educacion/familia/asistencia', enabledFlag: 'attendance_enabled' },
-    { key: 'documents', label: 'Documentos', path: '/educacion/familia/documentos', enabledFlag: 'documents_enabled' },
-  ],
-  staff: [
-    { key: 'inbox', label: 'Inbox', path: '/educacion/staff/inbox' },
-    { key: 'admissions', label: 'Admisiones', path: '/educacion/staff/admisiones', enabledFlag: 'admissions_enabled' },
-    { key: 'billing', label: 'Cobranza', path: '/educacion/staff/cobranzas', enabledFlag: 'billing_enabled' },
-  ],
-};
-
 export default function EducationShell({ persona, children }: EducationShellProps) {
   const location = useLocation();
   const { data } = useEducationShellData(persona);
 
   const navFromBackend = Array.isArray(data?.nav_items) ? data.nav_items : [];
-  const sourceNav = navFromBackend.length > 0 ? navFromBackend : defaultNavByPersona[persona];
-  const navItems = sourceNav.filter((item) => {
+  const navItems = navFromBackend.filter((item) => {
     if (!item.enabledFlag) return true;
     return isEducationFlagEnabled(item.enabledFlag);
   });
@@ -52,16 +36,18 @@ export default function EducationShell({ persona, children }: EducationShellProp
             Flags activas: {Object.entries(EDUCATION_FEATURE_FLAGS).filter(([, enabled]) => enabled).length}
           </div>
         </div>
-        <nav className="mt-4 flex flex-wrap gap-2">
-          {navItems.map((item) => {
-            const isActive = location.pathname === item.path;
-            return (
-              <Button asChild size="sm" variant={isActive ? 'default' : 'outline'} key={item.key}>
-                <Link to={item.path}>{item.label}</Link>
-              </Button>
-            );
-          })}
-        </nav>
+        {navItems.length > 0 ? (
+          <nav className="mt-4 flex flex-wrap gap-2">
+            {navItems.map((item) => {
+              const isActive = location.pathname === item.path;
+              return (
+                <Button asChild size="sm" variant={isActive ? 'default' : 'outline'} key={item.key}>
+                  <Link to={item.path}>{item.label}</Link>
+                </Button>
+              );
+            })}
+          </nav>
+        ) : null}
       </header>
       {children}
     </div>
