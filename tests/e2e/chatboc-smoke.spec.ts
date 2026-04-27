@@ -89,6 +89,8 @@ test.describe('Chatboc smoke e2e', () => {
     await expect(page.getByLabel('Panel de chat')).toBeVisible();
     await page.getByRole('button', { name: /Quiero hacer un reclamo/i }).click();
     await expect(page.getByText('Quiero hacer un reclamo')).toBeVisible();
+    await page.getByRole('button', { name: /Hablar con una persona/i }).click();
+    await expect(page.getByRole('button', { name: /Crear ticket/i })).toBeVisible();
   });
 
   test('demo pyme muestra quick replies comerciales', async ({ page }) => {

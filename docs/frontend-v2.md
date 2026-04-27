@@ -33,6 +33,7 @@
 - Script: `npm run test:e2e`.
 - La suite mockea rutas API para evitar dependencia de producción y validar regresión de:
   - demo gobierno/pyme
+  - handoff visible al pedir humano
   - login inválido
   - tickets/surveys base
   - apertura/cierre de widget

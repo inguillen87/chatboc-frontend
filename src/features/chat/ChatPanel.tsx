@@ -43,14 +43,21 @@ interface FeatureChatPanelProps {
   onWaitOperator?: () => void;
 }
 
-export default function ChatPanel(props: FeatureChatPanelProps & Record<string, unknown>) {
+type LegacyChatPanelProps = React.ComponentProps<typeof LegacyChatPanel> & {
+  quickMenu?: unknown;
+};
+
+const isHumanRequest = (text: string) => /human|persona|operador|agente/i.test(text);
+
+export default function ChatPanel(props: FeatureChatPanelProps & Partial<LegacyChatPanelProps>) {
   const { variant = 'standalone', context, conversationId, handoffState = 'none', onCreateTicket, onOpenWhatsApp, onWaitOperator, ...legacyProps } = props;
 
   if (variant === 'legacy-widget') {
-    return <LegacyChatPanel {...(legacyProps as any)} />;
+    return <LegacyChatPanel {...(legacyProps as LegacyChatPanelProps)} />;
   }
 
   const resolvedContext: ChatPanelContext = context ?? { tipoChat: 'pyme' };
+  const [runtimeHandoffState, setRuntimeHandoffState] = useState<HandoffState>(handoffState);
   const [messages, setMessages] = useState<ChatUiMessage[]>([
     {
       id: 'assistant-welcome',
@@ -67,12 +74,27 @@ export default function ChatPanel(props: FeatureChatPanelProps & Record<string, 
       ...prev,
       { id: `u-${Date.now()}`, role: 'user', text, timestamp: new Date().toISOString() },
     ]);
+
+    if (isHumanRequest(text)) {
+      setRuntimeHandoffState('requested_by_user');
+      return;
+    }
+
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: `a-${Date.now()}`,
+        role: 'assistant',
+        text: 'Recibido. Si necesitás, también puedo escalar esto con una persona del equipo.',
+        timestamp: new Date().toISOString(),
+      },
+    ]);
   };
 
   return (
     <section className="space-y-3" aria-label="Panel de chat">
       <HandoffBanner
-        state={handoffState}
+        state={runtimeHandoffState}
         onCreateTicket={onCreateTicket}
         onOpenWhatsApp={onOpenWhatsApp}
         onWaitOperator={onWaitOperator}
