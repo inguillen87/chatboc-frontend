@@ -393,7 +393,7 @@ const Demo = () => {
       {/* CHAT AREA */}
       {/* Increased max-w for chat content area for better desktop view, maintains padding */}
       <main className="w-full max-w-3xl flex flex-col flex-1 px-4 sm:px-6 py-5 space-y-4 overflow-y-auto custom-scroll">
-        <DemoWorkspace tenantSlug={demoSessionId} />
+        <DemoWorkspace tenantSlug={demoSessionId} sector={sectorSeleccionado} rubro={rubroSeleccionado} />
         {messages.map((msg) => (
           <ChatMessage
             key={msg.id}

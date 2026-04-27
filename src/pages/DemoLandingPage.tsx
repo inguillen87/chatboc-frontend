@@ -200,7 +200,7 @@ const DemoLandingPage = () => {
 
       <main className="flex-grow container mx-auto px-4 py-20">
         <div className="mb-10">
-          <DemoWorkspace tenantSlug={tenant.slug} />
+          <DemoWorkspace tenantSlug={tenant.slug} sector={isMunicipio ? 'gobierno' : 'empresas'} />
         </div>
         <div className="text-center max-w-3xl mx-auto mb-16">
             <h2 className="text-3xl font-bold mb-4">Tecnología Transparente</h2>

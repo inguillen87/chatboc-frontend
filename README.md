@@ -136,6 +136,20 @@ The `<script>` tag accepts several extra `data-*` attributes to control the widg
 - `data-cta-message` – optional text that appears once as a bubble inviting the user to open the chat.
 - `data-shadow-dom="true"` – isolates the widget styles from the host page.
 
+### Widget compatibility (chat v2 UX)
+
+The chat v2 UX keeps backward compatibility with existing embeds. The public
+contract for these attributes remains unchanged:
+
+- `data-theme`
+- `data-domain`
+- `data-rubro`
+- `data-default-open`
+- `data-width` / `data-height`
+
+The widget continues to request `clipboard-write; geolocation; microphone; camera`
+permissions in the iframe `allow` attribute as before.
+
 ### Attention bubble rotation
 
 Set `ATTENTION_BUBBLE_CHOICES` on the server with multiple phrases separated by `|`:
