@@ -2,8 +2,7 @@
   "use strict";
 
   if (typeof window !== "undefined") {
-    if (window.__chatbocWidgetLoaded) return;
-    window.__chatbocWidgetLoaded = true;
+    window.__chatbocWidgetLoadCount = (window.__chatbocWidgetLoadCount || 0) + 1;
   }
 
   const KNOWN_EXTENSION_PATTERNS = [
@@ -124,14 +123,36 @@
       }
       if (!response.ok) {
         const error = new Error(`HTTP ${response.status}`);
+        error.status = response.status;
         error.payload = payload;
         throw error;
       }
       return payload;
     }
 
+    function shouldFallbackWidgetAuth(error) {
+      const status =
+        typeof error?.status === "number"
+          ? error.status
+          : typeof error?.payload?.status_code === "number"
+            ? error.payload.status_code
+            : Number(String(error?.message || "").match(/HTTP\s+(\d+)/i)?.[1]);
+      return status === 404 || status === 405 || status === 501;
+    }
+
+    async function fetchJsonWithFallback(primaryUrl, fallbackUrl, options) {
+      try {
+        return await fetchJson(primaryUrl, options);
+      } catch (error) {
+        if (!fallbackUrl || !shouldFallbackWidgetAuth(error)) {
+          throw error;
+        }
+        return fetchJson(fallbackUrl, options);
+      }
+    }
+
     async function mintWithOwner() {
-      const payload = await fetchJson(`${apiBase}/auth/widget-token`, {
+      const payload = await fetchJsonWithFallback(`${apiBase}/auth/widget/token`, `${apiBase}/auth/widget-token`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -149,7 +170,7 @@
       if (!tenantSlug) {
         throw new Error("mint_missing_identifier");
       }
-      const payload = await fetchJson(`${apiBase}/auth/widget-token`, {
+      const payload = await fetchJsonWithFallback(`${apiBase}/auth/widget/token`, `${apiBase}/auth/widget-token`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -183,7 +204,7 @@
     }
 
     async function refreshToken(current) {
-      const payload = await fetchJson(`${apiBase}/auth/widget-refresh`, {
+      const payload = await fetchJsonWithFallback(`${apiBase}/auth/widget/refresh`, `${apiBase}/auth/widget-refresh`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token: current }),

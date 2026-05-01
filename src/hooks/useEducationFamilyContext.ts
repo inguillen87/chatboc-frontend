@@ -1,9 +1,28 @@
 import { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { educationApi } from '@/api/education';
 import { useEducationShellData } from '@/hooks/useEducationShellData';
 
 export const useEducationFamilyContext = () => {
   const shellQuery = useEducationShellData('family');
-  const students = useMemo(() => shellQuery.data?.family_context?.students ?? [], [shellQuery.data?.family_context?.students]);
+  const familyContextQuery = useQuery({
+    queryKey: ['education-family-context'],
+    queryFn: () => educationApi.getFamilyContext(),
+    retry: 0,
+    staleTime: 30_000,
+  });
+  const familyContext = useMemo(
+    () =>
+      familyContextQuery.data
+        ? { ...shellQuery.data?.family_context, ...familyContextQuery.data }
+        : shellQuery.data?.family_context,
+    [familyContextQuery.data, shellQuery.data?.family_context],
+  );
+  const data = useMemo(
+    () => (shellQuery.data ? { ...shellQuery.data, family_context: familyContext } : shellQuery.data),
+    [familyContext, shellQuery.data],
+  );
+  const students = useMemo(() => familyContext?.students ?? [], [familyContext?.students]);
 
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
 
@@ -12,16 +31,18 @@ export const useEducationFamilyContext = () => {
       return students.find((student) => student.id === selectedStudentId) ?? null;
     }
 
-    const preselectedId = shellQuery.data?.family_context?.selected_student_id;
+    const preselectedId = familyContext?.selected_student_id;
     if (preselectedId) {
       return students.find((student) => student.id === preselectedId) ?? null;
     }
 
     return students[0] ?? null;
-  }, [selectedStudentId, shellQuery.data?.family_context?.selected_student_id, students]);
+  }, [familyContext?.selected_student_id, selectedStudentId, students]);
 
   return {
     ...shellQuery,
+    data,
+    familyContextQuery,
     students,
     selectedStudent,
     selectedStudentId: selectedStudent?.id ?? null,

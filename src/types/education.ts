@@ -41,6 +41,46 @@ export interface EducationFamilyContext {
   };
 }
 
+export interface EducationGuardianLookupPayload {
+  document_number?: string;
+  email?: string;
+  phone?: string;
+  [key: string]: unknown;
+}
+
+export interface EducationGuardianVerifyPayload {
+  guardian_id?: string | number;
+  verification_code?: string;
+  code?: string;
+  [key: string]: unknown;
+}
+
+export interface EducationLinkStudentPayload {
+  guardian_id?: string | number;
+  student_id?: string | number;
+  relationship?: string;
+  [key: string]: unknown;
+}
+
+export interface EducationCaseReplyPayload {
+  message?: string;
+  body?: string;
+  attachments?: unknown[];
+  [key: string]: unknown;
+}
+
+export interface EducationCaseAssignPayload {
+  assignee_id?: string | number;
+  assignee_slug?: string;
+  [key: string]: unknown;
+}
+
+export interface EducationCaseEscalatePayload {
+  reason?: string;
+  target_queue?: string;
+  [key: string]: unknown;
+}
+
 export interface EducationShellPayload {
   persona?: EducationPersona;
   title?: string;

@@ -15,7 +15,7 @@ import { extractButtonsFromResponse } from "@/utils/chatButtons";
 import DemoWorkspace from '@/features/demo/DemoWorkspace';
 import DemoSectorStep from '@/features/demo/DemoSectorStep';
 import { createDemoSession, getDemoCatalog } from '@/features/demo/demoApi';
-import type { DemoSector } from '@/features/demo/demoTypes';
+import type { DemoSector, DemoWorkspaceConfig } from '@/features/demo/demoTypes';
 
 const MAX_PREGUNTAS = 15;
 
@@ -30,6 +30,7 @@ const Demo = () => {
   const [anonId, setAnonId] = useState<string>("");
   const [sectorSeleccionado, setSectorSeleccionado] = useState<DemoSector | null>(null);
   const [demoSessionId, setDemoSessionId] = useState<string | null>(null);
+  const [demoWorkspace, setDemoWorkspace] = useState<DemoWorkspaceConfig | null>(null);
   const [contexto, setContexto] = useState({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const lastQueryRef = useRef<string | null>(null);
@@ -57,6 +58,7 @@ const Demo = () => {
     setContexto({});
     setSectorSeleccionado(null);
     setDemoSessionId(null);
+    setDemoWorkspace(null);
     lastQueryRef.current = null;
     // The useEffect for loading rubros will trigger again due to rubroSeleccionado being null
     // or rather, we explicitly set esperandoRubro to true and then the rubro loading logic runs
@@ -338,8 +340,10 @@ const Demo = () => {
                     rubro: clave ?? etiqueta ?? rubro.nombre,
                   });
                   setDemoSessionId(session.demo_session_id ?? null);
+                  setDemoWorkspace(session.workspace ?? null);
                 } catch {
                   setDemoSessionId(null);
+                  setDemoWorkspace(null);
                 }
                 await startDemoConversation(clave ?? etiqueta ?? rubro.nombre);
               })();
@@ -393,7 +397,7 @@ const Demo = () => {
       {/* CHAT AREA */}
       {/* Increased max-w for chat content area for better desktop view, maintains padding */}
       <main className="w-full max-w-3xl flex flex-col flex-1 px-4 sm:px-6 py-5 space-y-4 overflow-y-auto custom-scroll">
-        <DemoWorkspace tenantSlug={demoSessionId} sector={sectorSeleccionado} rubro={rubroSeleccionado} />
+        <DemoWorkspace tenantSlug={demoSessionId} sector={sectorSeleccionado} rubro={rubroSeleccionado} workspace={demoWorkspace} />
         {messages.map((msg) => (
           <ChatMessage
             key={msg.id}

@@ -21,6 +21,8 @@ export interface MarketProduct {
   // Mirror Catalog fields
   checkout_type?: 'mercadolibre' | 'tiendanube' | 'chatboc' | null;
   external_url?: string | null;
+  rating?: number | null;
+  tags?: string[] | null;
 }
 
 export interface MarketCartItem extends MarketProduct {
@@ -30,6 +32,7 @@ export interface MarketCartItem extends MarketProduct {
 export interface MarketCustomerProfile {
   name?: string | null;
   phone?: string | null;
+  whatsapp?: string | null;
   email?: string | null;
   contact_key?: string | null;
   channel_group?: string | null;
@@ -72,6 +75,14 @@ export interface MarketRecommendation {
 export interface MarketCheckoutPreview {
   state?: string | null;
   next_step_label?: string | null;
+  payment_ready?: boolean | null;
+  contact_ready?: boolean | null;
+}
+
+export interface MarketCheckoutOptions {
+  payment_required?: boolean | null;
+  requires_contact_or_auth?: boolean | null;
+  gateway_hint?: string | null;
 }
 
 export interface MarketSupportChannel {
@@ -104,6 +115,8 @@ export interface MarketCartResponse {
   suggested_actions?: MarketSuggestedAction[] | null;
   recommendations?: MarketRecommendation[] | null;
   checkout_preview?: MarketCheckoutPreview | null;
+  checkout_options?: MarketCheckoutOptions | null;
+  mercadopago_ready?: boolean | null;
 }
 
 export interface MarketCatalogSection {
@@ -132,8 +145,11 @@ export interface AddToCartPayload {
 }
 
 export interface CheckoutStartPayload {
-  items: Array<{ id: string; quantity: number }>;
+  items?: Array<{ id: string; quantity: number }>;
   customer?: Record<string, any>;
+  name?: string;
+  phone?: string;
+  [key: string]: any;
 }
 
 export interface CheckoutStartResponse {

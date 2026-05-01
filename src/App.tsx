@@ -24,6 +24,7 @@ import UserPortalLayout from "@/components/user-portal/layout/UserPortalLayout";
 import TokenRedirectWrapper from "@/components/TokenRedirectWrapper";
 import { CapabilitiesProvider } from '@/context/CapabilitiesContext';
 import { toCanonicalTenantPath } from '@/utils/canonicalTenantRouting';
+import { AppShellStatusBar } from '@/components/app-shell/AppShellStatusBar';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -174,6 +175,7 @@ const App = () => {
                 <TenantProvider>
                   <CapabilitiesProvider>
                     <RealtimeAlertsProvider>
+                      <AppShellStatusBar />
                       <AppRoutes />
                     </RealtimeAlertsProvider>
                   </CapabilitiesProvider>

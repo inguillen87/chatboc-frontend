@@ -2,7 +2,7 @@ import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
 export interface QueuedAction {
   id: string;
-  type: 'create_ticket_draft' | 'survey_response';
+  type: 'create_ticket_draft' | 'survey_response' | 'survey_draft';
   payload: any;
   timestamp: string;
 }
@@ -55,6 +55,8 @@ export class OfflineDraftQueue {
             await apiFetchClient('/api/tickets/draft/sync', { method: 'POST', body: action.payload });
          } else if (action.type === 'survey_response') {
             await apiFetchClient('/api/surveys/sync', { method: 'POST', body: action.payload });
+         } else if (action.type === 'survey_draft') {
+            await apiFetchClient('/api/v2/surveys/draft', { method: 'POST', body: action.payload });
          }
          this.removeAction(action.id);
        } catch (err) {

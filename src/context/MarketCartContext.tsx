@@ -9,7 +9,15 @@ import React, {
 } from 'react';
 import { useLocation } from 'react-router-dom';
 
-import type { MarketCartItem, MarketCartResponse, MarketCommercialState, MarketContinuity, MarketCustomerProfile } from '@/types/market';
+import type {
+  MarketCartItem,
+  MarketCartResponse,
+  MarketCheckoutOptions,
+  MarketCheckoutPreview,
+  MarketCommercialState,
+  MarketContinuity,
+  MarketCustomerProfile,
+} from '@/types/market';
 import { addMarketItem, fetchMarketCart } from '@/api/market';
 import { persistStoredCart, readStoredCart } from '@/utils/marketStorage';
 
@@ -22,6 +30,9 @@ interface MarketCartContextValue {
   customerProfile: MarketCustomerProfile | null;
   commercialState: MarketCommercialState | null;
   continuity: MarketContinuity | null;
+  checkoutOptions: MarketCheckoutOptions | null;
+  checkoutPreview: MarketCheckoutPreview | null;
+  mercadopagoReady: boolean | null;
   refreshCart: () => Promise<void>;
   addItem: (productId: string, quantity?: number) => Promise<void>;
 }
@@ -66,6 +77,9 @@ export function MarketCartProvider({ tenantSlug, children }: ProviderProps) {
   const [customerProfile, setCustomerProfile] = useState<MarketCustomerProfile | null>(null);
   const [commercialState, setCommercialState] = useState<MarketCommercialState | null>(null);
   const [continuity, setContinuity] = useState<MarketContinuity | null>(null);
+  const [checkoutOptions, setCheckoutOptions] = useState<MarketCheckoutOptions | null>(null);
+  const [checkoutPreview, setCheckoutPreview] = useState<MarketCheckoutPreview | null>(null);
+  const [mercadopagoReady, setMercadopagoReady] = useState<boolean | null>(null);
   const shouldDisableCartRequests = useMemo(() => {
     const pathname = location.pathname || '';
     return /^\/(?:[^/]+\/)?(?:admin|analytics|municipal)(?:\/|$)/.test(pathname);
@@ -79,6 +93,9 @@ export function MarketCartProvider({ tenantSlug, children }: ProviderProps) {
       setCustomerProfile(null);
       setCommercialState(null);
       setContinuity(null);
+      setCheckoutOptions(null);
+      setCheckoutPreview(null);
+      setMercadopagoReady(null);
       return;
     }
     if (shouldDisableCartRequests) {
@@ -88,6 +105,9 @@ export function MarketCartProvider({ tenantSlug, children }: ProviderProps) {
       setCustomerProfile(null);
       setCommercialState(null);
       setContinuity(null);
+      setCheckoutOptions(null);
+      setCheckoutPreview(null);
+      setMercadopagoReady(null);
       setError(null);
       setIsLoading(false);
       return;
@@ -109,6 +129,9 @@ export function MarketCartProvider({ tenantSlug, children }: ProviderProps) {
       setCustomerProfile(response?.customer_profile ?? null);
       setCommercialState(response?.commercial_state ?? null);
       setContinuity(response?.continuity ?? null);
+      setCheckoutOptions(response?.checkout_options ?? null);
+      setCheckoutPreview(response?.checkout_preview ?? null);
+      setMercadopagoReady(response?.mercadopago_ready ?? null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo cargar el carrito.');
     } finally {
@@ -135,6 +158,9 @@ export function MarketCartProvider({ tenantSlug, children }: ProviderProps) {
         setCustomerProfile(response?.customer_profile ?? null);
         setCommercialState(response?.commercial_state ?? null);
         setContinuity(response?.continuity ?? null);
+        setCheckoutOptions(response?.checkout_options ?? null);
+        setCheckoutPreview(response?.checkout_preview ?? null);
+        setMercadopagoReady(response?.mercadopago_ready ?? null);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'No se pudo agregar el producto.');
       } finally {
@@ -149,8 +175,36 @@ export function MarketCartProvider({ tenantSlug, children }: ProviderProps) {
   }, [refreshCart]);
 
   const value = useMemo<MarketCartContextValue>(
-    () => ({ items, totalAmount, totalPoints, isLoading, error, customerProfile, commercialState, continuity, refreshCart, addItem }),
-    [items, totalAmount, totalPoints, isLoading, error, customerProfile, commercialState, continuity, refreshCart, addItem],
+    () => ({
+      items,
+      totalAmount,
+      totalPoints,
+      isLoading,
+      error,
+      customerProfile,
+      commercialState,
+      continuity,
+      checkoutOptions,
+      checkoutPreview,
+      mercadopagoReady,
+      refreshCart,
+      addItem,
+    }),
+    [
+      items,
+      totalAmount,
+      totalPoints,
+      isLoading,
+      error,
+      customerProfile,
+      commercialState,
+      continuity,
+      checkoutOptions,
+      checkoutPreview,
+      mercadopagoReady,
+      refreshCart,
+      addItem,
+    ],
   );
 
   return <MarketCartContext.Provider value={value}>{children}</MarketCartContext.Provider>;

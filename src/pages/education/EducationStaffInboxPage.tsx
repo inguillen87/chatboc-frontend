@@ -112,7 +112,7 @@ export default function EducationStaffInboxPage() {
                 </div>
               </div>
             ) : null}
-            <p>Preparado para consumir <code>/api/v1/education/cases/*</code> y <code>/api/v1/education/family-context/*</code>.</p>
+            <p>Preparado para consumir <code>/api/v1/education/cases/*</code> y <code>/api/v1/education/me/family-context</code>.</p>
           </CardContent>
         </Card>
         <div className="min-w-0">

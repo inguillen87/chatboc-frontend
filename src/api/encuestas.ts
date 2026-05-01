@@ -541,8 +541,8 @@ export const postPublicResponse = (
   slug: string,
   payload: PublicResponsePayload,
   tenantSlug?: string,
-): Promise<{ ok: boolean; id?: number; contact_key?: string; conversation_id?: string; contract_version?: string }> =>
-  callPublicSurveyEndpoint<{ ok: boolean; id?: number; contact_key?: string; conversation_id?: string; contract_version?: string }>(buildPublicSurveyPaths(
+): Promise<{ ok: boolean; id?: number; contact_key?: string; conversation_id?: string; contract_version?: string; request_id?: string }> =>
+  callPublicSurveyEndpoint<{ ok: boolean; id?: number; contact_key?: string; conversation_id?: string; contract_version?: string; request_id?: string }>(buildPublicSurveyPaths(
     `/api/public/encuestas/${slug}/respuestas`,
     `/public/encuestas/${slug}/respuestas`,
   ), {

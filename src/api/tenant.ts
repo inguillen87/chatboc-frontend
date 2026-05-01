@@ -222,6 +222,17 @@ type TenantResolveOptions = {
   forceSlug?: string | null;
 };
 
+const isPwaTenantResolutionFailure = (error: unknown) =>
+  error instanceof ApiError &&
+  isRecord(error.body) &&
+  error.body.contract_version === 'pwa.public_tenant_resolution.v1' &&
+  error.body.reason_code === 'tenant_resolution_failed';
+
+const shouldTryTenantInfoFallback = (error: unknown) =>
+  error instanceof ApiError &&
+  !isPwaTenantResolutionFailure(error) &&
+  (error.status === 404 || error.status === 405 || error.status === 501);
+
 const resolveTenantInfo = async ({
   slug,
   widgetToken,
@@ -245,23 +256,22 @@ const resolveTenantInfo = async ({
     });
   };
 
-  try {
-    const response = await fetchWithFallback('/api/pwa/tenant-info');
-    return normalizeTenantInfo(response, fallbackSlug, forceSlug);
-  } catch (primaryError) {
-    const shouldTrySecondaryFallback =
-      primaryError instanceof ApiError && [404, 405].includes(primaryError.status);
-    if (!shouldTrySecondaryFallback) {
-      throw primaryError;
-    }
+  const endpoints = ['/api/pwa/public/tenant-info', '/api/pwa/tenant-info', '/pwa/tenant-info'];
+  let lastError: unknown = null;
 
+  for (const endpoint of endpoints) {
     try {
-      const response = await fetchWithFallback('/pwa/tenant-info');
+      const response = await fetchWithFallback(endpoint);
       return normalizeTenantInfo(response, fallbackSlug, forceSlug);
-    } catch (secondaryError) {
-      throw secondaryError;
+    } catch (error) {
+      lastError = error;
+      if (!shouldTryTenantInfoFallback(error)) {
+        break;
+      }
     }
   }
+
+  throw lastError ?? new Error('No se pudo resolver el tenant solicitado.');
 };
 
 export async function getTenantPublicInfoFlexible(
@@ -276,7 +286,7 @@ export async function getTenantPublicInfoFlexible(
       // Prioriza la resolución por slug explícito sin el widget token para evitar cruces de tenant.
       return await resolveTenantInfo({ slug: safeSlug, forceSlug: safeSlug });
     } catch (slugError) {
-      if (!safeWidgetToken) {
+      if (!safeWidgetToken || isPwaTenantResolutionFailure(slugError)) {
         throw slugError;
       }
 

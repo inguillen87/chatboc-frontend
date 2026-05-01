@@ -55,16 +55,20 @@ const asStringOrNull = (value: unknown): string | null => {
   return normalized.length > 0 ? normalized : null;
 };
 
+const asBooleanOrNull = (value: unknown): boolean | null =>
+  typeof value === 'boolean' ? value : null;
+
+const asRecordOrNull = (value: unknown): Record<string, unknown> | null =>
+  value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+
 const normalizeMarketCartResponse = (input: MarketCartResponse | null | undefined): MarketCartResponse => {
   const payload = (input ?? {}) as MarketCartResponse & Record<string, unknown>;
-  const continuityRaw =
-    payload.continuity && typeof payload.continuity === 'object' && !Array.isArray(payload.continuity)
-      ? (payload.continuity as Record<string, unknown>)
-      : null;
-  const portalLinksRaw =
-    continuityRaw?.portal_links && typeof continuityRaw.portal_links === 'object' && !Array.isArray(continuityRaw.portal_links)
-      ? (continuityRaw.portal_links as Record<string, unknown>)
-      : null;
+  const continuityRaw = asRecordOrNull(payload.continuity);
+  const portalLinksRaw = asRecordOrNull(continuityRaw?.portal_links);
+  const checkoutOptionsRaw = asRecordOrNull(payload.checkout_options);
+  const checkoutPreviewRaw = asRecordOrNull(payload.checkout_preview);
 
   return {
     ...payload,
@@ -86,6 +90,22 @@ const normalizeMarketCartResponse = (input: MarketCartResponse | null | undefine
             : null,
         }
       : null,
+    checkout_options: checkoutOptionsRaw
+      ? {
+          payment_required: asBooleanOrNull(checkoutOptionsRaw.payment_required),
+          requires_contact_or_auth: asBooleanOrNull(checkoutOptionsRaw.requires_contact_or_auth),
+          gateway_hint: asStringOrNull(checkoutOptionsRaw.gateway_hint),
+        }
+      : null,
+    checkout_preview: checkoutPreviewRaw
+      ? {
+          state: asStringOrNull(checkoutPreviewRaw.state),
+          next_step_label: asStringOrNull(checkoutPreviewRaw.next_step_label),
+          payment_ready: asBooleanOrNull(checkoutPreviewRaw.payment_ready),
+          contact_ready: asBooleanOrNull(checkoutPreviewRaw.contact_ready),
+        }
+      : null,
+    mercadopago_ready: asBooleanOrNull(payload.mercadopago_ready),
   };
 };
 
@@ -324,6 +344,21 @@ export async function removeMarketItem(tenantSlug: string, itemId: string): Prom
       currentCart.totalPoints = currentCart.items.reduce((sum, item) => sum + ((item.points || 0) * item.quantity), 0);
       saveLocalDemoCart(currentCart);
       return currentCart;
+  }
+}
+
+export async function clearMarketCart(tenantSlug: string): Promise<MarketCartResponse> {
+  try {
+    const response = await apiFetch<MarketCartResponse>(`/api/${tenantSlug}/carrito`, {
+      method: 'DELETE',
+      tenantSlug,
+      omitChatSessionId: true,
+    });
+    return normalizeMarketCartResponse(response);
+  } catch (error) {
+    const emptyCart = normalizeMarketCartResponse({ items: [], totalAmount: 0, totalPoints: 0, isDemo: isDemoTenant(tenantSlug) });
+    saveLocalDemoCart(emptyCart);
+    return emptyCart;
   }
 }
 

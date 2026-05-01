@@ -403,7 +403,18 @@ const resolveApiErrorMessage = (data: unknown, fallback: string) => {
 
   if (data && typeof data === 'object') {
     const payload = data as Record<string, unknown>;
-    const directMessage = payload.error ?? payload.message ?? payload.detail;
+    const payloadError = payload.error;
+    const nestedErrorMessage =
+      payloadError && typeof payloadError === 'object'
+        ? (payloadError as Record<string, unknown>).message
+        : null;
+    const directMessage =
+      nestedErrorMessage ??
+      payloadError ??
+      payload.message ??
+      payload.detail ??
+      payload.action_hint ??
+      payload.reason_code;
 
     if (typeof directMessage === 'string') {
       const trimmed = directMessage.trim();
@@ -1295,6 +1306,11 @@ export function getErrorMessage(error: unknown, fallback = "Ocurrió un error in
   if (error instanceof ApiError) {
     const requestIdMsg = error.requestId ? ` (Req ID: ${error.requestId})` : "";
     let baseMessage = error.message;
+    const bodyMessage = resolveApiErrorMessage(error.body, "");
+
+    if (bodyMessage) {
+      baseMessage = bodyMessage;
+    }
 
     if (!baseMessage || baseMessage === "Error en la respuesta de la API") {
       switch (error.status) {

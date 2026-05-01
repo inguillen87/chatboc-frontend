@@ -62,6 +62,7 @@ interface TenantContextValue {
   tenant: TenantPublicInfo | null;
   isLoadingTenant: boolean;
   tenantError: string | null;
+  setTenantSlug: (slug: string) => void;
   refreshTenant: () => Promise<void>;
   widgetToken: string | null;
   followedTenants: TenantSummary[];
@@ -93,6 +94,7 @@ const DEFAULT_TENANT_CONTEXT: TenantContextValue = {
   tenant: DEFAULT_TENANT_INFO,
   isLoadingTenant: false,
   tenantError: null,
+  setTenantSlug: () => {},
   refreshTenant: async () => {},
   widgetToken: null,
   followedTenants: [],

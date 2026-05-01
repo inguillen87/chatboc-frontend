@@ -60,4 +60,37 @@ describe('market api continuity normalization', () => {
     expect(cart.continuity?.summary).toBe('retomar en portal');
     expect(cart.continuity?.portal_links?.home).toBe('/tenant/portal');
   });
+
+  it('preserves backend checkout readiness flags without assuming MercadoPago readiness', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      items: [],
+      totalAmount: 0,
+      totalPoints: 0,
+      mercadopago_ready: false,
+      checkout_options: {
+        payment_required: true,
+        requires_contact_or_auth: true,
+        gateway_hint: 'mercadopago',
+      },
+      checkout_preview: {
+        payment_ready: false,
+        contact_ready: true,
+        next_step_label: 'Confirmar pedido',
+      },
+    });
+
+    const cart = await fetchMarketCart('tenant');
+
+    expect(cart.mercadopago_ready).toBe(false);
+    expect(cart.checkout_options).toMatchObject({
+      payment_required: true,
+      requires_contact_or_auth: true,
+      gateway_hint: 'mercadopago',
+    });
+    expect(cart.checkout_preview).toMatchObject({
+      payment_ready: false,
+      contact_ready: true,
+      next_step_label: 'Confirmar pedido',
+    });
+  });
 });

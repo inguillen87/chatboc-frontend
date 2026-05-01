@@ -105,6 +105,24 @@ const normalizeWidgetTokenAck = (value: unknown) => {
   };
 };
 
+const shouldFallbackToLegacyWidgetAuth = (error: unknown) =>
+  error instanceof ApiError && (error.status === 404 || error.status === 405 || error.status === 501);
+
+const callWidgetAuthEndpoint = async <T>(
+  primaryPath: string,
+  legacyPath: string,
+  options: NonNullable<Parameters<typeof apiFetch>[1]>,
+): Promise<T> => {
+  try {
+    return await apiFetch<T>(primaryPath, options);
+  } catch (error) {
+    if (!shouldFallbackToLegacyWidgetAuth(error)) {
+      throw error;
+    }
+    return apiFetch<T>(legacyPath, options);
+  }
+};
+
 const normalizePublicTicketStatus = (value: unknown) => {
   if (!isRecord(value)) throw new ApiError('Public ticket status inválido', 502, value);
   if (value.contract_version !== 'tickets.public_status.v1') {
@@ -301,7 +319,7 @@ export const apiClient = {
   },
 
   createWidgetToken: async (tenantSlug: string, payload: WidgetTokenRequestPayload) => {
-    const response = await apiFetch<unknown>('/auth/widget-token', {
+    const response = await callWidgetAuthEndpoint<unknown>('/auth/widget/token', '/auth/widget-token', {
       method: 'POST',
       tenantSlug,
       body: payload,
@@ -310,7 +328,7 @@ export const apiClient = {
   },
 
   refreshWidgetToken: async (tenantSlug: string, payload: WidgetTokenRequestPayload) => {
-    const response = await apiFetch<unknown>('/auth/widget-refresh', {
+    const response = await callWidgetAuthEndpoint<unknown>('/auth/widget/refresh', '/auth/widget-refresh', {
       method: 'POST',
       tenantSlug,
       body: payload,

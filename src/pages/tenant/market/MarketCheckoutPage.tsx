@@ -24,7 +24,18 @@ import {
 const checkoutStateStorageKey = (tenantSlug: string) => `chatboc_market_checkout_state_${tenantSlug}`;
 
 function CheckoutContent({ tenantSlug }: { tenantSlug: string }) {
-  const { items, totalAmount, totalPoints, isLoading, error, refreshCart, customerProfile, commercialState } = useMarketCart();
+  const {
+    items,
+    totalAmount,
+    totalPoints,
+    isLoading,
+    error,
+    refreshCart,
+    customerProfile,
+    commercialState,
+    checkoutOptions,
+    checkoutPreview,
+  } = useMarketCart();
   const [checkoutState, dispatch] = useReducer(checkoutReducer, undefined, createInitialCheckoutState);
 
   const moveToState = (to: CheckoutStatus, payload?: Record<string, unknown>) => {
@@ -50,8 +61,10 @@ function CheckoutContent({ tenantSlug }: { tenantSlug: string }) {
 
     const name = checkoutState.contact.name.trim();
     const phone = checkoutState.contact.phone.trim();
+    const requiresContactOrAuth = checkoutOptions?.requires_contact_or_auth ?? true;
+    const contactReady = checkoutPreview?.contact_ready === true || Boolean(phone);
 
-    if (!phone) {
+    if (requiresContactOrAuth && !contactReady) {
       moveToState('error', { error: 'Necesitamos un teléfono para continuar con el checkout.' });
       return;
     }
@@ -63,7 +76,7 @@ function CheckoutContent({ tenantSlug }: { tenantSlug: string }) {
         items: items.map((item) => ({ id: item.id, quantity: item.quantity })),
         customer: {
           name,
-          phone,
+          ...(phone ? { phone } : {}),
         },
       });
 

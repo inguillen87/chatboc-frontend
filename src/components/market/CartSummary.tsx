@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { MarketCartItem, MarketCheckoutPreview, MarketCommercialState, MarketContinuity, MarketCustomerProfile, MarketRecommendation, MarketSuggestedAction } from '@/types/market';
+import { MarketCartItem, MarketCheckoutOptions, MarketCheckoutPreview, MarketCommercialState, MarketContinuity, MarketCustomerProfile, MarketRecommendation, MarketSuggestedAction } from '@/types/market';
 import { formatCurrency } from '@/utils/currency';
 import { ArrowRightLeft, MessageCircle, Phone, ShoppingCart } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -28,6 +28,7 @@ interface CartSummaryProps {
   suggestedActions?: MarketSuggestedAction[] | null;
   recommendations?: MarketRecommendation[] | null;
   checkoutPreview?: MarketCheckoutPreview | null;
+  checkoutOptions?: MarketCheckoutOptions | null;
 }
 
 export default function CartSummary({
@@ -45,6 +46,7 @@ export default function CartSummary({
   suggestedActions,
   recommendations,
   checkoutPreview,
+  checkoutOptions,
 }: CartSummaryProps) {
   const currency = useMemo(() => {
     const fromItem = items.find((item) => typeof item.currency === 'string' && item.currency.trim());
@@ -92,7 +94,7 @@ export default function CartSummary({
       </CardHeader>
 
       <CardContent className="space-y-3 text-sm">
-        {stageLabel || customerProfile?.name || contactPhone || continuity?.summary || checkoutPreview?.next_step_label || continuity?.resume_key ? (
+        {stageLabel || customerProfile?.name || contactPhone || continuity?.summary || checkoutPreview?.next_step_label || checkoutOptions?.gateway_hint || continuity?.resume_key ? (
           <div className="rounded-2xl border border-border/60 bg-muted/20 p-3">
             <div className="flex flex-wrap items-center gap-2">
               {stageLabel ? (
@@ -109,7 +111,7 @@ export default function CartSummary({
                 </Badge>
               ) : null}
             </div>
-            {(customerProfile?.name || contactPhone || continuity?.summary || continuity?.resume_key || checkoutPreview?.next_step_label) ? (
+            {(customerProfile?.name || contactPhone || continuity?.summary || continuity?.resume_key || checkoutPreview?.next_step_label || checkoutOptions?.gateway_hint) ? (
               <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
                 {customerProfile?.name ? (
                   <div className="rounded-xl border border-border/60 bg-background/80 px-3 py-2">
@@ -137,6 +139,12 @@ export default function CartSummary({
                     <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Checkout</p>
                     {checkoutPreview?.next_step_label ? <p className="mt-1 font-medium text-foreground">{checkoutPreview.next_step_label}</p> : null}
                     {continuity?.resume_key ? <p className="mt-1 text-xs text-muted-foreground">{continuity.resume_key}</p> : null}
+                  </div>
+                ) : null}
+                {checkoutOptions?.gateway_hint ? (
+                  <div className="rounded-xl border border-border/60 bg-background/80 px-3 py-2">
+                    <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Gateway</p>
+                    <p className="mt-1 font-medium text-foreground">{checkoutOptions.gateway_hint}</p>
                   </div>
                 ) : null}
               </div>

@@ -22,4 +22,17 @@ export interface ChatPanelContext {
   rubro?: string | null;
   tenantSlug?: string | null;
   tipoChat: ChatVertical;
+  quickReplies?: QuickReplyItem[];
+  welcomeMessage?: string | null;
+  emptyTitle?: string | null;
+  emptySubtitle?: string | null;
+  composerPlaceholder?: string | null;
+  sendLabel?: string | null;
+}
+
+export interface HandoffLabels {
+  message?: string | null;
+  createTicket?: string | null;
+  openWhatsApp?: string | null;
+  waitOperator?: string | null;
 }

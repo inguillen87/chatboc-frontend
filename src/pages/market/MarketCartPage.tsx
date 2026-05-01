@@ -164,7 +164,7 @@ export default function MarketCartPage() {
   });
 
   const checkoutMutation = useMutation({
-    mutationFn: (payload: { name?: string; phone: string }) =>
+    mutationFn: (payload: { name?: string; phone?: string }) =>
       startMarketCheckout(tenantSlug, payload),
     onSuccess: (response, variables) => {
       saveMarketContact(tenantSlug, variables);
@@ -223,6 +223,8 @@ export default function MarketCartPage() {
   const handleCheckout = () => {
     const resolvedName = contact.name ?? userName;
     const phone = contact.phone?.trim() ?? normalizedUserPhone;
+    const requiresContactOrAuth = cartQuery.data?.checkout_options?.requires_contact_or_auth ?? true;
+    const contactReady = cartQuery.data?.checkout_preview?.contact_ready === true || Boolean(phone);
     if (!cartQuery.data?.items.length) {
       toast({
         title: 'Tu carrito está vacío',
@@ -240,17 +242,12 @@ export default function MarketCartPage() {
       return;
     }
 
-    if (!hasSession) {
-      setShowAuthDialog(true);
+    if (requiresContactOrAuth && !hasSession && !contactReady) {
+      setShowContactDialog(true);
       return;
     }
 
-    if (phone) {
-      checkoutMutation.mutate({ name: resolvedName, phone });
-      return;
-    }
-
-    setShowContactDialog(true);
+    checkoutMutation.mutate({ name: resolvedName, ...(phone ? { phone } : {}) });
   };
 
   const submitContact = (payload: { name?: string; phone: string }) => {
@@ -260,9 +257,9 @@ export default function MarketCartPage() {
 
   const fallbackCatalog = useMemo(() => buildDemoMarketCatalog(tenantSlug).catalog, [tenantSlug]);
   const catalogData = catalogQuery.data ?? (catalogQuery.isError ? fallbackCatalog : undefined);
-  const catalogProducts: MarketProduct[] = catalogData?.products ?? [];
   const rawCatalogProducts: MarketProduct[] = catalogData?.products ?? [];
-  const catalogProducts = useMemo(() => rawCatalogProducts.filter(p => p.disponible !== false), [rawCatalogProducts]);
+  const catalogProducts = useMemo(() => rawCatalogProducts.filter((product) => product.disponible !== false), [rawCatalogProducts]);
+  const cartItems: MarketCartItem[] = cartQuery.data?.items ?? [];
   const catalogServerError = catalogQuery.error instanceof ApiError && catalogQuery.error.status >= 500;
   const cartServerError = cartQuery.error instanceof ApiError && cartQuery.error.status >= 500;
   const catalogErrorMessage = catalogServerError
@@ -284,6 +281,7 @@ export default function MarketCartPage() {
   const cartSuggestedActions = cartQuery.data?.suggested_actions ?? null;
   const cartRecommendations = cartQuery.data?.recommendations ?? null;
   const cartCheckoutPreview = cartQuery.data?.checkout_preview ?? null;
+  const cartCheckoutOptions = cartQuery.data?.checkout_options ?? null;
 
   const {
     averageRating,
@@ -733,6 +731,11 @@ export default function MarketCartPage() {
               isUpdating={isUpdatingCart}
               customerProfile={cartCustomerProfile}
               commercialState={cartCommercialState}
+              continuity={cartContinuity}
+              suggestedActions={cartSuggestedActions}
+              recommendations={cartRecommendations}
+              checkoutPreview={cartCheckoutPreview}
+              checkoutOptions={cartCheckoutOptions}
             />
 
             {cartServerError ? (

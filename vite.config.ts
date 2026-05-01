@@ -22,6 +22,8 @@ export default defineConfig(({ mode }) => {
           'masked-icon.svg',
           'favicon/favicon-192x192.png',
           'favicon/favicon-512x512.png',
+          'favicon/favicon-maskable-192x192.png',
+          'favicon/favicon-maskable-512x512.png',
         ],
         manifest: {
           name: 'Chatboc',
@@ -44,10 +46,16 @@ export default defineConfig(({ mode }) => {
               type: 'image/png',
             },
             {
-              src: 'favicon/favicon-512x512.png',
+              src: 'favicon/favicon-maskable-512x512.png',
               sizes: '512x512',
               type: 'image/png',
-              purpose: 'any maskable',
+              purpose: 'maskable',
+            },
+            {
+              src: 'favicon/favicon-maskable-192x192.png',
+              sizes: '192x192',
+              type: 'image/png',
+              purpose: 'maskable',
             },
           ],
         },

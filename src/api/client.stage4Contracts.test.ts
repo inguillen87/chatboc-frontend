@@ -16,6 +16,7 @@ vi.mock('@/utils/api', () => ({
 }));
 
 import { apiClient } from '@/api/client';
+import { ApiError } from '@/utils/api';
 
 describe('apiClient stage4 contract integrations', () => {
   beforeEach(() => {
@@ -57,11 +58,54 @@ describe('apiClient stage4 contract integrations', () => {
     expect(refreshAck.token).toBe('jwt-refresh');
     expect(apiFetchMock).toHaveBeenNthCalledWith(
       1,
-      '/auth/widget-token',
+      '/auth/widget/token',
       expect.objectContaining({ method: 'POST', tenantSlug: 'demo-tenant' }),
     );
     expect(apiFetchMock).toHaveBeenNthCalledWith(
       2,
+      '/auth/widget/refresh',
+      expect.objectContaining({ method: 'POST', tenantSlug: 'demo-tenant' }),
+    );
+  });
+
+  it('falls back to legacy widget auth paths only when canonical routes are unavailable', async () => {
+    const notFound = new ApiError('Not found', 404, { reason_code: 'not_found' });
+    apiFetchMock
+      .mockRejectedValueOnce(notFound)
+      .mockResolvedValueOnce({
+        contract_version: 'auth.widget_token.v1',
+        token: 'jwt-create-legacy',
+        expires_in: 2700,
+      })
+      .mockRejectedValueOnce(notFound)
+      .mockResolvedValueOnce({
+        contract_version: 'auth.widget_token.v1',
+        token: 'jwt-refresh-legacy',
+        expires_in: 2700,
+      });
+
+    const createAck = await apiClient.createWidgetToken('demo-tenant', { tenant_slug: 'demo-tenant' });
+    const refreshAck = await apiClient.refreshWidgetToken('demo-tenant', { tenant_slug: 'demo-tenant' });
+
+    expect(createAck.token).toBe('jwt-create-legacy');
+    expect(refreshAck.token).toBe('jwt-refresh-legacy');
+    expect(apiFetchMock).toHaveBeenNthCalledWith(
+      1,
+      '/auth/widget/token',
+      expect.objectContaining({ method: 'POST', tenantSlug: 'demo-tenant' }),
+    );
+    expect(apiFetchMock).toHaveBeenNthCalledWith(
+      2,
+      '/auth/widget-token',
+      expect.objectContaining({ method: 'POST', tenantSlug: 'demo-tenant' }),
+    );
+    expect(apiFetchMock).toHaveBeenNthCalledWith(
+      3,
+      '/auth/widget/refresh',
+      expect.objectContaining({ method: 'POST', tenantSlug: 'demo-tenant' }),
+    );
+    expect(apiFetchMock).toHaveBeenNthCalledWith(
+      4,
       '/auth/widget-refresh',
       expect.objectContaining({ method: 'POST', tenantSlug: 'demo-tenant' }),
     );
