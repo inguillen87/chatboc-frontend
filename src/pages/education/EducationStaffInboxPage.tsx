@@ -82,7 +82,7 @@ export default function EducationStaffInboxPage() {
                 ))}
               </div>
             ) : (
-              <p>Placeholder para ficha contextual sensible según permisos del staff.</p>
+              <p>Ficha contextual pendiente de datos backend segun permisos del staff.</p>
             )}
             <FilterGroup
               title="Filtros de caso"

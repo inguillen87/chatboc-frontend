@@ -45,3 +45,11 @@
 - Educacion: `/api/v1/education/me/family-context` y rutas plurales `guardians/*` son canonicas; rutas singulares documentadas quedan como fallback.
 - Marketplace/PWA: tenant info usa `/api/pwa/public/tenant-info` como primario; carrito conserva `checkout_options`, `checkout_preview` y `mercadopago_ready` sin defaults optimistas.
 - Encuestas publicas: el voto exitoso acepta `request_id` y los errores usan `action_hint`/`reason_code` como mensaje accionable.
+
+## Ola 2 UX/SaaS 2026-05-01
+- `AppShellStatusBar` queda montado una sola vez en `src/App.tsx`.
+- `/surveys` ahora tiene builder con editor por pregunta, preview, save panel y cola offline.
+- `/tickets/board` ahora expone tablero operativo con KPIs derivados del payload real, distribucion por estado/canal y retry profesional.
+- `/analytics/hub` ahora muestra hub ejecutivo, estado parcial cuando backend no completa el summary y secciones Operaciones/Experiencia.
+- `/enterprise` ahora comunica readiness FE/backend y blockers reales para coordinar la siguiente tanda.
+- Educacion admissions/billing/attendance/documents usan shells contract-ready en vez de placeholders.

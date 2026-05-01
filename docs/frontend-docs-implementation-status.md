@@ -25,6 +25,15 @@ Este archivo baja los MD de `/docs` a estado ejecutable para frontend. La regla 
 - Checkout: las paginas de carrito/checkout respetan `requires_contact_or_auth`; si backend informa contacto listo, el frontend no fuerza login o telefono localmente.
 - Encuestas publicas: `postPublicResponse` acepta `request_id` en respuestas exitosas, y `apiFetch` usa `action_hint`/`reason_code` como mensaje accionable cuando el error publico no trae `message`.
 
+## Ola 2 UX/SaaS 2026-05-01
+
+- App shell: se elimino el montaje duplicado de `AppShellStatusBar`; ahora queda solo global en `src/App.tsx`.
+- Surveys v2: `SurveyBuilderPage`, `SurveyQuestionEditor` y `SurveyPreview` pasaron a una experiencia de producto con cards, badges, preview mobile-first, tipos de pregunta, remover/agregar preguntas, save panel y cola offline.
+- Tickets v2: `TicketsBoardPage` agrega dashboard operativo derivado del payload real: total, SLA vencido, asignados, cantidad de estados, distribucion por estado/canal, retry con `Button` y `staleTime`.
+- Analytics v2: `AnalyticsHubPage` agrega hub ejecutivo con metricas, secciones Operaciones/Experiencia, estado parcial cuando backend no entrega todo el `summary` y retry con `Button`.
+- Enterprise: `EnterpriseOpsPage` se convirtio en hub de readiness con modulos, estados FE/backend y blockers backend concretos.
+- Educacion: admissions, billing, attendance y documents dejaron de ser placeholders y ahora usan `EducationContractPendingCard`, indicando endpoints esperados y blockers sin hardcodear contenido por tenant.
+
 ## Backend sync esperado
 
 - Demo session puede devolver `workspace.title`, `workspace.welcome_message`, `workspace.quick_replies[]`, `workspace.value_cards[]` y `workspace.handoff_labels`.

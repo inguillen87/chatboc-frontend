@@ -1,5 +1,6 @@
 import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+
+import EducationContractPendingCard from '@/components/education/EducationContractPendingCard';
 import EducationShell from '@/components/education/EducationShell';
 import EducationFamilyAccessGate from '@/components/education/EducationFamilyAccessGate';
 
@@ -7,14 +8,12 @@ export default function EducationDocumentsPage() {
   return (
     <EducationShell persona="family">
       <EducationFamilyAccessGate>
-      <Card>
-        <CardHeader>
-          <CardTitle>Solicitudes de documentos</CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">
-          Pantalla base para solicitudes y estado documental preparada para consumir <code>/api/v1/education/documents/*</code>.
-        </CardContent>
-      </Card>
+        <EducationContractPendingCard
+          title="Solicitudes de documentos"
+          description="Solicitudes documentales preparadas para estados, requisitos y acciones backend-driven."
+          endpoints={['GET /api/v1/education/documents/*', 'POST /api/v1/education/documents/*']}
+          blockers={['Catalogo de documentos disponibles.', 'Estados por solicitud y permisos de descarga/carga.']}
+        />
       </EducationFamilyAccessGate>
     </EducationShell>
   );

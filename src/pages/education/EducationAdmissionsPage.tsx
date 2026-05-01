@@ -1,18 +1,16 @@
 import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import EducationContractPendingCard from '@/components/education/EducationContractPendingCard';
 import EducationShell from '@/components/education/EducationShell';
 
 export default function EducationAdmissionsPage() {
   return (
     <EducationShell persona="staff">
-      <Card>
-        <CardHeader>
-          <CardTitle>Admisiones (staff)</CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">
-          Placeholder para funnel de admisiones sobre endpoints <code>/api/v1/education/admissions/*</code>.
-        </CardContent>
-      </Card>
+      <EducationContractPendingCard
+        title="Admisiones"
+        description="Funnel de admisiones preparado para datos, estados y acciones entregados por backend."
+        endpoints={['GET /api/v1/education/admissions/*', 'POST /api/v1/education/admissions/*']}
+        blockers={['Pipeline, etapas y acciones por rol.', 'Permisos staff para contacto y seguimiento.']}
+      />
     </EducationShell>
   );
 }

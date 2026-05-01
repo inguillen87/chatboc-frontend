@@ -1,18 +1,17 @@
 import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+
+import EducationContractPendingCard from '@/components/education/EducationContractPendingCard';
 import EducationShell from '@/components/education/EducationShell';
 
 export default function EducationBillingPage() {
   return (
     <EducationShell persona="staff">
-      <Card>
-        <CardHeader>
-          <CardTitle>Cobranzas (staff)</CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">
-          Placeholder para gestión de cobranzas privadas con datos desde <code>/api/v1/education/billing/*</code>.
-        </CardContent>
-      </Card>
+      <EducationContractPendingCard
+        title="Cobranzas"
+        description="Gestion de cobranzas privada preparada para hidratar resumen, deuda, vencimientos y acciones permitidas."
+        endpoints={['GET /api/v1/education/billing/*', 'POST /api/v1/education/billing/*']}
+        blockers={['Resumen financiero por familia/alumno.', 'Acciones permitidas segun permisos y estado de deuda.']}
+      />
     </EducationShell>
   );
 }

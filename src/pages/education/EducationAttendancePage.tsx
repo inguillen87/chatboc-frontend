@@ -1,5 +1,6 @@
 import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+
+import EducationContractPendingCard from '@/components/education/EducationContractPendingCard';
 import EducationShell from '@/components/education/EducationShell';
 import EducationFamilyAccessGate from '@/components/education/EducationFamilyAccessGate';
 
@@ -7,14 +8,12 @@ export default function EducationAttendancePage() {
   return (
     <EducationShell persona="family">
       <EducationFamilyAccessGate>
-      <Card>
-        <CardHeader>
-          <CardTitle>Asistencia e inasistencias</CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">
-          Pantalla base para historial y justificación de inasistencias, preparada para datos desde <code>/api/v1/education/attendance/*</code>.
-        </CardContent>
-      </Card>
+        <EducationContractPendingCard
+          title="Asistencia e inasistencias"
+          description="Historial familiar preparado para asistencia, justificativos y estados enviados por backend."
+          endpoints={['GET /api/v1/education/attendance/*', 'POST /api/v1/education/attendance/*']}
+          blockers={['Historial por alumno vinculado.', 'Estados de justificativo y adjuntos permitidos.']}
+        />
       </EducationFamilyAccessGate>
     </EducationShell>
   );
