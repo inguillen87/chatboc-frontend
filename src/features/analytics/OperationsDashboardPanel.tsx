@@ -339,11 +339,22 @@ function FreshnessBanner({ freshness }: { freshness: OperationsFreshnessV1 }) {
 
 function FreshnessSourceChip({ source }: { source: OperationsFreshnessSource }) {
   const label = source.label || source.key || 'source';
+  const action = source.recommended_action;
+  const actionLabel = action?.title || action?.id || action?.ui_hint || action?.endpoint;
+  const actionEndpoint = action?.endpoint;
+
   return (
     <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border bg-background px-2.5 py-1 text-xs">
       <span className="shrink-0 font-medium">{label}</span>
       {source.status ? <span className="text-muted-foreground">{source.status}</span> : null}
       {source.reason_code ? <span className="min-w-0 truncate text-muted-foreground">{source.reason_code}</span> : null}
+      {actionLabel && actionEndpoint ? (
+        <a className="shrink-0 text-primary underline-offset-2 hover:underline" href={actionEndpoint}>
+          {actionLabel}
+        </a>
+      ) : actionLabel ? (
+        <span className="shrink-0 text-muted-foreground">{actionLabel}</span>
+      ) : null}
     </span>
   );
 }

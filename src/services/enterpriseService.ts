@@ -1,5 +1,8 @@
 import { ApiError, apiFetch } from "@/utils/api";
 import { normalizeEmployeeCoverageV2, normalizeSuperadminExecutiveSummaryV2 } from "@/api/v2/saas";
+import { getOrCreateAnonId } from "@/utils/anonId";
+import getOrCreateChatSessionId from "@/utils/chatSessionId";
+import { createLeadCaptureIdempotencyKey } from "@/utils/leadCapture";
 import type { TicketCollaborationState } from "@/types/tickets";
 
 export type DemoRubro = "municipio" | "pyme";
@@ -714,16 +717,41 @@ export const enterpriseService = {
     phone?: string;
     interest?: string;
     message?: string;
+    chat_session_id?: string;
+    anon_id?: string;
+    channel?: string;
     source?: string;
+    trigger?: string;
+    intent?: string;
+    idempotency_key?: string;
     metadata?: Record<string, unknown>;
   }) => {
+    const chatSessionId = payload.chat_session_id || getOrCreateChatSessionId();
+    const anonId = payload.anon_id || getOrCreateAnonId();
+    const trigger = payload.trigger || payload.intent || "lead_capture";
+    const idempotencyKey =
+      payload.idempotency_key ||
+      createLeadCaptureIdempotencyKey(payload.tenant_slug, chatSessionId, trigger);
+
     return apiFetch<any>("/api/public/lead-capture", {
       method: "POST",
-      body: payload,
+      body: {
+        ...payload,
+        chat_session_id: chatSessionId,
+        anon_id: anonId || undefined,
+        channel: payload.channel || "web",
+        source: payload.source || "widget_chat",
+        trigger,
+        intent: payload.intent || trigger,
+        idempotency_key: idempotencyKey,
+      },
+      headers: {
+        "Idempotency-Key": idempotencyKey,
+      },
       skipAuth: true,
       isWidgetRequest: true,
+      tenantSlug: payload.tenant_slug,
       omitCredentials: true,
-      omitChatSessionId: true,
       sendAnonId: true,
     });
   },

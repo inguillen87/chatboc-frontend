@@ -8,7 +8,16 @@ import ConversationRating from './ConversationRating';
 import ChatEmptyState from './ChatEmptyState';
 import { Button } from '@/components/ui/button';
 import { getErrorMessage } from '@/utils/api';
-import { extractChatBootstrapReplyText, sendChatBootstrapMessage, submitLeadCapture } from './chatApi';
+import { getOrCreateAnonId } from '@/utils/anonId';
+import getOrCreateChatSessionId from '@/utils/chatSessionId';
+import {
+  createLeadCaptureIdempotencyKey,
+  extractChatBootstrapReplyText,
+  sendChatBootstrapMessage,
+  submitLeadCapture,
+  type LeadCaptureNextAction,
+  type LeadCaptureResponse,
+} from './chatApi';
 import type { ChatPanelContext, ChatUiMessage, HandoffLabels, HandoffState, QuickReplyItem } from './chatTypes';
 import type {
   ChatAnimationTokens,
@@ -165,9 +174,11 @@ function StandaloneChatPanel({
   const [composerIntent, setComposerIntent] = useState<string | null>(null);
   const [composerPayload, setComposerPayload] = useState<Record<string, unknown> | null>(null);
   const [activeLead, setActiveLead] = useState<ChatLeadCaptureConfig | null>(null);
+  const [activeLeadMeta, setActiveLeadMeta] = useState<Record<string, unknown>>({});
   const [leadValues, setLeadValues] = useState<Record<string, string>>({});
   const [leadStatus, setLeadStatus] = useState<'idle' | 'sending' | 'sent'>('idle');
   const [leadError, setLeadError] = useState<string | null>(null);
+  const [leadResult, setLeadResult] = useState<LeadCaptureResponse | null>(null);
   const resolvedBlueprint =
     experienceBlueprint ?? resolvedContext.experienceBlueprint ?? null;
   const resolvedLeadCapture =
@@ -252,22 +263,44 @@ function StandaloneChatPanel({
   ) => {
     setLeadStatus('sending');
     setLeadError(null);
+    setLeadResult(null);
     try {
-      await submitLeadCapture(
+      const chatSessionId = getOrCreateChatSessionId();
+      const anonId = getOrCreateAnonId();
+      const cleanMeta = Object.fromEntries(
+        Object.entries(meta).filter(([, value]) => value !== undefined),
+      );
+      const trigger = String(cleanMeta.trigger || cleanMeta.intent || cleanMeta.cta_id || 'lead_capture');
+      const idempotencyKey = createLeadCaptureIdempotencyKey(
+        resolvedContext.tenantSlug,
+        chatSessionId,
+        trigger,
+      );
+      const response = await submitLeadCapture(
         config,
         {
+          ...cleanMeta,
           tenant_slug: resolvedContext.tenantSlug ?? undefined,
           tipo_chat: resolvedContext.tipoChat,
+          chat_session_id: chatSessionId,
+          anon_id: anonId || undefined,
+          channel: typeof cleanMeta.channel === 'string' ? cleanMeta.channel : 'web',
+          source: typeof cleanMeta.source === 'string' ? cleanMeta.source : 'chat_panel',
+          trigger,
+          intent: typeof cleanMeta.intent === 'string' ? cleanMeta.intent : trigger,
           conversation_id: conversationId ?? undefined,
+          idempotency_key: idempotencyKey,
           fields: values,
-          ...meta,
         },
         resolvedContext.tenantSlug,
+        { idempotencyKey },
       );
       setLeadStatus('sent');
+      setLeadResult(response);
       setActiveLead(null);
+      setActiveLeadMeta({});
       setLeadValues({});
-      const success = config.success_message?.trim();
+      const success = response.message_body?.trim() || config.success_message?.trim();
       if (success) {
         setMessages((prev) => [
           ...prev,
@@ -295,6 +328,8 @@ function StandaloneChatPanel({
       return;
     }
     setActiveLead(config);
+    setActiveLeadMeta(meta);
+    setLeadResult(null);
     setLeadValues({});
     setLeadStatus('idle');
     setLeadError(null);
@@ -485,7 +520,7 @@ function StandaloneChatPanel({
               acc[name] = leadValues[name] || '';
               return acc;
             }, {});
-            void submitLead(activeLead, values);
+            void submitLead(activeLead, values, activeLeadMeta);
           }}
         >
           {activeLead.title ? <p className="font-medium">{activeLead.title}</p> : null}
@@ -536,7 +571,10 @@ function StandaloneChatPanel({
               type="button"
               size="sm"
               variant="ghost"
-              onClick={() => setActiveLead(null)}
+              onClick={() => {
+                setActiveLead(null);
+                setActiveLeadMeta({});
+              }}
               disabled={leadStatus === 'sending'}
             >
               Cerrar
@@ -546,6 +584,9 @@ function StandaloneChatPanel({
             </Button>
           </div>
         </form>
+      ) : null}
+      {leadResult ? (
+        <LeadCaptureResult result={leadResult} />
       ) : null}
       <ChatComposer
         onSend={appendUserMessage}
@@ -558,5 +599,64 @@ function StandaloneChatPanel({
       />
       <ConversationRating conversationId={conversationId} />
     </section>
+  );
+}
+
+function LeadCaptureResult({ result }: { result: LeadCaptureResponse }) {
+  const traceItems = [
+    result.contract_version ? { label: 'Contrato', value: result.contract_version } : null,
+    result.lead_id ? { label: 'Lead', value: String(result.lead_id) } : null,
+    result.ticket_id ? { label: 'Ticket', value: String(result.ticket_id) } : null,
+    result.status ? { label: 'Estado', value: result.status } : null,
+    result.deduplicated ? { label: 'Deduplicado', value: 'true' } : null,
+    result.request_id ? { label: 'Req', value: result.request_id } : null,
+  ].filter((item): item is { label: string; value: string } => Boolean(item));
+  const hasActions = Boolean(result.next_actions?.length);
+
+  if (!traceItems.length && !hasActions) return null;
+
+  return (
+    <div className="space-y-2 rounded-lg border bg-muted/20 p-3 text-xs" aria-label="Lead capturado">
+      {traceItems.length ? (
+        <div className="flex flex-wrap gap-2">
+          {traceItems.map((item) => (
+            <span key={`${item.label}-${item.value}`} className="inline-flex max-w-full items-center gap-1 rounded-full border bg-background px-2 py-1">
+              <span className="font-medium text-muted-foreground">{item.label}</span>
+              <span className="min-w-0 truncate">{item.value}</span>
+            </span>
+          ))}
+        </div>
+      ) : null}
+      {hasActions ? <LeadCaptureNextActions actions={result.next_actions ?? []} /> : null}
+    </div>
+  );
+}
+
+function LeadCaptureNextActions({ actions }: { actions: LeadCaptureNextAction[] }) {
+  const visibleActions = actions.filter((action) => action.label?.trim());
+  if (!visibleActions.length) return null;
+
+  return (
+    <div className="flex flex-wrap gap-2" aria-label="Acciones de seguimiento">
+      {visibleActions.map((action, index) => {
+        const label = action.label?.trim() || '';
+        const endpoint = action.endpoint?.trim();
+        const key = action.id?.trim() || `${label}-${index}`;
+
+        if (endpoint) {
+          return (
+            <Button key={key} type="button" size="sm" variant="outline" className="h-auto text-xs" asChild>
+              <a href={endpoint}>{label}</a>
+            </Button>
+          );
+        }
+
+        return (
+          <Button key={key} type="button" size="sm" variant="outline" className="h-auto text-xs" disabled>
+            {label}
+          </Button>
+        );
+      })}
+    </div>
   );
 }

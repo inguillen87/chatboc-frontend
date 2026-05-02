@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/use-toast';
 import type { TicketTimelineEvent } from '@/schemas/api';
 import type { ChatExperienceBlock } from '@/types/chat';
+import type { EducationCaseAlias } from '@/types/education';
 import { getErrorMessage } from '@/utils/api';
 
 import { AgentSuggestionBox } from '../agent-assist/AgentSuggestionBox';
@@ -123,6 +124,8 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
         nextSteps={ticket.next_steps}
       />
 
+      {ticket.school_case ? <SchoolCaseAliasPanel schoolCase={ticket.school_case} /> : null}
+
       {ticket.actions.length ? (
         <div className="flex flex-wrap gap-2 border-b bg-muted/20 px-4 py-3">
           {ticket.actions.map((action) => (
@@ -208,6 +211,44 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
           </div>
         </div>
       </div>
+    </div>
+  );
+};
+
+const readCaseValue = (schoolCase: EducationCaseAlias, keys: Array<keyof EducationCaseAlias>) => {
+  for (const key of keys) {
+    const value = schoolCase[key];
+    if (value !== undefined && value !== null && String(value).trim()) return String(value);
+  }
+  return null;
+};
+
+const SchoolCaseAliasPanel = ({ schoolCase }: { schoolCase: EducationCaseAlias }) => {
+  const fields = [
+    { id: 'school', label: 'Colegio', value: readCaseValue(schoolCase, ['school_name', 'school_id']) },
+    { id: 'student', label: 'Alumno/familia', value: readCaseValue(schoolCase, ['student_name', 'guardian_name']) },
+    { id: 'case', label: 'Caso', value: readCaseValue(schoolCase, ['case_type', 'case_id']) },
+  ].filter((field) => field.value);
+
+  return (
+    <div className="border-b bg-muted/20 px-4 py-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs font-medium text-foreground">Caso escolar</span>
+        {schoolCase.contract_version ? <Badge variant="outline">{schoolCase.contract_version}</Badge> : null}
+        {schoolCase.status ? <Badge variant="secondary">{schoolCase.status}</Badge> : null}
+        {schoolCase.sensitivity_level ? <Badge variant="outline">{schoolCase.sensitivity_level}</Badge> : null}
+        {schoolCase.requires_handoff ? <Badge variant="destructive">handoff</Badge> : null}
+      </div>
+      {fields.length ? (
+        <div className="mt-2 grid gap-2 sm:grid-cols-3">
+          {fields.map((field) => (
+            <div key={field.id} className="min-w-0 rounded-md border bg-background px-2 py-1.5">
+              <p className="text-[11px] text-muted-foreground">{field.label}</p>
+              <p className="truncate text-xs font-medium text-foreground">{field.value}</p>
+            </div>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 };

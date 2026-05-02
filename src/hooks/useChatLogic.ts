@@ -2414,12 +2414,16 @@ export function useChatLogic({
 
         if (leadName || leadEmail || leadPhone) {
           leadCaptureSentRef.current = true;
-          enterpriseService
-            .captureLead({
-              tenant_slug: tenantSlug || undefined,
-              name: leadName,
-              email: leadEmail,
-              phone: leadPhone,
+            enterpriseService
+              .captureLead({
+                tenant_slug: tenantSlug || undefined,
+                chat_session_id: getOrCreateChatSessionId(),
+                channel: "web",
+                trigger: resolvedAction || "high_intent",
+                intent: resolvedAction || undefined,
+                name: leadName,
+                email: leadEmail,
+                phone: leadPhone,
               interest: userMessageText || normalizedQuestionBase,
               message: originalText,
               source: "widget_chat",

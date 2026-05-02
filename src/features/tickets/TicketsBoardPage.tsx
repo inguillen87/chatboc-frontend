@@ -26,6 +26,9 @@ const countBy = (items: V2Ticket[], selector: (item: V2Ticket) => string | undef
 const getTicketMeta = (ticket: V2Ticket) =>
   [ticket.priority, ticket.channel, ticket.category, ticket.assignee_name].filter(Boolean).join(' / ');
 
+const getSchoolCaseLabel = (ticket: V2Ticket) =>
+  ticket.school_case?.case_type || ticket.school_case?.status || ticket.school_case?.school_name || null;
+
 export default function TicketsBoardPage() {
   const { currentSlug } = useTenant();
   const { isOnline } = useNetworkStatus();
@@ -148,6 +151,7 @@ export default function TicketsBoardPage() {
           <section className="space-y-3" aria-label="Lista de tickets">
             {items.map((ticket) => {
               const meta = getTicketMeta(ticket);
+              const schoolCaseLabel = getSchoolCaseLabel(ticket);
 
               return (
                 <article key={ticket.id} className="rounded-lg border bg-card p-4 shadow-sm">
@@ -156,6 +160,7 @@ export default function TicketsBoardPage() {
                       <div className="flex flex-wrap items-center gap-2">
                         <Badge variant="outline">{normalizeLabel(ticket.status)}</Badge>
                         <TicketSlaBadge state={ticket.sla_state} />
+                        {schoolCaseLabel ? <Badge variant="secondary">{schoolCaseLabel}</Badge> : null}
                       </div>
                       <h2 className="break-words text-base font-semibold leading-6">{ticket.title}</h2>
                       {meta ? <p className="text-sm text-muted-foreground">{meta}</p> : null}

@@ -38,7 +38,7 @@ export interface ChatBootstrapConfig {
 export type HandoffState = 'none' | 'requested_by_user' | 'required_by_backend' | 'api_unavailable';
 
 export interface ChatPanelContext {
-  sector?: 'gobierno' | 'empresas' | null;
+  sector?: 'gobierno' | 'empresas' | 'educacion' | (string & {}) | null;
   rubro?: string | null;
   tenantSlug?: string | null;
   tipoChat: ChatVertical;

@@ -41,6 +41,11 @@ import { getRubrosHierarchy } from "@/api/rubros";
 import { useUser } from "@/hooks/useUser";
 import { useBusinessHours } from "@/hooks/useBusinessHours";
 import { Button } from "@/components/ui/button";
+import {
+  createLeadCaptureIdempotencyKey,
+  submitLeadCapture,
+  type LeadCaptureNextAction,
+} from "@/features/chat/chatApi";
 import { io } from "socket.io-client";
 import { getSocketUrl, SOCKET_PATH } from "@/config";
 import {
@@ -70,7 +75,8 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { getInitialMunicipioContext } from "@/utils/contexto_municipio";
-import { resetChatSessionId } from "@/utils/chatSessionId";
+import getOrCreateChatSessionId, { resetChatSessionId } from "@/utils/chatSessionId";
+import { getOrCreateAnonId } from "@/utils/anonId";
 import { extractSmartHint } from "@/utils/smartHints";
 import {
   trackFrontendEvent,
@@ -78,6 +84,49 @@ import {
 } from "@/utils/frontendTelemetry";
 
 const PENDING_TICKET_KEY = "pending_ticket_id";
+
+const leadNextActionsToButtons = (actions?: LeadCaptureNextAction[] | null) =>
+  (actions ?? [])
+    .filter((action) => action.label?.trim())
+    .map((action) => ({
+      texto: action.label?.trim() || "",
+      url: action.endpoint?.trim() || undefined,
+      action_id: action.id?.trim() || undefined,
+      payload: action.payload ?? undefined,
+    }));
+
+const leadCaptureStructuredContent = (response: {
+  contract_version?: string | null;
+  request_id?: string | null;
+  lead_id?: string | number | null;
+  ticket_id?: string | number | null;
+  ticket_type?: string | null;
+  status?: string | null;
+  deduplicated?: boolean;
+}) =>
+  [
+    response.contract_version
+      ? { label: "Contrato", value: response.contract_version, type: "text" as const }
+      : null,
+    response.lead_id
+      ? { label: "Lead", value: String(response.lead_id), type: "text" as const }
+      : null,
+    response.ticket_id
+      ? { label: "Ticket", value: String(response.ticket_id), type: "text" as const }
+      : null,
+    response.ticket_type
+      ? { label: "Tipo", value: response.ticket_type, type: "text" as const }
+      : null,
+    response.status
+      ? { label: "Estado", value: response.status, type: "text" as const }
+      : null,
+    response.deduplicated
+      ? { label: "Deduplicado", value: "true", type: "badge" as const }
+      : null,
+    response.request_id
+      ? { label: "Req", value: response.request_id, type: "text" as const }
+      : null,
+  ].filter((item): item is NonNullable<typeof item> => Boolean(item));
 const PENDING_GPS_KEY = "pending_gps";
 const PENDING_WIDGET_ACTION = "pending_widget_action";
 
@@ -1712,22 +1761,64 @@ const ChatPanel = (props: ChatPanelProps) => {
 
       if (shouldPostLead) {
         try {
-          await apiFetch(endpoint || "/api/public/lead-capture", {
-            method: "POST",
-            skipAuth: true,
-            isWidgetRequest: true,
+          const chatSessionId = getOrCreateChatSessionId();
+          const anonId = getOrCreateAnonId();
+          const trigger = action.intent || action.id || "lead_capture";
+          const idempotencyKey = createLeadCaptureIdempotencyKey(
             tenantSlug,
-            body: {
+            chatSessionId,
+            trigger,
+          );
+          const leadConfig: ChatLeadCaptureConfig = {
+            ...(effectiveLeadCapture ?? {}),
+            endpoint: endpoint || effectiveLeadCapture?.endpoint || "/api/public/lead-capture",
+          };
+          const response = await submitLeadCapture(
+            leadConfig,
+            {
               tenant_slug: tenantSlug ?? undefined,
               tipo_chat: tipoChat,
+              chat_session_id: chatSessionId,
+              anon_id: anonId || undefined,
+              channel: "web",
+              source: "widget_chat",
+              trigger,
+              idempotency_key: idempotencyKey,
               fields: {},
               intent: action.intent ?? undefined,
               cta_id: action.id,
               payload: action.payload ?? undefined,
             },
-          });
-          if (effectiveLeadCapture?.success_message) {
-            addSystemMessage(effectiveLeadCapture.success_message, "info");
+            tenantSlug,
+            { idempotencyKey },
+          );
+          const success =
+            response.message_body?.trim() ||
+            effectiveLeadCapture?.success_message?.trim();
+          const botones = leadNextActionsToButtons(response.next_actions);
+          const structuredContent = leadCaptureStructuredContent(response);
+          if (success || botones.length || structuredContent.length) {
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: `lead-${Date.now()}`,
+                text: success || "",
+                isBot: true,
+                timestamp: new Date(),
+                botones,
+                structuredContent,
+                data: {
+                  fuente: "lead_capture",
+                  contract_version: response.contract_version,
+                  request_id: response.request_id,
+                  deduplicated: response.deduplicated,
+                  lead_id: response.lead_id,
+                  ticket_id: response.ticket_id,
+                  ticket_type: response.ticket_type,
+                  status: response.status,
+                },
+              },
+            ]);
           }
           return;
         } catch (error) {
@@ -1746,7 +1837,7 @@ const ChatPanel = (props: ChatPanelProps) => {
         source: "button",
       });
     },
-    [addSystemMessage, effectiveLeadCapture, handleSend, tenantSlug, tipoChat],
+    [addSystemMessage, effectiveLeadCapture, handleSend, setMessages, tenantSlug, tipoChat],
   );
 
   const persistentLeadButton = [...messages]

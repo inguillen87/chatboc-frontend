@@ -1,5 +1,6 @@
 import { panelApi } from '@/api/v2/client';
 import type { V2Ticket, V2TicketComment, V2TicketEvent, V2TicketListResponse } from './ticketTypes';
+import type { EducationCaseAlias } from '@/types/education';
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -16,6 +17,27 @@ const getFirst = (record: Record<string, unknown>, keys: string[]) => {
     if (record[key] !== undefined && record[key] !== null) return record[key];
   }
   return undefined;
+};
+
+const normalizeEducationCaseAlias = (value: unknown): EducationCaseAlias | null => {
+  if (!isRecord(value)) return null;
+  return {
+    ...value,
+    contract_version: asString(value.contract_version),
+    id: asString(getFirst(value, ['id', 'alias_id'])),
+    case_id: getFirst(value, ['case_id', 'school_case_id', 'education_case_id']) as string | number | null | undefined,
+    ticket_id: getFirst(value, ['ticket_id', 'ticketId']) as string | number | null | undefined,
+    school_id: getFirst(value, ['school_id', 'colegio_id']) as string | number | null | undefined,
+    school_name: asString(getFirst(value, ['school_name', 'colegio_nombre', 'institution_name'])) ?? null,
+    student_id: getFirst(value, ['student_id', 'alumno_id']) as string | number | null | undefined,
+    student_name: asString(getFirst(value, ['student_name', 'alumno_nombre'])) ?? null,
+    guardian_id: getFirst(value, ['guardian_id', 'family_id', 'tutor_id']) as string | number | null | undefined,
+    guardian_name: asString(getFirst(value, ['guardian_name', 'family_name', 'tutor_nombre'])) ?? null,
+    case_type: asString(getFirst(value, ['case_type', 'type', 'tipo'])) ?? null,
+    status: asString(getFirst(value, ['status', 'estado'])) ?? null,
+    sensitivity_level: asString(getFirst(value, ['sensitivity_level', 'sensitivity', 'sensibilidad'])) ?? null,
+    requires_handoff: typeof value.requires_handoff === 'boolean' ? value.requires_handoff : null,
+  };
 };
 
 const buildQueryString = (params?: Record<string, string | number | boolean | null | undefined>) => {
@@ -36,6 +58,7 @@ const normalizeTicket = (value: unknown): V2Ticket | null => {
 
   const assignee = isRecord(value.assignee) ? value.assignee : null;
   const slaState = asString(value.sla_state) ?? asString(value.sla_status);
+  const schoolCase = normalizeEducationCaseAlias(getFirst(value, ['school_case', 'education_case', 'case_alias']));
   return {
     id,
     title:
@@ -58,6 +81,7 @@ const normalizeTicket = (value: unknown): V2Ticket | null => {
         }
       : null,
     assignee_name: asString(value.assignee_name) ?? (assignee ? asString(getFirst(assignee, ['name', 'nombre', 'email'])) : undefined) ?? null,
+    school_case: schoolCase,
     created_at: asString(value.created_at) ?? asString(value.fecha_creacion) ?? null,
     updated_at: asString(value.updated_at) ?? asString(value.ultima_actualizacion) ?? null,
     raw: value,

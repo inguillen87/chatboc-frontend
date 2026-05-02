@@ -1343,7 +1343,21 @@ function ChatWidgetInner({
                       ? publicConfig.quick_menu
                       : Array.isArray(publicConfig.builder_config?.quick_menu)
                         ? publicConfig.builder_config.quick_menu
-                        : [],
+                        : Array.isArray(publicConfig.education?.quick_menu)
+                          ? publicConfig.education.quick_menu
+                          : Array.isArray(publicConfig.builder_config?.education?.quick_menu)
+                            ? publicConfig.builder_config.education.quick_menu
+                            : Array.isArray(publicConfig.widget?.education?.quick_menu)
+                              ? publicConfig.widget.education.quick_menu
+                              : Array.isArray(publicConfig.widget?.builder_config?.education?.quick_menu)
+                                ? publicConfig.widget.builder_config.education.quick_menu
+                                : [],
+                    education:
+                      publicConfig.education ||
+                      publicConfig.builder_config?.education ||
+                      publicConfig.widget?.education ||
+                      publicConfig.widget?.builder_config?.education ||
+                      null,
                     experience_blueprint: experienceBlueprint,
                     first_visit:
                       publicConfig.first_visit ||

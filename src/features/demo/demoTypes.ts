@@ -9,10 +9,23 @@ import type {
 } from '@/types/chat';
 import type { HandoffLabels, QuickReplyItem } from '@/features/chat/chatTypes';
 
-export type DemoSector = 'gobierno' | 'empresas';
+export type DemoSector = 'gobierno' | 'empresas' | 'educacion' | (string & {});
+
+export interface DemoSectorGroup {
+  key: DemoSector;
+  label?: string | null;
+  description?: string | null;
+  cta_label?: string | null;
+  tenant_slug?: string | null;
+  demo_tenant_slug?: string | null;
+  default_tenant_slug?: string | null;
+  [key: string]: unknown;
+}
 
 export interface DemoCatalogResponse {
+  contract_version?: string;
   sectors?: DemoSector[];
+  sector_groups?: DemoSectorGroup[];
   rubros?: Rubro[];
 }
 
@@ -81,6 +94,13 @@ export interface DemoWorkspaceConfig {
   conversion_ctas?: ChatConversionCtasConfig | null;
   animation_tokens?: ChatAnimationTokens | null;
   empty_states?: Record<string, ChatExperienceBlock>;
+  education?: {
+    profile?: Record<string, unknown> | null;
+    quick_menu?: unknown[] | null;
+    whatsapp_playbook?: Record<string, unknown> | null;
+    admin_menu?: Record<string, unknown> | null;
+    [key: string]: unknown;
+  } | null;
   chat_bootstrap?: DemoChatBootstrap | null;
   chat_seed?: {
     chat_bootstrap?: DemoChatBootstrap | null;

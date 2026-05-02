@@ -1,6 +1,7 @@
 import { panelApi } from '@/api/v2/client';
 import { ApiError } from '@/utils/api';
 import type { ChatExperienceBlock } from '@/types/chat';
+import type { EducationCaseAlias } from '@/types/education';
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -182,6 +183,7 @@ export interface OmnichannelInboxItem {
   unreadCount: number;
   contact?: UnknownRecord;
   location?: UnknownRecord;
+  school_case?: EducationCaseAlias | null;
   presence: OmnichannelPresenceUser[];
   timeline: OmnichannelTimelineEvent[];
   actions: SaasAction[];
@@ -202,6 +204,7 @@ export interface OmnichannelInboxV2 {
 
 export interface OmnichannelInboxActionPayload {
   action: 'assign' | 'reply' | 'handoff' | 'close' | 'reopen' | 'set_priority' | string;
+  ticket_id?: string | number;
   payload?: UnknownRecord;
 }
 
@@ -252,6 +255,27 @@ const firstArray = (record: UnknownRecord, keys: string[]) => {
     if (isRecord(value) && Array.isArray(value.items)) return value.items;
   }
   return [];
+};
+
+const normalizeEducationCaseAlias = (value: unknown): EducationCaseAlias | null => {
+  if (!isRecord(value)) return null;
+  return {
+    ...value,
+    contract_version: asString(value.contract_version),
+    id: asString(getFirst(value, ['id', 'alias_id'])),
+    case_id: getFirst(value, ['case_id', 'school_case_id', 'education_case_id']) as string | number | null | undefined,
+    ticket_id: getFirst(value, ['ticket_id', 'ticketId']) as string | number | null | undefined,
+    school_id: getFirst(value, ['school_id', 'colegio_id']) as string | number | null | undefined,
+    school_name: asString(getFirst(value, ['school_name', 'colegio_nombre', 'institution_name'])) ?? null,
+    student_id: getFirst(value, ['student_id', 'alumno_id']) as string | number | null | undefined,
+    student_name: asString(getFirst(value, ['student_name', 'alumno_nombre'])) ?? null,
+    guardian_id: getFirst(value, ['guardian_id', 'family_id', 'tutor_id']) as string | number | null | undefined,
+    guardian_name: asString(getFirst(value, ['guardian_name', 'family_name', 'tutor_nombre'])) ?? null,
+    case_type: asString(getFirst(value, ['case_type', 'type', 'tipo'])) ?? null,
+    status: asString(getFirst(value, ['status', 'estado'])) ?? null,
+    sensitivity_level: asString(getFirst(value, ['sensitivity_level', 'sensitivity', 'sensibilidad'])) ?? null,
+    requires_handoff: typeof value.requires_handoff === 'boolean' ? value.requires_handoff : null,
+  };
 };
 
 const normalizeRatio = (value: number | undefined) => {
@@ -682,6 +706,7 @@ export const normalizeOmnichannelInboxItemV2 = (value: unknown, index = 0): Omni
   if (!isRecord(value)) return null;
   const id = asString(getFirst(value, ['id', 'ticket_id', 'conversation_id', 'nro_ticket'])) ?? `inbox_${index + 1}`;
   const contact = asRecord(value.contact);
+  const schoolCase = normalizeEducationCaseAlias(getFirst(value, ['school_case', 'education_case', 'case_alias']));
   const timelineSource = getFirst(value, ['timeline', 'events', 'messages', 'conversation']);
   const experienceBlueprint = asRecord(value.experience_blueprint);
   const agentCopilot =
@@ -703,6 +728,7 @@ export const normalizeOmnichannelInboxItemV2 = (value: unknown, index = 0): Omni
     unreadCount: asNumber(getFirst(value, ['unread_count', 'unreadCount'])) ?? 0,
     contact: value.contact ? contact : undefined,
     location: value.location ? asRecord(value.location) : undefined,
+    school_case: schoolCase,
     presence: normalizePresence(getFirst(value, ['presence', 'viewers', 'active_viewers'])),
     timeline: normalizeTimeline(timelineSource, id),
     actions: normalizeActions(value.actions),
@@ -809,11 +835,22 @@ export const postOmnichannelInboxActionV2 = async (
   tenantSlug?: string | null,
 ) => {
   const encodedTicketId = encodeURIComponent(ticketId);
-  const response = await panelApi.post<unknown>(
-    `/api/v2/inbox/omnichannel/${encodedTicketId}/actions`,
-    payload,
-    { tenantSlug },
-  );
+  const payloadWithTicket = { ...payload, ticket_id: payload.ticket_id ?? ticketId };
+  let response: unknown;
+  try {
+    response = await panelApi.post<unknown>(
+      `/api/v2/inbox/omnichannel/${encodedTicketId}/actions`,
+      payloadWithTicket,
+      { tenantSlug },
+    );
+  } catch (error) {
+    if (!shouldFallbackEndpoint(error)) throw error;
+    response = await panelApi.post<unknown>(
+      '/api/v2/inbox/omnichannel/actions',
+      payloadWithTicket,
+      { tenantSlug },
+    );
+  }
   const source = getSource(response);
   const record = asRecord(source);
   const candidate =

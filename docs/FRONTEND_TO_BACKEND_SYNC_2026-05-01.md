@@ -259,6 +259,7 @@ Headers usados:
 - `X-Chat-Session-Id` via `apiFetch`.
 - `X-Tenant-Slug` y `X-Tenant` cuando hay tenant.
 - `X-Anon-Id` cuando existe visitante anonimo.
+- `Idempotency-Key` en envios/reintentos de `lead_capture`.
 
 Shape esperado `media_capabilities`:
 ```json
@@ -311,6 +312,29 @@ Shape esperado `lead_capture`:
   "trigger_intents": ["crear_pedido", "derivar_humano", "checkout_intent"],
   "endpoint": "/api/public/lead-capture",
   "success_message": "Listo, dejamos tu consulta preparada para seguimiento."
+}
+```
+
+Respuesta esperada de `POST /api/public/lead-capture`:
+```json
+{
+  "ok": true,
+  "contract_version": "public.lead_capture.v1",
+  "request_id": "req_123",
+  "tenant": {
+    "slug": "tenant-slug",
+    "tipo": "pyme"
+  },
+  "lead_id": "lead_123",
+  "ticket_id": 123,
+  "ticket_type": "tenant_ticket",
+  "status": "nuevo",
+  "deduplicated": false,
+  "idempotency_key": "lead-key",
+  "message_body": "Gracias...",
+  "next_actions": [
+    { "id": "open_lead", "label": "Abrir lead", "endpoint": "/api/v2/tickets/123" }
+  ]
 }
 ```
 
@@ -823,8 +847,9 @@ Frontend ya tiene clientes listos para estos endpoints sin abrir aliases legacy 
 
 Notas frontend:
 - `GET /api/v2/tenants/current` no tiene fallback al primer tenant.
-- Demo preserva `chat_bootstrap.endpoint`, `fallback_endpoint`, `headers`, `query`, `payload` y `supports`; puede leerlo top-level, en `workspace` o en `chat_seed`.
-- La pagina demo usa `chat_bootstrap` para el saludo inicial y mensajes si llega del backend; solo calcula `/ask/*` como fallback de compatibilidad.
+- Demo preserva `chat_bootstrap.method`, `endpoint`, `fallback_endpoint`, `headers`, `query`, `payload` y `supports`; puede leerlo top-level, en `workspace` o en `chat_seed`.
+- La pagina demo usa `chat_bootstrap` para el saludo inicial y mensajes si llega del backend; solo calcula `/ask/*`, `tipo_chat`, `rubro` y `tenant_slug` como fallback de compatibilidad.
+- En llamadas con `chat_bootstrap`, frontend no agrega tenant/query/session propios de `apiFetch`; conserva los headers del contrato backend.
 - Tickets comments soportan `visibility` para `public`, `internal` o `private`.
 - Surveys v2 acepta `single`, `multi`, `rating`, `text`, `nps`, `ranking` y `location`.
 
@@ -1479,6 +1504,12 @@ Lead capture request:
 {
   "tenant_slug": "colegio-san-martin",
   "tipo_chat": "pyme",
+  "chat_session_id": "session_123",
+  "anon_id": "anon_123",
+  "channel": "web",
+  "source": "chat_panel",
+  "trigger": "checkout_intent",
+  "idempotency_key": "lead-key",
   "conversation_id": "conv_123",
   "fields": {
     "telefono": "+5491112345678"
@@ -1492,8 +1523,17 @@ Respuesta recomendada:
 ```json
 {
   "ok": true,
+  "contract_version": "public.lead_capture.v1",
   "request_id": "req_lead_001",
-  "lead_id": "lead_123"
+  "lead_id": "lead_123",
+  "ticket_id": 123,
+  "status": "nuevo",
+  "deduplicated": false,
+  "idempotency_key": "lead-key",
+  "message_body": "Listo, dejamos tu consulta preparada para seguimiento.",
+  "next_actions": [
+    { "id": "open_lead", "label": "Abrir lead", "endpoint": "/api/v2/tickets/123" }
+  ]
 }
 ```
 

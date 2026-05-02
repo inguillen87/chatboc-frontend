@@ -3,10 +3,17 @@ import type {
   EducationCaseAssignPayload,
   EducationCaseEscalatePayload,
   EducationCaseReplyPayload,
+  EducationAdminMenu,
   EducationFamilyContext,
   EducationGuardianLookupPayload,
   EducationGuardianVerifyPayload,
   EducationLinkStudentPayload,
+  EducationCasesFilters,
+  EducationCasesListEnvelope,
+  EducationOperationsHeatmap,
+  EducationOperationsSummary,
+  EducationTenantCapabilities,
+  EducationWhatsappPlaybook,
 } from '@/types/education';
 
 type ApiFetchOptions = NonNullable<Parameters<typeof apiFetch>[1]>;
@@ -56,6 +63,54 @@ const normalizeFamilyContext = (payload: unknown): EducationFamilyContext => {
   const record = asRecord(payload);
   const nested = asRecord(record?.family_context);
   return (nested ?? record ?? {}) as EducationFamilyContext;
+};
+
+const buildQueryString = (params?: EducationCasesFilters) => {
+  if (!params) return '';
+  const search = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === '') return;
+    search.set(key, typeof value === 'boolean' ? (value ? '1' : '0') : String(value));
+  });
+  const query = search.toString();
+  return query ? `?${query}` : '';
+};
+
+const normalizeCasesEnvelope = (payload: unknown): EducationCasesListEnvelope => {
+  if (Array.isArray(payload)) {
+    return {
+      items: payload,
+      count: payload.length,
+      filters: {},
+    };
+  }
+  const record = asRecord(payload) ?? {};
+  const items = Array.isArray(record.items)
+    ? record.items
+    : Array.isArray(record.cases)
+      ? record.cases
+      : Array.isArray(record.data)
+        ? record.data
+        : [];
+  return {
+    ...record,
+    contract_version: typeof record.contract_version === 'string' ? record.contract_version : undefined,
+    request_id: typeof record.request_id === 'string' ? record.request_id : undefined,
+    items,
+    count: typeof record.count === 'number' ? record.count : items.length,
+    limit: typeof record.limit === 'number' ? record.limit : undefined,
+    filters: asRecord(record.filters) ?? {},
+  };
+};
+
+const buildCasesEnvelopePathFromEndpoint = (endpoint?: string | null) => {
+  const raw = typeof endpoint === 'string' && endpoint.trim()
+    ? endpoint.trim()
+    : '/api/v1/education/cases';
+  const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'http://localhost';
+  const parsed = new URL(raw, baseUrl);
+  parsed.searchParams.set('envelope', '1');
+  return `${parsed.pathname}${parsed.search}`;
 };
 
 export const educationApi = {
@@ -124,4 +179,35 @@ export const educationApi = {
       payload,
       options,
     ),
+
+  getAdminMenu: (options?: RequestOptions) =>
+    getWithFallbacks<EducationAdminMenu>(['/api/v1/education/admin/menu'], options),
+
+  getWhatsappPlaybook: (options?: RequestOptions) =>
+    getWithFallbacks<EducationWhatsappPlaybook>(['/api/v1/education/whatsapp/playbook'], options),
+
+  getTenantCapabilities: (options?: RequestOptions) =>
+    getWithFallbacks<EducationTenantCapabilities>(['/api/v1/education/tenant/capabilities'], options),
+
+  getOperationsSummary: (options?: RequestOptions) =>
+    getWithFallbacks<EducationOperationsSummary>(['/api/v1/education/operations/summary'], options),
+
+  getOperationsHeatmap: (filters?: EducationCasesFilters, options?: RequestOptions) =>
+    getWithFallbacks<EducationOperationsHeatmap>(
+      [`/api/v1/education/operations/heatmap${buildQueryString(filters)}`],
+      options,
+    ),
+
+  listCasesEnvelope: async (filters?: EducationCasesFilters, options?: RequestOptions) => {
+    const response = await getWithFallbacks<unknown>(
+      [`/api/v1/education/cases${buildQueryString({ ...filters, envelope: true })}`],
+      options,
+    );
+    return normalizeCasesEnvelope(response);
+  },
+
+  openCasesEnvelopeFromEndpoint: async (endpoint?: string | null, options?: RequestOptions) => {
+    const response = await getWithFallbacks<unknown>([buildCasesEnvelopePathFromEndpoint(endpoint)], options);
+    return normalizeCasesEnvelope(response);
+  },
 };

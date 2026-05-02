@@ -6,7 +6,7 @@ import ChatInput from "@/components/chat/ChatInput";
 import TypingIndicator from "@/components/chat/TypingIndicator";
 import ChatMessage from "@/components/chat/ChatMessage";
 import RubroSelector, { Rubro } from "@/components/chat/RubroSelector";
-import { Message, SendPayload } from "@/types/chat";
+import type { ChatMediaCapabilities, Message, SendPayload } from "@/types/chat";
 import { apiFetch, getErrorMessage } from "@/utils/api";
 import { getCurrentTipoChat, enforceTipoChatForRubro, parseRubro } from "@/utils/tipoChat";
 import { getAskEndpoint, esRubroPublico } from "@/utils/chatEndpoints";
@@ -15,10 +15,36 @@ import { extractButtonsFromResponse } from "@/utils/chatButtons";
 import DemoWorkspace from '@/features/demo/DemoWorkspace';
 import DemoSectorStep from '@/features/demo/DemoSectorStep';
 import { createDemoSession, getDemoCatalog } from '@/features/demo/demoApi';
-import type { DemoChatBootstrap, DemoSector, DemoWorkspaceConfig } from '@/features/demo/demoTypes';
+import type { DemoCatalogResponse, DemoChatBootstrap, DemoSector, DemoSectorGroup, DemoWorkspaceConfig } from '@/features/demo/demoTypes';
 import { sendChatBootstrapMessage } from '@/features/chat/chatApi';
 
 const MAX_PREGUNTAS = 15;
+
+const findSectorGroup = (
+  catalog: DemoCatalogResponse | null,
+  sector: DemoSector | null,
+): DemoSectorGroup | null => {
+  if (!sector) return null;
+  return catalog?.sector_groups?.find((group) => String(group.key) === String(sector)) ?? null;
+};
+
+const readSectorLabel = (group: DemoSectorGroup | null, sector: DemoSector | null) => {
+  if (group?.label?.trim()) return group.label.trim();
+  if (sector === 'gobierno') return 'Gobierno';
+  if (sector === 'empresas') return 'Empresas';
+  return sector ? String(sector) : 'Demo';
+};
+
+const readSectorTenantSlug = (group: DemoSectorGroup | null) => {
+  const candidates = [
+    group?.tenant_slug,
+    group?.demo_tenant_slug,
+    group?.default_tenant_slug,
+    typeof group?.tenant === 'string' ? group.tenant : null,
+    typeof group?.slug === 'string' ? group.slug : null,
+  ];
+  return candidates.find((value) => typeof value === 'string' && value.trim())?.trim() ?? null;
+};
 
 const Demo = () => {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -30,6 +56,7 @@ const Demo = () => {
   const [esperandoRubro, setEsperandoRubro] = useState(true); // Initialize to true
   const [anonId, setAnonId] = useState<string>("");
   const [sectorSeleccionado, setSectorSeleccionado] = useState<DemoSector | null>(null);
+  const [demoCatalog, setDemoCatalog] = useState<DemoCatalogResponse | null>(null);
   const [demoSessionId, setDemoSessionId] = useState<string | null>(null);
   const [demoTenantSlug, setDemoTenantSlug] = useState<string | null>(null);
   const [demoWorkspace, setDemoWorkspace] = useState<DemoWorkspaceConfig | null>(null);
@@ -46,6 +73,11 @@ const Demo = () => {
     return lastBotMessage?.botones ?? [];
   }, [messages]);
   const activeChatBootstrap = demoWorkspace?.chat_bootstrap ?? null;
+  const selectedSectorGroup = findSectorGroup(demoCatalog, sectorSeleccionado);
+  const demoMediaCapabilities = useMemo(
+    () => mergeBootstrapSupportsWithMediaCapabilities(demoWorkspace?.media_capabilities ?? null, activeChatBootstrap?.supports),
+    [activeChatBootstrap?.supports, demoWorkspace?.media_capabilities],
+  );
 
 
   // Action: reset demo and choose another rubro
@@ -67,8 +99,12 @@ const Demo = () => {
     // The useEffect for loading rubros will trigger again due to rubroSeleccionado being null
     // or rather, we explicitly set esperandoRubro to true and then the rubro loading logic runs
     getDemoCatalog()
-        .then((data) => setRubrosDisponibles(Array.isArray(data?.rubros) ? data.rubros : []))
+        .then((data) => {
+          setDemoCatalog(data);
+          setRubrosDisponibles(Array.isArray(data?.rubros) ? data.rubros : []);
+        })
         .catch(() => {
+          setDemoCatalog(null);
           setRubrosDisponibles([]);
         });
   };
@@ -85,9 +121,6 @@ const Demo = () => {
   const startDemoConversation = useCallback(
     async (rubroNombre: string, bootstrapOverride?: DemoChatBootstrap | null, tenantSlugOverride?: string | null) => {
       const normalized = parseRubro(rubroNombre);
-      const baseTipo = getCurrentTipoChat();
-      const adjustedTipo = enforceTipoChatForRubro(baseTipo, normalized);
-      const endpoint = getAskEndpoint({ tipoChat: adjustedTipo, rubro: normalized || undefined });
       const chatBootstrap = bootstrapOverride ?? activeChatBootstrap;
       const tenantSlug = tenantSlugOverride ?? demoTenantSlug;
 
@@ -103,34 +136,34 @@ const Demo = () => {
       lastQueryRef.current = null;
 
       try {
-        const initialPayload = {
-          action: "initial_greeting",
-          contexto_previo: {},
-          anon_id: currentAnonId,
-          tipo_chat: adjustedTipo,
-          ...(adjustedTipo === "pyme" && rubroNombre
-            ? { rubro_clave: rubroNombre }
-            : {}),
-        };
         const response = chatBootstrap
           ? await sendChatBootstrapMessage(
               chatBootstrap,
               {
                 text: "",
-                intent: "initial_greeting",
-                extraPayload: initialPayload,
               },
               tenantSlug,
             )
-          : await apiFetch<any>(endpoint, {
-              method: "POST",
-              body: {
-                pregunta: "",
-                ...initialPayload,
-              },
-              headers: { "Content-Type": "application/json" },
-              skipAuth: true,
-            });
+          : await (async () => {
+              const baseTipo = getCurrentTipoChat();
+              const adjustedTipo = enforceTipoChatForRubro(baseTipo, normalized);
+              const endpoint = getAskEndpoint({ tipoChat: adjustedTipo, rubro: normalized || undefined });
+              return apiFetch<any>(endpoint, {
+                method: "POST",
+                body: {
+                  pregunta: "",
+                  action: "initial_greeting",
+                  contexto_previo: {},
+                  anon_id: currentAnonId,
+                  tipo_chat: adjustedTipo,
+                  ...(adjustedTipo === "pyme" && rubroNombre
+                    ? { rubro_clave: rubroNombre }
+                    : {}),
+                },
+                headers: { "Content-Type": "application/json" },
+                skipAuth: true,
+              });
+            })();
 
         setContexto((response as any)?.contexto_actualizado || {});
         const respuestaText = response.respuesta_usuario || "⚠️ No se pudo generar una respuesta.";
@@ -187,8 +220,12 @@ const Demo = () => {
       setEsperandoRubro(true);
       setMessages([]);
       getDemoCatalog()
-        .then((data) => setRubrosDisponibles(Array.isArray(data?.rubros) ? data.rubros : []))
+        .then((data) => {
+          setDemoCatalog(data);
+          setRubrosDisponibles(Array.isArray(data?.rubros) ? data.rubros : []);
+        })
         .catch(() => {
+          setDemoCatalog(null);
           setRubrosDisponibles([]);
         });
     }
@@ -233,24 +270,6 @@ const Demo = () => {
       setIsTyping(true);
 
       try {
-        const currentTipo = getCurrentTipoChat();
-        const rubroParaTipo = rubroClave ?? rubroSeleccionado;
-        const adjustedTipo = enforceTipoChatForRubro(currentTipo, rubroParaTipo);
-        const payloadBody: Record<string, any> = {
-          pregunta: text,
-          rubro_clave: rubroClave ?? rubroSeleccionado,
-          contexto_previo: contexto,
-          anon_id: anonId,
-          tipo_chat: adjustedTipo,
-          ...(extras.es_foto && { es_foto: true, archivo_url: extras.archivo_url }),
-          ...(extras.es_ubicacion && { es_ubicacion: true, ubicacion_usuario: extras.ubicacion_usuario }),
-          ...(extras.action && { action: extras.action }),
-        };
-
-        const endpoint = getAskEndpoint({
-          tipoChat: adjustedTipo,
-          rubro: rubroNormalizado || undefined,
-        });
         const response = activeChatBootstrap
           ? await sendChatBootstrapMessage(
               activeChatBootstrap,
@@ -260,16 +279,34 @@ const Demo = () => {
                 payload: typeof extras.payload === 'object' && extras.payload !== null ? extras.payload : null,
                 attachmentInfo: extras.attachmentInfo ?? (extras.es_foto ? { url: extras.archivo_url } : undefined),
                 location: extras.location ?? extras.ubicacion_usuario,
-                extraPayload: payloadBody,
               },
               demoTenantSlug,
             )
-          : await apiFetch<any>(endpoint, {
-              method: "POST",
-              body: payloadBody,
-              headers: { "Content-Type": "application/json" },
-              skipAuth: true,
-            });
+          : await (async () => {
+              const currentTipo = getCurrentTipoChat();
+              const rubroParaTipo = rubroClave ?? rubroSeleccionado;
+              const adjustedTipo = enforceTipoChatForRubro(currentTipo, rubroParaTipo);
+              const payloadBody: Record<string, any> = {
+                pregunta: text,
+                rubro_clave: rubroClave ?? rubroSeleccionado,
+                contexto_previo: contexto,
+                anon_id: anonId,
+                tipo_chat: adjustedTipo,
+                ...(extras.es_foto && { es_foto: true, archivo_url: extras.archivo_url }),
+                ...(extras.es_ubicacion && { es_ubicacion: true, ubicacion_usuario: extras.ubicacion_usuario }),
+                ...(extras.action && { action: extras.action }),
+              };
+              const endpoint = getAskEndpoint({
+                tipoChat: adjustedTipo,
+                rubro: rubroNormalizado || undefined,
+              });
+              return apiFetch<any>(endpoint, {
+                method: "POST",
+                body: payloadBody,
+                headers: { "Content-Type": "application/json" },
+                skipAuth: true,
+              });
+            })();
 
         setContexto((response as any)?.contexto_actualizado || {});
 
@@ -310,6 +347,51 @@ const Demo = () => {
     [activeChatBootstrap, contexto, demoTenantSlug, rubroSeleccionado, anonId, preguntasUsadas, rubroClave, rubroNormalizado]
   );
 
+  const startEducationDemo = useCallback(async () => {
+    const sector: DemoSector = 'educacion';
+    const group = findSectorGroup(demoCatalog, sector);
+    const label = readSectorLabel(group, sector);
+    const tenantSlug = readSectorTenantSlug(group);
+
+    setSectorSeleccionado(sector);
+    setRubroSeleccionado(label);
+    setRubroClaveSeleccionado(sector);
+    setEsperandoRubro(false);
+    setMessages([]);
+    setPreguntasUsadas(0);
+    setContexto({});
+    openDemoWidget();
+
+    try {
+      const session = await createDemoSession({
+        sector,
+        tenant_slug: tenantSlug,
+      });
+      setDemoSessionId(session.demo_session_id ?? null);
+      setDemoTenantSlug(session.tenant_slug ?? null);
+      setDemoWorkspace(session.workspace ?? null);
+      await startDemoConversation(
+        sector,
+        session.workspace?.chat_bootstrap ?? null,
+        session.tenant_slug ?? null,
+      );
+    } catch (error) {
+      setDemoSessionId(null);
+      setDemoTenantSlug(null);
+      setDemoWorkspace(null);
+      setMessages([
+        {
+          id: Date.now(),
+          text: getErrorMessage(error, 'No se pudo iniciar la demo educativa.'),
+          isBot: true,
+          timestamp: new Date(),
+          query: undefined,
+        },
+      ]);
+      setIsTyping(false);
+    }
+  }, [demoCatalog, openDemoWidget, startDemoConversation]);
+
   // Rubros selector UI
   if (esperandoRubro) {
     return (
@@ -329,14 +411,33 @@ const Demo = () => {
             Seleccioná el rubro que más se parece a tu negocio:
           </p>
           <div className="mb-4">
-            <DemoSectorStep onSelect={setSectorSeleccionado} />
+            <DemoSectorStep
+              sectors={demoCatalog?.sectors}
+              sectorGroups={demoCatalog?.sector_groups}
+              selectedSector={sectorSeleccionado}
+              onSelect={setSectorSeleccionado}
+            />
           </div>
           {sectorSeleccionado ? null : (
             <p className="mb-3 text-xs text-muted-foreground">Primero seleccioná el sector para iniciar la demo.</p>
           )}
-          <RubroSelector
-            rubros={sectorSeleccionado ? rubrosDisponibles : []}
-            onSelect={(rubro) => {
+          {sectorSeleccionado === 'educacion' ? (
+            <div className="space-y-3 rounded-lg border bg-background/70 p-3 text-left">
+              {selectedSectorGroup?.description ? (
+                <p className="text-sm text-muted-foreground">{selectedSectorGroup.description}</p>
+              ) : null}
+              <button
+                type="button"
+                className="w-full rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                onClick={() => void startEducationDemo()}
+              >
+                {selectedSectorGroup?.cta_label?.trim() || 'Iniciar demo'}
+              </button>
+            </div>
+          ) : (
+            <RubroSelector
+              rubros={sectorSeleccionado ? rubrosDisponibles : []}
+              onSelect={(rubro) => {
               const clave = extractRubroKey(rubro);
               const etiqueta = extractRubroLabel(rubro) || rubro.nombre;
 
@@ -387,7 +488,8 @@ const Demo = () => {
                 }
               })();
             }}
-          />
+            />
+          )}
         </div>
       </div>
     );
@@ -482,6 +584,7 @@ const Demo = () => {
           <ChatInput
             onSendMessage={handleSendMessage}
             isTyping={isTyping}
+            mediaCapabilities={demoMediaCapabilities}
           />
            <p className="text-center text-xs text-muted-foreground pt-2">
             Chatboc Demo &copy; {new Date().getFullYear()}.
@@ -494,6 +597,27 @@ const Demo = () => {
       </footer>
     </div>
   );
+};
+
+const mergeBootstrapSupportsWithMediaCapabilities = (
+  mediaCapabilities: ChatMediaCapabilities | null,
+  supports?: Record<string, boolean>,
+): ChatMediaCapabilities | null => {
+  if (!supports) return mediaCapabilities;
+
+  const inputModes = { ...(mediaCapabilities?.input_modes ?? {}) };
+  ['text', 'image', 'audio', 'location', 'file'].forEach((mode) => {
+    if (typeof supports[mode] !== 'boolean') return;
+    inputModes[mode] = {
+      ...(inputModes[mode] ?? {}),
+      enabled: supports[mode],
+    };
+  });
+
+  return {
+    ...(mediaCapabilities ?? { version: 'demo.chat_bootstrap.supports.v1' }),
+    input_modes: inputModes,
+  };
 };
 
 export default Demo;

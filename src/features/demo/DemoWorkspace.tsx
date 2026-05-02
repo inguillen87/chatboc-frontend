@@ -14,6 +14,9 @@ export default function DemoWorkspace({
   workspace?: DemoWorkspaceConfig | null;
 }) {
   const valueCards = workspace?.value_cards ?? [];
+  const educationQuickMenu = Array.isArray(workspace?.education?.quick_menu)
+    ? workspace.education.quick_menu
+    : null;
 
   return (
     <div className="space-y-3 rounded-lg border border-border/70 bg-card/30 p-4">
@@ -50,6 +53,7 @@ export default function DemoWorkspace({
             workspace?.experience_blueprint?.empty_states ??
             undefined,
         }}
+        quickMenu={educationQuickMenu}
         handoffState="none"
         handoffLabels={workspace?.handoff_labels ?? undefined}
         leadCapture={workspace?.lead_capture ?? workspace?.experience_blueprint?.lead_capture ?? null}

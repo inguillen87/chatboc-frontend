@@ -4,14 +4,14 @@ import type { DemoCatalogResponse, DemoChatBootstrap, DemoSessionResponse, DemoS
 
 export const getDemoCatalog = async (): Promise<DemoCatalogResponse> => {
   try {
-    return await demoApi.get<DemoCatalogResponse>('/api/v2/demo/catalog');
+    return normalizeDemoCatalog(await demoApi.get<DemoCatalogResponse>('/api/v2/demo/catalog'));
   } catch {
     const rubros = await getRubrosHierarchy().catch(() => []);
-    return { sectors: ['gobierno', 'empresas'], rubros };
+    return normalizeDemoCatalog({ sectors: ['gobierno', 'empresas'], rubros });
   }
 };
 
-export const createDemoSession = (payload: { sector: DemoSector; rubro: string; tenant_slug?: string | null }) =>
+export const createDemoSession = (payload: { sector: DemoSector; rubro?: string; tenant_slug?: string | null }) =>
   demoApi.post<DemoSessionResponse>('/api/v2/demo/session', payload, {
     legacyFallbackPath: '/api/v1/demo/session',
   }).then((response) => ({
@@ -20,6 +20,22 @@ export const createDemoSession = (payload: { sector: DemoSector; rubro: string; 
     tenant_slug: response.tenant_slug ?? response.tenant?.slug ?? null,
     workspace: normalizeWorkspaceConfig(response),
   }));
+
+const normalizeDemoCatalog = (response: DemoCatalogResponse): DemoCatalogResponse => {
+  const sectors = Array.isArray(response.sectors) && response.sectors.length
+    ? response.sectors
+    : ['gobierno', 'empresas'];
+  const sectorGroups = Array.isArray(response.sector_groups)
+    ? response.sector_groups.filter((group) => group?.key)
+    : [];
+
+  return {
+    ...response,
+    sectors,
+    sector_groups: sectorGroups,
+    rubros: Array.isArray(response.rubros) ? response.rubros : [],
+  };
+};
 
 const normalizeWorkspaceConfig = (response: DemoSessionResponse): DemoWorkspaceConfig | null => {
   const workspace: DemoWorkspaceConfig = response.workspace ?? {};
@@ -33,6 +49,7 @@ const normalizeWorkspaceConfig = (response: DemoSessionResponse): DemoWorkspaceC
   const conversionCtas = workspace.conversion_ctas ?? response.conversion_ctas ?? experienceBlueprint?.conversion_ctas ?? null;
   const animationTokens = workspace.animation_tokens ?? response.animation_tokens ?? experienceBlueprint?.animation_tokens ?? null;
   const emptyStates = workspace.empty_states ?? response.empty_states ?? experienceBlueprint?.empty_states ?? undefined;
+  const education = workspace.education ?? null;
   const chatBootstrap = normalizeChatBootstrap(
     workspace.chat_bootstrap ??
       response.chat_bootstrap ??
@@ -63,6 +80,7 @@ const normalizeWorkspaceConfig = (response: DemoSessionResponse): DemoWorkspaceC
     !conversionCtas &&
     !animationTokens &&
     !emptyStates &&
+    !education &&
     !chatBootstrap
   ) {
     return null;
@@ -83,6 +101,7 @@ const normalizeWorkspaceConfig = (response: DemoSessionResponse): DemoWorkspaceC
     conversion_ctas: conversionCtas,
     animation_tokens: animationTokens,
     empty_states: emptyStates,
+    education,
     chat_bootstrap: chatBootstrap,
     chat_seed: workspace.chat_seed ?? response.chat_seed ?? null,
   };

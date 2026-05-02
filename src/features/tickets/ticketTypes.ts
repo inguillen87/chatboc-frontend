@@ -1,3 +1,5 @@
+import type { EducationCaseAlias } from '@/types/education';
+
 export interface V2Ticket {
   id: string;
   title: string;
@@ -13,6 +15,7 @@ export interface V2Ticket {
     name?: string | null;
   } | null;
   assignee_name?: string | null;
+  school_case?: EducationCaseAlias | null;
   created_at?: string | null;
   updated_at?: string | null;
   raw?: unknown;

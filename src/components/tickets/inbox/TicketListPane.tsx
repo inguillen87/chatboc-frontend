@@ -16,6 +16,9 @@ const formatRelativeTime = (value: string) => {
   return formatDistanceToNow(date, { addSuffix: true, locale: es });
 };
 
+const getSchoolCaseLabel = (ticket: OmnichannelInboxItem) =>
+  ticket.school_case?.case_type || ticket.school_case?.status || ticket.school_case?.school_name || null;
+
 export const TicketListPane: React.FC<TicketListPaneProps> = ({ tickets, selectedTicketId, onSelect }) => {
   return (
     <div className="flex flex-col w-full h-full border-r bg-background overflow-hidden">
@@ -30,34 +33,43 @@ export const TicketListPane: React.FC<TicketListPaneProps> = ({ tickets, selecte
           </div>
         ) : (
           <ul className="divide-y">
-            {tickets.map(ticket => (
-              <li
-                key={ticket.id}
-                onClick={() => onSelect(ticket.id)}
-                className={`p-4 cursor-pointer hover:bg-muted/50 transition-colors flex flex-col gap-1.5 ${
-                  selectedTicketId === ticket.id ? 'bg-muted border-l-4 border-l-primary' : 'border-l-4 border-l-transparent'
-                }`}
-              >
-                <div className="flex justify-between items-start gap-2">
-                  <span className="font-medium text-sm truncate">{ticket.title}</span>
-                  <span className="text-[10px] text-muted-foreground shrink-0 mt-0.5">
-                    {formatRelativeTime(ticket.lastMessageAt)}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center mt-1">
-                  <div className="flex gap-1.5">
-                     <Badge variant="outline" className="text-[10px] px-1.5 h-4 font-normal">{ticket.status}</Badge>
-                     {ticket.channel && <Badge variant="outline" className="text-[10px] px-1.5 h-4 font-normal">{ticket.channel}</Badge>}
-                     {ticket.category && <Badge variant="secondary" className="text-[10px] px-1.5 h-4 font-normal">{ticket.category}</Badge>}
+            {tickets.map((ticket) => {
+              const schoolCaseLabel = getSchoolCaseLabel(ticket);
+
+              return (
+                <li
+                  key={ticket.id}
+                  onClick={() => onSelect(ticket.id)}
+                  className={`p-4 cursor-pointer hover:bg-muted/50 transition-colors flex flex-col gap-1.5 ${
+                    selectedTicketId === ticket.id ? 'bg-muted border-l-4 border-l-primary' : 'border-l-4 border-l-transparent'
+                  }`}
+                >
+                  <div className="flex justify-between items-start gap-2">
+                    <span className="font-medium text-sm truncate">{ticket.title}</span>
+                    <span className="text-[10px] text-muted-foreground shrink-0 mt-0.5">
+                      {formatRelativeTime(ticket.lastMessageAt)}
+                    </span>
                   </div>
-                  {ticket.unreadCount > 0 && (
-                    <Badge variant="destructive" className="rounded-full w-5 h-5 p-0 flex items-center justify-center text-[10px]">
-                      {ticket.unreadCount}
-                    </Badge>
-                  )}
-                </div>
-              </li>
-            ))}
+                  <div className="flex justify-between items-center mt-1">
+                    <div className="flex gap-1.5">
+                       <Badge variant="outline" className="text-[10px] px-1.5 h-4 font-normal">{ticket.status}</Badge>
+                       {ticket.channel && <Badge variant="outline" className="text-[10px] px-1.5 h-4 font-normal">{ticket.channel}</Badge>}
+                       {ticket.category && <Badge variant="secondary" className="text-[10px] px-1.5 h-4 font-normal">{ticket.category}</Badge>}
+                       {schoolCaseLabel ? (
+                         <Badge variant="secondary" className="text-[10px] px-1.5 h-4 font-normal">
+                           {schoolCaseLabel}
+                         </Badge>
+                       ) : null}
+                    </div>
+                    {ticket.unreadCount > 0 && (
+                      <Badge variant="destructive" className="rounded-full w-5 h-5 p-0 flex items-center justify-center text-[10px]">
+                        {ticket.unreadCount}
+                      </Badge>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>

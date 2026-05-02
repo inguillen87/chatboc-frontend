@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowRight, BarChart3, BellRing, CheckCircle2, FileText, HeartPulse, Inbox, MessagesSquare, ServerCog, Users } from 'lucide-react';
 
+import { getApiV2Health } from '@/api/v2/foundation';
 import {
   getEmployeeCoverageV2,
   getNotificationDeliveryStatusV2,
@@ -10,6 +11,7 @@ import {
   getSuperadminExecutiveSummaryV2,
   getTenantHealthV2,
 } from '@/api/v2/saas';
+import { getCurrentTenantV2 } from '@/api/v2/tenants';
 import EnterprisePageHeader from '@/components/enterprise/EnterprisePageHeader';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -17,10 +19,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useTenant } from '@/context/TenantContext';
 import { useUser } from '@/hooks/useUser';
 
-const statusLabel = (query: { isLoading: boolean; isError: boolean; data?: { contract_version?: string } }) => {
+const statusLabel = (query: { isLoading: boolean; isError: boolean; data?: { contract_version?: string; version?: string } }) => {
   if (query.isLoading) return 'Cargando';
   if (query.isError) return 'Revisar';
   if (query.data?.contract_version) return query.data.contract_version;
+  if (query.data?.version) return query.data.version;
   return query.data ? 'Activo' : 'Pendiente';
 };
 
@@ -34,6 +37,20 @@ const EnterpriseOpsPage = () => {
   const { currentSlug } = useTenant();
   const { user } = useUser();
   const isSuperadmin = String(user?.rol ?? '').toLowerCase().includes('super');
+
+  const foundationQuery = useQuery({
+    queryKey: ['api-v2-health'],
+    queryFn: () => getApiV2Health(),
+    retry: 0,
+    staleTime: 30_000,
+  });
+
+  const currentTenantQuery = useQuery({
+    queryKey: ['tenant-current-v2', currentSlug],
+    queryFn: () => getCurrentTenantV2(currentSlug),
+    retry: 0,
+    staleTime: 30_000,
+  });
 
   const healthQuery = useQuery({
     queryKey: ['tenant-health-v2', currentSlug],
@@ -79,6 +96,14 @@ const EnterpriseOpsPage = () => {
   });
 
   const modules = [
+    {
+      key: 'api-v2-foundation',
+      title: 'API v2 foundation',
+      to: '/enterprise',
+      icon: ServerCog,
+      note: 'Healthcheck v2 y resolucion estricta de tenant para nuevas capacidades.',
+      query: foundationQuery,
+    },
     {
       key: 'tenant-health',
       title: 'Tenant health',
@@ -187,6 +212,8 @@ const EnterpriseOpsPage = () => {
             <CardDescription>Resumen directo de las respuestas canonicas disponibles para este contexto.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3 sm:grid-cols-3">
+            <ReadinessStat label="API v2" value={foundationQuery.data?.ok ? foundationQuery.data.version : '--'} />
+            <ReadinessStat label="Tenant v2" value={String(currentTenantQuery.data?.tenant?.slug ?? currentSlug ?? '--')} />
             <ReadinessStat label="Health" value={formatHealth(healthQuery.data?.health_score)} />
             <ReadinessStat label="Coverage" value={String(coverageQuery.data?.employees.length ?? 0)} />
             <ReadinessStat label="Inbox" value={String(inboxQuery.data?.items.length ?? 0)} />
@@ -205,6 +232,8 @@ const EnterpriseOpsPage = () => {
             <CardDescription>Versiones detectadas en runtime.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 text-sm text-muted-foreground">
+            <ContractLine label="API v2 health" value={foundationQuery.data?.version} />
+            <ContractLine label="Tenant current" value={currentTenantQuery.data?.contract_version ?? currentTenantQuery.data?.tenant?.slug} />
             <ContractLine label="Tenant health" value={healthQuery.data?.contract_version} />
             <ContractLine label="Employee coverage" value={coverageQuery.data?.contract_version} />
             <ContractLine label="Notifications hooks" value={hooksQuery.data?.contract_version} />

@@ -34,6 +34,7 @@ const mapLegacyTicketsToInboxItems = async (tenantSlug?: string | null): Promise
       channel: rawTicket.canal || rawTicket.channel || undefined,
       lastMessageAt: rawTicket.fecha || new Date().toISOString(),
       unreadCount: rawTicket.hasUnreadMessages ? 1 : 0,
+      school_case: rawTicket.school_case || rawTicket.education_case || rawTicket.case_alias || null,
       presence: [],
       timeline: [],
       actions: [],

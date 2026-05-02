@@ -1,7 +1,10 @@
 import { panelApi } from '@/api/v2/client';
 import { ApiError, apiFetch } from '@/utils/api';
+import { createLeadCaptureIdempotencyKey } from '@/utils/leadCapture';
 import type { ChatBootstrapConfig, ChatRatingValue } from './chatTypes';
 import type { ChatLeadCaptureConfig } from '@/types/chat';
+
+export { createLeadCaptureIdempotencyKey };
 
 export interface ChatBootstrapMessagePayload {
   text?: string;
@@ -14,6 +17,38 @@ export interface ChatBootstrapMessagePayload {
   audioField?: string;
   audioEndpoint?: string;
   extraPayload?: Record<string, unknown>;
+}
+
+export interface LeadCaptureNextAction {
+  id?: string | null;
+  label?: string | null;
+  endpoint?: string | null;
+  method?: string | null;
+  payload?: Record<string, unknown> | null;
+  ui_hint?: string | null;
+}
+
+export interface LeadCaptureResponse {
+  ok?: boolean;
+  contract_version?: string | null;
+  request_id?: string | null;
+  tenant?: {
+    slug?: string | null;
+    tipo?: string | null;
+  } | null;
+  lead_id?: string | number | null;
+  ticket_id?: string | number | null;
+  ticket_type?: string | null;
+  status?: string | null;
+  deduplicated?: boolean;
+  idempotency_key?: string | null;
+  message_body?: string | null;
+  next_actions?: LeadCaptureNextAction[];
+  raw?: unknown;
+}
+
+interface LeadCaptureSubmitOptions {
+  idempotencyKey?: string | null;
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -73,7 +108,9 @@ const buildJsonPayload = (bootstrap: ChatBootstrapConfig, payload: ChatBootstrap
   if (payload.attachmentInfo) basePayload.attachmentInfo = payload.attachmentInfo;
   if (payload.location) basePayload.location = payload.location;
   if (payload.extraPayload) {
+    const protectedBackendKeys = new Set(['tipo_chat', 'tenant_slug', 'tenant', 'rubro', 'rubro_clave', 'demo_session_id', 'demo_mode']);
     Object.entries(payload.extraPayload).forEach(([key, value]) => {
+      if (protectedBackendKeys.has(key)) return;
       if (value !== undefined) basePayload[key] = value;
     });
   }
@@ -147,6 +184,62 @@ const normalizeChatBootstrapResponse = (response: unknown) => {
   return response;
 };
 
+const normalizeLeadNextAction = (value: unknown): LeadCaptureNextAction | null => {
+  if (!isRecord(value)) return null;
+  const label = typeof value.label === 'string' ? value.label.trim() : '';
+  const id = typeof value.id === 'string' ? value.id.trim() : '';
+  const endpoint = typeof value.endpoint === 'string' ? value.endpoint.trim() : '';
+  const method = typeof value.method === 'string' ? value.method.trim() : '';
+  const uiHint = typeof value.ui_hint === 'string' ? value.ui_hint.trim() : '';
+  const payload = isRecord(value.payload) ? value.payload : null;
+  if (!label && !id && !endpoint) return null;
+  return {
+    id: id || null,
+    label: label || id || endpoint || null,
+    endpoint: endpoint || null,
+    method: method || null,
+    payload,
+    ui_hint: uiHint || null,
+  };
+};
+
+const normalizeLeadCaptureResponse = (response: unknown): LeadCaptureResponse => {
+  const source = isRecord(response) ? response : {};
+  const tenant = isRecord(source.tenant)
+    ? {
+        slug: typeof source.tenant.slug === 'string' ? source.tenant.slug : null,
+        tipo: typeof source.tenant.tipo === 'string' ? source.tenant.tipo : null,
+      }
+    : null;
+  const nextActions = Array.isArray(source.next_actions)
+    ? source.next_actions
+        .map(normalizeLeadNextAction)
+        .filter((item): item is LeadCaptureNextAction => Boolean(item))
+    : [];
+
+  return {
+    ok: typeof source.ok === 'boolean' ? source.ok : undefined,
+    contract_version: typeof source.contract_version === 'string' ? source.contract_version : null,
+    request_id: typeof source.request_id === 'string' ? source.request_id : null,
+    tenant,
+    lead_id:
+      typeof source.lead_id === 'string' || typeof source.lead_id === 'number'
+        ? source.lead_id
+        : null,
+    ticket_id:
+      typeof source.ticket_id === 'string' || typeof source.ticket_id === 'number'
+        ? source.ticket_id
+        : null,
+    ticket_type: typeof source.ticket_type === 'string' ? source.ticket_type : null,
+    status: typeof source.status === 'string' ? source.status : null,
+    deduplicated: source.deduplicated === true,
+    idempotency_key: typeof source.idempotency_key === 'string' ? source.idempotency_key : null,
+    message_body: typeof source.message_body === 'string' ? source.message_body : null,
+    next_actions: nextActions,
+    raw: response,
+  };
+};
+
 export const sendConversationFeedback = async (
   conversationId: string,
   rating: ChatRatingValue,
@@ -172,16 +265,21 @@ export const submitLeadCapture = async (
   config: ChatLeadCaptureConfig,
   payload: Record<string, unknown>,
   tenantSlug?: string | null,
-) => {
+  options: LeadCaptureSubmitOptions = {},
+): Promise<LeadCaptureResponse> => {
   const endpoint = config.endpoint?.trim() || '/api/public/lead-capture';
-  return apiFetch(endpoint, {
+  const idempotencyKey = options.idempotencyKey?.trim();
+  const response = await apiFetch(endpoint, {
     method: 'POST',
     body: payload,
+    headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
     skipAuth: true,
     isWidgetRequest: true,
     tenantSlug,
     suppressPanel401Redirect: true,
+    sendAnonId: true,
   });
+  return normalizeLeadCaptureResponse(response);
 };
 
 export const sendChatBootstrapMessage = async (

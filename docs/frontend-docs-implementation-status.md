@@ -83,7 +83,9 @@ Este archivo baja los MD de `/docs` a estado ejecutable para frontend. La regla 
 - Tenant strict: `src/api/v2/tenants.ts` suma `getCurrentTenantV2()` sobre `GET /api/v2/tenants/current`, sin fallback al primer tenant.
 - SLA v2: `src/api/v2/sla.ts` consume `GET|POST /api/v2/sla/policies` y `GET /api/v2/sla/breaches`, normalizando policies/breaches sin crear UI paralela.
 - Demo v2: `demoApi` preserva `chat_bootstrap` top-level, en `workspace` y en `chat_seed`, ademas de `tenant.slug`, `request_id` y `contract_version`.
-- `Demo.tsx` separa `demo_session_id` de `tenant_slug` y usa `chat_bootstrap.endpoint`, `fallback_endpoint`, `headers`, `query` y `payload` para saludo inicial y mensajes cuando el contrato esta disponible.
+- `Demo.tsx` separa `demo_session_id` de `tenant_slug` y usa `chat_bootstrap.method`, `endpoint`, `fallback_endpoint`, `headers`, `query` y `payload` para saludo inicial y mensajes cuando el contrato esta disponible.
+- `sendChatBootstrapMessage` omite tenant y chat-session inferidos por `apiFetch` para preservar los headers contractuales del backend.
+- El composer de demo combina `chat_bootstrap.supports` con `media_capabilities` para ocultar modos no soportados.
 - Chat demo standalone: `features/chat/ChatPanel` tambien usa `chat_bootstrap` para responder desde backend cuando llega por contrato.
 - Tickets v2 operativos: `ticketsApi.ts` suma create, patch, comments y events sobre `/api/v2/tickets`, manteniendo la lista actual con fallback legacy controlado.
 - Surveys v2: `surveysApi.ts` suma listar/crear/obtener/actualizar/publicar/cerrar/analytics y endpoints publicos `GET|POST /api/v2/public/surveys/{public_token}`.
@@ -144,6 +146,11 @@ Este archivo baja los MD de `/docs` a estado ejecutable para frontend. La regla 
 | `FRONTEND_SINGLE_TASK_WORLD_CLASS_CHAT.md` | Parcial: widget/contexto/PWA/estados; inbox premium completo queda siguiente ola. |
 | `FRONTEND_UNIFIED_HANDOFF.md` | Handoff labels pasan a contrato; frontend no inventa botones. |
 | `frontend-demo-widget-handoff.md` | Demo workspace ahora lee contrato de backend. |
+| `BACKEND_TO_FRONTEND_SYNC_AGENT_EXPERIENCE_2026-05-01.md` | `lead_capture` envia contexto tecnico, idempotencia y renderiza `message_body`/`next_actions` backend-driven. |
+| `BACKEND_TO_FRONTEND_SYNC_CHAT_BOOTSTRAP_AND_FRESHNESS_2026-05-02.md` | Demo usa `chat_bootstrap`; freshness bloquea mapas vacios; lead capture muestra objeto operativo trazable. |
+| `Backend docs implementation status 2026-05-01/02` | Inbox omnicanal P2 acepta accion por ruta con `ticket_id` y fallback al endpoint generico `/actions`. |
+| `BACKEND_TO_FRONTEND_SYNC_EDUCATION_WHATSAPP_2026-05-02.md` | Demo soporta sector `educacion`; widget consume menus escolares backend-driven incluido `widget.education`; panel staff muestra admin menu/playbook WhatsApp, `education.operations_summary.v1`, `education.operations_heatmap.v1` con points/cells/hotspots y `ticket.school_case` cuando backend lo entrega; acciones recomendadas abren casos con `envelope=1`; hooks educativos envian tenant slug explicito cuando existe. |
+| `API_V2_FOUNDATION_BACKEND_2026-05-02.md` | `/enterprise` muestra health v2 y tenant strict resolver junto a los contratos SaaS P1/P2. |
 | `frontend-enterprise-fe01-fe05-status.md` | Se refuerza FE-01/FE-05 por estados; revisar detalle en siguiente ola. |
 | `frontend-next-pack.md` | Render gate por `ux_context` ya existe en legacy ChatPanel; contexto headers ya existe; quick replies backend. |
 | `frontend-task-board.md` | Usado como backlog; no se completo entero en una sola ola. |
