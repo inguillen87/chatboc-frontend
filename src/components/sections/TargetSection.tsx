@@ -1,116 +1,93 @@
-import React from 'react';
-import { Button } from '@/components/ui/button';
-import { useNavigate } from 'react-router-dom';
-// Nuevos iconos representativos
-import { Landmark, Briefcase, CheckCircle, ArrowRight, Calendar } from 'lucide-react';
+import React from "react";
+import { ArrowRight, Briefcase, Calendar, CheckCircle2, GraduationCap, Landmark } from "lucide-react";
+import { Button } from "@/components/ui/button";
+
+const targetGroups = [
+  {
+    icon: Landmark,
+    title: "Gobierno y territorio",
+    description:
+      "Atención ciudadana, trámites, reclamos, encuestas, mapas y participación con trazabilidad para equipos públicos.",
+    points: ["Portal de servicios", "Tickets y SLA", "Mapas y votaciones"],
+  },
+  {
+    icon: Briefcase,
+    title: "Empresas y comercios",
+    description:
+      "Ventas asistidas, soporte, catálogo, leads, checkout, recompensas y seguimiento sin romper la conversación.",
+    points: ["Widget y WhatsApp", "Marketplace y pagos", "CRM operativo"],
+  },
+  {
+    icon: GraduationCap,
+    title: "Educación",
+    description:
+      "Experiencia escolar para familias, secretaría y operadores: asistencia, comunicados, documentación y casos sensibles.",
+    points: ["Menú escolar", "Casos por canal", "WhatsApp educativo"],
+  },
+];
 
 const TargetSection = () => {
-  const navigate = useNavigate();
-
-  const municipalBenefits = [
-    "Atención ciudadana eficiente 24/7.",
-    "Agilización de trámites y consultas frecuentes.",
-    "Acceso simplificado a información pública.",
-    "Optimización en la gestión de servicios y reclamos.",
-    "Fomento de la participación ciudadana.",
-  ];
-
-  const businessBenefits = [
-    "Servicio al cliente y soporte técnico optimizados.",
-    "Automatización de ventas y captura inteligente de leads.",
-    "Comunicación personalizada a gran escala.",
-    "Mejora tangible de la eficiencia operativa.",
-    "Construcción de relaciones duraderas y leales con clientes.",
-  ];
-
   const handleConsultingClick = () => {
-    // Redirect to external booking link
     window.open("https://calendly.com/chatboc", "_blank");
   };
 
+  const scrollToDemos = () => {
+    const el = document.getElementById("demos");
+    if (el) el.scrollIntoView({ behavior: "smooth" });
+  };
+
   return (
-    <section id="publico-objetivo" className="py-16 md:py-24 bg-background text-foreground"> {/* Fondo alterno si es necesario */}
-      <div className="container px-4 mx-auto">
-        <div className="text-center max-w-3xl mx-auto mb-12 md:mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4 text-foreground">
-            Una Solución Versátil para Cada Organización
-          </h2>
-          <p className="text-lg text-muted-foreground">
-            Nuestra plataforma IA se adapta para optimizar la interacción y gestión tanto en el sector público como en el privado, mejorando la experiencia de cada ciudadano y cliente.
+    <section id="publico-objetivo" className="bg-background py-16 text-foreground md:py-24">
+      <div className="container mx-auto px-4">
+        <div className="mx-auto mb-12 max-w-3xl text-center md:mb-16">
+          <div className="chatboc-section-kicker mb-4">Sectores</div>
+          <h2 className="chatboc-section-heading">Una base común para verticales distintas</h2>
+          <p className="chatboc-section-copy mt-4">
+            La plataforma conserva el mismo núcleo operativo y deja que el backend adapte la experiencia por tenant,
+            vertical, permisos y capacidades disponibles.
           </p>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-8 lg:gap-12 items-start">
-          {/* Bloque para Municipios y Gobiernos */}
-          <div className="bg-card text-card-foreground p-6 md:p-8 rounded-lg border border-border shadow-xl hover:shadow-2xl transition-all duration-300 flex flex-col">
-            <div className="flex items-center mb-6">
-              <div className="p-3 rounded-full bg-primary/10 text-primary mr-4">
-                <Landmark className="h-8 w-8" />
-              </div>
-              <h3 className="text-2xl font-semibold text-foreground">Gobiernos Cercanos, Ciudadanos Satisfechos</h3>
-            </div>
-            <p className="text-muted-foreground mb-6 flex-grow">
-              Transformamos la manera en que las entidades públicas interactúan con la comunidad, ofreciendo servicios más accesibles, eficientes y transparentes.
-            </p>
-            <ul className="space-y-3 text-muted-foreground mb-8">
-              {municipalBenefits.map((benefit, index) => (
-                <li key={index} className="flex items-start gap-2.5">
-                  <CheckCircle className="h-5 w-5 text-success flex-shrink-0 mt-0.5" />
-                  <span>{benefit}</span>
-                </li>
-              ))}
-            </ul>
-            <Button
-              variant="outline"
-              className="mt-auto w-full sm:w-auto" // mt-auto para alinear botones si las listas son de diferente largo
-              onClick={() => {
-                const el = document.getElementById('demos');
-                if (el) el.scrollIntoView({ behavior: 'smooth' });
-              }}
-            >
-              Soluciones para Sector Público <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
-          </div>
-
-          {/* Bloque para Empresas */}
-          <div className="bg-card text-card-foreground p-6 md:p-8 rounded-lg border border-border shadow-xl hover:shadow-2xl transition-all duration-300 flex flex-col">
-            <div className="flex items-center mb-6">
-              <div className="p-3 rounded-full bg-primary/10 text-primary mr-4">
-                <Briefcase className="h-8 w-8" />
-              </div>
-              <h3 className="text-2xl font-semibold text-foreground">Empresas Conectadas, Clientes Leales</h3>
-            </div>
-            <p className="text-muted-foreground mb-6 flex-grow">
-              Potenciamos a empresas de todos los tamaños para que brinden experiencias excepcionales, automaticen procesos y construyan relaciones sólidas con sus clientes.
-            </p>
-            <ul className="space-y-3 text-muted-foreground mb-8">
-              {businessBenefits.map((benefit, index) => (
-                <li key={index} className="flex items-start gap-2.5">
-                  <CheckCircle className="h-5 w-5 text-success flex-shrink-0 mt-0.5" />
-                  <span>{benefit}</span>
-                </li>
-              ))}
-            </ul>
-            <Button
-              variant="outline"
-              className="mt-auto w-full sm:w-auto"
-              onClick={() => {
-                const el = document.getElementById('demos');
-                if (el) el.scrollIntoView({ behavior: 'smooth' });
-              }}
-            >
-              Soluciones para Empresas <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
-          </div>
+        <div className="grid gap-4 lg:grid-cols-3">
+          {targetGroups.map((group) => {
+            const Icon = group.icon;
+            return (
+              <article key={group.title} className="chatboc-landing-panel chatboc-hover-lift flex h-full flex-col p-5 md:p-6">
+                <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-[8px] bg-primary/10 text-primary">
+                  <Icon className="h-6 w-6" />
+                </div>
+                <h3 className="text-xl font-semibold text-foreground">{group.title}</h3>
+                <p className="mt-3 flex-1 text-sm leading-6 text-muted-foreground">{group.description}</p>
+                <ul className="mt-5 space-y-2 border-t border-border/70 pt-4 text-sm text-muted-foreground">
+                  {group.points.map((point) => (
+                    <li key={point} className="flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-success" />
+                      <span>{point}</span>
+                    </li>
+                  ))}
+                </ul>
+                <Button
+                  variant="outline"
+                  className="mt-6 rounded-[8px] border-border/80 font-semibold hover:border-primary/40 hover:bg-primary/5"
+                  onClick={scrollToDemos}
+                >
+                  Ver demos
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </article>
+            );
+          })}
         </div>
 
-        <div className="text-center mt-12 md:mt-16">
+        <div className="mt-10 flex justify-center">
           <Button
             size="lg"
-            className="shadow-lg hover:shadow-xl transition-shadow"
+            variant="secondary"
+            className="rounded-[8px] border border-border/70 bg-card px-6 font-semibold shadow-sm hover:bg-accent"
             onClick={handleConsultingClick}
           >
-            <Calendar className="mr-2 h-4 w-4" /> Agenda una Consultoría Personalizada
+            <Calendar className="mr-2 h-4 w-4" />
+            Agendar consultoría
           </Button>
         </div>
       </div>

@@ -1,98 +1,79 @@
 import React from "react";
-import { Button } from '@/components/ui/button'; // Usar el componente Button
-import { Link } from 'react-router-dom'; // Para la navegación
-import { ShoppingCart, Users, ArrowRight } from 'lucide-react'; // Iconos representativos
+import { ArrowRight, ShoppingCart, Users } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
 
 const futureSolutions = [
   {
     id: "chatpos",
-    icon: <ShoppingCart className="h-12 w-12 text-primary" />, // Usar color primario o un color temático
-    title: "ChatPOS: Punto de Interacción y Gestión Ágil",
-    description: "Una solución moderna para puntos de atención, facturación y gestión de servicios/productos, adaptable tanto para comercios como para centros de atención municipal.",
-    imageSrc: "/images/chatpos.png", // Mantener si es adecuada
-    imageAlt: "Mockup de ChatPOS",
-    demoLink: "/chatpos", // Enlace a la página específica de ChatPOS
+    icon: ShoppingCart,
+    title: "ChatPOS",
+    description:
+      "Punto de atención y venta para operar pedidos, servicios, pagos y seguimiento desde una interfaz simple.",
+    imageSrc: "/images/chatpos.png",
+    imageAlt: "Vista de ChatPOS",
+    demoLink: "/chatpos",
     buttonText: "Conocer ChatPOS",
-    themeColor: "green" // Para un acento de color si se desea
+    accent: "bg-emerald-500",
   },
   {
     id: "chatcrm",
-    icon: <Users className="h-12 w-12 text-primary" />,
-    title: "ChatCRM: Fortalece Relaciones con tus Usuarios",
-    description: "Gestiona de forma integral los perfiles de ciudadanos y clientes, automatiza comunicaciones y campañas, y mide la satisfacción para una fidelización efectiva.",
+    icon: Users,
+    title: "ChatCRM",
+    description:
+      "Gestión de relaciones, conversaciones, perfiles y campañas conectadas a los datos reales de cada tenant.",
     imageSrc: "/images/chatcrm.png",
-    imageAlt: "Mockup de ChatCRM",
+    imageAlt: "Vista de ChatCRM",
     demoLink: "/chatcrm",
     buttonText: "Explorar ChatCRM",
-    themeColor: "purple" // Ejemplo de color temático
-  }
+    accent: "bg-amber-500",
+  },
 ];
 
 const ComingSoonSection = () => {
-  // Definir colores temáticos basados en el themeColor (ejemplo)
-  // Esto podría hacerse más elegante con variantes de CVA o props en Button
-  const getThemeClasses = (theme: string) => {
-    if (theme === "green") {
-      return {
-        title: "text-green-600 dark:text-green-400",
-        button: "bg-green-600 hover:bg-green-700 text-white"
-      };
-    }
-    if (theme === "purple") {
-      return {
-        title: "text-purple-600 dark:text-purple-400",
-        button: "bg-purple-600 hover:bg-purple-700 text-white"
-      };
-    }
-    return { // Default
-      title: "text-primary",
-      button: "bg-primary hover:bg-primary/90 text-primary-foreground"
-    };
-  };
-
-
   return (
-    <section id="proximamente" className="py-16 md:py-24 bg-muted text-foreground"> {/* Fondo alterno */}
-      <div className="container px-4 mx-auto">
-        <div className="text-center max-w-3xl mx-auto mb-12 md:mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4 text-foreground">
-            Descubre Nuestras Soluciones Avanzadas
-          </h2>
-          <p className="text-lg text-muted-foreground">
-            Explora herramientas diseñadas para potenciar la gestión, ventas y la interacción con usuarios en empresas y municipios.
+    <section id="proximamente" className="chatboc-muted-band py-16 text-foreground md:py-24">
+      <div className="container mx-auto px-4">
+        <div className="mx-auto mb-12 max-w-3xl text-center md:mb-16">
+          <div className="chatboc-section-kicker mb-4">Ecosistema</div>
+          <h2 className="chatboc-section-heading">Módulos preparados para ampliar la operación</h2>
+          <p className="chatboc-section-copy mt-4">
+            La plataforma crece con herramientas especializadas, pero mantiene una base común de identidad, tenant,
+            conversaciones y contratos.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-10">
+        <div className="grid gap-4 md:grid-cols-2">
           {futureSolutions.map((solution) => {
-            const themeClasses = getThemeClasses(solution.themeColor);
+            const Icon = solution.icon;
             return (
-              <div
-                key={solution.id}
-                className="bg-card text-card-foreground rounded-lg border border-border shadow-xl hover:shadow-2xl transition-all duration-300 flex flex-col items-center p-6 md:p-8"
-              >
-                <div className="p-3 rounded-full bg-primary/10 mb-5">
-                  {solution.icon}
+              <article key={solution.id} className="chatboc-landing-panel chatboc-hover-lift overflow-hidden">
+                <div className={`h-1.5 ${solution.accent}`} />
+                <div className="grid gap-6 p-5 md:grid-cols-[0.9fr_1.1fr] md:p-6">
+                  <div className="flex flex-col">
+                    <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-[8px] bg-primary/10 text-primary">
+                      <Icon className="h-6 w-6" />
+                    </div>
+                    <h3 className="text-2xl font-bold text-foreground">{solution.title}</h3>
+                    <p className="mt-3 flex-1 text-sm leading-6 text-muted-foreground">{solution.description}</p>
+                    <Button asChild className="mt-6 w-full rounded-[8px] font-semibold sm:w-fit">
+                      <Link to={solution.demoLink}>
+                        {solution.buttonText}
+                        <ArrowRight className="ml-2 h-4 w-4" />
+                      </Link>
+                    </Button>
+                  </div>
+
+                  <div className="flex min-h-[180px] items-center justify-center rounded-[8px] border border-border/70 bg-muted/40 p-4">
+                    <img
+                      src={solution.imageSrc}
+                      alt={solution.imageAlt}
+                      className="max-h-56 w-full max-w-sm rounded-[8px] object-contain shadow-sm"
+                      loading="lazy"
+                    />
+                  </div>
                 </div>
-                <h3 className={`text-2xl font-semibold mb-3 ${themeClasses.title}`}> {/* Aplicar color temático al título */}
-                  {solution.title}
-                </h3>
-                <p className="text-muted-foreground text-center mb-6 flex-grow">
-                  {solution.description}
-                </p>
-                {solution.imageSrc && (
-                  <img
-                    src={solution.imageSrc}
-                    alt={solution.imageAlt}
-                    className="my-4 rounded-lg w-full max-w-sm h-auto shadow-md" // Ajustar tamaño y sombra
-                  />
-                )}
-                <Button asChild size="lg" className={`mt-auto w-full sm:w-auto font-semibold ${themeClasses.button}`}>
-                  <Link to={solution.demoLink}>
-                    {solution.buttonText} <ArrowRight className="ml-2 h-4 w-4" />
-                  </Link>
-                </Button>
-              </div>
+              </article>
             );
           })}
         </div>

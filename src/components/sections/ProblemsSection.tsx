@@ -1,74 +1,78 @@
-import React from 'react';
-import { Ghost, Store, SearchX, LineChart, MessageSquareX, Sliders } from 'lucide-react';
+import React from "react";
+import { BarChart3, MessageSquareX, SearchX, Settings2, Store, UsersRound } from "lucide-react";
 
 const problemsData = [
   {
-    icon: <Ghost className="h-8 w-8 text-primary" />,
-    title: "Comunidad Desconectada",
-    description: "Los ciudadanos sienten que no son escuchados. La falta de canales directos y modernos genera apatía y desconfianza.",
-    comment: "Con nuestra plataforma, la participación es real, transparente y premiada con puntos."
+    icon: UsersRound,
+    title: "Canales dispersos",
+    description:
+      "La atención queda repartida entre WhatsApp, web, redes, planillas y llamadas. El equipo pierde contexto y el usuario repite su historia.",
+    outcome: "Unifica conversación, historial y próximos pasos en una experiencia consistente.",
   },
   {
-    icon: <Sliders className="h-8 w-8 text-primary" />,
-    title: "Configuraciones Técnicas Complejas",
-    description: "Otras herramientas (como ManyChat) te obligan a diseñar flujos complicados y perder horas configurando menús.",
-    comment: "Nosotros te damos la solución llave en mano. Sube tus datos y la IA hace el resto."
+    icon: Settings2,
+    title: "Configuración difícil de mantener",
+    description:
+      "Los flujos rígidos envejecen rápido. Cada cambio de trámite, producto o política obliga a tocar reglas y pantallas.",
+    outcome: "La UI se adapta al contrato que manda el backend: menús, acciones y estados.",
   },
   {
-    icon: <Store className="h-8 w-8 text-primary" />,
-    title: "Economía Local Invisible",
-    description: "Los pequeños comercios no tienen herramientas digitales propias y pierden ventas frente a grandes plataformas.",
-    comment: "Generamos Marketplaces locales automáticamente para que cada comercio tenga su tienda en minutos."
+    icon: Store,
+    title: "Ventas y servicios sin continuidad",
+    description:
+      "El interés aparece en el chat, pero la compra, el lead o el ticket quedan en otro sistema y se pierde trazabilidad.",
+    outcome: "Chat, marketplace, tickets y pagos comparten contexto operativo.",
   },
   {
-    icon: <SearchX className="h-8 w-8 text-primary" />,
-    title: "Gestión a Ciegas",
-    description: "Sin datos claros, mapas de calor o métricas de satisfacción, es imposible tomar decisiones acertadas.",
-    comment: "Nuestros Dashboards con Mapas de Calor te muestran la realidad de tu gestión al instante."
+    icon: SearchX,
+    title: "Datos que llegan tarde",
+    description:
+      "Sin freshness, mapas accionables ni métricas por fuente, los paneles muestran ceros ambiguos o información vieja.",
+    outcome: "Analytics y mapas distinguen datos frescos, degradados o vacíos.",
   },
   {
-    icon: <MessageSquareX className="h-8 w-8 text-primary" />,
-    title: "Chatbots 'Tontos' y Rígidos",
-    description: "Los bots tradicionales solo siguen guiones y frustran al usuario cuando se salen del libreto.",
-    comment: "Nuestros Agentes IA entienden el lenguaje natural y resuelven problemas reales sin scripts."
+    icon: MessageSquareX,
+    title: "Bots que no resuelven",
+    description:
+      "Un chatbot de guion corta la conversación justo cuando aparece una intención real: reclamo, pedido, pago o derivación humana.",
+    outcome: "El agente entiende intención, solicita datos y deriva cuando corresponde.",
   },
   {
-    icon: <LineChart className="h-8 w-8 text-primary" />,
-    title: "Oportunidades Perdidas",
-    description: "Sin un CRM integrado, las solicitudes y los clientes potenciales se pierden en el olvido.",
-    comment: "Centraliza y gestiona cada interacción para que ningún vecino o cliente quede sin respuesta."
-  }
+    icon: BarChart3,
+    title: "Operación sin prioridad",
+    description:
+      "Los equipos ven listas largas, pero no saben qué caso impacta más, qué fuente está caída o qué acción desbloquea valor.",
+    outcome: "Action center, SLA, cobertura y alertas ordenan el trabajo diario.",
+  },
 ];
 
 const ProblemsSection = () => {
   return (
-    <section id="problemas" className="py-16 md:py-24 bg-muted text-foreground">
-      <div className="container px-4 mx-auto">
-        <div className="text-center mb-12 md:mb-16 max-w-3xl mx-auto">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4 text-foreground">
-            Desafíos Reales, Solución Integral
-          </h2>
-          <p className="text-lg text-muted-foreground">
-            Entendemos los problemas de gobiernos y pymes en LATAM. Por eso creamos una plataforma que resuelve, no que complica.
+    <section id="problemas" className="chatboc-muted-band py-16 text-foreground md:py-24">
+      <div className="container mx-auto px-4">
+        <div className="mx-auto mb-12 max-w-3xl text-center md:mb-16">
+          <div className="chatboc-section-kicker mb-4">El problema</div>
+          <h2 className="chatboc-section-heading">Lo que frena una operación moderna</h2>
+          <p className="chatboc-section-copy mt-4">
+            Chatboc está pensado para organizaciones que ya tienen demanda real y necesitan que la experiencia digital acompañe
+            al equipo, no que lo obligue a sostener otra herramienta aislada.
           </p>
         </div>
 
-        <div className="grid gap-6 md:gap-8 md:grid-cols-2 lg:grid-cols-3">
-          {problemsData.map((problem, index) => (
-            <div
-              key={index}
-              className="bg-card text-card-foreground p-6 rounded-lg border border-border shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col"
-            >
-              <div className="flex-shrink-0 mb-5 flex items-center justify-center w-12 h-12 rounded-full bg-primary/10">
-                {problem.icon}
-              </div>
-              <h3 className="text-xl font-semibold mb-3 text-foreground">{problem.title}</h3>
-              <p className="text-muted-foreground mb-4 flex-grow">{problem.description}</p>
-              <p className="text-sm text-primary font-medium border-t border-border pt-3 mt-auto">
-                {problem.comment}
-              </p>
-            </div>
-          ))}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {problemsData.map((problem) => {
+            const Icon = problem.icon;
+            return (
+              <article key={problem.title} className="chatboc-landing-panel chatboc-hover-lift flex h-full flex-col p-5 md:p-6">
+                <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-[8px] bg-primary/10 text-primary">
+                  <Icon className="h-5 w-5" />
+                </div>
+                <h3 className="text-lg font-semibold text-foreground">{problem.title}</h3>
+                <p className="mt-3 flex-1 text-sm leading-6 text-muted-foreground">{problem.description}</p>
+                <div className="mt-5 border-t border-border/70 pt-4 text-sm font-medium text-primary">{problem.outcome}</div>
+              </article>
+            );
+          })}
         </div>
       </div>
     </section>

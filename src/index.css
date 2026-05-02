@@ -28,6 +28,64 @@
   .dark .chatboc-cta-secondary {
     @apply border-[#2A69FF]/50 text-[#C7DBFF] hover:bg-[#2A69FF]/20;
   }
+  .chatboc-section-kicker {
+    @apply inline-flex items-center gap-2 rounded-[8px] border border-primary/15 bg-primary/5 px-3 py-1 text-xs font-semibold uppercase tracking-normal text-primary;
+  }
+  .chatboc-section-heading {
+    @apply text-3xl font-bold leading-tight tracking-normal text-foreground md:text-4xl;
+  }
+  .chatboc-section-copy {
+    @apply text-base leading-7 text-muted-foreground md:text-lg;
+  }
+  .chatboc-landing-panel {
+    @apply rounded-[8px] border border-border/70 bg-card/90 text-card-foreground shadow-[0_18px_50px_rgba(15,23,42,0.10)] backdrop-blur;
+  }
+  .dark .chatboc-landing-panel {
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
+  }
+  .chatboc-hover-lift {
+    @apply transition-all duration-300 ease-out hover:-translate-y-1 hover:border-primary/35 hover:shadow-[0_20px_55px_rgba(15,23,42,0.12)];
+  }
+  .chatboc-hero-grid {
+    position: relative;
+    isolation: isolate;
+    background: hsl(var(--background));
+  }
+  .chatboc-hero-grid::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background-image:
+      linear-gradient(rgba(13, 53, 195, 0.08) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(13, 53, 195, 0.08) 1px, transparent 1px);
+    background-size: 44px 44px;
+    mask-image: linear-gradient(to bottom, black 0%, transparent 78%);
+    opacity: 0.45;
+  }
+  .dark .chatboc-hero-grid {
+    background: hsl(var(--background));
+  }
+  .chatboc-muted-band {
+    background:
+      linear-gradient(180deg, hsl(var(--secondary)) 0%, hsl(var(--background)) 100%);
+  }
+  .chatboc-dashboard-scan {
+    position: relative;
+    overflow: hidden;
+  }
+  .chatboc-dashboard-scan::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(110deg, transparent 0%, rgba(255, 255, 255, 0.18) 45%, transparent 70%);
+    transform: translateX(-110%);
+    animation: chatboc-scan 5.5s ease-in-out infinite;
+  }
+  .dark .chatboc-dashboard-scan::after {
+    background: linear-gradient(110deg, transparent 0%, rgba(125, 176, 255, 0.12) 45%, transparent 70%);
+  }
 
   .chat-bubble-user {
     @apply rounded-lg p-3 max-w-xs sm:max-w-md break-words shadow-md;
@@ -378,4 +436,24 @@ body,
 @keyframes fade-in {
   0% { opacity: 0; }
   100% { opacity: 1; }
+}
+
+@keyframes chatboc-scan {
+  0%, 55% {
+    transform: translateX(-110%);
+  }
+  78%, 100% {
+    transform: translateX(110%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chatboc-dashboard-scan::after {
+    animation: none;
+  }
+
+  .animate-float,
+  .animate-pulse-subtle {
+    animation: none !important;
+  }
 }

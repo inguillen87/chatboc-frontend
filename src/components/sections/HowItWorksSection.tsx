@@ -1,81 +1,81 @@
 import React from "react";
+import { ArrowRight, BarChart3, Bot, Rocket, UploadCloud } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { UploadCloud, Bot, Rocket, BarChart3, ArrowRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
-const newSteps = [
+const steps = [
   {
-    number: "1",
-    icon: <UploadCloud className="h-7 w-7 text-primary" />,
-    title: "Sube tu Información",
-    description: "Carga tus normativas, catálogos de productos o servicios. No necesitas configurar flujos complejos; simplemente entréganos tus datos."
+    number: "01",
+    icon: UploadCloud,
+    title: "Cargas tu operación",
+    description:
+      "Documentos, catálogo, rubros, políticas, preguntas frecuentes o rutas ya existentes. El contenido queda como fuente operativa.",
   },
   {
-    number: "2",
-    icon: <Bot className="h-7 w-7 text-primary" />,
-    title: "Nuestra IA hace el Trabajo",
-    description: "La plataforma procesa tu información automáticamente, crea tu Base de Conocimiento y genera tu Marketplace o Portal de Servicios al instante."
+    number: "02",
+    icon: Bot,
+    title: "El backend define la experiencia",
+    description:
+      "Contratos de widget, demo, quick menu, media, CTAs, casos y analytics indican qué debe mostrar cada pantalla.",
   },
   {
-    number: "3",
-    icon: <Rocket className="h-7 w-7 text-primary" />,
-    title: "Listo para Usar",
-    description: "Tu Agente IA y tu Mercado Digital están activos. Sin configuraciones técnicas, menús complicados ni pérdidas de tiempo. Todo llave en mano."
+    number: "03",
+    icon: Rocket,
+    title: "El usuario conversa y avanza",
+    description:
+      "El agente responde, pide datos, sube adjuntos, toma ubicación, deriva a humano o abre una acción concreta.",
   },
   {
-    number: "4",
-    icon: <BarChart3 className="h-7 w-7 text-primary" />,
-    title: "Visualiza Resultados",
-    description: "Accede a tu Dashboard con Mapas de Calor, métricas de participación y estadísticas de ventas. Toma decisiones basadas en datos reales."
-  }
+    number: "04",
+    icon: BarChart3,
+    title: "El equipo mide y mejora",
+    description:
+      "Dashboards, mapas, SLA, freshness y action center ordenan prioridades para operar con datos vivos.",
+  },
 ];
 
 const HowItWorksSection = () => {
   const navigate = useNavigate();
 
   return (
-    <section id="como-funciona" className="py-16 md:py-24 bg-muted text-foreground">
-      <div className="container px-4 mx-auto">
-        <div className="text-center max-w-3xl mx-auto mb-12 md:mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4 text-foreground">
-            Sin complicaciones técnicas, todo listo para ti
-          </h2>
-          <p className="text-lg text-muted-foreground">
-            Olvídate de configurar "flujos" o menús interminables como en otras plataformas. Nosotros nos diferenciamos por darte una solución terminada y automática.
+    <section id="como-funciona" className="chatboc-muted-band py-16 text-foreground md:py-24">
+      <div className="container mx-auto px-4">
+        <div className="mx-auto mb-12 max-w-3xl text-center md:mb-16">
+          <div className="chatboc-section-kicker mb-4">Cómo funciona</div>
+          <h2 className="chatboc-section-heading">Menos configuración manual, más sistema funcionando</h2>
+          <p className="chatboc-section-copy mt-4">
+            El flujo está pensado para crecer por contrato: si el backend suma una capacidad, el frontend la puede adoptar
+            sin convertir cada vertical en una pantalla hecha a mano.
           </p>
         </div>
 
-        <div className="max-w-3xl mx-auto">
-          {newSteps.map((step, index) => (
-            <div key={index} className="flex items-start mb-10 last:mb-0">
-              <div className="flex flex-col items-center mr-6">
-                <div
-                  className="flex-shrink-0 w-14 h-14 rounded-full bg-primary/10 text-primary flex items-center justify-center text-2xl font-bold shadow-md mb-2 relative z-10 bg-background"
-                >
-                  {step.number}
+        <div className="relative grid gap-4 lg:grid-cols-4">
+          <div className="pointer-events-none absolute left-8 right-8 top-10 hidden h-px bg-border lg:block" />
+          {steps.map((step) => {
+            const Icon = step.icon;
+            return (
+              <article key={step.number} className="chatboc-landing-panel chatboc-hover-lift relative p-5 md:p-6">
+                <div className="mb-6 flex items-center justify-between gap-4">
+                  <span className="text-sm font-bold text-primary">{step.number}</span>
+                  <div className="flex h-10 w-10 items-center justify-center rounded-[8px] border border-primary/20 bg-primary/10 text-primary">
+                    <Icon className="h-5 w-5" />
+                  </div>
                 </div>
-                {index < newSteps.length - 1 && (
-                  <div className="w-px h-full bg-border absolute mt-14" style={{ height: 'calc(100% + 2.5rem)' }} />
-                )}
-              </div>
-              <div className="bg-card text-card-foreground p-6 rounded-lg border border-border shadow-lg flex-grow hover:shadow-xl transition-shadow duration-300">
-                <div className="flex items-center mb-3 gap-3">
-                   <div className="p-2 bg-primary/5 rounded-full">{step.icon}</div>
-                   <h3 className="text-xl font-semibold text-foreground">{step.title}</h3>
-                </div>
-                <p className="text-muted-foreground">{step.description}</p>
-              </div>
-            </div>
-          ))}
+                <h3 className="text-lg font-semibold text-foreground">{step.title}</h3>
+                <p className="mt-3 text-sm leading-6 text-muted-foreground">{step.description}</p>
+              </article>
+            );
+          })}
         </div>
 
-        <div className="text-center mt-12 md:mt-16">
+        <div className="mt-10 flex justify-center">
           <Button
             size="lg"
-            className="shadow-lg hover:shadow-xl transition-shadow"
-            onClick={() => navigate('/demo')}
+            className="chatboc-cta-primary rounded-[8px] font-semibold"
+            onClick={() => navigate("/demo")}
           >
-            Ver Demo Interactiva <ArrowRight className="ml-2 h-5 w-5" />
+            Ver demo interactiva
+            <ArrowRight className="ml-2 h-5 w-5" />
           </Button>
         </div>
       </div>

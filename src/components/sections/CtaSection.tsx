@@ -1,58 +1,62 @@
-import React from 'react';
-import { Button } from '@/components/ui/button';
-import { ArrowRight, MessageSquareHeart, UserPlus, Bot } from 'lucide-react'; // Cambiado UserCheck a UserPlus
-import { useNavigate } from 'react-router-dom';
+import React from "react";
+import { Bot, MessageSquareHeart, UserPlus } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useNavigate } from "react-router-dom";
 
 const CtaSection = () => {
   const navigate = useNavigate();
 
   return (
-    <section className="py-16 md:py-24 bg-background text-foreground transition-colors"> {/* Fondo según alternancia */}
-      <div className="container px-4 mx-auto">
-        <div className="text-center max-w-2xl md:max-w-3xl mx-auto">
-          <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-6 text-foreground">
-            ¿Listo para Transformar la Interacción con tus Usuarios?
+    <section id="cta" className="bg-background py-16 text-foreground md:py-24">
+      <div className="container mx-auto px-4">
+        <div className="chatboc-landing-panel mx-auto max-w-5xl overflow-hidden p-6 text-center md:p-10">
+          <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-[8px] bg-primary/10 text-primary">
+            <Bot className="h-6 w-6" />
+          </div>
+          <h2 className="mx-auto max-w-3xl text-3xl font-bold leading-tight tracking-normal md:text-5xl">
+            Listo para convertir atención, ventas y soporte en una operación más inteligente
           </h2>
-          <p className="text-lg md:text-xl text-muted-foreground mb-8 md:mb-10">
-            Descubre cómo nuestra plataforma IA puede potenciar a tu organización. Explora una demostración interactiva, contáctanos para una asesoría personalizada o crea una cuenta para comenzar.
+          <p className="mx-auto mt-5 max-w-3xl text-base leading-7 text-muted-foreground md:text-lg">
+            Probá una demo, hablá con un asesor o creá tu cuenta para empezar con una experiencia conectada al backend desde el primer paso.
           </p>
 
-          <div className="flex flex-col sm:flex-row justify-center items-center gap-4 md:gap-5 flex-wrap">
+          <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <Button
               size="lg"
-              className="font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 w-full sm:w-auto"
-              onClick={() => navigate('/demo')}
+              className="chatboc-cta-primary h-12 w-full rounded-[8px] font-semibold sm:w-auto"
+              onClick={() => navigate("/demo")}
             >
-              <Bot className="mr-2 h-5 w-5" /> Ver Demo Interactiva
+              <Bot className="mr-2 h-5 w-5" />
+              Ver demo
             </Button>
 
             <Button
               size="lg"
               variant="outline"
-              className="font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 w-full sm:w-auto"
-              onClick={() => navigate('/contacto')}
+              className="h-12 w-full rounded-[8px] border-border/80 font-semibold hover:border-primary/40 hover:bg-primary/5 sm:w-auto"
+              onClick={() => navigate("/contacto")}
             >
-              <MessageSquareHeart className="mr-2 h-5 w-5" /> Hablar con un Asesor
+              <MessageSquareHeart className="mr-2 h-5 w-5" />
+              Hablar con un asesor
             </Button>
 
             <Button
               size="lg"
               variant="secondary"
-              className="font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 w-full sm:w-auto"
-              onClick={() => navigate('/register')}
+              className="h-12 w-full rounded-[8px] border border-border/70 bg-card font-semibold shadow-sm hover:bg-accent sm:w-auto"
+              onClick={() => navigate("/register")}
             >
-              <UserPlus className="mr-2 h-5 w-5" /> Crear Cuenta {/* CORREGIDO UserCheck a UserPlus */}
+              <UserPlus className="mr-2 h-5 w-5" />
+              Crear cuenta
             </Button>
           </div>
 
-          <div className="mt-8">
-            <button
-              onClick={() => navigate('/login')}
-              className="text-sm text-muted-foreground hover:text-primary underline underline-offset-4 transition-colors"
-            >
-              ¿Ya tienes una cuenta? Iniciar sesión
-            </button>
-          </div>
+          <button
+            onClick={() => navigate("/login")}
+            className="mt-7 text-sm font-medium text-muted-foreground underline underline-offset-4 transition-colors hover:text-primary"
+          >
+            Ya tengo cuenta, iniciar sesión
+          </button>
         </div>
       </div>
     </section>
