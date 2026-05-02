@@ -5,7 +5,15 @@ import {
   MarketCartItem,
   AddToCartPayload,
   CheckoutStartResponse,
-  CheckoutStartPayload
+  CheckoutStartPayload,
+  MarketCheckoutOptions,
+  MarketCheckoutPreview,
+  MarketNextStep,
+  MarketPaymentCheckoutStatus,
+  MarketPaymentStatusResponse,
+  MarketRewardRedeemResponse,
+  MarketRewardRedemption,
+  MarketRewardsProfile,
 } from '@/types/market';
 import { PublicOrderTrackingResponse } from '@/types/tracking';
 import { DEFAULT_PUBLIC_PRODUCTS } from '@/data/defaultProducts';
@@ -63,6 +71,257 @@ const asRecordOrNull = (value: unknown): Record<string, unknown> | null =>
     ? (value as Record<string, unknown>)
     : null;
 
+const asNumberOrNull = (value: unknown): number | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+};
+
+const asArrayOfStringsOrNull = (value: unknown): string[] | null => {
+  if (!Array.isArray(value)) return null;
+  const normalized = value
+    .map((item) => asStringOrNull(item))
+    .filter((item): item is string => Boolean(item));
+  return normalized.length ? normalized : [];
+};
+
+const asUnknownRecord = (value: unknown): Record<string, unknown> => asRecordOrNull(value) ?? {};
+
+const getFirst = (record: Record<string, unknown>, keys: string[]) => {
+  for (const key of keys) {
+    const value = record[key];
+    if (value !== undefined && value !== null) return value;
+  }
+  return undefined;
+};
+
+const getSource = (input: unknown): unknown => {
+  const record = asRecordOrNull(input);
+  if (record && asRecordOrNull(record.data)) return record.data;
+  return input;
+};
+
+const shouldFallbackEndpoint = (error: unknown) =>
+  error instanceof ApiError && [404, 405, 501].includes(error.status);
+
+const normalizeCheckoutUrls = (value: unknown): Record<string, string | null> | null => {
+  const record = asRecordOrNull(value);
+  if (!record) return null;
+  return Object.entries(record).reduce<Record<string, string | null>>((acc, [key, item]) => {
+    acc[key] = asStringOrNull(item);
+    return acc;
+  }, {});
+};
+
+const normalizeCapabilities = (value: unknown): Record<string, unknown> | unknown[] | null =>
+  Array.isArray(value) ? value : asRecordOrNull(value);
+
+const normalizeMarketCheckoutOptions = (input: unknown): MarketCheckoutOptions | null => {
+  const record = asRecordOrNull(input);
+  if (!record) return null;
+  const options: MarketCheckoutOptions = {
+    payment_required: asBooleanOrNull(getFirst(record, ['payment_required', 'paymentRequired'])),
+    requires_contact_or_auth: asBooleanOrNull(getFirst(record, ['requires_contact_or_auth', 'requiresContactOrAuth'])),
+    gateway: asStringOrNull(getFirst(record, ['gateway', 'payment_gateway'])),
+    gateway_hint: asStringOrNull(getFirst(record, ['gateway_hint', 'gatewayHint'])),
+    checkout_urls: normalizeCheckoutUrls(getFirst(record, ['checkout_urls', 'checkoutUrls'])),
+    missing: asArrayOfStringsOrNull(record.missing),
+    capabilities: normalizeCapabilities(record.capabilities),
+  };
+
+  const hasSignal = Object.values(options).some((value) =>
+    Array.isArray(value)
+      ? value.length > 0
+      : value !== null && value !== undefined,
+  );
+
+  return hasSignal ? options : null;
+};
+
+const normalizeMarketNextSteps = (value: unknown): MarketNextStep[] | null => {
+  if (!Array.isArray(value)) return null;
+  const steps = value
+    .map((item) => {
+      if (typeof item === 'string' && item.trim()) {
+        return { title: item.trim(), description: null };
+      }
+      const record = asRecordOrNull(item);
+      if (!record) return null;
+      const title = asStringOrNull(getFirst(record, ['title', 'label', 'name']));
+      const description = asStringOrNull(getFirst(record, ['description', 'detail', 'message']));
+      if (!title && !description) return null;
+      return { title, description };
+    })
+    .filter((item): item is MarketNextStep => Boolean(item));
+  return steps.length ? steps : [];
+};
+
+const normalizeMarketCheckoutPreview = (input: unknown): MarketCheckoutPreview | null => {
+  const source = getSource(input);
+  const record = asRecordOrNull(source);
+  if (!record) return null;
+  const optionsSource = getFirst(record, ['checkout_options', 'checkoutOptions']);
+  const preview: MarketCheckoutPreview = {
+    state: asStringOrNull(getFirst(record, ['state', 'status', 'estado'])),
+    next_step_label: asStringOrNull(getFirst(record, ['next_step_label', 'nextStepLabel', 'message', 'action_hint'])),
+    total_monetary: asNumberOrNull(getFirst(record, ['total_monetary', 'totalAmount', 'total_amount', 'total'])),
+    total_points: asNumberOrNull(getFirst(record, ['total_points', 'totalPoints'])),
+    payment_required: asBooleanOrNull(getFirst(record, ['payment_required', 'paymentRequired'])),
+    payment_ready: asBooleanOrNull(getFirst(record, ['payment_ready', 'paymentReady'])),
+    contact_ready: asBooleanOrNull(getFirst(record, ['contact_ready', 'contactReady'])),
+    checkout_options: normalizeMarketCheckoutOptions(optionsSource ?? record),
+    next_steps: normalizeMarketNextSteps(getFirst(record, ['next_steps', 'nextSteps'])),
+  };
+
+  const hasSignal = Object.values(preview).some((value) =>
+    Array.isArray(value)
+      ? value.length > 0
+      : value !== null && value !== undefined,
+  );
+
+  return hasSignal ? preview : null;
+};
+
+const normalizePaymentCheckoutStatus = (input: unknown): MarketPaymentCheckoutStatus => {
+  const source = getSource(input);
+  const record = asUnknownRecord(source);
+  return {
+    contract_version: asStringOrNull(record.contract_version),
+    request_id: asStringOrNull(record.request_id),
+    payment_ready: asBooleanOrNull(getFirst(record, ['payment_ready', 'paymentReady'])),
+    mercadopago_ready: asBooleanOrNull(getFirst(record, ['mercadopago_ready', 'mercadoPagoReady'])),
+    gateway: asStringOrNull(getFirst(record, ['gateway', 'payment_gateway'])),
+    gateway_hint: asStringOrNull(getFirst(record, ['gateway_hint', 'gatewayHint'])),
+    missing: asArrayOfStringsOrNull(record.missing),
+    capabilities: normalizeCapabilities(record.capabilities),
+    checkout_urls: normalizeCheckoutUrls(getFirst(record, ['checkout_urls', 'checkoutUrls'])),
+    checkout_options: normalizeMarketCheckoutOptions(getFirst(record, ['checkout_options', 'checkoutOptions']) ?? record),
+    raw: input,
+  };
+};
+
+const normalizeCheckoutStartResponse = (input: unknown): CheckoutStartResponse => {
+  const source = getSource(input);
+  const record = asUnknownRecord(source);
+  const payment = asUnknownRecord(record.payment);
+  const order = asUnknownRecord(record.order);
+  const checkoutUrl =
+    asStringOrNull(getFirst(record, ['checkoutUrl', 'checkout_url', 'init_point', 'payment_url', 'url'])) ??
+    asStringOrNull(getFirst(payment, ['checkoutUrl', 'checkout_url', 'init_point', 'payment_url', 'url']));
+  const preferenceId =
+    asStringOrNull(getFirst(record, ['preferenceId', 'preference_id'])) ??
+    asStringOrNull(getFirst(payment, ['preferenceId', 'preference_id']));
+  const orderId =
+    getFirst(record, ['orderId', 'order_id', 'market_order_id', 'pedido_id']) ??
+    getFirst(order, ['id', 'order_id', 'market_order_id', 'pedido_id']);
+
+  return {
+    contract_version: asStringOrNull(record.contract_version),
+    request_id: asStringOrNull(record.request_id),
+    checkoutUrl: checkoutUrl ?? undefined,
+    preferenceId: preferenceId ?? undefined,
+    orderId: typeof orderId === 'string' || typeof orderId === 'number' ? orderId : undefined,
+    order_id: getFirst(record, ['order_id', 'pedido_id']) as CheckoutStartResponse['order_id'],
+    market_order_id: getFirst(record, ['market_order_id']) as CheckoutStartResponse['market_order_id'],
+    preference_id: preferenceId,
+    init_point: asStringOrNull(getFirst(record, ['init_point', 'initPoint'])) ?? checkoutUrl,
+    external_reference: asStringOrNull(getFirst(record, ['external_reference', 'externalReference'])),
+    status: asStringOrNull(getFirst(record, ['status', 'estado'])) ?? asStringOrNull(payment.status) ?? undefined,
+    estado: asStringOrNull(record.estado),
+    tipo: asStringOrNull(record.tipo),
+    message: asStringOrNull(getFirst(record, ['message', 'detail', 'next_step_label'])),
+    checkout_options: normalizeMarketCheckoutOptions(getFirst(record, ['checkout_options', 'checkoutOptions'])),
+    customer_profile: asRecordOrNull(record.customer_profile) as CheckoutStartResponse['customer_profile'],
+    commercial_state: asRecordOrNull(record.commercial_state) as CheckoutStartResponse['commercial_state'],
+    tracking: asRecordOrNull(record.tracking) as CheckoutStartResponse['tracking'],
+    next_steps: normalizeMarketNextSteps(getFirst(record, ['next_steps', 'nextSteps'])),
+    support_channels: asRecordOrNull(record.support_channels) as CheckoutStartResponse['support_channels'],
+  };
+};
+
+const normalizePaymentStatusResponse = (input: unknown): MarketPaymentStatusResponse => {
+  const source = getSource(input);
+  const record = asUnknownRecord(source);
+  return {
+    contract_version: asStringOrNull(record.contract_version),
+    request_id: asStringOrNull(record.request_id),
+    payment: asRecordOrNull(record.payment) as MarketPaymentStatusResponse['payment'],
+    mp_payment_id: getFirst(record, ['mp_payment_id', 'payment_id']) as MarketPaymentStatusResponse['mp_payment_id'],
+    preference_id: asStringOrNull(getFirst(record, ['preference_id', 'preferenceId'])),
+    order: asRecordOrNull(record.order),
+    timeline: Array.isArray(record.timeline) ? record.timeline : null,
+    raw: input,
+  };
+};
+
+const normalizeRewardRedemption = (input: unknown): MarketRewardRedemption | null => {
+  const record = asRecordOrNull(input);
+  if (!record) return null;
+  return {
+    id: getFirst(record, ['id', 'reward_id']) as MarketRewardRedemption['id'],
+    reward_id: getFirst(record, ['reward_id', 'id']) as MarketRewardRedemption['reward_id'],
+    label: asStringOrNull(getFirst(record, ['label', 'name', 'title'])),
+    title: asStringOrNull(getFirst(record, ['title', 'label', 'name'])),
+    description: asStringOrNull(getFirst(record, ['description', 'detail'])),
+    points: asNumberOrNull(getFirst(record, ['points', 'puntos'])),
+    cost_points: asNumberOrNull(getFirst(record, ['cost_points', 'points_cost', 'puntos_costo'])),
+    disabled: asBooleanOrNull(getFirst(record, ['disabled', 'unavailable'])),
+    raw: input,
+  };
+};
+
+const normalizeRewardsProfile = (input: unknown): MarketRewardsProfile => {
+  const source = getSource(input);
+  const record = asUnknownRecord(source);
+  const wallet = asUnknownRecord(record.wallet);
+  return {
+    contract_version: asStringOrNull(record.contract_version),
+    request_id: asStringOrNull(record.request_id),
+    wallet: {
+      ...wallet,
+      balance: asNumberOrNull(getFirst(wallet, ['balance', 'saldo'])),
+      pending_cart_points: asNumberOrNull(getFirst(wallet, ['pending_cart_points', 'pendingCartPoints'])),
+    },
+    rules: Array.isArray(record.rules) ? record.rules : asRecordOrNull(record.rules),
+    available_redemptions: Array.isArray(record.available_redemptions)
+      ? record.available_redemptions
+          .map(normalizeRewardRedemption)
+          .filter((item): item is MarketRewardRedemption => Boolean(item))
+      : [],
+    history: Array.isArray(record.history) ? record.history : [],
+    summary: asRecordOrNull(record.summary),
+    raw: input,
+  };
+};
+
+const normalizeRewardRedeemResponse = (input: unknown): MarketRewardRedeemResponse => {
+  const source = getSource(input);
+  const record = asUnknownRecord(source);
+  return {
+    contract_version: asStringOrNull(record.contract_version),
+    request_id: asStringOrNull(record.request_id),
+    redemption_id: getFirst(record, ['redemption_id', 'id']) as MarketRewardRedeemResponse['redemption_id'],
+    reward_id: getFirst(record, ['reward_id']) as MarketRewardRedeemResponse['reward_id'],
+    balance: asNumberOrNull(record.balance),
+    duplicate: asBooleanOrNull(record.duplicate),
+    raw: input,
+  };
+};
+
+const withQuery = (path: string, params?: Record<string, string | number | boolean | null | undefined>) => {
+  if (!params) return path;
+  const search = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === null || value === undefined || value === '') return;
+    search.set(key, String(value));
+  });
+  const query = search.toString();
+  return query ? `${path}?${query}` : path;
+};
+
 const normalizeMarketCartResponse = (input: MarketCartResponse | null | undefined): MarketCartResponse => {
   const payload = (input ?? {}) as MarketCartResponse & Record<string, unknown>;
   const continuityRaw = asRecordOrNull(payload.continuity);
@@ -90,21 +349,8 @@ const normalizeMarketCartResponse = (input: MarketCartResponse | null | undefine
             : null,
         }
       : null,
-    checkout_options: checkoutOptionsRaw
-      ? {
-          payment_required: asBooleanOrNull(checkoutOptionsRaw.payment_required),
-          requires_contact_or_auth: asBooleanOrNull(checkoutOptionsRaw.requires_contact_or_auth),
-          gateway_hint: asStringOrNull(checkoutOptionsRaw.gateway_hint),
-        }
-      : null,
-    checkout_preview: checkoutPreviewRaw
-      ? {
-          state: asStringOrNull(checkoutPreviewRaw.state),
-          next_step_label: asStringOrNull(checkoutPreviewRaw.next_step_label),
-          payment_ready: asBooleanOrNull(checkoutPreviewRaw.payment_ready),
-          contact_ready: asBooleanOrNull(checkoutPreviewRaw.contact_ready),
-        }
-      : null,
+    checkout_options: normalizeMarketCheckoutOptions(checkoutOptionsRaw),
+    checkout_preview: normalizeMarketCheckoutPreview(checkoutPreviewRaw),
     mercadopago_ready: asBooleanOrNull(payload.mercadopago_ready),
   };
 };
@@ -363,21 +609,161 @@ export async function clearMarketCart(tenantSlug: string): Promise<MarketCartRes
 }
 
 export async function startMarketCheckout(tenantSlug: string, payload: CheckoutStartPayload): Promise<CheckoutStartResponse> {
+  const options = {
+    method: 'POST' as const,
+    body: payload,
+    tenantSlug,
+    suppressPanel401Redirect: true,
+    omitChatSessionId: true,
+  };
+
   try {
-      return await apiFetch<CheckoutStartResponse>(`/api/market/${tenantSlug}/checkout/start`, {
-        method: 'POST',
-        body: payload,
-        tenantSlug,
-        omitChatSessionId: true,
-      });
+    const response = await apiFetch<unknown>('/api/v2/payments/checkout-session', options);
+    return normalizeCheckoutStartResponse(response);
   } catch (error) {
+    if (!shouldFallbackEndpoint(error)) {
       console.error("Error starting checkout:", error);
-      // If server checkout fails, treat as demo success if tenant is known demo
       if (isDemoTenant(tenantSlug)) {
-          return { status: 'demo' };
+        return { status: 'demo' };
       }
       throw error;
+    }
   }
+
+  try {
+    const response = await apiFetch<unknown>('/api/v2/payments/preference', options);
+    return normalizeCheckoutStartResponse(response);
+  } catch (error) {
+    if (!shouldFallbackEndpoint(error)) {
+      console.error("Error starting checkout preference:", error);
+      if (isDemoTenant(tenantSlug)) {
+        return { status: 'demo' };
+      }
+      throw error;
+    }
+  }
+
+  try {
+    const response = await apiFetch<unknown>(`/api/market/${tenantSlug}/checkout/start`, options);
+    return normalizeCheckoutStartResponse(response);
+  } catch (error) {
+    console.error("Error starting checkout:", error);
+    if (isDemoTenant(tenantSlug)) {
+      return { status: 'demo' };
+    }
+    throw error;
+  }
+}
+
+export async function fetchPaymentCheckoutStatus(
+  tenantSlug: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+): Promise<MarketPaymentCheckoutStatus | null> {
+  try {
+    const response = await apiFetch<unknown>(withQuery('/api/v2/payments/checkout-status', params), {
+      tenantSlug,
+      suppressPanel401Redirect: true,
+      omitChatSessionId: true,
+    });
+    return normalizePaymentCheckoutStatus(response);
+  } catch (error) {
+    if (shouldFallbackEndpoint(error)) return null;
+    throw error;
+  }
+}
+
+export async function fetchPaymentCapabilities(tenantSlug: string): Promise<MarketPaymentCheckoutStatus | null> {
+  try {
+    const response = await apiFetch<unknown>('/api/v2/payments/capabilities', {
+      tenantSlug,
+      suppressPanel401Redirect: true,
+      omitChatSessionId: true,
+    });
+    return normalizePaymentCheckoutStatus(response);
+  } catch (error) {
+    if (shouldFallbackEndpoint(error)) return null;
+    throw error;
+  }
+}
+
+export async function previewPaymentCheckout(
+  tenantSlug: string,
+  payload: CheckoutStartPayload,
+): Promise<MarketCheckoutPreview | null> {
+  try {
+    const response = await apiFetch<unknown>('/api/v2/payments/checkout-preview', {
+      method: 'POST',
+      body: payload,
+      tenantSlug,
+      suppressPanel401Redirect: true,
+      omitChatSessionId: true,
+    });
+    return normalizeMarketCheckoutPreview(response);
+  } catch (error) {
+    if (shouldFallbackEndpoint(error)) return null;
+    throw error;
+  }
+}
+
+export async function fetchPaymentStatus(
+  tenantSlug: string,
+  params: Record<string, string | number | boolean | null | undefined>,
+): Promise<MarketPaymentStatusResponse | null> {
+  try {
+    const response = await apiFetch<unknown>('/api/v2/payments/status', {
+      method: 'POST',
+      body: params,
+      tenantSlug,
+      suppressPanel401Redirect: true,
+      omitChatSessionId: true,
+    });
+    return normalizePaymentStatusResponse(response);
+  } catch (error) {
+    if (!shouldFallbackEndpoint(error)) throw error;
+  }
+
+  try {
+    const response = await apiFetch<unknown>(withQuery('/api/v2/payments/status', params), {
+      tenantSlug,
+      suppressPanel401Redirect: true,
+      omitChatSessionId: true,
+    });
+    return normalizePaymentStatusResponse(response);
+  } catch (error) {
+    if (shouldFallbackEndpoint(error)) return null;
+    throw error;
+  }
+}
+
+export async function fetchRewardsProfile(tenantSlug: string): Promise<MarketRewardsProfile | null> {
+  try {
+    const response = await apiFetch<unknown>('/api/v2/rewards/profile', {
+      tenantSlug,
+      suppressPanel401Redirect: true,
+      omitChatSessionId: true,
+    });
+    return normalizeRewardsProfile(response);
+  } catch (error) {
+    if (shouldFallbackEndpoint(error)) return null;
+    if (error instanceof ApiError && [401, 403].includes(error.status)) return null;
+    throw error;
+  }
+}
+
+export async function redeemReward(
+  tenantSlug: string,
+  payload: Record<string, unknown>,
+  idempotencyKey?: string,
+): Promise<MarketRewardRedeemResponse> {
+  const response = await apiFetch<unknown>('/api/v2/rewards/redeem', {
+    method: 'POST',
+    body: payload,
+    tenantSlug,
+    suppressPanel401Redirect: true,
+    omitChatSessionId: true,
+    headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
+  });
+  return normalizeRewardRedeemResponse(response);
 }
 
 export async function fetchPublicOrder(ticketNumber: string): Promise<PublicOrderTrackingResponse> {

@@ -1,4 +1,12 @@
 import type { Rubro } from '@/components/chat/RubroSelector';
+import type {
+  ChatAnimationTokens,
+  ChatConversionCtasConfig,
+  ChatExperienceBlock,
+  ChatExperienceBlueprint,
+  ChatLeadCaptureConfig,
+  ChatMediaCapabilities,
+} from '@/types/chat';
 import type { HandoffLabels, QuickReplyItem } from '@/features/chat/chatTypes';
 
 export type DemoSector = 'gobierno' | 'empresas';
@@ -13,6 +21,15 @@ export interface DemoSessionResponse {
   demo_session_id?: string;
   tenant_slug?: string | null;
   workspace?: DemoWorkspaceConfig | null;
+  experience_blueprint?: ChatExperienceBlueprint | null;
+  lead_capture?: ChatLeadCaptureConfig | null;
+  media_capabilities?: ChatMediaCapabilities | null;
+  conversion_ctas?: ChatConversionCtasConfig | null;
+  animation_tokens?: ChatAnimationTokens | null;
+  empty_states?: Record<string, ChatExperienceBlock>;
+  chat_seed?: {
+    sample_conversations?: ChatExperienceBlock[];
+  } | null;
   welcome_message?: string | null;
   quick_replies?: QuickReplyItem[];
   value_cards?: DemoWorkspaceCard[];
@@ -34,4 +51,16 @@ export interface DemoWorkspaceConfig {
   quick_replies?: QuickReplyItem[];
   value_cards?: DemoWorkspaceCard[];
   handoff_labels?: HandoffLabels | null;
+  first_visit?: ChatExperienceBlock | null;
+  sample_conversations?: ChatExperienceBlock[];
+  trust_signals?: ChatExperienceBlock[];
+  experience_blueprint?: ChatExperienceBlueprint | null;
+  lead_capture?: ChatLeadCaptureConfig | null;
+  media_capabilities?: ChatMediaCapabilities | null;
+  conversion_ctas?: ChatConversionCtasConfig | null;
+  animation_tokens?: ChatAnimationTokens | null;
+  empty_states?: Record<string, ChatExperienceBlock>;
+  chat_seed?: {
+    sample_conversations?: ChatExperienceBlock[];
+  } | null;
 }

@@ -1,6 +1,7 @@
 import { panelApi } from '@/api/v2/client';
-import { ApiError } from '@/utils/api';
+import { ApiError, apiFetch } from '@/utils/api';
 import type { ChatRatingValue } from './chatTypes';
+import type { ChatLeadCaptureConfig } from '@/types/chat';
 
 export const sendConversationFeedback = async (
   conversationId: string,
@@ -21,4 +22,20 @@ export const sendConversationFeedback = async (
     }
     throw error;
   }
+};
+
+export const submitLeadCapture = async (
+  config: ChatLeadCaptureConfig,
+  payload: Record<string, unknown>,
+  tenantSlug?: string | null,
+) => {
+  const endpoint = config.endpoint?.trim() || '/api/public/lead-capture';
+  return apiFetch(endpoint, {
+    method: 'POST',
+    body: payload,
+    skipAuth: true,
+    isWidgetRequest: true,
+    tenantSlug,
+    suppressPanel401Redirect: true,
+  });
 };

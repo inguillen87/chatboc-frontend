@@ -75,14 +75,23 @@ export interface MarketRecommendation {
 export interface MarketCheckoutPreview {
   state?: string | null;
   next_step_label?: string | null;
+  total_monetary?: number | null;
+  total_points?: number | null;
+  payment_required?: boolean | null;
   payment_ready?: boolean | null;
   contact_ready?: boolean | null;
+  checkout_options?: MarketCheckoutOptions | null;
+  next_steps?: MarketNextStep[] | null;
 }
 
 export interface MarketCheckoutOptions {
   payment_required?: boolean | null;
   requires_contact_or_auth?: boolean | null;
+  gateway?: string | null;
   gateway_hint?: string | null;
+  checkout_urls?: Record<string, string | null> | null;
+  missing?: string[] | null;
+  capabilities?: Record<string, unknown> | unknown[] | null;
 }
 
 export interface MarketSupportChannel {
@@ -100,6 +109,72 @@ export interface MarketTrackingInfo {
 export interface MarketNextStep {
   title?: string | null;
   description?: string | null;
+}
+
+export interface MarketPaymentCheckoutStatus {
+  contract_version?: string | null;
+  request_id?: string | null;
+  payment_ready?: boolean | null;
+  mercadopago_ready?: boolean | null;
+  gateway?: string | null;
+  gateway_hint?: string | null;
+  missing?: string[] | null;
+  capabilities?: Record<string, unknown> | unknown[] | null;
+  checkout_urls?: Record<string, string | null> | null;
+  checkout_options?: MarketCheckoutOptions | null;
+  raw?: unknown;
+}
+
+export interface MarketPaymentStatusResponse {
+  contract_version?: string | null;
+  request_id?: string | null;
+  payment?: {
+    status?: string | null;
+    paid?: boolean | null;
+    [key: string]: unknown;
+  } | null;
+  mp_payment_id?: string | number | null;
+  preference_id?: string | null;
+  order?: Record<string, unknown> | null;
+  timeline?: unknown[] | null;
+  raw?: unknown;
+}
+
+export interface MarketRewardRedemption {
+  id?: string | number | null;
+  reward_id?: string | number | null;
+  label?: string | null;
+  title?: string | null;
+  description?: string | null;
+  points?: number | null;
+  cost_points?: number | null;
+  disabled?: boolean | null;
+  raw?: unknown;
+}
+
+export interface MarketRewardsProfile {
+  contract_version?: string | null;
+  request_id?: string | null;
+  wallet?: {
+    balance?: number | null;
+    pending_cart_points?: number | null;
+    [key: string]: unknown;
+  } | null;
+  rules?: unknown[] | Record<string, unknown> | null;
+  available_redemptions?: MarketRewardRedemption[] | null;
+  history?: unknown[] | null;
+  summary?: Record<string, unknown> | null;
+  raw?: unknown;
+}
+
+export interface MarketRewardRedeemResponse {
+  contract_version?: string | null;
+  request_id?: string | null;
+  redemption_id?: string | number | null;
+  reward_id?: string | number | null;
+  balance?: number | null;
+  duplicate?: boolean | null;
+  raw?: unknown;
 }
 
 export interface MarketCartResponse {
@@ -153,6 +228,8 @@ export interface CheckoutStartPayload {
 }
 
 export interface CheckoutStartResponse {
+  contract_version?: string | null;
+  request_id?: string | null;
   checkoutUrl?: string;
   preferenceId?: string;
   orderId?: string | number;
@@ -160,10 +237,12 @@ export interface CheckoutStartResponse {
   market_order_id?: string | number;
   preference_id?: string | null;
   init_point?: string | null;
+  external_reference?: string | null;
   status?: string; // 'pending', 'confirmed', 'demo'
   estado?: string | null;
   tipo?: string | null;
   message?: string;
+  checkout_options?: MarketCheckoutOptions | null;
   customer_profile?: MarketCustomerProfile | null;
   commercial_state?: MarketCommercialState | null;
   tracking?: MarketTrackingInfo | null;

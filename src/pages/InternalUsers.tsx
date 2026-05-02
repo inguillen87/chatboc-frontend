@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { apiFetch, ApiError, getErrorMessage, resolveTenantSlug } from '@/utils/api';
+import { getEmployeeCoverageV2, type CoverageBucket, type EmployeeCoverageV2 } from '@/api/v2/saas';
 import useRequireRole from '@/hooks/useRequireRole';
 import { useUser } from '@/hooks/useUser';
 import type { Role } from '@/utils/roles';
@@ -44,25 +45,6 @@ interface EmployeesResponse {
   ticket_categories: Category[];
 }
 
-interface CoverageItem {
-  label?: string;
-  name?: string;
-  categoria?: string;
-  zona?: string;
-  permiso?: string;
-  count?: number;
-  total?: number;
-  employees?: number;
-}
-
-interface EmployeeCoverageResponse {
-  categorias?: CoverageItem[];
-  zonas?: CoverageItem[];
-  permisos?: CoverageItem[];
-  items?: CoverageItem[];
-}
-
-
 const TeamStatCard = ({
   label,
   value,
@@ -95,7 +77,7 @@ const CoverageColumn = ({
   emptyLabel,
 }: {
   title: string;
-  items: CoverageItem[];
+  items: CoverageBucket[];
   emptyLabel: string;
 }) => (
   <div className="rounded-2xl border border-border/60 bg-background/70 p-4 shadow-sm">
@@ -108,8 +90,8 @@ const CoverageColumn = ({
     <div className="space-y-2">
       {items.slice(0, 5).map((item, index) => (
         <div key={`${title}-${index}`} className="flex items-center justify-between rounded-xl border border-border/60 bg-muted/20 px-3 py-2 text-sm">
-          <span className="truncate pr-3">{item.categoria || item.zona || item.permiso || item.label || item.name || `${emptyLabel}_${index + 1}`}</span>
-          <Badge variant="secondary">{item.employees ?? item.count ?? item.total ?? 0}</Badge>
+          <span className="truncate pr-3">{item.label || `${emptyLabel}_${index + 1}`}</span>
+          <Badge variant="secondary">{item.count ?? item.total ?? 0}</Badge>
         </div>
       ))}
       {!items.length ? <p className="text-sm text-muted-foreground">Sin datos disponibles.</p> : null}
@@ -147,7 +129,7 @@ export default function InternalUsers() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [coverage, setCoverage] = useState<EmployeeCoverageResponse | null>(null);
+  const [coverage, setCoverage] = useState<EmployeeCoverageV2 | null>(null);
   const [lastCreatedEmployee, setLastCreatedEmployee] = useState<InternalUser | null>(null);
 
   // Form states
@@ -200,10 +182,7 @@ export default function InternalUsers() {
 
       setEmployees(list);
       setCategories(cats);
-      const coverageData = await apiFetch<EmployeeCoverageResponse>(
-        `/api/admin/tenants/${tenantSlug}/employees/coverage`,
-        { tenantSlug },
-      ).catch(() => null);
+      const coverageData = await getEmployeeCoverageV2(tenantSlug).catch(() => null);
       setCoverage(coverageData);
     } catch (err: any) {
       console.error(err);
@@ -333,10 +312,10 @@ export default function InternalUsers() {
       }
   };
 
-  const coverageCategories = coverage?.categorias || [];
-  const coverageZones = coverage?.zonas || [];
-  const coveragePermissions = coverage?.permisos || [];
-  const coverageTotal = coverageCategories.length + coverageZones.length + coveragePermissions.length;
+  const coverageCategories = coverage?.categories || [];
+  const coverageZones = coverage?.zones || [];
+  const coverageChannels = coverage?.channels || [];
+  const coverageTotal = coverageCategories.length + coverageZones.length + coverageChannels.length;
 
   if (loading) return <div className="p-4">Cargando...</div>;
   if (error) return <div className="p-4 text-destructive">{error}</div>;
@@ -369,7 +348,7 @@ export default function InternalUsers() {
         <TeamStatCard label="Equipo" value={employees.length.toLocaleString('es-AR')} helper="Usuarios internos activos en la vista actual" icon={Users2} />
         <TeamStatCard label="Categorías" value={categories.length.toLocaleString('es-AR')} helper="Dominios/categorías disponibles para asignación" icon={Layers3} />
         <TeamStatCard label="Zonas" value={coverageZones.length.toLocaleString('es-AR')} helper="Cobertura geográfica informada por backend" icon={MapPinned} />
-        <TeamStatCard label="Permisos" value={coveragePermissions.length.toLocaleString('es-AR')} helper="Permisos o alcances relevantes del equipo" icon={KeyRound} />
+        <TeamStatCard label="Canales" value={coverageChannels.length.toLocaleString('es-AR')} helper="Canales informados por backend" icon={KeyRound} />
       </div>
 
       {(lastCreatedEmployee || coverage) && (
@@ -410,7 +389,7 @@ export default function InternalUsers() {
               <CardContent className="grid gap-4 pt-6 md:grid-cols-3">
                 <CoverageColumn title="Categorías" items={coverageCategories} emptyLabel="categoria" />
                 <CoverageColumn title="Zonas" items={coverageZones} emptyLabel="zona" />
-                <CoverageColumn title="Permisos" items={coveragePermissions} emptyLabel="permiso" />
+                <CoverageColumn title="Canales" items={coverageChannels} emptyLabel="canal" />
               </CardContent>
             </Card>
           ) : null}

@@ -17,7 +17,17 @@ import ScrollToBottomButton from "@/components/ui/ScrollToBottomButton";
 import { useChatLogic } from "@/hooks/useChatLogic";
 import PersonalDataForm from "./PersonalDataForm";
 import { Rubro } from "@/types/rubro";
-import { ChatUxChannelCapabilities, Message } from "@/types/chat";
+import {
+  ChatAnimationTokens,
+  ChatConversionCtaAction,
+  ChatConversionCtasConfig,
+  ChatExperienceBlock,
+  ChatExperienceBlueprint,
+  ChatLeadCaptureConfig,
+  ChatMediaCapabilities,
+  ChatUxChannelCapabilities,
+  Message,
+} from "@/types/chat";
 import CatalogShareCard from "./CatalogShareCard";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { extractRubroKey, extractRubroLabel } from "@/utils/rubros";
@@ -56,6 +66,7 @@ import {
   Bot,
   Wifi,
   WifiOff,
+  MessageSquare,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { getInitialMunicipioContext } from "@/utils/contexto_municipio";
@@ -92,6 +103,43 @@ const FRASES_EXITO = [
   "Tu número de chat es",
   "ticket **M-",
 ];
+
+const readExperienceTitle = (block?: ChatExperienceBlock | null) =>
+  block?.title?.trim() || block?.label?.trim() || block?.text?.trim() || "";
+
+const readExperienceDescription = (block?: ChatExperienceBlock | null) =>
+  block?.description?.trim() || block?.subtitle?.trim() || "";
+
+const mediaModeEnabled = (capabilities: ChatMediaCapabilities | null | undefined, mode: string) => {
+  if (!capabilities) return true;
+  const inputMode = capabilities.input_modes?.[mode];
+  if (inputMode?.enabled === false) return false;
+  if (inputMode?.enabled === true) return true;
+  const actions = capabilities.composer?.actions;
+  if (!Array.isArray(actions) || actions.length === 0) return true;
+  return actions.some((action) => action?.type === mode);
+};
+
+const mediaActionLabel = (capabilities: ChatMediaCapabilities | null | undefined, mode: string) => {
+  const action = capabilities?.composer?.actions?.find((item) => item?.type === mode);
+  return action?.label?.trim() || undefined;
+};
+
+const channelCapabilitiesFromMedia = (
+  capabilities: ChatMediaCapabilities | null | undefined,
+): ChatUxChannelCapabilities | null => {
+  if (!capabilities) return null;
+  return {
+    supports_audio_input: mediaModeEnabled(capabilities, "audio"),
+    supports_file_upload: mediaModeEnabled(capabilities, "file"),
+    supports_image_input: mediaModeEnabled(capabilities, "image"),
+    supports_location_share: mediaModeEnabled(capabilities, "location"),
+    audio_input_label: mediaActionLabel(capabilities, "audio"),
+    file_upload_label: mediaActionLabel(capabilities, "file"),
+    image_input_label: mediaActionLabel(capabilities, "image"),
+    location_share_label: mediaActionLabel(capabilities, "location"),
+  };
+};
 
 interface ChatPanelProps {
   mode?: "standalone" | "iframe" | "script";
@@ -187,6 +235,13 @@ interface ChatPanelProps {
     viewLabel?: string | null;
     downloadLabel?: string | null;
   } | null;
+  quickMenu?: unknown;
+  leadCapture?: ChatLeadCaptureConfig | null;
+  mediaCapabilities?: ChatMediaCapabilities | null;
+  conversionCtas?: ChatConversionCtasConfig | null;
+  animationTokens?: ChatAnimationTokens | null;
+  emptyStates?: Record<string, ChatExperienceBlock> | null;
+  experienceBlueprint?: ChatExperienceBlueprint | null;
 }
 
 const ChatPanel = (props: ChatPanelProps) => {
@@ -219,6 +274,12 @@ const ChatPanel = (props: ChatPanelProps) => {
     onA11yChange,
     a11yPrefs,
     catalogCard,
+    leadCapture,
+    mediaCapabilities,
+    conversionCtas,
+    animationTokens,
+    emptyStates,
+    experienceBlueprint,
   } = props;
   const isMobile = useIsMobile();
   const fallbackRubroTitle = welcomeTitle || "Chatboc";
@@ -289,7 +350,8 @@ const ChatPanel = (props: ChatPanelProps) => {
 
 
   const channelCapabilities = useMemo<ChatUxChannelCapabilities | null>(() => {
-    const source = uxContext?.channel_capabilities;
+    const mediaSource = channelCapabilitiesFromMedia(mediaCapabilities ?? experienceBlueprint?.media_capabilities);
+    const source = mediaSource ?? uxContext?.channel_capabilities;
     if (!source) return null;
     return {
       ...(source.supports_audio_input !== undefined
@@ -313,7 +375,7 @@ const ChatPanel = (props: ChatPanelProps) => {
       ...(source.location_share_label ? { location_share_label: source.location_share_label } : {}),
       ...(source.realtime_label ? { realtime_label: source.realtime_label } : {}),
     };
-  }, [uxContext?.channel_capabilities]);
+  }, [experienceBlueprint?.media_capabilities, mediaCapabilities, uxContext?.channel_capabilities]);
   const recommendedExperience = uxContext?.recommended_experience || null;
   const recommendedExperienceLabel =
     typeof recommendedExperience?.label === "string" && recommendedExperience.label.trim().length > 0
@@ -1600,7 +1662,92 @@ const ChatPanel = (props: ChatPanelProps) => {
     recommendedExperience?.supports_multimodal_intake !== false;
   const forceDemoComposerTools =
     typeof window !== "undefined" && window.location.pathname.startsWith("/demo");
-  const effectiveChannelCapabilities = forceDemoComposerTools ? null : channelCapabilities;
+  const effectiveLeadCapture = leadCapture ?? experienceBlueprint?.lead_capture ?? null;
+  const effectiveMediaCapabilities = mediaCapabilities ?? experienceBlueprint?.media_capabilities ?? null;
+  const effectiveConversionCtas = conversionCtas ?? experienceBlueprint?.conversion_ctas ?? null;
+  const effectiveAnimationTokens = animationTokens ?? experienceBlueprint?.animation_tokens ?? null;
+  const motionLevel = effectiveAnimationTokens?.motion_level?.trim() || undefined;
+  const effectiveChannelCapabilities = effectiveMediaCapabilities
+    ? channelCapabilities
+    : forceDemoComposerTools
+      ? null
+      : channelCapabilities;
+  const resolvedEmptyBlock =
+    experienceBlueprint?.first_visit ??
+    emptyStates?.first_visit ??
+    emptyStates?.no_messages ??
+    emptyStates?.empty ??
+    null;
+  const emptyStateTitle =
+    readExperienceTitle(resolvedEmptyBlock) || "¿En qué podemos ayudarte?";
+  const emptyStateDescription =
+    readExperienceDescription(resolvedEmptyBlock) ||
+    "Escribí tu consulta abajo o usá las opciones del menú.";
+  const sampleConversationBlocks = useMemo(
+    () =>
+      Array.isArray(experienceBlueprint?.sample_conversations)
+        ? experienceBlueprint.sample_conversations.filter(Boolean)
+        : [],
+    [experienceBlueprint?.sample_conversations],
+  );
+  const trustSignalBlocks = useMemo(
+    () =>
+      Array.isArray(experienceBlueprint?.trust_signals)
+        ? experienceBlueprint.trust_signals.filter(Boolean)
+        : [],
+    [experienceBlueprint?.trust_signals],
+  );
+  const visibleConversionCtas = useMemo(() => {
+    const actions = effectiveConversionCtas?.actions ?? [];
+    const maxVisible = Number(effectiveConversionCtas?.rules?.max_visible ?? 3);
+    return actions.slice(0, Number.isFinite(maxVisible) && maxVisible > 0 ? maxVisible : 3);
+  }, [effectiveConversionCtas?.actions, effectiveConversionCtas?.rules?.max_visible]);
+  const handleConversionCta = useCallback(
+    async (action: ChatConversionCtaAction) => {
+      const endpoint = action.endpoint || effectiveLeadCapture?.endpoint || "";
+      const shouldPostLead =
+        effectiveLeadCapture?.enabled !== false &&
+        endpoint.toLowerCase().includes("lead-capture") &&
+        (effectiveLeadCapture?.fields?.length ?? 0) === 0;
+
+      if (shouldPostLead) {
+        try {
+          await apiFetch(endpoint || "/api/public/lead-capture", {
+            method: "POST",
+            skipAuth: true,
+            isWidgetRequest: true,
+            tenantSlug,
+            body: {
+              tenant_slug: tenantSlug ?? undefined,
+              tipo_chat: tipoChat,
+              fields: {},
+              intent: action.intent ?? undefined,
+              cta_id: action.id,
+              payload: action.payload ?? undefined,
+            },
+          });
+          if (effectiveLeadCapture?.success_message) {
+            addSystemMessage(effectiveLeadCapture.success_message, "info");
+          }
+          return;
+        } catch (error) {
+          addSystemMessage(getErrorMessage(error, "No se pudo guardar el seguimiento."), "error");
+          return;
+        }
+      }
+
+      handleSend({
+        text: action.label,
+        action: action.intent || action.id,
+        payload: {
+          ...(action.payload ?? {}),
+          endpoint: action.endpoint,
+        },
+        source: "button",
+      });
+    },
+    [addSystemMessage, effectiveLeadCapture, handleSend, tenantSlug, tipoChat],
+  );
 
   const persistentLeadButton = [...messages]
     .flatMap((msg) => msg.botones || [])
@@ -1635,6 +1782,7 @@ const ChatPanel = (props: ChatPanelProps) => {
   if (showRubroSelector) {
     return (
       <div
+        data-motion-level={motionLevel}
         className={cn(
           "chat-root flex h-full w-full flex-col bg-card text-card-foreground overflow-hidden relative",
           isMobile ? undefined : "rounded-[inherit]",
@@ -1706,6 +1854,7 @@ const ChatPanel = (props: ChatPanelProps) => {
     <div
       role="region"
       aria-label="Chat widget"
+      data-motion-level={motionLevel}
       className={cn(
         "chat-root flex flex-col w-full h-full bg-gradient-to-b from-card via-card to-card/95 text-card-foreground overflow-hidden relative",
         isMobile ? undefined : "rounded-[inherit]",
@@ -1954,10 +2103,51 @@ const ChatPanel = (props: ChatPanelProps) => {
                 <div className="w-16 h-16 bg-primary/10 text-primary rounded-2xl flex items-center justify-center mb-4">
                    <MessageSquare className="w-8 h-8" />
                 </div>
-                <h3 className="text-lg font-semibold mb-2">¿En qué podemos ayudarte?</h3>
+                <h3 className="text-lg font-semibold mb-2">{emptyStateTitle}</h3>
                 <p className="text-sm text-muted-foreground mb-8 max-w-[260px]">
-                   Escribí tu consulta abajo o usá las opciones del menú.
+                   {emptyStateDescription}
                 </p>
+                {sampleConversationBlocks.length ? (
+                  <div className="mb-4 flex max-w-[320px] flex-wrap justify-center gap-2">
+                    {sampleConversationBlocks.map((item, index) => {
+                      const label = readExperienceTitle(item);
+                      if (!label) return null;
+                      return (
+                        <Button
+                          key={item.id || `${label}-${index}`}
+                          size="sm"
+                          variant="outline"
+                          className="h-auto whitespace-normal text-xs"
+                          onClick={() =>
+                            handleSend({
+                              text: item.text || label,
+                              action: item.intent || undefined,
+                              payload: item.payload,
+                              source: "button",
+                            })
+                          }
+                        >
+                          {label}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                ) : null}
+                {trustSignalBlocks.length ? (
+                  <div className="grid max-w-[340px] gap-2 text-left text-xs sm:grid-cols-2">
+                    {trustSignalBlocks.map((item, index) => {
+                      const label = readExperienceTitle(item);
+                      const description = readExperienceDescription(item);
+                      if (!label && !description) return null;
+                      return (
+                        <div key={item.id || `${label}-${index}`} className="rounded-md border bg-background/70 px-3 py-2">
+                          {label ? <p className="font-medium text-foreground">{label}</p> : null}
+                          {description ? <p className="text-muted-foreground">{description}</p> : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : null}
              </div>
         ) : (
           <>
@@ -2150,6 +2340,22 @@ const ChatPanel = (props: ChatPanelProps) => {
           </div>
         ) : null}
 
+        {visibleConversionCtas.length ? (
+          <div className="mb-2 flex flex-wrap gap-2" aria-label="Acciones sugeridas">
+            {visibleConversionCtas.map((action) => (
+              <Button
+                key={action.id}
+                size="sm"
+                variant={action.style === "primary" || action.style === "accent" ? "default" : "outline"}
+                className="h-auto whitespace-normal text-xs"
+                onClick={() => void handleConversionCta(action)}
+              >
+                {action.label}
+              </Button>
+            ))}
+          </div>
+        ) : null}
+
         {persistentLeadButton ? (
           <Button
             variant="outline"
@@ -2182,6 +2388,7 @@ const ChatPanel = (props: ChatPanelProps) => {
             onSystemMessage={addSystemMessage}
             validateBeforeSend={validateLeadCaptureInput}
             channelCapabilities={effectiveChannelCapabilities}
+            mediaCapabilities={effectiveMediaCapabilities}
             guidedFlow={guidedFlow}
             supportsMultimodalIntake={supportsMultimodalIntake}
           />

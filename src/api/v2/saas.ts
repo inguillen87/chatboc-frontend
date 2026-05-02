@@ -1,4 +1,5 @@
 import { panelApi } from '@/api/v2/client';
+import { ApiError } from '@/utils/api';
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -57,6 +58,7 @@ export interface EmployeeCoverageV2 {
   categorias: CoverageBucket[];
   zonas: CoverageBucket[];
   canales: CoverageBucket[];
+  permisos: CoverageBucket[];
   items: CoverageBucket[];
 }
 
@@ -196,11 +198,22 @@ export interface OmnichannelInboxV2 {
   raw: unknown;
 }
 
+export interface OmnichannelInboxActionPayload {
+  action: 'assign' | 'reply' | 'handoff' | 'close' | 'reopen' | 'set_priority' | string;
+  payload?: UnknownRecord;
+}
+
 const isRecord = (value: unknown): value is UnknownRecord =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 
-const asString = (value: unknown): string | undefined =>
-  typeof value === 'string' && value.trim() ? value.trim() : undefined;
+const shouldFallbackEndpoint = (error: unknown) =>
+  error instanceof ApiError && [404, 405, 501].includes(error.status);
+
+const asString = (value: unknown): string | undefined => {
+  if (typeof value === 'string' && value.trim()) return value.trim();
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return undefined;
+};
 
 const asNumber = (value: unknown): number | undefined => {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
@@ -239,9 +252,6 @@ const firstArray = (record: UnknownRecord, keys: string[]) => {
   return [];
 };
 
-const firstNonEmptyArray = (primary: unknown[], fallback: unknown[]) =>
-  primary.length ? primary : fallback;
-
 const normalizeRatio = (value: number | undefined) => {
   if (value === undefined) return undefined;
   return value > 1 ? value / 100 : value;
@@ -273,8 +283,14 @@ const normalizeAction = (value: unknown, index = 0): SaasAction | null => {
   };
 };
 
-const normalizeActions = (value: unknown) =>
-  asArray(value).map(normalizeAction).filter((action): action is SaasAction => Boolean(action));
+const normalizeActions = (value: unknown) => {
+  const rawActions = Array.isArray(value)
+    ? value
+    : isRecord(value)
+      ? Object.entries(value).map(([key, item]) => (isRecord(item) ? { key, ...item } : { key, label: key, value: item }))
+      : [];
+  return rawActions.map(normalizeAction).filter((action): action is SaasAction => Boolean(action));
+};
 
 const normalizeAlert = (value: unknown, index = 0): SaasAlert | null => {
   if (typeof value === 'string' && value.trim()) {
@@ -294,8 +310,14 @@ const normalizeAlert = (value: unknown, index = 0): SaasAlert | null => {
   };
 };
 
-const normalizeAlerts = (value: unknown) =>
-  asArray(value).map(normalizeAlert).filter((alert): alert is SaasAlert => Boolean(alert));
+const normalizeAlerts = (value: unknown) => {
+  const rawAlerts = Array.isArray(value)
+    ? value
+    : isRecord(value)
+      ? Object.entries(value).map(([key, item]) => (isRecord(item) ? { key, ...item } : { key, label: key, value: item }))
+      : [];
+  return rawAlerts.map(normalizeAlert).filter((alert): alert is SaasAlert => Boolean(alert));
+};
 
 const normalizeBucket = (value: unknown, index = 0): CoverageBucket | null => {
   if (typeof value === 'string' && value.trim()) {
@@ -319,8 +341,14 @@ const normalizeBucket = (value: unknown, index = 0): CoverageBucket | null => {
   };
 };
 
-const normalizeBuckets = (value: unknown) =>
-  asArray(value).map(normalizeBucket).filter((bucket): bucket is CoverageBucket => Boolean(bucket));
+const normalizeBuckets = (value: unknown) => {
+  const rawBuckets = Array.isArray(value)
+    ? value
+    : isRecord(value)
+      ? Object.entries(value).map(([key, item]) => (isRecord(item) ? { key, ...item } : { key, label: key, count: item }))
+      : [];
+  return rawBuckets.map(normalizeBucket).filter((bucket): bucket is CoverageBucket => Boolean(bucket));
+};
 
 const normalizeCheck = (value: unknown, index = 0): TenantHealthCheck | null => {
   if (typeof value === 'string' && value.trim()) {
@@ -338,8 +366,14 @@ const normalizeCheck = (value: unknown, index = 0): TenantHealthCheck | null => 
   };
 };
 
-const normalizeChecks = (value: unknown) =>
-  asArray(value).map(normalizeCheck).filter((item): item is TenantHealthCheck => Boolean(item));
+const normalizeChecks = (value: unknown) => {
+  const rawItems = Array.isArray(value)
+    ? value
+    : isRecord(value)
+      ? Object.entries(value).map(([key, item]) => (isRecord(item) ? { key, ...item } : { key, label: key, value: item }))
+      : [];
+  return rawItems.map(normalizeCheck).filter((item): item is TenantHealthCheck => Boolean(item));
+};
 
 const normalizeRecordBuckets = (value: unknown) => {
   if (Array.isArray(value)) {
@@ -386,24 +420,18 @@ export const normalizeEmployeeCoverageV2 = (response: unknown): EmployeeCoverage
   const source = getSource(response);
   const record = asRecord(source);
   const coverage = asRecord(record.coverage);
-  const categories = normalizeBuckets(
-    firstNonEmptyArray(
-      firstArray(coverage, ['categories', 'categorias', 'category_coverage']),
-      firstArray(record, ['categories', 'categorias', 'category_coverage']),
-    ),
-  );
-  const zones = normalizeBuckets(
-    firstNonEmptyArray(
-      firstArray(coverage, ['zones', 'zonas', 'zone_coverage']),
-      firstArray(record, ['zones', 'zonas', 'zone_coverage']),
-    ),
-  );
-  const channels = normalizeBuckets(
-    firstNonEmptyArray(
-      firstArray(coverage, ['channels', 'canales', 'channel_coverage']),
-      firstArray(record, ['channels', 'canales', 'channel_coverage']),
-    ),
-  );
+  const categorySource =
+    getFirst(coverage, ['categories', 'categorias', 'category_coverage']) ??
+    getFirst(record, ['categories', 'categorias', 'category_coverage']);
+  const zoneSource =
+    getFirst(coverage, ['zones', 'zonas', 'zone_coverage']) ??
+    getFirst(record, ['zones', 'zonas', 'zone_coverage']);
+  const channelSource =
+    getFirst(coverage, ['channels', 'canales', 'channel_coverage']) ??
+    getFirst(record, ['channels', 'canales', 'channel_coverage']);
+  const categories = normalizeBuckets(categorySource);
+  const zones = normalizeBuckets(zoneSource);
+  const channels = normalizeBuckets(channelSource);
 
   return {
     contract_version: asString(record.contract_version),
@@ -418,6 +446,7 @@ export const normalizeEmployeeCoverageV2 = (response: unknown): EmployeeCoverage
     categorias: categories,
     zonas: zones,
     canales: channels,
+    permisos: channels,
     items: [...categories, ...zones, ...channels],
   };
 };
@@ -623,7 +652,7 @@ const normalizeTimeline = (value: unknown, ticketId: string): OmnichannelTimelin
     };
   });
 
-const normalizeInboxItem = (value: unknown, index = 0): OmnichannelInboxItem | null => {
+export const normalizeOmnichannelInboxItemV2 = (value: unknown, index = 0): OmnichannelInboxItem | null => {
   if (!isRecord(value)) return null;
   const id = asString(getFirst(value, ['id', 'ticket_id', 'conversation_id', 'nro_ticket'])) ?? `inbox_${index + 1}`;
   const contact = asRecord(value.contact);
@@ -659,7 +688,7 @@ export const normalizeOmnichannelInboxV2 = (response: unknown): OmnichannelInbox
   return {
     contract_version: asString(record.contract_version),
     request_id: asString(record.request_id),
-    items: itemsSource.map(normalizeInboxItem).filter((item): item is OmnichannelInboxItem => Boolean(item)),
+    items: itemsSource.map(normalizeOmnichannelInboxItemV2).filter((item): item is OmnichannelInboxItem => Boolean(item)),
     summary: asRecord(record.summary),
     raw: response,
   };
@@ -667,32 +696,57 @@ export const normalizeOmnichannelInboxV2 = (response: unknown): OmnichannelInbox
 
 export const getEmployeeCoverageV2 = async (tenantSlug?: string | null) => {
   const encoded = tenantSlug ? encodeURIComponent(tenantSlug) : null;
-  const response = await panelApi.get<unknown>(
-    encoded ? `/api/v2/tenants/${encoded}/employee-coverage` : '/api/v2/employee-coverage',
-    {
-      tenantSlug,
-      legacyFallbackPath: encoded ? '/api/v2/employee-coverage' : undefined,
-    },
-  );
+  let response: unknown;
+  try {
+    response = await panelApi.get<unknown>(
+      encoded ? `/api/v2/tenants/${encoded}/employee-coverage` : '/api/v2/employee-coverage',
+      { tenantSlug },
+    );
+  } catch (error) {
+    if (!shouldFallbackEndpoint(error) || !encoded) throw error;
+    try {
+      response = await panelApi.get<unknown>('/api/v2/employee-coverage', { tenantSlug });
+    } catch (fallbackError) {
+      if (!shouldFallbackEndpoint(fallbackError)) throw fallbackError;
+      response = await panelApi.get<unknown>(`/api/admin/tenants/${encoded}/employees/coverage`, { tenantSlug });
+    }
+  }
   return normalizeEmployeeCoverageV2(response);
 };
 
 export const getTenantHealthV2 = async (tenantSlug?: string | null) => {
   const encoded = tenantSlug ? encodeURIComponent(tenantSlug) : null;
-  const response = await panelApi.get<unknown>(
-    encoded ? `/api/v2/tenants/${encoded}/health` : '/api/v2/tenant-health',
-    {
-      tenantSlug,
-      legacyFallbackPath: encoded ? '/api/v2/tenant-health' : undefined,
-    },
-  );
+  let response: unknown;
+  try {
+    response = await panelApi.get<unknown>(
+      encoded ? `/api/v2/tenants/${encoded}/health` : '/api/v2/tenant-health',
+      { tenantSlug },
+    );
+  } catch (error) {
+    if (!shouldFallbackEndpoint(error) || !encoded) throw error;
+    try {
+      response = await panelApi.get<unknown>('/api/v2/tenant-health', { tenantSlug });
+    } catch (fallbackError) {
+      if (!shouldFallbackEndpoint(fallbackError)) throw fallbackError;
+      response = await panelApi.get<unknown>('/api/admin/analytics/tenant-health', { tenantSlug });
+    }
+  }
   return normalizeTenantHealthV2(response);
 };
 
 export const getSuperadminExecutiveSummaryV2 = async () => {
-  const response = await panelApi.get<unknown>('/api/v2/superadmin/executive-summary', {
-    legacyFallbackPath: '/api/v2/super-admin/executive-summary',
-  });
+  let response: unknown;
+  try {
+    response = await panelApi.get<unknown>('/api/v2/superadmin/executive-summary');
+  } catch (error) {
+    if (!shouldFallbackEndpoint(error)) throw error;
+    try {
+      response = await panelApi.get<unknown>('/api/v2/super-admin/executive-summary');
+    } catch (fallbackError) {
+      if (!shouldFallbackEndpoint(fallbackError)) throw fallbackError;
+      response = await panelApi.get<unknown>('/api/admin/analytics/executive-summary');
+    }
+  }
   return normalizeSuperadminExecutiveSummaryV2(response);
 };
 
@@ -714,4 +768,31 @@ export const getNotificationDeliveryStatusV2 = async (tenantSlug?: string | null
 export const getOmnichannelInboxV2 = async (tenantSlug?: string | null) => {
   const response = await panelApi.get<unknown>('/api/v2/inbox/omnichannel', { tenantSlug });
   return normalizeOmnichannelInboxV2(response);
+};
+
+export const postOmnichannelInboxActionV2 = async (
+  ticketId: string,
+  payload: OmnichannelInboxActionPayload,
+  tenantSlug?: string | null,
+) => {
+  const encodedTicketId = encodeURIComponent(ticketId);
+  const response = await panelApi.post<unknown>(
+    `/api/v2/inbox/omnichannel/${encodedTicketId}/actions`,
+    payload,
+    { tenantSlug },
+  );
+  const source = getSource(response);
+  const record = asRecord(source);
+  const candidate =
+    getFirst(record, ['ticket', 'item', 'conversation', 'data']) ??
+    source;
+  const normalized =
+    normalizeOmnichannelInboxItemV2(candidate) ??
+    normalizeOmnichannelInboxItemV2({ ...record, id: ticketId });
+
+  if (!normalized) {
+    throw new ApiError('Respuesta invalida del endpoint de accion omnicanal.', 502, response);
+  }
+
+  return normalized;
 };

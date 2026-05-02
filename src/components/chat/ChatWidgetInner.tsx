@@ -1323,6 +1323,12 @@ function ChatWidgetInner({
                     return tipoChat || 'pyme';
                 })();
 
+                const experienceBlueprint =
+                  publicConfig.experience_blueprint ||
+                  publicConfig.builder_config?.experience_blueprint ||
+                  publicConfig.widget?.experience_blueprint ||
+                  publicConfig.widget?.builder_config?.experience_blueprint ||
+                  null;
                 const info = {
                     ...publicConfig,
                     // Priority Merge: Props > Backend Config
@@ -1333,7 +1339,70 @@ function ChatWidgetInner({
                     default_open: (typeof defaultOpen === 'boolean') ? defaultOpen : publicConfig.default_open,
                     slug: resolvedTenantSlug,
                     tipo_chat: inferredTipoChat,
-                    quick_menu: Array.isArray(publicConfig.quick_menu) ? publicConfig.quick_menu : [],
+                    quick_menu: Array.isArray(publicConfig.quick_menu)
+                      ? publicConfig.quick_menu
+                      : Array.isArray(publicConfig.builder_config?.quick_menu)
+                        ? publicConfig.builder_config.quick_menu
+                        : [],
+                    experience_blueprint: experienceBlueprint,
+                    first_visit:
+                      publicConfig.first_visit ||
+                      publicConfig.builder_config?.first_visit ||
+                      publicConfig.widget?.first_visit ||
+                      publicConfig.widget?.builder_config?.first_visit ||
+                      experienceBlueprint?.first_visit ||
+                      null,
+                    sample_conversations:
+                      publicConfig.sample_conversations ||
+                      publicConfig.builder_config?.sample_conversations ||
+                      publicConfig.widget?.sample_conversations ||
+                      publicConfig.widget?.builder_config?.sample_conversations ||
+                      publicConfig.chat_seed?.sample_conversations ||
+                      publicConfig.widget?.chat_seed?.sample_conversations ||
+                      experienceBlueprint?.sample_conversations ||
+                      [],
+                    trust_signals:
+                      publicConfig.trust_signals ||
+                      publicConfig.builder_config?.trust_signals ||
+                      publicConfig.widget?.trust_signals ||
+                      publicConfig.widget?.builder_config?.trust_signals ||
+                      experienceBlueprint?.trust_signals ||
+                      [],
+                    lead_capture:
+                      publicConfig.lead_capture ||
+                      publicConfig.builder_config?.lead_capture ||
+                      publicConfig.widget?.lead_capture ||
+                      publicConfig.widget?.builder_config?.lead_capture ||
+                      experienceBlueprint?.lead_capture ||
+                      null,
+                    media_capabilities:
+                      publicConfig.media_capabilities ||
+                      publicConfig.builder_config?.media_capabilities ||
+                      publicConfig.widget?.media_capabilities ||
+                      publicConfig.widget?.builder_config?.media_capabilities ||
+                      experienceBlueprint?.media_capabilities ||
+                      null,
+                    conversion_ctas:
+                      publicConfig.conversion_ctas ||
+                      publicConfig.builder_config?.conversion_ctas ||
+                      publicConfig.widget?.conversion_ctas ||
+                      publicConfig.widget?.builder_config?.conversion_ctas ||
+                      experienceBlueprint?.conversion_ctas ||
+                      null,
+                    animation_tokens:
+                      publicConfig.animation_tokens ||
+                      publicConfig.builder_config?.animation_tokens ||
+                      publicConfig.widget?.animation_tokens ||
+                      publicConfig.widget?.builder_config?.animation_tokens ||
+                      experienceBlueprint?.animation_tokens ||
+                      null,
+                    empty_states:
+                      publicConfig.empty_states ||
+                      publicConfig.builder_config?.empty_states ||
+                      publicConfig.widget?.empty_states ||
+                      publicConfig.widget?.builder_config?.empty_states ||
+                      experienceBlueprint?.empty_states ||
+                      null,
                 };
 
                 if (!ownerToken && !publicConfig.widget_token && !publicConfig.entity_token) {
@@ -1704,10 +1773,26 @@ function ChatWidgetInner({
                   }
                 >
                   <ChatPanel
+                    variant="legacy-widget"
                     mode={mode}
                     widgetId={widgetId}
                     entityToken={resolvedOwnerToken ?? undefined}
                     quickMenu={entityInfo?.quick_menu}
+                    leadCapture={entityInfo?.lead_capture ?? entityInfo?.experience_blueprint?.lead_capture ?? null}
+                    mediaCapabilities={entityInfo?.media_capabilities ?? entityInfo?.experience_blueprint?.media_capabilities ?? null}
+                    conversionCtas={entityInfo?.conversion_ctas ?? entityInfo?.experience_blueprint?.conversion_ctas ?? null}
+                    animationTokens={entityInfo?.animation_tokens ?? null}
+                    emptyStates={entityInfo?.empty_states ?? entityInfo?.experience_blueprint?.empty_states ?? undefined}
+                    experienceBlueprint={entityInfo?.experience_blueprint ?? {
+                      first_visit: entityInfo?.first_visit ?? null,
+                      sample_conversations: entityInfo?.sample_conversations ?? [],
+                      trust_signals: entityInfo?.trust_signals ?? [],
+                      lead_capture: entityInfo?.lead_capture ?? null,
+                      media_capabilities: entityInfo?.media_capabilities ?? null,
+                      conversion_ctas: entityInfo?.conversion_ctas ?? null,
+                      animation_tokens: entityInfo?.animation_tokens ?? null,
+                      empty_states: entityInfo?.empty_states ?? undefined,
+                    }}
                     tenantSlug={resolvedTenantSlug}
                     openWidth={finalOpenWidth}
                     openHeight={finalOpenHeight}

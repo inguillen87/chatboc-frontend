@@ -2225,6 +2225,10 @@ export function useChatLogic({
         action,
         action_id,
         location,
+        audioBlob,
+        audioFilename,
+        audioField,
+        audioEndpoint,
       } = actualPayload;
       const actionPayload =
         "payload" in actualPayload ? actualPayload.payload : undefined;
@@ -2360,7 +2364,8 @@ export function useChatLogic({
         !ubicacion_usuario &&
         !resolvedAction &&
         !actualPayload.archivo_url &&
-        !location
+        !location &&
+        !audioBlob
       )
         return;
       if (isTyping) return;
@@ -2520,9 +2525,12 @@ export function useChatLogic({
       }
 
       // Create the user message object first
+      const hasUserLocation = Boolean(location || ubicacion_usuario);
+      const userMessageDisplayText =
+        userMessageText || (audioBlob ? "Audio" : hasUserLocation ? "Ubicacion compartida" : "");
       const userMessage: Message = {
         id: generateClientMessageId(),
-        text: userMessageText,
+        text: userMessageDisplayText,
         isBot: false,
         timestamp: new Date(),
         attachmentInfo,
@@ -2530,7 +2538,7 @@ export function useChatLogic({
       };
 
       // Add user message to UI immediately if it has content
-      if (userMessageText || attachmentInfo || location) {
+      if (userMessageDisplayText || attachmentInfo || hasUserLocation) {
         setMessages((prev) => [...prev, userMessage]);
       }
 
@@ -2619,19 +2627,45 @@ export function useChatLogic({
           };
         }
 
-        const endpoint = getAskEndpoint({ tipoChat: tipoChatFinal, rubro });
+        const endpoint = audioBlob && audioEndpoint ? audioEndpoint : getAskEndpoint({ tipoChat: tipoChatFinal, rubro });
 
         const isPublicDemo = shouldUsePublicFlow(tipoChatFinal, tenantSlug);
         const effectiveSkipAuth = skipAuth || isPublicDemo;
 
-        const response = await apiFetch<any>(endpoint, {
-          method: "POST",
-          body: requestBody,
-          skipAuth: effectiveSkipAuth,
-          isWidgetRequest: true,
-          tenantSlug: tenantSlug,
-          entityToken,
-        });
+        let response: any;
+        if (audioBlob) {
+          const formData = new FormData();
+          formData.append(audioField || "audio_file", audioBlob, audioFilename || `audio-${Date.now()}.webm`);
+          Object.entries(requestBody).forEach(([key, value]) => {
+            if (value === undefined || value === null) return;
+            if (value instanceof Blob) {
+              formData.append(key, value);
+              return;
+            }
+            if (typeof value === "object") {
+              formData.append(key, JSON.stringify(value));
+              return;
+            }
+            formData.append(key, String(value));
+          });
+          response = await apiFetch<any>(endpoint, {
+            method: "POST",
+            body: formData,
+            skipAuth: effectiveSkipAuth,
+            isWidgetRequest: true,
+            tenantSlug: tenantSlug,
+            entityToken,
+          });
+        } else {
+          response = await apiFetch<any>(endpoint, {
+            method: "POST",
+            body: requestBody,
+            skipAuth: effectiveSkipAuth,
+            isWidgetRequest: true,
+            tenantSlug: tenantSlug,
+            entityToken,
+          });
+        }
         processBotPayload(response, {
           fallbackOnEmpty: !socketRef.current || !socketRef.current.connected,
         });

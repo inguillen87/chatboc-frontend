@@ -27,9 +27,36 @@ export default function DemoWorkspace({
           tipoChat: sector === 'gobierno' ? 'municipio' : 'pyme',
           welcomeMessage: workspace?.welcome_message ?? null,
           quickReplies: workspace?.quick_replies ?? [],
+          firstVisit: workspace?.first_visit ?? workspace?.experience_blueprint?.first_visit ?? null,
+          sampleConversations:
+            workspace?.sample_conversations ??
+            workspace?.experience_blueprint?.sample_conversations ??
+            [],
+          trustSignals:
+            workspace?.trust_signals ??
+            workspace?.experience_blueprint?.trust_signals ??
+            [],
+          experienceBlueprint: workspace?.experience_blueprint ?? null,
+          leadCapture: workspace?.lead_capture ?? workspace?.experience_blueprint?.lead_capture ?? null,
+          mediaCapabilities: workspace?.media_capabilities ?? null,
+          conversionCtas:
+            workspace?.conversion_ctas ??
+            workspace?.experience_blueprint?.conversion_ctas ??
+            null,
+          animationTokens: workspace?.animation_tokens ?? null,
+          emptyStates:
+            workspace?.empty_states ??
+            workspace?.experience_blueprint?.empty_states ??
+            undefined,
         }}
         handoffState="none"
         handoffLabels={workspace?.handoff_labels ?? undefined}
+        leadCapture={workspace?.lead_capture ?? workspace?.experience_blueprint?.lead_capture ?? null}
+        mediaCapabilities={workspace?.media_capabilities ?? null}
+        conversionCtas={workspace?.conversion_ctas ?? workspace?.experience_blueprint?.conversion_ctas ?? null}
+        animationTokens={workspace?.animation_tokens ?? null}
+        emptyStates={workspace?.empty_states ?? workspace?.experience_blueprint?.empty_states ?? undefined}
+        experienceBlueprint={workspace?.experience_blueprint ?? null}
       />
       {valueCards.length ? (
         <div className="grid gap-2 text-xs md:grid-cols-3">

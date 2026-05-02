@@ -1,4 +1,5 @@
 import React from 'react';
+
 import { useTenant } from '@/context/TenantContext';
 import { useUser } from '@/hooks/useUser';
 import IntegracionesPage from '@/pages/pyme/integraciones/IntegracionesPage';

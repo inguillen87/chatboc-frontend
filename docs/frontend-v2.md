@@ -53,3 +53,27 @@
 - `/analytics/hub` ahora muestra hub ejecutivo, estado parcial cuando backend no completa el summary y secciones Operaciones/Experiencia.
 - `/enterprise` ahora comunica readiness FE/backend y blockers reales para coordinar la siguiente tanda.
 - Educacion admissions/billing/attendance/documents usan shells contract-ready en vez de placeholders.
+
+## SaaS P1 backend sync 2026-05-01
+- Cliente canonico nuevo: `src/api/v2/saas.ts`.
+- Endpoints integrados: employee coverage, tenant health, superadmin executive summary, notifications hooks, notifications delivery status e inbox omnicanal.
+- `/enterprise` muestra estado live de los contratos P1 y versiones detectadas.
+- `/empleados`, `/superadmin` y el inbox tenant-aware existente (`/t/:tenant/inbox`) consumen las rutas v2 canonicas.
+- `/notificaciones` conserva el wrapper actual por tenant; las llamadas existentes de `apiClient` ahora usan notifications hooks v2 con fallback legacy.
+- El inbox omnicanal ya no usa mocks locales: si backend no envia lista/timeline, se muestra estado vacio/parcial.
+
+## SaaS P2 backend sync 2026-05-01
+- `src/api/market.ts` suma clientes P2 para payments checkout status/capabilities/preview/session/status y rewards profile/redeem.
+- `startMarketCheckout` no duplica flujo: usa `/api/v2/payments/checkout-session`, fallback `/api/v2/payments/preference` y ultimo fallback legacy.
+- `/market/:tenant/cart` muestra wallet/redenciones reales desde `rewards.profile.v1` y canjea con `rewards.redeem.v1` usando `Idempotency-Key`.
+- `/t/:tenant/checkout` valida `payments.checkout_preview.v1` antes de crear orden.
+- `/t/:tenant/inbox` ejecuta actions reales (`assign`, `reply`, `handoff`, `close`, `reopen`, `set_priority`) con `POST /api/v2/inbox/omnichannel/{ticket_id}/actions`.
+
+## Experience contracts P3 2026-05-01
+- Widget y demo consumen `experience_blueprint`, `lead_capture`, `media_capabilities`, `conversion_ctas`, `animation_tokens` y `empty_states` sin hardcode por tenant/rubro.
+- Widget config soporta ambos endpoints backend: `/api/public/tenants/{slug}/widget-config` y fallback `/api/public/widget-config?tenant={slug}`.
+- Los contratos Agent Experience se leen top-level, desde `builder_config`, desde `widget`/`widget.builder_config` y desde `chat_seed.sample_conversations`.
+- `media_capabilities` controla el composer: placeholder, botones visibles, endpoint de upload, `upload_response_key` y audio multipart hacia `/ask`.
+- `conversion_ctas.rules.max_visible` limita acciones renderizadas; labels, intents y endpoints vienen del backend.
+- `lead_capture` usa `POST /api/public/lead-capture` cuando corresponde y preserva el flujo legacy de captura conversacional cuando backend pide datos paso a paso.
+- `empty_states` y `first_visit` reemplazan copy local cuando backend los envia; si faltan, queda un fallback neutro.

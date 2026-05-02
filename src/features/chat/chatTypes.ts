@@ -1,3 +1,12 @@
+import type {
+  ChatAnimationTokens,
+  ChatConversionCtasConfig,
+  ChatExperienceBlock,
+  ChatExperienceBlueprint,
+  ChatLeadCaptureConfig,
+  ChatMediaCapabilities,
+} from '@/types/chat';
+
 export type ChatVertical = 'municipio' | 'pyme';
 
 export type ChatRatingValue = 'satisfecho' | 'neutral' | 'insatisfecho';
@@ -28,6 +37,15 @@ export interface ChatPanelContext {
   emptySubtitle?: string | null;
   composerPlaceholder?: string | null;
   sendLabel?: string | null;
+  firstVisit?: ChatExperienceBlock | null;
+  sampleConversations?: ChatExperienceBlock[];
+  trustSignals?: ChatExperienceBlock[];
+  experienceBlueprint?: ChatExperienceBlueprint | null;
+  leadCapture?: ChatLeadCaptureConfig | null;
+  mediaCapabilities?: ChatMediaCapabilities | null;
+  conversionCtas?: ChatConversionCtasConfig | null;
+  animationTokens?: ChatAnimationTokens | null;
+  emptyStates?: Record<string, ChatExperienceBlock>;
 }
 
 export interface HandoffLabels {

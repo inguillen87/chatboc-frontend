@@ -1,13 +1,13 @@
 // src/components/chat/ChatInput.tsx
 import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from "react";
-import { Send, MapPin, Mic, MicOff, X, FileText, Smile, ArrowUp, CheckCircle2 } from "lucide-react";
+import { Send, MapPin, Mic, MicOff, X, FileText, Smile, ArrowUp, CheckCircle2, Sparkles } from "lucide-react";
 import AdjuntarArchivo, { AdjuntarArchivoHandle } from "@/components/ui/AdjuntarArchivo";
 import { apiFetch, getErrorMessage } from "@/utils/api";
 import { requestLocation } from "@/utils/geolocation";
 import { toast } from "@/components/ui/use-toast";
 import useAudioRecorder from "@/hooks/useAudioRecorder";
 import { AttachmentInfo, deriveAttachmentInfo } from "@/utils/attachment";
-import { ChatUxChannelCapabilities, SendPayload } from "@/types/chat";
+import { ChatMediaCapabilities, ChatUxChannelCapabilities, SendPayload } from "@/types/chat";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -32,6 +32,7 @@ interface Props {
   onSystemMessage?: (text: string, type: 'error' | 'info') => void;
   validateBeforeSend?: (payload: SendPayload) => string | null;
   channelCapabilities?: ChatUxChannelCapabilities | null;
+  mediaCapabilities?: ChatMediaCapabilities | null;
   guidedFlow?: {
     currentField?: string | null;
     fields?: string[];
@@ -90,7 +91,29 @@ const capabilityEnabledByDefault = (value: unknown): boolean => {
   return true;
 };
 
-const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping, inputRef, onTypingChange, onSystemMessage, validateBeforeSend, channelCapabilities, guidedFlow, supportsMultimodalIntake = true }, ref) => {
+const mediaCapabilityEnabled = (
+  mediaCapabilities: ChatMediaCapabilities | null | undefined,
+  mode: string,
+  legacyEnabled: boolean,
+): boolean => {
+  if (!mediaCapabilities) return legacyEnabled;
+  const inputMode = mediaCapabilities.input_modes?.[mode];
+  if (inputMode?.enabled === false) return false;
+  if (inputMode?.enabled === true) return true;
+  const actions = mediaCapabilities.composer?.actions;
+  if (Array.isArray(actions) && actions.length > 0) {
+    return actions.some((action) => action?.type === mode);
+  }
+  return legacyEnabled;
+};
+
+const mediaActionLabel = (
+  mediaCapabilities: ChatMediaCapabilities | null | undefined,
+  mode: string,
+  fallback: string,
+) => mediaCapabilities?.composer?.actions?.find((action) => action?.type === mode)?.label?.trim() || fallback;
+
+const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping, inputRef, onTypingChange, onSystemMessage, validateBeforeSend, channelCapabilities, mediaCapabilities, guidedFlow, supportsMultimodalIntake = true }, ref) => {
   const [input, setInput] = useState("");
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const [isLocating, setIsLocating] = useState(false);
@@ -98,28 +121,55 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
   const [showEmojis, setShowEmojis] = useState(false);
   const [inlineError, setInlineError] = useState<string | null>(null);
   const [draftRecovered, setDraftRecovered] = useState(false);
-  const internalRef = inputRef || useRef<HTMLInputElement>(null);
+  const fallbackInputRef = useRef<HTMLInputElement>(null);
+  const internalRef = inputRef || fallbackInputRef;
   const { isRecording, startRecording, stopRecording } = useAudioRecorder();
   const adjRef = useRef<AdjuntarArchivoHandle>(null);
   const supportsAudioInput =
     supportsMultimodalIntake &&
-    capabilityEnabledByDefault(channelCapabilities?.supports_audio_input);
+    mediaCapabilityEnabled(
+      mediaCapabilities,
+      'audio',
+      capabilityEnabledByDefault(channelCapabilities?.supports_audio_input),
+    );
   const supportsFileUpload =
     supportsMultimodalIntake &&
-    capabilityEnabledByDefault(channelCapabilities?.supports_file_upload);
+    mediaCapabilityEnabled(
+      mediaCapabilities,
+      'file',
+      capabilityEnabledByDefault(channelCapabilities?.supports_file_upload),
+    );
   const supportsImageInput =
     supportsMultimodalIntake &&
-    capabilityEnabledByDefault(channelCapabilities?.supports_image_input);
+    mediaCapabilityEnabled(
+      mediaCapabilities,
+      'image',
+      capabilityEnabledByDefault(channelCapabilities?.supports_image_input),
+    );
   const supportsLocationShare =
     supportsMultimodalIntake &&
-    capabilityEnabledByDefault(channelCapabilities?.supports_location_share);
+    mediaCapabilityEnabled(
+      mediaCapabilities,
+      'location',
+      capabilityEnabledByDefault(channelCapabilities?.supports_location_share),
+    );
+  const composerPlaceholder = mediaCapabilities?.composer?.placeholder?.trim();
+  const imageLabel = mediaActionLabel(mediaCapabilities, 'image', channelCapabilities?.image_input_label || 'Imagen');
+  const fileLabel = mediaActionLabel(mediaCapabilities, 'file', channelCapabilities?.file_upload_label || 'Archivo');
+  const audioLabel = mediaActionLabel(mediaCapabilities, 'audio', channelCapabilities?.audio_input_label || 'Audio');
+  const locationLabel = mediaActionLabel(mediaCapabilities, 'location', channelCapabilities?.location_share_label || 'Ubicacion');
+  const attachmentLabel = supportsImageInput && supportsFileUpload
+    ? `${imageLabel} / ${fileLabel}`
+    : supportsImageInput
+      ? imageLabel
+      : fileLabel;
   const allowedFileTypes = React.useMemo(() => {
     const nextTypes: string[] = [];
     if (supportsImageInput) nextTypes.push('image/*');
     if (supportsFileUpload) nextTypes.push('application/pdf', 'video/*');
-    if (supportsAudioInput) nextTypes.push('audio/*');
+    if (!mediaCapabilities && supportsAudioInput) nextTypes.push('audio/*');
     return nextTypes;
-  }, [supportsAudioInput, supportsFileUpload, supportsImageInput]);
+  }, [mediaCapabilities, supportsAudioInput, supportsFileUpload, supportsImageInput]);
   const currentGuidedFieldLabel = normalizeFieldLabel(guidedFlow?.currentField);
   const guidedFields = React.useMemo(
     () => (guidedFlow?.fields || []).map((field) => normalizeFieldLabel(field)).filter((field): field is string => Boolean(field)),
@@ -183,18 +233,27 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
       toast({ title: "Subiendo archivo...", description: attachmentPreview.file.name });
       const formData = new FormData();
       formData.append('file', attachmentPreview.file);
+      const selectedMode = attachmentPreview.file.type.startsWith("image/")
+        ? mediaCapabilities?.input_modes?.image
+        : mediaCapabilities?.input_modes?.file;
+      const uploadEndpoint = selectedMode?.upload_endpoint || '/archivos/upload/chat_attachment';
+      const uploadResponseKey = selectedMode?.upload_response_key || 'attachmentInfo';
 
       try {
-        const response = await apiFetch<UploadResponse>('/archivos/upload/chat_attachment', {
+        const response = await apiFetch<UploadResponse>(uploadEndpoint, {
           method: 'POST',
           body: formData,
           isWidgetRequest: true,
         });
         const originalFile = attachmentPreview.file;
-        const normalized = normalizeUploadResponse(response);
-        const responsePayload =
+        const uploadRaw =
           response && typeof response === 'object'
-            ? (response as UploadResponsePayload)
+            ? ((response as Record<string, unknown>)[uploadResponseKey] as UploadResponse | undefined) ?? response
+            : response;
+        const normalized = normalizeUploadResponse(uploadRaw);
+        const responsePayload =
+          uploadRaw && typeof uploadRaw === 'object'
+            ? (uploadRaw as UploadResponsePayload)
             : undefined;
         const fallbackRawUrl =
           coalesceString(
@@ -232,7 +291,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
             responsePayload?.path,
             responsePayload?.web_path,
             responsePayload?.webPath,
-            typeof response === 'string' ? response : undefined,
+            typeof uploadRaw === 'string' ? uploadRaw : undefined,
           );
         const uploadedUrlCandidate =
           normalized.url ||
@@ -374,8 +433,21 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
     if (isTyping) return;
     onSystemMessage?.('Enviando audio...', 'info');
 
-    const formData = new FormData();
     const filename = `audio-grabado-${Date.now()}.webm`;
+    const audioMode = mediaCapabilities?.input_modes?.audio;
+    if (audioMode && audioMode.enabled !== false) {
+      onSendMessage({
+        text: '',
+        audioBlob,
+        audioFilename: filename,
+        audioField: audioMode.multipart_field || 'audio_file',
+        audioEndpoint: audioMode.chat_endpoint || '/ask',
+        source: 'input',
+      });
+      return;
+    }
+
+    const formData = new FormData();
     formData.append('file', audioBlob, filename);
 
     try {
@@ -575,7 +647,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
               ${isTyping ? "opacity-60 bg-muted-foreground/10 dark:bg-muted-foreground/20" : ""}
             `}
             type="text"
-            placeholder={attachmentPreview ? "Añade un comentario..." : currentGuidedFieldLabel || PLACEHOLDERS[placeholderIndex]}
+            placeholder={attachmentPreview ? "Añade un comentario..." : currentGuidedFieldLabel || composerPlaceholder || PLACEHOLDERS[placeholderIndex]}
             value={input}
             onChange={(e) => {
               const val = e.target.value;
@@ -621,7 +693,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
           )}
           <div className="flex items-center gap-2 flex-wrap">
             {allowedFileTypes.length > 0 ? (
-              <div className="rounded-full border border-border/60 bg-background p-0.5 shadow-sm transition hover:shadow-md">
+              <div className="rounded-full border border-border/60 bg-background p-0.5 shadow-sm transition hover:shadow-md" title={attachmentLabel}>
               <AdjuntarArchivo
                 ref={adjRef}
                 onFileSelected={handleFileSelected}
@@ -643,7 +715,8 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
                 border border-border/60 bg-background text-secondary-foreground hover:-translate-y-0.5 hover:bg-secondary/80 hover:shadow-lg
                 ${isTyping || isLocating || !!attachmentPreview ? "opacity-50 cursor-not-allowed" : ""}
               `}
-              aria-label="Compartir ubicación"
+              aria-label={locationLabel}
+              title={locationLabel}
               type="button"
             >
               {isLocating ? <div className="h-5 w-5 rounded-full border-2 border-current border-t-transparent animate-spin" /> : <MapPin className="w-5 h-5" />}
@@ -676,7 +749,8 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
                 ${isTyping || isLocating || !!attachmentPreview ? "opacity-50 cursor-not-allowed" : ""}
                 ${isRecording ? "text-destructive bg-destructive/20 hover:bg-destructive/30" : ""}
               `}
-              aria-label={isRecording ? "Detener grabación" : "Grabar audio"}
+              aria-label={isRecording ? "Detener grabación" : audioLabel}
+              title={audioLabel}
               type="button"
             >
               {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}

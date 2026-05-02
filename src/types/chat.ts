@@ -102,6 +102,37 @@ export interface ChatUxChannelCapabilities {
   realtime_label?: string;
 }
 
+export type ChatComposerInputMode = "text" | "image" | "audio" | "location" | "file" | string;
+
+export interface ChatMediaComposerAction {
+  id: string;
+  type: ChatComposerInputMode;
+  icon?: string | null;
+  label: string;
+}
+
+export interface ChatMediaInputModeConfig {
+  enabled?: boolean;
+  chat_endpoint?: string | null;
+  upload_endpoint?: string | null;
+  payload_key?: string | null;
+  upload_response_key?: string | null;
+  chat_payload_key?: string | null;
+  multipart_field?: string | null;
+  max_seconds?: number | null;
+  fields?: string[];
+}
+
+export interface ChatMediaCapabilities {
+  version?: string | null;
+  composer?: {
+    placeholder?: string | null;
+    actions?: ChatMediaComposerAction[];
+    states?: string[];
+  } | null;
+  input_modes?: Record<string, ChatMediaInputModeConfig>;
+}
+
 export interface ChatUxRecommendedExperience {
   supports_confirmation_cards?: boolean;
   supports_multimodal_intake?: boolean;
@@ -157,6 +188,88 @@ export interface ChatUxContext {
   >;
   channel_capabilities?: ChatUxChannelCapabilities;
   recommended_experience?: ChatUxRecommendedExperience;
+}
+
+export interface ChatLeadCaptureField {
+  id?: string;
+  name?: string;
+  label?: string;
+  type?: string;
+  required?: boolean;
+  placeholder?: string | null;
+  options?: Array<{ label?: string; value?: string }>;
+}
+
+export interface ChatLeadCaptureConfig {
+  enabled?: boolean;
+  title?: string | null;
+  fields?: ChatLeadCaptureField[];
+  trigger_intents?: string[];
+  endpoint?: string | null;
+  success_message?: string | null;
+}
+
+export interface ChatConversionCtaAction {
+  id: string;
+  label: string;
+  intent?: string | null;
+  endpoint?: string | null;
+  show_when?: string[];
+  style?: string | null;
+  payload?: Record<string, unknown> | null;
+}
+
+export interface ChatConversionCtasConfig {
+  version?: string | null;
+  actions?: ChatConversionCtaAction[];
+  rules?: {
+    max_visible?: number | null;
+    prefer_backend_labels?: boolean | null;
+    fallback_behavior?: string | null;
+    preserve_context_on_click?: boolean | null;
+  } | null;
+}
+
+export interface ChatExperienceBlock {
+  id?: string | null;
+  title?: string | null;
+  label?: string | null;
+  description?: string | null;
+  subtitle?: string | null;
+  text?: string | null;
+  intent?: string | null;
+  payload?: Record<string, unknown> | null;
+}
+
+export interface ChatExperienceBlueprint {
+  version?: string | null;
+  hero?: ChatExperienceBlock | null;
+  first_visit?: ChatExperienceBlock | null;
+  quick_actions?: ChatExperienceBlock[];
+  sample_conversations?: ChatExperienceBlock[];
+  trust_signals?: ChatExperienceBlock[];
+  channels?: ChatExperienceBlock[];
+  lead_capture?: ChatLeadCaptureConfig | null;
+  media_capabilities?: ChatMediaCapabilities | null;
+  conversion_ctas?: ChatConversionCtasConfig | null;
+  animation_tokens?: ChatAnimationTokens | null;
+  empty_states?: Record<string, ChatExperienceBlock>;
+  component_pack?: string[] | ChatExperienceBlock[];
+  agent_copilot?: {
+    suggestions?: ChatExperienceBlock[];
+  } | null;
+}
+
+export interface ChatAnimationTokens {
+  version?: string | null;
+  respect_reduced_motion?: boolean | null;
+  motion_level?: string | null;
+  events?: Array<{
+    id?: string;
+    trigger?: string;
+    pattern?: string;
+    duration_ms?: number;
+  }>;
 }
 
 export interface Message {
@@ -234,6 +347,10 @@ export interface SendPayload {
   es_ubicacion?: boolean; // True si el payload incluye datos de ubicación del usuario
   ubicacion_usuario?: { lat: number; lon: number }; // Coordenadas si es_ubicacion es true
   location?: { lat: number; lon: number }; // NUEVO: Para el envío de ubicación desde el widget
+  audioBlob?: Blob;
+  audioFilename?: string;
+  audioField?: string;
+  audioEndpoint?: string;
 
   action?: string; // Si el envío es resultado de un clic en un botón con una acción específica que el backend debe procesar
   action_id?: string; // ID de acción explícito para compatibilidad con payloads interactivos del backend

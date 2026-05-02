@@ -108,6 +108,9 @@ const normalizeWidgetTokenAck = (value: unknown) => {
 const shouldFallbackToLegacyWidgetAuth = (error: unknown) =>
   error instanceof ApiError && (error.status === 404 || error.status === 405 || error.status === 501);
 
+const shouldFallbackToLegacyEndpoint = (error: unknown) =>
+  error instanceof ApiError && (error.status === 404 || error.status === 405 || error.status === 501);
+
 const callWidgetAuthEndpoint = async <T>(
   primaryPath: string,
   legacyPath: string,
@@ -121,6 +124,60 @@ const callWidgetAuthEndpoint = async <T>(
     }
     return apiFetch<T>(legacyPath, options);
   }
+};
+
+const normalizeNotificationSettingsResponse = (value: unknown) => {
+  if (!isRecord(value)) return value;
+
+  const rawPreferences = value.preferences ?? value.notification_settings ?? value.settings ?? {};
+  const deliveryConfig = isRecord(value.delivery_config) ? value.delivery_config : {};
+  const notificationSettings: Record<string, unknown> = {};
+
+  if (Array.isArray(rawPreferences)) {
+    rawPreferences.forEach((item) => {
+      if (!isRecord(item)) return;
+      const key =
+        asStringOrUndefined(item.key) ??
+        asStringOrUndefined(item.id) ??
+        asStringOrUndefined(item.channel) ??
+        asStringOrUndefined(item.name);
+      if (!key) return;
+      notificationSettings[key] =
+        typeof item.enabled === 'boolean'
+          ? item.enabled
+          : typeof item.active === 'boolean'
+            ? item.active
+            : item.value;
+    });
+  } else if (isRecord(rawPreferences)) {
+    Object.entries(rawPreferences).forEach(([key, item]) => {
+      if (isRecord(item)) {
+        notificationSettings[key] =
+          typeof item.enabled === 'boolean'
+            ? item.enabled
+            : typeof item.active === 'boolean'
+              ? item.active
+              : item.value;
+      } else {
+        notificationSettings[key] = item;
+      }
+    });
+  }
+
+  return {
+    ...value,
+    owner_phone:
+      asStringOrUndefined(value.owner_phone) ??
+      asStringOrUndefined(deliveryConfig.owner_phone) ??
+      asStringOrUndefined(deliveryConfig.whatsapp_phone),
+    telegram_chat_id:
+      asStringOrUndefined(value.telegram_chat_id) ??
+      asStringOrUndefined(deliveryConfig.telegram_chat_id),
+    notification_settings: {
+      ...(isRecord(value.notification_settings) ? value.notification_settings : {}),
+      ...notificationSettings,
+    },
+  };
 };
 
 const normalizePublicTicketStatus = (value: unknown) => {
@@ -483,15 +540,38 @@ export const apiClient = {
   },
 
   adminGetNotificationSettings: async (tenantSlug: string): Promise<any> => {
-    return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/notifications`, { tenantSlug });
+    try {
+      const response = await apiFetch<any>('/api/v2/notifications/hooks', { tenantSlug });
+      return normalizeNotificationSettingsResponse(response);
+    } catch (error) {
+      if (!shouldFallbackToLegacyEndpoint(error)) throw error;
+      return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/notifications`, { tenantSlug });
+    }
   },
 
   adminUpdateNotificationSettings: async (tenantSlug: string, settings: any): Promise<any> => {
-    return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/notifications`, {
-      method: 'PUT',
-      body: settings,
-      tenantSlug,
-    });
+    try {
+      const response = await apiFetch<any>('/api/v2/notifications/hooks', {
+        method: 'POST',
+        body: {
+          preferences: settings?.notification_settings ?? settings?.preferences ?? {},
+          delivery_config: {
+            owner_phone: settings?.owner_phone,
+            telegram_chat_id: settings?.telegram_chat_id,
+          },
+          legacy_payload: settings,
+        },
+        tenantSlug,
+      });
+      return normalizeNotificationSettingsResponse(response);
+    } catch (error) {
+      if (!shouldFallbackToLegacyEndpoint(error)) throw error;
+      return apiFetch<any>(`/api/admin/tenants/${tenantSlug}/notifications`, {
+        method: 'PUT',
+        body: settings,
+        tenantSlug,
+      });
+    }
   },
 
   adminGetTicketCategories: async (tenantSlug: string): Promise<any[]> => {

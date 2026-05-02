@@ -14,7 +14,10 @@ import {
   clearMarketCart,
   fetchMarketCart,
   fetchMarketCatalog,
+  fetchRewardsProfile,
+  previewPaymentCheckout,
   removeMarketItem,
+  redeemReward,
   startMarketCheckout,
 } from '@/api/market';
 import { MarketCartItem, MarketProduct } from '@/types/market';
@@ -29,11 +32,19 @@ import { formatCurrency } from '@/utils/currency';
 import { getValidStoredToken } from '@/utils/authTokens';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { MARKET_DEMO_SECTIONS, buildDemoMarketCatalog } from '@/data/marketDemo';
-import { ApiError } from '@/utils/api';
+import { ApiError, getErrorMessage } from '@/utils/api';
 
 type ContactInfo = {
   name?: string;
   phone?: string;
+};
+
+const buildRewardIdempotencyKey = (tenantSlug: string, rewardId: string) => {
+  const suffix =
+    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return `reward:${tenantSlug}:${rewardId}:${suffix}`;
 };
 
 export default function MarketCartPage() {
@@ -57,6 +68,7 @@ export default function MarketCartPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeCategory, setActiveCategory] = useState<string>('todos');
   const [confirmation, setConfirmation] = useState<string | null>(null);
+  const [checkoutPaymentUrl, setCheckoutPaymentUrl] = useState<string | null>(null);
   const [qrError, setQrError] = useState<string | null>(null);
   const [contact, setContact] = useState<ContactInfo>(() => {
     const stored = loadMarketContact(tenantSlug);
@@ -73,6 +85,7 @@ export default function MarketCartPage() {
       phone: stored.phone ?? prev.phone ?? normalizedUserPhone,
     }));
     setConfirmation(null);
+    setCheckoutPaymentUrl(null);
   }, [tenantSlug, userName, normalizedUserPhone]);
 
   const catalogQuery = useQuery({
@@ -87,6 +100,16 @@ export default function MarketCartPage() {
     queryFn: () => fetchMarketCart(tenantSlug),
     enabled: Boolean(tenantSlug),
   });
+
+  const rewardsQuery = useQuery({
+    queryKey: ['marketRewardsProfile', tenantSlug],
+    queryFn: () => fetchRewardsProfile(tenantSlug),
+    enabled: Boolean(tenantSlug),
+    retry: 0,
+    staleTime: 30_000,
+  });
+
+  const cartItems: MarketCartItem[] = cartQuery.data?.items ?? [];
 
   const shareUrl = useMemo(() => {
     const backendUrl = cartQuery.data?.cartUrl ?? catalogQuery.data?.publicCartUrl;
@@ -164,25 +187,71 @@ export default function MarketCartPage() {
   });
 
   const checkoutMutation = useMutation({
-    mutationFn: (payload: { name?: string; phone?: string }) =>
-      startMarketCheckout(tenantSlug, payload),
+    mutationFn: async (payload: { name?: string; phone?: string }) => {
+      const checkoutPayload = {
+        ...payload,
+        items: cartItems.map((item) => ({ id: item.id, quantity: item.quantity })),
+        customer: {
+          ...(payload.name ? { name: payload.name } : {}),
+          ...(payload.phone ? { phone: payload.phone } : {}),
+        },
+      };
+      const preview = await previewPaymentCheckout(tenantSlug, checkoutPayload);
+      if (preview?.payment_required && preview.payment_ready === false) {
+        throw new Error(
+          preview.next_step_label ??
+            preview.checkout_options?.gateway_hint ??
+            'El checkout todavia no esta listo para recibir pagos.',
+        );
+      }
+      return startMarketCheckout(tenantSlug, checkoutPayload);
+    },
     onSuccess: (response, variables) => {
       saveMarketContact(tenantSlug, variables);
       setContact(variables);
       const resolvedMarketOrderId = response?.market_order_id ?? response?.orderId ?? response?.order_id;
       const resolvedPreference = response?.preference_id ?? response?.preferenceId;
       const resolvedStage = response?.commercial_state?.stage ?? response?.estado ?? response?.status;
+      const resolvedPaymentUrl = response?.checkoutUrl ?? response?.init_point ?? null;
       const confirmationParts = [response?.message ?? 'Pedido registrado correctamente.'];
       if (resolvedMarketOrderId) confirmationParts.push(`Orden operacional #${resolvedMarketOrderId}.`);
       if (resolvedStage) confirmationParts.push(`Estado: ${resolvedStage}.`);
       if (resolvedPreference) confirmationParts.push(`Referencia de pago: ${resolvedPreference}.`);
       setConfirmation(confirmationParts.join(' '));
+      setCheckoutPaymentUrl(resolvedPaymentUrl);
       queryClient.invalidateQueries({ queryKey: ['marketCart', tenantSlug] });
     },
-    onError: () => {
+    onError: (error) => {
       toast({
         title: 'No pudimos iniciar el checkout',
-        description: 'Revisa tu conexión o vuelve a intentarlo.',
+        description: getErrorMessage(error, 'Revisa tu conexión o vuelve a intentarlo.'),
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const redeemMutation = useMutation({
+    mutationFn: (rewardId: string) =>
+      redeemReward(
+        tenantSlug,
+        { reward_id: rewardId },
+        buildRewardIdempotencyKey(tenantSlug, rewardId),
+      ),
+    onSuccess: (response) => {
+      queryClient.invalidateQueries({ queryKey: ['marketRewardsProfile', tenantSlug] });
+      queryClient.invalidateQueries({ queryKey: ['marketCart', tenantSlug] });
+      toast({
+        title: response.duplicate ? 'Canje ya registrado' : 'Canje aplicado',
+        description:
+          typeof response.balance === 'number'
+            ? `Saldo actualizado: ${response.balance.toLocaleString('es-AR')} pts.`
+            : 'Actualizamos tus puntos.',
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'No pudimos canjear el beneficio',
+        description: getErrorMessage(error, 'Revisa tus puntos disponibles o vuelve a intentarlo.'),
         variant: 'destructive',
       });
     },
@@ -259,7 +328,6 @@ export default function MarketCartPage() {
   const catalogData = catalogQuery.data ?? (catalogQuery.isError ? fallbackCatalog : undefined);
   const rawCatalogProducts: MarketProduct[] = catalogData?.products ?? [];
   const catalogProducts = useMemo(() => rawCatalogProducts.filter((product) => product.disponible !== false), [rawCatalogProducts]);
-  const cartItems: MarketCartItem[] = cartQuery.data?.items ?? [];
   const catalogServerError = catalogQuery.error instanceof ApiError && catalogQuery.error.status >= 500;
   const cartServerError = cartQuery.error instanceof ApiError && cartQuery.error.status >= 500;
   const catalogErrorMessage = catalogServerError
@@ -515,7 +583,16 @@ export default function MarketCartPage() {
         {confirmation ? (
           <Alert>
             <AlertTitle>Pedido registrado</AlertTitle>
-            <AlertDescription>{confirmation}</AlertDescription>
+            <AlertDescription className="space-y-3">
+              <p>{confirmation}</p>
+              {checkoutPaymentUrl ? (
+                <Button asChild size="sm">
+                  <a href={checkoutPaymentUrl} target="_blank" rel="noreferrer">
+                    Continuar al pago
+                  </a>
+                </Button>
+              ) : null}
+            </AlertDescription>
           </Alert>
         ) : null}
 
@@ -736,6 +813,10 @@ export default function MarketCartPage() {
               recommendations={cartRecommendations}
               checkoutPreview={cartCheckoutPreview}
               checkoutOptions={cartCheckoutOptions}
+              rewardsProfile={rewardsQuery.data ?? null}
+              rewardsLoading={rewardsQuery.isLoading}
+              redeemingRewardId={redeemMutation.variables ?? null}
+              onRedeemReward={(rewardId) => redeemMutation.mutate(rewardId)}
             />
 
             {cartServerError ? (

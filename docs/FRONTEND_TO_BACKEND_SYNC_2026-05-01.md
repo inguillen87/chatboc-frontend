@@ -160,9 +160,10 @@ Ejemplo JSON real:
 
 Metodo + path:
 - `GET /api/public/tenants/{slug}/widget-config`
+- Fallback compatible: `GET /api/public/widget-config?tenant={slug}`
 
 Query params / headers usados:
-- Sin query params.
+- `tenant` cuando se usa `/api/public/widget-config`.
 - Path param: `slug`.
 - Puede llegar con `X-Tenant` y `X-Tenant-Slug` inferidos por `apiFetch`.
 - Debe funcionar sin auth de panel.
@@ -237,6 +238,111 @@ Ejemplo JSON real:
   }
 }
 ```
+
+### 1.3b Widget experience contracts
+
+Frontend ya consume estos campos top-level, dentro de `builder_config` o dentro de `experience_blueprint`:
+
+- `lead_capture`
+- `media_capabilities`
+- `conversion_ctas`
+- `animation_tokens`
+- `empty_states`
+- `first_visit`
+- `sample_conversations`
+- `trust_signals`
+
+Endpoint usado para lead capture:
+- `POST /api/public/lead-capture`
+
+Headers usados:
+- `X-Chat-Session-Id` via `apiFetch`.
+- `X-Tenant-Slug` y `X-Tenant` cuando hay tenant.
+- `X-Anon-Id` cuando existe visitante anonimo.
+
+Shape esperado `media_capabilities`:
+```json
+{
+  "version": "media.capabilities.v1",
+  "composer": {
+    "placeholder": "Escribi, habla o adjunta algo para que el agente te ayude.",
+    "actions": [
+      { "id": "attach_image", "type": "image", "icon": "image", "label": "Imagen" },
+      { "id": "record_audio", "type": "audio", "icon": "mic", "label": "Audio" },
+      { "id": "share_location", "type": "location", "icon": "map-pin", "label": "Ubicacion" },
+      { "id": "attach_file", "type": "file", "icon": "paperclip", "label": "Archivo" }
+    ]
+  },
+  "input_modes": {
+    "text": { "enabled": true, "chat_endpoint": "/ask", "payload_key": "pregunta" },
+    "image": {
+      "enabled": true,
+      "upload_endpoint": "/archivos/upload/chat_attachment",
+      "upload_response_key": "attachmentInfo",
+      "chat_payload_key": "attachmentInfo"
+    },
+    "audio": {
+      "enabled": true,
+      "chat_endpoint": "/ask",
+      "multipart_field": "audio_file",
+      "max_seconds": 120
+    },
+    "location": {
+      "enabled": true,
+      "chat_endpoint": "/ask",
+      "payload_key": "location"
+    },
+    "file": {
+      "enabled": true,
+      "upload_endpoint": "/archivos/upload/chat_attachment",
+      "upload_response_key": "attachmentInfo",
+      "chat_payload_key": "attachmentInfo"
+    }
+  }
+}
+```
+
+Shape esperado `lead_capture`:
+```json
+{
+  "enabled": true,
+  "title": "Recibir propuesta o continuar compra",
+  "fields": [],
+  "trigger_intents": ["crear_pedido", "derivar_humano", "checkout_intent"],
+  "endpoint": "/api/public/lead-capture",
+  "success_message": "Listo, dejamos tu consulta preparada para seguimiento."
+}
+```
+
+Shape esperado `conversion_ctas`:
+```json
+{
+  "version": "conversion.ctas.v1",
+  "actions": [
+    {
+      "id": "create_order",
+      "label": "Crear pedido",
+      "intent": "crear_pedido",
+      "endpoint": "/ask",
+      "style": "primary"
+    }
+  ],
+  "rules": {
+    "max_visible": 3,
+    "prefer_backend_labels": true,
+    "fallback_behavior": "hide_missing_actions",
+    "preserve_context_on_click": true
+  }
+}
+```
+
+Reglas frontend:
+- No muestra botones multimedia si `input_modes[type].enabled === false`.
+- Imagen/archivo: sube a `upload_endpoint`, lee `upload_response_key`, luego manda `/ask` con `attachmentInfo`.
+- Audio: manda multipart a `/ask` con `multipart_field` o `audio_file`.
+- Ubicacion: manda `/ask` con `location`.
+- CTAs: renderiza maximo `rules.max_visible`; labels e intents vienen de backend.
+- Empty state: usa `experience_blueprint.first_visit` o `empty_states.*` cuando existan.
 
 ### 1.4 Tickets v2
 
@@ -619,6 +725,186 @@ Ejemplo JSON real:
 }
 ```
 
+### 1.10 Payments P2
+
+Metodos + paths:
+- `GET /api/v2/payments/checkout-status`
+- `GET /api/v2/payments/capabilities`
+- `POST /api/v2/payments/checkout-preview`
+- `POST /api/v2/payments/checkout-session`
+- `POST /api/v2/payments/preference`
+- `GET|POST /api/v2/payments/status`
+
+Fallback actual:
+- `POST /api/v2/payments/checkout-session` -> `POST /api/v2/payments/preference` -> `POST /api/market/{tenant}/checkout/start` solo ante `404/405/501`.
+
+Query params / headers usados:
+- `X-Tenant-Slug`, `X-Tenant`, `X-Anon-Id`.
+- `Authorization` si hay sesion.
+- `tenant` y `tenant_slug` pueden viajar como query por compat de `apiFetch`.
+
+Payload checkout-preview / checkout-session:
+```json
+{
+  "items": [
+    { "id": "prod_1", "quantity": 2 }
+  ],
+  "customer": {
+    "name": "Cliente",
+    "phone": "+5491112345678"
+  }
+}
+```
+
+Shape esperado checkout-preview:
+```json
+{
+  "contract_version": "payments.checkout_preview.v1",
+  "total_monetary": 12000,
+  "total_points": 0,
+  "payment_required": true,
+  "payment_ready": true,
+  "contact_ready": true,
+  "checkout_options": {
+    "gateway": "mercadopago",
+    "gateway_hint": "Mercado Pago"
+  },
+  "next_steps": []
+}
+```
+
+Shape esperado checkout-session:
+```json
+{
+  "contract_version": "payments.checkout_session.v1",
+  "preference_id": "123",
+  "init_point": "https://www.mercadopago.com/checkout/v1/redirect?pref_id=123",
+  "external_reference": "order_123",
+  "checkout_options": {
+    "payment_required": true,
+    "gateway": "mercadopago"
+  },
+  "request_id": "req_pay_001"
+}
+```
+
+Campos obligatorios:
+- Checkout session: `preference_id` o `init_point`.
+- Preview: `payment_required`, `payment_ready`, `contact_ready`.
+
+Campos opcionales tolerados:
+- `gateway`, `gateway_hint`, `missing`, `capabilities`, `checkout_urls`, `order`, `timeline`, `payment.status`, `payment.paid`.
+
+### 1.11 Rewards P2
+
+Metodos + paths:
+- `GET /api/v2/rewards/profile`
+- `POST /api/v2/rewards/redeem`
+
+Headers usados:
+- `X-Tenant-Slug`, `X-Tenant`, `X-Anon-Id`.
+- `Authorization` si hay sesion.
+- `Idempotency-Key` en redeem.
+
+Shape esperado profile:
+```json
+{
+  "contract_version": "rewards.profile.v1",
+  "wallet": {
+    "balance": 1250,
+    "pending_cart_points": 80
+  },
+  "rules": [],
+  "available_redemptions": [
+    {
+      "reward_id": "reward_10",
+      "label": "Beneficio backend",
+      "description": "Texto visible desde backend",
+      "cost_points": 500
+    }
+  ],
+  "history": [],
+  "summary": {},
+  "request_id": "req_rewards_001"
+}
+```
+
+Payload redeem:
+```json
+{
+  "reward_id": "reward_10"
+}
+```
+
+Shape esperado redeem:
+```json
+{
+  "contract_version": "rewards.redeem.v1",
+  "redemption_id": "red_123",
+  "reward_id": "reward_10",
+  "balance": 750,
+  "duplicate": false,
+  "request_id": "req_redeem_001"
+}
+```
+
+Campos obligatorios:
+- Profile: `wallet.balance`, `available_redemptions`.
+- Redeem: `redemption_id`, `reward_id`, `balance`.
+
+Campos opcionales tolerados:
+- `wallet.pending_cart_points`, `rules`, `history`, `summary`, `duplicate`.
+
+### 1.12 Inbox omnicanal actions P2
+
+Metodo + path:
+- `POST /api/v2/inbox/omnichannel/{ticket_id}/actions`
+
+Headers usados:
+- `Authorization`.
+- `X-Tenant-Slug` o `X-Tenant`.
+
+Payload:
+```json
+{
+  "action": "reply",
+  "payload": {
+    "message": "Respuesta del agente"
+  }
+}
+```
+
+Acciones que frontend envia:
+- `assign`
+- `reply`
+- `handoff`
+- `close`
+- `reopen`
+- `set_priority`
+- Cualquier `action.type` o `action.id` que venga en `inbox.omnichannel.v1`.
+
+Shape esperado:
+```json
+{
+  "contract_version": "inbox.omnichannel.action.v1",
+  "ticket": {
+    "id": "TCK-1001",
+    "title": "Consulta",
+    "status": "open",
+    "timeline": []
+  },
+  "request_id": "req_inbox_action_001"
+}
+```
+
+Campos obligatorios:
+- `ticket.id` o `id`.
+- `ticket.status` recomendado.
+- `ticket.timeline` recomendado para refrescar la conversacion.
+
+Campos opcionales tolerados:
+- `ticket.actions`, `ticket.presence`, `ticket.summary`, `ticket.next_steps`, `ticket.suggested_reply`.
+
 ## 2. Campos que backend deberia agregar o estabilizar
 
 ### 2.1 Demo session
@@ -653,6 +939,17 @@ Pedidos concretos:
 - Cada item debe tener `id`, `label`, `intent`.
 - Evitar labels hardcodeados por frontend: si un tenant no tiene acciones, mandar `quick_menu: []`.
 - Estabilizar `tipo_chat` como `"municipio" | "pyme"` para evitar inferencias por `tipo`, `type`, `es_publico` o rubro.
+
+### 2.2b Widget experience
+
+Pedidos concretos:
+- Exponer `media_capabilities` como fuente canonica del composer.
+- Si un modo esta deshabilitado, enviar `input_modes[type].enabled=false`; frontend oculta el boton.
+- Para audio, estabilizar `chat_endpoint` y `multipart_field`.
+- Para imagen/archivo, estabilizar `upload_endpoint`, `upload_response_key` y `chat_payload_key`.
+- Exponer `lead_capture.endpoint`, `fields`, `trigger_intents` y `success_message`.
+- Exponer `conversion_ctas.actions[]` con `id`, `label`, `intent`, `endpoint` y `style`.
+- Exponer `experience_blueprint.first_visit`, `sample_conversations`, `trust_signals` y `empty_states` para evitar copy local.
 
 ### 2.3 Tickets v2
 
@@ -709,14 +1006,18 @@ Pedidos concretos:
 
 Lo siguiente ya quedo preparado en frontend, pero no puede completarse sin endpoints, contratos o datos estables del backend:
 
-- Employee coverage: falta endpoint estable para cobertura por empleado/equipo/canal, con porcentajes, targets y alertas.
-- Tenant health: falta resumen de salud por tenant con estado operativo, integraciones, colas, errores recientes y alertas.
-- Executive summary superadmin: falta endpoint agregado para KPIs multi-tenant y resumen ejecutivo.
-- Inbox omnicanal premium: falta contrato completo para lista + detalle + timeline + presencia + acciones de handoff.
-- Pagos reales: falta estabilizar checkout con `payment_ready`, gateway, payment URL/preference y estados post-pago.
-- Puntos/recompensas reales: falta contrato de puntos, canjes, saldo y reglas de recompensa.
+- Employee coverage: resuelto en P1 con `employee.coverage.v1`; frontend consume `/api/v2/tenants/{slug}/employee-coverage` y `/api/v2/employee-coverage`.
+- Tenant health: resuelto en P1 con `tenant.health.v1`; frontend consume `/api/v2/tenants/{slug}/health` y `/api/v2/tenant-health`.
+- Executive summary superadmin: resuelto en P1 con `superadmin.executive_summary.v1`; frontend consume `/api/v2/superadmin/executive-summary` con fallback `/api/v2/super-admin/executive-summary`.
+- Inbox omnicanal base: resuelto en P1 con `inbox.omnichannel.v1`; frontend consume `/api/v2/inbox/omnichannel` desde el inbox tenant-aware existente (`/t/:tenant/inbox`).
+- Inbox omnicanal actions: resuelto en P2 con `inbox.omnichannel.action.v1`; frontend postea actions y replies desde el panel de conversacion actual.
+- Hooks de notifications: resuelto en P1 con `notifications.hooks.v1` y `notifications.delivery_status.v1`; frontend conserva las pantallas actuales y pasa por `apiClient.adminGetNotificationSettings`/`adminUpdateNotificationSettings` con fallback legacy.
+- Pagos reales base: resuelto en P2 con checkout status/capabilities/preview/session/status; pendiente UX premium post-pago con polling y timeline completo.
+- Puntos/recompensas reales base: resuelto en P2 con profile/redeem e idempotencia; pendiente catalogo visual completo de beneficios e historial avanzado.
 - Quick menu educativo completo desde backend: falta `quick_menu` especifico por modulo educativo, institution type y permisos.
-- Hooks de notifications: faltan endpoints/eventos para preferencias, plantillas, triggers y delivery status.
+- Composer multimedia completo: frontend ya respeta `media_capabilities`, pero backend debe devolverlo por tenant/demo para no depender de capacidades legacy.
+- Lead capture comercial: frontend ya puede postear `POST /api/public/lead-capture`, pero backend debe estabilizar campos dinamicos y respuesta con `request_id`.
+- Conversion CTAs: frontend ya renderiza `conversion_ctas`, pero backend debe enviar acciones por contexto/intent sin labels locales.
 - Demo workspace estable: sin `workspace` en demo session, frontend cae en espacios vacios o placeholders.
 - Error envelope publico: sin `X-Request-Id` y `reason_code`, soporte no puede depurar errores de encuestas, PWA o widget.
 
@@ -865,6 +1166,112 @@ Response:
 }
 ```
 
+### 4.4b Widget experience config
+
+Response parcial:
+```json
+{
+  "contract_version": "public.widget_config.v1",
+  "tenant": {
+    "slug": "colegio-san-martin",
+    "tipo": "pyme"
+  },
+  "experience_blueprint": {
+    "first_visit": {
+      "title": "Bienvenido",
+      "description": "Texto visible desde backend."
+    },
+    "sample_conversations": [
+      {
+        "id": "estado",
+        "label": "Consultar estado",
+        "text": "Quiero consultar el estado",
+        "intent": "consulta_estado"
+      }
+    ],
+    "trust_signals": [
+      {
+        "id": "seguimiento",
+        "title": "Seguimiento",
+        "description": "Descripcion visible desde backend."
+      }
+    ],
+    "empty_states": {
+      "no_messages": {
+        "title": "Primer contacto",
+        "description": "Texto de estado vacio desde backend."
+      }
+    }
+  },
+  "lead_capture": {
+    "enabled": true,
+    "title": "Recibir propuesta o continuar compra",
+    "fields": [],
+    "trigger_intents": ["crear_pedido", "derivar_humano", "checkout_intent"],
+    "endpoint": "/api/public/lead-capture",
+    "success_message": "Listo, dejamos tu consulta preparada para seguimiento."
+  },
+  "media_capabilities": {
+    "version": "media.capabilities.v1",
+    "composer": {
+      "placeholder": "Escribi, habla o adjunta algo para que el agente te ayude.",
+      "actions": [
+        { "id": "record_audio", "type": "audio", "icon": "mic", "label": "Audio" }
+      ]
+    },
+    "input_modes": {
+      "audio": {
+        "enabled": true,
+        "chat_endpoint": "/ask",
+        "multipart_field": "audio_file",
+        "max_seconds": 120
+      }
+    }
+  },
+  "conversion_ctas": {
+    "version": "conversion.ctas.v1",
+    "actions": [
+      {
+        "id": "capture_lead",
+        "label": "Recibir propuesta",
+        "intent": "lead_capture",
+        "endpoint": "/api/public/lead-capture",
+        "style": "accent"
+      }
+    ],
+    "rules": {
+      "max_visible": 3,
+      "prefer_backend_labels": true,
+      "fallback_behavior": "hide_missing_actions",
+      "preserve_context_on_click": true
+    }
+  }
+}
+```
+
+Lead capture request:
+```json
+{
+  "tenant_slug": "colegio-san-martin",
+  "tipo_chat": "pyme",
+  "conversation_id": "conv_123",
+  "fields": {
+    "telefono": "+5491112345678"
+  },
+  "intent": "checkout_intent",
+  "message": "Quiero continuar la compra"
+}
+```
+
+Respuesta recomendada:
+```json
+{
+  "ok": true,
+  "request_id": "req_lead_001",
+  "lead_id": "lead_123"
+}
+```
+
 ### 4.5 Survey error
 
 Error publico normalizado:
@@ -933,15 +1340,18 @@ Ticket draft sync ack:
 
 1. `POST /api/v2/demo/session`: devolver `workspace` completo.
 2. `GET /api/public/tenants/{slug}/widget-config`: estabilizar `quick_menu` top-level.
-3. Error envelope publico: `X-Request-Id`, `request_id`, `reason_code`, `action_hint`.
-4. `GET /api/pwa/public/tenant-info`: devolver JSON accionable, nunca HTML/redirect.
+3. `media_capabilities`: devolver modos reales para no mostrar botones que backend no soporta.
+4. Error envelope publico: `X-Request-Id`, `request_id`, `reason_code`, `action_hint`.
+5. `GET /api/pwa/public/tenant-info`: devolver JSON accionable, nunca HTML/redirect.
 
 ### 5.2 Desbloquea pantallas ya implementadas
 
 1. `GET /api/v2/tickets`: responder `{ items: [...] }` con campos estables.
 2. `GET /api/v2/analytics/overview`: responder `{ summary: {...} }`.
 3. `POST /api/v2/surveys/draft`: ack estable para builder y cola offline.
-4. Quick menu educativo por backend para portal familia/staff/public.
+4. `POST /api/public/lead-capture`: estabilizar respuesta y campos dinamicos.
+5. `conversion_ctas`: enviar acciones contextuales por intent.
+6. Quick menu educativo por backend para portal familia/staff/public.
 
 ### 5.3 Mejora datos / analytics
 
@@ -953,8 +1363,8 @@ Ticket draft sync ack:
 
 ### 5.4 Nice-to-have
 
-1. Pagos reales con gateway completo y estados post-pago.
-2. Puntos/recompensas reales.
+1. Post-pago premium con polling controlado de `payments.status.v1` y timeline visible.
+2. Rewards premium con catalogo visual, historial paginado y reglas explicables desde backend.
 3. Idempotency key para sync offline.
 4. Meta/paginacion estandar en tickets y analytics.
 
@@ -975,6 +1385,8 @@ Mocks/tests FE que ya quedaron esperando estos contratos:
   - Espera que carrito preserve `mercadopago_ready`.
   - Espera `checkout_options.payment_required`, `checkout_options.requires_contact_or_auth`, `checkout_options.gateway_hint`.
   - Espera `checkout_preview.payment_ready` y `checkout_preview.contact_ready`.
+  - Espera checkout P2 primario en `/api/v2/payments/checkout-session` y fallback a `/api/v2/payments/preference`.
+  - Espera rewards profile/redeem con wallet, redenciones e `Idempotency-Key`.
 
 - `src/api/education.test.ts`
   - Espera rutas canonicas plurales `guardians/lookup` y `guardians/verify`.
@@ -984,7 +1396,15 @@ Mocks/tests FE que ya quedaron esperando estos contratos:
   - Mockea rutas API para smoke de demo, handoff, login invalido, tickets/surveys base y widget.
 
 - `src/features/demo/demoApi.ts`
-  - Normaliza `workspace` y compat top-level; backend deberia estabilizar `workspace`.
+  - Normaliza `workspace`, `experience_blueprint`, `lead_capture`, `media_capabilities`, `conversion_ctas`, `animation_tokens`, `empty_states` y compat top-level; backend deberia estabilizar `workspace`.
+
+- `src/features/chat/ChatPanel.tsx`
+  - Renderiza `first_visit`, `sample_conversations`, `trust_signals`, `conversion_ctas` y `lead_capture` cuando llegan del backend.
+  - `lead_capture.fields` genera formulario dinamico y envia `POST /api/public/lead-capture`.
+
+- `src/components/chat/ChatInput.tsx`
+  - Usa `media_capabilities` para ocultar/mostrar imagen, audio, ubicacion y archivo.
+  - Audio se envia multipart con `multipart_field` o `audio_file`.
 
 - `src/features/tickets/ticketsApi.ts`
   - Normaliza `items[]`, `tickets[]` o array legacy; backend deberia estabilizar `{ items: [...] }`.

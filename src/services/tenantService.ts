@@ -1,4 +1,4 @@
-import { apiFetch } from "@/utils/api";
+import { ApiError, apiFetch } from "@/utils/api";
 import { CreateTenantPayload, CreateTenantResponse, TenantConfigBundle } from "@/types/TenantConfig";
 import { WhatsappExternalNumberPayload, WhatsappNumberCreatePayload, WhatsappNumberInventoryItem } from "@/types/whatsapp";
 
@@ -65,6 +65,23 @@ export const tenantService = {
   },
 
   getPublicWidgetConfig: async (slug: string) => {
-    return apiFetch(`${PUBLIC_BASE_URL}/${slug}/widget-config`);
+    try {
+      return await apiFetch(`${PUBLIC_BASE_URL}/${slug}/widget-config`, {
+        skipAuth: true,
+        omitCredentials: true,
+        isWidgetRequest: true,
+        tenantSlug: slug,
+      });
+    } catch (error) {
+      if (!(error instanceof ApiError) || ![404, 405, 501].includes(error.status)) {
+        throw error;
+      }
+      return apiFetch(`/api/public/widget-config?tenant=${encodeURIComponent(slug)}`, {
+        skipAuth: true,
+        omitCredentials: true,
+        isWidgetRequest: true,
+        tenantSlug: slug,
+      });
+    }
   }
 };

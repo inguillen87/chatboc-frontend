@@ -17,7 +17,8 @@ export const TimelineMergeView: React.FC<TimelineMergeViewProps> = ({ events }) 
   return (
     <div className="flex flex-col gap-4">
       {events.map((event) => {
-        const timeStr = format(new Date(event.timestamp), 'HH:mm', { locale: es });
+        const eventDate = new Date(event.timestamp);
+        const timeStr = Number.isNaN(eventDate.getTime()) ? event.timestamp : format(eventDate, 'HH:mm', { locale: es });
 
         if (event.type === 'message_created') {
           const isOwn = event.actor.type === 'agent' || event.actor.type === 'system';

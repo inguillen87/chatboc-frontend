@@ -1,46 +1,47 @@
 import React, { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { TicketListPane } from './TicketListPane';
-import { TicketConversationPane } from './TicketConversationPane';
-import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
-import { getTickets } from '@/services/ticketService';
+import { RefreshCw } from 'lucide-react';
+
+import { getOmnichannelInboxV2, type OmnichannelInboxItem } from '@/api/v2/saas';
+import { ViewState } from '@/components/app-shell/ViewState';
+import { Button } from '@/components/ui/button';
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { useTenant } from '@/context/TenantContext';
+import { getTickets } from '@/services/ticketService';
+import { ApiError, getErrorMessage } from '@/utils/api';
+
+import { TicketConversationPane } from './TicketConversationPane';
+import { TicketListPane } from './TicketListPane';
 
 interface TicketInboxPageProps {
   presetCategory?: string;
   presetSensitivity?: string;
 }
 
-interface TicketSummaryItem {
-  id: string;
-  title: string;
-  status: string;
-  category?: string;
-  sensitivity?: string;
-  lastMessageAt: string;
-  unreadCount: number;
-}
+const shouldFallbackToLegacyTickets = (error: unknown) =>
+  error instanceof ApiError && [404, 405, 501].includes(error.status);
 
-const MOCK_TICKETS: TicketSummaryItem[] = [
-  {
-    id: 'T-1001',
-    title: 'Problema con la calle San Martin',
-    status: 'nuevo',
-    category: 'Vialidad',
-    sensitivity: 'publico',
-    lastMessageAt: new Date().toISOString(),
-    unreadCount: 2,
-  },
-  {
-    id: 'T-1002',
-    title: 'Consulta sobre facturación pyme',
-    status: 'en_proceso',
-    category: 'Comercio',
-    sensitivity: 'familiar',
-    lastMessageAt: new Date(Date.now() - 3600000).toISOString(),
-    unreadCount: 0,
-  },
-];
+const mapLegacyTicketsToInboxItems = async (tenantSlug?: string | null): Promise<OmnichannelInboxItem[]> => {
+  const result = await getTickets(tenantSlug);
+  return result.tickets.map((ticket) => {
+    const rawTicket = ticket as any;
+    return {
+      id: String(rawTicket.id),
+      title: rawTicket.asunto || rawTicket.title || rawTicket.nro_ticket || String(rawTicket.id),
+      status: rawTicket.estado || 'unknown',
+      category: rawTicket.categoria || rawTicket.categoria_principal || undefined,
+      sensitivity: typeof rawTicket.priority === 'string' ? rawTicket.priority : undefined,
+      channel: rawTicket.canal || rawTicket.channel || undefined,
+      lastMessageAt: rawTicket.fecha || new Date().toISOString(),
+      unreadCount: rawTicket.hasUnreadMessages ? 1 : 0,
+      presence: [],
+      timeline: [],
+      actions: [],
+      next_steps: [],
+      raw: ticket,
+    };
+  });
+};
 
 export const TicketInboxPage: React.FC<TicketInboxPageProps> = ({
   presetCategory,
@@ -49,24 +50,25 @@ export const TicketInboxPage: React.FC<TicketInboxPageProps> = ({
   const [selectedTicketId, setSelectedTicketId] = useState<string | undefined>();
   const { currentSlug } = useTenant();
 
-  const ticketsQuery = useQuery({
-    queryKey: ['ticket-inbox', currentSlug],
+  const inboxQuery = useQuery({
+    queryKey: ['inbox-omnichannel-v2', currentSlug],
     queryFn: async () => {
-      const result = await getTickets(currentSlug);
-      return result.tickets.map((ticket) => ({
-        id: String(ticket.id),
-        title: ticket.asunto || ticket.title || ticket.nro_ticket,
-        status: ticket.estado,
-        category: ticket.categoria || ticket.categoria_principal || undefined,
-        sensitivity: typeof ticket.priority === 'string' ? ticket.priority : undefined,
-        lastMessageAt: ticket.fecha,
-        unreadCount: ticket.hasUnreadMessages ? 1 : 0,
-      }));
+      try {
+        return await getOmnichannelInboxV2(currentSlug);
+      } catch (error) {
+        if (!shouldFallbackToLegacyTickets(error)) throw error;
+        return {
+          items: await mapLegacyTicketsToInboxItems(currentSlug),
+          summary: {},
+          raw: null,
+        };
+      }
     },
     retry: 0,
+    staleTime: 30_000,
   });
 
-  const sourceTickets = ticketsQuery.data && ticketsQuery.data.length > 0 ? ticketsQuery.data : MOCK_TICKETS;
+  const sourceTickets = inboxQuery.data?.items ?? [];
 
   const filteredTickets = useMemo(
     () =>
@@ -79,6 +81,44 @@ export const TicketInboxPage: React.FC<TicketInboxPageProps> = ({
       }),
     [sourceTickets, presetCategory, presetSensitivity],
   );
+
+  const selectedTicket: OmnichannelInboxItem | undefined = useMemo(
+    () => filteredTickets.find((ticket) => ticket.id === selectedTicketId),
+    [filteredTickets, selectedTicketId],
+  );
+
+  if (inboxQuery.isLoading) {
+    return (
+      <div className="p-4">
+        <ViewState status="loading" description="Cargando inbox omnicanal desde contrato v2." />
+      </div>
+    );
+  }
+
+  if (inboxQuery.isError) {
+    return (
+      <div className="p-4">
+        <ViewState
+          status="error"
+          description={getErrorMessage(inboxQuery.error, 'No se pudo cargar el inbox omnicanal.')}
+          action={
+            <Button type="button" variant="outline" onClick={() => void inboxQuery.refetch()}>
+              <RefreshCw className="h-4 w-4" />
+              Reintentar
+            </Button>
+          }
+        />
+      </div>
+    );
+  }
+
+  if (!filteredTickets.length) {
+    return (
+      <div className="p-4">
+        <ViewState status="empty" description="No hay conversaciones omnicanal para los filtros actuales." />
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-[calc(100vh-4rem)] w-full bg-background">
@@ -99,7 +139,12 @@ export const TicketInboxPage: React.FC<TicketInboxPageProps> = ({
         <ResizableHandle withHandle />
 
         <ResizablePanel defaultSize={70}>
-          <TicketConversationPane ticketId={selectedTicketId} />
+          <TicketConversationPane
+            ticket={selectedTicket}
+            ticketId={selectedTicketId}
+            tenantSlug={currentSlug}
+            onActionComplete={() => void inboxQuery.refetch()}
+          />
         </ResizablePanel>
       </ResizablePanelGroup>
     </div>

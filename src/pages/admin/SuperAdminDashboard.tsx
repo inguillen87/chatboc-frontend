@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiClient } from "@/api/client";
+import { getSuperadminExecutiveSummaryV2, getTenantHealthV2 } from "@/api/v2/saas";
 import useRequireRole from "@/hooks/useRequireRole";
 import { Button } from "@/components/ui/button";
 import {
@@ -137,12 +138,7 @@ export default function SuperAdminDashboard() {
     fetchTenants();
     fetchWhatsappNumbers();
     setExecutiveLoading(true);
-    enterpriseService
-      .getExecutiveSummary({
-        since_days: 30,
-        include_heatmap: true,
-        include_realtime: true,
-      })
+    getSuperadminExecutiveSummaryV2()
       .then((response) => {
         setExecutiveSummary(response || null);
         const bundledHealth = Array.isArray(response?.tenant_health)
@@ -153,11 +149,11 @@ export default function SuperAdminDashboard() {
       .catch((executiveError) => {
         console.error(executiveError);
         setExecutiveSummary(null);
-        return enterpriseService.getTenantHealth({ since_days: 30 });
+        return getTenantHealthV2();
       })
       .then((healthResponse) => {
         if (!healthResponse) return;
-        setTenantHealth(healthResponse?.items || []);
+        setTenantHealth(Array.isArray((healthResponse as any)?.items) ? (healthResponse as any).items : []);
       })
       .finally(() => setExecutiveLoading(false));
   }, []);
@@ -264,7 +260,7 @@ export default function SuperAdminDashboard() {
 
   const sortedTenantHealth = tenantHealth
     .slice()
-    .sort((a, b) => (b?.health_score || 0) - (a?.health_score || 0));
+    .sort((a, b) => ((b?.health_score ?? b?.score ?? 0) || 0) - ((a?.health_score ?? a?.score ?? 0) || 0));
 
   const profileHeader = tenantProfile360?.tenant || {};
   const profileOwner = tenantProfile360?.owner || {};
@@ -286,12 +282,12 @@ export default function SuperAdminDashboard() {
       ? tenantProfile360.meta.alerts
       : [];
   const formatPercent = (value: unknown) =>
-    typeof value === "number" ? `${Math.round(value * 100)}%` : "—";
+    typeof value === "number" ? `${Math.round((value > 1 ? value / 100 : value) * 100)}%` : "—";
   const formatHealthClass = (score?: number) =>
     typeof score === "number"
-      ? score >= 0.8
+      ? (score > 1 ? score / 100 : score) >= 0.8
         ? "bg-emerald-100 text-emerald-700 border-emerald-200"
-        : score >= 0.6
+        : (score > 1 ? score / 100 : score) >= 0.6
           ? "bg-amber-100 text-amber-700 border-amber-200"
           : "bg-red-100 text-red-700 border-red-200"
       : "bg-slate-100 text-slate-700 border-slate-200";
@@ -405,7 +401,7 @@ export default function SuperAdminDashboard() {
         <CardHeader className="border-b border-border/50 bg-gradient-to-r from-primary/5 via-sky-500/5 to-violet-500/5">
           <CardTitle>Executive summary</CardTitle>
           <CardDescription>
-            Bundle agregado desde `/api/admin/analytics/executive-summary` para CEO/superadmin con menos roundtrips.
+            Bundle canonico desde `/api/v2/superadmin/executive-summary` para CEO/superadmin con health multi-tenant.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -417,25 +413,25 @@ export default function SuperAdminDashboard() {
 
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
             <div className="rounded-2xl border border-border/60 bg-background/70 p-4 shadow-sm">
-              <div className="text-xs text-muted-foreground">Leads totales</div>
+              <div className="text-xs text-muted-foreground">Tenants</div>
               <div className="mt-1 text-2xl font-semibold">
-                {executiveOverview?.total_leads ??
-                  executiveOverview?.totals?.total ??
+                {executiveOverview?.total_tenants ??
+                  executiveOverview?.tenant_count ??
                   "—"}
               </div>
             </div>
             <div className="rounded-2xl border border-border/60 bg-background/70 p-4 shadow-sm">
-              <div className="text-xs text-muted-foreground">Open leads</div>
+              <div className="text-xs text-muted-foreground">Tenants activos</div>
               <div className="mt-1 text-2xl font-semibold">
-                {executiveOverview?.open_leads ??
-                  executiveOverview?.totals?.open ??
+                {executiveOverview?.active_tenants ??
+                  executiveOverview?.active_tenant_count ??
                   "—"}
               </div>
             </div>
             <div className="rounded-2xl border border-border/60 bg-background/70 p-4 shadow-sm">
-              <div className="text-xs text-muted-foreground">Win rate</div>
+              <div className="text-xs text-muted-foreground">Health promedio</div>
               <div className="mt-1 text-2xl font-semibold">
-                {formatPercent(executiveOverview?.win_rate)}
+                {formatPercent(executiveOverview?.avg_health_score)}
               </div>
             </div>
             <div className="rounded-2xl border border-border/60 bg-background/70 p-4 shadow-sm">
@@ -448,10 +444,10 @@ export default function SuperAdminDashboard() {
             </div>
             <div className="rounded-2xl border border-border/60 bg-background/70 p-4 shadow-sm">
               <div className="text-xs text-muted-foreground">
-                Coverage ratio
+                Riesgo alto
               </div>
               <div className="mt-1 text-2xl font-semibold">
-                {formatPercent(executiveRealtime?.coverage_ratio)}
+                {executiveOverview?.risky_tenants ?? executiveSummary?.top_risky_tenants?.length ?? "—"}
               </div>
             </div>
           </div>
@@ -500,22 +496,17 @@ export default function SuperAdminDashboard() {
                 <div className="space-y-1">
                   <div className="font-medium">{row?.tenant_slug || "—"}</div>
                   <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                    <span>
-                      Win rate{" "}
-                      {typeof row?.win_rate === "number"
-                        ? `${(row.win_rate * 100).toFixed(0)}%`
-                        : "—"}
-                    </span>
-                    <span>SLA {row?.sla_breached ?? 0}</span>
-                    <span>Encuestas {row?.survey_responses ?? 0}</span>
+                    <span>{row?.status || "status —"}</span>
+                    <span>Checks {row?.checks_count ?? 0}</span>
+                    <span>Errores {row?.errors_count ?? 0}</span>
                   </div>
                 </div>
                 <Badge
                   variant="outline"
-                  className={formatHealthClass(row?.health_score)}
+                  className={formatHealthClass(row?.health_score ?? row?.score)}
                 >
-                  {typeof row?.health_score === "number"
-                    ? `${(row.health_score * 100).toFixed(0)}%`
+                  {typeof (row?.health_score ?? row?.score) === "number"
+                    ? `${(((row.health_score ?? row.score) > 1 ? (row.health_score ?? row.score) / 100 : (row.health_score ?? row.score)) * 100).toFixed(0)}%`
                     : "—"}
                 </Badge>
               </button>

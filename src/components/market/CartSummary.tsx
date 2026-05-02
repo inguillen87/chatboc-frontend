@@ -2,9 +2,9 @@ import React, { useMemo } from 'react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { MarketCartItem, MarketCheckoutOptions, MarketCheckoutPreview, MarketCommercialState, MarketContinuity, MarketCustomerProfile, MarketRecommendation, MarketSuggestedAction } from '@/types/market';
+import { MarketCartItem, MarketCheckoutOptions, MarketCheckoutPreview, MarketCommercialState, MarketContinuity, MarketCustomerProfile, MarketRecommendation, MarketRewardsProfile, MarketSuggestedAction } from '@/types/market';
 import { formatCurrency } from '@/utils/currency';
-import { ArrowRightLeft, MessageCircle, Phone, ShoppingCart } from 'lucide-react';
+import { ArrowRightLeft, Gift, MessageCircle, Phone, ShoppingCart } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import {
   getCommercialStageLabel,
@@ -29,6 +29,10 @@ interface CartSummaryProps {
   recommendations?: MarketRecommendation[] | null;
   checkoutPreview?: MarketCheckoutPreview | null;
   checkoutOptions?: MarketCheckoutOptions | null;
+  rewardsProfile?: MarketRewardsProfile | null;
+  rewardsLoading?: boolean;
+  redeemingRewardId?: string | null;
+  onRedeemReward?: (rewardId: string) => void;
 }
 
 export default function CartSummary({
@@ -47,6 +51,10 @@ export default function CartSummary({
   recommendations,
   checkoutPreview,
   checkoutOptions,
+  rewardsProfile,
+  rewardsLoading,
+  redeemingRewardId,
+  onRedeemReward,
 }: CartSummaryProps) {
   const currency = useMemo(() => {
     const fromItem = items.find((item) => typeof item.currency === 'string' && item.currency.trim());
@@ -70,6 +78,14 @@ export default function CartSummary({
   const contactPhone = customerProfile?.phone?.trim() || customerProfile?.whatsapp?.trim() || null;
   const validSuggestedActions = Array.isArray(suggestedActions) ? suggestedActions.filter((item) => item?.label) : [];
   const validRecommendations = Array.isArray(recommendations) ? recommendations.filter((item) => item?.title || item?.label) : [];
+  const redemptionOptions = useMemo(
+    () =>
+      (rewardsProfile?.available_redemptions ?? []).filter((item) => {
+        const rewardId = item.reward_id ?? item.id;
+        return rewardId !== null && rewardId !== undefined && (item.label || item.title || item.description);
+      }),
+    [rewardsProfile?.available_redemptions],
+  );
 
   const formatItemPrice = (item: MarketCartItem) => {
     if (item.priceText) return item.priceText;
@@ -202,6 +218,69 @@ export default function CartSummary({
           <span className="text-muted-foreground">Puntos</span>
           <span className="font-medium">{derivedTotals.points}</span>
         </div>
+
+        {(rewardsLoading || rewardsProfile) ? (
+          <div className="rounded-2xl border border-border/60 bg-muted/20 p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Puntos disponibles</p>
+                <p className="mt-1 text-lg font-semibold text-foreground">
+                  {typeof rewardsProfile?.wallet?.balance === 'number'
+                    ? rewardsProfile.wallet.balance.toLocaleString('es-AR')
+                    : rewardsLoading
+                      ? '...'
+                      : '0'}
+                </p>
+              </div>
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+                <Gift className="h-5 w-5" />
+              </div>
+            </div>
+            {typeof rewardsProfile?.wallet?.pending_cart_points === 'number' ? (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Este carrito puede sumar {rewardsProfile.wallet.pending_cart_points.toLocaleString('es-AR')} pts.
+              </p>
+            ) : null}
+            {redemptionOptions.length > 0 ? (
+              <div className="mt-3 space-y-2">
+                {redemptionOptions.slice(0, 3).map((item, index) => {
+                  const rewardId = String(item.reward_id ?? item.id ?? index);
+                  const label = item.label || item.title || item.description || rewardId;
+                  const pointCost = item.cost_points ?? item.points;
+                  return (
+                    <div key={`${rewardId}-${index}`} className="rounded-xl border border-border/60 bg-background/80 px-3 py-2">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-foreground">{label}</p>
+                          {item.description && item.description !== label ? (
+                            <p className="mt-1 text-xs text-muted-foreground">{item.description}</p>
+                          ) : null}
+                          {typeof pointCost === 'number' ? (
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {pointCost.toLocaleString('es-AR')} pts
+                            </p>
+                          ) : null}
+                        </div>
+                        {onRedeemReward ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-8 shrink-0"
+                            disabled={Boolean(item.disabled) || redeemingRewardId === rewardId}
+                            onClick={() => onRedeemReward(rewardId)}
+                          >
+                            {redeemingRewardId === rewardId ? '...' : 'Canjear'}
+                          </Button>
+                        ) : null}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
 
         {validRecommendations.length > 0 ? (
           <div className="rounded-2xl border border-border/60 bg-muted/20 p-3">

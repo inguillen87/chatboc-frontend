@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useReducer } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
 import { MarketCartProvider, useMarketCart } from '@/context/MarketCartContext';
-import { startMarketCheckout } from '@/api/market';
+import { previewPaymentCheckout, startMarketCheckout } from '@/api/market';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -69,16 +69,36 @@ function CheckoutContent({ tenantSlug }: { tenantSlug: string }) {
       return;
     }
 
+    const checkoutPayload = {
+      items: items.map((item) => ({ id: item.id, quantity: item.quantity })),
+      customer: {
+        name,
+        ...(phone ? { phone } : {}),
+      },
+    };
+
+    try {
+      const preview = await previewPaymentCheckout(tenantSlug, checkoutPayload);
+      if (preview?.payment_required && preview.payment_ready === false) {
+        moveToState('error', {
+          error:
+            preview.next_step_label ??
+            preview.checkout_options?.gateway_hint ??
+            'El checkout todavia no esta listo para recibir pagos.',
+        });
+        return;
+      }
+    } catch (err) {
+      moveToState('error', {
+        error: err instanceof Error ? err.message : 'No se pudo validar el checkout.',
+      });
+      return;
+    }
+
     moveToState('creating_order');
 
     try {
-      const response = await startMarketCheckout(tenantSlug, {
-        items: items.map((item) => ({ id: item.id, quantity: item.quantity })),
-        customer: {
-          name,
-          ...(phone ? { phone } : {}),
-        },
-      });
+      const response = await startMarketCheckout(tenantSlug, checkoutPayload);
 
       const outcome = resolveCheckoutOutcome(response);
       moveToState(outcome.status, {

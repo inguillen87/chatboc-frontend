@@ -1,4 +1,5 @@
 import { ApiError, apiFetch } from "@/utils/api";
+import { normalizeEmployeeCoverageV2, normalizeSuperadminExecutiveSummaryV2 } from "@/api/v2/saas";
 import type { TicketCollaborationState } from "@/types/tickets";
 
 export type DemoRubro = "municipio" | "pyme";
@@ -689,6 +690,22 @@ const buildQueryString = (
   return params.toString();
 };
 
+const isEndpointMissing = (error: unknown) =>
+  error instanceof ApiError && [404, 405, 501].includes(error.status);
+
+const apiFetchWithFallback = async <T>(
+  primaryPath: string,
+  fallbackPath: string,
+  options: Parameters<typeof apiFetch>[1] = {},
+) => {
+  try {
+    return await apiFetch<T>(primaryPath, options);
+  } catch (error) {
+    if (!isEndpointMissing(error)) throw error;
+    return apiFetch<T>(fallbackPath, options);
+  }
+};
+
 export const enterpriseService = {
   captureLead: async (payload: {
     tenant_slug?: string;
@@ -1127,7 +1144,11 @@ export const enterpriseService = {
     tenantSlug?: string,
   ) => {
     const query = buildQueryString(filters);
-    return apiFetch<{ items?: any[] }>(
+    const canonicalPath = tenantSlug
+      ? `/api/v2/tenants/${encodeURIComponent(tenantSlug)}/health${query ? `?${query}` : ""}`
+      : `/api/v2/tenant-health${query ? `?${query}` : ""}`;
+    return apiFetchWithFallback<{ items?: any[] }>(
+      canonicalPath,
       `/api/admin/analytics/tenant-health?${query}`,
       { tenantSlug },
     );
@@ -1174,15 +1195,19 @@ export const enterpriseService = {
   },
 
   getTenantEmployeeCoverage: async (tenantSlug: string) => {
-    return apiFetch<{
+    const response = await apiFetchWithFallback<unknown>(
+      `/api/v2/tenants/${encodeURIComponent(tenantSlug)}/employee-coverage`,
+      `/api/admin/tenants/${tenantSlug}/employees/coverage`,
+      { tenantSlug },
+    );
+    return normalizeEmployeeCoverageV2(response) as {
       categorias?: any[];
       zonas?: any[];
       permisos?: any[];
+      canales?: any[];
       items?: any[];
       meta?: any;
-    }>(`/api/admin/tenants/${tenantSlug}/employees/coverage`, {
-      tenantSlug,
-    });
+    };
   },
 
   getRealtimeAiOverview: async (
@@ -1217,15 +1242,18 @@ export const enterpriseService = {
     tenantSlug?: string,
   ) => {
     const query = buildQueryString(filters);
-    return apiFetch<{
+    const response = await apiFetchWithFallback<unknown>(
+      `/api/v2/superadmin/executive-summary${query ? `?${query}` : ""}`,
+      `/api/v2/super-admin/executive-summary${query ? `?${query}` : ""}`,
+      { tenantSlug },
+    );
+    return normalizeSuperadminExecutiveSummaryV2(response) as {
       strategic_overview?: any;
       tenant_health?: { items?: any[] } | any[];
       realtime?: any;
       heatmap?: any;
       recommended_actions?: any[];
-    }>(`/api/admin/analytics/executive-summary${query ? `?${query}` : ""}`, {
-      tenantSlug,
-    });
+    };
   },
 
   getTicketSummary: async (
