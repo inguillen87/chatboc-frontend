@@ -12,6 +12,7 @@ import { getErrorMessage } from '@/utils/api';
 
 import { getAnalyticsOverviewV2 } from './analyticsApi';
 import type { AnalyticsOverview } from './analyticsTypes';
+import { OperationsDashboardPanel } from './OperationsDashboardPanel';
 
 const formatMetric = (value: number | undefined, suffix = '') => {
   if (value === undefined || Number.isNaN(value)) return '--';
@@ -73,9 +74,10 @@ export default function AnalyticsHubPage() {
 
   if (overviewQuery.isError) {
     return (
-      <div className="p-4">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 p-4 sm:p-6">
         <ViewState
-          status="error"
+          status="partial"
+          title="Analytics overview no disponible"
           description={getErrorMessage(overviewQuery.error, 'No se pudo cargar analytics.')}
           action={
             <Button type="button" variant="outline" onClick={() => void overviewQuery.refetch()}>
@@ -84,14 +86,16 @@ export default function AnalyticsHubPage() {
             </Button>
           }
         />
+        <OperationsDashboardPanel />
       </div>
     );
   }
 
   if (!data || !hasAnyMetric) {
     return (
-      <div className="p-4">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 p-4 sm:p-6">
         <ViewState status="empty" description="Todavia no hay suficientes datos para mostrar metricas." />
+        <OperationsDashboardPanel />
       </div>
     );
   }
@@ -167,6 +171,8 @@ export default function AnalyticsHubPage() {
           </CardContent>
         </Card>
       </div>
+
+      <OperationsDashboardPanel />
     </div>
   );
 }

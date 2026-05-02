@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { FileText, Image, MapPin, Mic, MicOff, Paperclip, Send } from 'lucide-react';
+import { FileText, Image, MapPin, Mic, MicOff, Paperclip, Send, X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { apiFetch, getErrorMessage } from '@/utils/api';
@@ -15,7 +15,15 @@ export interface ChatComposerPayload {
   location?: { lat: number; lon: number; accuracy?: number | null };
   audioBlob?: Blob;
   audioFilename?: string;
+  audioField?: string;
+  audioEndpoint?: string;
 }
+
+type AttachmentDraft = {
+  file: File;
+  mode: 'image' | 'file';
+  previewUrl?: string;
+};
 
 export default function ChatComposer({
   onSend,
@@ -37,8 +45,9 @@ export default function ChatComposer({
   const [text, setText] = useState('');
   const [composerState, setComposerState] = useState<string>('idle');
   const [error, setError] = useState<string | null>(null);
+  const [attachmentDraft, setAttachmentDraft] = useState<AttachmentDraft | null>(null);
+  const [selectedFileMode, setSelectedFileMode] = useState<'image' | 'file'>('file');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const selectedFileModeRef = useRef<'image' | 'file'>('file');
   const { isRecording, startRecording, stopRecording } = useAudioRecorder();
 
   useEffect(() => {
@@ -75,8 +84,30 @@ export default function ChatComposer({
     return FileText;
   };
 
-  const emitText = () => {
+  const clearAttachmentDraft = () => {
+    setAttachmentDraft((current) => {
+      if (current?.previewUrl) {
+        URL.revokeObjectURL(current.previewUrl);
+      }
+      return null;
+    });
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  useEffect(() => {
+    return () => {
+      if (attachmentDraft?.previewUrl) {
+        URL.revokeObjectURL(attachmentDraft.previewUrl);
+      }
+    };
+  }, [attachmentDraft?.previewUrl]);
+
+  const emitText = async () => {
     const trimmed = text.trim();
+    if (attachmentDraft) {
+      await uploadAttachment(attachmentDraft.file, attachmentDraft.mode === 'image' ? imageMode : fileMode);
+      return;
+    }
     if (!trimmed || textMode?.enabled === false) return;
     onSend({ text: trimmed, intent, payload });
     setText('');
@@ -104,6 +135,8 @@ export default function ChatComposer({
       });
       setText('');
       setError(null);
+      clearAttachmentDraft();
+      setComposerState('thinking');
     } catch (err) {
       setError(getErrorMessage(err, 'No se pudo subir el archivo.'));
     } finally {
@@ -150,6 +183,8 @@ export default function ChatComposer({
             payload,
             audioBlob,
             audioFilename: `audio-${Date.now()}.webm`,
+            audioField: audioMode?.multipart_field || 'audio_file',
+            audioEndpoint: audioMode?.chat_endpoint || '/ask',
           });
           setText('');
           setError(null);
@@ -172,12 +207,12 @@ export default function ChatComposer({
 
   const handleAction = (type: string) => {
     if (type === 'image') {
-      selectedFileModeRef.current = 'image';
+      setSelectedFileMode('image');
       fileInputRef.current?.click();
       return;
     }
     if (type === 'file') {
-      selectedFileModeRef.current = 'file';
+      setSelectedFileMode('file');
       fileInputRef.current?.click();
       return;
     }
@@ -202,14 +237,65 @@ export default function ChatComposer({
         ref={fileInputRef}
         type="file"
         className="hidden"
-        accept={selectedFileModeRef.current === 'image' ? 'image/*' : undefined}
+        accept={selectedFileMode === 'image' ? 'image/*' : undefined}
         onChange={(event) => {
           const file = event.target.files?.[0];
           if (!file) return;
-          const mode = selectedFileModeRef.current === 'image' ? imageMode : fileMode;
-          void uploadAttachment(file, mode);
+          const nextDraft: AttachmentDraft = {
+            file,
+            mode: selectedFileMode,
+            ...(file.type.startsWith('image/') ? { previewUrl: URL.createObjectURL(file) } : {}),
+          };
+          setError(null);
+          setAttachmentDraft((current) => {
+            if (current?.previewUrl) {
+              URL.revokeObjectURL(current.previewUrl);
+            }
+            return nextDraft;
+          });
         }}
       />
+      {attachmentDraft ? (
+        <div className="flex items-center gap-3 rounded-lg border bg-muted/30 p-2">
+          {attachmentDraft.previewUrl ? (
+            <img src={attachmentDraft.previewUrl} alt="" className="h-12 w-12 rounded-md object-cover" />
+          ) : (
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-background">
+              <FileText className="h-5 w-5 text-muted-foreground" />
+            </div>
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium">{attachmentDraft.file.name}</p>
+            <p className="text-xs text-muted-foreground">{Math.round(attachmentDraft.file.size / 1024)} KB</p>
+            {composerState === 'uploading' ? (
+              <div className="mt-2 h-1 overflow-hidden rounded-full bg-muted">
+                <div className="h-full w-1/2 animate-pulse rounded-full bg-primary" />
+              </div>
+            ) : null}
+          </div>
+          {error ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={composerState !== 'idle'}
+              onClick={() => void uploadAttachment(attachmentDraft.file, attachmentDraft.mode === 'image' ? imageMode : fileMode)}
+            >
+              Reintentar
+            </Button>
+          ) : null}
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            disabled={composerState !== 'idle'}
+            onClick={clearAttachmentDraft}
+            aria-label="Cancelar adjunto"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      ) : null}
       <div className="flex gap-2">
         <input
           className="min-w-0 flex-1 rounded border px-2 py-1"
@@ -219,7 +305,7 @@ export default function ChatComposer({
           aria-label="Mensaje"
           disabled={textMode?.enabled === false || composerState !== 'idle'}
         />
-        <Button type="submit" size="sm" aria-label={sendLabel} disabled={!text.trim() || composerState !== 'idle'}>
+        <Button type="submit" size="sm" aria-label={sendLabel} disabled={(!text.trim() && !attachmentDraft) || composerState !== 'idle'}>
           <Send className="h-4 w-4" />
         </Button>
       </div>

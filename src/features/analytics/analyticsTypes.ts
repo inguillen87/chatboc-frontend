@@ -176,3 +176,39 @@ export interface OperationsActionCenterV1 {
   };
   frontend_contract?: OperationsFrontendContract;
 }
+
+export interface OperationsFreshnessSource {
+  key?: string;
+  label?: string;
+  status?: string;
+  reason_code?: string;
+  period_count?: number;
+  latest_at?: string;
+  age_seconds?: number;
+  stale_after_seconds?: number;
+  recommended_action?: OperationsActionItem;
+  [key: string]: unknown;
+}
+
+export interface OperationsFreshnessV1 {
+  contract_version?: string;
+  request_id?: string;
+  tenant?: Record<string, unknown>;
+  period?: Record<string, unknown>;
+  status?: string;
+  reason_code?: string;
+  summary?: {
+    sources?: number;
+    fresh_sources?: number;
+    stale_sources?: number;
+    empty_sources?: number;
+    latest_at?: string;
+    employee_count?: number;
+    has_operational_data?: boolean;
+    can_render_dashboard?: boolean;
+    can_render_heatmap?: boolean;
+    [key: string]: unknown;
+  };
+  sources: OperationsFreshnessSource[];
+  frontend_contract?: OperationsFrontendContract;
+}

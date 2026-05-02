@@ -343,6 +343,8 @@ Reglas frontend:
 - Ubicacion: manda `/ask` con `location`.
 - CTAs: renderiza maximo `rules.max_visible`; labels e intents vienen de backend.
 - Empty state: usa `experience_blueprint.first_visit` o `empty_states.*` cuando existan.
+- Trust signals: renderiza `trust_signals[]` como fila compacta usando `label` y `detail`.
+- Agent copilot: si inbox envia `experience_blueprint.agent_copilot.suggestions[]`, frontend los muestra como botones para completar el draft del operador.
 
 ### 1.4 Tickets v2
 
@@ -795,6 +797,37 @@ Campos obligatorios:
 Campos opcionales tolerados:
 - `gateway`, `gateway_hint`, `missing`, `capabilities`, `checkout_urls`, `order`, `timeline`, `payment.status`, `payment.paid`.
 
+### 1.10b API v2 foundation
+
+Frontend ya tiene clientes listos para estos endpoints sin abrir aliases legacy nuevos:
+
+- `GET /api/v2/health`
+- `POST /api/v2/auth/login`
+- `POST /api/v2/auth/refresh`
+- `POST /api/v2/auth/logout`
+- `GET /api/v2/auth/me`
+- `GET /api/v2/tenants/current`
+- `GET|POST /api/v2/sla/policies`
+- `GET /api/v2/sla/breaches`
+- `POST /api/v2/tickets`
+- `PATCH /api/v2/tickets/{ticket_id}`
+- `POST /api/v2/tickets/{ticket_id}/comments`
+- `GET /api/v2/tickets/{ticket_id}/events`
+- `GET|POST /api/v2/surveys`
+- `GET|PATCH /api/v2/surveys/{survey_id}`
+- `POST /api/v2/surveys/{survey_id}/publish`
+- `POST /api/v2/surveys/{survey_id}/close`
+- `GET /api/v2/surveys/{survey_id}/analytics`
+- `GET /api/v2/public/surveys/{public_token}`
+- `POST /api/v2/public/surveys/{public_token}/respond`
+
+Notas frontend:
+- `GET /api/v2/tenants/current` no tiene fallback al primer tenant.
+- Demo preserva `chat_bootstrap.endpoint`, `fallback_endpoint`, `headers`, `query`, `payload` y `supports`; puede leerlo top-level, en `workspace` o en `chat_seed`.
+- La pagina demo usa `chat_bootstrap` para el saludo inicial y mensajes si llega del backend; solo calcula `/ask/*` como fallback de compatibilidad.
+- Tickets comments soportan `visibility` para `public`, `internal` o `private`.
+- Surveys v2 acepta `single`, `multi`, `rating`, `text`, `nps`, `ranking` y `location`.
+
 ### 1.11 Rewards P2
 
 Metodos + paths:
@@ -905,6 +938,186 @@ Campos obligatorios:
 Campos opcionales tolerados:
 - `ticket.actions`, `ticket.presence`, `ticket.summary`, `ticket.next_steps`, `ticket.suggested_reply`.
 
+### 1.13 Operational analytics P4
+
+Metodos + paths:
+- `GET /api/v2/analytics/operations/dashboard`
+- `GET /api/v2/analytics/operations/heatmap`
+- `GET /api/v2/analytics/operations/action-center`
+- `GET /api/v2/analytics/operations/freshness`
+
+Headers usados:
+- `Authorization` cuando hay sesion de panel.
+- `X-Tenant-Slug` y `X-Tenant` cuando hay tenant en contexto.
+
+Shape esperado dashboard:
+```json
+{
+  "contract_version": "operations.dashboard.v1",
+  "summary": {},
+  "trends": { "items": [] },
+  "tickets": {
+    "summary": {},
+    "by_status": [],
+    "by_channel": [],
+    "by_category": [],
+    "by_priority": []
+  },
+  "surveys": {
+    "summary": {
+      "votaciones_live": 0,
+      "responses": 0
+    },
+    "items": [],
+    "live_items": []
+  },
+  "chats": {
+    "summary": {
+      "whatsapp_messages": 0
+    },
+    "by_channel": []
+  },
+  "live_chat": {
+    "active_viewers": 0,
+    "items": []
+  },
+  "employees": {
+    "summary": {
+      "coverage_rate": 0
+    },
+    "items": [],
+    "coverage": {
+      "uncovered_categories": [],
+      "uncovered_channels": []
+    }
+  },
+  "maps": {
+    "heatmap": {
+      "hotspots": []
+    }
+  },
+  "alerts": [],
+  "next_best_actions": [],
+  "frontend_contract": {
+    "primary_refresh_seconds": 30
+  },
+  "request_id": "req_operations_001"
+}
+```
+
+Shape esperado heatmap:
+```json
+{
+  "contract_version": "operations.heatmap.v1",
+  "render_contract": {
+    "state": "ready",
+    "map_engine": "maplibre",
+    "layers": ["tickets", "surveys", "analytics_events"],
+    "point_format": { "lat": "number", "lng": "number", "weight": "number" }
+  },
+  "summary": {
+    "points": 0,
+    "cells": 0,
+    "ticket_points": 0,
+    "survey_points": 0,
+    "event_points": 0
+  },
+  "bounds": {},
+  "points": [],
+  "cells": [],
+  "hotspots": [],
+  "request_id": "req_heatmap_001"
+}
+```
+
+Shape esperado action center:
+```json
+{
+  "contract_version": "operations.action_center.v1",
+  "summary": {
+    "total": 0,
+    "high": 0,
+    "medium": 0,
+    "low": 0,
+    "alerts": 0
+  },
+  "items": [
+    {
+      "id": "review_overdue_tickets",
+      "title": "Revisar tickets vencidos",
+      "description": "Priorizar reclamos y tickets con SLA vencido antes de que escalen.",
+      "priority": "high",
+      "reason_code": "tickets_overdue",
+      "endpoint": "/api/v2/tickets?status=overdue",
+      "method": "GET",
+      "payload_template": {},
+      "ui_hint": "open_view"
+    }
+  ],
+  "alerts": [],
+  "trends": {},
+  "frontend_contract": {
+    "render_as": "action_center",
+    "primary_refresh_seconds": 30,
+    "empty_state_behavior": "show_monitoring_ok"
+  },
+  "request_id": "req_action_center_001"
+}
+```
+
+Reglas frontend:
+- Si `render_contract.state` es `empty`, se muestra estado vacio accionable y no se fuerza el mapa.
+- Las capas visibles salen de `render_contract.layers`.
+- `next_best_actions` y `action-center.items` se muestran, pero frontend no ejecuta cambios automaticos.
+- No se hardcodean nombres de categorias, canales, estados ni prioridades de negocio; se renderizan labels/titles/ids recibidos.
+- `operations.freshness.v1` se muestra como banner/chips de estado.
+- Si `freshness.summary.can_render_heatmap === false`, frontend no intenta renderizar el mapa.
+
+Shape esperado freshness:
+```json
+{
+  "contract_version": "operations.freshness.v1",
+  "tenant": {},
+  "period": {},
+  "status": "fresh",
+  "reason_code": "all_sources_fresh",
+  "summary": {
+    "sources": 5,
+    "fresh_sources": 5,
+    "stale_sources": 0,
+    "empty_sources": 0,
+    "latest_at": "2026-05-01T21:00:00Z",
+    "employee_count": 4,
+    "has_operational_data": true,
+    "can_render_dashboard": true,
+    "can_render_heatmap": true
+  },
+  "sources": [
+    {
+      "key": "tickets",
+      "label": "Tickets y reclamos",
+      "status": "fresh",
+      "reason_code": "source_fresh",
+      "period_count": 12,
+      "latest_at": "2026-05-01T21:00:00Z",
+      "age_seconds": 300,
+      "stale_after_seconds": 21600,
+      "recommended_action": {
+        "endpoint": "/api/v2/tickets",
+        "ui_hint": "open_ticket_board"
+      }
+    }
+  ],
+  "frontend_contract": {
+    "render_as": "analytics_freshness",
+    "primary_refresh_seconds": 60,
+    "empty_state_behavior": "show_reason_code",
+    "degraded_state_behavior": "show_stale_sources"
+  },
+  "request_id": "req_freshness_001"
+}
+```
+
 ## 2. Campos que backend deberia agregar o estabilizar
 
 ### 2.1 Demo session
@@ -1002,6 +1215,17 @@ Pedidos concretos:
 - `retryable` debe indicar si frontend puede reintentar.
 - `action_hint` debe ser corto y accionable.
 
+### 2.8 Operational analytics
+
+Pedidos concretos:
+- Estabilizar `contract_version` para los endpoints operacionales.
+- En `operations.dashboard.v1`, preferir arrays de objetos con `label` y `value/count/total` para breakdowns.
+- Enviar `summary.open_tickets`, `summary.overdue_tickets`, `summary.survey_responses`, `surveys.summary.votaciones_live`, `chats.summary.whatsapp_messages`, `employees.summary.coverage_rate` y `maps.heatmap.hotspots` cuando existan.
+- En `operations.heatmap.v1`, incluir `render_contract.state`, `render_contract.layers` y puntos con `lat`, `lng`, `weight` y, si aplica, `layer` o `source`.
+- En `operations.action_center.v1`, cada item debe traer `title`, `description`, `priority`, `reason_code`, `endpoint`, `method`, `payload_template` y `ui_hint`.
+- En `operations.freshness.v1`, estabilizar `status`, `reason_code`, `summary.can_render_dashboard`, `summary.can_render_heatmap` y `sources[]`.
+- Si backend quiere que frontend navegue a una pantalla concreta, agregar `frontend_contract` o un campo declarativo de UI; hoy frontend muestra la accion y no ejecuta mutaciones automaticas.
+
 ## 3. Blockers backend reales
 
 Lo siguiente ya quedo preparado en frontend, pero no puede completarse sin endpoints, contratos o datos estables del backend:
@@ -1018,6 +1242,7 @@ Lo siguiente ya quedo preparado en frontend, pero no puede completarse sin endpo
 - Composer multimedia completo: frontend ya respeta `media_capabilities`, pero backend debe devolverlo por tenant/demo para no depender de capacidades legacy.
 - Lead capture comercial: frontend ya puede postear `POST /api/public/lead-capture`, pero backend debe estabilizar campos dinamicos y respuesta con `request_id`.
 - Conversion CTAs: frontend ya renderiza `conversion_ctas`, pero backend debe enviar acciones por contexto/intent sin labels locales.
+- Operational analytics actions: frontend muestra `ActionCenter`, pero para ejecutar/navegar de forma segura falta que backend estabilice hints de UI o rutas frontend declarativas.
 - Demo workspace estable: sin `workspace` en demo session, frontend cae en espacios vacios o placeholders.
 - Error envelope publico: sin `X-Request-Id` y `reason_code`, soporte no puede depurar errores de encuestas, PWA o widget.
 
@@ -1334,6 +1559,125 @@ Ticket draft sync ack:
 }
 ```
 
+### 4.7 Operations dashboard
+
+Response:
+```json
+{
+  "contract_version": "operations.dashboard.v1",
+  "summary": {
+    "open_tickets": 42,
+    "overdue_tickets": 3,
+    "survey_responses": 320,
+    "whatsapp_messages": 210,
+    "employees": 12,
+    "map_points": 85,
+    "alerts": 2
+  },
+  "trends": {
+    "items": [
+      { "key": "open_tickets", "label": "Tickets abiertos", "current": 42, "previous": 38, "direction": "up", "percent_change": 10.5 }
+    ]
+  },
+  "tickets": {
+    "by_status": [
+      { "key": "nuevo", "label": "Nuevo", "count": 18 }
+    ],
+    "by_channel": [
+      { "key": "whatsapp", "label": "WhatsApp", "count": 24 }
+    ]
+  },
+  "alerts": [
+    { "id": "sla", "title": "SLA en riesgo", "severity": "high", "reason_code": "tickets_overdue" }
+  ],
+  "next_best_actions": [
+    {
+      "id": "assign_unassigned_tickets",
+      "title": "Asignar tickets sin responsable",
+      "description": "Hay tickets que necesitan operador.",
+      "priority": "high",
+      "endpoint": "/api/v2/tickets?assignee=none",
+      "method": "GET",
+      "payload_template": {},
+      "ui_hint": "open_view"
+    }
+  ],
+  "request_id": "req_operations_001"
+}
+```
+
+### 4.8 Operations heatmap
+
+Response:
+```json
+{
+  "contract_version": "operations.heatmap.v1",
+  "render_contract": {
+    "state": "ready",
+    "map_engine": "maplibre",
+    "layers": ["tickets", "surveys", "analytics_events"]
+  },
+  "summary": {
+    "points": 2,
+    "cells": 1,
+    "ticket_points": 1,
+    "survey_points": 1,
+    "event_points": 0
+  },
+  "points": [
+    { "id": "ticket_1", "lat": -34.7, "lng": -58.3, "weight": 2, "layer": "tickets", "label": "Zona norte" },
+    { "id": "survey_1", "lat": -34.71, "lng": -58.31, "weight": 1, "layer": "surveys", "label": "Votacion" }
+  ],
+  "cells": [],
+  "hotspots": [
+    { "id": "hotspot_1", "label": "Zona norte", "count": 2, "priority": "high" }
+  ],
+  "request_id": "req_heatmap_001"
+}
+```
+
+### 4.9 Operations freshness
+
+Response:
+```json
+{
+  "contract_version": "operations.freshness.v1",
+  "status": "degraded",
+  "reason_code": "one_or_more_sources_stale",
+  "summary": {
+    "sources": 5,
+    "fresh_sources": 3,
+    "stale_sources": 1,
+    "empty_sources": 1,
+    "latest_at": "2026-05-01T21:00:00Z",
+    "employee_count": 4,
+    "has_operational_data": true,
+    "can_render_dashboard": true,
+    "can_render_heatmap": false
+  },
+  "sources": [
+    {
+      "key": "heatmap",
+      "label": "Mapa operativo",
+      "status": "empty",
+      "reason_code": "no_points_in_period",
+      "period_count": 0,
+      "recommended_action": {
+        "endpoint": "/api/v2/analytics/operations/action-center",
+        "ui_hint": "open_action_center"
+      }
+    }
+  ],
+  "frontend_contract": {
+    "render_as": "analytics_freshness",
+    "primary_refresh_seconds": 60,
+    "empty_state_behavior": "show_reason_code",
+    "degraded_state_behavior": "show_stale_sources"
+  },
+  "request_id": "req_freshness_001"
+}
+```
+
 ## 5. Orden recomendado para backend
 
 ### 5.1 Rompe UX actual
@@ -1360,6 +1704,7 @@ Ticket draft sync ack:
 3. Executive summary superadmin.
 4. Hooks de notifications y delivery status.
 5. Eventos de handoff e inbox omnicanal premium.
+6. Operational analytics: dashboard, heatmap y action center con refresh sugerido.
 
 ### 5.4 Nice-to-have
 
@@ -1406,11 +1751,25 @@ Mocks/tests FE que ya quedaron esperando estos contratos:
   - Usa `media_capabilities` para ocultar/mostrar imagen, audio, ubicacion y archivo.
   - Audio se envia multipart con `multipart_field` o `audio_file`.
 
+- `src/features/chat/ChatComposer.tsx`
+  - Muestra preview/cancel/retry de adjuntos en demo/standalone.
+  - Usa `upload_endpoint` y `upload_response_key` antes de mandar `attachmentInfo`.
+
+- `src/components/tickets/inbox/TicketConversationPane.tsx`
+  - Usa `experience_blueprint.agent_copilot.suggestions` normalizadas por `src/api/v2/saas.ts` como botones sugeridos para el operador.
+
 - `src/features/tickets/ticketsApi.ts`
   - Normaliza `items[]`, `tickets[]` o array legacy; backend deberia estabilizar `{ items: [...] }`.
 
 - `src/features/analytics/analyticsApi.ts`
   - Normaliza top-level o `summary`; backend deberia estabilizar `{ summary: {...} }`.
+  - Consume `operations.dashboard.v1`, `operations.heatmap.v1`, `operations.action_center.v1` y `operations.freshness.v1`.
+
+- `src/features/analytics/OperationsDashboardPanel.tsx`
+  - Espera `summary`, `trends.items`, `tickets.by_status/by_channel/by_category/by_priority`, `surveys.live_items`, `chats.by_channel`, `live_chat.items`, `employees.coverage`, `maps.heatmap.hotspots`, `alerts` y `next_best_actions`.
+  - Respeta `frontend_contract.primary_refresh_seconds`.
+  - Usa `freshness.summary.can_render_heatmap` para evitar renderizar mapas vacios.
+  - No ejecuta mutaciones de action center automaticamente.
 
 - `src/features/surveys/surveysApi.ts`
   - Envia drafts a `/api/v2/surveys/draft`; backend debe aceptar drafts incompletos y responder ack.

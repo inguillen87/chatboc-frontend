@@ -7,6 +7,8 @@ import type {
   OperationsBucketItem,
   OperationsDashboardV1,
   OperationsFrontendContract,
+  OperationsFreshnessSource,
+  OperationsFreshnessV1,
   OperationsHeatmapPoint,
   OperationsHeatmapV1,
   OperationsTrend,
@@ -28,6 +30,16 @@ const asString = (value: unknown): string | undefined => {
   if (typeof value !== 'string') return undefined;
   const trimmed = value.trim();
   return trimmed || undefined;
+};
+
+const asBoolean = (value: unknown): boolean | undefined => {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string' && value.trim()) {
+    const normalized = value.trim().toLowerCase();
+    if (['true', '1', 'yes', 'si', 'on'].includes(normalized)) return true;
+    if (['false', '0', 'no', 'off'].includes(normalized)) return false;
+  }
+  return undefined;
 };
 
 const pickRecord = (value: unknown): Record<string, unknown> | undefined =>
@@ -86,7 +98,10 @@ const normalizeBucketItem = (value: unknown, keyFallback?: string): OperationsBu
       asString(value.channel) ??
       asString(value.category) ??
       key;
-    const next: OperationsBucketItem = { ...value };
+    const next: OperationsBucketItem = {};
+    Object.entries(value).forEach(([field, raw]) => {
+      (next as Record<string, unknown>)[field] = raw;
+    });
     if (key !== undefined) next.key = key;
     if (label !== undefined) next.label = label;
 
@@ -172,6 +187,22 @@ const normalizeActions = (value: unknown): OperationsActionItem[] =>
     ui_hint: asString(item.ui_hint),
     payload_template: pickRecord(item.payload_template),
   }));
+
+const normalizeActionObject = (value: unknown): OperationsActionItem | undefined => {
+  if (!isRecord(value)) return undefined;
+  return {
+    ...value,
+    id: asString(value.id) ?? asString(value.key),
+    title: asString(value.title) ?? asString(value.label),
+    description: asString(value.description),
+    priority: asString(value.priority),
+    reason_code: asString(value.reason_code),
+    endpoint: asString(value.endpoint),
+    method: asString(value.method),
+    ui_hint: asString(value.ui_hint),
+    payload_template: pickRecord(value.payload_template),
+  };
+};
 
 const normalizeFrontendContract = (value: unknown): OperationsFrontendContract | undefined => {
   if (!isRecord(value)) return undefined;
@@ -326,6 +357,53 @@ const normalizeActionCenter = (response: unknown): OperationsActionCenterV1 => {
   };
 };
 
+const normalizeFreshnessSource = (value: unknown, index: number): OperationsFreshnessSource | null => {
+  if (!isRecord(value)) return null;
+  return {
+    ...value,
+    key: asString(value.key) ?? asString(value.id) ?? `source_${index + 1}`,
+    label: asString(value.label) ?? asString(value.title) ?? asString(value.key),
+    status: asString(value.status),
+    reason_code: asString(value.reason_code),
+    period_count: asNumber(value.period_count ?? value.count),
+    latest_at: asString(value.latest_at),
+    age_seconds: asNumber(value.age_seconds),
+    stale_after_seconds: asNumber(value.stale_after_seconds),
+    recommended_action: normalizeActionObject(value.recommended_action),
+  };
+};
+
+const normalizeFreshness = (response: unknown): OperationsFreshnessV1 => {
+  const record = pickRecord(response) ?? {};
+  const summaryRecord = pickRecord(record.summary) ?? {};
+  const sources = Array.isArray(record.sources) ? record.sources : [];
+
+  return {
+    contract_version: asString(record.contract_version),
+    request_id: asString(record.request_id),
+    tenant: pickRecord(record.tenant),
+    period: pickRecord(record.period),
+    status: asString(record.status),
+    reason_code: asString(record.reason_code),
+    summary: {
+      ...summaryRecord,
+      sources: asNumber(summaryRecord.sources),
+      fresh_sources: asNumber(summaryRecord.fresh_sources),
+      stale_sources: asNumber(summaryRecord.stale_sources),
+      empty_sources: asNumber(summaryRecord.empty_sources),
+      latest_at: asString(summaryRecord.latest_at),
+      employee_count: asNumber(summaryRecord.employee_count),
+      has_operational_data: asBoolean(summaryRecord.has_operational_data),
+      can_render_dashboard: asBoolean(summaryRecord.can_render_dashboard),
+      can_render_heatmap: asBoolean(summaryRecord.can_render_heatmap),
+    },
+    sources: sources
+      .map((source, index) => normalizeFreshnessSource(source, index))
+      .filter((source): source is OperationsFreshnessSource => source !== null),
+    frontend_contract: normalizeFrontendContract(record.frontend_contract),
+  };
+};
+
 const normalizeOverview = (response: unknown): AnalyticsOverview => {
   const source = isRecord(response) && isRecord(response.summary) ? response.summary : response;
   if (!isRecord(source)) return {};
@@ -395,4 +473,19 @@ export const getOperationsActionCenterV2 = async (params?: {
     tenantSlug: params?.tenantSlug,
   });
   return normalizeActionCenter(response);
+};
+
+export const getOperationsFreshnessV2 = async (params?: {
+  tenantSlug?: string | null;
+  tenant_id?: number | string | null;
+  from?: string | null;
+  to?: string | null;
+  range?: string | null;
+  scope?: string | null;
+}) => {
+  const query = buildQuery(params);
+  const response = await panelApi.get<unknown>(`/api/v2/analytics/operations/freshness${query}`, {
+    tenantSlug: params?.tenantSlug,
+  });
+  return normalizeFreshness(response);
 };

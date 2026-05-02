@@ -17,9 +17,18 @@ export interface DemoCatalogResponse {
 }
 
 export interface DemoSessionResponse {
+  contract_version?: string;
+  request_id?: string;
   session_id?: string;
   demo_session_id?: string;
   tenant_slug?: string | null;
+  tenant?: {
+    id?: number | string | null;
+    slug?: string | null;
+    nombre?: string | null;
+    tipo?: string | null;
+  } | null;
+  chat_bootstrap?: DemoChatBootstrap | null;
   workspace?: DemoWorkspaceConfig | null;
   experience_blueprint?: ChatExperienceBlueprint | null;
   lead_capture?: ChatLeadCaptureConfig | null;
@@ -28,12 +37,24 @@ export interface DemoSessionResponse {
   animation_tokens?: ChatAnimationTokens | null;
   empty_states?: Record<string, ChatExperienceBlock>;
   chat_seed?: {
+    chat_bootstrap?: DemoChatBootstrap | null;
     sample_conversations?: ChatExperienceBlock[];
   } | null;
   welcome_message?: string | null;
   quick_replies?: QuickReplyItem[];
   value_cards?: DemoWorkspaceCard[];
   handoff_labels?: HandoffLabels | null;
+}
+
+export interface DemoChatBootstrap {
+  contract_version?: string | null;
+  endpoint?: string | null;
+  fallback_endpoint?: string | null;
+  method?: string | null;
+  headers?: Record<string, string>;
+  query?: Record<string, unknown>;
+  payload?: Record<string, unknown>;
+  supports?: Record<string, boolean>;
 }
 
 export interface DemoWorkspaceCard {
@@ -60,7 +81,9 @@ export interface DemoWorkspaceConfig {
   conversion_ctas?: ChatConversionCtasConfig | null;
   animation_tokens?: ChatAnimationTokens | null;
   empty_states?: Record<string, ChatExperienceBlock>;
+  chat_bootstrap?: DemoChatBootstrap | null;
   chat_seed?: {
+    chat_bootstrap?: DemoChatBootstrap | null;
     sample_conversations?: ChatExperienceBlock[];
   } | null;
 }

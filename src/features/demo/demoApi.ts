@@ -1,6 +1,6 @@
 import { demoApi } from '@/api/v2/client';
 import { getRubrosHierarchy } from '@/api/rubros';
-import type { DemoCatalogResponse, DemoSessionResponse, DemoSector, DemoWorkspaceConfig } from './demoTypes';
+import type { DemoCatalogResponse, DemoChatBootstrap, DemoSessionResponse, DemoSector, DemoWorkspaceConfig } from './demoTypes';
 
 export const getDemoCatalog = async (): Promise<DemoCatalogResponse> => {
   try {
@@ -11,12 +11,13 @@ export const getDemoCatalog = async (): Promise<DemoCatalogResponse> => {
   }
 };
 
-export const createDemoSession = (payload: { sector: DemoSector; rubro: string }) =>
+export const createDemoSession = (payload: { sector: DemoSector; rubro: string; tenant_slug?: string | null }) =>
   demoApi.post<DemoSessionResponse>('/api/v2/demo/session', payload, {
     legacyFallbackPath: '/api/v1/demo/session',
   }).then((response) => ({
     ...response,
     demo_session_id: response.demo_session_id ?? response.session_id ?? null,
+    tenant_slug: response.tenant_slug ?? response.tenant?.slug ?? null,
     workspace: normalizeWorkspaceConfig(response),
   }));
 
@@ -32,6 +33,13 @@ const normalizeWorkspaceConfig = (response: DemoSessionResponse): DemoWorkspaceC
   const conversionCtas = workspace.conversion_ctas ?? response.conversion_ctas ?? experienceBlueprint?.conversion_ctas ?? null;
   const animationTokens = workspace.animation_tokens ?? response.animation_tokens ?? experienceBlueprint?.animation_tokens ?? null;
   const emptyStates = workspace.empty_states ?? response.empty_states ?? experienceBlueprint?.empty_states ?? undefined;
+  const chatBootstrap = normalizeChatBootstrap(
+    workspace.chat_bootstrap ??
+      response.chat_bootstrap ??
+      workspace.chat_seed?.chat_bootstrap ??
+      response.chat_seed?.chat_bootstrap ??
+      null,
+  );
   const firstVisit = workspace.first_visit ?? experienceBlueprint?.first_visit ?? null;
   const sampleConversations =
     workspace.sample_conversations ??
@@ -54,7 +62,8 @@ const normalizeWorkspaceConfig = (response: DemoSessionResponse): DemoWorkspaceC
     !mediaCapabilities &&
     !conversionCtas &&
     !animationTokens &&
-    !emptyStates
+    !emptyStates &&
+    !chatBootstrap
   ) {
     return null;
   }
@@ -74,6 +83,22 @@ const normalizeWorkspaceConfig = (response: DemoSessionResponse): DemoWorkspaceC
     conversion_ctas: conversionCtas,
     animation_tokens: animationTokens,
     empty_states: emptyStates,
+    chat_bootstrap: chatBootstrap,
     chat_seed: workspace.chat_seed ?? response.chat_seed ?? null,
+  };
+};
+
+const normalizeChatBootstrap = (value: DemoChatBootstrap | null): DemoChatBootstrap | null => {
+  if (!value || typeof value !== 'object') return null;
+
+  return {
+    contract_version: typeof value.contract_version === 'string' ? value.contract_version : null,
+    endpoint: typeof value.endpoint === 'string' ? value.endpoint : null,
+    fallback_endpoint: typeof value.fallback_endpoint === 'string' ? value.fallback_endpoint : null,
+    method: typeof value.method === 'string' ? value.method : null,
+    headers: value.headers && typeof value.headers === 'object' ? value.headers : undefined,
+    query: value.query && typeof value.query === 'object' ? value.query : undefined,
+    payload: value.payload && typeof value.payload === 'object' ? value.payload : undefined,
+    supports: value.supports && typeof value.supports === 'object' ? value.supports : undefined,
   };
 };

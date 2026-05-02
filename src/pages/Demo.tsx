@@ -15,7 +15,8 @@ import { extractButtonsFromResponse } from "@/utils/chatButtons";
 import DemoWorkspace from '@/features/demo/DemoWorkspace';
 import DemoSectorStep from '@/features/demo/DemoSectorStep';
 import { createDemoSession, getDemoCatalog } from '@/features/demo/demoApi';
-import type { DemoSector, DemoWorkspaceConfig } from '@/features/demo/demoTypes';
+import type { DemoChatBootstrap, DemoSector, DemoWorkspaceConfig } from '@/features/demo/demoTypes';
+import { sendChatBootstrapMessage } from '@/features/chat/chatApi';
 
 const MAX_PREGUNTAS = 15;
 
@@ -30,6 +31,7 @@ const Demo = () => {
   const [anonId, setAnonId] = useState<string>("");
   const [sectorSeleccionado, setSectorSeleccionado] = useState<DemoSector | null>(null);
   const [demoSessionId, setDemoSessionId] = useState<string | null>(null);
+  const [demoTenantSlug, setDemoTenantSlug] = useState<string | null>(null);
   const [demoWorkspace, setDemoWorkspace] = useState<DemoWorkspaceConfig | null>(null);
   const [contexto, setContexto] = useState({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -43,6 +45,7 @@ const Demo = () => {
     const lastBotMessage = [...messages].reverse().find((message) => message.isBot && Array.isArray(message.botones) && message.botones.length > 0);
     return lastBotMessage?.botones ?? [];
   }, [messages]);
+  const activeChatBootstrap = demoWorkspace?.chat_bootstrap ?? null;
 
 
   // Action: reset demo and choose another rubro
@@ -58,6 +61,7 @@ const Demo = () => {
     setContexto({});
     setSectorSeleccionado(null);
     setDemoSessionId(null);
+    setDemoTenantSlug(null);
     setDemoWorkspace(null);
     lastQueryRef.current = null;
     // The useEffect for loading rubros will trigger again due to rubroSeleccionado being null
@@ -79,11 +83,13 @@ const Demo = () => {
   }, []);
 
   const startDemoConversation = useCallback(
-    async (rubroNombre: string) => {
+    async (rubroNombre: string, bootstrapOverride?: DemoChatBootstrap | null, tenantSlugOverride?: string | null) => {
       const normalized = parseRubro(rubroNombre);
       const baseTipo = getCurrentTipoChat();
       const adjustedTipo = enforceTipoChatForRubro(baseTipo, normalized);
       const endpoint = getAskEndpoint({ tipoChat: adjustedTipo, rubro: normalized || undefined });
+      const chatBootstrap = bootstrapOverride ?? activeChatBootstrap;
+      const tenantSlug = tenantSlugOverride ?? demoTenantSlug;
 
       const currentAnonId = anonId || getOrCreateAnonId();
       if (!anonId) {
@@ -97,23 +103,36 @@ const Demo = () => {
       lastQueryRef.current = null;
 
       try {
-        const response = await apiFetch<any>(endpoint, {
-          method: "POST",
-          body: {
-            pregunta: "",
-            action: "initial_greeting",
-            contexto_previo: {},
-            anon_id: currentAnonId,
-            tipo_chat: adjustedTipo,
-            ...(adjustedTipo === "pyme" && rubroNombre
-              ? { rubro_clave: rubroNombre }
-              : {}),
-          },
-          headers: { "Content-Type": "application/json" },
-          skipAuth: true,
-        });
+        const initialPayload = {
+          action: "initial_greeting",
+          contexto_previo: {},
+          anon_id: currentAnonId,
+          tipo_chat: adjustedTipo,
+          ...(adjustedTipo === "pyme" && rubroNombre
+            ? { rubro_clave: rubroNombre }
+            : {}),
+        };
+        const response = chatBootstrap
+          ? await sendChatBootstrapMessage(
+              chatBootstrap,
+              {
+                text: "",
+                intent: "initial_greeting",
+                extraPayload: initialPayload,
+              },
+              tenantSlug,
+            )
+          : await apiFetch<any>(endpoint, {
+              method: "POST",
+              body: {
+                pregunta: "",
+                ...initialPayload,
+              },
+              headers: { "Content-Type": "application/json" },
+              skipAuth: true,
+            });
 
-        setContexto(response.contexto_actualizado || {});
+        setContexto((response as any)?.contexto_actualizado || {});
         const respuestaText = response.respuesta_usuario || "⚠️ No se pudo generar una respuesta.";
         const botones = extractButtonsFromResponse(response);
 
@@ -141,7 +160,7 @@ const Demo = () => {
         setIsTyping(false);
       }
     },
-    [anonId, setAnonId, setContexto, setIsTyping, setMessages, setPreguntasUsadas]
+    [activeChatBootstrap, anonId, demoTenantSlug, setAnonId, setContexto, setIsTyping, setMessages, setPreguntasUsadas]
   );
 
 
@@ -232,14 +251,27 @@ const Demo = () => {
           tipoChat: adjustedTipo,
           rubro: rubroNormalizado || undefined,
         });
-        const response = await apiFetch<any>(endpoint, {
-          method: "POST",
-          body: payloadBody,
-          headers: { "Content-Type": "application/json" },
-          skipAuth: true,
-        });
+        const response = activeChatBootstrap
+          ? await sendChatBootstrapMessage(
+              activeChatBootstrap,
+              {
+                text,
+                intent: extras.action ?? extras.action_id ?? null,
+                payload: typeof extras.payload === 'object' && extras.payload !== null ? extras.payload : null,
+                attachmentInfo: extras.attachmentInfo ?? (extras.es_foto ? { url: extras.archivo_url } : undefined),
+                location: extras.location ?? extras.ubicacion_usuario,
+                extraPayload: payloadBody,
+              },
+              demoTenantSlug,
+            )
+          : await apiFetch<any>(endpoint, {
+              method: "POST",
+              body: payloadBody,
+              headers: { "Content-Type": "application/json" },
+              skipAuth: true,
+            });
 
-        setContexto(response.contexto_actualizado || {});
+        setContexto((response as any)?.contexto_actualizado || {});
 
         const respuestaText = response.respuesta_usuario || "⚠️ No se pudo generar una respuesta.";
         const botones = extractButtonsFromResponse(response);
@@ -275,7 +307,7 @@ const Demo = () => {
         setIsTyping(false);
       }
     },
-    [contexto, rubroSeleccionado, anonId, preguntasUsadas, rubroNormalizado]
+    [activeChatBootstrap, contexto, demoTenantSlug, rubroSeleccionado, anonId, preguntasUsadas, rubroClave, rubroNormalizado]
   );
 
   // Rubros selector UI
@@ -340,12 +372,19 @@ const Demo = () => {
                     rubro: clave ?? etiqueta ?? rubro.nombre,
                   });
                   setDemoSessionId(session.demo_session_id ?? null);
+                  setDemoTenantSlug(session.tenant_slug ?? null);
                   setDemoWorkspace(session.workspace ?? null);
+                  await startDemoConversation(
+                    clave ?? etiqueta ?? rubro.nombre,
+                    session.workspace?.chat_bootstrap ?? null,
+                    session.tenant_slug ?? null,
+                  );
                 } catch {
                   setDemoSessionId(null);
+                  setDemoTenantSlug(null);
                   setDemoWorkspace(null);
+                  await startDemoConversation(clave ?? etiqueta ?? rubro.nombre);
                 }
-                await startDemoConversation(clave ?? etiqueta ?? rubro.nombre);
               })();
             }}
           />
@@ -397,7 +436,7 @@ const Demo = () => {
       {/* CHAT AREA */}
       {/* Increased max-w for chat content area for better desktop view, maintains padding */}
       <main className="w-full max-w-3xl flex flex-col flex-1 px-4 sm:px-6 py-5 space-y-4 overflow-y-auto custom-scroll">
-        <DemoWorkspace tenantSlug={demoSessionId} sector={sectorSeleccionado} rubro={rubroSeleccionado} workspace={demoWorkspace} />
+        <DemoWorkspace tenantSlug={demoTenantSlug} sector={sectorSeleccionado} rubro={rubroSeleccionado} workspace={demoWorkspace} />
         {messages.map((msg) => (
           <ChatMessage
             key={msg.id}

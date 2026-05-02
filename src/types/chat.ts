@@ -234,6 +234,7 @@ export interface ChatExperienceBlock {
   id?: string | null;
   title?: string | null;
   label?: string | null;
+  detail?: string | null;
   description?: string | null;
   subtitle?: string | null;
   text?: string | null;

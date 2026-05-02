@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/use-toast';
 import type { TicketTimelineEvent } from '@/schemas/api';
+import type { ChatExperienceBlock } from '@/types/chat';
 import { getErrorMessage } from '@/utils/api';
 
 import { AgentSuggestionBox } from '../agent-assist/AgentSuggestionBox';
@@ -88,6 +89,12 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
     });
   };
 
+  const readSuggestionLabel = (item: ChatExperienceBlock) =>
+    item.label?.trim() || item.title?.trim() || item.text?.trim() || '';
+
+  const readSuggestionText = (item: ChatExperienceBlock) =>
+    item.text?.trim() || item.label?.trim() || item.title?.trim() || '';
+
   if (!ticketId || !ticket) {
     return (
       <div className="flex h-full flex-col items-center justify-center bg-muted/10 text-muted-foreground">
@@ -153,6 +160,29 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
             onAccept={(text) => setDraft(text)}
             onReject={() => setDraft('')}
           />
+        ) : null}
+
+        {ticket.agent_copilot_suggestions?.length ? (
+          <div className="flex flex-wrap gap-2 rounded-lg border bg-muted/20 px-3 py-2">
+            {ticket.agent_copilot_suggestions.map((item, index) => {
+              const label = readSuggestionLabel(item);
+              const text = readSuggestionText(item);
+              if (!label || !text) return null;
+              return (
+                <Button
+                  key={item.id || `${label}-${index}`}
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-auto whitespace-normal text-xs"
+                  disabled={actionMutation.isPending}
+                  onClick={() => setDraft(text)}
+                >
+                  {label}
+                </Button>
+              );
+            })}
+          </div>
         ) : null}
 
         <div className="flex flex-col gap-2">

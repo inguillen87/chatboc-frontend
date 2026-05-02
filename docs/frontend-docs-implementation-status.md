@@ -58,10 +58,35 @@ Este archivo baja los MD de `/docs` a estado ejecutable para frontend. La regla 
 - Widget config: `tenantService.getPublicWidgetConfig` usa `/api/public/tenants/{slug}/widget-config` y cae a `/api/public/widget-config?tenant={slug}` solo si la ruta primaria no existe.
 - Agent Experience: el widget lee contratos tanto top-level como en `builder_config`, `widget`, `widget.builder_config` y `chat_seed.sample_conversations`.
 - Composer multimedia: `ChatInput` usa `media_capabilities` como fuente de verdad para mostrar/ocultar imagen, audio, ubicacion y archivo; tambien respeta placeholder, labels, upload endpoint y `upload_response_key`.
+- Composer demo/standalone: `ChatComposer` ahora conserva adjuntos como borrador visible, permite cancelar/reintentar y recien al enviar ejecuta upload -> chat payload; audio propaga `multipart_field` y `chat_endpoint`.
 - Audio: cuando backend envia `media_capabilities.input_modes.audio`, la nota de voz se manda multipart a `/ask` con el campo `multipart_field` o `audio_file`, conservando `X-Chat-Session-Id` via `apiFetch`.
 - Lead capture: `features/chat/ChatPanel` puede abrir/enviar formularios dinamicos con `lead_capture.fields` y `POST /api/public/lead-capture`; el widget legacy postea leads sin campos directamente cuando una CTA apunta a lead capture.
 - Conversion CTAs: widget y demo renderizan `conversion_ctas.actions` respetando `rules.max_visible`; labels/intents/endpoints salen del backend.
 - Empty states: el widget reemplaza el copy local por `experience_blueprint.first_visit` o `empty_states.*` cuando backend los provee.
+- Trust signals: widget/demo renderizan `trust_signals` como fila compacta de confianza usando `label/detail`, sin hero ni cards grandes.
+- Inbox agente: el inbox omnicanal normaliza `experience_blueprint.agent_copilot.suggestions` como botones sugeridos para rellenar el draft del operador humano.
+
+## Operational analytics P4 2026-05-01
+
+- Analytics operaciones: `src/features/analytics/analyticsApi.ts` agrega clientes canonicos para `GET /api/v2/analytics/operations/dashboard`, `GET /api/v2/analytics/operations/heatmap` y `GET /api/v2/analytics/operations/action-center`.
+- Frescura operacional: `GET /api/v2/analytics/operations/freshness` alimenta banner/chips `operations.freshness.v1` para diferenciar datos frescos, degradados o vacios.
+- `OperationsDashboardPanel` renderiza `operations.dashboard.v1` con KPIs, trends, tickets, surveys, chats/live chat, empleados, alerts y `next_best_actions` sin hardcodear nombres de categorias/canales/estados.
+- Heatmap operacional: si `render_contract.state === "empty"`, no hay puntos o `freshness.summary.can_render_heatmap === false`, se muestra estado vacio accionable; si hay puntos, se reutiliza `MapLibreMap` y las capas salen de `render_contract.layers`.
+- Action center: consume `operations.action_center.v1`, muestra `items` con `endpoint`, `method`, `payload_template` y `ui_hint`, sin ejecutar acciones automaticas.
+- Routing: se agrego `/analytics/operations`, `/:tenant/analytics/operations` y `/t/:tenant/analytics/operations`; ademas `/analytics` suma una pestana Operaciones que usa el mismo panel.
+- `/analytics/hub` conserva overview v2 y ahora monta operaciones como seccion adicional; si overview falla, operaciones queda disponible como estado parcial.
+
+## API v2 Foundation 2026-05-01
+
+- Foundation: `src/api/v2/foundation.ts` expone `getApiV2Health()` para `GET /api/v2/health`.
+- Auth productiva v2: `src/api/v2/auth.ts` suma `loginV2`, `refreshAuthV2`, `logoutV2` y `getAuthMeV2` sin mezclar con login demo.
+- Tenant strict: `src/api/v2/tenants.ts` suma `getCurrentTenantV2()` sobre `GET /api/v2/tenants/current`, sin fallback al primer tenant.
+- SLA v2: `src/api/v2/sla.ts` consume `GET|POST /api/v2/sla/policies` y `GET /api/v2/sla/breaches`, normalizando policies/breaches sin crear UI paralela.
+- Demo v2: `demoApi` preserva `chat_bootstrap` top-level, en `workspace` y en `chat_seed`, ademas de `tenant.slug`, `request_id` y `contract_version`.
+- `Demo.tsx` separa `demo_session_id` de `tenant_slug` y usa `chat_bootstrap.endpoint`, `fallback_endpoint`, `headers`, `query` y `payload` para saludo inicial y mensajes cuando el contrato esta disponible.
+- Chat demo standalone: `features/chat/ChatPanel` tambien usa `chat_bootstrap` para responder desde backend cuando llega por contrato.
+- Tickets v2 operativos: `ticketsApi.ts` suma create, patch, comments y events sobre `/api/v2/tickets`, manteniendo la lista actual con fallback legacy controlado.
+- Surveys v2: `surveysApi.ts` suma listar/crear/obtener/actualizar/publicar/cerrar/analytics y endpoints publicos `GET|POST /api/v2/public/surveys/{public_token}`.
 
 ## Backend sync esperado
 
@@ -70,6 +95,9 @@ Este archivo baja los MD de `/docs` a estado ejecutable para frontend. La regla 
 - Educacion ya puede servir los endpoints canonicos de la tanda backend 2026-05-01; frontend conserva compatibilidad legacy solo para rutas documentadas.
 - Tickets puede devolver `items[]` o `tickets[]`; frontend normaliza `id/title/status/priority/sla_status/channel/category/assignee`.
 - Analytics puede devolver top-level o `summary` con `conversations/open_tickets/overdue_tickets/response_time/survey_responses/nps/csat/handoff_rate`.
+- Operational analytics puede devolver `operations.dashboard.v1`, `operations.heatmap.v1`, `operations.action_center.v1` y `operations.freshness.v1`; frontend ya consume summary, trends, tickets/surveys/chats/live_chat/employees/maps, alerts, actions y frescura por fuente.
+- API v2 foundation puede devolver health, tenant current, auth productiva, SLA policies/breaches, tickets CRUD/events, surveys admin/public y demo `chat_bootstrap`; frontend ya tiene clientes para consumirlos sin ampliar aliases legacy.
+- Demo `chat_bootstrap` puede llegar top-level, dentro de `workspace` o dentro de `chat_seed`; frontend lo normaliza a `workspace.chat_bootstrap`.
 - Errores controlados deben usar `error.message`, `action_hint`, `reason_code` y `request_id` cuando sea posible.
 
 ## Per-file coverage index
@@ -156,6 +184,7 @@ Este archivo baja los MD de `/docs` a estado ejecutable para frontend. La regla 
 ## Pendientes honestos para siguientes olas
 
 - Inbox omnicanal premium completo con mapa, drawer 360, filtros avanzados y estados por presencia en vivo.
+- Conectar ejecucion segura de `ActionCenter` a vistas internas cuando backend envie `frontend_contract` con rutas de UI o actions declarativas.
 - Post-pago premium: pantalla de tracking con `payments.status.v1`, polling controlado y timeline comercial.
 - Rewards premium: catalogo de beneficios, historial detallado y reglas visuales completas desde backend.
 - Migrar mas pantallas legacy a `ViewState` y componentes UI comunes.

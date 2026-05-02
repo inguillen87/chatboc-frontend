@@ -24,6 +24,17 @@ export interface QuickReplyItem {
   payload?: string;
 }
 
+export interface ChatBootstrapConfig {
+  contract_version?: string | null;
+  endpoint?: string | null;
+  fallback_endpoint?: string | null;
+  method?: string | null;
+  headers?: Record<string, string>;
+  query?: Record<string, unknown>;
+  payload?: Record<string, unknown>;
+  supports?: Record<string, boolean>;
+}
+
 export type HandoffState = 'none' | 'requested_by_user' | 'required_by_backend' | 'api_unavailable';
 
 export interface ChatPanelContext {
@@ -46,6 +57,7 @@ export interface ChatPanelContext {
   conversionCtas?: ChatConversionCtasConfig | null;
   animationTokens?: ChatAnimationTokens | null;
   emptyStates?: Record<string, ChatExperienceBlock>;
+  chatBootstrap?: ChatBootstrapConfig | null;
 }
 
 export interface HandoffLabels {

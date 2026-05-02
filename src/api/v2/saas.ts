@@ -1,5 +1,6 @@
 import { panelApi } from '@/api/v2/client';
 import { ApiError } from '@/utils/api';
+import type { ChatExperienceBlock } from '@/types/chat';
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -187,6 +188,7 @@ export interface OmnichannelInboxItem {
   summary?: string;
   next_steps: string[];
   suggested_reply?: string;
+  agent_copilot_suggestions: ChatExperienceBlock[];
   raw?: unknown;
 }
 
@@ -260,6 +262,30 @@ const normalizeRatio = (value: number | undefined) => {
 const arrayOfStrings = (value: unknown): string[] => {
   if (!Array.isArray(value)) return [];
   return value.map((item) => asString(item)).filter((item): item is string => Boolean(item));
+};
+
+const normalizeExperienceBlocks = (value: unknown): ChatExperienceBlock[] => {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item, index) => {
+      if (typeof item === 'string' && item.trim()) {
+        const label = item.trim();
+        return { id: `suggestion_${index + 1}`, label, text: label };
+      }
+      if (!isRecord(item)) return null;
+      return {
+        ...item,
+        id: asString(getFirst(item, ['id', 'key', 'slug'])) ?? `suggestion_${index + 1}`,
+        title: asString(item.title),
+        label: asString(getFirst(item, ['label', 'title', 'text', 'name'])),
+        detail: asString(getFirst(item, ['detail', 'description', 'subtitle'])),
+        description: asString(getFirst(item, ['description', 'detail', 'subtitle'])),
+        text: asString(getFirst(item, ['text', 'message', 'prompt', 'label', 'title'])),
+        intent: asString(item.intent),
+        payload: isRecord(item.payload) ? item.payload : null,
+      };
+    })
+    .filter((item): item is ChatExperienceBlock => Boolean(item));
 };
 
 const normalizeAction = (value: unknown, index = 0): SaasAction | null => {
@@ -657,6 +683,12 @@ export const normalizeOmnichannelInboxItemV2 = (value: unknown, index = 0): Omni
   const id = asString(getFirst(value, ['id', 'ticket_id', 'conversation_id', 'nro_ticket'])) ?? `inbox_${index + 1}`;
   const contact = asRecord(value.contact);
   const timelineSource = getFirst(value, ['timeline', 'events', 'messages', 'conversation']);
+  const experienceBlueprint = asRecord(value.experience_blueprint);
+  const agentCopilot =
+    asRecord(value.agent_copilot).suggestions ??
+    getFirst(value, ['agent_copilot_suggestions', 'copilot_suggestions']) ??
+    asRecord(asRecord(experienceBlueprint.agent_copilot).suggestions).items ??
+    asRecord(experienceBlueprint.agent_copilot).suggestions;
   return {
     id,
     title:
@@ -677,6 +709,7 @@ export const normalizeOmnichannelInboxItemV2 = (value: unknown, index = 0): Omni
     summary: asString(getFirst(value, ['summary', 'case_summary', 'ai_summary'])),
     next_steps: arrayOfStrings(getFirst(value, ['next_steps', 'suggested_next_steps'])),
     suggested_reply: asString(getFirst(value, ['suggested_reply', 'reply_suggestion'])),
+    agent_copilot_suggestions: normalizeExperienceBlocks(agentCopilot),
     raw: value,
   };
 };

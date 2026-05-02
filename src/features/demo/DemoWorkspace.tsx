@@ -39,6 +39,7 @@ export default function DemoWorkspace({
           experienceBlueprint: workspace?.experience_blueprint ?? null,
           leadCapture: workspace?.lead_capture ?? workspace?.experience_blueprint?.lead_capture ?? null,
           mediaCapabilities: workspace?.media_capabilities ?? null,
+          chatBootstrap: workspace?.chat_bootstrap ?? null,
           conversionCtas:
             workspace?.conversion_ctas ??
             workspace?.experience_blueprint?.conversion_ctas ??

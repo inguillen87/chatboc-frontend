@@ -100,6 +100,7 @@ import EducationFamilyVerificationPage from '@/pages/education/EducationFamilyVe
 import TicketsBoardPage from '@/features/tickets/TicketsBoardPage';
 import SurveyBuilderPage from '@/features/surveys/SurveyBuilderPage';
 import AnalyticsHubPage from '@/features/analytics/AnalyticsHubPage';
+import OperationsDashboardPage from '@/features/analytics/OperationsDashboardPage';
 
 // Updated for Commerce Module & Mirror Catalog
 // Final verification: Commerce & Admin modules active
@@ -419,6 +420,7 @@ const routes: RouteConfig[] = [
   { path: '/tickets/board', element: <TicketsBoardPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
   { path: '/surveys', element: <SurveyBuilderPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
   { path: '/analytics/hub', element: <AnalyticsHubPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
+  { path: '/analytics/operations', element: <OperationsDashboardPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
   {
     path: '/pedidos',
     element: <SmartPedidosWrapper />,
@@ -481,6 +483,8 @@ const routes: RouteConfig[] = [
     roles: ['tenant_admin', 'employee', 'superadmin'],
     requiredCapabilities: ['analytics.read'],
   },
+  { path: '/:tenant/analytics/operations', element: <OperationsDashboardPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
+  ...withTenantPrefixes('/:tenant/analytics/operations', { element: <OperationsDashboardPage />, roles: ['tenant_admin', 'employee', 'superadmin', 'analytics_viewer'] }),
   { path: '/:tenant/analytics', element: <AnalyticsPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
   ...withTenantPrefixes('/:tenant/analytics', { element: <AnalyticsPage />, roles: ['tenant_admin', 'employee', 'superadmin', 'analytics_viewer'] }),
   { path: '/perfil/plantillas-respuesta', element: <GestionPlantillasPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },

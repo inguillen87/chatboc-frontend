@@ -108,7 +108,7 @@ const readExperienceTitle = (block?: ChatExperienceBlock | null) =>
   block?.title?.trim() || block?.label?.trim() || block?.text?.trim() || "";
 
 const readExperienceDescription = (block?: ChatExperienceBlock | null) =>
-  block?.description?.trim() || block?.subtitle?.trim() || "";
+  block?.detail?.trim() || block?.description?.trim() || block?.subtitle?.trim() || "";
 
 const mediaModeEnabled = (capabilities: ChatMediaCapabilities | null | undefined, mode: string) => {
   if (!capabilities) return true;
@@ -2134,16 +2134,19 @@ const ChatPanel = (props: ChatPanelProps) => {
                   </div>
                 ) : null}
                 {trustSignalBlocks.length ? (
-                  <div className="grid max-w-[340px] gap-2 text-left text-xs sm:grid-cols-2">
+                  <div className="flex max-w-[420px] flex-wrap justify-center gap-2 text-left text-xs" aria-label="Senales de confianza">
                     {trustSignalBlocks.map((item, index) => {
                       const label = readExperienceTitle(item);
                       const description = readExperienceDescription(item);
                       if (!label && !description) return null;
                       return (
-                        <div key={item.id || `${label}-${index}`} className="rounded-md border bg-background/70 px-3 py-2">
-                          {label ? <p className="font-medium text-foreground">{label}</p> : null}
-                          {description ? <p className="text-muted-foreground">{description}</p> : null}
-                        </div>
+                        <span
+                          key={item.id || `${label}-${index}`}
+                          className="inline-flex max-w-full items-center gap-1.5 rounded-full border bg-background/70 px-2.5 py-1"
+                        >
+                          {label ? <span className="shrink-0 font-medium text-foreground">{label}</span> : null}
+                          {description ? <span className="min-w-0 truncate text-muted-foreground">{description}</span> : null}
+                        </span>
                       );
                     })}
                   </div>

@@ -8,7 +8,7 @@ import ConversationRating from './ConversationRating';
 import ChatEmptyState from './ChatEmptyState';
 import { Button } from '@/components/ui/button';
 import { getErrorMessage } from '@/utils/api';
-import { submitLeadCapture } from './chatApi';
+import { extractChatBootstrapReplyText, sendChatBootstrapMessage, submitLeadCapture } from './chatApi';
 import type { ChatPanelContext, ChatUiMessage, HandoffLabels, HandoffState, QuickReplyItem } from './chatTypes';
 import type {
   ChatAnimationTokens,
@@ -54,7 +54,7 @@ const readBlockTitle = (block?: ChatExperienceBlock | null) =>
   block?.title?.trim() || block?.label?.trim() || block?.text?.trim() || '';
 
 const readBlockDescription = (block?: ChatExperienceBlock | null) =>
-  block?.description?.trim() || block?.subtitle?.trim() || '';
+  block?.detail?.trim() || block?.description?.trim() || block?.subtitle?.trim() || '';
 
 const normalizeQuickMenu = (quickMenu: unknown): QuickReplyItem[] => {
   if (!Array.isArray(quickMenu)) return [];
@@ -180,6 +180,7 @@ function StandaloneChatPanel({
     emptyStates ?? resolvedContext.emptyStates ?? resolvedBlueprint?.empty_states ?? {};
   const resolvedAnimationTokens =
     animationTokens ?? resolvedContext.animationTokens ?? resolvedBlueprint?.animation_tokens ?? null;
+  const resolvedChatBootstrap = resolvedContext.chatBootstrap ?? null;
   const firstVisit =
     resolvedContext.firstVisit ??
     resolvedBlueprint?.first_visit ??
@@ -329,6 +330,38 @@ function StandaloneChatPanel({
         payload: payload.payload ?? undefined,
       });
     }
+    if (resolvedChatBootstrap) {
+      void (async () => {
+        try {
+          const response = await sendChatBootstrapMessage(
+            resolvedChatBootstrap,
+            payload,
+            resolvedContext.tenantSlug,
+          );
+          const replyText = extractChatBootstrapReplyText(response);
+          if (!replyText) return;
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `a-${Date.now()}`,
+              role: 'assistant',
+              text: replyText,
+              timestamp: new Date().toISOString(),
+            },
+          ]);
+        } catch (err) {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `e-${Date.now()}`,
+              role: 'system',
+              text: getErrorMessage(err, 'No se pudo completar la conversacion demo.'),
+              timestamp: new Date().toISOString(),
+            },
+          ]);
+        }
+      })();
+    }
     setComposerDraft(null);
     setComposerIntent(null);
     setComposerPayload(null);
@@ -407,16 +440,19 @@ function StandaloneChatPanel({
         </div>
       ) : null}
       {messages.length === 0 && trustSignals.length ? (
-        <div className="grid gap-2 text-xs sm:grid-cols-2">
+        <div className="flex flex-wrap gap-2 text-xs" aria-label="Senales de confianza">
           {trustSignals.map((item, index) => {
             const label = readBlockTitle(item);
             const description = readBlockDescription(item);
             if (!label && !description) return null;
             return (
-              <div key={item.id || `${label}-${index}`} className="rounded-md border bg-background/60 px-3 py-2">
-                {label ? <p className="font-medium text-foreground">{label}</p> : null}
-                {description ? <p className="text-muted-foreground">{description}</p> : null}
-              </div>
+              <span
+                key={item.id || `${label}-${index}`}
+                className="inline-flex max-w-full items-center gap-1.5 rounded-full border bg-background/70 px-2.5 py-1 text-left"
+              >
+                {label ? <span className="shrink-0 font-medium text-foreground">{label}</span> : null}
+                {description ? <span className="min-w-0 truncate text-muted-foreground">{description}</span> : null}
+              </span>
             );
           })}
         </div>

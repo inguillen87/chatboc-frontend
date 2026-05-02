@@ -18,6 +18,7 @@ import PymeDashboard from '@/components/analytics/PymeDashboard';
 import RealtimeHubDashboard from '@/components/analytics/RealtimeHubDashboard';
 import EnterpriseAIPanel from '@/components/analytics/EnterpriseAIPanel';
 import SectionErrorBoundary from '@/components/errors/SectionErrorBoundary';
+import { OperationsDashboardPanel } from '@/features/analytics/OperationsDashboardPanel';
 import { openExportAndTrack } from '@/utils/enterpriseExperience';
 import { ApiError } from '@/utils/api';
 import { getEnterpriseErrorMessage } from '@/utils/enterpriseErrors';
@@ -42,7 +43,7 @@ const resolveDefaultScope = (tenantType?: string | null) => {
   return 'municipio';
 };
 
-type AnalyticsTab = 'overview' | 'municipio' | 'pyme' | 'geo' | 'realtime';
+type AnalyticsTab = 'overview' | 'municipio' | 'pyme' | 'geo' | 'realtime' | 'operations';
 
 
 const KPI_DICTIONARY: Array<{ key: string; label: string; definition: string }> = [
@@ -100,12 +101,14 @@ const AnalyticsPage = () => {
   const realtimeUILabels = realtimeHub?.ui?.labels || {};
 
   const visibleTabs = useMemo(() => {
-    const sectionMap: Record<string, 'overview' | 'municipio' | 'pyme' | 'geo' | 'realtime'> = {
+    const sectionMap: Record<string, 'overview' | 'municipio' | 'pyme' | 'geo' | 'realtime' | 'operations'> = {
       general: 'overview',
       municipio: 'municipio',
       ventas: 'pyme',
       mapas: 'geo',
       realtime_hub: 'realtime',
+      operations: 'operations',
+      operaciones: 'operations',
     };
 
     const tabsFromHub = Object.keys(hubSections)
@@ -113,10 +116,12 @@ const AnalyticsPage = () => {
       .filter(Boolean) as AnalyticsTab[];
 
     if (!tabsFromHub.length) {
-      return ['overview', 'municipio', 'pyme', 'geo', 'realtime'] as AnalyticsTab[];
+      return ['overview', 'operations', 'municipio', 'pyme', 'geo', 'realtime'] as AnalyticsTab[];
     }
 
-    return tabsFromHub;
+    return tabsFromHub.includes('operations')
+      ? tabsFromHub
+      : [...tabsFromHub.slice(0, 1), 'operations', ...tabsFromHub.slice(1)];
   }, [hubSections]);
 
   useEffect(() => {
@@ -475,6 +480,7 @@ const AnalyticsPage = () => {
           {visibleTabs.includes('overview') ? <TabsTrigger value="overview">General</TabsTrigger> : null}
           {visibleTabs.includes('municipio') ? <TabsTrigger value="municipio">Municipio</TabsTrigger> : null}
           {visibleTabs.includes('pyme') ? <TabsTrigger value="pyme">Ventas</TabsTrigger> : null}
+          {visibleTabs.includes('operations') ? <TabsTrigger value="operations">Operaciones</TabsTrigger> : null}
           {visibleTabs.includes('geo') ? <TabsTrigger value="geo">Mapas</TabsTrigger> : null}
           {visibleTabs.includes('realtime') ? <TabsTrigger value="realtime">{realtimeUILabels.tabs_realtime_hub || 'Realtime Hub'}</TabsTrigger> : null}
           </TabsList>
@@ -495,6 +501,12 @@ const AnalyticsPage = () => {
 
           <TabsContent value="geo">
             <HeatmapDashboard tenantId={tenantId} dateRange={dateRange} />
+          </TabsContent>
+
+          <TabsContent value="operations">
+            <SectionErrorBoundary title="No pudimos cargar operaciones">
+              <OperationsDashboardPanel />
+            </SectionErrorBoundary>
           </TabsContent>
 
           <TabsContent value="realtime">
