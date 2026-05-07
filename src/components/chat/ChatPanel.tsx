@@ -72,6 +72,7 @@ import {
   Wifi,
   WifiOff,
   MessageSquare,
+  PhoneCall,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { getInitialMunicipioContext } from "@/utils/contexto_municipio";
@@ -82,8 +83,73 @@ import {
   trackFrontendEvent,
   type FrontendEventName,
 } from "@/utils/frontendTelemetry";
+import type { RealtimeVoiceCapabilities } from "@/types/realtimeVoice";
+import { getRealtimeVoiceBadges, getRealtimeVoiceStarters } from "@/utils/realtimeVoice";
 
 const PENDING_TICKET_KEY = "pending_ticket_id";
+const REALTIME_TOOL_EVENT_NAMES = [
+  "chatboc:realtime-tool-call",
+  "chatboc:realtime-action",
+] as const;
+
+const REALTIME_TOOL_MESSAGE_TYPES = new Set([
+  "chatboc:realtime-tool-call",
+  "chatboc:realtime-action",
+  "CHATBOC_REALTIME_TOOL_CALL",
+  "CHATBOC_REALTIME_ACTION",
+]);
+
+const readFirstString = (...values: unknown[]) => {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+};
+
+const normalizeRealtimeToolPayload = (
+  raw: unknown,
+  fallbackChannel: "voice" | "video",
+  fallbackSessionId?: string | null,
+) => {
+  if (!raw || typeof raw !== "object") return null;
+  const source = raw as Record<string, any>;
+  const functionPayload =
+    source.function && typeof source.function === "object"
+      ? source.function
+      : {};
+  const action = readFirstString(
+    source.action,
+    source.intent,
+    source.name,
+    source.tool_name,
+    source.tool,
+    functionPayload.name,
+  );
+
+  if (!action) return null;
+
+  const channel = source.channel === "video" ? "video" : fallbackChannel;
+  const status = source.status === "error" ? "error" : "ok";
+  const details = {
+    ...(source.details && typeof source.details === "object" ? source.details : {}),
+    ...(source.payload !== undefined ? { payload: source.payload } : {}),
+    ...(source.arguments !== undefined ? { arguments: source.arguments } : {}),
+    ...(source.args !== undefined ? { args: source.args } : {}),
+    ...(source.call_id || source.callId ? { call_id: source.call_id || source.callId } : {}),
+    ...(source.type ? { event_type: source.type } : {}),
+  };
+
+  return {
+    action,
+    channel,
+    status,
+    sessionId:
+      readFirstString(source.session_id, source.sessionId, source.realtime_session_id) ||
+      fallbackSessionId ||
+      null,
+    details,
+  };
+};
 
 const leadNextActionsToButtons = (actions?: LeadCaptureNextAction[] | null) =>
   (actions ?? [])
@@ -234,7 +300,12 @@ interface ChatPanelProps {
       enabled?: boolean;
       provider?: string;
       model?: string;
+      fallback_model?: string;
+      voice?: string;
+      transport?: string;
+      profile?: string;
       label?: string;
+      capabilities?: RealtimeVoiceCapabilities | null;
       features?: {
         cta_label?: string;
         summary_whatsapp_label?: string;
@@ -259,6 +330,10 @@ interface ChatPanelProps {
   } | null;
   realtimeConfig?: {
     model?: string;
+    fallbackModel?: string;
+    voice?: string;
+    transport?: string;
+    profile?: string;
     voiceEnabled?: boolean;
     videoEnabled?: boolean;
     avatarEnabled?: boolean;
@@ -273,6 +348,7 @@ interface ChatPanelProps {
       preferredChannels?: string[];
     };
   } | null;
+  realtimeVoice?: RealtimeVoiceCapabilities | null;
   onA11yChange?: (p: Prefs) => void;
   a11yPrefs?: Prefs;
   openWidth?: string;
@@ -320,6 +396,7 @@ const ChatPanel = (props: ChatPanelProps) => {
     logoBadgeStyle,
     supportChannels,
     realtimeConfig,
+    realtimeVoice,
     onA11yChange,
     a11yPrefs,
     catalogCard,
@@ -998,11 +1075,28 @@ const ChatPanel = (props: ChatPanelProps) => {
   );
   const voiceCallConfig = supportChannels?.voice_call;
   const videoCallConfig = supportChannels?.video_call;
+  const effectiveRealtimeVoice =
+    realtimeVoice || voiceCallConfig?.capabilities || null;
+  const realtimeVoiceToolCalling = boolish(
+    effectiveRealtimeVoice?.features?.tool_calling,
+  );
+  const realtimeVoiceContractEnabled =
+    boolish(voiceCallConfig?.enabled) || boolish(realtimeConfig?.voiceEnabled);
   const realtimeVoiceEnabled = Boolean(
-    boolish(voiceCallConfig?.enabled) || boolish(realtimeConfig?.voiceEnabled),
+    effectiveRealtimeVoice
+      ? realtimeVoiceContractEnabled && realtimeVoiceToolCalling
+      : realtimeVoiceContractEnabled,
   );
   const realtimeVideoEnabled = Boolean(
     boolish(videoCallConfig?.enabled) || boolish(realtimeConfig?.videoEnabled),
+  );
+  const realtimeVoiceBadges = useMemo(
+    () => getRealtimeVoiceBadges(effectiveRealtimeVoice),
+    [effectiveRealtimeVoice],
+  );
+  const realtimeVoiceStarters = useMemo(
+    () => getRealtimeVoiceStarters(effectiveRealtimeVoice),
+    [effectiveRealtimeVoice],
   );
   const [channelMode, setChannelMode] = useState<"chat" | "voice" | "video">(
     "chat",
@@ -1104,7 +1198,7 @@ const ChatPanel = (props: ChatPanelProps) => {
       details?: Record<string, unknown>;
       sessionId?: string | null;
     }) => {
-      if (!tenantSlug || !propEntityToken) return;
+      if (!tenantSlug) return false;
       try {
         await apiFetch("/api/public/realtime/action-event", {
           method: "POST",
@@ -1112,7 +1206,7 @@ const ChatPanel = (props: ChatPanelProps) => {
           tenantSlug,
           body: JSON.stringify({
             tenant_slug: tenantSlug,
-            widget_token: propEntityToken,
+            widget_token: propEntityToken || undefined,
             channel: payload.channel,
             action: payload.action,
             session_id:
@@ -1124,8 +1218,10 @@ const ChatPanel = (props: ChatPanelProps) => {
             details: payload.details || {},
           }),
         });
+        return true;
       } catch (error) {
         console.warn("[realtime/action-event] failed", error);
+        return false;
       }
     },
     [activeTicketId, propEntityToken, realtimeSessionId, tenantSlug],
@@ -1172,7 +1268,36 @@ const ChatPanel = (props: ChatPanelProps) => {
         const payload = await apiFetch<any>("/api/public/realtime/session", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ tenant_slug: tenantSlug, channel: mode }),
+          body: JSON.stringify({
+            tenant_slug: tenantSlug,
+            channel: mode,
+            model:
+              effectiveRealtimeVoice?.recommended_model ||
+              realtimeConfig?.model ||
+              voiceCallConfig?.model ||
+              videoCallConfig?.model ||
+              undefined,
+            fallback_model:
+              effectiveRealtimeVoice?.fallback_model ||
+              realtimeConfig?.fallbackModel ||
+              voiceCallConfig?.fallback_model ||
+              undefined,
+            voice:
+              effectiveRealtimeVoice?.voice ||
+              realtimeConfig?.voice ||
+              voiceCallConfig?.voice ||
+              undefined,
+            transport:
+              realtimeConfig?.transport ||
+              voiceCallConfig?.transport ||
+              effectiveRealtimeVoice?.transports?.browser ||
+              undefined,
+            profile:
+              realtimeConfig?.profile ||
+              voiceCallConfig?.profile ||
+              effectiveRealtimeVoice?.active_vertical ||
+              undefined,
+          }),
           tenantSlug: tenantSlug || undefined,
           onResponse: (response) => {
             setRealtimeRateLimit({
@@ -1192,6 +1317,7 @@ const ChatPanel = (props: ChatPanelProps) => {
           session_id: sessionId,
           model:
             payload?.model ||
+            effectiveRealtimeVoice?.recommended_model ||
             realtimeConfig?.model ||
             voiceCallConfig?.model ||
             videoCallConfig?.model,
@@ -1231,12 +1357,17 @@ const ChatPanel = (props: ChatPanelProps) => {
     },
     [
       emitRealtimeAnalytics,
+      effectiveRealtimeVoice,
       pushRealtimeTimeline,
       realtimeConfig,
       sessionState,
       tenantSlug,
       videoCallConfig?.model,
+      voiceCallConfig?.fallback_model,
       voiceCallConfig?.model,
+      voiceCallConfig?.profile,
+      voiceCallConfig?.transport,
+      voiceCallConfig?.voice,
     ],
   );
 
@@ -1248,6 +1379,76 @@ const ChatPanel = (props: ChatPanelProps) => {
       pushRealtimeTimeline(realtimeSessionId);
     }
   }, [pushRealtimeTimeline, realtimeSessionId]);
+
+  useEffect(() => {
+    if (channelMode === "chat" || sessionState !== "live") return;
+    const fallbackChannel = channelMode === "video" ? "video" : "voice";
+
+    const dispatchRealtimeTool = (raw: unknown) => {
+      const normalized = normalizeRealtimeToolPayload(
+        raw,
+        fallbackChannel,
+        realtimeSessionId,
+      );
+      if (!normalized) return;
+
+      pushRealtimeTimeline(`registrando:${normalized.action}`);
+      emitRealtimeAnalytics("business_action_executed", normalized.channel, {
+        action: normalized.action,
+        source: "realtime_tool_call",
+      });
+
+      void postRealtimeActionEvent({
+        channel: normalized.channel,
+        action: normalized.action,
+        status: normalized.status,
+        details: normalized.details,
+        sessionId: normalized.sessionId,
+      }).then((ok) => {
+        pushRealtimeTimeline(
+          `${ok ? "confirmado" : "pendiente"}:${normalized.action}`,
+          ok ? "success" : "warning",
+        );
+      });
+    };
+
+    const handleCustomEvent = (event: Event) => {
+      dispatchRealtimeTool((event as CustomEvent).detail);
+    };
+
+    const handleWindowMessage = (event: MessageEvent) => {
+      const data = event.data;
+      if (!data || typeof data !== "object") return;
+      const type = (data as Record<string, unknown>).type;
+      if (typeof type !== "string" || !REALTIME_TOOL_MESSAGE_TYPES.has(type)) {
+        return;
+      }
+      dispatchRealtimeTool(
+        (data as Record<string, unknown>).detail ||
+          (data as Record<string, unknown>).payload ||
+          data,
+      );
+    };
+
+    REALTIME_TOOL_EVENT_NAMES.forEach((eventName) => {
+      window.addEventListener(eventName, handleCustomEvent as EventListener);
+    });
+    window.addEventListener("message", handleWindowMessage);
+
+    return () => {
+      REALTIME_TOOL_EVENT_NAMES.forEach((eventName) => {
+        window.removeEventListener(eventName, handleCustomEvent as EventListener);
+      });
+      window.removeEventListener("message", handleWindowMessage);
+    };
+  }, [
+    channelMode,
+    emitRealtimeAnalytics,
+    postRealtimeActionEvent,
+    pushRealtimeTimeline,
+    realtimeSessionId,
+    sessionState,
+  ]);
 
   useEffect(() => {
     const previous = previousChannelModeRef.current;
@@ -1337,13 +1538,15 @@ const ChatPanel = (props: ChatPanelProps) => {
       voiceCallConfig?.features?.cta_label,
       voiceCallConfig?.label,
       realtimeConfig?.voiceLabel,
+      effectiveRealtimeVoice?.voice ? `Probar llamada IA` : null,
     ];
     for (const candidate of candidates) {
       if (typeof candidate === "string" && candidate.trim())
         return candidate.trim();
     }
-    return null;
+    return "Probar llamada IA";
   }, [
+    effectiveRealtimeVoice?.voice,
     realtimeConfig?.voiceLabel,
     voiceCallConfig?.features?.cta_label,
     voiceCallConfig?.label,
@@ -1396,6 +1599,27 @@ const ChatPanel = (props: ChatPanelProps) => {
     supportChannels.whatsapp.label.trim()
       ? supportChannels.whatsapp.label.trim()
       : "WhatsApp";
+  const handleRealtimeVoiceStarter = useCallback(
+    (starter: string) => {
+      handleSend({
+        text: starter,
+        action: "realtime_voice_starter",
+        payload: {
+          channel: "voice",
+          active_vertical: effectiveRealtimeVoice?.active_vertical || null,
+        },
+      });
+      postRealtimeActionEvent({
+        channel: "voice",
+        action: "realtime_voice_starter",
+        details: {
+          starter,
+          active_vertical: effectiveRealtimeVoice?.active_vertical || null,
+        },
+      });
+    },
+    [effectiveRealtimeVoice?.active_vertical, handleSend, postRealtimeActionEvent],
+  );
   const chatContentMaxWidthClass = "mx-auto w-full max-w-4xl";
 
   const handleInternalAction = useCallback(
@@ -2015,6 +2239,18 @@ const ChatPanel = (props: ChatPanelProps) => {
                   {realtimeConfig?.avatarPersona || "default"}
                 </div>
               ) : null}
+              {channelMode === "voice" && realtimeVoiceBadges.length > 0 ? (
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {realtimeVoiceBadges.map((badge) => (
+                    <span
+                      key={badge}
+                      className="rounded-md border border-primary/15 bg-primary/5 px-2 py-1 text-[11px] font-medium text-primary"
+                    >
+                      {badge}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
               {assistantSpeaking ? (
                 <div className="mt-2 h-1.5 w-full overflow-hidden rounded bg-primary/15">
                   <div className="h-full w-1/2 animate-pulse rounded bg-primary/60" />
@@ -2342,13 +2578,42 @@ const ChatPanel = (props: ChatPanelProps) => {
           </Button>
         ) : null}
         {!activeTicketId && realtimeVoiceEnabled ? (
-          <Button
-            onClick={() => beginRealtimeSession("voice")}
-            className="w-full mb-2"
-            variant="secondary"
-          >
-            {voiceCallLabel || ""}
-          </Button>
+          <div className="mb-2 space-y-2 rounded-lg border border-primary/15 bg-primary/5 p-2">
+            <Button
+              onClick={() => beginRealtimeSession("voice")}
+              className="w-full"
+              variant="secondary"
+            >
+              <PhoneCall className="mr-2 h-4 w-4" />
+              {voiceCallLabel}
+            </Button>
+            {realtimeVoiceBadges.length > 0 ? (
+              <div className="flex flex-wrap gap-1">
+                {realtimeVoiceBadges.map((badge) => (
+                  <span
+                    key={badge}
+                    className="rounded-md border border-border/60 bg-background/80 px-2 py-1 text-[11px] text-muted-foreground"
+                  >
+                    {badge}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+            {realtimeVoiceStarters.length > 0 ? (
+              <div className="flex flex-wrap gap-1">
+                {realtimeVoiceStarters.slice(0, 3).map((starter) => (
+                  <button
+                    key={starter}
+                    type="button"
+                    className="rounded-md border border-border/70 bg-background px-2 py-1 text-[11px] font-medium text-foreground transition-colors hover:border-primary/40 hover:bg-primary/5"
+                    onClick={() => handleRealtimeVoiceStarter(starter)}
+                  >
+                    {starter}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
         ) : null}
         {!activeTicketId && realtimeVideoEnabled ? (
           <Button

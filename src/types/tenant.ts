@@ -1,3 +1,5 @@
+import type { RealtimeVoiceCapabilities } from './realtimeVoice';
+
 export interface TenantThemeConfig {
   mode: 'light' | 'dark' | 'system';
   light: {
@@ -45,6 +47,28 @@ export interface TenantPublicInfo {
   cta_messages?: CtaMessage[];
   default_open?: boolean;
   theme_config?: TenantThemeConfig;
+  realtime_voice?: RealtimeVoiceCapabilities | null;
+  support_channels?: {
+    voice_call?: {
+      enabled?: boolean | null;
+      capabilities?: RealtimeVoiceCapabilities | null;
+      [key: string]: unknown;
+    } | null;
+    [key: string]: unknown;
+  } | null;
+  widget?: {
+    support_channels?: {
+      voice_call?: {
+        enabled?: boolean | null;
+        capabilities?: RealtimeVoiceCapabilities | null;
+        [key: string]: unknown;
+      } | null;
+      [key: string]: unknown;
+    } | null;
+    realtime_voice?: RealtimeVoiceCapabilities | null;
+    [key: string]: unknown;
+  } | null;
+  builder_config?: Record<string, unknown> | null;
 }
 
 export interface TenantSummary {

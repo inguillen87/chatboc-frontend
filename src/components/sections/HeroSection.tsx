@@ -7,11 +7,17 @@ import {
   CheckCircle2,
   MapPinned,
   MessageSquareText,
+  PhoneCall,
   ShieldCheck,
   Sparkles,
   Zap,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useRealtimeVoiceCapabilities } from "@/hooks/useRealtimeVoiceCapabilities";
+import {
+  getRealtimeVoiceBadges,
+  isRealtimeVoiceRenderable,
+} from "@/utils/realtimeVoice";
 
 const proofItems = [
   "Widget, WhatsApp y panel en una misma operación",
@@ -27,6 +33,11 @@ const dashboardRows = [
 
 const HeroSection = () => {
   const navigate = useNavigate();
+  const { data: realtimeVoice } = useRealtimeVoiceCapabilities({}, true);
+  const showRealtimeVoice = isRealtimeVoiceRenderable(realtimeVoice, null, {
+    allowCapabilitiesOnly: true,
+  });
+  const realtimeVoiceBadges = getRealtimeVoiceBadges(realtimeVoice);
 
   return (
     <section className="chatboc-hero-grid overflow-hidden pt-24 pb-14 text-foreground md:pt-32 md:pb-20">
@@ -70,7 +81,31 @@ const HeroSection = () => {
               Crear cuenta
               <ArrowRight className="ml-2 h-5 w-5" />
             </Button>
+            {showRealtimeVoice ? (
+              <Button
+                variant="outline"
+                size="lg"
+                className="h-12 w-full rounded-[8px] border-primary/30 bg-primary/5 px-6 text-base font-semibold text-primary shadow-sm backdrop-blur hover:border-primary/50 hover:bg-primary/10 sm:w-auto"
+                onClick={() => navigate("/demo")}
+              >
+                <PhoneCall className="mr-2 h-5 w-5" />
+                Probar llamada IA
+              </Button>
+            ) : null}
           </div>
+
+          {showRealtimeVoice && realtimeVoiceBadges.length > 0 ? (
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+              {realtimeVoiceBadges.map((badge) => (
+                <span
+                  key={badge}
+                  className="rounded-[8px] border border-primary/20 bg-primary/5 px-3 py-1.5 text-xs font-semibold text-primary"
+                >
+                  {badge}
+                </span>
+              ))}
+            </div>
+          ) : null}
 
           <div className="mt-7 grid gap-3 text-left sm:grid-cols-3">
             {proofItems.map((item) => (

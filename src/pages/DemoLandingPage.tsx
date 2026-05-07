@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowRight,
@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   Loader2,
   MessageSquare,
+  PhoneCall,
   PieChart,
   QrCode,
   ShieldCheck,
@@ -28,15 +29,30 @@ import { useTenant } from "@/context/TenantContext";
 import { getTenantPublicInfoFlexible, listTenantEvents, listTenantNews } from "@/api/tenant";
 import ProductCatalog from "@/pages/ProductCatalog";
 import type { TenantEventItem, TenantNewsItem, TenantPublicInfo } from "@/types/tenant";
+import type { RealtimeVoiceCapabilities } from "@/types/realtimeVoice";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import DemoWorkspace from "@/features/demo/DemoWorkspace";
+import { useRealtimeVoiceCapabilities } from "@/hooks/useRealtimeVoiceCapabilities";
+import {
+  getRealtimeVoiceBadges,
+  isRealtimeVoiceRenderable,
+} from "@/utils/realtimeVoice";
 
 const openWidget = () => {
   document.querySelector(".chatboc-toggle-btn")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 };
 
-const DemoHero = ({ tenant }: { tenant: TenantPublicInfo }) => {
+const DemoHero = ({
+  tenant,
+  realtimeVoice,
+  showRealtimeVoice,
+}: {
+  tenant: TenantPublicInfo;
+  realtimeVoice?: RealtimeVoiceCapabilities | null;
+  showRealtimeVoice?: boolean;
+}) => {
   const isMunicipio = tenant.tipo === "municipio" || tenant.slug === "municipio" || tenant.slug === "demo-municipio";
+  const realtimeVoiceBadges = getRealtimeVoiceBadges(realtimeVoice);
 
   return (
     <section className="chatboc-hero-grid overflow-hidden pt-24 pb-12 text-foreground md:pt-32 md:pb-16">
@@ -64,6 +80,17 @@ const DemoHero = ({ tenant }: { tenant: TenantPublicInfo }) => {
               <MessageSquare className="mr-2 h-5 w-5" />
               Abrir chat demo
             </Button>
+            {showRealtimeVoice ? (
+              <Button
+                variant="secondary"
+                size="lg"
+                className="h-12 rounded-[8px] px-7 font-semibold"
+                onClick={openWidget}
+              >
+                <PhoneCall className="mr-2 h-5 w-5" />
+                Probar llamada IA
+              </Button>
+            ) : null}
             <Button
               variant="outline"
               size="lg"
@@ -74,6 +101,19 @@ const DemoHero = ({ tenant }: { tenant: TenantPublicInfo }) => {
               Ver experiencia
             </Button>
           </div>
+
+          {showRealtimeVoice && realtimeVoiceBadges.length > 0 ? (
+            <div className="mt-5 flex flex-wrap justify-center gap-2">
+              {realtimeVoiceBadges.map((badge) => (
+                <span
+                  key={badge}
+                  className="rounded-[8px] border border-primary/20 bg-primary/5 px-3 py-1.5 text-xs font-semibold text-primary"
+                >
+                  {badge}
+                </span>
+              ))}
+            </div>
+          ) : null}
 
           <div className="mx-auto mt-10 max-w-4xl">
             <div className="mb-3 flex items-center justify-center gap-2 text-sm font-medium text-muted-foreground">
@@ -111,6 +151,30 @@ const DemoLandingPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { setTenantSlug } = useTenant();
+  const realtimeVoiceQuerySlug = tenant?.slug || slug || null;
+  const { data: queriedRealtimeVoice } = useRealtimeVoiceCapabilities(
+    { tenantSlug: realtimeVoiceQuerySlug },
+    Boolean(realtimeVoiceQuerySlug),
+  );
+  const effectiveRealtimeVoice =
+    tenant?.realtime_voice ||
+    tenant?.widget?.realtime_voice ||
+    tenant?.support_channels?.voice_call?.capabilities ||
+    tenant?.widget?.support_channels?.voice_call?.capabilities ||
+    queriedRealtimeVoice ||
+    null;
+  const voiceCallConfig = useMemo(
+    () =>
+      tenant?.support_channels?.voice_call ||
+      tenant?.widget?.support_channels?.voice_call ||
+      null,
+    [tenant?.support_channels?.voice_call, tenant?.widget?.support_channels?.voice_call],
+  );
+  const showRealtimeVoice = isRealtimeVoiceRenderable(
+    effectiveRealtimeVoice,
+    voiceCallConfig,
+    { allowCapabilitiesOnly: !voiceCallConfig },
+  );
 
   useEffect(() => {
     safeLocalStorage.removeItem("chatboc_chat_session_id");
@@ -184,7 +248,11 @@ const DemoLandingPage = () => {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <DemoHero tenant={tenant} />
+      <DemoHero
+        tenant={tenant}
+        realtimeVoice={effectiveRealtimeVoice}
+        showRealtimeVoice={showRealtimeVoice}
+      />
 
       <main className="container mx-auto px-4 py-16 md:py-20">
         <div className="mb-12">

@@ -308,6 +308,14 @@ function ChatWidgetInner({
     () => entityInfo?.widget?.support_channels || entityInfo?.support_channels || null,
     [entityInfo],
   );
+  const realtimeVoice = useMemo(
+    () =>
+      entityInfo?.realtime_voice ||
+      entityInfo?.widget?.realtime_voice ||
+      supportChannels?.voice_call?.capabilities ||
+      null,
+    [entityInfo, supportChannels?.voice_call?.capabilities],
+  );
   const realtimeConfig = useMemo(() => {
     const attrs = entityInfo?.widget?.attributes || {};
     const realtimeMeta =
@@ -332,7 +340,29 @@ function ChatWidgetInner({
     };
 
     return {
-      model: toText(attrs['data-realtime-model'], toText(realtimeMeta?.model, supportChannels?.voice_call?.model || supportChannels?.video_call?.model || '')),
+      model: toText(
+        attrs['data-realtime-model'],
+        toText(
+          realtimeVoice?.recommended_model,
+          toText(realtimeMeta?.model, supportChannels?.voice_call?.model || supportChannels?.video_call?.model || ''),
+        ),
+      ),
+      fallbackModel: toText(
+        attrs['data-realtime-fallback-model'],
+        toText(realtimeVoice?.fallback_model, toText(realtimeMeta?.fallback_model, supportChannels?.voice_call?.fallback_model || '')),
+      ),
+      voice: toText(
+        attrs['data-realtime-voice'],
+        toText(realtimeVoice?.voice, toText(realtimeMeta?.voice, supportChannels?.voice_call?.voice || '')),
+      ),
+      transport: toText(
+        attrs['data-realtime-transport'],
+        toText(realtimeMeta?.transport, toText(realtimeVoice?.transports?.browser, 'webrtc')),
+      ),
+      profile: toText(
+        attrs['data-realtime-profile'],
+        toText(realtimeVoice?.active_vertical, toText(realtimeMeta?.profile, '')),
+      ),
       voiceEnabled: toBool(attrs['data-realtime-voice-enabled'], Boolean(supportChannels?.voice_call?.enabled)),
       videoEnabled: toBool(attrs['data-realtime-video-enabled'], Boolean(supportChannels?.video_call?.enabled)),
       avatarEnabled: toBool(attrs['data-avatar-enabled'], false),
@@ -355,7 +385,19 @@ function ChatWidgetInner({
         ),
       },
     };
-  }, [entityInfo?.builder_config?.enterprise_iteration?.realtime, entityInfo?.widget?.attributes, supportChannels?.video_call?.enabled, supportChannels?.video_call?.label, supportChannels?.video_call?.model, supportChannels?.voice_call?.enabled, supportChannels?.voice_call?.label, supportChannels?.voice_call?.model]);
+  }, [
+    entityInfo?.builder_config?.enterprise_iteration?.realtime,
+    entityInfo?.widget?.attributes,
+    realtimeVoice,
+    supportChannels?.video_call?.enabled,
+    supportChannels?.video_call?.label,
+    supportChannels?.video_call?.model,
+    supportChannels?.voice_call?.enabled,
+    supportChannels?.voice_call?.fallback_model,
+    supportChannels?.voice_call?.label,
+    supportChannels?.voice_call?.model,
+    supportChannels?.voice_call?.voice,
+  ]);
   const showCatalogCta =
     !!catalogCtaLabel &&
     !!catalogLinks?.view_url &&
@@ -1665,6 +1707,10 @@ function ChatWidgetInner({
           Boolean(supportChannels?.whatsapp?.enabled && supportChannels?.whatsapp?.realtime_bridge),
         )}
         data-realtime-model={realtimeConfig.model || ''}
+        data-realtime-fallback-model={realtimeConfig.fallbackModel || ''}
+        data-realtime-voice={realtimeConfig.voice || ''}
+        data-realtime-transport={realtimeConfig.transport || ''}
+        data-realtime-profile={realtimeConfig.profile || ''}
         data-realtime-voice-enabled={String(Boolean(realtimeConfig.voiceEnabled))}
         data-realtime-video-enabled={String(Boolean(realtimeConfig.videoEnabled))}
         data-avatar-enabled={String(Boolean(realtimeConfig.avatarEnabled))}
@@ -1833,6 +1879,7 @@ function ChatWidgetInner({
                     logoBadgeStyle={widgetUx.logoBadgeStyle}
                     supportChannels={supportChannels}
                     realtimeConfig={realtimeConfig}
+                    realtimeVoice={realtimeVoice}
                     onA11yChange={setA11yPrefs}
                     a11yPrefs={a11yPrefs}
                   />

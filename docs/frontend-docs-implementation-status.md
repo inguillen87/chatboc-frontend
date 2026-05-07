@@ -90,6 +90,17 @@ Este archivo baja los MD de `/docs` a estado ejecutable para frontend. La regla 
 - Tickets v2 operativos: `ticketsApi.ts` suma create, patch, comments y events sobre `/api/v2/tickets`, manteniendo la lista actual con fallback legacy controlado.
 - Surveys v2: `surveysApi.ts` suma listar/crear/obtener/actualizar/publicar/cerrar/analytics y endpoints publicos `GET|POST /api/v2/public/surveys/{public_token}`.
 
+## Realtime Voice 2026-05-07
+
+- `src/api/realtimeVoice.ts` consume `GET /api/public/realtime/voice-capabilities` con `tenant_slug`/`widget_token` opcionales y sin credenciales de panel.
+- `src/hooks/useRealtimeVoiceCapabilities.ts` expone query cacheada por tenant/widget para landing y demo.
+- `ChatWidgetInner` lee `realtime_voice`, `widget.realtime_voice`, `support_channels.voice_call.capabilities` y los atributos embed `data-realtime-*`.
+- `ChatPanel` renderiza llamada Realtime solo si el backend habilita `support_channels.voice_call.enabled` y `realtime_voice.features.tool_calling`.
+- La sesion `POST /api/public/realtime/session` envia `model`, `fallback_model`, `voice`, `transport` y `profile` desde contrato backend, sin reconstruir perfiles por vertical.
+- El panel escucha eventos `chatboc:realtime-tool-call`/`chatboc:realtime-action` o `postMessage` equivalente y los convierte en `POST /api/public/realtime/action-event`, manteniendo timeline `registrando/confirmado/pendiente`.
+- Landing y demo muestran CTA de llamada cuando `voice-capabilities` confirma herramienta disponible; los starters de voz solo se muestran si backend envia `starter_messages`, `voice_starters` o `starters`.
+- Badges de confianza priorizan `trust_badges`/`badges`/`badge_labels` del backend y usan fallback generico del handoff cuando solo llegan flags.
+
 ## Backend sync esperado
 
 - Demo session puede devolver `workspace.title`, `workspace.welcome_message`, `workspace.quick_replies[]`, `workspace.value_cards[]` y `workspace.handoff_labels`.
@@ -155,7 +166,7 @@ Este archivo baja los MD de `/docs` a estado ejecutable para frontend. La regla 
 | `frontend-next-pack.md` | Render gate por `ux_context` ya existe en legacy ChatPanel; contexto headers ya existe; quick replies backend. |
 | `frontend-task-board.md` | Usado como backlog; no se completo entero en una sola ola. |
 | `frontend-unified-handoff.md` | Igual que `FRONTEND_UNIFIED_HANDOFF.md`. |
-| `frontend-ux-ui/landing-page.md` | Sin redisenio landing en esta ola para no romper white-label/demo. |
+| `frontend-ux-ui/landing-page.md` | Landing redisenada con sistema visual mas sobrio; CTA Realtime queda condicionado por contrato backend. |
 | `frontend-ux-ui/pwa-setup.md` | Iconos maskable + indicador offline implementados. |
 | `frontend-v2.md` | Actualizar con esta ola; features v2 quedan menos fragiles. |
 | `ideas-municipios.md` | Ideas/backend content; frontend mantiene configuracion por JSON/backend. |

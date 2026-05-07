@@ -8,6 +8,7 @@ import type {
   ChatMediaCapabilities,
 } from '@/types/chat';
 import type { HandoffLabels, QuickReplyItem } from '@/features/chat/chatTypes';
+import type { RealtimeVoiceCapabilities } from '@/types/realtimeVoice';
 
 export type DemoSector = 'gobierno' | 'empresas' | 'educacion' | (string & {});
 
@@ -49,6 +50,15 @@ export interface DemoSessionResponse {
   conversion_ctas?: ChatConversionCtasConfig | null;
   animation_tokens?: ChatAnimationTokens | null;
   empty_states?: Record<string, ChatExperienceBlock>;
+  realtime_voice?: RealtimeVoiceCapabilities | null;
+  support_channels?: {
+    voice_call?: {
+      enabled?: boolean | null;
+      capabilities?: RealtimeVoiceCapabilities | null;
+      [key: string]: unknown;
+    } | null;
+    [key: string]: unknown;
+  } | null;
   chat_seed?: {
     chat_bootstrap?: DemoChatBootstrap | null;
     sample_conversations?: ChatExperienceBlock[];
@@ -94,6 +104,15 @@ export interface DemoWorkspaceConfig {
   conversion_ctas?: ChatConversionCtasConfig | null;
   animation_tokens?: ChatAnimationTokens | null;
   empty_states?: Record<string, ChatExperienceBlock>;
+  realtime_voice?: RealtimeVoiceCapabilities | null;
+  support_channels?: {
+    voice_call?: {
+      enabled?: boolean | null;
+      capabilities?: RealtimeVoiceCapabilities | null;
+      [key: string]: unknown;
+    } | null;
+    [key: string]: unknown;
+  } | null;
   education?: {
     profile?: Record<string, unknown> | null;
     quick_menu?: unknown[] | null;

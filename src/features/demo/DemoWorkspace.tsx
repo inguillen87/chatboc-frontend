@@ -62,6 +62,8 @@ export default function DemoWorkspace({
         animationTokens={workspace?.animation_tokens ?? null}
         emptyStates={workspace?.empty_states ?? workspace?.experience_blueprint?.empty_states ?? undefined}
         experienceBlueprint={workspace?.experience_blueprint ?? null}
+        supportChannels={workspace?.support_channels ?? null}
+        realtimeVoice={workspace?.realtime_voice ?? workspace?.support_channels?.voice_call?.capabilities ?? null}
       />
       {valueCards.length ? (
         <div className="grid gap-2 text-xs md:grid-cols-3">
