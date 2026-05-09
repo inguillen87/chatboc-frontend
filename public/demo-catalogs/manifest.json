@@ -1,0 +1,257 @@
+{
+  "version": "demo.catalog_assets.v1",
+  "items": [
+    {
+      "slug": "municipio",
+      "title": "Municipio inteligente",
+      "sector": "Gobierno",
+      "href": "/demo-catalogs/municipio.pdf",
+      "features": [
+        "Mesa de entrada digital",
+        "Reclamos con ubicacion",
+        "Turnos y tramites",
+        "WhatsApp ciudadano"
+      ]
+    },
+    {
+      "slug": "concejo-deliberante",
+      "title": "Concejo deliberante",
+      "sector": "Gobierno",
+      "href": "/demo-catalogs/concejo-deliberante.pdf",
+      "features": [
+        "Expedientes y sesiones",
+        "Consultas vecinales",
+        "Agenda legislativa",
+        "Derivacion a bloque"
+      ]
+    },
+    {
+      "slug": "legisladores",
+      "title": "Legisladores y bloques",
+      "sector": "Gobierno",
+      "href": "/demo-catalogs/legisladores.pdf",
+      "features": [
+        "Proyectos",
+        "Territorio",
+        "Agenda publica",
+        "Consultas ciudadanas"
+      ]
+    },
+    {
+      "slug": "campana-electoral",
+      "title": "Campana electoral",
+      "sector": "Gobierno",
+      "href": "/demo-catalogs/campana-electoral.pdf",
+      "features": [
+        "Voluntarios",
+        "Propuestas",
+        "Recorridas",
+        "Segmentos territoriales"
+      ]
+    },
+    {
+      "slug": "almacen",
+      "title": "Almacen de barrio",
+      "sector": "Empresas",
+      "href": "/demo-catalogs/almacen.pdf",
+      "features": [
+        "Pedidos por foto",
+        "Promos semanales",
+        "Stock basico",
+        "Entrega barrial"
+      ]
+    },
+    {
+      "slug": "bodega",
+      "title": "Bodega boutique",
+      "sector": "Empresas",
+      "href": "/demo-catalogs/bodega.pdf",
+      "features": [
+        "Catalogo de vinos",
+        "Catas privadas",
+        "Maridajes",
+        "Envios premium"
+      ]
+    },
+    {
+      "slug": "kiosco",
+      "title": "Kiosco 24hs",
+      "sector": "Empresas",
+      "href": "/demo-catalogs/kiosco.pdf",
+      "features": [
+        "Combos rapidos",
+        "Bebidas frias",
+        "Snacks",
+        "Pedidos por WhatsApp"
+      ]
+    },
+    {
+      "slug": "restaurante",
+      "title": "Restaurante",
+      "sector": "Empresas",
+      "href": "/demo-catalogs/restaurante.pdf",
+      "features": [
+        "Menu digital",
+        "Reservas",
+        "Delivery",
+        "Promos por horario"
+      ]
+    },
+    {
+      "slug": "ferreteria",
+      "title": "Ferreteria tecnica",
+      "sector": "Empresas",
+      "href": "/demo-catalogs/ferreteria.pdf",
+      "features": [
+        "Catalogo tecnico",
+        "Asesoramiento",
+        "Cotizaciones",
+        "Stock por sucursal"
+      ]
+    },
+    {
+      "slug": "tienda_ropa",
+      "title": "Tienda de ropa",
+      "sector": "Empresas",
+      "href": "/demo-catalogs/tienda_ropa.pdf",
+      "features": [
+        "Talles y colores",
+        "Reservas",
+        "Cambios",
+        "Colecciones"
+      ]
+    },
+    {
+      "slug": "logistica",
+      "title": "Logistica y transporte",
+      "sector": "Empresas",
+      "href": "/demo-catalogs/logistica.pdf",
+      "features": [
+        "Seguimiento",
+        "Cotizacion",
+        "Retiros",
+        "Entrega programada"
+      ]
+    },
+    {
+      "slug": "seguros",
+      "title": "Seguros y riesgos",
+      "sector": "Empresas",
+      "href": "/demo-catalogs/seguros.pdf",
+      "features": [
+        "Polizas",
+        "Siniestros",
+        "Leads",
+        "Handoff humano"
+      ]
+    },
+    {
+      "slug": "fintech",
+      "title": "Fintech y banca",
+      "sector": "Empresas",
+      "href": "/demo-catalogs/fintech.pdf",
+      "features": [
+        "Onboarding",
+        "Reclamos",
+        "KYC",
+        "Soporte 24/7"
+      ]
+    },
+    {
+      "slug": "inmobiliaria",
+      "title": "Inmobiliaria",
+      "sector": "Empresas",
+      "href": "/demo-catalogs/inmobiliaria.pdf",
+      "features": [
+        "Propiedades",
+        "Visitas",
+        "Reservas",
+        "Leads calificados"
+      ]
+    },
+    {
+      "slug": "industria",
+      "title": "Industria y energia",
+      "sector": "Empresas",
+      "href": "/demo-catalogs/industria.pdf",
+      "features": [
+        "Soporte tecnico",
+        "Ventas B2B",
+        "Mantenimiento",
+        "Operaciones"
+      ]
+    },
+    {
+      "slug": "clinica",
+      "title": "Clinica medica",
+      "sector": "Empresas",
+      "href": "/demo-catalogs/clinica.pdf",
+      "features": [
+        "Turnos",
+        "Estudios",
+        "Consultas",
+        "Recordatorios"
+      ]
+    },
+    {
+      "slug": "farmacia",
+      "title": "Farmacia",
+      "sector": "Empresas",
+      "href": "/demo-catalogs/farmacia.pdf",
+      "features": [
+        "Recetas",
+        "Disponibilidad",
+        "Envios",
+        "Pagos"
+      ]
+    },
+    {
+      "slug": "colegio-demo",
+      "title": "Colegio privado integral",
+      "sector": "Colegios",
+      "href": "/demo-catalogs/colegio-demo.pdf",
+      "features": [
+        "Inasistencias",
+        "Comunicados",
+        "Secretaria",
+        "Casos sensibles"
+      ]
+    },
+    {
+      "slug": "colegio-bilingue",
+      "title": "Instituto bilingue",
+      "sector": "Colegios",
+      "href": "/demo-catalogs/colegio-bilingue.pdf",
+      "features": [
+        "Admisiones",
+        "Agenda",
+        "Cuotas",
+        "Convivencia"
+      ]
+    },
+    {
+      "slug": "escuela-publica",
+      "title": "Escuela publica",
+      "sector": "Colegios",
+      "href": "/demo-catalogs/escuela-publica.pdf",
+      "features": [
+        "Asistencia",
+        "Certificados",
+        "Orientacion",
+        "Comedor"
+      ]
+    },
+    {
+      "slug": "supervision-escolar",
+      "title": "Supervision escolar",
+      "sector": "Colegios",
+      "href": "/demo-catalogs/supervision-escolar.pdf",
+      "features": [
+        "Casos por sede",
+        "Derivaciones",
+        "Reportes",
+        "Seguimiento"
+      ]
+    }
+  ]
+}

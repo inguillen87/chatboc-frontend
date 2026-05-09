@@ -17,6 +17,7 @@ import DemoSectorStep from '@/features/demo/DemoSectorStep';
 import { createDemoSession, getDemoCatalog } from '@/features/demo/demoApi';
 import type { DemoCatalogResponse, DemoChatBootstrap, DemoSector, DemoSectorGroup, DemoWorkspaceConfig } from '@/features/demo/demoTypes';
 import { sendChatBootstrapMessage } from '@/features/chat/chatApi';
+import { findDemoCatalogAsset } from '@/data/demoCatalogAssets';
 
 const MAX_PREGUNTAS = 15;
 
@@ -54,6 +55,13 @@ const rootMatchesSector = (root: Rubro, sector: DemoSector | null) => {
   return String(root.clave || root.nombre || '').toLowerCase().includes(String(sector).toLowerCase());
 };
 
+const readSectorCatalogSlug = (sector: DemoSector | null) => {
+  if (sector === 'gobierno') return 'municipio';
+  if (sector === 'empresas') return 'bodega';
+  if (sector === 'educacion') return 'colegio-demo';
+  return null;
+};
+
 const Demo = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
@@ -86,6 +94,19 @@ const Demo = () => {
     () => rubrosDisponibles.filter((root) => rootMatchesSector(root, sectorSeleccionado)),
     [rubrosDisponibles, sectorSeleccionado],
   );
+  const activeCatalogAsset = useMemo(() => {
+    const candidates = [
+      demoTenantSlug,
+      rubroClaveSeleccionado,
+      readSectorTenantSlug(selectedSectorGroup),
+      readSectorCatalogSlug(sectorSeleccionado),
+    ];
+    for (const candidate of candidates) {
+      const asset = findDemoCatalogAsset(candidate);
+      if (asset) return asset;
+    }
+    return null;
+  }, [demoTenantSlug, rubroClaveSeleccionado, sectorSeleccionado, selectedSectorGroup]);
   const demoMediaCapabilities = useMemo(
     () => mergeBootstrapSupportsWithMediaCapabilities(demoWorkspace?.media_capabilities ?? null, activeChatBootstrap?.supports),
     [activeChatBootstrap?.supports, demoWorkspace?.media_capabilities],
@@ -302,7 +323,12 @@ const Demo = () => {
           : await (async () => {
               const currentTipo = getCurrentTipoChat();
               const rubroParaTipo = rubroClave ?? rubroSeleccionado;
-              const adjustedTipo = enforceTipoChatForRubro(currentTipo, rubroParaTipo);
+              const adjustedTipo =
+                sectorSeleccionado === 'gobierno'
+                  ? 'municipio'
+                  : sectorSeleccionado === 'educacion' || sectorSeleccionado === 'empresas'
+                    ? 'pyme'
+                    : enforceTipoChatForRubro(currentTipo, rubroParaTipo);
               const payloadBody: Record<string, any> = {
                 pregunta: text,
                 rubro_clave: rubroClave ?? rubroSeleccionado,
@@ -361,7 +387,7 @@ const Demo = () => {
         setIsTyping(false);
       }
     },
-    [activeChatBootstrap, contexto, demoTenantSlug, rubroSeleccionado, anonId, preguntasUsadas, rubroClave, rubroNormalizado]
+    [activeChatBootstrap, contexto, demoTenantSlug, rubroSeleccionado, anonId, preguntasUsadas, rubroClave, rubroNormalizado, sectorSeleccionado]
   );
 
   const startSectorDemo = useCallback(async () => {
@@ -387,12 +413,12 @@ const Demo = () => {
         rubro: String(sector),
       });
       setDemoSessionId(session.demo_session_id ?? null);
-      setDemoTenantSlug(session.tenant_slug ?? null);
+      setDemoTenantSlug(session.tenant_slug ?? tenantSlug ?? null);
       setDemoWorkspace(session.workspace ?? null);
       await startDemoConversation(
         sector,
         session.workspace?.chat_bootstrap ?? null,
-        session.tenant_slug ?? null,
+        session.tenant_slug ?? tenantSlug ?? null,
       );
     } catch (error) {
       setDemoSessionId(null);
@@ -416,9 +442,9 @@ const Demo = () => {
               (e.target as HTMLImageElement).src = "/favicon/favicon-48x48.png";
             }}
           />
-          <h2 className="text-2xl font-bold mb-2 text-primary">¡Bienvenido a Chatboc!</h2>
+          <h2 className="text-2xl font-bold mb-2 text-primary">Bienvenido a Chatboc</h2>
           <p className="mb-4 text-sm text-muted-foreground">
-            Seleccioná el rubro que más se parece a tu negocio:
+            Elegi un pilar y despues una categoria para iniciar una demo guiada.
           </p>
           <div className="mb-4">
             <DemoSectorStep
@@ -478,18 +504,19 @@ const Demo = () => {
               openDemoWidget();
               void (async () => {
                 try {
+                  const fallbackTenantSlug = rubro.demo?.slug ?? readSectorTenantSlug(selectedSectorGroup);
                   const session = await createDemoSession({
                     sector: sectorSeleccionado,
                     rubro: clave ?? etiqueta ?? rubro.nombre,
-                    tenant_slug: rubro.demo?.slug ?? readSectorTenantSlug(selectedSectorGroup),
+                    tenant_slug: fallbackTenantSlug,
                   });
                   setDemoSessionId(session.demo_session_id ?? null);
-                  setDemoTenantSlug(session.tenant_slug ?? null);
+                  setDemoTenantSlug(session.tenant_slug ?? fallbackTenantSlug ?? null);
                   setDemoWorkspace(session.workspace ?? null);
                   await startDemoConversation(
                     clave ?? etiqueta ?? rubro.nombre,
                     session.workspace?.chat_bootstrap ?? null,
-                    session.tenant_slug ?? null,
+                    session.tenant_slug ?? fallbackTenantSlug ?? null,
                   );
                 } catch {
                   setDemoSessionId(null);
@@ -551,6 +578,26 @@ const Demo = () => {
       {/* Increased max-w for chat content area for better desktop view, maintains padding */}
       <main className="w-full max-w-3xl flex flex-col flex-1 px-4 sm:px-6 py-5 space-y-4 overflow-y-auto custom-scroll">
         <DemoWorkspace tenantSlug={demoTenantSlug} sector={sectorSeleccionado} rubro={rubroSeleccionado} workspace={demoWorkspace} />
+        {activeCatalogAsset ? (
+          <section className="rounded-2xl border border-primary/20 bg-primary/5 p-4 shadow-sm">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-left">
+                <p className="text-sm font-semibold text-foreground">Catalogo demo</p>
+                <p className="text-xs text-muted-foreground">
+                  Material descargable para probar consultas, pedidos y tramites en esta demo.
+                </p>
+              </div>
+              <a
+                href={activeCatalogAsset.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90"
+              >
+                Descargar PDF
+              </a>
+            </div>
+          </section>
+        ) : null}
         {messages.map((msg) => (
           <ChatMessage
             key={msg.id}
