@@ -104,6 +104,7 @@ const Demo = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const lastQueryRef = useRef<string | null>(null);
   const initialDemoLoadRef = useRef(false);
+  const hydratedSessionRef = useRef(false);
 
   const rubroClave = rubroClaveSeleccionado || extractRubroKey(rubroSeleccionado);
   const rubroNormalizado = parseRubro(rubroClave);
@@ -154,6 +155,7 @@ const Demo = () => {
     setDemoTenantSlug(null);
     setDemoWorkspace(null);
     lastQueryRef.current = null;
+    hydratedSessionRef.current = false;
     // The useEffect for loading rubros will trigger again due to rubroSeleccionado being null
     // or rather, we explicitly set esperandoRubro to true and then the rubro loading logic runs
     getDemoCatalog()
