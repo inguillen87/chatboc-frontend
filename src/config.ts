@@ -3,6 +3,7 @@
 // This file is the single source of truth for all backend URLs.
 
 const VITE_BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+const CANONICAL_BACKEND_URL = 'https://chatbot-backend-2e14.onrender.com';
 const IS_DEV = import.meta.env.DEV;
 const VITE_DEFAULT_ENTITY_TOKEN = import.meta.env.VITE_DEFAULT_ENTITY_TOKEN;
 const VITE_PUBLIC_SURVEY_BASE_URL = import.meta.env.VITE_PUBLIC_SURVEY_BASE_URL;
@@ -156,6 +157,7 @@ const preferSameOriginProxy = inferSameOriginProxy();
 // endpoints are routed through the proxy while still allowing backend URLs as a
 // fallback for environments without one.
 export const SAME_ORIGIN_PROXY_BASE = sanitizeBaseUrl(preferSameOriginProxy || '');
+export const PUBLIC_BACKEND_URL = sanitizeBaseUrl(RESOLVED_BACKEND_URL || CANONICAL_BACKEND_URL);
 
 export const BASE_API_URL = sanitizeBaseUrl(
   SAME_ORIGIN_PROXY_BASE ||
@@ -185,39 +187,18 @@ export const API_BASE_CANDIDATES = [
  * @returns The full WebSocket URL.
  */
 export const getSocketUrl = (): string => {
-  // If we already determined a same-origin proxy base (e.g. /api on chatboc.ar),
-  // keep websocket traffic on the same origin to avoid cross-domain handshakes
-  // against stale backend hosts.
-  if (SAME_ORIGIN_PROXY_BASE) {
-    const locationRef = getGlobalLocation();
-    if (locationRef?.href) {
-      const url = new URL(locationRef.href);
-      url.protocol = url.protocol.replace('http', 'ws');
-      return url.origin;
-    }
-  }
+  const socketBackendUrl = sanitizeBaseUrl(RESOLVED_BACKEND_URL || CANONICAL_BACKEND_URL);
 
-  if (RESOLVED_BACKEND_URL) {
-    // If a full backend URL is provided, derive the WebSocket URL from it.
+  if (socketBackendUrl) {
     try {
-      const url = new URL(RESOLVED_BACKEND_URL);
+      const url = new URL(socketBackendUrl);
       url.protocol = url.protocol.replace('http', 'ws');
       return url.origin;
     } catch (e) {
-      console.error("Invalid backend URL for WebSocket:", RESOLVED_BACKEND_URL);
-      // Fallback to current location in case of invalid URL.
-      const locationRef = getGlobalLocation();
-      if (locationRef?.href) {
-        const fallbackUrl = new URL(locationRef.href);
-        fallbackUrl.protocol = fallbackUrl.protocol.replace('http', 'ws');
-        return fallbackUrl.origin;
-      }
-      return '';
+      console.error("Invalid backend URL for WebSocket:", socketBackendUrl);
     }
   }
 
-  // In dev mode with proxy, or in production when VITE_BACKEND_URL is not set,
-  // connect to the same host that is serving the frontend.
   const locationRef = getGlobalLocation();
   if (!locationRef?.href) return '';
 
@@ -226,7 +207,7 @@ export const getSocketUrl = (): string => {
   return url.origin;
 };
 
-export const SOCKET_PATH = "/socket.io"; // SAME_ORIGIN_PROXY_BASE
+export const SOCKET_PATH = "/api/socket.io"; // SAME_ORIGIN_PROXY_BASE
   // ? `${SAME_ORIGIN_PROXY_BASE.replace(/\/$/, '')}/socket.io`
   // : '/socket.io';
 
