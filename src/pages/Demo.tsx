@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useLocation } from "react-router-dom";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { resetChatSessionId } from "@/utils/chatSessionId";
 import getOrCreateAnonId from "@/utils/anonId";
 import ChatInput from "@/components/chat/ChatInput";
 import TypingIndicator from "@/components/chat/TypingIndicator";
 import ChatMessage from "@/components/chat/ChatMessage";
-import RubroSelector, { Rubro } from "@/components/chat/RubroSelector";
+import RubroSelector from "@/components/chat/RubroSelector";
+import type { Rubro } from "@/types/rubro";
 import type { ChatMediaCapabilities, Message, SendPayload } from "@/types/chat";
 import { apiFetch } from "@/utils/api";
 import { getCurrentTipoChat, enforceTipoChatForRubro, parseRubro } from "@/utils/tipoChat";
@@ -84,6 +86,7 @@ const buildDemoFallbackReply = ({
 };
 
 const Demo = () => {
+  const location = useLocation();
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [preguntasUsadas, setPreguntasUsadas] = useState(0);
@@ -255,6 +258,39 @@ const Demo = () => {
     [activeChatBootstrap, anonId, demoTenantSlug, sectorSeleccionado, setAnonId, setContexto, setIsTyping, setMessages, setPreguntasUsadas]
   );
 
+  useEffect(() => {
+    if (hydratedSessionRef.current) return;
+    const state = location.state as
+      | {
+          demoSession?: Awaited<ReturnType<typeof createDemoSession>>;
+          sector?: DemoSector;
+          rubroLabel?: string;
+          rubroSlug?: string;
+        }
+      | null;
+    const sessionId = new URLSearchParams(location.search).get('session');
+    if (!sessionId || !state?.demoSession) return;
+
+    hydratedSessionRef.current = true;
+    const session = state.demoSession;
+    const sector = state.sector ?? sectorSeleccionado ?? null;
+    const rubroLabel = state.rubroLabel ?? state.rubroSlug ?? sector ?? null;
+    setDemoCatalog((current) => current ?? { sectors: sector ? [sector] : [] });
+    setSectorSeleccionado(sector);
+    setRubroSeleccionado(rubroLabel);
+    setRubroClaveSeleccionado(state.rubroSlug ?? rubroLabel);
+    setDemoSessionId(session.demo_session_id ?? session.session_id ?? sessionId);
+    setDemoTenantSlug(session.tenant_slug ?? null);
+    setDemoWorkspace(session.workspace ?? null);
+    setEsperandoRubro(false);
+    openDemoWidget();
+    void startDemoConversation(
+      state.rubroSlug ?? rubroLabel ?? String(sector ?? ''),
+      session.workspace?.chat_bootstrap ?? null,
+      session.tenant_slug ?? null,
+    );
+  }, [location.search, location.state, openDemoWidget, sectorSeleccionado, startDemoConversation]);
+
 
   // Set Anon ID on mount
   useEffect(() => {
@@ -291,7 +327,7 @@ const Demo = () => {
           setRubrosDisponibles([]);
         });
     }
-  }, [rubroClaveSeleccionado, rubroSeleccionado, startDemoConversation, openDemoWidget]);
+  }, [location.search, location.state, rubroClaveSeleccionado, rubroSeleccionado, startDemoConversation, openDemoWidget]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -300,7 +336,7 @@ const Demo = () => {
   const handleSendMessage = useCallback(
     async (payload: SendPayload | string) => {
       const text = typeof payload === "string" ? payload : payload.text;
-      const extras = typeof payload === "string" ? {} : payload;
+      const extras: Partial<SendPayload> = typeof payload === "string" ? {} : payload;
       if (!text.trim() && !extras.action && !extras.archivo_url && !extras.ubicacion_usuario) return;
       if (!rubroSeleccionado) return;
       if (preguntasUsadas >= MAX_PREGUNTAS) {
@@ -437,7 +473,8 @@ const Demo = () => {
       const session = await createDemoSession({
         sector,
         tenant_slug: tenantSlug,
-        rubro: String(sector),
+        pillar: sector,
+        category_slug: String(sector),
       });
       setDemoSessionId(session.demo_session_id ?? null);
       setDemoTenantSlug(session.tenant_slug ?? tenantSlug ?? null);
@@ -534,7 +571,8 @@ const Demo = () => {
                   const fallbackTenantSlug = rubro.demo?.slug ?? readSectorTenantSlug(selectedSectorGroup);
                   const session = await createDemoSession({
                     sector: sectorSeleccionado,
-                    rubro: clave ?? etiqueta ?? rubro.nombre,
+                    rubro_slug: clave ?? etiqueta ?? rubro.nombre,
+                    category_slug: clave ?? etiqueta ?? rubro.nombre,
                     tenant_slug: fallbackTenantSlug,
                   });
                   setDemoSessionId(session.demo_session_id ?? null);
@@ -604,7 +642,7 @@ const Demo = () => {
       {/* CHAT AREA */}
       {/* Increased max-w for chat content area for better desktop view, maintains padding */}
       <main className="w-full max-w-3xl flex flex-col flex-1 px-4 sm:px-6 py-5 space-y-4 overflow-y-auto custom-scroll">
-        <DemoWorkspace tenantSlug={demoTenantSlug} sector={sectorSeleccionado} rubro={rubroSeleccionado} workspace={demoWorkspace} />
+        <DemoWorkspace tenantSlug={demoTenantSlug} sector={sectorSeleccionado} rubro={rubroSeleccionado} workspace={demoWorkspace} onPrefill={(text) => void handleSendMessage(text)} />
         {activeCatalogAsset ? (
           <section className="rounded-2xl border border-primary/20 bg-primary/5 p-4 shadow-sm">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

@@ -1,3 +1,4 @@
+import { PUBLIC_BACKEND_URL } from "@/config";
 import type { RealtimeVoiceCapabilities, RealtimeVoiceQuery } from "@/types/realtimeVoice";
 
 export async function getRealtimeVoiceCapabilities(
@@ -15,7 +16,7 @@ export async function getRealtimeVoiceCapabilities(
   }
 
   const suffix = params.toString() ? `?${params.toString()}` : "";
-  const response = await fetch(`/api/public/realtime/voice-capabilities${suffix}`, {
+  const response = await fetch(`${PUBLIC_BACKEND_URL}/api/public/realtime/voice-capabilities${suffix}`, {
     credentials: "omit",
     headers: tenant ? { "X-Tenant-Slug": tenant } : undefined,
   });

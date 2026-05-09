@@ -3,18 +3,24 @@ import { getRubrosHierarchy } from '@/api/rubros';
 import { DEMO_SECTOR_GROUPS } from '@/data/demoHierarchy';
 import type { DemoCatalogResponse, DemoChatBootstrap, DemoSectorGroup, DemoSessionResponse, DemoSector, DemoWorkspaceConfig } from './demoTypes';
 
-const DEFAULT_DEMO_SECTORS: DemoSector[] = ['gobierno', 'empresas', 'educacion'];
+const DEFAULT_DEMO_SECTORS: DemoSector[] = ['educacion', 'gobierno', 'empresas'];
 
 export const getDemoCatalog = async (): Promise<DemoCatalogResponse> => {
   try {
     return normalizeDemoCatalog(await demoApi.get<DemoCatalogResponse>('/api/v2/demo/catalog'));
-  } catch {
+  } catch (error) {
     const rubros = await getRubrosHierarchy().catch(() => []);
-    return normalizeDemoCatalog({ sectors: DEFAULT_DEMO_SECTORS, sector_groups: DEMO_SECTOR_GROUPS, rubros });
+    return normalizeDemoCatalog({
+      sectors: DEFAULT_DEMO_SECTORS,
+      sector_groups: DEMO_SECTOR_GROUPS,
+      rubros,
+      local_demo_mode: true,
+      catalog_error: error instanceof Error ? error.message : 'demo_catalog_unavailable',
+    });
   }
 };
 
-export const createDemoSession = (payload: { sector: DemoSector; rubro?: string; tenant_slug?: string | null }) =>
+export const createDemoSession = (payload: { sector?: DemoSector | string; pillar?: DemoSector | string; rubro?: string; rubro_slug?: string; category_slug?: string; tenant_slug?: string | null }) =>
   demoApi.post<DemoSessionResponse>('/api/v2/demo/session', payload, {
     legacyFallbackPath: '/api/v1/demo/session',
   }).then((response) => ({
@@ -25,14 +31,32 @@ export const createDemoSession = (payload: { sector: DemoSector; rubro?: string;
   }));
 
 const normalizeDemoCatalog = (response: DemoCatalogResponse): DemoCatalogResponse => {
+  const incomingPillars = Array.isArray(response.pillars) ? response.pillars : [];
+  const pillarSectors = incomingPillars
+    .map((pillar) => pillar?.key ?? pillar?.sector ?? pillar?.slug)
+    .filter((value): value is DemoSector => typeof value === 'string' && !!value);
   const incomingSectors = Array.isArray(response.sectors) ? response.sectors : [];
-  const sectors = Array.from(new Set([...incomingSectors, ...DEFAULT_DEMO_SECTORS]));
+  const sectors = Array.from(new Set([...pillarSectors, ...incomingSectors, ...DEFAULT_DEMO_SECTORS]));
   const incomingGroups = Array.isArray(response.sector_groups)
     ? response.sector_groups.filter((group) => group?.key)
     : [];
   const groupMap = new Map<string, DemoSectorGroup>();
 
   DEMO_SECTOR_GROUPS.forEach((group) => groupMap.set(String(group.key), group));
+  incomingPillars.forEach((pillar) => {
+    const key = String(pillar?.key ?? pillar?.sector ?? pillar?.slug ?? '');
+    if (!key) return;
+    const fallback = groupMap.get(key);
+    groupMap.set(key, {
+      ...fallback,
+      key,
+      label: pillar.label ?? fallback?.label ?? null,
+      description: pillar.description ?? fallback?.description ?? null,
+      cta_label: pillar.cta_label ?? fallback?.cta_label ?? null,
+      tenant_slug: pillar.tenant_slug ?? pillar.demo_tenant_slug ?? pillar.default_tenant_slug ?? fallback?.tenant_slug ?? null,
+      default_rubro: pillar.default_rubro ?? pillar.default_rubro_slug ?? null,
+    });
+  });
   incomingGroups.forEach((group) => {
     const fallback = groupMap.get(String(group.key));
     groupMap.set(String(group.key), { ...fallback, ...group });
@@ -41,6 +65,7 @@ const normalizeDemoCatalog = (response: DemoCatalogResponse): DemoCatalogRespons
   return {
     ...response,
     sectors,
+    pillars: incomingPillars,
     sector_groups: Array.from(groupMap.values()),
     rubros: Array.isArray(response.rubros) ? response.rubros : [],
   };
@@ -50,6 +75,7 @@ const normalizeWorkspaceConfig = (response: DemoSessionResponse): DemoWorkspaceC
   const workspace: DemoWorkspaceConfig = response.workspace ?? {};
   const quickReplies = workspace.quick_replies ?? response.quick_replies ?? [];
   const valueCards = workspace.value_cards ?? response.value_cards ?? [];
+  const catalogResources = workspace.catalog_resources ?? (response as any).catalog_resources ?? [];
   const welcomeMessage = workspace.welcome_message ?? response.welcome_message ?? null;
   const handoffLabels = workspace.handoff_labels ?? response.handoff_labels ?? null;
   const experienceBlueprint = workspace.experience_blueprint ?? response.experience_blueprint ?? null;
@@ -79,6 +105,7 @@ const normalizeWorkspaceConfig = (response: DemoSessionResponse): DemoWorkspaceC
     !quickReplies.length &&
     !valueCards.length &&
     !welcomeMessage &&
+    !catalogResources.length &&
     !handoffLabels &&
     !workspace.title &&
     !firstVisit &&
@@ -100,6 +127,8 @@ const normalizeWorkspaceConfig = (response: DemoSessionResponse): DemoWorkspaceC
     welcome_message: welcomeMessage,
     quick_replies: quickReplies,
     value_cards: valueCards,
+    catalog_resources: catalogResources,
+    analytics_summary: workspace.analytics_summary ?? (response as any).analytics_summary ?? null,
     handoff_labels: handoffLabels,
     first_visit: firstVisit,
     sample_conversations: sampleConversations,
