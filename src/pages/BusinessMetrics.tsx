@@ -41,6 +41,7 @@ import { enterpriseService } from "@/services/enterpriseService";
 import { useTenant } from "@/context/TenantContext";
 import { useParams } from "react-router-dom";
 import MapLibreMap from "@/components/MapLibreMap";
+import { isRecord, pickCollection, pickText } from "@/utils/responseShape";
 
 // --- MOCK DATA & TYPES (as per backend spec) ---
 
@@ -111,6 +112,32 @@ const formatStatusLabel = (value: string) =>
 const toNumber = (value: unknown): number => {
   const num = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(num) ? num : 0;
+};
+
+const normalizeKpi = (value: unknown): Kpi => {
+  if (isRecord(value)) {
+    return {
+      value: toNumber(value.value ?? value.total ?? value.count),
+      trend: toNumber(value.trend ?? value.delta ?? value.percent_change),
+    };
+  }
+
+  return { value: toNumber(value), trend: 0 };
+};
+
+const normalizeKpiData = (payload: unknown): KpiData | null => {
+  if (!isRecord(payload)) return null;
+  const source = isRecord(payload.summary) ? payload.summary : payload;
+  const keys = ['total_sales', 'total_orders', 'new_customers', 'avg_order_value'] as const;
+  const hasAnyValue = keys.some((key) => source[key] !== undefined);
+  if (!hasAnyValue) return null;
+
+  return {
+    total_sales: normalizeKpi(source.total_sales),
+    total_orders: normalizeKpi(source.total_orders),
+    new_customers: normalizeKpi(source.new_customers),
+    avg_order_value: normalizeKpi(source.avg_order_value),
+  };
 };
 
 const STATUS_TITLE_KEYWORDS = ['estado', 'status'];
@@ -285,22 +312,22 @@ export default function BusinessMetrics() {
         tenantSlug
           ? enterpriseService.getTenantEmployeeCoverage(tenantSlug)
           : Promise.resolve(null),
-        apiFetch<{ summary: string }>('/api/metrics/summary'),
-        apiFetch<KpiData>('/api/metrics/kpis'),
-        apiFetch<{ data: SalesDataPoint[] }>('/api/metrics/sales-over-time?period=30d'),
-        apiFetch<{ products: TopProduct[] }>('/api/metrics/top-products?limit=5'),
-        apiFetch<{ regions: RegionSale[] }>('/api/metrics/sales-by-region'),
+        apiFetch<unknown>('/api/metrics/summary'),
+        apiFetch<unknown>('/api/metrics/kpis'),
+        apiFetch<unknown>('/api/metrics/sales-over-time?period=30d'),
+        apiFetch<unknown>('/api/metrics/top-products?limit=5'),
+        apiFetch<unknown>('/api/metrics/sales-by-region'),
         ticketStatsPromise
       ]);
 
       setDashboardBundle(dashboardBundleRes);
       setTenantHeatmap(heatmapSummaryRes);
       setEmployeeCoverage(employeeCoverageRes);
-      setSummary(summaryRes.summary);
-      setKpis(kpisRes);
-      setSales(salesRes.data);
-      setTopProducts(topProductsRes.products);
-      setRegions(regionSalesRes.regions);
+      setSummary(pickText(summaryRes));
+      setKpis(normalizeKpiData(kpisRes));
+      setSales(pickCollection<SalesDataPoint>(salesRes, ['data', 'items', 'sales', 'points']));
+      setTopProducts(pickCollection<TopProduct>(topProductsRes, ['products', 'items', 'data', 'results']));
+      setRegions(pickCollection<RegionSale>(regionSalesRes, ['regions', 'items', 'data', 'results']));
       setTicketCharts(ticketStatsRes.charts || []);
 
     } catch (err) {

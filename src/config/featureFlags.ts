@@ -6,12 +6,12 @@ const parseEnvFlag = (value: string | undefined, defaultValue = false): boolean 
 export const FEATURE_ENCUESTAS = parseEnvFlag(import.meta.env.VITE_FEATURE_ENCUESTAS, true);
 
 export const EDUCATION_FEATURE_FLAGS = {
-  education_enabled: parseEnvFlag(import.meta.env.VITE_FEATURE_EDUCATION_ENABLED, false),
-  family_portal_enabled: parseEnvFlag(import.meta.env.VITE_FEATURE_FAMILY_PORTAL_ENABLED, false),
-  documents_enabled: parseEnvFlag(import.meta.env.VITE_FEATURE_DOCUMENTS_ENABLED, false),
-  attendance_enabled: parseEnvFlag(import.meta.env.VITE_FEATURE_ATTENDANCE_ENABLED, false),
-  billing_enabled: parseEnvFlag(import.meta.env.VITE_FEATURE_BILLING_ENABLED, false),
-  admissions_enabled: parseEnvFlag(import.meta.env.VITE_FEATURE_ADMISSIONS_ENABLED, false),
+  education_enabled: parseEnvFlag(import.meta.env.VITE_FEATURE_EDUCATION_ENABLED, true),
+  family_portal_enabled: parseEnvFlag(import.meta.env.VITE_FEATURE_FAMILY_PORTAL_ENABLED, true),
+  documents_enabled: parseEnvFlag(import.meta.env.VITE_FEATURE_DOCUMENTS_ENABLED, true),
+  attendance_enabled: parseEnvFlag(import.meta.env.VITE_FEATURE_ATTENDANCE_ENABLED, true),
+  billing_enabled: parseEnvFlag(import.meta.env.VITE_FEATURE_BILLING_ENABLED, true),
+  admissions_enabled: parseEnvFlag(import.meta.env.VITE_FEATURE_ADMISSIONS_ENABLED, true),
 } as const;
 
 export type FeatureFlag = 'encuestas' | keyof typeof EDUCATION_FEATURE_FLAGS;

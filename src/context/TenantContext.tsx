@@ -20,42 +20,11 @@ import type { TenantPublicInfo, TenantSummary } from '@/types/tenant';
 import { ApiError, getErrorMessage } from '@/utils/api';
 import { ensureRemoteAnonId } from '@/utils/anonId';
 import { normalizeEntityToken } from '@/utils/entityToken';
-import { TENANT_ROUTE_PREFIXES } from '@/constants/tenant';
+import { TENANT_PLACEHOLDER_SLUGS, TENANT_ROUTE_PREFIXES } from '@/constants/tenant';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
+import { useTenantStore } from '@/stores';
 
-const LOCAL_PLACEHOLDER_SLUGS = new Set([
-  'iframe',
-  'embed',
-  'widget',
-  'cart',
-  'productos',
-  'checkout',
-  'checkout-productos',
-  'perfil',
-  'user',
-  'login',
-  'register',
-  'portal',
-  'pedidos',
-  'reclamos',
-  'encuestas',
-  'tickets',
-  'opinar',
-  'integracion',
-  'documentacion',
-  'faqs',
-  'legal',
-  'chat',
-  'chatpos',
-  'chatcrm',
-  'admin',
-  'dashboard',
-  'analytics',
-  'settings',
-  'config',
-  'api',
-  'e'
-]);
+const LOCAL_PLACEHOLDER_SLUGS = new Set([...TENANT_PLACEHOLDER_SLUGS, 'e']);
 
 interface TenantContextValue {
   currentSlug: string | null;

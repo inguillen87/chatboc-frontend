@@ -12,11 +12,14 @@
     "postinstall": "npm run setup-env",
     "test": "vitest run",
     "test:watch": "vitest",
+    "verify:local": "npm run build && npm test -- --pool=threads && npm run test:e2e -- --project=chromium",
     "start": "vite preview --host",
     "seed:surveys": "node scripts/seedMunicipalSurveys.mjs",
     "seed:survey-responses": "node scripts/seedSurveyResponses.mjs",
     "typecheck:scope": "tsc -p tsconfig.scope-strict.json --noEmit",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "tools:twilio:version": "npx --yes twilio-cli --version",
+    "tools:ngrok:version": "npx --yes ngrok --version"
   },
   "dependencies": {
     "@headlessui/react": "^1.7.18",

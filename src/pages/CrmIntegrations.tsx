@@ -3,6 +3,7 @@ import { apiFetch, ApiError, getErrorMessage } from '@/utils/api';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
+import { pickCollection } from '@/utils/responseShape';
 
 interface CrmSystem {
   id: number;
@@ -18,9 +19,9 @@ export default function CrmIntegrations() {
   const [notAvailable, setNotAvailable] = useState(false);
 
   useEffect(() => {
-    apiFetch<CrmSystem[]>('/crm/integrations')
+    apiFetch<unknown>('/crm/integrations')
       .then((data) => {
-        setItems(data);
+        setItems(pickCollection<CrmSystem>(data, ['items', 'integrations', 'data', 'results']));
         setLoading(false);
       })
       .catch((err: any) => {

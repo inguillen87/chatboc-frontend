@@ -17,6 +17,9 @@ describe('toCanonicalTenantPath', () => {
   it('returns null for non-tenant or placeholder slug paths', () => {
     expect(toCanonicalTenantPath('/market/login')).toBeNull();
     expect(toCanonicalTenantPath('/integracion')).toBeNull();
+    expect(toCanonicalTenantPath('/pyme/metrics')).toBeNull();
+    expect(toCanonicalTenantPath('/pyme/catalog')).toBeNull();
+    expect(toCanonicalTenantPath('/market/blueprint')).toBeNull();
   });
 
   it('returns null for malformed url-encoded tenant segments', () => {

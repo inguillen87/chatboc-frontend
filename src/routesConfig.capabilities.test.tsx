@@ -30,4 +30,13 @@ describe('routesConfig requiredCapabilities', () => {
 
     expect(nonCanonical).toEqual([]);
   });
+
+  it('keeps canonical tenant portal and education routes registered', () => {
+    const routesConfigPath = path.resolve(__dirname, 'routesConfig.tsx');
+    const content = fs.readFileSync(routesConfigPath, 'utf8');
+
+    expect(content).toContain('const canonicalTenantPortalRoutes');
+    expect(content).toContain('...canonicalTenantPortalRoutes');
+    expect(content).toContain("path: '/t/:tenant/educacion/staff/inbox'");
+  });
 });

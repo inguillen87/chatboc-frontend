@@ -5,6 +5,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import useRequireRole from '@/hooks/useRequireRole';
 import type { Role } from '@/utils/roles';
+import { pickCollection } from '@/utils/responseShape';
 
 interface Integration {
   id: number;
@@ -21,9 +22,9 @@ export default function MunicipalSystems() {
   const [notAvailable, setNotAvailable] = useState(false);
 
   useEffect(() => {
-    apiFetch<Integration[]>('/municipal/integrations')
+    apiFetch<unknown>('/municipal/integrations')
       .then((data) => {
-        setIntegrations(data);
+        setIntegrations(pickCollection<Integration>(data, ['items', 'integrations', 'data', 'results']));
         setLoading(false);
       })
       .catch((err: any) => {

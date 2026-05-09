@@ -2,7 +2,7 @@ import { ZodType } from 'zod';
 // utils/api.ts
 
 import { API_BASE_CANDIDATES, BASE_API_URL, SAME_ORIGIN_PROXY_BASE } from '@/config';
-import { TENANT_ROUTE_PREFIXES } from '@/constants/tenant';
+import { TENANT_PLACEHOLDER_SLUGS, TENANT_ROUTE_PREFIXES } from '@/constants/tenant';
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { usePanelSessionStore, useWidgetSessionStore, useTenantStore } from '@/stores';
 
@@ -64,6 +64,7 @@ const resolveResponseRequestId = (response: Response, data: unknown): string | u
 const TENANT_PATH_REGEX = new RegExp(`^/(?:${TENANT_ROUTE_PREFIXES.join("|")})/([^/]+)`, "i");
 
 const LOCAL_PLACEHOLDER_SLUGS = new Set([
+  ...TENANT_PLACEHOLDER_SLUGS,
   'e',
   'iframe',
   'embed',

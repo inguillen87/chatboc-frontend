@@ -5,6 +5,7 @@ import {
   useMemo,
   useState,
 } from 'react';
+import { useParams } from 'react-router-dom';
 import {
   Area,
   AreaChart,
@@ -54,6 +55,7 @@ import { Label } from '@/components/ui/label';
 import AnalyticsHeatmap from '@/components/analytics/Heatmap';
 import ChartTooltip from '@/components/analytics/ChartTooltip';
 import { useUser } from '@/hooks/useUser';
+import { useTenant } from '@/context/TenantContext';
 import {
   getHeatmapPoints,
   getTicketStats,
@@ -813,6 +815,15 @@ const ParticipationDashboard = ({ segment, tenantId, funnelData }: { segment: Se
 // --- MAIN PAGE COMPONENT ---
 export default function EstadisticasPage() {
   const { user } = useUser();
+  const params = useParams<{ tenant?: string }>();
+  const { tenant } = useTenant();
+  const userRecord = user as Record<string, unknown> | null;
+  const resolvedTenant =
+    tenant?.slug ||
+    params.tenant ||
+    (typeof userRecord?.tenantSlug === 'string' ? userRecord.tenantSlug : null) ||
+    (typeof userRecord?.tenant_slug === 'string' ? userRecord.tenant_slug : null) ||
+    null;
   const [segment, setSegment] = useState<Segment>('municipio');
   const [activeTab, setActiveTab] = useState<TabView>('operativo');
   const [range, setRange] = useState<number | 'all'>(30);

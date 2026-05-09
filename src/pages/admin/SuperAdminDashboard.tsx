@@ -34,6 +34,7 @@ import { buildTenantPath } from "@/utils/tenantPaths";
 import SuperadminLeadsPipeline from "@/components/admin/SuperadminLeadsPipeline";
 import { enterpriseService } from "@/services/enterpriseService";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const SuperAdminStatCard = ({
   label,
@@ -395,8 +396,6 @@ export default function SuperAdminDashboard() {
         </div>
       </div>
 
-      <SuperadminLeadsPipeline />
-
       <Card className="overflow-hidden border-muted/60 bg-background/85 shadow-sm backdrop-blur">
         <CardHeader className="border-b border-border/50 bg-gradient-to-r from-primary/5 via-sky-500/5 to-violet-500/5">
           <CardTitle>Executive summary</CardTitle>
@@ -686,7 +685,7 @@ export default function SuperAdminDashboard() {
          </TabsList>
 
          <TabsContent value="pipeline" className="mt-0">
-            <TenantPipelineKanban tenants={tenants as any} onStatusChange={handleKanbanStatusChange} />
+            <SuperadminLeadsPipeline />
          </TabsContent>
 
          <TabsContent value="list" className="mt-0 space-y-6">

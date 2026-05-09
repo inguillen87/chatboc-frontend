@@ -7,7 +7,7 @@ import TypingIndicator from "@/components/chat/TypingIndicator";
 import ChatMessage from "@/components/chat/ChatMessage";
 import RubroSelector, { Rubro } from "@/components/chat/RubroSelector";
 import type { ChatMediaCapabilities, Message, SendPayload } from "@/types/chat";
-import { apiFetch, getErrorMessage } from "@/utils/api";
+import { apiFetch } from "@/utils/api";
 import { getCurrentTipoChat, enforceTipoChatForRubro, parseRubro } from "@/utils/tipoChat";
 import { getAskEndpoint, esRubroPublico } from "@/utils/chatEndpoints";
 import { extractRubroKey, extractRubroLabel } from "@/utils/rubros";
@@ -33,6 +33,7 @@ const readSectorLabel = (group: DemoSectorGroup | null, sector: DemoSector | nul
   if (group?.label?.trim()) return group.label.trim();
   if (sector === 'gobierno') return 'Gobierno';
   if (sector === 'empresas') return 'Empresas';
+  if (sector === 'educacion') return 'Colegios e instituciones educativas';
   return sector ? String(sector) : 'Demo';
 };
 
@@ -62,6 +63,26 @@ const readSectorCatalogSlug = (sector: DemoSector | null) => {
   return null;
 };
 
+const buildDemoFallbackReply = ({
+  text,
+  sectorLabel,
+  catalogTitle,
+}: {
+  text: string;
+  sectorLabel: string | null;
+  catalogTitle?: string | null;
+}) => {
+  const lines = [
+    'La demo quedo activa en modo guiado.',
+    text.trim() ? `Recibi tu consulta: "${text.trim()}".` : null,
+    sectorLabel ? `Recorrido seleccionado: ${sectorLabel}.` : null,
+    'Podes seguir probando consultas, pedidos, tramites, derivaciones o adjuntos desde esta misma pantalla.',
+    catalogTitle ? `Tambien deje disponible el catalogo demo "${catalogTitle}" para descargar y consultar.` : null,
+  ];
+
+  return lines.filter(Boolean).join('\n');
+};
+
 const Demo = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
@@ -79,6 +100,7 @@ const Demo = () => {
   const [contexto, setContexto] = useState({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const lastQueryRef = useRef<string | null>(null);
+  const initialDemoLoadRef = useRef(false);
 
   const rubroClave = rubroClaveSeleccionado || extractRubroKey(rubroSeleccionado);
   const rubroNormalizado = parseRubro(rubroClave);
@@ -204,7 +226,7 @@ const Demo = () => {
             })();
 
         setContexto((response as any)?.contexto_actualizado || {});
-        const respuestaText = response.respuesta_usuario || "⚠️ No se pudo generar una respuesta.";
+        const respuestaText = response.respuesta_usuario || "No se pudo generar una respuesta demo.";
         const botones = extractButtonsFromResponse(response);
 
         const botMessage: Message = {
@@ -216,12 +238,11 @@ const Demo = () => {
         };
 
         setMessages([botMessage]);
-      } catch (error: any) {
-        const errorMsg = getErrorMessage(error, "⚠️ No se pudo cargar el menú inicial.");
+      } catch {
         setMessages([
           {
             id: Date.now(),
-            text: errorMsg,
+            text: "Modo demo iniciado. Podes escribir una consulta o descargar el catalogo para probar el recorrido.",
             isBot: true,
             timestamp: new Date(),
             query: undefined,
@@ -242,6 +263,9 @@ const Demo = () => {
 
   // Load rubros and handle initial welcome message
   useEffect(() => {
+    if (initialDemoLoadRef.current) return;
+    initialDemoLoadRef.current = true;
+
     const storedClave = safeLocalStorage.getItem("rubroSeleccionado");
     const storedLabel = safeLocalStorage.getItem("rubroSeleccionado_label");
 
@@ -353,7 +377,7 @@ const Demo = () => {
 
         setContexto((response as any)?.contexto_actualizado || {});
 
-        const respuestaText = response.respuesta_usuario || "⚠️ No se pudo generar una respuesta.";
+        const respuestaText = response.respuesta_usuario || "No se pudo generar una respuesta demo.";
         const botones = extractButtonsFromResponse(response);
 
         const botMessage: Message = {
@@ -368,26 +392,29 @@ const Demo = () => {
         setMessages((prev) => [...prev, botMessage]);
         lastQueryRef.current = null;
         setPreguntasUsadas((prev) => prev + 1);
-      } catch (error: any) {
-        const errorMsg = getErrorMessage(
-          error,
-          '⚠️ No se pudo conectar con el servidor.'
-        );
+      } catch {
+        const fallbackText = buildDemoFallbackReply({
+          text,
+          sectorLabel: rubroSeleccionado,
+          catalogTitle: activeCatalogAsset?.title,
+        });
         setMessages((prev) => [
           ...prev,
           {
             id: Date.now(),
-            text: errorMsg,
+            text: fallbackText,
             isBot: true,
             timestamp: new Date(),
-            query: undefined,
+            query: lastQueryRef.current || undefined,
           },
         ]);
+        lastQueryRef.current = null;
+        setPreguntasUsadas((prev) => prev + 1);
       } finally {
         setIsTyping(false);
       }
     },
-    [activeChatBootstrap, contexto, demoTenantSlug, rubroSeleccionado, anonId, preguntasUsadas, rubroClave, rubroNormalizado, sectorSeleccionado]
+    [activeCatalogAsset?.title, activeChatBootstrap, contexto, demoTenantSlug, rubroSeleccionado, anonId, preguntasUsadas, rubroClave, rubroNormalizado, sectorSeleccionado]
   );
 
   const startSectorDemo = useCallback(async () => {
@@ -432,7 +459,7 @@ const Demo = () => {
   if (esperandoRubro) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-4 text-center bg-background dark:bg-gradient-to-b dark:from-[#10141b] dark:to-[#181d24] text-foreground">
-        <div className="w-full max-w-md p-7 rounded-3xl shadow-xl border border-border bg-card/90 dark:bg-[#191f2b]">
+        <div className="w-full max-w-3xl p-7 rounded-3xl shadow-xl border border-border bg-card/90 dark:bg-[#191f2b]">
           <img
             src="/chatboc_logo_clean_transparent.png"
             alt="Chatboc"

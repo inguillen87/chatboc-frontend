@@ -260,6 +260,16 @@ const tenantPortalRoutes: RouteConfig[] = userPortalRoutes.map(route => ({
   path: `/:tenant${route.path}`,
 }));
 
+const canonicalTenantPortalRoutes: RouteConfig[] = userPortalRoutes.flatMap((route) =>
+  withTenantPrefixes(`/:tenant${route.path}`, {
+    element: route.element,
+    userPortal: route.userPortal,
+    allowGuest: route.allowGuest,
+    roles: route.roles,
+    requiredCapabilities: route.requiredCapabilities,
+  }),
+);
+
 
 const routes: RouteConfig[] = [
   // --- SPECIFIC ROUTES FIRST (Priority) ---
@@ -354,6 +364,7 @@ const routes: RouteConfig[] = [
 
   // --- USER PORTAL ROUTES ---
   ...userPortalRoutes,
+  ...canonicalTenantPortalRoutes,
   ...tenantPortalRoutes,
 
   // --- GENERIC / FALLBACK ROUTES ---

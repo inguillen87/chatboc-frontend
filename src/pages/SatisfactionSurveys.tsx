@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { apiFetch, getErrorMessage } from '@/utils/api';
 import { Button } from '@/components/ui/button';
+import { pickCollection } from '@/utils/responseShape';
 
 interface Survey {
   id: number;
@@ -15,8 +16,8 @@ export default function SatisfactionSurveys() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    apiFetch<Survey[]>('/municipal/surveys')
-      .then((data) => setSurveys(data))
+    apiFetch<unknown>('/municipal/surveys')
+      .then((data) => setSurveys(pickCollection<Survey>(data, ['items', 'surveys', 'data', 'results'])))
       .catch(() => setSurveys([]));
   }, []);
 

@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import useRequireRole from '@/hooks/useRequireRole';
 import type { Role } from '@/utils/roles';
+import { pickCollection } from '@/utils/responseShape';
 
 interface Tramite {
   id: number;
@@ -21,9 +22,9 @@ export default function TramitesCatalog() {
   const [search, setSearch] = useState('');
 
   useEffect(() => {
-    apiFetch<Tramite[]>('/municipal/tramites')
+    apiFetch<unknown>('/municipal/tramites')
       .then((data) => {
-        const ordered = [...data].sort((a, b) =>
+        const ordered = pickCollection<Tramite>(data, ['items', 'tramites', 'procedures', 'data', 'results']).sort((a, b) =>
           a.nombre.localeCompare(b.nombre)
         );
         setTramites(ordered);
