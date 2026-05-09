@@ -1,9 +1,8 @@
-import { apiFetch } from "@/utils/api";
 import type { RealtimeVoiceCapabilities, RealtimeVoiceQuery } from "@/types/realtimeVoice";
 
 export async function getRealtimeVoiceCapabilities(
   query: RealtimeVoiceQuery = {},
-): Promise<RealtimeVoiceCapabilities> {
+): Promise<RealtimeVoiceCapabilities | null> {
   const params = new URLSearchParams();
   const tenant = query.tenant ?? query.tenantSlug ?? query.slug;
   const widgetToken = query.widgetToken;
@@ -16,14 +15,11 @@ export async function getRealtimeVoiceCapabilities(
   }
 
   const suffix = params.toString() ? `?${params.toString()}` : "";
-  return apiFetch<RealtimeVoiceCapabilities>(`/api/public/realtime/voice-capabilities${suffix}`, {
-    tenantSlug: tenant || undefined,
-    omitTenant: !tenant,
-    skipAuth: true,
-    omitCredentials: true,
-    isWidgetRequest: true,
-    omitChatSessionId: true,
-    sendAnonId: true,
-    omitEntityToken: true,
+  const response = await fetch(`/api/public/realtime/voice-capabilities${suffix}`, {
+    credentials: "omit",
+    headers: tenant ? { "X-Tenant-Slug": tenant } : undefined,
   });
+
+  if (!response.ok) return null;
+  return response.json();
 }

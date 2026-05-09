@@ -46,6 +46,14 @@ const readSectorTenantSlug = (group: DemoSectorGroup | null) => {
   return candidates.find((value) => typeof value === 'string' && value.trim())?.trim() ?? null;
 };
 
+const rootMatchesSector = (root: Rubro, sector: DemoSector | null) => {
+  if (!sector) return false;
+  if (sector === 'gobierno') return root.id === 1 || root.clave === 'municipios_root';
+  if (sector === 'empresas') return root.id === 2 || root.clave === 'comerciales_root';
+  if (sector === 'educacion') return root.id === 3 || root.clave === 'educacion_root';
+  return String(root.clave || root.nombre || '').toLowerCase().includes(String(sector).toLowerCase());
+};
+
 const Demo = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
@@ -74,6 +82,10 @@ const Demo = () => {
   }, [messages]);
   const activeChatBootstrap = demoWorkspace?.chat_bootstrap ?? null;
   const selectedSectorGroup = findSectorGroup(demoCatalog, sectorSeleccionado);
+  const visibleRubrosDisponibles = useMemo(
+    () => rubrosDisponibles.filter((root) => rootMatchesSector(root, sectorSeleccionado)),
+    [rubrosDisponibles, sectorSeleccionado],
+  );
   const demoMediaCapabilities = useMemo(
     () => mergeBootstrapSupportsWithMediaCapabilities(demoWorkspace?.media_capabilities ?? null, activeChatBootstrap?.supports),
     [activeChatBootstrap?.supports, demoWorkspace?.media_capabilities],
@@ -146,7 +158,12 @@ const Demo = () => {
             )
           : await (async () => {
               const baseTipo = getCurrentTipoChat();
-              const adjustedTipo = enforceTipoChatForRubro(baseTipo, normalized);
+              const adjustedTipo =
+                sectorSeleccionado === 'gobierno'
+                  ? 'municipio'
+                  : sectorSeleccionado === 'educacion' || sectorSeleccionado === 'empresas'
+                    ? 'pyme'
+                    : enforceTipoChatForRubro(baseTipo, normalized);
               const endpoint = getAskEndpoint({ tipoChat: adjustedTipo, rubro: normalized || undefined });
               return apiFetch<any>(endpoint, {
                 method: "POST",
@@ -193,7 +210,7 @@ const Demo = () => {
         setIsTyping(false);
       }
     },
-    [activeChatBootstrap, anonId, demoTenantSlug, setAnonId, setContexto, setIsTyping, setMessages, setPreguntasUsadas]
+    [activeChatBootstrap, anonId, demoTenantSlug, sectorSeleccionado, setAnonId, setContexto, setIsTyping, setMessages, setPreguntasUsadas]
   );
 
 
@@ -347,8 +364,9 @@ const Demo = () => {
     [activeChatBootstrap, contexto, demoTenantSlug, rubroSeleccionado, anonId, preguntasUsadas, rubroClave, rubroNormalizado]
   );
 
-  const startEducationDemo = useCallback(async () => {
-    const sector: DemoSector = 'educacion';
+  const startSectorDemo = useCallback(async () => {
+    if (!sectorSeleccionado) return;
+    const sector = sectorSeleccionado;
     const group = findSectorGroup(demoCatalog, sector);
     const label = readSectorLabel(group, sector);
     const tenantSlug = readSectorTenantSlug(group);
@@ -366,6 +384,7 @@ const Demo = () => {
       const session = await createDemoSession({
         sector,
         tenant_slug: tenantSlug,
+        rubro: String(sector),
       });
       setDemoSessionId(session.demo_session_id ?? null);
       setDemoTenantSlug(session.tenant_slug ?? null);
@@ -377,20 +396,11 @@ const Demo = () => {
       );
     } catch (error) {
       setDemoSessionId(null);
-      setDemoTenantSlug(null);
+      setDemoTenantSlug(tenantSlug);
       setDemoWorkspace(null);
-      setMessages([
-        {
-          id: Date.now(),
-          text: getErrorMessage(error, 'No se pudo iniciar la demo educativa.'),
-          isBot: true,
-          timestamp: new Date(),
-          query: undefined,
-        },
-      ]);
-      setIsTyping(false);
+      await startDemoConversation(String(sector), null, tenantSlug);
     }
-  }, [demoCatalog, openDemoWidget, startDemoConversation]);
+  }, [demoCatalog, openDemoWidget, sectorSeleccionado, startDemoConversation]);
 
   // Rubros selector UI
   if (esperandoRubro) {
@@ -421,7 +431,7 @@ const Demo = () => {
           {sectorSeleccionado ? null : (
             <p className="mb-3 text-xs text-muted-foreground">Primero seleccioná el sector para iniciar la demo.</p>
           )}
-          {sectorSeleccionado === 'educacion' ? (
+          {sectorSeleccionado && visibleRubrosDisponibles.length === 0 ? (
             <div className="space-y-3 rounded-lg border bg-background/70 p-3 text-left">
               {selectedSectorGroup?.description ? (
                 <p className="text-sm text-muted-foreground">{selectedSectorGroup.description}</p>
@@ -429,14 +439,14 @@ const Demo = () => {
               <button
                 type="button"
                 className="w-full rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-                onClick={() => void startEducationDemo()}
+                onClick={() => void startSectorDemo()}
               >
                 {selectedSectorGroup?.cta_label?.trim() || 'Iniciar demo'}
               </button>
             </div>
           ) : (
             <RubroSelector
-              rubros={sectorSeleccionado ? rubrosDisponibles : []}
+              rubros={sectorSeleccionado ? visibleRubrosDisponibles : []}
               onSelect={(rubro) => {
               const clave = extractRubroKey(rubro);
               const etiqueta = extractRubroLabel(rubro) || rubro.nombre;
@@ -471,6 +481,7 @@ const Demo = () => {
                   const session = await createDemoSession({
                     sector: sectorSeleccionado,
                     rubro: clave ?? etiqueta ?? rubro.nombre,
+                    tenant_slug: rubro.demo?.slug ?? readSectorTenantSlug(selectedSectorGroup),
                   });
                   setDemoSessionId(session.demo_session_id ?? null);
                   setDemoTenantSlug(session.tenant_slug ?? null);
@@ -482,9 +493,10 @@ const Demo = () => {
                   );
                 } catch {
                   setDemoSessionId(null);
-                  setDemoTenantSlug(null);
+                  const fallbackTenantSlug = rubro.demo?.slug ?? readSectorTenantSlug(selectedSectorGroup);
+                  setDemoTenantSlug(fallbackTenantSlug ?? null);
                   setDemoWorkspace(null);
-                  await startDemoConversation(clave ?? etiqueta ?? rubro.nombre);
+                  await startDemoConversation(clave ?? etiqueta ?? rubro.nombre, null, fallbackTenantSlug);
                 }
               })();
             }}

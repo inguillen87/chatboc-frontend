@@ -1,13 +1,16 @@
 import { demoApi } from '@/api/v2/client';
 import { getRubrosHierarchy } from '@/api/rubros';
-import type { DemoCatalogResponse, DemoChatBootstrap, DemoSessionResponse, DemoSector, DemoWorkspaceConfig } from './demoTypes';
+import { DEMO_SECTOR_GROUPS } from '@/data/demoHierarchy';
+import type { DemoCatalogResponse, DemoChatBootstrap, DemoSectorGroup, DemoSessionResponse, DemoSector, DemoWorkspaceConfig } from './demoTypes';
+
+const DEFAULT_DEMO_SECTORS: DemoSector[] = ['gobierno', 'empresas', 'educacion'];
 
 export const getDemoCatalog = async (): Promise<DemoCatalogResponse> => {
   try {
     return normalizeDemoCatalog(await demoApi.get<DemoCatalogResponse>('/api/v2/demo/catalog'));
   } catch {
     const rubros = await getRubrosHierarchy().catch(() => []);
-    return normalizeDemoCatalog({ sectors: ['gobierno', 'empresas'], rubros });
+    return normalizeDemoCatalog({ sectors: DEFAULT_DEMO_SECTORS, sector_groups: DEMO_SECTOR_GROUPS, rubros });
   }
 };
 
@@ -22,17 +25,23 @@ export const createDemoSession = (payload: { sector: DemoSector; rubro?: string;
   }));
 
 const normalizeDemoCatalog = (response: DemoCatalogResponse): DemoCatalogResponse => {
-  const sectors = Array.isArray(response.sectors) && response.sectors.length
-    ? response.sectors
-    : ['gobierno', 'empresas'];
-  const sectorGroups = Array.isArray(response.sector_groups)
+  const incomingSectors = Array.isArray(response.sectors) ? response.sectors : [];
+  const sectors = Array.from(new Set([...incomingSectors, ...DEFAULT_DEMO_SECTORS]));
+  const incomingGroups = Array.isArray(response.sector_groups)
     ? response.sector_groups.filter((group) => group?.key)
     : [];
+  const groupMap = new Map<string, DemoSectorGroup>();
+
+  DEMO_SECTOR_GROUPS.forEach((group) => groupMap.set(String(group.key), group));
+  incomingGroups.forEach((group) => {
+    const fallback = groupMap.get(String(group.key));
+    groupMap.set(String(group.key), { ...fallback, ...group });
+  });
 
   return {
     ...response,
     sectors,
-    sector_groups: sectorGroups,
+    sector_groups: Array.from(groupMap.values()),
     rubros: Array.isArray(response.rubros) ? response.rubros : [],
   };
 };

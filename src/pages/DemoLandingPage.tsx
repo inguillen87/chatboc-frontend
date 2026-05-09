@@ -32,7 +32,6 @@ import type { TenantEventItem, TenantNewsItem, TenantPublicInfo } from "@/types/
 import type { RealtimeVoiceCapabilities } from "@/types/realtimeVoice";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import DemoWorkspace from "@/features/demo/DemoWorkspace";
-import { useRealtimeVoiceCapabilities } from "@/hooks/useRealtimeVoiceCapabilities";
 import {
   getRealtimeVoiceBadges,
   isRealtimeVoiceRenderable,
@@ -151,17 +150,11 @@ const DemoLandingPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { setTenantSlug } = useTenant();
-  const realtimeVoiceQuerySlug = tenant?.slug || slug || null;
-  const { data: queriedRealtimeVoice } = useRealtimeVoiceCapabilities(
-    { tenantSlug: realtimeVoiceQuerySlug },
-    Boolean(realtimeVoiceQuerySlug),
-  );
   const effectiveRealtimeVoice =
     tenant?.realtime_voice ||
     tenant?.widget?.realtime_voice ||
     tenant?.support_channels?.voice_call?.capabilities ||
     tenant?.widget?.support_channels?.voice_call?.capabilities ||
-    queriedRealtimeVoice ||
     null;
   const voiceCallConfig = useMemo(
     () =>
