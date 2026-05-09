@@ -1,4 +1,4 @@
-import type { Rubro } from '@/components/chat/RubroSelector';
+import type { Rubro } from '@/types/rubro';
 import type {
   ChatAnimationTokens,
   ChatConversionCtasConfig,
@@ -20,14 +20,35 @@ export interface DemoSectorGroup {
   tenant_slug?: string | null;
   demo_tenant_slug?: string | null;
   default_tenant_slug?: string | null;
+  default_rubro?: string | null;
+  default_rubro_slug?: string | null;
+  [key: string]: unknown;
+}
+
+export interface DemoCatalogPillar {
+  key?: DemoSector | string | null;
+  sector?: DemoSector | string | null;
+  slug?: string | null;
+  label?: string | null;
+  description?: string | null;
+  cta_label?: string | null;
+  default_rubro?: string | null;
+  default_rubro_slug?: string | null;
+  tenant_slug?: string | null;
+  demo_tenant_slug?: string | null;
+  default_tenant_slug?: string | null;
   [key: string]: unknown;
 }
 
 export interface DemoCatalogResponse {
   contract_version?: string;
+  pillar_contract_version?: string;
   sectors?: DemoSector[];
+  pillars?: DemoCatalogPillar[];
   sector_groups?: DemoSectorGroup[];
   rubros?: Rubro[];
+  local_demo_mode?: boolean;
+  catalog_error?: string | null;
 }
 
 export interface DemoSessionResponse {
@@ -66,6 +87,8 @@ export interface DemoSessionResponse {
   welcome_message?: string | null;
   quick_replies?: QuickReplyItem[];
   value_cards?: DemoWorkspaceCard[];
+  catalog_resources?: DemoCatalogResource[];
+  analytics_summary?: Record<string, unknown> | null;
   handoff_labels?: HandoffLabels | null;
 }
 
@@ -89,11 +112,25 @@ export interface DemoWorkspaceCard {
   cta_label?: string | null;
 }
 
+export interface DemoCatalogResource {
+  id?: string | null;
+  key?: string | null;
+  label?: string | null;
+  title?: string | null;
+  url?: string | null;
+  href?: string | null;
+  action?: string | null;
+  intent?: string | null;
+  payload?: Record<string, unknown> | null;
+}
+
 export interface DemoWorkspaceConfig {
   title?: string | null;
   welcome_message?: string | null;
   quick_replies?: QuickReplyItem[];
   value_cards?: DemoWorkspaceCard[];
+  catalog_resources?: DemoCatalogResource[];
+  analytics_summary?: Record<string, unknown> | null;
   handoff_labels?: HandoffLabels | null;
   first_visit?: ChatExperienceBlock | null;
   sample_conversations?: ChatExperienceBlock[];

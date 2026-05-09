@@ -1136,8 +1136,11 @@ export function useChatLogic({
             pickFirstString(btn.action, btn.action_id, btn.accion_interna),
           );
           return (
-            token === "demo_segment:empresas" ||
-            token === "demo_segment:gobiernos"
+            token === "demo_segment:educacion" ||
+            token === "demo_segment:colegios" ||
+            token === "demo_segment:gobiernos" ||
+            token === "demo_segment:gobierno" ||
+            token === "demo_segment:empresas"
           );
         });
         return filtered.length ? filtered : buttons;
