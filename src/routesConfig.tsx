@@ -10,6 +10,7 @@ import Register from '@/pages/Register';
 import UserLogin from '@/pages/UserLogin';
 import UserRegister from '@/pages/UserRegister';
 import Demo from '@/pages/Demo';
+import DemoCatalogDownloadPage from '@/pages/DemoCatalogDownloadPage';
 import Perfil from '@/pages/Perfil';
 import UserAccount from '@/pages/UserAccount';
 import ChatPage from '@/pages/ChatPage';
@@ -397,6 +398,7 @@ const routes: RouteConfig[] = [
   ...withTenantPrefixes('/:tenant/user/register', { element: <UserRegister /> }),
   { path: '/cuenta', element: <UserAccount /> },
   { path: '/demo', element: <Demo /> },
+  { path: '/demo-catalogs/:catalogFile', element: <DemoCatalogDownloadPage /> },
   { path: '/demo/:slug', element: <DemoLandingPage /> },
   { path: '/soluciones/gobierno', element: <Navigate to="/demo/municipio" replace /> },
   { path: '/soluciones/empresas', element: <Navigate to="/demo/empresa" replace /> },

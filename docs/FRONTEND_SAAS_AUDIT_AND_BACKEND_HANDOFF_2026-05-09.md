@@ -243,3 +243,36 @@ El frontend en `https://www.chatboc.ar` llama rutas `/api/*`. El deploy debe gar
 - Consolidar helpers de normalizacion para no duplicar parsing de envelopes.
 - Agregar experiencias demo por vertical con assets/PDFs profesionales servidos como contenido estatico o contrato backend.
 
+## 6. Observaciones nuevas 2026-05-11
+
+### Demo chat municipio
+
+Consola produccion:
+
+- `POST /api/ask/municipio?tenant_slug=municipio` devuelve 500.
+
+Frontend ya degrada sin mostrar error crudo, pero backend deberia devolver envelope accionable para demo:
+
+```json
+{
+  "error": {
+    "code": 500,
+    "message": "No pudimos iniciar el chat demo. Probá nuevamente.",
+    "reason_code": "demo_chat_unavailable"
+  },
+  "request_id": "req_123"
+}
+```
+
+### Catalogos demo PDF
+
+Frontend agrego defensa:
+
+- PDFs estaticos regenerados en `public/demo-catalogs/*.pdf`.
+- Descarga resiliente desde navegador con `jspdf`.
+- Ruta fallback React para `/demo-catalogs/:catalogFile`.
+
+Pedido deploy/frontend-backend:
+
+- Verificar que `https://www.chatboc.ar/demo-catalogs/municipio.pdf` entregue `Content-Type: application/pdf` y status 200 despues del deploy.
+- Si el hosting reescribe assets a SPA, mantener el fallback pero corregir reglas de static assets para PDFs.

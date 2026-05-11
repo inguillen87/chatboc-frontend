@@ -159,11 +159,11 @@ const HeroSection = () => {
                     <div className="grid gap-2 sm:grid-cols-2">
                       <div className="rounded-[8px] border border-border bg-card px-3 py-2 text-left text-xs font-medium text-foreground">
                         <MessageSquareText className="mb-1 h-4 w-4 text-primary" />
-                        action.label
+                        Crear caso
                       </div>
                       <div className="rounded-[8px] border border-border bg-card px-3 py-2 text-left text-xs font-medium text-foreground">
                         <MapPinned className="mb-1 h-4 w-4 text-success" />
-                        action.requires_location
+                        Ubicación requerida
                       </div>
                     </div>
                   </div>

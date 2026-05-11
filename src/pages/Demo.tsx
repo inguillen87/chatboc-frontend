@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useLocation } from "react-router-dom";
+import { Download, ExternalLink, FileText, ShieldCheck } from "lucide-react";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { resetChatSessionId } from "@/utils/chatSessionId";
 import getOrCreateAnonId from "@/utils/anonId";
@@ -20,6 +21,7 @@ import { createDemoSession, getDemoCatalog } from '@/features/demo/demoApi';
 import type { DemoCatalogResponse, DemoChatBootstrap, DemoSector, DemoSectorGroup, DemoWorkspaceConfig } from '@/features/demo/demoTypes';
 import { sendChatBootstrapMessage } from '@/features/chat/chatApi';
 import { findDemoCatalogAsset } from '@/data/demoCatalogAssets';
+import { downloadDemoCatalogPdf } from '@/utils/demoCatalogPdf';
 
 const MAX_PREGUNTAS = 15;
 
@@ -78,8 +80,8 @@ const buildDemoFallbackReply = ({
     'La demo quedo activa en modo guiado.',
     text.trim() ? `Recibi tu consulta: "${text.trim()}".` : null,
     sectorLabel ? `Recorrido seleccionado: ${sectorLabel}.` : null,
-    'Podes seguir probando consultas, pedidos, tramites, derivaciones o adjuntos desde esta misma pantalla.',
-    catalogTitle ? `Tambien deje disponible el catalogo demo "${catalogTitle}" para descargar y consultar.` : null,
+    'Podés seguir probando consultas, pedidos, trámites, derivaciones o adjuntos desde esta misma pantalla.',
+    catalogTitle ? `También dejé disponible el catálogo demo "${catalogTitle}" para descargar y consultar.` : null,
   ];
 
   return lines.filter(Boolean).join('\n');
@@ -100,6 +102,8 @@ const Demo = () => {
   const [demoSessionId, setDemoSessionId] = useState<string | null>(null);
   const [demoTenantSlug, setDemoTenantSlug] = useState<string | null>(null);
   const [demoWorkspace, setDemoWorkspace] = useState<DemoWorkspaceConfig | null>(null);
+  const [catalogDownloadError, setCatalogDownloadError] = useState<string | null>(null);
+  const [isCatalogDownloading, setIsCatalogDownloading] = useState(false);
   const [contexto, setContexto] = useState({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const lastQueryRef = useRef<string | null>(null);
@@ -247,7 +251,7 @@ const Demo = () => {
         setMessages([
           {
             id: Date.now(),
-            text: "Modo demo iniciado. Podes escribir una consulta o descargar el catalogo para probar el recorrido.",
+            text: "Modo demo iniciado. Podés escribir una consulta o descargar el catálogo para probar el recorrido.",
             isBot: true,
             timestamp: new Date(),
             query: undefined,
@@ -259,6 +263,20 @@ const Demo = () => {
     },
     [activeChatBootstrap, anonId, demoTenantSlug, sectorSeleccionado, setAnonId, setContexto, setIsTyping, setMessages, setPreguntasUsadas]
   );
+
+  const handleDownloadCatalog = useCallback(async () => {
+    if (!activeCatalogAsset) return;
+    setCatalogDownloadError(null);
+    setIsCatalogDownloading(true);
+    try {
+      await downloadDemoCatalogPdf(activeCatalogAsset);
+    } catch (error) {
+      console.warn('No se pudo generar el catálogo demo en el navegador', error);
+      setCatalogDownloadError('No se pudo generar el PDF en el navegador. Abrí la ficha del catálogo para intentarlo nuevamente.');
+    } finally {
+      setIsCatalogDownloading(false);
+    }
+  }, [activeCatalogAsset]);
 
   useEffect(() => {
     if (hydratedSessionRef.current) return;
@@ -510,7 +528,7 @@ const Demo = () => {
           />
           <h2 className="text-2xl font-bold mb-2 text-primary">Bienvenido a Chatboc</h2>
           <p className="mb-4 text-sm text-muted-foreground">
-            Elegi un pilar y despues una categoria para iniciar una demo guiada.
+            Elegí un pilar y después una categoría para iniciar una demo guiada.
           </p>
           <div className="mb-4">
             <DemoSectorStep
@@ -624,9 +642,9 @@ const Demo = () => {
               <button
                 onClick={handleChangeRubro}
                 className="text-xs sm:text-sm text-muted-foreground hover:text-primary transition-colors underline underline-offset-2"
-                title="Cambiar Rubro"
+                title="Cambiar rubro"
               >
-                Rubro: {rubroSeleccionado} (Cambiar)
+                Rubro: {rubroSeleccionado} (cambiar)
               </button>
             )}
             {/* Removing Cart icon as it might not be relevant for all demos or could be confusing */}
@@ -646,22 +664,59 @@ const Demo = () => {
       <main className="w-full max-w-3xl flex flex-col flex-1 px-4 sm:px-6 py-5 space-y-4 overflow-y-auto custom-scroll">
         <DemoWorkspace tenantSlug={demoTenantSlug} sector={sectorSeleccionado} rubro={rubroSeleccionado} workspace={demoWorkspace} onPrefill={(text) => void handleSendMessage(text)} />
         {activeCatalogAsset ? (
-          <section className="rounded-2xl border border-primary/20 bg-primary/5 p-4 shadow-sm">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="text-left">
-                <p className="text-sm font-semibold text-foreground">Catalogo demo</p>
-                <p className="text-xs text-muted-foreground">
-                  Material descargable para probar consultas, pedidos y tramites en esta demo.
+          <section className="overflow-hidden rounded-2xl border border-primary/20 bg-card shadow-sm">
+            <div className="grid gap-0 md:grid-cols-[1fr_0.72fr]">
+              <div className="p-4 sm:p-5">
+                <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+                  <FileText className="h-4 w-4" />
+                  Catálogo demo
+                </div>
+                <h3 className="text-lg font-semibold text-foreground">{activeCatalogAsset.title}</h3>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                  {activeCatalogAsset.subtitle || 'Material descargable para probar consultas, pedidos y trámites en esta demo.'}
                 </p>
+                {activeCatalogAsset.highlights?.length ? (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {activeCatalogAsset.highlights.slice(0, 4).map((highlight) => (
+                      <span
+                        key={highlight}
+                        className="rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-medium text-primary"
+                      >
+                        {highlight}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
               </div>
-              <a
-                href={activeCatalogAsset.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90"
-              >
-                Descargar PDF
-              </a>
+              <div className="border-t border-border/70 bg-primary/5 p-4 sm:p-5 md:border-l md:border-t-0">
+                <div className="mb-4 flex items-start gap-2 rounded-xl border border-primary/15 bg-background/80 p-3 text-xs text-muted-foreground">
+                  <ShieldCheck className="mt-0.5 h-4 w-4 flex-shrink-0 text-success" />
+                  <span>La descarga se genera en tu navegador para evitar 404 de assets estáticos en deploy.</span>
+                </div>
+                <div className="flex flex-col gap-2 sm:flex-row md:flex-col">
+                  <button
+                    type="button"
+                    onClick={() => void handleDownloadCatalog()}
+                    disabled={isCatalogDownloading}
+                    className="inline-flex items-center justify-center rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    {isCatalogDownloading ? 'Preparando PDF' : 'Descargar PDF'}
+                  </button>
+                  <a
+                    href={activeCatalogAsset.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center rounded-xl border border-border bg-background px-4 py-2.5 text-sm font-semibold text-foreground transition hover:border-primary/40 hover:text-primary"
+                  >
+                    <ExternalLink className="mr-2 h-4 w-4" />
+                    Abrir ficha
+                  </a>
+                </div>
+                {catalogDownloadError ? (
+                  <p className="mt-3 text-xs leading-5 text-destructive">{catalogDownloadError}</p>
+                ) : null}
+              </div>
             </div>
           </section>
         ) : null}

@@ -124,8 +124,9 @@ test.describe('Chatboc smoke e2e', () => {
     await page.getByRole('button', { name: /Iniciar demo colegio/i }).click();
 
     await expect(page.getByRole('heading', { name: /Demo Workspace/i })).toBeVisible();
-    await expect(page.getByText(/Catalogo demo/i)).toBeVisible();
-    await expect(page.getByRole('link', { name: /Descargar PDF/i })).toHaveAttribute('href', /colegio-demo\.pdf/);
+    await expect(page.getByText(/Cat[aá]logo demo/i)).toBeVisible();
+    await expect(page.getByRole('button', { name: /Descargar PDF/i })).toBeVisible();
+    await expect(page.getByRole('link', { name: /Abrir ficha/i })).toHaveAttribute('href', /colegio-demo\.pdf/);
   });
 
   test('demo degrada sin mostrar error crudo cuando falla el chat backend', async ({ page }) => {

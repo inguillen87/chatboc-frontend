@@ -2,6 +2,8 @@ import React from 'react';
 import { BarChart3, FileText, MessageSquareText, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import ChatPanel from '@/features/chat/ChatPanel';
+import { findDemoCatalogAsset } from '@/data/demoCatalogAssets';
+import { downloadDemoCatalogPdf } from '@/utils/demoCatalogPdf';
 import type { DemoSector, DemoWorkspaceConfig } from './demoTypes';
 
 const readBlockTitle = (block: { title?: string | null; label?: string | null; text?: string | null }) =>
@@ -36,8 +38,13 @@ export default function DemoWorkspace({
     ? workspace.education.quick_menu
     : null;
 
-  const openResource = (href?: string | null) => {
+  const openResource = async (href?: string | null) => {
     if (!href) return;
+    const asset = href.includes('/demo-catalogs/') ? findDemoCatalogAsset(href.split('/').pop()) : null;
+    if (asset) {
+      await downloadDemoCatalogPdf(asset);
+      return;
+    }
     window.open(href, '_blank', 'noopener,noreferrer');
   };
 
@@ -121,7 +128,7 @@ export default function DemoWorkspace({
                   const label = resource.label || resource.title || resource.key || resource.id || `Recurso ${index + 1}`;
                   const href = resource.href || resource.url;
                   return (
-                    <Button key={resource.id || resource.key || `${label}-${index}`} type="button" size="sm" variant="outline" onClick={() => openResource(href)} disabled={!href}>
+                    <Button key={resource.id || resource.key || `${label}-${index}`} type="button" size="sm" variant="outline" onClick={() => void openResource(href)} disabled={!href}>
                       {label}
                     </Button>
                   );
