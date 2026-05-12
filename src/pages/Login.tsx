@@ -14,12 +14,14 @@ import { useTenant } from "@/context/TenantContext";
 import { buildTenantPath } from "@/utils/tenantPaths";
 import { DemoModeDisabledError, enterpriseService, extractDemoFrontendContract, isSupportedDemoFrontendContract, type DemoCatalogEntryPoint, type DemoCatalogTenant, type DemoCatalogResponse, type DemoFrontendContract, type DemoRubro } from "@/services/enterpriseService";
 import { getRubrosHierarchy } from "@/api/rubros";
+import { createDemoSession } from "@/features/demo/demoApi";
 import { mapDemoOptionsFromHierarchy } from "@/utils/enterpriseExperience";
 import { getDemoAccessProfiles } from "@/utils/demoAccessProfiles";
 import { useDateSettings } from "@/hooks/useDateSettings";
 import { LOCALE_OPTIONS } from "@/utils/localeOptions";
 import { getFranchisePartnerConfig } from "@/utils/franchisePartnerConfig";
 import { trackFrontendEvent } from "@/utils/frontendTelemetry";
+import { TENANT_PLACEHOLDER_SLUGS } from "@/constants/tenant";
 
 
 const isDevEnvironment = () => {
@@ -30,7 +32,7 @@ const isDevEnvironment = () => {
 
 const normalizeDemoLoginEndpoint = (endpoint?: string | null) => {
   const trimmed = typeof endpoint === 'string' ? endpoint.trim() : '';
-  if (!trimmed) return '/api/auth/demo';
+  if (!trimmed) return '/api/v2/demo/session';
   if (trimmed.startsWith('/api/')) return trimmed;
   if (trimmed.startsWith('/auth/')) return `/api${trimmed}`;
   return trimmed;
@@ -76,7 +78,7 @@ const Login = () => {
   const [demoEntryPoints, setDemoEntryPoints] = useState<DemoCatalogEntryPoint[]>([]);
   const [demoTenantDemos, setDemoTenantDemos] = useState<DemoCatalogTenant[]>([]);
   const [demoLoginEnabled, setDemoLoginEnabled] = useState(true);
-  const [demoLoginEndpoint, setDemoLoginEndpoint] = useState("/api/auth/demo");
+  const [demoLoginEndpoint, setDemoLoginEndpoint] = useState("/api/v2/demo/session");
   const [demoFrontendContract, setDemoFrontendContract] = useState<DemoFrontendContract>({});
   const [demoSector, setDemoSector] = useState<'gobierno' | 'empresas'>('gobierno');
   const [upgradeBlockedFeature, setUpgradeBlockedFeature] = useState<string | null>(null);
@@ -98,6 +100,29 @@ const Login = () => {
   const resolveSectorFromRubro = (rubro?: DemoRubro | null): 'gobierno' | 'empresas' => {
     if (rubro === 'pyme') return 'empresas';
     return 'gobierno';
+  };
+  const normalizePublicDemoSector = (
+    sector?: string | null,
+    rubro?: DemoRubro | null,
+    payload?: Record<string, unknown> | null,
+  ): "educacion" | "gobierno" | "empresas" => {
+    const candidates = [
+      sector,
+      typeof payload?.sector === "string" ? payload.sector : null,
+      typeof payload?.pillar === "string" ? payload.pillar : null,
+      typeof payload?.rubro === "string" ? payload.rubro : null,
+      typeof payload?.tenant_slug === "string" ? payload.tenant_slug : null,
+      rubro,
+    ];
+    const joined = candidates.filter(Boolean).join(" ").toLowerCase();
+    if (joined.includes("educ") || joined.includes("coleg") || joined.includes("escuela")) return "educacion";
+    if (joined.includes("empresa") || joined.includes("pyme") || joined.includes("bodega") || joined.includes("comerc")) return "empresas";
+    return "gobierno";
+  };
+  const persistDemoTenant = (tenantSlug?: string | null) => {
+    const normalized = typeof tenantSlug === "string" ? tenantSlug.trim() : "";
+    if (!normalized || TENANT_PLACEHOLDER_SLUGS.has(normalized.toLowerCase())) return;
+    safeLocalStorage.setItem("tenantSlug", normalized);
   };
 
   const isSectorFirstMode = demoFrontendContract.demo_selector?.mode === 'sector_first';
@@ -369,7 +394,7 @@ const Login = () => {
             request_id: err.requestId,
             contract_version: err.contractVersion,
             screen_name: "login",
-            endpoint: "GET /api/auth/demo/catalog",
+            endpoint: "GET /api/v2/demo/catalog",
           });
           setDemoLoginEnabled(false);
           setError(withRequestIdSuffix("Demo mode desactivado temporalmente.", err.requestId));
@@ -520,7 +545,7 @@ const Login = () => {
 
 
 
-  const handleDemoLogin = async (rubroOverride?: DemoRubro, payloadOverride?: Record<string, unknown>, endpointOverride?: string) => {
+  const handleDemoLogin = async (rubroOverride?: DemoRubro, payloadOverride?: Record<string, unknown>, _endpointOverride?: string) => {
     setError("");
     setIsDemoLoading(true);
     try {
@@ -530,47 +555,49 @@ const Login = () => {
         ? (resolvedRubro ? { rubro: resolvedRubro } : null)
         : { sector: resolvedSector });
       if (!resolvedPayload) return;
+      const resolvedPayloadRecord = resolvedPayload as Record<string, unknown>;
 
       const tenantSlugHint =
-        (typeof resolvedPayload.tenant_slug === 'string' && resolvedPayload.tenant_slug) ||
-        (typeof resolvedPayload.tenantSlug === 'string' && resolvedPayload.tenantSlug) ||
+        (typeof resolvedPayloadRecord.tenant_slug === 'string' && resolvedPayloadRecord.tenant_slug) ||
+        (typeof resolvedPayloadRecord.tenantSlug === 'string' && resolvedPayloadRecord.tenantSlug) ||
         currentSlug ||
         safeLocalStorage.getItem('tenantSlug') ||
         null;
 
       void runDemoPreloadHints(tenantSlugHint);
-      const requestPayload = buildDemoPayload(resolvedPayload, resolvedRubro, tenantSlugHint, resolvedSector);
-      const data = await enterpriseService.demoLoginWithPayload(requestPayload, normalizeDemoLoginEndpoint(endpointOverride || demoLoginEndpoint));
-      safeLocalStorage.setItem("authToken", data.token);
-      safeLocalStorage.setItem("demoMode", String(Boolean(data.demo_mode)));
-      if (data.tenant?.slug) safeLocalStorage.setItem("tenantSlug", data.tenant.slug);
-      if (data.tenant?.id) safeLocalStorage.setItem("tenantId", String(data.tenant.id));
-      const storedUserRaw = safeLocalStorage.getItem("user");
-      if (storedUserRaw) {
-        try {
-          const storedUser = JSON.parse(storedUserRaw);
-          safeLocalStorage.setItem(
-            "user",
-            JSON.stringify({
-              ...storedUser,
-              rol: data.user?.rol || storedUser?.rol,
-              tenant_slug: data.tenant?.slug || storedUser?.tenant_slug,
-              tenantSlug: data.tenant?.slug || storedUser?.tenantSlug,
-            }),
-          );
-        } catch {
-          safeLocalStorage.removeItem("user");
-        }
-      }
-      navigate("/analytics");
-      refreshUser().catch(() => undefined);
+      const requestPayload = buildDemoPayload(resolvedPayloadRecord, resolvedRubro, tenantSlugHint, resolvedSector);
+      const publicDemoSector = normalizePublicDemoSector(resolvedSector, resolvedRubro, requestPayload);
+      const session = await createDemoSession({
+        ...requestPayload,
+        sector: publicDemoSector,
+        tenant_slug:
+          typeof requestPayload.tenant_slug === "string"
+            ? requestPayload.tenant_slug
+            : publicDemoSector === "educacion"
+              ? "colegio-demo"
+              : publicDemoSector === "empresas"
+                ? "bodega"
+                : "municipio",
+      });
+      const sessionId = session.demo_session_id || session.session_id || `local_demo_${Date.now().toString(36)}`;
+      safeLocalStorage.setItem("demoMode", "true");
+      safeLocalStorage.setItem("demoSessionId", sessionId);
+      persistDemoTenant(session.tenant_slug || session.tenant?.slug || null);
+      navigate(`/demo?sector=${publicDemoSector}&session=${encodeURIComponent(sessionId)}`, {
+        state: {
+          demoSession: session,
+          sector: publicDemoSector,
+          rubroLabel: session.workspace?.title || publicDemoSector,
+          rubroSlug: publicDemoSector,
+        },
+      });
     } catch (err) {
       if (err instanceof DemoModeDisabledError) {
         trackFrontendEvent("demo_mode_disabled", {
           request_id: err.requestId,
           contract_version: err.contractVersion,
           screen_name: "login",
-          endpoint: normalizeDemoLoginEndpoint(endpointOverride || demoLoginEndpoint),
+          endpoint: normalizeDemoLoginEndpoint(demoLoginEndpoint),
         });
         setError(withRequestIdSuffix("Demo mode desactivado temporalmente.", err.requestId));
         return;
@@ -586,6 +613,26 @@ const Login = () => {
   };
 
   const registerTarget = isGlobalLogin ? '/register' : buildTenantPath("/register", currentSlug);
+  const publicDemoLaunchOptions = [
+    {
+      id: "educacion",
+      title: "Demo colegio",
+      description: "Secretaria, familias, inasistencias, documentos y derivacion humana.",
+      payload: { sector: "educacion", tenant_slug: "colegio-demo", rubro: "colegios" },
+    },
+    {
+      id: "gobierno",
+      title: "Demo gobierno",
+      description: "Reclamos, tramites, ubicaciones, noticias y seguimiento ciudadano.",
+      payload: { sector: "gobierno", tenant_slug: "municipio", rubro: "municipio" },
+    },
+    {
+      id: "empresas",
+      title: "Demo empresa",
+      description: "Catalogo, consultas, pedidos, carrito y contacto comercial.",
+      payload: { sector: "empresas", tenant_slug: "bodega", rubro: "local_comercial_general" },
+    },
+  ] as const;
 
   return (
     <div className="min-h-[calc(100vh-80px)] flex items-center justify-center px-4 bg-gradient-to-br from-background via-card to-muted text-foreground">
@@ -665,81 +712,30 @@ const Login = () => {
           {!demoLoginEnabled ? (
             <p className="text-xs text-muted-foreground">Demo no disponible actualmente.</p>
           ) : null}
-          {isSectorFirstMode ? (
-            <div className="flex gap-2">
-              {(demoFrontendContract.onboarding?.sector_options?.length
-                ? demoFrontendContract.onboarding.sector_options
-                : [
-                    { value: 'gobierno', label: 'Gobierno' },
-                    { value: 'empresas', label: 'Empresas' },
-                  ]).map((sectorOption) => (
-                <Button
-                  key={sectorOption.value}
-                  type="button"
-                  variant={demoSector === sectorOption.value ? "default" : "outline"}
-                  className="flex-1"
-                  onClick={() => {
-                    setDemoSector(sectorOption.value);
-                    if (sectorOption.value === 'gobierno') {
-                      setDemoRubro('municipio');
-                    }
-                  }}
-                  disabled={!demoLoginEnabled || isDemoLoading || isLoading || isPasskeyLoading}
-                >
-                  {sectorOption.label || (sectorOption.value === 'gobierno' ? 'Gobierno' : 'Empresas')}
-                </Button>
-              ))}
-            </div>
-          ) : null}
-          {needsRubroSelection ? (
-            <div className="flex gap-2">
-              {demoOptions.map((option) => (
-                <Button
-                  key={option.value}
-                  type="button"
-                  variant={demoRubro === option.value ? "default" : "outline"}
-                  className="flex-1"
-                  onClick={() => { setDemoRubro(option.value); setDemoSector(resolveSectorFromRubro(option.value)); }}
-                  disabled={!demoLoginEnabled || isDemoLoading || isLoading || isPasskeyLoading}
-                >
-                  {option.label}
-                </Button>
-              ))}
-            </div>
-          ) : null}
-          <Button
-            type="button"
-            className="w-full"
-            onClick={() => { void handleDemoLogin(); }}
-            disabled={!demoLoginEnabled || (needsRubroSelection && !demoRubro) || isDemoLoading || isLoading || isPasskeyLoading}
-          >
-            {isDemoLoading ? "Ingresando demo..." : "Probar Demo"}
-          </Button>
-          <div className="grid gap-2 sm:grid-cols-3">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => navigate('/demo?sector=educacion')}
-              disabled={isDemoLoading || isLoading || isPasskeyLoading}
-            >
-              Demo colegio
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => navigate('/demo?sector=gobierno')}
-              disabled={isDemoLoading || isLoading || isPasskeyLoading}
-            >
-              Demo gobierno
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => navigate('/demo?sector=empresas')}
-              disabled={isDemoLoading || isLoading || isPasskeyLoading}
-            >
-              Demo empresa
-            </Button>
+          <div className="rounded-xl border border-primary/20 bg-primary/5 p-3">
+            <p className="text-sm font-semibold text-foreground">Entrar a una demo guiada</p>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+              Elegi una experiencia completa sin credenciales: chat, recursos, seguimiento y vista operativa.
+            </p>
+          </div>
+          <div className="grid gap-2">
+            {publicDemoLaunchOptions.map((option) => (
+              <Button
+                key={option.id}
+                type="button"
+                variant="outline"
+                className="h-auto justify-between gap-3 rounded-xl border-border/80 px-4 py-3 text-left hover:border-primary/60 hover:bg-primary/10"
+                onClick={() => { void handleDemoLogin(undefined, option.payload); }}
+                disabled={!demoLoginEnabled || isDemoLoading || isLoading || isPasskeyLoading}
+                aria-label={`Abrir ${option.title}`}
+              >
+                <span>
+                  <span className="block font-semibold">{option.title}</span>
+                  <span className="mt-1 block text-xs font-normal text-muted-foreground">{option.description}</span>
+                </span>
+                <span aria-hidden="true" className="text-lg">-&gt;</span>
+              </Button>
+            ))}
           </div>
           {twilioTrial?.wa_deeplink ? (
             <div className="rounded-lg border border-border/70 bg-muted/20 p-3 space-y-2">

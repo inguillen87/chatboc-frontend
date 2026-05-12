@@ -68,6 +68,7 @@ export interface DemoCatalogEntryPoint {
 export interface DemoCatalogResponse {
   frontend_contract_version?: string;
   frontend?: Record<string, unknown>;
+  onboarding?: Record<string, unknown>;
   demo_selector?: Record<string, unknown>;
   preload_before_login?: string[] | Record<string, boolean>;
   demo_login_enabled?: boolean;
@@ -217,19 +218,19 @@ const normalizeQuickActions = (
   raw: unknown,
 ): Array<{ id?: string; label?: string; description?: string }> => {
   if (!Array.isArray(raw)) return [];
-  return raw
-    .map((item) => {
-      if (!item || typeof item !== "object") return null;
-      const record = item as Record<string, unknown>;
-      const label = typeof record.label === "string" ? record.label.trim() : "";
-      if (!label) return null;
-      return {
-        id: typeof record.id === "string" ? record.id.trim() : undefined,
-        label,
-        description: typeof record.description === "string" ? record.description.trim() : undefined,
-      };
-    })
-    .filter((item): item is { id?: string; label?: string; description?: string } => Boolean(item));
+  const actions: Array<{ id?: string; label?: string; description?: string }> = [];
+  raw.forEach((item) => {
+    if (!item || typeof item !== "object") return;
+    const record = item as Record<string, unknown>;
+    const label = typeof record.label === "string" ? record.label.trim() : "";
+    if (!label) return;
+    actions.push({
+      id: typeof record.id === "string" ? record.id.trim() : undefined,
+      label,
+      description: typeof record.description === "string" ? record.description.trim() : undefined,
+    });
+  });
+  return actions;
 };
 
 export const extractDemoFrontendContract = (
@@ -552,7 +553,7 @@ export interface LeadsPipelineResponse {
 }
 
 interface EnterpriseBaseFilters {
-  tenant_id: number;
+  tenant_id?: number;
   scope?: string;
   from?: string;
   to?: string;
@@ -682,11 +683,9 @@ const normalizeTenantDashboardBundle = (
   };
 };
 
-const buildQueryString = (
-  filters: Record<string, string | number | boolean | undefined>,
-) => {
+const buildQueryString = (filters: object) => {
   const params = new URLSearchParams();
-  Object.entries(filters).forEach(([key, value]) => {
+  Object.entries(filters as Record<string, unknown>).forEach(([key, value]) => {
     if (value === undefined || value === null || value === "") return;
     params.append(key, String(value));
   });
@@ -897,7 +896,7 @@ export const enterpriseService = {
   getDemoCatalog: async (ensureUsers = false): Promise<DemoCatalogResponse> => {
     const suffix = ensureUsers ? "?ensure_users=true" : "";
     try {
-      return await apiFetch<DemoCatalogResponse>(`/api/auth/demo/catalog${suffix}`, {
+      return await apiFetch<DemoCatalogResponse>(`/api/v2/demo/catalog${suffix}`, {
         skipAuth: true,
         omitTenant: true,
       });
@@ -910,7 +909,7 @@ export const enterpriseService = {
 
   demoLoginWithPayload: async (
     payload: Record<string, unknown>,
-    endpoint = "/api/auth/demo",
+    endpoint = "/api/v2/demo/session",
   ): Promise<DemoAuthResponse> => {
     try {
       return await apiFetch<DemoAuthResponse>(endpoint, {
@@ -928,9 +927,12 @@ export const enterpriseService = {
 
   demoLogin: async (rubro: DemoRubro): Promise<DemoAuthResponse> => {
     try {
-      return await apiFetch<DemoAuthResponse>("/api/auth/demo", {
+      return await apiFetch<DemoAuthResponse>("/api/v2/demo/session", {
         method: "POST",
-        body: { rubro },
+        body: {
+          rubro,
+          sector: rubro === "pyme" ? "empresas" : "gobierno",
+        },
         skipAuth: true,
         omitTenant: true,
       });

@@ -3,6 +3,7 @@ import { Order, Cart, Ticket, PortalContent, IntegrationStatus, PortalLoyaltySum
 import { Tenant, CreateTenantDTO, UpdateTenantDTO } from '@/types/superAdmin';
 import { WhatsappExternalNumberPayload, WhatsappNumberCreatePayload, WhatsappNumberInventoryItem, WhatsappNumberStatus } from '@/types/whatsapp';
 import { TenantCatalog } from '@/types/catalog';
+import { TENANT_PLACEHOLDER_SLUGS } from '@/constants/tenant';
 import {
   parseIdentityCoverageResponseV1,
   type IdentityCoverageResponseV1 as IdentityCoverageResponse,
@@ -701,8 +702,13 @@ export const apiClient = {
   },
 
   publicGetCatalog: async (tenantSlug: string): Promise<TenantCatalog> => {
-    const data = await apiFetch<TenantCatalog | any[]>(`/api/public/tenants/${tenantSlug}/catalog`, {
-      tenantSlug,
+    const normalizedTenantSlug = typeof tenantSlug === 'string' ? tenantSlug.trim() : '';
+    if (!normalizedTenantSlug || TENANT_PLACEHOLDER_SLUGS.has(normalizedTenantSlug.toLowerCase())) {
+      return { metadata: null, links: null, columns: [], rows: [] };
+    }
+
+    const data = await apiFetch<TenantCatalog | any[]>(`/api/public/tenants/${encodeURIComponent(normalizedTenantSlug)}/catalog`, {
+      tenantSlug: normalizedTenantSlug,
       isWidgetRequest: true,
       skipAuth: true,
       omitCredentials: true,

@@ -490,11 +490,6 @@ const DynamicSection = ({ section, index }: { section: LandingRecord; index: num
           {steps.length ? <WorkflowPanel steps={steps} /> : null}
           {cards.length ? <CardGrid cards={cards} /> : null}
           {!metrics.length && !steps.length && !cards.length ? <CuratedFallbackPanel index={index} /> : null}
-          {false ? (
-            <div className="mx-auto max-w-3xl rounded-[8px] border border-dashed border-border/70 bg-card/70 p-6 text-center text-sm text-muted-foreground">
-              {readCopyText(section, ["empty_state", "fallback", "state"], "Esta sección se está preparando para mostrar más ejemplos.")}
-            </div>
-          ) : null}
         </div>
         <CtaBand ctas={ctas} />
       </div>

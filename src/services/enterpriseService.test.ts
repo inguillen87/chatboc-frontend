@@ -34,7 +34,7 @@ describe('enterpriseService demo endpoints', () => {
   it('requests demo catalog without tenant scope params', async () => {
     await enterpriseService.getDemoCatalog();
 
-    expect(apiFetchMock).toHaveBeenCalledWith('/api/auth/demo/catalog', {
+    expect(apiFetchMock).toHaveBeenCalledWith('/api/v2/demo/catalog', {
       skipAuth: true,
       omitTenant: true,
     });
@@ -43,7 +43,7 @@ describe('enterpriseService demo endpoints', () => {
   it('posts demo login payload without tenant scope params', async () => {
     await enterpriseService.demoLoginWithPayload({ rubro: 'municipio' });
 
-    expect(apiFetchMock).toHaveBeenCalledWith('/api/auth/demo', {
+    expect(apiFetchMock).toHaveBeenCalledWith('/api/v2/demo/session', {
       method: 'POST',
       body: { rubro: 'municipio' },
       skipAuth: true,

@@ -18,15 +18,12 @@ import {
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { resetChatSessionId } from "@/utils/chatSessionId";
 import getOrCreateAnonId from "@/utils/anonId";
-import ChatInput from "@/components/chat/ChatInput";
-import TypingIndicator from "@/components/chat/TypingIndicator";
-import ChatMessage from "@/components/chat/ChatMessage";
 import RubroSelector from "@/components/chat/RubroSelector";
 import type { Rubro } from "@/types/rubro";
-import type { ChatMediaCapabilities, Message, SendPayload } from "@/types/chat";
+import type { Message, SendPayload } from "@/types/chat";
 import { apiFetch } from "@/utils/api";
 import { getCurrentTipoChat, enforceTipoChatForRubro, parseRubro } from "@/utils/tipoChat";
-import { getAskEndpoint, esRubroPublico } from "@/utils/chatEndpoints";
+import { getAskEndpoint } from "@/utils/chatEndpoints";
 import { extractRubroKey, extractRubroLabel } from "@/utils/rubros";
 import { extractButtonsFromResponse } from "@/utils/chatButtons";
 import DemoWorkspace from '@/features/demo/DemoWorkspace';
@@ -100,16 +97,6 @@ const buildDemoFallbackReply = ({
   }
 
   return `Listo, tomé "${cleanText}" como una consulta demo${context}. Chatboc puede responder, pedir datos faltantes, registrar el caso y derivarlo a una persona si hace falta.${resource}`;
-
-  const lines = [
-    'La demo quedo activa en modo guiado.',
-    text.trim() ? `Recibi tu consulta: "${text.trim()}".` : null,
-    sectorLabel ? `Recorrido seleccionado: ${sectorLabel}.` : null,
-    'Podés seguir probando consultas, pedidos, trámites, derivaciones o adjuntos desde esta misma pantalla.',
-    catalogTitle ? `También dejé disponible el catálogo demo "${catalogTitle}" para descargar y consultar.` : null,
-  ];
-
-  return lines.filter(Boolean).join('\n');
 };
 
 const getDemoScenario = (sector: DemoSector | null, rubro?: string | null) => {
@@ -166,8 +153,8 @@ const DemoAdminPreview = ({ sector, rubro }: { sector: DemoSector | null; rubro?
 
   return (
     <section className="overflow-hidden rounded-2xl border border-border/70 bg-card/80 shadow-sm backdrop-blur">
-      <div className="grid gap-0 lg:grid-cols-[0.72fr_1.28fr]">
-        <aside className="border-b border-border/70 bg-muted/25 p-5 lg:border-b-0 lg:border-r">
+      <div className="grid gap-0">
+        <aside className="border-b border-border/70 bg-muted/25 p-4 sm:p-5">
           <div className="mb-5 flex items-center gap-3">
             <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
               <Icon className="h-5 w-5" />
@@ -195,7 +182,7 @@ const DemoAdminPreview = ({ sector, rubro }: { sector: DemoSector | null; rubro?
           </nav>
         </aside>
 
-        <div className="p-5">
+        <div className="p-4 sm:p-5">
           <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">Vista 360</p>
@@ -207,7 +194,7 @@ const DemoAdminPreview = ({ sector, rubro }: { sector: DemoSector | null; rubro?
             </span>
           </div>
 
-          <div className="grid gap-3 md:grid-cols-3">
+          <div className="grid gap-3">
             {scenario.cards.map((card) => {
               const CardIcon = card.icon;
               return (
@@ -221,7 +208,7 @@ const DemoAdminPreview = ({ sector, rubro }: { sector: DemoSector | null; rubro?
             })}
           </div>
 
-          <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_0.8fr]">
+          <div className="mt-4 grid gap-3">
             <div className="rounded-xl border border-border/70 bg-background/70 p-4">
               <div className="mb-3 flex items-center justify-between">
                 <p className="text-sm font-semibold text-foreground">Recorrido visible para el equipo</p>
@@ -271,19 +258,13 @@ const Demo = () => {
   const [catalogDownloadError, setCatalogDownloadError] = useState<string | null>(null);
   const [isCatalogDownloading, setIsCatalogDownloading] = useState(false);
   const [contexto, setContexto] = useState({});
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const lastQueryRef = useRef<string | null>(null);
   const initialDemoLoadRef = useRef(false);
   const hydratedSessionRef = useRef(false);
 
   const rubroClave = rubroClaveSeleccionado || extractRubroKey(rubroSeleccionado);
   const rubroNormalizado = parseRubro(rubroClave);
-  const isMunicipioRubro = esRubroPublico(rubroNormalizado || undefined);
 
-  const guidedActions = useMemo(() => {
-    const lastBotMessage = [...messages].reverse().find((message) => message.isBot && Array.isArray(message.botones) && message.botones.length > 0);
-    return lastBotMessage?.botones ?? [];
-  }, [messages]);
   const activeChatBootstrap = demoWorkspace?.chat_bootstrap ?? null;
   const isLocalDemoMode = useLocalDemoRuntime || demoCatalog?.local_demo_mode === true;
   const selectedSectorGroup = findSectorGroup(demoCatalog, sectorSeleccionado);
@@ -304,10 +285,6 @@ const Demo = () => {
     }
     return null;
   }, [demoTenantSlug, rubroClaveSeleccionado, sectorSeleccionado, selectedSectorGroup]);
-  const demoMediaCapabilities = useMemo(
-    () => mergeBootstrapSupportsWithMediaCapabilities(demoWorkspace?.media_capabilities ?? null, activeChatBootstrap?.supports),
-    [activeChatBootstrap?.supports, demoWorkspace?.media_capabilities],
-  );
 
 
   // Action: reset demo and choose another rubro
@@ -575,10 +552,6 @@ const Demo = () => {
         });
     }
   }, [location.search, location.state, rubroClaveSeleccionado, rubroSeleccionado, startDemoConversation, openDemoWidget]);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isTyping]);
 
   const handleSendMessage = useCallback(
     async (payload: SendPayload | string) => {
@@ -900,186 +873,130 @@ const Demo = () => {
   }
 
   return (
-    // Use background from index.css for consistency with theme light/dark
-    <div className="flex flex-col items-center w-full min-h-screen bg-background text-foreground">
-      {/* HEADER */}
-      {/* Applying a more modern header style */}
-      <header className="w-full bg-card/80 backdrop-blur-md shadow-sm sticky top-0 z-20 border-b border-border">
-        <div className="max-w-3xl mx-auto py-3 px-4 flex items-center justify-between">
+    <div className="flex min-h-screen w-full flex-col items-center bg-background text-foreground">
+      <header className="sticky top-0 z-20 w-full border-b border-border bg-card/80 shadow-sm backdrop-blur-md">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3">
             <img
               src={CHATBOC_ORBIT_AVATAR}
               alt="Chatboc"
-              className="w-9 h-9 rounded-full p-0.5 bg-primary/20 dark:bg-primary/30 border border-primary/30"
-              onError={(e) => { (e.target as HTMLImageElement).src = "/favicon/favicon-48x48.png"; }}
+              className="h-9 w-9 rounded-full border border-primary/30 bg-primary/20 p-0.5 dark:bg-primary/30"
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = "/favicon/favicon-48x48.png";
+              }}
             />
-            <span className="font-semibold text-xl tracking-tight text-foreground">
-              Chatboc <span className="text-muted-foreground text-lg">· Demo</span>
+            <span className="text-xl font-semibold tracking-tight text-foreground">
+              Chatboc <span className="text-lg text-muted-foreground">· Demo</span>
             </span>
           </div>
-          <div className="flex items-center gap-4">
-            {rubroSeleccionado && (
-              <button
-                onClick={handleChangeRubro}
-                className="text-xs sm:text-sm text-muted-foreground hover:text-primary transition-colors underline underline-offset-2"
-                title="Cambiar rubro"
-              >
-                Rubro: {rubroSeleccionado} (cambiar)
-              </button>
-            )}
-            {/* Removing Cart icon as it might not be relevant for all demos or could be confusing */}
-            {/* <button
-              onClick={openCart}
-              aria-label="Ver carrito"
-              className="text-muted-foreground hover:text-primary transition-colors"
+          {rubroSeleccionado ? (
+            <button
+              onClick={handleChangeRubro}
+              className="text-xs text-muted-foreground underline underline-offset-2 transition-colors hover:text-primary sm:text-sm"
+              title="Cambiar rubro"
             >
-              <ShoppingCart size={22} />
-            </button> */}
-          </div>
+              Rubro: {rubroSeleccionado} (cambiar)
+            </button>
+          ) : null}
         </div>
       </header>
 
-      {/* CHAT AREA */}
-      {/* Increased max-w for chat content area for better desktop view, maintains padding */}
-      <main className="w-full max-w-5xl flex flex-col flex-1 px-4 sm:px-6 py-5 space-y-4 overflow-y-auto custom-scroll">
-        <DemoWorkspace tenantSlug={demoTenantSlug} sector={sectorSeleccionado} rubro={rubroSeleccionado} workspace={demoWorkspace} onPrefill={(text) => void handleSendMessage(text)} />
-        <DemoAdminPreview sector={sectorSeleccionado} rubro={rubroSeleccionado} />
-        {activeCatalogAsset ? (
-          <section className="overflow-hidden rounded-2xl border border-primary/20 bg-card shadow-sm">
-            <div className="grid gap-0 md:grid-cols-[1fr_0.72fr]">
-              <div className="p-4 sm:p-5">
-                <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
-                  <FileText className="h-4 w-4" />
-                  Catálogo demo
-                </div>
-                <h3 className="text-lg font-semibold text-foreground">{activeCatalogAsset.title}</h3>
-                <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                  {activeCatalogAsset.subtitle || 'Material descargable para probar consultas, pedidos y trámites en esta demo.'}
-                </p>
-                {activeCatalogAsset.highlights?.length ? (
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {activeCatalogAsset.highlights.slice(0, 4).map((highlight) => (
-                      <span
-                        key={highlight}
-                        className="rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-medium text-primary"
-                      >
-                        {highlight}
-                      </span>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-              <div className="border-t border-border/70 bg-primary/5 p-4 sm:p-5 md:border-l md:border-t-0">
-                <div className="mb-4 flex items-start gap-2 rounded-xl border border-primary/15 bg-background/80 p-3 text-xs text-muted-foreground">
-                  <ShieldCheck className="mt-0.5 h-4 w-4 flex-shrink-0 text-success" />
-                  <span>El material se prepara al instante para que siempre puedas descargarlo.</span>
-                </div>
-                <div className="flex flex-col gap-2 sm:flex-row md:flex-col">
-                  <button
-                    type="button"
-                    onClick={() => void handleDownloadCatalog()}
-                    disabled={isCatalogDownloading}
-                    className="inline-flex items-center justify-center rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-70"
-                  >
-                    <Download className="mr-2 h-4 w-4" />
-                    {isCatalogDownloading ? 'Preparando PDF' : 'Descargar PDF'}
-                  </button>
-                  <a
-                    href={activeCatalogAsset.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center justify-center rounded-xl border border-border bg-background px-4 py-2.5 text-sm font-semibold text-foreground transition hover:border-primary/40 hover:text-primary"
-                  >
-                    <ExternalLink className="mr-2 h-4 w-4" />
-                    Abrir ficha
-                  </a>
-                </div>
-                {catalogDownloadError ? (
-                  <p className="mt-3 text-xs leading-5 text-destructive">{catalogDownloadError}</p>
-                ) : null}
-              </div>
+      <main className="w-full max-w-6xl flex-1 space-y-5 px-4 py-5 sm:px-6">
+        <section className="overflow-hidden rounded-3xl border border-border/70 bg-card/70 p-5 shadow-sm backdrop-blur">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">Demo completa</p>
+              <h1 className="mt-2 text-2xl font-black tracking-tight text-foreground sm:text-3xl">
+                Probá el chat y mirá cómo queda la operación del equipo.
+              </h1>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+                La consulta, los adjuntos, el seguimiento, el catálogo y el panel trabajan juntos para que un director, municipio o empresa vea el recorrido completo.
+              </p>
             </div>
-          </section>
-        ) : null}
-        {messages.map((msg) => (
-          <ChatMessage
-            key={msg.id}
-            message={msg}
-            isTyping={isTyping}
-            onButtonClick={handleSendMessage}
-            tipoChat={isMunicipioRubro ? "municipio" : "pyme"}
-            query={msg.query}
-          />
-        ))}
-        {isTyping && <TypingIndicator />}
-        <div ref={messagesEndRef} />
-      </main>
-
-      {/* INPUT AREA */}
-      {/* Consistent padding and background, sticky to bottom */}
-      <footer className="w-full bg-card/80 backdrop-blur-md border-t border-border p-3 sm:p-4 sticky bottom-0 z-10">
-        <div className="max-w-3xl mx-auto">
-          {guidedActions.length > 0 ? (
-            <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-border/60 bg-muted/20 p-2">
-              <span className="text-xs text-muted-foreground">¿Sobre qué te gustaría preguntar?</span>
-              {guidedActions.slice(0, 4).map((action, index) => (
-                <button
-                  key={`${action.texto}-${index}`}
-                  type="button"
-                  className="rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs text-primary transition hover:bg-primary/20"
-                  onClick={() => {
-                    if (action.url) {
-                      window.open(action.url, '_blank', 'noopener,noreferrer');
-                      return;
-                    }
-                    void handleSendMessage({
-                      text: action.texto,
-                      action: action.action ?? action.action_id ?? action.accion_interna,
-                    });
-                  }}
-                >
-                  {action.texto}
-                </button>
+            <div className="grid grid-cols-3 gap-2 text-center text-xs sm:min-w-[320px]">
+              {["Chat", "Panel", "Historial"].map((label) => (
+                <span key={label} className="rounded-2xl border border-border/70 bg-background/70 px-3 py-3 font-semibold text-foreground">
+                  {label}
+                  <small className="mt-1 block text-muted-foreground">
+                    {label === "Chat" ? "web" : label === "Panel" ? "admin" : "usuario"}
+                  </small>
+                </span>
               ))}
             </div>
-          ) : null}
-          <ChatInput
-            onSendMessage={handleSendMessage}
-            isTyping={isTyping}
-            mediaCapabilities={demoMediaCapabilities}
-          />
-           <p className="text-center text-xs text-muted-foreground pt-2">
-            Chatboc Demo &copy; {new Date().getFullYear()}.
-            {preguntasUsadas >= MAX_PREGUNTAS
-              ? <span className="text-destructive-foreground"> Límite de mensajes alcanzado.</span>
-              : ` ${MAX_PREGUNTAS - preguntasUsadas} mensajes restantes.`
-            }
-          </p>
+          </div>
+        </section>
+
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_430px]">
+          <div className="min-w-0">
+            <DemoWorkspace
+              tenantSlug={demoTenantSlug}
+              sector={sectorSeleccionado}
+              rubro={rubroSeleccionado}
+              workspace={demoWorkspace}
+              onPrefill={(text) => void handleSendMessage(text)}
+            />
+          </div>
+
+          <aside className="space-y-5 xl:sticky xl:top-24 xl:self-start">
+            <DemoAdminPreview sector={sectorSeleccionado} rubro={rubroSeleccionado} />
+            {activeCatalogAsset ? (
+              <section className="overflow-hidden rounded-2xl border border-primary/20 bg-card shadow-sm">
+                <div className="p-4 sm:p-5">
+                  <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+                    <FileText className="h-4 w-4" />
+                    Catálogo demo
+                  </div>
+                  <h3 className="text-lg font-semibold text-foreground">{activeCatalogAsset.title}</h3>
+                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                    {activeCatalogAsset.subtitle || "Material descargable para probar consultas, pedidos y trámites en esta demo."}
+                  </p>
+                  {activeCatalogAsset.highlights?.length ? (
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {activeCatalogAsset.highlights.slice(0, 4).map((highlight) => (
+                        <span
+                          key={highlight}
+                          className="rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-medium text-primary"
+                        >
+                          {highlight}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+                <div className="border-t border-border/70 bg-primary/5 p-4 sm:p-5">
+                  <div className="mb-4 flex items-start gap-2 rounded-xl border border-primary/15 bg-background/80 p-3 text-xs text-muted-foreground">
+                    <ShieldCheck className="mt-0.5 h-4 w-4 flex-shrink-0 text-success" />
+                    <span>El material se prepara al instante para que siempre puedas descargarlo.</span>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void handleDownloadCatalog()}
+                      disabled={isCatalogDownloading}
+                      className="inline-flex items-center justify-center rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-70"
+                    >
+                      <Download className="mr-2 h-4 w-4" />
+                      {isCatalogDownloading ? "Preparando PDF" : "Descargar PDF"}
+                    </button>
+                    <a
+                      href={activeCatalogAsset.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center justify-center rounded-xl border border-border bg-background px-4 py-2.5 text-sm font-semibold text-foreground transition hover:border-primary/40 hover:text-primary"
+                    >
+                      <ExternalLink className="mr-2 h-4 w-4" />
+                      Abrir ficha
+                    </a>
+                  </div>
+                  {catalogDownloadError ? <p className="mt-3 text-xs leading-5 text-destructive">{catalogDownloadError}</p> : null}
+                </div>
+              </section>
+            ) : null}
+          </aside>
         </div>
-      </footer>
+      </main>
     </div>
   );
-};
-
-const mergeBootstrapSupportsWithMediaCapabilities = (
-  mediaCapabilities: ChatMediaCapabilities | null,
-  supports?: Record<string, boolean>,
-): ChatMediaCapabilities | null => {
-  if (!supports) return mediaCapabilities;
-
-  const inputModes = { ...(mediaCapabilities?.input_modes ?? {}) };
-  ['text', 'image', 'audio', 'location', 'file'].forEach((mode) => {
-    if (typeof supports[mode] !== 'boolean') return;
-    inputModes[mode] = {
-      ...(inputModes[mode] ?? {}),
-      enabled: supports[mode],
-    };
-  });
-
-  return {
-    ...(mediaCapabilities ?? { version: 'demo.chat_bootstrap.supports.v1' }),
-    input_modes: inputModes,
-  };
 };
 
 export default Demo;
