@@ -95,6 +95,11 @@ import {
   getRealtimeVoiceStarters,
   isRealtimeVoiceRenderable,
 } from "@/utils/realtimeVoice";
+import {
+  isLegacyDemoSelectorMenu,
+  isLegacyDemoSelectorOptionTitle,
+  isLegacyDemoSelectorText,
+} from "@/utils/legacyDemoSelector";
 import type { ChatBootstrapConfig } from "@/features/chat/chatTypes";
 
 const PENDING_TICKET_KEY = "pending_ticket_id";
@@ -497,8 +502,15 @@ const ChatPanel = (props: ChatPanelProps) => {
   const chatInputHandleRef = useRef<ChatInputHandle>(null);
   const [showScrollDown, setShowScrollDown] = useState(false);
   const [userTyping, setUserTyping] = useState(false);
+  const liveChatContract = supportChannels?.live_chat as Record<string, unknown> | undefined;
+  const shouldFetchBusinessHours = Boolean(
+    readBackendFlag(liveChatContract?.schedule_enabled, false) ||
+      readBackendFlag(liveChatContract?.socket_enabled, false) ||
+      (typeof liveChatContract?.schedule_endpoint === "string" &&
+        liveChatContract.schedule_endpoint.trim().length > 0),
+  );
   const { isLiveChatEnabled, horariosAtencion, availabilityLabel, timezone } =
-    useBusinessHours(propEntityToken, tenantSlug);
+    useBusinessHours(propEntityToken, tenantSlug, { enabled: shouldFetchBusinessHours });
   const socketRef = useRef<ReturnType<typeof io> | null>(null);
 
   const skipAuth = mode === "script";
@@ -547,6 +559,37 @@ const ChatPanel = (props: ChatPanelProps) => {
     socketUrlOverride: backendSocketUrl,
     chatBootstrap,
   });
+  const visibleMessages = useMemo(
+    () =>
+      messages.filter((message) => {
+        if (!message?.isBot) return true;
+        if (isLegacyDemoSelectorText(message.text)) return false;
+        if (
+          isLegacyDemoSelectorMenu(message.menu_sections) ||
+          isLegacyDemoSelectorMenu(message.interactive_list?.sections)
+        ) {
+          return false;
+        }
+        if (
+          Array.isArray(message.botones) &&
+          message.botones.some((button) =>
+            isLegacyDemoSelectorOptionTitle(
+              readFirstString(
+                (button as any).text,
+                (button as any).label,
+                (button as any).title,
+                (button as any).titulo,
+                (button as any).nombre,
+              ),
+            ),
+          )
+        ) {
+          return false;
+        }
+        return true;
+      }),
+    [messages],
+  );
   const visibilityRules = uxContext?.visibility_rules || null;
   const shouldSuppressDemoShell =
     uxContext?.trusted_owner === true &&
@@ -2844,7 +2887,7 @@ const ChatPanel = (props: ChatPanelProps) => {
              </div>
         ) : (
           <>
-            {messages.map((msg) => (
+            {visibleMessages.map((msg) => (
 
           <ChatMessage
             key={`${msg.id}-${a11yPrefs?.simplified ? "s" : "f"}`}
@@ -2894,7 +2937,7 @@ const ChatPanel = (props: ChatPanelProps) => {
             </div>
           </div>
         )}
-        {!activeTicketId && showAvailabilityNotice ? (
+        {!activeTicketId && showAvailabilityNotice && shouldFetchBusinessHours && (isLiveChatEnabled || horariosAtencion) ? (
           <div className="relative mb-2 rounded-md border px-2.5 py-2 text-xs">
             <span
               className={cn(

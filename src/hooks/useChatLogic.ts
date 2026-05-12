@@ -39,6 +39,12 @@ import { getValidStoredToken } from "@/utils/authTokens";
 import { enterpriseService } from "@/services/enterpriseService";
 import { trackWidgetEvent } from "@/utils/widgetTelemetry";
 import { readBackendFlag } from "@/utils/backendFlags";
+import {
+  filterLegacyDemoSelectorSections,
+  isLegacyDemoSelectorMenu,
+  isLegacyDemoSelectorOptionTitle,
+  isLegacyDemoSelectorText,
+} from "@/utils/legacyDemoSelector";
 import { sendChatBootstrapMessage } from "@/features/chat/chatApi";
 import type { ChatBootstrapConfig } from "@/features/chat/chatTypes";
 
@@ -1130,6 +1136,7 @@ export function useChatLogic({
           : [rawPayload];
 
     const normalizedMessages: Message[] = [];
+    let droppedLegacyDemoMessages = 0;
 
     const extractDemoSelectorMode = (
       data: any,
@@ -1229,7 +1236,18 @@ export function useChatLogic({
         data.metadata?.action,
         data.metadata?.accion,
       );
-      const interactiveSections = data.interactive_sections || data.metadata?.interactive_sections;
+      const rawInteractiveSections =
+        data.interactive_sections || data.metadata?.interactive_sections;
+      const interactiveSections =
+        filterLegacyDemoSelectorSections(rawInteractiveSections);
+      const rawInteractiveListSections =
+        data.interactive_list?.sections ||
+        data.interactiveList?.sections ||
+        data.metadata?.interactive_list?.sections ||
+        data.metadata?.interactiveList?.sections;
+      const hasLegacyDemoSelectorMenu =
+        isLegacyDemoSelectorMenu(rawInteractiveSections) ||
+        isLegacyDemoSelectorMenu(rawInteractiveListSections);
       const dataPayloadRaw =
         data.data ??
         data.payload ??
@@ -1484,6 +1502,27 @@ export function useChatLogic({
           .trim();
       }
 
+      const hasLegacyDemoSelectorButtons = botones.some((btn: any) =>
+        isLegacyDemoSelectorOptionTitle(
+          pickFirstString(
+            btn.text,
+            btn.label,
+            btn.title,
+            btn.titulo,
+            btn.nombre,
+            btn.name,
+          ),
+        ),
+      );
+      if (
+        isLegacyDemoSelectorText(text) ||
+        hasLegacyDemoSelectorMenu ||
+        hasLegacyDemoSelectorButtons
+      ) {
+        droppedLegacyDemoMessages += 1;
+        return;
+      }
+
       const ticketCandidate =
         data.ticket_id ?? data.ticketId ?? data.ticket?.id;
       const statusCandidate = pickFirstString(
@@ -1622,7 +1661,7 @@ export function useChatLogic({
         ...(confirmationCard ? { confirmationCard } : {}),
         ...(ticketId ? { ticketId } : {}),
         ...(data.query ? { query: data.query } : {}),
-        ...(interactiveSections ? { menu_sections: interactiveSections } : {}),
+        ...(interactiveSections.length ? { menu_sections: interactiveSections } : {}),
         isError: explicitError ?? (!rawText && !hasNonTextContent),
       };
 
@@ -1655,8 +1694,10 @@ export function useChatLogic({
       initSentRef.current = false;
     }
 
-    if (fallbackOnEmpty) {
+    if (fallbackOnEmpty && droppedLegacyDemoMessages === 0) {
       console.warn("useChatLogic: Normalized payload produced no messages.");
+      setIsTyping(false);
+    } else if (droppedLegacyDemoMessages > 0) {
       setIsTyping(false);
     }
 

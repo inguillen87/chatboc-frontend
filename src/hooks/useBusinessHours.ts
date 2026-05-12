@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { apiFetch } from '@/utils/api';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
+
 interface LiveChatSchedule {
   enabled?: boolean;
   socket_transport_hint?: 'polling' | 'websocket';
@@ -13,7 +14,6 @@ interface LiveChatSchedule {
   end_time?: string;
   timezone?: string;
 }
-
 
 const resolveTransportHintKey = (tenantSlug?: string | null) =>
   `chatboc_socket_transport_hint:${tenantSlug || 'default'}`;
@@ -29,15 +29,32 @@ interface BusinessHours {
   timezone?: string;
 }
 
-export const useBusinessHours = (entityToken?: string, tenantSlug?: string | null): BusinessHours => {
+interface UseBusinessHoursOptions {
+  enabled?: boolean;
+}
+
+const DEFAULT_BUSINESS_HOURS: BusinessHours = {
+  isLiveChatEnabled: false,
+  horariosAtencion: '',
+  availabilityLabel: '',
+  timezone: '',
+};
+
+export const useBusinessHours = (
+  entityToken?: string,
+  tenantSlug?: string | null,
+  options?: UseBusinessHoursOptions,
+): BusinessHours => {
   const [businessHours, setBusinessHours] = useState<BusinessHours>({
-    isLiveChatEnabled: false,
-    horariosAtencion: '',
-    availabilityLabel: '',
-    timezone: '',
+    ...DEFAULT_BUSINESS_HOURS,
   });
 
   useEffect(() => {
+    if (options?.enabled === false) {
+      setBusinessHours({ ...DEFAULT_BUSINESS_HOURS });
+      return;
+    }
+
     const fetchProfile = async () => {
       try {
         const authToken = safeLocalStorage.getItem('authToken');
@@ -73,7 +90,10 @@ export const useBusinessHours = (entityToken?: string, tenantSlug?: string | nul
         }
 
         if (!schedule) {
-          throw lastError ?? new Error('No se pudo cargar el horario de atención');
+          if (import.meta.env.DEV) {
+            console.debug('Live chat schedule unavailable', lastError);
+          }
+          return;
         }
 
         const description =
@@ -119,16 +139,18 @@ export const useBusinessHours = (entityToken?: string, tenantSlug?: string | nul
         setBusinessHours({
           isLiveChatEnabled: available,
           horariosAtencion: description,
-          availabilityLabel: available ? 'Asesores en línea' : 'Te respondemos en horario',
+          availabilityLabel: available ? 'Asesores en linea' : 'Te respondemos en horario',
           timezone: typeof schedule?.timezone === 'string' ? schedule.timezone : '',
         });
       } catch (error) {
-        console.error('Error fetching profile:', error);
+        if (import.meta.env.DEV) {
+          console.debug('Live chat schedule disabled or unavailable', error);
+        }
       }
     };
 
     fetchProfile();
-  }, [entityToken, tenantSlug]);
+  }, [entityToken, tenantSlug, options?.enabled]);
 
   return businessHours;
 };
