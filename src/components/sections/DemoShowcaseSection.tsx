@@ -249,6 +249,7 @@ const DemoShowcaseSection = () => {
           </div>
         ) : null}
 
+        {true ? (
           <Tabs defaultValue={defaultValue} className="mx-auto w-full max-w-6xl">
             <div className="mb-8 overflow-x-auto pb-2">
               <TabsList className="mx-auto grid h-auto w-full max-w-3xl grid-cols-3 gap-1 rounded-[8px] border border-border/70 bg-card/80 p-1 shadow-sm backdrop-blur">
