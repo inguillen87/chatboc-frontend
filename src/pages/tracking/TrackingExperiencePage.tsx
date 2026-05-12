@@ -332,7 +332,7 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
                   <ShieldCheck className="mb-3 h-8 w-8 text-primary" />
                   <p className="font-semibold">Seguimiento por timeline</p>
                   <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-                    El backend no envio coordenadas renderizables para este caso.
+                    No hay coordenadas renderizables para este caso.
                   </p>
                 </div>
               )}

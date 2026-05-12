@@ -533,7 +533,7 @@ export const AnalyticsHeatmap: React.FC<HeatmapProps> = ({
           <Alert variant="default" className="border-border/60 border-dashed bg-muted/40">
             <AlertTitle>No hay datos georreferenciados</AlertTitle>
             <AlertDescription>
-              El backend no devolvió puntos para el mapa de calor con los filtros actuales. Revisá los filtros o consultá al equipo
+              No hay puntos para el mapa de calor con los filtros actuales. Revisa los filtros o consulta al equipo
               responsable de los datos para confirmar que se estén enviando ubicaciones.
             </AlertDescription>
           </Alert>

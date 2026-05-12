@@ -125,8 +125,8 @@ export const readinessChecklist: ChecklistSection[] = [
         status: 'en curso',
       },
       {
-        label: 'Fallback seguro',
-        impact: 'Demo pública operativa si el backend no responde.',
+        label: 'Demo siempre disponible',
+        impact: 'Demo publica operativa aunque la configuracion real todavia no este completa.',
         status: 'completado',
       },
     ],

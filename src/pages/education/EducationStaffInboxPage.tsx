@@ -100,7 +100,7 @@ export default function EducationStaffInboxPage() {
                 ))}
               </div>
             ) : (
-              <p>Ficha contextual pendiente de datos backend segun permisos del staff.</p>
+              <p>Ficha contextual pendiente segun permisos del staff.</p>
             )}
             <FilterGroup
               title="Filtros de caso"
@@ -176,7 +176,7 @@ const EducationAdminContractPanel = ({
   isHeatmapLoading: boolean;
 }) => {
   if (isLoading && !adminMenu && !whatsappPlaybook) {
-    return <p>Sincronizando contrato educativo...</p>;
+    return <p>Sincronizando informacion educativa...</p>;
   }
 
   if (
@@ -404,7 +404,7 @@ const EducationOperationsHeatmapPanel = ({ payload }: { payload: EducationOperat
         />
       ) : (
         <p className="rounded-md border bg-background px-3 py-2 text-xs text-muted-foreground">
-          El contrato no envio puntos escolares con coordenadas para renderizar el mapa.
+          No hay puntos escolares con coordenadas para renderizar el mapa.
         </p>
       )}
 

@@ -3,9 +3,10 @@ import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
 interface LiveChatSchedule {
   enabled?: boolean;
-  socket_transport_hint?: 'polling' | 'websocket';
+  socket_transport_hint?: 'polling' | 'websocket' | 'disabled';
   socket_transports?: Array<'polling' | 'websocket'>;
   socket_fallback_enabled?: boolean;
+  fallback_mode?: string;
   available?: boolean;
   description?: string;
   days?: string[];

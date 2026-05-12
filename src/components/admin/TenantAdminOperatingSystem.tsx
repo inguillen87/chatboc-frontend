@@ -273,7 +273,7 @@ export default function TenantAdminOperatingSystem({ tenantSlug }: { tenantSlug?
         <Card className="h-fit border-border/60">
           <CardHeader>
             <CardTitle className="text-base">Modulos</CardTitle>
-            <CardDescription>Menu base desde backend.</CardDescription>
+            <CardDescription>Menu operativo del tenant.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
             {modules.map((module, index) => {
@@ -322,7 +322,7 @@ export default function TenantAdminOperatingSystem({ tenantSlug }: { tenantSlug?
                 {String(modules.find((item) => item.id === activeModule)?.label || "Resumen operativo")}
               </CardTitle>
               <CardDescription>
-                Estados, endpoints y widgets llegan desde `tenant.admin_experience.v1`.
+                Estados, vistas y acciones se actualizan desde la configuracion del tenant.
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4 lg:grid-cols-2">
@@ -441,13 +441,13 @@ export default function TenantAdminOperatingSystem({ tenantSlug }: { tenantSlug?
             <Card className="border-border/60">
               <CardHeader>
                 <CardTitle className="text-base">Educacion</CardTitle>
-                <CardDescription>Secciones escolares desde el contrato educativo del backend.</CardDescription>
+                <CardDescription>Secciones escolares configuradas para este tenant.</CardDescription>
               </CardHeader>
               <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {asArray(first(education, ["admin_menu", "panel_sections"])).map((section, index) => (
                   <div key={String(section.id || index)} className="rounded-2xl border p-4">
                     <div className="font-semibold">{String(section.label || section.title || section.id || "Seccion")}</div>
-                    <div className="mt-1 text-xs text-muted-foreground">{String(section.endpoint || section.route || "endpoint backend")}</div>
+                    <div className="mt-1 text-xs text-muted-foreground">{String(section.route || section.status || "Disponible en el panel")}</div>
                   </div>
                 ))}
               </CardContent>
@@ -484,7 +484,7 @@ export default function TenantAdminOperatingSystem({ tenantSlug }: { tenantSlug?
               <LeadDetailBlock
                 title="Operación"
                 record={selectedLead}
-                keys={["intent", "next_action", "created_at", "detail_endpoint", "source", "origin"]}
+                keys={["intent", "next_action", "created_at", "source", "origin"]}
               />
 
               {isRecord(selectedLead.source_metadata) ? (

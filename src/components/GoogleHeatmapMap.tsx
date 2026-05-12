@@ -388,7 +388,7 @@ export function GoogleHeatmapMap({
     return (
       <div className={mapContainerClassName}>
         <div className="flex h-full w-full items-center justify-center rounded-2xl border border-dashed border-border px-6 text-center text-sm text-muted-foreground">
-          No se configuró la clave de Google Maps (`VITE_GOOGLE_MAPS_API_KEY`). Agregala en el backend para habilitar este mapa.
+          La configuracion de mapas todavia no esta completa. Cuando este lista, este mapa se activara automaticamente.
         </div>
       </div>
     );
@@ -533,4 +533,3 @@ export function GoogleHeatmapMap({
     </GoogleMap>
   );
 }
-

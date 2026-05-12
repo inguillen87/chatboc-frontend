@@ -10,7 +10,7 @@ export default function EducationAttendancePage() {
       <EducationFamilyAccessGate>
         <EducationContractPendingCard
           title="Asistencia e inasistencias"
-          description="Historial familiar preparado para asistencia, justificativos y estados enviados por backend."
+          description="Historial familiar preparado para asistencia, justificativos y estados de la institucion."
           endpoints={['GET /api/v1/education/attendance/*', 'POST /api/v1/education/attendance/*']}
           blockers={['Historial por alumno vinculado.', 'Estados de justificativo y adjuntos permitidos.']}
         />

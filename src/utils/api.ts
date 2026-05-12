@@ -1201,7 +1201,7 @@ export async function apiFetch<T>(
       const snippet = trimmedText.slice(0, 200);
       const humanReadableType = responseContentType || 'texto';
       throw new ApiError(
-        `Respuesta inesperada del servidor (tipo: ${humanReadableType}). Verificá la configuración del endpoint '${path}' y sus encabezados CORS.`,
+        `Respuesta inesperada del servidor (tipo: ${humanReadableType}). Intentalo de nuevo o contacta a soporte con el ID de solicitud.`,
         response.status || 502,
         {
           raw: snippet,
@@ -1310,18 +1310,18 @@ export async function apiFetch<T>(
     if (error instanceof ApiError) throw error;
     if (error instanceof TypeError) { // Typically a network error or CORS issue
       console.error(
-        `❌ Network Error or CORS issue. Ensure the backend is running and reachable at ${BASE_API_URL}, and that its CORS policy is configured correctly.`,
+        `Network/API connection issue while reaching ${BASE_API_URL}.`,
         error
       );
       throw new NetworkError(
-        "No fue posible establecer la conexión con el servidor. Verificá tu conexión o la configuración de CORS del backend.",
+        "No fue posible establecer la conexion con el servidor. Verifica tu conexion e intenta nuevamente.",
         error,
       );
     }
 
-    console.error("❌ API Fetch Error:", error);
+    console.error("API Fetch Error:", error);
     throw new NetworkError(
-      "No fue posible establecer la conexión con el servidor. Verificá tu conexión o la configuración de CORS del backend.",
+      "No fue posible establecer la conexion con el servidor. Verifica tu conexion e intenta nuevamente.",
       error,
     );
   }
@@ -1352,7 +1352,7 @@ export function getErrorMessage(error: unknown, fallback = "Ocurrió un error in
           baseMessage = "No tienes permiso para acceder a este recurso.";
           break;
         case 404:
-          baseMessage = "No se pudo encontrar el recurso solicitado (Error 404).";
+          baseMessage = "No pudimos encontrar la informacion solicitada.";
           break;
         case 500:
           baseMessage = "Ocurrió un error en el servidor. Por favor, intenta de nuevo más tarde.";

@@ -1,11 +1,9 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
-  Activity,
   ArrowRight,
   Briefcase,
   Building2,
   Factory,
-  FileText,
   GraduationCap,
   Heart,
   Loader2,
@@ -18,9 +16,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DEMO_HIERARCHY, DEMO_SECTOR_GROUPS } from "@/data/demoHierarchy";
-import { createLocalDemoSession } from "@/features/demo/demoApi";
-import type { DemoSector, DemoSectorGroup } from "@/features/demo/demoTypes";
+import { createDemoSession, getDemoCatalog } from "@/features/demo/demoApi";
+import type { DemoCatalogResponse, DemoSector, DemoSectorGroup } from "@/features/demo/demoTypes";
 import type { Rubro } from "@/types/rubro";
 
 const categoryIcons: Record<string, React.ReactNode> = {
@@ -30,8 +27,6 @@ const categoryIcons: Record<string, React.ReactNode> = {
   gobierno: <Building2 className="h-5 w-5" />,
   empresas: <Store className="h-5 w-5" />,
   educacion: <GraduationCap className="h-5 w-5" />,
-  "Soluciones para Sector Público": <Building2 className="h-5 w-5" />,
-  "Soluciones para Empresas": <Store className="h-5 w-5" />,
   "Colegios e instituciones educativas": <GraduationCap className="h-5 w-5" />,
   "Alimentación y Bebidas": <ShoppingBag className="h-4 w-4" />,
   "Salud y Bienestar": <Heart className="h-4 w-4" />,
@@ -87,7 +82,7 @@ const DemoCard = ({ item, sector, group }: { item: Rubro; sector: DemoSector; gr
     setStarting(true);
     setError(null);
     try {
-      const session = createLocalDemoSession({
+      const session = await createDemoSession({
         sector,
         pillar: sector,
         rubro_slug: readRubroSlug(item),
@@ -103,7 +98,7 @@ const DemoCard = ({ item, sector, group }: { item: Rubro; sector: DemoSector; gr
         },
       });
     } catch (err) {
-      setError("No pudimos abrir esta demo. Proba de nuevo.");
+      setError("No pudimos abrir la demo real. Proba de nuevo en unos minutos.");
     } finally {
       setStarting(false);
     }
@@ -164,7 +159,7 @@ const PillarDemoCard = ({ sector, group }: { sector: DemoSector; group: DemoSect
           : typeof group.default_rubro_slug === "string"
             ? group.default_rubro_slug
             : String(group.key);
-      const session = createLocalDemoSession({
+      const session = await createDemoSession({
         sector,
         pillar: sector,
         category_slug: defaultRubro,
@@ -179,7 +174,7 @@ const PillarDemoCard = ({ sector, group }: { sector: DemoSector; group: DemoSect
         },
       });
     } catch (err) {
-      setError("No pudimos abrir esta demo. Proba de nuevo.");
+      setError("No pudimos abrir la demo real. Proba de nuevo en unos minutos.");
     } finally {
       setStarting(false);
     }
@@ -212,13 +207,41 @@ const PillarDemoCard = ({ sector, group }: { sector: DemoSector; group: DemoSect
 };
 
 const DemoShowcaseSection = () => {
-  const roots = DEMO_HIERARCHY;
-  const groups = useMemo(() => {
-    const byKey = new Map(DEMO_SECTOR_GROUPS.map((group) => [String(group.key), group]));
-    return LANDING_DEMO_ORDER.map(
-      (sector) => byKey.get(String(sector)) || ({ key: sector, label: String(sector) } as DemoSectorGroup),
-    );
+  const [catalog, setCatalog] = useState<DemoCatalogResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    getDemoCatalog()
+      .then((response) => {
+        if (!active) return;
+        setCatalog(response);
+        setLoadError(null);
+      })
+      .catch(() => {
+        if (!active) return;
+        setCatalog(null);
+        setLoadError("No pudimos cargar las demos reales en este momento.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
+
+  const roots = Array.isArray(catalog?.rubros) ? catalog.rubros : [];
+  const groups = useMemo(() => {
+    const backendGroups = Array.isArray(catalog?.sector_groups) ? catalog.sector_groups : [];
+    const byKey = new Map(backendGroups.map((group) => [String(group.key), group]));
+    return LANDING_DEMO_ORDER.map(
+      (sector) => byKey.get(String(sector)),
+    ).filter((group): group is DemoSectorGroup => Boolean(group));
+  }, [catalog?.sector_groups]);
   const defaultValue = groups[0]?.key ? String(groups[0].key) : undefined;
 
   return (
@@ -234,22 +257,22 @@ const DemoShowcaseSection = () => {
           </p>
         </div>
 
-        {false ? (
+        {loading ? (
           <Alert className="mx-auto mb-6 max-w-5xl border-amber-300/60 bg-amber-50 text-amber-950 dark:bg-amber-950/20 dark:text-amber-100">
-            <AlertTitle>Modo demo local</AlertTitle>
+            <AlertTitle>Cargando demos reales</AlertTitle>
             <AlertDescription>
-              No se pudo confirmar el catálogo remoto. Se muestran los tres pilares mínimos para que puedas seguir probando.
+              Estamos consultando las experiencias publicadas para iniciar una demo real.
             </AlertDescription>
           </Alert>
         ) : null}
 
-        {false ? (
+        {!loading && (loadError || groups.length === 0) ? (
           <div className="mx-auto max-w-2xl rounded-[8px] border border-dashed border-border px-6 py-12 text-center text-muted-foreground">
-            No hay demos disponibles por el momento.
+            {loadError || "Todavia no hay demos publicadas para mostrar."}
           </div>
         ) : null}
 
-        {true ? (
+        {!loading && !loadError && groups.length > 0 ? (
           <Tabs defaultValue={defaultValue} className="mx-auto w-full max-w-6xl">
             <div className="mb-8 overflow-x-auto pb-2">
               <TabsList className="mx-auto grid h-auto w-full max-w-3xl grid-cols-3 gap-1 rounded-[8px] border border-border/70 bg-card/80 p-1 shadow-sm backdrop-blur">
@@ -281,31 +304,11 @@ const DemoShowcaseSection = () => {
                       </div>
                       <h3 className="text-2xl font-bold">{group.label || String(group.key)}</h3>
                       {group.description ? <p className="mt-3 text-sm text-muted-foreground">{group.description}</p> : null}
-                      <div className="mt-5 grid grid-cols-3 gap-2 text-center text-xs">
-                        <div className="rounded-[8px] bg-muted/60 p-3">
-                          <span className="block text-lg font-bold text-primary">{cards.length}</span>
-                          demos
-                        </div>
-                        <div className="rounded-[8px] bg-muted/60 p-3">
-                          <span className="block text-lg font-bold text-primary">24/7</span>
-                          chat
-                        </div>
-                        <div className="rounded-[8px] bg-muted/60 p-3">
-                          <FileText className="mx-auto mb-1 h-4 w-4 text-primary" />
-                          recursos
-                        </div>
-                      </div>
-                      <div className="mt-5 rounded-[8px] border border-border/70 bg-card/70 p-3">
-                        <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-foreground">
-                          <Activity className="h-3.5 w-3.5 text-primary" />
-                          Recorrido de demo
-                        </div>
-                        <div className="grid gap-2 text-xs text-muted-foreground">
-                          <span>1. Elegí un pilar</span>
-                          <span>2. Abrí una conversación guiada</span>
-                          <span>3. Acciones, archivos y seguimiento</span>
-                        </div>
-                      </div>
+                      {cards.length ? (
+                        <p className="mt-5 rounded-[8px] border border-border/70 bg-card/70 p-3 text-sm text-muted-foreground">
+                          {cards.length} demos reales publicadas para este pilar.
+                        </p>
+                      ) : null}
                     </div>
 
                     {cards.length ? (

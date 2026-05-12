@@ -139,7 +139,7 @@ export default function ProductionSmokeReport({ tenantSlug }: ProductionSmokeRep
           ))}
           {!loading && !data?.checks.length ? (
             <div className="rounded-[8px] border border-dashed p-4 text-sm text-muted-foreground">
-              No hay checks publicados por backend.
+              No hay checks publicados.
             </div>
           ) : null}
         </div>

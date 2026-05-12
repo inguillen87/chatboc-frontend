@@ -10,7 +10,7 @@ export default function EducationDocumentsPage() {
       <EducationFamilyAccessGate>
         <EducationContractPendingCard
           title="Solicitudes de documentos"
-          description="Solicitudes documentales preparadas para estados, requisitos y acciones backend-driven."
+          description="Solicitudes documentales preparadas para estados, requisitos y acciones de la institucion."
           endpoints={['GET /api/v1/education/documents/*', 'POST /api/v1/education/documents/*']}
           blockers={['Catalogo de documentos disponibles.', 'Estados por solicitud y permisos de descarga/carga.']}
         />

@@ -832,7 +832,7 @@ export default function MarketCartPage() {
               <Alert className="mt-3" variant="default">
                 <AlertTitle>Modo demo activado</AlertTitle>
                 <AlertDescription>
-                  Usamos un catálogo de demostración mientras conectamos el backend de este tenant. Puedes compartir el enlace o
+                  Usamos un catalogo de demostracion mientras se completa la configuracion de este tenant. Puedes compartir el enlace o
                   finalizar un pedido de prueba para mostrar el flujo completo.
                 </AlertDescription>
               </Alert>

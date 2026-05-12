@@ -468,7 +468,7 @@ export const listPublicSurveys = async (tenantSlug?: string): Promise<PublicSurv
       raw,
       fallbackNotice: ENABLE_PUBLIC_SURVEY_LEGACY_FALLBACK
         ? undefined
-        : 'El backend devolvió un formato inválido para el contrato público de encuestas v1.',
+        : 'No pudimos cargar esta encuesta en este momento.',
     });
   } catch (error) {
     if (error instanceof ApiError) {
@@ -561,7 +561,7 @@ export const postPublicResponse = (
         ? String((response as Record<string, unknown>).contract_version)
         : undefined;
     if (!ENABLE_PUBLIC_SURVEY_LEGACY_FALLBACK && contractVersion !== 'encuestas.public_response.v1') {
-      throw new Error('El backend no devolvió contract_version válido para encuestas.public_response.v1.');
+      throw new Error('No pudimos confirmar la respuesta de la encuesta en este momento.');
     }
 
     const contactKey = typeof response?.contact_key === 'string' ? response.contact_key.trim() : '';

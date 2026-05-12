@@ -277,7 +277,7 @@ const MarketplaceBlueprintPage: React.FC = () => {
             },
             {
               title: 'Demo perpetua',
-              detail: 'Catálogo demo siempre disponible para pruebas y ventas sin esperar al backend definitivo.',
+              detail: 'Catalogo demo siempre disponible para pruebas y ventas desde el primer momento.',
             },
           ].map((item) => (
             <div key={item.title} className="flex gap-3 rounded-xl border bg-muted/30 p-4">

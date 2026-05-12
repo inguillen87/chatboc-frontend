@@ -274,7 +274,7 @@ const SetupChecklist = ({ experience }: { experience: WhatsappExperienceV2 }) =>
           Checklist de configuracion
         </CardTitle>
         <CardDescription className="text-amber-900/80">
-          El canal no esta activo; se muestra degradacion segura segun el contrato backend.
+          El canal no esta activo; se muestra una configuracion segura para completar la conexion.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -350,7 +350,7 @@ const ChannelHealth = ({
               <MessageCircle className="h-4 w-4 text-primary" />
               Estado del canal
             </CardTitle>
-            <CardDescription>{String(first(channel, ["provider", "status", "reason_code"]) || "whatsapp.experience.v1")}</CardDescription>
+            <CardDescription>{String(first(channel, ["provider", "status", "reason_code"]) || "Canal WhatsApp")}</CardDescription>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <StatusPill tone={tone}>{enabled ? "Conectado" : "Configurar"}</StatusPill>
@@ -394,7 +394,7 @@ const EnterpriseRules = ({ experience }: { experience: WhatsappExperienceV2 }) =
             <ShieldCheck className="h-4 w-4 text-primary" />
             Reglas enterprise
           </CardTitle>
-          <CardDescription>Limites y politica de salida desde backend.</CardDescription>
+          <CardDescription>Limites y politica de salida configurados para este canal.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-2 sm:grid-cols-2">
           <Metric label="Configured" value={boolish(rules.configured) ? "Si" : "No"} tone={boolish(rules.configured) ? "ready" : "warning"} />
@@ -559,7 +559,7 @@ const ConversationCapabilities = ({ experience }: { experience: WhatsappExperien
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold text-foreground">Acciones operativas</p>
-                <p className="text-xs text-muted-foreground">Capacidades que WhatsApp puede activar si el backend las publica.</p>
+                <p className="text-xs text-muted-foreground">Capacidades que WhatsApp puede activar cuando esten disponibles.</p>
               </div>
               <StatusPill>{actionCapabilities.length}</StatusPill>
             </div>
@@ -635,7 +635,7 @@ const ContentModules = ({ experience }: { experience: WhatsappExperienceV2 }) =>
           <PackageCheck className="h-4 w-4 text-primary" />
           Modulos de contenido
         </CardTitle>
-        <CardDescription>Catalogo, encuestas, novedades, promociones y links desde backend.</CardDescription>
+        <CardDescription>Catalogo, encuestas, novedades, promociones y links configurables.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
@@ -652,7 +652,7 @@ const ContentModules = ({ experience }: { experience: WhatsappExperienceV2 }) =>
                   <StatusPill tone={enabled ? "ready" : "neutral"}>{enabled ? "Activo" : "Off"}</StatusPill>
                 </div>
                 <p className="font-semibold text-foreground">{labelFrom(module, key)}</p>
-                <p className="mt-1 text-xs text-muted-foreground">{String(module.endpoint || module.bulk_import_endpoint || "Sin endpoint")}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{String(first(module, ["description", "status", "state"]) || "Listo para configurar")}</p>
                 {module.items !== undefined ? <p className="mt-2 text-xs text-muted-foreground">{formatNumber(module.items)} items</p> : null}
               </div>
             );
@@ -789,7 +789,7 @@ const TrackingExperienceResult = ({ result }: { result: AnyRecord }) => {
             {String(first(renderContract, ["fallback_when_no_coordinates"]) || "timeline_only")}
           </div>
           <p className="mt-1 text-xs text-muted-foreground">
-            El contrato no envio coordenadas renderizables; se mantiene el seguimiento por timeline.
+            No hay coordenadas renderizables; se mantiene el seguimiento por timeline.
           </p>
         </div>
       )}
@@ -883,7 +883,7 @@ const TrackingExperienceLookup = ({
       <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-sm font-semibold text-foreground">Tracking experience</p>
-          <p className="mt-1 text-xs text-muted-foreground">Usa el contrato publico principal para reclamos y pedidos.</p>
+          <p className="mt-1 text-xs text-muted-foreground">Usa la experiencia publica principal para reclamos y pedidos.</p>
         </div>
         <StatusPill>{kind}</StatusPill>
       </div>
@@ -1076,7 +1076,7 @@ export default function WhatsappOperationsHub({
             <MessageCircle className="h-4 w-4 text-primary" />
             WhatsApp Operations
           </CardTitle>
-          <CardDescription>{error || "Sin contrato whatsapp.experience.v1 disponible."}</CardDescription>
+          <CardDescription>{error || "Sin experiencia de WhatsApp disponible."}</CardDescription>
         </CardHeader>
         <CardContent>
           <EmptyState reason={error} />

@@ -89,7 +89,7 @@ export default function TicketsBoardPage() {
         <div className="space-y-1">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Tickets v2</p>
           <h1 className="text-2xl font-semibold tracking-tight">Bandeja operativa</h1>
-          <p className="max-w-2xl text-sm text-muted-foreground">Vista tenant-aware con SLA, prioridad y canales normalizados por backend.</p>
+          <p className="max-w-2xl text-sm text-muted-foreground">Vista tenant-aware con SLA, prioridad y canales normalizados para operar.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {!isOnline ? <Badge variant="destructive">Offline</Badge> : null}
@@ -177,7 +177,7 @@ export default function TicketsBoardPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg">Estados</CardTitle>
-                <CardDescription>Distribucion segun valores entregados por backend.</CardDescription>
+                <CardDescription>Distribucion segun los valores publicados para este tenant.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 {statusEntries.map(([status, count]) => (

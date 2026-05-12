@@ -7,7 +7,7 @@ export default function EducationAdmissionsPage() {
     <EducationShell persona="staff">
       <EducationContractPendingCard
         title="Admisiones"
-        description="Funnel de admisiones preparado para datos, estados y acciones entregados por backend."
+        description="Funnel de admisiones preparado para datos, estados y acciones de la institucion."
         endpoints={['GET /api/v1/education/admissions/*', 'POST /api/v1/education/admissions/*']}
         blockers={['Pipeline, etapas y acciones por rol.', 'Permisos staff para contacto y seguimiento.']}
       />

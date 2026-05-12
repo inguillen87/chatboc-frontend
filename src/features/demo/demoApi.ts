@@ -1,6 +1,4 @@
 import { demoApi } from '@/api/v2/client';
-import { getRubrosHierarchy } from '@/api/rubros';
-import { DEMO_SECTOR_GROUPS } from '@/data/demoHierarchy';
 import { findDemoCatalogAsset } from '@/data/demoCatalogAssets';
 import type {
   DemoAdminPreviewResponse,
@@ -12,21 +10,8 @@ import type {
   DemoWorkspaceConfig,
 } from './demoTypes';
 
-const DEFAULT_DEMO_SECTORS: DemoSector[] = ['educacion', 'gobierno', 'empresas'];
-
 export const getDemoCatalog = async (): Promise<DemoCatalogResponse> => {
-  try {
-    return normalizeDemoCatalog(await demoApi.get<DemoCatalogResponse>('/api/v2/demo/catalog'));
-  } catch (error) {
-    const rubros = await getRubrosHierarchy().catch(() => []);
-    return normalizeDemoCatalog({
-      sectors: DEFAULT_DEMO_SECTORS,
-      sector_groups: DEMO_SECTOR_GROUPS,
-      rubros,
-      local_demo_mode: true,
-      catalog_error: error instanceof Error ? error.message : 'demo_catalog_unavailable',
-    });
-  }
+  return normalizeDemoCatalog(await demoApi.get<DemoCatalogResponse>('/api/v2/demo/catalog'));
 };
 
 export type DemoSessionPayload = {
@@ -52,18 +37,16 @@ export const getDemoAdminPreview = async (params: {
 };
 
 export const createDemoSession = async (payload: DemoSessionPayload) => {
-  if (shouldUseLocalDemoSession(payload)) {
-    return normalizeDemoSessionResponse(createLocalDemoSession(payload));
-  }
-
   const response = await demoApi.post<DemoSessionResponse>('/api/v2/demo/session', payload, {
     baseUrlOverride: '/api',
-  }).catch(() => createLocalDemoSession(payload));
+  });
   const normalized = normalizeDemoSessionResponse(response);
 
-  return isDemoSessionAlignedWithSelection(normalized, payload)
-    ? normalized
-    : normalizeDemoSessionResponse(createLocalDemoSession(payload));
+  if (!isDemoSessionAlignedWithSelection(normalized, payload)) {
+    throw new Error('La demo real recibida no coincide con la seleccion solicitada.');
+  }
+
+  return normalized;
 };
 
 const normalizeDemoSector = (value?: string | null): DemoSector => {
@@ -72,37 +55,6 @@ const normalizeDemoSector = (value?: string | null): DemoSector => {
   if (normalized.includes('gob') || normalized.includes('muni') || normalized.includes('public')) return 'gobierno';
   if (normalized.includes('empresa') || normalized.includes('pyme') || normalized.includes('comerc')) return 'empresas';
   return (normalized || 'empresas') as DemoSector;
-};
-
-const resolveLocalDemoGroup = (sector: DemoSector) =>
-  DEMO_SECTOR_GROUPS.find((group) => String(group.key) === String(sector)) ?? DEMO_SECTOR_GROUPS[1];
-
-const PLATFORM_DEMO_TENANTS = new Set([
-  'municipio',
-  'demo-municipio',
-  'bodega',
-  'colegio-demo',
-  'colegios',
-  'gobierno',
-  'gobiernos',
-  'empresas',
-  'educacion',
-]);
-
-const shouldUseLocalDemoSession = (payload: DemoSessionPayload) => {
-  const candidates = [
-    payload.tenant_slug,
-    payload.rubro_slug,
-    payload.category_slug,
-    payload.rubro,
-    payload.sector,
-    payload.pillar,
-  ]
-    .map((value) => String(value ?? '').trim().toLowerCase())
-    .filter(Boolean);
-
-  if (candidates.some((candidate) => PLATFORM_DEMO_TENANTS.has(candidate))) return true;
-  return candidates.some((candidate) => Boolean(findDemoCatalogAsset(candidate)));
 };
 
 const normalizeDemoSessionResponse = (response: DemoSessionResponse): DemoSessionResponse => ({
@@ -136,8 +88,6 @@ const findAssetSectorFromResponse = (response: DemoSessionResponse): DemoSector 
 };
 
 const isDemoSessionAlignedWithSelection = (response: DemoSessionResponse, payload: DemoSessionPayload) => {
-  if ((response as any).local_demo_mode === true) return true;
-
   const requestedSector = normalizeDemoSector(
     String(payload.sector ?? payload.pillar ?? payload.category_slug ?? payload.rubro ?? ''),
   );
@@ -161,21 +111,15 @@ const isDemoSessionAlignedWithSelection = (response: DemoSessionResponse, payloa
   return true;
 };
 
-const buildLocalQuickReplies = (asset: ReturnType<typeof findDemoCatalogAsset>, sector: DemoSector) => {
-  const fallbackBySector: Record<string, string[]> = {
-    educacion: ['Quiero justificar una inasistencia', 'Necesito un certificado', 'Consultar admisiones'],
-    gobierno: ['Iniciar un reclamo', 'Consultar un tramite', 'Hablar con un operador'],
-    empresas: ['Consultar disponibilidad', 'Tomar un pedido', 'Hablar con ventas'],
-  };
-  const questions = asset?.questions?.length ? asset.questions : fallbackBySector[String(sector)] ?? fallbackBySector.empresas;
-  return questions.slice(0, 3).map((label, index) => ({
-    id: `demo_local_${sector}_${index + 1}`,
-    label,
-    payload: label,
-  }));
-};
+const resolveLocalDemoGroup = (_sector: DemoSector): DemoSectorGroup | null => null;
+const buildLocalQuickReplies = (
+  _asset: ReturnType<typeof findDemoCatalogAsset>,
+  _sector: DemoSector,
+): Array<{ id: string; label: string; payload: string }> => [];
 
 export const createLocalDemoSession = (payload: DemoSessionPayload): DemoSessionResponse & { local_demo_mode: true } => {
+  throw new Error('Las demos locales fueron deshabilitadas. Use createDemoSession para iniciar una demo real.');
+
   const sector = normalizeDemoSector(String(payload.sector ?? payload.pillar ?? payload.category_slug ?? payload.rubro ?? 'empresas'));
   const group = resolveLocalDemoGroup(sector);
   const tenantSlug =
@@ -282,24 +226,21 @@ const normalizeDemoCatalog = (response: DemoCatalogResponse): DemoCatalogRespons
     .map((pillar) => pillar?.key ?? pillar?.sector ?? pillar?.slug)
     .filter((value): value is DemoSector => typeof value === 'string' && !!value);
   const incomingSectors = Array.isArray(response.sectors) ? response.sectors : [];
-  const sectors = Array.from(new Set([...pillarSectors, ...incomingSectors, ...DEFAULT_DEMO_SECTORS]));
+  const sectors = Array.from(new Set([...pillarSectors, ...incomingSectors]));
   const incomingGroups = Array.isArray(response.sector_groups)
     ? response.sector_groups.filter((group) => group?.key)
     : [];
   const groupMap = new Map<string, DemoSectorGroup>();
 
-  DEMO_SECTOR_GROUPS.forEach((group) => groupMap.set(String(group.key), group));
   incomingPillars.forEach((pillar) => {
     const key = String(pillar?.key ?? pillar?.sector ?? pillar?.slug ?? '');
     if (!key) return;
-    const fallback = groupMap.get(key);
     groupMap.set(key, {
-      ...fallback,
       key,
-      label: pillar.label ?? fallback?.label ?? null,
-      description: pillar.description ?? fallback?.description ?? null,
-      cta_label: pillar.cta_label ?? fallback?.cta_label ?? null,
-      tenant_slug: pillar.tenant_slug ?? pillar.demo_tenant_slug ?? pillar.default_tenant_slug ?? fallback?.tenant_slug ?? null,
+      label: pillar.label ?? null,
+      description: pillar.description ?? null,
+      cta_label: pillar.cta_label ?? null,
+      tenant_slug: pillar.tenant_slug ?? pillar.demo_tenant_slug ?? pillar.default_tenant_slug ?? null,
       default_rubro: pillar.default_rubro ?? pillar.default_rubro_slug ?? null,
     });
   });

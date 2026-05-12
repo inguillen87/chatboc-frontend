@@ -643,7 +643,7 @@ export default function IncidentsMap() {
           <AlertTitle>No hay puntos para mostrar</AlertTitle>
           <AlertDescription>
             No recibimos ubicaciones con los filtros seleccionados. Probá ampliar el rango de fechas o quitar filtros.
-            Si el problema persiste, avisá al equipo de backend para revisar los datos enviados.
+            Si el problema persiste, avisa al equipo de soporte para revisar los datos enviados.
           </AlertDescription>
         </Alert>
       )}

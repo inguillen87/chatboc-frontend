@@ -46,7 +46,7 @@ export default function EducationPublicPage() {
                 </div>
               ) : (
                 <div className="rounded-[8px] border border-dashed border-border p-6 text-sm text-muted-foreground">
-                  El backend todavía no informó accesos rápidos para este portal.
+                  Todavia no hay accesos rapidos publicados para este portal.
                 </div>
               )}
             </CardContent>
@@ -65,7 +65,7 @@ export default function EducationPublicPage() {
               El portal público muestra información institucional y deriva a verificación cuando la consulta requiere vínculo familiar o datos sensibles.
             </p>
             <p>
-              Las acciones visibles provienen del contrato de educación, para mantener la experiencia white label y administrable desde backend.
+              Las acciones visibles las administra la institucion para mantener una experiencia clara, segura y adaptable.
             </p>
           </CardContent>
         </Card>

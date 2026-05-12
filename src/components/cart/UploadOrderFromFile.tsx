@@ -75,14 +75,14 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({ onCartUpdated
         if (contentType.includes('text/html')) {
           console.warn('[UploadOrderFromFile] Respuesta inesperada al importar archivo', uploadError.body?.raw);
           setError(
-            'El servidor devolvió una respuesta inesperada al interpretar el archivo (posible bloqueo CORS, sesión expirada o redirección). Revisa que estés autenticado y que tu conexión/origen estén permitidos, o comunícate con el administrador si el problema persiste.',
+            'No pudimos interpretar el archivo por ahora. Revisa que estes autenticado, intenta nuevamente o comunicate con el administrador si el problema persiste.',
           );
         } else {
           setError(getErrorMessage(uploadError, 'No pudimos interpretar el archivo. Intenta nuevamente.'));
         }
       } else if (uploadError instanceof TypeError) {
         setError(
-          'No pudimos contactar al servidor para procesar el archivo (posible problema de conexión o CORS). Verifica tu red y vuelve a intentarlo.',
+          'No pudimos procesar el archivo. Verifica tu conexion y vuelve a intentarlo.',
         );
       } else {
         setError(getErrorMessage(uploadError, 'No pudimos interpretar el archivo. Intenta nuevamente.'));

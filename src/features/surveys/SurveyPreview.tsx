@@ -47,7 +47,7 @@ export default function SurveyPreview({ questions }: { questions: SurveyQuestion
               {question.type === 'rating' || question.type === 'nps' ? (
                 <div className="flex items-center gap-2">
                   <Star className="h-4 w-4" />
-                  <span>Escala numerica controlada por backend al publicar.</span>
+                  <span>Escala numerica definida al publicar.</span>
                 </div>
               ) : (
                 <div className="flex items-center gap-2">

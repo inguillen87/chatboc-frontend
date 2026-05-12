@@ -222,7 +222,7 @@ export default function CatalogQualityCommandCenter({
         <div>
           <CardTitle className="text-base">Catalog quality</CardTitle>
           <CardDescription>
-            Cabina de calidad desde `catalog.quality.v1`, con colas y edicion inline por contrato.
+            Cabina de calidad con colas, cobertura de catalogo y edicion inline.
           </CardDescription>
         </div>
         <Button type="button" variant="outline" size="sm" onClick={loadQuality} disabled={loading}>
@@ -403,7 +403,7 @@ export default function CatalogQualityCommandCenter({
                 </Pill>
               ))}
               {!imports?.image_columns?.length ? (
-                <span className="text-sm text-muted-foreground">El backend no publico columnas detectables todavia.</span>
+                <span className="text-sm text-muted-foreground">Todavia no hay columnas detectables publicadas.</span>
               ) : null}
             </div>
           </div>

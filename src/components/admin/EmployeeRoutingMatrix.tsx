@@ -184,7 +184,7 @@ export default function EmployeeRoutingMatrix({ tenantSlug }: EmployeeRoutingMat
               Equipo
             </div>
             <p className="text-2xl font-black">{routing?.employees.length ?? (loading ? "--" : 0)}</p>
-            <p className="mt-1 text-xs text-muted-foreground">Empleados publicados por backend.</p>
+            <p className="mt-1 text-xs text-muted-foreground">Empleados cargados para este tenant.</p>
           </div>
           <div className="rounded-2xl border border-border/60 p-4">
             <div className="mb-3 flex items-center gap-2 font-semibold">

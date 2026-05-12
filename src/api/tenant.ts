@@ -81,7 +81,7 @@ const normalizeTenantInfo = (
   forceSlug?: string | null,
 ): TenantPublicInfo => {
   if (!isRecord(payload)) {
-    throw new Error('El backend devolvió un formato inesperado para el espacio solicitado.');
+    throw new Error('No pudimos cargar el espacio solicitado en este momento.');
   }
 
   const contractVersion =

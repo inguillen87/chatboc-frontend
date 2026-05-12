@@ -206,7 +206,7 @@ export function buildAnalyticsDemoDataset(view: AnalyticsContext): {
   return {
     data: base,
     message:
-      'Mostrando datos de ejemplo mientras se conecta el backend de métricas. Verificá los endpoints de analytics para ver datos reales.',
+      'Mostrando datos de ejemplo mientras se conectan las metricas reales.',
   };
 }
 

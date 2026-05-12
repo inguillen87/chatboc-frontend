@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckCircle2, ServerCog } from 'lucide-react';
+import { CheckCircle2, ListChecks } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,17 +26,17 @@ export default function EducationContractPendingCard({
         </div>
         <Badge variant="secondary">
           <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
-          Frontend listo
+          Pantalla lista
         </Badge>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="rounded-lg border bg-muted/20 p-4">
           <div className="flex items-start gap-3">
-            <ServerCog className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
+            <ListChecks className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
             <div className="space-y-1">
-              <h3 className="text-sm font-semibold">Contrato backend pendiente</h3>
+              <h3 className="text-sm font-semibold">Configuracion pendiente</h3>
               <p className="text-sm text-muted-foreground">
-                La pantalla esta lista para hidratarse con payloads backend-driven cuando el endpoint quede disponible.
+                La pantalla esta preparada para mostrar informacion cuando la institucion publique estos datos.
               </p>
             </div>
           </div>
@@ -44,14 +44,12 @@ export default function EducationContractPendingCard({
 
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Endpoints esperados</p>
-            <div className="flex flex-wrap gap-2">
-              {endpoints.map((endpoint) => (
-                <code key={endpoint} className="rounded-md border bg-background px-2 py-1 text-xs">
-                  {endpoint}
-                </code>
-              ))}
-            </div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Datos previstos</p>
+            <p className="text-sm text-muted-foreground">
+              {endpoints.length > 0
+                ? "Cuando se active, esta seccion mostrara informacion y acciones en el mismo lugar."
+                : "Esta seccion se completara cuando haya informacion disponible."}
+            </p>
           </div>
 
           {blockers.length ? (

@@ -77,7 +77,7 @@ export const downloadDemoCatalogPdf = async (asset: DemoCatalogAsset) => {
   y += 26;
   const highlights = asset.highlights?.length
     ? asset.highlights
-    : ["Chat guiado por backend", "Acciones contextuales", "Seguimiento operativo", "Derivacion humana"];
+    : ["Atencion guiada", "Acciones contextuales", "Seguimiento operativo", "Derivacion humana"];
   const cardWidth = (contentWidth - 18) / 2;
   highlights.slice(0, 4).forEach((item, index) => {
     const x = margin + (index % 2) * (cardWidth + 18);
@@ -160,4 +160,3 @@ export const downloadDemoCatalogPdf = async (asset: DemoCatalogAsset) => {
 
   doc.save(`${asset.slug}-chatboc-demo.pdf`);
 };
-

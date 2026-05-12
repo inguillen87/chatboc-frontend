@@ -732,7 +732,7 @@ const Integracion = () => {
                 <CardHeader>
                   <CardTitle>Blueprint de experiencia</CardTitle>
                   <CardDescription>
-                    Vista previa de componentes y playbooks definidos por backend.
+                    Vista previa de componentes y playbooks configurados para este tenant.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">

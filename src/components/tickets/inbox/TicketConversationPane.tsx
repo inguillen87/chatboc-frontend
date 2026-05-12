@@ -217,7 +217,7 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
           <ViewState
             status="partial"
             title="Timeline pendiente"
-            description="El item llego desde inbox omnicanal, pero backend no envio timeline para esta conversacion."
+            description="Este item todavia no tiene timeline para esta conversacion."
             className="min-h-[180px]"
           />
         )}

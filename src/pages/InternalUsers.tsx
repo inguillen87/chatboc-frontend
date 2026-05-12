@@ -347,8 +347,8 @@ export default function InternalUsers() {
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <TeamStatCard label="Equipo" value={employees.length.toLocaleString('es-AR')} helper="Usuarios internos activos en la vista actual" icon={Users2} />
         <TeamStatCard label="Categorías" value={categories.length.toLocaleString('es-AR')} helper="Dominios/categorías disponibles para asignación" icon={Layers3} />
-        <TeamStatCard label="Zonas" value={coverageZones.length.toLocaleString('es-AR')} helper="Cobertura geográfica informada por backend" icon={MapPinned} />
-        <TeamStatCard label="Canales" value={coverageChannels.length.toLocaleString('es-AR')} helper="Canales informados por backend" icon={KeyRound} />
+        <TeamStatCard label="Zonas" value={coverageZones.length.toLocaleString('es-AR')} helper="Cobertura geografica configurada" icon={MapPinned} />
+        <TeamStatCard label="Canales" value={coverageChannels.length.toLocaleString('es-AR')} helper="Canales configurados" icon={KeyRound} />
       </div>
 
       {(lastCreatedEmployee || coverage) && (
@@ -517,7 +517,7 @@ export default function InternalUsers() {
       <div className="overflow-hidden rounded-[28px] border border-border/60 bg-card shadow-sm">
           <div className="border-b border-border/50 bg-gradient-to-r from-primary/5 via-sky-500/5 to-violet-500/5 px-5 py-4">
             <h3 className="text-base font-semibold tracking-tight text-foreground">Directorio interno</h3>
-            <p className="mt-1 text-sm text-muted-foreground">Vista rápida de roles, categorías y alcances operativos cargados por el backend.</p>
+            <p className="mt-1 text-sm text-muted-foreground">Vista rapida de roles, categorias y alcances operativos configurados.</p>
           </div>
           <div className="overflow-x-auto">
           <table className="w-full min-w-[720px] text-sm text-left">

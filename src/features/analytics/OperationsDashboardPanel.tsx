@@ -768,7 +768,7 @@ function ActionCenterPanel({
               <CheckCircle2 className="h-5 w-5" />
               Action center
             </CardTitle>
-            <CardDescription>Acciones priorizadas por backend; no se ejecutan automaticamente.</CardDescription>
+            <CardDescription>Acciones priorizadas para el equipo; no se ejecutan automaticamente.</CardDescription>
           </div>
           <Button type="button" size="icon" variant="ghost" onClick={refetch} aria-label="Actualizar action center">
             <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
@@ -789,7 +789,7 @@ function ActionCenterPanel({
         ) : null}
 
         {!loading && !items.length && !error ? (
-          <ViewState status="empty" title="Sin acciones pendientes" description="El backend no envio next_best_actions para este periodo." className="min-h-[180px]" />
+          <ViewState status="empty" title="Sin acciones pendientes" description="No hay recomendaciones para este periodo." className="min-h-[180px]" />
         ) : null}
 
         {items.slice(0, 8).map((item, index) => (

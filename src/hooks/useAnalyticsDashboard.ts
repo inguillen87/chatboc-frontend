@@ -135,7 +135,7 @@ export function useAnalyticsDashboard(view: AnalyticsContext) {
         const hasData = hasDashboardData(nextData);
         const baseWarning =
           failedSections.length
-            ? `Algunos widgets no se pudieron cargar (${failedSections.join(', ')}). Verificá la conexión del backend o reintentá más tarde.`
+            ? `Algunos widgets no se pudieron cargar (${failedSections.join(', ')}). Verifica la conexion e intentalo mas tarde.`
             : null;
 
         if (!hasData) {

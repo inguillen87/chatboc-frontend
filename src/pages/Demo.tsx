@@ -28,7 +28,7 @@ import { extractRubroKey, extractRubroLabel } from "@/utils/rubros";
 import { extractButtonsFromResponse } from "@/utils/chatButtons";
 import DemoWorkspace from '@/features/demo/DemoWorkspace';
 import DemoSectorStep from '@/features/demo/DemoSectorStep';
-import { createDemoSession, createLocalDemoSession, getDemoAdminPreview, getDemoCatalog } from '@/features/demo/demoApi';
+import { createDemoSession, getDemoAdminPreview, getDemoCatalog } from '@/features/demo/demoApi';
 import type {
   DemoAdminPreviewResponse,
   DemoCatalogResponse,
@@ -376,7 +376,7 @@ const Demo = () => {
   const rubroNormalizado = parseRubro(rubroClave);
 
   const activeChatBootstrap = demoWorkspace?.chat_bootstrap ?? null;
-  const isLocalDemoMode = useLocalDemoRuntime || demoCatalog?.local_demo_mode === true;
+  const isLocalDemoMode = false;
   const selectedSectorGroup = findSectorGroup(demoCatalog, sectorSeleccionado);
   const visibleRubrosDisponibles = useMemo(
     () => rubrosDisponibles.filter((root) => rootMatchesSector(root, sectorSeleccionado)),
@@ -443,7 +443,7 @@ const Demo = () => {
   }, []);
 
   const startDemoConversation = useCallback(
-    async (rubroNombre: string, bootstrapOverride?: DemoChatBootstrap | null, tenantSlugOverride?: string | null, forceLocal = false) => {
+    async (rubroNombre: string, bootstrapOverride?: DemoChatBootstrap | null, tenantSlugOverride?: string | null) => {
       const normalized = parseRubro(rubroNombre);
       const chatBootstrap = bootstrapOverride ?? activeChatBootstrap;
       const tenantSlug = tenantSlugOverride ?? demoTenantSlug;
@@ -460,24 +460,6 @@ const Demo = () => {
       lastQueryRef.current = null;
 
       try {
-        if (forceLocal || (!chatBootstrap && isLocalDemoMode)) {
-          const fallbackText = buildDemoFallbackReply({
-            text: "",
-            sectorLabel: rubroSeleccionado || rubroNombre,
-            catalogTitle: activeCatalogAsset?.title,
-          });
-          setMessages([
-            {
-              id: Date.now(),
-              text: fallbackText,
-              isBot: true,
-              timestamp: new Date(),
-              query: undefined,
-            },
-          ]);
-          return;
-        }
-
         const response = chatBootstrap
           ? await sendChatBootstrapMessage(
               chatBootstrap,
@@ -513,7 +495,7 @@ const Demo = () => {
             })();
 
         setContexto((response as any)?.contexto_actualizado || {});
-        const respuestaText = response.respuesta_usuario || "No se pudo generar una respuesta demo.";
+        const respuestaText = response.respuesta_usuario || "No recibimos una respuesta para esta consulta.";
         const botones = extractButtonsFromResponse(response);
 
         const botMessage: Message = {
@@ -529,7 +511,7 @@ const Demo = () => {
         setMessages([
           {
             id: Date.now(),
-            text: "Modo demo iniciado. Podés escribir una consulta o descargar el catálogo para probar el recorrido.",
+            text: "No pudimos conectar la demo real en este momento. Reintentá en unos minutos.",
             isBot: true,
             timestamp: new Date(),
             query: undefined,
@@ -539,7 +521,7 @@ const Demo = () => {
         setIsTyping(false);
       }
     },
-    [activeCatalogAsset?.title, activeChatBootstrap, anonId, demoTenantSlug, isLocalDemoMode, rubroSeleccionado, sectorSeleccionado, setAnonId, setContexto, setIsTyping, setMessages, setPreguntasUsadas]
+    [activeChatBootstrap, anonId, demoTenantSlug, sectorSeleccionado, setAnonId, setContexto, setIsTyping, setMessages, setPreguntasUsadas]
   );
 
   const handleDownloadCatalog = useCallback(async () => {
@@ -603,14 +585,13 @@ const Demo = () => {
     setDemoSessionId(session.demo_session_id ?? session.session_id ?? sessionId);
     setDemoTenantSlug(session.tenant_slug ?? null);
     setDemoWorkspace(session.workspace ?? null);
-    setUseLocalDemoRuntime(Boolean((session as any).local_demo_mode));
+    setUseLocalDemoRuntime(false);
     setEsperandoRubro(false);
     openDemoWidget();
     void startDemoConversation(
       state.rubroSlug ?? rubroLabel ?? String(sector ?? ''),
       session.workspace?.chat_bootstrap ?? null,
       session.tenant_slug ?? null,
-      Boolean((session as any).local_demo_mode),
     );
   }, [location.search, location.state, openDemoWidget, sectorSeleccionado, startDemoConversation]);
 
@@ -638,44 +619,58 @@ const Demo = () => {
         { sector_groups: demoCatalog?.sector_groups ?? [] } as DemoCatalogResponse,
         normalizedRequestedSector,
       );
-      const localSession = createLocalDemoSession({
+      const label = readSectorLabel(fallbackGroup, normalizedRequestedSector);
+      void createDemoSession({
         sector: normalizedRequestedSector,
         tenant_slug: readSectorTenantSlug(fallbackGroup) ?? readSectorCatalogSlug(normalizedRequestedSector),
         pillar: normalizedRequestedSector,
         category_slug: normalizedRequestedSector,
-      });
-      const label = readSectorLabel(fallbackGroup, normalizedRequestedSector);
-      setSectorSeleccionado(normalizedRequestedSector);
-      setRubroSeleccionado(label);
-      setRubroClaveSeleccionado(normalizedRequestedSector);
-      setDemoSessionId(localSession.demo_session_id ?? null);
-      setDemoTenantSlug(localSession.tenant_slug ?? null);
-      setDemoWorkspace(localSession.workspace ?? null);
-      setUseLocalDemoRuntime(true);
-      setEsperandoRubro(false);
-      openDemoWidget();
-      void startDemoConversation(normalizedRequestedSector, null, localSession.tenant_slug ?? null, true);
+      })
+        .then((session) => {
+          setSectorSeleccionado(normalizedRequestedSector);
+          setRubroSeleccionado(label);
+          setRubroClaveSeleccionado(normalizedRequestedSector);
+          setDemoSessionId(session.demo_session_id ?? null);
+          setDemoTenantSlug(session.tenant_slug ?? null);
+          setDemoWorkspace(session.workspace ?? null);
+          setUseLocalDemoRuntime(false);
+          setEsperandoRubro(false);
+          openDemoWidget();
+          void startDemoConversation(normalizedRequestedSector, session.workspace?.chat_bootstrap ?? null, session.tenant_slug ?? null);
+        })
+        .catch(() => {
+          setEsperandoRubro(true);
+          setMessages([]);
+        });
       return;
     }
 
     if (storedClave && !rubroClaveSeleccionado) {
       const normalizedClave = extractRubroKey(storedClave) ?? storedClave;
-      const localSession = createLocalDemoSession({
+      void createDemoSession({
         rubro: normalizedClave,
         rubro_slug: normalizedClave,
         category_slug: normalizedClave,
-      });
-      setRubroClaveSeleccionado(normalizedClave);
-      if (!rubroSeleccionado) {
-        setRubroSeleccionado(storedLabel || storedClave);
-      }
-      setDemoSessionId(localSession.demo_session_id ?? null);
-      setDemoTenantSlug(localSession.tenant_slug ?? null);
-      setDemoWorkspace(localSession.workspace ?? null);
-      setUseLocalDemoRuntime(true);
-      setEsperandoRubro(false);
-      openDemoWidget();
-      void startDemoConversation(normalizedClave, null, localSession.tenant_slug ?? null, true);
+      })
+        .then((session) => {
+          setRubroClaveSeleccionado(normalizedClave);
+          if (!rubroSeleccionado) {
+            setRubroSeleccionado(storedLabel || storedClave);
+          }
+          setDemoSessionId(session.demo_session_id ?? null);
+          setDemoTenantSlug(session.tenant_slug ?? null);
+          setDemoWorkspace(session.workspace ?? null);
+          setUseLocalDemoRuntime(false);
+          setEsperandoRubro(false);
+          openDemoWidget();
+          void startDemoConversation(normalizedClave, session.workspace?.chat_bootstrap ?? null, session.tenant_slug ?? null);
+        })
+        .catch(() => {
+          safeLocalStorage.removeItem("rubroSeleccionado");
+          safeLocalStorage.removeItem("rubroSeleccionado_label");
+          setEsperandoRubro(true);
+          setMessages([]);
+        });
     } else if (!storedClave) {
       setEsperandoRubro(true);
       setMessages([]);
@@ -726,27 +721,6 @@ const Demo = () => {
       setIsTyping(true);
 
       try {
-        if (!activeChatBootstrap && isLocalDemoMode) {
-          const fallbackText = buildDemoFallbackReply({
-            text,
-            sectorLabel: rubroSeleccionado,
-            catalogTitle: activeCatalogAsset?.title,
-          });
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: Date.now() + 1,
-              text: fallbackText,
-              isBot: true,
-              timestamp: new Date(),
-              query: lastQueryRef.current || undefined,
-            },
-          ]);
-          lastQueryRef.current = null;
-          setPreguntasUsadas((prev) => prev + 1);
-          return;
-        }
-
         const response = activeChatBootstrap
           ? await sendChatBootstrapMessage(
               activeChatBootstrap,
@@ -792,7 +766,7 @@ const Demo = () => {
 
         setContexto((response as any)?.contexto_actualizado || {});
 
-        const respuestaText = response.respuesta_usuario || "No se pudo generar una respuesta demo.";
+        const respuestaText = response.respuesta_usuario || "No recibimos una respuesta para esta consulta.";
         const botones = extractButtonsFromResponse(response);
 
         const botMessage: Message = {
@@ -808,28 +782,22 @@ const Demo = () => {
         lastQueryRef.current = null;
         setPreguntasUsadas((prev) => prev + 1);
       } catch {
-        const fallbackText = buildDemoFallbackReply({
-          text,
-          sectorLabel: rubroSeleccionado,
-          catalogTitle: activeCatalogAsset?.title,
-        });
         setMessages((prev) => [
           ...prev,
           {
             id: Date.now(),
-            text: fallbackText,
+            text: "No pudimos enviar la consulta a la demo real. Reintentá en unos minutos.",
             isBot: true,
             timestamp: new Date(),
             query: lastQueryRef.current || undefined,
           },
         ]);
         lastQueryRef.current = null;
-        setPreguntasUsadas((prev) => prev + 1);
       } finally {
         setIsTyping(false);
       }
     },
-    [activeCatalogAsset?.title, activeChatBootstrap, contexto, demoTenantSlug, isLocalDemoMode, rubroSeleccionado, anonId, preguntasUsadas, rubroClave, rubroNormalizado, sectorSeleccionado]
+    [activeChatBootstrap, contexto, demoTenantSlug, rubroSeleccionado, anonId, preguntasUsadas, rubroClave, rubroNormalizado, sectorSeleccionado]
   );
 
   const startSectorDemo = useCallback(async () => {
@@ -849,31 +817,7 @@ const Demo = () => {
     openDemoWidget();
 
     try {
-      const session = demoCatalog?.local_demo_mode
-        ? createLocalDemoSession({
-            sector,
-            tenant_slug: tenantSlug,
-            pillar: sector,
-            category_slug: String(sector),
-          })
-        : await createDemoSession({
-            sector,
-            tenant_slug: tenantSlug,
-            pillar: sector,
-            category_slug: String(sector),
-          });
-      setDemoSessionId(session.demo_session_id ?? null);
-      setDemoTenantSlug(session.tenant_slug ?? tenantSlug ?? null);
-      setDemoWorkspace(session.workspace ?? null);
-      setUseLocalDemoRuntime(Boolean((session as any).local_demo_mode));
-      await startDemoConversation(
-        sector,
-        session.workspace?.chat_bootstrap ?? null,
-        session.tenant_slug ?? tenantSlug ?? null,
-        Boolean((session as any).local_demo_mode),
-      );
-    } catch (error) {
-      const session = createLocalDemoSession({
+      const session = await createDemoSession({
         sector,
         tenant_slug: tenantSlug,
         pillar: sector,
@@ -882,10 +826,23 @@ const Demo = () => {
       setDemoSessionId(session.demo_session_id ?? null);
       setDemoTenantSlug(session.tenant_slug ?? tenantSlug ?? null);
       setDemoWorkspace(session.workspace ?? null);
-      setUseLocalDemoRuntime(true);
-      await startDemoConversation(String(sector), null, session.tenant_slug ?? tenantSlug ?? null, true);
+      setUseLocalDemoRuntime(false);
+      await startDemoConversation(
+        sector,
+        session.workspace?.chat_bootstrap ?? null,
+        session.tenant_slug ?? tenantSlug ?? null,
+      );
+    } catch (error) {
+      setMessages([
+        {
+          id: Date.now(),
+          text: "No pudimos iniciar la demo real para este pilar. Reintentá en unos minutos.",
+          isBot: true,
+          timestamp: new Date(),
+        },
+      ]);
     }
-  }, [demoCatalog, openDemoWidget, sectorSeleccionado, startDemoConversation]);
+  }, [openDemoWidget, sectorSeleccionado, startDemoConversation]);
 
   // Rubros selector UI
   if (esperandoRubro) {
@@ -964,32 +921,7 @@ const Demo = () => {
               void (async () => {
                 try {
                   const fallbackTenantSlug = rubro.demo?.slug ?? readSectorTenantSlug(selectedSectorGroup);
-                  const session = demoCatalog?.local_demo_mode
-                    ? createLocalDemoSession({
-                        sector: sectorSeleccionado,
-                        rubro_slug: clave ?? etiqueta ?? rubro.nombre,
-                        category_slug: clave ?? etiqueta ?? rubro.nombre,
-                        tenant_slug: fallbackTenantSlug,
-                      })
-                    : await createDemoSession({
-                        sector: sectorSeleccionado,
-                        rubro_slug: clave ?? etiqueta ?? rubro.nombre,
-                        category_slug: clave ?? etiqueta ?? rubro.nombre,
-                        tenant_slug: fallbackTenantSlug,
-                      });
-                  setDemoSessionId(session.demo_session_id ?? null);
-                  setDemoTenantSlug(session.tenant_slug ?? fallbackTenantSlug ?? null);
-                  setDemoWorkspace(session.workspace ?? null);
-                  setUseLocalDemoRuntime(Boolean((session as any).local_demo_mode));
-                  await startDemoConversation(
-                    clave ?? etiqueta ?? rubro.nombre,
-                    session.workspace?.chat_bootstrap ?? null,
-                    session.tenant_slug ?? fallbackTenantSlug ?? null,
-                    Boolean((session as any).local_demo_mode),
-                  );
-                } catch {
-                  const fallbackTenantSlug = rubro.demo?.slug ?? readSectorTenantSlug(selectedSectorGroup);
-                  const session = createLocalDemoSession({
+                  const session = await createDemoSession({
                     sector: sectorSeleccionado,
                     rubro_slug: clave ?? etiqueta ?? rubro.nombre,
                     category_slug: clave ?? etiqueta ?? rubro.nombre,
@@ -998,8 +930,21 @@ const Demo = () => {
                   setDemoSessionId(session.demo_session_id ?? null);
                   setDemoTenantSlug(session.tenant_slug ?? fallbackTenantSlug ?? null);
                   setDemoWorkspace(session.workspace ?? null);
-                  setUseLocalDemoRuntime(true);
-                  await startDemoConversation(clave ?? etiqueta ?? rubro.nombre, null, session.tenant_slug ?? fallbackTenantSlug ?? null, true);
+                  setUseLocalDemoRuntime(false);
+                  await startDemoConversation(
+                    clave ?? etiqueta ?? rubro.nombre,
+                    session.workspace?.chat_bootstrap ?? null,
+                    session.tenant_slug ?? fallbackTenantSlug ?? null,
+                  );
+                } catch {
+                  setMessages([
+                    {
+                      id: Date.now(),
+                      text: "No pudimos iniciar la demo real para este rubro. Reintentá en unos minutos.",
+                      isBot: true,
+                      timestamp: new Date(),
+                    },
+                  ]);
                 }
               })();
             }}
