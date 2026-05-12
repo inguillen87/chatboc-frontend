@@ -115,18 +115,55 @@ Campos que conviene mantener estables:
 - `operations.freshness.summary.can_render_heatmap` debe venir booleano para no mostrar mapa roto.
 - En errores, seguir devolviendo `request_id` o header `X-Request-Id`.
 
-## 3. Verificacion frontend
+## 3. Frontend agregado en esta ola
+
+### Catalog quality command center
+
+Endpoints consumidos:
+
+- `GET /api/v2/catalog/quality`
+- `GET /api/v2/tenants/{tenant_slug}/catalog/quality`
+
+Uso frontend:
+
+- En el modulo `marketplace` del tenant profile se renderiza `CatalogQualityCommandCenter`.
+- Lee `summary`, `queues`, `imports.accepted_file_types`, `imports.image_columns` y `frontend_contract.queue_tabs`.
+- Renderiza colas backend-first: `missing_images`, `missing_price`, `missing_stock`, `unavailable`, `missing_description` o las que backend mande.
+- Permite edicion inline contra `PATCH /api/admin/tenants/{slug}/catalog/items/{item_id}` con `imagen_url`, `gallery_urls`, `precio`, `cantidad`, `descripcion_corta`, `promocion_info`, `external_url` y `checkout_type`.
+- Muestra rutas operativas de import: legacy `/api/admin/catalogo/importar` y nueva `/api/admin/catalog/import`.
+
+### Employee routing matrix
+
+Endpoints consumidos:
+
+- `GET /api/v2/employee-routing`
+- `GET /api/v2/tenants/{tenant_slug}/employee-routing`
+- `PATCH /api/v2/employees/{employee_id}/routing-scope`
+- `POST /api/v2/employee-routing/auto-assign`
+
+Uso frontend:
+
+- En el modulo `employees` del tenant profile se renderiza `EmployeeRoutingMatrix`.
+- Muestra dimensiones de backend (`categorias`, `zonas`, `channels`, `permisos` u otras).
+- Muestra matriz de empleados con scope y `workload_open`.
+- Permite editar scope con chips/csv y guardar por empleado.
+- Muestra cola `queues.unassigned` y `recommendations[]` con score y razones.
+- Ejecuta auto-asignacion en dos pasos: `dry_run: true` para preview y `dry_run: false` para aplicar.
+
+## 4. Verificacion frontend
 
 Ejecutado local:
 
 - `vite build` OK.
 - `vitest run src/features/chat/chatApi.test.ts src/api/market.test.ts --pool=threads` OK, 10 tests passed.
+- `vitest run src/api/v2/saas.tenantAdmin.test.ts src/api/v2/saas.whatsapp.test.ts --pool=threads` OK, 3 tests passed.
+- `tsc -p tsconfig.app.json --noEmit --pretty false` filtrado por archivos tocados no devuelve errores nuevos.
+- `git diff --check` OK, solo warnings CRLF.
 
 Nota: `tsc -p tsconfig.app.json --noEmit` sigue fallando por deuda global previa de tipado en la repo, especialmente `BadgeProps`, tests sin globals, imports viejos de analyticsService y algunos componentes legacy. Build productivo no queda bloqueado.
 
-## 4. Pendientes frontend siguientes
+## 5. Pendientes frontend siguientes
 
 - Drawer 360 para `lead_capture.items[]` conectado a `/api/v2/inbox/omnichannel`.
 - Mapa operativo completo con layers desde `/api/v2/analytics/operations/heatmap`.
-- Marketplace quality queue para productos sin imagen.
 - Acciones rápidas superadmin: impersonate, health, crear admin y configurar WhatsApp desde `tenant_creation`/`actions` backend.

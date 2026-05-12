@@ -260,6 +260,100 @@ export interface SuperadminCommandCenterV2 {
   raw: unknown;
 }
 
+export interface CatalogQualityQueueItem {
+  id: string;
+  item_id?: string | number;
+  name: string;
+  sku?: string;
+  status?: string;
+  category?: string;
+  image_url?: string;
+  price?: unknown;
+  stock?: unknown;
+  raw: UnknownRecord;
+}
+
+export interface CatalogQualityV2 {
+  contract_version?: string;
+  request_id?: string;
+  summary: UnknownRecord;
+  queues: Record<string, CatalogQualityQueueItem[]>;
+  imports: {
+    latest: UnknownRecord[];
+    accepted_file_types: string[];
+    image_columns: string[];
+    raw: UnknownRecord;
+  };
+  frontend_contract: UnknownRecord;
+  raw: unknown;
+}
+
+export interface CatalogItemPatchPayload {
+  imagen_url?: string;
+  image_url?: string;
+  gallery_urls?: string[];
+  precio?: string | number;
+  cantidad?: string | number;
+  descripcion_corta?: string;
+  promocion_info?: string;
+  external_url?: string;
+  checkout_type?: string;
+}
+
+export interface EmployeeRoutingScope {
+  categorias: string[];
+  zonas: string[];
+  channels: string[];
+  permisos: string[];
+  raw: UnknownRecord;
+}
+
+export interface EmployeeRoutingEmployee {
+  id: string;
+  name: string;
+  scope: EmployeeRoutingScope;
+  workload_open?: number;
+  raw: UnknownRecord;
+}
+
+export interface EmployeeRoutingRecommendation {
+  id: string;
+  ticket: UnknownRecord;
+  suggested_assignee: UnknownRecord;
+  score?: number;
+  reasons: string[];
+  raw: UnknownRecord;
+}
+
+export interface EmployeeRoutingV2 {
+  contract_version?: string;
+  request_id?: string;
+  routing_policy: UnknownRecord;
+  dimensions: Record<string, string[]>;
+  employees: EmployeeRoutingEmployee[];
+  queues: {
+    unassigned: UnknownRecord[];
+    unassigned_count: number;
+    raw: UnknownRecord;
+  };
+  recommendations: EmployeeRoutingRecommendation[];
+  frontend_contract: UnknownRecord;
+  raw: unknown;
+}
+
+export interface EmployeeRoutingScopePayload {
+  categorias?: string[];
+  zonas?: string[];
+  channels?: string[];
+  permisos?: string[];
+}
+
+export interface EmployeeRoutingAutoAssignPayload {
+  dry_run?: boolean;
+  ticket_ids?: Array<string | number>;
+  limit?: number;
+}
+
 const isRecord = (value: unknown): value is UnknownRecord =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 
@@ -339,6 +433,13 @@ const normalizeRatio = (value: number | undefined) => {
 const arrayOfStrings = (value: unknown): string[] => {
   if (!Array.isArray(value)) return [];
   return value.map((item) => asString(item)).filter((item): item is string => Boolean(item));
+};
+
+const normalizeStringList = (value: unknown): string[] => {
+  if (Array.isArray(value)) return arrayOfStrings(value);
+  if (isRecord(value)) return Object.keys(value).filter(Boolean);
+  const single = asString(value);
+  return single ? [single] : [];
 };
 
 const normalizeExperienceBlocks = (value: unknown): ChatExperienceBlock[] => {
@@ -978,6 +1079,178 @@ export const getSuperadminCommandCenterV2 = async () => {
   const response = await panelApi.get<unknown>('/api/v2/superadmin/command-center');
   return normalizeSuperadminCommandCenterV2(response);
 };
+
+const normalizeCatalogQualityQueueItem = (value: unknown, index = 0): CatalogQualityQueueItem | null => {
+  if (!isRecord(value)) return null;
+  const itemId = getFirst(value, ['item_id', 'product_id', 'catalog_item_id', 'id']);
+  const id = asString(itemId) ?? asString(getFirst(value, ['sku', 'codigo'])) ?? `catalog_item_${index + 1}`;
+  return {
+    id,
+    item_id: itemId as string | number | undefined,
+    name: asString(getFirst(value, ['nombre', 'name', 'title', 'label', 'sku'])) ?? id,
+    sku: asString(getFirst(value, ['sku', 'codigo', 'code'])),
+    status: asString(getFirst(value, ['status', 'estado', 'image_status'])),
+    category: asString(getFirst(value, ['categoria', 'category', 'category_name'])),
+    image_url: asString(getFirst(value, ['imagen_url', 'image_url', 'thumbnail', 'foto', 'photo'])),
+    price: getFirst(value, ['precio', 'price', 'amount']),
+    stock: getFirst(value, ['cantidad', 'stock', 'available_stock']),
+    raw: value,
+  };
+};
+
+export const normalizeCatalogQualityV2 = (response: unknown): CatalogQualityV2 => {
+  const source = getSource(response);
+  const record = asRecord(source);
+  const queuesSource = asRecord(record.queues);
+  const queues = Object.fromEntries(
+    Object.entries(queuesSource).map(([key, value]) => [
+      key,
+      asArray(value)
+        .map(normalizeCatalogQualityQueueItem)
+        .filter((item): item is CatalogQualityQueueItem => Boolean(item)),
+    ]),
+  );
+  const imports = asRecord(record.imports);
+  return {
+    contract_version: asString(record.contract_version),
+    request_id: asString(record.request_id),
+    summary: asRecord(record.summary),
+    queues,
+    imports: {
+      latest: asArray(imports.latest).map(asRecord),
+      accepted_file_types: normalizeStringList(imports.accepted_file_types),
+      image_columns: normalizeStringList(imports.image_columns),
+      raw: imports,
+    },
+    frontend_contract: asRecord(record.frontend_contract),
+    raw: response,
+  };
+};
+
+export const getCatalogQualityV2 = async (tenantSlug?: string | null) => {
+  const encoded = tenantSlug ? encodeURIComponent(tenantSlug) : null;
+  let response: unknown;
+  try {
+    response = await panelApi.get<unknown>(
+      encoded ? `/api/v2/tenants/${encoded}/catalog/quality` : '/api/v2/catalog/quality',
+      { tenantSlug },
+    );
+  } catch (error) {
+    if (!shouldFallbackEndpoint(error) || !encoded) throw error;
+    response = await panelApi.get<unknown>('/api/v2/catalog/quality', { tenantSlug });
+  }
+  return normalizeCatalogQualityV2(response);
+};
+
+export const patchCatalogItemV2 = async (
+  tenantSlug: string,
+  itemId: string | number,
+  payload: CatalogItemPatchPayload,
+) => {
+  const encodedSlug = encodeURIComponent(tenantSlug);
+  const encodedItem = encodeURIComponent(String(itemId));
+  return panelApi.patch<unknown>(
+    `/api/admin/tenants/${encodedSlug}/catalog/items/${encodedItem}`,
+    payload,
+    { tenantSlug },
+  );
+};
+
+const normalizeRoutingScope = (value: unknown): EmployeeRoutingScope => {
+  const record = asRecord(value);
+  return {
+    categorias: normalizeStringList(record.categorias),
+    zonas: normalizeStringList(record.zonas),
+    channels: normalizeStringList(getFirst(record, ['channels', 'canales'])),
+    permisos: normalizeStringList(record.permisos),
+    raw: record,
+  };
+};
+
+const normalizeRoutingEmployee = (value: unknown, index = 0): EmployeeRoutingEmployee | null => {
+  if (!isRecord(value)) return null;
+  const id = asString(getFirst(value, ['id', 'employee_id', 'user_id', 'email'])) ?? `routing_employee_${index + 1}`;
+  return {
+    id,
+    name: asString(getFirst(value, ['name', 'nombre', 'display_name', 'email'])) ?? id,
+    scope: normalizeRoutingScope(value.scope),
+    workload_open: asNumber(getFirst(value, ['workload_open', 'workload_open_tickets', 'open_tickets'])),
+    raw: value,
+  };
+};
+
+const normalizeRoutingRecommendation = (value: unknown, index = 0): EmployeeRoutingRecommendation | null => {
+  if (!isRecord(value)) return null;
+  const ticket = asRecord(value.ticket);
+  const assignee = asRecord(value.suggested_assignee);
+  return {
+    id:
+      asString(getFirst(value, ['id', 'recommendation_id'])) ??
+      `${asString(getFirst(ticket, ['source_model', 'type'])) ?? 'ticket'}_${asString(getFirst(ticket, ['id', 'ticket_id'])) ?? index + 1}`,
+    ticket,
+    suggested_assignee: assignee,
+    score: asNumber(value.score),
+    reasons: normalizeStringList(value.reasons),
+    raw: value,
+  };
+};
+
+export const normalizeEmployeeRoutingV2 = (response: unknown): EmployeeRoutingV2 => {
+  const source = getSource(response);
+  const record = asRecord(source);
+  const dimensionsSource = asRecord(record.dimensions);
+  const queues = asRecord(record.queues);
+  return {
+    contract_version: asString(record.contract_version),
+    request_id: asString(record.request_id),
+    routing_policy: asRecord(record.routing_policy),
+    dimensions: Object.fromEntries(
+      Object.entries(dimensionsSource).map(([key, value]) => [key, normalizeStringList(value)]),
+    ),
+    employees: asArray(record.employees)
+      .map(normalizeRoutingEmployee)
+      .filter((item): item is EmployeeRoutingEmployee => Boolean(item)),
+    queues: {
+      unassigned: asArray(queues.unassigned).map(asRecord),
+      unassigned_count: asNumber(getFirst(queues, ['unassigned_count', 'count'])) ?? asArray(queues.unassigned).length,
+      raw: queues,
+    },
+    recommendations: asArray(record.recommendations)
+      .map(normalizeRoutingRecommendation)
+      .filter((item): item is EmployeeRoutingRecommendation => Boolean(item)),
+    frontend_contract: asRecord(record.frontend_contract),
+    raw: response,
+  };
+};
+
+export const getEmployeeRoutingV2 = async (tenantSlug?: string | null) => {
+  const encoded = tenantSlug ? encodeURIComponent(tenantSlug) : null;
+  let response: unknown;
+  try {
+    response = await panelApi.get<unknown>(
+      encoded ? `/api/v2/tenants/${encoded}/employee-routing` : '/api/v2/employee-routing',
+      { tenantSlug },
+    );
+  } catch (error) {
+    if (!shouldFallbackEndpoint(error) || !encoded) throw error;
+    response = await panelApi.get<unknown>('/api/v2/employee-routing', { tenantSlug });
+  }
+  return normalizeEmployeeRoutingV2(response);
+};
+
+export const patchEmployeeRoutingScopeV2 = async (
+  employeeId: string | number,
+  payload: EmployeeRoutingScopePayload,
+  tenantSlug?: string | null,
+) => {
+  const encodedEmployee = encodeURIComponent(String(employeeId));
+  return panelApi.patch<unknown>(`/api/v2/employees/${encodedEmployee}/routing-scope`, payload, { tenantSlug });
+};
+
+export const postEmployeeRoutingAutoAssignV2 = async (
+  payload: EmployeeRoutingAutoAssignPayload,
+  tenantSlug?: string | null,
+) => panelApi.post<unknown>('/api/v2/employee-routing/auto-assign', payload, { tenantSlug });
 
 export const getNotificationHooksV2 = async (tenantSlug?: string | null) => {
   const response = await panelApi.get<unknown>('/api/v2/notifications/hooks', { tenantSlug });

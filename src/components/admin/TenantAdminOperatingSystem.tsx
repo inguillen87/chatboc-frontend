@@ -22,6 +22,8 @@ import {
   getTenantAdminExperienceV2,
   type TenantAdminExperienceV2,
 } from "@/api/v2/saas";
+import CatalogQualityCommandCenter from "@/components/admin/CatalogQualityCommandCenter";
+import EmployeeRoutingMatrix from "@/components/admin/EmployeeRoutingMatrix";
 import WhatsappOperationsHub from "@/components/admin/WhatsappOperationsHub";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -292,6 +294,14 @@ export default function TenantAdminOperatingSystem({ tenantSlug }: { tenantSlug?
               tenantSlug={effectiveSlug}
               initialExperience={whatsappExperience ?? bundle.whatsapp}
             />
+          ) : null}
+
+          {activeModule === "marketplace" ? (
+            <CatalogQualityCommandCenter tenantSlug={effectiveSlug} marketplace={marketplace} />
+          ) : null}
+
+          {activeModule === "employees" ? (
+            <EmployeeRoutingMatrix tenantSlug={effectiveSlug} />
           ) : null}
 
           <Card className="border-border/60">

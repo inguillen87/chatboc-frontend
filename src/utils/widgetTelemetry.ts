@@ -9,7 +9,11 @@ type WidgetTelemetryEvent =
   | 'lead_completed'
   | 'tenant_context_restored'
   | 'tenant_context_lost'
-  | 'demo_shell_render_blocked';
+  | 'demo_shell_render_blocked'
+  | 'socket_connect_attempt'
+  | 'socket_connect_ok'
+  | 'socket_connect_fail'
+  | 'socket_fallback_http';
 
 const EVENT_PREFIX = 'chatboc_widget';
 

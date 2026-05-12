@@ -107,7 +107,7 @@ function buildPlatformWidgetFallbackConfig() {
 }
 
 
-function SafeAnimatePresence({ children = null, ...rest }: AnimatePresenceProps = { children: null }) {
+function SafeAnimatePresence({ children = null, ...rest }: React.PropsWithChildren<AnimatePresenceProps>) {
   return <AnimatePresence {...rest}>{children}</AnimatePresence>;
 }
 
@@ -774,7 +774,7 @@ function ChatWidgetInner({
     const root = document.documentElement;
     // Strictly scope to container unless we are in full-page iframe mode.
     // This prevents the widget from polluting the host page's global styles (like dark mode background).
-    const target = (mode === 'iframe' && mode !== 'preview') ? root : widgetContainerRef.current;
+    const target = mode === 'iframe' ? root : widgetContainerRef.current;
 
     // First, apply the base theme from entity config (if available) to ensure background/text are correct
     if (entityInfo?.theme_config) {
@@ -886,8 +886,12 @@ function ChatWidgetInner({
   }, [isOpen, showProactiveBubble, proactiveCycle, proactiveMessages, entityInfo?.force_proactive]);
 
   const toggleChat = useCallback(() => {
-    if (typeof window !== "undefined" && window.AudioContext && window.AudioContext.state === "suspended") {
-      window.AudioContext.resume();
+    const sharedAudioContext =
+      typeof window !== "undefined"
+        ? ((window as any).chatbocAudioContext as AudioContext | undefined)
+        : undefined;
+    if (sharedAudioContext?.state === "suspended") {
+      void sharedAudioContext.resume();
     }
 
     setIsOpen((prevIsOpen) => {
@@ -1089,7 +1093,7 @@ function ChatWidgetInner({
       const hasSession = Boolean(authToken && user);
 
       if (requiresAuth && !hasSession) {
-        setPendingRedirect(target === "market" ? "market" : "cart");
+        setPendingRedirect("cart");
         setView("login");
         setIsOpen(true);
         return;
@@ -1302,7 +1306,7 @@ function ChatWidgetInner({
 
   const sendStateMessageToParent = useCallback(
     (open: boolean) => {
-      if (mode === "iframe" && mode !== "preview" && typeof window !== "undefined" && window.parent !== window && widgetId) {
+      if (mode === "iframe" && typeof window !== "undefined" && window.parent !== window && widgetId) {
         const dims = open
           ? { width: openWidth, height: openHeight }
           : { width: launcherSize, height: launcherHeight };
@@ -1317,7 +1321,7 @@ function ChatWidgetInner({
   );
 
   useEffect(() => {
-    if (mode === "iframe" && mode !== "preview" && typeof window !== "undefined" && window.parent !== window && widgetId) {
+    if (mode === "iframe" && typeof window !== "undefined" && window.parent !== window && widgetId) {
       window.parent.postMessage({ type: "chatboc-ready", widgetId }, "*");
     }
   }, [mode, widgetId]);

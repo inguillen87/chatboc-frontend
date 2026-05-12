@@ -60,6 +60,8 @@ export interface Post {
   imagen_url?: string;
   image?: string; // compatibilidad con "image"
   imageUrl?: string; // alias adicional para imagen
+  thumbnail_url?: string;
+  thumbnailUrl?: string;
   fecha_evento_inicio?: string; // ISO 8601 string
   fecha_evento_fin?: string; // ISO 8601 string
   url?: string; // Un enlace principal
@@ -68,6 +70,11 @@ export interface Post {
   facebook?: string; // enlaces opcionales a redes
   instagram?: string;
   youtube?: string;
+}
+
+export interface FAQ {
+  question: string;
+  answer: string;
 }
 
 export interface MenuRow {

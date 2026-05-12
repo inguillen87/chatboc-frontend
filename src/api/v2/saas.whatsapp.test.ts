@@ -58,10 +58,13 @@ describe("normalizeWhatsappExperienceV2", () => {
     });
 
     expect(normalized.contract_version).toBe("whatsapp.experience.v1");
+    expect(normalized.request_id).toBe("req_whatsapp");
     expect(normalized.channel.enabled).toBe(true);
     expect(normalized.conversation_intelligence.voice_calls?.enabled).toBe(true);
     expect(normalized.conversation_intelligence.voice_calls?.capabilities?.recommended_model).toBe("gpt-realtime");
+    expect((normalized.conversation_intelligence.inputs as any).video.analysis_ready).toBe(false);
     expect(normalized.content_modules.catalog.image_coverage_rate).toBe(72);
+    expect((normalized.tracking.courier_style_map as any).render_contract.fallback_when_no_coordinates).toBe("timeline_only");
     expect((normalized.tracking.milestones as any).claim).toEqual(["recibido", "validando"]);
     expect((normalized.tracking.claims as any).experience_endpoint).toContain("/api/public/tracking/experience");
   });

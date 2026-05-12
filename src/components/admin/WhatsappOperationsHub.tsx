@@ -112,6 +112,16 @@ const appendTenantToEndpoint = (endpoint: string, tenantSlug?: string | null) =>
   return `${endpoint}${separator}tenant_slug=${encodeURIComponent(tenantSlug)}`;
 };
 
+const readLatLng = (...sources: unknown[]) => {
+  for (const source of sources) {
+    const record = asRecord(source);
+    const lat = asNumber(first(record, ["lat", "latitude"]));
+    const lng = asNumber(first(record, ["lng", "lon", "longitude"]));
+    if (lat !== null && lng !== null) return { lat, lng };
+  }
+  return null;
+};
+
 const buildTrackingExperienceEndpoint = ({
   template,
   kind,
@@ -180,10 +190,39 @@ const EmptyState = ({ reason }: { reason?: unknown }) => (
   </div>
 );
 
-const ChannelHealth = ({ experience }: { experience: WhatsappExperienceV2 }) => {
+const ChannelHealth = ({
+  experience,
+  tenantSlug,
+}: {
+  experience: WhatsappExperienceV2;
+  tenantSlug?: string | null;
+}) => {
   const channel = experience.channel;
   const enabled = boolish(channel.enabled);
   const tone = enabled ? "ready" : "warning";
+  const testEndpoint = readText(first(channel, ["test_endpoint", "healthcheck_endpoint", "test_action_endpoint"]));
+  const testMethod = readText(first(channel, ["test_method", "healthcheck_method"])) || "POST";
+  const testLabel = readText(first(channel, ["test_label", "test_button_label", "healthcheck_label"]));
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<string | null>(null);
+
+  const handleTestChannel = async () => {
+    if (!testEndpoint) return;
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const response = await apiFetch<unknown>(appendTenantToEndpoint(testEndpoint, tenantSlug), {
+        method: testMethod.toUpperCase() === "GET" ? "GET" : "POST",
+        tenantSlug: tenantSlug || undefined,
+      });
+      const record = asRecord(response);
+      setTestResult(String(first(record, ["message", "status", "reason_code", "request_id"]) || "ok"));
+    } catch (err) {
+      setTestResult(getErrorMessage(err, "No se pudo probar el canal."));
+    } finally {
+      setTesting(false);
+    }
+  };
 
   return (
     <Card className="border-border/60">
@@ -196,14 +235,29 @@ const ChannelHealth = ({ experience }: { experience: WhatsappExperienceV2 }) => 
             </CardTitle>
             <CardDescription>{String(first(channel, ["provider", "status", "reason_code"]) || "whatsapp.experience.v1")}</CardDescription>
           </div>
-          <StatusPill tone={tone}>{enabled ? "Conectado" : "Configurar"}</StatusPill>
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusPill tone={tone}>{enabled ? "Conectado" : "Configurar"}</StatusPill>
+            {testEndpoint ? (
+              <Button type="button" variant="outline" size="sm" className="rounded-xl" onClick={handleTestChannel} disabled={testing}>
+                {testing ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                {testLabel || "Probar canal"}
+              </Button>
+            ) : null}
+          </div>
         </div>
       </CardHeader>
-      <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <EndpointLine label="Numero" value={first(channel, ["number", "phone_number", "sender_id"])} />
-        <EndpointLine label="Webhook" value={channel.webhook} />
-        <EndpointLine label="Status webhook" value={channel.status_webhook} />
-        <EndpointLine label="Reason code" value={channel.reason_code} />
+      <CardContent className="space-y-3">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <EndpointLine label="Numero" value={first(channel, ["number", "phone_number", "sender_id"])} />
+          <EndpointLine label="Webhook" value={channel.webhook} />
+          <EndpointLine label="Status webhook" value={channel.status_webhook} />
+          <EndpointLine label="Reason code" value={channel.reason_code} />
+        </div>
+        {testResult ? (
+          <div className="rounded-xl border border-border/60 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+            {testResult}
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );
@@ -398,6 +452,19 @@ const TrackingExperienceResult = ({ result }: { result: AnyRecord }) => {
     first(source, ["render_contract", "map_contract", "tracking_contract"]),
   );
   const map = asRecord(first(source, ["map", "tracking_map", "geo", "location"]));
+  const coordinates = readLatLng(
+    first(map, ["current_status", "current", "point", "location"]),
+    map,
+    first(source, ["location", "current_location", "destination_or_claim_location"]),
+    current,
+  );
+  const timelineLabels = timeline.map((item, index) => {
+    const event = typeof item === "string" ? { label: item } : asRecord(item);
+    return String(first(event, ["label", "title", "status", "event_name", "name"]) || `Evento ${index + 1}`);
+  });
+  const progressPercent = timeline.length
+    ? Math.min(100, Math.max(12, Math.round(((timeline.length - 1) / Math.max(timeline.length, 1)) * 100)))
+    : 0;
   const title =
     readText(first(source, ["title", "label", "headline", "message_body"])) ||
     readText(first(current, ["label", "status", "title"])) ||
@@ -425,6 +492,36 @@ const TrackingExperienceResult = ({ result }: { result: AnyRecord }) => {
         <Metric label="Mapa" value={String(first(renderContract, ["fallback_when_no_coordinates"]) || first(map, ["state", "status"]) || "timeline_only")} />
         <Metric label="Eventos" value={formatNumber(timeline.length)} />
       </div>
+
+      {timelineLabels.length > 1 ? (
+        <div className="mt-4 rounded-2xl border border-border/60 bg-background/80 p-3">
+          <div className="mb-2 flex items-center justify-between gap-3 text-xs text-muted-foreground">
+            <span className="font-semibold uppercase tracking-[0.14em]">Progreso</span>
+            <span>{progressPercent}%</span>
+          </div>
+          <div className="h-2 overflow-hidden rounded-full bg-muted">
+            <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${progressPercent}%` }} />
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {timelineLabels.slice(0, 6).map((label, index) => (
+              <span key={`${label}-${index}`} className="rounded-full border border-border/60 bg-muted/30 px-2.5 py-1 text-[11px] font-semibold">
+                {label}
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {coordinates ? (
+        <div className="mt-4 overflow-hidden rounded-2xl border border-border/60 bg-background">
+          <div className="relative h-40 bg-[linear-gradient(90deg,hsl(var(--muted))_1px,transparent_1px),linear-gradient(0deg,hsl(var(--muted))_1px,transparent_1px)] bg-[size:28px_28px]">
+            <div className="absolute left-1/2 top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary shadow-[0_0_0_10px_hsl(var(--primary)/0.16)]" />
+            <div className="absolute bottom-3 left-3 rounded-xl border bg-background/90 px-3 py-2 text-xs font-semibold shadow-sm">
+              {coordinates.lat.toFixed(5)}, {coordinates.lng.toFixed(5)}
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {timeline.length > 0 ? (
         <div className="mt-4 rounded-2xl border border-border/60 bg-background/80 p-3">
@@ -722,7 +819,7 @@ export default function WhatsappOperationsHub({
       </div>
 
       {!channelEnabled ? <EmptyState reason={experience.channel.reason_code} /> : null}
-      <ChannelHealth experience={experience} />
+      <ChannelHealth experience={experience} tenantSlug={tenantSlug} />
       <EnterpriseRules experience={experience} />
       <ConversationCapabilities experience={experience} />
       <ContentModules experience={experience} />

@@ -13,12 +13,12 @@ import {
 } from "@/types/chat";
 import { io, Socket } from "socket.io-client";
 import { getSocketUrl, SOCKET_PATH } from "@/config";
-import { apiFetch, getErrorMessage } from "@/utils/api";
+import { ApiError, apiFetch, getErrorMessage } from "@/utils/api";
 import { getAskEndpoint, parseRubro } from "@/utils/chatEndpoints";
 import { extractRubroKey } from "@/utils/rubros";
 import { enforceTipoChatForRubro } from "@/utils/tipoChat";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
-import getOrCreateChatSessionId from "@/utils/chatSessionId";
+import getOrCreateChatSessionId, { resetChatSessionId } from "@/utils/chatSessionId";
 import { getIframeToken } from "@/utils/config";
 import { v4 as uuidv4 } from "uuid";
 import {
@@ -632,7 +632,14 @@ export function useChatLogic({
       const channelCapabilities: ChatUxChannelCapabilities = {};
 
       const assignCapability = (
-        key: keyof ChatUxChannelCapabilities,
+        key: keyof Pick<
+          ChatUxChannelCapabilities,
+          | "supports_audio_input"
+          | "supports_file_upload"
+          | "supports_image_input"
+          | "supports_location_share"
+          | "supports_realtime"
+        >,
         ...values: unknown[]
       ) => {
         for (const value of values) {
@@ -745,7 +752,10 @@ export function useChatLogic({
       const recommendedExperience: ChatUxRecommendedExperience = {};
 
       const assignBool = (
-        key: keyof Omit<ChatUxRecommendedExperience, "preferred_handoff_channels">,
+        key: keyof Pick<
+          ChatUxRecommendedExperience,
+          "supports_confirmation_cards" | "supports_multimodal_intake"
+        >,
         ...values: unknown[]
       ) => {
         for (const value of values) {
