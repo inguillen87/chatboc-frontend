@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
+  Activity,
   ArrowRight,
   Briefcase,
   Building2,
   Factory,
+  FileText,
   GraduationCap,
   Heart,
   Loader2,
@@ -108,16 +110,16 @@ const DemoCard = ({ item, sector, group }: { item: Rubro; sector: DemoSector; gr
   };
 
   return (
-    <Card className="group chatboc-hover-lift flex h-full flex-col overflow-hidden rounded-[14px] border-border/70 bg-card/95 shadow-sm transition-all hover:border-primary/40 hover:shadow-xl">
+    <Card className="group chatboc-hover-lift flex h-full flex-col overflow-hidden rounded-[8px] border-border/70 bg-card/95 shadow-sm transition-all hover:border-primary/40 hover:shadow-xl">
       <CardHeader className="pb-3">
-        <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+        <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-[8px] bg-primary/10 text-primary">
           {getIconForCategory(item)}
         </div>
         <div className="flex items-start justify-between gap-3">
           <CardTitle className="text-base font-semibold leading-snug transition-colors group-hover:text-primary">
             {item.demo.nombre || item.nombre}
           </CardTitle>
-          <Badge variant="secondary" className="h-5 rounded-full px-2 text-[10px]">
+          <Badge variant="secondary" className="h-5 rounded-[8px] px-2 text-[10px]">
             Demo
           </Badge>
         </div>
@@ -126,17 +128,21 @@ const DemoCard = ({ item, sector, group }: { item: Rubro; sector: DemoSector; gr
         </CardDescription>
       </CardHeader>
       <CardContent className="flex-1">
-        {error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</p> : null}
+        {error ? <p className="rounded-[8px] bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</p> : null}
       </CardContent>
       <CardFooter className="pt-0">
         <Button
           size="sm"
-          className="h-10 w-full justify-between rounded-[10px] text-xs font-semibold"
+          className="h-10 w-full justify-between rounded-[8px] text-xs font-semibold"
           onClick={startDemo}
           disabled={starting}
         >
           {starting ? "Iniciando" : group?.cta_label?.trim() || "Probar demo"}
-          {starting ? <Loader2 className="ml-2 h-3.5 w-3.5 animate-spin" /> : <ArrowRight className="ml-2 h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />}
+          {starting ? (
+            <Loader2 className="ml-2 h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <ArrowRight className="ml-2 h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
+          )}
         </Button>
       </CardFooter>
     </Card>
@@ -153,9 +159,9 @@ const PillarDemoCard = ({ sector, group }: { sector: DemoSector; group: DemoSect
     setError(null);
     try {
       const defaultRubro =
-        typeof group.default_rubro === 'string'
+        typeof group.default_rubro === "string"
           ? group.default_rubro
-          : typeof group.default_rubro_slug === 'string'
+          : typeof group.default_rubro_slug === "string"
             ? group.default_rubro_slug
             : String(group.key);
       const session = await createDemoSession({
@@ -164,7 +170,7 @@ const PillarDemoCard = ({ sector, group }: { sector: DemoSector; group: DemoSect
         category_slug: defaultRubro,
         tenant_slug: group.tenant_slug ?? group.demo_tenant_slug ?? group.default_tenant_slug ?? null,
       });
-      navigate(`/demo?session=${encodeURIComponent(session.demo_session_id || 'local')}`, {
+      navigate(`/demo?session=${encodeURIComponent(session.demo_session_id || "local")}`, {
         state: {
           demoSession: session,
           sector,
@@ -173,26 +179,32 @@ const PillarDemoCard = ({ sector, group }: { sector: DemoSector; group: DemoSect
         },
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo iniciar la demo');
+      setError(err instanceof Error ? err.message : "No se pudo iniciar la demo");
     } finally {
       setStarting(false);
     }
   };
 
   return (
-    <Card className="group chatboc-hover-lift flex h-full flex-col rounded-[14px] border-border/70 bg-card/95 shadow-sm transition-all hover:border-primary/40 hover:shadow-xl">
+    <Card className="group chatboc-hover-lift flex h-full flex-col rounded-[8px] border-border/70 bg-card/95 shadow-sm transition-all hover:border-primary/40 hover:shadow-xl">
       <CardHeader>
-        <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">{getIconForCategory(group)}</div>
+        <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-[8px] bg-primary/10 text-primary">
+          {getIconForCategory(group)}
+        </div>
         <CardTitle className="text-base font-semibold">{group.label || String(group.key)}</CardTitle>
         {group.description ? <CardDescription>{group.description}</CardDescription> : null}
       </CardHeader>
       <CardContent className="flex-1">
-        {error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</p> : null}
+        {error ? <p className="rounded-[8px] bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</p> : null}
       </CardContent>
       <CardFooter>
-        <Button size="sm" className="h-10 w-full justify-between rounded-[10px] text-xs font-semibold" onClick={startDemo} disabled={starting}>
-          {starting ? 'Iniciando' : group.cta_label?.trim() || 'Probar demo'}
-          {starting ? <Loader2 className="ml-2 h-3.5 w-3.5 animate-spin" /> : <ArrowRight className="ml-2 h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />}
+        <Button size="sm" className="h-10 w-full justify-between rounded-[8px] text-xs font-semibold" onClick={startDemo} disabled={starting}>
+          {starting ? "Iniciando" : group.cta_label?.trim() || "Probar demo"}
+          {starting ? (
+            <Loader2 className="ml-2 h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <ArrowRight className="ml-2 h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
+          )}
         </Button>
       </CardFooter>
     </Card>
@@ -240,12 +252,13 @@ const DemoShowcaseSection = () => {
           <div className="chatboc-section-kicker mb-4">Demos</div>
           <h2 className="chatboc-section-heading">Elegí un pilar y abrí una operación real de demo</h2>
           <p className="chatboc-section-copy mt-4">
-            El catálogo, los rubros y las acciones se leen del contrato público de demo. Si el backend no responde, la experiencia queda disponible con fallback local señalizado.
+            El catálogo, los rubros y las acciones se leen del contrato público de demo. Si el backend no responde, la
+            experiencia queda disponible con fallback local señalizado.
           </p>
         </div>
 
         {state === "loading" ? (
-          <div className="mx-auto flex min-h-[320px] max-w-xl items-center justify-center rounded-[18px] border border-border/70 bg-card/80 p-8 shadow-sm">
+          <div className="mx-auto flex min-h-[320px] max-w-xl items-center justify-center rounded-[8px] border border-border/70 bg-card/80 p-8 shadow-sm">
             <div className="flex items-center gap-3 text-sm text-muted-foreground">
               <Loader2 className="h-5 w-5 animate-spin text-primary" />
               Cargando demos
@@ -263,7 +276,7 @@ const DemoShowcaseSection = () => {
         ) : null}
 
         {state === "empty" ? (
-          <div className="mx-auto max-w-2xl rounded-[14px] border border-dashed border-border px-6 py-12 text-center text-muted-foreground">
+          <div className="mx-auto max-w-2xl rounded-[8px] border border-dashed border-border px-6 py-12 text-center text-muted-foreground">
             No hay demos disponibles por el momento.
           </div>
         ) : null}
@@ -271,12 +284,12 @@ const DemoShowcaseSection = () => {
         {state !== "loading" && state !== "empty" ? (
           <Tabs defaultValue={defaultValue} className="mx-auto w-full max-w-6xl">
             <div className="mb-8 overflow-x-auto pb-2">
-              <TabsList className="mx-auto grid h-auto w-full max-w-3xl grid-cols-3 gap-1 rounded-[14px] border border-border/70 bg-card/80 p-1 shadow-sm backdrop-blur">
+              <TabsList className="mx-auto grid h-auto w-full max-w-3xl grid-cols-3 gap-1 rounded-[8px] border border-border/70 bg-card/80 p-1 shadow-sm backdrop-blur">
                 {groups.map((group) => (
                   <TabsTrigger
                     key={String(group.key)}
                     value={String(group.key)}
-                    className="rounded-[10px] px-3 py-3 text-sm font-semibold transition-all data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+                    className="rounded-[8px] px-3 py-3 text-sm font-semibold transition-all data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
                   >
                     <span className="flex items-center justify-center gap-2">
                       {getIconForCategory(group)}
@@ -293,25 +306,36 @@ const DemoShowcaseSection = () => {
               const cards = matchingRoots.flatMap(flattenDemoCards);
               return (
                 <TabsContent key={String(group.key)} value={String(group.key)} className="focus-visible:ring-0">
-                  <div className="chatboc-landing-panel grid gap-6 p-5 md:grid-cols-[0.8fr_1.2fr] md:p-6">
-                    <div className="rounded-[16px] border border-border/70 bg-background/70 p-5 shadow-sm">
-                      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                  <div className="chatboc-command-shell grid gap-6 p-5 md:grid-cols-[0.8fr_1.2fr] md:p-6">
+                    <div className="rounded-[8px] border border-border/70 bg-background/70 p-5 shadow-sm">
+                      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-[8px] bg-primary/10 text-primary">
                         {getIconForCategory(group)}
                       </div>
                       <h3 className="text-2xl font-bold">{group.label || String(group.key)}</h3>
                       {group.description ? <p className="mt-3 text-sm text-muted-foreground">{group.description}</p> : null}
                       <div className="mt-5 grid grid-cols-3 gap-2 text-center text-xs">
-                        <div className="rounded-xl bg-muted/60 p-3">
+                        <div className="rounded-[8px] bg-muted/60 p-3">
                           <span className="block text-lg font-bold text-primary">{cards.length}</span>
                           demos
                         </div>
-                        <div className="rounded-xl bg-muted/60 p-3">
+                        <div className="rounded-[8px] bg-muted/60 p-3">
                           <span className="block text-lg font-bold text-primary">24/7</span>
                           chat
                         </div>
-                        <div className="rounded-xl bg-muted/60 p-3">
-                          <span className="block text-lg font-bold text-primary">PDF</span>
+                        <div className="rounded-[8px] bg-muted/60 p-3">
+                          <FileText className="mx-auto mb-1 h-4 w-4 text-primary" />
                           recursos
+                        </div>
+                      </div>
+                      <div className="mt-5 rounded-[8px] border border-border/70 bg-card/70 p-3">
+                        <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-foreground">
+                          <Activity className="h-3.5 w-3.5 text-primary" />
+                          Recorrido de demo
+                        </div>
+                        <div className="grid gap-2 text-xs text-muted-foreground">
+                          <span>1. Selector backend-first</span>
+                          <span>2. Chat bootstrap del contrato</span>
+                          <span>3. Acciones, archivos y seguimiento</span>
                         </div>
                       </div>
                     </div>

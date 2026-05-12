@@ -499,7 +499,7 @@ const ChatPanel = (props: ChatPanelProps) => {
   const socketRef = useRef<ReturnType<typeof io> | null>(null);
 
   const skipAuth = mode === "script";
-  const liveChatIsAvailable = Boolean(
+  const liveChatMarkedAvailable = Boolean(
     supportChannels?.live_chat?.available ??
     supportChannels?.live_chat?.realtime,
   );
@@ -511,6 +511,9 @@ const ChatPanel = (props: ChatPanelProps) => {
     realtimeConfig?.socketUrl?.trim() ||
     supportChannels?.live_chat?.socket_url?.trim() ||
     null;
+  const liveChatIsAvailable = Boolean(
+    liveChatMarkedAvailable && backendSocketEnabled,
+  );
   const normalizedPropRubro = extractRubroKey(selectedRubro);
   const [localRubro, setLocalRubro] = useState<string | null>(
     () => normalizedPropRubro ?? null,
@@ -621,11 +624,15 @@ const ChatPanel = (props: ChatPanelProps) => {
     !chatBootstrap;
   const compactHeaderActions = Boolean(
     isPlatformOnboarding ||
+      uiHints?.density === "compact" ||
       uiHints?.toolbar?.avoid_header_action_overload ||
       uiHints?.composer?.icon_buttons_only,
   );
   const collapsedToolbarActions = new Set(uiHints?.toolbar?.collapse ?? []);
   const isToolbarActionCollapsed = (action: string) => collapsedToolbarActions.has(action);
+  const collapseExtraQuickReplies = Boolean(
+    uiHints && uiHints.collapse_extra_quick_replies !== false,
+  );
   const quickReplyLimit =
     typeof uiHints?.max_visible_quick_replies === "number" &&
     uiHints.max_visible_quick_replies > 0
@@ -1186,7 +1193,9 @@ const ChatPanel = (props: ChatPanelProps) => {
   };
 
   const liveChatAllowedByBackend =
-    supportChannels?.live_chat?.realtime !== false;
+    !socketDisabledByBackend &&
+    supportChannels?.live_chat?.realtime !== false &&
+    supportChannels?.live_chat?.available !== false;
   const canRenderLiveChat = Boolean(
     liveChatAllowedByBackend && isLiveChatEnabled,
   );
@@ -2368,7 +2377,7 @@ const ChatPanel = (props: ChatPanelProps) => {
           compactActions
         />
         <div className="flex min-h-0 flex-1 items-center justify-center p-4">
-          <div className="w-full max-w-[360px] rounded-3xl border border-border/70 bg-background/92 p-4 shadow-[0_22px_70px_rgba(15,23,42,0.16)] backdrop-blur">
+          <div className="w-full max-w-[360px] rounded-[8px] border border-border/70 bg-background/92 p-4 shadow-[0_22px_70px_rgba(15,23,42,0.16)] backdrop-blur">
             <div className="mb-4 text-left">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
                 {onboarding?.title || "Chatboc"}
@@ -2385,7 +2394,7 @@ const ChatPanel = (props: ChatPanelProps) => {
                   <button
                     key={optionId}
                     type="button"
-                    className="group flex min-h-[58px] w-full items-center justify-between rounded-2xl border border-border/70 bg-card px-3.5 py-3 text-left text-sm font-semibold text-foreground shadow-sm transition hover:border-primary/40 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-wait disabled:opacity-70"
+                    className="group flex min-h-[58px] w-full items-center justify-between rounded-[8px] border border-border/70 bg-card px-3.5 py-3 text-left text-sm font-semibold text-foreground shadow-sm transition hover:border-primary/40 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-wait disabled:opacity-70"
                     disabled={Boolean(platformSelectionLoadingId)}
                     onClick={() => void onPlatformSelection?.(option)}
                   >
@@ -2400,7 +2409,7 @@ const ChatPanel = (props: ChatPanelProps) => {
               })}
             </div>
             {platformSelectionError ? (
-              <p className="mt-3 rounded-xl border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+              <p className="mt-3 rounded-[8px] border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs text-destructive">
                 {platformSelectionError}
               </p>
             ) : null}
@@ -2699,22 +2708,20 @@ const ChatPanel = (props: ChatPanelProps) => {
         </div>
       )}
 
-      {onCart && tipoChat === "pyme" && !isToolbarActionCollapsed("catalog") && (
+      {onCart &&
+        tipoChat === "pyme" &&
+        !isToolbarActionCollapsed("catalog") &&
+        !shouldShowCatalogCard &&
+        (catalogViewLabel || catalogDownloadLabel) && (
         <div className="px-2 sm:px-4 pt-2">
-          <div className={cn(chatContentMaxWidthClass, "flex flex-col gap-2 sm:flex-row sm:items-center rounded-xl border bg-muted/40 px-3 py-3")}>
-            <div className="text-sm text-muted-foreground flex-1">
-              <p className="text-sm font-medium text-foreground">
-                Explora el catálogo
-              </p>
-              <p>Conocé los productos disponibles y agregalos al carrito.</p>
-            </div>
+          <div className={cn(chatContentMaxWidthClass, "flex justify-end rounded-xl border bg-muted/40 px-3 py-3")}>
             <Button
               variant="secondary"
               size="sm"
               className="w-full sm:w-auto"
               onClick={handleOpenCatalog}
             >
-              Ver catálogo
+              {catalogViewLabel || catalogDownloadLabel}
             </Button>
           </div>
         </div>
@@ -2818,6 +2825,8 @@ const ChatPanel = (props: ChatPanelProps) => {
             messageEnterAnimation={messageEnterAnimation}
             bubbleAnimation={bubbleAnimation}
             logoBadgeStyle={logoBadgeStyle}
+            maxVisibleQuickReplies={quickReplyLimit}
+            collapseExtraQuickReplies={collapseExtraQuickReplies}
           />
         ))}
           </>
@@ -3072,6 +3081,7 @@ const ChatPanel = (props: ChatPanelProps) => {
             validateBeforeSend={validateLeadCaptureInput}
             channelCapabilities={effectiveChannelCapabilities}
             mediaCapabilities={effectiveMediaCapabilities}
+            uiHints={uiHints}
             guidedFlow={guidedFlow}
             supportsMultimodalIntake={supportsMultimodalIntake}
           />

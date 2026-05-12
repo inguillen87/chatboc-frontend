@@ -40,8 +40,67 @@
   .chatboc-landing-panel {
     @apply rounded-[8px] border border-border/70 bg-card/90 text-card-foreground shadow-[0_18px_50px_rgba(15,23,42,0.10)] backdrop-blur;
   }
+  .chatboc-command-shell {
+    @apply rounded-[18px] border border-border/70 bg-card/90 text-card-foreground shadow-[0_28px_90px_rgba(15,23,42,0.16)] backdrop-blur-xl;
+    position: relative;
+  }
+  .chatboc-command-shell::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      linear-gradient(90deg, hsl(var(--primary) / 0.08), transparent 28%, transparent 70%, hsl(var(--success) / 0.08)),
+      linear-gradient(180deg, hsl(var(--background) / 0.22), transparent);
+  }
+  .chatboc-metric-card {
+    position: relative;
+    overflow: hidden;
+  }
+  .chatboc-metric-card::after {
+    content: "";
+    position: absolute;
+    inset: auto 0 0 0;
+    height: 2px;
+    background: linear-gradient(90deg, hsl(var(--primary)), hsl(var(--success)), hsl(var(--warning)));
+    opacity: 0;
+    transform: translateX(-50%);
+    transition: opacity 240ms ease, transform 500ms ease;
+  }
+  .chatboc-metric-card:hover::after {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  .chatboc-live-chip {
+    position: relative;
+  }
+  .chatboc-live-chip::before {
+    content: "";
+    display: inline-block;
+    width: 0.45rem;
+    height: 0.45rem;
+    margin-right: 0.45rem;
+    border-radius: 999px;
+    background: currentColor;
+    box-shadow: 0 0 0 0 hsl(var(--success) / 0.26);
+    animation: chatboc-live-pulse 2.2s ease-out infinite;
+  }
+  .chatboc-meter {
+    transform-origin: left center;
+    animation: chatboc-meter-in 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .chatboc-chart-column {
+    transform-origin: bottom center;
+    animation: chatboc-column-rise 880ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .chatboc-message-glow {
+    box-shadow: 0 18px 36px hsl(var(--primary) / 0.22);
+  }
   .dark .chatboc-landing-panel {
     box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
+  }
+  .dark .chatboc-command-shell {
+    box-shadow: 0 28px 90px rgba(0, 0, 0, 0.42);
   }
   .chatboc-hover-lift {
     @apply transition-all duration-300 ease-out hover:-translate-y-1 hover:border-primary/35 hover:shadow-[0_20px_55px_rgba(15,23,42,0.12)];
@@ -62,6 +121,18 @@
     background-size: 44px 44px;
     mask-image: linear-gradient(to bottom, black 0%, transparent 78%);
     opacity: 0.45;
+  }
+  .chatboc-hero-grid::after {
+    content: "";
+    position: absolute;
+    inset: 80px 0 auto;
+    z-index: -1;
+    height: 420px;
+    background:
+      linear-gradient(90deg, transparent, hsl(var(--primary) / 0.08), transparent),
+      linear-gradient(180deg, transparent, hsl(var(--success) / 0.06), transparent);
+    mask-image: linear-gradient(to bottom, transparent 0%, black 22%, black 76%, transparent 100%);
+    opacity: 0.9;
   }
   .dark .chatboc-hero-grid {
     background: hsl(var(--background));
@@ -240,6 +311,40 @@
   }
   100% {
     opacity: 0;
+  }
+}
+
+@keyframes chatboc-live-pulse {
+  0% {
+    box-shadow: 0 0 0 0 hsl(var(--success) / 0.28);
+  }
+  70% {
+    box-shadow: 0 0 0 8px hsl(var(--success) / 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 hsl(var(--success) / 0);
+  }
+}
+
+@keyframes chatboc-meter-in {
+  from {
+    transform: scaleX(0.28);
+    opacity: 0.35;
+  }
+  to {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+}
+
+@keyframes chatboc-column-rise {
+  from {
+    transform: scaleY(0.18);
+    opacity: 0.35;
+  }
+  to {
+    transform: scaleY(1);
+    opacity: 1;
   }
 }
 

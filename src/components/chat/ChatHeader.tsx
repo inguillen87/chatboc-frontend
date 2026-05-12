@@ -65,10 +65,26 @@ interface Props {
   logoAnimation?: string;
   onA11yChange?: (p: Prefs) => void;
   supportChannels?: {
-    live_chat?: { realtime?: boolean; available?: boolean; label?: string };
+    live_chat?: {
+      realtime?: boolean;
+      available?: boolean;
+      label?: string;
+      socket_enabled?: boolean | string | number | null;
+    };
     whatsapp?: { enabled?: boolean; realtime_bridge?: boolean; label?: string };
   } | null;
 }
+
+const isEnabledFlag = (value: unknown, fallback = true) => {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value === 1;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["true", "1", "yes", "si", "on", "enabled"].includes(normalized)) return true;
+    if (["false", "0", "no", "off", "disabled"].includes(normalized)) return false;
+  }
+  return fallback;
+};
 
 const ChatHeader: React.FC<Props> = ({
   onClose,
@@ -89,7 +105,14 @@ const ChatHeader: React.FC<Props> = ({
   recommendationLabel,
   compactActions = false,
 }) => {
-  const liveChatVisible = Boolean(supportChannels?.live_chat?.realtime || supportChannels?.live_chat?.available);
+  const liveChatSocketEnabled = isEnabledFlag(
+    supportChannels?.live_chat?.socket_enabled,
+    true,
+  );
+  const liveChatVisible = Boolean(
+    liveChatSocketEnabled &&
+      (supportChannels?.live_chat?.realtime || supportChannels?.live_chat?.available),
+  );
   const whatsappVisible = Boolean(supportChannels?.whatsapp?.enabled && supportChannels?.whatsapp?.realtime_bridge);
   const liveChatLabel = typeof supportChannels?.live_chat?.label === 'string' ? supportChannels.live_chat.label.trim() : '';
   const whatsappLabel = typeof supportChannels?.whatsapp?.label === 'string' ? supportChannels.whatsapp.label.trim() : '';

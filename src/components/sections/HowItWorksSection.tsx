@@ -7,9 +7,9 @@ const steps = [
   {
     number: "01",
     icon: UploadCloud,
-    title: "Cargas tu operación",
+    title: "Cargás tu operación",
     description:
-      "Documentos, catálogo, rubros, políticas, preguntas frecuentes o rutas ya existentes. El contenido queda como fuente operativa.",
+      "Documentos, catálogo, rubros, políticas, preguntas frecuentes o rutas existentes. El contenido queda como fuente operativa.",
   },
   {
     number: "02",
@@ -44,8 +44,8 @@ const HowItWorksSection = () => {
           <div className="chatboc-section-kicker mb-4">Cómo funciona</div>
           <h2 className="chatboc-section-heading">Menos configuración manual, más sistema funcionando</h2>
           <p className="chatboc-section-copy mt-4">
-            El flujo está pensado para crecer por contrato: si el backend suma una capacidad, el frontend la puede adoptar
-            sin convertir cada vertical en una pantalla hecha a mano.
+            El flujo está pensado para crecer por contrato: si el backend suma una capacidad, el frontend la adopta sin convertir
+            cada vertical en una pantalla hecha a mano.
           </p>
         </div>
 
@@ -54,7 +54,8 @@ const HowItWorksSection = () => {
           {steps.map((step) => {
             const Icon = step.icon;
             return (
-              <article key={step.number} className="chatboc-landing-panel chatboc-hover-lift relative p-5 md:p-6">
+              <article key={step.number} className="chatboc-landing-panel chatboc-hover-lift relative overflow-hidden p-5 md:p-6">
+                <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary via-emerald-500 to-amber-500 opacity-80" />
                 <div className="mb-6 flex items-center justify-between gap-4">
                   <span className="text-sm font-bold text-primary">{step.number}</span>
                   <div className="flex h-10 w-10 items-center justify-center rounded-[8px] border border-primary/20 bg-primary/10 text-primary">

@@ -9,7 +9,7 @@ const CtaSection = () => {
   return (
     <section id="cta" className="bg-background py-16 text-foreground md:py-24">
       <div className="container mx-auto px-4">
-        <div className="chatboc-landing-panel mx-auto max-w-5xl overflow-hidden p-6 text-center md:p-10">
+        <div className="chatboc-command-shell mx-auto max-w-5xl overflow-hidden p-6 text-center md:p-10">
           <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-[8px] bg-primary/10 text-primary">
             <Bot className="h-6 w-6" />
           </div>

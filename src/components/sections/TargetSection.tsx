@@ -43,8 +43,8 @@ const TargetSection = () => {
           <div className="chatboc-section-kicker mb-4">Sectores</div>
           <h2 className="chatboc-section-heading">Una base común para verticales distintas</h2>
           <p className="chatboc-section-copy mt-4">
-            La plataforma conserva el mismo núcleo operativo y deja que el backend adapte la experiencia por tenant,
-            vertical, permisos y capacidades disponibles.
+            La plataforma conserva el mismo núcleo operativo y deja que el backend adapte la experiencia por tenant, vertical,
+            permisos y capacidades disponibles.
           </p>
         </div>
 
@@ -52,9 +52,12 @@ const TargetSection = () => {
           {targetGroups.map((group) => {
             const Icon = group.icon;
             return (
-              <article key={group.title} className="chatboc-landing-panel chatboc-hover-lift flex h-full flex-col p-5 md:p-6">
-                <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-[8px] bg-primary/10 text-primary">
-                  <Icon className="h-6 w-6" />
+              <article key={group.title} className="chatboc-landing-panel chatboc-hover-lift flex h-full flex-col overflow-hidden p-5 md:p-6">
+                <div className="mb-5 flex items-center justify-between gap-3">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-[8px] bg-primary/10 text-primary">
+                    <Icon className="h-6 w-6" />
+                  </div>
+                  <div className="h-2 w-20 rounded-full bg-gradient-to-r from-primary via-emerald-500 to-amber-500 opacity-70" />
                 </div>
                 <h3 className="text-xl font-semibold text-foreground">{group.title}</h3>
                 <p className="mt-3 flex-1 text-sm leading-6 text-muted-foreground">{group.description}</p>

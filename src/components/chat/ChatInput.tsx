@@ -7,7 +7,7 @@ import { requestLocation } from "@/utils/geolocation";
 import { toast } from "@/components/ui/use-toast";
 import useAudioRecorder from "@/hooks/useAudioRecorder";
 import { AttachmentInfo, deriveAttachmentInfo } from "@/utils/attachment";
-import { ChatMediaCapabilities, ChatUxChannelCapabilities, SendPayload } from "@/types/chat";
+import { ChatMediaCapabilities, ChatUxChannelCapabilities, ChatWidgetUiHints, SendPayload } from "@/types/chat";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -34,6 +34,7 @@ interface Props {
   validateBeforeSend?: (payload: SendPayload) => string | null;
   channelCapabilities?: ChatUxChannelCapabilities | null;
   mediaCapabilities?: ChatMediaCapabilities | null;
+  uiHints?: ChatWidgetUiHints | null;
   guidedFlow?: {
     currentField?: string | null;
     fields?: string[];
@@ -114,7 +115,7 @@ const mediaActionLabel = (
   fallback: string,
 ) => mediaCapabilities?.composer?.actions?.find((action) => action?.type === mode)?.label?.trim() || fallback;
 
-const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping, inputRef, onTypingChange, onSystemMessage, validateBeforeSend, channelCapabilities, mediaCapabilities, guidedFlow, supportsMultimodalIntake = true }, ref) => {
+const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping, inputRef, onTypingChange, onSystemMessage, validateBeforeSend, channelCapabilities, mediaCapabilities, uiHints, guidedFlow, supportsMultimodalIntake = true }, ref) => {
   const [input, setInput] = useState("");
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const [isLocating, setIsLocating] = useState(false);
@@ -155,6 +156,18 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
       capabilityEnabledByDefault(channelCapabilities?.supports_location_share),
     );
   const composerPlaceholder = mediaCapabilities?.composer?.placeholder?.trim();
+  const compactComposer =
+    uiHints?.density === "compact" ||
+    uiHints?.composer?.single_row_actions ||
+    uiHints?.composer?.icon_buttons_only;
+  const toolbarShow = uiHints?.toolbar?.show;
+  const shouldShowToolbarAction = React.useCallback(
+    (action: string) => {
+      if (!Array.isArray(toolbarShow) || toolbarShow.length === 0) return true;
+      return toolbarShow.includes(action);
+    },
+    [toolbarShow],
+  );
   const imageLabel = mediaActionLabel(mediaCapabilities, 'image', channelCapabilities?.image_input_label || 'Imagen');
   const fileLabel = mediaActionLabel(mediaCapabilities, 'file', channelCapabilities?.file_upload_label || 'Archivo');
   const audioLabel = mediaActionLabel(mediaCapabilities, 'audio', channelCapabilities?.audio_input_label || 'Audio');
@@ -171,6 +184,10 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
     if (!mediaCapabilities && supportsAudioInput) nextTypes.push('audio/*');
     return nextTypes;
   }, [mediaCapabilities, supportsAudioInput, supportsFileUpload, supportsImageInput]);
+  const showAttachAction = allowedFileTypes.length > 0 && shouldShowToolbarAction("attach_file");
+  const showLocationAction = supportsLocationShare && shouldShowToolbarAction("share_location");
+  const showAudioAction = supportsAudioInput && shouldShowToolbarAction("record_audio");
+  const showEmojiAction = shouldShowToolbarAction("emoji");
   const currentGuidedFieldLabel = normalizeFieldLabel(guidedFlow?.currentField);
   const guidedFields = React.useMemo(
     () => (guidedFlow?.fields || []).map((field) => normalizeFieldLabel(field)).filter((field): field is string => Boolean(field)),
@@ -672,8 +689,8 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
             disabled={isTyping || isRecording}
           />
           </div>
-        <div className="relative mt-2 flex w-full flex-wrap items-center gap-2">
-          {showEmojis && (
+        <div className={`relative mt-2 flex w-full items-center gap-2 ${compactComposer ? "flex-nowrap" : "flex-wrap"}`}>
+          {showEmojiAction && showEmojis && (
             <div className="absolute bottom-full right-0 z-10 mb-2 flex max-w-[280px] flex-wrap gap-2 rounded-2xl border border-border/70 bg-background/95 p-3 shadow-2xl backdrop-blur">
               {QUICK_EMOJIS.map((item) => (
                 <button
@@ -696,8 +713,8 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
               ))}
             </div>
           )}
-          <div className="flex items-center gap-2 flex-wrap">
-            {allowedFileTypes.length > 0 ? (
+          <div className={`flex min-w-0 items-center gap-2 ${compactComposer ? "flex-nowrap" : "flex-wrap"}`}>
+            {showAttachAction ? (
               <div className="rounded-full border border-border/60 bg-background p-0.5 shadow-sm transition hover:shadow-md" title={attachmentLabel}>
               <AdjuntarArchivo
                 ref={adjRef}
@@ -707,7 +724,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
               />
               </div>
             ) : null}
-            {supportsLocationShare ? (
+            {showLocationAction ? (
             <button
               onClick={handleShareLocation}
               disabled={isTyping || isLocating || isRecording || !!attachmentPreview}
@@ -727,7 +744,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
               {isLocating ? <div className="h-5 w-5 rounded-full border-2 border-current border-t-transparent animate-spin" /> : <MapPin className="w-5 h-5" />}
             </button>
             ) : null}
-            {supportsAudioInput ? (
+            {showAudioAction ? (
             <button
               onClick={async () => {
                 if (isRecording) {
@@ -761,6 +778,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
               {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
             </button>
             ) : null}
+            {showEmojiAction ? (
             <button
               onClick={() => setShowEmojis((v) => !v)}
               disabled={isTyping || isLocating || !!attachmentPreview}
@@ -778,6 +796,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
             >
               <Smile className="w-5 h-5" />
             </button>
+            ) : null}
           </div>
           <button
             className={`

@@ -185,8 +185,8 @@ function ChatWidgetInner({
   widgetId = "chatboc-widget-iframe",
   ownerToken,
   initialRubro,
-  openWidth = "480px",
-  openHeight = "750px",
+  openWidth = "420px",
+  openHeight = "680px",
   closedWidth = "64px",
   closedHeight = "64px",
   tipoChat,
@@ -1239,7 +1239,7 @@ function ChatWidgetInner({
   const finalOpenHeight = useMemo(() => {
     // Determine the desired height
     const desired = parseInt(openHeight, 10);
-    const heightToUse = isNaN(desired) ? 750 : desired;
+    const heightToUse = isNaN(desired) ? 680 : desired;
 
     if (mode === 'iframe') {
         // Even in iframe mode, we should respect the viewport height to avoid scrolling issues in the host
@@ -1885,7 +1885,7 @@ function ChatWidgetInner({
         data-logo-badge-style={widgetUx.logoBadgeStyle}
         data-cursor-trail={String(widgetUx.cursorTrail)}
         data-ambient-particles={String(widgetUx.ambientParticles)}
-        data-support-live-chat={String(Boolean(supportChannels?.live_chat?.realtime))}
+        data-support-live-chat={String(Boolean(supportChannels?.live_chat?.realtime && realtimeConfig.socketEnabled))}
         data-support-whatsapp={String(
           Boolean(supportChannels?.whatsapp?.enabled && supportChannels?.whatsapp?.realtime_bridge),
         )}

@@ -1,5 +1,5 @@
 // src/components/chat/ChatButtons.tsx
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Boton, SendPayload } from '@/types/chat';
 import { openExternalLink } from '@/utils/openExternalLink';
@@ -13,6 +13,9 @@ interface ChatButtonsProps {
     onButtonClick: (payload: SendPayload) => void;
     onInternalAction?: (action: string) => void;
     isDemoSelector?: boolean;
+    maxVisible?: number;
+    collapseExtra?: boolean;
+    moreLabel?: string;
 }
 
 const ChatButtons: React.FC<ChatButtonsProps> = ({
@@ -20,9 +23,13 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
     onButtonClick,
     onInternalAction,
     isDemoSelector = false,
+    maxVisible,
+    collapseExtra = false,
+    moreLabel = "Mas",
 }) => {
     const { currentSlug } = useTenant();
     const isMobile = useIsMobile();
+    const [showAll, setShowAll] = useState(false);
 
     const resolveUrl = useMemo(
         () => (url?: string) => (url ? buildTenantAwareUrl(url, currentSlug) : undefined),
@@ -49,7 +56,17 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
         return true;
     });
 
-    const buttonsToRender = filteredButtons;
+    const normalizedMaxVisible =
+        typeof maxVisible === "number" && Number.isFinite(maxVisible) && maxVisible > 0
+            ? Math.floor(maxVisible)
+            : 0;
+    const shouldCollapse =
+        collapseExtra && normalizedMaxVisible > 0 && filteredButtons.length > normalizedMaxVisible;
+    const visibleButtons =
+        shouldCollapse && !showAll
+            ? filteredButtons.slice(0, normalizedMaxVisible)
+            : filteredButtons;
+    const hiddenCount = shouldCollapse ? filteredButtons.length - normalizedMaxVisible : 0;
 
 
     const formatButtonLabel = (label: string) => {
@@ -143,7 +160,7 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
             animate={{ opacity: 1 }}
             transition={{ delay: 0.2, duration: 0.3 }}
         >
-            {buttonsToRender.map((boton, index) =>
+            {visibleButtons.map((boton, index) =>
                 boton.url ? (
                     <a
                         key={index}
@@ -176,6 +193,18 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
                     </button>
                 )
             )}
+            {shouldCollapse ? (
+                <button
+                    type="button"
+                    onClick={() => setShowAll((current) => !current)}
+                    className={baseClass}
+                    style={!isDemoSelector ? { maxWidth: 180 } : { maxWidth: "100%" }}
+                    aria-expanded={showAll}
+                    title={showAll ? "Mostrar menos" : `${moreLabel} (${hiddenCount})`}
+                >
+                    {showAll ? "Mostrar menos" : `${moreLabel} +${hiddenCount}`}
+                </button>
+            ) : null}
         </motion.div>
     );
 };

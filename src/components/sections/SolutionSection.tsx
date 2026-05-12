@@ -1,5 +1,16 @@
 import React from "react";
-import { Bot, ClipboardList, Gift, LineChart, MapPinned, ShoppingBag, Users } from "lucide-react";
+import {
+  Bot,
+  ClipboardList,
+  DatabaseZap,
+  Gift,
+  LineChart,
+  MapPinned,
+  ShoppingBag,
+  Sparkles,
+  Users,
+  Workflow,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 
@@ -42,6 +53,12 @@ const solutionFeatures = [
   },
 ];
 
+const pipelineSteps = [
+  { label: "Resolver", detail: "chat, voz, WhatsApp", tone: "bg-primary" },
+  { label: "Registrar", detail: "ticket, lead, pedido", tone: "bg-emerald-500" },
+  { label: "Medir", detail: "SLA, freshness, mapa", tone: "bg-amber-500" },
+];
+
 const SolutionSection = () => {
   const navigate = useNavigate();
 
@@ -53,9 +70,28 @@ const SolutionSection = () => {
             <div className="chatboc-section-kicker mb-4">La solución</div>
             <h2 className="chatboc-section-heading">Una plataforma SaaS que conecta frontend, backend y operación real</h2>
             <p className="chatboc-section-copy mt-4">
-              La diferencia está en que la experiencia visible no vive aislada en React. Chatboc consume contratos estables,
-              muestra estados accionables y mantiene compatibilidad con lo que ya funciona.
+              La experiencia visible no vive aislada en React. Chatboc consume contratos estables, muestra estados accionables
+              y mantiene compatibilidad con lo que ya funciona.
             </p>
+
+            <div className="chatboc-landing-panel mt-7 p-4">
+              <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-foreground">
+                <Workflow className="h-4 w-4 text-primary" />
+                Motor operativo compartido
+              </div>
+              <div className="grid gap-3">
+                {pipelineSteps.map((step) => (
+                  <div key={step.label} className="flex items-center gap-3 rounded-[8px] border border-border/70 bg-background/70 p-3">
+                    <span className={`h-2.5 w-2.5 rounded-full ${step.tone}`} />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-foreground">{step.label}</p>
+                      <p className="text-xs text-muted-foreground">{step.detail}</p>
+                    </div>
+                    <Sparkles className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                ))}
+              </div>
+            </div>
 
             <div className="mt-7 flex flex-col gap-3 sm:flex-row lg:flex-col xl:flex-row">
               <Button
@@ -79,13 +115,36 @@ const SolutionSection = () => {
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            {solutionFeatures.map((feature, index) => {
+            <article className="chatboc-command-shell chatboc-hover-lift p-5 md:p-6 sm:col-span-2">
+              <div className="mb-5 flex items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-foreground">Backend-first por diseño</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">La UI recibe contratos, no inventa experiencias por tenant.</p>
+                </div>
+                <div className="rounded-[8px] border border-border/70 bg-background/80 px-3 py-1.5 text-xs font-semibold text-primary">
+                  JSON ready
+                </div>
+              </div>
+              <div className="grid gap-3 md:grid-cols-3">
+                {["quick_menu", "freshness", "next_best_actions"].map((item, index) => (
+                  <div key={item} className="rounded-[8px] border border-border/70 bg-background/75 p-4">
+                    <DatabaseZap className="mb-3 h-4 w-4 text-primary" />
+                    <p className="text-sm font-semibold text-foreground">{item}</p>
+                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
+                      <span
+                        className="chatboc-meter block h-full rounded-full bg-primary"
+                        style={{ width: `${92 - index * 14}%`, animationDelay: `${index * 120}ms` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </article>
+
+            {solutionFeatures.map((feature) => {
               const Icon = feature.icon;
               return (
-                <article
-                  key={feature.title}
-                  className={`chatboc-landing-panel chatboc-hover-lift p-5 md:p-6 ${index === 0 ? "sm:col-span-2" : ""}`}
-                >
+                <article key={feature.title} className="chatboc-landing-panel chatboc-hover-lift p-5 md:p-6">
                   <div className="mb-5 flex items-center gap-3">
                     <div className="flex h-11 w-11 items-center justify-center rounded-[8px] bg-primary/10 text-primary">
                       <Icon className="h-5 w-5" />

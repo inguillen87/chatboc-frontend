@@ -474,6 +474,8 @@ export interface ChatMessageBaseProps {
   messageEnterAnimation?: string;
   bubbleAnimation?: string;
   logoBadgeStyle?: string;
+  maxVisibleQuickReplies?: number;
+  collapseExtraQuickReplies?: boolean;
 }
 
 const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( (
@@ -487,6 +489,8 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
     messageEnterAnimation,
     bubbleAnimation,
     logoBadgeStyle,
+    maxVisibleQuickReplies,
+    collapseExtraQuickReplies,
     // tipoChat, // tipoChat podría usarse si hay alguna variación mínima que no dependa del contenido del mensaje
   },
   ref
@@ -970,6 +974,8 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
                   botones={derivedLinkButtons}
                   onButtonClick={onButtonClick}
                   onInternalAction={onInternalAction}
+                  maxVisible={maxVisibleQuickReplies}
+                  collapseExtra={collapseExtraQuickReplies}
                 />
               )}
             </>
@@ -979,6 +985,8 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
               onButtonClick={onButtonClick}
               onInternalAction={onInternalAction}
               isDemoSelector={message.data?.fuente === "demo_selector" || message.data?.demo_selector_mode === "segment_categories" || message.data?.demo_selector_mode === "segment_rubros"}
+              maxVisible={maxVisibleQuickReplies}
+              collapseExtra={collapseExtraQuickReplies}
             />
           ) : null}
         </MessageBubble>

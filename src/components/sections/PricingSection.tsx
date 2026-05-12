@@ -81,7 +81,7 @@ const PricingSection = () => {
             return (
               <article
                 key={option.name}
-                className={`chatboc-landing-panel chatboc-hover-lift relative flex h-full flex-col p-5 md:p-6 ${
+                className={`chatboc-landing-panel chatboc-hover-lift relative flex h-full flex-col overflow-hidden p-5 md:p-6 ${
                   option.highlight ? "border-primary/50 ring-1 ring-primary/30" : ""
                 }`}
               >
@@ -91,6 +91,7 @@ const PricingSection = () => {
                   </div>
                 ) : null}
 
+                <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary via-emerald-500 to-amber-500 opacity-80" />
                 <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-[8px] bg-primary/10 text-primary">
                   <Icon className="h-6 w-6" />
                 </div>
