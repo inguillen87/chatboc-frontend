@@ -5,6 +5,7 @@ import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { getSocketUrl, SOCKET_PATH } from '@/config';
 import { resolveTenantSlug } from '@/utils/api';
 import { useUser } from '@/hooks/useUser';
+import { isGlobalSocketExplicitlyEnabled } from '@/utils/socketPolicy';
 
 interface SocketContextType {
   socket: Socket | null;
@@ -59,6 +60,7 @@ const SOCKET_URL = resolveSocketUrl();
 
 
 const shouldEnableGlobalSocket = (pathname: string, hasToken: boolean): boolean => {
+  if (!isGlobalSocketExplicitlyEnabled()) return false;
   if (!hasToken) return false;
   const normalized = pathname.toLowerCase();
   if (normalized === '/' || normalized === '') return false;

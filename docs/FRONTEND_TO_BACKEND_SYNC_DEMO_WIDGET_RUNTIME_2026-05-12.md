@@ -17,6 +17,10 @@ Frontend ya aplica estas mitigaciones:
 - El chat demo puede responder en modo local cuando no hay `chat_bootstrap` remoto usable.
 - El widget filtra y descarta el selector legacy de dos rubros (`Soluciones Para Empresas` / `Soluciones Para Sector Publico`) si llega desde un bundle o payload viejo.
 - El widget ya no consulta horarios de live chat si `support_channels.live_chat` / `realtime.socket_enabled` no lo habilitan.
+- Hotfix frontend 2026-05-12: el filtro legacy ahora inspecciona texto, botones, `quick_replies`, secciones interactivas y payloads anidados (`data`, `payload`, `metadata`) antes de renderizar.
+- Hotfix frontend 2026-05-12: cuando el contrato habilita schedule, frontend usa solo same-origin:
+  - `GET /api/{tenant_slug}/live-chat/schedule?tenant_slug={tenant_slug}&tenant={tenant_slug}`
+  - ya no intenta `/demo/live-chat/schedule`, `/live-chat/schedule` ni fallback directo a Render para esta consulta.
 
 ## Errores vistos en produccion
 

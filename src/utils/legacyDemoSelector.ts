@@ -11,6 +11,8 @@ type LegacyMenuSection = {
   rows?: LegacyMenuRow[];
 };
 
+type LegacyPayloadRecord = Record<string, unknown>;
+
 const normalizeLegacyText = (value: unknown) =>
   typeof value === "string"
     ? value
@@ -35,7 +37,9 @@ export const isLegacyDemoSelectorOptionTitle = (value: unknown) => {
   const text = normalizeLegacyText(value);
   return (
     text === "soluciones para empresas" ||
-    text === "soluciones para sector publico"
+    text === "soluciones para sector publico" ||
+    (text.startsWith("soluciones para") &&
+      (text.includes("empresas") || text.includes("sector publico")))
   );
 };
 
@@ -51,6 +55,85 @@ export const isLegacyDemoSelectorMenu = (sections: unknown) => {
     rows.every((row) =>
       isLegacyDemoSelectorOptionTitle(row?.title ?? row?.label ?? row?.text),
     )
+  );
+};
+
+const isRecord = (value: unknown): value is LegacyPayloadRecord =>
+  Boolean(value && typeof value === "object" && !Array.isArray(value));
+
+const readPayloadRows = (value: LegacyPayloadRecord): unknown[] => {
+  const candidates = [
+    value.rows,
+    value.botones,
+    value.buttons,
+    value.options,
+    value.quick_replies,
+    value.quickReplies,
+    value.menu,
+    value.items,
+  ];
+
+  return candidates.flatMap((candidate) => (Array.isArray(candidate) ? candidate : []));
+};
+
+export const isLegacyDemoSelectorPayload = (
+  value: unknown,
+  depth = 0,
+): boolean => {
+  if (depth > 5 || value == null) return false;
+
+  if (typeof value === "string") {
+    return isLegacyDemoSelectorText(value);
+  }
+
+  if (Array.isArray(value)) {
+    return value.some((item) => isLegacyDemoSelectorPayload(item, depth + 1));
+  }
+
+  if (!isRecord(value)) return false;
+
+  if (
+    isLegacyDemoSelectorText(
+      value.message_body ??
+        value.messageBody ??
+        value.message ??
+        value.text ??
+        value.content ??
+        value.respuesta ??
+        value.descripcion ??
+        value.description,
+    )
+  ) {
+    return true;
+  }
+
+  const menuCandidates = [
+    value.interactive_sections,
+    value.interactiveSections,
+    value.sections,
+    isRecord(value.interactive_list) ? value.interactive_list.sections : null,
+    isRecord(value.interactiveList) ? value.interactiveList.sections : null,
+  ];
+  if (menuCandidates.some((candidate) => isLegacyDemoSelectorMenu(candidate))) {
+    return true;
+  }
+
+  const rows = readPayloadRows(value);
+  if (
+    rows.length > 0 &&
+    rows.every((row) => {
+      if (typeof row === "string") return isLegacyDemoSelectorOptionTitle(row);
+      if (!isRecord(row)) return false;
+      return isLegacyDemoSelectorOptionTitle(
+        row.title ?? row.label ?? row.text ?? row.nombre ?? row.name,
+      );
+    })
+  ) {
+    return true;
+  }
+
+  return Object.values(value).some((item) =>
+    isLegacyDemoSelectorPayload(item, depth + 1),
   );
 };
 

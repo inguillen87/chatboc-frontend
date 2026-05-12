@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { apiFetch } from '@/utils/api';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
 interface LiveChatSchedule {
@@ -57,44 +56,48 @@ export const useBusinessHours = (
 
     const fetchProfile = async () => {
       try {
-        const authToken = safeLocalStorage.getItem('authToken');
-
-        if (!authToken && !entityToken && !tenantSlug) {
+        if (!tenantSlug) {
           return;
         }
 
-        const tenantAwarePath = tenantSlug ? `/api/${tenantSlug}/live-chat/schedule` : null;
-        const candidatePaths = tenantSlug
-          ? [
-              tenantAwarePath,
-              '/api/demo/live-chat/schedule',
-              '/api/live-chat/schedule',
-              '/live-chat/schedule',
-            ].filter((path): path is string => Boolean(path))
-          : ['/live-chat/schedule', '/api/live-chat/schedule'];
-
-        let schedule: LiveChatSchedule | null = null;
-        let lastError: unknown = null;
-
-        for (const path of candidatePaths) {
-          try {
-            schedule = await apiFetch<LiveChatSchedule>(path, {
-              skipAuth: !authToken,
-              entityToken,
-              tenantSlug,
-            });
-            break;
-          } catch (error) {
-            lastError = error;
-          }
+        const normalizedTenantSlug = tenantSlug.trim();
+        if (!normalizedTenantSlug) {
+          return;
         }
 
-        if (!schedule) {
+        const encodedTenantSlug = encodeURIComponent(normalizedTenantSlug);
+        const params = new URLSearchParams({
+          tenant_slug: normalizedTenantSlug,
+          tenant: normalizedTenantSlug,
+        });
+        const schedulePath = `/api/${encodedTenantSlug}/live-chat/schedule?${params.toString()}`;
+        const headers: Record<string, string> = {
+          Accept: 'application/json',
+          'X-Tenant-Slug': normalizedTenantSlug,
+        };
+        if (entityToken?.trim()) {
+          headers['X-Entity-Token'] = entityToken.trim();
+          headers['X-Token'] = entityToken.trim();
+        }
+
+        const response = await fetch(schedulePath, {
+          method: 'GET',
+          headers,
+          credentials: 'omit',
+          cache: 'no-store',
+        });
+
+        if (!response.ok) {
           if (import.meta.env.DEV) {
-            console.debug('Live chat schedule unavailable', lastError);
+            console.debug('Live chat schedule unavailable', {
+              status: response.status,
+              path: schedulePath,
+            });
           }
           return;
         }
+
+        const schedule = (await response.json()) as LiveChatSchedule;
 
         const description =
           typeof schedule?.description === 'string' && schedule.description.trim()

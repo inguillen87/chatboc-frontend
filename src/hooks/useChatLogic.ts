@@ -39,9 +39,11 @@ import { getValidStoredToken } from "@/utils/authTokens";
 import { enterpriseService } from "@/services/enterpriseService";
 import { trackWidgetEvent } from "@/utils/widgetTelemetry";
 import { readBackendFlag } from "@/utils/backendFlags";
+import { shouldAttemptContractSocket } from "@/utils/socketPolicy";
 import {
   filterLegacyDemoSelectorSections,
   isLegacyDemoSelectorMenu,
+  isLegacyDemoSelectorPayload,
   isLegacyDemoSelectorOptionTitle,
   isLegacyDemoSelectorText,
 } from "@/utils/legacyDemoSelector";
@@ -1554,10 +1556,14 @@ export function useChatLogic({
           ),
         ),
       );
+      const hasLegacyDemoSelectorPayload =
+        isLegacyDemoSelectorPayload(data) ||
+        isLegacyDemoSelectorPayload(dataPayloadRaw);
       if (
         isLegacyDemoSelectorText(text) ||
         hasLegacyDemoSelectorMenu ||
-        hasLegacyDemoSelectorButtons
+        hasLegacyDemoSelectorButtons ||
+        hasLegacyDemoSelectorPayload
       ) {
         droppedLegacyDemoMessages += 1;
         return;
@@ -2166,16 +2172,23 @@ export function useChatLogic({
     }
     const allowWebsocketFromUx = readBackendFlag(
       uxContext?.visibility_rules?.allow_websocket,
-      true,
+      false,
     );
     const allowRealtimeLiveChatFromUx = readBackendFlag(
       uxContext?.visibility_rules?.allow_realtime_live_chat,
-      true,
+      false,
     );
-    if (!allowWebsocketFromUx || !allowRealtimeLiveChatFromUx) {
+    const canAttemptSocket = shouldAttemptContractSocket({
+      socketEnabled,
+      allowWebsocket: uxContext?.visibility_rules?.allow_websocket,
+      allowRealtimeLiveChat: uxContext?.visibility_rules?.allow_realtime_live_chat,
+    });
+    if (!canAttemptSocket) {
       trackWidgetEvent("socket_fallback_http", {
         tenant_slug: tenantSlug ?? null,
-        reason: !allowWebsocketFromUx
+        reason: !socketEnabled
+          ? "socket_disabled_by_backend"
+          : !allowWebsocketFromUx
           ? "websocket_disabled_by_backend"
           : "live_chat_disabled_by_backend",
       });

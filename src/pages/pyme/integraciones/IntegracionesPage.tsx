@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useTenant } from '@/context/TenantContext';
 import { apiClient } from '@/api/client';
 import { ApiError } from '@/utils/api';
+import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { IntegrationStatus } from '@/types/unified';
 import type { CatalogColumn, CatalogMetadata, CatalogRow, TenantCatalog } from '@/types/catalog';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
@@ -16,9 +17,11 @@ import {
   Loader2, RefreshCw, ExternalLink, CheckCircle2, AlertCircle,
   MessageSquare, Send, Tags, Eye, Palette, Link2, Smartphone, Search,
   ShoppingBag, MessageCircle, Mail, Settings, ArrowRight, FileSpreadsheet,
-  Save, Pencil, FileDown
+  Save, Pencil, FileDown, PhoneCall, Clipboard, Sparkles, ShieldCheck,
+  KeyRound, Copy, Bot
 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -54,6 +57,63 @@ const CHANNELS = [
     { id: 'email', label: 'Email', icon: Mail },
 ];
 
+type QuickMenuPreviewItem = {
+  id?: string;
+  label: string;
+  description?: string;
+  sector?: string;
+  rubro?: string;
+  tenant_slug?: string;
+};
+
+type WhatsappSandboxState = {
+  customerWhatsapp: string;
+  joinPhrase: string;
+  rubro: string;
+  brief: string;
+  testMessage: string;
+};
+
+type WhatsappSandboxResult = {
+  mode: "backend" | "local";
+  message: string;
+  deeplink?: string | null;
+  requestId?: string | null;
+};
+
+const DEFAULT_WHATSAPP_SANDBOX: WhatsappSandboxState = {
+  customerWhatsapp: "",
+  joinPhrase: "",
+  rubro: "",
+  brief: "",
+  testMessage: "",
+};
+
+const normalizeQuickMenuPreviewItem = (item: unknown, index: number): QuickMenuPreviewItem | null => {
+  if (!item) return null;
+  if (typeof item === "string") {
+    const label = item.trim();
+    return label ? { id: `menu-${index}`, label } : null;
+  }
+  if (typeof item !== "object" || Array.isArray(item)) return null;
+  const source = item as Record<string, unknown>;
+  const label = [source.label, source.title, source.text, source.texto]
+    .find((value) => typeof value === "string" && value.trim());
+  if (typeof label !== "string" || !label.trim()) return null;
+  const readText = (key: string) =>
+    typeof source[key] === "string" && String(source[key]).trim()
+      ? String(source[key]).trim()
+      : undefined;
+  return {
+    id: readText("id") || readText("key") || `menu-${index}`,
+    label: label.trim(),
+    description: readText("description") || readText("subtitle") || readText("detail"),
+    sector: readText("sector"),
+    rubro: readText("rubro") || readText("rubro_slug") || readText("rubro_key"),
+    tenant_slug: readText("tenant_slug") || readText("tenantSlug"),
+  };
+};
+
 const IntegracionesPage = () => {
   const { currentSlug } = useTenant();
   const [integrations, setIntegrations] = useState<IntegrationStatus[]>([]);
@@ -81,12 +141,18 @@ const IntegracionesPage = () => {
   const [notifyWhatsapp, setNotifyWhatsapp] = useState(false);
   const [notifyTelegram, setNotifyTelegram] = useState(false);
   const [notifyEmail, setNotifyEmail] = useState(true);
+  const [widgetQuickMenu, setWidgetQuickMenu] = useState<QuickMenuPreviewItem[]>([]);
+  const [whatsappSandbox, setWhatsappSandbox] =
+    useState<WhatsappSandboxState>(DEFAULT_WHATSAPP_SANDBOX);
+  const [sandboxLoading, setSandboxLoading] = useState(false);
+  const [sandboxResult, setSandboxResult] = useState<WhatsappSandboxResult | null>(null);
 
   useEffect(() => {
     if (currentSlug) {
       loadIntegrations();
       loadSettings();
       loadCatalog();
+      loadWidgetQuickMenu();
     }
   }, [currentSlug]);
 
@@ -186,6 +252,41 @@ const IntegracionesPage = () => {
     }
   };
 
+  const loadWidgetQuickMenu = async () => {
+    if (!currentSlug) return;
+    try {
+      const data = await apiClient.get<any>(
+        `/api/public/tenants/${encodeURIComponent(currentSlug)}/widget-config`,
+        {
+          tenantSlug: currentSlug,
+          skipAuth: true,
+          omitCredentials: true,
+          omitEntityToken: true,
+          omitChatSessionId: true,
+          isWidgetRequest: true,
+        },
+      );
+      const sources = [
+        data?.quick_menu,
+        data?.onboarding?.quick_menu,
+        data?.widget?.quick_menu,
+        data?.builder_config?.quick_menu,
+      ];
+      const items = sources
+        .flatMap((source) => (Array.isArray(source) ? source : []))
+        .map(normalizeQuickMenuPreviewItem)
+        .filter((item): item is QuickMenuPreviewItem => Boolean(item));
+      const unique = new Map<string, QuickMenuPreviewItem>();
+      items.forEach((item) => {
+        const key = (item.id || item.label).toLowerCase();
+        if (!unique.has(key)) unique.set(key, item);
+      });
+      setWidgetQuickMenu(Array.from(unique.values()));
+    } catch (error) {
+      setWidgetQuickMenu([]);
+    }
+  };
+
   const openCatalogEditor = () => {
     const columns = catalogData?.draft?.columns ?? catalogData?.columns ?? [];
     const rows = catalogData?.draft?.rows ?? catalogData?.rows ?? [];
@@ -196,6 +297,31 @@ const IntegracionesPage = () => {
 
   const updateCatalogMetadata = (field: keyof CatalogMetadata, value: any) => {
     setCatalogMetadata((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const getCatalogDraftEndpoint = () => {
+    const links = (catalogData?.links ?? {}) as Record<string, unknown>;
+    const draft = (catalogData?.draft ?? {}) as Record<string, unknown>;
+    const endpoint =
+      links.draft_endpoint ||
+      links.draft_url ||
+      links.save_draft_endpoint ||
+      draft.endpoint ||
+      draft.save_endpoint;
+    return typeof endpoint === "string" && endpoint.trim() ? endpoint.trim() : null;
+  };
+
+  const persistCatalogDraftLocally = (payload: Record<string, unknown>) => {
+    if (!currentSlug) return;
+    const key = `chatboc_catalog_draft:${currentSlug}`;
+    safeLocalStorage.setItem(
+      key,
+      JSON.stringify({
+        ...payload,
+        saved_at: new Date().toISOString(),
+        source: "frontend_local_draft",
+      }),
+    );
   };
 
   const handleSaveDraft = async () => {
@@ -215,7 +341,30 @@ const IntegracionesPage = () => {
         columns: columnsToSave,
         rows: rowsToSave,
       };
-      const response = await apiClient.adminUpdateCatalogDraft(currentSlug, payload);
+      const draftEndpoint = getCatalogDraftEndpoint();
+      if (!draftEndpoint) {
+        persistCatalogDraftLocally(payload);
+        setCatalogData((prev) =>
+          prev
+            ? {
+                ...prev,
+                draft: {
+                  ...(prev.draft ?? {}),
+                  columns: columnsToSave,
+                  rows: rowsToSave,
+                },
+                metadata: catalogMetadata,
+              }
+            : prev,
+        );
+        toast.success('Borrador guardado en este navegador');
+        setEditorOpen(false);
+        return;
+      }
+
+      const response = await apiClient.put<TenantCatalog>(draftEndpoint, payload, {
+        tenantSlug: currentSlug,
+      });
       const normalized = normalizeCatalog(response);
       setCatalogData(normalized);
       setCatalogMetadata(normalized.metadata ?? {});
@@ -418,6 +567,250 @@ const IntegracionesPage = () => {
       } finally {
           setSavingSettings(false);
       }
+  };
+
+  const updateWhatsappSandbox = (field: keyof WhatsappSandboxState, value: string) => {
+    setWhatsappSandbox((prev) => ({ ...prev, [field]: value }));
+    setSandboxResult(null);
+  };
+
+  const buildSandboxMessage = () =>
+    [
+      whatsappSandbox.joinPhrase.trim(),
+      whatsappSandbox.testMessage.trim(),
+      whatsappSandbox.brief.trim() ? `Brief: ${whatsappSandbox.brief.trim()}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+
+  const buildSandboxDeeplink = () => {
+    const digits = whatsappSandbox.customerWhatsapp.replace(/[^\d]/g, "");
+    if (!digits) return null;
+    const text = buildSandboxMessage();
+    return `https://wa.me/${digits}${text ? `?text=${encodeURIComponent(text)}` : ""}`;
+  };
+
+  const copySandboxBrief = async () => {
+    const text = buildSandboxMessage();
+    if (!text) {
+      toast.error("Completá la frase clave o el mensaje de prueba");
+      return;
+    }
+    await navigator.clipboard.writeText(text);
+    toast.success("Texto copiado");
+  };
+
+  const handlePrepareWhatsappSandbox = async () => {
+    if (!currentSlug) return;
+    const deeplink = buildSandboxDeeplink();
+    if (!whatsappSandbox.customerWhatsapp.replace(/[^\d]/g, "")) {
+      toast.error("Ingresá el WhatsApp del sandbox o del teléfono de prueba");
+      return;
+    }
+
+    const payload = {
+      tenant_slug: currentSlug,
+      whatsapp: whatsappSandbox.customerWhatsapp.trim(),
+      join_phrase: whatsappSandbox.joinPhrase.trim(),
+      rubro: whatsappSandbox.rubro.trim(),
+      brief: whatsappSandbox.brief.trim(),
+      test_message: whatsappSandbox.testMessage.trim(),
+      menu_preview: widgetQuickMenu.slice(0, 6),
+      source: "tenant_integrations_panel",
+    };
+
+    setSandboxLoading(true);
+    try {
+      const response = await apiClient.post<any>(
+        `/api/v2/tenants/${encodeURIComponent(currentSlug)}/whatsapp/sandbox-session`,
+        payload,
+        { tenantSlug: currentSlug, suppressPanel401Redirect: true },
+      );
+      const backendDeeplink =
+        response?.twilio?.wa_deeplink ||
+        response?.wa_deeplink ||
+        response?.deeplink ||
+        deeplink;
+      setSandboxResult({
+        mode: "backend",
+        message: "Sandbox preparado con el contrato del backend.",
+        deeplink: backendDeeplink,
+        requestId: response?.request_id || null,
+      });
+      toast.success("Demo WhatsApp preparada");
+      if (backendDeeplink) {
+        window.open(backendDeeplink, "_blank", "noopener,noreferrer");
+      }
+    } catch (error: any) {
+      const status = error instanceof ApiError ? error.status : Number(error?.status || 0);
+      setSandboxResult({
+        mode: "local",
+        message:
+          status === 404 || status === 405 || status === 501
+            ? "Falta publicar el endpoint backend del sandbox. Dejé listo el texto y el enlace para probar manualmente."
+            : "No se pudo confirmar con backend. Podés abrir WhatsApp con este enlace y seguir la prueba.",
+        deeplink,
+        requestId: error instanceof ApiError ? error.requestId : null,
+      });
+      if (status === 404 || status === 405 || status === 501) {
+        toast.info("Sandbox listo en modo local; falta el endpoint backend.");
+      } else {
+        toast.error("No se pudo preparar el sandbox con backend.");
+      }
+    } finally {
+      setSandboxLoading(false);
+    }
+  };
+
+  const renderWhatsappSandboxPanel = () => {
+    const menuPreview = widgetQuickMenu.slice(0, 3);
+    const sandboxDeeplink = sandboxResult?.deeplink || buildSandboxDeeplink();
+
+    return (
+      <div className="space-y-5">
+        <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4 sm:p-5">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="secondary" className="gap-1">
+                  <ShieldCheck className="h-3.5 w-3.5" /> Twilio Sandbox
+                </Badge>
+                <Badge variant="secondary" className="gap-1">
+                  <Bot className="h-3.5 w-3.5" /> Menu del tenant
+                </Badge>
+              </div>
+              <div>
+                <h3 className="text-xl font-semibold tracking-tight">Probar WhatsApp antes de salir a producción</h3>
+                <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+                  Prepará una prueba guiada con el número, la frase clave y el brief del rubro. El menú visible sale del contrato del widget cuando está disponible.
+                </p>
+              </div>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={copySandboxBrief}
+              className="shrink-0"
+            >
+              <Copy className="mr-2 h-4 w-4" /> Copiar brief
+            </Button>
+          </div>
+
+          <div className="mt-5 grid gap-4 lg:grid-cols-3">
+            <div className="rounded-xl border bg-background/70 p-4">
+              <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
+                <PhoneCall className="h-4 w-4 text-primary" /> 1. WhatsApp de prueba
+              </div>
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="sandbox-whatsapp">Número WhatsApp</Label>
+                  <Input
+                    id="sandbox-whatsapp"
+                    value={whatsappSandbox.customerWhatsapp}
+                    onChange={(event) => updateWhatsappSandbox("customerWhatsapp", event.target.value)}
+                    placeholder="+549..."
+                    inputMode="tel"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="sandbox-join">Frase clave Twilio</Label>
+                  <Input
+                    id="sandbox-join"
+                    value={whatsappSandbox.joinPhrase}
+                    onChange={(event) => updateWhatsappSandbox("joinPhrase", event.target.value)}
+                    placeholder="join palabra-clave"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-xl border bg-background/70 p-4">
+              <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
+                <Sparkles className="h-4 w-4 text-primary" /> 2. Rubro y brief
+              </div>
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="sandbox-rubro">Rubro o recorrido</Label>
+                  <Input
+                    id="sandbox-rubro"
+                    value={whatsappSandbox.rubro}
+                    onChange={(event) => updateWhatsappSandbox("rubro", event.target.value)}
+                    placeholder="Usar rubro del tenant"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="sandbox-brief">Brief de la prueba</Label>
+                  <Textarea
+                    id="sandbox-brief"
+                    value={whatsappSandbox.brief}
+                    onChange={(event) => updateWhatsappSandbox("brief", event.target.value)}
+                    placeholder="Qué tiene que probar el cliente, qué menú debe ver y qué acción esperada debe ocurrir."
+                    className="min-h-[92px]"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-xl border bg-background/70 p-4">
+              <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
+                <Clipboard className="h-4 w-4 text-primary" /> 3. Mensaje inicial
+              </div>
+              <Textarea
+                value={whatsappSandbox.testMessage}
+                onChange={(event) => updateWhatsappSandbox("testMessage", event.target.value)}
+                placeholder="Mensaje que querés mandar para iniciar la demo."
+                className="min-h-[126px]"
+              />
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                <Button onClick={handlePrepareWhatsappSandbox} disabled={sandboxLoading} className="flex-1">
+                  {sandboxLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                  Preparar demo
+                </Button>
+                <Button
+                  variant="outline"
+                  disabled={!sandboxDeeplink}
+                  onClick={() => sandboxDeeplink && window.open(sandboxDeeplink, "_blank", "noopener,noreferrer")}
+                >
+                  <ExternalLink className="mr-2 h-4 w-4" /> Abrir
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-xl border bg-background/70 p-4">
+            <div className="flex flex-wrap items-center gap-2 text-sm font-semibold">
+              <KeyRound className="h-4 w-4 text-primary" />
+              Menu que verá el usuario
+            </div>
+            {menuPreview.length ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {menuPreview.map((item) => (
+                  <Badge key={item.id || item.label} variant="outline" className="rounded-full">
+                    {item.label}
+                  </Badge>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-2 text-sm text-muted-foreground">
+                Todavía no llegó quick menu desde el widget config. La prueba sigue disponible con el brief.
+              </p>
+            )}
+          </div>
+
+          {sandboxResult && (
+            <Alert className="mt-4">
+              <CheckCircle2 className="h-4 w-4" />
+              <AlertTitle>{sandboxResult.mode === "backend" ? "Contrato confirmado" : "Modo local preparado"}</AlertTitle>
+              <AlertDescription>
+                {sandboxResult.message}
+                {sandboxResult.requestId ? ` Req: ${sandboxResult.requestId}` : ""}
+              </AlertDescription>
+            </Alert>
+          )}
+        </div>
+      </div>
+    );
   };
 
   if (loading) return <div className="flex h-96 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
@@ -699,9 +1092,9 @@ const IntegracionesPage = () => {
                 <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
                     <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto sm:max-w-[800px]">
                         <DialogHeader className="sr-only">
-                            <DialogTitle>{catalogData?.links?.upload_section_title}</DialogTitle>
+                            <DialogTitle>{catalogData?.links?.upload_section_title || "Importar catalogo"}</DialogTitle>
                             <DialogDescription>
-                                {catalogData?.links?.upload_section_description}
+                                {catalogData?.links?.upload_section_description || "Sube un archivo para importar o actualizar el catalogo."}
                             </DialogDescription>
                         </DialogHeader>
                         <CatalogUploadWizard
@@ -715,16 +1108,12 @@ const IntegracionesPage = () => {
 
                 <Dialog open={editorOpen} onOpenChange={setEditorOpen}>
                   <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-                    {(catalogData?.links?.editor_title || catalogData?.links?.editor_description) && (
-                      <DialogHeader>
-                        {catalogData?.links?.editor_title && (
-                          <DialogTitle>{catalogData.links.editor_title}</DialogTitle>
-                        )}
-                        {catalogData?.links?.editor_description && (
-                          <DialogDescription>{catalogData.links.editor_description}</DialogDescription>
-                        )}
-                      </DialogHeader>
-                    )}
+                    <DialogHeader className={catalogData?.links?.editor_title || catalogData?.links?.editor_description ? "" : "sr-only"}>
+                      <DialogTitle>{catalogData?.links?.editor_title || "Editor de catalogo"}</DialogTitle>
+                      <DialogDescription>
+                        {catalogData?.links?.editor_description || "Edita las filas y columnas del catalogo del tenant."}
+                      </DialogDescription>
+                    </DialogHeader>
                     <CatalogSpreadsheetEditor
                       columns={draftColumns}
                       rows={draftRows}
@@ -828,7 +1217,25 @@ const IntegracionesPage = () => {
                                 </div>
                             </CardHeader>
                             <CardContent className="space-y-6">
-                                {selectedChannel === 'email' ? (
+                                {selectedChannel === 'whatsapp' ? (
+                                    <div className="space-y-6">
+                                        {renderWhatsappSandboxPanel()}
+                                        <Separator />
+                                        <div className="rounded-xl border bg-muted/30 p-4">
+                                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                                <div>
+                                                    <h4 className="font-semibold">Conexión operativa</h4>
+                                                    <p className="text-sm text-muted-foreground">
+                                                        Activá el canal real cuando el número, la frase clave y el menú ya estén validados.
+                                                    </p>
+                                                </div>
+                                                <Button onClick={() => handleConnect(selectedChannel)} variant="outline">
+                                                    <Link2 className="mr-2 h-4 w-4" /> Conectar canal
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : selectedChannel === 'email' ? (
                                     <div className="space-y-5">
                                         <p className="text-sm text-muted-foreground">Configurá las notificaciones por correo electrónico.</p>
                                         <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
@@ -939,6 +1346,12 @@ const IntegracionesPage = () => {
                                     <div className="origin-top transform transition-all duration-300">
                                         <ChannelPreview
                                             channel={selectedChannel as any}
+                                            message={
+                                                selectedChannel === 'whatsapp'
+                                                    ? whatsappSandbox.testMessage || whatsappSandbox.brief || undefined
+                                                    : undefined
+                                            }
+                                            menuItems={selectedChannel === 'whatsapp' ? widgetQuickMenu : []}
                                             product={selectedChannel === 'mercadolibre' ? { name: 'Producto Demo', price: '$15.000' } : undefined}
                                         />
                                     </div>
@@ -958,6 +1371,10 @@ const IntegracionesPage = () => {
       {/* Mapping Dialog (Reused) */}
       <Dialog open={mappingOpen} onOpenChange={setMappingOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto sm:max-w-[800px]">
+          <DialogHeader className="sr-only">
+            <DialogTitle>Previsualizacion de sincronizacion</DialogTitle>
+            <DialogDescription>Revisa el mapeo de campos antes de sincronizar el canal.</DialogDescription>
+          </DialogHeader>
           <IntegrationPreviewDialog
              provider={selectedMappingProvider}
              tenantSlug={currentSlug}

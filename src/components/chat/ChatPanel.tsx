@@ -60,6 +60,7 @@ import {
 } from "@/utils/conversationStream";
 import { safeOn, assertEventSource } from "@/utils/safeOn";
 import { readBackendFlag } from "@/utils/backendFlags";
+import { shouldAttemptContractSocket } from "@/utils/socketPolicy";
 import {
   ArrowRightLeft,
   Loader2,
@@ -686,10 +687,14 @@ const ChatPanel = (props: ChatPanelProps) => {
       : null;
   const websocketRuleRaw = uxContext?.visibility_rules?.allow_websocket;
   const liveChatRuleRaw = uxContext?.visibility_rules?.allow_realtime_live_chat;
-  const allowWebsocketFromUx = readBackendFlag(websocketRuleRaw, true);
-  const allowRealtimeLiveChatFromUx = readBackendFlag(liveChatRuleRaw, true);
-  const socketDisabledByBackend =
-    !backendSocketEnabled || !allowWebsocketFromUx || !allowRealtimeLiveChatFromUx;
+  const allowWebsocketFromUx = readBackendFlag(websocketRuleRaw, false);
+  const allowRealtimeLiveChatFromUx = readBackendFlag(liveChatRuleRaw, false);
+  const canAttemptSocket = shouldAttemptContractSocket({
+    socketEnabled: backendSocketEnabled,
+    allowWebsocket: websocketRuleRaw,
+    allowRealtimeLiveChat: liveChatRuleRaw,
+  });
+  const socketDisabledByBackend = !canAttemptSocket;
   const compactHeaderActions = Boolean(
     isPlatformOnboarding ||
       uiHints?.density === "compact" ||

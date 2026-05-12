@@ -9,7 +9,10 @@ Objetivo: que el script embebido de cada tenant no sea solo un chat, sino una ex
 - El widget ya no auto-inicializa el chat cuando todavia esta en selector de plataforma.
 - Si ya existe `chat_bootstrap`, `tenant_slug`, `entityToken` o rubro efectivo, frontend no debe volver al selector de rubro.
 - Frontend filtra el selector legacy con texto `Bienvenido al showroom interactivo de Chatboc` y botones `Soluciones Para Empresas` / `Soluciones Para Sector Publico`.
+- QA 2026-05-12: el filtro ahora tambien inspecciona payloads anidados, secciones interactivas, `quick_replies`, `buttons`, `options` y `items` para evitar que el selector legacy reaparezca aunque venga dentro de `metadata`, `payload` o `data`.
 - Si solo llegan mensajes legacy filtrados, el widget muestra el estado limpio del tenant/demo en vez de una conversacion vieja.
+- `useBusinessHours` dejo de probar rutas legacy y dominios directos de backend para schedule. Ahora consulta solo same-origin:
+  - `GET /api/{tenant_slug}/live-chat/schedule?tenant_slug={tenant_slug}&tenant={tenant_slug}`
 - El carrito vuelve a aparecer en el header compacto cuando `cartCount > 0`.
 - El modulo de accesibilidad queda disponible en el widget compacto: dislexia, texto simple, alto contraste, controles grandes y regla de lectura.
 

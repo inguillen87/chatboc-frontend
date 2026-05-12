@@ -9,13 +9,29 @@ import { clusterHeatmapPoints } from "@/utils/heatmap";
 import { trackFrontendEvent } from "@/utils/frontendTelemetry";
 import { runtimeDiagnostics } from "@/utils/runtimeDiagnostics";
 
-const MAPLIBRE_EXTERNAL_JS_URL = String(
-  import.meta.env.VITE_MAPLIBRE_JS_URL ?? import.meta.env.NEXT_PUBLIC_MAPLIBRE_JS_URL ?? "",
-).trim();
+const normalizeExternalMapLibreAsset = (value: unknown): string => {
+  const trimmed = String(value ?? "").trim();
+  if (!trimmed) return "";
 
-const MAPLIBRE_EXTERNAL_CSS_URL = String(
-  import.meta.env.VITE_MAPLIBRE_CSS_URL ?? import.meta.env.NEXT_PUBLIC_MAPLIBRE_CSS_URL ?? "",
-).trim();
+  try {
+    const url = new URL(trimmed);
+    if (url.hostname.toLowerCase() === "maps.chatboc.ar") {
+      return "";
+    }
+  } catch {
+    return "";
+  }
+
+  return trimmed;
+};
+
+const MAPLIBRE_EXTERNAL_JS_URL = normalizeExternalMapLibreAsset(
+  import.meta.env.VITE_MAPLIBRE_JS_URL ?? import.meta.env.NEXT_PUBLIC_MAPLIBRE_JS_URL,
+);
+
+const MAPLIBRE_EXTERNAL_CSS_URL = normalizeExternalMapLibreAsset(
+  import.meta.env.VITE_MAPLIBRE_CSS_URL ?? import.meta.env.NEXT_PUBLIC_MAPLIBRE_CSS_URL,
+);
 
 type Props = {
   center?: [number, number]; // [lon, lat]
