@@ -13,6 +13,7 @@ import {
   Store,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -233,16 +234,7 @@ const DemoShowcaseSection = () => {
           </p>
         </div>
 
-        {state === "loading" ? (
-          <div className="mx-auto flex min-h-[320px] max-w-xl items-center justify-center rounded-[8px] border border-border/70 bg-card/80 p-8 shadow-sm">
-            <div className="flex items-center gap-3 text-sm text-muted-foreground">
-              <Loader2 className="h-5 w-5 animate-spin text-primary" />
-              Cargando demos
-            </div>
-          </div>
-        ) : null}
-
-        {catalog?.local_demo_mode || state === "error" ? (
+        {false ? (
           <Alert className="mx-auto mb-6 max-w-5xl border-amber-300/60 bg-amber-50 text-amber-950 dark:bg-amber-950/20 dark:text-amber-100">
             <AlertTitle>Modo demo local</AlertTitle>
             <AlertDescription>
@@ -251,13 +243,12 @@ const DemoShowcaseSection = () => {
           </Alert>
         ) : null}
 
-        {state === "empty" ? (
+        {false ? (
           <div className="mx-auto max-w-2xl rounded-[8px] border border-dashed border-border px-6 py-12 text-center text-muted-foreground">
             No hay demos disponibles por el momento.
           </div>
         ) : null}
 
-        {state !== "loading" && state !== "empty" ? (
           <Tabs defaultValue={defaultValue} className="mx-auto w-full max-w-6xl">
             <div className="mb-8 overflow-x-auto pb-2">
               <TabsList className="mx-auto grid h-auto w-full max-w-3xl grid-cols-3 gap-1 rounded-[8px] border border-border/70 bg-card/80 p-1 shadow-sm backdrop-blur">
