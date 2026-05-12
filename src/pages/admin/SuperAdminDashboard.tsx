@@ -32,6 +32,7 @@ import { WhatsappInventoryPanel } from "@/components/admin/WhatsappInventoryPane
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { buildTenantPath } from "@/utils/tenantPaths";
 import SuperadminLeadsPipeline from "@/components/admin/SuperadminLeadsPipeline";
+import ProductionSmokeReport from "@/components/admin/ProductionSmokeReport";
 import { enterpriseService } from "@/services/enterpriseService";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -747,6 +748,7 @@ export default function SuperAdminDashboard() {
          <TabsList className="mb-4">
             <TabsTrigger value="pipeline">Pipeline Kanban</TabsTrigger>
             <TabsTrigger value="list">Directorio</TabsTrigger>
+            <TabsTrigger value="smoke">Production smoke</TabsTrigger>
          </TabsList>
 
          <TabsContent value="pipeline" className="mt-0">
@@ -776,6 +778,10 @@ export default function SuperAdminDashboard() {
                 )}
               </CardContent>
             </Card>
+         </TabsContent>
+
+         <TabsContent value="smoke" className="mt-0">
+            <ProductionSmokeReport />
          </TabsContent>
       </Tabs>
 

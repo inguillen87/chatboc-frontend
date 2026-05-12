@@ -8,6 +8,7 @@ import {
   Database,
   ImageOff,
   Inbox,
+  MailCheck,
   Layers3,
   MapPinned,
   MessageSquare,
@@ -27,6 +28,7 @@ import EmployeeRoutingMatrix from "@/components/admin/EmployeeRoutingMatrix";
 import WhatsappOperationsHub from "@/components/admin/WhatsappOperationsHub";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useTenant } from "@/context/TenantContext";
 import { getErrorMessage } from "@/utils/api";
 
@@ -125,11 +127,21 @@ const EmptyPanel = ({ label }: { label: string }) => (
   </div>
 );
 
+const readLeadLabel = (lead: AnyRecord, index: number) =>
+  String(first(lead, ["contact", "contact_name", "name", "nombre", "intent", "ticket_id", "id"]) || `Lead ${index + 1}`);
+
+const renderRecordValue = (value: unknown) => {
+  if (value === undefined || value === null || value === "") return "—";
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+};
+
 export default function TenantAdminOperatingSystem({ tenantSlug }: { tenantSlug?: string | null }) {
   const { currentSlug } = useTenant();
   const effectiveSlug = tenantSlug || currentSlug;
   const [bundle, setBundle] = useState<TenantAdminExperienceV2 | null>(null);
   const [activeModule, setActiveModule] = useState<string>("summary");
+  const [selectedLead, setSelectedLead] = useState<AnyRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -380,6 +392,51 @@ export default function TenantAdminOperatingSystem({ tenantSlug }: { tenantSlug?
             </CardContent>
           </Card>
 
+          {leadItems.length ? (
+            <Card className="border-border/60">
+              <CardHeader className="gap-2 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <MailCheck className="h-4 w-4 text-primary" />
+                    Lead capture / Inbox 360
+                  </CardTitle>
+                  <CardDescription>
+                    Drawer operativo con contacto, origen, intención y próximo paso desde lead_capture.items[].
+                  </CardDescription>
+                </div>
+                <StatePill value={`${leadItems.length} items`} tone="ready" />
+              </CardHeader>
+              <CardContent className="grid gap-2">
+                {leadItems.slice(0, 6).map((lead, index) => {
+                  const contact = isRecord(lead.contact) ? lead.contact : {};
+                  const label = readLeadLabel(lead, index);
+                  return (
+                    <button
+                      key={String(first(lead, ["id", "ticket_id"]) || index)}
+                      type="button"
+                      onClick={() => setSelectedLead(lead)}
+                      className="grid gap-3 rounded-[8px] border border-border/60 bg-background p-3 text-left transition hover:border-primary/40 hover:bg-primary/5 md:grid-cols-[1fr_auto]"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="truncate font-semibold">{label}</span>
+                          <StatePill value={String(first(lead, ["status", "estado"]) || "nuevo")} />
+                          {first(lead, ["channel", "canal"]) ? <StatePill value={String(first(lead, ["channel", "canal"]))} /> : null}
+                        </div>
+                        <p className="mt-1 truncate text-xs text-muted-foreground">
+                          {String(first(contact, ["name", "nombre", "email", "phone"]) || first(lead, ["intent", "next_action"]) || "Sin detalle adicional")}
+                        </p>
+                      </div>
+                      <div className="text-xs font-medium text-primary">
+                        Abrir 360
+                      </div>
+                    </button>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          ) : null}
+
           {educationProfile.is_education || asArray(first(education, ["admin_menu", "panel_sections"])).length ? (
             <Card className="border-border/60">
               <CardHeader>
@@ -398,6 +455,71 @@ export default function TenantAdminOperatingSystem({ tenantSlug }: { tenantSlug?
           ) : null}
         </div>
       </div>
+
+      <Sheet open={Boolean(selectedLead)} onOpenChange={(open) => !open && setSelectedLead(null)}>
+        <SheetContent className="w-full overflow-y-auto p-0 sm:max-w-[420px]">
+          <SheetHeader className="border-b bg-muted/20 p-5 text-left">
+            <SheetTitle>Lead 360</SheetTitle>
+            <SheetDescription>
+              Vista compacta para soporte, ventas o mesa de entrada.
+            </SheetDescription>
+          </SheetHeader>
+          {selectedLead ? (
+            <div className="space-y-4 p-5">
+              <div className="rounded-[8px] border bg-background p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Resumen</p>
+                <h3 className="mt-2 text-xl font-black tracking-tight">{readLeadLabel(selectedLead, 0)}</h3>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <StatePill value={String(first(selectedLead, ["status", "estado"]) || "nuevo")} />
+                  <StatePill value={String(first(selectedLead, ["channel", "canal"]) || "canal")} />
+                  <StatePill value={`Ticket ${String(first(selectedLead, ["ticket_id", "id"]) || "—")}`} />
+                </div>
+              </div>
+
+              <LeadDetailBlock
+                title="Contacto"
+                record={isRecord(selectedLead.contact) ? selectedLead.contact : selectedLead}
+                keys={["name", "nombre", "email", "phone", "telefono", "whatsapp"]}
+              />
+              <LeadDetailBlock
+                title="Operación"
+                record={selectedLead}
+                keys={["intent", "next_action", "created_at", "detail_endpoint", "source", "origin"]}
+              />
+
+              {isRecord(selectedLead.source_metadata) ? (
+                <LeadDetailBlock
+                  title="Metadata"
+                  record={selectedLead.source_metadata}
+                  keys={["origin", "channel", "demo_session_id", "widget_id", "contact_key"]}
+                />
+              ) : null}
+            </div>
+          ) : null}
+        </SheetContent>
+      </Sheet>
     </section>
   );
 }
+
+const LeadDetailBlock = ({
+  title,
+  record,
+  keys,
+}: {
+  title: string;
+  record: AnyRecord;
+  keys: string[];
+}) => (
+  <div className="rounded-[8px] border bg-background p-4">
+    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">{title}</p>
+    <div className="mt-3 space-y-2">
+      {keys.map((key) => (
+        <div key={key} className="grid grid-cols-[120px_minmax(0,1fr)] gap-3 text-sm">
+          <span className="text-muted-foreground">{key.replace(/_/g, " ")}</span>
+          <span className="min-w-0 truncate font-medium">{renderRecordValue(record[key])}</span>
+        </div>
+      ))}
+    </div>
+  </div>
+);

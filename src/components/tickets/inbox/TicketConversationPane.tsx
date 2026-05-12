@@ -1,8 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
-import { Send } from 'lucide-react';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { Clock3, MapPin, Paperclip, Send, ShieldCheck, UserRound } from 'lucide-react';
 
-import { postOmnichannelInboxActionV2, type OmnichannelInboxItem, type SaasAction } from '@/api/v2/saas';
+import {
+  getOmnichannelInboxDetailV2,
+  postOmnichannelInboxActionV2,
+  type OmnichannelInboxItem,
+  type SaasAction,
+} from '@/api/v2/saas';
 import { ViewState } from '@/components/app-shell/ViewState';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -32,6 +37,14 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
   onActionComplete,
 }) => {
   const [draft, setDraft] = useState('');
+  const detailQuery = useQuery({
+    queryKey: ['inbox-omnichannel-v2-detail', tenantSlug, ticketId, ticket?.detail_endpoint],
+    queryFn: () => getOmnichannelInboxDetailV2(ticketId!, tenantSlug, ticket?.detail_endpoint),
+    enabled: Boolean(ticketId),
+    retry: 0,
+    staleTime: 20_000,
+  });
+  const detailTicket = detailQuery.data?.item ?? ticket;
 
   const actionMutation = useMutation({
     mutationFn: ({ action, payload }: { action: string; payload?: Record<string, unknown> }) => {
@@ -58,13 +71,13 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
   });
 
   useEffect(() => {
-    setDraft(ticket?.suggested_reply ?? '');
-  }, [ticket?.id, ticket?.suggested_reply]);
+    setDraft(detailTicket?.suggested_reply ?? '');
+  }, [detailTicket?.id, detailTicket?.suggested_reply]);
 
   const contactLabel = useMemo(() => {
-    const contact = ticket?.contact ?? {};
-    return String(contact.name ?? contact.nombre ?? contact.display_name ?? contact.email ?? ticket?.title ?? '');
-  }, [ticket]);
+    const contact = detailTicket?.contact ?? {};
+    return String(contact.name ?? contact.nombre ?? contact.display_name ?? contact.email ?? detailTicket?.title ?? '');
+  }, [detailTicket]);
 
   const handleAction = (action: SaasAction) => {
     if (action.href) {
@@ -96,7 +109,7 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
   const readSuggestionText = (item: ChatExperienceBlock) =>
     item.text?.trim() || item.label?.trim() || item.title?.trim() || '';
 
-  if (!ticketId || !ticket) {
+  if (!ticketId || !detailTicket) {
     return (
       <div className="flex h-full flex-col items-center justify-center bg-muted/10 text-muted-foreground">
         <p>Selecciona una conversacion para ver el detalle omnicanal.</p>
@@ -104,31 +117,48 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
     );
   }
 
+  const visibleActions = detailTicket.allowed_actions?.length ? detailTicket.allowed_actions : detailTicket.actions;
+  const sourceMetadata = detailTicket.source_metadata ?? {};
+  const assignee = detailTicket.assignee ?? {};
+  const sla = detailTicket.sla ?? {};
+  const mapContract = detailTicket.map ?? {};
+  const canRenderMap = Boolean(mapContract.can_render) && Boolean(detailTicket.location?.lat && (detailTicket.location?.lng || detailTicket.location?.lon));
+  const attachments = detailTicket.attachments ?? [];
+  const frontendContract = detailTicket.frontend_contract?.render_as ? String(detailTicket.frontend_contract.render_as) : 'inbox_360_drawer';
+
   return (
     <div className="relative flex h-full w-full flex-col bg-background">
       <div className="flex min-h-14 shrink-0 items-center justify-between gap-3 border-b bg-card/50 px-4">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="truncate text-sm font-medium">#{ticket.id}</h3>
-            <Badge variant="outline">{ticket.status}</Badge>
-            {ticket.channel ? <Badge variant="secondary">{ticket.channel}</Badge> : null}
+            <h3 className="truncate text-sm font-medium">#{detailTicket.ticket_id || detailTicket.id}</h3>
+            <Badge variant="outline">{detailTicket.status}</Badge>
+            {detailTicket.channel ? <Badge variant="secondary">{detailTicket.channel}</Badge> : null}
+            {detailTicket.priority ? <Badge variant="outline">{detailTicket.priority}</Badge> : null}
           </div>
           {contactLabel ? <p className="mt-1 truncate text-xs text-muted-foreground">{contactLabel}</p> : null}
         </div>
-        <PresenceAvatars users={ticket.presence} />
+        <PresenceAvatars users={detailTicket.presence} />
+      </div>
+
+      <div className="grid gap-3 border-b bg-muted/10 px-4 py-3 text-xs md:grid-cols-4">
+        <StatusTile icon={ShieldCheck} label="SLA" value={String(sla.status ?? (sla.overdue ? 'overdue' : 'ok'))} />
+        <StatusTile icon={UserRound} label="Responsable" value={String(assignee.name ?? assignee.email ?? 'Sin asignar')} />
+        <StatusTile icon={Clock3} label="Contrato" value={frontendContract} />
+        <StatusTile icon={MapPin} label="Mapa" value={canRenderMap ? 'Con coordenadas' : String(mapContract.fallback_when_no_coordinates ?? 'timeline_only')} />
       </div>
 
       <AgentSummaryPanel
         isLoading={false}
-        summary={ticket.summary ?? null}
-        nextSteps={ticket.next_steps}
+        summary={detailTicket.summary ?? detailTicket.description ?? null}
+        nextSteps={detailTicket.next_steps}
       />
 
-      {ticket.school_case ? <SchoolCaseAliasPanel schoolCase={ticket.school_case} /> : null}
+      {detailTicket.school_case ? <SchoolCaseAliasPanel schoolCase={detailTicket.school_case} /> : null}
 
-      {ticket.actions.length ? (
+      {visibleActions.length ? (
         <div className="flex flex-wrap gap-2 border-b bg-muted/20 px-4 py-3">
-          {ticket.actions.map((action) => (
+          {visibleActions.map((action) => (
             <Button
               key={action.id}
               size="sm"
@@ -143,9 +173,46 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
         </div>
       ) : null}
 
+      <div className="grid gap-3 border-b bg-background px-4 py-3 text-xs lg:grid-cols-[1fr_1fr_1fr]">
+        <MiniContractPanel
+          title="Origen"
+          rows={[
+            ['Canal', String(sourceMetadata.channel ?? sourceMetadata.origin ?? detailTicket.channel ?? '-')],
+            ['Demo', String(sourceMetadata.demo_session_id ?? '-')],
+            ['Widget', String(sourceMetadata.widget_id ?? '-')],
+          ]}
+        />
+        <MiniContractPanel
+          title="Ubicacion"
+          rows={[
+            ['Estado', canRenderMap ? 'ready' : 'timeline_only'],
+            ['Direccion', String(detailTicket.location?.address ?? detailTicket.location?.direccion ?? '-')],
+            ['Coordenadas', canRenderMap ? `${detailTicket.location?.lat}, ${detailTicket.location?.lng ?? detailTicket.location?.lon}` : '-'],
+          ]}
+        />
+        <MiniContractPanel
+          title="Adjuntos"
+          rows={[
+            ['Total', String(attachments.length)],
+            ['Mapa', String(mapContract.fallback_when_no_coordinates ?? '-')],
+            ['Detalle', detailQuery.isFetching ? 'Actualizando' : detailQuery.isError ? 'No disponible' : 'Sincronizado'],
+          ]}
+        />
+      </div>
+
       <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
-        {ticket.timeline.length ? (
-          <TimelineMergeView events={ticket.timeline as TicketTimelineEvent[]} />
+        {attachments.length ? (
+          <div className="flex flex-wrap gap-2">
+            {attachments.map((attachment, index) => (
+              <Badge key={`${String(attachment.id ?? attachment.url ?? index)}`} variant="outline" className="gap-1">
+                <Paperclip className="h-3 w-3" />
+                {String(attachment.name ?? attachment.filename ?? attachment.type ?? `Adjunto ${index + 1}`)}
+              </Badge>
+            ))}
+          </div>
+        ) : null}
+        {detailTicket.timeline.length ? (
+          <TimelineMergeView events={detailTicket.timeline as TicketTimelineEvent[]} />
         ) : (
           <ViewState
             status="partial"
@@ -157,17 +224,17 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
       </div>
 
       <div className="flex shrink-0 flex-col gap-2 border-t bg-background p-3">
-        {ticket.suggested_reply ? (
+        {detailTicket.suggested_reply ? (
           <AgentSuggestionBox
-            suggestion={ticket.suggested_reply}
+            suggestion={detailTicket.suggested_reply}
             onAccept={(text) => setDraft(text)}
             onReject={() => setDraft('')}
           />
         ) : null}
 
-        {ticket.agent_copilot_suggestions?.length ? (
+        {detailTicket.agent_copilot_suggestions?.length ? (
           <div className="flex flex-wrap gap-2 rounded-lg border bg-muted/20 px-3 py-2">
-            {ticket.agent_copilot_suggestions.map((item, index) => {
+            {detailTicket.agent_copilot_suggestions.map((item, index) => {
               const label = readSuggestionLabel(item);
               const text = readSuggestionText(item);
               if (!label || !text) return null;
@@ -214,6 +281,38 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
     </div>
   );
 };
+
+const StatusTile = ({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: React.ElementType;
+  label: string;
+  value: string;
+}) => (
+  <div className="rounded-[8px] border bg-background px-3 py-2">
+    <div className="flex items-center gap-2 text-muted-foreground">
+      <Icon className="h-3.5 w-3.5 text-primary" />
+      <span className="font-medium">{label}</span>
+    </div>
+    <div className="mt-1 truncate font-semibold text-foreground">{value}</div>
+  </div>
+);
+
+const MiniContractPanel = ({ title, rows }: { title: string; rows: Array<[string, string]> }) => (
+  <div className="rounded-[8px] border bg-muted/10 p-3">
+    <div className="mb-2 font-semibold text-foreground">{title}</div>
+    <div className="space-y-1">
+      {rows.map(([label, value]) => (
+        <div key={label} className="flex min-w-0 justify-between gap-3">
+          <span className="text-muted-foreground">{label}</span>
+          <span className="truncate font-medium text-foreground">{value}</span>
+        </div>
+      ))}
+    </div>
+  </div>
+);
 
 const readCaseValue = (schoolCase: EducationCaseAlias, keys: Array<keyof EducationCaseAlias>) => {
   for (const key of keys) {

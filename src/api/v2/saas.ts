@@ -175,23 +175,36 @@ export interface OmnichannelTimelineEvent {
 
 export interface OmnichannelInboxItem {
   id: string;
+  ticket_id?: string;
+  detail_endpoint?: string;
+  conversation_id?: string;
   title: string;
+  description?: string;
   status: string;
+  priority?: string;
   channel?: string;
   category?: string;
+  intent?: string;
   sensitivity?: string;
   lastMessageAt: string;
   unreadCount: number;
+  assignee?: UnknownRecord;
   contact?: UnknownRecord;
   location?: UnknownRecord;
+  map?: UnknownRecord;
+  attachments: UnknownRecord[];
+  sla?: UnknownRecord;
   school_case?: EducationCaseAlias | null;
   presence: OmnichannelPresenceUser[];
   timeline: OmnichannelTimelineEvent[];
   actions: SaasAction[];
+  allowed_actions: SaasAction[];
   summary?: string;
   next_steps: string[];
   suggested_reply?: string;
   agent_copilot_suggestions: ChatExperienceBlock[];
+  source_metadata?: UnknownRecord;
+  frontend_contract?: UnknownRecord;
   raw?: unknown;
 }
 
@@ -200,6 +213,13 @@ export interface OmnichannelInboxV2 {
   request_id?: string;
   items: OmnichannelInboxItem[];
   summary: UnknownRecord;
+  raw: unknown;
+}
+
+export interface OmnichannelInboxDetailV2 {
+  contract_version?: string;
+  request_id?: string;
+  item: OmnichannelInboxItem;
   raw: unknown;
 }
 
@@ -256,6 +276,25 @@ export interface SuperadminCommandCenterV2 {
     top_risky: UnknownRecord[];
   };
   tenant_creation: UnknownRecord;
+  frontend_contract: UnknownRecord;
+  raw: unknown;
+}
+
+export interface ProductionSmokeCheck {
+  id: string;
+  ok: boolean;
+  status?: string;
+  endpoint?: string;
+  details?: UnknownRecord;
+  raw: UnknownRecord;
+}
+
+export interface ProductionSmokeV2 {
+  contract_version?: string;
+  request_id?: string;
+  status: string;
+  summary: UnknownRecord;
+  checks: ProductionSmokeCheck[];
   frontend_contract: UnknownRecord;
   raw: unknown;
 }
@@ -859,6 +898,7 @@ const normalizeTimeline = (value: unknown, ticketId: string): OmnichannelTimelin
 export const normalizeOmnichannelInboxItemV2 = (value: unknown, index = 0): OmnichannelInboxItem | null => {
   if (!isRecord(value)) return null;
   const id = asString(getFirst(value, ['id', 'ticket_id', 'conversation_id', 'nro_ticket'])) ?? `inbox_${index + 1}`;
+  const ticketId = asString(getFirst(value, ['ticket_id', 'id', 'nro_ticket']));
   const contact = asRecord(value.contact);
   const schoolCase = normalizeEducationCaseAlias(getFirst(value, ['school_case', 'education_case', 'case_alias']));
   const timelineSource = getFirst(value, ['timeline', 'events', 'messages', 'conversation']);
@@ -868,28 +908,42 @@ export const normalizeOmnichannelInboxItemV2 = (value: unknown, index = 0): Omni
     getFirst(value, ['agent_copilot_suggestions', 'copilot_suggestions']) ??
     asRecord(asRecord(experienceBlueprint.agent_copilot).suggestions).items ??
     asRecord(experienceBlueprint.agent_copilot).suggestions;
+  const normalizedActions = normalizeActions(getFirst(value, ['allowed_actions', 'actions', 'botones']));
   return {
     id,
+    ticket_id: ticketId,
+    detail_endpoint: asString(getFirst(value, ['detail_endpoint', 'detail_url', 'endpoint'])),
+    conversation_id: asString(getFirst(value, ['conversation_id', 'conversationId'])),
     title:
       asString(getFirst(value, ['title', 'subject', 'asunto'])) ??
       asString(getFirst(contact, ['name', 'nombre', 'display_name'])) ??
       id,
+    description: asString(getFirst(value, ['description', 'descripcion', 'detalle', 'summary'])),
     status: asString(getFirst(value, ['status', 'estado', 'state'])) ?? 'unknown',
+    priority: asString(getFirst(value, ['priority', 'prioridad'])),
     channel: asString(getFirst(value, ['channel', 'canal'])),
     category: asString(getFirst(value, ['category', 'categoria'])),
+    intent: asString(getFirst(value, ['intent', 'intencion', 'intent_id'])),
     sensitivity: asString(getFirst(value, ['sensitivity', 'priority', 'prioridad'])),
     lastMessageAt: asString(getFirst(value, ['last_message_at', 'lastMessageAt', 'updated_at', 'fecha'])) ?? new Date().toISOString(),
     unreadCount: asNumber(getFirst(value, ['unread_count', 'unreadCount'])) ?? 0,
+    assignee: value.assignee ? asRecord(value.assignee) : undefined,
     contact: value.contact ? contact : undefined,
     location: value.location ? asRecord(value.location) : undefined,
+    map: value.map ? asRecord(value.map) : undefined,
+    attachments: asArray(value.attachments).map(asRecord),
+    sla: value.sla ? asRecord(value.sla) : undefined,
     school_case: schoolCase,
     presence: normalizePresence(getFirst(value, ['presence', 'viewers', 'active_viewers'])),
     timeline: normalizeTimeline(timelineSource, id),
-    actions: normalizeActions(value.actions),
+    actions: normalizedActions,
+    allowed_actions: normalizedActions,
     summary: asString(getFirst(value, ['summary', 'case_summary', 'ai_summary'])),
     next_steps: arrayOfStrings(getFirst(value, ['next_steps', 'suggested_next_steps'])),
     suggested_reply: asString(getFirst(value, ['suggested_reply', 'reply_suggestion'])),
     agent_copilot_suggestions: normalizeExperienceBlocks(agentCopilot),
+    source_metadata: value.source_metadata ? asRecord(value.source_metadata) : undefined,
+    frontend_contract: value.frontend_contract ? asRecord(value.frontend_contract) : undefined,
     raw: value,
   };
 };
@@ -903,6 +957,22 @@ export const normalizeOmnichannelInboxV2 = (response: unknown): OmnichannelInbox
     request_id: asString(record.request_id),
     items: itemsSource.map(normalizeOmnichannelInboxItemV2).filter((item): item is OmnichannelInboxItem => Boolean(item)),
     summary: asRecord(record.summary),
+    raw: response,
+  };
+};
+
+export const normalizeOmnichannelInboxDetailV2 = (response: unknown): OmnichannelInboxDetailV2 => {
+  const source = getSource(response);
+  const record = asRecord(source);
+  const candidate = getFirst(record, ['item', 'ticket', 'conversation', 'data']) ?? source;
+  const item = normalizeOmnichannelInboxItemV2(candidate);
+  if (!item) {
+    throw new ApiError('Respuesta invalida del detalle omnicanal.', 502, response);
+  }
+  return {
+    contract_version: asString(record.contract_version),
+    request_id: asString(record.request_id),
+    item,
     raw: response,
   };
 };
@@ -1078,6 +1148,44 @@ export const normalizeSuperadminCommandCenterV2 = (response: unknown): Superadmi
 export const getSuperadminCommandCenterV2 = async () => {
   const response = await panelApi.get<unknown>('/api/v2/superadmin/command-center');
   return normalizeSuperadminCommandCenterV2(response);
+};
+
+const normalizeProductionSmokeCheck = (value: unknown, index = 0): ProductionSmokeCheck | null => {
+  if (!isRecord(value)) return null;
+  const id = asString(getFirst(value, ['id', 'key', 'name', 'endpoint'])) ?? `check_${index + 1}`;
+  return {
+    id,
+    ok: Boolean(asBoolean(getFirst(value, ['ok', 'passed', 'success'])) ?? String(getFirst(value, ['status', 'state'])).toLowerCase() === 'pass'),
+    status: asString(getFirst(value, ['status', 'state'])),
+    endpoint: asString(value.endpoint),
+    details: value.details ? asRecord(value.details) : undefined,
+    raw: value,
+  };
+};
+
+export const normalizeProductionSmokeV2 = (response: unknown): ProductionSmokeV2 => {
+  const source = getSource(response);
+  const record = asRecord(source);
+  return {
+    contract_version: asString(record.contract_version),
+    request_id: asString(record.request_id),
+    status: asString(getFirst(record, ['status', 'state'])) ?? 'unknown',
+    summary: asRecord(record.summary),
+    checks: asArray(record.checks)
+      .map(normalizeProductionSmokeCheck)
+      .filter((item): item is ProductionSmokeCheck => Boolean(item)),
+    frontend_contract: asRecord(record.frontend_contract),
+    raw: response,
+  };
+};
+
+export const getProductionSmokeV2 = async (tenantSlug?: string | null) => {
+  const encoded = tenantSlug ? encodeURIComponent(tenantSlug) : null;
+  const response = await panelApi.get<unknown>(
+    encoded ? `/api/v2/tenants/${encoded}/production-smoke` : '/api/v2/platform/production-smoke',
+    { tenantSlug },
+  );
+  return normalizeProductionSmokeV2(response);
 };
 
 const normalizeCatalogQualityQueueItem = (value: unknown, index = 0): CatalogQualityQueueItem | null => {
@@ -1270,6 +1378,19 @@ export const getNotificationDeliveryStatusV2 = async (tenantSlug?: string | null
 export const getOmnichannelInboxV2 = async (tenantSlug?: string | null) => {
   const response = await panelApi.get<unknown>('/api/v2/inbox/omnichannel', { tenantSlug });
   return normalizeOmnichannelInboxV2(response);
+};
+
+export const getOmnichannelInboxDetailV2 = async (
+  ticketId: string | number,
+  tenantSlug?: string | null,
+  detailEndpoint?: string | null,
+) => {
+  const encodedTicketId = encodeURIComponent(String(ticketId));
+  const endpoint = detailEndpoint && detailEndpoint.startsWith('/')
+    ? detailEndpoint
+    : `/api/v2/inbox/omnichannel/${encodedTicketId}`;
+  const response = await panelApi.get<unknown>(endpoint, { tenantSlug });
+  return normalizeOmnichannelInboxDetailV2(response);
 };
 
 export const postOmnichannelInboxActionV2 = async (

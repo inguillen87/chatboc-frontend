@@ -210,6 +210,8 @@ const normalizeOnboardingOption = (
   return {
     id: readText("id") || readText("key") || `onboarding-${index}`,
     label,
+    description: readText("description") || readText("subtitle") || readText("detail"),
+    cta_label: readText("cta_label") || readText("ctaLabel"),
     intent: readText("intent"),
     sector: readText("sector"),
     tenant_slug: readText("tenant_slug") || readText("tenantSlug"),
@@ -884,6 +886,7 @@ const ChatPanel = (props: ChatPanelProps) => {
   // If tenantSlug is present, we assume it's a specific entity.
   const showRubroSelector =
     rubrosEnabled &&
+    !isPlatformOnboarding &&
     !localRubro &&
     allowRubroSelectorByBackend &&
     (!shouldSuppressDemoShell || !isBoundTenantContext);
@@ -2377,7 +2380,7 @@ const ChatPanel = (props: ChatPanelProps) => {
           compactActions
         />
         <div className="flex min-h-0 flex-1 items-center justify-center p-4">
-          <div className="w-full max-w-[360px] rounded-[8px] border border-border/70 bg-background/92 p-4 shadow-[0_22px_70px_rgba(15,23,42,0.16)] backdrop-blur">
+          <div className="w-full max-w-[380px] rounded-[8px] border border-border/70 bg-background/92 p-4 shadow-[0_22px_70px_rgba(15,23,42,0.16)] backdrop-blur">
             <div className="mb-4 text-left">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
                 {onboarding?.title || "Chatboc"}
@@ -2386,7 +2389,7 @@ const ChatPanel = (props: ChatPanelProps) => {
                 {onboarding?.entry_question || onboarding?.title}
               </h2>
             </div>
-            <div className="grid gap-2" aria-label="Selector de plataforma">
+            <div className="grid gap-2.5" aria-label="Selector de plataforma">
               {visibleOptions.map((option) => {
                 const optionId = option.id || option.sector || option.label || "option";
                 const isLoading = platformSelectionLoadingId === optionId;
@@ -2394,11 +2397,19 @@ const ChatPanel = (props: ChatPanelProps) => {
                   <button
                     key={optionId}
                     type="button"
-                    className="group flex min-h-[58px] w-full items-center justify-between rounded-[8px] border border-border/70 bg-card px-3.5 py-3 text-left text-sm font-semibold text-foreground shadow-sm transition hover:border-primary/40 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-wait disabled:opacity-70"
+                    className="group relative flex min-h-[76px] w-full items-center justify-between gap-3 overflow-hidden rounded-[8px] border border-border/70 bg-card px-3.5 py-3 text-left text-sm font-semibold text-foreground shadow-sm transition hover:-translate-y-0.5 hover:border-primary/40 hover:bg-primary/5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-wait disabled:opacity-70"
                     disabled={Boolean(platformSelectionLoadingId)}
                     onClick={() => void onPlatformSelection?.(option)}
                   >
-                    <span className="min-w-0 truncate">{option.label}</span>
+                    <span className="absolute inset-y-0 left-0 w-1 bg-primary/75 opacity-70 transition group-hover:opacity-100" />
+                    <span className="min-w-0 pl-1">
+                      <span className="block truncate text-[0.95rem]">{option.label}</span>
+                      {option.description ? (
+                        <span className="mt-1 line-clamp-2 block text-xs font-medium leading-snug text-muted-foreground">
+                          {option.description}
+                        </span>
+                      ) : null}
+                    </span>
                     {isLoading ? (
                       <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
                     ) : (

@@ -8,6 +8,7 @@ export const DEMO_SECTOR_GROUPS: DemoSectorGroup[] = [
     description: 'Municipios, concejos, legisladores, campanas y atencion publica.',
     cta_label: 'Iniciar demo publica',
     tenant_slug: 'municipio',
+    default_rubro: 'municipio',
   },
   {
     key: 'empresas',
@@ -15,6 +16,7 @@ export const DEMO_SECTOR_GROUPS: DemoSectorGroup[] = [
     description: 'Comercios, servicios, salud, industria, ventas y operaciones.',
     cta_label: 'Iniciar demo empresa',
     tenant_slug: 'bodega',
+    default_rubro: 'local_comercial_general',
   },
   {
     key: 'educacion',
@@ -22,6 +24,7 @@ export const DEMO_SECTOR_GROUPS: DemoSectorGroup[] = [
     description: 'Instituciones publicas y privadas, secretaria, familias, casos escolares y WhatsApp.',
     cta_label: 'Iniciar demo colegio',
     tenant_slug: 'colegio-demo',
+    default_rubro: 'colegios',
   },
 ];
 

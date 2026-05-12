@@ -37,6 +37,28 @@ import { TENANT_PLACEHOLDER_SLUGS } from "@/constants/tenant";
 const PLACEHOLDER_SLUGS_SET = TENANT_PLACEHOLDER_SLUGS;
 
 const LS_KEY = "chatboc_accessibility";
+const PLATFORM_DEMO_SECTOR_ORDER = ["educacion", "gobierno", "empresas"];
+
+function buildPlatformQuickMenu() {
+  const groupsByKey = new Map(DEMO_SECTOR_GROUPS.map((group) => [String(group.key), group]));
+  const orderedGroups = PLATFORM_DEMO_SECTOR_ORDER
+    .map((key) => groupsByKey.get(key))
+    .filter(Boolean);
+  const remainingGroups = DEMO_SECTOR_GROUPS.filter(
+    (group) => !PLATFORM_DEMO_SECTOR_ORDER.includes(String(group.key)),
+  );
+
+  return [...orderedGroups, ...remainingGroups].map((group) => ({
+    id: `select_${group.key}`,
+    label: group.label,
+    description: group.description,
+    cta_label: group.cta_label,
+    intent: "select_demo_sector",
+    sector: group.key,
+    tenant_slug: group.tenant_slug,
+    rubro: group.default_rubro || group.default_rubro_slug || group.tenant_slug,
+  }));
+}
 
 function normalizeCtaMessages(rawMessages: any): string[] {
   if (!Array.isArray(rawMessages)) return [];
@@ -52,6 +74,8 @@ function normalizeCtaMessages(rawMessages: any): string[] {
 }
 
 function buildPlatformWidgetFallbackConfig() {
+  const quickMenu = buildPlatformQuickMenu();
+
   return {
     contract_version: "public.widget_config.v1",
     tenant: {
@@ -63,13 +87,14 @@ function buildPlatformWidgetFallbackConfig() {
     onboarding: {
       contract_version: "public.widget_onboarding.v1",
       mode: "platform_sector_selector",
-      title: "Chatboc",
+      title: "Que queres probar?",
       entry_question: "Que tipo de organizacion queres simular?",
       required_step: "select_sector",
       autostart_after_selection: true,
       selection_endpoint: "/api/v2/demo/session",
       catalog_endpoint: "/api/v2/demo/catalog",
       chat_header_policy: "use_chat_bootstrap_from_demo_session",
+      quick_menu: quickMenu,
     },
     ui_hints: {
       contract_version: "widget.ui_hints.v1",
@@ -95,14 +120,64 @@ function buildPlatformWidgetFallbackConfig() {
       socket_url: null,
       fallback_mode: "polling_disabled",
     },
-    quick_menu: DEMO_SECTOR_GROUPS.map((group) => ({
-      id: `select_${group.key}`,
-      label: group.label,
-      intent: "select_demo_sector",
-      sector: group.key,
-      tenant_slug: group.tenant_slug,
-      rubro: group.default_rubro || group.tenant_slug,
-    })),
+    visibility_rules: {
+      allow_websocket: false,
+      allow_realtime_live_chat: false,
+      fallback_mode: "polling_disabled",
+    },
+    support_channels: {
+      live_chat: {
+        enabled: false,
+        realtime: false,
+        available: false,
+        socket_enabled: false,
+        socket_url: null,
+        fallback_mode: "polling_disabled",
+      },
+    },
+    quick_menu: quickMenu,
+  };
+}
+
+function isPlatformWidgetConfig(config: any) {
+  if (!config || typeof config !== "object") return false;
+  const tenant = config.tenant && typeof config.tenant === "object" ? config.tenant : {};
+  return (
+    config.onboarding?.mode === "platform_sector_selector" ||
+    tenant.tipo === "platform" ||
+    tenant.slug === "chatboc-platform"
+  );
+}
+
+function normalizePlatformWidgetConfig(rawConfig: any) {
+  const fallback = buildPlatformWidgetFallbackConfig();
+  if (!isPlatformWidgetConfig(rawConfig)) return fallback;
+
+  const quickMenu = Array.isArray(rawConfig.quick_menu)
+    ? rawConfig.quick_menu
+    : Array.isArray(rawConfig.onboarding?.quick_menu)
+      ? rawConfig.onboarding.quick_menu
+      : fallback.quick_menu;
+
+  return {
+    ...fallback,
+    ...rawConfig,
+    tenant: {
+      ...fallback.tenant,
+      ...(rawConfig.tenant || {}),
+    },
+    onboarding: {
+      ...fallback.onboarding,
+      ...(rawConfig.onboarding || {}),
+      quick_menu: Array.isArray(rawConfig.onboarding?.quick_menu)
+        ? rawConfig.onboarding.quick_menu
+        : quickMenu,
+    },
+    ui_hints: rawConfig.ui_hints || fallback.ui_hints,
+    realtime: rawConfig.realtime || rawConfig.widget?.realtime || fallback.realtime,
+    visibility_rules: rawConfig.visibility_rules || fallback.visibility_rules,
+    support_channels: rawConfig.support_channels || rawConfig.widget?.support_channels || fallback.support_channels,
+    quick_menu: quickMenu,
   };
 }
 
@@ -165,12 +240,13 @@ function readTenantFromSubdomain(): string | null {
   try {
     const host = window.location.hostname;
     if (!host || host === "localhost") return null;
+    if (host === "::1" || /^\d{1,3}(?:\.\d{1,3}){3}$/.test(host)) return null;
 
     const segments = host.split(".");
     if (segments.length < 2) return null;
 
     const candidate = segments[0];
-    if (!candidate || ["www", "app", "panel"].includes(candidate.toLowerCase())) return null;
+    if (!candidate || /^\d+$/.test(candidate) || ["www", "app", "panel"].includes(candidate.toLowerCase())) return null;
     return candidate;
   } catch (e) {
     console.warn("Error reading tenant from subdomain", e);
@@ -1539,15 +1615,17 @@ function ChatWidgetInner({
                       ? publicConfig.quick_menu
                       : Array.isArray(publicConfig.builder_config?.quick_menu)
                         ? publicConfig.builder_config.quick_menu
-                        : Array.isArray(publicConfig.education?.quick_menu)
-                          ? publicConfig.education.quick_menu
-                          : Array.isArray(publicConfig.builder_config?.education?.quick_menu)
-                            ? publicConfig.builder_config.education.quick_menu
-                            : Array.isArray(publicConfig.widget?.education?.quick_menu)
-                              ? publicConfig.widget.education.quick_menu
-                              : Array.isArray(publicConfig.widget?.builder_config?.education?.quick_menu)
-                                ? publicConfig.widget.builder_config.education.quick_menu
-                                : [],
+                        : Array.isArray(publicConfig.onboarding?.quick_menu)
+                          ? publicConfig.onboarding.quick_menu
+                          : Array.isArray(publicConfig.education?.quick_menu)
+                            ? publicConfig.education.quick_menu
+                            : Array.isArray(publicConfig.builder_config?.education?.quick_menu)
+                              ? publicConfig.builder_config.education.quick_menu
+                              : Array.isArray(publicConfig.widget?.education?.quick_menu)
+                                ? publicConfig.widget.education.quick_menu
+                                : Array.isArray(publicConfig.widget?.builder_config?.education?.quick_menu)
+                                  ? publicConfig.widget.builder_config.education.quick_menu
+                                  : [],
                     education:
                       publicConfig.education ||
                       publicConfig.builder_config?.education ||
@@ -1673,7 +1751,7 @@ function ChatWidgetInner({
           console.warn("ChatWidget: no se pudo cargar widget-config plataforma, usando fallback local.", error);
           return buildPlatformWidgetFallbackConfig();
         });
-        const publicConfig: any = rawPlatformConfig || buildPlatformWidgetFallbackConfig();
+        const publicConfig: any = normalizePlatformWidgetConfig(rawPlatformConfig);
         const platformTenant = publicConfig.tenant || {};
         setEntityInfo({
           ...publicConfig,

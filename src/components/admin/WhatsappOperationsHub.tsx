@@ -27,6 +27,7 @@ import {
 } from "@/api/v2/saas";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 import { apiFetch, getErrorMessage } from "@/utils/api";
 
 type AnyRecord = Record<string, any>;
@@ -190,6 +191,122 @@ const EmptyState = ({ reason }: { reason?: unknown }) => (
   </div>
 );
 
+const CapabilityTile = ({
+  icon: Icon,
+  label,
+  detail,
+  enabled,
+  endpoint,
+}: {
+  icon: React.ElementType;
+  label: string;
+  detail?: React.ReactNode;
+  enabled: boolean;
+  endpoint?: unknown;
+}) => (
+  <div className="rounded-2xl border border-border/60 bg-background/80 p-3 transition hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-sm">
+    <div className="mb-3 flex items-center justify-between gap-2">
+      <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 text-primary">
+        <Icon className="h-4 w-4" />
+      </span>
+      <StatusPill tone={enabled ? "ready" : "neutral"}>{enabled ? "Activo" : "Oculto"}</StatusPill>
+    </div>
+    <p className="font-semibold text-foreground">{label}</p>
+    {detail ? <p className="mt-1 text-xs text-muted-foreground">{detail}</p> : null}
+    {endpoint ? <p className="mt-2 break-all font-mono text-[11px] text-muted-foreground">{String(endpoint)}</p> : null}
+  </div>
+);
+
+const SetupChecklist = ({ experience }: { experience: WhatsappExperienceV2 }) => {
+  const channel = experience.channel;
+  const rules = experience.enterprise_rules;
+  const modules = experience.content_modules;
+  const tracking = experience.tracking;
+  const claims = asRecord(tracking.claims);
+  const orders = asRecord(tracking.orders);
+  const intelligence = experience.conversation_intelligence;
+
+  const checks = [
+    {
+      id: "number",
+      label: "Numero del canal",
+      ok: Boolean(first(channel, ["number", "phone_number", "sender_id"])),
+      detail: first(channel, ["number", "phone_number", "sender_id"]) || channel.reason_code,
+    },
+    {
+      id: "webhook",
+      label: "Webhook publico",
+      ok: Boolean(channel.webhook),
+      detail: channel.webhook,
+    },
+    {
+      id: "enterprise",
+      label: "Reglas enterprise",
+      ok: boolish(rules.configured),
+      detail: first(rules, ["reason_code", "status", "window_policy"]) || "enterprise_rules.configured",
+    },
+    {
+      id: "inputs",
+      label: "Entradas multimodales",
+      ok: Object.values(asRecord(intelligence.inputs)).some((value) => boolish(asRecord(value).enabled)),
+      detail: "conversation_intelligence.inputs",
+    },
+    {
+      id: "content",
+      label: "Modulos de contenido",
+      ok: Object.values(modules).some((value) => boolish(asRecord(value).enabled)),
+      detail: "catalogo, encuestas, novedades o links",
+    },
+    {
+      id: "tracking",
+      label: "Tracking publico",
+      ok: Boolean(claims.experience_endpoint || orders.experience_endpoint),
+      detail: claims.experience_endpoint || orders.experience_endpoint,
+    },
+  ];
+  const completed = checks.filter((check) => check.ok).length;
+
+  return (
+    <Card className="border-amber-200 bg-amber-50/70">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base text-amber-950">
+          <AlertTriangle className="h-4 w-4" />
+          Checklist de configuracion
+        </CardTitle>
+        <CardDescription className="text-amber-900/80">
+          El canal no esta activo; se muestra degradacion segura segun el contrato backend.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div>
+          <div className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-[0.14em] text-amber-900/80">
+            <span>Readiness</span>
+            <span>
+              {completed}/{checks.length}
+            </span>
+          </div>
+          <Progress value={(completed / checks.length) * 100} className="h-2 bg-amber-100" />
+        </div>
+        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+          {checks.map((check) => (
+            <div key={check.id} className="rounded-2xl border border-amber-200 bg-background/80 p-3">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-sm font-semibold text-foreground">{check.label}</p>
+                {check.ok ? (
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                ) : (
+                  <AlertTriangle className="h-4 w-4 text-amber-600" />
+                )}
+              </div>
+              {check.detail ? <p className="break-all text-xs text-muted-foreground">{String(check.detail)}</p> : null}
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
 const ChannelHealth = ({
   experience,
   tenantSlug,
@@ -327,9 +444,74 @@ const ConversationCapabilities = ({ experience }: { experience: WhatsappExperien
   const inputs = asRecord(intelligence.inputs);
   const voiceCalls = asRecord(intelligence.voice_calls);
   const voiceCapabilities = asRecord(voiceCalls.capabilities);
+  const modules = experience.content_modules;
+  const tracking = experience.tracking;
+  const claims = asRecord(tracking.claims);
+  const orders = asRecord(tracking.orders);
   const canRenderVoice =
     boolish(voiceCalls.enabled) &&
     boolish(voiceCapabilities.native_speech_to_speech);
+  const actionCapabilities = [
+    modules.catalog
+      ? {
+          id: "catalog",
+          icon: MODULE_ICONS.catalog || PackageCheck,
+          label: labelFrom(asRecord(modules.catalog), "catalog"),
+          detail: first(asRecord(modules.catalog), ["items", "image_coverage_rate"]) !== undefined
+            ? `${formatNumber(first(asRecord(modules.catalog), ["items", "items_with_images"]))} items`
+            : undefined,
+          enabled: boolish(asRecord(modules.catalog).enabled),
+          endpoint: asRecord(modules.catalog).endpoint,
+        }
+      : null,
+    modules.surveys_votings
+      ? {
+          id: "surveys_votings",
+          icon: MODULE_ICONS.surveys_votings || MessageCircle,
+          label: labelFrom(asRecord(modules.surveys_votings), "surveys_votings"),
+          detail: asRecord(modules.surveys_votings).draft_endpoint ? "draft_endpoint" : undefined,
+          enabled: boolish(asRecord(modules.surveys_votings).enabled),
+          endpoint: asRecord(modules.surveys_votings).endpoint,
+        }
+      : null,
+    claims.experience_endpoint
+      ? {
+          id: "claims",
+          icon: Route,
+          label: labelFrom(claims, "claims"),
+          detail: claims.public_status_alias || claims.public_status_endpoint || "tracking",
+          enabled: true,
+          endpoint: claims.experience_endpoint,
+        }
+      : null,
+    orders.experience_endpoint
+      ? {
+          id: "orders",
+          icon: PackageCheck,
+          label: labelFrom(orders, "orders"),
+          detail: orders.payment_status_endpoint || "tracking",
+          enabled: true,
+          endpoint: orders.experience_endpoint,
+        }
+      : null,
+    canRenderVoice
+      ? {
+          id: "voice_calls",
+          icon: PhoneCall,
+          label: labelFrom(voiceCalls, "voice_calls"),
+          detail: voiceCapabilities.recommended_model || voiceCapabilities.contract_version || "native_speech_to_speech",
+          enabled: true,
+          endpoint: first(voiceCalls, ["endpoint", "session_endpoint"]) || first(voiceCapabilities, ["session_endpoint"]),
+        }
+      : null,
+  ].filter(Boolean) as Array<{
+    id: string;
+    icon: React.ElementType;
+    label: string;
+    detail?: React.ReactNode;
+    enabled: boolean;
+    endpoint?: unknown;
+  }>;
 
   return (
     <Card className="border-border/60">
@@ -345,10 +527,10 @@ const ConversationCapabilities = ({ experience }: { experience: WhatsappExperien
             </CardDescription>
           </div>
           {canRenderVoice ? (
-            <Button type="button" size="sm" className="rounded-xl">
+            <div className="inline-flex items-center rounded-xl bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground shadow-sm">
               <PhoneCall className="mr-2 h-4 w-4" />
               Voz realtime
-            </Button>
+            </div>
           ) : null}
         </div>
       </CardHeader>
@@ -360,19 +542,41 @@ const ConversationCapabilities = ({ experience }: { experience: WhatsappExperien
             const enabled = boolish(input.enabled);
             const videoNotReady = key === "video" && input.analysis_ready === false;
             return (
-              <div key={key} className="rounded-2xl border border-border/60 p-3">
-                <div className="mb-3 flex items-center justify-between gap-2">
-                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                    <Icon className="h-4 w-4" />
-                  </span>
-                  <StatusPill tone={enabled ? "ready" : "neutral"}>{enabled ? "Activo" : "Oculto"}</StatusPill>
-                </div>
-                <p className="font-semibold text-foreground">{labelFrom(input, key)}</p>
-                {videoNotReady ? <p className="mt-1 text-xs text-muted-foreground">Adjunto recibido, analisis pendiente.</p> : null}
-              </div>
+              <CapabilityTile
+                key={key}
+                icon={Icon}
+                label={labelFrom(input, key)}
+                detail={videoNotReady ? "Adjunto recibido; analisis IA pendiente." : first(input, ["payload_key", "endpoint", "provider"])}
+                enabled={enabled}
+                endpoint={first(input, ["endpoint", "upload_endpoint"])}
+              />
             );
           })}
         </div>
+
+        {actionCapabilities.length ? (
+          <div className="rounded-2xl border border-border/60 bg-muted/20 p-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-foreground">Acciones operativas</p>
+                <p className="text-xs text-muted-foreground">Capacidades que WhatsApp puede activar si el backend las publica.</p>
+              </div>
+              <StatusPill>{actionCapabilities.length}</StatusPill>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+              {actionCapabilities.map((item) => (
+                <CapabilityTile
+                  key={item.id}
+                  icon={item.icon}
+                  label={item.label}
+                  detail={item.detail}
+                  enabled={item.enabled}
+                  endpoint={item.endpoint}
+                />
+              ))}
+            </div>
+          </div>
+        ) : null}
 
         {canRenderVoice ? (
           <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
@@ -393,6 +597,36 @@ const ContentModules = ({ experience }: { experience: WhatsappExperienceV2 }) =>
   const catalog = asRecord(modules.catalog);
   const imageCoverage = asNumber(catalog.image_coverage_rate);
   const lowCoverage = imageCoverage !== null && imageCoverage < 80;
+  const catalogTasks = [
+    {
+      id: "upload_image",
+      label: "Subir imagen",
+      detail: "Producto sin imagen",
+      endpoint: catalog.endpoint,
+      icon: ImageIcon,
+    },
+    {
+      id: "replace_image",
+      label: "Reemplazar imagen",
+      detail: "Galeria o principal",
+      endpoint: catalog.endpoint,
+      icon: ImageIcon,
+    },
+    {
+      id: "bulk_import",
+      label: "Importar CSV/XLSX/PDF",
+      detail: "Bulk import",
+      endpoint: catalog.bulk_import_endpoint,
+      icon: FileText,
+    },
+    {
+      id: "pdf_catalog",
+      label: "Generar catalogo PDF",
+      detail: "Material comercial",
+      endpoint: first(catalog, ["pdf_catalog_endpoint", "catalog_pdf_endpoint", "pdf_endpoint"]),
+      icon: PackageCheck,
+    },
+  ].filter((task) => task.endpoint);
 
   return (
     <Card className="border-border/60">
@@ -431,10 +665,38 @@ const ContentModules = ({ experience }: { experience: WhatsappExperienceV2 }) =>
               <AlertTriangle className="h-4 w-4" />
               Cobertura de imagen baja
             </div>
-            <div className="mt-3 grid gap-2 md:grid-cols-3">
-              <EndpointLine label="Imagenes" value={`${imageCoverage}%`} />
-              <EndpointLine label="Editor catalogo" value={catalog.endpoint} />
-              <EndpointLine label="Bulk import" value={catalog.bulk_import_endpoint} />
+            <div className="mt-3">
+              <div className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-[0.14em] text-amber-900/80">
+                <span>Image coverage</span>
+                <span>{imageCoverage}%</span>
+              </div>
+              <Progress value={imageCoverage} className="h-2 bg-amber-100" />
+            </div>
+            <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+              {catalogTasks.length ? (
+                catalogTasks.map((task) => {
+                  const Icon = task.icon;
+                  return (
+                    <a
+                      key={task.id}
+                      href={String(task.endpoint)}
+                      className="rounded-2xl border border-amber-200 bg-background/85 p-3 text-foreground transition hover:-translate-y-0.5 hover:border-amber-300 hover:shadow-sm"
+                    >
+                      <span className="mb-3 inline-flex h-8 w-8 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
+                        <Icon className="h-4 w-4" />
+                      </span>
+                      <p className="text-sm font-semibold">{task.label}</p>
+                      <p className="mt-1 break-all text-xs text-muted-foreground">{task.detail}</p>
+                    </a>
+                  );
+                })
+              ) : (
+                <>
+                  <EndpointLine label="Imagenes" value={`${imageCoverage}%`} />
+                  <EndpointLine label="Editor catalogo" value={catalog.endpoint} />
+                  <EndpointLine label="Bulk import" value={catalog.bulk_import_endpoint} />
+                </>
+              )}
             </div>
           </div>
         ) : null}
@@ -499,9 +761,7 @@ const TrackingExperienceResult = ({ result }: { result: AnyRecord }) => {
             <span className="font-semibold uppercase tracking-[0.14em]">Progreso</span>
             <span>{progressPercent}%</span>
           </div>
-          <div className="h-2 overflow-hidden rounded-full bg-muted">
-            <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${progressPercent}%` }} />
-          </div>
+          <Progress value={progressPercent} className="h-2" />
           <div className="mt-3 flex flex-wrap gap-2">
             {timelineLabels.slice(0, 6).map((label, index) => (
               <span key={`${label}-${index}`} className="rounded-full border border-border/60 bg-muted/30 px-2.5 py-1 text-[11px] font-semibold">
@@ -516,12 +776,23 @@ const TrackingExperienceResult = ({ result }: { result: AnyRecord }) => {
         <div className="mt-4 overflow-hidden rounded-2xl border border-border/60 bg-background">
           <div className="relative h-40 bg-[linear-gradient(90deg,hsl(var(--muted))_1px,transparent_1px),linear-gradient(0deg,hsl(var(--muted))_1px,transparent_1px)] bg-[size:28px_28px]">
             <div className="absolute left-1/2 top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary shadow-[0_0_0_10px_hsl(var(--primary)/0.16)]" />
+            <div className="absolute left-1/2 top-1/2 h-16 w-16 -translate-x-1/2 -translate-y-1/2 animate-ping rounded-full border border-primary/30" />
             <div className="absolute bottom-3 left-3 rounded-xl border bg-background/90 px-3 py-2 text-xs font-semibold shadow-sm">
               {coordinates.lat.toFixed(5)}, {coordinates.lng.toFixed(5)}
             </div>
           </div>
         </div>
-      ) : null}
+      ) : (
+        <div className="mt-4 rounded-2xl border border-dashed border-border/70 bg-background/70 p-4">
+          <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+            <MapPinned className="h-4 w-4 text-primary" />
+            {String(first(renderContract, ["fallback_when_no_coordinates"]) || "timeline_only")}
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            El contrato no envio coordenadas renderizables; se mantiene el seguimiento por timeline.
+          </p>
+        </div>
+      )}
 
       {timeline.length > 0 ? (
         <div className="mt-4 rounded-2xl border border-border/60 bg-background/80 p-3">
@@ -676,6 +947,8 @@ const TrackingContract = ({
   const milestones = asRecord(tracking.milestones);
   const claimMilestones = asArray(milestones.claim).map(String);
   const orderMilestones = asArray(milestones.order).map(String);
+  const layers = asArray(renderContract.layers).map(String);
+  const animations = asArray(renderContract.animations).map(String);
 
   return (
     <Card className="border-border/60">
@@ -702,6 +975,24 @@ const TrackingContract = ({
               {boolish(courierMap.enabled) ? "Mapa listo" : "Timeline only"}
             </StatusPill>
             <StatusPill>{String(renderContract.fallback_when_no_coordinates || "timeline_only")}</StatusPill>
+          </div>
+          <div className="mb-4 grid gap-3 md:grid-cols-2">
+            <div className="rounded-2xl border border-border/60 bg-muted/20 p-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Layers</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {(layers.length ? layers : ["timeline_events"]).map((layer) => (
+                  <StatusPill key={layer}>{formatKey(layer)}</StatusPill>
+                ))}
+              </div>
+            </div>
+            <div className="rounded-2xl border border-border/60 bg-muted/20 p-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Animaciones</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {(animations.length ? animations : ["status_transition"]).map((animation) => (
+                  <StatusPill key={animation}>{formatKey(animation)}</StatusPill>
+                ))}
+              </div>
+            </div>
           </div>
           <MilestoneRail label="Claim" items={claimMilestones} />
           <MilestoneRail label="Order" items={orderMilestones} />
@@ -818,7 +1109,7 @@ export default function WhatsappOperationsHub({
         </div>
       </div>
 
-      {!channelEnabled ? <EmptyState reason={experience.channel.reason_code} /> : null}
+      {!channelEnabled ? <SetupChecklist experience={experience} /> : null}
       <ChannelHealth experience={experience} tenantSlug={tenantSlug} />
       <EnterpriseRules experience={experience} />
       <ConversationCapabilities experience={experience} />

@@ -3,6 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import type { OmnichannelInboxItem } from '@/api/v2/saas';
+import { MapPin, Paperclip, ShieldCheck } from 'lucide-react';
 
 interface TicketListPaneProps {
   tickets: OmnichannelInboxItem[];
@@ -25,10 +26,15 @@ const getSchoolCaseLabel = (ticket: OmnichannelInboxItem) =>
 
 export const TicketListPane: React.FC<TicketListPaneProps> = ({ tickets, selectedTicketId, onSelect }) => {
   return (
-    <div className="flex flex-col w-full h-full border-r bg-background overflow-hidden">
-      <div className="p-4 border-b shrink-0 flex items-center justify-between">
-        <h2 className="font-semibold text-lg">Inbox omnicanal</h2>
-        <Badge variant="secondary">{tickets.length} activos</Badge>
+    <div className="flex h-full w-full flex-col overflow-hidden border-r bg-background">
+      <div className="shrink-0 border-b p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold">Inbox 360</h2>
+            <p className="text-xs text-muted-foreground">Lista desde inbox.omnichannel.v1</p>
+          </div>
+          <Badge variant="secondary">{tickets.length} activos</Badge>
+        </div>
       </div>
       <div className="flex-1 overflow-y-auto">
         {tickets.length === 0 ? (
@@ -44,23 +50,26 @@ export const TicketListPane: React.FC<TicketListPaneProps> = ({ tickets, selecte
                 <li
                   key={ticket.id}
                   onClick={() => onSelect(ticket.id)}
-                  className={`p-4 cursor-pointer hover:bg-muted/50 transition-colors flex flex-col gap-1.5 ${
-                    selectedTicketId === ticket.id ? 'bg-muted border-l-4 border-l-primary' : 'border-l-4 border-l-transparent'
+                  className={`flex cursor-pointer flex-col gap-2 border-l-4 p-4 transition-colors hover:bg-muted/50 ${
+                    selectedTicketId === ticket.id ? 'border-l-primary bg-muted' : 'border-l-transparent'
                   }`}
                 >
-                  <div className="flex justify-between items-start gap-2">
-                    <span className="font-medium text-sm truncate">{ticket.title}</span>
-                    <span className="text-[10px] text-muted-foreground shrink-0 mt-0.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="min-w-0 truncate text-sm font-medium">{ticket.title}</span>
+                    <span className="mt-0.5 shrink-0 text-[10px] text-muted-foreground">
                       {formatRelativeTime(ticket.lastMessageAt)}
                     </span>
                   </div>
-                  <div className="flex justify-between items-center mt-1">
-                    <div className="flex gap-1.5">
-                       <Badge variant="outline" className="text-[10px] px-1.5 h-4 font-normal">{ticket.status}</Badge>
-                       {ticket.channel && <Badge variant="outline" className="text-[10px] px-1.5 h-4 font-normal">{ticket.channel}</Badge>}
-                       {ticket.category && <Badge variant="secondary" className="text-[10px] px-1.5 h-4 font-normal">{ticket.category}</Badge>}
+                  {ticket.description ? (
+                    <p className="line-clamp-2 text-xs leading-5 text-muted-foreground">{ticket.description}</p>
+                  ) : null}
+                  <div className="mt-1 flex items-center justify-between gap-2">
+                    <div className="flex min-w-0 flex-wrap gap-1.5">
+                       <Badge variant="outline" className="h-5 px-1.5 text-[10px] font-normal">{ticket.status}</Badge>
+                       {ticket.channel && <Badge variant="outline" className="h-5 px-1.5 text-[10px] font-normal">{ticket.channel}</Badge>}
+                       {ticket.category && <Badge variant="secondary" className="h-5 px-1.5 text-[10px] font-normal">{ticket.category}</Badge>}
                        {schoolCaseLabel ? (
-                         <Badge variant="secondary" className="text-[10px] px-1.5 h-4 font-normal">
+                         <Badge variant="secondary" className="h-5 px-1.5 text-[10px] font-normal">
                            {schoolCaseLabel}
                          </Badge>
                        ) : null}
@@ -70,6 +79,20 @@ export const TicketListPane: React.FC<TicketListPaneProps> = ({ tickets, selecte
                         {ticket.unreadCount}
                       </Badge>
                     )}
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5 text-[10px] text-muted-foreground">
+                    <span className="flex items-center gap-1 rounded-[8px] border bg-background px-2 py-1">
+                      <ShieldCheck className="h-3 w-3 text-primary" />
+                      {String(ticket.sla?.status ?? (ticket.sla?.overdue ? 'overdue' : 'sla'))}
+                    </span>
+                    <span className="flex items-center gap-1 rounded-[8px] border bg-background px-2 py-1">
+                      <MapPin className="h-3 w-3 text-primary" />
+                      {ticket.map?.can_render ? 'mapa' : 'timeline'}
+                    </span>
+                    <span className="flex items-center gap-1 rounded-[8px] border bg-background px-2 py-1">
+                      <Paperclip className="h-3 w-3 text-primary" />
+                      {ticket.attachments.length}
+                    </span>
                   </div>
                 </li>
               );

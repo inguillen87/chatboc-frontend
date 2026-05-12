@@ -283,6 +283,8 @@ export interface ChatAnimationTokens {
 export interface ChatWidgetOnboardingOption {
   id?: string | null;
   label?: string | null;
+  description?: string | null;
+  cta_label?: string | null;
   intent?: string | null;
   sector?: string | null;
   tenant_slug?: string | null;

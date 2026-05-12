@@ -107,7 +107,7 @@ const ChatHeader: React.FC<Props> = ({
 }) => {
   const liveChatSocketEnabled = isEnabledFlag(
     supportChannels?.live_chat?.socket_enabled,
-    true,
+    false,
   );
   const liveChatVisible = Boolean(
     liveChatSocketEnabled &&

@@ -4,6 +4,7 @@ export const TENANT_PLACEHOLDER_SLUGS = new Set([
   'iframe',
   'embed',
   'widget',
+  'default',
   'cart',
   'productos',
   'checkout',

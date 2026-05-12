@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { normalizeCatalogQualityV2, normalizeEmployeeRoutingV2 } from "./saas";
+import {
+  normalizeCatalogQualityV2,
+  normalizeEmployeeRoutingV2,
+  normalizeOmnichannelInboxDetailV2,
+  normalizeProductionSmokeV2,
+} from "./saas";
 
 describe("tenant admin v2 contracts", () => {
   it("normalizes catalog quality queues and import hints", () => {
@@ -89,5 +94,62 @@ describe("tenant admin v2 contracts", () => {
     expect(normalized.queues.unassigned_count).toBe(1);
     expect(normalized.recommendations[0].score).toBe(96);
     expect(normalized.recommendations[0].reasons).toContain("zone_match");
+  });
+
+  it("normalizes inbox 360 detail fields", () => {
+    const normalized = normalizeOmnichannelInboxDetailV2({
+      contract_version: "inbox.omnichannel.detail.v1",
+      item: {
+        id: 123,
+        ticket_id: 123,
+        detail_endpoint: "/api/v2/inbox/omnichannel/123",
+        title: "Consulta por beca",
+        description: "Detalle del ticket",
+        status: "nuevo",
+        priority: "high",
+        channel: "whatsapp",
+        intent: "consulta_beca",
+        assignee: { id: 10, name: "Mesa de entrada" },
+        map: { can_render: true },
+        location: { lat: -34.6, lng: -58.4 },
+        attachments: [{ id: "att_1", name: "certificado.pdf" }],
+        sla: { status: "ok", overdue: false },
+        allowed_actions: [{ id: "reply", label: "Responder" }],
+        source_metadata: { widget_id: "landing-widget" },
+        frontend_contract: { render_as: "inbox_360_drawer" },
+      },
+    });
+
+    expect(normalized.contract_version).toBe("inbox.omnichannel.detail.v1");
+    expect(normalized.item.ticket_id).toBe("123");
+    expect(normalized.item.detail_endpoint).toBe("/api/v2/inbox/omnichannel/123");
+    expect(normalized.item.allowed_actions[0].id).toBe("reply");
+    expect(normalized.item.attachments[0].name).toBe("certificado.pdf");
+    expect(normalized.item.frontend_contract?.render_as).toBe("inbox_360_drawer");
+  });
+
+  it("normalizes production smoke report", () => {
+    const normalized = normalizeProductionSmokeV2({
+      contract_version: "platform.production_smoke.v1",
+      status: "warning",
+      summary: {
+        total: 2,
+        passed: 1,
+        failed: 1,
+        critical_failed: 0,
+      },
+      checks: [
+        { id: "widget_platform_onboarding", ok: true, status: "pass", endpoint: "/api/public/widget-config" },
+        { id: "inbox_360", ok: false, status: "warning", endpoint: "/api/v2/inbox/omnichannel" },
+      ],
+      frontend_contract: {
+        render_as: "production_smoke_report",
+      },
+    });
+
+    expect(normalized.contract_version).toBe("platform.production_smoke.v1");
+    expect(normalized.status).toBe("warning");
+    expect(normalized.checks).toHaveLength(2);
+    expect(normalized.checks[1].endpoint).toBe("/api/v2/inbox/omnichannel");
   });
 });
