@@ -20,6 +20,9 @@ export interface RealtimeVoiceFeatures {
 
 export interface RealtimeVoiceCapabilities {
   contract_version?: "realtime.voice_capabilities.v1" | string;
+  enabled?: boolean | null;
+  reason_code?: string | null;
+  action_hint?: string | null;
   provider?: "openai_realtime" | string;
   recommended_model?: string | null;
   fallback_model?: string | null;

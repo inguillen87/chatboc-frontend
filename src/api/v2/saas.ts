@@ -2,6 +2,7 @@ import { panelApi } from '@/api/v2/client';
 import { ApiError } from '@/utils/api';
 import type { ChatExperienceBlock } from '@/types/chat';
 import type { EducationCaseAlias } from '@/types/education';
+import type { RealtimeVoiceCapabilities } from '@/types/realtimeVoice';
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -219,7 +220,29 @@ export interface TenantAdminExperienceV2 {
   lead_capture: UnknownRecord;
   surveys_votings: UnknownRecord;
   marketplace: UnknownRecord;
+  whatsapp: UnknownRecord;
+  whatsapp_experience?: WhatsappExperienceV2 | null;
   education: UnknownRecord;
+  frontend_contract: UnknownRecord;
+  raw: unknown;
+}
+
+export interface WhatsappExperienceV2 {
+  contract_version?: string;
+  request_id?: string;
+  tenant: UnknownRecord;
+  channel: UnknownRecord;
+  enterprise_rules: UnknownRecord;
+  contact_window: UnknownRecord;
+  conversation_intelligence: UnknownRecord & {
+    voice_calls?: {
+      enabled?: boolean;
+      capabilities?: RealtimeVoiceCapabilities | null;
+      raw?: UnknownRecord;
+    };
+  };
+  content_modules: Record<string, UnknownRecord>;
+  tracking: UnknownRecord;
   frontend_contract: UnknownRecord;
   raw: unknown;
 }
@@ -339,7 +362,7 @@ const normalizeExperienceBlocks = (value: unknown): ChatExperienceBlock[] => {
         payload: isRecord(item.payload) ? item.payload : null,
       };
     })
-    .filter((item): item is ChatExperienceBlock => Boolean(item));
+    .filter(Boolean) as ChatExperienceBlock[];
 };
 
 const normalizeAction = (value: unknown, index = 0): SaasAction | null => {
@@ -843,6 +866,11 @@ export const normalizeTenantAdminExperienceV2 = (response: unknown): TenantAdmin
   const source = getSource(response);
   const record = asRecord(source);
   const operations = asRecord(record.operations);
+  const whatsappSource = getFirst(record, ['whatsapp', 'whatsapp_experience', 'widget_whatsapp']);
+  const whatsapp = asRecord(whatsappSource);
+  const normalizedWhatsapp = Object.keys(whatsapp).length
+    ? normalizeWhatsappExperienceV2(whatsapp)
+    : null;
   return {
     contract_version: asString(record.contract_version),
     request_id: asString(record.request_id),
@@ -858,6 +886,8 @@ export const normalizeTenantAdminExperienceV2 = (response: unknown): TenantAdmin
     lead_capture: asRecord(record.lead_capture),
     surveys_votings: asRecord(record.surveys_votings),
     marketplace: asRecord(record.marketplace),
+    whatsapp,
+    whatsapp_experience: normalizedWhatsapp,
     education: asRecord(record.education),
     frontend_contract: asRecord(record.frontend_contract),
     raw: response,
@@ -877,6 +907,53 @@ export const getTenantAdminExperienceV2 = async (tenantSlug?: string | null) => 
     response = await panelApi.get<unknown>('/api/v2/tenant/admin-experience', { tenantSlug });
   }
   return normalizeTenantAdminExperienceV2(response);
+};
+
+export const normalizeWhatsappExperienceV2 = (response: unknown): WhatsappExperienceV2 => {
+  const source = getSource(response);
+  const record = asRecord(source);
+  const intelligence = asRecord(record.conversation_intelligence);
+  const rawVoiceCalls = asRecord(intelligence.voice_calls);
+  const rawCapabilities = rawVoiceCalls.capabilities;
+  const contentModules = asRecord(record.content_modules);
+
+  return {
+    contract_version: asString(record.contract_version),
+    request_id: asString(record.request_id),
+    tenant: asRecord(record.tenant),
+    channel: asRecord(record.channel),
+    enterprise_rules: asRecord(record.enterprise_rules),
+    contact_window: asRecord(record.contact_window),
+    conversation_intelligence: {
+      ...intelligence,
+      voice_calls: {
+        enabled: asBoolean(rawVoiceCalls.enabled),
+        capabilities: isRecord(rawCapabilities) ? (rawCapabilities as RealtimeVoiceCapabilities) : null,
+        raw: rawVoiceCalls,
+      },
+    },
+    content_modules: Object.fromEntries(
+      Object.entries(contentModules).map(([key, value]) => [key, asRecord(value)]),
+    ),
+    tracking: asRecord(record.tracking),
+    frontend_contract: asRecord(record.frontend_contract),
+    raw: response,
+  };
+};
+
+export const getWhatsappExperienceV2 = async (tenantSlug?: string | null) => {
+  const encoded = tenantSlug ? encodeURIComponent(tenantSlug) : null;
+  let response: unknown;
+  try {
+    response = await panelApi.get<unknown>(
+      encoded ? `/api/v2/tenants/${encoded}/whatsapp/experience` : '/api/v2/whatsapp/experience',
+      { tenantSlug },
+    );
+  } catch (error) {
+    if (!shouldFallbackEndpoint(error) || !encoded) throw error;
+    response = await panelApi.get<unknown>('/api/v2/whatsapp/experience', { tenantSlug });
+  }
+  return normalizeWhatsappExperienceV2(response);
 };
 
 export const normalizeSuperadminCommandCenterV2 = (response: unknown): SuperadminCommandCenterV2 => {

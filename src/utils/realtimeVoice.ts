@@ -22,7 +22,9 @@ export const isRealtimeVoiceRenderable = (
   voiceCall?: RealtimeVoiceSupportConfig | null,
   options: { allowCapabilitiesOnly?: boolean } = {},
 ) => {
-  const toolCalling = boolish(capabilities?.features?.tool_calling);
+  if (!capabilities || capabilities.enabled === false) return false;
+
+  const toolCalling = boolish(capabilities.features?.tool_calling);
   const voiceCallEnabled = boolish(voiceCall?.enabled);
 
   if (voiceCall) {
@@ -64,7 +66,7 @@ export const getRealtimeVoiceBadges = (capabilities?: RealtimeVoiceCapabilities 
     badges.push("Resumen por WhatsApp");
   }
   if (boolish(features.human_handoff)) {
-    badges.push("Derivación humana");
+    badges.push("Derivacion humana");
   }
 
   return badges;

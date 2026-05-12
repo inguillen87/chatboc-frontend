@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiClient } from "@/api/client";
-import { getSuperadminExecutiveSummaryV2, getTenantHealthV2 } from "@/api/v2/saas";
+import { getSuperadminCommandCenterV2, getSuperadminExecutiveSummaryV2, getTenantHealthV2 } from "@/api/v2/saas";
 import useRequireRole from "@/hooks/useRequireRole";
 import { Button } from "@/components/ui/button";
 import {
@@ -82,6 +82,7 @@ export default function SuperAdminDashboard() {
   const [whatsappError, setWhatsappError] = useState<string | null>(null);
   const [tenantHealth, setTenantHealth] = useState<any[]>([]);
   const [executiveSummary, setExecutiveSummary] = useState<any | null>(null);
+  const [commandCenter, setCommandCenter] = useState<any | null>(null);
   const [executiveLoading, setExecutiveLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
@@ -139,6 +140,12 @@ export default function SuperAdminDashboard() {
     fetchTenants();
     fetchWhatsappNumbers();
     setExecutiveLoading(true);
+    getSuperadminCommandCenterV2()
+      .then((response) => setCommandCenter(response || null))
+      .catch((commandError) => {
+        console.warn("No se pudo cargar command center v2", commandError);
+        setCommandCenter(null);
+      });
     getSuperadminExecutiveSummaryV2()
       .then((response) => {
         setExecutiveSummary(response || null);
@@ -271,6 +278,10 @@ export default function SuperAdminDashboard() {
     tenantProfile360?.onboarding || {},
   );
   const executiveOverview = executiveSummary?.strategic_overview || {};
+  const commandSummary = commandCenter?.summary || {};
+  const commandTenants = Array.isArray(commandCenter?.tenants?.items) ? commandCenter.tenants.items : [];
+  const commandRiskyTenants = Array.isArray(commandCenter?.tenants?.top_risky) ? commandCenter.tenants.top_risky : [];
+  const tenantCreation = commandCenter?.tenant_creation || {};
   const executiveRealtime = executiveSummary?.realtime || {};
   const executiveRecommendedActions = Array.isArray(
     executiveSummary?.recommended_actions,
@@ -388,13 +399,67 @@ export default function SuperAdminDashboard() {
           </div>
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <SuperAdminStatCard label="Tenants" value={total.toLocaleString("es-AR")} icon={Building2} />
+            <SuperAdminStatCard label="Tenants" value={(commandSummary?.tenants ?? total).toLocaleString?.("es-AR") ?? total.toLocaleString("es-AR")} icon={Building2} />
             <SuperAdminStatCard label="Health rows" value={sortedTenantHealth.length.toLocaleString("es-AR")} icon={Shield} tone="emerald" />
             <SuperAdminStatCard label="Realtime activas" value={executiveRealtime?.active_sessions ?? "—"} icon={Activity} tone="violet" />
             <SuperAdminStatCard label="Acciones sugeridas" value={executiveRecommendedActions.length.toLocaleString("es-AR")} icon={ArrowUpRight} tone="amber" />
           </div>
         </div>
       </div>
+
+      <Card className="overflow-hidden border-muted/60 bg-background/85 shadow-sm backdrop-blur">
+        <CardHeader className="border-b border-border/50 bg-gradient-to-r from-violet-500/5 via-primary/5 to-transparent">
+          <CardTitle>Command center v2</CardTitle>
+          <CardDescription>
+            Bundle canonico desde `/api/v2/superadmin/command-center` para ranking, tenant creation y drilldowns.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 lg:grid-cols-[1fr_1.2fr]">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-2xl border p-4">
+              <div className="text-xs text-muted-foreground">Health promedio</div>
+              <div className="mt-1 text-2xl font-semibold">{formatPercent(commandSummary?.avg_health_score)}</div>
+            </div>
+            <div className="rounded-2xl border p-4">
+              <div className="text-xs text-muted-foreground">Tenants riesgosos</div>
+              <div className="mt-1 text-2xl font-semibold">{commandSummary?.risky_tenants ?? commandRiskyTenants.length ?? "—"}</div>
+            </div>
+            <div className="rounded-2xl border p-4">
+              <div className="text-xs text-muted-foreground">Leads abiertos</div>
+              <div className="mt-1 text-2xl font-semibold">{commandSummary?.open_leads ?? "—"}</div>
+            </div>
+            <div className="rounded-2xl border p-4">
+              <div className="text-xs text-muted-foreground">Crear tenant</div>
+              <div className="mt-1 text-sm font-medium">{tenantCreation?.endpoint || "/api/admin/tenants"}</div>
+            </div>
+          </div>
+          <div className="rounded-2xl border p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <div className="font-semibold">Drilldowns tenant</div>
+              <Badge variant="outline">{commandCenter?.frontend_contract?.render_as || "superadmin_command_center"}</Badge>
+            </div>
+            <div className="grid gap-2">
+              {(commandRiskyTenants.length ? commandRiskyTenants : commandTenants).slice(0, 5).map((tenant: any, index: number) => {
+                const slug = tenant?.slug || tenant?.tenant_slug || tenant?.key;
+                return (
+                  <button
+                    type="button"
+                    key={`${slug || "tenant"}-${index}`}
+                    onClick={() => slug && setSelectedProfileSlug(slug)}
+                    className="flex items-center justify-between rounded-xl border px-3 py-2 text-left text-sm hover:bg-muted/40"
+                  >
+                    <span>{tenant?.display_name || tenant?.name || tenant?.tenant_name || slug || `tenant_${index + 1}`}</span>
+                    <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
+                  </button>
+                );
+              })}
+              {!commandRiskyTenants.length && !commandTenants.length ? (
+                <div className="text-sm text-muted-foreground">Sin tenants en el command center actual.</div>
+              ) : null}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card className="overflow-hidden border-muted/60 bg-background/85 shadow-sm backdrop-blur">
         <CardHeader className="border-b border-border/50 bg-gradient-to-r from-primary/5 via-sky-500/5 to-violet-500/5">

@@ -13,6 +13,7 @@ import ChatMessage from "./ChatMessage";
 import TypingIndicator from "./TypingIndicator";
 import UserTypingIndicator from "./UserTypingIndicator";
 import ChatInput, { ChatInputHandle } from "./ChatInput";
+import RealtimeAvatarStage from "./RealtimeAvatarStage";
 import ScrollToBottomButton from "@/components/ui/ScrollToBottomButton";
 import { useChatLogic } from "@/hooks/useChatLogic";
 import PersonalDataForm from "./PersonalDataForm";
@@ -77,6 +78,7 @@ import {
   WifiOff,
   MessageSquare,
   PhoneCall,
+  Video,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { getInitialMunicipioContext } from "@/utils/contexto_municipio";
@@ -85,10 +87,13 @@ import { getOrCreateAnonId } from "@/utils/anonId";
 import { extractSmartHint } from "@/utils/smartHints";
 import {
   trackFrontendEvent,
-  type FrontendEventName,
 } from "@/utils/frontendTelemetry";
 import type { RealtimeVoiceCapabilities } from "@/types/realtimeVoice";
-import { getRealtimeVoiceBadges, getRealtimeVoiceStarters } from "@/utils/realtimeVoice";
+import {
+  getRealtimeVoiceBadges,
+  getRealtimeVoiceStarters,
+  isRealtimeVoiceRenderable,
+} from "@/utils/realtimeVoice";
 import type { ChatBootstrapConfig } from "@/features/chat/chatTypes";
 
 const PENDING_TICKET_KEY = "pending_ticket_id";
@@ -103,6 +108,14 @@ const REALTIME_TOOL_MESSAGE_TYPES = new Set([
   "CHATBOC_REALTIME_TOOL_CALL",
   "CHATBOC_REALTIME_ACTION",
 ]);
+
+type FrontendEventName =
+  | "realtime_session_started"
+  | "realtime_session_failed"
+  | "realtime_mode_switched"
+  | "avatar_rendered"
+  | "accessibility_caption_enabled"
+  | "business_action_executed";
 
 const readFirstString = (...values: unknown[]) => {
   for (const value of values) {
@@ -483,7 +496,7 @@ const ChatPanel = (props: ChatPanelProps) => {
   const [userTyping, setUserTyping] = useState(false);
   const { isLiveChatEnabled, horariosAtencion, availabilityLabel, timezone } =
     useBusinessHours(propEntityToken, tenantSlug);
-  const socketRef = useRef<SocketIOClient.Socket | null>(null);
+  const socketRef = useRef<ReturnType<typeof io> | null>(null);
 
   const skipAuth = mode === "script";
   const liveChatIsAvailable = Boolean(
@@ -1078,7 +1091,7 @@ const ChatPanel = (props: ChatPanelProps) => {
         const nextStatus = envelope.statusChange?.nextStatus;
         if (!nextStatus) return;
         addSystemMessage(
-          `Estado actualizado: ${String(nextStatus).replaceAll("_", " ")}.`,
+          `Estado actualizado: ${String(nextStatus).replace(/_/g, " ")}.`,
         );
       };
       const handleTicketAssignmentChanged = (payload: any) => {
@@ -1195,18 +1208,13 @@ const ChatPanel = (props: ChatPanelProps) => {
   const videoCallConfig = supportChannels?.video_call;
   const effectiveRealtimeVoice =
     realtimeVoice || voiceCallConfig?.capabilities || null;
-  const realtimeVoiceToolCalling = boolish(
-    effectiveRealtimeVoice?.features?.tool_calling,
-  );
-  const realtimeVoiceContractEnabled =
-    boolish(voiceCallConfig?.enabled) || boolish(realtimeConfig?.voiceEnabled);
-  const realtimeVoiceEnabled = Boolean(
-    effectiveRealtimeVoice
-      ? realtimeVoiceContractEnabled && realtimeVoiceToolCalling
-      : realtimeVoiceContractEnabled,
+  const realtimeVoiceEnabled = isRealtimeVoiceRenderable(
+    effectiveRealtimeVoice,
+    voiceCallConfig,
   );
   const realtimeVideoEnabled = Boolean(
-    boolish(videoCallConfig?.enabled) || boolish(realtimeConfig?.videoEnabled),
+    boolish(videoCallConfig?.enabled) &&
+      boolish(realtimeConfig?.videoEnabled ?? true),
   );
   const realtimeVoiceBadges = useMemo(
     () => getRealtimeVoiceBadges(effectiveRealtimeVoice),
@@ -1348,6 +1356,8 @@ const ChatPanel = (props: ChatPanelProps) => {
   const beginRealtimeSession = useCallback(
     async (mode: "voice" | "video") => {
       if (realtimeSessionRequestRef.current) return;
+      if (mode === "voice" && !realtimeVoiceEnabled) return;
+      if (mode === "video" && !realtimeVideoEnabled) return;
       if (
         sessionState === "connecting" ||
         sessionState === "live" ||
@@ -1359,36 +1369,33 @@ const ChatPanel = (props: ChatPanelProps) => {
       setChannelMode(mode);
       setSessionState("connecting");
       setRealtimeErrorCode(null);
-      try {
-        if (
-          mode === "video" &&
-          typeof navigator !== "undefined" &&
-          navigator.mediaDevices?.getUserMedia
-        ) {
-          try {
-            const stream = await navigator.mediaDevices.getUserMedia({
-              video: true,
-              audio: true,
-            });
-            stream.getTracks().forEach((track) => track.stop());
-          } catch {
-            setChannelMode("voice");
-            setSessionState("reconnecting");
-            emitRealtimeAnalytics("realtime_mode_switched", "voice", {
-              from: "video",
-              to: "voice",
-              reason: "webcam_unavailable",
-            });
-            mode = "voice";
-          }
-        }
 
+      const readRealtimeErrorInfo = (error: unknown) => {
+        const maybeStatus = (error as any)?.status;
+        const maybeBody = (error as any)?.body;
+        const code =
+          typeof maybeStatus === "number" || maybeBody
+            ? String(
+                maybeBody?.reason_code ||
+                  maybeBody?.error ||
+                  maybeBody?.code ||
+                  maybeStatus,
+              )
+            : null;
+        return {
+          status: typeof maybeStatus === "number" ? maybeStatus : null,
+          code,
+          message: getErrorMessage(error, "realtime_session_failed"),
+        };
+      };
+
+      const requestRealtimeSession = async (requestedMode: "voice" | "video") => {
         const payload = await apiFetch<any>("/api/public/realtime/session", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             tenant_slug: tenantSlug,
-            channel: mode,
+            channel: requestedMode,
             model:
               effectiveRealtimeVoice?.recommended_model ||
               realtimeConfig?.model ||
@@ -1431,7 +1438,7 @@ const ChatPanel = (props: ChatPanelProps) => {
         setSessionState("live");
         setAssistantSpeaking(true);
         pushRealtimeTimeline(sessionId, "success");
-        emitRealtimeAnalytics("realtime_session_started", mode, {
+        emitRealtimeAnalytics("realtime_session_started", requestedMode, {
           session_id: sessionId,
           model:
             payload?.model ||
@@ -1442,32 +1449,84 @@ const ChatPanel = (props: ChatPanelProps) => {
         });
 
         if (
-          mode === "video" &&
+          requestedMode === "video" &&
           (payload?.avatar || realtimeConfig?.avatarEnabled)
         ) {
           emitRealtimeAnalytics("avatar_rendered", "video", {
             avatar_type:
               payload?.avatar?.type || realtimeConfig?.avatarType || "robot",
             avatar_persona:
-              payload?.avatar?.persona || realtimeConfig?.avatarPersona || null,
+              payload?.avatar?.persona ||
+              realtimeConfig?.avatarPersona ||
+              null,
           });
         }
+
+        return payload;
+      };
+
+      try {
+        if (
+          mode === "video" &&
+          typeof navigator !== "undefined" &&
+          navigator.mediaDevices?.getUserMedia
+        ) {
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+              video: true,
+              audio: true,
+            });
+            stream.getTracks().forEach((track) => track.stop());
+          } catch {
+            setChannelMode("voice");
+            setSessionState("reconnecting");
+            emitRealtimeAnalytics("realtime_mode_switched", "voice", {
+              from: "video",
+              to: "voice",
+              reason: "webcam_unavailable",
+            });
+            mode = "voice";
+          }
+        }
+
+        await requestRealtimeSession(mode);
       } catch (error) {
+        let errorInfo = readRealtimeErrorInfo(error);
+        const shouldFallbackToVoice =
+          mode === "video" &&
+          realtimeVoiceEnabled &&
+          (errorInfo.status === 400 ||
+            errorInfo.code === "video_realtime_disabled" ||
+            errorInfo.code === "video_disabled" ||
+            errorInfo.code === "webcam_unavailable");
+
+        if (shouldFallbackToVoice) {
+          setChannelMode("voice");
+          setSessionState("reconnecting");
+          setRealtimeErrorCode(errorInfo.code);
+          pushRealtimeTimeline(errorInfo.code || "video_fallback_voice", "warning");
+          emitRealtimeAnalytics("realtime_mode_switched", "voice", {
+            from: "video",
+            to: "voice",
+            reason: errorInfo.code || "video_fallback_voice",
+          });
+          try {
+            await requestRealtimeSession("voice");
+            return;
+          } catch (fallbackError) {
+            errorInfo = readRealtimeErrorInfo(fallbackError);
+          }
+        }
+
         setSessionState("ended");
         setChannelMode("chat");
-        const maybeStatus = (error as any)?.status;
-        const maybeBody = (error as any)?.body;
-        const errorCode =
-          typeof maybeStatus === "number" || maybeBody
-            ? String(maybeBody?.error || maybeBody?.code || maybeStatus)
-            : null;
-        setRealtimeErrorCode(errorCode);
+        setRealtimeErrorCode(errorInfo.code);
         pushRealtimeTimeline(
-          errorCode || getErrorMessage(error, "realtime_session_failed"),
+          errorInfo.code || errorInfo.message,
           "warning",
         );
         emitRealtimeAnalytics("realtime_session_failed", mode, {
-          error: getErrorMessage(error, "realtime_session_failed"),
+          error: errorInfo.message,
         });
       } finally {
         realtimeSessionRequestRef.current = false;
@@ -1478,6 +1537,8 @@ const ChatPanel = (props: ChatPanelProps) => {
       effectiveRealtimeVoice,
       pushRealtimeTimeline,
       realtimeConfig,
+      realtimeVideoEnabled,
+      realtimeVoiceEnabled,
       sessionState,
       tenantSlug,
       videoCallConfig?.model,
@@ -2377,7 +2438,51 @@ const ChatPanel = (props: ChatPanelProps) => {
       />
       {channelMode !== "chat" ? (
         <div className="px-2 sm:px-4 pt-2">
-          <div className={cn(chatContentMaxWidthClass, "rounded-xl border border-border/70 bg-background/90 p-3")}>
+          <div className={cn(chatContentMaxWidthClass, "rounded-2xl border border-border/70 bg-background/90 p-3 shadow-sm")}>
+            <div className="mb-3 grid grid-cols-3 gap-1 rounded-xl border border-border/70 bg-muted/30 p-1">
+              <button
+                type="button"
+                className="rounded-lg px-2 py-1.5 text-xs font-medium text-muted-foreground transition hover:bg-background hover:text-foreground"
+                onClick={() => {
+                  endRealtimeSession();
+                  setChannelMode("chat");
+                }}
+              >
+                Chat
+              </button>
+              <button
+                type="button"
+                disabled={!realtimeVoiceEnabled}
+                className={cn(
+                  "rounded-lg px-2 py-1.5 text-xs font-medium transition disabled:opacity-40",
+                  channelMode === "voice"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:bg-background hover:text-foreground",
+                )}
+                onClick={() => {
+                  if (!realtimeVoiceEnabled) return;
+                  setChannelMode("voice");
+                }}
+              >
+                Llamada
+              </button>
+              <button
+                type="button"
+                disabled={!realtimeVideoEnabled}
+                className={cn(
+                  "rounded-lg px-2 py-1.5 text-xs font-medium transition disabled:opacity-40",
+                  channelMode === "video"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:bg-background hover:text-foreground",
+                )}
+                onClick={() => {
+                  if (!realtimeVideoEnabled) return;
+                  setChannelMode("video");
+                }}
+              >
+                Video
+              </button>
+            </div>
             <div className="mb-3 flex items-center justify-between text-xs text-muted-foreground">
               <span className="inline-flex items-center gap-1">
                 {networkLatency === "good" ? (
@@ -2401,9 +2506,42 @@ const ChatPanel = (props: ChatPanelProps) => {
               </div>
             ) : null}
 
+            <div className="mb-3">
+              <RealtimeAvatarStage
+                mode={channelMode === "video" ? "video" : "voice"}
+                sessionState={sessionState}
+                title={
+                  channelMode === "video"
+                    ? videoCallLabel || "Video"
+                    : voiceCallLabel
+                }
+                avatarType={realtimeConfig?.avatarType || "robot"}
+                avatarPersona={realtimeConfig?.avatarPersona || null}
+                logoUrl={headerLogoUrl || null}
+                captionsEnabled={captionsEnabled}
+                transcript={transcript}
+                isUserSpeaking={isUserSpeaking}
+                assistantSpeaking={assistantSpeaking}
+                isMicMuted={isMicMuted}
+                networkLatency={networkLatency}
+              />
+              {channelMode === "voice" && realtimeVoiceBadges.length > 0 ? (
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {realtimeVoiceBadges.map((badge) => (
+                    <span
+                      key={badge}
+                      className="rounded-md border border-primary/15 bg-primary/5 px-2 py-1 text-[11px] font-medium text-primary"
+                    >
+                      {badge}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+
             <div
               className={cn(
-                "mb-3 rounded-lg border p-3",
+                "hidden",
                 isUserSpeaking
                   ? "border-primary bg-primary/5"
                   : "border-border",
@@ -2487,7 +2625,7 @@ const ChatPanel = (props: ChatPanelProps) => {
               </Button>
             </div>
 
-            {captionsEnabled && transcript.length > 0 ? (
+            {false && captionsEnabled && transcript.length > 0 ? (
               <div className="space-y-1 rounded-md bg-black px-2 py-1 text-xs font-medium text-white">
                 {transcript.map((item) => (
                   <div key={`transcript_${item.id}`} className="opacity-95">
@@ -2806,7 +2944,8 @@ const ChatPanel = (props: ChatPanelProps) => {
             className="w-full mb-2"
             variant="outline"
           >
-            {videoCallLabel || ""}
+            <Video className="mr-2 h-4 w-4" />
+            {videoCallLabel || "Video"}
           </Button>
         ) : null}
         {sessionState === "ended" ? (

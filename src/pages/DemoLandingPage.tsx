@@ -166,7 +166,6 @@ const DemoLandingPage = () => {
   const showRealtimeVoice = isRealtimeVoiceRenderable(
     effectiveRealtimeVoice,
     voiceCallConfig,
-    { allowCapabilitiesOnly: !voiceCallConfig },
   );
 
   useEffect(() => {

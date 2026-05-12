@@ -16,6 +16,7 @@ import { es } from 'date-fns/locale';
 import { motion } from 'framer-motion';
 
 import { TenantShell } from '@/components/tenant/TenantShell';
+import TenantAdminOperatingSystem from '@/components/admin/TenantAdminOperatingSystem';
 import { listTenantEvents, listTenantNews } from '@/api/tenant';
 import { listPublicSurveys, type PublicSurveyListResult } from '@/api/encuestas';
 import { useTenant } from '@/context/TenantContext';
@@ -27,8 +28,6 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { getErrorMessage } from '@/utils/api';
 import type { TenantEventItem, TenantNewsItem } from '@/types/tenant';
-import BusinessMetrics from '@/pages/BusinessMetrics';
-import EstadisticasPage from '@/pages/EstadisticasPage';
 
 const formatDate = (value?: string | null) => {
   if (!value) return null;
@@ -431,17 +430,9 @@ const TenantHomePage = () => {
   }, [user]);
 
   if (hasAdminAccess) {
-    if (tenant?.tipo === 'municipio') {
-      return (
-        <TenantShell>
-          <EstadisticasPage />
-        </TenantShell>
-      );
-    }
-
     return (
       <TenantShell>
-        <BusinessMetrics />
+        <TenantAdminOperatingSystem tenantSlug={tenant?.slug ?? null} />
       </TenantShell>
     );
   }
