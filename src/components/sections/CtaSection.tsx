@@ -17,7 +17,7 @@ const CtaSection = () => {
             Listo para convertir atención, ventas y soporte en una operación más inteligente
           </h2>
           <p className="mx-auto mt-5 max-w-3xl text-base leading-7 text-muted-foreground md:text-lg">
-            Probá una demo, hablá con un asesor o creá tu cuenta para empezar con una experiencia conectada al backend desde el primer paso.
+            Probá una demo, hablá con un asesor o creá tu cuenta para empezar con una experiencia simple, clara y lista para operar.
           </p>
 
           <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">

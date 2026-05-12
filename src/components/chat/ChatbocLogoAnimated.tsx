@@ -3,6 +3,20 @@
 import React from "react";
 import { motion } from "framer-motion";
 
+import { CHATBOC_ORBIT_AVATAR } from "@/utils/brandAssets";
+
+interface ChatbocLogoAnimatedProps {
+  size?: number;
+  smiling?: boolean;
+  movingEyes?: boolean;
+  blinking?: boolean;
+  floating?: boolean;
+  pulsing?: boolean;
+  style?: React.CSSProperties;
+  src?: string | null;
+  animation?: string;
+}
+
 const ChatbocLogoAnimated = ({
   size = 48,
   smiling = false,
@@ -13,57 +27,37 @@ const ChatbocLogoAnimated = ({
   style = {},
   src,
   animation,
-}) => {
-  const actualSize = Math.max(size, 1); // Asegurar que el tamaño no sea 0 o negativo
+}: ChatbocLogoAnimatedProps) => {
+  const actualSize = Math.max(size, 1);
+  const resolvedSrc = src || CHATBOC_ORBIT_AVATAR;
+  const isChatbocAvatar = resolvedSrc === CHATBOC_ORBIT_AVATAR;
 
   const getAnimationString = (anim: string | undefined) => {
-    if (!anim || anim === 'none') return undefined;
-    if (anim === 'pulse') return 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite';
-    if (anim === 'bounce') return 'bounce 1s infinite';
-    if (anim === 'fade') return 'fade-in 1s ease-out forwards';
+    if (!anim || anim === "none") return undefined;
+    if (anim === "pulse") return "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite";
+    if (anim === "bounce") return "bounce 1s infinite";
+    if (anim === "fade") return "fade-in 1s ease-out forwards";
     return anim;
   };
 
   const animationStyle = getAnimationString(animation);
 
-  if (src) {
-    return (
-      <img
-        src={src}
-        alt="Logo"
-        style={{
-          width: actualSize,
-          height: actualSize,
-          borderRadius: "50%",
-          animation: animationStyle,
-          objectFit: "cover",
-          ...style,
-        }}
-      />
-    );
-  }
-
-  const eyeBaseY = 24;
-  const leftEyeX = movingEyes ? 19 : 18;
-  const rightEyeX = movingEyes ? 37 : 38;
-
-  const mouthPath = smiling
-    ? "M18,35 Q28,46 38,35"
-    : "M20,36 Q28,40 36,36";
-
   return (
-    <motion.div
+    <motion.span
+      aria-hidden="true"
       style={{
         width: actualSize,
         height: actualSize,
         position: "relative",
-        display: "inline-block",
+        display: "inline-grid",
+        placeItems: "center",
+        borderRadius: "50%",
         ...style,
       }}
       animate={{
-        rotate: smiling ? [0, 5, -5, 5, -5, 0] : 0,
+        rotate: smiling ? [0, 3, -3, 2, -2, 0] : 0,
         y: floating ? [0, -3, 0, 1, 0] : 0,
-        scale: pulsing ? [1, 1.03, 1] : 1,
+        scale: pulsing ? [1, 1.035, 1] : 1,
       }}
       transition={{
         rotate: smiling ? { duration: 0.7, ease: "easeInOut" } : {},
@@ -86,66 +80,27 @@ const ChatbocLogoAnimated = ({
       }}
     >
       <img
-        src="/favicon/favicon-512x512.png"
-        alt="Chatboc"
+        src={resolvedSrc}
+        alt=""
         style={{
           width: actualSize,
           height: actualSize,
           display: "block",
+          borderRadius: "50%",
+          animation: animationStyle,
+          objectFit: isChatbocAvatar ? "contain" : "cover",
+          filter: isChatbocAvatar ? "drop-shadow(0 8px 18px rgba(15, 76, 220, 0.18))" : undefined,
         }}
         draggable={false}
       />
-      <motion.svg
-        width={actualSize}
-        height={actualSize}
-        viewBox="0 0 56 56"
-        style={{
-          position: "absolute",
-          left: 0,
-          top: 0,
-          pointerEvents: "none",
-        }}
-      >
-        {/* Ojos */}
-        <motion.circle
-          r={3.5}
-          fill="#FFFFFF"
-          initial={{ cx: leftEyeX ?? 18, cy: eyeBaseY ?? 24 }}
-          animate={{ cx: leftEyeX ?? 18, cy: eyeBaseY ?? 24 }}
-          transition={
-            blinking
-              ? { repeat: Infinity, duration: 0.1, repeatDelay: Math.random() * 5 + 3, ease: "easeOut" }
-              : movingEyes
-              ? { repeat: Infinity, duration: 2.2, ease: "easeInOut", delay: Math.random() * 0.5 }
-              : { duration: 0.2 }
-          }
-          style={{ transformOrigin: "center" }}
+      {isChatbocAvatar && (movingEyes || blinking) ? (
+        <motion.span
+          className="pointer-events-none absolute inset-0 rounded-full"
+          animate={{ opacity: blinking ? [1, 0.82, 1] : 1, x: movingEyes ? [0, 1.5, -1, 0] : 0 }}
+          transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
         />
-        <motion.circle
-          r={3.5}
-          fill="#FFFFFF"
-          initial={{ cx: rightEyeX ?? 38, cy: eyeBaseY ?? 24 }}
-          animate={{ cx: rightEyeX ?? 38, cy: eyeBaseY ?? 24 }}
-          transition={
-            blinking
-              ? { repeat: Infinity, duration: 0.1, repeatDelay: Math.random() * 5 + 3.1, ease: "easeOut" }
-              : movingEyes
-              ? { repeat: Infinity, duration: 2.2, ease: "easeInOut", delay: Math.random() * 0.5 + 0.1 }
-              : { duration: 0.2 }
-          }
-          style={{ transformOrigin: "center" }}
-        />
-        {/* Boca */}
-        <motion.path
-          d={mouthPath}
-          stroke="#FFFFFF"
-          strokeWidth={2.5}
-          strokeLinecap="round"
-          fill="none"
-          transition={{ d: { duration: 0.25, ease: "easeInOut" } }}
-        />
-      </motion.svg>
-    </motion.div>
+      ) : null}
+    </motion.span>
   );
 };
 

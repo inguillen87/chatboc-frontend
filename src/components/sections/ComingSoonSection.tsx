@@ -9,7 +9,7 @@ const futureSolutions = [
     icon: ShoppingCart,
     title: "ChatPOS",
     description:
-      "Punto de atención y venta para operar pedidos, servicios, pagos y seguimiento desde una interfaz simple.",
+      "Punto de atención y venta para operar pedidos, servicios, pagos y seguimiento desde una pantalla simple.",
     imageSrc: "/images/chatpos.png",
     imageAlt: "Vista de ChatPOS",
     demoLink: "/chatpos",
@@ -21,7 +21,7 @@ const futureSolutions = [
     icon: Users,
     title: "ChatCRM",
     description:
-      "Gestión de relaciones, conversaciones, perfiles y campañas conectadas a los datos reales de cada tenant.",
+      "Gestión de relaciones, conversaciones, perfiles y campañas conectadas a los datos reales de cada organización.",
     imageSrc: "/images/chatcrm.png",
     imageAlt: "Vista de ChatCRM",
     demoLink: "/chatcrm",
@@ -38,8 +38,8 @@ const ComingSoonSection = () => {
           <div className="chatboc-section-kicker mb-4">Ecosistema</div>
           <h2 className="chatboc-section-heading">Módulos preparados para ampliar la operación</h2>
           <p className="chatboc-section-copy mt-4">
-            La plataforma crece con herramientas especializadas, pero mantiene una base común de identidad, tenant,
-            conversaciones y contratos.
+            La plataforma crece con herramientas especializadas, pero mantiene una base común de identidad, conversaciones,
+            seguimiento y datos útiles para decidir.
           </p>
         </div>
 

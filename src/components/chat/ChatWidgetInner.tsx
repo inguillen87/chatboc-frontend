@@ -27,7 +27,7 @@ import { hexToHsl, getContrastColorHsl } from "@/utils/color";
 import { apiClient } from "@/api/client";
 import { esRubroPublico } from "@/utils/chatEndpoints";
 import { getChatbocBotAvatar } from "@/utils/brandAssets";
-import { createDemoSession } from "@/features/demo/demoApi";
+import { createDemoSession, createLocalDemoSession } from "@/features/demo/demoApi";
 import { DEMO_SECTOR_GROUPS } from "@/data/demoHierarchy";
 
 // Use constants from new file
@@ -84,6 +84,7 @@ function buildPlatformWidgetFallbackConfig() {
       nombre: "Chatboc",
       white_label: false,
     },
+    local_demo_mode: true,
     onboarding: {
       contract_version: "public.widget_onboarding.v1",
       mode: "platform_sector_selector",
@@ -203,6 +204,14 @@ function sanitizeTenantSlug(slug?: string | null) {
     const lowered = trimmed.toLowerCase();
 
     if (TENANT_PLACEHOLDER_SLUGS.has(lowered)) return null;
+    if (
+      lowered === "localhost" ||
+      lowered === "::1" ||
+      /^\d+$/.test(lowered) ||
+      /^\d{1,3}(?:\.\d{1,3}){3}$/.test(lowered)
+    ) {
+      return null;
+    }
 
     return trimmed;
   } catch (e) {
@@ -282,13 +291,13 @@ function ChatWidgetInner({
   fontFamily,
 }: ChatWidgetProps) {
   const CHATBOC_WIDGET_ANIMATED =
-    "/chatboc_frontend_pack/branding/chatboc/widget/chatboc-widget-launcher-mini-animated.svg";
+    "/chatboc_frontend_pack/branding/chatboc/avatar/chatboc-orbit-avatar.svg";
   const CHATBOC_WIDGET_STATIC =
-    "/chatboc_frontend_pack/branding/chatboc/widget/chatboc-widget-launcher-mini-static.svg";
+    "/chatboc_frontend_pack/branding/chatboc/avatar/chatboc-orbit-reference.png";
   const CHATBOC_WIDGET_PNG_FALLBACK =
-    "/chatboc_frontend_pack/branding/chatboc/widget/chatboc-widget-launcher-mini-animated_96.png";
+    "/chatboc_frontend_pack/branding/chatboc/avatar/chatboc-orbit-reference.png";
   const CHATBOC_WIDGET_FALLBACK =
-    "/chatboc_frontend_pack/branding/chatboc/navbar/chatboc-navbar-mark-circle.svg";
+    "/chatboc_frontend_pack/branding/chatboc/avatar/chatboc-orbit-avatar.svg";
   const DEFAULT_WIDGET_UX = {
     preset: 'premium',
     motionLevel: 'balanced',
@@ -611,6 +620,8 @@ function ChatWidgetInner({
   const headerSubtitle = isEmbedded ? (welcomeSubtitle || derivedEntitySubtitle) : welcomeSubtitle;
 
   const tenantSlugFromEntity = useMemo(() => {
+    if (entityInfo?.onboarding?.mode === "demo_session") return null;
+
     const candidates = [
       entityInfo?.slug,
       entityInfo?.slug_publico,
@@ -1235,11 +1246,17 @@ function ChatWidgetInner({
     setPlatformSelectionLoadingId(optionId);
     setPlatformSelectionError(null);
     try {
-      const session = await createDemoSession({
-        sector,
-        tenant_slug: tenantSlug || null,
-        rubro,
-      });
+      const session = entityInfo?.local_demo_mode
+        ? createLocalDemoSession({
+            sector,
+            tenant_slug: tenantSlug || null,
+            rubro,
+          })
+        : await createDemoSession({
+            sector,
+            tenant_slug: tenantSlug || null,
+            rubro,
+          });
       const workspace = session.workspace || {};
       const demoTenantSlug = session.tenant_slug || session.tenant?.slug || tenantSlug || null;
       const bootstrapPayload = workspace.chat_bootstrap?.payload || {};
@@ -1286,7 +1303,39 @@ function ChatWidgetInner({
       setResolvedTipoChat(nextTipo);
       setChatPanelResetKey((current) => current + 1);
     } catch (error) {
-      setPlatformSelectionError(getErrorMessage(error, "No se pudo iniciar la demo."));
+      const session = createLocalDemoSession({
+        sector,
+        tenant_slug: tenantSlug || null,
+        rubro,
+      });
+      const workspace = session.workspace || {};
+      const demoTenantSlug = session.tenant_slug || session.tenant?.slug || tenantSlug || null;
+      const nextTipo = sector === "gobierno" ? "municipio" : "pyme";
+      setEntityInfo({
+        ...(entityInfo || {}),
+        ...workspace,
+        tenant: session.tenant || entityInfo?.tenant || null,
+        slug: demoTenantSlug || entityInfo?.slug || null,
+        tenant_slug: demoTenantSlug,
+        nombre_empresa: workspace.title || session.tenant?.nombre || entityInfo?.nombre_empresa || "Chatboc",
+        tipo_chat: nextTipo,
+        rubro: rubro || entityInfo?.rubro || null,
+        rubro_clave: rubro || entityInfo?.rubro_clave || null,
+        quick_menu: workspace.quick_replies || [],
+        onboarding: {
+          ...(entityInfo?.onboarding || {}),
+          mode: "demo_session",
+        },
+        chat_bootstrap: null,
+        local_demo_mode: true,
+        media_capabilities: workspace.media_capabilities || entityInfo?.media_capabilities || null,
+        conversion_ctas: workspace.conversion_ctas || entityInfo?.conversion_ctas || null,
+        animation_tokens: workspace.animation_tokens || entityInfo?.animation_tokens || null,
+      });
+      setActiveDemoTenantSlug(demoTenantSlug);
+      setSelectedRubro(extractRubroKey(rubro) ?? null);
+      setResolvedTipoChat(nextTipo);
+      setChatPanelResetKey((current) => current + 1);
     } finally {
       setPlatformSelectionLoadingId(null);
     }
@@ -1814,7 +1863,9 @@ function ChatWidgetInner({
   useEffect(() => {
     let isActive = true;
     const loadCatalogInfo = async () => {
-      if (!chatTenantSlug) {
+      const isDemoSession = entityInfo?.onboarding?.mode === "demo_session" || entityInfo?.local_demo_mode === true;
+      const isPlatformTenant = chatTenantSlug === "chatboc-platform";
+      if (!chatTenantSlug || isDemoSession || isPlatformTenant) {
         setCatalogInfo(null);
         return;
       }
@@ -1834,7 +1885,7 @@ function ChatWidgetInner({
     return () => {
       isActive = false;
     };
-  }, [chatTenantSlug]);
+  }, [chatTenantSlug, entityInfo?.local_demo_mode, entityInfo?.onboarding?.mode]);
 
   useEffect(() => {
     if (!isProfileLoading) return;
@@ -2252,7 +2303,6 @@ function ChatWidgetInner({
                   aria-hidden="true"
                   loading="eager"
                   decoding="async"
-                  fetchPriority="high"
                   className="h-full w-full object-contain drop-shadow-[0_4px_10px_rgba(0,35,110,0.18)]"
                   animate={
                     !isOpen && !prefersReducedMotion

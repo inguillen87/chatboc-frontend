@@ -12,6 +12,13 @@ const readBlockTitle = (block: { title?: string | null; label?: string | null; t
 const readBlockDetail = (block: { detail?: string | null; description?: string | null; subtitle?: string | null }) =>
   block.detail || block.description || block.subtitle || null;
 
+const readSectorLabel = (sector?: DemoSector | null) => {
+  if (sector === 'educacion') return 'Colegios';
+  if (sector === 'gobierno') return 'Gobiernos';
+  if (sector === 'empresas') return 'Empresas';
+  return sector ? String(sector) : null;
+};
+
 export default function DemoWorkspace({
   tenantSlug,
   sector,
@@ -52,15 +59,15 @@ export default function DemoWorkspace({
     <div className="space-y-4 rounded-2xl border border-border/70 bg-card/70 p-4 shadow-sm backdrop-blur">
       <div className="flex flex-col gap-3 border-b border-border/60 pb-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">Demo workspace</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">Demo interactiva</p>
           <h2 className="text-xl font-semibold">
-            {workspace?.title || rubro || 'Demo Workspace'} {tenantSlug ? <span className="text-sm text-muted-foreground">({tenantSlug})</span> : null}
+            {workspace?.title || rubro || 'Demo Chatboc'}
           </h2>
         </div>
         <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-          {sector ? <span className="rounded-full bg-muted px-3 py-1">{sector}</span> : null}
-          {workspace?.media_capabilities ? <span className="rounded-full bg-muted px-3 py-1">multimodal</span> : null}
-          {workspace?.chat_bootstrap?.endpoint ? <span className="rounded-full bg-muted px-3 py-1">chat backend</span> : null}
+          {sector ? <span className="rounded-full bg-muted px-3 py-1">{readSectorLabel(sector)}</span> : null}
+          {workspace?.media_capabilities ? <span className="rounded-full bg-muted px-3 py-1">texto, voz y adjuntos</span> : null}
+          {workspace?.chat_bootstrap?.endpoint ? <span className="rounded-full bg-muted px-3 py-1">chat listo</span> : null}
         </div>
       </div>
 

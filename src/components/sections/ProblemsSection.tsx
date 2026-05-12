@@ -24,7 +24,7 @@ const problemsData = [
     title: "Configuración difícil de mantener",
     description:
       "Los flujos rígidos envejecen rápido. Cada cambio de trámite, producto o política obliga a tocar reglas y pantallas.",
-    outcome: "La UI se adapta al contrato que manda el backend.",
+    outcome: "La experiencia cambia sin rehacer pantallas.",
   },
   {
     icon: Store,
@@ -37,8 +37,8 @@ const problemsData = [
     icon: SearchX,
     title: "Datos que llegan tarde",
     description:
-      "Sin freshness, mapas accionables ni métricas por fuente, los paneles muestran ceros ambiguos o información vieja.",
-    outcome: "Analytics y mapas distinguen datos frescos, degradados o vacíos.",
+      "Sin estado actualizado, mapas accionables ni métricas por fuente, los paneles muestran ceros ambiguos o información vieja.",
+    outcome: "Métricas y mapas distinguen lo nuevo, lo pendiente y lo resuelto.",
   },
   {
     icon: MessageSquareX,
@@ -52,7 +52,7 @@ const problemsData = [
     title: "Operación sin prioridad",
     description:
       "Los equipos ven listas largas, pero no saben qué caso impacta más, qué fuente está caída o qué acción desbloquea valor.",
-    outcome: "Action center, SLA, cobertura y alertas ordenan el trabajo diario.",
+    outcome: "Prioridades, tiempos y alertas ordenan el trabajo diario.",
   },
 ];
 
@@ -62,7 +62,7 @@ const diagnosticRows = [
   { label: "Riesgo operativo visible", value: "41%", width: "41%", tone: "bg-amber-500" },
 ];
 
-const flowNodes = ["Entrada", "Contrato", "Acción", "Seguimiento"];
+const flowNodes = ["Entrada", "Opciones", "Acción", "Seguimiento"];
 
 const ProblemsSection = () => {
   return (
@@ -120,7 +120,7 @@ const ProblemsSection = () => {
                     {index === 0
                       ? "Chat, voz, web o WhatsApp."
                       : index === 1
-                        ? "Backend define opciones."
+                        ? "Chatboc propone opciones."
                         : index === 2
                           ? "Ticket, pedido o lead."
                           : "Estado y trazabilidad."}

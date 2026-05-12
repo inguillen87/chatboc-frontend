@@ -82,6 +82,7 @@ function AppRoutes() {
     "/user/register",
     "/cuenta",
     '/chat',
+    "/tracking",
     "/integracion",
     "/admin"
   ];

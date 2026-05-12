@@ -8,14 +8,14 @@ const targetGroups = [
     title: "Gobierno y territorio",
     description:
       "Atención ciudadana, trámites, reclamos, encuestas, mapas y participación con trazabilidad para equipos públicos.",
-    points: ["Portal de servicios", "Tickets y SLA", "Mapas y votaciones"],
+    points: ["Portal de servicios", "Tickets y tiempos", "Mapas y votaciones"],
   },
   {
     icon: Briefcase,
     title: "Empresas y comercios",
     description:
-      "Ventas asistidas, soporte, catálogo, leads, checkout, recompensas y seguimiento sin romper la conversación.",
-    points: ["Widget y WhatsApp", "Marketplace y pagos", "CRM operativo"],
+      "Ventas asistidas, soporte, catálogo, leads, cobros, recompensas y seguimiento sin romper la conversación.",
+    points: ["Web y WhatsApp", "Marketplace y pagos", "CRM operativo"],
   },
   {
     icon: GraduationCap,
@@ -43,8 +43,7 @@ const TargetSection = () => {
           <div className="chatboc-section-kicker mb-4">Sectores</div>
           <h2 className="chatboc-section-heading">Una base común para verticales distintas</h2>
           <p className="chatboc-section-copy mt-4">
-            La plataforma conserva el mismo núcleo operativo y deja que el backend adapte la experiencia por tenant, vertical,
-            permisos y capacidades disponibles.
+            La plataforma conserva una misma forma de operar y se adapta a cada organización, equipo, permiso y canal disponible.
           </p>
         </div>
 

@@ -65,7 +65,7 @@ const DemoHero = ({
             )}
           </div>
 
-          <Badge variant="outline" className="mb-5 rounded-[8px] border-primary/20 bg-primary/5 px-4 py-1.5 text-primary">
+          <Badge className="mb-5 rounded-[8px] border border-primary/20 bg-primary/5 px-4 py-1.5 text-primary hover:bg-primary/5">
             Demo interactiva
           </Badge>
           <h1 className="mx-auto max-w-4xl text-4xl font-bold leading-tight tracking-normal md:text-6xl">{tenant.nombre}</h1>
@@ -252,10 +252,10 @@ const DemoLandingPage = () => {
         </div>
 
         <div className="mx-auto mb-12 max-w-3xl text-center">
-          <div className="chatboc-section-kicker mb-4">Tecnología visible</div>
+          <div className="chatboc-section-kicker mb-4">Experiencia conectada</div>
           <h2 className="chatboc-section-heading">La conversación y el panel se actualizan juntos</h2>
           <p className="chatboc-section-copy mt-4">
-            Esta demo mantiene el tenant activo, abre el widget y muestra cómo la experiencia pública conversa con datos y módulos operativos.
+            Esta demo abre el widget, muestra el recorrido del usuario y deja ver cómo cada consulta puede convertirse en seguimiento, venta o atención.
           </p>
         </div>
 
@@ -272,19 +272,19 @@ const DemoLandingPage = () => {
           />
           <FeatureCard
             icon={<ShieldCheck className="h-6 w-6" />}
-            title="Contratos estables"
-            desc="La UI consume datos del backend y evita personalizaciones locales que rompan el modelo white label."
+            title="Experiencia consistente"
+            desc="La marca, los mensajes y las acciones se mantienen ordenados en web, chat y panel."
           />
         </div>
 
         {hasContent ? (
           <section className="mb-20">
             <div className="mb-10 text-center">
-              <Badge variant="secondary" className="mb-3 rounded-[8px]">
+              <Badge className="mb-3 rounded-[8px] border-transparent bg-secondary text-secondary-foreground hover:bg-secondary">
                 Portal público
               </Badge>
               <h2 className="text-3xl font-bold tracking-normal">Novedades de {tenant.nombre}</h2>
-              <p className="mt-3 text-muted-foreground">Contenido cargado desde la plataforma para este tenant.</p>
+              <p className="mt-3 text-muted-foreground">Contenido publicado para esta organización.</p>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -342,14 +342,14 @@ const DemoLandingPage = () => {
 
         <section id="demo-interactive-section" className="mb-20 scroll-mt-24">
           <div className="mb-10 text-center">
-            <Badge variant="secondary" className="mb-3 rounded-[8px]">
+            <Badge className="mb-3 rounded-[8px] border-transparent bg-secondary text-secondary-foreground hover:bg-secondary">
               Experiencia de usuario
             </Badge>
             <h2 className="text-3xl font-bold tracking-normal">{isMunicipio ? "Participación ciudadana" : "Catálogo digital inteligente"}</h2>
             <p className="mx-auto mt-3 max-w-2xl text-muted-foreground">
               {isMunicipio
                 ? "Vista de referencia para probar una votación simple conectada a la experiencia del portal."
-                : "Vista de referencia para explorar catálogo, carrito y feedback contextual dentro del tenant."}
+                : "Vista de referencia para explorar catálogo, carrito y feedback contextual dentro de la organización."}
             </p>
           </div>
 
@@ -391,7 +391,7 @@ const DemoLandingPage = () => {
                   )}
                 </div>
                 <div className="flex flex-col items-center justify-center bg-background p-6 text-center">
-                  <Badge variant="outline" className="mb-3 rounded-[8px]">
+                  <Badge className="mb-3 rounded-[8px] border border-border bg-background text-foreground hover:bg-background">
                     Feedback
                   </Badge>
                   <h4 className="text-lg font-semibold">Encuestas contextuales</h4>
@@ -411,8 +411,8 @@ const DemoLandingPage = () => {
               <h2 className="text-3xl font-bold tracking-normal">Activá una experiencia similar para tu organización</h2>
               <ul className="mt-6 space-y-3 text-muted-foreground">
                 {[
-                  "Configuración guiada y compatible con contratos actuales",
-                  "Widget, panel y canales conectados al tenant",
+                  "Configuración guiada para salir rápido",
+                  "Widget, panel y canales conectados a tu organización",
                   "Soporte para evolución por etapas",
                   "Integración progresiva con sistemas existentes",
                 ].map((item) => (
@@ -433,7 +433,7 @@ const DemoLandingPage = () => {
               </div>
               <h3 className="text-xl font-semibold">Panel y agente en el mismo circuito</h3>
               <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                Conversaciones, contenido, acciones y métricas se sostienen desde una base común para evitar experiencias duplicadas.
+                Conversaciones, contenido, acciones y métricas avanzan juntas para que el equipo trabaje con contexto.
               </p>
               <Button variant="outline" size="sm" className="mt-5 rounded-[8px]" onClick={openWidget}>
                 Abrir chat
@@ -454,7 +454,7 @@ const DemoLandingPage = () => {
             <span className="font-bold">Chatboc</span>
           </div>
           <p className="mx-auto max-w-lg text-sm text-muted-foreground">
-            Plataforma de agentes IA para operar conversaciones, ventas y servicios con contratos estables.
+            Plataforma de agentes IA para operar conversaciones, ventas y servicios con experiencias simples y medibles.
           </p>
           <div className="mt-6 text-xs text-muted-foreground/70">
             © {new Date().getFullYear()} Chatboc Technologies. Todos los derechos reservados.

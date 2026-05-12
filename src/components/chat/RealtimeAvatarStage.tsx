@@ -1,6 +1,7 @@
-import { Bot, Captions, Mic, MicOff, Radio, Video } from "lucide-react";
+import { Captions, Mic, MicOff, Radio, Video } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { CHATBOC_ORBIT_AVATAR } from "@/utils/brandAssets";
 
 export type RealtimeChannelMode = "voice" | "video";
 export type RealtimeSessionState =
@@ -53,6 +54,7 @@ export default function RealtimeAvatarStage({
   const avatarLabel = readAvatarText(avatarPersona, readAvatarText(avatarType, "robot"));
   const latestTranscript = transcript.slice(-2);
   const isLive = sessionState === "live";
+  const avatarSrc = logoUrl || CHATBOC_ORBIT_AVATAR;
 
   return (
     <div className="overflow-hidden rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/10 via-background to-background shadow-sm">
@@ -96,16 +98,12 @@ export default function RealtimeAvatarStage({
                 : "border-border",
           )}
         >
-          {logoUrl ? (
-            <img
-              src={logoUrl}
-              alt=""
-              className="h-14 w-14 rounded-2xl object-cover"
-              draggable={false}
-            />
-          ) : (
-            <Bot className="h-12 w-12 text-primary" />
-          )}
+          <img
+            src={avatarSrc}
+            alt=""
+            className="h-16 w-16 rounded-2xl object-contain drop-shadow-[0_8px_18px_rgba(37,99,235,0.22)]"
+            draggable={false}
+          />
           {isLive ? (
             <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border border-background bg-emerald-500">
               <span className="h-2 w-2 animate-ping rounded-full bg-white" />

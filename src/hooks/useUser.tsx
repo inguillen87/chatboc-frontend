@@ -56,13 +56,23 @@ const shouldLogUserWarnings = () => {
   return Boolean(metaEnv?.DEV || metaEnv?.MODE === 'development');
 };
 
-const PLACEHOLDER_SLUGS = new Set(['iframe', 'embed', 'widget', 'e']);
+const PLACEHOLDER_SLUGS = new Set(['iframe', 'embed', 'widget', 'e', 'chatboc-platform']);
 
 const sanitizeTenantSlug = (slug?: string | null) => {
   if (!slug || typeof slug !== 'string') return null;
   const normalized = slug.trim();
   if (!normalized) return null;
-  return PLACEHOLDER_SLUGS.has(normalized.toLowerCase()) ? null : normalized;
+  const lowered = normalized.toLowerCase();
+  if (
+    PLACEHOLDER_SLUGS.has(lowered) ||
+    lowered === 'localhost' ||
+    lowered === '::1' ||
+    /^\d+$/.test(lowered) ||
+    /^\d{1,3}(?:\.\d{1,3}){3}$/.test(lowered)
+  ) {
+    return null;
+  }
+  return normalized;
 };
 
 const deriveTenantSlugFromUrl = (rawUrl?: string | null) => {
@@ -73,7 +83,7 @@ const deriveTenantSlugFromUrl = (rawUrl?: string | null) => {
     const params = url.searchParams;
     const fromQuery = params.get('tenant') || params.get('tenant_slug') || params.get('endpoint');
     if (fromQuery?.trim()) {
-      return fromQuery.trim();
+      return sanitizeTenantSlug(fromQuery);
     }
 
     const segments = url.pathname.split('/').filter(Boolean);
@@ -81,7 +91,7 @@ const deriveTenantSlugFromUrl = (rawUrl?: string | null) => {
       TENANT_ROUTE_PREFIXES.includes(segment.toLowerCase() as typeof TENANT_ROUTE_PREFIXES[number]),
     );
     if (tenantPrefixIndex >= 0 && segments[tenantPrefixIndex + 1]) {
-      return decodeURIComponent(segments[tenantPrefixIndex + 1]);
+      return sanitizeTenantSlug(decodeURIComponent(segments[tenantPrefixIndex + 1]));
     }
   } catch (error) {
     console.warn('[useUser] No se pudo derivar tenantSlug desde URL pública', { rawUrl, error });

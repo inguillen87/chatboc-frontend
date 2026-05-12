@@ -19,7 +19,7 @@ const solutionFeatures = [
     icon: Bot,
     title: "Agentes IA con contexto",
     description:
-      "Responden con lenguaje natural, conservan sesión, entienden intención y usan las acciones que devuelve el backend.",
+      "Responden con lenguaje natural, conservan la conversación, entienden intención y ofrecen pasos claros.",
   },
   {
     icon: ClipboardList,
@@ -29,7 +29,7 @@ const solutionFeatures = [
   },
   {
     icon: ShoppingBag,
-    title: "Comercio y checkout",
+    title: "Comercio y cobros",
     description:
       "Catálogo, carrito, pagos, puntos y estado post-pago integrados sin separar la experiencia de atención.",
   },
@@ -43,20 +43,20 @@ const solutionFeatures = [
     icon: MapPinned,
     title: "Territorio y mapas",
     description:
-      "Mapas de calor y puntos geográficos se renderizan solo cuando el backend confirma que hay datos útiles.",
+      "Mapas de calor y puntos geográficos aparecen cuando hay ubicación útil para decidir mejor.",
   },
   {
     icon: LineChart,
-    title: "Analytics accionable",
+    title: "Métricas accionables",
     description:
-      "KPIs, freshness, SLA, action center y resumen ejecutivo ayudan a priorizar el trabajo de cada equipo.",
+      "Indicadores, tiempos de atención, prioridades y resumen ejecutivo ayudan a ordenar el trabajo.",
   },
 ];
 
 const pipelineSteps = [
   { label: "Resolver", detail: "chat, voz, WhatsApp", tone: "bg-primary" },
   { label: "Registrar", detail: "ticket, lead, pedido", tone: "bg-emerald-500" },
-  { label: "Medir", detail: "SLA, freshness, mapa", tone: "bg-amber-500" },
+  { label: "Medir", detail: "tiempos, estado, mapa", tone: "bg-amber-500" },
 ];
 
 const SolutionSection = () => {
@@ -68,10 +68,10 @@ const SolutionSection = () => {
         <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
           <div className="lg:sticky lg:top-28">
             <div className="chatboc-section-kicker mb-4">La solución</div>
-            <h2 className="chatboc-section-heading">Una plataforma SaaS que conecta frontend, backend y operación real</h2>
+            <h2 className="chatboc-section-heading">Una plataforma SaaS que une atención, ventas y operación real</h2>
             <p className="chatboc-section-copy mt-4">
-              La experiencia visible no vive aislada en React. Chatboc consume contratos estables, muestra estados accionables
-              y mantiene compatibilidad con lo que ya funciona.
+              Chatboc muestra recorridos claros, acciones útiles y continuidad para que cada consulta pueda terminar en una
+              respuesta, una venta, un caso o una derivación humana.
             </p>
 
             <div className="chatboc-landing-panel mt-7 p-4">
@@ -118,15 +118,15 @@ const SolutionSection = () => {
             <article className="chatboc-command-shell chatboc-hover-lift p-5 md:p-6 sm:col-span-2">
               <div className="mb-5 flex items-center justify-between gap-4">
                 <div>
-                  <h3 className="text-lg font-semibold text-foreground">Backend-first por diseño</h3>
-                  <p className="mt-1 text-sm text-muted-foreground">La UI recibe contratos, no inventa experiencias por tenant.</p>
+                  <h3 className="text-lg font-semibold text-foreground">Pensada para operar</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">Cada equipo ve opciones, estados y próximos pasos claros.</p>
                 </div>
                 <div className="rounded-[8px] border border-border/70 bg-background/80 px-3 py-1.5 text-xs font-semibold text-primary">
-                  JSON ready
+                  listo
                 </div>
               </div>
               <div className="grid gap-3 md:grid-cols-3">
-                {["quick_menu", "freshness", "next_best_actions"].map((item, index) => (
+                {["Opciones", "Estado", "Próximas acciones"].map((item, index) => (
                   <div key={item} className="rounded-[8px] border border-border/70 bg-background/75 p-4">
                     <DatabaseZap className="mb-3 h-4 w-4 text-primary" />
                     <p className="text-sm font-semibold text-foreground">{item}</p>

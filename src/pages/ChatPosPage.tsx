@@ -1,6 +1,7 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
+import { CHATBOC_ORBIT_AVATAR } from "@/utils/brandAssets";
 
 const ChatPosPage = () => {
   const whatsappURL = "https://wa.me/2613168608?text=Hola!%20Estoy%20interesado%20en%20probar%20la%20demo%20de%20ChatPos.";
@@ -79,7 +80,7 @@ const ChatPosPage = () => {
             whileInView={{ opacity: 1, rotate: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.6 }}
-            src="/chatboc_widget_64x64.webp"
+            src={CHATBOC_ORBIT_AVATAR}
             alt="Chatboc Widget"
             className="mx-auto w-28 h-28"
           />

@@ -1,11 +1,13 @@
 {
   "package": "chatboc-frontend-branding",
-  "version": "2026-03-26",
+  "version": "2026-05-12-orbit-avatar",
   "recommended": {
-    "navbar_icon": "branding/chatboc/navbar/chatboc-navbar-mark-circle.svg",
-    "navbar_icon_transparent": "branding/chatboc/navbar/chatboc-navbar-mark-clean.svg",
-    "widget_launcher_animated": "branding/chatboc/widget/chatboc-widget-launcher-animated.svg",
-    "widget_launcher_static": "branding/chatboc/widget/chatboc-widget-launcher-static.svg"
+    "avatar_reference": "branding/chatboc/avatar/chatboc-orbit-reference.png",
+    "avatar_svg": "branding/chatboc/avatar/chatboc-orbit-avatar.svg",
+    "navbar_icon": "branding/chatboc/avatar/chatboc-orbit-avatar.svg",
+    "navbar_icon_transparent": "branding/chatboc/avatar/chatboc-orbit-avatar.svg",
+    "widget_launcher_animated": "branding/chatboc/avatar/chatboc-orbit-avatar.svg",
+    "widget_launcher_static": "branding/chatboc/avatar/chatboc-orbit-reference.png"
   },
   "alternates": {
     "navbar_glow": "branding/chatboc/navbar/chatboc-navbar-mark.svg",

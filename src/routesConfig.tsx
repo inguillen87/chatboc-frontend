@@ -86,6 +86,7 @@ import DemoLandingPage from '@/pages/DemoLandingPage';
 import SmartPedidosWrapper from '@/pages/SmartPedidosWrapper';
 import SmartNotificationsWrapper from '@/pages/SmartNotificationsWrapper';
 import OrderTrackingPage from '@/pages/pyme/pedidos/OrderTrackingPage';
+import TrackingExperiencePage from '@/pages/tracking/TrackingExperiencePage';
 import AdminOrderDetailPage from '@/pages/admin/AdminOrderDetailPage';
 import ClientsPage from '@/pages/pyme/crm/ClientsPage';
 import ClientDetailPage from '@/pages/pyme/crm/ClientDetailPage';
@@ -381,6 +382,8 @@ const routes: RouteConfig[] = [
   { path: '/:tenant/pedido/confirmado', element: <LegacyTenantAliasRedirect suffix="/pedido/confirmado" /> },
   // Public Order Tracking
   { path: '/pyme/pedidos/:nro_pedido', element: <OrderTrackingPage /> },
+  { path: '/tracking/claim/:code', element: <TrackingExperiencePage kind="claim" /> },
+  { path: '/tracking/order/:code', element: <TrackingExperiencePage kind="order" /> },
   // Missing root integration route
   { path: '/:tenant/integracion', element: <LegacyTenantAliasRedirect suffix="/integracion" />, roles: ['tenant_admin'] },
 

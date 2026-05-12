@@ -56,10 +56,10 @@ const DemoCatalogDownloadPage = () => {
                     <div className="mt-8 rounded-xl border border-border/70 bg-muted/30 p-4">
                       <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
                         <ShieldCheck className="h-4 w-4 text-success" />
-                        Descarga resiliente
+                        Descarga lista
                       </div>
                       <p className="text-xs leading-6 text-muted-foreground">
-                        Si el servidor no entrega el archivo estatico, Chatboc genera este PDF en tu navegador con el mismo contrato demo.
+                        Chatboc prepara este material al instante para que puedas descargarlo aunque el archivo no venga incluido en la pagina.
                       </p>
                     </div>
                     <Button className="mt-8 h-11 rounded-xl px-5" onClick={handleDownload} disabled={isDownloading}>
@@ -87,4 +87,3 @@ const DemoCatalogDownloadPage = () => {
 };
 
 export default DemoCatalogDownloadPage;
-

@@ -16,31 +16,31 @@ export type DemoCatalogAsset = {
 };
 
 const commonGovernment = {
-  highlights: ["Atencion omnicanal", "Trazabilidad por ticket", "Derivacion humana", "Analytics operativo"],
+  highlights: ["Atencion omnicanal", "Seguimiento por ticket", "Derivacion humana", "Metricas operativas"],
   packages: [
     { name: "Mesa digital", detail: "Consultas, turnos y reclamos basicos.", price: "Demo incluido" },
-    { name: "Operaciones", detail: "SLA, mapas, reportes y action center.", price: "Plan gobierno" },
-    { name: "Omnicanal", detail: "WhatsApp, widget, voz realtime y handoff.", price: "Plan enterprise" },
+    { name: "Operaciones", detail: "Tiempos, mapas, reportes y prioridades.", price: "Plan gobierno" },
+    { name: "Omnicanal", detail: "WhatsApp, chat web, llamadas con IA y derivacion humana.", price: "Plan enterprise" },
   ],
   workflows: ["Crear caso con categoria", "Pedir datos faltantes", "Consultar estado", "Derivar urgencias"],
 };
 
 const commonBusiness = {
-  highlights: ["Catalogo con precios", "Pedidos guiados", "Lead capture", "Resumen por WhatsApp"],
+  highlights: ["Catalogo con precios", "Pedidos guiados", "Contactos calificados", "Resumen por WhatsApp"],
   packages: [
     { name: "Catalogo demo", detail: "Productos, servicios y FAQs comerciales.", price: "Demo incluido" },
-    { name: "Ventas asistidas", detail: "Pedidos, checkout preview y handoff comercial.", price: "Plan pyme" },
-    { name: "Operacion premium", detail: "Analytics, rewards, pagos y voz realtime.", price: "Plan enterprise" },
+    { name: "Ventas asistidas", detail: "Pedidos, cobro guiado y derivacion comercial.", price: "Plan pyme" },
+    { name: "Operacion premium", detail: "Metricas, beneficios, pagos y llamadas con IA.", price: "Plan enterprise" },
   ],
   workflows: ["Consultar disponibilidad", "Crear pedido", "Capturar lead", "Derivar a ventas"],
 };
 
 const commonEducation = {
-  highlights: ["Quick menu escolar", "Adjuntos medico/PDF/audio", "Casos sensibles", "Panel para secretaria"],
+  highlights: ["Menu escolar", "Adjuntos medicos", "Casos sensibles", "Panel para secretaria"],
   packages: [
     { name: "Secretaria digital", detail: "Consultas frecuentes, certificados y comunicados.", price: "Demo incluido" },
     { name: "Familias", detail: "Asistencia, documentos, pagos y admisiones.", price: "Plan colegio" },
-    { name: "Operaciones escolares", detail: "Casos sensibles, heatmap y trazabilidad.", price: "Plan enterprise" },
+    { name: "Operaciones escolares", detail: "Casos sensibles, mapa de actividad y seguimiento.", price: "Plan enterprise" },
   ],
   workflows: ["Justificar inasistencia", "Consultar secretaria", "Adjuntar certificado", "Derivar a preceptoria"],
 };
@@ -52,7 +52,7 @@ export const DEMO_CATALOG_ASSETS: DemoCatalogAsset[] = [
     title: "Municipio inteligente",
     sector: "gobierno",
     href: "/demo-catalogs/municipio.pdf",
-    subtitle: "Atencion ciudadana, reclamos y tramites con IA operativa.",
+    subtitle: "Atencion ciudadana, reclamos y tramites con IA.",
     description: "Catalogo demo para probar reclamos con ubicacion, consulta de estado, turnos, derivacion humana y seguimiento por WhatsApp.",
     questions: ["Quiero iniciar un reclamo por luminaria", "Donde reporto baches con ubicacion?", "Consultar estado del ticket 1234"],
   },
@@ -63,7 +63,7 @@ export const DEMO_CATALOG_ASSETS: DemoCatalogAsset[] = [
     sector: "gobierno",
     href: "/demo-catalogs/concejo-deliberante.pdf",
     subtitle: "Consultas legislativas, expedientes y participacion vecinal.",
-    description: "Experiencia demo para sesiones, proyectos, agenda publica, reclamos vinculados y derivacion a bloque o comision.",
+    description: "Experiencia demo para sesiones, proyectos, agenda publica, reclamos vinculados y derivacion al area correcta.",
   },
   {
     ...commonGovernment,
@@ -72,7 +72,7 @@ export const DEMO_CATALOG_ASSETS: DemoCatalogAsset[] = [
     sector: "gobierno",
     href: "/demo-catalogs/legisladores.pdf",
     subtitle: "Agenda territorial, consultas ciudadanas y seguimiento politico.",
-    description: "Demo para recibir consultas, registrar temas por territorio, priorizar pedidos y mantener trazabilidad.",
+    description: "Demo para recibir consultas, registrar temas por territorio, priorizar pedidos y mantener seguimiento.",
   },
   {
     ...commonGovernment,
@@ -168,7 +168,7 @@ export const DEMO_CATALOG_ASSETS: DemoCatalogAsset[] = [
     sector: "empresas",
     href: "/demo-catalogs/fintech.pdf",
     subtitle: "Onboarding, soporte, reclamos, KYC y operaciones.",
-    description: "Demo para guiar alta de usuario, resolver reclamos y sostener handoff seguro.",
+    description: "Demo para guiar altas, resolver reclamos y derivar casos sensibles.",
   },
   {
     ...commonBusiness,
@@ -185,7 +185,7 @@ export const DEMO_CATALOG_ASSETS: DemoCatalogAsset[] = [
     title: "Industria y energia",
     sector: "empresas",
     href: "/demo-catalogs/industria.pdf",
-    subtitle: "Soporte tecnico, ventas B2B y mantenimiento operativo.",
+    subtitle: "Soporte tecnico, ventas B2B y mantenimiento.",
     description: "Demo para registrar incidencias, pedir adjuntos tecnicos y priorizar operaciones.",
   },
   {
@@ -241,7 +241,7 @@ export const DEMO_CATALOG_ASSETS: DemoCatalogAsset[] = [
     sector: "educacion",
     href: "/demo-catalogs/supervision-escolar.pdf",
     subtitle: "Casos por sede, derivaciones, reportes y seguimiento.",
-    description: "Demo para equipos de supervision con tablero operativo y trazabilidad multi-sede.",
+    description: "Demo para equipos de supervision con tablero operativo y seguimiento multi-sede.",
   },
 ];
 
@@ -257,4 +257,3 @@ export const findDemoCatalogAsset = (slug?: string | null) => {
   if (!normalized) return null;
   return DEMO_CATALOG_ASSETS.find((asset) => normalizeSlug(asset.slug) === normalized) ?? null;
 };
-

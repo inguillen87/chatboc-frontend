@@ -1,0 +1,178 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="cb-orbit-title cb-orbit-desc">
+  <title id="cb-orbit-title">Chatboc animated orbit robot avatar</title>
+  <desc id="cb-orbit-desc">A friendly blue and white Chatboc robot with chat, phone, map and location symbols orbiting around it.</desc>
+  <style>
+    #cb-orbit-bot { transform-origin: 256px 290px; animation: cbFloat 4.8s ease-in-out infinite; }
+    #cb-orbit-hand { transform-origin: 154px 232px; animation: cbWave 2.9s ease-in-out infinite; }
+    #cb-orbit-eye-shine { transform-origin: center; animation: cbBlink 4.8s ease-in-out infinite; }
+    #cb-orbit-stars circle { animation: cbTwinkle 3.8s ease-in-out infinite; }
+    #cb-orbit-stars circle:nth-child(2n) { animation-delay: .55s; }
+    #cb-orbit-stars circle:nth-child(3n) { animation-delay: 1.1s; }
+    #cb-orbit-phone { transform-origin: 410px 233px; animation: cbIconFloat 3.4s ease-in-out infinite; }
+    #cb-orbit-chat { transform-origin: 143px 107px; animation: cbIconFloat 3.9s ease-in-out infinite reverse; }
+    #cb-orbit-location { transform-origin: 112px 330px; animation: cbIconFloat 4.2s ease-in-out infinite; }
+    #cb-orbit-map { transform-origin: 160px 355px; animation: cbIconFloat 4.6s ease-in-out infinite reverse; }
+    #cb-orbit-bars rect { transform-origin: bottom center; animation: cbBars 1.8s ease-in-out infinite; }
+    #cb-orbit-bars rect:nth-child(2n) { animation-delay: .16s; }
+    #cb-orbit-bars rect:nth-child(3n) { animation-delay: .32s; }
+    #cb-orbit-ring { transform-origin: 256px 256px; animation: cbRing 7s linear infinite; }
+    @keyframes cbFloat { 0%,100%{ transform: translateY(0) } 50%{ transform: translateY(-9px) } }
+    @keyframes cbWave { 0%,100%{ transform: rotate(-2deg) } 18%{ transform: rotate(10deg) } 36%{ transform: rotate(-8deg) } 54%{ transform: rotate(7deg) } 72%{ transform: rotate(-3deg) } }
+    @keyframes cbBlink { 0%,92%,100%{ transform: scaleY(1) } 95%{ transform: scaleY(.18) } }
+    @keyframes cbTwinkle { 0%,100%{ opacity:.38; transform: scale(.86) } 50%{ opacity:1; transform: scale(1.2) } }
+    @keyframes cbIconFloat { 0%,100%{ transform: translateY(0) rotate(0deg) } 50%{ transform: translateY(-7px) rotate(2deg) } }
+    @keyframes cbBars { 0%,100%{ transform: scaleY(.5); opacity:.48 } 50%{ transform: scaleY(1); opacity:1 } }
+    @keyframes cbRing { from{ transform: rotate(0deg) } to{ transform: rotate(360deg) } }
+    @media (prefers-reduced-motion: reduce) {
+      #cb-orbit-avatar * { animation: none !important; }
+    }
+  </style>
+  <defs>
+    <radialGradient id="cb-orbit-bg" cx="45%" cy="32%" r="68%">
+      <stop offset="0" stop-color="#69C7FF"/>
+      <stop offset=".42" stop-color="#1458FF"/>
+      <stop offset=".72" stop-color="#07318E"/>
+      <stop offset="1" stop-color="#06174F"/>
+    </radialGradient>
+    <radialGradient id="cb-orbit-sheen" cx="38%" cy="14%" r="74%">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".44"/>
+      <stop offset=".45" stop-color="#FFFFFF" stop-opacity=".08"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="cb-orbit-blue" x1="118" y1="89" x2="360" y2="460" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3F8CFF"/>
+      <stop offset=".5" stop-color="#0D51ED"/>
+      <stop offset="1" stop-color="#062379"/>
+    </linearGradient>
+    <linearGradient id="cb-orbit-blue-side" x1="84" y1="224" x2="182" y2="318" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4BA5FF"/>
+      <stop offset="1" stop-color="#06329E"/>
+    </linearGradient>
+    <linearGradient id="cb-orbit-shell" x1="155" y1="121" x2="364" y2="290" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset=".58" stop-color="#EAF3FF"/>
+      <stop offset="1" stop-color="#BCD6FF"/>
+    </linearGradient>
+    <linearGradient id="cb-orbit-visor" x1="166" y1="174" x2="374" y2="238" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#031B7A"/>
+      <stop offset=".45" stop-color="#063BCE"/>
+      <stop offset="1" stop-color="#021868"/>
+    </linearGradient>
+    <linearGradient id="cb-orbit-yellow" x1="63" y1="71" x2="181" y2="139" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFE56B"/>
+      <stop offset=".52" stop-color="#FFC31F"/>
+      <stop offset="1" stop-color="#EE9E05"/>
+    </linearGradient>
+    <linearGradient id="cb-orbit-green" x1="380" y1="206" x2="464" y2="303" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7CF479"/>
+      <stop offset=".55" stop-color="#19C95F"/>
+      <stop offset="1" stop-color="#07853E"/>
+    </linearGradient>
+    <linearGradient id="cb-orbit-ground" x1="148" y1="434" x2="364" y2="466" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#D9F1FF" stop-opacity=".2"/>
+      <stop offset=".5" stop-color="#FFFFFF" stop-opacity=".58"/>
+      <stop offset="1" stop-color="#7ACEFF" stop-opacity=".14"/>
+    </linearGradient>
+    <filter id="cb-orbit-shadow" x="-30%" y="-30%" width="160%" height="170%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="15" stdDeviation="12" flood-color="#001548" flood-opacity=".32"/>
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#FFFFFF" flood-opacity=".22"/>
+    </filter>
+    <filter id="cb-orbit-glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <clipPath id="cb-orbit-circle">
+      <circle cx="256" cy="256" r="246"/>
+    </clipPath>
+  </defs>
+  <g id="cb-orbit-avatar" clip-path="url(#cb-orbit-circle)">
+    <circle cx="256" cy="256" r="256" fill="url(#cb-orbit-bg)"/>
+    <circle cx="256" cy="256" r="256" fill="url(#cb-orbit-sheen)"/>
+    <g id="cb-orbit-ring" opacity=".55" fill="none" stroke-linecap="round">
+      <circle cx="256" cy="256" r="226" stroke="#9BD8FF" stroke-opacity=".42" stroke-width="1.4" stroke-dasharray="2 14"/>
+      <circle cx="256" cy="256" r="190" stroke="#FFFFFF" stroke-opacity=".18" stroke-width="1" stroke-dasharray="1 18"/>
+    </g>
+    <g id="cb-orbit-stars" fill="#FFFFFF">
+      <circle cx="72" cy="144" r="2.2"/><circle cx="111" cy="64" r="1.6"/><circle cx="186" cy="55" r="2.5"/><circle cx="314" cy="62" r="1.9"/>
+      <circle cx="426" cy="96" r="2.8"/><circle cx="454" cy="167" r="1.7"/><circle cx="52" cy="292" r="2.5"/><circle cx="79" cy="405" r="1.6"/>
+      <circle cx="174" cy="439" r="2"/><circle cx="330" cy="438" r="1.8"/><circle cx="451" cy="391" r="2.3"/><circle cx="401" cy="346" r="1.5"/>
+      <circle cx="238" cy="91" r="1.4"/><circle cx="282" cy="81" r="1.3"/><circle cx="118" cy="238" r="1.2"/><circle cx="388" cy="157" r="1.2"/>
+    </g>
+    <g id="cb-orbit-bars" opacity=".58" fill="#AEE9FF">
+      <rect x="31" y="268" width="4" height="32" rx="2"/><rect x="43" y="250" width="4" height="62" rx="2"/><rect x="55" y="274" width="4" height="35" rx="2"/>
+      <rect x="67" y="232" width="4" height="81" rx="2"/><rect x="79" y="259" width="4" height="49" rx="2"/><rect x="91" y="243" width="4" height="68" rx="2"/>
+      <rect x="417" y="260" width="4" height="54" rx="2"/><rect x="429" y="238" width="4" height="80" rx="2"/><rect x="441" y="268" width="4" height="44" rx="2"/>
+      <rect x="453" y="249" width="4" height="63" rx="2"/><rect x="465" y="279" width="4" height="34" rx="2"/>
+    </g>
+    <ellipse cx="256" cy="454" rx="140" ry="24" fill="url(#cb-orbit-ground)"/>
+
+    <g id="cb-orbit-chat" filter="url(#cb-orbit-shadow)">
+      <path d="M82 79h89c18 0 31 12 31 28v33c0 16-13 28-31 28h-36l-34 23 8-23H82c-18 0-31-12-31-28v-33c0-16 13-28 31-28Z" fill="url(#cb-orbit-yellow)"/>
+      <circle cx="95" cy="123" r="11" fill="#fff"/><circle cx="126" cy="123" r="11" fill="#fff"/><circle cx="157" cy="123" r="11" fill="#fff"/>
+    </g>
+    <g id="cb-orbit-phone" filter="url(#cb-orbit-shadow)">
+      <path d="M421 202c37 0 67 27 67 60s-30 60-67 60a75 75 0 0 1-25-4l-31 15 11-29a57 57 0 0 1-22-42c0-33 30-60 67-60Z" fill="url(#cb-orbit-green)"/>
+      <path d="M408 236c4-3 11 0 12 5l4 14c1 4-1 9-5 11l-8 4c6 12 15 20 28 26l5-8c3-4 8-6 12-4l13 6c5 2 7 9 3 13-7 9-15 15-25 13-26-4-55-31-61-56-2-10 6-18 22-24Z" fill="#fff"/>
+    </g>
+    <g id="cb-orbit-location" filter="url(#cb-orbit-shadow)">
+      <path d="M107 303c-25 0-45 20-45 45 0 36 45 79 45 79s45-43 45-79c0-25-20-45-45-45Z" fill="url(#cb-orbit-green)"/>
+      <circle cx="107" cy="348" r="16" fill="#FFFFFF"/>
+      <circle cx="107" cy="348" r="8" fill="#28C75F"/>
+    </g>
+    <g id="cb-orbit-map" filter="url(#cb-orbit-shadow)">
+      <path d="M140 342l37-13 39 16v66l-39-16-37 13-35-14v-66l35 14Z" fill="#fff"/>
+      <path d="M140 342v66M177 329v66M105 328l35 14 37-13 39 16" fill="none" stroke="#7CA9FF" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M113 377l22-20 38 17 31-20" fill="none" stroke="#37C66B" stroke-width="7" stroke-linecap="round"/>
+      <path d="M116 343l20 29 38-31" fill="none" stroke="#FFC72D" stroke-width="7" stroke-linecap="round"/>
+    </g>
+
+    <g id="cb-orbit-bot" filter="url(#cb-orbit-shadow)">
+      <g id="cb-orbit-body">
+        <path d="M188 270c-36 18-56 51-56 92 0 59 47 92 124 92s124-33 124-92c0-41-20-74-56-92-26 18-110 18-136 0Z" fill="url(#cb-orbit-blue)"/>
+        <path d="M180 292c31 31 122 32 153 0" fill="none" stroke="#08207E" stroke-width="10" stroke-linecap="round" opacity=".55"/>
+        <text x="256" y="354" text-anchor="middle" font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" font-size="41" font-weight="850" fill="#fff" stroke="#0537AE" stroke-width="3" paint-order="stroke">Chatboc</text>
+      </g>
+      <g id="cb-orbit-legs" fill="url(#cb-orbit-blue)">
+        <path d="M190 427h49v36c0 12-10 22-24 22h-30c-12 0-19-9-16-20l21-38Z"/>
+        <path d="M273 427h49l21 38c3 11-4 20-16 20h-30c-14 0-24-10-24-22v-36Z"/>
+        <path d="M155 462c0-16 17-29 43-29s43 13 43 29c0 15-13 22-43 22s-43-7-43-22Z" fill="url(#cb-orbit-shell)"/>
+        <path d="M271 462c0-16 17-29 43-29s43 13 43 29c0 15-13 22-43 22s-43-7-43-22Z" fill="url(#cb-orbit-shell)"/>
+        <path d="M168 470c22 8 50 8 73 0M284 470c22 8 50 8 73 0" stroke="#0A4CDE" stroke-width="7" stroke-linecap="round" fill="none"/>
+      </g>
+      <g id="cb-orbit-arms">
+        <path d="M182 281c-31-12-56-31-75-59l-34 23c21 42 55 71 103 89l6-53Z" fill="url(#cb-orbit-blue-side)"/>
+        <path d="M332 289c45 4 75 33 84 84l-43 8c-7-30-22-45-49-48l8-44Z" fill="url(#cb-orbit-blue-side)"/>
+        <circle cx="381" cy="381" r="24" fill="url(#cb-orbit-shell)"/>
+      </g>
+      <g id="cb-orbit-hand">
+        <path d="M105 209c-4-19 7-31 22-20l9 17 2-33c3-19 26-18 29 0l-1 35 14-29c8-15 31-5 26 12l-18 39 8-7c14-11 32 4 22 19-21 34-59 52-93 31-16-10-24-34-20-65Z" fill="url(#cb-orbit-shell)"/>
+        <path d="M130 207l6 35M164 211l-3 36M188 224l-14 29" fill="none" stroke="#9ABAF4" stroke-width="5" stroke-linecap="round" opacity=".7"/>
+      </g>
+      <g id="cb-orbit-head">
+        <rect x="140" y="103" width="238" height="190" rx="86" fill="url(#cb-orbit-shell)"/>
+        <path d="M178 131c37-40 150-42 196-4" fill="none" stroke="#0D59F0" stroke-width="17" stroke-linecap="round"/>
+        <path d="M159 194c0-40 32-72 72-72h56c55 0 99 44 99 99v1c0 43-35 78-78 78h-84c-36 0-65-29-65-65v-41Z" fill="#EAF3FF" opacity=".6"/>
+        <rect x="164" y="146" width="194" height="86" rx="42" fill="url(#cb-orbit-visor)"/>
+        <path d="M181 153c39-20 112-20 158-1" stroke="#3F8CFF" stroke-width="7" stroke-linecap="round" opacity=".7"/>
+        <g id="cb-orbit-eye-shine" fill="#FFFFFF">
+          <ellipse cx="218" cy="184" rx="20" ry="15"/>
+          <ellipse cx="302" cy="181" rx="20" ry="15"/>
+        </g>
+        <circle cx="238" cy="202" r="6" fill="#7DAEFF" opacity=".35"/>
+        <circle cx="322" cy="198" r="6" fill="#7DAEFF" opacity=".35"/>
+        <path d="M238 241c29 17 54 17 82 0v4c0 25-18 45-41 45s-41-20-41-45v-4Z" fill="#061961"/>
+        <path d="M253 267c18 9 35 9 52 0 0 12-12 22-26 22s-26-10-26-22Z" fill="#FF6380"/>
+      </g>
+      <g id="cb-orbit-ears">
+        <rect x="111" y="162" width="39" height="78" rx="19" fill="url(#cb-orbit-blue)"/>
+        <rect x="363" y="162" width="39" height="78" rx="19" fill="url(#cb-orbit-blue)"/>
+        <path d="M132 173v56M383 173v56" stroke="#6DBAFF" stroke-width="4" stroke-linecap="round" opacity=".7"/>
+      </g>
+    </g>
+    <circle cx="256" cy="256" r="246" fill="none" stroke="#CDE9FF" stroke-width="3"/>
+    <circle cx="256" cy="256" r="249" fill="none" stroke="#FFFFFF" stroke-opacity=".42" stroke-width="1"/>
+  </g>
+</svg>

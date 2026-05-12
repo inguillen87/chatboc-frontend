@@ -84,7 +84,7 @@ const Footer = () => {
               </li>
               <li>
                 <Link to="/documentacion" className="text-muted-foreground hover:text-primary transition-colors">
-                  Documentación técnica
+                  Guia de uso
                 </Link>
               </li>
               <li className="flex items-center space-x-2">

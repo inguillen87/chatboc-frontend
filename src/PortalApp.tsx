@@ -20,6 +20,7 @@ import UserEventsPage from "@/pages/user-portal/UserEventsPage";
 import UserBenefitsPage from "@/pages/user-portal/UserBenefitsPage";
 import UserSurveysPage from "@/pages/user-portal/UserSurveysPage";
 import UserAccountPage from "@/pages/user-portal/UserAccountPage";
+import { PortalLandingPage } from "@/pages/user-portal/PortalLandingPage";
 import TenantTicketFormPage from "@/pages/tenant/TenantTicketFormPage";
 import NotFound from "@/pages/NotFound";
 

@@ -14,9 +14,9 @@ const steps = [
   {
     number: "02",
     icon: Bot,
-    title: "El backend define la experiencia",
+    title: "Chatboc prepara el recorrido",
     description:
-      "Contratos de widget, demo, quick menu, media, CTAs, casos y analytics indican qué debe mostrar cada pantalla.",
+      "Menús, medios, botones, casos y métricas indican qué necesita ver cada persona para avanzar.",
   },
   {
     number: "03",
@@ -30,7 +30,7 @@ const steps = [
     icon: BarChart3,
     title: "El equipo mide y mejora",
     description:
-      "Dashboards, mapas, SLA, freshness y action center ordenan prioridades para operar con datos vivos.",
+      "Paneles, mapas, tiempos de atención y prioridades ayudan a operar con información actual.",
   },
 ];
 
@@ -44,8 +44,8 @@ const HowItWorksSection = () => {
           <div className="chatboc-section-kicker mb-4">Cómo funciona</div>
           <h2 className="chatboc-section-heading">Menos configuración manual, más sistema funcionando</h2>
           <p className="chatboc-section-copy mt-4">
-            El flujo está pensado para crecer por contrato: si el backend suma una capacidad, el frontend la adopta sin convertir
-            cada vertical en una pantalla hecha a mano.
+            El flujo está pensado para crecer sin pantallas hechas a mano: cuando una organización suma una capacidad,
+            la experiencia la muestra de forma clara y consistente.
           </p>
         </div>
 

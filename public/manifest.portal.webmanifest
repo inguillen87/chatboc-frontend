@@ -9,6 +9,11 @@
   "theme_color": "#0f62fe",
   "icons": [
     {
+      "src": "/chatboc_frontend_pack/branding/chatboc/avatar/chatboc-orbit-avatar.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    },
+    {
       "src": "favicon/favicon-192x192.png",
       "sizes": "192x192",
       "type": "image/png"

@@ -17,11 +17,12 @@ import { extractRubroKey, extractRubroLabel } from "@/utils/rubros";
 import { extractButtonsFromResponse } from "@/utils/chatButtons";
 import DemoWorkspace from '@/features/demo/DemoWorkspace';
 import DemoSectorStep from '@/features/demo/DemoSectorStep';
-import { createDemoSession, getDemoCatalog } from '@/features/demo/demoApi';
+import { createDemoSession, createLocalDemoSession, getDemoCatalog } from '@/features/demo/demoApi';
 import type { DemoCatalogResponse, DemoChatBootstrap, DemoSector, DemoSectorGroup, DemoWorkspaceConfig } from '@/features/demo/demoTypes';
 import { sendChatBootstrapMessage } from '@/features/chat/chatApi';
 import { findDemoCatalogAsset } from '@/data/demoCatalogAssets';
 import { downloadDemoCatalogPdf } from '@/utils/demoCatalogPdf';
+import { CHATBOC_ORBIT_AVATAR } from '@/utils/brandAssets';
 
 const MAX_PREGUNTAS = 15;
 
@@ -102,6 +103,7 @@ const Demo = () => {
   const [demoSessionId, setDemoSessionId] = useState<string | null>(null);
   const [demoTenantSlug, setDemoTenantSlug] = useState<string | null>(null);
   const [demoWorkspace, setDemoWorkspace] = useState<DemoWorkspaceConfig | null>(null);
+  const [useLocalDemoRuntime, setUseLocalDemoRuntime] = useState(false);
   const [catalogDownloadError, setCatalogDownloadError] = useState<string | null>(null);
   const [isCatalogDownloading, setIsCatalogDownloading] = useState(false);
   const [contexto, setContexto] = useState({});
@@ -119,6 +121,7 @@ const Demo = () => {
     return lastBotMessage?.botones ?? [];
   }, [messages]);
   const activeChatBootstrap = demoWorkspace?.chat_bootstrap ?? null;
+  const isLocalDemoMode = useLocalDemoRuntime || demoCatalog?.local_demo_mode === true;
   const selectedSectorGroup = findSectorGroup(demoCatalog, sectorSeleccionado);
   const visibleRubrosDisponibles = useMemo(
     () => rubrosDisponibles.filter((root) => rootMatchesSector(root, sectorSeleccionado)),
@@ -126,10 +129,10 @@ const Demo = () => {
   );
   const activeCatalogAsset = useMemo(() => {
     const candidates = [
-      demoTenantSlug,
       rubroClaveSeleccionado,
       readSectorTenantSlug(selectedSectorGroup),
       readSectorCatalogSlug(sectorSeleccionado),
+      demoTenantSlug,
     ];
     for (const candidate of candidates) {
       const asset = findDemoCatalogAsset(candidate);
@@ -158,6 +161,7 @@ const Demo = () => {
     setDemoSessionId(null);
     setDemoTenantSlug(null);
     setDemoWorkspace(null);
+    setUseLocalDemoRuntime(false);
     lastQueryRef.current = null;
     hydratedSessionRef.current = false;
     // The useEffect for loading rubros will trigger again due to rubroSeleccionado being null
@@ -183,7 +187,7 @@ const Demo = () => {
   }, []);
 
   const startDemoConversation = useCallback(
-    async (rubroNombre: string, bootstrapOverride?: DemoChatBootstrap | null, tenantSlugOverride?: string | null) => {
+    async (rubroNombre: string, bootstrapOverride?: DemoChatBootstrap | null, tenantSlugOverride?: string | null, forceLocal = false) => {
       const normalized = parseRubro(rubroNombre);
       const chatBootstrap = bootstrapOverride ?? activeChatBootstrap;
       const tenantSlug = tenantSlugOverride ?? demoTenantSlug;
@@ -200,6 +204,24 @@ const Demo = () => {
       lastQueryRef.current = null;
 
       try {
+        if (forceLocal || (!chatBootstrap && isLocalDemoMode)) {
+          const fallbackText = buildDemoFallbackReply({
+            text: "",
+            sectorLabel: rubroSeleccionado || rubroNombre,
+            catalogTitle: activeCatalogAsset?.title,
+          });
+          setMessages([
+            {
+              id: Date.now(),
+              text: fallbackText,
+              isBot: true,
+              timestamp: new Date(),
+              query: undefined,
+            },
+          ]);
+          return;
+        }
+
         const response = chatBootstrap
           ? await sendChatBootstrapMessage(
               chatBootstrap,
@@ -261,7 +283,7 @@ const Demo = () => {
         setIsTyping(false);
       }
     },
-    [activeChatBootstrap, anonId, demoTenantSlug, sectorSeleccionado, setAnonId, setContexto, setIsTyping, setMessages, setPreguntasUsadas]
+    [activeCatalogAsset?.title, activeChatBootstrap, anonId, demoTenantSlug, isLocalDemoMode, rubroSeleccionado, sectorSeleccionado, setAnonId, setContexto, setIsTyping, setMessages, setPreguntasUsadas]
   );
 
   const handleDownloadCatalog = useCallback(async () => {
@@ -302,12 +324,14 @@ const Demo = () => {
     setDemoSessionId(session.demo_session_id ?? session.session_id ?? sessionId);
     setDemoTenantSlug(session.tenant_slug ?? null);
     setDemoWorkspace(session.workspace ?? null);
+    setUseLocalDemoRuntime(Boolean((session as any).local_demo_mode));
     setEsperandoRubro(false);
     openDemoWidget();
     void startDemoConversation(
       state.rubroSlug ?? rubroLabel ?? String(sector ?? ''),
       session.workspace?.chat_bootstrap ?? null,
       session.tenant_slug ?? null,
+      Boolean((session as any).local_demo_mode),
     );
   }, [location.search, location.state, openDemoWidget, sectorSeleccionado, startDemoConversation]);
 
@@ -327,13 +351,22 @@ const Demo = () => {
 
     if (storedClave && !rubroClaveSeleccionado) {
       const normalizedClave = extractRubroKey(storedClave) ?? storedClave;
+      const localSession = createLocalDemoSession({
+        rubro: normalizedClave,
+        rubro_slug: normalizedClave,
+        category_slug: normalizedClave,
+      });
       setRubroClaveSeleccionado(normalizedClave);
       if (!rubroSeleccionado) {
         setRubroSeleccionado(storedLabel || storedClave);
       }
+      setDemoSessionId(localSession.demo_session_id ?? null);
+      setDemoTenantSlug(localSession.tenant_slug ?? null);
+      setDemoWorkspace(localSession.workspace ?? null);
+      setUseLocalDemoRuntime(true);
       setEsperandoRubro(false);
       openDemoWidget();
-      void startDemoConversation(normalizedClave);
+      void startDemoConversation(normalizedClave, null, localSession.tenant_slug ?? null, true);
     } else if (!storedClave) {
       setEsperandoRubro(true);
       setMessages([]);
@@ -388,6 +421,27 @@ const Demo = () => {
       setIsTyping(true);
 
       try {
+        if (!activeChatBootstrap && isLocalDemoMode) {
+          const fallbackText = buildDemoFallbackReply({
+            text,
+            sectorLabel: rubroSeleccionado,
+            catalogTitle: activeCatalogAsset?.title,
+          });
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: Date.now() + 1,
+              text: fallbackText,
+              isBot: true,
+              timestamp: new Date(),
+              query: lastQueryRef.current || undefined,
+            },
+          ]);
+          lastQueryRef.current = null;
+          setPreguntasUsadas((prev) => prev + 1);
+          return;
+        }
+
         const response = activeChatBootstrap
           ? await sendChatBootstrapMessage(
               activeChatBootstrap,
@@ -470,7 +524,7 @@ const Demo = () => {
         setIsTyping(false);
       }
     },
-    [activeCatalogAsset?.title, activeChatBootstrap, contexto, demoTenantSlug, rubroSeleccionado, anonId, preguntasUsadas, rubroClave, rubroNormalizado, sectorSeleccionado]
+    [activeCatalogAsset?.title, activeChatBootstrap, contexto, demoTenantSlug, isLocalDemoMode, rubroSeleccionado, anonId, preguntasUsadas, rubroClave, rubroNormalizado, sectorSeleccionado]
   );
 
   const startSectorDemo = useCallback(async () => {
@@ -490,7 +544,31 @@ const Demo = () => {
     openDemoWidget();
 
     try {
-      const session = await createDemoSession({
+      const session = demoCatalog?.local_demo_mode
+        ? createLocalDemoSession({
+            sector,
+            tenant_slug: tenantSlug,
+            pillar: sector,
+            category_slug: String(sector),
+          })
+        : await createDemoSession({
+            sector,
+            tenant_slug: tenantSlug,
+            pillar: sector,
+            category_slug: String(sector),
+          });
+      setDemoSessionId(session.demo_session_id ?? null);
+      setDemoTenantSlug(session.tenant_slug ?? tenantSlug ?? null);
+      setDemoWorkspace(session.workspace ?? null);
+      setUseLocalDemoRuntime(Boolean((session as any).local_demo_mode));
+      await startDemoConversation(
+        sector,
+        session.workspace?.chat_bootstrap ?? null,
+        session.tenant_slug ?? tenantSlug ?? null,
+        Boolean((session as any).local_demo_mode),
+      );
+    } catch (error) {
+      const session = createLocalDemoSession({
         sector,
         tenant_slug: tenantSlug,
         pillar: sector,
@@ -499,16 +577,8 @@ const Demo = () => {
       setDemoSessionId(session.demo_session_id ?? null);
       setDemoTenantSlug(session.tenant_slug ?? tenantSlug ?? null);
       setDemoWorkspace(session.workspace ?? null);
-      await startDemoConversation(
-        sector,
-        session.workspace?.chat_bootstrap ?? null,
-        session.tenant_slug ?? tenantSlug ?? null,
-      );
-    } catch (error) {
-      setDemoSessionId(null);
-      setDemoTenantSlug(tenantSlug);
-      setDemoWorkspace(null);
-      await startDemoConversation(String(sector), null, tenantSlug);
+      setUseLocalDemoRuntime(true);
+      await startDemoConversation(String(sector), null, session.tenant_slug ?? tenantSlug ?? null, true);
     }
   }, [demoCatalog, openDemoWidget, sectorSeleccionado, startDemoConversation]);
 
@@ -518,7 +588,7 @@ const Demo = () => {
       <div className="min-h-screen flex flex-col items-center justify-center p-4 text-center bg-background dark:bg-gradient-to-b dark:from-[#10141b] dark:to-[#181d24] text-foreground">
         <div className="w-full max-w-3xl p-7 rounded-3xl shadow-xl border border-border bg-card/90 dark:bg-[#191f2b]">
           <img
-            src="/chatboc_logo_clean_transparent.png"
+            src={CHATBOC_ORBIT_AVATAR}
             alt="Chatboc"
             className="mx-auto w-14 h-14 mb-3"
             style={{ filter: "drop-shadow(0 4px 16px #1d69e0cc)" }}
@@ -589,7 +659,32 @@ const Demo = () => {
               void (async () => {
                 try {
                   const fallbackTenantSlug = rubro.demo?.slug ?? readSectorTenantSlug(selectedSectorGroup);
-                  const session = await createDemoSession({
+                  const session = demoCatalog?.local_demo_mode
+                    ? createLocalDemoSession({
+                        sector: sectorSeleccionado,
+                        rubro_slug: clave ?? etiqueta ?? rubro.nombre,
+                        category_slug: clave ?? etiqueta ?? rubro.nombre,
+                        tenant_slug: fallbackTenantSlug,
+                      })
+                    : await createDemoSession({
+                        sector: sectorSeleccionado,
+                        rubro_slug: clave ?? etiqueta ?? rubro.nombre,
+                        category_slug: clave ?? etiqueta ?? rubro.nombre,
+                        tenant_slug: fallbackTenantSlug,
+                      });
+                  setDemoSessionId(session.demo_session_id ?? null);
+                  setDemoTenantSlug(session.tenant_slug ?? fallbackTenantSlug ?? null);
+                  setDemoWorkspace(session.workspace ?? null);
+                  setUseLocalDemoRuntime(Boolean((session as any).local_demo_mode));
+                  await startDemoConversation(
+                    clave ?? etiqueta ?? rubro.nombre,
+                    session.workspace?.chat_bootstrap ?? null,
+                    session.tenant_slug ?? fallbackTenantSlug ?? null,
+                    Boolean((session as any).local_demo_mode),
+                  );
+                } catch {
+                  const fallbackTenantSlug = rubro.demo?.slug ?? readSectorTenantSlug(selectedSectorGroup);
+                  const session = createLocalDemoSession({
                     sector: sectorSeleccionado,
                     rubro_slug: clave ?? etiqueta ?? rubro.nombre,
                     category_slug: clave ?? etiqueta ?? rubro.nombre,
@@ -598,17 +693,8 @@ const Demo = () => {
                   setDemoSessionId(session.demo_session_id ?? null);
                   setDemoTenantSlug(session.tenant_slug ?? fallbackTenantSlug ?? null);
                   setDemoWorkspace(session.workspace ?? null);
-                  await startDemoConversation(
-                    clave ?? etiqueta ?? rubro.nombre,
-                    session.workspace?.chat_bootstrap ?? null,
-                    session.tenant_slug ?? fallbackTenantSlug ?? null,
-                  );
-                } catch {
-                  setDemoSessionId(null);
-                  const fallbackTenantSlug = rubro.demo?.slug ?? readSectorTenantSlug(selectedSectorGroup);
-                  setDemoTenantSlug(fallbackTenantSlug ?? null);
-                  setDemoWorkspace(null);
-                  await startDemoConversation(clave ?? etiqueta ?? rubro.nombre, null, fallbackTenantSlug);
+                  setUseLocalDemoRuntime(true);
+                  await startDemoConversation(clave ?? etiqueta ?? rubro.nombre, null, session.tenant_slug ?? fallbackTenantSlug ?? null, true);
                 }
               })();
             }}
@@ -628,7 +714,7 @@ const Demo = () => {
         <div className="max-w-3xl mx-auto py-3 px-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <img
-              src="/chatboc_logo_clean_transparent.png" // Consider a theme-adaptive logo if possible
+              src={CHATBOC_ORBIT_AVATAR}
               alt="Chatboc"
               className="w-9 h-9 rounded-full p-0.5 bg-primary/20 dark:bg-primary/30 border border-primary/30"
               onError={(e) => { (e.target as HTMLImageElement).src = "/favicon/favicon-48x48.png"; }}
@@ -691,7 +777,7 @@ const Demo = () => {
               <div className="border-t border-border/70 bg-primary/5 p-4 sm:p-5 md:border-l md:border-t-0">
                 <div className="mb-4 flex items-start gap-2 rounded-xl border border-primary/15 bg-background/80 p-3 text-xs text-muted-foreground">
                   <ShieldCheck className="mt-0.5 h-4 w-4 flex-shrink-0 text-success" />
-                  <span>La descarga se genera en tu navegador para evitar 404 de assets estáticos en deploy.</span>
+                  <span>El material se prepara al instante para que siempre puedas descargarlo.</span>
                 </div>
                 <div className="flex flex-col gap-2 sm:flex-row md:flex-col">
                   <button

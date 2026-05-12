@@ -86,7 +86,17 @@ const sanitizeTenantSlug = (slug?: string | null) => {
   if (!slug) return null;
   const normalized = slug.trim();
   if (!normalized) return null;
-  return LOCAL_PLACEHOLDER_SLUGS.has(normalized.toLowerCase()) ? null : normalized;
+  const lowered = normalized.toLowerCase();
+  if (
+    LOCAL_PLACEHOLDER_SLUGS.has(lowered) ||
+    lowered === 'localhost' ||
+    lowered === '::1' ||
+    /^\d+$/.test(lowered) ||
+    /^\d{1,3}(?:\.\d{1,3}){3}$/.test(lowered)
+  ) {
+    return null;
+  }
+  return normalized;
 };
 
 const readTenantFromConfig = (): { slug: string | null; widgetToken: string | null } => {
@@ -175,12 +185,13 @@ const readTenantFromSubdomain = (): string | null => {
   if (typeof window === 'undefined') return null;
   const host = window.location.hostname;
   if (!host || host === 'localhost') return null;
+  if (host === '::1' || /^\d{1,3}(?:\.\d{1,3}){3}$/.test(host)) return null;
 
   const segments = host.split('.');
   if (segments.length < 2) return null;
 
   const candidate = segments[0];
-  if (!candidate || ['www', 'app', 'panel'].includes(candidate.toLowerCase())) return null;
+  if (!candidate || /^\d+$/.test(candidate) || ['www', 'app', 'panel'].includes(candidate.toLowerCase())) return null;
   return candidate;
 };
 
@@ -368,6 +379,13 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
   }, [tenant?.tema, location.pathname, tenant?.slug]);
 
   const refreshFollowedTenants = useCallback(async () => {
+    if (!currentSlugRef.current && !widgetToken) {
+      setFollowedTenants([]);
+      setFollowedTenantsError(null);
+      setIsLoadingFollowedTenants(false);
+      return;
+    }
+
     setIsLoadingFollowedTenants(true);
     setFollowedTenantsError(null);
     try {

@@ -1,15 +1,24 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { cn } from '@/lib/utils';
 
+interface MapPoint {
+    lat: number;
+    lng: number;
+    name?: string;
+}
+
 interface TrackingMapProps {
-    storeLocation?: { lat: number; lng: number; name?: string } | null;
-    customerLocation?: { lat: number; lng: number; name?: string } | null;
-    driverLocation?: { lat: number; lng: number };
+    storeLocation?: MapPoint | null;
+    customerLocation?: MapPoint | null;
+    driverLocation?: MapPoint;
     status: string;
     className?: string;
 }
+
+const isValidPoint = (point?: { lat: number; lng: number } | null) =>
+    Boolean(point && Number.isFinite(point.lat) && Number.isFinite(point.lng));
 
 export default function TrackingMap({
     storeLocation = null,
@@ -23,6 +32,7 @@ export default function TrackingMap({
     const storeMarker = useRef<maplibregl.Marker | null>(null);
     const customerMarker = useRef<maplibregl.Marker | null>(null);
     const driverMarker = useRef<maplibregl.Marker | null>(null);
+    const [mapError, setMapError] = useState<string | null>(null);
 
     const buildMarkerElement = (kind: 'store' | 'customer' | 'driver') => {
         const element = document.createElement('div');
@@ -44,121 +54,158 @@ export default function TrackingMap({
         return element;
     };
 
-    // Initial Map Setup
     useEffect(() => {
-        if (!mapContainer.current) return;
-        if (map.current) return;
+        if (!mapContainer.current || map.current) return;
 
-        const primaryLocation = customerLocation || storeLocation || { lat: -34.6037, lng: -58.3816, name: 'Ubicación' };
+        const primaryLocation = customerLocation || storeLocation || { lat: -34.6037, lng: -58.3816, name: 'Ubicacion' };
 
-        map.current = new maplibregl.Map({
-            container: mapContainer.current,
-            style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
-            center: [primaryLocation.lng, primaryLocation.lat],
-            zoom: 13,
-            attributionControl: false
-        });
+        try {
+            map.current = new maplibregl.Map({
+                container: mapContainer.current,
+                style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
+                center: [primaryLocation.lng, primaryLocation.lat],
+                zoom: 13,
+                attributionControl: false
+            });
 
-        map.current.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+            map.current.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+            map.current.on('error', (event) => {
+                console.warn('Tracking map warning', event?.error || event);
+            });
+        } catch (error) {
+            console.warn('Tracking map unavailable', error);
+            setMapError('map_unavailable');
+        }
 
+        return () => {
+            storeMarker.current?.remove();
+            customerMarker.current?.remove();
+            driverMarker.current?.remove();
+            storeMarker.current = null;
+            customerMarker.current = null;
+            driverMarker.current = null;
+            map.current?.remove();
+            map.current = null;
+        };
     }, []);
 
-    // Update locations and fit bounds
     useEffect(() => {
-        if (!map.current) return;
+        if (!map.current || mapError) return;
 
-        const mapInstance = map.current;
+        try {
+            const mapInstance = map.current;
 
-        if (storeLocation) {
-            if (!storeMarker.current) {
-                storeMarker.current = new maplibregl.Marker({ element: buildMarkerElement('store') })
-                    .setPopup(new maplibregl.Popup({ offset: 25, closeButton: false }).setText(storeLocation.name || 'Origen'))
-                    .addTo(mapInstance);
+            if (isValidPoint(storeLocation)) {
+                if (!storeMarker.current) {
+                    storeMarker.current = new maplibregl.Marker({ element: buildMarkerElement('store') })
+                        .setLngLat([storeLocation.lng, storeLocation.lat])
+                        .setPopup(new maplibregl.Popup({ offset: 25, closeButton: false }).setText(storeLocation.name || 'Origen'))
+                        .addTo(mapInstance);
+                }
+                storeMarker.current.setLngLat([storeLocation.lng, storeLocation.lat]);
+                storeMarker.current.getPopup()?.setText(storeLocation.name || 'Origen');
+            } else if (storeMarker.current) {
+                storeMarker.current.remove();
+                storeMarker.current = null;
             }
-            storeMarker.current.setLngLat([storeLocation.lng, storeLocation.lat]);
-            storeMarker.current.getPopup()?.setText(storeLocation.name || 'Origen');
-        } else if (storeMarker.current) {
-            storeMarker.current.remove();
-            storeMarker.current = null;
-        }
 
-        if (customerLocation) {
-            if (!customerMarker.current) {
-                customerMarker.current = new maplibregl.Marker({ element: buildMarkerElement('customer') })
-                    .setPopup(new maplibregl.Popup({ offset: 25, closeButton: false }).setText(customerLocation.name || 'Destino'))
-                    .addTo(mapInstance);
+            if (isValidPoint(customerLocation)) {
+                if (!customerMarker.current) {
+                    customerMarker.current = new maplibregl.Marker({ element: buildMarkerElement('customer') })
+                        .setLngLat([customerLocation.lng, customerLocation.lat])
+                        .setPopup(new maplibregl.Popup({ offset: 25, closeButton: false }).setText(customerLocation.name || 'Destino'))
+                        .addTo(mapInstance);
+                }
+                customerMarker.current.setLngLat([customerLocation.lng, customerLocation.lat]);
+                customerMarker.current.getPopup()?.setText(customerLocation.name || 'Destino');
+            } else if (customerMarker.current) {
+                customerMarker.current.remove();
+                customerMarker.current = null;
             }
-            customerMarker.current.setLngLat([customerLocation.lng, customerLocation.lat]);
-            customerMarker.current.getPopup()?.setText(customerLocation.name || 'Destino');
-        } else if (customerMarker.current) {
-            customerMarker.current.remove();
-            customerMarker.current = null;
-        }
 
-        // Driver Marker (Car/Bike Icon) - Only if status warrants it
-        const showDriver = ['en_proceso', 'enviado', 'shipped'].includes(status);
+            const showDriver = ['en_proceso', 'enviado', 'shipped', 'en_camino'].includes(status);
+            if (showDriver) {
+                let progress = 0.1;
+                if (['enviado', 'shipped', 'en_camino'].includes(status)) progress = 0.6;
 
-        if (showDriver) {
-            // Interpolate driver position based on status if not provided
-            // "en_proceso" -> near store (10%)
-            // "enviado" -> halfway (50%) or animated
+                const driverStart = storeLocation || customerLocation || { lat: -34.6037, lng: -58.3816 };
+                const driverEnd = customerLocation || storeLocation || driverStart;
+                const dLat = driverLocation?.lat ?? driverStart.lat + (driverEnd.lat - driverStart.lat) * progress;
+                const dLng = driverLocation?.lng ?? driverStart.lng + (driverEnd.lng - driverStart.lng) * progress;
 
-            let progress = 0.1;
-            if (status === 'enviado' || status === 'shipped') progress = 0.6;
-
-            const driverStart = storeLocation || customerLocation || { lat: -34.6037, lng: -58.3816 };
-            const driverEnd = customerLocation || storeLocation || driverStart;
-            const dLat = driverLocation?.lat ?? driverStart.lat + (driverEnd.lat - driverStart.lat) * progress;
-            const dLng = driverLocation?.lng ?? driverStart.lng + (driverEnd.lng - driverStart.lng) * progress;
-
-            if (!driverMarker.current) {
-                driverMarker.current = new maplibregl.Marker({ element: buildMarkerElement('driver') })
-                    .setLngLat([dLng, dLat])
-                    .addTo(mapInstance);
-            } else {
-                driverMarker.current.setLngLat([dLng, dLat]);
-            }
-        } else {
-            if (driverMarker.current) {
+                if (!driverMarker.current) {
+                    driverMarker.current = new maplibregl.Marker({ element: buildMarkerElement('driver') })
+                        .setLngLat([dLng, dLat])
+                        .addTo(mapInstance);
+                } else {
+                    driverMarker.current.setLngLat([dLng, dLat]);
+                }
+            } else if (driverMarker.current) {
                 driverMarker.current.remove();
                 driverMarker.current = null;
             }
-        }
 
-        // Fit Bounds
-        const bounds = new maplibregl.LngLatBounds();
-        const points = [storeLocation, customerLocation].filter(Boolean) as { lat: number; lng: number }[];
-        if (points.length === 0) {
-            const currentDriver = driverMarker.current?.getLngLat();
-            if (currentDriver) {
-                mapInstance.easeTo({ center: [currentDriver.lng, currentDriver.lat], zoom: 14, duration: 800 });
+            const bounds = new maplibregl.LngLatBounds();
+            const points = [storeLocation, customerLocation].filter(isValidPoint) as Array<{ lat: number; lng: number }>;
+            if (points.length === 0) {
+                const currentDriver = driverMarker.current?.getLngLat();
+                if (currentDriver) {
+                    mapInstance.easeTo({ center: [currentDriver.lng, currentDriver.lat], zoom: 14, duration: 800 });
+                }
+                return;
             }
-            return;
-        }
-        points.forEach((point) => bounds.extend([point.lng, point.lat]));
 
-        if (driverMarker.current) {
-             const pos = driverMarker.current.getLngLat();
-             bounds.extend([pos.lng, pos.lat]);
-        }
+            points.forEach((point) => bounds.extend([point.lng, point.lat]));
+            const driverPosition = driverMarker.current?.getLngLat();
+            if (driverPosition) {
+                bounds.extend([driverPosition.lng, driverPosition.lat]);
+            }
 
-        try {
             mapInstance.fitBounds(bounds, {
                 padding: { top: 50, bottom: 50, left: 50, right: 50 },
                 maxZoom: 15,
                 duration: 1500
             });
-        } catch (e) {
-            console.warn("Error fitting bounds", e);
+        } catch (error) {
+            console.warn('Error updating tracking map', error);
+            setMapError('map_update_failed');
         }
+    }, [storeLocation, customerLocation, driverLocation, status, mapError]);
 
-    }, [storeLocation, customerLocation, driverLocation, status]);
+    if (mapError) {
+        const fallbackPoints = [
+            storeLocation ? { label: storeLocation.name || 'Origen', ...storeLocation } : null,
+            customerLocation ? { label: customerLocation.name || 'Destino', ...customerLocation } : null,
+            driverLocation ? { label: 'Ubicacion actual', ...driverLocation } : null
+        ].filter(isValidPoint) as Array<{ label: string; lat: number; lng: number }>;
+
+        return (
+            <div className={cn("relative w-full h-full rounded-xl overflow-hidden border border-dashed border-slate-300 bg-slate-50 p-4", className)}>
+                <div className="flex h-full flex-col justify-between gap-4">
+                    <div>
+                        <p className="text-sm font-semibold text-slate-800">Seguimiento por timeline</p>
+                        <p className="mt-1 text-xs text-slate-500">
+                            El mapa no esta disponible en este navegador, pero el seguimiento continua activo.
+                        </p>
+                    </div>
+                    <div className="space-y-2 text-xs text-slate-600">
+                        {fallbackPoints.map((point) => (
+                            <div key={`${point.label}-${point.lat}-${point.lng}`} className="flex items-center justify-between rounded-lg bg-white px-3 py-2 shadow-sm">
+                                <span className="font-medium text-slate-700">{point.label}</span>
+                                <span>{point.lat.toFixed(5)}, {point.lng.toFixed(5)}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className={cn("relative w-full h-full rounded-xl overflow-hidden shadow-inner border border-gray-100 bg-slate-50", className)}>
             <div ref={mapContainer} className="w-full h-full" />
             <div className="absolute bottom-1 right-1 bg-white/80 backdrop-blur px-1.5 py-0.5 rounded text-[9px] text-gray-400 z-10 pointer-events-none">
-                © OpenStreetMap
+                (c) OpenStreetMap
             </div>
         </div>
     );

@@ -31,6 +31,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import ScrollToBottomButton from '../ui/ScrollToBottomButton';
 import AdjuntarArchivo from '../ui/AdjuntarArchivo';
 import { apiFetch } from '@/utils/api';
+import { CHATBOC_ORBIT_AVATAR } from '@/utils/brandAssets';
 import {
   coalesceNumber,
   coalesceString,
@@ -465,7 +466,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   if (!selectedTicket) {
     return (
       <div className="flex h-full flex-col items-center justify-center bg-muted/20 p-4 text-center">
-        <img src="/chatboc_logo_clean_transparent.png" alt="Chatboc Logo" className="w-24 h-24 mb-4" />
+        <img src={CHATBOC_ORBIT_AVATAR} alt="Chatboc Logo" className="w-24 h-24 mb-4" />
         <h2 className="text-2xl font-bold text-foreground">Bienvenido al Panel de Tickets</h2>
         <p className="text-lg text-muted-foreground">Selecciona un ticket de la lista para comenzar a trabajar.</p>
       </div>

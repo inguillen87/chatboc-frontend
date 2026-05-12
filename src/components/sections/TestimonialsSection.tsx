@@ -29,10 +29,10 @@ const testimonialsData = [
   },
   {
     quote:
-      "El enfoque por contratos nos permitió sumar nuevas experiencias sin reescribir toda la interfaz cada vez.",
-    organizationName: "Equipo técnico",
-    authorName: "Implementación SaaS",
-    avatarFallback: "TS",
+      "Pudimos sumar nuevos recorridos sin volver a empezar: el equipo entiende qué hacer y el usuario avanza más rápido.",
+    organizationName: "Equipo de implementación",
+    authorName: "Operación SaaS",
+    avatarFallback: "OS",
     stars: 5,
   },
 ];

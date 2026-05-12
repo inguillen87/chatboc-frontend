@@ -10,8 +10,12 @@ import DemoShowcaseSection from "@/components/sections/DemoShowcaseSection";
 import TestimonialsSection from "@/components/sections/TestimonialsSection";
 import CtaSection from "@/components/sections/CtaSection";
 import ComingSoonSection from "@/components/sections/ComingSoonSection";
+import { useLandingExperience } from "@/hooks/useLandingExperience";
+import LandingExperienceSections, { hasRenderableLandingSections } from "@/components/sections/LandingExperienceSections";
 
 const Index = () => {
+  const { experience: landingExperience } = useLandingExperience();
+  const hasDynamicSections = hasRenderableLandingSections(landingExperience);
   // Guard for mixed old/new client chunks during deploy rollouts.
   // Legacy bundles may still reference showWidget on this page.
   const showWidget = false;
@@ -35,17 +39,23 @@ const Index = () => {
     <>
       <main className="bg-background scroll-smooth">
         <section id="inicio">
-          <HeroSection />
+          <HeroSection experience={landingExperience} />
         </section>
-        <ProblemsSection />
-        <SolutionSection />
-        <HowItWorksSection />
-        <TargetSection />
-        <DemoShowcaseSection />
-        <TestimonialsSection />
-        <PricingSection />
-        <CtaSection />
-        <ComingSoonSection />
+        {hasDynamicSections ? (
+          <LandingExperienceSections experience={landingExperience} />
+        ) : (
+          <>
+            <ProblemsSection />
+            <SolutionSection />
+            <HowItWorksSection />
+            <TargetSection />
+            <DemoShowcaseSection />
+            <TestimonialsSection />
+            <PricingSection />
+            <CtaSection />
+            <ComingSoonSection />
+          </>
+        )}
       </main>
       {showWidget && null}
     </>

@@ -38,6 +38,7 @@ import { extractRubroKey, extractRubroLabel } from "@/utils/rubros";
 import { requestLocation } from "@/utils/geolocation";
 import { toast } from "@/components/ui/use-toast";
 import RubroSelector from "./RubroSelector";
+import { CHATBOC_ORBIT_AVATAR } from "@/utils/brandAssets";
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import TicketMap from "@/components/TicketMap";
 import { apiFetch, getErrorMessage } from "@/utils/api";
@@ -694,7 +695,7 @@ const ChatPanel = (props: ChatPanelProps) => {
     }
   }, [handleSend]);
 
-  const rubrosEnabled = tipoChat === "pyme";
+  const rubrosEnabled = tipoChat === "pyme" && !isPlatformOnboarding;
   const [rubros, setRubros] = useState<Rubro[]>([]);
   const [isLoadingRubros, setIsLoadingRubros] = useState(false);
   const [rubrosError, setRubrosError] = useState<string | null>(null);
@@ -921,6 +922,27 @@ const ChatPanel = (props: ChatPanelProps) => {
     });
     lastInitializedRubro.current = "__tenant_bound__";
   }, [initializeConversation, isBoundTenantContext, shouldSuppressDemoShell]);
+
+  useEffect(() => {
+    if (!chatBootstrap || isPlatformOnboarding || !isBoundTenantContext) return;
+
+    const bootstrapKey = `__chat_bootstrap__:${tenantSlug || ""}:${resolvedSelectedRubro || ""}`;
+    if (lastInitializedRubro.current === bootstrapKey) return;
+
+    initializeConversation({
+      rubroOverride: resolvedSelectedRubro,
+      resetContext: true,
+      force: true,
+    });
+    lastInitializedRubro.current = bootstrapKey;
+  }, [
+    chatBootstrap,
+    initializeConversation,
+    isBoundTenantContext,
+    isPlatformOnboarding,
+    resolvedSelectedRubro,
+    tenantSlug,
+  ]);
 
   useEffect(() => {
     if (isLiveChatActive && liveChatTicketId) {
@@ -2312,7 +2334,7 @@ const ChatPanel = (props: ChatPanelProps) => {
         <div className="flex-1 overflow-hidden px-4 pb-4">
           <div className="mx-auto flex h-full max-h-[calc(100vh-160px)] w-full max-w-sm flex-col rounded-2xl border border-primary/20 bg-gradient-to-b from-background via-background to-primary/[0.05] p-6 text-center shadow-xl backdrop-blur-sm">
             <img
-              src={headerLogoUrl || "/chatboc_logo_clean_transparent.png"}
+              src={headerLogoUrl || CHATBOC_ORBIT_AVATAR}
               alt="Chatboc"
               className="mx-auto h-16 w-16 rounded-2xl border border-primary/20 bg-background p-2 shadow-lg"
               onError={(e) => {

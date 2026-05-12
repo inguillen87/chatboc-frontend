@@ -99,7 +99,7 @@ const normalizeQuickMenu = (quickMenu: unknown): QuickReplyItem[] => {
         payload,
       };
     })
-    .filter((item): item is QuickReplyItem => Boolean(item));
+    .filter(Boolean) as QuickReplyItem[];
 };
 
 const normalizeExperienceBlocks = (items: unknown): ChatExperienceBlock[] => {
@@ -134,6 +134,26 @@ const buildInitialMessages = (context?: ChatPanelContext, initialMessages?: Chat
       timestamp: new Date().toISOString(),
     },
   ];
+};
+
+const buildLocalAssistantReply = (
+  payload: ChatComposerPayload,
+  context: ChatPanelContext,
+  replies: QuickReplyItem[],
+) => {
+  const text = payload.text?.trim();
+  const suggestions = replies
+    .map((item) => item.label?.trim())
+    .filter(Boolean)
+    .slice(0, 3);
+  const lines = [
+    text ? `Recibi tu consulta: "${text}".` : "Recibi tu mensaje.",
+    context.rubro ? `Estoy usando la demo de ${context.rubro}.` : null,
+    suggestions.length ? `Tambien podes probar: ${suggestions.join(", ")}.` : null,
+    "Si el caso necesita seguimiento, Chatboc lo deja ordenado para que una persona pueda continuarlo.",
+  ];
+
+  return lines.filter(Boolean).join("\n");
 };
 
 export default function ChatPanel(props: FeatureChatPanelProps & Partial<LegacyChatPanelProps>) {
@@ -396,6 +416,16 @@ function StandaloneChatPanel({
           ]);
         }
       })();
+    } else {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `a-${Date.now()}`,
+          role: 'assistant',
+          text: buildLocalAssistantReply(payload, resolvedContext, replies),
+          timestamp: new Date().toISOString(),
+        },
+      ]);
     }
     setComposerDraft(null);
     setComposerIntent(null);

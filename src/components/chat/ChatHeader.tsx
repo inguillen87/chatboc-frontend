@@ -118,7 +118,7 @@ const ChatHeader: React.FC<Props> = ({
   const whatsappLabel = typeof supportChannels?.whatsapp?.label === 'string' ? supportChannels.whatsapp.label.trim() : '';
   const showLiveBadge = Boolean(!compactActions && liveChatVisible);
   const actionButtonClass =
-    "flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/10 p-2 text-primary-foreground/80 backdrop-blur transition motion-safe:hover:scale-[1.03] hover:bg-white/16 hover:text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-1 focus-visible:ring-offset-primary";
+    "flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/10 p-2 text-white/85 backdrop-blur transition motion-safe:hover:scale-[1.03] hover:bg-white/16 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-1 focus-visible:ring-offset-primary";
   const rawStatusLabel = recommendationLabel || (liveChatVisible ? liveChatLabel : whatsappVisible ? whatsappLabel : null);
   const statusLabel = (() => {
     const normalized = typeof rawStatusLabel === "string" ? rawStatusLabel.trim() : "";
@@ -132,7 +132,7 @@ const ChatHeader: React.FC<Props> = ({
       className={`
         relative flex items-center justify-between flex-shrink-0 w-full overflow-hidden rounded-t-[inherit]
         border-b border-white/10 px-3 py-3.5 sm:px-4 sm:py-4
-        text-primary-foreground transition-all
+        text-white transition-all
       `}
       style={{
         background: 'linear-gradient(135deg, color-mix(in srgb, hsl(var(--primary)) 88%, #020617), color-mix(in srgb, hsl(var(--primary)) 64%, #38bdf8 36%))',
@@ -171,12 +171,12 @@ const ChatHeader: React.FC<Props> = ({
               </span>
             ) : null}
           </div>
-          <div className="mt-0.5 flex items-center gap-1.5 text-xs text-primary-foreground/82">
+          <div className="mt-0.5 flex items-center gap-1.5 text-xs text-white/82">
             <MessageCircleMore className="h-3.5 w-3.5 shrink-0" />
             <span className="truncate font-medium">{subtitle || 'Asistente Virtual'}</span>
           </div>
           {statusLabel ? (
-            <div className="mt-1 inline-flex items-center gap-1 text-[11px] text-primary-foreground/80">
+            <div className="mt-1 inline-flex items-center gap-1 text-[11px] text-white/80">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" />
               <span className="truncate">{statusLabel}</span>
             </div>

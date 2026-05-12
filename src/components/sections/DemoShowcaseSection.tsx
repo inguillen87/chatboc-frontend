@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Activity,
   ArrowRight,
@@ -13,14 +13,13 @@ import {
   Store,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DEMO_HIERARCHY } from "@/data/demoHierarchy";
-import { createDemoSession, getDemoCatalog } from "@/features/demo/demoApi";
-import type { DemoCatalogResponse, DemoSector, DemoSectorGroup } from "@/features/demo/demoTypes";
+import { DEMO_HIERARCHY, DEMO_SECTOR_GROUPS } from "@/data/demoHierarchy";
+import { createLocalDemoSession } from "@/features/demo/demoApi";
+import type { DemoSector, DemoSectorGroup } from "@/features/demo/demoTypes";
 import type { Rubro } from "@/types/rubro";
 
 const categoryIcons: Record<string, React.ReactNode> = {
@@ -40,7 +39,7 @@ const categoryIcons: Record<string, React.ReactNode> = {
   "Retail y Comercios": <Store className="h-4 w-4" />,
 };
 
-type CatalogState = "loading" | "error" | "empty" | "ready";
+const LANDING_DEMO_ORDER: DemoSector[] = ["educacion", "gobierno", "empresas"];
 
 const getIconForCategory = (cat: Pick<Rubro, "clave" | "nombre"> | DemoSectorGroup | null | undefined) => {
   const key = String((cat as any)?.key ?? (cat as any)?.clave ?? "");
@@ -87,7 +86,7 @@ const DemoCard = ({ item, sector, group }: { item: Rubro; sector: DemoSector; gr
     setStarting(true);
     setError(null);
     try {
-      const session = await createDemoSession({
+      const session = createLocalDemoSession({
         sector,
         pillar: sector,
         rubro_slug: readRubroSlug(item),
@@ -103,7 +102,7 @@ const DemoCard = ({ item, sector, group }: { item: Rubro; sector: DemoSector; gr
         },
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo iniciar la demo");
+      setError("No pudimos abrir esta demo. Proba de nuevo.");
     } finally {
       setStarting(false);
     }
@@ -164,7 +163,7 @@ const PillarDemoCard = ({ sector, group }: { sector: DemoSector; group: DemoSect
           : typeof group.default_rubro_slug === "string"
             ? group.default_rubro_slug
             : String(group.key);
-      const session = await createDemoSession({
+      const session = createLocalDemoSession({
         sector,
         pillar: sector,
         category_slug: defaultRubro,
@@ -179,7 +178,7 @@ const PillarDemoCard = ({ sector, group }: { sector: DemoSector; group: DemoSect
         },
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo iniciar la demo");
+      setError("No pudimos abrir esta demo. Proba de nuevo.");
     } finally {
       setStarting(false);
     }
@@ -212,36 +211,13 @@ const PillarDemoCard = ({ sector, group }: { sector: DemoSector; group: DemoSect
 };
 
 const DemoShowcaseSection = () => {
-  const [catalog, setCatalog] = useState<DemoCatalogResponse | null>(null);
-  const [state, setState] = useState<CatalogState>("loading");
-
-  useEffect(() => {
-    let mounted = true;
-    getDemoCatalog()
-      .then((data) => {
-        if (!mounted) return;
-        setCatalog(data);
-        const hasCatalog = Boolean(data?.sector_groups?.length || data?.rubros?.length || data?.sectors?.length);
-        setState(hasCatalog ? "ready" : "empty");
-      })
-      .catch((error) => {
-        if (!mounted) return;
-        console.error("Error loading demo catalog", error);
-        setCatalog({ sectors: ["educacion", "gobierno", "empresas"], rubros: DEMO_HIERARCHY, local_demo_mode: true });
-        setState("error");
-      });
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  const roots = catalog?.rubros?.length ? catalog.rubros : catalog?.local_demo_mode ? DEMO_HIERARCHY : [];
+  const roots = DEMO_HIERARCHY;
   const groups = useMemo(() => {
-    const byKey = new Map((catalog?.sector_groups || []).map((group) => [String(group.key), group]));
-    return (catalog?.sectors?.length ? catalog.sectors : ["educacion", "gobierno", "empresas"]).map((sector) =>
-      byKey.get(String(sector)) || ({ key: sector, label: String(sector) } as DemoSectorGroup),
+    const byKey = new Map(DEMO_SECTOR_GROUPS.map((group) => [String(group.key), group]));
+    return LANDING_DEMO_ORDER.map(
+      (sector) => byKey.get(String(sector)) || ({ key: sector, label: String(sector) } as DemoSectorGroup),
     );
-  }, [catalog]);
+  }, []);
   const defaultValue = groups[0]?.key ? String(groups[0].key) : undefined;
 
   return (
@@ -252,8 +228,8 @@ const DemoShowcaseSection = () => {
           <div className="chatboc-section-kicker mb-4">Demos</div>
           <h2 className="chatboc-section-heading">Elegí un pilar y abrí una operación real de demo</h2>
           <p className="chatboc-section-copy mt-4">
-            El catálogo, los rubros y las acciones se leen del contrato público de demo. Si el backend no responde, la
-            experiencia queda disponible con fallback local señalizado.
+            Elegí Colegios, Gobiernos o Empresas y probá cómo Chatboc atiende consultas, toma datos y deja cada caso listo
+            para seguimiento.
           </p>
         </div>
 
@@ -270,7 +246,7 @@ const DemoShowcaseSection = () => {
           <Alert className="mx-auto mb-6 max-w-5xl border-amber-300/60 bg-amber-50 text-amber-950 dark:bg-amber-950/20 dark:text-amber-100">
             <AlertTitle>Modo demo local</AlertTitle>
             <AlertDescription>
-              No se pudo confirmar el catálogo remoto. Se muestran los tres pilares mínimos hasta que el backend vuelva a responder.
+              No se pudo confirmar el catálogo remoto. Se muestran los tres pilares mínimos para que puedas seguir probando.
             </AlertDescription>
           </Alert>
         ) : null}
@@ -333,8 +309,8 @@ const DemoShowcaseSection = () => {
                           Recorrido de demo
                         </div>
                         <div className="grid gap-2 text-xs text-muted-foreground">
-                          <span>1. Selector backend-first</span>
-                          <span>2. Chat bootstrap del contrato</span>
+                          <span>1. Elegí un pilar</span>
+                          <span>2. Abrí una conversación guiada</span>
                           <span>3. Acciones, archivos y seguimiento</span>
                         </div>
                       </div>

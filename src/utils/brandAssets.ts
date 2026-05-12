@@ -1,7 +1,10 @@
-export const getChatbocBrandLogo = (isDarkMode: boolean) => {
-  return isDarkMode ? '/chatboc_logo_clean_transparent.png' : '/chatboc_navbar_logo.webp';
+export const CHATBOC_ORBIT_AVATAR =
+  '/chatboc_frontend_pack/branding/chatboc/avatar/chatboc-orbit-avatar.svg';
+
+export const getChatbocBrandLogo = (_isDarkMode: boolean) => {
+  return CHATBOC_ORBIT_AVATAR;
 };
 
-export const getChatbocBotAvatar = (isDarkMode: boolean) => {
-  return isDarkMode ? '/chatboc_widget_white_outline.png' : '/chatboc_widget_64x64.webp';
+export const getChatbocBotAvatar = (_isDarkMode: boolean) => {
+  return CHATBOC_ORBIT_AVATAR;
 };

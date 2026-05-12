@@ -136,11 +136,13 @@ const readTenantFromSubdomain = () => {
   if (typeof window === "undefined") return null;
   const host = window.location?.hostname || "";
   if (!host || host === "localhost") return null;
+  if (host === "::1" || /^\d{1,3}(?:\.\d{1,3}){3}$/.test(host)) return null;
 
   const [maybeSlug, ...rest] = host.split(".");
   if (!maybeSlug || rest.length === 0) return null;
 
   const normalized = maybeSlug.trim().toLowerCase();
+  if (!normalized || /^\d+$/.test(normalized)) return null;
   if (["www", "app", "panel"].includes(normalized)) return null;
 
   return maybeSlug;
@@ -174,7 +176,17 @@ const sanitizeTenantSlug = (slug?: string | null) => {
   if (!slug || typeof slug !== "string") return null;
   const normalized = slug.trim();
   if (!normalized) return null;
-  return PLACEHOLDER_SLUGS.has(normalized.toLowerCase()) ? null : normalized;
+  const lowered = normalized.toLowerCase();
+  if (
+    PLACEHOLDER_SLUGS.has(lowered) ||
+    lowered === "localhost" ||
+    lowered === "::1" ||
+    /^\d+$/.test(lowered) ||
+    /^\d{1,3}(?:\.\d{1,3}){3}$/.test(lowered)
+  ) {
+    return null;
+  }
+  return normalized;
 };
 
 const readTenantFromScriptDataset = () => {

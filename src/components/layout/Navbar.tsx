@@ -35,6 +35,7 @@ import { FEATURE_ENCUESTAS } from "@/config/featureFlags";
 import { useCapabilities } from "@/context/CapabilitiesContext";
 import { useTenant } from "@/context/TenantContext";
 import useCartCount from "@/hooks/useCartCount";
+import { useLandingExperience } from "@/hooks/useLandingExperience";
 import { useUser } from "@/hooks/useUser";
 import { getChatbocBotAvatar } from "@/utils/brandAssets";
 import { isBackofficeRole } from "@/utils/roles";
@@ -50,9 +51,9 @@ interface AdminNavLink {
 }
 
 const NAVBAR_LOGO_LIGHT_PRIMARY =
-  "/chatboc_frontend_pack/branding/chatboc/navbar/chatboc-navbar-mark-circle.svg";
+  "/chatboc_frontend_pack/branding/chatboc/avatar/chatboc-orbit-avatar.svg";
 const NAVBAR_LOGO_DARK_PRIMARY =
-  "/chatboc_frontend_pack/branding/chatboc/navbar/chatboc-navbar-mark-clean.svg";
+  "/chatboc_frontend_pack/branding/chatboc/avatar/chatboc-orbit-avatar.svg";
 const NAVBAR_LOGO_LIGHT_PNG =
   "/chatboc_frontend_pack/branding/chatboc/navbar/chatboc-navbar-mark-circle_64.png";
 const NAVBAR_LOGO_DARK_PNG =
@@ -67,6 +68,33 @@ const landingNavItems = [
   { id: "cta", label: "Empezar" },
 ];
 
+const isRecord = (value: unknown): value is Record<string, any> =>
+  Boolean(value) && typeof value === "object" && !Array.isArray(value);
+
+const readLandingNavItems = (navigation: unknown) => {
+  const rawItems = (() => {
+    if (Array.isArray(navigation)) return navigation;
+    if (isRecord(navigation)) {
+      if (Array.isArray(navigation.items)) return navigation.items;
+      if (Array.isArray(navigation.links)) return navigation.links;
+    }
+    return [];
+  })();
+
+  const items = rawItems
+    .map((item) => {
+      if (!isRecord(item)) return null;
+      const label = String(item.label || item.title || item.name || "").trim();
+      const target = String(item.id || item.section_id || item.href || item.to || item.route || "").trim();
+      if (!label || !target) return null;
+      const id = target.replace(/^\/?#/, "").replace(/^\/+/, "");
+      return { id, label };
+    })
+    .filter(Boolean) as typeof landingNavItems;
+
+  return items.length ? items : landingNavItems;
+};
+
 const Navbar: React.FC = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [isDark, setIsDark] = useState(false);
@@ -78,12 +106,17 @@ const Navbar: React.FC = () => {
   const { capabilities } = useCapabilities();
 
   const isLanding = location.pathname === "/";
+  const { experience: landingExperience } = useLandingExperience({ enabled: isLanding });
   const isLoggedIn = !!safeLocalStorage.getItem("user");
   const userRole = user?.rol;
   const isAdminLike = useMemo(() => isBackofficeRole(userRole), [userRole]);
   const isMunicipal = user?.tipo_chat === "municipio";
   const analyticsPath = isMunicipal ? "/estadisticas" : "/analytics";
   const cartPath = useMemo(() => buildTenantPath("/cart", currentSlug), [currentSlug]);
+  const resolvedLandingNavItems = useMemo(
+    () => readLandingNavItems(landingExperience?.navigation),
+    [landingExperience],
+  );
 
   const adminLinks = useMemo(() => {
     if (!isAdminLike) {
@@ -283,7 +316,7 @@ const Navbar: React.FC = () => {
 
         {isLanding ? (
           <nav className="hidden flex-1 items-center justify-center gap-1 md:flex">
-            {landingNavItems.map((item) => (
+            {resolvedLandingNavItems.map((item) => (
               <button key={item.id} onClick={() => scrollToSection(item.id)} className={navButtonClass}>
                 {item.label}
               </button>
@@ -394,7 +427,7 @@ const Navbar: React.FC = () => {
         <div className="mx-auto mt-2 max-w-7xl rounded-[8px] border border-border/70 bg-card/95 p-3 shadow-lg backdrop-blur md:hidden">
           <div className="flex flex-col gap-1 text-foreground">
             {isLanding
-              ? landingNavItems.map((item) => (
+              ? resolvedLandingNavItems.map((item) => (
                   <button key={item.id} onClick={() => scrollToSection(item.id)} className={mobileItemClass}>
                     {item.label}
                   </button>

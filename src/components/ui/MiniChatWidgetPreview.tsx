@@ -1,5 +1,6 @@
 import React from 'react';
 import { Send, Smile, Paperclip } from 'lucide-react'; // MessageSquare no se usa aquí directamente
+import { CHATBOC_ORBIT_AVATAR } from '@/utils/brandAssets';
 
 const MiniChatWidgetPreview: React.FC = () => {
   return (
@@ -8,7 +9,7 @@ const MiniChatWidgetPreview: React.FC = () => {
       <div className="flex items-center justify-between pb-2 mb-2 border-b border-border">
         <div className="flex items-center">
           <img
-            src="/chatboc_widget_64x64.webp"
+            src={CHATBOC_ORBIT_AVATAR}
             alt="Chatboc Icon"
             className="w-7 h-7 mr-2 rounded-full border border-border"
           />
@@ -25,7 +26,7 @@ const MiniChatWidgetPreview: React.FC = () => {
         {/* Bot Message */}
         <div className="flex items-start space-x-2">
           <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xs flex-shrink-0 mt-1">
-            <img src="/chatboc_widget_64x64.webp" alt="B" className="w-4 h-4 rounded-full invert brightness-0" />
+            <img src={CHATBOC_ORBIT_AVATAR} alt="B" className="w-4 h-4 rounded-full" />
           </div>
           <div className="bg-muted p-2 rounded-lg rounded-bl-none max-w-[80%] shadow-sm">
             <p className="text-foreground">¡Hola! 👋 ¿En qué puedo ayudarte hoy?</p>
@@ -43,7 +44,7 @@ const MiniChatWidgetPreview: React.FC = () => {
         {/* Bot Message */}
         <div className="flex items-start space-x-2">
            <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xs flex-shrink-0 mt-1">
-            <img src="/chatboc_widget_64x64.webp" alt="B" className="w-4 h-4 rounded-full invert brightness-0" />
+            <img src={CHATBOC_ORBIT_AVATAR} alt="B" className="w-4 h-4 rounded-full" />
           </div>
           <div className="bg-muted p-2 rounded-lg rounded-bl-none max-w-[80%] shadow-sm">
             <p className="text-foreground">¡Excelente elección! El Plan PRO incluye...</p>
@@ -52,7 +53,7 @@ const MiniChatWidgetPreview: React.FC = () => {
          {/* Example of a slightly longer message */}
         <div className="flex items-start space-x-2">
            <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xs flex-shrink-0 mt-1">
-            <img src="/chatboc_widget_64x64.webp" alt="B" className="w-4 h-4 rounded-full invert brightness-0" />
+            <img src={CHATBOC_ORBIT_AVATAR} alt="B" className="w-4 h-4 rounded-full" />
           </div>
           <div className="bg-muted p-2 rounded-lg rounded-bl-none max-w-[80%] shadow-sm">
             <p className="text-foreground">También te permite integrar el widget directamente en tu sitio web.</p>
