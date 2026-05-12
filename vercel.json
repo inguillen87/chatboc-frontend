@@ -48,6 +48,14 @@
   ],
   "rewrites": [
     {
+      "source": "/ask/(.*)",
+      "destination": "https://chatbot-backend-2e14.onrender.com/ask/$1"
+    },
+    {
+      "source": "/archivos/(.*)",
+      "destination": "https://chatbot-backend-2e14.onrender.com/archivos/$1"
+    },
+    {
       "source": "/public/(.*)",
       "destination": "https://chatbot-backend-2e14.onrender.com/public/$1"
     },

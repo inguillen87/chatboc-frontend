@@ -17,6 +17,7 @@ export class NetworkError extends Error {
   constructor(message: string, cause?: unknown) {
     super(message);
     this.name = "NetworkError";
+    Object.setPrototypeOf(this, NetworkError.prototype);
     this.cause = cause;
   }
 }
@@ -29,6 +30,7 @@ export class ApiError extends Error {
   constructor(message: string, status: number, body: any = null, requestId?: string) {
     super(message);
     this.name = "ApiError";
+    Object.setPrototypeOf(this, ApiError.prototype);
     this.status = status;
     this.body = body;
     this.requestId = requestId;
@@ -409,13 +411,26 @@ const resolveApiErrorMessage = (data: unknown, fallback: string) => {
       payloadError && typeof payloadError === 'object'
         ? (payloadError as Record<string, unknown>).message
         : null;
+    const nestedErrorMensaje =
+      payloadError && typeof payloadError === 'object'
+        ? (payloadError as Record<string, unknown>).mensaje
+        : null;
+    const nestedErrorCode =
+      payloadError && typeof payloadError === 'object'
+        ? (payloadError as Record<string, unknown>).code
+        : null;
+    const payloadErrorText = typeof payloadError === 'string' ? payloadError : null;
     const directMessage =
       nestedErrorMessage ??
-      payloadError ??
+      nestedErrorMensaje ??
+      payloadErrorText ??
       payload.message ??
+      payload.mensaje ??
       payload.detail ??
       payload.action_hint ??
-      payload.reason_code;
+      payload.reason_code ??
+      payload.codigo ??
+      nestedErrorCode;
 
     if (typeof directMessage === 'string') {
       const trimmed = directMessage.trim();

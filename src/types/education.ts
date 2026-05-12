@@ -45,6 +45,7 @@ export interface EducationCaseAlias {
   guardian_id?: string | number | null;
   guardian_name?: string | null;
   case_type?: string | null;
+  taxonomy_label?: string | null;
   status?: string | null;
   sensitivity_level?: string | null;
   requires_handoff?: boolean | null;

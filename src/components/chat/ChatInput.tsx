@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from "react";
 import { Send, MapPin, Mic, MicOff, X, FileText, Smile, ArrowUp, CheckCircle2, Sparkles } from "lucide-react";
 import AdjuntarArchivo, { AdjuntarArchivoHandle } from "@/components/ui/AdjuntarArchivo";
-import { apiFetch, getErrorMessage } from "@/utils/api";
+import { getErrorMessage } from "@/utils/api";
 import { requestLocation } from "@/utils/geolocation";
 import { toast } from "@/components/ui/use-toast";
 import useAudioRecorder from "@/hooks/useAudioRecorder";
@@ -19,6 +19,7 @@ import {
 } from "@/utils/uploadResponse";
 import { ensureAbsoluteUrl } from "@/utils/chatButtons";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
+import { uploadChatAttachment } from "@/features/chat/uploadChatAttachment";
 
 export interface ChatInputHandle {
   openFilePicker: () => void;
@@ -231,8 +232,11 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
 
     if (attachmentPreview) {
       toast({ title: "Subiendo archivo...", description: attachmentPreview.file.name });
-      const formData = new FormData();
-      formData.append('file', attachmentPreview.file);
+      const createUploadFormData = () => {
+        const formData = new FormData();
+        formData.append('file', attachmentPreview.file);
+        return formData;
+      };
       const selectedMode = attachmentPreview.file.type.startsWith("image/")
         ? mediaCapabilities?.input_modes?.image
         : mediaCapabilities?.input_modes?.file;
@@ -240,11 +244,10 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
       const uploadResponseKey = selectedMode?.upload_response_key || 'attachmentInfo';
 
       try {
-        const response = await apiFetch<UploadResponse>(uploadEndpoint, {
-          method: 'POST',
-          body: formData,
-          isWidgetRequest: true,
-        });
+        const response = await uploadChatAttachment<UploadResponse>(
+          uploadEndpoint,
+          createUploadFormData,
+        );
         const originalFile = attachmentPreview.file;
         const uploadRaw =
           response && typeof response === 'object'
@@ -447,15 +450,17 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
       return;
     }
 
-    const formData = new FormData();
-    formData.append('file', audioBlob, filename);
+    const createAudioUploadFormData = () => {
+      const formData = new FormData();
+      formData.append('file', audioBlob, filename);
+      return formData;
+    };
 
     try {
-      const data = await apiFetch<UploadResponse>('/archivos/upload/chat_attachment', {
-        method: 'POST',
-        body: formData,
-        isWidgetRequest: true,
-      });
+      const data = await uploadChatAttachment<UploadResponse>(
+        '/archivos/upload/chat_attachment',
+        createAudioUploadFormData,
+      );
 
       const normalized = normalizeUploadResponse(data);
       const responsePayload =

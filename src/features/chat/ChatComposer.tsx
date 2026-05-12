@@ -2,10 +2,11 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { FileText, Image, MapPin, Mic, MicOff, Paperclip, Send, X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { apiFetch, getErrorMessage } from '@/utils/api';
+import { getErrorMessage } from '@/utils/api';
 import { requestLocation } from '@/utils/geolocation';
 import useAudioRecorder from '@/hooks/useAudioRecorder';
 import type { ChatMediaCapabilities, ChatMediaInputModeConfig } from '@/types/chat';
+import { uploadChatAttachment } from './uploadChatAttachment';
 
 export interface ChatComposerPayload {
   text: string;
@@ -117,15 +118,14 @@ export default function ChatComposer({
   const uploadAttachment = async (file: File, mode: ChatMediaInputModeConfig | undefined) => {
     const endpoint = mode?.upload_endpoint || '/archivos/upload/chat_attachment';
     const responseKey = mode?.upload_response_key || 'attachmentInfo';
-    const formData = new FormData();
-    formData.append('file', file);
+    const createFormData = () => {
+      const formData = new FormData();
+      formData.append('file', file);
+      return formData;
+    };
     setComposerState('uploading');
     try {
-      const response = await apiFetch<Record<string, unknown>>(endpoint, {
-        method: 'POST',
-        body: formData,
-        isWidgetRequest: true,
-      });
+      const response = await uploadChatAttachment<Record<string, unknown>>(endpoint, createFormData);
       const attachmentInfo = response?.[responseKey] ?? response;
       onSend({
         text: text.trim(),

@@ -651,6 +651,20 @@ export const apiClient = {
       });
   },
 
+  adminUpdateProductImages: async (
+    tenantSlug: string,
+    productId: string | number,
+    payload: FormData | Record<string, unknown>,
+  ): Promise<any> => {
+      const isFormData = payload instanceof FormData;
+      return apiFetch<any>(`/api/admin/market/catalog/${productId}/images`, {
+          method: 'POST',
+          body: payload,
+          tenantSlug,
+          headers: isFormData ? {} : undefined,
+      });
+  },
+
   adminGetCatalogSyncStatus: async (tenantSlug: string): Promise<{ status: string; progress: number; message?: string }> => {
     return apiFetch<{ status: string; progress: number; message?: string }>(`/api/pymes/${tenantSlug}/catalog-vector-sync/status`, { tenantSlug });
   },

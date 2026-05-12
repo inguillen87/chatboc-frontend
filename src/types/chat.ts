@@ -273,6 +273,49 @@ export interface ChatAnimationTokens {
   }>;
 }
 
+export interface ChatWidgetOnboardingOption {
+  id?: string | null;
+  label?: string | null;
+  intent?: string | null;
+  sector?: string | null;
+  tenant_slug?: string | null;
+  rubro?: string | null;
+  payload?: Record<string, unknown> | null;
+}
+
+export interface ChatWidgetOnboarding {
+  contract_version?: string | null;
+  mode?: string | null;
+  title?: string | null;
+  entry_question?: string | null;
+  required_step?: string | null;
+  autostart_after_selection?: boolean | null;
+  selection_endpoint?: string | null;
+  catalog_endpoint?: string | null;
+  chat_header_policy?: string | null;
+  quick_menu?: ChatWidgetOnboardingOption[];
+}
+
+export interface ChatWidgetUiHints {
+  contract_version?: string | null;
+  density?: string | null;
+  max_visible_quick_replies?: number | null;
+  collapse_extra_quick_replies?: boolean | null;
+  composer?: {
+    single_row_actions?: boolean | null;
+    icon_buttons_only?: boolean | null;
+    show_labels_on_hover?: boolean | null;
+    hide_disabled_actions?: boolean | null;
+    send_button_always_visible?: boolean | null;
+  } | null;
+  toolbar?: {
+    position?: string | null;
+    avoid_header_action_overload?: boolean | null;
+    show?: string[];
+    collapse?: string[];
+  } | null;
+}
+
 export interface Message {
   id: number | string; // Identificador único del mensaje
   text: string; // Texto principal o fallback del mensaje. Puede ser HTML sanitizado.

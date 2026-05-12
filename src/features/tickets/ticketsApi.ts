@@ -34,6 +34,7 @@ const normalizeEducationCaseAlias = (value: unknown): EducationCaseAlias | null 
     guardian_id: getFirst(value, ['guardian_id', 'family_id', 'tutor_id']) as string | number | null | undefined,
     guardian_name: asString(getFirst(value, ['guardian_name', 'family_name', 'tutor_nombre'])) ?? null,
     case_type: asString(getFirst(value, ['case_type', 'type', 'tipo'])) ?? null,
+    taxonomy_label: asString(getFirst(value, ['taxonomy_label', 'case_label', 'label'])) ?? null,
     status: asString(getFirst(value, ['status', 'estado'])) ?? null,
     sensitivity_level: asString(getFirst(value, ['sensitivity_level', 'sensitivity', 'sensibilidad'])) ?? null,
     requires_handoff: typeof value.requires_handoff === 'boolean' ? value.requires_handoff : null,

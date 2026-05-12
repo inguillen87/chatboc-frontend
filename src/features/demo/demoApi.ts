@@ -91,6 +91,10 @@ const normalizeWorkspaceConfig = (response: DemoSessionResponse): DemoWorkspaceC
       workspace.chat_seed?.chat_bootstrap ??
       response.chat_seed?.chat_bootstrap ??
       null,
+    {
+      demoSessionId: response.demo_session_id ?? response.session_id ?? null,
+      tenantSlug: response.tenant_slug ?? response.tenant?.slug ?? null,
+    },
   );
   const firstVisit = workspace.first_visit ?? experienceBlueprint?.first_visit ?? null;
   const sampleConversations =
@@ -145,17 +149,44 @@ const normalizeWorkspaceConfig = (response: DemoSessionResponse): DemoWorkspaceC
   };
 };
 
-const normalizeChatBootstrap = (value: DemoChatBootstrap | null): DemoChatBootstrap | null => {
+const normalizeChatBootstrap = (
+  value: DemoChatBootstrap | null,
+  context?: { demoSessionId?: string | null; tenantSlug?: string | null },
+): DemoChatBootstrap | null => {
   if (!value || typeof value !== 'object') return null;
+  const headers = value.headers && typeof value.headers === 'object' ? { ...value.headers } : {};
+  const payload = value.payload && typeof value.payload === 'object' ? { ...value.payload } : undefined;
+  const query = value.query && typeof value.query === 'object' ? { ...value.query } : undefined;
+  const demoSessionId =
+    context?.demoSessionId ??
+    (typeof payload?.demo_session_id === 'string' ? payload.demo_session_id : null) ??
+    (typeof query?.demo_session_id === 'string' ? query.demo_session_id : null);
+  const tenantSlug =
+    context?.tenantSlug ??
+    (typeof payload?.tenant_slug === 'string' ? payload.tenant_slug : null) ??
+    (typeof query?.tenant_slug === 'string' ? query.tenant_slug : null);
+
+  if (demoSessionId) {
+    headers['X-Demo-Session-Id'] ||= demoSessionId;
+    headers['X-Demo-Session'] ||= demoSessionId;
+    headers['X-Chat-Session-Id'] ||= demoSessionId;
+    if (payload && !payload.demo_session_id) payload.demo_session_id = demoSessionId;
+    if (query && !query.demo_session_id) query.demo_session_id = demoSessionId;
+  }
+  if (tenantSlug) {
+    headers['X-Tenant-Slug'] ||= tenantSlug;
+    if (payload && !payload.tenant_slug) payload.tenant_slug = tenantSlug;
+    if (query && !query.tenant_slug) query.tenant_slug = tenantSlug;
+  }
 
   return {
     contract_version: typeof value.contract_version === 'string' ? value.contract_version : null,
     endpoint: typeof value.endpoint === 'string' ? value.endpoint : null,
     fallback_endpoint: typeof value.fallback_endpoint === 'string' ? value.fallback_endpoint : null,
     method: typeof value.method === 'string' ? value.method : null,
-    headers: value.headers && typeof value.headers === 'object' ? value.headers : undefined,
-    query: value.query && typeof value.query === 'object' ? value.query : undefined,
-    payload: value.payload && typeof value.payload === 'object' ? value.payload : undefined,
+    headers: Object.keys(headers).length ? headers : undefined,
+    query,
+    payload,
     supports: value.supports && typeof value.supports === 'object' ? value.supports : undefined,
   };
 };

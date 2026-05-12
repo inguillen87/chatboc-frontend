@@ -17,7 +17,11 @@ const formatRelativeTime = (value: string) => {
 };
 
 const getSchoolCaseLabel = (ticket: OmnichannelInboxItem) =>
-  ticket.school_case?.case_type || ticket.school_case?.status || ticket.school_case?.school_name || null;
+  ticket.school_case?.taxonomy_label ||
+  ticket.school_case?.case_type ||
+  ticket.school_case?.status ||
+  ticket.school_case?.school_name ||
+  null;
 
 export const TicketListPane: React.FC<TicketListPaneProps> = ({ tickets, selectedTicketId, onSelect }) => {
   return (

@@ -13,6 +13,13 @@ import { Loader2, Search, Filter, Save, ExternalLink, ImageOff, UploadCloud, Edi
 import { toast } from 'sonner';
 import { useUser } from '@/hooks/useUser';
 import CatalogUploadWizard from '@/components/admin/catalog/CatalogUploadWizard';
+import ProductImageManager from '@/components/admin/catalog/ProductImageManager';
+import {
+  getProductGalleryUrls,
+  getProductImageAlt,
+  getProductImageStatus,
+  getProductPrimaryImage,
+} from '@/utils/marketImages';
 
 const CatalogManagementPage = () => {
   const { currentSlug, tenant } = useTenant();
@@ -119,6 +126,21 @@ const CatalogManagementPage = () => {
       return matchesSearch && matchesCategory && matchesStock && matchesVarietal && matchesPrice;
   });
 
+  const imageStats = useMemo(() => {
+    const withImages = products.filter((product) => getProductPrimaryImage(product)).length;
+    const missingImages = products.filter((product) => getProductImageStatus(product) === 'missing').length;
+    const withGallery = products.filter((product) => getProductGalleryUrls(product).length > 1).length;
+    return { withImages, missingImages, withGallery };
+  }, [products]);
+
+  const handleImageUpdated = (updatedProduct: Record<string, any>) => {
+    setProducts((prev) =>
+      prev.map((product) =>
+        String(product.id) === String(updatedProduct.id) ? { ...product, ...updatedProduct } : product,
+      ),
+    );
+  };
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex justify-between items-center flex-wrap gap-4">
@@ -135,6 +157,7 @@ const CatalogManagementPage = () => {
                 </DialogTrigger>
                 <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto sm:max-w-[800px]">
                     <CatalogUploadWizard
+                        tenantSlug={currentSlug || ''}
                         onFinish={() => { setUploadOpen(false); loadProducts(); }}
                     />
                 </DialogContent>
@@ -143,6 +166,27 @@ const CatalogManagementPage = () => {
                 <Filter className="mr-2 h-4 w-4" /> Recargar
             </Button>
         </div>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-3">
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-sm text-muted-foreground">Productos con imagen</p>
+            <p className="text-2xl font-semibold">{imageStats.withImages}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-sm text-muted-foreground">Pendientes visuales</p>
+            <p className="text-2xl font-semibold">{imageStats.missingImages}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-sm text-muted-foreground">Con galeria</p>
+            <p className="text-2xl font-semibold">{imageStats.withGallery}</p>
+          </CardContent>
+        </Card>
       </div>
 
       <Card>
@@ -234,8 +278,8 @@ const CatalogManagementPage = () => {
                                     <TableRow key={product.id}>
                                         <TableCell>
                                             <div className="h-10 w-10 rounded bg-muted flex items-center justify-center overflow-hidden">
-                                                {product.image_url || product.imagen_url ? (
-                                                    <img src={product.image_url || product.imagen_url} alt="" className="h-full w-full object-cover" />
+                                                {getProductPrimaryImage(product) ? (
+                                                    <img src={getProductPrimaryImage(product) || ''} alt={getProductImageAlt(product)} className="h-full w-full object-cover" />
                                                 ) : (
                                                     <ImageOff className="h-5 w-5 text-muted-foreground" />
                                                 )}
@@ -254,6 +298,11 @@ const CatalogManagementPage = () => {
                                                     {product.modalidad}
                                                 </Badge>
                                             )}
+                                            {getProductImageStatus(product) === 'missing' ? (
+                                                <Badge variant="destructive" className="mt-1 ml-2 text-xs scale-90">
+                                                    Sin imagen
+                                                </Badge>
+                                            ) : null}
                                         </TableCell>
                                         <TableCell>
                                             {editingId === product.id ? (
@@ -288,11 +337,20 @@ const CatalogManagementPage = () => {
                                             </Badge>
                                         </TableCell>
                                         <TableCell>
-                                            {product.external_url && (
-                                                <a href={product.external_url} target="_blank" rel="noopener noreferrer" title="Ver enlace externo">
-                                                    <ExternalLink className="h-4 w-4 text-muted-foreground hover:text-primary" />
-                                                </a>
-                                            )}
+                                            <div className="flex items-center gap-2">
+                                                {currentSlug ? (
+                                                    <ProductImageManager
+                                                        tenantSlug={currentSlug}
+                                                        product={product}
+                                                        onUpdated={handleImageUpdated}
+                                                    />
+                                                ) : null}
+                                                {product.external_url && (
+                                                    <a href={product.external_url} target="_blank" rel="noopener noreferrer" title="Ver enlace externo">
+                                                        <ExternalLink className="h-4 w-4 text-muted-foreground hover:text-primary" />
+                                                    </a>
+                                                )}
+                                            </div>
                                         </TableCell>
                                     </TableRow>
                                 ))

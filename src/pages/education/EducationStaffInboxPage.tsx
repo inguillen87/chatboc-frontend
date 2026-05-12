@@ -478,6 +478,7 @@ const readCasePreviewLabel = (item: unknown, index: number) => {
   if (!item || typeof item !== 'object' || Array.isArray(item)) return `#${index + 1}`;
   const record = item as Record<string, unknown>;
   const candidate =
+    record.taxonomy_label ??
     record.title ??
     record.label ??
     record.case_type ??
@@ -492,6 +493,7 @@ const readCasePreviewBadges = (item: unknown) => {
   if (!item || typeof item !== 'object' || Array.isArray(item)) return [];
   const record = item as Record<string, unknown>;
   return [
+    record.taxonomy_label,
     record.status ?? record.estado,
     record.channel ?? record.canal,
     record.sensitivity_level ?? record.sensitivity,

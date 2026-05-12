@@ -27,6 +27,8 @@ import { hexToHsl, getContrastColorHsl } from "@/utils/color";
 import { apiClient } from "@/api/client";
 import { esRubroPublico } from "@/utils/chatEndpoints";
 import { getChatbocBotAvatar } from "@/utils/brandAssets";
+import { createDemoSession } from "@/features/demo/demoApi";
+import { DEMO_SECTOR_GROUPS } from "@/data/demoHierarchy";
 
 // Use constants from new file
 import { TENANT_PLACEHOLDER_SLUGS } from "@/constants/tenant";
@@ -47,6 +49,61 @@ function normalizeCtaMessages(rawMessages: any): string[] {
     })
     .map((msg: string) => msg.trim())
     .filter((msg: string) => msg.length > 0);
+}
+
+function buildPlatformWidgetFallbackConfig() {
+  return {
+    contract_version: "public.widget_config.v1",
+    tenant: {
+      slug: "chatboc-platform",
+      tipo: "platform",
+      nombre: "Chatboc",
+      white_label: false,
+    },
+    onboarding: {
+      contract_version: "public.widget_onboarding.v1",
+      mode: "platform_sector_selector",
+      title: "Chatboc",
+      entry_question: "Que tipo de organizacion queres simular?",
+      required_step: "select_sector",
+      autostart_after_selection: true,
+      selection_endpoint: "/api/v2/demo/session",
+      catalog_endpoint: "/api/v2/demo/catalog",
+      chat_header_policy: "use_chat_bootstrap_from_demo_session",
+    },
+    ui_hints: {
+      contract_version: "widget.ui_hints.v1",
+      density: "compact",
+      max_visible_quick_replies: 3,
+      collapse_extra_quick_replies: true,
+      composer: {
+        single_row_actions: true,
+        icon_buttons_only: true,
+        show_labels_on_hover: true,
+        hide_disabled_actions: true,
+        send_button_always_visible: true,
+      },
+      toolbar: {
+        position: "composer",
+        avoid_header_action_overload: true,
+        show: ["attach_file", "share_location", "record_audio", "emoji"],
+        collapse: ["whatsapp", "voice_call", "video_call", "catalog"],
+      },
+    },
+    realtime: {
+      socket_enabled: false,
+      socket_url: null,
+      fallback_mode: "polling_disabled",
+    },
+    quick_menu: DEMO_SECTOR_GROUPS.map((group) => ({
+      id: `select_${group.key}`,
+      label: group.label,
+      intent: "select_demo_sector",
+      sector: group.key,
+      tenant_slug: group.tenant_slug,
+      rubro: group.default_rubro || group.tenant_slug,
+    })),
+  };
 }
 
 
@@ -234,6 +291,10 @@ function ChatWidgetInner({
   const [entityInfo, setEntityInfo] = useState<any | null>(null);
   const [isProfileLoading, setProfileLoading] = useState(true);
   const [profileError, setProfileError] = useState<string | null>(null);
+  const [platformSelectionLoadingId, setPlatformSelectionLoadingId] = useState<string | null>(null);
+  const [platformSelectionError, setPlatformSelectionError] = useState<string | null>(null);
+  const [activeDemoTenantSlug, setActiveDemoTenantSlug] = useState<string | null>(null);
+  const [chatPanelResetKey, setChatPanelResetKey] = useState(0);
   const [requireCatalogAuth, setRequireCatalogAuth] = useState(false);
   const [catalogInfo, setCatalogInfo] = useState<any | null>(null);
 
@@ -320,6 +381,7 @@ function ChatWidgetInner({
     const attrs = entityInfo?.widget?.attributes || {};
     const realtimeMeta =
       entityInfo?.builder_config?.enterprise_iteration?.realtime || {};
+    const publicRealtime = entityInfo?.realtime || entityInfo?.widget?.realtime || {};
     const voiceHandoff = realtimeMeta?.voice_handoff || {};
     const toBool = (value: unknown, fallback = false) => {
       if (typeof value === 'boolean') return value;
@@ -370,6 +432,18 @@ function ChatWidgetInner({
       avatarPersona: toText(attrs['data-avatar-persona'], ''),
       voiceLabel: toText(attrs['data-realtime-voice-label'], toText(supportChannels?.voice_call?.label, '')),
       videoLabel: toText(attrs['data-realtime-video-label'], toText(supportChannels?.video_call?.label, '')),
+      socketEnabled: toBool(
+        publicRealtime?.socket_enabled ?? supportChannels?.live_chat?.socket_enabled,
+        false,
+      ),
+      socketUrl: toText(
+        publicRealtime?.socket_url,
+        toText(supportChannels?.live_chat?.socket_url, ''),
+      ) || null,
+      fallbackMode: toText(
+        publicRealtime?.fallback_mode,
+        toText(supportChannels?.live_chat?.fallback_mode, ''),
+      ) || null,
       voiceHandoff: {
         enabled: toBool(voiceHandoff?.enabled, false),
         supportsWhatsAppFollowup: toBool(
@@ -387,7 +461,12 @@ function ChatWidgetInner({
     };
   }, [
     entityInfo?.builder_config?.enterprise_iteration?.realtime,
+    entityInfo?.realtime,
     entityInfo?.widget?.attributes,
+    entityInfo?.widget?.realtime,
+    supportChannels?.live_chat?.fallback_mode,
+    supportChannels?.live_chat?.socket_enabled,
+    supportChannels?.live_chat?.socket_url,
     realtimeVoice,
     supportChannels?.video_call?.enabled,
     supportChannels?.video_call?.label,
@@ -555,6 +634,7 @@ function ChatWidgetInner({
 
     return embeddedTenantSlug || storedTenantSlug;
   }, [embeddedTenantSlug, isEmbedded, storedTenantSlug]);
+  const chatTenantSlug = activeDemoTenantSlug || resolvedTenantSlug;
 
   useEffect(() => {
     const sanitized = sanitizeTenantSlug(resolvedTenantSlug);
@@ -1066,6 +1146,68 @@ function ChatWidgetInner({
     setSelectedRubro(normalized ?? null);
   }, []);
 
+  const handlePlatformSelection = useCallback(async (option: any) => {
+    if (!option || typeof option !== "object") return;
+    const optionId = String(option.id || option.sector || option.label || "platform_option");
+    const sector = typeof option.sector === "string" ? option.sector : undefined;
+    const tenantSlug = typeof option.tenant_slug === "string" ? option.tenant_slug : undefined;
+    const rubro = typeof option.rubro === "string" ? option.rubro : tenantSlug;
+    setPlatformSelectionLoadingId(optionId);
+    setPlatformSelectionError(null);
+    try {
+      const session = await createDemoSession({
+        sector,
+        tenant_slug: tenantSlug || null,
+        rubro,
+      });
+      const workspace = session.workspace || {};
+      const demoTenantSlug = session.tenant_slug || session.tenant?.slug || tenantSlug || null;
+      const bootstrapPayload = workspace.chat_bootstrap?.payload || {};
+      const nextTipo =
+        bootstrapPayload.tipo_chat === "municipio" ||
+        session.tenant?.tipo === "municipio" ||
+        sector === "gobierno"
+          ? "municipio"
+          : "pyme";
+      const nextInfo = {
+        ...(entityInfo || {}),
+        ...workspace,
+        tenant: session.tenant || entityInfo?.tenant || null,
+        slug: demoTenantSlug || entityInfo?.slug || null,
+        tenant_slug: demoTenantSlug,
+        nombre_empresa: workspace.title || session.tenant?.nombre || entityInfo?.nombre_empresa || "Chatboc",
+        tipo_chat: nextTipo,
+        rubro: rubro || workspace.chat_bootstrap?.payload?.rubro || entityInfo?.rubro || null,
+        rubro_clave: rubro || workspace.chat_bootstrap?.payload?.rubro_clave || entityInfo?.rubro_clave || null,
+        quick_menu: workspace.quick_replies || entityInfo?.quick_menu || [],
+        onboarding: {
+          ...(entityInfo?.onboarding || {}),
+          mode: "demo_session",
+        },
+        ui_hints: entityInfo?.ui_hints || null,
+        chat_bootstrap: workspace.chat_bootstrap || session.chat_bootstrap || null,
+        experience_blueprint: workspace.experience_blueprint || entityInfo?.experience_blueprint || null,
+        first_visit: workspace.first_visit || entityInfo?.first_visit || null,
+        sample_conversations: workspace.sample_conversations || entityInfo?.sample_conversations || [],
+        trust_signals: workspace.trust_signals || entityInfo?.trust_signals || [],
+        lead_capture: workspace.lead_capture || entityInfo?.lead_capture || null,
+        media_capabilities: workspace.media_capabilities || entityInfo?.media_capabilities || null,
+        conversion_ctas: workspace.conversion_ctas || entityInfo?.conversion_ctas || null,
+        animation_tokens: workspace.animation_tokens || entityInfo?.animation_tokens || null,
+        empty_states: workspace.empty_states || entityInfo?.empty_states || null,
+      };
+      setEntityInfo(nextInfo);
+      setActiveDemoTenantSlug(demoTenantSlug);
+      setSelectedRubro(extractRubroKey(rubro) ?? null);
+      setResolvedTipoChat(nextTipo);
+      setChatPanelResetKey((current) => current + 1);
+    } catch (error) {
+      setPlatformSelectionError(getErrorMessage(error, "No se pudo iniciar la demo."));
+    } finally {
+      setPlatformSelectionLoadingId(null);
+    }
+  }, [entityInfo]);
+
   const [viewport, setViewport] = useState({
     width: typeof window !== "undefined" ? window.innerWidth : 0,
     height: typeof window !== "undefined" ? window.innerHeight : 0,
@@ -1309,7 +1451,7 @@ function ChatWidgetInner({
         setIsOpen(Boolean(payload.isOpen));
       } else if (payload.type === "SET_VIEW") {
         const v = payload.view;
-        if (['chat', 'register', 'login', 'user', 'info'].includes(v)) {
+        if (typeof v === "string" && ['chat', 'register', 'login', 'user', 'info'].includes(v)) {
           setView(v as any);
         }
       }
@@ -1349,8 +1491,12 @@ function ChatWidgetInner({
           if (resolvedTenantSlug) {
              try {
                 const rawPublicConfig = await tenantService.getPublicWidgetConfig(resolvedTenantSlug);
-                const publicConfig = {
-                  ...(rawPublicConfig || {}),
+                const publicConfigBase =
+                  rawPublicConfig && typeof rawPublicConfig === 'object'
+                    ? (rawPublicConfig as Record<string, any>)
+                    : {};
+                const publicConfig: Record<string, any> = {
+                  ...publicConfigBase,
                   cta_messages: Array.isArray((rawPublicConfig as any)?.cta_messages) ? (rawPublicConfig as any).cta_messages : [],
                   theme: (rawPublicConfig as any)?.theme && typeof (rawPublicConfig as any).theme === 'object' ? (rawPublicConfig as any).theme : {},
                   features: (rawPublicConfig as any)?.features && typeof (rawPublicConfig as any).features === 'object' ? (rawPublicConfig as any).features : {},
@@ -1514,11 +1660,40 @@ function ChatWidgetInner({
         return;
       }
 
-      if (ownerToken === undefined) {
+      if (!ownerToken) {
+        const rawPlatformConfig = await tenantService.getPlatformWidgetConfig().catch((error) => {
+          console.warn("ChatWidget: no se pudo cargar widget-config plataforma, usando fallback local.", error);
+          return buildPlatformWidgetFallbackConfig();
+        });
+        const publicConfig: any = rawPlatformConfig || buildPlatformWidgetFallbackConfig();
+        const platformTenant = publicConfig.tenant || {};
+        setEntityInfo({
+          ...publicConfig,
+          nombre_empresa: welcomeTitle || publicConfig.tenant_name || platformTenant.nombre || publicConfig.name || publicConfig.nombre || "Chatboc",
+          logo_url: headerLogoUrl || customLauncherLogoUrl || publicConfig.logo_url || publicConfig.avatar_url || getChatbocBotAvatar(isDarkMode),
+          cta_messages: ctaMessage ? [{ text: ctaMessage }] : (Array.isArray(publicConfig.cta_messages) ? publicConfig.cta_messages : []),
+          theme_config: publicConfig.theme_config || {},
+          default_open: (typeof defaultOpen === 'boolean') ? defaultOpen : publicConfig.default_open,
+          slug: platformTenant.slug || publicConfig.slug || "chatboc-platform",
+          tipo_chat: "pyme",
+          quick_menu: Array.isArray(publicConfig.quick_menu)
+            ? publicConfig.quick_menu
+            : Array.isArray(publicConfig.onboarding?.quick_menu)
+              ? publicConfig.onboarding.quick_menu
+              : [],
+          onboarding: publicConfig.onboarding || null,
+          ui_hints: publicConfig.ui_hints || null,
+          realtime: publicConfig.realtime || publicConfig.widget?.realtime || null,
+          support_channels: publicConfig.support_channels || publicConfig.widget?.support_channels || null,
+          media_capabilities: publicConfig.media_capabilities || publicConfig.builder_config?.media_capabilities || publicConfig.widget?.media_capabilities || null,
+          conversion_ctas: publicConfig.conversion_ctas || publicConfig.builder_config?.conversion_ctas || publicConfig.widget?.conversion_ctas || null,
+          animation_tokens: publicConfig.animation_tokens || publicConfig.builder_config?.animation_tokens || publicConfig.widget?.animation_tokens || null,
+          empty_states: publicConfig.empty_states || publicConfig.builder_config?.empty_states || publicConfig.widget?.empty_states || null,
+        });
+        setWidgetUx(resolveWidgetUxConfig(publicConfig, "pyme"));
+        setResolvedTipoChat("pyme");
         setProfileLoading(false);
         return;
-      }
-      if (!ownerToken) {
         console.log("ChatWidget: No hay ownerToken, se asume configuración por defecto.");
         setProfileLoading(false);
         return;
@@ -1553,12 +1728,12 @@ function ChatWidgetInner({
   useEffect(() => {
     let isActive = true;
     const loadCatalogInfo = async () => {
-      if (!resolvedTenantSlug) {
+      if (!chatTenantSlug) {
         setCatalogInfo(null);
         return;
       }
       try {
-        const catalog = await apiClient.publicGetCatalog(resolvedTenantSlug);
+        const catalog = await apiClient.publicGetCatalog(chatTenantSlug);
         if (isActive) {
           setCatalogInfo(catalog);
         }
@@ -1573,7 +1748,7 @@ function ChatWidgetInner({
     return () => {
       isActive = false;
     };
-  }, [resolvedTenantSlug]);
+  }, [chatTenantSlug]);
 
   useEffect(() => {
     if (!isProfileLoading) return;
@@ -1833,11 +2008,18 @@ function ChatWidgetInner({
                   }
                 >
                   <ChatPanel
+                    key={`chat-panel-${chatPanelResetKey}`}
                     variant="legacy-widget"
                     mode={mode}
                     widgetId={widgetId}
                     entityToken={resolvedOwnerToken ?? undefined}
                     quickMenu={entityInfo?.quick_menu}
+                    onboarding={entityInfo?.onboarding ?? null}
+                    uiHints={entityInfo?.ui_hints ?? null}
+                    chatBootstrap={entityInfo?.chat_bootstrap ?? entityInfo?.workspace?.chat_bootstrap ?? null}
+                    onPlatformSelection={handlePlatformSelection}
+                    platformSelectionLoadingId={platformSelectionLoadingId}
+                    platformSelectionError={platformSelectionError}
                     leadCapture={entityInfo?.lead_capture ?? entityInfo?.experience_blueprint?.lead_capture ?? null}
                     mediaCapabilities={entityInfo?.media_capabilities ?? entityInfo?.experience_blueprint?.media_capabilities ?? null}
                     conversionCtas={entityInfo?.conversion_ctas ?? entityInfo?.experience_blueprint?.conversion_ctas ?? null}
@@ -1853,7 +2035,7 @@ function ChatWidgetInner({
                       animation_tokens: entityInfo?.animation_tokens ?? null,
                       empty_states: entityInfo?.empty_states ?? undefined,
                     }}
-                    tenantSlug={resolvedTenantSlug}
+                    tenantSlug={chatTenantSlug}
                     openWidth={finalOpenWidth}
                     openHeight={finalOpenHeight}
                     onClose={toggleChat}

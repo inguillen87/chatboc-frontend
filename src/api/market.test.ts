@@ -199,4 +199,31 @@ describe('market api continuity normalization', () => {
     );
     expect(result.balance).toBe(700);
   });
+
+  it('normalizes product image aliases from catalog payloads', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      products: [
+        {
+          id: 10,
+          nombre: 'Malbec Reserva',
+          precio: '12000',
+          imagen_url: 'https://cdn.example/malbec.jpg',
+          gallery_urls: ['https://cdn.example/malbec-2.jpg'],
+          image_status: 'ready',
+          image_alt: 'Botella Malbec Reserva',
+        },
+      ],
+    });
+
+    const catalog = await import('@/api/market').then((mod) => mod.fetchMarketCatalog('bodega'));
+
+    expect(catalog.products[0]).toMatchObject({
+      id: '10',
+      name: 'Malbec Reserva',
+      imageUrl: 'https://cdn.example/malbec.jpg',
+      galleryUrls: ['https://cdn.example/malbec-2.jpg'],
+      imageStatus: 'ready',
+      imageAlt: 'Botella Malbec Reserva',
+    });
+  });
 });

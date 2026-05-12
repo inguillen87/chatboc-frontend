@@ -49,6 +49,7 @@ const IconButton = {
 
 interface Props {
   recommendationLabel?: string | null;
+  compactActions?: boolean;
   onClose: () => void;
   isTyping?: boolean;
   onProfile?: () => void;
@@ -86,6 +87,7 @@ const ChatHeader: React.FC<Props> = ({
   onA11yChange,
   supportChannels,
   recommendationLabel,
+  compactActions = false,
 }) => {
   const liveChatVisible = Boolean(supportChannels?.live_chat?.realtime || supportChannels?.live_chat?.available);
   const whatsappVisible = Boolean(supportChannels?.whatsapp?.enabled && supportChannels?.whatsapp?.realtime_bridge);
@@ -165,7 +167,7 @@ const ChatHeader: React.FC<Props> = ({
         </div>
       </div>
       <div className="relative flex items-center gap-1.5 sm:gap-2">
-        <AccessibilityToggle onChange={onA11yChange} />
+        {!compactActions ? <AccessibilityToggle onChange={onA11yChange} /> : null}
         {onBack ? (
           <button
             onClick={onBack}
@@ -175,7 +177,7 @@ const ChatHeader: React.FC<Props> = ({
           >
             <IconButton.Back className="h-5 w-5" />
           </button>
-        ) : onProfile && showProfile ? (
+        ) : !compactActions && onProfile && showProfile ? (
           <button
             onClick={onProfile}
             className={actionButtonClass}
@@ -185,7 +187,7 @@ const ChatHeader: React.FC<Props> = ({
             <IconButton.User className="h-5 w-5" />
           </button>
         ) : null}
-        {onCart && (
+        {!compactActions && onCart && (
           <button
             onClick={() => onCart()}
             className={`relative ${actionButtonClass}`}
@@ -200,7 +202,7 @@ const ChatHeader: React.FC<Props> = ({
             )}
           </button>
         )}
-        {onToggleSound && (
+        {!compactActions && onToggleSound && (
           <button
             onClick={onToggleSound}
             className={actionButtonClass}

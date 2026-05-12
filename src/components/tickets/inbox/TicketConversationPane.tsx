@@ -227,7 +227,7 @@ const SchoolCaseAliasPanel = ({ schoolCase }: { schoolCase: EducationCaseAlias }
   const fields = [
     { id: 'school', label: 'Colegio', value: readCaseValue(schoolCase, ['school_name', 'school_id']) },
     { id: 'student', label: 'Alumno/familia', value: readCaseValue(schoolCase, ['student_name', 'guardian_name']) },
-    { id: 'case', label: 'Caso', value: readCaseValue(schoolCase, ['case_type', 'case_id']) },
+    { id: 'case', label: 'Caso', value: readCaseValue(schoolCase, ['taxonomy_label', 'case_type', 'case_id']) },
   ].filter((field) => field.value);
 
   return (

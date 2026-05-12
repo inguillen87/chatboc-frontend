@@ -64,6 +64,16 @@ export const tenantService = {
     return apiFetch(`/api/portal/${slug}/integration`, { tenantSlug: slug });
   },
 
+  getPlatformWidgetConfig: async () => {
+    return apiFetch(`/api/public/widget-config`, {
+      skipAuth: true,
+      omitCredentials: true,
+      isWidgetRequest: true,
+      omitTenant: true,
+      omitChatSessionId: true,
+    });
+  },
+
   getPublicWidgetConfig: async (slug: string) => {
     try {
       return await apiFetch(`${PUBLIC_BASE_URL}/${slug}/widget-config`, {

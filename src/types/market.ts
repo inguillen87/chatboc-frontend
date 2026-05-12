@@ -9,6 +9,9 @@ export interface MarketProduct {
   modality: string | null; // 'venta', 'puntos', 'donacion', etc.
   points: number | null;
   imageUrl: string | null;
+  galleryUrls?: string[] | null;
+  imageStatus?: "ready" | "missing" | string | null;
+  imageAlt?: string | null;
   category: string | null;
   unit: string | null;
   quantity: number | null; // Available stock

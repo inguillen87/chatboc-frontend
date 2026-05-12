@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 import { CatalogPreviewV1, ColumnMapping, CatalogField, ImportStatus } from '@/types/catalog-import';
 import { ImportMappingTable } from './ImportMappingTable';
 import { cn } from '@/lib/utils';
+import { looksLikeImageColumn } from '@/utils/marketImages';
 
 interface CatalogUploadWizardProps {
   tenantSlug: string;
@@ -63,7 +64,7 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({
     },
     maxFiles: 1,
     multiple: false
-  });
+  } as any);
 
   const handleUpload = async () => {
     if (!file) return;
@@ -106,6 +107,9 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({
           else if (lower.includes('sku') || lower.includes('codigo')) initialMapping[col.key] = 'sku';
           else if (lower.includes('stock')) initialMapping[col.key] = 'stock';
           else if (lower.includes('categoria')) initialMapping[col.key] = 'category';
+          else if (lower.includes('galeria') || lower.includes('gallery') || lower.includes('imagenes') || lower.includes('images')) initialMapping[col.key] = 'gallery_urls';
+          else if (lower.includes('alt')) initialMapping[col.key] = 'image_alt';
+          else if (looksLikeImageColumn(lower)) initialMapping[col.key] = 'image_url';
           else initialMapping[col.key] = 'ignore';
         });
       }
@@ -206,7 +210,7 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({
           error && "border-destructive/50 bg-destructive/5"
         )}
       >
-        <input {...getInputProps()} />
+        <input {...(getInputProps() as React.InputHTMLAttributes<HTMLInputElement>)} />
         <div className="h-16 w-16 bg-muted rounded-full flex items-center justify-center mb-4">
            {isProcessing ? <Loader2 className="h-8 w-8 animate-spin text-primary" /> : <Upload className="h-8 w-8 text-muted-foreground" />}
         </div>
@@ -277,6 +281,19 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({
     const hasWarnings = previewData.summary?.warnings?.length > 0;
     const hasErrors = previewData.errors?.length > 0;
     const showTable = !isFailed || (previewData.rows_sample && previewData.rows_sample.length > 0);
+    const imageSummary = previewData.image_summary ?? previewData.summary?.image_summary ?? null;
+    const detectedImages =
+      previewData.imagenes_detectadas ??
+      imageSummary?.with_images ??
+      previewData.rows_sample?.filter((row) =>
+        Object.values(row.cells || {}).some(
+          (value) =>
+            typeof value === 'string' &&
+            /^https?:\/\//i.test(value) &&
+            /\.(png|jpe?g|webp|gif)(\?|#|$)/i.test(value),
+        ),
+      ).length ??
+      0;
 
     return (
       <div className="space-y-4">
@@ -286,11 +303,11 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({
             <h3 className="font-medium flex items-center gap-2">
               Resultados del análisis
               {isFailed ? (
-                 <Badge variant="destructive">Falló</Badge>
+                 <span className="inline-flex items-center rounded-full border border-red-200 bg-red-50 px-2.5 py-0.5 text-xs font-semibold text-red-700">Falló</span>
               ) : (
-                 <Badge variant={hasWarnings ? "secondary" : "default"} className="bg-green-100 text-green-800 border-green-200">
+                 <span className="inline-flex items-center rounded-full border border-green-200 bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-800">
                     {previewData.summary?.detected_rows} productos detectados
-                 </Badge>
+                 </span>
               )}
             </h3>
             <p className="text-sm text-muted-foreground">
@@ -300,8 +317,26 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({
           <div className="text-right text-xs text-muted-foreground">
              <div>Confianza Global: {Math.round((previewData.summary?.confidence_global || 0) * 100)}%</div>
              <div>Columnas: {previewData.summary?.detected_columns}</div>
+             <div>Imagenes: {detectedImages}</div>
           </div>
         </div>
+
+        {imageSummary || detectedImages ? (
+          <div className="grid gap-3 rounded-lg border bg-background p-3 text-sm md:grid-cols-3">
+            <div>
+              <p className="text-xs text-muted-foreground">Con imagen</p>
+              <p className="text-lg font-semibold">{imageSummary?.with_images ?? detectedImages}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Sin imagen</p>
+              <p className="text-lg font-semibold">{imageSummary?.missing_images ?? 0}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Columnas aceptadas</p>
+              <p className="text-sm font-medium">imagen, foto, thumbnail, galeria</p>
+            </div>
+          </div>
+        ) : null}
 
         {/* Errors / Warnings */}
         {(hasErrors || hasWarnings) && (

@@ -37,6 +37,10 @@ export interface ImportSummary {
   confidence_global: number;
   warnings: string[];
   total_estimated_rows?: number;
+  image_summary?: {
+    with_images?: number;
+    missing_images?: number;
+  };
 }
 
 export interface CatalogPreviewV1 {
@@ -52,6 +56,11 @@ export interface CatalogPreviewV1 {
   columns: ImportColumn[];
   rows_sample: ImportRow[]; // A subset (e.g. 50 rows) for preview
   errors: ImportError[];
+  image_summary?: {
+    with_images?: number;
+    missing_images?: number;
+  };
+  imagenes_detectadas?: number;
 }
 
 // Internal fields we map TO
@@ -64,6 +73,8 @@ export type CatalogField =
   | 'description'
   | 'currency'
   | 'image_url'
+  | 'gallery_urls'
+  | 'image_alt'
   | 'ignore'; // Special field to ignore the column
 
 export interface ColumnMapping {

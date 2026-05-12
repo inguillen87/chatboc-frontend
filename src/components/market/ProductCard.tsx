@@ -28,10 +28,15 @@ export default function ProductCard({ product, onAdd, isAdding }: ProductCardPro
         <div className="group relative aspect-[4/3] w-full overflow-hidden bg-muted">
           <img
             src={product.imageUrl}
-            alt={product.name}
+            alt={product.imageAlt || product.name}
             className="h-full w-full object-cover transition duration-500 ease-out group-hover:scale-[1.03]"
             loading="lazy"
           />
+          {product.galleryUrls?.length ? (
+            <span className="absolute bottom-3 right-3 rounded-full bg-black/65 px-2 py-1 text-xs font-medium text-white">
+              {product.galleryUrls.length} fotos
+            </span>
+          ) : null}
           {product.promoInfo ? (
             <span className="absolute left-3 top-3 rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-amber-700 shadow-sm">
               <Sparkles className="mr-1 inline h-3.5 w-3.5" /> {product.promoInfo}
@@ -40,7 +45,12 @@ export default function ProductCard({ product, onAdd, isAdding }: ProductCardPro
         </div>
       ) : (
         <div className="flex aspect-[4/3] w-full items-center justify-center bg-muted text-muted-foreground">
-          <ShoppingBag className="h-8 w-8" />
+          <div className="text-center">
+            <ShoppingBag className="mx-auto h-8 w-8" />
+            {product.imageStatus === 'missing' ? (
+              <p className="mt-2 text-xs">Imagen pendiente</p>
+            ) : null}
+          </div>
         </div>
       )}
 

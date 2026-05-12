@@ -88,6 +88,56 @@ const normalizeHeaders = (headers?: Record<string, string>) => {
   );
 };
 
+const readBootstrapString = (
+  source: Record<string, unknown> | undefined,
+  keys: string[],
+): string | null => {
+  if (!source) return null;
+  for (const key of keys) {
+    const value = source[key];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+    if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  }
+  return null;
+};
+
+const normalizeBootstrapHeaders = (bootstrap: ChatBootstrapConfig) => {
+  const headers = normalizeHeaders(bootstrap.headers) ?? {};
+  const demoSessionId = readBootstrapString(bootstrap.payload, [
+    'demo_session_id',
+    'session',
+  ]) ?? readBootstrapString(bootstrap.query, ['demo_session_id', 'session']);
+  const tenantSlug = readBootstrapString(bootstrap.payload, [
+    'tenant_slug',
+    'tenant',
+    'slug',
+  ]) ?? readBootstrapString(bootstrap.query, ['tenant_slug', 'tenant', 'slug']);
+
+  if (demoSessionId) {
+    headers['X-Demo-Session-Id'] ||= demoSessionId;
+    headers['X-Demo-Session'] ||= demoSessionId;
+    headers['X-Chat-Session-Id'] ||= demoSessionId;
+  }
+  if (tenantSlug) {
+    headers['X-Tenant-Slug'] ||= tenantSlug;
+  }
+
+  return Object.keys(headers).length ? headers : undefined;
+};
+
+const isBackendRootChatEndpoint = (endpoint: string) => {
+  const normalized = endpoint.trim();
+  if (!normalized || /^https?:\/\//i.test(normalized)) return false;
+  const path = normalized.replace(/^\/+/, '').toLowerCase();
+  return path === 'ask' || path.startsWith('ask/');
+};
+
+const resolveSameOriginChatBase = (endpoint: string) => {
+  if (!isBackendRootChatEndpoint(endpoint)) return undefined;
+  if (typeof window === 'undefined' || !window.location?.origin) return undefined;
+  return window.location.origin;
+};
+
 type ChatBootstrapHttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 const resolveBootstrapMethod = (method?: string | null): ChatBootstrapHttpMethod => {
@@ -302,7 +352,7 @@ export const sendChatBootstrapMessage = async (
       method: resolveBootstrapMethod(bootstrap.method),
       body: payload.audioBlob ? buildAudioPayload(bootstrap, payload) : buildJsonPayload(bootstrap, payload),
       headers: (() => {
-        const headers = normalizeHeaders(bootstrap.headers);
+        const headers = normalizeBootstrapHeaders(bootstrap);
         if (payload.audioBlob && headers) {
           delete headers['Content-Type'];
           delete headers['content-type'];
@@ -315,6 +365,7 @@ export const sendChatBootstrapMessage = async (
       omitTenant: true,
       omitChatSessionId: true,
       suppressPanel401Redirect: true,
+      baseUrlOverride: resolveSameOriginChatBase(target),
     });
 
   try {

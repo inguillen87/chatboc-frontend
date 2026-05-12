@@ -207,9 +207,7 @@ export const getSocketUrl = (): string => {
   return url.origin;
 };
 
-export const SOCKET_PATH = "/api/socket.io"; // SAME_ORIGIN_PROXY_BASE
-  // ? `${SAME_ORIGIN_PROXY_BASE.replace(/\/$/, '')}/socket.io`
-  // : '/socket.io';
+export const SOCKET_PATH = "/socket.io";
 
 // --- Other Environment Variables ---
 

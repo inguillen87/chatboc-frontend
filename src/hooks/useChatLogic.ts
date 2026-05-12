@@ -38,6 +38,9 @@ import { deriveAttachmentInfo } from "@/utils/attachment";
 import { getValidStoredToken } from "@/utils/authTokens";
 import { enterpriseService } from "@/services/enterpriseService";
 import { trackWidgetEvent } from "@/utils/widgetTelemetry";
+import { readBackendFlag } from "@/utils/backendFlags";
+import { sendChatBootstrapMessage } from "@/features/chat/chatApi";
+import type { ChatBootstrapConfig } from "@/features/chat/chatTypes";
 
 const PUBLIC_CHAT_CONTEXT_KEY = "chatboc_public_chat_context";
 
@@ -129,6 +132,9 @@ interface UseChatLogicOptions {
   skipAuth?: boolean;
   selectedRubro?: string | null;
   liveChatAvailable?: boolean;
+  socketEnabled?: boolean;
+  socketUrlOverride?: string | null;
+  chatBootstrap?: ChatBootstrapConfig | null;
 }
 
 export function useChatLogic({
@@ -139,6 +145,9 @@ export function useChatLogic({
   skipAuth = false,
   selectedRubro = null,
   liveChatAvailable = false,
+  socketEnabled = false,
+  socketUrlOverride = null,
+  chatBootstrap = null,
 	}: UseChatLogicOptions) {
   const entityToken = propToken || getIframeToken();
 
@@ -359,24 +368,34 @@ export function useChatLogic({
           tipoChatFinal,
           tenantSlug,
         );
-        const response = await apiFetch<any>(endpoint, {
-          method: "POST",
-          skipAuth: effectiveSkipAuth,
-          isWidgetRequest: true,
-          tenantSlug: tenantSlug,
-          entityToken,
-          body: {
-            pregunta: "__INIT__",
-            action: "initial_greeting",
-            contexto_previo: contextToSend,
-            tipo_chat: tipoChatFinal,
-            tenant_slug: tenantSlug ?? "municipio",
-            session_id: sessionId,
-            ...(publicChatContext || {}),
-            ...(rubroForPayload && { rubro_clave: rubroForPayload }),
-            ...(visitorName && { nombre_usuario: visitorName }),
-          },
-        });
+        const initPayload = {
+          pregunta: "__INIT__",
+          action: "initial_greeting",
+          contexto_previo: contextToSend,
+          tipo_chat: tipoChatFinal,
+          tenant_slug: tenantSlug ?? "municipio",
+          session_id: sessionId,
+          ...(publicChatContext || {}),
+          ...(rubroForPayload && { rubro_clave: rubroForPayload }),
+          ...(visitorName && { nombre_usuario: visitorName }),
+        };
+        const response = chatBootstrap
+          ? await sendChatBootstrapMessage(
+              chatBootstrap,
+              {
+                text: "__INIT__",
+                extraPayload: initPayload,
+              },
+              tenantSlug,
+            )
+          : await apiFetch<any>(endpoint, {
+              method: "POST",
+              skipAuth: effectiveSkipAuth,
+              isWidgetRequest: true,
+              tenantSlug: tenantSlug,
+              entityToken,
+              body: initPayload,
+            });
         processBotPayload(response, {
           fallbackOnEmpty: !socketRef.current || !socketRef.current.connected,
           fromInit: true,
@@ -413,6 +432,7 @@ export function useChatLogic({
       tipoChat,
       tenantSlug,
       entityToken,
+      chatBootstrap,
       shouldUsePublicFlow,
       resolvePersistentPublicContext,
     ],
@@ -443,7 +463,7 @@ export function useChatLogic({
     }, 180);
 
     return () => clearTimeout(bootstrapTimer);
-  }, [tipoChat, tenantSlug, selectedRubro]);
+  }, [tipoChat, tenantSlug, selectedRubro, chatBootstrap]);
 
   const token = skipAuth ? null : getValidStoredToken(tokenKey);
   const isAnonimo = skipAuth || !token;
@@ -2003,15 +2023,8 @@ export function useChatLogic({
   const socketFatalErrorNotifiedRef = useRef(false);
 
   const getPreferredSocketTransports = (): Array<"websocket" | "polling"> => {
-    const websocketRuleRaw = uxContext?.visibility_rules?.allow_websocket;
-    const allowWebsocketFromUx = (() => {
-      if (websocketRuleRaw === undefined || websocketRuleRaw === null) return true;
-      const normalized = String(websocketRuleRaw).trim().toLowerCase();
-      return !["false", "0", "no", "off", "disabled"].includes(normalized);
-    })();
-
     const defaultTransports: Array<"websocket" | "polling"> =
-      isChatbocDomain() || !allowWebsocketFromUx ? ["polling"] : ["polling", "websocket"];
+      isChatbocDomain() ? ["polling"] : ["polling", "websocket"];
 
     const rawTransports = safeLocalStorage.getItem(
       resolveTransportListKey(tenantSlug),
@@ -2049,9 +2062,33 @@ export function useChatLogic({
     if (!tipoChat) {
       return;
     }
+    if (!socketEnabled) {
+      trackWidgetEvent("socket_fallback_http", {
+        tenant_slug: tenantSlug ?? null,
+        reason: "socket_disabled_by_backend",
+      });
+      return;
+    }
+    const allowWebsocketFromUx = readBackendFlag(
+      uxContext?.visibility_rules?.allow_websocket,
+      true,
+    );
+    const allowRealtimeLiveChatFromUx = readBackendFlag(
+      uxContext?.visibility_rules?.allow_realtime_live_chat,
+      true,
+    );
+    if (!allowWebsocketFromUx || !allowRealtimeLiveChatFromUx) {
+      trackWidgetEvent("socket_fallback_http", {
+        tenant_slug: tenantSlug ?? null,
+        reason: !allowWebsocketFromUx
+          ? "websocket_disabled_by_backend"
+          : "live_chat_disabled_by_backend",
+      });
+      return;
+    }
 
     // Setup Socket.IO
-    const socketUrl = getSocketUrl();
+    const socketUrl = socketUrlOverride?.trim() || getSocketUrl();
     const userAuthToken = skipAuth ? null : safeLocalStorage.getItem(tokenKey);
 
     const transports = getPreferredSocketTransports();
@@ -2185,6 +2222,9 @@ export function useChatLogic({
     skipAuth,
     tokenKey,
     socketTransportRetryKey,
+    uxContext?.visibility_rules,
+    socketEnabled,
+    socketUrlOverride,
   ]);
 
   useEffect(() => {
@@ -2640,7 +2680,27 @@ export function useChatLogic({
         const effectiveSkipAuth = skipAuth || isPublicDemo;
 
         let response: any;
-        if (audioBlob) {
+        if (chatBootstrap) {
+          response = await sendChatBootstrapMessage(
+            chatBootstrap,
+            {
+              text: questionForBackend,
+              intent: typeof resolvedAction === "string" ? resolvedAction : null,
+              payload:
+                actionPayload && typeof actionPayload === "object"
+                  ? (actionPayload as Record<string, unknown>)
+                  : null,
+              attachmentInfo,
+              location: location || ubicacion_usuario,
+              audioBlob,
+              audioFilename,
+              audioField,
+              audioEndpoint,
+              extraPayload: requestBody,
+            },
+            tenantSlug,
+          );
+        } else if (audioBlob) {
           const formData = new FormData();
           formData.append(audioField || "audio_file", audioBlob, audioFilename || `audio-${Date.now()}.webm`);
           Object.entries(requestBody).forEach(([key, value]) => {
@@ -2711,6 +2771,7 @@ export function useChatLogic({
       user,
       shouldUsePublicFlow,
       liveChatAvailable,
+      chatBootstrap,
       resolvePersistentPublicContext,
     ],
   );

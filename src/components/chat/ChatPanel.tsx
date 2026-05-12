@@ -26,6 +26,9 @@ import {
   ChatLeadCaptureConfig,
   ChatMediaCapabilities,
   ChatUxChannelCapabilities,
+  ChatWidgetOnboarding,
+  ChatWidgetOnboardingOption,
+  ChatWidgetUiHints,
   Message,
 } from "@/types/chat";
 import CatalogShareCard from "./CatalogShareCard";
@@ -54,6 +57,7 @@ import {
   toRealtimeMessage,
 } from "@/utils/conversationStream";
 import { safeOn, assertEventSource } from "@/utils/safeOn";
+import { readBackendFlag } from "@/utils/backendFlags";
 import {
   ArrowRightLeft,
   Loader2,
@@ -85,6 +89,7 @@ import {
 } from "@/utils/frontendTelemetry";
 import type { RealtimeVoiceCapabilities } from "@/types/realtimeVoice";
 import { getRealtimeVoiceBadges, getRealtimeVoiceStarters } from "@/utils/realtimeVoice";
+import type { ChatBootstrapConfig } from "@/features/chat/chatTypes";
 
 const PENDING_TICKET_KEY = "pending_ticket_id";
 const REALTIME_TOOL_EVENT_NAMES = [
@@ -160,6 +165,45 @@ const leadNextActionsToButtons = (actions?: LeadCaptureNextAction[] | null) =>
       action_id: action.id?.trim() || undefined,
       payload: action.payload ?? undefined,
     }));
+
+const normalizeOnboardingOption = (
+  item: unknown,
+  index: number,
+): ChatWidgetOnboardingOption | null => {
+  if (!item) return null;
+  if (typeof item === "string") {
+    const label = item.trim();
+    return label ? { id: `onboarding-${index}`, label } : null;
+  }
+  if (typeof item !== "object" || Array.isArray(item)) return null;
+  const source = item as Record<string, unknown>;
+  const label =
+    typeof source.label === "string" && source.label.trim()
+      ? source.label.trim()
+      : typeof source.title === "string" && source.title.trim()
+        ? source.title.trim()
+        : typeof source.text === "string" && source.text.trim()
+          ? source.text.trim()
+          : "";
+  if (!label) return null;
+  const readText = (key: string) =>
+    typeof source[key] === "string" && String(source[key]).trim()
+      ? String(source[key]).trim()
+      : null;
+  const payload =
+    source.payload && typeof source.payload === "object" && !Array.isArray(source.payload)
+      ? (source.payload as Record<string, unknown>)
+      : null;
+  return {
+    id: readText("id") || readText("key") || `onboarding-${index}`,
+    label,
+    intent: readText("intent"),
+    sector: readText("sector"),
+    tenant_slug: readText("tenant_slug") || readText("tenantSlug"),
+    rubro: readText("rubro") || readText("rubro_slug") || readText("rubro_key"),
+    payload,
+  };
+};
 
 const leadCaptureStructuredContent = (response: {
   contract_version?: string | null;
@@ -285,6 +329,9 @@ interface ChatPanelProps {
     live_chat?: {
       realtime?: boolean;
       available?: boolean;
+      socket_enabled?: boolean | string | number | null;
+      socket_url?: string | null;
+      fallback_mode?: string | null;
       media?: Record<string, boolean>;
       label?: string;
     };
@@ -347,6 +394,9 @@ interface ChatPanelProps {
       supportsConfirmationCards?: boolean;
       preferredChannels?: string[];
     };
+    socketEnabled?: boolean;
+    socketUrl?: string | null;
+    fallbackMode?: string | null;
   } | null;
   realtimeVoice?: RealtimeVoiceCapabilities | null;
   onA11yChange?: (p: Prefs) => void;
@@ -361,6 +411,12 @@ interface ChatPanelProps {
     downloadLabel?: string | null;
   } | null;
   quickMenu?: unknown;
+  onboarding?: ChatWidgetOnboarding | null;
+  uiHints?: ChatWidgetUiHints | null;
+  chatBootstrap?: ChatBootstrapConfig | null;
+  onPlatformSelection?: (option: ChatWidgetOnboardingOption) => void | Promise<void>;
+  platformSelectionLoadingId?: string | null;
+  platformSelectionError?: string | null;
   leadCapture?: ChatLeadCaptureConfig | null;
   mediaCapabilities?: ChatMediaCapabilities | null;
   conversionCtas?: ChatConversionCtasConfig | null;
@@ -400,6 +456,13 @@ const ChatPanel = (props: ChatPanelProps) => {
     onA11yChange,
     a11yPrefs,
     catalogCard,
+    quickMenu,
+    onboarding,
+    uiHints,
+    chatBootstrap,
+    onPlatformSelection,
+    platformSelectionLoadingId,
+    platformSelectionError,
     leadCapture,
     mediaCapabilities,
     conversionCtas,
@@ -427,6 +490,14 @@ const ChatPanel = (props: ChatPanelProps) => {
     supportChannels?.live_chat?.available ??
     supportChannels?.live_chat?.realtime,
   );
+  const backendSocketEnabled = readBackendFlag(
+    realtimeConfig?.socketEnabled ?? supportChannels?.live_chat?.socket_enabled,
+    false,
+  );
+  const backendSocketUrl =
+    realtimeConfig?.socketUrl?.trim() ||
+    supportChannels?.live_chat?.socket_url?.trim() ||
+    null;
   const normalizedPropRubro = extractRubroKey(selectedRubro);
   const [localRubro, setLocalRubro] = useState<string | null>(
     () => normalizedPropRubro ?? null,
@@ -453,6 +524,9 @@ const ChatPanel = (props: ChatPanelProps) => {
     skipAuth,
     selectedRubro: resolvedSelectedRubro,
     liveChatAvailable: liveChatIsAvailable,
+    socketEnabled: backendSocketEnabled,
+    socketUrlOverride: backendSocketUrl,
+    chatBootstrap,
   });
   const visibilityRules = uxContext?.visibility_rules || null;
   const shouldSuppressDemoShell =
@@ -512,11 +586,38 @@ const ChatPanel = (props: ChatPanelProps) => {
       ? recommendedExperience.summary_text.trim()
       : null;
   const websocketRuleRaw = uxContext?.visibility_rules?.allow_websocket;
-  const allowWebsocketFromUx = (() => {
-    if (websocketRuleRaw === undefined || websocketRuleRaw === null) return true;
-    const normalized = String(websocketRuleRaw).trim().toLowerCase();
-    return !["false", "0", "no", "off", "disabled"].includes(normalized);
-  })();
+  const liveChatRuleRaw = uxContext?.visibility_rules?.allow_realtime_live_chat;
+  const allowWebsocketFromUx = readBackendFlag(websocketRuleRaw, true);
+  const allowRealtimeLiveChatFromUx = readBackendFlag(liveChatRuleRaw, true);
+  const socketDisabledByBackend =
+    !backendSocketEnabled || !allowWebsocketFromUx || !allowRealtimeLiveChatFromUx;
+  const platformOptions = useMemo(() => {
+    const source =
+      onboarding?.quick_menu && onboarding.quick_menu.length
+        ? onboarding.quick_menu
+        : Array.isArray(quickMenu)
+          ? quickMenu
+          : [];
+    return source
+      .map(normalizeOnboardingOption)
+      .filter((item): item is ChatWidgetOnboardingOption => Boolean(item));
+  }, [onboarding?.quick_menu, quickMenu]);
+  const isPlatformOnboarding =
+    onboarding?.mode === "platform_sector_selector" &&
+    platformOptions.length > 0 &&
+    !chatBootstrap;
+  const compactHeaderActions = Boolean(
+    isPlatformOnboarding ||
+      uiHints?.toolbar?.avoid_header_action_overload ||
+      uiHints?.composer?.icon_buttons_only,
+  );
+  const collapsedToolbarActions = new Set(uiHints?.toolbar?.collapse ?? []);
+  const isToolbarActionCollapsed = (action: string) => collapsedToolbarActions.has(action);
+  const quickReplyLimit =
+    typeof uiHints?.max_visible_quick_replies === "number" &&
+    uiHints.max_visible_quick_replies > 0
+      ? uiHints.max_visible_quick_replies
+      : 3;
 
   const capabilityPills = useMemo(() => {
     if (!channelCapabilities) return [] as Array<{ label: string; icon: React.ElementType }>;
@@ -800,8 +901,22 @@ const ChatPanel = (props: ChatPanelProps) => {
 
   useEffect(() => {
     if (isLiveChatActive && liveChatTicketId) {
+      if (socketDisabledByBackend) {
+        trackFrontendEvent("socket_fallback_http", {
+          ticket_id: liveChatTicketId,
+          ticket_type: tipoChat,
+          reason: !backendSocketEnabled
+            ? "socket_disabled_by_backend"
+            : !allowWebsocketFromUx
+            ? "websocket_disabled_by_backend"
+            : "live_chat_disabled_by_backend",
+        });
+        return;
+      }
+
       const socketUrl =
-        typeof getSocketUrl === "function"
+        backendSocketUrl ||
+        (typeof getSocketUrl === "function"
           ? getSocketUrl()
           : (() => {
               if (typeof window === "undefined") return "";
@@ -813,7 +928,7 @@ const ChatPanel = (props: ChatPanelProps) => {
                 console.error("No se pudo resolver la URL del socket:", error);
                 return "";
               }
-            })();
+            })());
 
       if (!socketUrl) {
         console.error("Socket URL no disponible. Se omite la conexión.");
@@ -831,8 +946,7 @@ const ChatPanel = (props: ChatPanelProps) => {
       const defaultPollingOnly =
         host === "chatboc.ar" ||
         host.endsWith(".chatboc.ar") ||
-        host === "www.chatboc.ar" ||
-        !allowWebsocketFromUx;
+        host === "www.chatboc.ar";
       const hint = safeLocalStorage.getItem(
         resolveTransportHintKey(tenantSlug),
       );
@@ -1011,6 +1125,10 @@ const ChatPanel = (props: ChatPanelProps) => {
     tipoChat,
     setMessages,
     tenantSlug,
+    socketDisabledByBackend,
+    allowWebsocketFromUx,
+    backendSocketEnabled,
+    backendSocketUrl,
   ]);
 
   const handleLiveChatRequest = () => {
@@ -2116,6 +2234,7 @@ const ChatPanel = (props: ChatPanelProps) => {
           logoAnimation={logoAnimation}
           onA11yChange={onA11yChange}
           supportChannels={supportChannels}
+          compactActions={compactHeaderActions}
         />
         <div className="flex-1 overflow-hidden px-4 pb-4">
           <div className="mx-auto flex h-full max-h-[calc(100vh-160px)] w-full max-w-sm flex-col rounded-2xl border border-primary/20 bg-gradient-to-b from-background via-background to-primary/[0.05] p-6 text-center shadow-xl backdrop-blur-sm">
@@ -2165,6 +2284,71 @@ const ChatPanel = (props: ChatPanelProps) => {
     );
   }
 
+  if (isPlatformOnboarding) {
+    const visibleOptions = platformOptions.slice(0, quickReplyLimit);
+    return (
+      <div
+        role="region"
+        aria-label="Chat widget"
+        data-motion-level={motionLevel}
+        className={cn(
+          "chat-root flex h-full w-full flex-col overflow-hidden bg-gradient-to-b from-card via-card to-card/95 text-card-foreground relative",
+          isMobile ? undefined : "rounded-[inherit]",
+        )}
+      >
+        <ChatHeader
+          onClose={onClose}
+          muted={muted}
+          logoUrl={headerLogoUrl}
+          title={welcomeTitle}
+          subtitle={welcomeSubtitle}
+          logoAnimation={logoAnimation}
+          supportChannels={supportChannels}
+          compactActions
+        />
+        <div className="flex min-h-0 flex-1 items-center justify-center p-4">
+          <div className="w-full max-w-[360px] rounded-3xl border border-border/70 bg-background/92 p-4 shadow-[0_22px_70px_rgba(15,23,42,0.16)] backdrop-blur">
+            <div className="mb-4 text-left">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+                {onboarding?.title || "Chatboc"}
+              </p>
+              <h2 className="mt-2 text-xl font-bold leading-tight text-foreground">
+                {onboarding?.entry_question || onboarding?.title}
+              </h2>
+            </div>
+            <div className="grid gap-2" aria-label="Selector de plataforma">
+              {visibleOptions.map((option) => {
+                const optionId = option.id || option.sector || option.label || "option";
+                const isLoading = platformSelectionLoadingId === optionId;
+                return (
+                  <button
+                    key={optionId}
+                    type="button"
+                    className="group flex min-h-[58px] w-full items-center justify-between rounded-2xl border border-border/70 bg-card px-3.5 py-3 text-left text-sm font-semibold text-foreground shadow-sm transition hover:border-primary/40 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-wait disabled:opacity-70"
+                    disabled={Boolean(platformSelectionLoadingId)}
+                    onClick={() => void onPlatformSelection?.(option)}
+                  >
+                    <span className="min-w-0 truncate">{option.label}</span>
+                    {isLoading ? (
+                      <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
+                    ) : (
+                      <Sparkles className="h-4 w-4 shrink-0 text-primary/70 transition group-hover:text-primary" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            {platformSelectionError ? (
+              <p className="mt-3 rounded-xl border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                {platformSelectionError}
+              </p>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       role="region"
@@ -2189,6 +2373,7 @@ const ChatPanel = (props: ChatPanelProps) => {
         onA11yChange={onA11yChange}
         supportChannels={supportChannels}
         recommendationLabel={recommendedExperienceLabel}
+        compactActions={compactHeaderActions}
       />
       {channelMode !== "chat" ? (
         <div className="px-2 sm:px-4 pt-2">
@@ -2376,7 +2561,7 @@ const ChatPanel = (props: ChatPanelProps) => {
         </div>
       )}
 
-      {onCart && tipoChat === "pyme" && (
+      {onCart && tipoChat === "pyme" && !isToolbarActionCollapsed("catalog") && (
         <div className="px-2 sm:px-4 pt-2">
           <div className={cn(chatContentMaxWidthClass, "flex flex-col gap-2 sm:flex-row sm:items-center rounded-xl border bg-muted/40 px-3 py-3")}>
             <div className="text-sm text-muted-foreground flex-1">
@@ -2563,12 +2748,12 @@ const ChatPanel = (props: ChatPanelProps) => {
         ) : null}
 
         {!activeTicketId &&
-          (canRenderLiveChat ? (
+          (canRenderLiveChat && !isToolbarActionCollapsed("live_chat") ? (
             <Button onClick={handleLiveChatRequest} className="w-full mb-2">
               Hablar con un representante
             </Button>
           ) : null)}
-        {!activeTicketId && canRenderWhatsAppBridge ? (
+        {!activeTicketId && canRenderWhatsAppBridge && !isToolbarActionCollapsed("whatsapp") ? (
           <Button
             onClick={handleWhatsAppBridge}
             variant="outline"
@@ -2577,7 +2762,7 @@ const ChatPanel = (props: ChatPanelProps) => {
             {whatsappButtonLabel}
           </Button>
         ) : null}
-        {!activeTicketId && realtimeVoiceEnabled ? (
+        {!activeTicketId && realtimeVoiceEnabled && !isToolbarActionCollapsed("voice_call") ? (
           <div className="mb-2 space-y-2 rounded-lg border border-primary/15 bg-primary/5 p-2">
             <Button
               onClick={() => beginRealtimeSession("voice")}
@@ -2615,7 +2800,7 @@ const ChatPanel = (props: ChatPanelProps) => {
             ) : null}
           </div>
         ) : null}
-        {!activeTicketId && realtimeVideoEnabled ? (
+        {!activeTicketId && realtimeVideoEnabled && !isToolbarActionCollapsed("video_call") ? (
           <Button
             onClick={() => beginRealtimeSession("video")}
             className="w-full mb-2"

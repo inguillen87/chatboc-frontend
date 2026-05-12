@@ -208,6 +208,35 @@ export interface OmnichannelInboxActionPayload {
   payload?: UnknownRecord;
 }
 
+export interface TenantAdminExperienceV2 {
+  contract_version?: string;
+  request_id?: string;
+  tenant: UnknownRecord;
+  profile: UnknownRecord;
+  modules: UnknownRecord[];
+  health: UnknownRecord;
+  operations: UnknownRecord;
+  lead_capture: UnknownRecord;
+  surveys_votings: UnknownRecord;
+  marketplace: UnknownRecord;
+  education: UnknownRecord;
+  frontend_contract: UnknownRecord;
+  raw: unknown;
+}
+
+export interface SuperadminCommandCenterV2 {
+  contract_version?: string;
+  request_id?: string;
+  summary: UnknownRecord;
+  tenants: {
+    items: UnknownRecord[];
+    top_risky: UnknownRecord[];
+  };
+  tenant_creation: UnknownRecord;
+  frontend_contract: UnknownRecord;
+  raw: unknown;
+}
+
 const isRecord = (value: unknown): value is UnknownRecord =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 
@@ -272,6 +301,7 @@ const normalizeEducationCaseAlias = (value: unknown): EducationCaseAlias | null 
     guardian_id: getFirst(value, ['guardian_id', 'family_id', 'tutor_id']) as string | number | null | undefined,
     guardian_name: asString(getFirst(value, ['guardian_name', 'family_name', 'tutor_nombre'])) ?? null,
     case_type: asString(getFirst(value, ['case_type', 'type', 'tipo'])) ?? null,
+    taxonomy_label: asString(getFirst(value, ['taxonomy_label', 'case_label', 'label'])) ?? null,
     status: asString(getFirst(value, ['status', 'estado'])) ?? null,
     sensitivity_level: asString(getFirst(value, ['sensitivity_level', 'sensitivity', 'sensibilidad'])) ?? null,
     requires_handoff: typeof value.requires_handoff === 'boolean' ? value.requires_handoff : null,
@@ -807,6 +837,69 @@ export const getSuperadminExecutiveSummaryV2 = async () => {
     }
   }
   return normalizeSuperadminExecutiveSummaryV2(response);
+};
+
+export const normalizeTenantAdminExperienceV2 = (response: unknown): TenantAdminExperienceV2 => {
+  const source = getSource(response);
+  const record = asRecord(source);
+  const operations = asRecord(record.operations);
+  return {
+    contract_version: asString(record.contract_version),
+    request_id: asString(record.request_id),
+    tenant: asRecord(record.tenant),
+    profile: asRecord(record.profile),
+    modules: asArray(record.modules).map(asRecord),
+    health: asRecord(record.health),
+    operations: {
+      ...operations,
+      dashboard: asRecord(operations.dashboard),
+      freshness: asRecord(operations.freshness),
+    },
+    lead_capture: asRecord(record.lead_capture),
+    surveys_votings: asRecord(record.surveys_votings),
+    marketplace: asRecord(record.marketplace),
+    education: asRecord(record.education),
+    frontend_contract: asRecord(record.frontend_contract),
+    raw: response,
+  };
+};
+
+export const getTenantAdminExperienceV2 = async (tenantSlug?: string | null) => {
+  const encoded = tenantSlug ? encodeURIComponent(tenantSlug) : null;
+  let response: unknown;
+  try {
+    response = await panelApi.get<unknown>(
+      encoded ? `/api/v2/tenants/${encoded}/admin-experience` : '/api/v2/tenant/admin-experience',
+      { tenantSlug },
+    );
+  } catch (error) {
+    if (!shouldFallbackEndpoint(error) || encoded) throw error;
+    response = await panelApi.get<unknown>('/api/v2/tenant/admin-experience', { tenantSlug });
+  }
+  return normalizeTenantAdminExperienceV2(response);
+};
+
+export const normalizeSuperadminCommandCenterV2 = (response: unknown): SuperadminCommandCenterV2 => {
+  const source = getSource(response);
+  const record = asRecord(source);
+  const tenants = asRecord(record.tenants);
+  return {
+    contract_version: asString(record.contract_version),
+    request_id: asString(record.request_id),
+    summary: asRecord(record.summary),
+    tenants: {
+      items: asArray(getFirst(tenants, ['items', 'tenants'])).map(asRecord),
+      top_risky: asArray(getFirst(tenants, ['top_risky', 'top_risky_tenants', 'risky_tenants'])).map(asRecord),
+    },
+    tenant_creation: asRecord(record.tenant_creation),
+    frontend_contract: asRecord(record.frontend_contract),
+    raw: response,
+  };
+};
+
+export const getSuperadminCommandCenterV2 = async () => {
+  const response = await panelApi.get<unknown>('/api/v2/superadmin/command-center');
+  return normalizeSuperadminCommandCenterV2(response);
 };
 
 export const getNotificationHooksV2 = async (tenantSlug?: string | null) => {

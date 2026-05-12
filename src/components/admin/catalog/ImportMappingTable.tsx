@@ -13,7 +13,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
 import { AlertTriangle, CheckCircle, Ban } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -32,7 +31,9 @@ const FIELD_OPTIONS: { value: CatalogField; label: string; required?: boolean }[
   { value: 'stock', label: 'Stock / Cantidad' },
   { value: 'currency', label: 'Moneda' },
   { value: 'description', label: 'Descripción' },
-  { value: 'image_url', label: 'URL Imagen' },
+  { value: 'image_url', label: 'Imagen principal' },
+  { value: 'gallery_urls', label: 'Galeria' },
+  { value: 'image_alt', label: 'Alt imagen' },
   { value: 'ignore', label: 'Ignorar Columna' },
 ];
 
@@ -82,9 +83,9 @@ export const ImportMappingTable: React.FC<ImportMappingTableProps> = ({
                      {col.label}
                    </span>
                    {col.confidence && col.confidence < 0.7 && (
-                     <Badge variant="outline" className="text-[10px] h-4 px-1 text-amber-600 border-amber-200">
+                     <span className="inline-flex h-4 items-center rounded-full border border-amber-200 px-1 text-[10px] font-medium text-amber-600">
                        Low Conf.
-                     </Badge>
+                     </span>
                    )}
                 </div>
 

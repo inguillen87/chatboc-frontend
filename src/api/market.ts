@@ -2,7 +2,7 @@ import { apiFetch, ApiError, NetworkError } from '@/utils/api';
 import {
   MarketCartResponse,
   MarketCatalogResponse,
-  MarketCartItem,
+  MarketProduct,
   AddToCartPayload,
   CheckoutStartResponse,
   CheckoutStartPayload,
@@ -19,6 +19,12 @@ import { PublicOrderTrackingResponse } from '@/types/tracking';
 import { DEFAULT_PUBLIC_PRODUCTS } from '@/data/defaultProducts';
 import { DEMO_CATALOGS as MOCK_CATALOGS } from '@/data/mockCatalogs';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
+import {
+  getProductGalleryUrls,
+  getProductImageAlt,
+  getProductImageStatus,
+  getProductPrimaryImage,
+} from '@/utils/marketImages';
 
 // Local storage key for demo cart persistence
 const DEMO_CART_KEY = 'chatboc_demo_cart_v2';
@@ -63,6 +69,13 @@ const asStringOrNull = (value: unknown): string | null => {
   return normalized.length > 0 ? normalized : null;
 };
 
+const asStringIdOrNull = (value: unknown): string | null => {
+  const direct = asStringOrNull(value);
+  if (direct) return direct;
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return null;
+};
+
 const asBooleanOrNull = (value: unknown): boolean | null =>
   typeof value === 'boolean' ? value : null;
 
@@ -102,6 +115,64 @@ const getSource = (input: unknown): unknown => {
   const record = asRecordOrNull(input);
   if (record && asRecordOrNull(record.data)) return record.data;
   return input;
+};
+
+const normalizeMarketProduct = (input: unknown): MarketProduct => {
+  const record = asUnknownRecord(input);
+  const name =
+    asStringOrNull(getFirst(record, ['name', 'nombre', 'nombre_producto'])) ??
+    'Producto';
+  return {
+    id:
+      asStringIdOrNull(getFirst(record, ['id', 'product_id', 'sku', 'codigo'])) ??
+      `product-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+    name,
+    description: asStringOrNull(getFirst(record, ['description', 'descripcion'])),
+    descriptionShort: asStringOrNull(getFirst(record, ['descriptionShort', 'description_short', 'descripcion_corta'])),
+    price: asNumberOrNull(getFirst(record, ['price', 'precio_unitario', 'precio', 'amount'])),
+    priceText: asStringOrNull(getFirst(record, ['priceText', 'price_text', 'precio_texto'])),
+    currency: asStringOrNull(getFirst(record, ['currency', 'moneda'])) ?? 'ARS',
+    modality: asStringOrNull(getFirst(record, ['modality', 'modalidad'])) ?? 'venta',
+    points: asNumberOrNull(getFirst(record, ['points', 'precio_puntos', 'puntos'])),
+    imageUrl: getProductPrimaryImage(record),
+    galleryUrls: getProductGalleryUrls(record),
+    imageStatus: getProductImageStatus(record),
+    imageAlt: getProductImageAlt(record, name),
+    category: asStringOrNull(getFirst(record, ['category', 'categoria'])),
+    unit: asStringOrNull(getFirst(record, ['unit', 'unidad'])) ?? 'u',
+    quantity: asNumberOrNull(getFirst(record, ['quantity', 'stock', 'stock_disponible', 'cantidad'])),
+    sku: asStringOrNull(getFirst(record, ['sku', 'codigo'])),
+    brand: asStringOrNull(getFirst(record, ['brand', 'marca'])),
+    promoInfo: asStringOrNull(getFirst(record, ['promoInfo', 'promo_info', 'promocion_activa'])),
+    publicUrl: asStringOrNull(getFirst(record, ['publicUrl', 'public_url'])),
+    whatsappShareUrl: asStringOrNull(getFirst(record, ['whatsappShareUrl', 'whatsapp_share_url'])),
+    disponible: record.disponible === undefined ? true : Boolean(record.disponible),
+    checkout_type: asStringOrNull(getFirst(record, ['checkout_type'])) as MarketProduct['checkout_type'],
+    external_url: asStringOrNull(getFirst(record, ['external_url', 'externalUrl'])),
+    rating: asNumberOrNull(getFirst(record, ['rating'])),
+    tags: asArrayOfStringsOrNull(getFirst(record, ['tags', 'etiquetas'])),
+  };
+};
+
+const normalizeMarketCatalogResponse = (input: unknown): MarketCatalogResponse => {
+  const source = getSource(input);
+  const record = asUnknownRecord(source);
+  const rawProducts =
+    Array.isArray(record.products)
+      ? record.products
+      : Array.isArray(record.items)
+        ? record.items
+        : Array.isArray(source)
+          ? source
+          : [];
+  return {
+    ...(record as Partial<MarketCatalogResponse>),
+    products: rawProducts.map((item) => normalizeMarketProduct(item)),
+    publicCartUrl: asStringOrNull(getFirst(record, ['publicCartUrl', 'public_cart_url', 'cart_url'])),
+    whatsappShareUrl: asStringOrNull(getFirst(record, ['whatsappShareUrl', 'whatsapp_share_url'])),
+    heroImageUrl: asStringOrNull(getFirst(record, ['heroImageUrl', 'hero_image_url', 'banner_url'])),
+    heroSubtitle: asStringOrNull(getFirst(record, ['heroSubtitle', 'hero_subtitle'])),
+  } as MarketCatalogResponse;
 };
 
 const shouldFallbackEndpoint = (error: unknown) =>
@@ -144,7 +215,7 @@ const normalizeMarketCheckoutOptions = (input: unknown): MarketCheckoutOptions |
 const normalizeMarketNextSteps = (value: unknown): MarketNextStep[] | null => {
   if (!Array.isArray(value)) return null;
   const steps = value
-    .map((item) => {
+    .map((item): MarketNextStep | null => {
       if (typeof item === 'string' && item.trim()) {
         return { title: item.trim(), description: null };
       }
@@ -387,7 +458,10 @@ const mockCatalogResponse = (tenantSlug?: string): MarketCatalogResponse => {
     currency: 'ARS',
     modality: p.modalidad ?? 'venta',
     points: p.precio_puntos ?? null,
-    imageUrl: p.imagen_url ?? null,
+    imageUrl: getProductPrimaryImage(p as unknown as Record<string, unknown>),
+    galleryUrls: getProductGalleryUrls(p as unknown as Record<string, unknown>),
+    imageStatus: getProductImageStatus(p as unknown as Record<string, unknown>),
+    imageAlt: getProductImageAlt(p as unknown as Record<string, unknown>, p.nombre ?? 'Producto'),
     category: p.categoria ?? null,
     unit: 'u',
     quantity: 99,
@@ -473,11 +547,12 @@ export async function fetchMarketCart(tenantSlug: string): Promise<MarketCartRes
 
 export async function fetchMarketCatalog(tenantSlug: string): Promise<MarketCatalogResponse> {
   try {
-    return await apiFetch<MarketCatalogResponse>(`/api/${tenantSlug}/productos`, {
+    const response = await apiFetch<MarketCatalogResponse>(`/api/${tenantSlug}/productos`, {
       tenantSlug,
       suppressPanel401Redirect: true,
       omitChatSessionId: true,
     });
+    return normalizeMarketCatalogResponse(response);
   } catch (error) {
     console.warn(`[MarketAPI] Failed to fetch catalog for ${tenantSlug}, using mock.`, error);
     return mockCatalogResponse(tenantSlug);
@@ -487,11 +562,12 @@ export async function fetchMarketCatalog(tenantSlug: string): Promise<MarketCata
 export async function searchCatalog(tenantSlug: string, query: string): Promise<MarketCatalogResponse> {
   try {
     const params = new URLSearchParams({ q: query, tenant_slug: tenantSlug });
-    return await apiFetch<MarketCatalogResponse>(`/catalogo/buscar?${params.toString()}`, {
+    const response = await apiFetch<MarketCatalogResponse>(`/catalogo/buscar?${params.toString()}`, {
       tenantSlug,
       suppressPanel401Redirect: true,
       omitChatSessionId: true,
     });
+    return normalizeMarketCatalogResponse(response);
   } catch (error) {
     console.warn(`[MarketAPI] Failed to search catalog for ${tenantSlug}`, error);
     // Fallback to fetching all and filtering or mock
@@ -534,12 +610,25 @@ export async function addMarketItem(tenantSlug: string, payload: AddToCartPayloa
                 currentCart.items.push({
                     id: String(product.id),
                     name: product.nombre,
+                    description: product.descripcion ?? null,
+                    descriptionShort: null,
                     price: price,
                     quantity: qty,
-                    imageUrl: product.imagen_url || null,
+                    imageUrl: getProductPrimaryImage(product),
+                    galleryUrls: getProductGalleryUrls(product),
+                    imageStatus: getProductImageStatus(product),
+                    imageAlt: getProductImageAlt(product, product.nombre || product.name || 'Producto'),
                     currency: 'ARS',
+                    modality: product.modalidad ?? 'venta',
                     points: product.precio_puntos || null,
-                    priceText: null
+                    priceText: null,
+                    category: product.categoria ?? null,
+                    unit: product.unidad ?? 'u',
+                    sku: product.sku ?? product.codigo ?? null,
+                    brand: product.marca ?? null,
+                    promoInfo: product.promocion_activa ?? null,
+                    publicUrl: null,
+                    whatsappShareUrl: null,
                 });
             }
 

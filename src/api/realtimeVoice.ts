@@ -1,4 +1,4 @@
-import { PUBLIC_BACKEND_URL } from "@/config";
+import { ApiError, apiFetch } from "@/utils/api";
 import type { RealtimeVoiceCapabilities, RealtimeVoiceQuery } from "@/types/realtimeVoice";
 
 export async function getRealtimeVoiceCapabilities(
@@ -16,11 +16,24 @@ export async function getRealtimeVoiceCapabilities(
   }
 
   const suffix = params.toString() ? `?${params.toString()}` : "";
-  const response = await fetch(`${PUBLIC_BACKEND_URL}/api/public/realtime/voice-capabilities${suffix}`, {
-    credentials: "omit",
-    headers: tenant ? { "X-Tenant-Slug": tenant } : undefined,
-  });
-
-  if (!response.ok) return null;
-  return response.json();
+  try {
+    return await apiFetch<RealtimeVoiceCapabilities>(
+      `/api/public/realtime/voice-capabilities${suffix}`,
+      {
+        skipAuth: true,
+        isWidgetRequest: true,
+        omitCredentials: true,
+        omitEntityToken: true,
+        omitChatSessionId: true,
+        omitTenant: true,
+        headers: tenant ? { "X-Tenant-Slug": tenant } : undefined,
+        suppressPanel401Redirect: true,
+      },
+    );
+  } catch (error) {
+    if (error instanceof ApiError && [404, 405, 501].includes(error.status)) {
+      return null;
+    }
+    return null;
+  }
 }
