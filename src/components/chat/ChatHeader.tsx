@@ -93,6 +93,7 @@ const ChatHeader: React.FC<Props> = ({
   const whatsappVisible = Boolean(supportChannels?.whatsapp?.enabled && supportChannels?.whatsapp?.realtime_bridge);
   const liveChatLabel = typeof supportChannels?.live_chat?.label === 'string' ? supportChannels.live_chat.label.trim() : '';
   const whatsappLabel = typeof supportChannels?.whatsapp?.label === 'string' ? supportChannels.whatsapp.label.trim() : '';
+  const showLiveBadge = Boolean(!compactActions && liveChatVisible);
   const actionButtonClass =
     "flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/10 p-2 text-primary-foreground/80 backdrop-blur transition motion-safe:hover:scale-[1.03] hover:bg-white/16 hover:text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-1 focus-visible:ring-offset-primary";
   const rawStatusLabel = recommendationLabel || (liveChatVisible ? liveChatLabel : whatsappVisible ? whatsappLabel : null);
@@ -140,10 +141,12 @@ const ChatHeader: React.FC<Props> = ({
             <span className="truncate text-base font-black tracking-[0.02em] sm:text-[1.02rem]">
               {title || 'Chatboc'}
             </span>
-            <span className="hidden sm:inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/90 backdrop-blur">
-              <Sparkles className="h-3 w-3" />
-              Live
-            </span>
+            {showLiveBadge ? (
+              <span className="hidden sm:inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/90 backdrop-blur">
+                <Sparkles className="h-3 w-3" />
+                Live
+              </span>
+            ) : null}
           </div>
           <div className="mt-0.5 flex items-center gap-1.5 text-xs text-primary-foreground/82">
             <MessageCircleMore className="h-3.5 w-3.5 shrink-0" />

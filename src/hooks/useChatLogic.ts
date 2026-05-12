@@ -353,6 +353,10 @@ export function useChatLogic({
         tipoChat: tipoChatFinal,
         rubro: normalizedRubro || null,
       });
+      const tenantSlugForPayload =
+        typeof tenantSlug === "string" && tenantSlug.trim()
+          ? tenantSlug.trim()
+          : undefined;
 
       const sessionId = getOrCreateChatSessionId();
 
@@ -373,7 +377,7 @@ export function useChatLogic({
           action: "initial_greeting",
           contexto_previo: contextToSend,
           tipo_chat: tipoChatFinal,
-          tenant_slug: tenantSlug ?? "municipio",
+          ...(tenantSlugForPayload ? { tenant_slug: tenantSlugForPayload } : {}),
           session_id: sessionId,
           ...(publicChatContext || {}),
           ...(rubroForPayload && { rubro_clave: rubroForPayload }),
@@ -2620,6 +2624,10 @@ export function useChatLogic({
           tipoChatFinal,
           tenantSlug,
         );
+        const tenantSlugForPayload =
+          typeof tenantSlug === "string" && tenantSlug.trim()
+            ? tenantSlug.trim()
+            : undefined;
         const requestBody: Record<string, any> = {
           pregunta: questionForBackend,
           contexto_previo: updatedContext,
@@ -2641,7 +2649,7 @@ export function useChatLogic({
             }),
           ...(visitorName && { nombre_usuario: visitorName }),
           session_id: sessionId,
-          tenant_slug: tenantSlug ?? "municipio",
+          ...(tenantSlugForPayload ? { tenant_slug: tenantSlugForPayload } : {}),
         };
 
         if (sanitizedDiffers || emojiFallback) {

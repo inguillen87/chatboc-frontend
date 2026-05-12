@@ -34,6 +34,14 @@ describe("normalizeWhatsappExperienceV2", () => {
         },
       },
       tracking: {
+        claims: {
+          experience_endpoint:
+            "/api/public/tracking/experience?kind=claim&code={code}&pin={pin}",
+        },
+        orders: {
+          experience_endpoint:
+            "/api/public/tracking/experience?kind=order&code={code}",
+        },
         courier_style_map: {
           enabled: true,
           render_contract: {
@@ -55,5 +63,6 @@ describe("normalizeWhatsappExperienceV2", () => {
     expect(normalized.conversation_intelligence.voice_calls?.capabilities?.recommended_model).toBe("gpt-realtime");
     expect(normalized.content_modules.catalog.image_coverage_rate).toBe(72);
     expect((normalized.tracking.milestones as any).claim).toEqual(["recibido", "validando"]);
+    expect((normalized.tracking.claims as any).experience_endpoint).toContain("/api/public/tracking/experience");
   });
 });

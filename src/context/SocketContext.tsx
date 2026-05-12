@@ -61,6 +61,7 @@ const SOCKET_URL = resolveSocketUrl();
 const shouldEnableGlobalSocket = (pathname: string, hasToken: boolean): boolean => {
   if (!hasToken) return false;
   const normalized = pathname.toLowerCase();
+  if (normalized === '/' || normalized === '') return false;
 
   const blockedPrefixes = [
     '/login',
@@ -123,7 +124,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
 
     const socketOptions: Partial<ManagerOptions & SocketOptions> = {
-      transports: ['websocket', 'polling'], // Added polling for better compatibility
+      transports: ['polling', 'websocket'],
       withCredentials: true,
       path: socketPath,
       reconnectionAttempts: 4,

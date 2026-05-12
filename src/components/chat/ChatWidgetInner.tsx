@@ -1179,7 +1179,11 @@ function ChatWidgetInner({
         tipo_chat: nextTipo,
         rubro: rubro || workspace.chat_bootstrap?.payload?.rubro || entityInfo?.rubro || null,
         rubro_clave: rubro || workspace.chat_bootstrap?.payload?.rubro_clave || entityInfo?.rubro_clave || null,
-        quick_menu: workspace.quick_replies || entityInfo?.quick_menu || [],
+        quick_menu: Array.isArray(workspace.quick_replies)
+          ? workspace.quick_replies
+          : Array.isArray(workspace.education?.quick_menu)
+            ? workspace.education.quick_menu
+            : [],
         onboarding: {
           ...(entityInfo?.onboarding || {}),
           mode: "demo_session",

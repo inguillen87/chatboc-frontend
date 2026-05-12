@@ -13,6 +13,7 @@ import {
   PhoneCall,
   RefreshCw,
   Route,
+  Search,
   Settings2,
   ShieldCheck,
   Sparkles,
@@ -26,7 +27,7 @@ import {
 } from "@/api/v2/saas";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { getErrorMessage } from "@/utils/api";
+import { apiFetch, getErrorMessage } from "@/utils/api";
 
 type AnyRecord = Record<string, any>;
 
@@ -99,6 +100,42 @@ const formatKey = (value: string) =>
 
 const labelFrom = (record: AnyRecord, fallback: string) =>
   String(first(record, ["label", "title", "name", "nombre", "display_name"]) || formatKey(fallback));
+
+const readText = (value: unknown) =>
+  typeof value === "string" && value.trim() ? value.trim() : "";
+
+const appendTenantToEndpoint = (endpoint: string, tenantSlug?: string | null) => {
+  if (!tenantSlug || endpoint.includes("tenant_slug=") || endpoint.includes("tenant=")) {
+    return endpoint;
+  }
+  const separator = endpoint.includes("?") ? "&" : "?";
+  return `${endpoint}${separator}tenant_slug=${encodeURIComponent(tenantSlug)}`;
+};
+
+const buildTrackingExperienceEndpoint = ({
+  template,
+  kind,
+  code,
+  pin,
+  tenantSlug,
+}: {
+  template?: unknown;
+  kind: "claim" | "order";
+  code: string;
+  pin?: string;
+  tenantSlug?: string | null;
+}) => {
+  const rawTemplate =
+    readText(template) ||
+    `/api/public/tracking/experience?kind=${kind}&code={code}${kind === "claim" ? "&pin={pin}" : ""}`;
+  const endpoint = rawTemplate
+    .replace(/\{kind\}/g, encodeURIComponent(kind))
+    .replace(/\{code\}/g, encodeURIComponent(code))
+    .replace(/\{nro_ticket\}/g, encodeURIComponent(code))
+    .replace(/\{nro_pedido\}/g, encodeURIComponent(code))
+    .replace(/\{pin\}/g, encodeURIComponent(pin || ""));
+  return appendTenantToEndpoint(endpoint, tenantSlug);
+};
 
 const StatusPill = ({
   children,
@@ -352,7 +389,188 @@ const ContentModules = ({ experience }: { experience: WhatsappExperienceV2 }) =>
   );
 };
 
-const TrackingContract = ({ experience }: { experience: WhatsappExperienceV2 }) => {
+const TrackingExperienceResult = ({ result }: { result: AnyRecord }) => {
+  const source = asRecord(first(result, ["data", "experience", "tracking"]) || result);
+  const current = asRecord(first(source, ["current_status", "current", "status_detail"]));
+  const timelineSource = first(source, ["timeline", "events", "milestones", "items"]);
+  const timeline = asArray(timelineSource);
+  const renderContract = asRecord(
+    first(source, ["render_contract", "map_contract", "tracking_contract"]),
+  );
+  const map = asRecord(first(source, ["map", "tracking_map", "geo", "location"]));
+  const title =
+    readText(first(source, ["title", "label", "headline", "message_body"])) ||
+    readText(first(current, ["label", "status", "title"])) ||
+    "Tracking experience";
+
+  return (
+    <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold text-foreground">{title}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {String(first(source, ["contract_version", "kind", "type"]) || "api.public.tracking.experience")}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {source.request_id ? <StatusPill>{String(source.request_id)}</StatusPill> : null}
+          {first(source, ["status", "state"]) ? (
+            <StatusPill tone="ready">{String(first(source, ["status", "state"]))}</StatusPill>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-3">
+        <Metric label="Actual" value={String(first(current, ["label", "status", "title"]) || first(source, ["current_status", "status"]) || "-")} tone="ready" />
+        <Metric label="Mapa" value={String(first(renderContract, ["fallback_when_no_coordinates"]) || first(map, ["state", "status"]) || "timeline_only")} />
+        <Metric label="Eventos" value={formatNumber(timeline.length)} />
+      </div>
+
+      {timeline.length > 0 ? (
+        <div className="mt-4 rounded-2xl border border-border/60 bg-background/80 p-3">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Timeline</p>
+          <div className="space-y-2">
+            {timeline.slice(0, 8).map((item, index) => {
+              const event = typeof item === "string" ? { label: item } : asRecord(item);
+              const label = String(first(event, ["label", "title", "status", "event_name", "name"]) || `Evento ${index + 1}`);
+              const detail = first(event, ["description", "detail", "message", "timestamp", "created_at", "at"]);
+              return (
+                <div key={`${label}-${index}`} className="flex gap-3 rounded-xl border border-border/50 bg-muted/20 px-3 py-2">
+                  <span className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${index === 0 ? "animate-pulse bg-primary" : "bg-muted-foreground/40"}`} />
+                  <div>
+                    <p className="text-sm font-medium text-foreground">{label}</p>
+                    {detail ? <p className="mt-0.5 text-xs text-muted-foreground">{String(detail)}</p> : null}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+};
+
+const TrackingExperienceLookup = ({
+  claims,
+  orders,
+  tenantSlug,
+}: {
+  claims: AnyRecord;
+  orders: AnyRecord;
+  tenantSlug?: string | null;
+}) => {
+  const [kind, setKind] = useState<"claim" | "order">("claim");
+  const [code, setCode] = useState("");
+  const [pin, setPin] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<AnyRecord | null>(null);
+
+  const endpoint = useMemo(
+    () =>
+      buildTrackingExperienceEndpoint({
+        template: kind === "claim" ? claims.experience_endpoint : orders.experience_endpoint,
+        kind,
+        code: code.trim() || "{code}",
+        pin: pin.trim() || "{pin}",
+        tenantSlug,
+      }),
+    [claims.experience_endpoint, code, kind, orders.experience_endpoint, pin, tenantSlug],
+  );
+
+  const canSubmit = code.trim().length > 0 && !loading;
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!canSubmit) return;
+    setLoading(true);
+    setError(null);
+    setResult(null);
+    try {
+      const path = buildTrackingExperienceEndpoint({
+        template: kind === "claim" ? claims.experience_endpoint : orders.experience_endpoint,
+        kind,
+        code: code.trim(),
+        pin: pin.trim(),
+        tenantSlug,
+      });
+      const response = await apiFetch<unknown>(path, {
+        method: "GET",
+        skipAuth: true,
+        omitCredentials: true,
+        tenantSlug: tenantSlug || undefined,
+        sendAnonId: true,
+      });
+      setResult(asRecord(response));
+    } catch (err) {
+      setError(getErrorMessage(err, "No se pudo cargar el tracking publico."));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="rounded-2xl border border-border/60 bg-muted/20 p-4">
+      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold text-foreground">Tracking experience</p>
+          <p className="mt-1 text-xs text-muted-foreground">Usa el contrato publico principal para reclamos y pedidos.</p>
+        </div>
+        <StatusPill>{kind}</StatusPill>
+      </div>
+
+      <form onSubmit={handleSubmit} className="grid gap-2 md:grid-cols-[160px_1fr_120px_auto]">
+        <select
+          value={kind}
+          onChange={(event) => setKind(event.target.value === "order" ? "order" : "claim")}
+          className="h-10 rounded-xl border border-input bg-background px-3 text-sm"
+        >
+          <option value="claim">Claim</option>
+          <option value="order">Order</option>
+        </select>
+        <input
+          value={code}
+          onChange={(event) => setCode(event.target.value)}
+          placeholder="Codigo"
+          className="h-10 rounded-xl border border-input bg-background px-3 text-sm"
+        />
+        <input
+          value={pin}
+          onChange={(event) => setPin(event.target.value)}
+          placeholder="PIN"
+          disabled={kind === "order"}
+          className="h-10 rounded-xl border border-input bg-background px-3 text-sm disabled:opacity-50"
+        />
+        <Button type="submit" disabled={!canSubmit} className="rounded-xl">
+          {loading ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+          Probar
+        </Button>
+      </form>
+
+      <EndpointLine label="Endpoint efectivo" value={endpoint} />
+
+      {error ? (
+        <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          {error}
+        </div>
+      ) : null}
+      {result ? (
+        <div className="mt-3">
+          <TrackingExperienceResult result={result} />
+        </div>
+      ) : null}
+    </div>
+  );
+};
+
+const TrackingContract = ({
+  experience,
+  tenantSlug,
+}: {
+  experience: WhatsappExperienceV2;
+  tenantSlug?: string | null;
+}) => {
   const tracking = experience.tracking;
   const claims = asRecord(tracking.claims);
   const orders = asRecord(tracking.orders);
@@ -373,7 +591,9 @@ const TrackingContract = ({ experience }: { experience: WhatsappExperienceV2 }) 
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-3 md:grid-cols-2">
-          <EndpointLine label="Estado reclamo" value={claims.public_status_alias || claims.public_status_endpoint} />
+          <EndpointLine label="Experience reclamo" value={claims.experience_endpoint} />
+          <EndpointLine label="Experience pedido" value={orders.experience_endpoint} />
+          <EndpointLine label="Estado reclamo legacy" value={claims.public_status_alias || claims.public_status_endpoint} />
           <EndpointLine label="Estado pago/pedido" value={orders.payment_status_endpoint} />
           <EndpointLine label="Tracking reclamo" value={claims.tracking_page_template} />
           <EndpointLine label="Tracking pedido" value={orders.tracking_page_template} />
@@ -389,6 +609,8 @@ const TrackingContract = ({ experience }: { experience: WhatsappExperienceV2 }) 
           <MilestoneRail label="Claim" items={claimMilestones} />
           <MilestoneRail label="Order" items={orderMilestones} />
         </div>
+
+        <TrackingExperienceLookup claims={claims} orders={orders} tenantSlug={tenantSlug || readText(experience.tenant.slug)} />
       </CardContent>
     </Card>
   );
@@ -504,7 +726,7 @@ export default function WhatsappOperationsHub({
       <EnterpriseRules experience={experience} />
       <ConversationCapabilities experience={experience} />
       <ContentModules experience={experience} />
-      <TrackingContract experience={experience} />
+      <TrackingContract experience={experience} tenantSlug={tenantSlug} />
     </section>
   );
 }

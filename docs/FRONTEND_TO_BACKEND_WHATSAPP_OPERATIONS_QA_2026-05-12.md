@@ -22,6 +22,8 @@ Objetivo: consumir `whatsapp.experience.v1` como modulo operativo premium dentro
   - modulos de contenido: catalogo, encuestas/votaciones, noticias/eventos, promociones y links.
   - alerta accionable si `catalog.image_coverage_rate` es bajo.
   - tracking tipo courier desde `tracking.claims`, `tracking.orders`, `tracking.courier_style_map` y `tracking.milestones`.
+  - `tracking.claims.experience_endpoint` y `tracking.orders.experience_endpoint` como contrato principal para seguimiento publico.
+  - probador operativo de `GET /api/public/tracking/experience` con `kind=claim|order`, `code` y `pin` cuando aplique.
 - Si `channel.enabled=false`, frontend muestra setup/degradacion segura en lugar de romper pantalla.
 
 ## Reglas respetadas
@@ -52,3 +54,7 @@ Objetivo: consumir `whatsapp.experience.v1` como modulo operativo premium dentro
   - `conversation_intelligence.voice_calls.enabled === true`
   - `conversation_intelligence.voice_calls.capabilities.native_speech_to_speech === true`
 - Para tracking, si no hay coordenadas reales, mantener `fallback_when_no_coordinates: "timeline_only"`.
+- Para tracking publico, responder siempre JSON desde:
+  - `/api/public/tracking/experience?kind=claim&code={code}&pin={pin}`
+  - `/api/public/tracking/experience?kind=order&code={code}`
+- El contrato de tracking puede incluir `timeline`, `events`, `milestones`, `current_status`, `render_contract`, `map` y `request_id`; el frontend lo renderiza de forma tolerante.
