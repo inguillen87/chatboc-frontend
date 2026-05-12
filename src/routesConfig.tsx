@@ -28,7 +28,7 @@ import { TicketInboxPage } from '@/components/tickets/inbox';
 import PedidosPage from '@/pages/pyme/pedidos/PedidosPage';
 import IntegracionesPage from '@/pages/pyme/integraciones/IntegracionesPage';
 import UsuariosPage from '@/pages/UsuariosPage';
-import { TENANT_ROUTE_PREFIXES } from '@/utils/tenantPaths';
+import { TENANT_PLACEHOLDER_SLUGS, TENANT_ROUTE_PREFIXES } from '@/utils/tenantPaths';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import ProductCatalog from '@/pages/ProductCatalog';
 import MunicipalMessageMetrics from '@/pages/MunicipalMessageMetrics';
@@ -130,7 +130,7 @@ export interface RouteConfig {
 const LegacyTenantAliasRedirect = ({ suffix = '' }: { suffix?: string }) => {
   const params = useParams();
   const tenant = typeof params.tenant === 'string' ? params.tenant.trim() : '';
-  if (!tenant) {
+  if (!tenant || TENANT_PLACEHOLDER_SLUGS.has(tenant.toLowerCase())) {
     return <Navigate to="/" replace />;
   }
   return <Navigate to={`/t/${encodeURIComponent(tenant)}${suffix}`} replace />;
@@ -403,8 +403,16 @@ const routes: RouteConfig[] = [
   { path: '/demo', element: <Demo /> },
   { path: '/demo-catalogs/:catalogFile', element: <DemoCatalogDownloadPage /> },
   { path: '/demo/:slug', element: <DemoLandingPage /> },
-  { path: '/soluciones/gobierno', element: <Navigate to="/demo/municipio" replace /> },
-  { path: '/soluciones/empresas', element: <Navigate to="/demo/empresa" replace /> },
+  { path: '/casos', element: <Navigate to="/demo" replace /> },
+  { path: '/casos-de-uso', element: <Navigate to="/demo" replace /> },
+  { path: '/sectores', element: <Navigate to="/demo" replace /> },
+  { path: '/pymes', element: <Navigate to="/demo?sector=empresas" replace /> },
+  { path: '/empresas', element: <Navigate to="/demo?sector=empresas" replace /> },
+  { path: '/municipios', element: <Navigate to="/demo?sector=gobierno" replace /> },
+  { path: '/gobiernos', element: <Navigate to="/demo?sector=gobierno" replace /> },
+  { path: '/colegios', element: <Navigate to="/demo?sector=educacion" replace /> },
+  { path: '/soluciones/gobierno', element: <Navigate to="/demo?sector=gobierno" replace /> },
+  { path: '/soluciones/empresas', element: <Navigate to="/demo?sector=empresas" replace /> },
   { path: '/perfil', element: <Perfil /> },
   { path: '/enterprise', element: <EnterpriseOpsPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
   { path: '/bot-settings', element: <BotSettingsEnterprise />, roles: ['tenant_admin', 'tenant_admin', 'superadmin'] },

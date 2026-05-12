@@ -529,11 +529,45 @@ const ChatPanel = (props: ChatPanelProps) => {
   const liveChatIsAvailable = Boolean(
     liveChatMarkedAvailable && backendSocketEnabled,
   );
+  const platformOptions = useMemo(() => {
+    const source =
+      onboarding?.quick_menu && onboarding.quick_menu.length
+        ? onboarding.quick_menu
+        : Array.isArray(quickMenu)
+          ? quickMenu
+          : [];
+    return source
+      .map(normalizeOnboardingOption)
+      .filter((item): item is ChatWidgetOnboardingOption => Boolean(item));
+  }, [onboarding?.quick_menu, quickMenu]);
+  const isPlatformOnboarding =
+    onboarding?.mode === "platform_sector_selector" &&
+    platformOptions.length > 0 &&
+    !chatBootstrap;
   const normalizedPropRubro = extractRubroKey(selectedRubro);
+  const bootstrapRubro = extractRubroKey(
+    chatBootstrap?.payload?.rubro_clave ??
+      chatBootstrap?.payload?.rubro_key ??
+      chatBootstrap?.payload?.rubro_slug ??
+      chatBootstrap?.payload?.rubro ??
+      chatBootstrap?.query?.rubro_clave ??
+      chatBootstrap?.query?.rubro_key ??
+      chatBootstrap?.query?.rubro_slug ??
+      chatBootstrap?.query?.rubro,
+  );
   const [localRubro, setLocalRubro] = useState<string | null>(
     () => normalizedPropRubro ?? null,
   );
-  const resolvedSelectedRubro = localRubro ?? normalizedPropRubro ?? null;
+  const resolvedSelectedRubro = localRubro ?? normalizedPropRubro ?? bootstrapRubro ?? null;
+  const isBoundTenantContext = Boolean(
+    (tenantSlug && tenantSlug.trim()) ||
+    (propEntityToken && propEntityToken.trim()) ||
+    chatBootstrap,
+  );
+  const autoInitEnabled = Boolean(
+    !isPlatformOnboarding &&
+      (resolvedSelectedRubro || isBoundTenantContext || tipoChat === "municipio"),
+  );
   const {
     messages,
     isTyping,
@@ -558,6 +592,7 @@ const ChatPanel = (props: ChatPanelProps) => {
     socketEnabled: backendSocketEnabled,
     socketUrlOverride: backendSocketUrl,
     chatBootstrap,
+    autoInitEnabled,
   });
   const visibleMessages = useMemo(
     () =>
@@ -594,15 +629,17 @@ const ChatPanel = (props: ChatPanelProps) => {
   const shouldSuppressDemoShell =
     uxContext?.trusted_owner === true &&
     uxContext?.should_render_demo_shell === false;
-  const allowRubroSelectorByBackend =
+  const hasExplicitRubroSelectorRule = Boolean(
     visibilityRules &&
-    Object.prototype.hasOwnProperty.call(visibilityRules, "show_rubro_selector")
-      ? Boolean(visibilityRules.show_rubro_selector)
-      : true;
-  const isBoundTenantContext = Boolean(
-    (tenantSlug && tenantSlug.trim()) ||
-    (propEntityToken && propEntityToken.trim()),
+      Object.prototype.hasOwnProperty.call(
+        visibilityRules,
+        "show_rubro_selector",
+      ),
   );
+  const allowRubroSelectorByBackend =
+    hasExplicitRubroSelectorRule
+      ? Boolean(visibilityRules.show_rubro_selector)
+      : !isBoundTenantContext && !chatBootstrap;
 
   const shouldShowCatalogCard = Boolean(
     catalogCard?.viewUrl || catalogCard?.downloadUrl || catalogCard?.bannerUrl,
@@ -653,21 +690,6 @@ const ChatPanel = (props: ChatPanelProps) => {
   const allowRealtimeLiveChatFromUx = readBackendFlag(liveChatRuleRaw, true);
   const socketDisabledByBackend =
     !backendSocketEnabled || !allowWebsocketFromUx || !allowRealtimeLiveChatFromUx;
-  const platformOptions = useMemo(() => {
-    const source =
-      onboarding?.quick_menu && onboarding.quick_menu.length
-        ? onboarding.quick_menu
-        : Array.isArray(quickMenu)
-          ? quickMenu
-          : [];
-    return source
-      .map(normalizeOnboardingOption)
-      .filter((item): item is ChatWidgetOnboardingOption => Boolean(item));
-  }, [onboarding?.quick_menu, quickMenu]);
-  const isPlatformOnboarding =
-    onboarding?.mode === "platform_sector_selector" &&
-    platformOptions.length > 0 &&
-    !chatBootstrap;
   const compactHeaderActions = Boolean(
     isPlatformOnboarding ||
       uiHints?.density === "compact" ||
@@ -2831,7 +2853,7 @@ const ChatPanel = (props: ChatPanelProps) => {
       >
         <div className="flex-1" />
 
-        {messages.length === 0 ? (
+        {visibleMessages.length === 0 ? (
              <div className="flex-1 flex flex-col justify-center items-center text-center p-6 mt-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
                 <div className="w-16 h-16 bg-primary/10 text-primary rounded-2xl flex items-center justify-center mb-4">
                    <MessageSquare className="w-8 h-8" />

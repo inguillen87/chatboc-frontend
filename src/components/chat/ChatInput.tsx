@@ -686,10 +686,16 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
             autoComplete="off"
             maxLength={200}
             aria-label="Escribir mensaje"
+            aria-keyshortcuts="Enter"
+            inputMode="text"
             disabled={isTyping || isRecording}
           />
           </div>
-        <div className={`relative mt-2 flex w-full items-center gap-2 ${compactComposer ? "flex-nowrap" : "flex-wrap"}`}>
+        <div
+          className={`relative mt-2 flex w-full items-center gap-2 ${compactComposer ? "flex-nowrap" : "flex-wrap"}`}
+          role="toolbar"
+          aria-label="Acciones del mensaje"
+        >
           {showEmojiAction && showEmojis && (
             <div className="absolute bottom-full right-0 z-10 mb-2 flex max-w-[280px] flex-wrap gap-2 rounded-2xl border border-border/70 bg-background/95 p-3 shadow-2xl backdrop-blur">
               {QUICK_EMOJIS.map((item) => (
@@ -729,7 +735,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
               onClick={handleShareLocation}
               disabled={isTyping || isLocating || isRecording || !!attachmentPreview}
               className={`
-                flex items-center justify-center
+                flex h-11 w-11 items-center justify-center
                 rounded-full p-2.5 sm:p-3
                 shadow-md transition-all duration-150
                 focus:outline-none focus:ring-2 focus:ring-primary/60 focus:ring-offset-1 focus:ring-offset-background
@@ -762,7 +768,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
               }}
               disabled={isTyping || isLocating || !!attachmentPreview}
               className={`
-                flex items-center justify-center
+                flex h-11 w-11 items-center justify-center
                 rounded-full p-2.5 sm:p-3
                 shadow-md transition-all duration-150
                 focus:outline-none focus:ring-2 focus:ring-primary/60 focus:ring-offset-1 focus:ring-offset-background
@@ -783,7 +789,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
               onClick={() => setShowEmojis((v) => !v)}
               disabled={isTyping || isLocating || !!attachmentPreview}
               className={`
-                flex items-center justify-center
+                flex h-11 w-11 items-center justify-center
                 rounded-full p-2.5 sm:p-3
                 shadow-md transition-all duration-150
                 focus:outline-none focus:ring-2 focus:ring-primary/60 focus:ring-offset-1 focus:ring-offset-background
@@ -801,7 +807,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
           <button
             className={`
               ml-auto flex-shrink-0
-              flex items-center justify-center
+              flex h-12 w-12 items-center justify-center
               rounded-full p-3 sm:p-3.5
               shadow-md transition-all duration-150
               focus:outline-none focus:ring-2 focus:ring-primary/60 focus:ring-offset-1 focus:ring-offset-background

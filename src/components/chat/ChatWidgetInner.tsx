@@ -15,7 +15,7 @@ import type { AnimatePresenceProps } from "framer-motion";
 import { useUser } from "@/hooks/useUser";
 import { apiFetch, getErrorMessage } from "@/utils/api";
 import ReadingRuler from "./ReadingRuler";
-import type { Prefs } from "./AccessibilityToggle";
+import { readAccessibilityPrefs, type Prefs } from "./AccessibilityToggle";
 import { useCartCount } from "@/hooks/useCartCount";
 import { buildTenantNavigationUrl, TENANT_ROUTE_PREFIXES } from "@/utils/tenantPaths"; // Fixed import
 import { useTenant } from "@/context/TenantContext";
@@ -36,7 +36,6 @@ import { TENANT_PLACEHOLDER_SLUGS } from "@/constants/tenant";
 // Alias for backward compatibility if needed locally, though direct usage is preferred
 const PLACEHOLDER_SLUGS_SET = TENANT_PLACEHOLDER_SLUGS;
 
-const LS_KEY = "chatboc_accessibility";
 const PLATFORM_DEMO_SECTOR_ORDER = ["educacion", "gobierno", "empresas"];
 
 function buildPlatformQuickMenu() {
@@ -1030,7 +1029,23 @@ function ChatWidgetInner({
     if (!entityInfo) return null;
 
     const info: any = entityInfo;
+    const bootstrapPayload =
+      info?.chat_bootstrap?.payload ||
+      info?.workspace?.chat_bootstrap?.payload ||
+      {};
+    const bootstrapQuery =
+      info?.chat_bootstrap?.query ||
+      info?.workspace?.chat_bootstrap?.query ||
+      {};
     const rawRubro =
+      bootstrapPayload?.rubro_clave ??
+      bootstrapPayload?.rubro_key ??
+      bootstrapPayload?.rubro_slug ??
+      bootstrapPayload?.rubro ??
+      bootstrapQuery?.rubro_clave ??
+      bootstrapQuery?.rubro_key ??
+      bootstrapQuery?.rubro_slug ??
+      bootstrapQuery?.rubro ??
       info?.rubro_clave ??
       info?.rubroClave ??
       info?.rubro_nombre ??
@@ -1042,30 +1057,11 @@ function ChatWidgetInner({
     const normalized = extractRubroKey(rawRubro);
     return normalized;
   }, [entityInfo]);
-  const [a11yPrefs, setA11yPrefs] = useState<Prefs>(() => {
-    try {
-      return (
-        JSON.parse(safeLocalStorage.getItem(LS_KEY) || "") || {
-          dyslexia: false,
-          simplified: true,
-        }
-      );
-    } catch {
-      return { dyslexia: false, simplified: true };
-    }
-  });
+  const [a11yPrefs, setA11yPrefs] = useState<Prefs>(readAccessibilityPrefs);
 
   useEffect(() => {
     const handleStorage = () => {
-      try {
-        const p = JSON.parse(safeLocalStorage.getItem(LS_KEY) || "") || {
-          dyslexia: false,
-          simplified: true,
-        };
-        setA11yPrefs(p);
-      } catch {
-        /* ignore */
-      }
+      setA11yPrefs(readAccessibilityPrefs());
     };
     if (typeof window !== "undefined") {
       window.addEventListener("storage", handleStorage);
@@ -1154,7 +1150,7 @@ function ChatWidgetInner({
   const openCart = useCallback(
     (target: "cart" | "catalog" | "market" = "cart") => {
       const storedTenant = sanitizeTenantSlug(safeLocalStorage.getItem("tenantSlug"));
-      const slug = resolvedTenantSlug ?? storedTenant;
+      const slug = activeDemoTenantSlug ?? resolvedTenantSlug ?? storedTenant;
 
       if (!slug) {
         toast.error("No hay un tenant configurado para el carrito.");
@@ -1200,6 +1196,7 @@ function ChatWidgetInner({
     },
     [
       authTokenState,
+      activeDemoTenantSlug,
       buildMarketCartUrl,
       resolvedTenantSlug,
       tenant,
@@ -1930,15 +1927,28 @@ function ChatWidgetInner({
     return {};
   }, [mode, isOpen, finalOpenWidth, finalOpenHeight, launcherSize, launcherHeight, isMobileView, closedOffsetBottom, closedOffsetRight]);
 
-  const panelAnimation = {
-    initial: { opacity: 0, scale: 0.95, y: 20, originY: 1 },
-    animate: { opacity: 1, scale: 1, y: 0, originY: 1 },
-    exit: { opacity: 0, scale: 0.95, y: 20, originY: 1 },
-    transition: { type: "spring", stiffness: 350, damping: 30 },
-  };
+  const panelAnimation = prefersReducedMotion
+    ? {
+        initial: { opacity: 0 },
+        animate: { opacity: 1 },
+        exit: { opacity: 0 },
+        transition: { duration: 0.12 },
+      }
+    : {
+        initial: { opacity: 0, scale: 0.95, y: 20, originY: 1 },
+        animate: { opacity: 1, scale: 1, y: 0, originY: 1 },
+        exit: { opacity: 0, scale: 0.95, y: 20, originY: 1 },
+        transition: { type: "spring", stiffness: 350, damping: 30 },
+      };
 
-  const motionScale = widgetUx.motionLevel === 'pro' ? 1 : widgetUx.motionLevel === 'minimal' ? 0.5 : 0.75;
-  const enableHeavyEffects = widgetUx.motionLevel !== 'low' && !isMobileView;
+  const motionScale = prefersReducedMotion
+    ? 1
+    : widgetUx.motionLevel === 'pro'
+      ? 1
+      : widgetUx.motionLevel === 'minimal'
+        ? 0.5
+        : 0.75;
+  const enableHeavyEffects = widgetUx.motionLevel !== 'low' && !isMobileView && !prefersReducedMotion;
 
   const launcherPalette = useMemo(() => {
     const primary = primaryColor || widgetUx.gradientEnd || "hsl(var(--primary))";
@@ -1969,12 +1979,19 @@ function ChatWidgetInner({
     };
   }, [widgetUx.preset]);
 
-  const buttonAnimation = {
-    initial: { scale: 0, opacity: 0 },
-    animate: { scale: 1, opacity: 1 },
-    exit: { scale: 0, opacity: 0 },
-    transition: { type: "spring", stiffness: 300, damping: 20 / motionScale },
-  };
+  const buttonAnimation = prefersReducedMotion
+    ? {
+        initial: { opacity: 0 },
+        animate: { opacity: 1 },
+        exit: { opacity: 0 },
+        transition: { duration: 0.12 },
+      }
+    : {
+        initial: { scale: 0, opacity: 0 },
+        animate: { scale: 1, opacity: 1 },
+        exit: { scale: 0, opacity: 0 },
+        transition: { type: "spring", stiffness: 300, damping: 20 / motionScale },
+      };
 
   useEffect(() => {
     if (mode === 'iframe' && typeof window !== 'undefined') {

@@ -12,6 +12,10 @@ Objetivo: validar que el widget de landing inicia demos por pilar/rubro desde co
 - Frontend ya no inyecta `tenant_slug="municipio"` cuando no hay tenant real; solo manda `tenant_slug` si backend/config lo entrego.
 - Header del widget no muestra badge `Live` si backend no habilita live/realtime.
 - Header y CTA de live chat respetan `realtime.socket_enabled`, `support_channels.live_chat.socket_enabled` y `visibility_rules.allow_websocket`.
+- El header compacto mantiene un unico acceso visible a `Accesibilidad`, sin volver a llenar el chat de botones.
+- El panel de accesibilidad persiste preferencias locales para `Modo dislexia`, `Texto simple`, `Alto contraste` y `Controles grandes`.
+- El widget respeta `prefers-reduced-motion`; si el usuario pide menos movimiento, baja animaciones pesadas y usa assets estaticos.
+- Los controles del composer mantienen targets tactiles amplios para usuarios con movilidad reducida.
 - Las respuestas rapidas de mensajes se limitan por `ui_hints.max_visible_quick_replies`; si `collapse_extra_quick_replies=true`, el resto queda detras de `Mas`.
 - El header queda compacto cuando backend manda `ui_hints.density=compact`, `composer.icon_buttons_only` o `toolbar.avoid_header_action_overload`.
 - Adjuntar archivo/imagen, ubicacion, audio y emoji viven en el composer como icon buttons con `title`/`aria-label`; las capacidades se ocultan si backend o navegador no las habilitan.
@@ -57,10 +61,28 @@ Y devolver:
 - `workspace.animation_tokens`
 - `request_id` en errores
 
+### Accesibilidad opcional
+
+Si backend quiere personalizar defaults por tenant sin hardcode frontend, puede agregar a `ui_hints.accessibility`:
+
+```json
+{
+  "enabled": true,
+  "default_simplified_text": true,
+  "allow_dyslexia_mode": true,
+  "allow_high_contrast": true,
+  "allow_large_controls": true,
+  "captions_enabled": true
+}
+```
+
+Frontend ya funciona aunque esos campos no existan; los toma como opt-in futuro para white label inclusivo.
+
 ## Criterios de aceptacion runtime
 
 - Landing sin tenant no debe iniciar chat generico antes de elegir pilar.
 - Elegir Colegios/Gobiernos/Empresas debe crear demo session y abrir chat con `chat_bootstrap`.
+- Una vez elegido pilar/rubro, el widget no debe volver a mostrar selector de rubro ni el selector legacy de dos opciones.
 - Los mensajes demo deben conservar `X-Demo-Session-Id`, `X-Chat-Session-Id` y `X-Tenant-Slug` desde `chat_bootstrap.headers`.
 - No debe aparecer `/socket.io` en consola desde la landing cuando `realtime.socket_enabled !== true`.
 - Si falla `widget-config`, frontend usa fallback local de selector plataforma, pero backend debe devolver contrato real en produccion.
@@ -77,4 +99,7 @@ Y devolver:
 - `vitest run src/utils/realtimeVoice.test.ts --pool=threads`: passed.
 - `vitest run src/features/chat/chatApi.test.ts src/api/market.test.ts --pool=threads`: passed.
 - `vite build`: passed.
+- `npm run build`: passed tras QA de widget compacto, carrito y accesibilidad.
+- Playwright local desktop `http://127.0.0.1:5173/`: passed. No aparecio `showroom interactivo`, no aparecieron `Soluciones Para Empresas/Sector Publico`, no hubo requests a `/live-chat/schedule`.
+- Playwright local mobile `390x820`: passed con las mismas condiciones.
 - `tsc -p tsconfig.app.json --noEmit` sigue fallando por deuda previa no relacionada (BadgeProps, analytics exports, ErrorBoundary/SectionErrorBoundary, tipos de tests y `ChatbocLogoAnimated` en mensajes legacy). No bloquea el build de produccion.

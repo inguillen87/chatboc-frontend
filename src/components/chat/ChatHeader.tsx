@@ -193,7 +193,7 @@ const ChatHeader: React.FC<Props> = ({
         </div>
       </div>
       <div className="relative flex items-center gap-1.5 sm:gap-2">
-        {!compactActions ? <AccessibilityToggle onChange={onA11yChange} /> : null}
+        <AccessibilityToggle onChange={onA11yChange} compact={compactActions} />
         {onBack ? (
           <button
             onClick={onBack}
@@ -213,7 +213,7 @@ const ChatHeader: React.FC<Props> = ({
             <IconButton.User className="h-5 w-5" />
           </button>
         ) : null}
-        {!compactActions && onCart && (
+        {onCart && (!compactActions || Boolean(cartCount && cartCount > 0)) && (
           <button
             onClick={() => onCart()}
             className={`relative ${actionButtonClass}`}

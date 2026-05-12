@@ -1,8 +1,13 @@
-import { useEffect, useState } from "react";
-import { BookOpen, List } from "lucide-react";
+import { useEffect, useState, type ComponentType } from "react";
+import { BookOpen, Eye, List, MousePointer2 } from "lucide-react";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Tooltip,
   TooltipContent,
@@ -13,27 +18,73 @@ import {
 export type Prefs = {
   dyslexia: boolean;
   simplified: boolean;
+  highContrast: boolean;
+  largeControls: boolean;
 };
 
 const LS_KEY = "chatboc_accessibility";
 
+export const DEFAULT_ACCESSIBILITY_PREFS: Prefs = {
+  dyslexia: false,
+  simplified: true,
+  highContrast: false,
+  largeControls: false,
+};
+
+export const readAccessibilityPrefs = (): Prefs => {
+  try {
+    const saved = JSON.parse(safeLocalStorage.getItem(LS_KEY) || "{}");
+    return {
+      ...DEFAULT_ACCESSIBILITY_PREFS,
+      ...(saved && typeof saved === "object" ? saved : {}),
+    };
+  } catch {
+    return DEFAULT_ACCESSIBILITY_PREFS;
+  }
+};
+
+const options = [
+  {
+    key: "dyslexia",
+    label: "Modo dislexia",
+    description: "Más aire, lectura izquierda y guía visual.",
+    icon: BookOpen,
+  },
+  {
+    key: "simplified",
+    label: "Texto simple",
+    description: "Mensajes más cortos y fáciles de escanear.",
+    icon: List,
+  },
+  {
+    key: "highContrast",
+    label: "Alto contraste",
+    description: "Bordes y foco más visibles.",
+    icon: Eye,
+  },
+  {
+    key: "largeControls",
+    label: "Controles grandes",
+    description: "Botones táctiles más cómodos.",
+    icon: MousePointer2,
+  },
+] satisfies Array<{
+  key: keyof Prefs;
+  label: string;
+  description: string;
+  icon: ComponentType<{ className?: string }>;
+}>;
+
 export default function AccessibilityToggle({
   onChange,
+  compact = false,
+  className,
 }: {
   onChange?: (p: Prefs) => void;
+  compact?: boolean;
+  className?: string;
 }) {
-  const [prefs, setPrefs] = useState<Prefs>(() => {
-    try {
-      return (
-        JSON.parse(safeLocalStorage.getItem(LS_KEY) || "") || {
-          dyslexia: false,
-          simplified: true,
-        }
-      );
-    } catch {
-      return { dyslexia: false, simplified: true };
-    }
-  });
+  const [prefs, setPrefs] = useState<Prefs>(readAccessibilityPrefs);
 
   useEffect(() => {
     safeLocalStorage.setItem(LS_KEY, JSON.stringify(prefs));
@@ -41,51 +92,74 @@ export default function AccessibilityToggle({
     const root = document.documentElement;
     root.classList.toggle("a11y-dyslexia", !!prefs.dyslexia);
     root.classList.toggle("a11y-simplified", !!prefs.simplified);
+    root.classList.toggle("a11y-high-contrast", !!prefs.highContrast);
+    root.classList.toggle("a11y-large-controls", !!prefs.largeControls);
   }, [prefs, onChange]);
+
+  const activeCount = Number(prefs.dyslexia) + Number(prefs.simplified) + Number(prefs.highContrast) + Number(prefs.largeControls);
 
   return (
     <TooltipProvider delayDuration={0}>
-      <div className="flex items-center gap-1">
+      <Popover>
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button
-              size="icon"
-              variant="ghost"
-              className={cn(
-                "h-8 w-8",
-                prefs.dyslexia && "bg-amber-100 text-amber-900"
-              )}
-              onClick={() => setPrefs((p) => ({ ...p, dyslexia: !p.dyslexia }))}
-              aria-pressed={prefs.dyslexia}
-              aria-label="Modo dislexia"
-            >
-              <BookOpen className="w-5 h-5" />
-            </Button>
+            <PopoverTrigger asChild>
+              <Button
+                size="icon"
+                variant="ghost"
+                className={cn(
+                  "relative h-9 w-9 rounded-full border border-white/10 bg-white/10 text-white/90 backdrop-blur transition hover:bg-white/16 hover:text-white focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-1 focus-visible:ring-offset-primary",
+                  compact && "h-9 w-9",
+                  activeCount > 0 && "bg-amber-100 text-amber-950 hover:bg-amber-100 hover:text-amber-950",
+                  className,
+                )}
+                aria-label="Abrir ajustes de accesibilidad"
+              >
+                <BookOpen className="h-5 w-5" />
+                {activeCount > 0 ? (
+                  <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-500 px-1 text-[10px] font-bold leading-none text-white">
+                    {activeCount}
+                  </span>
+                ) : null}
+              </Button>
+            </PopoverTrigger>
           </TooltipTrigger>
-          <TooltipContent side="top">Modo dislexia</TooltipContent>
+          <TooltipContent side="top">Accesibilidad</TooltipContent>
         </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              size="icon"
-              variant="ghost"
-              className={cn(
-                "h-8 w-8",
-                prefs.simplified && "bg-amber-100 text-amber-900"
-              )}
-              onClick={() =>
-                setPrefs((p) => ({ ...p, simplified: !p.simplified }))
-              }
-              aria-pressed={prefs.simplified}
-              aria-label="Texto simplificado"
-            >
-              <List className="w-5 h-5" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="top">Texto simplificado</TooltipContent>
-        </Tooltip>
-      </div>
+        <PopoverContent align="end" side="bottom" className="z-[1000002] w-[min(320px,calc(100vw-24px))] rounded-2xl p-3">
+          <div className="mb-3">
+            <p className="text-sm font-semibold">Accesibilidad</p>
+            <p className="text-xs text-muted-foreground">
+              Ajustes rápidos para leer, escuchar y tocar mejor.
+            </p>
+          </div>
+          <div className="space-y-2">
+            {options.map(({ key, label, description, icon: Icon }) => {
+              const active = Boolean(prefs[key]);
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  className={cn(
+                    "flex w-full items-center gap-3 rounded-xl border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60",
+                    active ? "border-primary/50 bg-primary/10" : "border-border bg-background hover:bg-muted/60",
+                  )}
+                  onClick={() => setPrefs((current) => ({ ...current, [key]: !current[key] }))}
+                  aria-pressed={active}
+                >
+                  <span className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-full border", active ? "border-primary/40 bg-primary text-primary-foreground" : "border-border bg-muted")}>
+                    <Icon className="h-5 w-5" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold">{label}</span>
+                    <span className="block text-xs leading-5 text-muted-foreground">{description}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </PopoverContent>
+      </Popover>
     </TooltipProvider>
   );
 }
-

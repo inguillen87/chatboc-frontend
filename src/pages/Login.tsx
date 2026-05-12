@@ -715,6 +715,32 @@ const Login = () => {
           >
             {isDemoLoading ? "Ingresando demo..." : "Probar Demo"}
           </Button>
+          <div className="grid gap-2 sm:grid-cols-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => navigate('/demo?sector=educacion')}
+              disabled={isDemoLoading || isLoading || isPasskeyLoading}
+            >
+              Demo colegio
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => navigate('/demo?sector=gobierno')}
+              disabled={isDemoLoading || isLoading || isPasskeyLoading}
+            >
+              Demo gobierno
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => navigate('/demo?sector=empresas')}
+              disabled={isDemoLoading || isLoading || isPasskeyLoading}
+            >
+              Demo empresa
+            </Button>
+          </div>
           {twilioTrial?.wa_deeplink ? (
             <div className="rounded-lg border border-border/70 bg-muted/20 p-3 space-y-2">
               <p className="text-sm font-medium">Demo WhatsApp por rubro</p>

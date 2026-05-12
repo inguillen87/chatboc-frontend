@@ -100,7 +100,7 @@ const TenantPublicLanding = () => {
     return '';
   }, [currentSlug, params.tenant, tenant?.slug]);
 
-  const basePath = slug ? `/${encodeURIComponent(slug)}` : null;
+  const basePath = slug ? `/t/${encodeURIComponent(slug)}` : null;
 
   const newsQuery = useQuery<TenantNewsItem[]>({
     queryKey: queryKeys.tenant.news(slug),

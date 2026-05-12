@@ -39,8 +39,8 @@ export const TenantShell = ({ children }: TenantShellProps) => {
   const [updatingFollow, setUpdatingFollow] = useState(false);
 
   const slugForPath = tenant?.slug ?? currentSlug ?? null;
-  // Professional URLs: /slug/...
-  const basePath = slugForPath ? `/${encodeURIComponent(slugForPath)}` : '';
+  // Canonical public tenant URLs keep tenant spaces away from marketing routes.
+  const basePath = slugForPath ? `/t/${encodeURIComponent(slugForPath)}` : '';
 
   const handleToggleFollow = async () => {
     if (!slugForPath) return;

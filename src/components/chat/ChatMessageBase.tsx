@@ -9,7 +9,7 @@ import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 import { ChatStreamRenderer, PolicyBanner } from './stream';
 import sanitizeMessageHtml from "@/utils/sanitizeMessageHtml";
 import { simplify } from "@/lib/simplify";
-import { safeLocalStorage } from "@/utils/safeLocalStorage";
+import { readAccessibilityPrefs } from "./AccessibilityToggle";
 import AttachmentPreview from "./AttachmentPreview";
 import { deriveAttachmentInfo, AttachmentInfo } from "@/utils/attachment";
 import MessageBubble from "./MessageBubble";
@@ -572,12 +572,7 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
   const plainText = useMemo(() => cleanText.replace(/<[^>]+>/g, ""), [cleanText]);
   const simplified = useMemo(() => simplify(plainText), [plainText]);
   const [simple, setSimple] = useState<boolean>(() => {
-    try {
-      const p = JSON.parse(safeLocalStorage.getItem("chatboc_accessibility") || "{}");
-      return !!p?.simplified;
-    } catch {
-      return true;
-    }
+    return readAccessibilityPrefs().simplified;
   });
 
   const renderText = simple ? (
@@ -595,7 +590,12 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
           <>
             {renderText}
             <div className="mt-1 text-[12px] flex gap-2">
-              <button className="underline" onClick={() => setSimple((s) => !s)}>
+              <button
+                type="button"
+                className="rounded px-1 underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+                onClick={() => setSimple((s) => !s)}
+                aria-label={simple ? "Ver mensaje completo" : "Ver mensaje simplificado"}
+              >
                 {simple ? "Ver completo" : "Ver simple"}
               </button>
             </div>

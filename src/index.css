@@ -447,10 +447,18 @@ body,
 }
 
 :root.a11y-dyslexia {
-  --chat-font: 'Lexend', system-ui, -apple-system, Segoe UI, Roboto, Arial;
+  --chat-font: 'Atkinson Hyperlegible', 'Lexend', Verdana, system-ui, -apple-system, Segoe UI, Roboto, Arial;
   --chat-line-height: 1.8;
   --chat-letter-spacing: 0.0125em;
   --chat-max-width: 52ch;
+}
+
+:root.a11y-large-controls {
+  --chat-touch-target: 48px;
+}
+
+:root.a11y-high-contrast {
+  --chat-focus-ring: 0 0 0 3px hsl(var(--background)), 0 0 0 6px hsl(var(--primary));
 }
 
 :root.a11y-simplified .chat-message p {
@@ -465,6 +473,38 @@ body,
   line-height: var(--chat-line-height, 1.6);
   letter-spacing: var(--chat-letter-spacing, 0);
   max-width: var(--chat-max-width, 64ch);
+}
+
+:root.a11y-dyslexia .chat-message {
+  text-align: left !important;
+  word-spacing: 0.08em;
+}
+
+:root.a11y-high-contrast .chat-root {
+  border-color: hsl(var(--foreground) / 0.38) !important;
+}
+
+:root.a11y-high-contrast .chat-root button:focus-visible,
+:root.a11y-high-contrast .chat-root a:focus-visible,
+:root.a11y-high-contrast .chat-root input:focus-visible,
+:root.a11y-high-contrast .chat-root textarea:focus-visible {
+  box-shadow: var(--chat-focus-ring);
+  outline: none;
+}
+
+:root.a11y-high-contrast .chat-message a,
+:root.a11y-high-contrast .chat-root button {
+  border-color: hsl(var(--foreground) / 0.45);
+}
+
+:root.a11y-large-controls .chat-root button,
+:root.a11y-large-controls .chat-root a,
+:root.a11y-large-controls .chat-root input {
+  min-height: var(--chat-touch-target);
+}
+
+:root.a11y-large-controls .chat-root input {
+  font-size: 1rem;
 }
 
 .chat-message strong {
@@ -553,12 +593,20 @@ body,
 }
 
 @media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+  }
+
   .chatboc-dashboard-scan::after {
     animation: none;
   }
 
   .animate-float,
-  .animate-pulse-subtle {
+  .animate-pulse-subtle,
+  .animate-ping,
+  .animate-spin {
     animation: none !important;
   }
 }

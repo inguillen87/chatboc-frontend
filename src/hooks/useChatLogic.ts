@@ -141,6 +141,7 @@ interface UseChatLogicOptions {
   socketEnabled?: boolean;
   socketUrlOverride?: string | null;
   chatBootstrap?: ChatBootstrapConfig | null;
+  autoInitEnabled?: boolean;
 }
 
 export function useChatLogic({
@@ -154,6 +155,7 @@ export function useChatLogic({
   socketEnabled = false,
   socketUrlOverride = null,
   chatBootstrap = null,
+  autoInitEnabled = true,
 	}: UseChatLogicOptions) {
   const entityToken = propToken || getIframeToken();
 
@@ -291,6 +293,22 @@ export function useChatLogic({
         rawRubro = sanitizeRubroValue(selectedRubro);
       }
 
+      if (!rawRubro && chatBootstrap?.payload) {
+        rawRubro =
+          sanitizeRubroValue(chatBootstrap.payload.rubro_clave) ||
+          sanitizeRubroValue(chatBootstrap.payload.rubro_key) ||
+          sanitizeRubroValue(chatBootstrap.payload.rubro_slug) ||
+          sanitizeRubroValue(chatBootstrap.payload.rubro);
+      }
+
+      if (!rawRubro && chatBootstrap?.query) {
+        rawRubro =
+          sanitizeRubroValue(chatBootstrap.query.rubro_clave) ||
+          sanitizeRubroValue(chatBootstrap.query.rubro_key) ||
+          sanitizeRubroValue(chatBootstrap.query.rubro_slug) ||
+          sanitizeRubroValue(chatBootstrap.query.rubro);
+      }
+
       if (allowRubroInference && !rawRubro) {
         try {
           const storedUser = JSON.parse(
@@ -321,7 +339,15 @@ export function useChatLogic({
 
       const isBoundTenantContext = Boolean(
         (typeof tenantSlug === "string" && tenantSlug.trim()) ||
-        (typeof entityToken === "string" && entityToken.trim()),
+        (typeof entityToken === "string" && entityToken.trim()) ||
+        (typeof chatBootstrap?.endpoint === "string" &&
+          chatBootstrap.endpoint.trim()) ||
+        (typeof chatBootstrap?.headers?.["X-Tenant-Slug"] === "string" &&
+          chatBootstrap.headers["X-Tenant-Slug"].trim()) ||
+        (typeof chatBootstrap?.payload?.tenant_slug === "string" &&
+          chatBootstrap.payload.tenant_slug.trim()) ||
+        (typeof chatBootstrap?.query?.tenant_slug === "string" &&
+          chatBootstrap.query.tenant_slug.trim()),
       );
 
       if (
@@ -362,7 +388,17 @@ export function useChatLogic({
       const tenantSlugForPayload =
         typeof tenantSlug === "string" && tenantSlug.trim()
           ? tenantSlug.trim()
-          : undefined;
+          : typeof chatBootstrap?.payload?.tenant_slug === "string" &&
+              chatBootstrap.payload.tenant_slug.trim()
+            ? chatBootstrap.payload.tenant_slug.trim()
+            : typeof chatBootstrap?.query?.tenant_slug === "string" &&
+                chatBootstrap.query.tenant_slug.trim()
+              ? chatBootstrap.query.tenant_slug.trim()
+              : typeof chatBootstrap?.headers?.["X-Tenant-Slug"] ===
+                    "string" &&
+                  chatBootstrap.headers["X-Tenant-Slug"].trim()
+                ? chatBootstrap.headers["X-Tenant-Slug"].trim()
+                : undefined;
 
       const sessionId = getOrCreateChatSessionId();
 
@@ -455,6 +491,10 @@ export function useChatLogic({
   }, [initializeConversation]);
 
   useEffect(() => {
+    if (!autoInitEnabled) {
+      return;
+    }
+
     if (
       messagesRef.current.length > 0 ||
       initSentRef.current ||
@@ -473,7 +513,7 @@ export function useChatLogic({
     }, 180);
 
     return () => clearTimeout(bootstrapTimer);
-  }, [tipoChat, tenantSlug, selectedRubro, chatBootstrap]);
+  }, [autoInitEnabled, tipoChat, tenantSlug, selectedRubro, chatBootstrap]);
 
   const token = skipAuth ? null : getValidStoredToken(tokenKey);
   const isAnonimo = skipAuth || !token;

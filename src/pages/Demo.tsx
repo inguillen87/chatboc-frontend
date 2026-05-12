@@ -1,6 +1,20 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useLocation } from "react-router-dom";
-import { Download, ExternalLink, FileText, ShieldCheck } from "lucide-react";
+import {
+  BarChart3,
+  CheckCircle2,
+  Clock3,
+  Download,
+  ExternalLink,
+  FileText,
+  GraduationCap,
+  Inbox,
+  MapPinned,
+  MessageSquareText,
+  ShieldCheck,
+  ShoppingCart,
+  Users,
+} from "lucide-react";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { resetChatSessionId } from "@/utils/chatSessionId";
 import getOrCreateAnonId from "@/utils/anonId";
@@ -77,6 +91,16 @@ const buildDemoFallbackReply = ({
   sectorLabel: string | null;
   catalogTitle?: string | null;
 }) => {
+  const cleanText = text.trim();
+  const context = sectorLabel ? ` en el recorrido de ${sectorLabel}` : '';
+  const resource = catalogTitle ? ` También dejé disponible el catálogo "${catalogTitle}" para que lo puedas descargar.` : '';
+
+  if (!cleanText) {
+    return `Demo lista${context}. Probá una consulta, adjuntá un archivo o usá una acción sugerida: la idea es ver cómo Chatboc ordena el caso y deja seguimiento para el equipo.${resource}`;
+  }
+
+  return `Listo, tomé "${cleanText}" como una consulta demo${context}. Chatboc puede responder, pedir datos faltantes, registrar el caso y derivarlo a una persona si hace falta.${resource}`;
+
   const lines = [
     'La demo quedo activa en modo guiado.',
     text.trim() ? `Recibi tu consulta: "${text.trim()}".` : null,
@@ -86,6 +110,146 @@ const buildDemoFallbackReply = ({
   ];
 
   return lines.filter(Boolean).join('\n');
+};
+
+const getDemoScenario = (sector: DemoSector | null, rubro?: string | null) => {
+  if (sector === 'educacion') {
+    return {
+      icon: GraduationCap,
+      title: 'Panel demo para dirección escolar',
+      subtitle: rubro || 'Colegio privado integral',
+      outcome: 'Familias, secretaría y equipo directivo viendo el mismo caso con contexto.',
+      modules: ['Resumen', 'Familias', 'Casos escolares', 'Comunicados', 'Pagos', 'Equipo', 'Canales'],
+      cards: [
+        { label: 'Casos abiertos', value: '18', detail: 'inasistencias, documentación y admisiones', icon: Inbox },
+        { label: 'Tiempo de respuesta', value: '4 min', detail: 'prioridad por sensibilidad del caso', icon: Clock3 },
+        { label: 'Canales activos', value: '3', detail: 'web, WhatsApp y voz', icon: MessageSquareText },
+      ],
+      timeline: ['Familia inicia consulta', 'Chatboc pide datos faltantes', 'Secretaría recibe el caso', 'Resumen por WhatsApp'],
+    };
+  }
+
+  if (sector === 'gobierno') {
+    return {
+      icon: MapPinned,
+      title: 'Centro de atención ciudadana',
+      subtitle: rubro || 'Gobierno y municipios',
+      outcome: 'Reclamos, turnos, noticias y participación ordenados por zona, prioridad y estado.',
+      modules: ['Resumen', 'Reclamos', 'Mapa', 'Encuestas', 'Noticias', 'Equipo', 'Canales'],
+      cards: [
+        { label: 'Reclamos activos', value: '42', detail: 'con zona, foto y estado', icon: Inbox },
+        { label: 'Mapa operativo', value: 'live', detail: 'capas por categoría y prioridad', icon: MapPinned },
+        { label: 'Participación', value: '8.7', detail: 'satisfacción y respuestas', icon: BarChart3 },
+      ],
+      timeline: ['Vecino envía ubicación', 'Se clasifica el reclamo', 'Área responsable toma el caso', 'Seguimiento con código'],
+    };
+  }
+
+  return {
+    icon: ShoppingCart,
+    title: 'Operación comercial con carrito',
+    subtitle: rubro || 'Empresa y ventas',
+    outcome: 'Catálogo, pedidos, consultas, pagos y seguimiento reunidos para vender sin perder contexto.',
+    modules: ['Resumen', 'Inbox', 'Catálogo', 'Pedidos', 'Clientes', 'Pagos', 'Canales'],
+    cards: [
+      { label: 'Pedidos', value: '26', detail: 'pendientes, pagos y entregas', icon: ShoppingCart },
+      { label: 'Leads', value: 'CRM', detail: 'contactos listos para seguimiento', icon: Users },
+      { label: 'Catálogo', value: '92%', detail: 'productos listos para vender', icon: FileText },
+    ],
+    timeline: ['Cliente consulta producto', 'Chatboc arma pedido', 'Se confirma contacto o pago', 'Historial queda guardado'],
+  };
+};
+
+const DemoAdminPreview = ({ sector, rubro }: { sector: DemoSector | null; rubro?: string | null }) => {
+  const scenario = getDemoScenario(sector, rubro);
+  const Icon = scenario.icon;
+
+  return (
+    <section className="overflow-hidden rounded-2xl border border-border/70 bg-card/80 shadow-sm backdrop-blur">
+      <div className="grid gap-0 lg:grid-cols-[0.72fr_1.28fr]">
+        <aside className="border-b border-border/70 bg-muted/25 p-5 lg:border-b-0 lg:border-r">
+          <div className="mb-5 flex items-center gap-3">
+            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <Icon className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">Admin demo</p>
+              <h3 className="text-lg font-bold text-foreground">{scenario.subtitle}</h3>
+            </div>
+          </div>
+          <nav className="grid gap-2">
+            {scenario.modules.map((module, index) => (
+              <button
+                key={module}
+                type="button"
+                className={`flex items-center justify-between rounded-xl border px-3 py-2 text-left text-sm transition ${
+                  index === 0
+                    ? 'border-primary/30 bg-primary/10 text-primary'
+                    : 'border-border/60 bg-background/60 text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <span>{module}</span>
+                {index === 0 ? <CheckCircle2 className="h-4 w-4" /> : null}
+              </button>
+            ))}
+          </nav>
+        </aside>
+
+        <div className="p-5">
+          <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">Vista 360</p>
+              <h3 className="mt-1 text-2xl font-bold tracking-tight text-foreground">{scenario.title}</h3>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{scenario.outcome}</p>
+            </div>
+            <span className="w-fit rounded-full border border-success/25 bg-success/10 px-3 py-1 text-xs font-semibold text-success">
+              listo para mostrar
+            </span>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-3">
+            {scenario.cards.map((card) => {
+              const CardIcon = card.icon;
+              return (
+                <div key={card.label} className="rounded-xl border border-border/70 bg-background/70 p-4">
+                  <CardIcon className="mb-4 h-5 w-5 text-primary" />
+                  <p className="text-sm text-muted-foreground">{card.label}</p>
+                  <p className="mt-1 text-2xl font-black tracking-tight text-foreground">{card.value}</p>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">{card.detail}</p>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_0.8fr]">
+            <div className="rounded-xl border border-border/70 bg-background/70 p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <p className="text-sm font-semibold text-foreground">Recorrido visible para el equipo</p>
+                <span className="text-xs text-muted-foreground">demo</span>
+              </div>
+              <div className="space-y-3">
+                {scenario.timeline.map((step, index) => (
+                  <div key={step} className="flex items-start gap-3">
+                    <span className={`mt-1 h-2.5 w-2.5 rounded-full ${index < 2 ? 'bg-success' : index === 2 ? 'bg-primary' : 'bg-muted-foreground/35'}`} />
+                    <div>
+                      <p className="text-sm font-medium text-foreground">{step}</p>
+                      <p className="text-xs text-muted-foreground">queda trazable para continuar sin perder datos</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
+              <p className="text-sm font-semibold text-foreground">Lo que debería ver un comprador</p>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                No solo un chat: una operación completa con conversación, recursos, acciones, estado, equipo y seguimiento.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
 };
 
 const Demo = () => {
@@ -348,6 +512,36 @@ const Demo = () => {
 
     const storedClave = safeLocalStorage.getItem("rubroSeleccionado");
     const storedLabel = safeLocalStorage.getItem("rubroSeleccionado_label");
+    const requestedSector = new URLSearchParams(location.search).get('sector') as DemoSector | null;
+    const normalizedRequestedSector =
+      requestedSector === 'educacion' || requestedSector === 'gobierno' || requestedSector === 'empresas'
+        ? requestedSector
+        : null;
+
+    if (normalizedRequestedSector && !storedClave) {
+      const fallbackGroup = findSectorGroup(
+        { sector_groups: demoCatalog?.sector_groups ?? [] } as DemoCatalogResponse,
+        normalizedRequestedSector,
+      );
+      const localSession = createLocalDemoSession({
+        sector: normalizedRequestedSector,
+        tenant_slug: readSectorTenantSlug(fallbackGroup) ?? readSectorCatalogSlug(normalizedRequestedSector),
+        pillar: normalizedRequestedSector,
+        category_slug: normalizedRequestedSector,
+      });
+      const label = readSectorLabel(fallbackGroup, normalizedRequestedSector);
+      setSectorSeleccionado(normalizedRequestedSector);
+      setRubroSeleccionado(label);
+      setRubroClaveSeleccionado(normalizedRequestedSector);
+      setDemoSessionId(localSession.demo_session_id ?? null);
+      setDemoTenantSlug(localSession.tenant_slug ?? null);
+      setDemoWorkspace(localSession.workspace ?? null);
+      setUseLocalDemoRuntime(true);
+      setEsperandoRubro(false);
+      openDemoWidget();
+      void startDemoConversation(normalizedRequestedSector, null, localSession.tenant_slug ?? null, true);
+      return;
+    }
 
     if (storedClave && !rubroClaveSeleccionado) {
       const normalizedClave = extractRubroKey(storedClave) ?? storedClave;
@@ -747,8 +941,9 @@ const Demo = () => {
 
       {/* CHAT AREA */}
       {/* Increased max-w for chat content area for better desktop view, maintains padding */}
-      <main className="w-full max-w-3xl flex flex-col flex-1 px-4 sm:px-6 py-5 space-y-4 overflow-y-auto custom-scroll">
+      <main className="w-full max-w-5xl flex flex-col flex-1 px-4 sm:px-6 py-5 space-y-4 overflow-y-auto custom-scroll">
         <DemoWorkspace tenantSlug={demoTenantSlug} sector={sectorSeleccionado} rubro={rubroSeleccionado} workspace={demoWorkspace} onPrefill={(text) => void handleSendMessage(text)} />
+        <DemoAdminPreview sector={sectorSeleccionado} rubro={rubroSeleccionado} />
         {activeCatalogAsset ? (
           <section className="overflow-hidden rounded-2xl border border-primary/20 bg-card shadow-sm">
             <div className="grid gap-0 md:grid-cols-[1fr_0.72fr]">

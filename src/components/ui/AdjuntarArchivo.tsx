@@ -115,6 +115,7 @@ const AdjuntarArchivo = forwardRef<AdjuntarArchivoHandle, AdjuntarArchivoProps>(
         size="icon"
         type="button" // Importante para no enviar formularios accidentalmente
         aria-label="Adjuntar archivo"
+        className="h-11 w-11 rounded-full"
         disabled={disabled}
       >
         <Paperclip className="w-4 h-4" />
