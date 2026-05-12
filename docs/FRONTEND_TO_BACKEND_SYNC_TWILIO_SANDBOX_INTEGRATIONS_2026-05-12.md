@@ -12,8 +12,9 @@ Objetivo: que el panel tenant permita probar WhatsApp Sandbox y el widget con el
   - Rubro/recorrido.
   - Brief de la prueba.
   - Mensaje inicial.
-  - Preview de quick menu leido desde `GET /api/public/tenants/{slug}/widget-config`.
-- Si backend no tiene endpoint de sandbox, frontend degrada a modo local:
+  - Preview de quick menu leido desde `GET /api/v2/tenants/{tenant_slug}/whatsapp/sandbox-setup` y, como respaldo, desde `GET /api/public/tenants/{slug}/widget-config`.
+- Frontend consume `sandbox-setup` para instrucciones/frase/menu y `sandbox-test` para generar deeplink/copy/preview sin enviar mensajes reales.
+- Si el deploy todavia no tiene endpoint de sandbox, frontend degrada a modo local:
   - arma texto copiable;
   - genera deeplink `wa.me`;
   - no bloquea la pantalla.
@@ -24,17 +25,29 @@ Objetivo: que el panel tenant permita probar WhatsApp Sandbox y el widget con el
 - El editor de catalogo guarda borrador local si backend todavia no publica un endpoint de draft.
 - Se agregaron titulos/description ocultos en dialogos para accesibilidad.
 
-## Endpoint pedido para backend
+## Contrato backend confirmado
 
-Endpoint tenant-aware recomendado:
+Nota WhatsApp Sandbox:
 
-`POST /api/v2/tenants/{tenant_slug}/whatsapp/sandbox-session`
+Ademas de `sandbox-session`, backend tambien dejo listo el flujo guiado `sandbox-setup` + `sandbox-test`.
 
-Alias opcional:
+Setup tenant-aware:
 
-`POST /api/v2/whatsapp/sandbox-session`
+`GET /api/v2/tenants/{tenant_slug}/whatsapp/sandbox-setup`
 
-Body que manda frontend:
+Setup alias:
+
+`GET /api/v2/whatsapp/sandbox-setup`
+
+Test tenant-aware:
+
+`POST /api/v2/tenants/{tenant_slug}/whatsapp/sandbox-test`
+
+Test alias:
+
+`POST /api/v2/whatsapp/sandbox-test`
+
+Body que manda frontend al test:
 
 ```json
 {
@@ -49,29 +62,59 @@ Body que manda frontend:
 }
 ```
 
-Respuesta esperada:
+Respuesta setup:
 
 ```json
 {
-  "contract_version": "whatsapp.sandbox_session.v1",
-  "ok": true,
-  "tenant": { "slug": "junin-1" },
-  "twilio": {
-    "sandbox_number": "whatsapp:+14155238886",
+  "contract_version": "whatsapp.sandbox_setup.v1",
+  "sandbox": {
+    "join_number": "whatsapp:+14155238886",
     "join_phrase": "join palabra-clave",
-    "wa_deeplink": "https://wa.me/14155238886?text=join%20..."
+    "instructions": []
   },
   "demo_context": {
-    "tenant_slug": "junin-1",
-    "rubro": "colegio",
-    "brief": "...",
     "quick_menu": []
+  },
+  "test": {
+    "endpoint": "/api/v2/tenants/junin-1/whatsapp/sandbox-test"
+  },
+  "frontend_contract": {
+    "render_as": "whatsapp_sandbox_onboarding"
+  },
+  "request_id": "req_..."
+}
+```
+
+Respuesta test:
+
+```json
+{
+  "contract_version": "whatsapp.sandbox_test.v1",
+  "ok": true,
+  "mode": "copy_or_deeplink",
+  "sends_real_message": false,
+  "twilio": {
+    "wa_deeplink": "https://wa.me/14155238886?text=join+palabra-clave"
+  },
+  "message_preview": {
+    "copy_text": "join palabra-clave\n\nHola, quiero probar el asistente",
+    "message": "Hola, quiero probar el asistente"
   },
   "request_id": "req_..."
 }
 ```
 
 Errores publicos deben ser JSON con `request_id` y CORS OK para `www.chatboc.ar`.
+
+Contratos:
+
+- `whatsapp.sandbox_setup.v1`
+- `whatsapp.sandbox_session.v1`
+- `whatsapp.sandbox_test.v1`
+
+Verificacion local backend:
+
+- `test_whatsapp_sandbox_setup_and_test_contracts_are_backend_first`: OK
 
 ## Otros contratos que bloquearon prod
 

@@ -48,11 +48,14 @@ Aceptacion:
 
 ### 2. WhatsApp Sandbox desde integraciones
 
-Frontend ya manda:
+Frontend nuevo usa el flujo guiado:
 
-`POST /api/v2/tenants/{tenant_slug}/whatsapp/sandbox-session`
+- `GET /api/v2/tenants/{tenant_slug}/whatsapp/sandbox-setup`
+- `POST /api/v2/tenants/{tenant_slug}/whatsapp/sandbox-test`
 
-Body:
+`sandbox-session` queda solo como compatibilidad del backend para builds intermedios.
+
+Body que manda frontend al test:
 
 ```json
 {
@@ -67,31 +70,49 @@ Body:
 }
 ```
 
-Respuesta esperada:
+Respuesta setup esperada:
 
 ```json
 {
-  "contract_version": "whatsapp.sandbox_session.v1",
-  "ok": true,
-  "tenant": { "slug": "junin-1" },
-  "twilio": {
-    "sandbox_number": "whatsapp:+14155238886",
+  "contract_version": "whatsapp.sandbox_setup.v1",
+  "sandbox": {
+    "join_number": "whatsapp:+14155238886",
     "join_phrase": "join palabra-clave",
-    "wa_deeplink": "https://wa.me/14155238886?text=join%20..."
+    "instructions": []
   },
   "demo_context": {
-    "tenant_slug": "junin-1",
-    "rubro": "colegio",
-    "brief": "...",
     "quick_menu": []
+  },
+  "test": {
+    "endpoint": "/api/v2/tenants/junin-1/whatsapp/sandbox-test"
   },
   "request_id": "req_..."
 }
 ```
 
-Alias util:
+Respuesta test esperada:
 
-- `POST /api/v2/whatsapp/sandbox-session`
+```json
+{
+  "contract_version": "whatsapp.sandbox_test.v1",
+  "ok": true,
+  "mode": "copy_or_deeplink",
+  "sends_real_message": false,
+  "twilio": {
+    "wa_deeplink": "https://wa.me/14155238886?text=join+palabra-clave"
+  },
+  "message_preview": {
+    "copy_text": "join palabra-clave\n\nHola, quiero probar el asistente",
+    "message": "Hola, quiero probar el asistente"
+  },
+  "request_id": "req_..."
+}
+```
+
+Aliases:
+
+- `GET /api/v2/whatsapp/sandbox-setup`
+- `POST /api/v2/whatsapp/sandbox-test`
 
 ### 3. Widget embebido + carrito + portal usuario
 
@@ -230,12 +251,16 @@ Backend a mantener:
 
 ### 7. WhatsApp Sandbox guiado para integraciones
 
-Estado actualizado: frontend ya consume `sandbox-session` desde la pantalla de integraciones y degrada a prueba manual si el deploy todavia no esta disponible.
+Estado actualizado: frontend ya consume `sandbox-setup` y `sandbox-test` desde la pantalla de integraciones y degrada a prueba manual si el deploy todavia no esta disponible.
+
+Nota: ademas de `sandbox-session`, backend tambien dejo listo el flujo guiado `sandbox-setup` + `sandbox-test`.
 
 Endpoints backend informados:
 
-- `POST /api/v2/tenants/{tenant_slug}/whatsapp/sandbox-session`
-- `POST /api/v2/whatsapp/sandbox-session`
+- `GET /api/v2/tenants/{tenant_slug}/whatsapp/sandbox-setup`
+- `GET /api/v2/whatsapp/sandbox-setup`
+- `POST /api/v2/tenants/{tenant_slug}/whatsapp/sandbox-test`
+- `POST /api/v2/whatsapp/sandbox-test`
 
 Respuesta esperada:
 
@@ -284,7 +309,9 @@ Reglas esperadas:
 - El menu usado en sandbox debe ser el mismo menu configurado del tenant/widget/WhatsApp.
 - Si falta configuracion de Twilio, responder JSON degradable con checklist accionable y `request_id`.
 - No devolver HTML ni errores CORS en integraciones.
-- Frontend muestra deeplink, frase join, preview de quick menu y boton para copiar instrucciones cuando `sandbox-session` responde OK.
+- Frontend muestra deeplink, frase join, preview de quick menu y boton para copiar instrucciones cuando `sandbox-setup`/`sandbox-test` responden OK.
+- Contratos confirmados: `whatsapp.sandbox_session.v1`, `whatsapp.sandbox_setup.v1` y `whatsapp.sandbox_test.v1`.
+- Verificacion local backend: `test_whatsapp_sandbox_setup_and_test_contracts_are_backend_first`: OK.
 
 ## Compatibilidad para builds viejos
 

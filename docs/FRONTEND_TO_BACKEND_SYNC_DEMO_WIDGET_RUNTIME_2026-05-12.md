@@ -157,3 +157,97 @@ Pedido backend/deploy:
 
 - Mantener `public.catalog_resolution.v1`, `public.reserved_slug.v1`, `tenant.public_navigation.v1` y `demo.admin_preview.v1` con JSON + CORS + `request_id`.
 - Evitar texto tecnico visible en esos contratos porque se renderizan en experiencias publicas.
+
+## Backend status recibido 2026-05-12
+
+Frontend ya queda alineado para consumir cuando se despliegue:
+
+- `GET /api/v2/tenants/{tenant_slug}/whatsapp/sandbox-setup`
+- `GET /api/v2/whatsapp/sandbox-setup`
+- `POST /api/v2/tenants/{tenant_slug}/whatsapp/sandbox-test`
+- `POST /api/v2/whatsapp/sandbox-test`
+- `PUT /api/admin/tenants/{tenant_slug}/catalog/draft`
+- `GET /api/admin/tenants/{tenant_slug}/catalog` con `links.draft_endpoint`
+- `GET /api/public/widget-commerce-session`
+- `GET /api/public/widget-user/tenant-history`
+- `POST /api/public/widget-user/register`
+- `POST /api/public/widget-user/link-session`
+
+Reglas frontend aplicadas:
+
+- El widget embebido usa `widget-commerce-session` como bootstrap premium cuando hay `widget_token` o `tenant_slug`.
+- Se envia `widget_session_token`, `anon_id` y `chat_session_id` a historial/carrito cuando existen.
+- Para carrito se prioriza `cart.summary_endpoint` y `cart.items_endpoint` antes de legacy.
+- Integraciones WhatsApp muestra instrucciones/frase/menu desde `sandbox-setup` y deeplink/copy/preview desde `sandbox-test`.
+- Si algo aun no esta en produccion, la UI degrada sin mostrar errores tecnicos al usuario.
+
+Compatibilidad backend para builds intermedios:
+
+- `POST /api/v2/tenants/{tenant_slug}/whatsapp/sandbox-session`
+- `POST /api/v2/whatsapp/sandbox-session`
+
+## Confirmacion backend widget embebido premium 2026-05-12
+
+Backend confirma soporte local para el bloque de widget embebido premium. No hace falta pedir mas backend para esta tanda; queda pendiente el deploy manual en Render.
+
+`GET /api/public/widget-commerce-session`:
+
+- `contract_version: public.widget_commerce_session.v1`
+- `frontend_contract.render_as: embedded_tenant_operating_widget`
+- `primary_actions: chat, catalog, cart, portal`
+- `session.can_checkout_as_guest: true`
+- `session.can_link_account: true`
+- `session.widget_session_token` disponible
+- `cart.allow_guest_cart: true`
+- `cart.summary_endpoint: /api/pwa/public/cart/summary`
+- `cart.items_endpoint: /api/pwa/public/cart/items`
+- `cart.legacy_endpoint: /api/pwa/public/cart`
+- `portal.history_endpoint: /api/public/widget-user/tenant-history`
+- `history.endpoint: /api/public/widget-user/tenant-history`
+- `accessibility` disponible para merge con `ui_hints.accessibility`
+
+`GET /api/public/widget-user/tenant-history`:
+
+- `contract_version: public.widget_user_tenant_history.v1`
+- Resuelve por `tenant_slug`/`widget_token` + `X-Chat-Session-Id`/`X-Demo-Session-Id`/`X-Anon-Id`.
+- Devuelve `profile`, `items[]`, `cart.items_count`, `cart.summary_endpoint` y `cart.items_endpoint`.
+
+Endpoints de identidad degradable:
+
+- `POST /api/public/widget-user/register`
+- `POST /api/public/widget-user/link-session`
+
+Verificacion local backend confirmada:
+
+- `test_widget_commerce_session_returns_embedded_operating_contract`: OK
+- `test_widget_user_tenant_history_returns_cart_claims_and_orders`: OK
+- `test_pwa_public_cart_summary_and_items_aliases`: OK
+- `local_platform_smoke.py`: 11/11 OK
+
+## Confirmacion backend WhatsApp sandbox setup/test 2026-05-12
+
+Backend confirma este delta en main:
+
+- Ademas de `sandbox-session`, queda listo el flujo guiado:
+- `GET /api/v2/tenants/{tenant_slug}/whatsapp/sandbox-setup`
+- `GET /api/v2/whatsapp/sandbox-setup`
+- `POST /api/v2/tenants/{tenant_slug}/whatsapp/sandbox-test`
+- `POST /api/v2/whatsapp/sandbox-test`
+
+Contratos:
+
+- `whatsapp.sandbox_session.v1`
+- `whatsapp.sandbox_setup.v1`
+- `whatsapp.sandbox_test.v1`
+
+`sandbox-setup` devuelve `whatsapp.sandbox_setup.v1` con `sandbox.instructions`, `demo_context.quick_menu`, `test.endpoint` y `frontend_contract.render_as=whatsapp_sandbox_onboarding`.
+
+`sandbox-test` devuelve `whatsapp.sandbox_test.v1`; no envia mensajes reales y entrega `twilio.wa_deeplink`, `message_preview.copy_text` y `message_preview.message`.
+
+Verificacion local backend confirmada:
+
+- `test_whatsapp_sandbox_setup_and_test_contracts_are_backend_first`: OK
+- `tests/test_v2_saas_contracts.py`: 16 passed
+- `local_platform_smoke.py`: 11/11 OK
+
+Pendiente solo deploy manual en Render.

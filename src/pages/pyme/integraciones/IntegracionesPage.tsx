@@ -75,14 +75,28 @@ type WhatsappSandboxState = {
 };
 
 type WhatsappSandboxResult = {
-  mode: "backend" | "local";
+  mode: "remote" | "local";
   message: string;
   deeplink?: string | null;
+  copyText?: string | null;
+  previewText?: string | null;
   requestId?: string | null;
   joinNumber?: string | null;
   joinPhrase?: string | null;
   instructions?: string[];
   quickMenu?: QuickMenuPreviewItem[];
+};
+
+type WhatsappSandboxSetup = {
+  requestId?: string | null;
+  deeplink?: string | null;
+  copyText?: string | null;
+  previewText?: string | null;
+  joinNumber?: string | null;
+  joinPhrase?: string | null;
+  instructions: string[];
+  quickMenu: QuickMenuPreviewItem[];
+  testEndpoint?: string | null;
 };
 
 const DEFAULT_WHATSAPP_SANDBOX: WhatsappSandboxState = {
@@ -137,6 +151,83 @@ const normalizeSandboxInstructions = (source: unknown): string[] => {
     .filter(Boolean);
 };
 
+const normalizeSandboxPreviewText = (source: unknown): string | null => {
+  if (typeof source === "string" && source.trim()) return source.trim();
+  if (Array.isArray(source)) {
+    const lines = source
+      .map(normalizeSandboxPreviewText)
+      .filter((value): value is string => Boolean(value));
+    return lines.length ? lines.join("\n") : null;
+  }
+  if (!source || typeof source !== "object") return null;
+  const record = source as Record<string, unknown>;
+  return readTextValue(
+    record.copy_text,
+    record.copyText,
+    record.message,
+    record.text,
+    record.body,
+    record.label,
+    record.title,
+  );
+};
+
+const normalizeSandboxContract = (response: any): WhatsappSandboxSetup => {
+  const sandbox = response?.sandbox ?? {};
+  const twilio = response?.twilio ?? {};
+  const test = response?.test ?? {};
+  const responseInstructions = normalizeSandboxInstructions(response?.instructions);
+  const instructions = responseInstructions.length
+    ? responseInstructions
+    : normalizeSandboxInstructions(sandbox?.instructions);
+  const quickMenu = [
+    response?.demo_context?.quick_menu,
+    response?.quick_menu,
+    sandbox?.quick_menu,
+  ]
+    .flatMap((source) => (Array.isArray(source) ? source : []))
+    .map(normalizeQuickMenuPreviewItem)
+    .filter((item): item is QuickMenuPreviewItem => Boolean(item));
+
+  return {
+    requestId: readTextValue(response?.request_id, response?.requestId),
+    deeplink: readTextValue(
+      response?.deeplink,
+      response?.wa_deeplink,
+      response?.preview?.deeplink,
+      sandbox?.wa_deeplink,
+      twilio?.wa_deeplink,
+    ),
+    copyText: readTextValue(
+      response?.copy_text,
+      response?.copyText,
+      response?.preview?.copy_text,
+      response?.preview?.copyText,
+      test?.copy_text,
+      sandbox?.copy_text,
+    ),
+    previewText: normalizeSandboxPreviewText(
+      response?.preview || response?.message_preview || test?.preview,
+    ),
+    joinNumber: readTextValue(
+      sandbox?.join_number,
+      sandbox?.sandbox_number,
+      twilio?.join_number,
+      twilio?.sandbox_number,
+      response?.join_number,
+      response?.sandbox_number,
+    ),
+    joinPhrase: readTextValue(
+      sandbox?.join_phrase,
+      twilio?.join_phrase,
+      response?.join_phrase,
+    ),
+    instructions,
+    quickMenu,
+    testEndpoint: readTextValue(test?.endpoint, sandbox?.test_endpoint, response?.test_endpoint),
+  };
+};
+
 const IntegracionesPage = () => {
   const { currentSlug } = useTenant();
   const [integrations, setIntegrations] = useState<IntegrationStatus[]>([]);
@@ -167,6 +258,8 @@ const IntegracionesPage = () => {
   const [widgetQuickMenu, setWidgetQuickMenu] = useState<QuickMenuPreviewItem[]>([]);
   const [whatsappSandbox, setWhatsappSandbox] =
     useState<WhatsappSandboxState>(DEFAULT_WHATSAPP_SANDBOX);
+  const [sandboxSetup, setSandboxSetup] = useState<WhatsappSandboxSetup | null>(null);
+  const [sandboxSetupLoading, setSandboxSetupLoading] = useState(false);
   const [sandboxLoading, setSandboxLoading] = useState(false);
   const [sandboxResult, setSandboxResult] = useState<WhatsappSandboxResult | null>(null);
 
@@ -176,6 +269,7 @@ const IntegracionesPage = () => {
       loadSettings();
       loadCatalog();
       loadWidgetQuickMenu();
+      loadWhatsappSandboxSetup();
     }
   }, [currentSlug]);
 
@@ -307,6 +401,35 @@ const IntegracionesPage = () => {
       setWidgetQuickMenu(Array.from(unique.values()));
     } catch (error) {
       setWidgetQuickMenu([]);
+    }
+  };
+
+  const loadWhatsappSandboxSetup = async () => {
+    if (!currentSlug) return;
+    setSandboxSetupLoading(true);
+    try {
+      const response = await apiClient.get<any>(
+        `/api/v2/tenants/${encodeURIComponent(currentSlug)}/whatsapp/sandbox-setup`,
+        { tenantSlug: currentSlug, suppressPanel401Redirect: true },
+      );
+      const setup = normalizeSandboxContract(response);
+      setSandboxSetup(setup);
+      setWhatsappSandbox((prev) => ({
+        ...prev,
+        customerWhatsapp:
+          prev.customerWhatsapp ||
+          (setup.joinNumber ? setup.joinNumber.replace(/^whatsapp:/i, "") : ""),
+        joinPhrase: prev.joinPhrase || setup.joinPhrase || "",
+        rubro: prev.rubro || readTextValue(response?.demo_context?.rubro, response?.demo_context?.sector) || "",
+        testMessage:
+          prev.testMessage ||
+          readTextValue(response?.test?.sample_message, response?.sandbox?.sample_message, response?.sample_message) ||
+          "",
+      }));
+    } catch (error) {
+      setSandboxSetup(null);
+    } finally {
+      setSandboxSetupLoading(false);
     }
   };
 
@@ -599,7 +722,7 @@ const IntegracionesPage = () => {
 
   const buildSandboxMessage = () =>
     [
-      whatsappSandbox.joinPhrase.trim(),
+      whatsappSandbox.joinPhrase.trim() || sandboxSetup?.joinPhrase || "",
       whatsappSandbox.testMessage.trim(),
       whatsappSandbox.brief.trim() ? `Brief: ${whatsappSandbox.brief.trim()}` : "",
     ]
@@ -614,10 +737,18 @@ const IntegracionesPage = () => {
   };
 
   const buildSandboxInstructionsText = () => {
+    if (sandboxResult?.copyText) return sandboxResult.copyText;
+    const instructions = sandboxResult?.instructions?.length
+      ? sandboxResult.instructions
+      : sandboxSetup?.instructions || [];
     const lines = [
-      sandboxResult?.joinNumber ? `Numero de prueba: ${sandboxResult.joinNumber}` : "",
-      sandboxResult?.joinPhrase ? `Frase: ${sandboxResult.joinPhrase}` : whatsappSandbox.joinPhrase.trim(),
-      ...(sandboxResult?.instructions || []),
+      sandboxResult?.joinNumber || sandboxSetup?.joinNumber
+        ? `Numero de prueba: ${sandboxResult?.joinNumber || sandboxSetup?.joinNumber}`
+        : "",
+      sandboxResult?.joinPhrase || sandboxSetup?.joinPhrase || whatsappSandbox.joinPhrase.trim()
+        ? `Frase: ${sandboxResult?.joinPhrase || sandboxSetup?.joinPhrase || whatsappSandbox.joinPhrase.trim()}`
+        : "",
+      ...instructions,
       whatsappSandbox.testMessage.trim() ? `Mensaje inicial: ${whatsappSandbox.testMessage.trim()}` : "",
       whatsappSandbox.brief.trim() ? `Brief: ${whatsappSandbox.brief.trim()}` : "",
     ].filter(Boolean);
@@ -655,54 +786,42 @@ const IntegracionesPage = () => {
 
     setSandboxLoading(true);
     try {
+      const testEndpoint =
+        sandboxSetup?.testEndpoint ||
+        `/api/v2/tenants/${encodeURIComponent(currentSlug)}/whatsapp/sandbox-test`;
       const response = await apiClient.post<any>(
-        `/api/v2/tenants/${encodeURIComponent(currentSlug)}/whatsapp/sandbox-session`,
+        testEndpoint,
         payload,
         { tenantSlug: currentSlug, suppressPanel401Redirect: true },
       );
-      const backendDeeplink =
-        response?.twilio?.wa_deeplink ||
-        response?.sandbox?.wa_deeplink ||
-        response?.wa_deeplink ||
-        response?.deeplink ||
-        deeplink;
-      const backendJoinNumber = readTextValue(
-        response?.sandbox?.join_number,
-        response?.twilio?.join_number,
-        response?.join_number,
-      );
-      const backendJoinPhrase = readTextValue(
-        response?.sandbox?.join_phrase,
-        response?.twilio?.join_phrase,
-        response?.join_phrase,
-      );
-      const backendInstructions = normalizeSandboxInstructions(
-        response?.sandbox?.instructions || response?.instructions,
-      );
-      const backendMenu = [
-        response?.demo_context?.quick_menu,
-        response?.quick_menu,
-        response?.sandbox?.quick_menu,
-      ]
-        .flatMap((source) => (Array.isArray(source) ? source : []))
-        .map(normalizeQuickMenuPreviewItem)
-        .filter((item): item is QuickMenuPreviewItem => Boolean(item));
-      if (backendJoinPhrase) {
-        setWhatsappSandbox((prev) => ({ ...prev, joinPhrase: backendJoinPhrase }));
+      const testResult = normalizeSandboxContract(response);
+      const remoteDeeplink = testResult.deeplink || deeplink;
+      const remoteJoinNumber = testResult.joinNumber || sandboxSetup?.joinNumber || null;
+      const remoteJoinPhrase = testResult.joinPhrase || sandboxSetup?.joinPhrase || null;
+      const remoteInstructions = testResult.instructions.length
+        ? testResult.instructions
+        : sandboxSetup?.instructions || [];
+      const remoteMenu = testResult.quickMenu.length
+        ? testResult.quickMenu
+        : sandboxSetup?.quickMenu || [];
+      if (remoteJoinPhrase) {
+        setWhatsappSandbox((prev) => ({ ...prev, joinPhrase: prev.joinPhrase || remoteJoinPhrase }));
       }
       setSandboxResult({
-        mode: "backend",
-        message: "Sandbox listo para probar con la configuración del tenant.",
-        deeplink: backendDeeplink,
-        requestId: response?.request_id || null,
-        joinNumber: backendJoinNumber,
-        joinPhrase: backendJoinPhrase,
-        instructions: backendInstructions,
-        quickMenu: backendMenu.length ? backendMenu : undefined,
+        mode: "remote",
+        message: "Prueba lista: se genero enlace, texto copiable y preview sin enviar mensajes reales.",
+        deeplink: remoteDeeplink,
+        copyText: testResult.copyText,
+        previewText: testResult.previewText,
+        requestId: testResult.requestId,
+        joinNumber: remoteJoinNumber,
+        joinPhrase: remoteJoinPhrase,
+        instructions: remoteInstructions,
+        quickMenu: remoteMenu.length ? remoteMenu : undefined,
       });
       toast.success("Demo WhatsApp preparada");
-      if (backendDeeplink) {
-        window.open(backendDeeplink, "_blank", "noopener,noreferrer");
+      if (remoteDeeplink) {
+        window.open(remoteDeeplink, "_blank", "noopener,noreferrer");
       }
     } catch (error: any) {
       const status = error instanceof ApiError ? error.status : Number(error?.status || 0);
@@ -726,8 +845,20 @@ const IntegracionesPage = () => {
   };
 
   const renderWhatsappSandboxPanel = () => {
-    const menuPreview = (sandboxResult?.quickMenu?.length ? sandboxResult.quickMenu : widgetQuickMenu).slice(0, 3);
-    const sandboxDeeplink = sandboxResult?.deeplink || buildSandboxDeeplink();
+    const menuPreview = (
+      sandboxResult?.quickMenu?.length
+        ? sandboxResult.quickMenu
+        : sandboxSetup?.quickMenu?.length
+          ? sandboxSetup.quickMenu
+          : widgetQuickMenu
+    ).slice(0, 3);
+    const sandboxDeeplink = sandboxResult?.deeplink || sandboxSetup?.deeplink || buildSandboxDeeplink();
+    const effectiveJoinNumber = sandboxResult?.joinNumber || sandboxSetup?.joinNumber;
+    const effectiveJoinPhrase =
+      sandboxResult?.joinPhrase || sandboxSetup?.joinPhrase || whatsappSandbox.joinPhrase.trim();
+    const instructionPreview = sandboxResult?.instructions?.length
+      ? sandboxResult.instructions
+      : sandboxSetup?.instructions || [];
 
     return (
       <div className="space-y-5">
@@ -741,6 +872,11 @@ const IntegracionesPage = () => {
                 <Badge variant="secondary" className="gap-1">
                   <Bot className="h-3.5 w-3.5" /> Menu del tenant
                 </Badge>
+                {sandboxSetupLoading ? (
+                  <Badge variant="outline" className="gap-1">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Cargando guia
+                  </Badge>
+                ) : null}
               </div>
               <div>
                 <h3 className="text-xl font-semibold tracking-tight">Probar WhatsApp antes de salir a producción</h3>
@@ -828,7 +964,7 @@ const IntegracionesPage = () => {
               <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                 <Button onClick={handlePrepareWhatsappSandbox} disabled={sandboxLoading} className="flex-1">
                   {sandboxLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-                  Preparar demo
+                  Generar prueba
                 </Button>
                 <Button
                   variant="outline"
@@ -846,22 +982,32 @@ const IntegracionesPage = () => {
               <KeyRound className="h-4 w-4 text-primary" />
               Menu que verá el usuario
             </div>
-            {(sandboxResult?.joinNumber || sandboxResult?.joinPhrase) && (
+            {(effectiveJoinNumber || effectiveJoinPhrase) && (
               <div className="mt-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
-                {sandboxResult.joinNumber ? (
+                {effectiveJoinNumber ? (
                   <div className="rounded-lg border bg-muted/30 px-3 py-2">
                     <span className="font-semibold text-foreground">Numero sandbox: </span>
-                    <span className="font-mono">{sandboxResult.joinNumber}</span>
+                    <span className="font-mono">{effectiveJoinNumber}</span>
                   </div>
                 ) : null}
-                {sandboxResult.joinPhrase ? (
+                {effectiveJoinPhrase ? (
                   <div className="rounded-lg border bg-muted/30 px-3 py-2">
                     <span className="font-semibold text-foreground">Frase join: </span>
-                    <span className="font-mono">{sandboxResult.joinPhrase}</span>
+                    <span className="font-mono">{effectiveJoinPhrase}</span>
                   </div>
                 ) : null}
               </div>
             )}
+            {instructionPreview.length ? (
+              <ol className="mt-3 grid gap-2 text-sm text-muted-foreground sm:grid-cols-3">
+                {instructionPreview.slice(0, 3).map((instruction, index) => (
+                  <li key={`${instruction}-${index}`} className="rounded-lg border bg-muted/20 px-3 py-2">
+                    <span className="font-semibold text-foreground">{index + 1}. </span>
+                    {instruction}
+                  </li>
+                ))}
+              </ol>
+            ) : null}
             {menuPreview.length ? (
               <div className="mt-3 flex flex-wrap gap-2">
                 {menuPreview.map((item) => (
@@ -880,10 +1026,15 @@ const IntegracionesPage = () => {
           {sandboxResult && (
             <Alert className="mt-4">
               <CheckCircle2 className="h-4 w-4" />
-              <AlertTitle>{sandboxResult.mode === "backend" ? "Sandbox listo" : "Prueba manual lista"}</AlertTitle>
+              <AlertTitle>{sandboxResult.mode === "remote" ? "Sandbox listo" : "Prueba manual lista"}</AlertTitle>
               <AlertDescription>
                 {sandboxResult.message}
                 {sandboxResult.requestId ? ` Req: ${sandboxResult.requestId}` : ""}
+                {sandboxResult.previewText ? (
+                  <span className="mt-2 block rounded-lg border bg-muted/20 px-3 py-2 text-sm">
+                    {sandboxResult.previewText}
+                  </span>
+                ) : null}
               </AlertDescription>
             </Alert>
           )}
