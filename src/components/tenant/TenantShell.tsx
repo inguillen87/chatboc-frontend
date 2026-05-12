@@ -1,8 +1,10 @@
-import { useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { NavLink } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
 
 import { useTenant } from '@/context/TenantContext';
+import { getTenantPublicNavigation } from '@/api/tenant';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -10,6 +12,7 @@ import { cn } from '@/lib/utils';
 import { TenantSwitcher } from './TenantSwitcher';
 import { toast } from '@/components/ui/use-toast';
 import { getErrorMessage } from '@/utils/api';
+import type { TenantPublicNavigationItem } from '@/types/tenant';
 
 interface TenantShellProps {
   children: ReactNode;
@@ -22,6 +25,23 @@ const NAVIGATION = [
   { label: 'Encuestas', suffix: 'encuestas' },
   { label: 'Nuevo reclamo', suffix: 'reclamos/nuevo' },
 ];
+
+const isAbsoluteUrl = (value?: string | null) => Boolean(value && /^https?:\/\//i.test(value));
+
+const resolveNavigationTarget = (
+  item: TenantPublicNavigationItem | { label: string; suffix: string },
+  basePath: string,
+) => {
+  const itemRoute =
+    'route' in item
+      ? item.route || item.href || (typeof item.path === 'string' ? item.path : null)
+      : item.suffix;
+
+  if (!itemRoute) return basePath;
+  if (isAbsoluteUrl(itemRoute)) return itemRoute;
+  if (itemRoute.startsWith('/')) return itemRoute;
+  return `${basePath}/${itemRoute.replace(/^\/+/, '')}`;
+};
 
 export const TenantShell = ({ children }: TenantShellProps) => {
   const {
@@ -41,6 +61,18 @@ export const TenantShell = ({ children }: TenantShellProps) => {
   const slugForPath = tenant?.slug ?? currentSlug ?? null;
   // Canonical public tenant URLs keep tenant spaces away from marketing routes.
   const basePath = slugForPath ? `/t/${encodeURIComponent(slugForPath)}` : '';
+  const navigationQuery = useQuery({
+    queryKey: ['tenant-public-navigation', slugForPath],
+    enabled: Boolean(slugForPath && tenant),
+    queryFn: () => getTenantPublicNavigation(slugForPath as string),
+    staleTime: 1000 * 60 * 5,
+    retry: 1,
+  });
+
+  const navigationItems = useMemo(() => {
+    const contractItems = navigationQuery.data?.items?.filter((item) => item.visible !== false) ?? [];
+    return contractItems.length ? contractItems : NAVIGATION;
+  }, [navigationQuery.data?.items]);
 
   const handleToggleFollow = async () => {
     if (!slugForPath) return;
@@ -153,13 +185,39 @@ export const TenantShell = ({ children }: TenantShellProps) => {
 
     return (
       <nav className="mt-8 flex flex-wrap items-center gap-2">
-        {NAVIGATION.map((item) => {
-          const to = item.suffix ? `${basePath}/${item.suffix}` : basePath;
+        {navigationItems.map((item) => {
+          const key = 'id' in item ? item.id : item.suffix || 'inicio';
+          const enabled = !('enabled' in item) || item.enabled !== false;
+          const to = resolveNavigationTarget(item, basePath);
+          const label = item.label;
+          if (!enabled) {
+            return (
+              <span
+                key={key}
+                aria-disabled="true"
+                title={'disabled_reason' in item ? item.disabled_reason ?? item.reason_code ?? undefined : undefined}
+                className="rounded-full bg-muted/25 px-3 py-2 text-sm font-medium text-muted-foreground/60"
+              >
+                {label}
+              </span>
+            );
+          }
+          if (isAbsoluteUrl(to)) {
+            return (
+              <a
+                key={key}
+                href={to}
+                className="rounded-full bg-muted/40 px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+              >
+                {label}
+              </a>
+            );
+          }
           return (
             <NavLink
-              key={item.suffix || 'inicio'}
+              key={key}
               to={to}
-              end={item.suffix.length === 0}
+              end={to === basePath}
               className={({ isActive }) =>
                 cn(
                   'rounded-full px-3 py-2 text-sm font-medium transition-colors',

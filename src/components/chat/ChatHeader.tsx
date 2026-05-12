@@ -2,6 +2,7 @@ import React from "react";
 import { MessageCircleMore, Sparkles } from "lucide-react";
 import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 import AccessibilityToggle, { Prefs } from "./AccessibilityToggle";
+import type { ChatWidgetUiHints } from "@/types/chat";
 
 const IconButton = {
   Close: (props: React.SVGProps<SVGSVGElement>) => (
@@ -64,6 +65,7 @@ interface Props {
   subtitle?: string;
   logoAnimation?: string;
   onA11yChange?: (p: Prefs) => void;
+  accessibilityHints?: ChatWidgetUiHints["accessibility"];
   supportChannels?: {
     live_chat?: {
       realtime?: boolean;
@@ -101,6 +103,7 @@ const ChatHeader: React.FC<Props> = ({
   subtitle,
   logoAnimation,
   onA11yChange,
+  accessibilityHints,
   supportChannels,
   recommendationLabel,
   compactActions = false,
@@ -193,7 +196,7 @@ const ChatHeader: React.FC<Props> = ({
         </div>
       </div>
       <div className="relative flex items-center gap-1.5 sm:gap-2">
-        <AccessibilityToggle onChange={onA11yChange} compact={compactActions} />
+        <AccessibilityToggle onChange={onA11yChange} compact={compactActions} hints={accessibilityHints} />
         {onBack ? (
           <button
             onClick={onBack}

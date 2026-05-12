@@ -19,6 +19,9 @@ export interface CatalogLinks {
   download_url_csv?: string | null;
   history_url?: string | null;
   template_url?: string | null;
+  draft_endpoint?: string | null;
+  draft_url?: string | null;
+  save_draft_endpoint?: string | null;
   view_label?: string | null;
   download_label?: string | null;
   history_label?: string | null;
@@ -69,6 +72,11 @@ export interface CatalogMetadata {
 }
 
 export interface TenantCatalog {
+  contract_version?: string | null;
+  request_id?: string | null;
+  reason_code?: string | null;
+  action_hint?: string | null;
+  message?: string | null;
   status?: string | null;
   has_pdf?: boolean | null;
   updated_at?: string | null;
@@ -76,6 +84,12 @@ export interface TenantCatalog {
   view_url?: string | null;
   download_url?: string | null;
   download_url_json?: string | null;
+  cart?: {
+    enabled?: boolean | null;
+    items_count?: number | null;
+    [key: string]: unknown;
+  } | null;
+  items?: unknown[] | null;
   metadata?: CatalogMetadata | null;
   links?: CatalogLinks | null;
   columns?: CatalogColumn[] | null;

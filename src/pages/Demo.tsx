@@ -28,8 +28,15 @@ import { extractRubroKey, extractRubroLabel } from "@/utils/rubros";
 import { extractButtonsFromResponse } from "@/utils/chatButtons";
 import DemoWorkspace from '@/features/demo/DemoWorkspace';
 import DemoSectorStep from '@/features/demo/DemoSectorStep';
-import { createDemoSession, createLocalDemoSession, getDemoCatalog } from '@/features/demo/demoApi';
-import type { DemoCatalogResponse, DemoChatBootstrap, DemoSector, DemoSectorGroup, DemoWorkspaceConfig } from '@/features/demo/demoTypes';
+import { createDemoSession, createLocalDemoSession, getDemoAdminPreview, getDemoCatalog } from '@/features/demo/demoApi';
+import type {
+  DemoAdminPreviewResponse,
+  DemoCatalogResponse,
+  DemoChatBootstrap,
+  DemoSector,
+  DemoSectorGroup,
+  DemoWorkspaceConfig,
+} from '@/features/demo/demoTypes';
 import { sendChatBootstrapMessage } from '@/features/chat/chatApi';
 import { findDemoCatalogAsset } from '@/data/demoCatalogAssets';
 import { downloadDemoCatalogPdf } from '@/utils/demoCatalogPdf';
@@ -147,9 +154,107 @@ const getDemoScenario = (sector: DemoSector | null, rubro?: string | null) => {
   };
 };
 
-const DemoAdminPreview = ({ sector, rubro }: { sector: DemoSector | null; rubro?: string | null }) => {
+const DEMO_PREVIEW_ICONS = {
+  analytics: BarChart3,
+  bar: BarChart3,
+  cart: ShoppingCart,
+  catalog: FileText,
+  commerce: ShoppingCart,
+  education: GraduationCap,
+  inbox: Inbox,
+  lead: Users,
+  map: MapPinned,
+  message: MessageSquareText,
+  order: ShoppingCart,
+  school: GraduationCap,
+  ticket: Inbox,
+  time: Clock3,
+  users: Users,
+} as const;
+
+const resolvePreviewIcon = (value?: string | null) => {
+  const normalized = String(value ?? '').trim().toLowerCase();
+  const match = Object.entries(DEMO_PREVIEW_ICONS).find(([key]) => normalized.includes(key));
+  return match?.[1] ?? FileText;
+};
+
+const normalizePreviewModules = (preview: DemoAdminPreviewResponse | null, fallback: string[]) => {
+  const modules = Array.isArray(preview?.modules) ? preview.modules : [];
+  const labels = modules
+    .map((module) => module.label ?? module.title ?? module.id)
+    .filter((label): label is string => typeof label === 'string' && label.trim().length > 0)
+    .map((label) => label.trim());
+  return labels.length ? labels : fallback;
+};
+
+const normalizePreviewCards = (
+  preview: DemoAdminPreviewResponse | null,
+  fallback: ReturnType<typeof getDemoScenario>['cards'],
+) => {
+  const cards = Array.isArray(preview?.cards) ? preview.cards : [];
+  const normalized = cards
+    .map((card) => {
+      const label = card.label ?? card.title ?? card.id ?? card.key;
+      if (!label) return null;
+      return {
+        label: String(label),
+        value: card.value ?? card.status ?? '',
+        detail: card.description ?? card.detail ?? '',
+        icon: resolvePreviewIcon(card.icon ?? card.id ?? card.key ?? card.label),
+      };
+    })
+    .filter((card): card is { label: string; value: string | number; detail: string; icon: React.ElementType } =>
+      Boolean(card),
+    );
+
+  return normalized.length ? normalized : fallback;
+};
+
+const normalizePreviewTimeline = (preview: DemoAdminPreviewResponse | null, fallback: string[]) => {
+  const timeline = Array.isArray(preview?.timeline) ? preview.timeline : [];
+  const normalized = timeline
+    .map((item) => ({
+      id: item.id ?? item.title ?? item.label ?? item.description,
+      title: item.title ?? item.label ?? item.description,
+      description: item.description ?? null,
+    }))
+    .filter((item): item is { id: string; title: string; description: string | null } =>
+      typeof item.id === 'string' && typeof item.title === 'string' && item.title.trim().length > 0,
+    );
+
+  return normalized.length
+    ? normalized
+    : fallback.map((title) => ({ id: title, title, description: null }));
+};
+
+const DemoAdminPreview = ({
+  sector,
+  rubro,
+  preview,
+}: {
+  sector: DemoSector | null;
+  rubro?: string | null;
+  preview?: DemoAdminPreviewResponse | null;
+}) => {
   const scenario = getDemoScenario(sector, rubro);
   const Icon = scenario.icon;
+  const labels = preview?.labels ?? {};
+  const modules = normalizePreviewModules(preview ?? null, scenario.modules);
+  const cards = normalizePreviewCards(preview ?? null, scenario.cards);
+  const timeline = normalizePreviewTimeline(preview ?? null, scenario.timeline);
+  const title = preview?.title?.trim() || scenario.title;
+  const subtitle = preview?.subtitle?.trim() || scenario.subtitle;
+  const outcome = preview?.description?.trim() || preview?.outcome?.trim() || scenario.outcome;
+  const adminLabel = labels.admin_preview ?? labels.admin ?? 'Admin demo';
+  const viewLabel = labels.overview ?? labels.view ?? 'Vista 360';
+  const statusLabel = preview?.status_label?.trim() || (labels.status ?? 'listo para mostrar');
+  const timelineTitle = labels.timeline_title ?? labels.timeline ?? 'Recorrido visible para el equipo';
+  const timelineBadge = labels.timeline_badge ?? 'demo';
+  const timelineDetail = labels.timeline_detail ?? 'queda listo para continuar sin perder datos';
+  const summaryTitle = labels.summary_title ?? 'Lo que se ve en la demo';
+  const summaryDescription =
+    labels.summary_description ??
+    'Conversación, recursos, acciones, estado, equipo y seguimiento trabajan en el mismo recorrido.';
 
   return (
     <section className="overflow-hidden rounded-2xl border border-border/70 bg-card/80 shadow-sm backdrop-blur">
@@ -160,12 +265,12 @@ const DemoAdminPreview = ({ sector, rubro }: { sector: DemoSector | null; rubro?
               <Icon className="h-5 w-5" />
             </span>
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">Admin demo</p>
-              <h3 className="text-lg font-bold text-foreground">{scenario.subtitle}</h3>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">{adminLabel}</p>
+              <h3 className="text-lg font-bold text-foreground">{subtitle}</h3>
             </div>
           </div>
           <nav className="grid gap-2">
-            {scenario.modules.map((module, index) => (
+            {modules.map((module, index) => (
               <button
                 key={module}
                 type="button"
@@ -185,17 +290,17 @@ const DemoAdminPreview = ({ sector, rubro }: { sector: DemoSector | null; rubro?
         <div className="p-4 sm:p-5">
           <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">Vista 360</p>
-              <h3 className="mt-1 text-2xl font-bold tracking-tight text-foreground">{scenario.title}</h3>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{scenario.outcome}</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">{viewLabel}</p>
+              <h3 className="mt-1 text-2xl font-bold tracking-tight text-foreground">{title}</h3>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{outcome}</p>
             </div>
             <span className="w-fit rounded-full border border-success/25 bg-success/10 px-3 py-1 text-xs font-semibold text-success">
-              listo para mostrar
+              {statusLabel}
             </span>
           </div>
 
           <div className="grid gap-3">
-            {scenario.cards.map((card) => {
+            {cards.map((card) => {
               const CardIcon = card.icon;
               return (
                 <div key={card.label} className="rounded-xl border border-border/70 bg-background/70 p-4">
@@ -211,22 +316,26 @@ const DemoAdminPreview = ({ sector, rubro }: { sector: DemoSector | null; rubro?
           <div className="mt-4 grid gap-3">
             <div className="rounded-xl border border-border/70 bg-background/70 p-4">
               <div className="mb-3 flex items-center justify-between">
-                <p className="text-sm font-semibold text-foreground">Recorrido visible para el equipo</p>
-                <span className="text-xs text-muted-foreground">demo</span>
+                <p className="text-sm font-semibold text-foreground">{timelineTitle}</p>
+                <span className="text-xs text-muted-foreground">{timelineBadge}</span>
               </div>
               <div className="space-y-3">
-                {scenario.timeline.map((step, index) => (
-                  <div key={step} className="flex items-start gap-3">
+                {timeline.map((step, index) => (
+                  <div key={step.id} className="flex items-start gap-3">
                     <span className={`mt-1 h-2.5 w-2.5 rounded-full ${index < 2 ? 'bg-success' : index === 2 ? 'bg-primary' : 'bg-muted-foreground/35'}`} />
                     <div>
-                      <p className="text-sm font-medium text-foreground">{step}</p>
-                      <p className="text-xs text-muted-foreground">queda trazable para continuar sin perder datos</p>
+                      <p className="text-sm font-medium text-foreground">{step.title}</p>
+                      <p className="text-xs text-muted-foreground">{step.description ?? timelineDetail}</p>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
             <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
+              <p className="text-sm font-semibold text-foreground">{summaryTitle}</p>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">{summaryDescription}</p>
+            </div>
+            <div className="hidden">
               <p className="text-sm font-semibold text-foreground">Lo que debería ver un comprador</p>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
                 No solo un chat: una operación completa con conversación, recursos, acciones, estado, equipo y seguimiento.
@@ -254,6 +363,7 @@ const Demo = () => {
   const [demoSessionId, setDemoSessionId] = useState<string | null>(null);
   const [demoTenantSlug, setDemoTenantSlug] = useState<string | null>(null);
   const [demoWorkspace, setDemoWorkspace] = useState<DemoWorkspaceConfig | null>(null);
+  const [demoAdminPreview, setDemoAdminPreview] = useState<DemoAdminPreviewResponse | null>(null);
   const [useLocalDemoRuntime, setUseLocalDemoRuntime] = useState(false);
   const [catalogDownloadError, setCatalogDownloadError] = useState<string | null>(null);
   const [isCatalogDownloading, setIsCatalogDownloading] = useState(false);
@@ -285,6 +395,10 @@ const Demo = () => {
     }
     return null;
   }, [demoTenantSlug, rubroClaveSeleccionado, sectorSeleccionado, selectedSectorGroup]);
+  const demoPreviewTenantSlug = useMemo(
+    () => demoTenantSlug ?? readSectorTenantSlug(selectedSectorGroup) ?? readSectorCatalogSlug(sectorSeleccionado),
+    [demoTenantSlug, sectorSeleccionado, selectedSectorGroup],
+  );
 
 
   // Action: reset demo and choose another rubro
@@ -302,6 +416,7 @@ const Demo = () => {
     setDemoSessionId(null);
     setDemoTenantSlug(null);
     setDemoWorkspace(null);
+    setDemoAdminPreview(null);
     setUseLocalDemoRuntime(false);
     lastQueryRef.current = null;
     hydratedSessionRef.current = false;
@@ -440,6 +555,29 @@ const Demo = () => {
       setIsCatalogDownloading(false);
     }
   }, [activeCatalogAsset]);
+
+  useEffect(() => {
+    if (!sectorSeleccionado) {
+      setDemoAdminPreview(null);
+      return;
+    }
+
+    let active = true;
+    getDemoAdminPreview({
+      sector: sectorSeleccionado,
+      tenant_slug: demoPreviewTenantSlug,
+    })
+      .then((preview) => {
+        if (active) setDemoAdminPreview(preview);
+      })
+      .catch(() => {
+        if (active) setDemoAdminPreview(null);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [demoPreviewTenantSlug, sectorSeleccionado]);
 
   useEffect(() => {
     if (hydratedSessionRef.current) return;
@@ -938,7 +1076,7 @@ const Demo = () => {
           </div>
 
           <aside className="space-y-5 xl:sticky xl:top-24 xl:self-start">
-            <DemoAdminPreview sector={sectorSeleccionado} rubro={rubroSeleccionado} />
+            <DemoAdminPreview sector={sectorSeleccionado} rubro={rubroSeleccionado} preview={demoAdminPreview} />
             {activeCatalogAsset ? (
               <section className="overflow-hidden rounded-2xl border border-primary/20 bg-card shadow-sm">
                 <div className="p-4 sm:p-5">

@@ -323,6 +323,19 @@ export interface ChatWidgetUiHints {
     show?: string[];
     collapse?: string[];
   } | null;
+  accessibility?: {
+    dyslexia?: boolean | null;
+    dyslexia_mode?: boolean | null;
+    dyslexia_friendly?: boolean | null;
+    simple_text?: boolean | null;
+    simplified_text?: boolean | null;
+    high_contrast?: boolean | null;
+    large_controls?: boolean | null;
+    captions?: boolean | null;
+    reduced_motion?: boolean | null;
+    min_touch_target_px?: number | null;
+    [key: string]: string | number | boolean | null | undefined;
+  } | null;
 }
 
 export interface Message {

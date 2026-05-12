@@ -3,6 +3,8 @@ import { normalizeEntityToken } from '@/utils/entityToken';
 import type {
   TenantEventItem,
   TenantNewsItem,
+  TenantPublicNavigationContract,
+  TenantPublicNavigationItem,
   TenantPublicInfo,
   TenantSummary,
   TenantTicketPayload,
@@ -23,6 +25,9 @@ const coerceString = (value: unknown): string | undefined => {
   }
   return undefined;
 };
+
+const coerceBoolean = (value: unknown): boolean | undefined =>
+  typeof value === 'boolean' ? value : undefined;
 
 const coerceNumberOrString = (value: unknown): number | string | undefined => {
   if (typeof value === 'number' && Number.isFinite(value)) {
@@ -222,6 +227,61 @@ type TenantResolveOptions = {
   forceSlug?: string | null;
 };
 
+const normalizePublicNavigationItem = (input: unknown): TenantPublicNavigationItem | null => {
+  if (!isRecord(input)) return null;
+  const label = coerceString(input.label) ?? coerceString(input.title) ?? coerceString(input.name);
+  const route = coerceString(input.route) ?? coerceString(input.path) ?? coerceString(input.url);
+  const id = coerceString(input.id) ?? coerceString(input.key) ?? label ?? route;
+  if (!id || !label) return null;
+
+  const explicitEnabled = coerceBoolean(input.enabled);
+  const explicitDisabled = coerceBoolean(input.disabled);
+  const visible = coerceBoolean(input.visible);
+
+  return {
+    ...(input as Record<string, unknown>),
+    id,
+    label,
+    route: route ?? null,
+    href: coerceString(input.href) ?? null,
+    endpoint: coerceString(input.endpoint) ?? null,
+    enabled: explicitEnabled ?? (explicitDisabled === true ? false : true),
+    visible: visible ?? true,
+    reason_code: coerceString(input.reason_code) ?? null,
+    disabled_reason: coerceString(input.disabled_reason) ?? coerceString(input.reason) ?? null,
+  };
+};
+
+const normalizePublicNavigation = (
+  input: unknown,
+  fallbackSlug: string,
+): TenantPublicNavigationContract => {
+  if (!isRecord(input)) {
+    return { contract_version: null, tenant_slug: fallbackSlug, items: [] };
+  }
+
+  const rawItems = Array.isArray(input.items)
+    ? input.items
+    : Array.isArray(input.navigation)
+      ? input.navigation
+      : Array.isArray(input.menu)
+        ? input.menu
+        : [];
+
+  return {
+    contract_version: coerceString(input.contract_version) ?? null,
+    tenant_slug:
+      coerceString(input.tenant_slug) ??
+      (isRecord(input.tenant) ? coerceString(input.tenant.slug) : undefined) ??
+      fallbackSlug,
+    items: rawItems
+      .map((item) => normalizePublicNavigationItem(item))
+      .filter((item): item is TenantPublicNavigationItem => Boolean(item)),
+    request_id: coerceString(input.request_id) ?? null,
+    reason_code: coerceString(input.reason_code) ?? null,
+  };
+};
+
 const isPwaTenantResolutionFailure = (error: unknown) =>
   error instanceof ApiError &&
   isRecord(error.body) &&
@@ -359,6 +419,30 @@ export async function listTenantEvents(slug: string): Promise<TenantEventItem[]>
       console.warn(`[API] Failed to fetch events for ${slug}.`, error);
     }
     return [];
+  }
+}
+
+export async function getTenantPublicNavigation(slug: string): Promise<TenantPublicNavigationContract> {
+  const normalized = slug.trim();
+  const encoded = encodeURIComponent(normalized);
+  const options = {
+    tenantSlug: normalized,
+    skipAuth: true,
+    omitCredentials: true,
+    isWidgetRequest: true,
+    omitChatSessionId: true,
+    omitEntityToken: true,
+  } as const;
+
+  try {
+    const response = await apiFetch<unknown>(`/api/public/tenants/${encoded}/public-navigation`, options);
+    return normalizePublicNavigation(response, normalized);
+  } catch (error) {
+    if (!(error instanceof ApiError) || ![404, 405, 501].includes(error.status)) {
+      throw error;
+    }
+    const response = await apiFetch<unknown>(`/public/tenants/${encoded}/public-navigation`, options);
+    return normalizePublicNavigation(response, normalized);
   }
 }
 

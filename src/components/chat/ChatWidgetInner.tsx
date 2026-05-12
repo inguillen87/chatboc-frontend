@@ -29,6 +29,18 @@ import { esRubroPublico } from "@/utils/chatEndpoints";
 import { getChatbocBotAvatar } from "@/utils/brandAssets";
 import { createDemoSession, createLocalDemoSession } from "@/features/demo/demoApi";
 import { DEMO_SECTOR_GROUPS } from "@/data/demoHierarchy";
+import getOrCreateChatSessionId from "@/utils/chatSessionId";
+import {
+  getWidgetCartSnapshot,
+  getWidgetCommerceSession,
+  getWidgetTenantHistory,
+} from "@/api/widgetCommerce";
+import type {
+  WidgetCommerceCartSnapshot,
+  WidgetCommerceHistory,
+  WidgetCommerceSession,
+} from "@/types/widgetCommerce";
+import type { ChatWidgetUiHints } from "@/types/chat";
 
 // Use constants from new file
 import { TENANT_PLACEHOLDER_SLUGS } from "@/constants/tenant";
@@ -37,6 +49,35 @@ import { TENANT_PLACEHOLDER_SLUGS } from "@/constants/tenant";
 const PLACEHOLDER_SLUGS_SET = TENANT_PLACEHOLDER_SLUGS;
 
 const PLATFORM_DEMO_SECTOR_ORDER = ["educacion", "gobierno", "empresas"];
+
+const readFirstString = (...values: unknown[]) => {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+};
+
+const readFirstNumber = (...values: unknown[]) => {
+  for (const value of values) {
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (typeof value === "string" && value.trim()) {
+      const parsed = Number(value);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+  }
+  return 0;
+};
+
+const readOptionalBoolean = (value: unknown, fallback = false) => {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value === 1;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["true", "1", "yes", "si", "on", "enabled"].includes(normalized)) return true;
+    if (["false", "0", "no", "off", "disabled"].includes(normalized)) return false;
+  }
+  return fallback;
+};
 
 function buildPlatformQuickMenu() {
   const groupsByKey = new Map(DEMO_SECTOR_GROUPS.map((group) => [String(group.key), group]));
@@ -381,6 +422,9 @@ function ChatWidgetInner({
   const [chatPanelResetKey, setChatPanelResetKey] = useState(0);
   const [requireCatalogAuth, setRequireCatalogAuth] = useState(false);
   const [catalogInfo, setCatalogInfo] = useState<any | null>(null);
+  const [widgetCommerceSession, setWidgetCommerceSession] = useState<WidgetCommerceSession | null>(null);
+  const [widgetCommerceHistory, setWidgetCommerceHistory] = useState<WidgetCommerceHistory | null>(null);
+  const [widgetCommerceCart, setWidgetCommerceCart] = useState<WidgetCommerceCartSnapshot | null>(null);
 
   const [duplicateInstance, setDuplicateInstance] = useState(false);
   const resolvedOwnerToken = useMemo(() => {
@@ -721,6 +765,34 @@ function ChatWidgetInner({
     return embeddedTenantSlug || storedTenantSlug;
   }, [embeddedTenantSlug, isEmbedded, storedTenantSlug]);
   const chatTenantSlug = activeDemoTenantSlug || resolvedTenantSlug;
+  const chatBootstrap = entityInfo?.chat_bootstrap ?? entityInfo?.workspace?.chat_bootstrap ?? null;
+  const effectiveUiHints: ChatWidgetUiHints | null = useMemo(() => {
+    const base = (entityInfo?.ui_hints ?? widgetCommerceSession?.ui_hints ?? null) as ChatWidgetUiHints | null;
+    const accessibility =
+      entityInfo?.ui_hints?.accessibility ??
+      widgetCommerceSession?.ui_hints?.accessibility ??
+      widgetCommerceSession?.accessibility ??
+      null;
+
+    if (!base && !accessibility) return null;
+    return {
+      ...(base ?? {}),
+      ...(accessibility ? { accessibility } : {}),
+    };
+  }, [entityInfo?.ui_hints, widgetCommerceSession?.accessibility, widgetCommerceSession?.ui_hints]);
+  const demoSessionId = readFirstString(
+    entityInfo?.demo_session_id,
+    entityInfo?.session_id,
+    entityInfo?.workspace?.demo_session_id,
+    chatBootstrap?.payload?.demo_session_id,
+    chatBootstrap?.query?.demo_session_id,
+    widgetCommerceSession?.session?.demo_session_id,
+  );
+  const commerceTenantSlug = readFirstString(
+    widgetCommerceSession?.tenant?.slug,
+    widgetCommerceSession?.tenant?.tenant_slug,
+    chatTenantSlug,
+  );
 
   useEffect(() => {
     const sanitized = sanitizeTenantSlug(resolvedTenantSlug);
@@ -1023,8 +1095,19 @@ function ChatWidgetInner({
   }, [entityInfo, proactiveCycle]);
 
   const [selectedRubro, setSelectedRubro] = useState<string | null>(() => extractRubroKey(initialRubro) ?? null);
-  const [pendingRedirect, setPendingRedirect] = useState<"cart" | "market" | null>(null);
+  const [pendingRedirect, setPendingRedirect] = useState<"cart" | "market" | "portal" | null>(null);
   const cartCount = useCartCount();
+  const commerceCartCount = readFirstNumber(
+    widgetCommerceCart?.items_count,
+    widgetCommerceCart?.total_items,
+    widgetCommerceCart?.cart?.items_count,
+    widgetCommerceCart?.cart?.total_items,
+    Array.isArray(widgetCommerceCart?.items) ? widgetCommerceCart.items.length : null,
+    widgetCommerceHistory?.cart?.items_count,
+    widgetCommerceHistory?.cart?.total_items,
+    widgetCommerceSession?.cart?.items_count,
+  );
+  const effectiveCartCount = commerceCartCount > 0 ? commerceCartCount : cartCount;
   const entityDefaultRubro = useMemo(() => {
     if (!entityInfo) return null;
 
@@ -1150,7 +1233,7 @@ function ChatWidgetInner({
   const openCart = useCallback(
     (target: "cart" | "catalog" | "market" = "cart") => {
       const storedTenant = sanitizeTenantSlug(safeLocalStorage.getItem("tenantSlug"));
-      const slug = activeDemoTenantSlug ?? resolvedTenantSlug ?? storedTenant;
+      const slug = sanitizeTenantSlug(commerceTenantSlug) ?? activeDemoTenantSlug ?? resolvedTenantSlug ?? storedTenant;
 
       if (!slug) {
         toast.error("No hay un tenant configurado para el carrito.");
@@ -1158,7 +1241,11 @@ function ChatWidgetInner({
       }
 
       if (target === "market" || target === "catalog") {
-        const destination = buildMarketCartUrl(slug, tenant?.public_base_url ?? null);
+        const destination =
+          readFirstString(
+            widgetCommerceSession?.catalog?.view_url,
+            widgetCommerceSession?.catalog?.url,
+          ) || buildMarketCartUrl(slug, tenant?.public_base_url ?? null);
         if (!destination) {
           toast.error("No pudimos abrir el catálogo público.");
           return;
@@ -1169,10 +1256,18 @@ function ChatWidgetInner({
 
       const basePath = "/cart";
 
-      const preferredUrl = tenant?.public_cart_url ?? user?.publicCartUrl ?? null;
+      const preferredUrl =
+        readFirstString(widgetCommerceSession?.cart?.view_url, widgetCommerceSession?.cart?.url) ||
+        tenant?.public_cart_url ||
+        user?.publicCartUrl ||
+        null;
 
       const authToken = authTokenState ?? safeLocalStorage.getItem("authToken") ?? safeLocalStorage.getItem("chatAuthToken");
-      const requiresAuth = target === "cart" || requireCatalogAuth;
+      const guestCartAllowed = readOptionalBoolean(
+        widgetCommerceSession?.cart?.allow_guest_cart ?? widgetCommerceSession?.session?.can_checkout_as_guest,
+        true,
+      );
+      const requiresAuth = (target === "cart" && !guestCartAllowed) || requireCatalogAuth;
       const hasSession = Boolean(authToken && user);
 
       if (requiresAuth && !hasSession) {
@@ -1198,11 +1293,59 @@ function ChatWidgetInner({
       authTokenState,
       activeDemoTenantSlug,
       buildMarketCartUrl,
+      commerceTenantSlug,
       resolvedTenantSlug,
+      requireCatalogAuth,
       tenant,
       user,
+      widgetCommerceSession?.cart?.allow_guest_cart,
+      widgetCommerceSession?.cart?.url,
+      widgetCommerceSession?.cart?.view_url,
+      widgetCommerceSession?.catalog?.url,
+      widgetCommerceSession?.catalog?.view_url,
+      widgetCommerceSession?.session?.can_checkout_as_guest,
     ]
   );
+
+  const openPortal = useCallback(() => {
+    const storedTenant = sanitizeTenantSlug(safeLocalStorage.getItem("tenantSlug"));
+    const slug = sanitizeTenantSlug(commerceTenantSlug) ?? activeDemoTenantSlug ?? resolvedTenantSlug ?? storedTenant;
+    const authToken = authTokenState ?? safeLocalStorage.getItem("authToken") ?? safeLocalStorage.getItem("chatAuthToken");
+    const hasSession = Boolean(authToken && user);
+
+    if (!slug) {
+      openUserPanel();
+      return;
+    }
+
+    if (!hasSession) {
+      setPendingRedirect("portal");
+      setView("login");
+      setIsOpen(true);
+      return;
+    }
+
+    const destination =
+      readFirstString(widgetCommerceSession?.portal?.url, widgetCommerceSession?.portal?.view_url) ||
+      buildTenantNavigationUrl({
+        basePath: "/portal",
+        tenantSlug: slug,
+        tenant,
+        fallbackQueryParam: "tenant_slug",
+      });
+
+    window.open(destination, "_blank");
+  }, [
+    activeDemoTenantSlug,
+    authTokenState,
+    commerceTenantSlug,
+    openUserPanel,
+    resolvedTenantSlug,
+    tenant,
+    user,
+    widgetCommerceSession?.portal?.url,
+    widgetCommerceSession?.portal?.view_url,
+  ]);
 
   const handleAuthSuccess = useCallback(() => {
     setAuthTokenState(
@@ -1218,8 +1361,13 @@ function ChatWidgetInner({
       openCart("market");
       return;
     }
+    if (pendingRedirect === "portal") {
+      setPendingRedirect(null);
+      openPortal();
+      return;
+    }
     setView("chat");
-  }, [openCart, pendingRedirect]);
+  }, [openCart, openPortal, pendingRedirect]);
 
   const toggleMuted = useCallback(() => {
     setMuted((m) => {
@@ -1885,6 +2033,138 @@ function ChatWidgetInner({
   }, [chatTenantSlug, entityInfo?.local_demo_mode, entityInfo?.onboarding?.mode]);
 
   useEffect(() => {
+    let isActive = true;
+    const tenantSlug = sanitizeTenantSlug(chatTenantSlug);
+    const widgetToken = typeof resolvedOwnerToken === "string" && resolvedOwnerToken.trim()
+      ? resolvedOwnerToken.trim()
+      : null;
+    const isPlatformTenant = tenantSlug === "chatboc-platform";
+
+      if ((!tenantSlug || isPlatformTenant) && !widgetToken) {
+        setWidgetCommerceSession(null);
+        setWidgetCommerceHistory(null);
+        setWidgetCommerceCart(null);
+        return;
+      }
+
+    const request = {
+      tenantSlug: tenantSlug && !isPlatformTenant ? tenantSlug : null,
+      widgetToken,
+      chatSessionId: getOrCreateChatSessionId(),
+      demoSessionId: demoSessionId || null,
+      anonId: getOrCreateAnonId(),
+    };
+
+    getWidgetCommerceSession(request)
+      .then((session) => {
+        if (!isActive) return;
+        setWidgetCommerceSession(session);
+      })
+      .catch(() => {
+        if (!isActive) return;
+        setWidgetCommerceSession(null);
+        setWidgetCommerceHistory(null);
+        setWidgetCommerceCart(null);
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [chatTenantSlug, demoSessionId, resolvedOwnerToken]);
+
+  useEffect(() => {
+    let isActive = true;
+    const historyEndpoint = readFirstString(
+      widgetCommerceSession?.portal?.history_endpoint,
+      widgetCommerceSession?.history?.history_endpoint,
+      widgetCommerceSession?.history?.endpoint,
+    );
+    const tenantSlug = sanitizeTenantSlug(commerceTenantSlug);
+    const widgetToken = typeof resolvedOwnerToken === "string" && resolvedOwnerToken.trim()
+      ? resolvedOwnerToken.trim()
+      : null;
+
+    if (!historyEndpoint && !tenantSlug && !widgetToken) {
+      setWidgetCommerceHistory(null);
+      return;
+    }
+
+    getWidgetTenantHistory(historyEndpoint || null, {
+      tenantSlug,
+      widgetToken,
+      chatSessionId: getOrCreateChatSessionId(),
+      demoSessionId: demoSessionId || null,
+      anonId: getOrCreateAnonId(),
+      widgetSessionToken: widgetCommerceSession?.session?.widget_session_token || null,
+    })
+      .then((history) => {
+        if (isActive) setWidgetCommerceHistory(history);
+      })
+      .catch(() => {
+        if (isActive) setWidgetCommerceHistory(null);
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [
+    commerceTenantSlug,
+    demoSessionId,
+    resolvedOwnerToken,
+    widgetCommerceSession?.history?.endpoint,
+    widgetCommerceSession?.history?.history_endpoint,
+    widgetCommerceSession?.portal?.history_endpoint,
+    widgetCommerceSession?.session?.widget_session_token,
+  ]);
+
+  useEffect(() => {
+    let isActive = true;
+    const cartEndpoint = readFirstString(
+      widgetCommerceSession?.cart?.summary_endpoint,
+      widgetCommerceSession?.cart?.items_endpoint,
+      widgetCommerceSession?.cart?.legacy_endpoint,
+      widgetCommerceSession?.cart?.endpoint,
+    );
+    const tenantSlug = sanitizeTenantSlug(commerceTenantSlug);
+    const widgetToken = typeof resolvedOwnerToken === "string" && resolvedOwnerToken.trim()
+      ? resolvedOwnerToken.trim()
+      : null;
+
+    if (!cartEndpoint && !tenantSlug && !widgetToken) {
+      setWidgetCommerceCart(null);
+      return;
+    }
+
+    getWidgetCartSnapshot(cartEndpoint || null, {
+      tenantSlug,
+      widgetToken,
+      chatSessionId: getOrCreateChatSessionId(),
+      demoSessionId: demoSessionId || null,
+      anonId: getOrCreateAnonId(),
+      widgetSessionToken: widgetCommerceSession?.session?.widget_session_token || null,
+    })
+      .then((cart) => {
+        if (isActive) setWidgetCommerceCart(cart);
+      })
+      .catch(() => {
+        if (isActive) setWidgetCommerceCart(null);
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [
+    commerceTenantSlug,
+    demoSessionId,
+    resolvedOwnerToken,
+    widgetCommerceSession?.cart?.endpoint,
+    widgetCommerceSession?.cart?.items_endpoint,
+    widgetCommerceSession?.cart?.legacy_endpoint,
+    widgetCommerceSession?.cart?.summary_endpoint,
+    widgetCommerceSession?.session?.widget_session_token,
+  ]);
+
+  useEffect(() => {
     if (!isProfileLoading) return;
     const timeout = setTimeout(() => {
       if (isProfileLoading) {
@@ -2130,12 +2410,13 @@ function ChatWidgetInner({
                     muted={muted}
                     onToggleSound={toggleMuted}
                     onCart={openCart}
-                    cartCount={cartCount}
+                    cartCount={effectiveCartCount}
                     logoUrl={headerLogoUrl || customLauncherLogoUrl || entityInfo?.logo_url || getChatbocBotAvatar(isDarkMode)}
                     title={headerTitle}
                     subtitle={headerSubtitle}
                     logoAnimation={logoAnimation}
                     onA11yChange={setA11yPrefs}
+                    accessibilityHints={effectiveUiHints?.accessibility ?? null}
                     supportChannels={supportChannels}
                   />
                 </Suspense>
@@ -2169,8 +2450,12 @@ function ChatWidgetInner({
                     entityToken={resolvedOwnerToken ?? undefined}
                     quickMenu={entityInfo?.quick_menu}
                     onboarding={entityInfo?.onboarding ?? null}
-                    uiHints={entityInfo?.ui_hints ?? null}
-                    chatBootstrap={entityInfo?.chat_bootstrap ?? entityInfo?.workspace?.chat_bootstrap ?? null}
+                    uiHints={effectiveUiHints}
+                    commerceSession={widgetCommerceSession}
+                    commerceHistory={widgetCommerceHistory}
+                    chatBootstrap={chatBootstrap}
+                    onOpenCatalog={() => openCart("catalog")}
+                    onOpenPortal={openPortal}
                     onPlatformSelection={handlePlatformSelection}
                     platformSelectionLoadingId={platformSelectionLoadingId}
                     platformSelectionError={platformSelectionError}
@@ -2201,7 +2486,7 @@ function ChatWidgetInner({
                     muted={muted}
                     onToggleSound={toggleMuted}
                     onCart={openCart}
-                    cartCount={cartCount}
+                    cartCount={effectiveCartCount}
                     selectedRubro={selectedRubro ?? entityDefaultRubro}
                     onRubroSelect={handleRubroSelect}
                     catalogCard={catalogCard}

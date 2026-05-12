@@ -2,7 +2,15 @@ import { demoApi } from '@/api/v2/client';
 import { getRubrosHierarchy } from '@/api/rubros';
 import { DEMO_SECTOR_GROUPS } from '@/data/demoHierarchy';
 import { findDemoCatalogAsset } from '@/data/demoCatalogAssets';
-import type { DemoCatalogResponse, DemoChatBootstrap, DemoSectorGroup, DemoSessionResponse, DemoSector, DemoWorkspaceConfig } from './demoTypes';
+import type {
+  DemoAdminPreviewResponse,
+  DemoCatalogResponse,
+  DemoChatBootstrap,
+  DemoSectorGroup,
+  DemoSessionResponse,
+  DemoSector,
+  DemoWorkspaceConfig,
+} from './demoTypes';
 
 const DEFAULT_DEMO_SECTORS: DemoSector[] = ['educacion', 'gobierno', 'empresas'];
 
@@ -28,6 +36,19 @@ export type DemoSessionPayload = {
   rubro_slug?: string;
   category_slug?: string;
   tenant_slug?: string | null;
+};
+
+export const getDemoAdminPreview = async (params: {
+  sector?: DemoSector | string | null;
+  tenant_slug?: string | null;
+}): Promise<DemoAdminPreviewResponse> => {
+  const query = new URLSearchParams();
+  if (params.sector) query.set('sector', String(params.sector));
+  if (params.tenant_slug) query.set('tenant_slug', params.tenant_slug);
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+  return demoApi.get<DemoAdminPreviewResponse>(`/api/v2/demo/admin-preview${suffix}`, {
+    baseUrlOverride: '/api',
+  });
 };
 
 export const createDemoSession = async (payload: DemoSessionPayload) => {

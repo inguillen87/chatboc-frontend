@@ -79,6 +79,10 @@ type WhatsappSandboxResult = {
   message: string;
   deeplink?: string | null;
   requestId?: string | null;
+  joinNumber?: string | null;
+  joinPhrase?: string | null;
+  instructions?: string[];
+  quickMenu?: QuickMenuPreviewItem[];
 };
 
 const DEFAULT_WHATSAPP_SANDBOX: WhatsappSandboxState = {
@@ -112,6 +116,25 @@ const normalizeQuickMenuPreviewItem = (item: unknown, index: number): QuickMenuP
     rubro: readText("rubro") || readText("rubro_slug") || readText("rubro_key"),
     tenant_slug: readText("tenant_slug") || readText("tenantSlug"),
   };
+};
+
+const readTextValue = (...values: unknown[]) => {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return null;
+};
+
+const normalizeSandboxInstructions = (source: unknown): string[] => {
+  if (!Array.isArray(source)) return [];
+  return source
+    .map((item) => {
+      if (typeof item === "string") return item.trim();
+      if (!item || typeof item !== "object" || Array.isArray(item)) return "";
+      const record = item as Record<string, unknown>;
+      return readTextValue(record.label, record.title, record.text, record.description) || "";
+    })
+    .filter(Boolean);
 };
 
 const IntegracionesPage = () => {
@@ -590,14 +613,25 @@ const IntegracionesPage = () => {
     return `https://wa.me/${digits}${text ? `?text=${encodeURIComponent(text)}` : ""}`;
   };
 
+  const buildSandboxInstructionsText = () => {
+    const lines = [
+      sandboxResult?.joinNumber ? `Numero de prueba: ${sandboxResult.joinNumber}` : "",
+      sandboxResult?.joinPhrase ? `Frase: ${sandboxResult.joinPhrase}` : whatsappSandbox.joinPhrase.trim(),
+      ...(sandboxResult?.instructions || []),
+      whatsappSandbox.testMessage.trim() ? `Mensaje inicial: ${whatsappSandbox.testMessage.trim()}` : "",
+      whatsappSandbox.brief.trim() ? `Brief: ${whatsappSandbox.brief.trim()}` : "",
+    ].filter(Boolean);
+    return lines.join("\n");
+  };
+
   const copySandboxBrief = async () => {
-    const text = buildSandboxMessage();
+    const text = buildSandboxInstructionsText() || buildSandboxMessage();
     if (!text) {
       toast.error("Completá la frase clave o el mensaje de prueba");
       return;
     }
     await navigator.clipboard.writeText(text);
-    toast.success("Texto copiado");
+    toast.success("Instrucciones copiadas");
   };
 
   const handlePrepareWhatsappSandbox = async () => {
@@ -628,14 +662,43 @@ const IntegracionesPage = () => {
       );
       const backendDeeplink =
         response?.twilio?.wa_deeplink ||
+        response?.sandbox?.wa_deeplink ||
         response?.wa_deeplink ||
         response?.deeplink ||
         deeplink;
+      const backendJoinNumber = readTextValue(
+        response?.sandbox?.join_number,
+        response?.twilio?.join_number,
+        response?.join_number,
+      );
+      const backendJoinPhrase = readTextValue(
+        response?.sandbox?.join_phrase,
+        response?.twilio?.join_phrase,
+        response?.join_phrase,
+      );
+      const backendInstructions = normalizeSandboxInstructions(
+        response?.sandbox?.instructions || response?.instructions,
+      );
+      const backendMenu = [
+        response?.demo_context?.quick_menu,
+        response?.quick_menu,
+        response?.sandbox?.quick_menu,
+      ]
+        .flatMap((source) => (Array.isArray(source) ? source : []))
+        .map(normalizeQuickMenuPreviewItem)
+        .filter((item): item is QuickMenuPreviewItem => Boolean(item));
+      if (backendJoinPhrase) {
+        setWhatsappSandbox((prev) => ({ ...prev, joinPhrase: backendJoinPhrase }));
+      }
       setSandboxResult({
         mode: "backend",
-        message: "Sandbox preparado con el contrato del backend.",
+        message: "Sandbox listo para probar con la configuración del tenant.",
         deeplink: backendDeeplink,
         requestId: response?.request_id || null,
+        joinNumber: backendJoinNumber,
+        joinPhrase: backendJoinPhrase,
+        instructions: backendInstructions,
+        quickMenu: backendMenu.length ? backendMenu : undefined,
       });
       toast.success("Demo WhatsApp preparada");
       if (backendDeeplink) {
@@ -647,15 +710,15 @@ const IntegracionesPage = () => {
         mode: "local",
         message:
           status === 404 || status === 405 || status === 501
-            ? "Falta publicar el endpoint backend del sandbox. Dejé listo el texto y el enlace para probar manualmente."
-            : "No se pudo confirmar con backend. Podés abrir WhatsApp con este enlace y seguir la prueba.",
+            ? "La prueba quedó lista para abrir manualmente mientras se actualiza el servicio."
+            : "No se pudo confirmar la preparación. Podés abrir WhatsApp con este enlace y seguir la prueba.",
         deeplink,
         requestId: error instanceof ApiError ? error.requestId : null,
       });
       if (status === 404 || status === 405 || status === 501) {
-        toast.info("Sandbox listo en modo local; falta el endpoint backend.");
+        toast.info("Sandbox listo para prueba manual.");
       } else {
-        toast.error("No se pudo preparar el sandbox con backend.");
+        toast.error("No se pudo preparar el sandbox.");
       }
     } finally {
       setSandboxLoading(false);
@@ -663,7 +726,7 @@ const IntegracionesPage = () => {
   };
 
   const renderWhatsappSandboxPanel = () => {
-    const menuPreview = widgetQuickMenu.slice(0, 3);
+    const menuPreview = (sandboxResult?.quickMenu?.length ? sandboxResult.quickMenu : widgetQuickMenu).slice(0, 3);
     const sandboxDeeplink = sandboxResult?.deeplink || buildSandboxDeeplink();
 
     return (
@@ -681,8 +744,8 @@ const IntegracionesPage = () => {
               </div>
               <div>
                 <h3 className="text-xl font-semibold tracking-tight">Probar WhatsApp antes de salir a producción</h3>
-                <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-                  Prepará una prueba guiada con el número, la frase clave y el brief del rubro. El menú visible sale del contrato del widget cuando está disponible.
+              <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+                  Prepará una prueba guiada con el número, la frase clave y el brief del rubro. El menú visible sale de la configuración del tenant cuando está disponible.
                 </p>
               </div>
             </div>
@@ -693,7 +756,7 @@ const IntegracionesPage = () => {
               onClick={copySandboxBrief}
               className="shrink-0"
             >
-              <Copy className="mr-2 h-4 w-4" /> Copiar brief
+              <Copy className="mr-2 h-4 w-4" /> Copiar instrucciones
             </Button>
           </div>
 
@@ -783,6 +846,22 @@ const IntegracionesPage = () => {
               <KeyRound className="h-4 w-4 text-primary" />
               Menu que verá el usuario
             </div>
+            {(sandboxResult?.joinNumber || sandboxResult?.joinPhrase) && (
+              <div className="mt-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
+                {sandboxResult.joinNumber ? (
+                  <div className="rounded-lg border bg-muted/30 px-3 py-2">
+                    <span className="font-semibold text-foreground">Numero sandbox: </span>
+                    <span className="font-mono">{sandboxResult.joinNumber}</span>
+                  </div>
+                ) : null}
+                {sandboxResult.joinPhrase ? (
+                  <div className="rounded-lg border bg-muted/30 px-3 py-2">
+                    <span className="font-semibold text-foreground">Frase join: </span>
+                    <span className="font-mono">{sandboxResult.joinPhrase}</span>
+                  </div>
+                ) : null}
+              </div>
+            )}
             {menuPreview.length ? (
               <div className="mt-3 flex flex-wrap gap-2">
                 {menuPreview.map((item) => (
@@ -801,7 +880,7 @@ const IntegracionesPage = () => {
           {sandboxResult && (
             <Alert className="mt-4">
               <CheckCircle2 className="h-4 w-4" />
-              <AlertTitle>{sandboxResult.mode === "backend" ? "Contrato confirmado" : "Modo local preparado"}</AlertTitle>
+              <AlertTitle>{sandboxResult.mode === "backend" ? "Sandbox listo" : "Prueba manual lista"}</AlertTitle>
               <AlertDescription>
                 {sandboxResult.message}
                 {sandboxResult.requestId ? ` Req: ${sandboxResult.requestId}` : ""}

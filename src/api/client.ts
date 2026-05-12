@@ -221,6 +221,40 @@ const normalizePublicTicketStatus = (value: unknown) => {
   };
 };
 
+const normalizePublicCatalogResponse = (value: unknown): TenantCatalog => {
+  if (Array.isArray(value)) {
+    return { metadata: null, links: null, columns: [], rows: [] };
+  }
+
+  if (!isRecord(value)) {
+    return { metadata: null, links: null, columns: [], rows: [] };
+  }
+
+  const contractVersion = asStringOrUndefined(value.contract_version);
+  if (
+    contractVersion === 'public.catalog_resolution.v1' ||
+    contractVersion === 'public.reserved_slug.v1'
+  ) {
+    const rawItems = Array.isArray(value.items) ? value.items : [];
+    return {
+      ...(value as TenantCatalog),
+      contract_version: contractVersion,
+      request_id: asStringOrUndefined(value.request_id) ?? null,
+      reason_code: asStringOrUndefined(value.reason_code) ?? null,
+      action_hint: asStringOrUndefined(value.action_hint) ?? null,
+      message: asStringOrUndefined(value.message) ?? null,
+      items: rawItems,
+      cart: isRecord(value.cart) ? (value.cart as TenantCatalog['cart']) : { enabled: false },
+      metadata: isRecord(value.metadata) ? (value.metadata as TenantCatalog['metadata']) : null,
+      links: isRecord(value.links) ? (value.links as TenantCatalog['links']) : null,
+      columns: [],
+      rows: [],
+    };
+  }
+
+  return value as TenantCatalog;
+};
+
 const normalizeTicketWorkflowMetadata = (value: unknown) => {
   if (!isRecord(value)) throw new ApiError('Ticket workflow metadata inválido', 502, value);
   if (value.contract_version !== 'tickets.workflow.v1') {
@@ -704,21 +738,35 @@ export const apiClient = {
   publicGetCatalog: async (tenantSlug: string): Promise<TenantCatalog> => {
     const normalizedTenantSlug = typeof tenantSlug === 'string' ? tenantSlug.trim() : '';
     if (!normalizedTenantSlug || TENANT_PLACEHOLDER_SLUGS.has(normalizedTenantSlug.toLowerCase())) {
-      return { metadata: null, links: null, columns: [], rows: [] };
+      return {
+        contract_version: 'public.catalog_resolution.local.v1',
+        reason_code: 'reserved_public_slug',
+        metadata: null,
+        links: null,
+        columns: [],
+        rows: [],
+        cart: { enabled: false },
+      };
     }
 
-    const data = await apiFetch<TenantCatalog | any[]>(`/api/public/tenants/${encodeURIComponent(normalizedTenantSlug)}/catalog`, {
+    const options = {
       tenantSlug: normalizedTenantSlug,
       isWidgetRequest: true,
       skipAuth: true,
       omitCredentials: true,
       omitEntityToken: true,
       omitChatSessionId: true,
-    });
-    if (Array.isArray(data)) {
-      return { metadata: null, links: null, columns: [], rows: [] };
+    } as const;
+
+    const encodedSlug = encodeURIComponent(normalizedTenantSlug);
+    let data: unknown;
+    try {
+      data = await apiFetch<unknown>(`/api/public/tenants/${encodedSlug}/catalog`, options);
+    } catch (error) {
+      if (!shouldFallbackToLegacyEndpoint(error)) throw error;
+      data = await apiFetch<unknown>(`/public/tenants/${encodedSlug}/catalog`, options);
     }
-    return data;
+    return normalizePublicCatalogResponse(data);
   },
 
   // --- Super Admin Methods ---

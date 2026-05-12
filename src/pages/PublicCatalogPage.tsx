@@ -55,9 +55,43 @@ const PublicCatalogPage: React.FC = () => {
     );
   }, [columns, rows, search]);
 
-  if (loading || error) {
-    return null;
+  if (loading) {
+    return (
+      <div className="container mx-auto px-4 py-10">
+        <Card>
+          <CardContent className="p-6">
+            <div className="h-5 w-40 animate-pulse rounded bg-muted" />
+            <div className="mt-4 h-24 animate-pulse rounded-lg bg-muted/60" />
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
+
+  if (error) {
+    return (
+      <div className="container mx-auto px-4 py-10">
+        <Card>
+          <CardContent className="space-y-4 p-6">
+            <CardTitle>Catálogo no disponible</CardTitle>
+            <CardDescription className="text-base">
+              Podés seguir explorando la demo o volver a intentarlo más tarde.
+            </CardDescription>
+            <Button asChild>
+              <a href="/demo">Ver demo</a>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const isEmptyResolution =
+    catalog?.contract_version === "public.catalog_resolution.v1" ||
+    catalog?.contract_version === "public.reserved_slug.v1" ||
+    catalog?.contract_version === "public.catalog_resolution.local.v1";
+
+  const isEmptyCatalog = columns.length === 0 && rows.length === 0;
 
   return (
     <div className="container mx-auto px-4 py-10 space-y-6">
@@ -76,17 +110,34 @@ const PublicCatalogPage: React.FC = () => {
               </CardDescription>
             )}
           </div>
-          {links?.download_url && links?.download_label && (
+          {links?.download_url && links?.download_label && !isEmptyCatalog && (
             <Button asChild variant="outline">
               <a href={links.download_url} target="_blank" rel="noreferrer">
                 {links.download_label}
               </a>
             </Button>
           )}
+          {isEmptyCatalog && (
+            <div className="rounded-lg border border-dashed bg-muted/20 p-6 text-sm text-muted-foreground">
+              <p className="font-medium text-foreground">
+                {isEmptyResolution ? "Este acceso pertenece a una experiencia pública." : "Todavía no hay productos publicados."}
+              </p>
+              <p className="mt-2">
+                {isEmptyResolution
+                  ? "Podés elegir una demo guiada y ver el recorrido completo."
+                  : "Cuando el catálogo esté listo, va a aparecer en este espacio."}
+              </p>
+              {isEmptyResolution ? (
+                <Button asChild className="mt-4">
+                  <a href="/demo">Abrir demo</a>
+                </Button>
+              ) : null}
+            </div>
+          )}
         </CardContent>
       </Card>
 
-          {(columns.length > 0 || rows.length > 0) && (
+      {(columns.length > 0 || rows.length > 0) && (
             <Card>
               <CardHeader>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

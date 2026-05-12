@@ -1,8 +1,9 @@
-import { useEffect, useState, type ComponentType } from "react";
-import { BookOpen, Eye, List, MousePointer2 } from "lucide-react";
+import { useEffect, useMemo, useState, type ComponentType } from "react";
+import { BookOpen, Captions, Eye, List, MousePointer2, PauseCircle } from "lucide-react";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import type { ChatWidgetUiHints } from "@/types/chat";
 import {
   Popover,
   PopoverContent,
@@ -20,6 +21,8 @@ export type Prefs = {
   simplified: boolean;
   highContrast: boolean;
   largeControls: boolean;
+  captions: boolean;
+  reducedMotion: boolean;
 };
 
 const LS_KEY = "chatboc_accessibility";
@@ -29,6 +32,8 @@ export const DEFAULT_ACCESSIBILITY_PREFS: Prefs = {
   simplified: true,
   highContrast: false,
   largeControls: false,
+  captions: false,
+  reducedMotion: false,
 };
 
 export const readAccessibilityPrefs = (): Prefs => {
@@ -47,26 +52,38 @@ const options = [
   {
     key: "dyslexia",
     label: "Modo dislexia",
-    description: "Más aire, lectura izquierda y guía visual.",
+    description: "Mas aire, lectura izquierda y guia visual.",
     icon: BookOpen,
   },
   {
     key: "simplified",
     label: "Texto simple",
-    description: "Mensajes más cortos y fáciles de escanear.",
+    description: "Mensajes mas cortos y faciles de escanear.",
     icon: List,
   },
   {
     key: "highContrast",
     label: "Alto contraste",
-    description: "Bordes y foco más visibles.",
+    description: "Bordes y foco mas visibles.",
     icon: Eye,
   },
   {
     key: "largeControls",
     label: "Controles grandes",
-    description: "Botones táctiles más cómodos.",
+    description: "Botones tactiles mas comodos.",
     icon: MousePointer2,
+  },
+  {
+    key: "captions",
+    label: "Subtitulos",
+    description: "Apoyo visual para audio y voz cuando este disponible.",
+    icon: Captions,
+  },
+  {
+    key: "reducedMotion",
+    label: "Menos movimiento",
+    description: "Reduce animaciones y transiciones del chat.",
+    icon: PauseCircle,
   },
 ] satisfies Array<{
   key: keyof Prefs;
@@ -75,16 +92,59 @@ const options = [
   icon: ComponentType<{ className?: string }>;
 }>;
 
+type AccessibilityHints = NonNullable<ChatWidgetUiHints["accessibility"]>;
+
+const isHintAllowed = (
+  hints: AccessibilityHints | null | undefined,
+  keys: string[],
+  fallback = true,
+) => {
+  if (!hints) return fallback;
+  for (const key of keys) {
+    const value = hints[key];
+    if (typeof value === "boolean") return value;
+  }
+  return fallback;
+};
+
 export default function AccessibilityToggle({
   onChange,
   compact = false,
   className,
+  hints,
 }: {
   onChange?: (p: Prefs) => void;
   compact?: boolean;
   className?: string;
+  hints?: ChatWidgetUiHints["accessibility"];
 }) {
   const [prefs, setPrefs] = useState<Prefs>(readAccessibilityPrefs);
+
+  const visibleOptions = useMemo(
+    () =>
+      options.filter((option) => {
+        if (option.key === "dyslexia") {
+          return isHintAllowed(hints, ["dyslexia", "dyslexia_mode", "dyslexia_friendly"]);
+        }
+        if (option.key === "simplified") {
+          return isHintAllowed(hints, ["simple_text", "simplified_text", "simplified"]);
+        }
+        if (option.key === "highContrast") {
+          return isHintAllowed(hints, ["high_contrast", "highContrast"]);
+        }
+        if (option.key === "largeControls") {
+          return isHintAllowed(hints, ["large_controls", "largeControls"]);
+        }
+        if (option.key === "captions") {
+          return isHintAllowed(hints, ["captions"]);
+        }
+        if (option.key === "reducedMotion") {
+          return isHintAllowed(hints, ["reduced_motion", "reducedMotion"]);
+        }
+        return true;
+      }),
+    [hints],
+  );
 
   useEffect(() => {
     safeLocalStorage.setItem(LS_KEY, JSON.stringify(prefs));
@@ -94,9 +154,16 @@ export default function AccessibilityToggle({
     root.classList.toggle("a11y-simplified", !!prefs.simplified);
     root.classList.toggle("a11y-high-contrast", !!prefs.highContrast);
     root.classList.toggle("a11y-large-controls", !!prefs.largeControls);
+    root.classList.toggle("a11y-captions", !!prefs.captions);
+    root.classList.toggle("a11y-reduced-motion", !!prefs.reducedMotion);
   }, [prefs, onChange]);
 
-  const activeCount = Number(prefs.dyslexia) + Number(prefs.simplified) + Number(prefs.highContrast) + Number(prefs.largeControls);
+  const activeCount = visibleOptions.reduce(
+    (total, option) => total + Number(Boolean(prefs[option.key])),
+    0,
+  );
+
+  if (visibleOptions.length === 0) return null;
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -130,11 +197,11 @@ export default function AccessibilityToggle({
           <div className="mb-3">
             <p className="text-sm font-semibold">Accesibilidad</p>
             <p className="text-xs text-muted-foreground">
-              Ajustes rápidos para leer, escuchar y tocar mejor.
+              Ajustes rapidos para leer, escuchar y tocar mejor.
             </p>
           </div>
           <div className="space-y-2">
-            {options.map(({ key, label, description, icon: Icon }) => {
+            {visibleOptions.map(({ key, label, description, icon: Icon }) => {
               const active = Boolean(prefs[key]);
               return (
                 <button

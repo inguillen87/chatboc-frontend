@@ -21,6 +21,13 @@ Frontend ya aplica estas mitigaciones:
 - Hotfix frontend 2026-05-12: cuando el contrato habilita schedule, frontend usa solo same-origin:
   - `GET /api/{tenant_slug}/live-chat/schedule?tenant_slug={tenant_slug}&tenant={tenant_slug}`
   - ya no intenta `/demo/live-chat/schedule`, `/live-chat/schedule` ni fallback directo a Render para esta consulta.
+- Hotfix frontend 2026-05-12: el widget embebido pide `GET /api/public/widget-commerce-session` con `tenant_slug`, `widget_token`, `X-Chat-Session-Id`, `X-Demo-Session-Id` y `X-Anon-Id` cuando tiene contexto de tenant.
+- Hotfix frontend 2026-05-12: si backend responde `public.widget_commerce_session.v1`, el widget muestra catalogo/carrito/portal como acciones compactas junto al composer y mantiene el header simple.
+- Hotfix frontend 2026-05-12: `ui_hints.accessibility` se respeta para opciones inclusivas sin llenar el header.
+- Hotfix frontend 2026-05-12: slugs publicos de marketing (`demo`, `casos`, `pymes`, `empresas`, `municipios`, `gobiernos`, `colegios`, `sectores`, `precios`, `opinar`) se mantienen como rutas publicas o redirects a `/demo`; no se tratan como `tenant_slug`.
+- Hotfix frontend 2026-05-12: el catalogo publico acepta `public.catalog_resolution.v1` y `public.reserved_slug.v1` como estados vacios limpios, sin error tecnico ni reintentos directos a Render.
+- Hotfix frontend 2026-05-12: el perfil publico de tenant consume `tenant.public_navigation.v1` para ocultar o deshabilitar botoneras no disponibles.
+- Hotfix frontend 2026-05-12: `/demo` consume `demo.admin_preview.v1` para mostrar modulos, cards y timeline del panel demo cuando el contrato esta disponible.
 
 ## Errores vistos en produccion
 
@@ -102,6 +109,12 @@ Si backend entrega `GET /api/public/landing-experience`, cuidar que el copy visi
 
 Si despues del deploy frontend siguen apareciendo llamadas a `/api/v1/demo/session` o `/v1/demo/session`, probablemente hay cache o service worker sirviendo un bundle anterior.
 
+Frontend aplicado 2026-05-12:
+
+- `setupPWA` registra el service worker inmediatamente.
+- En rutas publicas (`/`, `/demo`, `/pymes`, `/municipios`, `/colegios`, `/sectores`, `/precios`, `/casos`, `/opinar`, `/login`, `/register`, `/widget`) aplica la nueva version automaticamente para reducir bundles viejos.
+- En rutas de panel/admin/tenant mantiene aviso de actualizacion para no cortar una edicion activa.
+
 Recomendado:
 
 - Invalidar cache/CDN del frontend.
@@ -126,3 +139,21 @@ Smoke adicional widget 2026-05-12:
 - No aparece `Ver Opciones` del selector legacy.
 - Requests a `/live-chat/schedule`: `0`.
 - Errores relevantes de consola para demo/session, schedule o socket: `0`.
+
+Verificacion build adicional 2026-05-12:
+
+- `npm run build`: OK.
+
+## Public demo route QA 2026-05-12
+
+Frontend aplicado:
+
+- `/t/pymes`, `/t/empresas`, `/t/municipios`, `/t/gobiernos`, `/t/colegios`, `/t/casos` y slugs equivalentes redirigen a experiencias publicas, no a tenant real.
+- `GET /api/public/tenants/{slug}/catalog` puede devolver `public.catalog_resolution.v1`; frontend muestra un estado vacio con acceso a demo y no muestra stack/error tecnico.
+- `GET /api/public/tenants/{tenant_slug}/public-navigation` alimenta la navegacion publica. Si un item viene `enabled:false` o `visible:false`, se deshabilita u oculta.
+- `GET /api/v2/demo/admin-preview` alimenta la demo integrada de colegio/municipio/empresa. El contenido local queda solo como respaldo visual.
+
+Pedido backend/deploy:
+
+- Mantener `public.catalog_resolution.v1`, `public.reserved_slug.v1`, `tenant.public_navigation.v1` y `demo.admin_preview.v1` con JSON + CORS + `request_id`.
+- Evitar texto tecnico visible en esos contratos porque se renderizan en experiencias publicas.

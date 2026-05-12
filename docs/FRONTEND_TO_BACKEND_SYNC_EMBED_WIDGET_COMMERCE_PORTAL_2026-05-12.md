@@ -15,6 +15,11 @@ Objetivo: que el script embebido de cada tenant no sea solo un chat, sino una ex
   - `GET /api/{tenant_slug}/live-chat/schedule?tenant_slug={tenant_slug}&tenant={tenant_slug}`
 - El carrito vuelve a aparecer en el header compacto cuando `cartCount > 0`.
 - El modulo de accesibilidad queda disponible en el widget compacto: dislexia, texto simple, alto contraste, controles grandes y regla de lectura.
+- QA 2026-05-12: frontend ya consulta `GET /api/public/widget-commerce-session` apenas tiene `tenant_slug` o `widget_token`.
+- QA 2026-05-12: si `frontend_contract.render_as=embedded_tenant_operating_widget`, el widget mantiene chat como experiencia principal y muestra acciones compactas para catalogo, carrito y portal junto al composer, no en el header.
+- QA 2026-05-12: frontend ya consulta `portal.history_endpoint` / `history.endpoint` para sincronizar `cart.items_count` y mostrar el carrito aunque el usuario siga anonimo.
+- QA 2026-05-12: el carrito embebido no fuerza login si `cart.allow_guest_cart` o `session.can_checkout_as_guest` vienen habilitados.
+- QA 2026-05-12: `ui_hints.accessibility` y `widget-commerce-session.accessibility` se mergean para controlar opt-ins de dislexia, texto simple, alto contraste, controles grandes, subtitulos y menos movimiento.
 
 ## Pedido backend para eliminar el origen del problema
 
@@ -70,6 +75,8 @@ Endpoint sugerido:
 
 `GET /api/public/widget-commerce-session`
 
+Estado frontend 2026-05-12: consumido.
+
 Query/headers:
 
 - `widget_token`
@@ -93,6 +100,7 @@ Shape:
   "session": {
     "chat_session_id": "chat_...",
     "anon_id": "anon_...",
+    "widget_session_token": "wst_...",
     "is_authenticated": false,
     "can_checkout_as_guest": true,
     "can_link_account": true
@@ -106,6 +114,7 @@ Shape:
     "enabled": true,
     "summary_endpoint": "/api/pwa/public/cart/summary",
     "items_endpoint": "/api/pwa/public/cart/items",
+    "legacy_endpoint": "/api/pwa/public/cart",
     "checkout_preview_endpoint": "/api/v2/tenants/bodega-demo/payments/checkout-preview",
     "checkout_session_endpoint": "/api/v2/tenants/bodega-demo/payments/checkout-session",
     "allow_guest_cart": true,
@@ -135,6 +144,8 @@ Shape:
 Endpoint sugerido:
 
 `GET /api/public/widget-user/tenant-history`
+
+Estado frontend 2026-05-12: consumido cuando llega desde `portal.history_endpoint` o `history.endpoint`.
 
 Debe resolver por usuario autenticado, `anon_id` o `chat_session_id`, y devolver historial filtrado por tenant.
 
@@ -172,6 +183,8 @@ Debe resolver por usuario autenticado, `anon_id` o `chat_session_id`, y devolver
 - El carrito debe poder operar como anonimo y luego vincularse a una cuenta sin perder items.
 - Si el usuario se registra o inicia sesion, backend debe asociar `anon_id`, `chat_session_id`, WhatsApp/contacto y tenant.
 - El widget embebido debe usar `widget_token` como contexto principal y no depender de rutas globales.
+- Frontend prioriza `cart.summary_endpoint` y `cart.items_endpoint` antes de `cart.legacy_endpoint`.
+- Frontend envia `widget_session_token`, `anon_id` y `chat_session_id` cuando esten disponibles para conservar carrito e historial.
 - Para colegios y municipios, el portal muestra casos, reclamos, turnos, encuestas e historial de mensajes.
 - Para PyMEs, el portal muestra catalogo, carrito, pedidos, pagos, facturas/comprobantes e historial.
 - Todas las respuestas publicas deben incluir `request_id` y CORS OK para `https://www.chatboc.ar` y dominios embebidos autorizados por tenant.

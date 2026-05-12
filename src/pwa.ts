@@ -9,6 +9,30 @@ declare global {
 
 let refreshToastId: string | number | undefined;
 
+const PUBLIC_RUNTIME_PREFIXES = [
+  '/',
+  '/demo',
+  '/pymes',
+  '/municipios',
+  '/colegios',
+  '/sectores',
+  '/precios',
+  '/casos',
+  '/opinar',
+  '/login',
+  '/register',
+  '/widget',
+];
+
+const PANEL_RUNTIME_PREFIXES = [
+  '/t/',
+  '/tenant/',
+  '/admin',
+  '/dashboard',
+  '/portal',
+  '/integracion',
+];
+
 const dismissRefreshToast = () => {
   if (refreshToastId === undefined) {
     return;
@@ -16,6 +40,19 @@ const dismissRefreshToast = () => {
 
   toast.dismiss(refreshToastId);
   refreshToastId = undefined;
+};
+
+const shouldAutoApplyPublicRefresh = () => {
+  if (typeof window === 'undefined') return false;
+
+  const pathname = window.location.pathname || '/';
+  if (PANEL_RUNTIME_PREFIXES.some((prefix) => pathname.startsWith(prefix))) {
+    return false;
+  }
+
+  return PUBLIC_RUNTIME_PREFIXES.some((prefix) =>
+    prefix === '/' ? pathname === '/' : pathname.startsWith(prefix),
+  );
 };
 
 export const setupPWA = () => {
@@ -33,23 +70,28 @@ export const setupPWA = () => {
 
   try {
     const updateSW = registerSW({
-      immediate: false,
+      immediate: true,
       onNeedRefresh() {
+        if (shouldAutoApplyPublicRefresh()) {
+          updateSW(true);
+          return;
+        }
+
         if (refreshToastId !== undefined) {
           return;
         }
 
-        refreshToastId = toast('Nueva versión disponible', {
-          description: 'Actualizá para recibir las últimas mejoras.',
+        refreshToastId = toast('Nueva version disponible', {
+          description: 'Actualiza para recibir las ultimas mejoras.',
           action: {
             label: 'Actualizar',
             onClick: () => {
               dismissRefreshToast();
-              updateSW();
+              updateSW(true);
             },
           },
           cancel: {
-            label: 'Después',
+            label: 'Despues',
             onClick: () => {
               dismissRefreshToast();
             },
@@ -57,10 +99,7 @@ export const setupPWA = () => {
         });
       },
       onOfflineReady() {
-        // Suppress annoying offline message in demo contexts
-        // toast('Listo para usar sin conexión', {
-        //   description: 'Guardamos los recursos principales para que sigas trabajando offline.',
-        // });
+        // Suppress noisy offline messaging in public demo contexts.
       },
     });
   } catch (error) {

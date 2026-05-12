@@ -107,3 +107,24 @@ export interface TenantTicketPayload {
   lng?: number | null;
   metadata?: Record<string, unknown> | null;
 }
+
+export interface TenantPublicNavigationItem {
+  id: string;
+  label: string;
+  route?: string | null;
+  href?: string | null;
+  endpoint?: string | null;
+  enabled?: boolean | null;
+  visible?: boolean | null;
+  reason_code?: string | null;
+  disabled_reason?: string | null;
+  [key: string]: unknown;
+}
+
+export interface TenantPublicNavigationContract {
+  contract_version?: string | null;
+  tenant_slug?: string | null;
+  items: TenantPublicNavigationItem[];
+  request_id?: string | null;
+  reason_code?: string | null;
+}

@@ -51,6 +51,56 @@ export interface DemoCatalogResponse {
   catalog_error?: string | null;
 }
 
+export interface DemoAdminPreviewModule {
+  id?: string | null;
+  label?: string | null;
+  title?: string | null;
+  route?: string | null;
+  endpoint?: string | null;
+  widgets?: unknown[];
+  [key: string]: unknown;
+}
+
+export interface DemoAdminPreviewCard {
+  id?: string | null;
+  key?: string | null;
+  label?: string | null;
+  title?: string | null;
+  value?: string | number | null;
+  description?: string | null;
+  detail?: string | null;
+  status?: string | null;
+  icon?: string | null;
+  [key: string]: unknown;
+}
+
+export interface DemoAdminPreviewTimelineItem {
+  id?: string | null;
+  label?: string | null;
+  title?: string | null;
+  description?: string | null;
+  status?: string | null;
+  [key: string]: unknown;
+}
+
+export interface DemoAdminPreviewResponse {
+  contract_version?: string | null;
+  request_id?: string | null;
+  sector?: DemoSector | string | null;
+  tenant_slug?: string | null;
+  title?: string | null;
+  subtitle?: string | null;
+  description?: string | null;
+  outcome?: string | null;
+  status_label?: string | null;
+  modules?: DemoAdminPreviewModule[];
+  cards?: DemoAdminPreviewCard[];
+  timeline?: DemoAdminPreviewTimelineItem[];
+  catalog?: Record<string, unknown> | null;
+  labels?: Record<string, string | null | undefined> | null;
+  [key: string]: unknown;
+}
+
 export interface DemoSessionResponse {
   contract_version?: string;
   request_id?: string;

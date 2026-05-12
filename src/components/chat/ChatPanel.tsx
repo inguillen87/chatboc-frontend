@@ -80,6 +80,9 @@ import {
   WifiOff,
   MessageSquare,
   PhoneCall,
+  BookOpen,
+  ShoppingCart,
+  UserRound,
   Video,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -99,9 +102,11 @@ import {
 import {
   isLegacyDemoSelectorMenu,
   isLegacyDemoSelectorOptionTitle,
+  isLegacyDemoSelectorPayload,
   isLegacyDemoSelectorText,
 } from "@/utils/legacyDemoSelector";
 import type { ChatBootstrapConfig } from "@/features/chat/chatTypes";
+import type { WidgetCommerceHistory, WidgetCommerceSession } from "@/types/widgetCommerce";
 
 const PENDING_TICKET_KEY = "pending_ticket_id";
 const REALTIME_TOOL_EVENT_NAMES = [
@@ -129,6 +134,17 @@ const readFirstString = (...values: unknown[]) => {
     if (typeof value === "string" && value.trim()) return value.trim();
   }
   return "";
+};
+
+const readFirstNumber = (...values: unknown[]) => {
+  for (const value of values) {
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (typeof value === "string" && value.trim()) {
+      const parsed = Number(value);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+  }
+  return 0;
 };
 
 const normalizeRealtimeToolPayload = (
@@ -435,7 +451,11 @@ interface ChatPanelProps {
   quickMenu?: unknown;
   onboarding?: ChatWidgetOnboarding | null;
   uiHints?: ChatWidgetUiHints | null;
+  commerceSession?: WidgetCommerceSession | null;
+  commerceHistory?: WidgetCommerceHistory | null;
   chatBootstrap?: ChatBootstrapConfig | null;
+  onOpenCatalog?: () => void;
+  onOpenPortal?: () => void;
   onPlatformSelection?: (option: ChatWidgetOnboardingOption) => void | Promise<void>;
   platformSelectionLoadingId?: string | null;
   platformSelectionError?: string | null;
@@ -481,7 +501,11 @@ const ChatPanel = (props: ChatPanelProps) => {
     quickMenu,
     onboarding,
     uiHints,
+    commerceSession,
+    commerceHistory,
     chatBootstrap,
+    onOpenCatalog,
+    onOpenPortal,
     onPlatformSelection,
     platformSelectionLoadingId,
     platformSelectionError,
@@ -599,6 +623,7 @@ const ChatPanel = (props: ChatPanelProps) => {
     () =>
       messages.filter((message) => {
         if (!message?.isBot) return true;
+        if (isLegacyDemoSelectorPayload(message)) return false;
         if (isLegacyDemoSelectorText(message.text)) return false;
         if (
           isLegacyDemoSelectorMenu(message.menu_sections) ||
@@ -711,6 +736,118 @@ const ChatPanel = (props: ChatPanelProps) => {
     uiHints.max_visible_quick_replies > 0
       ? uiHints.max_visible_quick_replies
       : 3;
+  const isEmbeddedCommerceWidget =
+    commerceSession?.frontend_contract?.render_as === "embedded_tenant_operating_widget";
+  const commerceActionLabels: Record<string, string> =
+    commerceSession?.frontend_contract?.action_labels || {};
+  const commerceCartCount = readFirstNumber(
+    commerceHistory?.cart?.items_count,
+    commerceHistory?.cart?.total_items,
+    commerceSession?.cart?.items_count,
+    cartCount,
+  );
+  const widgetCommerceActions = useMemo(() => {
+    if (!isEmbeddedCommerceWidget) {
+      return [] as Array<{
+        id: string;
+        label: string;
+        icon: React.ElementType;
+        onClick: () => void;
+        badge?: number;
+        active?: boolean;
+      }>;
+    }
+
+    const actions: Array<{
+      id: string;
+      label: string;
+      icon: React.ElementType;
+      onClick: () => void;
+      badge?: number;
+      active?: boolean;
+    }> = [];
+
+    actions.push({
+      id: "chat",
+      label: readFirstString(commerceActionLabels.chat, "Chat"),
+      icon: MessageSquare,
+      onClick: () => undefined,
+      active: true,
+    });
+
+    if (
+      readBackendFlag(
+        commerceSession?.catalog?.enabled,
+        Boolean(commerceSession?.catalog?.endpoint || commerceSession?.catalog?.view_url || commerceSession?.catalog?.url),
+      ) &&
+      onOpenCatalog
+    ) {
+      actions.push({
+        id: "catalog",
+        label: readFirstString(
+          commerceActionLabels.catalog,
+          commerceSession?.catalog?.cta_label,
+          commerceSession?.catalog?.label,
+          "Catalogo",
+        ),
+        icon: BookOpen,
+        onClick: onOpenCatalog,
+      });
+    }
+
+    if (
+      readBackendFlag(
+        commerceSession?.cart?.enabled,
+        Boolean(commerceSession?.cart?.summary_endpoint || commerceSession?.cart?.items_endpoint || commerceSession?.cart?.url),
+      ) &&
+      onCart
+    ) {
+      actions.push({
+        id: "cart",
+        label: readFirstString(
+          commerceActionLabels.cart,
+          commerceSession?.cart?.cta_label,
+          commerceSession?.cart?.label,
+          "Carrito",
+        ),
+        icon: ShoppingCart,
+        onClick: () => onCart("cart"),
+        badge: commerceCartCount > 0 ? commerceCartCount : undefined,
+      });
+    }
+
+    if (
+      readBackendFlag(
+        commerceSession?.portal?.enabled,
+        Boolean(commerceSession?.portal?.history_endpoint || commerceSession?.portal?.url),
+      ) &&
+      onOpenPortal
+    ) {
+      actions.push({
+        id: "portal",
+        label: readFirstString(
+          commerceActionLabels.portal,
+          commerceSession?.portal?.cta_label,
+          commerceSession?.portal?.label,
+          "Mi espacio",
+        ),
+        icon: UserRound,
+        onClick: onOpenPortal,
+      });
+    }
+
+    return actions.slice(0, 4);
+  }, [
+    commerceActionLabels,
+    commerceCartCount,
+    commerceSession?.cart,
+    commerceSession?.catalog,
+    commerceSession?.portal,
+    isEmbeddedCommerceWidget,
+    onCart,
+    onOpenCatalog,
+    onOpenPortal,
+  ]);
 
   const capabilityPills = useMemo(() => {
     if (!channelCapabilities) return [] as Array<{ label: string; icon: React.ElementType }>;
@@ -1335,7 +1472,7 @@ const ChatPanel = (props: ChatPanelProps) => {
     "idle" | "connecting" | "live" | "reconnecting" | "ended"
   >("idle");
   const [captionsEnabled, setCaptionsEnabled] = useState(
-    Boolean(voiceCallConfig?.features?.captions),
+    Boolean(a11yPrefs?.captions || voiceCallConfig?.features?.captions),
   );
   const [isMicMuted, setIsMicMuted] = useState(false);
   const [isUserSpeaking, setIsUserSpeaking] = useState(false);
@@ -1363,6 +1500,12 @@ const ChatPanel = (props: ChatPanelProps) => {
   const [realtimeErrorCode, setRealtimeErrorCode] = useState<string | null>(
     null,
   );
+
+  useEffect(() => {
+    if (a11yPrefs?.captions) {
+      setCaptionsEnabled(true);
+    }
+  }, [a11yPrefs?.captions]);
   const readAvailabilityDismissed = useCallback((key: string) => {
     if (typeof window === "undefined") return false;
     try {
@@ -2544,6 +2687,7 @@ const ChatPanel = (props: ChatPanelProps) => {
         subtitle={welcomeSubtitle}
         logoAnimation={logoAnimation}
         onA11yChange={onA11yChange}
+        accessibilityHints={uiHints?.accessibility ?? commerceSession?.accessibility ?? commerceSession?.ui_hints?.accessibility ?? null}
         supportChannels={supportChannels}
         recommendationLabel={recommendedExperienceLabel}
         compactActions={compactHeaderActions}
@@ -2813,6 +2957,7 @@ const ChatPanel = (props: ChatPanelProps) => {
 
       {onCart &&
         tipoChat === "pyme" &&
+        !isEmbeddedCommerceWidget &&
         !isToolbarActionCollapsed("catalog") &&
         !shouldShowCatalogCard &&
         (catalogViewLabel || catalogDownloadLabel) && (
@@ -2964,6 +3109,41 @@ const ChatPanel = (props: ChatPanelProps) => {
             </div>
           </div>
         )}
+        {widgetCommerceActions.length > 0 ? (
+          <div
+            className="mb-2 grid gap-1.5 rounded-2xl border border-border/70 bg-muted/25 p-1"
+            style={{ gridTemplateColumns: `repeat(${Math.min(widgetCommerceActions.length, 4)}, minmax(0, 1fr))` }}
+            aria-label="Acciones del widget"
+          >
+            {widgetCommerceActions.map((action) => {
+              const Icon = action.icon;
+              return (
+                <button
+                  key={action.id}
+                  type="button"
+                  className={cn(
+                    "group relative inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl px-2 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
+                    action.active
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:bg-background hover:text-foreground",
+                  )}
+                  onClick={action.onClick}
+                  title={action.label}
+                  aria-label={action.label}
+                  aria-current={action.active ? "page" : undefined}
+                >
+                  <Icon className="h-4 w-4 text-primary" />
+                  <span className="min-w-0 truncate">{action.label}</span>
+                  {action.badge ? (
+                    <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold leading-none text-primary-foreground shadow-sm">
+                      {action.badge > 99 ? "99+" : action.badge}
+                    </span>
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
         {!activeTicketId && showAvailabilityNotice && shouldFetchBusinessHours && (isLiveChatEnabled || horariosAtencion) ? (
           <div className="relative mb-2 rounded-md border px-2.5 py-2 text-xs">
             <span

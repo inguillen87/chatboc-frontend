@@ -30,6 +30,7 @@ import IntegracionesPage from '@/pages/pyme/integraciones/IntegracionesPage';
 import UsuariosPage from '@/pages/UsuariosPage';
 import { TENANT_PLACEHOLDER_SLUGS, TENANT_ROUTE_PREFIXES } from '@/utils/tenantPaths';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
+import { getReservedPublicSlugRedirect } from '@/utils/publicRoutes';
 import ProductCatalog from '@/pages/ProductCatalog';
 import MunicipalMessageMetrics from '@/pages/MunicipalMessageMetrics';
 import NotificationSettings from '@/pages/NotificationSettings';
@@ -130,10 +131,24 @@ export interface RouteConfig {
 const LegacyTenantAliasRedirect = ({ suffix = '' }: { suffix?: string }) => {
   const params = useParams();
   const tenant = typeof params.tenant === 'string' ? params.tenant.trim() : '';
+  const publicRedirect = getReservedPublicSlugRedirect(tenant);
+  if (publicRedirect) {
+    return <Navigate to={publicRedirect} replace />;
+  }
   if (!tenant || TENANT_PLACEHOLDER_SLUGS.has(tenant.toLowerCase())) {
     return <Navigate to="/" replace />;
   }
   return <Navigate to={`/t/${encodeURIComponent(tenant)}${suffix}`} replace />;
+};
+
+const TenantHomeRoute = () => {
+  const params = useParams();
+  const tenant = typeof params.tenant === 'string' ? params.tenant.trim() : '';
+  const publicRedirect = getReservedPublicSlugRedirect(tenant);
+  if (publicRedirect) {
+    return <Navigate to={publicRedirect} replace />;
+  }
+  return <TenantHomePage />;
 };
 
 const resolvePreferredTenantForEducation = (): string | null => {
@@ -388,7 +403,7 @@ const routes: RouteConfig[] = [
   { path: '/:tenant/integracion', element: <LegacyTenantAliasRedirect suffix="/integracion" />, roles: ['tenant_admin'] },
 
   // Generic Tenant Home (Dashboard/Landing) - Must be LAST among tenant routes to avoid swallowing others
-  ...withTenantPrefixes('/:tenant', { element: <TenantHomePage /> }),
+  ...withTenantPrefixes('/:tenant', { element: <TenantHomeRoute /> }),
   { path: '/:tenant', element: <LegacyTenantAliasRedirect /> }, // Legacy root tenant alias -> canonical
 
   // Global Routes
