@@ -456,6 +456,23 @@ export const listPublicSurveys = async (tenantSlug?: string): Promise<PublicSurv
       return response as SurveyPublic[];
     }
 
+    const record =
+      response && typeof response === 'object' && !Array.isArray(response)
+        ? (response as Record<string, unknown>)
+        : null;
+    if (record) {
+      const items = Array.isArray(record.items)
+        ? record.items
+        : Array.isArray(record.encuestas)
+          ? record.encuestas
+          : Array.isArray(record.data)
+            ? record.data
+            : null;
+      if (items) {
+        return items as SurveyPublic[];
+      }
+    }
+
     const raw = serializeUnknown(response);
     if (ENABLE_PUBLIC_SURVEY_LEGACY_FALLBACK && raw) {
       const recovered = await attemptRecoveryFromRawPayload(raw, undefined, tenantSlug);
