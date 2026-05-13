@@ -79,13 +79,39 @@ const getSource = (input: unknown): unknown => {
 
 const normalizeMarketProduct = (input: unknown): MarketProduct => {
   const record = asUnknownRecord(input);
+  const tenantRecord = asRecordOrNull(record.tenant);
+  const ownerRecord = asRecordOrNull(record.owner);
+  const catalogItemId = asStringIdOrNull(getFirst(record, [
+    'catalogo_item_id',
+    'catalog_item_id',
+    'catalogItemId',
+    'market_catalog_item_id',
+    'marketCatalogItemId',
+  ]));
+  const productId = asStringIdOrNull(getFirst(record, ['product_id', 'productId', 'producto_id']));
+  const itemId = asStringIdOrNull(getFirst(record, ['item_id', 'itemId']));
   const name =
     asStringOrNull(getFirst(record, ['name', 'nombre', 'nombre_producto'])) ??
     'Producto';
   return {
     id:
-      asStringIdOrNull(getFirst(record, ['id', 'product_id', 'sku', 'codigo'])) ??
+      catalogItemId ??
+      productId ??
+      itemId ??
+      asStringIdOrNull(getFirst(record, ['id', 'sku', 'codigo'])) ??
       `product-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+    catalogo_item_id: catalogItemId,
+    catalog_item_id: asStringIdOrNull(record.catalog_item_id) ?? catalogItemId,
+    product_id: productId,
+    item_id: itemId,
+    tenant_slug:
+      asStringOrNull(getFirst(record, ['tenant_slug', 'tenantSlug', 'slug_tenant'])) ??
+      asStringOrNull(tenantRecord?.['slug']),
+    tenant: asStringOrNull(getFirst(record, ['tenant', 'tenant_key'])),
+    owner_slug:
+      asStringOrNull(getFirst(record, ['owner_slug', 'ownerSlug'])) ??
+      asStringOrNull(ownerRecord?.['slug']),
+    tenant_id: asStringIdOrNull(getFirst(record, ['tenant_id', 'tenantId'])),
     name,
     description: asStringOrNull(getFirst(record, ['description', 'descripcion'])),
     descriptionShort: asStringOrNull(getFirst(record, ['descriptionShort', 'description_short', 'descripcion_corta'])),
@@ -396,11 +422,14 @@ export async function fetchMarketCart(tenantSlug: string): Promise<MarketCartRes
 }
 
 export async function fetchMarketCatalog(tenantSlug: string): Promise<MarketCatalogResponse> {
-  const response = await apiFetch<MarketCatalogResponse>(`/api/${tenantSlug}/productos`, {
+  const response = await apiFetch<MarketCatalogResponse>(
+    `/api/public/tenants/${encodeURIComponent(tenantSlug)}/catalog`,
+    {
     tenantSlug,
     suppressPanel401Redirect: true,
     omitChatSessionId: true,
-  });
+    },
+  );
   return normalizeMarketCatalogResponse(response);
 }
 
@@ -414,10 +443,39 @@ export async function searchCatalog(tenantSlug: string, query: string): Promise<
   return normalizeMarketCatalogResponse(response);
 }
 
+const normalizeAddToCartPayload = (payload: AddToCartPayload): AddToCartPayload => {
+  const itemId =
+    payload.catalogo_item_id ??
+    payload.catalog_item_id ??
+    payload.product_id ??
+    payload.productId;
+
+  const normalizedItemId =
+    typeof itemId === 'string'
+      ? itemId.trim()
+      : typeof itemId === 'number' && Number.isFinite(itemId)
+        ? itemId
+        : null;
+
+  return {
+    ...payload,
+    ...(normalizedItemId !== null
+      ? {
+          catalogo_item_id: normalizedItemId,
+          catalog_item_id: normalizedItemId,
+          productId: String(normalizedItemId),
+        }
+      : {}),
+    ...(payload.quantity !== undefined && payload.cantidad === undefined
+      ? { cantidad: payload.quantity }
+      : {}),
+  };
+};
+
 export async function addMarketItem(tenantSlug: string, payload: AddToCartPayload): Promise<MarketCartResponse> {
   const response = await apiFetch<MarketCartResponse>(`/api/${tenantSlug}/carrito`, {
     method: 'POST',
-    body: payload,
+    body: normalizeAddToCartPayload(payload),
     tenantSlug,
     omitChatSessionId: true,
     headers: { 'X-Persist-Session': 'true' }

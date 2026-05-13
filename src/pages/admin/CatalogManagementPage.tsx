@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Loader2, Search, Filter, Save, ExternalLink, ImageOff, UploadCloud, Edit2, Check, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useUser } from '@/hooks/useUser';
@@ -156,6 +156,12 @@ const CatalogManagementPage = () => {
                     </Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto sm:max-w-[800px]">
+                    <DialogHeader className="sr-only">
+                        <DialogTitle>Importar catalogo</DialogTitle>
+                        <DialogDescription>
+                            Sube un archivo para analizarlo y actualizar el catalogo del tenant.
+                        </DialogDescription>
+                    </DialogHeader>
                     <CatalogUploadWizard
                         tenantSlug={currentSlug || ''}
                         onFinish={() => { setUploadOpen(false); loadProducts(); }}

@@ -829,7 +829,7 @@ const ChatPanel = (props: ChatPanelProps) => {
           commerceActionLabels.portal,
           commerceSession?.portal?.cta_label,
           commerceSession?.portal?.label,
-          "Mi espacio",
+          "Mi actividad",
         ),
         icon: UserRound,
         onClick: onOpenPortal,

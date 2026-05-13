@@ -12,7 +12,7 @@ describe('mapSurveyError', () => {
       },
     });
 
-    expect(view.title).toContain('todavía no está publicada');
+    expect(view.title).toContain('todavia no esta publicada');
     expect(view.primaryCta).toBe('Ver encuestas activas');
     expect(view.actionHint).toBe('view_other_surveys');
     expect(view.requestId).toBe('req-1');
@@ -27,7 +27,7 @@ describe('mapSurveyError', () => {
       },
     });
 
-    expect(view.title).toContain('no está disponible');
+    expect(view.title).toContain('no esta disponible');
     expect(view.primaryCta).toBe('Ver otras encuestas');
     expect(view.actionHint).toBe('view_other_surveys');
     expect(view.requestId).toBe('req-2');
@@ -73,6 +73,20 @@ describe('mapSurveyError', () => {
     expect(view.retryable).toBe(false);
   });
 
+  it('does not expose server 404 copy in the public survey error', () => {
+    const view = mapSurveyError({
+      errorStatus: 404,
+      details: {
+        title: 'Not Found',
+        message: 'The requested URL was not found on the server.',
+        request_id: 'req-404',
+      },
+    });
+
+    expect(view.title).toBe('No encontramos esta encuesta');
+    expect(view.description).toBe('Revisa el enlace o explora otras encuestas activas.');
+  });
+
   it('keeps generic fallback action as retry when reason_code is missing', () => {
     const view = mapSurveyError({
       errorStatus: 403,
@@ -108,7 +122,7 @@ describe('mapSurveyError', () => {
       },
     });
 
-    expect(view.title).toContain('sesión social');
+    expect(view.title).toContain('sesion social');
     expect(view.primaryCta).toBe('Reconectar cuenta');
   });
 
@@ -122,6 +136,6 @@ describe('mapSurveyError', () => {
     });
 
     expect(view.title).toContain('identidad social');
-    expect(view.primaryCta).toBe('Reintentar conexión');
+    expect(view.primaryCta).toBe('Reintentar conexion');
   });
 });

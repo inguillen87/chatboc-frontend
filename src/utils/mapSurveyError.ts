@@ -36,6 +36,13 @@ const publicDescription = (value: string | null): string | null => {
   return value;
 };
 
+const publicTitle = (value: string | null): string | null => {
+  if (!value) return null;
+  if (TECHNICAL_MESSAGE_PATTERNS.some((pattern) => pattern.test(value))) return null;
+  if (/^not found$/i.test(value)) return null;
+  return value;
+};
+
 export const mapSurveyError = (
   params: {
     error?: unknown;
@@ -67,7 +74,7 @@ export const mapSurveyError = (
     (retryable ? 'retry' : null);
   const actionHint = payloadActionHint;
 
-  const payloadTitle = readString(details.title);
+  const payloadTitle = publicTitle(readString(details.title));
   const payloadDescription = publicDescription(readString(details.description) ?? readString(details.message));
   const payloadPrimary = readString(details.primary_cta) ?? readString(details.primaryCta);
   const payloadSecondary = readString(details.secondary_cta) ?? readString(details.secondaryCta);

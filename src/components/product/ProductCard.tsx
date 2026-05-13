@@ -10,6 +10,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 // Interfaz detallada del producto
 export interface ProductDetails {
   id: number | string;
+  catalogo_item_id?: number | string | null;
+  catalog_item_id?: number | string | null;
+  product_id?: number | string | null;
+  item_id?: number | string | null;
+  tenant_slug?: string | null;
+  tenant?: string | null;
+  owner_slug?: string | null;
+  tenant_id?: number | string | null;
   nombre: string;
   descripcion?: string | null;
   precio_unitario: number;
@@ -41,6 +49,7 @@ export interface ProductDetails {
   // Mirror Catalog fields
   checkout_type?: 'mercadolibre' | 'tiendanube' | 'chatboc' | null;
   external_url?: string | null;
+  source_payload?: Record<string, unknown>;
 }
 
 export interface AddToCartOptions {

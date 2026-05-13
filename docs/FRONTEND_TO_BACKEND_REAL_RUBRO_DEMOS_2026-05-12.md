@@ -307,3 +307,67 @@ Frontend necesita que backend publique:
 - `frontend_contract.render_as`.
 
 Si el rubro no tiene esta capacidad lista, no mostrarla como promesa interactiva.
+
+## Delta landing hero conversacional 2026-05-13
+
+Objetivo: la primera pantalla debe vender la capacidad real de Chatboc con una conversacion accionable, no con un logo grande ni una maqueta estatica.
+
+Estado frontend:
+
+- `HeroSection` consume demos conversacionales desde `GET /api/public/landing-experience`.
+- Fuentes soportadas: `hero.conversation_demo`, `hero.demo_conversation`, `hero.live_demo`, `hero.workflow_demo`, `hero.sample_conversations`, `hero.media.chat_preview`, `experience.conversation_demo` y `chat_seed.sample_conversations`.
+- Si backend manda solo `hero.media.chat_preview`, frontend muestra la conversacion real existente.
+- El resultado/accion se renderiza solo si backend manda `action`, `result`, `outcome`, `ticket`, `order` o `case`.
+- Los pasos operativos se renderizan solo si backend manda `hero.workflow_steps`, `hero.agent_steps`, `hero.steps` o `hero.process_steps`.
+- No se inventa ticket, pedido, lead, metrica ni paso operativo desde frontend.
+
+Contrato recomendado:
+
+```json
+{
+  "hero": {
+    "headline": "Converti conversaciones en casos, pedidos y decisiones operativas",
+    "subheadline": "Texto, audio, imagenes, archivos y ubicaciones entran por web o WhatsApp; Chatboc entiende, acciona y deja seguimiento.",
+    "conversation_title": "Demo real de atencion",
+    "conversation_subtitle": "Elegis un caso y ves que accion deja en el panel",
+    "conversation_demo": {
+      "contract_version": "landing.hero_conversation_demo.v1",
+      "flows": [
+        {
+          "id": "gobierno-reclamo-ubicacion",
+          "label": "Gobiernos",
+          "sector": "gobierno",
+          "user_message": "Te mando foto y ubicacion de un semaforo caido.",
+          "agent_message": "Recibi la evidencia, clasifique el reclamo, marque la zona y lo deje listo para seguimiento.",
+          "inputs": [
+            { "kind": "image", "label": "Foto" },
+            { "kind": "location", "label": "Ubicacion" }
+          ],
+          "action": {
+            "label": "Reclamo creado",
+            "detail": "Ticket con categoria, prioridad, zona, evidencia y equipo sugerido.",
+            "status": "Listo para operar"
+          },
+          "highlights": ["mapa operativo", "asignacion sugerida", "seguimiento ciudadano"],
+          "cta": { "label": "Probar reclamo real", "href": "/demo?sector=gobierno" }
+        }
+      ]
+    },
+    "workflow_steps": ["Mensaje entendido", "Datos accionables", "Caso visible en panel"]
+  }
+}
+```
+
+Flows minimos para vender mejor:
+
+- Gobierno/municipio: reclamo con foto, audio y ubicacion; ticket real; mapa; prioridad; empleado sugerido; seguimiento por codigo.
+- PyME: consulta con audio/foto; producto detectado; carrito invitado; pedido o lead real; checkout si esta habilitado.
+- Colegio: certificado, inasistencia o admision; adjunto procesado; caso escolar real; derivacion a secretaria/equipo.
+- Encuestas/votaciones: comentario o voto; resultados en vivo; segmentos; mapa si hay ubicacion; resumen IA.
+
+Reglas:
+
+- Si una accion no crea nada trazable, no publicarla en `conversation_demo`.
+- Si el backend no manda `action`, frontend no muestra resultado.
+- Si no hay `workflow_steps`, frontend no muestra pasos.
+- No usar textos tecnicos visibles para cliente.

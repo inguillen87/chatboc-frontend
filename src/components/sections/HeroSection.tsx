@@ -1,6 +1,23 @@
 import React, { useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Bot, CheckCircle2, GraduationCap, Landmark, Store, Vote, Zap } from "lucide-react";
+import {
+  ArrowRight,
+  Bot,
+  CheckCircle2,
+  ClipboardCheck,
+  GraduationCap,
+  Image as ImageIcon,
+  Landmark,
+  MapPin,
+  Mic,
+  PackageCheck,
+  Paperclip,
+  ShoppingCart,
+  Store,
+  TicketCheck,
+  UsersRound,
+  Zap,
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import type { LandingExperience, LandingRecord } from "@/api/landingExperience";
@@ -62,6 +79,23 @@ const asArray = (value: unknown): unknown[] => {
   return [];
 };
 
+const asDemoArray = (value: unknown): unknown[] => {
+  if (Array.isArray(value)) return value;
+  if (isRecord(value)) {
+    const items = first(value, [
+      "flows",
+      "items",
+      "examples",
+      "conversations",
+      "sample_conversations",
+      "scenarios",
+      "steps",
+    ]);
+    if (Array.isArray(items)) return items;
+  }
+  return [];
+};
+
 const readItemLabel = (value: unknown, defaultValue = "") => {
   if (typeof value === "string" && value.trim()) return cleanLandingCopy(value.trim());
   if (typeof value === "number" && Number.isFinite(value)) return String(value);
@@ -96,6 +130,12 @@ const normalizeMetrics = (source: unknown) => {
     .filter(Boolean) as typeof defaultDashboardRows;
   return items.length ? items.slice(0, 3) : defaultDashboardRows;
 };
+
+const normalizeWorkflowSteps = (source: unknown) =>
+  asArray(source)
+    .map((item) => readItemLabel(item))
+    .filter(Boolean)
+    .slice(0, 4);
 
 const normalizeCta = (
   source: unknown,
@@ -137,6 +177,205 @@ const isBrandOnlyHeadline = (value: string) => {
   return !normalized || normalized === "chatboc" || normalized === "chatbocar";
 };
 
+const inferInputKind = (value: string) => {
+  const normalized = value.toLowerCase();
+  if (normalized.includes("foto") || normalized.includes("image") || normalized.includes("imagen")) return "image";
+  if (normalized.includes("ubic") || normalized.includes("gps") || normalized.includes("map")) return "location";
+  if (normalized.includes("audio") || normalized.includes("voz") || normalized.includes("voice")) return "audio";
+  if (normalized.includes("archivo") || normalized.includes("adjunto") || normalized.includes("pdf") || normalized.includes("file")) return "file";
+  return "text";
+};
+
+type ConversationInput = { kind: string; label: string };
+
+type ConversationAction = {
+  label: string;
+  detail: string;
+  status: string;
+  ctaLabel: string;
+  ctaTarget: string;
+};
+
+type ConversationFlow = {
+  id: string;
+  label: string;
+  sector: string;
+  message: string;
+  response: string;
+  inputs: ConversationInput[];
+  action?: ConversationAction;
+  highlights: string[];
+  tone: string;
+};
+
+const normalizeDemoInputs = (source: unknown, fallback: ConversationInput[] = []) => {
+  const items = asDemoArray(source);
+  if (!items.length) return fallback;
+
+  const inputs = items
+    .map((item) => {
+      if (typeof item === "string" && item.trim()) {
+        const label = cleanLandingCopy(item.trim());
+        return { kind: inferInputKind(label), label };
+      }
+      if (!isRecord(item)) return null;
+      const label = readText(item, ["label", "title", "name", "text", "mode"], "Entrada");
+      const rawKind = readRawText(item, ["kind", "type", "mode", "id"], label);
+      return { kind: inferInputKind(rawKind), label };
+    })
+    .filter(Boolean) as ConversationInput[];
+
+  return inputs.length ? inputs.slice(0, 4) : fallback;
+};
+
+const normalizeAction = (source: unknown, ctaSource?: unknown): ConversationAction | undefined => {
+  const action = isRecord(source) ? source : {};
+  const cta = isRecord(ctaSource) ? ctaSource : {};
+  const label = readText(action, ["label", "title", "name", "status_label"]);
+  const detail = readText(action, ["detail", "description", "summary", "copy"]);
+  const status = readText(action, ["status", "state", "badge"]);
+
+  if (!label && !detail && !status) return undefined;
+
+  return {
+    label,
+    detail,
+    status,
+    ctaLabel: readText(cta, ["label", "title", "text"]),
+    ctaTarget: readRawText(cta, ["href", "to", "route", "url"]),
+  };
+};
+
+const normalizeConversationFlows = (source: unknown): ConversationFlow[] => {
+  const items = asDemoArray(source);
+  if (!items.length) return [];
+
+  const sourceRecord = isRecord(source) ? source : undefined;
+  const threadMessages = items.filter(
+    (item): item is AnyRecord =>
+      isRecord(item) &&
+      typeof first(item, ["text", "message", "content", "copy"]) === "string" &&
+      typeof first(item, ["role", "author", "from"]) === "string",
+  );
+
+  if (threadMessages.length === items.length) {
+    const firstUser = threadMessages.find((item) => {
+      const role = readRawText(item, ["role", "author", "from"]).toLowerCase();
+      return role.includes("user") || role.includes("cliente") || role.includes("vecino") || role.includes("familia");
+    });
+    const firstAssistant = threadMessages.find((item) => {
+      const role = readRawText(item, ["role", "author", "from"]).toLowerCase();
+      return role.includes("assistant") || role.includes("agent") || role.includes("bot") || role.includes("chatboc");
+    });
+    const threadCopy = threadMessages.map((item) => readText(item, ["text", "message", "content", "copy"])).join(" ");
+    const action = normalizeAction(
+      first(sourceRecord, ["action", "result", "outcome", "ticket", "order", "case"]),
+      first(sourceRecord, ["cta", "primary_cta", "demo_cta"]),
+    );
+    const highlights = asArray(first(sourceRecord, ["highlights", "chips", "outcomes", "tags"]))
+      .map((chip) => readItemLabel(chip))
+      .filter(Boolean)
+      .slice(0, 3);
+
+    return [
+      {
+        id: readRawText(sourceRecord, ["id", "key", "slug"], "conversation"),
+        label: readText(sourceRecord, ["label", "title", "name", "tab_label"], "Conversacion"),
+        sector: readRawText(sourceRecord, ["sector", "vertical", "mode", "kind"], ""),
+        message: readText(firstUser, ["text", "message", "content", "copy"]),
+        response: readText(firstAssistant, ["text", "message", "content", "copy"]),
+        inputs: normalizeDemoInputs(first(sourceRecord, ["inputs", "media", "input_modes", "attachments", "capabilities"]), [
+          ...(threadCopy.toLowerCase().includes("foto") || threadCopy.toLowerCase().includes("imagen")
+            ? [{ kind: "image", label: "Imagen" }]
+            : []),
+          ...(threadCopy.toLowerCase().includes("ubicaci")
+            ? [{ kind: "location", label: "Ubicacion" }]
+            : []),
+          ...(threadCopy.toLowerCase().includes("audio") || threadCopy.toLowerCase().includes("voz")
+            ? [{ kind: "audio", label: "Audio" }]
+            : []),
+        ]),
+        action,
+        highlights,
+        tone: readText(sourceRecord, ["tone", "color_class"], "bg-primary"),
+      },
+    ];
+  }
+
+  const flows = items
+    .map((item, index) => {
+      if (!isRecord(item)) return null;
+      const action = isRecord(first(item, ["action", "result", "outcome", "ticket", "order", "case"]))
+        ? (first(item, ["action", "result", "outcome", "ticket", "order", "case"]) as AnyRecord)
+        : {};
+      const cta = isRecord(first(item, ["cta", "primary_cta", "demo_cta"]))
+        ? (first(item, ["cta", "primary_cta", "demo_cta"]) as AnyRecord)
+        : {};
+      const label = readText(item, ["label", "title", "name", "sector_label", "tab_label"], `Demo ${index + 1}`);
+      const sector = readRawText(item, ["sector", "vertical", "mode", "kind"], "");
+      const id = readRawText(item, ["id", "key", "slug"], sector || label || `demo-${index + 1}`)
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]/g, "-");
+      const message = readText(item, ["user_message", "message", "input", "prompt", "example", "question"]);
+      const response = readText(item, ["agent_message", "assistant_message", "response", "reply", "bot_message", "answer"]);
+
+      if (!message || !response) return null;
+
+      return {
+        id: id || `demo-${index + 1}`,
+        label,
+        sector,
+        message,
+        response,
+        inputs: normalizeDemoInputs(first(item, ["inputs", "media", "input_modes", "attachments", "capabilities"])),
+        action: normalizeAction(action, cta),
+        highlights: (() => {
+          const chips = asArray(first(item, ["highlights", "chips", "outcomes", "tags"]))
+            .map((chip) => readItemLabel(chip))
+            .filter(Boolean)
+            .slice(0, 3);
+          return chips;
+        })(),
+        tone: readText(item, ["tone", "color_class"], "bg-primary"),
+      };
+    })
+    .filter(Boolean) as ConversationFlow[];
+
+  return flows.length ? flows.slice(0, 4) : [];
+};
+
+const getInputIcon = (kind: string) => {
+  switch (inferInputKind(kind)) {
+    case "image":
+      return ImageIcon;
+    case "location":
+      return MapPin;
+    case "audio":
+      return Mic;
+    case "file":
+      return Paperclip;
+    default:
+      return Bot;
+  }
+};
+
+const getFlowIcon = (flow: { sector: string; label: string; id: string }) => {
+  const key = `${flow.sector} ${flow.label} ${flow.id}`.toLowerCase();
+  if (key.includes("gob") || key.includes("muni")) return Landmark;
+  if (key.includes("educ") || key.includes("coleg")) return GraduationCap;
+  if (key.includes("pyme") || key.includes("empresa") || key.includes("venta")) return Store;
+  return Bot;
+};
+
+const getActionIcon = (value: string) => {
+  const key = value.toLowerCase();
+  if (key.includes("pedido") || key.includes("order")) return PackageCheck;
+  if (key.includes("carrito") || key.includes("venta")) return ShoppingCart;
+  if (key.includes("reclamo") || key.includes("ticket")) return TicketCheck;
+  if (key.includes("caso") || key.includes("familia")) return UsersRound;
+  return ClipboardCheck;
+};
+
 const HeroSection = ({ experience }: HeroSectionProps) => {
   const navigate = useNavigate();
 
@@ -162,6 +401,7 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
   const dashboardRows = normalizeMetrics(
     first(hero, ["metrics", "stats", "dashboard_rows"]) ?? first(hero, ["preview", "metrics"]),
   );
+  const workflowSteps = normalizeWorkflowSteps(first(hero, ["workflow_steps", "agent_steps", "steps", "process_steps"]));
   const primaryCta = normalizeCta(first(hero, ["primary_cta", "primaryCta"]) ?? asArray(experience?.ctas)[0], {
     label: "Ver demo por rubro",
     target: "/demo",
@@ -176,6 +416,39 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
     ["preview_copy", "dashboard_description"],
     "Vista compacta para equipos que atienden, venden y resuelven.",
   );
+  const conversationFlows = useMemo(
+    () => {
+      const experienceRecord = isRecord(experience) ? (experience as AnyRecord) : undefined;
+      const heroMedia = isRecord(first(hero, ["media"])) ? (first(hero, ["media"]) as AnyRecord) : undefined;
+      return normalizeConversationFlows(
+        first(hero, ["conversation_demo", "demo_conversation", "live_demo", "workflow_demo", "sample_conversations"]) ??
+          first(heroMedia, ["conversation_demo", "demo_conversation", "live_demo", "workflow_demo", "chat_preview", "sample_conversations"]) ??
+          first(experienceRecord, ["conversation_demo", "demo_conversation", "live_demo", "sample_conversations"]) ??
+          first(first(experienceRecord, ["chat_seed", "demo_seed"]), ["sample_conversations", "conversation_demo"]),
+      );
+    },
+    [experience, hero],
+  );
+  const [activeFlowId, setActiveFlowId] = React.useState(conversationFlows[0]?.id ?? "");
+
+  React.useEffect(() => {
+    if (!conversationFlows.some((flow) => flow.id === activeFlowId)) {
+      setActiveFlowId(conversationFlows[0]?.id ?? "");
+    }
+  }, [activeFlowId, conversationFlows]);
+
+  const activeFlow = conversationFlows.find((flow) => flow.id === activeFlowId) ?? conversationFlows[0];
+  const activeFlowIndex = Math.max(
+    conversationFlows.findIndex((flow) => flow.id === activeFlow?.id),
+    0,
+  );
+  const activeAction = activeFlow?.action;
+  const ActiveFlowIcon = activeFlow ? getFlowIcon(activeFlow) : Bot;
+  const ActiveActionIcon = activeAction ? getActionIcon(activeAction.label) : ClipboardCheck;
+  const heroPrimaryCta = {
+    label: activeAction?.ctaLabel || primaryCta.label,
+    target: activeAction?.ctaTarget || primaryCta.target,
+  };
 
   const accentStyle = {
     ["--chatboc-hero-accent" as string]: readText(colors, ["primary", "accent"], ""),
@@ -207,10 +480,10 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
               <Button
                 size="lg"
                 className="chatboc-cta-primary h-12 w-full rounded-[8px] px-6 text-base font-semibold sm:w-auto"
-                onClick={() => navigateTo(primaryCta.target)}
+                onClick={() => navigateTo(heroPrimaryCta.target)}
               >
                 <Zap className="mr-2 h-5 w-5" />
-                {primaryCta.label}
+                {heroPrimaryCta.label}
               </Button>
               <Button
                 variant="outline"
@@ -249,66 +522,159 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
                 </div>
               </div>
 
-              <div className="grid gap-5 p-4 md:p-5 xl:grid-cols-[0.92fr_1.08fr]">
-                <div className="relative min-h-[360px] overflow-hidden rounded-[16px] border border-border/70 bg-[radial-gradient(circle_at_50%_22%,rgba(42,105,255,0.28),transparent_34%),linear-gradient(180deg,rgba(13,53,195,0.12),rgba(16,185,129,0.08))] p-4">
-                  <div className="absolute left-4 top-4 rounded-[8px] border border-border/70 bg-background/80 px-3 py-2 text-xs font-semibold text-foreground shadow-sm">
-                    Mensaje entra
+              <div className="grid gap-5 p-4 md:p-5 xl:grid-cols-[1.02fr_0.98fr]">
+                <div className="relative overflow-hidden rounded-[16px] border border-border/70 bg-background/80 p-4 shadow-sm">
+                  <div className="absolute inset-x-0 top-0 h-24 bg-[linear-gradient(90deg,hsl(var(--primary)/0.18),hsl(var(--success)/0.12),transparent)]" />
+                  <div className="relative flex items-center gap-3">
+                    <img
+                      src="/chatboc_frontend_pack/branding/chatboc/avatar/chatboc-orbit-avatar.svg"
+                      alt=""
+                      aria-hidden="true"
+                      className="h-11 w-11 rounded-full border border-primary/20 bg-background shadow-sm"
+                    />
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-foreground">
+                        {readText(hero, ["conversation_title", "demo_title"], previewTitle)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {readText(hero, ["conversation_subtitle", "demo_subtitle"], previewCopy)}
+                      </p>
+                    </div>
+                    <div className="ml-auto flex h-9 w-9 items-center justify-center rounded-[8px] bg-primary/10 text-primary">
+                      <ActiveFlowIcon className="h-5 w-5" />
+                    </div>
                   </div>
-                  <div className="absolute right-4 top-16 rounded-[8px] border border-primary/30 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary shadow-sm">
-                    IA entiende
+
+                  {conversationFlows.length > 1 && (
+                    <div className="relative mt-4 flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Demo">
+                      {conversationFlows.map((flow) => {
+                        const FlowIcon = getFlowIcon(flow);
+                        const isActive = flow.id === activeFlow?.id;
+                        return (
+                          <button
+                            key={flow.id}
+                            type="button"
+                            className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-[8px] border px-3 py-2 text-xs font-semibold transition-colors ${
+                              isActive
+                                ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                                : "border-border/70 bg-card/70 text-muted-foreground hover:border-primary/40 hover:text-foreground"
+                            }`}
+                            onClick={() => setActiveFlowId(flow.id)}
+                          >
+                            <FlowIcon className="h-4 w-4" />
+                            {flow.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <div className="relative mt-5 space-y-4">
+                    <div className="flex justify-end">
+                      <div className="max-w-[86%] rounded-[14px] rounded-tr-[4px] bg-primary px-4 py-3 text-sm leading-6 text-primary-foreground shadow-[0_18px_36px_hsl(var(--primary)/0.20)]">
+                        {activeFlow?.message}
+                      </div>
+                    </div>
+
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {activeFlow?.inputs.map((input) => {
+                        const InputIcon = getInputIcon(input.kind);
+                        return (
+                          <div
+                            key={`${activeFlow.id}-${input.kind}-${input.label}`}
+                            className="flex items-center gap-2 rounded-[8px] border border-border/70 bg-muted/60 px-3 py-2 text-xs font-semibold text-muted-foreground"
+                          >
+                            <InputIcon className="h-4 w-4 text-primary" />
+                            {input.label}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-primary/20 bg-primary/10 text-primary">
+                        <Bot className="h-4 w-4" />
+                      </div>
+                      <div className="max-w-[88%] rounded-[14px] rounded-tl-[4px] border border-border/70 bg-card px-4 py-3 text-sm leading-6 text-card-foreground shadow-sm">
+                        {activeFlow?.response}
+                      </div>
+                    </div>
                   </div>
-                  <div className="absolute bottom-5 left-4 rounded-[8px] border border-success/30 bg-success/10 px-3 py-2 text-xs font-semibold text-success shadow-sm">
-                    Accion lista
-                  </div>
-                  <img
-                    src="/chatboc_frontend_pack/branding/chatboc/avatar/chatboc-orbit-avatar.svg"
-                    alt=""
-                    aria-hidden="true"
-                    className="chatboc-hero-avatar absolute left-1/2 top-1/2 h-[250px] w-[250px] -translate-x-1/2 -translate-y-1/2 drop-shadow-[0_28px_55px_rgba(13,53,195,0.28)] md:h-[300px] md:w-[300px]"
-                  />
                 </div>
 
-                <div className="space-y-3">
-                  <div className="rounded-[14px] border border-border/70 bg-background/80 p-4">
-                    <div className="mb-3 flex items-center gap-3 border-b border-border/70 pb-3">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-[8px] bg-primary/10 text-primary">
-                        <Bot className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold">{readText(hero, ["agent_title"], "Agente IA operativo")}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {readText(hero, ["agent_subtitle"], "Responde, deriva y registra contexto")}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="space-y-3 text-sm">
-                      <div className="max-w-[88%] rounded-[8px] bg-muted px-3 py-2 text-muted-foreground">
-                        {readText(hero, ["sample_user_message"], "Necesito resolver una consulta y adjuntar documentacion.")}
-                      </div>
-                      <div className="chatboc-message-glow ml-auto max-w-[90%] rounded-[8px] bg-primary px-3 py-2 text-primary-foreground">
-                        {readText(hero, ["sample_agent_message"], "Entendido. Lo convierto en accion, aviso al equipo y dejo seguimiento para la persona.")}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {[
-                      { icon: Store, label: "Pymes", text: "catalogo, carrito y pedidos" },
-                      { icon: Landmark, label: "Gobiernos", text: "reclamos, mapas y participacion" },
-                      { icon: GraduationCap, label: "Colegios", text: "familias, certificados y casos" },
-                      { icon: Vote, label: "Encuestas", text: "sondeos, votos y comentarios" },
-                    ].map((item) => {
-                      const Icon = item.icon;
-                      return (
-                        <div key={item.label} className="rounded-[12px] border border-border/70 bg-background/80 p-3">
-                          <Icon className="mb-2 h-4 w-4 text-primary" />
-                          <p className="text-sm font-semibold text-foreground">{item.label}</p>
-                          <p className="mt-1 text-xs leading-5 text-muted-foreground">{item.text}</p>
+                <div className="space-y-4">
+                  {activeAction && (
+                    <div className="rounded-[16px] border border-border/70 bg-background/80 p-4 shadow-sm">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-[8px] bg-primary/10 text-primary">
+                            <ActiveActionIcon className="h-5 w-5" />
+                          </div>
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-normal text-muted-foreground">
+                              {readText(hero, ["action_section_label", "result_label"], "Resultado")}
+                            </p>
+                            <p className="text-lg font-bold text-foreground">{activeAction.label}</p>
+                          </div>
                         </div>
-                      );
-                    })}
-                  </div>
+                        {activeAction.status && (
+                          <span className="rounded-[8px] border border-success/20 bg-success/10 px-2.5 py-1 text-[11px] font-semibold text-success">
+                            {activeAction.status}
+                          </span>
+                        )}
+                      </div>
+
+                      {activeAction.detail && (
+                        <p className="mt-4 text-sm leading-6 text-muted-foreground">{activeAction.detail}</p>
+                      )}
+
+                      {Boolean(activeFlow?.highlights.length) && (
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          {activeFlow?.highlights.map((chip) => (
+                            <span
+                              key={`${activeFlow.id}-${chip}`}
+                              className="rounded-[8px] border border-border/70 bg-muted/60 px-2.5 py-1 text-[11px] font-semibold text-foreground"
+                            >
+                              {chip}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {workflowSteps.length > 0 && (
+                    <div className="rounded-[16px] border border-border/70 bg-background/80 p-4 shadow-sm">
+                      <div className="mb-4 flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-foreground">
+                            {readText(hero, ["agent_title"], "Agente IA operativo")}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {readText(hero, ["agent_subtitle"], "Responde, deriva y registra contexto")}
+                          </p>
+                        </div>
+                        <span className={`h-2.5 w-2.5 rounded-full ${activeFlow?.tone || "bg-primary"}`} />
+                      </div>
+
+                      <div className="space-y-3">
+                        {workflowSteps.map((step, index) => (
+                          <div key={step} className="flex items-center gap-3 rounded-[8px] border border-border/70 bg-muted/40 px-3 py-2">
+                            <span
+                              className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold ${
+                                index <= activeFlowIndex
+                                  ? "bg-primary text-primary-foreground"
+                                  : "bg-muted text-muted-foreground"
+                              }`}
+                            >
+                              {index + 1}
+                            </span>
+                            <span className="text-xs font-semibold text-foreground">{step}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 

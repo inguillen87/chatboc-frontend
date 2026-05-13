@@ -2,6 +2,14 @@ type ProductModalidad = 'venta' | 'puntos' | 'donacion' | string | null;
 
 type ProductDetails = {
   id: number | string;
+  catalogo_item_id?: number | string | null;
+  catalog_item_id?: number | string | null;
+  product_id?: number | string | null;
+  item_id?: number | string | null;
+  tenant_slug?: string | null;
+  tenant?: string | null;
+  owner_slug?: string | null;
+  tenant_id?: number | string | null;
   nombre: string;
   descripcion?: string | null;
   precio_unitario: number;
@@ -32,6 +40,7 @@ type ProductDetails = {
   disponible?: boolean;
   checkout_type?: 'mercadolibre' | 'tiendanube' | 'chatboc' | null;
   external_url?: string | null;
+  source_payload?: Record<string, unknown>;
 };
 
 export type CartEntryTuple = [productName: string, quantity: number];
@@ -57,6 +66,32 @@ const toNullableNumber = (value: unknown): number | null => {
   }
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : null;
+};
+
+const toNullableString = (value: unknown): string | null => {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed ? trimmed : null;
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return null;
+};
+
+const toNullableId = (value: unknown): number | string | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed ? trimmed : null;
+  }
+  return null;
+};
+
+const getFirstValue = (record: Record<string, unknown>, keys: string[]): unknown => {
+  for (const key of keys) {
+    const value = record[key];
+    if (value !== undefined && value !== null && value !== '') return value;
+  }
+  return null;
 };
 
 const parseFlexiblePrice = (value: unknown): { unitPrice: number | null; rawLabel: string | null } => {
@@ -164,9 +199,36 @@ const normalizeProductRecord = (raw: Record<string, unknown>, index: number): Pr
   const rawTalles = raw.talles ?? raw.sizes;
   const rawColores = raw.colores ?? raw.colors;
   const flexiblePrice = parseFlexiblePrice((raw as Record<string, any>).precio_flexible ?? (raw as Record<string, any>).precioFlexible ?? (raw as Record<string, any>).flexible_price);
+  const tenantRecord = isRecord(raw.tenant) ? raw.tenant : null;
+  const ownerRecord = isRecord(raw.owner) ? raw.owner : null;
+  const catalogItemId = toNullableId(getFirstValue(raw, [
+    'catalogo_item_id',
+    'catalog_item_id',
+    'catalogItemId',
+    'market_catalog_item_id',
+    'marketCatalogItemId',
+  ]));
+  const productId = toNullableId(getFirstValue(raw, ['product_id', 'productId', 'producto_id']));
+  const itemId = toNullableId(getFirstValue(raw, ['item_id', 'itemId']));
+  const rawId = toNullableId(getFirstValue(raw, ['id', 'sku', 'codigo']));
+  const normalizedId = catalogItemId ?? productId ?? itemId ?? rawId ?? `product-${index}`;
 
   const base: ProductDetails = {
-    id: raw.id ?? nombre ?? index,
+    id: normalizedId,
+    catalogo_item_id: catalogItemId,
+    catalog_item_id: toNullableId(raw.catalog_item_id) ?? catalogItemId,
+    product_id: productId,
+    item_id: itemId,
+    tenant_slug:
+      toNullableString(getFirstValue(raw, ['tenant_slug', 'tenantSlug', 'slug_tenant'])) ??
+      toNullableString(tenantRecord?.['slug']) ??
+      null,
+    tenant: toNullableString(getFirstValue(raw, ['tenant', 'tenant_key'])) ?? null,
+    owner_slug:
+      toNullableString(getFirstValue(raw, ['owner_slug', 'ownerSlug'])) ??
+      toNullableString(ownerRecord?.['slug']) ??
+      null,
+    tenant_id: toNullableId(getFirstValue(raw, ['tenant_id', 'tenantId'])),
     nombre,
     descripcion,
     presentacion: presentacion ?? undefined,
@@ -220,6 +282,7 @@ const normalizeProductRecord = (raw: Record<string, unknown>, index: number): Pr
       : typeof raw.externalUrl === 'string'
         ? raw.externalUrl
         : null,
+    source_payload: raw,
   };
 
   return sanitizeProductPricing(base);

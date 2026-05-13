@@ -4,17 +4,18 @@ import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
-import { TenantShell } from '@/components/tenant/TenantShell';
 import { listPublicSurveys, type PublicSurveyListResult } from '@/api/encuestas';
-import { useTenant } from '@/context/TenantContext';
-import { queryKeys } from '@/lib/queryKeys';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { getTenantPublicNavigation } from '@/api/tenant';
+import { ViewState } from '@/components/app-shell/ViewState';
+import { TenantShell } from '@/components/tenant/TenantShell';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { getErrorMessage } from '@/utils/api';
-import { getAutoSeedCantidad } from '@/utils/surveyDemoPriority';
-import { ViewState } from '@/components/app-shell/ViewState';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useTenant } from '@/context/TenantContext';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
+import { queryKeys } from '@/lib/queryKeys';
+import { getErrorMessage } from '@/utils/api';
+import type { TenantPublicNavigationItem } from '@/types/tenant';
 
 const formatDate = (value?: string | null) => {
   if (!value) return null;
@@ -29,7 +30,7 @@ const getSurveyStatus = (inicio?: string | null, fin?: string | null) => {
   const end = fin ? new Date(fin) : null;
 
   if (start && !Number.isNaN(start.getTime()) && now < start) {
-    return { label: 'Próximamente', variant: 'secondary' as const };
+    return { label: 'Proximamente', variant: 'secondary' as const };
   }
 
   if (end && !Number.isNaN(end.getTime()) && now > end) {
@@ -39,28 +40,66 @@ const getSurveyStatus = (inicio?: string | null, fin?: string | null) => {
   return { label: 'En curso', variant: 'default' as const };
 };
 
+const normalizeText = (value: unknown) =>
+  String(value ?? '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+const isSurveyNavItem = (item: TenantPublicNavigationItem) => {
+  const text = normalizeText([item.id, item.label, item.route, item.href, item.endpoint].filter(Boolean).join(' '));
+  return ['encuesta', 'votacion', 'sondeo', 'survey', 'poll'].some((token) => text.includes(token));
+};
+
+const hasEndpoint = (item?: TenantPublicNavigationItem) =>
+  typeof item?.endpoint === 'string' && item.endpoint.trim().length > 0;
+
+const publicErrorMessage = (error: unknown) => {
+  const message = getErrorMessage(error);
+  if (/<[a-z][\s\S]*>/i.test(message)) {
+    return 'La informacion no esta disponible en este momento.';
+  }
+  return message;
+};
+
 const TenantSurveyListPage = () => {
   const params = useParams<{ tenant: string }>();
   const { tenant, currentSlug } = useTenant();
+  const { isOnline } = useNetworkStatus();
 
   const slug = useMemo(() => {
     const fromContext = tenant?.slug ?? currentSlug;
-    if (fromContext && fromContext.trim()) return fromContext.trim();
-    if (params.tenant && params.tenant.trim()) return params.tenant.trim();
+    if (fromContext?.trim()) return fromContext.trim();
+    if (params.tenant?.trim()) return params.tenant.trim();
     return '';
   }, [currentSlug, params.tenant, tenant?.slug]);
 
-  const basePath = slug ? `/${encodeURIComponent(slug)}` : null;
+  const basePath = slug ? `/t/${encodeURIComponent(slug)}` : null;
+
+  const navigationQuery = useQuery({
+    queryKey: ['tenant-public-navigation-surveys', slug],
+    enabled: Boolean(slug),
+    queryFn: () => getTenantPublicNavigation(slug),
+    staleTime: 1000 * 60 * 5,
+    retry: 1,
+  });
+
+  const surveyNavItem = useMemo(
+    () => navigationQuery.data?.items?.filter((item) => item.visible !== false && item.enabled !== false).find(isSurveyNavItem),
+    [navigationQuery.data?.items],
+  );
+
+  const canLoadSurveys = Boolean(slug && surveyNavItem && hasEndpoint(surveyNavItem));
 
   const surveysQuery = useQuery<PublicSurveyListResult>({
     queryKey: queryKeys.tenant.surveys(slug, 'full'),
-    enabled: Boolean(slug),
+    enabled: canLoadSurveys,
     queryFn: () => listPublicSurveys(slug),
     staleTime: 1000 * 60 * 2,
   });
 
   const surveys = useMemo(() => (Array.isArray(surveysQuery.data) ? surveysQuery.data : []), [surveysQuery.data]);
-  const { isOnline } = useNetworkStatus();
   const isStale = surveysQuery.isSuccess && surveysQuery.isFetching;
 
   return (
@@ -68,25 +107,39 @@ const TenantSurveyListPage = () => {
       {!slug ? (
         <Card>
           <CardHeader>
-            <CardTitle>Seleccioná un espacio</CardTitle>
+            <CardTitle>Selecciona un espacio</CardTitle>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground">
-            Elegí un espacio para ver todas las encuestas públicas disponibles.
+            Elegi un espacio para ver sus instancias publicas disponibles.
           </CardContent>
         </Card>
+      ) : navigationQuery.isLoading ? (
+        <ViewState status="loading" title="Cargando participacion" />
+      ) : !surveyNavItem ? (
+        <ViewState
+          status="empty"
+          title="Participacion no publicada"
+          description="Este espacio no tiene una instancia publica de participacion habilitada."
+        />
+      ) : !hasEndpoint(surveyNavItem) ? (
+        <ViewState
+          status="empty"
+          title="Participacion no disponible"
+          description="La organizacion todavia no publico el listado para esta seccion."
+        />
       ) : !isOnline && !surveysQuery.data ? (
         <ViewState
           status="offline"
-          title="Sin conexión para consultar encuestas"
-          description="Revisá tu conexión y reintentá."
+          title="Sin conexion para consultar participacion"
+          description="Revisa tu conexion y reintenta."
         />
       ) : surveysQuery.isLoading ? (
-        <ViewState status="loading" title="Cargando encuestas" />
+        <ViewState status="loading" title="Cargando participacion" />
       ) : surveysQuery.error ? (
         <ViewState
           status="error"
-          title="No pudimos cargar las encuestas"
-          description={getErrorMessage(surveysQuery.error)}
+          title="No pudimos cargar la participacion"
+          description={publicErrorMessage(surveysQuery.error)}
         />
       ) : surveys.length ? (
         <div className="space-y-5">
@@ -100,9 +153,7 @@ const TenantSurveyListPage = () => {
                     {survey.es_votacion_envivo ? <Badge variant="default">En vivo</Badge> : null}
                     {survey.mostrar_resultados_envivo ? <Badge variant="secondary">Resultados en tiempo real</Badge> : null}
                     {survey.permitir_comentarios ? <Badge variant="outline">Comentarios abiertos</Badge> : null}
-                    {formatDate(survey.fin_at) ? (
-                      <Badge variant="outline">Cierra: {formatDate(survey.fin_at)}</Badge>
-                    ) : null}
+                    {formatDate(survey.fin_at) ? <Badge variant="outline">Cierra: {formatDate(survey.fin_at)}</Badge> : null}
                   </div>
                   <CardTitle className="text-2xl leading-tight">{survey.titulo}</CardTitle>
                 </CardHeader>
@@ -110,15 +161,6 @@ const TenantSurveyListPage = () => {
                   {survey.descripcion ? (
                     <p className="text-sm leading-relaxed text-muted-foreground">{survey.descripcion}</p>
                   ) : null}
-                  {(() => {
-                    const cantidad = getAutoSeedCantidad(survey);
-                    if (!cantidad) return null;
-                    return (
-                      <p className="text-xs text-muted-foreground">
-                        Datos demo precargados: {cantidad} respuestas iniciales.
-                      </p>
-                    );
-                  })()}
                   {basePath ? (
                     <Button asChild>
                       <a href={`${basePath}/encuestas/${survey.slug}`}>Responder encuesta</a>
@@ -132,8 +174,8 @@ const TenantSurveyListPage = () => {
       ) : (
         <ViewState
           status={isStale ? 'stale' : 'empty'}
-          title={isStale ? 'Actualizando encuestas' : 'No hay encuestas disponibles'}
-          description={isStale ? 'Se muestran datos previos mientras se actualizan las encuestas.' : 'Este espacio todavía no publicó encuestas públicas activas.'}
+          title={isStale ? 'Actualizando participacion' : 'No hay instancias activas'}
+          description={isStale ? 'Se muestran datos previos mientras se actualizan.' : 'Este espacio todavia no publico instancias activas.'}
         />
       )}
     </TenantShell>

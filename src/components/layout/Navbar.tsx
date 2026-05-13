@@ -181,7 +181,7 @@ const Navbar: React.FC = () => {
       requiredAnyCapabilities: ["superadmin.access", "platform.admin", "tenants.manage"],
     });
 
-    links.push({ to: buildTenantPath("/", currentSlug), label: "Ver portal", icon: Layout });
+    links.push({ to: buildTenantPath("/", currentSlug), label: "Ver sitio publico", icon: Layout });
 
     const normalizedUserRole = userRole?.toLowerCase() || "";
     const normalizedCapabilities = capabilities.map((capability) => capability.toLowerCase());

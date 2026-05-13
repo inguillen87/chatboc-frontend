@@ -1,5 +1,13 @@
 export interface MarketProduct {
   id: string;
+  catalogo_item_id?: string | number | null;
+  catalog_item_id?: string | number | null;
+  product_id?: string | number | null;
+  item_id?: string | number | null;
+  tenant_slug?: string | null;
+  tenant?: string | null;
+  owner_slug?: string | null;
+  tenant_id?: string | number | null;
   name: string;
   description: string | null;
   descriptionShort: string | null;
@@ -218,8 +226,12 @@ export interface MarketCatalogResponse {
 }
 
 export interface AddToCartPayload {
-  productId: string;
+  productId?: string;
+  product_id?: string | number;
+  catalogo_item_id?: string | number;
+  catalog_item_id?: string | number;
   quantity?: number;
+  cantidad?: number;
 }
 
 export interface CheckoutStartPayload {

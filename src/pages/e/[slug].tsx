@@ -371,8 +371,6 @@ const PublicSurveyPage = () => {
   const errorView = useMemo(() => {
     const start = typeof errorDetails?.inicio_at === 'string' ? errorDetails.inicio_at : null;
     const end = typeof errorDetails?.fin_at === 'string' ? errorDetails.fin_at : null;
-    const payloadTitle = typeof errorDetails?.title === 'string' ? errorDetails.title : null;
-    const payloadMessage = typeof errorDetails?.message === 'string' ? errorDetails.message : null;
     const payloadPrimaryCta = typeof errorDetails?.primary_cta === 'string' ? errorDetails.primary_cta : null;
     const payloadSecondaryCta = typeof errorDetails?.secondary_cta === 'string' ? errorDetails.secondary_cta : null;
     const formatDate = (raw: string | null) => {
@@ -392,14 +390,14 @@ const PublicSurveyPage = () => {
     });
 
     const normalizedDescription =
-      mapped.reasonCode === 'survey_outside_active_window' && !payloadMessage
+      mapped.reasonCode === 'survey_outside_active_window'
         ? activeWindow ?? mapped.description
         : mapped.description;
 
     return {
       ...mapped,
-      title: payloadTitle ?? mapped.title,
-      subtitle: payloadMessage ?? normalizedDescription,
+      title: mapped.title,
+      subtitle: normalizedDescription,
       primaryLabel: payloadPrimaryCta ?? mapped.primaryCta,
       secondaryLabel: mode !== 'embed' ? payloadSecondaryCta ?? mapped.secondaryCta : null,
     };

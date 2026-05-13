@@ -64,6 +64,20 @@ describe('market api continuity normalization', () => {
 
     const cart = await addMarketItem('tenant', { productId: '1', quantity: 1 });
 
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      '/api/tenant/carrito',
+      expect.objectContaining({
+        method: 'POST',
+        tenantSlug: 'tenant',
+        body: expect.objectContaining({
+          catalogo_item_id: '1',
+          catalog_item_id: '1',
+          productId: '1',
+          quantity: 1,
+          cantidad: 1,
+        }),
+      }),
+    );
     expect(cart.continuity?.summary).toBe('retomar en portal');
     expect(cart.continuity?.portal_links?.home).toBe('/tenant/portal');
   });
@@ -205,6 +219,8 @@ describe('market api continuity normalization', () => {
       products: [
         {
           id: 10,
+          catalogo_item_id: 'cat_10',
+          tenant_slug: 'bodega',
           nombre: 'Malbec Reserva',
           precio: '12000',
           imagen_url: 'https://cdn.example/malbec.jpg',
@@ -217,8 +233,17 @@ describe('market api continuity normalization', () => {
 
     const catalog = await import('@/api/market').then((mod) => mod.fetchMarketCatalog('bodega'));
 
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      '/api/public/tenants/bodega/catalog',
+      expect.objectContaining({
+        tenantSlug: 'bodega',
+        suppressPanel401Redirect: true,
+      }),
+    );
     expect(catalog.products[0]).toMatchObject({
-      id: '10',
+      id: 'cat_10',
+      catalogo_item_id: 'cat_10',
+      tenant_slug: 'bodega',
       name: 'Malbec Reserva',
       imageUrl: 'https://cdn.example/malbec.jpg',
       galleryUrls: ['https://cdn.example/malbec-2.jpg'],

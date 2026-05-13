@@ -3,44 +3,37 @@ import { NavLink } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
 
-import { useTenant } from '@/context/TenantContext';
 import { getTenantPublicNavigation } from '@/api/tenant';
-import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { cn } from '@/lib/utils';
-import { TenantSwitcher } from './TenantSwitcher';
+import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/use-toast';
+import { useTenant } from '@/context/TenantContext';
+import { cn } from '@/lib/utils';
 import { getErrorMessage } from '@/utils/api';
 import type { TenantPublicNavigationItem } from '@/types/tenant';
+import { TenantSwitcher } from './TenantSwitcher';
 
 interface TenantShellProps {
   children: ReactNode;
 }
 
-const NAVIGATION = [
-  { label: 'Inicio', suffix: '' },
-  { label: 'Noticias', suffix: 'noticias' },
-  { label: 'Eventos', suffix: 'eventos' },
-  { label: 'Encuestas', suffix: 'encuestas' },
-  { label: 'Nuevo reclamo', suffix: 'reclamos/nuevo' },
-];
-
 const isAbsoluteUrl = (value?: string | null) => Boolean(value && /^https?:\/\//i.test(value));
 
-const resolveNavigationTarget = (
-  item: TenantPublicNavigationItem | { label: string; suffix: string },
-  basePath: string,
-) => {
-  const itemRoute =
-    'route' in item
-      ? item.route || item.href || (typeof item.path === 'string' ? item.path : null)
-      : item.suffix;
-
+const resolveNavigationTarget = (item: TenantPublicNavigationItem, basePath: string) => {
+  const itemRoute = item.route || item.href || (typeof item.path === 'string' ? item.path : null);
   if (!itemRoute) return basePath;
   if (isAbsoluteUrl(itemRoute)) return itemRoute;
   if (itemRoute.startsWith('/')) return itemRoute;
   return `${basePath}/${itemRoute.replace(/^\/+/, '')}`;
+};
+
+const sanitizePublicMessage = (message?: string | null) => {
+  if (!message) return 'No pudimos cargar este espacio en este momento.';
+  if (/<[a-z][\s\S]*>/i.test(message)) {
+    return 'El espacio no respondio correctamente. Reintenta en unos minutos.';
+  }
+  return message;
 };
 
 export const TenantShell = ({ children }: TenantShellProps) => {
@@ -59,8 +52,8 @@ export const TenantShell = ({ children }: TenantShellProps) => {
   const [updatingFollow, setUpdatingFollow] = useState(false);
 
   const slugForPath = tenant?.slug ?? currentSlug ?? null;
-  // Canonical public tenant URLs keep tenant spaces away from marketing routes.
   const basePath = slugForPath ? `/t/${encodeURIComponent(slugForPath)}` : '';
+
   const navigationQuery = useQuery({
     queryKey: ['tenant-public-navigation', slugForPath],
     enabled: Boolean(slugForPath && tenant),
@@ -69,10 +62,10 @@ export const TenantShell = ({ children }: TenantShellProps) => {
     retry: 1,
   });
 
-  const navigationItems = useMemo(() => {
-    const contractItems = navigationQuery.data?.items?.filter((item) => item.visible !== false) ?? [];
-    return contractItems.length ? contractItems : NAVIGATION;
-  }, [navigationQuery.data?.items]);
+  const navigationItems = useMemo(
+    () => navigationQuery.data?.items?.filter((item) => item.visible !== false) ?? [],
+    [navigationQuery.data?.items],
+  );
 
   const handleToggleFollow = async () => {
     if (!slugForPath) return;
@@ -109,9 +102,9 @@ export const TenantShell = ({ children }: TenantShellProps) => {
       return (
         <div className="flex flex-col gap-4">
           <div>
-            <h1 className="text-2xl font-semibold">Explorá espacios disponibles</h1>
+            <h1 className="text-2xl font-semibold">Explora espacios disponibles</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Elegí un municipio o empresa para acceder a noticias, eventos, encuestas públicas y reclamos.
+              Elegi un municipio, colegio o empresa para acceder a sus canales publicados.
             </p>
           </div>
           <TenantSwitcher className="max-w-sm" />
@@ -122,7 +115,7 @@ export const TenantShell = ({ children }: TenantShellProps) => {
     if (!tenant) {
       return (
         <div className="flex flex-col gap-3">
-          <h1 className="text-2xl font-semibold">No encontramos información para este espacio.</h1>
+          <h1 className="text-2xl font-semibold">No encontramos informacion para este espacio.</h1>
           <div className="flex flex-wrap items-center gap-2">
             <Button onClick={refreshTenant} variant="outline">
               Reintentar
@@ -152,9 +145,7 @@ export const TenantShell = ({ children }: TenantShellProps) => {
                   {tenant.tipo}
                 </Badge>
               ) : null}
-              {isCurrentTenantFollowed ? (
-                <Badge variant="outline">Favorito</Badge>
-              ) : null}
+              {isCurrentTenantFollowed ? <Badge variant="outline">Favorito</Badge> : null}
             </div>
             <div>
               <h1 className="text-3xl font-semibold leading-tight">{tenant.nombre}</h1>
@@ -179,29 +170,29 @@ export const TenantShell = ({ children }: TenantShellProps) => {
   };
 
   const renderNavigation = () => {
-    if (!basePath) {
-      return null;
-    }
+    if (!basePath || !navigationItems.length) return null;
 
     return (
       <nav className="mt-8 flex flex-wrap items-center gap-2">
         {navigationItems.map((item) => {
-          const key = 'id' in item ? item.id : item.suffix || 'inicio';
-          const enabled = !('enabled' in item) || item.enabled !== false;
+          const key = item.id || item.route || item.label;
+          const enabled = item.enabled !== false;
           const to = resolveNavigationTarget(item, basePath);
           const label = item.label;
+
           if (!enabled) {
             return (
               <span
                 key={key}
                 aria-disabled="true"
-                title={'disabled_reason' in item ? item.disabled_reason ?? item.reason_code ?? undefined : undefined}
+                title={item.disabled_reason ?? item.reason_code ?? undefined}
                 className="rounded-full bg-muted/25 px-3 py-2 text-sm font-medium text-muted-foreground/60"
               >
                 {label}
               </span>
             );
           }
+
           if (isAbsoluteUrl(to)) {
             return (
               <a
@@ -213,6 +204,7 @@ export const TenantShell = ({ children }: TenantShellProps) => {
               </a>
             );
           }
+
           return (
             <NavLink
               key={key}
@@ -227,7 +219,7 @@ export const TenantShell = ({ children }: TenantShellProps) => {
                 )
               }
             >
-              {item.label}
+              {label}
             </NavLink>
           );
         })}
@@ -246,7 +238,7 @@ export const TenantShell = ({ children }: TenantShellProps) => {
         <Alert variant="destructive">
           <AlertTitle>No pudimos sincronizar tus espacios seguidos</AlertTitle>
           <AlertDescription className="flex flex-col gap-2">
-            <span>{followedTenantsError}</span>
+            <span>{sanitizePublicMessage(followedTenantsError)}</span>
             <div>
               <Button variant="outline" size="sm" onClick={refreshFollowedTenants}>
                 Reintentar
@@ -258,9 +250,9 @@ export const TenantShell = ({ children }: TenantShellProps) => {
 
       {tenantError && slugForPath ? (
         <Alert variant="destructive">
-          <AlertTitle>No pudimos cargar la información pública</AlertTitle>
+          <AlertTitle>No pudimos cargar la informacion publica</AlertTitle>
           <AlertDescription className="flex flex-col gap-2">
-            <span>{tenantError}</span>
+            <span>{sanitizePublicMessage(tenantError)}</span>
             <div>
               <Button variant="outline" size="sm" onClick={refreshTenant}>
                 Reintentar

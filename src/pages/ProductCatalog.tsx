@@ -14,11 +14,11 @@ import useCartCount from '@/hooks/useCartCount';
 import usePointsBalance from '@/hooks/usePointsBalance';
 import UploadOrderFromFile from '@/components/cart/UploadOrderFromFile';
 import { useUser } from '@/hooks/useUser';
-import { buildTenantApiPath, buildTenantPath } from '@/utils/tenantPaths';
+import { buildTenantPath } from '@/utils/tenantPaths';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { addMarketItem, searchCatalog } from '@/api/market';
+import { addMarketItem } from '@/api/market';
 import { apiClient } from '@/api/client';
 import { UploadCloud } from 'lucide-react';
 
@@ -26,12 +26,131 @@ interface ProductCatalogProps {
   tenantSlug?: string;
 }
 
+const generatedIdPattern = /^(product|producto)-/i;
+
+const normalizeSlugSignal = (value: unknown): string | null => {
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    return normalized || null;
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return null;
+};
+
+const toProductIdString = (value: unknown): string | null => {
+  if (typeof value === 'string') {
+    const normalized = value.trim();
+    return normalized || null;
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return null;
+};
+
+const asRecord = (value: unknown): Record<string, unknown> | null =>
+  value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+
+const getNestedSlug = (record: Record<string, unknown> | null, key: string): string | null => {
+  const nested = asRecord(record?.[key]);
+  return normalizeSlugSignal(nested?.slug ?? nested?.tenant_slug ?? nested?.tenantSlug);
+};
+
+const getProductTenantSignals = (product: ProductDetails): string[] => {
+  const raw = asRecord(product.source_payload);
+  const values = [
+    product.tenant_slug,
+    product.tenant,
+    product.owner_slug,
+    product.tenant_id,
+    raw?.tenant_slug,
+    raw?.tenantSlug,
+    raw?.tenant,
+    raw?.owner_slug,
+    raw?.ownerSlug,
+    raw?.tenant_id,
+    raw?.tenantId,
+    getNestedSlug(raw, 'tenant'),
+    getNestedSlug(raw, 'owner'),
+  ];
+  return values
+    .map(normalizeSlugSignal)
+    .filter((value): value is string => Boolean(value));
+};
+
+const belongsToTenant = (product: ProductDetails, tenantSlug: string): boolean => {
+  const expected = normalizeSlugSignal(tenantSlug);
+  if (!expected) return false;
+
+  const signals = getProductTenantSignals(product);
+  return signals.some((signal) => signal === expected);
+};
+
+const getProductCartId = (product: ProductDetails): string | null =>
+  toProductIdString(
+    product.catalogo_item_id ??
+      product.catalog_item_id ??
+      product.item_id ??
+      product.product_id ??
+      product.id,
+  );
+
+const hasRealCartId = (product: ProductDetails): boolean => {
+  const id = getProductCartId(product);
+  return Boolean(id && !generatedIdPattern.test(id));
+};
+
+const isMarkedAsNonRealProduct = (product: ProductDetails): boolean => {
+  const raw = asRecord(product.source_payload);
+  const source = normalizeSlugSignal(raw?.source ?? raw?.origin ?? raw?.origen ?? raw?.reason_code);
+  const type = normalizeSlugSignal(raw?.type ?? raw?.kind ?? raw?.source_type);
+  const booleanSignals = [
+    raw?.is_demo,
+    raw?.isDemo,
+    raw?.demo,
+    raw?.mock,
+    raw?.is_mock,
+    raw?.sample,
+    raw?.placeholder,
+  ];
+
+  return (
+    product.origen === 'demo' ||
+    booleanSignals.some((value) => value === true || value === 'true') ||
+    Boolean(source && /demo|mock|sample|placeholder/.test(source)) ||
+    Boolean(type && /demo|mock|sample|placeholder/.test(type))
+  );
+};
+
+const canRenderTenantCatalogProduct = (
+  product: ProductDetails,
+  tenantSlug: string,
+  isAdmin: boolean,
+): boolean => {
+  if (!belongsToTenant(product, tenantSlug)) return false;
+  if (isMarkedAsNonRealProduct(product)) return false;
+  if (!isAdmin && product.disponible === false) return false;
+  return hasRealCartId(product) || Boolean(product.external_url);
+};
+
+const productMatchesSearch = (product: ProductDetails, searchTerm: string): boolean => {
+  const query = searchTerm.trim().toLowerCase();
+  if (!query) return true;
+
+  return [
+    product.nombre,
+    product.descripcion,
+    product.categoria,
+    product.sku,
+    product.marca,
+    product.presentacion,
+  ].some((value) => typeof value === 'string' && value.toLowerCase().includes(query));
+};
+
 export default function ProductCatalog({ tenantSlug: propTenantSlug }: ProductCatalogProps) {
   const [allProducts, setAllProducts] = useState<ProductDetails[]>([]);
-  const [searchResults, setSearchResults] = useState<ProductDetails[] | null>(null);
   const [filteredProducts, setFilteredProducts] = useState<ProductDetails[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchLoading, setSearchLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('todos');
@@ -59,7 +178,9 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug }: ProductCa
   const registerPath = buildTenantPath('/register', effectiveTenantSlug);
   const numberFormatter = useMemo(() => new Intl.NumberFormat('es-AR'), []);
   const productsApiPath = useMemo(
-    () => buildTenantApiPath('/productos', effectiveTenantSlug),
+    () => effectiveTenantSlug
+      ? `/api/public/tenants/${encodeURIComponent(effectiveTenantSlug)}/catalog`
+      : '',
     [effectiveTenantSlug],
   );
 
@@ -95,10 +216,9 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug }: ProductCa
           let normalized = normalizeProductsPayload(data, 'ProductCatalog')
             .map((item) => enhanceProductDetails({ ...item, origen: 'api' as const }));
 
-          // Admins see all products (to manage them), public only sees available ones
-          if (!isAdmin) {
-             normalized = normalized.filter((item) => item.disponible !== false);
-          }
+          normalized = normalized.filter((item) =>
+            canRenderTenantCatalogProduct(item, effectiveTenantSlug, isAdmin),
+          );
 
         setAllProducts(normalized);
         setFilteredProducts(normalized);
@@ -109,51 +229,10 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug }: ProductCa
       .finally(() => setLoading(false));
   }, [effectiveTenantSlug, productsApiPath, sharedRequestOptions, isAdmin]);
 
-  // Server-side search effect
   useEffect(() => {
-    const timer = setTimeout(async () => {
-        if (!searchTerm.trim()) {
-            setSearchResults(null);
-            return;
-        }
-        if (!effectiveTenantSlug) return;
-
-        setSearchLoading(true);
-        try {
-            const results = await searchCatalog(effectiveTenantSlug, searchTerm);
-            const mapped = normalizeProductsPayload(results, 'ProductCatalog')
-                 .map((item) => enhanceProductDetails({ ...item, origen: 'api' as const }));
-
-            // Filter out unavailable for non-admins if needed, though backend should ideally handle this for search
-            const finalResults = isAdmin ? mapped : mapped.filter(p => p.disponible !== false);
-            setSearchResults(finalResults);
-        } catch (e) {
-            console.error("Search failed", e);
-            setSearchResults([]);
-        } finally {
-            setSearchLoading(false);
-        }
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [searchTerm, effectiveTenantSlug, isAdmin]);
-
-  useEffect(() => {
-    // Determine source: Search Results (if active) OR All Products
-    const sourceProducts = searchResults !== null ? searchResults : allProducts;
-
     const normalizedCategory = selectedCategory.trim().toLowerCase();
 
-    const filtered = sourceProducts.filter(product => {
-      // If we are using search results, we assume they already match the search term semantically.
-      // If we are using allProducts, we might still want to filter by text if searchResults is null
-      // (e.g. while typing before debounce, or if we want to support local filter on top of allProducts
-      // when searchTerm is empty).
-      // However, if searchTerm is NOT empty, searchResults should be populated (or empty list).
-
-      // But wait, if searchTerm is not empty, but searchResults is null (debounce pending),
-      // we might want to show loading or keep previous.
-      // Currently `searchResults` is set to null when searchTerm is empty.
-
+    const filtered = allProducts.filter(product => {
       const matchesCategory =
         normalizedCategory === 'todos' ||
         (!!product.categoria && product.categoria.toLowerCase() === normalizedCategory);
@@ -163,10 +242,10 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug }: ProductCa
         selectedModality === 'todos' ||
         modality === selectedModality;
 
-      return matchesCategory && matchesModality;
+      return productMatchesSearch(product, searchTerm) && matchesCategory && matchesModality;
     });
     setFilteredProducts(filtered);
-  }, [searchResults, allProducts, selectedCategory, selectedModality]);
+  }, [allProducts, searchTerm, selectedCategory, selectedModality]);
 
   const categories = useMemo(() => {
     const unique = new Map<string, string>();
@@ -297,9 +376,22 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug }: ProductCa
 
       // Use the backend cart only; no local cart is created here.
       if (effectiveTenantSlug) {
+          const catalogItemId = getProductCartId(product);
+          if (!catalogItemId || !hasRealCartId(product)) {
+            toast({
+              title: 'Producto no disponible',
+              description: 'Este item no tiene un identificador de catalogo valido para comprar.',
+              variant: 'destructive',
+            });
+            return;
+          }
+
           await addMarketItem(effectiveTenantSlug, {
-              productId: String(product.id),
-              quantity: totalUnits
+              catalogo_item_id: catalogItemId,
+              catalog_item_id: catalogItemId,
+              productId: catalogItemId,
+              quantity: totalUnits,
+              cantidad: totalUnits,
           });
           toast({
             title: "Producto agregado",
@@ -467,11 +559,6 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug }: ProductCa
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-10 py-2 text-base rounded-md border-border focus:ring-primary focus:border-primary"
           />
-          {searchLoading && (
-            <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-            </div>
-          )}
         </div>
         {categories.length > 1 && (
           <Tabs value={selectedCategory} onValueChange={setSelectedCategory} className="mt-4">
