@@ -319,6 +319,9 @@ Estado frontend:
 - Si backend manda solo `hero.media.chat_preview`, frontend muestra la conversacion real existente.
 - El resultado/accion se renderiza solo si backend manda `action`, `result`, `outcome`, `ticket`, `order` o `case`.
 - Los pasos operativos se renderizan solo si backend manda `hero.workflow_steps`, `hero.agent_steps`, `hero.steps` o `hero.process_steps`.
+- Si una demo trae adjuntos reales, frontend renderiza `preview_url`/`thumbnail_url`/`image_url`, `address`, `lat/lng` y `detail` sin inventar datos.
+- Si una accion trae `fields`, `metadata`, `summary_items`, `facts`, `details` o `attributes`, frontend los muestra como resumen operativo trazable.
+- Si backend no manda demo conversacional, accion trazable, pasos o metricas, frontend oculta la maqueta derecha; no muestra logo grande ni demo falsa.
 - No se inventa ticket, pedido, lead, metrica ni paso operativo desde frontend.
 
 Contrato recomendado:
@@ -340,15 +343,37 @@ Contrato recomendado:
           "user_message": "Te mando foto y ubicacion de un semaforo caido.",
           "agent_message": "Recibi la evidencia, clasifique el reclamo, marque la zona y lo deje listo para seguimiento.",
           "inputs": [
-            { "kind": "image", "label": "Foto" },
-            { "kind": "location", "label": "Ubicacion" }
+            {
+              "kind": "image",
+              "label": "Foto",
+              "preview_url": "https://..."
+            },
+            {
+              "kind": "location",
+              "label": "Ubicacion",
+              "address": "Av. San Martin y Rivadavia",
+              "lat": -34.6083,
+              "lng": -58.3712
+            },
+            {
+              "kind": "audio",
+              "label": "Nota de voz",
+              "detail": "Transcripcion resumida por IA"
+            }
           ],
           "action": {
             "label": "Reclamo creado",
             "detail": "Ticket con categoria, prioridad, zona, evidencia y equipo sugerido.",
-            "status": "Listo para operar"
+            "status": "Listo para operar",
+            "fields": [
+              { "label": "Ticket", "value": "M-361735" },
+              { "label": "Categoria", "value": "Semaforo" },
+              { "label": "Prioridad", "value": "Alta" },
+              { "label": "Equipo sugerido", "value": "Transito" }
+            ]
           },
           "highlights": ["mapa operativo", "asignacion sugerida", "seguimiento ciudadano"],
+          "workflow_steps": ["Entiende texto y adjuntos", "Crea ticket real", "Sugiere equipo", "Deja seguimiento"],
           "cta": { "label": "Probar reclamo real", "href": "/demo?sector=gobierno" }
         }
       ]
@@ -422,3 +447,45 @@ Reglas:
 - Portal es para historial, pedidos, reclamos, encuestas, beneficios y mensajes del usuario final.
 - Admin panel es para operar el tenant; no necesita Portal.
 - No mezclar datos entre tenants: catalogo, carrito e historial deben quedar filtrados por `tenant_slug` + `widget_session_token`/`anon_id`/`chat_session_id`.
+
+## Delta producción observado 2026-05-13
+
+Estado frontend aplicado:
+
+- Las consultas de analytics/admin se fuerzan a same-origin `/api` para no saltar directo a Render desde el navegador.
+- Encuestas publicas prueban primero aliases `/api/public/...`; los aliases `/public/...` quedan solo bajo flag legacy.
+- Los graficos pesados de analytics no se montan dentro de tabs ocultas, para evitar contenedores con ancho/alto negativo.
+- El widget embebido no muestra Portal para usuarios backoffice/admin; Portal queda reservado para usuario final asociado por widget/WhatsApp.
+- El catalogo publico no renderiza productos comprables si no traen `catalogo_item_id`/`catalog_item_id` real o `external_url`.
+- Accesos rapidos y navegacion de perfil comparan roles por alias (`admin`, `tenant_admin`, `super_admin`, `superadmin`, `empleado`, `employee`) y no por string literal.
+
+Pedido backend obligatorio:
+
+- `GET /api/v2/tenants/{tenant_slug}/admin-experience` debe dejar de responder HTML 500. Si una fuente interna falla, responder JSON con `contract_version`, `request_id`, `reason_code` y secciones disponibles.
+- Publicar aliases de encuestas publicas con JSON + CORS + `X-Request-Id`:
+  - `GET /api/public/encuestas/v1`
+  - `GET /api/public/encuestas`
+  - `GET /api/public/encuestas/v1/{slug}`
+  - `GET /api/public/encuestas/{slug}`
+- Si una encuesta no existe, responder JSON accionable, no 404 tecnico:
+  - `contract_version: public.survey_resolution.v1`
+  - `reason_code: survey_not_found`
+  - `retryable: false`
+  - `list_endpoint: /api/public/encuestas`
+  - `request_id`
+- Mantener JSON + CORS para analytics legacy que aun pueden pedir bundles viejos:
+  - `GET /api/analytics/report/latest`
+  - `POST /api/analytics/report/generate`
+  - `GET /api/analytics/identity/coverage`
+  - `GET /api/admin/analytics/whatsapp-funnel`
+- El catalogo publico debe venir filtrado por tenant. Cada item comprable necesita:
+  - `tenant_slug` o `tenant_id`
+  - `catalogo_item_id` o `catalog_item_id`
+  - precio/stock/modalidad reales si aplica
+- Si el item pertenece a otro tenant, carrito debe rechazar con JSON `reason_code: cross_tenant_catalog_item`.
+- Si falta `catalogo_item_id`, backend debe resolverlo antes de publicar el item o marcarlo no comprable; no publicar productos mezclados de demo/bodega dentro de un municipio real.
+
+Regla de producto:
+
+- No usar mocks, placeholders ni catalogos cruzados para llenar pantallas.
+- Si no hay dato real, backend debe omitir el modulo o devolver un estado vacio contractual.
