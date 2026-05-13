@@ -163,7 +163,15 @@ const inferInputKind = (value: string) => {
   return "text";
 };
 
-type ConversationInput = { kind: string; label: string };
+type ConversationInput = {
+  kind: string;
+  label: string;
+  detail: string;
+  previewUrl: string;
+  address: string;
+  lat: string;
+  lng: string;
+};
 
 type ConversationAction = {
   label: string;
@@ -171,6 +179,7 @@ type ConversationAction = {
   status: string;
   ctaLabel: string;
   ctaTarget: string;
+  fields: Array<{ label: string; value: string }>;
 };
 
 type ConversationFlow = {
@@ -182,7 +191,39 @@ type ConversationFlow = {
   inputs: ConversationInput[];
   action?: ConversationAction;
   highlights: string[];
+  workflowSteps: string[];
   tone: string;
+};
+
+const normalizeFieldRows = (source: unknown) => {
+  const recordToRows = (record: AnyRecord) =>
+    Object.entries(record)
+      .map(([key, value]) => {
+        if (value === undefined || value === null || value === "") return null;
+        if (isRecord(value)) {
+          const label = readText(value, ["label", "title", "name", "key"], key);
+          const rowValue = readText(value, ["value", "text", "description", "status"]);
+          return label && rowValue ? { label, value: rowValue } : null;
+        }
+        const rowValue = typeof value === "number" && Number.isFinite(value) ? String(value) : String(value).trim();
+        return rowValue ? { label: cleanLandingCopy(key), value: cleanLandingCopy(rowValue) } : null;
+      })
+      .filter(Boolean) as Array<{ label: string; value: string }>;
+
+  const rows = asArray(source)
+    .flatMap((item) => {
+      if (typeof item === "string" && item.trim()) return [];
+      if (!isRecord(item)) return [];
+      const label = readText(item, ["label", "title", "name", "key"]);
+      const value = readText(item, ["value", "text", "description", "status"]);
+      if (label && value) return [{ label, value }];
+      return recordToRows(item);
+    })
+    .filter(Boolean) as Array<{ label: string; value: string }>;
+
+  if (rows.length) return rows.slice(0, 6);
+  if (isRecord(source)) return recordToRows(source).slice(0, 6);
+  return [];
 };
 
 const normalizeDemoInputs = (source: unknown, fallback: ConversationInput[] = []) => {
@@ -193,13 +234,21 @@ const normalizeDemoInputs = (source: unknown, fallback: ConversationInput[] = []
     .map((item) => {
       if (typeof item === "string" && item.trim()) {
         const label = cleanLandingCopy(item.trim());
-        return { kind: inferInputKind(label), label };
+        return { kind: inferInputKind(label), label, detail: "", previewUrl: "", address: "", lat: "", lng: "" };
       }
       if (!isRecord(item)) return null;
       const label = readText(item, ["label", "title", "name", "text", "mode"]);
       if (!label) return null;
       const rawKind = readRawText(item, ["kind", "type", "mode", "id"], label);
-      return { kind: inferInputKind(rawKind), label };
+      return {
+        kind: inferInputKind(rawKind),
+        label,
+        detail: readText(item, ["detail", "description", "subtitle", "transcript", "summary"]),
+        previewUrl: readRawText(item, ["preview_url", "thumbnail_url", "image_url", "file_url", "url", "src", "href"]),
+        address: readText(item, ["address", "direccion", "formatted_address"]),
+        lat: readRawText(item, ["lat", "latitude"]),
+        lng: readRawText(item, ["lng", "lon", "longitude"]),
+      };
     })
     .filter(Boolean) as ConversationInput[];
 
@@ -221,6 +270,9 @@ const normalizeAction = (source: unknown, ctaSource?: unknown): ConversationActi
     status,
     ctaLabel: readText(cta, ["label", "title", "text"]),
     ctaTarget: readRawText(cta, ["href", "to", "route", "url"]),
+    fields: normalizeFieldRows(
+      first(action, ["fields", "metadata", "summary_items", "facts", "details", "attributes"]),
+    ),
   };
 };
 
@@ -264,6 +316,7 @@ const normalizeConversationFlows = (source: unknown): ConversationFlow[] => {
         inputs: normalizeDemoInputs(first(sourceRecord, ["inputs", "media", "input_modes", "attachments", "capabilities"])),
         action,
         highlights,
+        workflowSteps: normalizeWorkflowSteps(first(sourceRecord, ["workflow_steps", "agent_steps", "steps", "process_steps"])),
         tone: readText(sourceRecord, ["tone", "color_class"], "bg-primary"),
       },
     ];
@@ -303,6 +356,7 @@ const normalizeConversationFlows = (source: unknown): ConversationFlow[] => {
             .slice(0, 3);
           return chips;
         })(),
+        workflowSteps: normalizeWorkflowSteps(first(item, ["workflow_steps", "agent_steps", "steps", "process_steps"])),
         tone: readText(item, ["tone", "color_class"], "bg-primary"),
       };
     })
@@ -398,6 +452,7 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
     0,
   );
   const activeAction = activeFlow?.action;
+  const activeWorkflowSteps = activeFlow?.workflowSteps.length ? activeFlow.workflowSteps : workflowSteps;
   const ActiveFlowIcon = activeFlow ? getFlowIcon(activeFlow) : Bot;
   const ActiveActionIcon = activeAction ? getActionIcon(activeAction.label) : ClipboardCheck;
   const actionSectionLabel = readText(hero, ["action_section_label", "result_label"]);
@@ -411,6 +466,11 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
   const accentStyle = {
     ["--chatboc-hero-accent" as string]: readText(colors, ["primary", "accent"], ""),
   } as React.CSSProperties;
+  const showHeroPreview =
+    Boolean(activeFlow) ||
+    Boolean(activeAction) ||
+    activeWorkflowSteps.length > 0 ||
+    dashboardRows.length > 0;
 
   const navigateTo = (target: string) => {
     if (!target) return;
@@ -424,7 +484,7 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
   return (
     <section className="chatboc-hero-grid overflow-hidden pt-20 pb-12 text-foreground md:pt-28 md:pb-16" style={accentStyle}>
       <div className="container mx-auto px-4">
-        <div className="grid items-center gap-10 lg:grid-cols-[0.92fr_1.08fr]">
+        <div className={`grid items-center gap-10 ${showHeroPreview ? "lg:grid-cols-[0.92fr_1.08fr]" : ""}`}>
           <div className="max-w-3xl">
             {headline && (
               <h1 className="text-4xl font-bold leading-[1.03] tracking-normal text-foreground sm:text-5xl md:text-6xl xl:text-7xl">
@@ -479,6 +539,7 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
             )}
           </div>
 
+          {showHeroPreview && (
           <div className="relative">
             <div className="chatboc-hero-aura" aria-hidden="true" />
             <div className="chatboc-command-shell chatboc-dashboard-scan overflow-hidden">
@@ -499,12 +560,9 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
                 <div className="relative overflow-hidden rounded-[16px] border border-border/70 bg-background/80 p-4 shadow-sm">
                   <div className="absolute inset-x-0 top-0 h-24 bg-[linear-gradient(90deg,hsl(var(--primary)/0.18),hsl(var(--success)/0.12),transparent)]" />
                   <div className="relative flex items-center gap-3">
-                    <img
-                      src="/chatboc_frontend_pack/branding/chatboc/avatar/chatboc-orbit-avatar.svg"
-                      alt=""
-                      aria-hidden="true"
-                      className="h-11 w-11 rounded-full border border-primary/20 bg-background shadow-sm"
-                    />
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[8px] border border-primary/20 bg-primary/10 text-primary shadow-sm">
+                      <ActiveFlowIcon className="h-5 w-5" />
+                    </div>
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-foreground">
                         {readText(hero, ["conversation_title", "demo_title"], previewTitle)}
@@ -513,13 +571,10 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
                         {readText(hero, ["conversation_subtitle", "demo_subtitle"], previewCopy)}
                       </p>
                     </div>
-                    <div className="ml-auto flex h-9 w-9 items-center justify-center rounded-[8px] bg-primary/10 text-primary">
-                      <ActiveFlowIcon className="h-5 w-5" />
-                    </div>
                   </div>
 
                   {conversationFlows.length > 1 && (
-                    <div className="relative mt-4 flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Demo">
+                    <div className="relative mt-4 flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="demo">
                       {conversationFlows.map((flow) => {
                         const FlowIcon = getFlowIcon(flow);
                         const isActive = flow.id === activeFlow?.id;
@@ -552,13 +607,36 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
                     <div className="grid gap-2 sm:grid-cols-2">
                       {activeFlow?.inputs.map((input) => {
                         const InputIcon = getInputIcon(input.kind);
+                        const isImageInput = inferInputKind(input.kind) === "image" && input.previewUrl;
+                        const isLocationInput = inferInputKind(input.kind) === "location";
                         return (
                           <div
                             key={`${activeFlow.id}-${input.kind}-${input.label}`}
-                            className="flex items-center gap-2 rounded-[8px] border border-border/70 bg-muted/60 px-3 py-2 text-xs font-semibold text-muted-foreground"
+                            className="min-h-16 rounded-[8px] border border-border/70 bg-muted/60 p-3 text-xs text-muted-foreground"
                           >
-                            <InputIcon className="h-4 w-4 text-primary" />
-                            {input.label}
+                            <div className="flex items-center gap-2 font-semibold">
+                              <InputIcon className="h-4 w-4 text-primary" />
+                              <span>{input.label}</span>
+                            </div>
+                            {isImageInput && (
+                              <img
+                                src={input.previewUrl}
+                                alt=""
+                                aria-hidden="true"
+                                className="mt-2 h-20 w-full rounded-[8px] object-cover"
+                              />
+                            )}
+                            {isLocationInput && (input.address || input.lat || input.lng) && (
+                              <div className="mt-2 rounded-[8px] border border-primary/15 bg-primary/5 px-2 py-2 text-[11px] leading-5 text-foreground">
+                                {input.address && <p>{input.address}</p>}
+                                {(input.lat || input.lng) && (
+                                  <p className="text-muted-foreground">
+                                    {[input.lat, input.lng].filter(Boolean).join(", ")}
+                                  </p>
+                                )}
+                              </div>
+                            )}
+                            {input.detail && <p className="mt-2 leading-5">{input.detail}</p>}
                           </div>
                         );
                       })}
@@ -604,6 +682,22 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
                         <p className="mt-4 text-sm leading-6 text-muted-foreground">{activeAction.detail}</p>
                       )}
 
+                      {activeAction.fields.length > 0 && (
+                        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                          {activeAction.fields.map((field) => (
+                            <div
+                              key={`${activeFlow?.id}-${field.label}-${field.value}`}
+                              className="rounded-[8px] border border-border/70 bg-muted/40 px-3 py-2"
+                            >
+                              <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
+                                {field.label}
+                              </p>
+                              <p className="mt-1 text-sm font-semibold text-foreground">{field.value}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
                       {Boolean(activeFlow?.highlights.length) && (
                         <div className="mt-4 flex flex-wrap gap-2">
                           {activeFlow?.highlights.map((chip) => (
@@ -619,7 +713,7 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
                     </div>
                   )}
 
-                  {workflowSteps.length > 0 && (
+                  {activeWorkflowSteps.length > 0 && (
                     <div className="rounded-[16px] border border-border/70 bg-background/80 p-4 shadow-sm">
                       <div className="mb-4 flex items-center justify-between gap-3">
                         {(agentTitle || agentSubtitle) && (
@@ -632,7 +726,7 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
                       </div>
 
                       <div className="space-y-3">
-                        {workflowSteps.map((step, index) => (
+                        {activeWorkflowSteps.map((step, index) => (
                           <div key={step} className="flex items-center gap-3 rounded-[8px] border border-border/70 bg-muted/40 px-3 py-2">
                             <span
                               className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold ${
@@ -666,6 +760,7 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
               )}
             </div>
           </div>
+          )}
         </div>
       </div>
     </section>
