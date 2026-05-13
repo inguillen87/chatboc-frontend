@@ -86,14 +86,20 @@ const belongsToTenant = (product: ProductDetails, tenantSlug: string): boolean =
   return signals.some((signal) => signal === expected);
 };
 
-const getProductCartId = (product: ProductDetails): string | null =>
-  toProductIdString(
+const getProductCartId = (product: ProductDetails): string | null => {
+  const raw = asRecord(product.source_payload);
+  return toProductIdString(
     product.catalogo_item_id ??
       product.catalog_item_id ??
+      raw?.catalogo_item_id ??
+      raw?.catalog_item_id ??
+      raw?.catalogItemId ??
+      raw?.catalog_id ??
+      raw?.catalogId ??
       product.item_id ??
-      product.product_id ??
-      product.id,
+      raw?.item_id,
   );
+};
 
 const hasRealCartId = (product: ProductDetails): boolean => {
   const id = getProductCartId(product);

@@ -45,6 +45,14 @@ const MODULE_ICONS: Record<string, React.ElementType> = {
   education: School,
 };
 
+const USER_PORTAL_MODULE_IDS = new Set([
+  "portal",
+  "user_portal",
+  "client_portal",
+  "customer_portal",
+  "neighbor_portal",
+]);
+
 const isRecord = (value: unknown): value is AnyRecord =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
@@ -189,7 +197,10 @@ export default function TenantAdminOperatingSystem({ tenantSlug }: { tenantSlug?
   );
 
   const modules = useMemo(() => {
-    const backendModules = bundle?.modules ?? [];
+    const backendModules = (bundle?.modules ?? []).filter((module) => {
+      const id = String(module.id || "").trim().toLowerCase();
+      return !USER_PORTAL_MODULE_IDS.has(id);
+    });
     if (backendModules.length) {
       const hasWhatsappModule = backendModules.some((module) =>
         ["widget_whatsapp", "whatsapp", "channels"].includes(String(module.id || "")),

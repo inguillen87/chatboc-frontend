@@ -105,6 +105,7 @@ import {
   isLegacyDemoSelectorPayload,
   isLegacyDemoSelectorText,
 } from "@/utils/legacyDemoSelector";
+import { isBackofficeRole } from "@/utils/roles";
 import type { ChatBootstrapConfig } from "@/features/chat/chatTypes";
 import type { WidgetCommerceHistory, WidgetCommerceSession } from "@/types/widgetCommerce";
 
@@ -517,6 +518,8 @@ const ChatPanel = (props: ChatPanelProps) => {
     experienceBlueprint,
   } = props;
   const isMobile = useIsMobile();
+  const { user } = useUser();
+  const isBackofficeUser = isBackofficeRole(user?.rol);
   const fallbackRubroTitle = welcomeTitle || "Chatboc";
   const fallbackRubroSubtitle =
     welcomeSubtitle ||
@@ -760,9 +763,10 @@ const ChatPanel = (props: ChatPanelProps) => {
     Array.isArray(commercePrimaryActions) && commercePrimaryActions.includes("portal");
   const portalEnabledFlag = commerceSession?.portal?.enabled;
   const portalEnabled =
-    portalEnabledFlag === undefined || portalEnabledFlag === null
+    !isBackofficeUser &&
+    (portalEnabledFlag === undefined || portalEnabledFlag === null
       ? portalRequestedByContract
-      : readBackendFlag(portalEnabledFlag, false);
+      : readBackendFlag(portalEnabledFlag, false));
   const widgetCommerceActions = useMemo(() => {
     if (!isEmbeddedCommerceWidget) {
       return [] as Array<{
@@ -858,6 +862,7 @@ const ChatPanel = (props: ChatPanelProps) => {
     commerceSession?.cart,
     commerceSession?.catalog,
     commerceSession?.portal,
+    isBackofficeUser,
     portalDestinationAvailable,
     portalEnabled,
     isEmbeddedCommerceWidget,
@@ -1128,8 +1133,6 @@ const ChatPanel = (props: ChatPanelProps) => {
       payload: normalizedName ? { ...data, nombre: normalizedName } : data,
     });
   };
-
-  const { user } = useUser();
 
   useEffect(() => {
     const stored = safeLocalStorage.getItem("ultima_direccion");

@@ -39,6 +39,7 @@ import type {
   WidgetCommerceSession,
 } from "@/types/widgetCommerce";
 import type { ChatWidgetUiHints } from "@/types/chat";
+import { isBackofficeRole } from "@/utils/roles";
 
 // Use constants from new file
 import { TENANT_PLACEHOLDER_SLUGS } from "@/constants/tenant";
@@ -383,6 +384,7 @@ function ChatWidgetInner({
   });
   const [view, setView] = useState<'chat' | 'register' | 'login' | 'user' | 'info'>(initialView);
   const { user } = useUser();
+  const isBackofficeUser = isBackofficeRole(user?.rol);
   const [contextOverride, setContextOverride] = useState<any>(null);
   const [resolvedTipoChat, setResolvedTipoChat] = useState<'pyme' | 'municipio'>(() => {
     return tipoChat || getCurrentTipoChat();
@@ -1269,6 +1271,11 @@ function ChatWidgetInner({
   );
 
   const openPortal = useCallback(() => {
+    if (isBackofficeUser) {
+      toast.error("El portal es para usuarios finales vinculados por chat o WhatsApp.");
+      return;
+    }
+
     const storedTenant = sanitizeTenantSlug(safeLocalStorage.getItem("tenantSlug"));
     const slug = sanitizeTenantSlug(commerceTenantSlug) ?? activeDemoTenantSlug ?? resolvedTenantSlug ?? storedTenant;
     const authToken = authTokenState ?? safeLocalStorage.getItem("authToken") ?? safeLocalStorage.getItem("chatAuthToken");
@@ -1319,6 +1326,7 @@ function ChatWidgetInner({
     activeDemoTenantSlug,
     authTokenState,
     commerceTenantSlug,
+    isBackofficeUser,
     resolvedTenantSlug,
     tenant,
     user,
