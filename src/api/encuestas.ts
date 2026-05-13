@@ -365,7 +365,7 @@ const buildPublicSurveyPaths = (...paths: string[]) => {
   if (paths.length === 0) return [];
   const unique = Array.from(new Set(paths.filter(Boolean)));
   if (!ENABLE_PUBLIC_SURVEY_LEGACY_FALLBACK) {
-    return unique.slice(0, 1);
+    return unique.filter((path) => path.startsWith('/api/public/'));
   }
   return unique;
 };

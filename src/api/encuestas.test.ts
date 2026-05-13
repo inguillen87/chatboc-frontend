@@ -55,7 +55,7 @@ describe('getPublicSurvey', () => {
     apiFetchMock.mockReset();
   });
 
-  it('uses canonical /api/public endpoint when legacy fallback is disabled', async () => {
+  it('uses canonical /api/public v1 endpoint first when legacy fallback is disabled', async () => {
     apiFetchMock.mockResolvedValueOnce({
       contract_version: 'encuestas.public.v1',
       encuesta: {
@@ -97,7 +97,9 @@ describe('listPublicSurveys', () => {
   });
 
   it('returns flagged empty list on API errors instead of mock fallback in v1 strict mode', async () => {
-    apiFetchMock.mockRejectedValueOnce(new ApiError('Server exploded', 500));
+    apiFetchMock
+      .mockRejectedValueOnce(new ApiError('Server exploded', 500))
+      .mockRejectedValueOnce(new ApiError('Server exploded', 500));
 
     const result = await listPublicSurveys('rio-grande');
 
@@ -108,13 +110,36 @@ describe('listPublicSurveys', () => {
   });
 
   it('never falls back to demo/mock surveys on generic public list failures', async () => {
-    apiFetchMock.mockRejectedValueOnce(new Error('network down'));
+    apiFetchMock
+      .mockRejectedValueOnce(new Error('network down'))
+      .mockRejectedValueOnce(new Error('network down'));
 
     const result = await listPublicSurveys('rio-grande');
 
     expect(Array.isArray(result)).toBe(true);
     expect(result).toHaveLength(0);
     expect(result.__badPayload).toBe(true);
+  });
+
+  it('tries the real /api/public non-v1 alias before returning an empty state', async () => {
+    apiFetchMock.mockRejectedValueOnce(new ApiError('Not Found', 404));
+    apiFetchMock.mockResolvedValueOnce([
+      { slug: 'votacion-en-vivo-luis-petri', titulo: 'Votacion', tipo: 'opinion', preguntas: [] },
+    ]);
+
+    const result = await listPublicSurveys();
+
+    expect(result).toHaveLength(1);
+    expect(apiFetchMock).toHaveBeenNthCalledWith(
+      1,
+      '/api/public/encuestas/v1',
+      expect.any(Object),
+    );
+    expect(apiFetchMock).toHaveBeenNthCalledWith(
+      2,
+      '/api/public/encuestas',
+      expect.any(Object),
+    );
   });
 });
 

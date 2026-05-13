@@ -14,6 +14,10 @@ vi.mock('@/utils/api', () => ({
   },
 }));
 
+vi.mock('@/config', () => ({
+  SAME_ORIGIN_PROXY_BASE: '/api',
+}));
+
 import { apiClient } from '@/api/client';
 import { ApiError } from '@/utils/api';
 
@@ -39,12 +43,12 @@ describe('apiClient.getIdentityCoverage', () => {
     expect(apiFetchMock).toHaveBeenNthCalledWith(
       1,
       '/analytics/identity/coverage',
-      expect.objectContaining({ tenantSlug: 'rio-grande' }),
+      expect.objectContaining({ tenantSlug: 'rio-grande', baseUrlOverride: '/api' }),
     );
     expect(apiFetchMock).toHaveBeenNthCalledWith(
       2,
       '/api/analytics/identity/coverage',
-      expect.objectContaining({ tenantSlug: 'rio-grande' }),
+      expect.objectContaining({ tenantSlug: 'rio-grande', baseUrlOverride: '/api' }),
     );
   });
 
@@ -72,12 +76,12 @@ describe('apiClient.getIdentityCoverage', () => {
     expect(apiFetchMock).toHaveBeenNthCalledWith(
       1,
       '/analytics/identity/coverage?emit_alert_events=1',
-      expect.objectContaining({ tenantSlug: 'rio-grande' }),
+      expect.objectContaining({ tenantSlug: 'rio-grande', baseUrlOverride: '/api' }),
     );
     expect(apiFetchMock).toHaveBeenNthCalledWith(
       2,
       '/analytics/identity/coverage',
-      expect.objectContaining({ tenantSlug: 'rio-grande' }),
+      expect.objectContaining({ tenantSlug: 'rio-grande', baseUrlOverride: '/api' }),
     );
   });
 
@@ -99,17 +103,17 @@ describe('apiClient.getIdentityCoverage', () => {
     expect(apiFetchMock).toHaveBeenNthCalledWith(
       1,
       '/analytics/identity/coverage?emit_alert_events=1',
-      expect.objectContaining({ tenantSlug: 'rio-grande' }),
+      expect.objectContaining({ tenantSlug: 'rio-grande', baseUrlOverride: '/api' }),
     );
     expect(apiFetchMock).toHaveBeenNthCalledWith(
       2,
       '/api/analytics/identity/coverage?emit_alert_events=1',
-      expect.objectContaining({ tenantSlug: 'rio-grande' }),
+      expect.objectContaining({ tenantSlug: 'rio-grande', baseUrlOverride: '/api' }),
     );
     expect(apiFetchMock).toHaveBeenNthCalledWith(
       3,
       '/api/analytics/identity/coverage',
-      expect.objectContaining({ tenantSlug: 'rio-grande' }),
+      expect.objectContaining({ tenantSlug: 'rio-grande', baseUrlOverride: '/api' }),
     );
   });
 });

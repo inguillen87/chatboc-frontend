@@ -488,25 +488,27 @@ const AnalyticsPage = () => {
 
         <div className="mt-6">
           <TabsContent value="overview">
-            {data && <OverviewDashboard data={data} />}
+            {activeTab === 'overview' && data ? <OverviewDashboard data={data} /> : null}
           </TabsContent>
 
           <TabsContent value="municipio">
-            {data && <MunicipioDashboard data={data} />}
+            {activeTab === 'municipio' && data ? <MunicipioDashboard data={data} /> : null}
           </TabsContent>
 
           <TabsContent value="pyme">
-            {data && <PymeDashboard data={data} />}
+            {activeTab === 'pyme' && data ? <PymeDashboard data={data} /> : null}
           </TabsContent>
 
           <TabsContent value="geo">
-            <HeatmapDashboard tenantId={tenantId} dateRange={dateRange} />
+            {activeTab === 'geo' ? <HeatmapDashboard tenantId={tenantId} dateRange={dateRange} /> : null}
           </TabsContent>
 
           <TabsContent value="operations">
-            <SectionErrorBoundary title="No pudimos cargar operaciones">
-              <OperationsDashboardPanel />
-            </SectionErrorBoundary>
+            {activeTab === 'operations' ? (
+              <SectionErrorBoundary title="No pudimos cargar operaciones">
+                <OperationsDashboardPanel />
+              </SectionErrorBoundary>
+            ) : null}
           </TabsContent>
 
           <TabsContent value="realtime">

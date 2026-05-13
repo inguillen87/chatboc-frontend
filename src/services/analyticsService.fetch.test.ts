@@ -15,6 +15,10 @@ vi.mock('@/utils/api', () => ({
   },
 }));
 
+vi.mock('@/config', () => ({
+  SAME_ORIGIN_PROXY_BASE: '/api',
+}));
+
 import { ApiError } from '@/utils/api';
 import {
   getAnalyticsEventSchema,
@@ -39,8 +43,14 @@ describe('analyticsService fetch helpers', () => {
     const result = await getWhatsappFunnel('tenant-a');
 
     expect(result.contract_version).toBe('1.0.0');
-    expect(apiFetchMock).toHaveBeenNthCalledWith(1, '/admin/analytics/whatsapp-funnel', { tenantSlug: 'tenant-a' });
-    expect(apiFetchMock).toHaveBeenNthCalledWith(2, '/api/admin/analytics/whatsapp-funnel', { tenantSlug: 'tenant-a' });
+    expect(apiFetchMock).toHaveBeenNthCalledWith(1, '/admin/analytics/whatsapp-funnel', {
+      tenantSlug: 'tenant-a',
+      baseUrlOverride: '/api',
+    });
+    expect(apiFetchMock).toHaveBeenNthCalledWith(2, '/api/admin/analytics/whatsapp-funnel', {
+      tenantSlug: 'tenant-a',
+      baseUrlOverride: '/api',
+    });
   });
 
   it('validates identity coverage v1 contract and fallback path', async () => {
@@ -58,8 +68,14 @@ describe('analyticsService fetch helpers', () => {
     const result = await getIdentityCoverageV1('tenant-a');
 
     expect(result.contract_version).toBe('analytics.identity_coverage.v1');
-    expect(apiFetchMock).toHaveBeenNthCalledWith(1, '/analytics/identity/coverage', { tenantSlug: 'tenant-a' });
-    expect(apiFetchMock).toHaveBeenNthCalledWith(2, '/api/analytics/identity/coverage', { tenantSlug: 'tenant-a' });
+    expect(apiFetchMock).toHaveBeenNthCalledWith(1, '/analytics/identity/coverage', {
+      tenantSlug: 'tenant-a',
+      baseUrlOverride: '/api',
+    });
+    expect(apiFetchMock).toHaveBeenNthCalledWith(2, '/api/analytics/identity/coverage', {
+      tenantSlug: 'tenant-a',
+      baseUrlOverride: '/api',
+    });
   });
 
   it('loads analytics event schema v1 with endpoint fallback', async () => {

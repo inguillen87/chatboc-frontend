@@ -1,10 +1,12 @@
 import { panelApi } from '@/api/v2/client';
+import { SAME_ORIGIN_PROXY_BASE } from '@/config';
 import { ApiError } from '@/utils/api';
 import type { ChatExperienceBlock } from '@/types/chat';
 import type { EducationCaseAlias } from '@/types/education';
 import type { RealtimeVoiceCapabilities } from '@/types/realtimeVoice';
 
 type UnknownRecord = Record<string, unknown>;
+const SAME_ORIGIN_API_BASE = SAME_ORIGIN_PROXY_BASE || '/api';
 
 export interface SaasAction {
   id: string;
@@ -1071,11 +1073,14 @@ export const getTenantAdminExperienceV2 = async (tenantSlug?: string | null) => 
   try {
     response = await panelApi.get<unknown>(
       encoded ? `/api/v2/tenants/${encoded}/admin-experience` : '/api/v2/tenant/admin-experience',
-      { tenantSlug },
+      { tenantSlug, baseUrlOverride: SAME_ORIGIN_API_BASE },
     );
   } catch (error) {
     if (!shouldFallbackEndpoint(error) || encoded) throw error;
-    response = await panelApi.get<unknown>('/api/v2/tenant/admin-experience', { tenantSlug });
+    response = await panelApi.get<unknown>('/api/v2/tenant/admin-experience', {
+      tenantSlug,
+      baseUrlOverride: SAME_ORIGIN_API_BASE,
+    });
   }
   return normalizeTenantAdminExperienceV2(response);
 };

@@ -1,4 +1,5 @@
 import { ApiError, apiFetch } from '@/utils/api';
+import { SAME_ORIGIN_PROXY_BASE } from '@/config';
 import { Order, Cart, Ticket, PortalContent, IntegrationStatus, PortalLoyaltySummary, PortalPremiumBundle } from '@/types/unified';
 import { Tenant, CreateTenantDTO, UpdateTenantDTO } from '@/types/superAdmin';
 import { WhatsappExternalNumberPayload, WhatsappNumberCreatePayload, WhatsappNumberInventoryItem, WhatsappNumberStatus } from '@/types/whatsapp';
@@ -11,6 +12,8 @@ import {
 
 
 export type IdentityCoverageTargetByChannel = string | Record<string, number>;
+
+const SAME_ORIGIN_API_BASE = SAME_ORIGIN_PROXY_BASE || '/api';
 
 interface WidgetTokenRequestPayload {
   tenant_id?: number;
@@ -364,15 +367,16 @@ export const apiClient = {
     };
 
     const suffix = buildSuffix(params);
+    const requestOptions = { tenantSlug, baseUrlOverride: SAME_ORIGIN_API_BASE };
     try {
-      const response = await apiFetch<unknown>(`/analytics/identity/coverage${suffix}`, { tenantSlug });
+      const response = await apiFetch<unknown>(`/analytics/identity/coverage${suffix}`, requestOptions);
       const parsed = parseIdentityCoverageResponseV1(response);
       if (!parsed) throw new ApiError('Respuesta inválida de identity coverage: contract_version o payload inválido.', 502, response);
       return parsed;
     } catch (error) {
       if (params?.emit_alert_events === 1 && error instanceof ApiError && error.status === 403) {
         const readOnlySuffix = buildSuffix(params ? { target_pct: params.target_pct, target_by_channel: params.target_by_channel } : undefined);
-        const response = await apiFetch<unknown>(`/analytics/identity/coverage${readOnlySuffix}`, { tenantSlug });
+        const response = await apiFetch<unknown>(`/analytics/identity/coverage${readOnlySuffix}`, requestOptions);
         const parsed = parseIdentityCoverageResponseV1(response);
         if (!parsed) throw new ApiError('Respuesta inválida de identity coverage: contract_version o payload inválido.', 502, response);
         return parsed;
@@ -388,14 +392,14 @@ export const apiClient = {
       }
 
       try {
-        const response = await apiFetch<unknown>(`/api/analytics/identity/coverage${suffix}`, { tenantSlug });
+        const response = await apiFetch<unknown>(`/api/analytics/identity/coverage${suffix}`, requestOptions);
         const parsed = parseIdentityCoverageResponseV1(response);
         if (!parsed) throw new ApiError('Respuesta inválida de identity coverage: contract_version o payload inválido.', 502, response);
         return parsed;
       } catch (fallbackError) {
         if (params?.emit_alert_events === 1 && fallbackError instanceof ApiError && fallbackError.status === 403) {
           const readOnlySuffix = buildSuffix(params ? { target_pct: params.target_pct, target_by_channel: params.target_by_channel } : undefined);
-          const response = await apiFetch<unknown>(`/api/analytics/identity/coverage${readOnlySuffix}`, { tenantSlug });
+          const response = await apiFetch<unknown>(`/api/analytics/identity/coverage${readOnlySuffix}`, requestOptions);
           const parsed = parseIdentityCoverageResponseV1(response);
           if (!parsed) throw new ApiError('Respuesta inválida de identity coverage: contract_version o payload inválido.', 502, response);
           return parsed;

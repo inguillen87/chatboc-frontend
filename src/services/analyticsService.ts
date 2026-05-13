@@ -1,3 +1,4 @@
+import { SAME_ORIGIN_PROXY_BASE } from '@/config';
 import { ApiError, apiFetch } from '@/utils/api';
 import {
   type IdentityCoverageResponseV1,
@@ -5,6 +6,8 @@ import {
 } from '@/services/identityCoverageContract';
 
 export { parseIdentityCoverageResponseV1 };
+
+const SAME_ORIGIN_API_BASE = SAME_ORIGIN_PROXY_BASE || '/api';
 
 export interface AnalyticsFilters {
   tenant_id?: number;
@@ -311,8 +314,9 @@ export const parseAnalyticsEventSchemaV1 = (input: unknown): AnalyticsEventSchem
 };
 
 export const getWhatsappFunnel = async (tenantSlug?: string): Promise<WhatsappFunnelResponse> => {
+  const requestOptions = { tenantSlug, baseUrlOverride: SAME_ORIGIN_API_BASE };
   try {
-    const raw = await apiFetch<unknown>('/admin/analytics/whatsapp-funnel', { tenantSlug });
+    const raw = await apiFetch<unknown>('/admin/analytics/whatsapp-funnel', requestOptions);
     const parsed = parseWhatsappFunnelResponse(raw);
     if (!parsed) {
       throw new ApiError('Respuesta inválida de WhatsApp funnel: falta contract_version o payload inválido.', 502, raw);
@@ -323,7 +327,7 @@ export const getWhatsappFunnel = async (tenantSlug?: string): Promise<WhatsappFu
       throw error;
     }
 
-    const raw = await apiFetch<unknown>('/api/admin/analytics/whatsapp-funnel', { tenantSlug });
+    const raw = await apiFetch<unknown>('/api/admin/analytics/whatsapp-funnel', requestOptions);
     const parsed = parseWhatsappFunnelResponse(raw);
     if (!parsed) {
       throw new ApiError('Respuesta inválida de WhatsApp funnel: falta contract_version o payload inválido.', 502, raw);
@@ -333,8 +337,9 @@ export const getWhatsappFunnel = async (tenantSlug?: string): Promise<WhatsappFu
 };
 
 export const getIdentityCoverageV1 = async (tenantSlug?: string): Promise<IdentityCoverageResponseV1> => {
+  const requestOptions = { tenantSlug, baseUrlOverride: SAME_ORIGIN_API_BASE };
   try {
-    const raw = await apiFetch<unknown>('/analytics/identity/coverage', { tenantSlug });
+    const raw = await apiFetch<unknown>('/analytics/identity/coverage', requestOptions);
     const parsed = parseIdentityCoverageResponseV1(raw);
     if (!parsed) {
       throw new ApiError('Respuesta inválida de identity coverage: contract_version o payload inválido.', 502, raw);
@@ -345,7 +350,7 @@ export const getIdentityCoverageV1 = async (tenantSlug?: string): Promise<Identi
       throw error;
     }
 
-    const raw = await apiFetch<unknown>('/api/analytics/identity/coverage', { tenantSlug });
+    const raw = await apiFetch<unknown>('/api/analytics/identity/coverage', requestOptions);
     const parsed = parseIdentityCoverageResponseV1(raw);
     if (!parsed) {
       throw new ApiError('Respuesta inválida de identity coverage: contract_version o payload inválido.', 502, raw);

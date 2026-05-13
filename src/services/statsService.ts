@@ -1,5 +1,8 @@
 import { ApiError, apiFetch } from '@/utils/api';
 import type { MapProvider } from '@/hooks/useMapProvider';
+import { SAME_ORIGIN_PROXY_BASE } from '@/config';
+
+const SAME_ORIGIN_API_BASE = SAME_ORIGIN_PROXY_BASE || '/api';
 
 export interface HeatmapBreakdownItem {
   label: string;
@@ -1115,6 +1118,7 @@ export const getAiReportLatest = async (params: { tenant_id?: string | number, s
         return await apiFetch<AiReportResponse>(endpoint, {
           suppressPanel401Redirect: true,
           preserveAuthOn401: true,
+          baseUrlOverride: SAME_ORIGIN_API_BASE,
         });
       } catch (error) {
         lastError = error;
@@ -1144,6 +1148,7 @@ export const generateAiReport = async (params: { tenant_id?: string | number, se
     body: JSON.stringify(params),
     suppressPanel401Redirect: true,
     preserveAuthOn401: true,
+    baseUrlOverride: SAME_ORIGIN_API_BASE,
   });
 };
 
