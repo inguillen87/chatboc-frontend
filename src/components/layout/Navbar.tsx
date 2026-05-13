@@ -38,7 +38,7 @@ import useCartCount from "@/hooks/useCartCount";
 import { useLandingExperience } from "@/hooks/useLandingExperience";
 import { useUser } from "@/hooks/useUser";
 import { getChatbocBotAvatar } from "@/utils/brandAssets";
-import { isBackofficeRole } from "@/utils/roles";
+import { hasRequiredRole, isBackofficeRole } from "@/utils/roles";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { buildTenantPath } from "@/utils/tenantPaths";
 
@@ -183,12 +183,11 @@ const Navbar: React.FC = () => {
 
     links.push({ to: buildTenantPath("/", currentSlug), label: "Ver sitio publico", icon: Layout });
 
-    const normalizedUserRole = userRole?.toLowerCase() || "";
     const normalizedCapabilities = capabilities.map((capability) => capability.toLowerCase());
     const hasBackendCapabilities = normalizedCapabilities.length > 0;
 
     return links.filter((link) => {
-      if (link.roles?.length && !link.roles.some((role) => role.toLowerCase() === normalizedUserRole)) {
+      if (link.roles?.length && !hasRequiredRole(userRole, link.roles)) {
         return false;
       }
 

@@ -15,8 +15,9 @@ import {
   FileText, // Icono para Plantillas
 } from "lucide-react";
 import { useUser } from "@/hooks/useUser";
-import { normalizeRole } from "@/utils/roles";
+import { hasRequiredRole } from "@/utils/roles";
 import useEndpointAvailable from "@/hooks/useEndpointAvailable";
+import { FEATURE_ENCUESTAS } from "@/config/featureFlags";
 
 interface LinkItem {
   label: string;
@@ -32,6 +33,7 @@ const ITEMS: LinkItem[] = [
   { label: "Métricas", path: "/pyme/metrics", icon: TrendingUp, roles: ["admin", "super_admin"], tipo: "pyme" },
   { label: "Catálogo", path: "/pyme/catalog", icon: Boxes, roles: ["admin", "super_admin"], tipo: "pyme" },
   { label: "Usuarios", path: "/usuarios", icon: Users, roles: ["admin", "empleado", "super_admin"] },
+  { label: "Encuestas", path: "/admin/encuestas", icon: FileText, roles: ["admin", "empleado", "super_admin"] },
   { label: "Analíticas 360", path: "/estadisticas", icon: BarChart2, roles: ["admin", "super_admin"], tipo: "municipio" },
   { label: "Empleados", path: "/municipal/usuarios", icon: UserCog, roles: ["admin", "super_admin"], tipo: "municipio" },
 ];
@@ -59,17 +61,13 @@ export default function QuickLinksCard() {
     );
   }
 
-  const role = normalizeRole(user.rol);
   const tipo = user.tipo_chat as "pyme" | "municipio";
 
   let items = ITEMS.filter((it) => {
     if (it.path === '/pedidos' && pedidosAvailable === false) return false;
-    return (!it.roles || it.roles.includes(role)) && (!it.tipo || it.tipo === tipo);
+    if (it.path === '/admin/encuestas' && !FEATURE_ENCUESTAS) return false;
+    return (!it.roles || hasRequiredRole(user.rol, it.roles)) && (!it.tipo || it.tipo === tipo);
   });
-
-  if (tipo === 'municipio') {
-    items = items.filter((item) => item.path === '/estadisticas');
-  }
 
   if (!items.length) return null;
 

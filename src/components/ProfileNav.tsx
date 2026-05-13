@@ -10,11 +10,12 @@ import {
 import { Button } from '@/components/ui/button';
 import { Menu } from 'lucide-react';
 import { useUser } from '@/hooks/useUser';
-import { normalizeRole } from '@/utils/roles';
+import { hasRequiredRole } from '@/utils/roles';
 import useEndpointAvailable from '@/hooks/useEndpointAvailable';
 import { useRealtimeAlerts } from '@/context/RealtimeAlertsContext';
 import { useTenant } from '@/context/TenantContext';
 import { buildTenantPath } from '@/utils/tenantPaths';
+import { FEATURE_ENCUESTAS } from '@/config/featureFlags';
 
 interface NavItem {
   label: string;
@@ -33,6 +34,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Trámites', path: '/municipal/tramites', roles: ['admin', 'super_admin'], tipo: 'municipio' },
   { label: 'Estadísticas', path: '/municipal/stats', roles: ['admin', 'super_admin'], tipo: 'municipio' },
   { label: 'Analytics', path: '/analytics', roles: ['admin', 'empleado', 'super_admin'] },
+  { label: 'Encuestas', path: '/admin/encuestas', roles: ['admin', 'empleado', 'super_admin'] },
   { label: 'Empleados', path: '/municipal/usuarios', roles: ['admin', 'super_admin'], tipo: 'municipio' },
   { label: 'Mapa de Incidentes', path: '/municipal/incidents', roles: ['admin', 'super_admin'], tipo: 'municipio' },
 ];
@@ -59,7 +61,6 @@ export default function ProfileNav() {
       </div>
     );
   }
-  const role = normalizeRole(user.rol);
   const tipo = user.tipo_chat as 'pyme' | 'municipio';
 
   const items = NAV_ITEMS.filter((it) => {
@@ -69,9 +70,10 @@ export default function ProfileNav() {
     if (it.path === '/analytics' && analyticsAvailable === false) return false;
     if (it.path === '/municipal/usuarios' && empleadosAvailable === false) return false;
     if (it.path === '/municipal/incidents' && incidentsMapAvailable === false) return false; // Check for Mapa
+    if (it.path === '/admin/encuestas' && !FEATURE_ENCUESTAS) return false;
 
     // Standard role and tipo filtering
-    return (!it.roles || it.roles.includes(role)) && (!it.tipo || it.tipo === tipo);
+    return (!it.roles || hasRequiredRole(user.rol, it.roles)) && (!it.tipo || it.tipo === tipo);
   });
 
   // Sort items to ensure consistent order if needed, or adjust NAV_ITEMS order directly.
