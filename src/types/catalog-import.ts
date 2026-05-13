@@ -7,7 +7,7 @@ export type ImportStatus =
   | 'importing'
   | 'completed';
 
-export type FileType = 'pdf' | 'xlsx' | 'csv' | 'image' | 'unknown';
+export type FileType = 'pdf' | 'xlsx' | 'xls' | 'csv' | 'tsv' | 'txt' | 'image' | 'unknown';
 
 export interface ImportColumn {
   key: string;      // The key in the 'cells' object (e.g., "col_0" or "precio")

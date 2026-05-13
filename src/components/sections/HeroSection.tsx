@@ -24,33 +24,37 @@ interface HeroSectionProps {
   experience?: LandingExperience | null;
 }
 
-const fallbackProofItems = [
-  "Web, WhatsApp y panel en una sola operación",
-  "Respuestas guiadas para cada consulta",
-  "Demo, tickets, pagos, encuestas y métricas listas para crecer",
+const defaultProofItems = [
+  "Web, WhatsApp y panel en una sola operacion",
+  "Reclamos, pedidos, encuestas y leads con seguimiento",
+  "Texto, voz, imagenes, archivos, ubicacion y llamadas cuando el canal lo permite",
 ];
 
-const fallbackDashboardRows = [
-  { label: "Conversaciones", value: "24/7", detail: "web + WhatsApp", tone: "bg-emerald-500" },
-  { label: "Tickets activos", value: "Orden", detail: "prioridad y cola", tone: "bg-amber-500" },
-  { label: "Leads y pedidos", value: "CRM", detail: "cobro + seguimiento", tone: "bg-sky-500" },
+const defaultDashboardRows = [
+  { label: "Conversaciones", value: "Entendidas", detail: "web + WhatsApp", tone: "bg-emerald-500" },
+  { label: "Casos", value: "Ordenados", detail: "prioridad y cola", tone: "bg-amber-500" },
+  { label: "Ventas", value: "Seguibles", detail: "carrito + contacto", tone: "bg-sky-500" },
 ];
 
-const fallbackChannelRows = [
+const defaultChannelRows = [
   { icon: MessageSquareText, label: "Chat", value: "consulta entendida", tone: "text-sky-500" },
   { icon: Mic, label: "Voz", value: "llamadas con IA", tone: "text-emerald-500" },
   { icon: FileText, label: "Casos", value: "tickets y adjuntos", tone: "text-amber-500" },
   { icon: MapPinned, label: "Mapa", value: "ubicaciones claras", tone: "text-violet-500" },
 ];
 
-const fallbackTimelineItems = [
+const defaultTimelineItems = [
   { label: "Mensaje recibido", meta: "canal web", state: "done" },
   { label: "Chatboc entiende la necesidad", meta: "opciones simples", state: "done" },
   { label: "El agente deja todo registrado", meta: "ticket o contacto", state: "active" },
   { label: "Seguimiento al usuario", meta: "WhatsApp / email", state: "next" },
 ];
 
-const chartHeights = [42, 66, 54, 72, 61, 88, 73, 92, 68, 81, 76, 95];
+const signalRows = [
+  { label: "Encuestas y comentarios", detail: "participacion visible", tone: "bg-primary" },
+  { label: "Reclamos y ubicaciones", detail: "zonas accionables", tone: "bg-emerald-500" },
+  { label: "Pedidos y leads", detail: "seguimiento comercial", tone: "bg-amber-500" },
+];
 
 const isRecord = (value: unknown): value is AnyRecord =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -64,11 +68,11 @@ const first = (record: AnyRecord | undefined | null, keys: string[]) => {
   return undefined;
 };
 
-const readText = (record: AnyRecord | undefined | null, keys: string[], fallback = "") => {
+const readText = (record: AnyRecord | undefined | null, keys: string[], defaultValue = "") => {
   const value = first(record, keys);
   if (typeof value === "string" && value.trim()) return cleanLandingCopy(value.trim());
   if (typeof value === "number" && Number.isFinite(value)) return String(value);
-  return cleanLandingCopy(fallback);
+  return cleanLandingCopy(defaultValue);
 };
 
 const asArray = (value: unknown): unknown[] => {
@@ -80,27 +84,27 @@ const asArray = (value: unknown): unknown[] => {
   return [];
 };
 
-const readItemLabel = (value: unknown, fallback = "") => {
+const readItemLabel = (value: unknown, defaultValue = "") => {
   if (typeof value === "string" && value.trim()) return cleanLandingCopy(value.trim());
   if (typeof value === "number" && Number.isFinite(value)) return String(value);
   if (isRecord(value)) {
-    return readText(value, ["label", "title", "name", "text", "copy", "headline"], fallback);
+    return readText(value, ["label", "title", "name", "text", "copy", "headline"], defaultValue);
   }
-  return cleanLandingCopy(fallback);
+  return cleanLandingCopy(defaultValue);
 };
 
-const readItemMeta = (value: unknown, fallback = "") => {
+const readItemMeta = (value: unknown, defaultValue = "") => {
   if (isRecord(value)) {
-    return readText(value, ["detail", "description", "subtitle", "meta", "value", "status"], fallback);
+    return readText(value, ["detail", "description", "subtitle", "meta", "value", "status"], defaultValue);
   }
-  return fallback;
+  return defaultValue;
 };
 
 const normalizeProofItems = (source: unknown) => {
   const items = asArray(source)
     .map((item) => readItemLabel(item))
     .filter(Boolean);
-  return items.length ? items : fallbackProofItems;
+  return items.length ? items : defaultProofItems;
 };
 
 const normalizeMetrics = (source: unknown) => {
@@ -118,8 +122,8 @@ const normalizeMetrics = (source: unknown) => {
         tone: readText(item, ["tone", "color_class"], tones[index % tones.length]),
       };
     })
-    .filter(Boolean) as typeof fallbackDashboardRows;
-  return items.length ? items.slice(0, 3) : fallbackDashboardRows;
+    .filter(Boolean) as typeof defaultDashboardRows;
+  return items.length ? items.slice(0, 3) : defaultDashboardRows;
 };
 
 const channelIconFor = (label: string) => {
@@ -159,9 +163,9 @@ const normalizeChannels = (source: unknown) => {
         tone: tones[index % tones.length],
       };
     })
-    .filter(Boolean) as typeof fallbackChannelRows;
+    .filter(Boolean) as typeof defaultChannelRows;
 
-  return items.length ? items.slice(0, 4) : fallbackChannelRows;
+  return items.length ? items.slice(0, 4) : defaultChannelRows;
 };
 
 const normalizeTimeline = (source: unknown) => {
@@ -175,26 +179,26 @@ const normalizeTimeline = (source: unknown) => {
         state: isRecord(item) ? readText(item, ["state", "status"], index < 2 ? "done" : index === 2 ? "active" : "next") : "next",
       };
     })
-    .filter(Boolean) as typeof fallbackTimelineItems;
-  return items.length ? items.slice(0, 5) : fallbackTimelineItems;
+    .filter(Boolean) as typeof defaultTimelineItems;
+  return items.length ? items.slice(0, 5) : defaultTimelineItems;
 };
 
 const normalizeCta = (
   source: unknown,
-  fallback: { label: string; target: string },
+  defaultCta: { label: string; target: string },
 ) => {
   if (isRecord(source)) {
     return {
-      label: readText(source, ["label", "title", "text"], fallback.label),
-      target: readRawText(source, ["href", "to", "route", "url", "endpoint"], fallback.target),
+      label: readText(source, ["label", "title", "text"], defaultCta.label),
+      target: readRawText(source, ["href", "to", "route", "url", "endpoint"], defaultCta.target),
     };
   }
 
   if (typeof source === "string" && source.trim()) {
-    return { ...fallback, label: cleanLandingCopy(source.trim()) };
+    return { ...defaultCta, label: cleanLandingCopy(source.trim()) };
   }
 
-  return fallback;
+  return defaultCta;
 };
 
 const resolveHeroSource = (experience?: LandingExperience | null): LandingRecord => {
@@ -207,11 +211,11 @@ const resolveHeroSource = (experience?: LandingExperience | null): LandingRecord
   return isRecord(heroSection) ? heroSection : {};
 };
 
-const readRawText = (record: AnyRecord | undefined | null, keys: string[], fallback = "") => {
+const readRawText = (record: AnyRecord | undefined | null, keys: string[], defaultValue = "") => {
   const value = first(record, keys);
   if (typeof value === "string" && value.trim()) return value.trim();
   if (typeof value === "number" && Number.isFinite(value)) return String(value);
-  return fallback;
+  return defaultValue;
 };
 
 const HeroSection = ({ experience }: HeroSectionProps) => {
@@ -230,7 +234,7 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
   const description = readText(
     hero,
     ["subheadline", "subtitle", "description", "copy", "body"],
-    "Chatboc atiende consultas, toma pedidos, crea reclamos, acompaña trámites y mantiene a cada persona informada sin que tu equipo pierda el control.",
+    "Chatboc atiende consultas, toma pedidos, crea reclamos, acompana tramites, activa encuestas y mantiene a cada persona informada sin que tu equipo pierda el control.",
   );
 
   const proofItems = normalizeProofItems(
@@ -360,14 +364,20 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2 text-sm font-semibold">
                       <BarChart3 className="h-4 w-4 text-primary" />
-                      {readText(hero, ["analytics_title"], "Métricas operativas")}
+                      {readText(hero, ["analytics_title"], "Senales operativas")}
                     </div>
-                    <span className="text-xs text-muted-foreground">{readText(hero, ["freshness_label"], "al día")}</span>
+                    <span className="text-xs text-muted-foreground">{readText(hero, ["freshness_label"], "en vivo")}</span>
                   </div>
                   <div className="space-y-2">
-                    <div className="chatboc-meter h-2 rounded-full bg-primary/80" style={{ width: "84%" }} />
-                    <div className="chatboc-meter h-2 rounded-full bg-emerald-500/70" style={{ width: "68%" }} />
-                    <div className="chatboc-meter h-2 rounded-full bg-amber-500/70" style={{ width: "42%" }} />
+                    {signalRows.map((row) => (
+                      <div key={row.label} className="flex items-center justify-between gap-3 rounded-[8px] bg-muted/45 px-3 py-2">
+                        <span className="flex min-w-0 items-center gap-2 text-xs font-medium text-foreground">
+                          <span className={`h-2 w-2 rounded-full ${row.tone}`} />
+                          {row.label}
+                        </span>
+                        <span className="truncate text-[11px] text-muted-foreground">{row.detail}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
 
@@ -398,13 +408,12 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
                       <span className="font-semibold text-foreground">{readText(hero, ["freshness_title"], "Estado")}</span>
                       <span className="text-success">{readText(hero, ["freshness_status"], "listo")}</span>
                     </div>
-                    <div className="grid h-[126px] grid-cols-12 items-end gap-1.5" aria-hidden="true">
-                      {chartHeights.map((height, index) => (
-                        <span
-                          key={index}
-                          className="chatboc-chart-column rounded-t bg-primary/75"
-                          style={{ height: `${height}%`, animationDelay: `${index * 90}ms` }}
-                        />
+                    <div className="space-y-2">
+                      {["Canal conectado", "Accion detectada", "Equipo con contexto", "Usuario informado"].map((item) => (
+                        <div key={item} className="flex items-center justify-between gap-3 rounded-[8px] bg-muted/45 px-3 py-2">
+                          <span className="text-xs font-medium text-foreground">{item}</span>
+                          <CheckCircle2 className="h-4 w-4 text-success" />
+                        </div>
                       ))}
                     </div>
                   </div>
@@ -487,7 +496,7 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
                     <MapPinned className="mb-3 h-5 w-5 text-emerald-500" />
                     <p className="text-sm font-semibold">{readText(hero, ["maps_title"], "Mapas accionables")}</p>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      {readText(hero, ["maps_copy"], "Ubicación y seguimiento cuando el caso lo necesita.")}
+                      {readText(hero, ["maps_copy"], "Ubicacion y seguimiento cuando el caso lo necesita.")}
                     </p>
                   </div>
                 </div>

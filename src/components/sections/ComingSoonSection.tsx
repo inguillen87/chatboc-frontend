@@ -3,17 +3,17 @@ import { ArrowRight, ShoppingCart, Users } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 
-const futureSolutions = [
+const operatingModules = [
   {
     id: "chatpos",
     icon: ShoppingCart,
     title: "ChatPOS",
     description:
-      "Punto de atención y venta para operar pedidos, servicios, pagos y seguimiento desde una pantalla simple.",
+      "Punto de atencion y venta para operar pedidos, servicios, pagos y seguimiento desde una pantalla simple.",
     imageSrc: "/images/chatpos.png",
     imageAlt: "Vista de ChatPOS",
-    demoLink: "/chatpos",
-    buttonText: "Conocer ChatPOS",
+    demoLink: "/demo?module=chatpos",
+    buttonText: "Ver en una demo",
     accent: "bg-emerald-500",
   },
   {
@@ -21,30 +21,30 @@ const futureSolutions = [
     icon: Users,
     title: "ChatCRM",
     description:
-      "Gestión de relaciones, conversaciones, perfiles y campañas conectadas a los datos reales de cada organización.",
+      "Gestion de relaciones, conversaciones, perfiles y campanas conectadas a los datos reales de cada organizacion.",
     imageSrc: "/images/chatcrm.png",
     imageAlt: "Vista de ChatCRM",
-    demoLink: "/chatcrm",
-    buttonText: "Explorar ChatCRM",
+    demoLink: "/demo?module=chatcrm",
+    buttonText: "Ver en una demo",
     accent: "bg-amber-500",
   },
 ];
 
 const ComingSoonSection = () => {
   return (
-    <section id="proximamente" className="chatboc-muted-band py-16 text-foreground md:py-24">
+    <section id="modulos" className="chatboc-muted-band py-16 text-foreground md:py-24">
       <div className="container mx-auto px-4">
         <div className="mx-auto mb-12 max-w-3xl text-center md:mb-16">
           <div className="chatboc-section-kicker mb-4">Ecosistema</div>
-          <h2 className="chatboc-section-heading">Módulos preparados para ampliar la operación</h2>
+          <h2 className="chatboc-section-heading">Modulos para ampliar la operacion</h2>
           <p className="chatboc-section-copy mt-4">
-            La plataforma crece con herramientas especializadas, pero mantiene una base común de identidad, conversaciones,
-            seguimiento y datos útiles para decidir.
+            La experiencia puede crecer hacia venta, seguimiento y relaciones con clientes sin separar el chat del
+            historial, el carrito, las metricas ni el trabajo del equipo.
           </p>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">
-          {futureSolutions.map((solution) => {
+          {operatingModules.map((solution) => {
             const Icon = solution.icon;
             return (
               <article key={solution.id} className="chatboc-landing-panel chatboc-hover-lift overflow-hidden">

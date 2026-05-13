@@ -1,80 +1,78 @@
 import React from "react";
 
 const HelpPage = () => (
-  <div className="min-h-screen bg-background text-foreground py-16 px-4 md:px-0 flex flex-col items-center">
-    <div className="max-w-2xl w-full bg-card rounded-2xl shadow-lg p-8 mt-6">
-      <h1 className="text-3xl font-bold mb-4 text-primary">Centro de Ayuda & Preguntas Frecuentes</h1>
-      <div className="mb-6 space-y-4">
+  <div className="flex min-h-screen flex-col items-center bg-background px-4 py-16 text-foreground md:px-0">
+    <div className="mt-6 w-full max-w-2xl rounded-[8px] border border-border bg-card p-8 shadow-lg">
+      <h1 className="mb-4 text-3xl font-bold text-primary">Centro de ayuda</h1>
+      <div className="mb-6 space-y-5">
         <div>
-          <h2 className="text-lg font-semibold mb-1 text-primary">¿Qué es Chatboc?</h2>
+          <h2 className="mb-1 text-lg font-semibold text-primary">Que es Chatboc?</h2>
           <p className="text-muted-foreground">
-            Es una plataforma SaaS argentina para automatizar ventas, soporte y atención 24/7 con un agente IA entrenado para pymes y comercios.
+            Es una solucion para atender, vender, crear casos, medir resultados y acompanar a usuarios en web,
+            WhatsApp y otros canales conectados.
           </p>
         </div>
         <div>
-          <h2 className="text-lg font-semibold mb-1 text-primary">¿Cómo integro el chat en mi web?</h2>
+          <h2 className="mb-1 text-lg font-semibold text-primary">Que lo diferencia de un chatbot comun?</h2>
           <p className="text-muted-foreground">
-            Solo copiás el código iframe desde tu panel y lo pegás donde quieras en tu web. No requiere desarrollo ni mantenimiento, funciona al instante.
+            No se limita a responder. Puede pedir datos, recibir adjuntos, crear reclamos o pedidos, activar encuestas,
+            derivar a una persona y dejar seguimiento para el equipo.
           </p>
         </div>
         <div>
-          <h2 className="text-lg font-semibold mb-1 text-primary">¿Qué archivos de catálogo acepta?</h2>
+          <h2 className="mb-1 text-lg font-semibold text-primary">Sirve para empresas, gobiernos y colegios?</h2>
           <p className="text-muted-foreground">
-            PDF, Excel (.xlsx, .xls) y CSV. El sistema lee y reconoce productos, precios y cantidades de forma automática.
+            Si. La experiencia se adapta a ventas, reclamos ciudadanos, tramites, familias, staff, encuestas,
+            votaciones, casos sensibles y atencion con historial.
           </p>
         </div>
         <div>
-          <h2 className="text-lg font-semibold mb-1 text-primary">¿Puedo probar Chatboc antes de pagar?</h2>
+          <h2 className="mb-1 text-lg font-semibold text-primary">Que archivos o mensajes puede entender?</h2>
           <p className="text-muted-foreground">
-            Sí, ofrecemos una demo gratuita con preguntas limitadas para que veas cómo funciona el agente IA en acción.
+            Puede trabajar con texto, imagenes, PDFs, planillas, comprobantes, notas de voz, ubicaciones y llamadas
+            cuando el canal de la organizacion lo permite.
           </p>
         </div>
         <div>
-          <h2 className="text-lg font-semibold mb-1 text-primary">¿Funciona desde el celular?</h2>
+          <h2 className="mb-1 text-lg font-semibold text-primary">Puedo probarlo antes de contratar?</h2>
           <p className="text-muted-foreground">
-            Sí, tanto el panel como el chat son 100% responsive, con modo oscuro y claro para máxima comodidad.
+            Si. La demo permite recorrer casos por rubro y ver como una consulta puede convertirse en accion,
+            seguimiento y datos utiles para decidir.
           </p>
         </div>
         <div>
-          <h2 className="text-lg font-semibold mb-1 text-primary">¿Cómo es la seguridad de mis datos?</h2>
+          <h2 className="mb-1 text-lg font-semibold text-primary">Necesito un equipo tecnico para empezar?</h2>
           <p className="text-muted-foreground">
-            Toda la información se procesa en servidores seguros. No vendemos ni compartimos datos personales. Cumplimos con normas legales de privacidad.
+            No. Chatboc acompana la configuracion inicial y ayuda a ordenar el recorrido para que usuarios,
+            operadores y administradores lo entiendan rapido.
           </p>
         </div>
         <div>
-          <h2 className="text-lg font-semibold mb-1 text-primary">¿Tengo soporte real?</h2>
+          <h2 className="mb-1 text-lg font-semibold text-primary">Como cuidan la seguridad?</h2>
           <p className="text-muted-foreground">
-            Sí, brindamos soporte humano por WhatsApp, email y ticket. Todas las consultas se responden en el mismo día hábil.
-          </p>
-        </div>
-        <div>
-          <h2 className="text-lg font-semibold mb-1 text-primary">¿Puedo cancelar o cambiar de plan?</h2>
-          <p className="text-muted-foreground">
-            Podés cancelar cuando quieras, sin permanencia. También podés cambiar de plan o volver a la demo desde tu panel.
-          </p>
-        </div>
-        <div>
-          <h2 className="text-lg font-semibold mb-1 text-primary">¿Qué hago si tengo dudas técnicas?</h2>
-          <p className="text-muted-foreground">
-            Consultá la <a href="/documentacion" className="text-blue-500 underline">Documentación Técnica</a> o escribinos a <a href="mailto:info@chatboc.ar" className="text-blue-500 underline">info@chatboc.ar</a>.
-          </p>
-        </div>
-        <div>
-          <h2 className="text-lg font-semibold mb-1 text-primary">¿Quiénes usan Chatboc?</h2>
-          <p className="text-muted-foreground">
-            Lo usan negocios, pymes, tiendas online, servicios y comercios de todo el país que quieren vender más y automatizar su atención.
+            La experiencia se configura por organizacion, con permisos, trazabilidad y canales definidos para que cada
+            equipo vea lo que corresponde.
           </p>
         </div>
       </div>
-      <div className="text-center mt-4 space-y-2">
-        <a href="/documentacion" className="inline-block text-blue-500 underline mr-2">Ir a la documentación técnica</a>
-        <span className="mx-2">·</span>
-        <a href="https://wa.me/5492613168608" target="_blank" rel="noopener noreferrer" className="inline-block text-green-500 underline mr-2">Chatear por WhatsApp</a>
-        <span className="mx-2">·</span>
-        <a href="mailto:info@chatboc.ar" className="inline-block text-blue-500 underline">Contactar por Email</a>
+      <div className="mt-4 flex flex-wrap justify-center gap-3 text-center">
+        <a href="/demo" className="inline-flex rounded-[8px] border border-primary/30 px-4 py-2 text-primary">
+          Probar demo
+        </a>
+        <a
+          href="https://wa.me/5492613168608"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex rounded-[8px] border border-green-500/40 px-4 py-2 text-green-500"
+        >
+          Chatear por WhatsApp
+        </a>
+        <a href="mailto:info@chatboc.ar" className="inline-flex rounded-[8px] border border-border px-4 py-2">
+          Contactar por email
+        </a>
       </div>
-      <div className="text-center text-xs text-gray-400 mt-8">
-        ¿No encontrás tu respuesta? Escribinos, resolvemos cualquier consulta.
+      <div className="mt-8 text-center text-xs text-muted-foreground">
+        No encontraste tu respuesta? Escribinos y armamos el recorrido que mejor encaje con tu organizacion.
       </div>
     </div>
   </div>

@@ -28,10 +28,10 @@ const categoryIcons: Record<string, React.ReactNode> = {
   empresas: <Store className="h-5 w-5" />,
   educacion: <GraduationCap className="h-5 w-5" />,
   "Colegios e instituciones educativas": <GraduationCap className="h-5 w-5" />,
-  "Alimentación y Bebidas": <ShoppingBag className="h-4 w-4" />,
+  "Alimentacion y Bebidas": <ShoppingBag className="h-4 w-4" />,
   "Salud y Bienestar": <Heart className="h-4 w-4" />,
   "Servicios Profesionales": <Briefcase className="h-4 w-4" />,
-  "Producción e Industria": <Factory className="h-4 w-4" />,
+  "Produccion e Industria": <Factory className="h-4 w-4" />,
   "Retail y Comercios": <Store className="h-4 w-4" />,
 };
 
@@ -89,7 +89,9 @@ const DemoCard = ({ item, sector, group }: { item: Rubro; sector: DemoSector; gr
         category_slug: readRubroSlug(item),
         tenant_slug: item.demo?.slug ?? group?.tenant_slug ?? null,
       });
-      navigate(`/demo?session=${encodeURIComponent(session.demo_session_id || "local")}`, {
+      const sessionId = session.demo_session_id || session.session_id;
+      if (!sessionId) throw new Error("missing_demo_session_id");
+      navigate(`/demo?session=${encodeURIComponent(sessionId)}`, {
         state: {
           demoSession: session,
           sector,
@@ -165,7 +167,9 @@ const PillarDemoCard = ({ sector, group }: { sector: DemoSector; group: DemoSect
         category_slug: defaultRubro,
         tenant_slug: group.tenant_slug ?? group.demo_tenant_slug ?? group.default_tenant_slug ?? null,
       });
-      navigate(`/demo?session=${encodeURIComponent(session.demo_session_id || "local")}`, {
+      const sessionId = session.demo_session_id || session.session_id;
+      if (!sessionId) throw new Error("missing_demo_session_id");
+      navigate(`/demo?session=${encodeURIComponent(sessionId)}`, {
         state: {
           demoSession: session,
           sector,
@@ -236,8 +240,8 @@ const DemoShowcaseSection = () => {
 
   const roots = Array.isArray(catalog?.rubros) ? catalog.rubros : [];
   const groups = useMemo(() => {
-    const backendGroups = Array.isArray(catalog?.sector_groups) ? catalog.sector_groups : [];
-    const byKey = new Map(backendGroups.map((group) => [String(group.key), group]));
+    const catalogGroups = Array.isArray(catalog?.sector_groups) ? catalog.sector_groups : [];
+    const byKey = new Map(catalogGroups.map((group) => [String(group.key), group]));
     return LANDING_DEMO_ORDER.map(
       (sector) => byKey.get(String(sector)),
     ).filter((group): group is DemoSectorGroup => Boolean(group));
@@ -250,10 +254,10 @@ const DemoShowcaseSection = () => {
       <div className="container relative mx-auto px-4">
         <div className="mx-auto mb-10 max-w-4xl text-center">
           <div className="chatboc-section-kicker mb-4">Demos</div>
-          <h2 className="chatboc-section-heading">Elegí un pilar y abrí una operación real de demo</h2>
+          <h2 className="chatboc-section-heading">Elegi un pilar y abri una operacion real de demo</h2>
           <p className="chatboc-section-copy mt-4">
-            Elegí Colegios, Gobiernos o Empresas y probá cómo Chatboc atiende consultas, toma datos y deja cada caso listo
-            para seguimiento.
+            Proba colegios, gobiernos o empresas con recorridos concretos: reclamos, pedidos, encuestas, adjuntos,
+            ubicaciones, derivacion humana y seguimiento.
           </p>
         </div>
 

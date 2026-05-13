@@ -25,7 +25,7 @@ const Footer = () => {
           <div className="flex flex-col items-center sm:items-start">
             <h3 className="text-xl font-bold mb-3 text-foreground">Chatboc</h3>
             <p className="text-muted-foreground mb-4 max-w-xs">
-              Tu experto virtual que entiende y atiende a tus clientes, 24/7.
+              Tu experto virtual para atender, vender y ordenar conversaciones en cada canal conectado.
             </p>
             <div className="flex space-x-4">
               <a href="https://www.facebook.com/chatboc" target="_blank" rel="noopener noreferrer" aria-label="Facebook" className="text-muted-foreground hover:text-primary transition-colors">

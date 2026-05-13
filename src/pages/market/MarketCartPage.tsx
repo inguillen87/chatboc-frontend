@@ -813,8 +813,6 @@ export default function MarketCartPage() {
               </Alert>
             ) : null}
 
-            ) : null}
-
             <div className="mt-3 text-xs text-muted-foreground">
               <p>
                 Al confirmar, enviaremos el pedido al equipo del comercio. También puedes revisar nuestras

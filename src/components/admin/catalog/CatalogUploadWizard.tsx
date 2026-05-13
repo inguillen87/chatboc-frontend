@@ -1,18 +1,15 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import {
   Upload, FileText, CheckCircle2, AlertTriangle,
-  ArrowRight, Loader2, XCircle, Settings2, RefreshCw, Save
+  ArrowRight, Loader2, XCircle, Save
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Skeleton } from '@/components/ui/skeleton';
 import { apiClient } from '@/api/client';
 import { toast } from 'sonner';
-import { CatalogPreviewV1, ColumnMapping, CatalogField, ImportStatus } from '@/types/catalog-import';
+import { CatalogPreviewV1, ColumnMapping, CatalogField } from '@/types/catalog-import';
 import { ImportMappingTable } from './ImportMappingTable';
 import { cn } from '@/lib/utils';
 import { looksLikeImageColumn } from '@/utils/marketImages';
@@ -43,7 +40,6 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({
   // UI State
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
@@ -58,7 +54,9 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
-      'text/csv': ['.csv'],
+      'text/csv': ['.csv', '.tsv'],
+      'text/plain': ['.txt'],
+      'application/vnd.ms-excel': ['.xls'],
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
       'application/pdf': ['.pdf']
     },
@@ -71,16 +69,10 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({
 
     setIsProcessing(true);
     setStep('processing');
-    setUploadProgress(10);
 
     try {
       const formData = new FormData();
       formData.append('file', file);
-
-      // Simulate progress
-      const progressInterval = setInterval(() => {
-        setUploadProgress(prev => Math.min(prev + 10, 90));
-      }, 500);
 
       // Call API (expects CatalogPreviewV1 structure).
       let response: CatalogPreviewV1;
@@ -88,12 +80,8 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({
         response = await apiClient.adminUploadCatalog(tenantSlug, formData);
       } catch (e) {
          console.warn("Catalog upload API failed", e);
-         clearInterval(progressInterval);
          throw e;
       }
-
-      clearInterval(progressInterval);
-      setUploadProgress(100);
 
       // Initialize default mapping based on column names (heuristic)
       const initialMapping: ColumnMapping = {};
@@ -121,7 +109,7 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({
       setStep('preview');
 
     } catch (err: any) {
-      setError(err.message || 'Error al subir el archivo');
+      setError(err.message || 'No se pudo subir el archivo');
       setStep('upload'); // Go back to upload on hard fail
     } finally {
       setIsProcessing(false);
@@ -183,14 +171,14 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({
       }
 
       await apiClient.adminConfirmCatalog(tenantSlug, {
-        upload_token: jobId, // using job_id as token
-        mapping_override: mapping as any // backend expects simple map
+        upload_token: jobId,
+        mapping_override: mapping as any
       });
 
       setStep('result');
-      toast.success("Catálogo importado correctamente");
+      toast.success("Catalogo importado correctamente");
     } catch (err: any) {
-      toast.error("Error al confirmar importación: " + err.message);
+      toast.error("No se pudo confirmar la importacion: " + err.message);
     } finally {
       setIsProcessing(false);
     }
@@ -214,10 +202,10 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({
         </div>
 
         <h3 className="text-lg font-medium mb-2">
-          {isDragActive ? "Suelta el archivo aquí..." : "Arrastra tu archivo o haz clic"}
+          {isDragActive ? "Solta el archivo aca..." : "Arrastra tu archivo o haz clic"}
         </h3>
         <p className="text-sm text-muted-foreground max-w-sm mb-4">
-          Soportamos PDF, Excel (.xlsx) y CSV. Detectaremos tablas automáticamente.
+          Sube PDF, Excel, CSV, TSV o TXT. La IA prepara una vista editable con productos, precios, stock, descripciones e imagenes cuando el archivo las trae.
         </p>
 
         {file && (
@@ -248,7 +236,7 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({
            </Button>
          )}
          <Button onClick={handleUpload} disabled={!file || isProcessing}>
-           {isProcessing ? "Procesando..." : "Analizar Archivo"} <ArrowRight className="ml-2 h-4 w-4" />
+           {isProcessing ? "Analizando..." : "Analizar catalogo"} <ArrowRight className="ml-2 h-4 w-4" />
          </Button>
       </div>
     </div>
@@ -257,18 +245,15 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({
   const renderProcessing = () => (
     <div className="py-16 flex flex-col items-center justify-center space-y-6 text-center">
       <div className="relative">
-         {/* Replaced generic Spinner with a nicer Loading state or Skeleton if we had one for big blocks, but here spinner + text is standard */}
         <Loader2 className="h-16 w-16 animate-spin text-primary" />
-        <div className="absolute inset-0 flex items-center justify-center text-xs font-bold">AI</div>
+        <div className="absolute inset-0 flex items-center justify-center text-xs font-bold">IA</div>
       </div>
       <div className="space-y-2 max-w-md w-full">
-        <h3 className="text-xl font-medium">Analizando documento...</h3>
-        <div className="space-y-2">
-           <Skeleton className="h-4 w-3/4 mx-auto" />
-           <Skeleton className="h-4 w-1/2 mx-auto" />
-        </div>
+        <h3 className="text-xl font-medium">La IA esta leyendo tu catalogo</h3>
+        <p className="text-sm text-muted-foreground">
+          Prepara columnas, productos e imagenes detectadas. Nada se publica hasta que confirmes.
+        </p>
       </div>
-      <Progress value={uploadProgress} className="w-64" />
     </div>
   );
 
@@ -299,9 +284,9 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({
         <div className="flex items-start justify-between bg-muted/30 p-4 rounded-lg border">
           <div className="space-y-1">
             <h3 className="font-medium flex items-center gap-2">
-              Resultados del análisis
+              Resultado del analisis
               {isFailed ? (
-                 <span className="inline-flex items-center rounded-full border border-red-200 bg-red-50 px-2.5 py-0.5 text-xs font-semibold text-red-700">Falló</span>
+                 <span className="inline-flex items-center rounded-full border border-red-200 bg-red-50 px-2.5 py-0.5 text-xs font-semibold text-red-700">No se pudo leer</span>
               ) : (
                  <span className="inline-flex items-center rounded-full border border-green-200 bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-800">
                     {previewData.summary?.detected_rows} productos detectados
@@ -309,11 +294,11 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({
               )}
             </h3>
             <p className="text-sm text-muted-foreground">
-              Revisa y ajusta el mapeo de columnas antes de importar.
+              Revisa lo que la IA encontro, corrige columnas y confirma solo cuando este listo.
             </p>
           </div>
           <div className="text-right text-xs text-muted-foreground">
-             <div>Confianza Global: {Math.round((previewData.summary?.confidence_global || 0) * 100)}%</div>
+             <div>Confianza: {Math.round((previewData.summary?.confidence_global || 0) * 100)}%</div>
              <div>Columnas: {previewData.summary?.detected_columns}</div>
              <div>Imagenes: {detectedImages}</div>
           </div>
@@ -342,7 +327,7 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({
             {hasErrors && (
               <Alert variant="destructive">
                 <XCircle className="h-4 w-4" />
-                <AlertTitle>Errores Críticos</AlertTitle>
+                <AlertTitle>Necesita revision</AlertTitle>
                 <AlertDescription>
                   <ul className="list-disc pl-4 mt-1 space-y-1">
                     {previewData.errors.map((e, i) => (
@@ -355,7 +340,7 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({
             {hasWarnings && !isFailed && (
               <Alert className="bg-amber-50 border-amber-200 text-amber-800">
                 <AlertTriangle className="h-4 w-4 text-amber-600" />
-                <AlertTitle>Advertencias</AlertTitle>
+                <AlertTitle>Observaciones</AlertTitle>
                 <AlertDescription>
                    <ul className="list-disc pl-4 mt-1">
                      {previewData.summary.warnings.slice(0, 3).map((w, i) => <li key={i}>{w}</li>)}
@@ -377,7 +362,7 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({
         ) : (
            <div className="border border-dashed rounded-lg p-12 flex flex-col items-center justify-center text-center text-muted-foreground">
               <XCircle className="h-10 w-10 mb-4 text-destructive/50" />
-              <p>No se encontraron datos estructurados válidos.</p>
+              <p>No se encontraron datos estructurados validos.</p>
               <p className="text-sm">Intenta subir un archivo diferente o revisa los errores arriba.</p>
            </div>
         )}
@@ -398,7 +383,7 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({
 
             <Button onClick={handleConfirm} disabled={isProcessing || isFailed}>
                {isProcessing ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
-               Confirmar e Importar
+               Publicar productos
             </Button>
           </div>
         </div>
@@ -412,9 +397,9 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({
         <CheckCircle2 className="h-10 w-10 text-green-600" />
       </div>
       <div className="space-y-2">
-        <h2 className="text-2xl font-bold">¡Importación Exitosa!</h2>
+        <h2 className="text-2xl font-bold">Catalogo publicado</h2>
         <p className="text-muted-foreground">
-          Los productos se han cargado a tu catálogo correctamente.
+          Los productos quedaron disponibles para revisar, completar imagenes y vender desde el marketplace.
         </p>
       </div>
       <div className="flex gap-4">
@@ -426,7 +411,7 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({
           Importar otro archivo
         </Button>
         <Button onClick={onFinish}>
-          Ver Catálogo <ArrowRight className="ml-2 h-4 w-4" />
+          Ver catalogo <ArrowRight className="ml-2 h-4 w-4" />
         </Button>
       </div>
     </div>
@@ -437,15 +422,15 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({
       <CardHeader>
         <div className="flex items-center justify-between">
            <div>
-             <CardTitle>Importar Catálogo</CardTitle>
-             <CardDescription>Sube tu lista de precios en PDF o Excel</CardDescription>
+             <CardTitle>Importar catalogo con IA</CardTitle>
+             <CardDescription>Convierte archivos reales en productos editables para el marketplace</CardDescription>
            </div>
            {/* Step Indicator */}
            <div className="flex items-center gap-2 text-sm">
               <span className={cn("px-2 py-1 rounded", step === 'upload' ? "bg-primary text-primary-foreground" : "text-muted-foreground")}>1. Subir</span>
-              <span className="text-muted-foreground">→</span>
+              <span className="text-muted-foreground">-&gt;</span>
               <span className={cn("px-2 py-1 rounded", step === 'preview' ? "bg-primary text-primary-foreground" : "text-muted-foreground")}>2. Revisar</span>
-              <span className="text-muted-foreground">→</span>
+              <span className="text-muted-foreground">-&gt;</span>
               <span className={cn("px-2 py-1 rounded", step === 'result' ? "bg-primary text-primary-foreground" : "text-muted-foreground")}>3. Listo</span>
            </div>
         </div>

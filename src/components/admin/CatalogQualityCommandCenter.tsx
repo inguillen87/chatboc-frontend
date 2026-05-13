@@ -220,9 +220,9 @@ export default function CatalogQualityCommandCenter({
     <Card className="border-border/60">
       <CardHeader className="gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <CardTitle className="text-base">Catalog quality</CardTitle>
+          <CardTitle className="text-base">Marketplace listo para vender</CardTitle>
           <CardDescription>
-            Cabina de calidad con colas, cobertura de catalogo y edicion inline.
+            Revisa lo que la IA extrajo, completa imagenes, precios, stock y publica fichas con mejor conversion.
           </CardDescription>
         </div>
         <Button type="button" variant="outline" size="sm" onClick={loadQuality} disabled={loading}>
@@ -241,10 +241,10 @@ export default function CatalogQualityCommandCenter({
         ) : null}
 
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <Metric label="Ready" value={formatPercent(first(summary, ["ready_rate"]))} icon={CheckCircle2} />
+          <Metric label="Listos" value={formatPercent(first(summary, ["ready_rate"]))} icon={CheckCircle2} />
           <Metric label="Productos" value={formatNumber(first(summary, ["products", "total"]))} icon={Package} />
           <Metric label="Sin imagen" value={formatNumber(first(summary, ["missing_images", "products_without_image"]))} icon={ImageOff} />
-          <Metric label="Bulk" value={asString(first(summary, ["bulk_import_status"])) || "v2"} icon={Database} />
+          <Metric label="Importacion" value={asString(first(summary, ["bulk_import_status"])) || "--"} icon={Database} />
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -317,54 +317,54 @@ export default function CatalogQualityCommandCenter({
           </div>
 
           <div className="rounded-2xl border border-border/60 p-4">
-            <h3 className="font-semibold">Edicion inline</h3>
+            <h3 className="font-semibold">Editor del producto</h3>
             <p className="mt-1 text-xs text-muted-foreground">
-              {"Usa PATCH /api/admin/tenants/{tenant}/catalog/items/{item}."}
+              Completa imagen principal, galeria, precio, stock, descripcion, promocion y enlaces de compra.
             </p>
             {selectedItem ? (
               <form className="mt-4 space-y-3" onSubmit={handleSubmit}>
                 <Input
                   value={form.imagen_url}
                   onChange={(event) => setForm((prev) => ({ ...prev, imagen_url: event.target.value }))}
-                  placeholder="imagen_url"
+                  placeholder="URL de imagen principal"
                 />
                 <Textarea
                   value={form.gallery_urls}
                   onChange={(event) => setForm((prev) => ({ ...prev, gallery_urls: event.target.value }))}
-                  placeholder="gallery_urls, una por linea"
+                  placeholder="Una imagen de galeria por linea"
                   className="min-h-[92px]"
                 />
                 <div className="grid grid-cols-2 gap-2">
                   <Input
                     value={form.precio}
                     onChange={(event) => setForm((prev) => ({ ...prev, precio: event.target.value }))}
-                    placeholder="precio"
+                    placeholder="Precio"
                   />
                   <Input
                     value={form.cantidad}
                     onChange={(event) => setForm((prev) => ({ ...prev, cantidad: event.target.value }))}
-                    placeholder="stock"
+                    placeholder="Stock"
                   />
                 </div>
                 <Input
                   value={form.descripcion_corta}
                   onChange={(event) => setForm((prev) => ({ ...prev, descripcion_corta: event.target.value }))}
-                  placeholder="descripcion_corta"
+                  placeholder="Descripcion corta"
                 />
                 <Input
                   value={form.promocion_info}
                   onChange={(event) => setForm((prev) => ({ ...prev, promocion_info: event.target.value }))}
-                  placeholder="promocion_info"
+                  placeholder="Promocion"
                 />
                 <Input
                   value={form.external_url}
                   onChange={(event) => setForm((prev) => ({ ...prev, external_url: event.target.value }))}
-                  placeholder="external_url"
+                  placeholder="Link externo"
                 />
                 <Input
                   value={form.checkout_type}
                   onChange={(event) => setForm((prev) => ({ ...prev, checkout_type: event.target.value }))}
-                  placeholder="checkout_type"
+                  placeholder="Tipo de checkout"
                 />
                 <Button type="submit" className="w-full" disabled={saving}>
                   <Save className="mr-2 h-4 w-4" />
@@ -382,9 +382,9 @@ export default function CatalogQualityCommandCenter({
 
         <div className="grid gap-3 lg:grid-cols-2">
           <div className="rounded-2xl border border-border/60 p-4">
-            <div className="font-semibold">Import wizard</div>
+            <div className="font-semibold">Importador inteligente</div>
             <p className="mt-1 text-xs text-muted-foreground">
-              {"Legacy: /api/admin/catalogo/importar - Nuevo: /api/admin/catalog/import."}
+              Archivos aceptados por la organizacion para convertir listas y documentos en productos editables.
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               {(imports?.accepted_file_types ?? []).map((item) => (
@@ -403,7 +403,7 @@ export default function CatalogQualityCommandCenter({
                 </Pill>
               ))}
               {!imports?.image_columns?.length ? (
-                <span className="text-sm text-muted-foreground">Todavia no hay columnas detectables publicadas.</span>
+                <span className="text-sm text-muted-foreground">Aun no se publicaron columnas de imagen para este catalogo.</span>
               ) : null}
             </div>
           </div>

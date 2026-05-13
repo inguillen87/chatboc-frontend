@@ -16,53 +16,53 @@ const problemsData = [
     icon: UsersRound,
     title: "Canales dispersos",
     description:
-      "La atención queda repartida entre WhatsApp, web, redes, planillas y llamadas. El equipo pierde contexto y el usuario repite su historia.",
-    outcome: "Conversación, historial y próximos pasos en una experiencia consistente.",
+      "La atencion queda repartida entre WhatsApp, web, redes, planillas y llamadas. El equipo pierde contexto y el usuario repite su historia.",
+    outcome: "Conversacion, historial y proximos pasos en una experiencia consistente.",
   },
   {
     icon: Settings2,
-    title: "Configuración difícil de mantener",
+    title: "Configuracion dificil de mantener",
     description:
-      "Los flujos rígidos envejecen rápido. Cada cambio de trámite, producto o política obliga a tocar reglas y pantallas.",
+      "Los flujos rigidos envejecen rapido. Cada cambio de tramite, producto o politica obliga a tocar reglas y pantallas.",
     outcome: "La experiencia cambia sin rehacer pantallas.",
   },
   {
     icon: Store,
     title: "Ventas y servicios sin continuidad",
     description:
-      "El interés aparece en el chat, pero la compra, el lead o el ticket quedan en otro sistema y se pierde trazabilidad.",
+      "El interes aparece en el chat, pero la compra, el lead o el ticket quedan en otro sistema y se pierde trazabilidad.",
     outcome: "Chat, marketplace, tickets y pagos comparten contexto operativo.",
   },
   {
     icon: SearchX,
     title: "Datos que llegan tarde",
     description:
-      "Sin estado actualizado, mapas accionables ni métricas por fuente, los paneles muestran ceros ambiguos o información vieja.",
-    outcome: "Métricas y mapas distinguen lo nuevo, lo pendiente y lo resuelto.",
+      "Sin estado actualizado, mapas accionables ni metricas por fuente, los paneles muestran ceros ambiguos o informacion vieja.",
+    outcome: "Metricas y mapas distinguen lo nuevo, lo pendiente y lo resuelto.",
   },
   {
     icon: MessageSquareX,
     title: "Bots que no resuelven",
     description:
-      "Un chatbot de guion corta la conversación justo cuando aparece una intención real: reclamo, pedido, pago o derivación humana.",
+      "Un chatbot de guion corta la conversacion justo cuando aparece una intencion real: reclamo, pedido, pago o derivacion humana.",
     outcome: "El agente solicita datos, registra contexto y deriva cuando corresponde.",
   },
   {
     icon: BarChart3,
-    title: "Operación sin prioridad",
+    title: "Operacion sin prioridad",
     description:
-      "Los equipos ven listas largas, pero no saben qué caso impacta más, qué fuente está caída o qué acción desbloquea valor.",
+      "Los equipos ven listas largas, pero no saben que caso impacta mas, que fuente esta caida o que accion desbloquea valor.",
     outcome: "Prioridades, tiempos y alertas ordenan el trabajo diario.",
   },
 ];
 
 const diagnosticRows = [
-  { label: "Contexto recuperado", value: "82%", width: "82%", tone: "bg-primary" },
-  { label: "Casos con próxima acción", value: "68%", width: "68%", tone: "bg-emerald-500" },
-  { label: "Riesgo operativo visible", value: "41%", width: "41%", tone: "bg-amber-500" },
+  { label: "Contexto unificado", value: "la persona no repite todo", tone: "bg-primary" },
+  { label: "Proxima accion clara", value: "el equipo sabe que hacer", tone: "bg-emerald-500" },
+  { label: "Resultado medible", value: "caso, pedido, encuesta o lead", tone: "bg-amber-500" },
 ];
 
-const flowNodes = ["Entrada", "Opciones", "Acción", "Seguimiento"];
+const flowNodes = ["Entrada", "Entendimiento", "Accion", "Seguimiento"];
 
 const ProblemsSection = () => {
   return (
@@ -70,9 +70,9 @@ const ProblemsSection = () => {
       <div className="container mx-auto px-4">
         <div className="mx-auto mb-10 max-w-3xl text-center md:mb-14">
           <div className="chatboc-section-kicker mb-4">El problema</div>
-          <h2 className="chatboc-section-heading">Lo que frena una operación moderna</h2>
+          <h2 className="chatboc-section-heading">Lo que frena una operacion moderna</h2>
           <p className="chatboc-section-copy mt-4">
-            Chatboc está pensado para organizaciones que ya tienen demanda real y necesitan que la experiencia digital acompañe
+            Chatboc esta pensado para organizaciones que ya tienen demanda real y necesitan que la experiencia digital acompane
             al equipo, no que lo obligue a sostener otra herramienta aislada.
           </p>
         </div>
@@ -81,23 +81,20 @@ const ProblemsSection = () => {
           <div className="border-b border-border/70 p-5 md:p-7 lg:border-b-0 lg:border-r">
             <div className="mb-6 flex items-center justify-between gap-4">
               <div>
-                <p className="text-sm font-semibold text-foreground">Diagnóstico operativo</p>
-                <p className="mt-1 text-sm text-muted-foreground">Dónde se pierde velocidad antes de automatizar.</p>
-              </div>
-              <div className="rounded-[8px] border border-border/70 bg-background/70 px-3 py-1.5 text-xs font-semibold text-muted-foreground">
-                before / after
+                <p className="text-sm font-semibold text-foreground">Diagnostico operativo</p>
+                <p className="mt-1 text-sm text-muted-foreground">Primero ordenamos el recorrido; despues automatizamos lo que tiene sentido.</p>
               </div>
             </div>
 
             <div className="space-y-4">
               {diagnosticRows.map((row) => (
                 <div key={row.label} className="rounded-[8px] border border-border/70 bg-background/70 p-4">
-                  <div className="mb-2 flex items-center justify-between gap-3 text-xs">
-                    <span className="font-semibold text-foreground">{row.label}</span>
-                    <span className="text-muted-foreground">{row.value}</span>
-                  </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-muted">
-                    <span className={`chatboc-meter block h-full rounded-full ${row.tone}`} style={{ width: row.width }} />
+                  <div className="flex items-start gap-3">
+                    <span className={`mt-1 h-2.5 w-2.5 flex-shrink-0 rounded-full ${row.tone}`} />
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">{row.label}</p>
+                      <p className="mt-1 text-xs leading-5 text-muted-foreground">{row.value}</p>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -107,7 +104,7 @@ const ProblemsSection = () => {
           <div className="p-5 md:p-7">
             <div className="mb-5 flex items-center gap-2 text-sm font-semibold text-foreground">
               <Activity className="h-4 w-4 text-primary" />
-              Del ruido operativo a un viaje guiado
+              Del ruido operativo a un recorrido guiado
             </div>
             <div className="grid gap-3 sm:grid-cols-4">
               {flowNodes.map((node, index) => (
@@ -120,7 +117,7 @@ const ProblemsSection = () => {
                     {index === 0
                       ? "Chat, voz, web o WhatsApp."
                       : index === 1
-                        ? "Chatboc propone opciones."
+                          ? "Chatboc entiende contexto."
                         : index === 2
                           ? "Ticket, pedido o lead."
                           : "Estado y trazabilidad."}

@@ -7,30 +7,30 @@ const steps = [
   {
     number: "01",
     icon: UploadCloud,
-    title: "Cargás tu operación",
+    title: "Ordenamos tu operacion",
     description:
-      "Documentos, catálogo, rubros, políticas, preguntas frecuentes o rutas existentes. El contenido queda como fuente operativa.",
+      "Relevamos consultas, reclamos, pedidos, encuestas, catalogos, politicas y rutas de derivacion para armar un recorrido claro.",
   },
   {
     number: "02",
     icon: Bot,
     title: "Chatboc prepara el recorrido",
     description:
-      "Menús, medios, botones, casos y métricas indican qué necesita ver cada persona para avanzar.",
+      "Menus, medios, botones, casos y metricas indican que necesita ver cada persona para avanzar.",
   },
   {
     number: "03",
     icon: Rocket,
     title: "El usuario conversa y avanza",
     description:
-      "El agente responde, pide datos, sube adjuntos, toma ubicación, deriva a humano o abre una acción concreta.",
+      "El agente responde, pide datos, recibe adjuntos, toma ubicacion, deriva a humano o abre una accion concreta.",
   },
   {
     number: "04",
     icon: BarChart3,
     title: "El equipo mide y mejora",
     description:
-      "Paneles, mapas, tiempos de atención y prioridades ayudan a operar con información actual.",
+      "Paneles, mapas, tiempos de atencion, resultados de encuestas y prioridades ayudan a operar con informacion actual.",
   },
 ];
 
@@ -41,11 +41,11 @@ const HowItWorksSection = () => {
     <section id="como-funciona" className="chatboc-muted-band py-16 text-foreground md:py-24">
       <div className="container mx-auto px-4">
         <div className="mx-auto mb-12 max-w-3xl text-center md:mb-16">
-          <div className="chatboc-section-kicker mb-4">Cómo funciona</div>
-          <h2 className="chatboc-section-heading">Menos configuración manual, más sistema funcionando</h2>
+          <div className="chatboc-section-kicker mb-4">Como funciona</div>
+          <h2 className="chatboc-section-heading">Menos improvisacion, mas sistema funcionando</h2>
           <p className="chatboc-section-copy mt-4">
-            El flujo está pensado para crecer sin pantallas hechas a mano: cuando una organización suma una capacidad,
-            la experiencia la muestra de forma clara y consistente.
+            El flujo esta pensado para que una organizacion pueda empezar simple y escalar hacia chat, WhatsApp, voz,
+            catalogo, casos, encuestas, mapas y analiticas sin perder orden.
           </p>
         </div>
 

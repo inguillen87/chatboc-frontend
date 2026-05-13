@@ -59,7 +59,7 @@ const UserOrdersPage = () => {
   return (
     <div className="container mx-auto p-4 max-w-4xl space-y-6">
       <div className="flex items-center justify-between">
-         <h1 className="text-2xl font-bold">Mis Pedidos</h1>
+         <h1 className="text-2xl font-bold">Mis pedidos</h1>
          <Button variant="outline" size="sm" asChild>
             <a href={catalogPath}>Ir a la tienda</a>
          </Button>

@@ -1,6 +1,8 @@
 import React, { useEffect } from "react";
 import { safeSessionStorage } from "@/utils/safeLocalStorage";
 import HeroSection from "@/components/sections/HeroSection";
+import ConsultingDifferenceSection from "@/components/sections/ConsultingDifferenceSection";
+import SaaSOperatingSystemSection from "@/components/sections/SaaSOperatingSystemSection";
 import ProblemsSection from "@/components/sections/ProblemsSection";
 import SolutionSection from "@/components/sections/SolutionSection";
 import HowItWorksSection from "@/components/sections/HowItWorksSection";
@@ -16,7 +18,7 @@ import LandingExperienceSections, { hasRenderableLandingSections } from "@/compo
 const Index = () => {
   const { experience: landingExperience } = useLandingExperience();
   const hasDynamicSections = hasRenderableLandingSections(landingExperience);
-  // Guard for mixed old/new client chunks during deploy rollouts.
+  // Guard for mixed old/new client chunks while browsers refresh assets.
   // Legacy bundles may still reference showWidget on this page.
   const showWidget = false;
 
@@ -41,6 +43,8 @@ const Index = () => {
         <section id="inicio">
           <HeroSection experience={landingExperience} />
         </section>
+        <ConsultingDifferenceSection />
+        <SaaSOperatingSystemSection />
         {hasDynamicSections ? (
           <LandingExperienceSections experience={landingExperience} />
         ) : (

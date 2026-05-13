@@ -3,12 +3,13 @@ import {
   Bot,
   ClipboardList,
   DatabaseZap,
-  Gift,
   LineChart,
   MapPinned,
+  PhoneCall,
   ShoppingBag,
   Sparkles,
   Users,
+  Vote,
   Workflow,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -19,37 +20,43 @@ const solutionFeatures = [
     icon: Bot,
     title: "Agentes IA con contexto",
     description:
-      "Responden con lenguaje natural, conservan la conversación, entienden intención y ofrecen pasos claros.",
+      "Responden con lenguaje natural, conservan la conversacion, entienden intencion y ofrecen pasos claros.",
   },
   {
     icon: ClipboardList,
     title: "Tickets y casos operativos",
     description:
-      "Cada conversación puede terminar en un ticket, lead, caso escolar, pedido o derivación humana con trazabilidad.",
+      "Cada conversacion puede terminar en un ticket, lead, caso escolar, pedido o derivacion humana con trazabilidad.",
   },
   {
     icon: ShoppingBag,
     title: "Comercio y cobros",
     description:
-      "Catálogo, carrito, pagos, puntos y estado post-pago integrados sin separar la experiencia de atención.",
+      "Catalogo, carrito, pagos, puntos y estado post-pago integrados sin separar la experiencia de atencion.",
   },
   {
-    icon: Gift,
-    title: "Fidelización y recompensas",
+    icon: Vote,
+    title: "Encuestas, sondeos y votaciones",
     description:
-      "Puntos, beneficios e incentivos se conectan con participación, compras y acciones reales del usuario.",
+      "Participacion, respuestas, comentarios y resultados se convierten en informacion operativa.",
   },
   {
     icon: MapPinned,
     title: "Territorio y mapas",
     description:
-      "Mapas de calor y puntos geográficos aparecen cuando hay ubicación útil para decidir mejor.",
+      "Mapas de calor y puntos geograficos aparecen cuando hay ubicacion util para decidir mejor.",
+  },
+  {
+    icon: PhoneCall,
+    title: "Voz y llamadas",
+    description:
+      "Notas de voz y llamadas se integran al recorrido cuando el canal esta habilitado para la organizacion.",
   },
   {
     icon: LineChart,
-    title: "Métricas accionables",
+    title: "Metricas accionables",
     description:
-      "Indicadores, tiempos de atención, prioridades y resumen ejecutivo ayudan a ordenar el trabajo.",
+      "Indicadores, tiempos de atencion, prioridades y resumen ejecutivo ayudan a ordenar el trabajo.",
   },
 ];
 
@@ -67,11 +74,11 @@ const SolutionSection = () => {
       <div className="container mx-auto px-4">
         <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
           <div className="lg:sticky lg:top-28">
-            <div className="chatboc-section-kicker mb-4">La solución</div>
-            <h2 className="chatboc-section-heading">Una plataforma SaaS que une atención, ventas y operación real</h2>
+            <div className="chatboc-section-kicker mb-4">La solucion</div>
+            <h2 className="chatboc-section-heading">Una consultora con una herramienta viva para atender, vender y medir</h2>
             <p className="chatboc-section-copy mt-4">
-              Chatboc muestra recorridos claros, acciones útiles y continuidad para que cada consulta pueda terminar en una
-              respuesta, una venta, un caso o una derivación humana.
+              Chatboc muestra recorridos claros, acciones utiles y continuidad para que cada consulta pueda terminar en una
+              respuesta, una venta, un caso, una encuesta, un pedido o una derivacion humana.
             </p>
 
             <div className="chatboc-landing-panel mt-7 p-4">
@@ -119,23 +126,24 @@ const SolutionSection = () => {
               <div className="mb-5 flex items-center justify-between gap-4">
                 <div>
                   <h3 className="text-lg font-semibold text-foreground">Pensada para operar</h3>
-                  <p className="mt-1 text-sm text-muted-foreground">Cada equipo ve opciones, estados y próximos pasos claros.</p>
+                  <p className="mt-1 text-sm text-muted-foreground">Cada equipo ve opciones, estados y proximos pasos claros.</p>
                 </div>
                 <div className="rounded-[8px] border border-border/70 bg-background/80 px-3 py-1.5 text-xs font-semibold text-primary">
                   listo
                 </div>
               </div>
               <div className="grid gap-3 md:grid-cols-3">
-                {["Opciones", "Estado", "Próximas acciones"].map((item, index) => (
+                {["Opciones reales", "Estado visible", "Proximas acciones"].map((item, index) => (
                   <div key={item} className="rounded-[8px] border border-border/70 bg-background/75 p-4">
                     <DatabaseZap className="mb-3 h-4 w-4 text-primary" />
                     <p className="text-sm font-semibold text-foreground">{item}</p>
-                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
-                      <span
-                        className="chatboc-meter block h-full rounded-full bg-primary"
-                        style={{ width: `${92 - index * 14}%`, animationDelay: `${index * 120}ms` }}
-                      />
-                    </div>
+                    <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                      {index === 0
+                        ? "El usuario ve lo que puede resolver."
+                        : index === 1
+                          ? "El equipo sabe donde esta cada caso."
+                          : "La conversacion deja una accion concreta."}
+                    </p>
                   </div>
                 ))}
               </div>

@@ -53,26 +53,26 @@ const asNumber = (value: unknown): number | null => {
   return null;
 };
 
-const readText = (record: AnyRecord | undefined | null, keys: string[], fallback = "") => {
+const readText = (record: AnyRecord | undefined | null, keys: string[], defaultValue = "") => {
   const value = first(record, keys);
   if (typeof value === "string" && value.trim()) return value.trim();
   if (typeof value === "number" && Number.isFinite(value)) return String(value);
-  return fallback;
+  return defaultValue;
 };
 
-const readCopyText = (record: AnyRecord | undefined | null, keys: string[], fallback = "") =>
-  cleanLandingCopy(readText(record, keys, fallback));
+const readCopyText = (record: AnyRecord | undefined | null, keys: string[], defaultValue = "") =>
+  cleanLandingCopy(readText(record, keys, defaultValue));
 
-const readItemLabel = (value: unknown, fallback = "") => {
+const readItemLabel = (value: unknown, defaultValue = "") => {
   if (typeof value === "string" && value.trim()) return cleanLandingCopy(value.trim());
   if (typeof value === "number" && Number.isFinite(value)) return String(value);
-  if (isRecord(value)) return readCopyText(value, ["label", "title", "name", "headline", "text"], fallback);
-  return cleanLandingCopy(fallback);
+  if (isRecord(value)) return readCopyText(value, ["label", "title", "name", "headline", "text"], defaultValue);
+  return cleanLandingCopy(defaultValue);
 };
 
-const readItemDetail = (value: unknown, fallback = "") => {
-  if (isRecord(value)) return readCopyText(value, ["description", "detail", "subtitle", "copy", "body"], fallback);
-  return cleanLandingCopy(fallback);
+const readItemDetail = (value: unknown, defaultValue = "") => {
+  if (isRecord(value)) return readCopyText(value, ["description", "detail", "subtitle", "copy", "body"], defaultValue);
+  return cleanLandingCopy(defaultValue);
 };
 
 const sectionKind = (section: LandingRecord, index: number) =>
@@ -131,16 +131,17 @@ const normalizeMetrics = (section: LandingRecord) =>
       if (!isRecord(item)) return null;
       const label = readCopyText(item, ["label", "title", "name"], `Metric ${index + 1}`);
       const rawValue = first(item, ["value", "metric", "count", "score", "rate"]);
+      if (rawValue === undefined || rawValue === null || rawValue === "") return null;
       const numeric = asNumber(rawValue);
       return {
         id: readText(item, ["id", "key"], `metric_${index + 1}`),
         label,
-        value: rawValue !== undefined && rawValue !== null ? String(rawValue) : "-",
+        value: String(rawValue),
         detail: readCopyText(item, ["detail", "description", "subtitle"]),
-        percent: numeric === null ? 48 + ((index * 17) % 42) : Math.max(8, Math.min(100, numeric > 1 ? numeric : numeric * 100)),
+        percent: numeric === null ? null : Math.max(8, Math.min(100, numeric > 1 ? numeric : numeric * 100)),
       };
     })
-    .filter(Boolean) as Array<{ id: string; label: string; value: string; detail: string; percent: number }>;
+    .filter(Boolean) as Array<{ id: string; label: string; value: string; detail: string; percent: number | null }>;
 
 const useNavigateTarget = () => {
   const navigate = useNavigate();
@@ -176,12 +177,14 @@ const MetricsPanel = ({ metrics }: { metrics: ReturnType<typeof normalizeMetrics
             <p className="text-xs font-semibold uppercase tracking-normal text-muted-foreground">{metric.label}</p>
             <p className="mt-2 text-3xl font-black tracking-tight text-foreground">{metric.value}</p>
             {metric.detail ? <p className="mt-1 text-sm text-muted-foreground">{metric.detail}</p> : null}
-            <div className="mt-4 h-2 overflow-hidden rounded-full bg-muted">
-              <span
-                className="chatboc-meter block h-full rounded-full bg-primary"
-                style={{ width: `${metric.percent}%`, animationDelay: `${index * 90}ms` }}
-              />
-            </div>
+            {metric.percent !== null ? (
+              <div className="mt-4 h-2 overflow-hidden rounded-full bg-muted">
+                <span
+                  className="chatboc-meter block h-full rounded-full bg-primary"
+                  style={{ width: `${metric.percent}%`, animationDelay: `${index * 90}ms` }}
+                />
+              </div>
+            ) : null}
           </div>
         ))}
       </div>
@@ -254,100 +257,6 @@ const CardGrid = ({ cards }: { cards: ReturnType<typeof normalizeCards> }) => {
   );
 };
 
-const curatedFallbackGroups = [
-  {
-    eyebrow: "Demo viva",
-    title: "La prueba tiene que mostrar trabajo real desde el primer click.",
-    description:
-      "Quien entra elige un rubro, prueba consultas reales, ve adjuntos, descarga recursos y entiende como queda el seguimiento para el equipo.",
-    cards: [
-      { label: "Elegir sector", detail: "Colegios, gobiernos o empresas con recorridos separados y claros.", value: "01" },
-      { label: "Probar una consulta", detail: "El chat responde con próximos pasos, acciones y recursos útiles.", value: "02" },
-      { label: "Ver el resultado", detail: "Cada interacción puede terminar en caso, pedido, lead o derivación.", value: "03" },
-    ],
-    metrics: [
-      { label: "Conversaciones", value: "24/7", percent: 88 },
-      { label: "Seguimiento", value: "ordenado", percent: 76 },
-      { label: "Canales", value: "web + WhatsApp", percent: 92 },
-    ],
-  },
-  {
-    eyebrow: "Multimodal",
-    title: "El agente entiende lo que la gente realmente manda.",
-    description:
-      "Mensajes, audios, fotos, documentos y ubicaciones se convierten en contexto accionable para resolver sin repetir datos.",
-    cards: [
-      { label: "Audio y voz", detail: "Ideal para personas que no quieren o no pueden escribir.", value: "voz" },
-      { label: "Fotos y archivos", detail: "Adjuntos que ayudan a explicar reclamos, pedidos o trámites.", value: "media" },
-      { label: "Ubicación", detail: "Mapa y dirección solo cuando el caso lo necesita.", value: "GPS" },
-    ],
-    metrics: [
-      { label: "Menos fricción", value: "2 clics", percent: 82 },
-      { label: "Accesibilidad", value: "incluida", percent: 95 },
-      { label: "Derivación", value: "humana", percent: 68 },
-    ],
-  },
-  {
-    eyebrow: "Operación",
-    title: "No es solo chat: queda gestionable para el equipo.",
-    description:
-      "Las conversaciones se ordenan en bandejas, métricas, mapas, catálogos y seguimiento para que la organización pueda operar mejor.",
-    cards: [
-      { label: "Tickets y leads", detail: "Prioridad, estado, responsables y próximos pasos visibles.", value: "CRM" },
-      { label: "Catálogo y carrito", detail: "Productos, recursos y compras conectadas al recorrido.", value: "ventas" },
-      { label: "Métricas claras", detail: "Canales, tiempos, satisfacción y zonas con más demanda.", value: "BI" },
-    ],
-    metrics: [
-      { label: "Casos", value: "orden", percent: 84 },
-      { label: "Ventas", value: "carrito", percent: 72 },
-      { label: "Mapas", value: "señales", percent: 64 },
-    ],
-  },
-];
-
-const CuratedFallbackPanel = ({ index }: { index: number }) => {
-  const group = curatedFallbackGroups[index % curatedFallbackGroups.length];
-  return (
-    <div className="chatboc-command-shell overflow-hidden">
-      <div className="grid gap-0 lg:grid-cols-[0.95fr_1.05fr]">
-        <div className="border-b border-border/70 p-6 lg:border-b-0 lg:border-r">
-          <div className="chatboc-section-kicker mb-4">{group.eyebrow}</div>
-          <h3 className="text-2xl font-bold tracking-tight text-foreground md:text-3xl">{group.title}</h3>
-          <p className="mt-4 text-sm leading-6 text-muted-foreground md:text-base">{group.description}</p>
-          <div className="mt-6 grid gap-3 sm:grid-cols-3">
-            {group.metrics.map((metric) => (
-              <div key={metric.label} className="rounded-[8px] border border-border/70 bg-background/80 p-3">
-                <p className="text-xs font-semibold uppercase tracking-normal text-muted-foreground">{metric.label}</p>
-                <p className="mt-1 text-lg font-bold text-foreground">{metric.value}</p>
-                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
-                  <span className="chatboc-meter block h-full rounded-full bg-primary" style={{ width: `${metric.percent}%` }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="grid gap-3 p-4 md:grid-cols-3 lg:grid-cols-1">
-          {group.cards.map((card) => {
-            const Icon = iconFor(card.label);
-            return (
-              <div key={card.label} className="rounded-[8px] border border-border/70 bg-background/75 p-4">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-[8px] bg-primary/10 text-primary">
-                    <Icon className="h-5 w-5" />
-                  </span>
-                  <span className="rounded-full border border-border/70 px-2.5 py-1 text-xs font-semibold text-muted-foreground">{card.value}</span>
-                </div>
-                <h4 className="font-semibold text-foreground">{card.label}</h4>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">{card.detail}</p>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-};
-
 const ProofBar = ({ source }: { source: unknown }) => {
   const items = asArray(source)
     .map((item, index) => ({
@@ -402,13 +311,13 @@ const PagesRail = ({ pages }: { pages: unknown }) => {
               <Layers3 className="h-5 w-5" />
             </div>
             <h2 className="text-2xl font-bold tracking-tight text-foreground">
-              {readCopyText(pagesRecord, ["title", "heading", "label"], "Más formas de usar Chatboc")}
+              {readCopyText(pagesRecord, ["title", "heading", "label"], "Mas formas de usar Chatboc")}
             </h2>
             <p className="mt-3 text-sm leading-6 text-muted-foreground">
               {readCopyText(
                 pagesRecord,
                 ["description", "subtitle", "copy"],
-                "Explorá demos, sectores y casos de uso pensados para que cualquier equipo entienda el valor en minutos.",
+                "Explora demos, sectores y casos de uso pensados para que cualquier equipo entienda el valor en minutos.",
               )}
             </p>
           </div>
@@ -489,7 +398,6 @@ const DynamicSection = ({ section, index }: { section: LandingRecord; index: num
           {metrics.length ? <MetricsPanel metrics={metrics} /> : null}
           {steps.length ? <WorkflowPanel steps={steps} /> : null}
           {cards.length ? <CardGrid cards={cards} /> : null}
-          {!metrics.length && !steps.length && !cards.length ? <CuratedFallbackPanel index={index} /> : null}
         </div>
         <CtaBand ctas={ctas} />
       </div>

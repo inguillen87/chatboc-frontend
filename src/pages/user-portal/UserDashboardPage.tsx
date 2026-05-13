@@ -24,16 +24,6 @@ import { usePortalContent } from '@/hooks/usePortalContent';
 import { useTenant } from '@/context/TenantContext';
 import { buildTenantPath } from '@/utils/tenantPaths';
 
-const EMPTY_LOYALTY_SUMMARY = {
-  points: 0,
-  level: '',
-  surveysCompleted: 0,
-  suggestionsShared: 0,
-  claimsFiled: 0,
-  transactions: [],
-  availableRewards: [],
-};
-
 const UserDashboardPage = () => {
   const navigate = useNavigate();
   const { user } = useUser();
@@ -48,7 +38,7 @@ const UserDashboardPage = () => {
       case 'resuelto':
         return 'bg-green-500/15 text-green-700 hover:bg-green-500/25 border-green-200';
       case 'warning':
-      case 'en revisión':
+      case 'en revision':
         return 'bg-yellow-500/15 text-yellow-700 hover:bg-yellow-500/25 border-yellow-200';
       case 'info':
       case 'recibido':
@@ -62,12 +52,9 @@ const UserDashboardPage = () => {
     }
   };
 
-  const loyaltySummary = useMemo(
-    () => content.loyaltySummary ?? EMPTY_LOYALTY_SUMMARY,
-    [content],
-  );
+  const loyaltySummary = useMemo(() => content.loyaltySummary ?? null, [content]);
 
-  // Safe fallbacks in case API returns nulls
+  // Normalize optional arrays from the tenant portal contract.
   const activities = content.activities ?? [];
   const featuredNews = content.news ?? [];
   const activeBenefits = (content.catalog ?? []).filter((item) => item.category === 'beneficios');
@@ -110,12 +97,12 @@ const UserDashboardPage = () => {
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-foreground tracking-tight">
-              {user?.name ? `¡Hola, ${user.name}!` : '¡Hola, bienvenido!'}
+              {user?.name ? `Hola, ${user.name}` : 'Hola, bienvenido'}
             </h1>
             <p className="text-muted-foreground mt-1">
               {isMunicipio
-                ? 'Gestioná tus trámites, reclamos y participá en tu comunidad.'
-                : 'Tu panel de cliente: seguí tus pedidos y descubrí beneficios.'}
+                ? 'Gestiona tus tramites, reclamos y participa en tu comunidad.'
+                : 'Tu panel de cliente: segui tus pedidos y descubri beneficios.'}
             </p>
           </div>
           <Button
@@ -139,7 +126,7 @@ const UserDashboardPage = () => {
               onClick={() => navigate(buildTenantPath('/portal/catalogo', currentSlug))}
             >
               <ShoppingBag className="h-6 w-6" />
-              <span>Ver Catálogo</span>
+              <span>Ver catalogo</span>
             </Button>
         )}
         {isMunicipio && (
@@ -149,7 +136,7 @@ const UserDashboardPage = () => {
               onClick={() => navigate(buildTenantPath('/portal/tramites', currentSlug))}
             >
               <ClipboardList className="h-6 w-6" />
-              <span>Iniciar Trámite</span>
+              <span>Iniciar tramite</span>
             </Button>
         )}
 
@@ -160,7 +147,7 @@ const UserDashboardPage = () => {
           onClick={() => navigate(buildTenantPath('/reclamos/nuevo', currentSlug))}
         >
           <PlusCircle className="h-6 w-6" />
-          <span>{isMunicipio ? 'Nuevo Reclamo' : 'Nueva Consulta'}</span>
+          <span>{isMunicipio ? 'Nuevo reclamo' : 'Nueva consulta'}</span>
         </Button>
       </motion.div>
 
@@ -187,7 +174,7 @@ const UserDashboardPage = () => {
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                   {bundleModules.slice(0, 6).map((item, index) => (
                     <div key={`${item.id || item.title || 'module'}-${index}`} className="rounded-xl border border-border bg-background/80 p-3">
-                      <p className="text-sm font-semibold text-foreground">{String(item.title || item.label || item.name || `Módulo ${index + 1}`)}</p>
+                      <p className="text-sm font-semibold text-foreground">{String(item.title || item.label || item.name || `Modulo ${index + 1}`)}</p>
                       {(item.description || item.summary) ? <p className="mt-1 text-xs text-muted-foreground">{String(item.description || item.summary)}</p> : null}
                     </div>
                   ))}
@@ -197,7 +184,7 @@ const UserDashboardPage = () => {
           </SummaryCard>
           {bundleQuickActions.length > 0 ? (
             <SummaryCard
-              title="Acciones rápidas"
+              title="Acciones rapidas"
               icon={<PlusCircle className="h-5 w-5 text-primary" />}
             >
               <div className="space-y-3">
@@ -211,7 +198,7 @@ const UserDashboardPage = () => {
                     }}
                     className="w-full rounded-xl border border-border bg-background/80 p-3 text-left transition hover:border-primary/30 hover:bg-primary/5"
                   >
-                    <p className="text-sm font-semibold text-foreground">{String(item.label || item.title || item.name || `Acción ${index + 1}`)}</p>
+                    <p className="text-sm font-semibold text-foreground">{String(item.label || item.title || item.name || `Accion ${index + 1}`)}</p>
                     {(item.description || item.summary) ? <p className="mt-1 text-xs text-muted-foreground">{String(item.description || item.summary)}</p> : null}
                   </button>
                 ))}
@@ -244,7 +231,7 @@ const UserDashboardPage = () => {
         {/* Recent Activity Card - Spans 2 cols on large screens */}
         <motion.div variants={itemVariants} className="lg:col-span-2">
             <SummaryCard
-              title={isMunicipio ? "Tus Reclamos y Solicitudes" : "Actividad Reciente"}
+              title={isMunicipio ? "Tus reclamos y solicitudes" : "Actividad reciente"}
               icon={<History className="h-5 w-5" />}
               ctaText={isMunicipio ? "Ver historial completo" : "Ver todos mis pedidos"}
               onCtaClick={() => navigate(buildTenantPath(isMunicipio ? '/portal/reclamos' : '/portal/pedidos', currentSlug))}
@@ -268,7 +255,7 @@ const UserDashboardPage = () => {
                                     {activity.description}
                                 </p>
                                 <p className="text-xs text-muted-foreground flex items-center gap-1">
-                                  {activity.type} · {activity.date}
+                                  {activity.type} - {activity.date}
                                 </p>
                              </div>
                           </div>
@@ -283,7 +270,7 @@ const UserDashboardPage = () => {
                   </ul>
               ) : (
                   <div className="flex flex-col items-center justify-center h-40 text-center text-muted-foreground p-4 bg-muted/20 rounded-lg border border-dashed">
-                      <p className="text-sm">No tienes actividad reciente.</p>
+                      <p className="text-sm">Todavia no hay actividad registrada para esta cuenta.</p>
                   </div>
               )}
             </SummaryCard>
@@ -311,7 +298,7 @@ const UserDashboardPage = () => {
                         <p className="text-xs text-muted-foreground line-clamp-2 mb-2">{notification.message}</p>
                         {notification.actionHref && (
                             <Link to={buildTenantPath(notification.actionHref, currentSlug)} className="text-xs font-medium text-primary hover:underline">
-                                {notification.actionLabel || "Ver más"} &rarr;
+                                {notification.actionLabel || "Ver mas"} &rarr;
                             </Link>
                         )}
                     </div>
@@ -321,6 +308,7 @@ const UserDashboardPage = () => {
             )}
 
             {/* Participation / Points Stats */}
+            {loyaltySummary ? (
             <SummaryCard
                 title={isPyme ? "Tu Nivel" : "Tu Impacto"}
                 icon={<Sparkles className="h-5 w-5 text-yellow-500" />}
@@ -333,7 +321,7 @@ const UserDashboardPage = () => {
                             <div className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Puntos Acumulados</div>
                             <div className="mt-4 pt-4 border-t w-full">
                                 <Link to={buildTenantPath('/portal/beneficios', currentSlug)} className="text-sm text-primary hover:underline">
-                                    Ver catálogo de premios
+                                    Ver catalogo de premios
                                 </Link>
                             </div>
                         </>
@@ -351,6 +339,7 @@ const UserDashboardPage = () => {
                     )}
                  </div>
             </SummaryCard>
+            ) : null}
 
         </motion.div>
       </motion.div>
@@ -363,9 +352,9 @@ const UserDashboardPage = () => {
                     <SummaryCard title="Encuestas Pendientes" icon={<MessageSquareQuote className="h-5 w-5" />}>
                         <div className="bg-primary/5 p-4 rounded-lg border border-primary/10">
                             <h4 className="font-semibold text-primary mb-2">{pendingSurveys[0].title}</h4>
-                            <p className="text-xs text-muted-foreground mb-4">Tu opinión nos ayuda a mejorar. Participá y sumá puntos.</p>
+                            <p className="text-xs text-muted-foreground mb-4">Tu opinion ayuda a mejorar. Participa cuando la organizacion tenga encuestas activas.</p>
                             <Button size="sm" className="w-full" onClick={() => navigate(buildTenantPath(pendingSurveys[0].link || '/portal/encuestas', currentSlug))}>
-                                Responder Encuesta
+                                Responder encuesta
                             </Button>
                         </div>
                     </SummaryCard>
@@ -376,7 +365,7 @@ const UserDashboardPage = () => {
             {featuredNews.length > 0 && (
                 <motion.div variants={itemVariants} className="lg:col-span-2">
                     <SummaryCard
-                        title="Novedades Destacadas"
+                        title="Novedades destacadas"
                         icon={<Newspaper className="h-5 w-5" />}
                         ctaText="Leer todas las noticias"
                         onCtaClick={() => navigate(buildTenantPath('/portal/noticias', currentSlug))}

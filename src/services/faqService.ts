@@ -2,24 +2,29 @@ import { FAQ } from "@/types/chat";
 
 const faqs: FAQ[] = [
   {
-    question: "¿Qué es Chatboc?",
+    question: "Que es Chatboc?",
     answer:
-      "Chatboc es un asistente virtual con IA personalizado para pymes. Responde consultas de tus clientes 24/7, aprende de cada interacción y se adapta a tu negocio específico.",
+      "Chatboc combina consultoria, agente IA y panel operativo para atender consultas, vender, crear casos, medir resultados y derivar a personas cuando hace falta.",
   },
   {
-    question: "¿Cuánto cuesta Chatboc?",
+    question: "Para que organizaciones sirve?",
     answer:
-      "Ofrecemos una prueba gratuita de 15 días con hasta 10 preguntas personalizadas. Nuestro plan Pro comienza desde USD 20 al mes, con hasta 50 preguntas personalizadas y muchas más funcionalidades.",
+      "Sirve para empresas, comercios, gobiernos, municipios y colegios que necesitan ordenar conversaciones, reclamos, pedidos, encuestas, votaciones y seguimiento.",
   },
   {
-    question: "¿Cómo funciona la personalización?",
+    question: "Que puede entender el agente?",
     answer:
-      "Comenzamos configurando juntos 10 preguntas y respuestas cruciales para tu negocio. Así, desde el día uno, Chatboc habla el idioma de tus clientes y conoce tus productos/servicios.",
+      "Puede trabajar con texto, notas de voz, imagenes, archivos, ubicaciones y llamadas cuando el canal esta habilitado por la organizacion.",
   },
   {
-    question: "¿Necesito conocimientos técnicos para usar Chatboc?",
+    question: "Que pasa despues de una conversacion?",
     answer:
-      "¡No! Chatboc está diseñado para ser muy fácil de usar. Nuestro panel de administración es intuitivo, pensado para dueños de pymes, no para expertos en tecnología.",
+      "La conversacion puede dejar un lead, pedido, reclamo, caso escolar, respuesta de encuesta, comentario o derivacion humana con contexto para el equipo.",
+  },
+  {
+    question: "Necesito conocimientos tecnicos?",
+    answer:
+      "No. El equipo de Chatboc acompana la configuracion para que la experiencia quede clara para usuarios, operadores y administradores.",
   },
 ];
 
@@ -42,5 +47,5 @@ export const findBestMatch = (text: string): string => {
 
   return highestScore > 0 && bestMatch
     ? bestMatch.answer
-    : "Lo siento, no tengo esa información específica. ¿Puedo ayudarte con algo más sobre Chatboc?";
+    : "Puedo ayudarte a entender como Chatboc atiende, vende, mide y ordena operaciones reales.";
 };

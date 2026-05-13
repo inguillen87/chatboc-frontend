@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { MessageSquare, ExternalLink, PlusCircle, AlertCircle } from 'lucide-react';
+import { MessageSquare, ExternalLink, PlusCircle } from 'lucide-react';
 import { buildTenantPath } from '@/utils/tenantPaths';
 import { useNavigate } from 'react-router-dom';
 
@@ -16,7 +16,7 @@ const STATUS_MAP: Record<string, string> = {
   pending: "Pendiente",
   closed: "Cerrado",
   resolved: "Resuelto",
-  in_progress: "En Proceso"
+  in_progress: "En proceso"
 };
 
 const STATUS_VARIANTS: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
@@ -60,9 +60,9 @@ const UserClaimsPage = () => {
   return (
     <div className="container mx-auto p-4 max-w-4xl space-y-6">
       <div className="flex items-center justify-between">
-         <h1 className="text-2xl font-bold">Mis Reclamos y Solicitudes</h1>
+         <h1 className="text-2xl font-bold">Mis reclamos y solicitudes</h1>
          <Button onClick={() => navigate(buildTenantPath('/reclamos/nuevo', currentSlug))}>
-            <PlusCircle className="mr-2 h-4 w-4"/> Nuevo Reclamo
+            <PlusCircle className="mr-2 h-4 w-4"/> Nuevo reclamo
          </Button>
       </div>
 
@@ -98,17 +98,9 @@ const UserClaimsPage = () => {
 
                     <div className="text-right">
                        <Button variant="ghost" size="sm" asChild>
-                          <a href={buildTenantPath(`/encuestas/${ticket.id}`, currentSlug)} className="flex items-center gap-1">
+                          <a href={buildTenantPath(`/chat/${ticket.id}`, currentSlug)} className="flex items-center gap-1">
                               Ver detalles <ExternalLink className="h-3 w-3"/>
                           </a>
-                          {/* Note: The detail link might depend on how ticket details are exposed to portal users.
-                              Usually it would be /portal/reclamos/:id.
-                              For now, using a placeholder or if available.
-                              The prompt mentions /admin/encuestas/[id] but not user portal ticket detail.
-                              We'll assume generic detail page or leave it blank/disabled if not implemented.
-                              Actually, TenantSurveyDetailPage exists, but TenantTicketDetailPage?
-                              For now, I'll just link to the lookup page /chat/:ticketId
-                          */}
                        </Button>
                     </div>
                  </div>

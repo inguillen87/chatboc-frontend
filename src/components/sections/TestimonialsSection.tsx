@@ -1,77 +1,65 @@
 import React from "react";
-import { Quote, Star } from "lucide-react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { BarChart3, Clock, MessageSquareText, Route, ShieldCheck, UsersRound } from "lucide-react";
 
-const testimonialsData = [
+const valueSignals = [
   {
-    quote:
-      "Pasamos de responder mensajes sueltos a tener historial, tickets y prioridades claras. El equipo opera con mucha más confianza.",
-    organizationName: "Equipo de atención ciudadana",
-    authorName: "Operación pública",
-    avatarFallback: "OP",
-    stars: 5,
+    icon: MessageSquareText,
+    title: "Conversaciones con contexto",
+    detail: "Cada mensaje puede conservar canal, motivo, adjuntos, ubicacion y proxima accion.",
   },
   {
-    quote:
-      "El chat dejó de ser solo soporte: ahora captura intención comercial, deriva a venta y conserva el contexto de cada cliente.",
-    organizationName: "Equipo comercial",
-    authorName: "Empresa regional",
-    avatarFallback: "ER",
-    stars: 5,
+    icon: Route,
+    title: "Recorridos accionables",
+    detail: "La persona no queda en un menu sin salida: puede avanzar a reclamo, pedido, encuesta o derivacion.",
   },
   {
-    quote:
-      "La mayor diferencia fue poder ver datos frescos y acciones recomendadas. El panel ya no es decorativo: sirve para decidir.",
-    organizationName: "Equipo de gestión",
-    authorName: "Organización multiárea",
-    avatarFallback: "GM",
-    stars: 5,
+    icon: BarChart3,
+    title: "Resultados medibles",
+    detail: "Encuestas, votaciones, comentarios, leads, pedidos y casos alimentan paneles operativos.",
   },
   {
-    quote:
-      "Pudimos sumar nuevos recorridos sin volver a empezar: el equipo entiende qué hacer y el usuario avanza más rápido.",
-    organizationName: "Equipo de implementación",
-    authorName: "Operación SaaS",
-    avatarFallback: "OS",
-    stars: 5,
+    icon: UsersRound,
+    title: "Equipo mejor informado",
+    detail: "Cuando interviene una persona, recibe historial y datos utiles para resolver sin empezar de cero.",
+  },
+  {
+    icon: Clock,
+    title: "Seguimiento visible",
+    detail: "El usuario puede consultar estado y el equipo ve prioridades, tiempos y pendientes.",
+  },
+  {
+    icon: ShieldCheck,
+    title: "Implementacion acompanada",
+    detail: "Chatboc ayuda a ordenar procesos, menus, permisos y contenidos antes de automatizar.",
   },
 ];
 
 const TestimonialsSection = () => {
   return (
-    <section id="testimonios" className="bg-background py-16 text-foreground md:py-24">
+    <section id="senales-valor" className="bg-background py-16 text-foreground md:py-24">
       <div className="container mx-auto px-4">
         <div className="mx-auto mb-12 max-w-3xl text-center md:mb-16">
-          <div className="chatboc-section-kicker mb-4">Señales de valor</div>
-          <h2 className="chatboc-section-heading">La experiencia se nota en la operación diaria</h2>
+          <div className="chatboc-section-kicker mb-4">Senales de valor</div>
+          <h2 className="chatboc-section-heading">Lo que una primera demo tiene que dejar claro</h2>
           <p className="chatboc-section-copy mt-4">
-            Más que una capa visual, Chatboc busca que cada conversación deje datos, contexto y una acción posible para el equipo.
+            Chatboc se vende mejor cuando la persona ve que cada conversacion puede transformarse en trabajo real:
+            datos, seguimiento, decision y accion para el equipo.
           </p>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
-          {testimonialsData.map((testimonial) => (
-            <article key={testimonial.organizationName} className="chatboc-landing-panel chatboc-hover-lift flex flex-col p-5 md:p-6">
-              <div className="mb-5 flex items-center justify-between gap-4">
-                <Quote className="h-6 w-6 text-primary" />
-                <div className="flex text-amber-400">
-                  {Array.from({ length: testimonial.stars }).map((_, index) => (
-                    <Star key={index} className="h-4 w-4 fill-current" />
-                  ))}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {valueSignals.map((signal) => {
+            const Icon = signal.icon;
+            return (
+              <article key={signal.title} className="chatboc-landing-panel chatboc-hover-lift p-5 md:p-6">
+                <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-[8px] bg-primary/10 text-primary">
+                  <Icon className="h-5 w-5" />
                 </div>
-              </div>
-              <p className="flex-1 text-base leading-7 text-muted-foreground">"{testimonial.quote}"</p>
-              <div className="mt-6 flex items-center border-t border-border/70 pt-4">
-                <Avatar className="mr-4 h-11 w-11">
-                  <AvatarFallback className="bg-primary/10 text-primary">{testimonial.avatarFallback}</AvatarFallback>
-                </Avatar>
-                <div>
-                  <h4 className="font-semibold text-foreground">{testimonial.organizationName}</h4>
-                  <p className="text-sm text-muted-foreground">{testimonial.authorName}</p>
-                </div>
-              </div>
-            </article>
-          ))}
+                <h3 className="text-lg font-semibold text-foreground">{signal.title}</h3>
+                <p className="mt-3 text-sm leading-6 text-muted-foreground">{signal.detail}</p>
+              </article>
+            );
+          })}
         </div>
       </div>
     </section>

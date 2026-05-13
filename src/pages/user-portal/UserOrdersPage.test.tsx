@@ -5,20 +5,20 @@ import UserOrdersPage from './UserOrdersPage';
 import { TenantProvider } from '@/context/TenantContext';
 import { vi } from 'vitest';
 
-// Mock dependencies
+// Test dependencies
 vi.mock('@/hooks/useUser', () => ({
   useUser: () => ({ user: null, isLoading: false }),
 }));
 
-// Mock API Client to return empty list so component uses fallback
+// API client returns an empty real response so the page renders the empty state.
 vi.mock('@/api/client', () => ({
   apiClient: {
-    listOrders: vi.fn().mockResolvedValue([]), // Return empty to trigger fallback
+    listOrders: vi.fn().mockResolvedValue([]),
   }
 }));
 
 describe('UserOrdersPage', () => {
-  it('renders orders page and fallback data', async () => {
+  it('renders orders page and empty state', async () => {
     render(
       <MemoryRouter initialEntries={['/t/demo/pedidos']}>
         <TenantProvider>
@@ -28,10 +28,10 @@ describe('UserOrdersPage', () => {
     );
 
     await waitFor(() => {
-        expect(screen.getByText(/Mis Pedidos/i)).toBeInTheDocument();
+        expect(screen.getByText(/Mis pedidos/i)).toBeInTheDocument();
     });
 
-    // Check empty-state content when backend has no orders
+    // Check empty-state content when the account has no orders.
     await waitFor(() => {
         expect(screen.getByText(/No tenés pedidos registrados aún\./i)).toBeInTheDocument();
     });

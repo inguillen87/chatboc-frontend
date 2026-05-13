@@ -7,22 +7,22 @@ const targetGroups = [
     icon: Landmark,
     title: "Gobierno y territorio",
     description:
-      "Atención ciudadana, trámites, reclamos, encuestas, mapas y participación con trazabilidad para equipos públicos.",
-    points: ["Portal de servicios", "Tickets y tiempos", "Mapas y votaciones"],
+      "Atencion ciudadana, tramites, reclamos con ubicacion, encuestas, mapas y participacion con trazabilidad para equipos publicos.",
+    points: ["Reclamos con seguimiento", "Encuestas y votaciones", "Mapas y comentarios"],
   },
   {
     icon: Briefcase,
     title: "Empresas y comercios",
     description:
-      "Ventas asistidas, soporte, catálogo, leads, cobros, recompensas y seguimiento sin romper la conversación.",
-    points: ["Web y WhatsApp", "Marketplace y pagos", "CRM operativo"],
+      "Ventas asistidas, soporte, catalogo, leads, cobros, pedidos y seguimiento sin romper la conversacion.",
+    points: ["Web y WhatsApp", "Catalogo, carrito y pagos", "Leads con historial"],
   },
   {
     icon: GraduationCap,
-    title: "Educación",
+    title: "Educacion",
     description:
-      "Experiencia escolar para familias, secretaría y operadores: asistencia, comunicados, documentación y casos sensibles.",
-    points: ["Menú escolar", "Casos por canal", "WhatsApp educativo"],
+      "Experiencia escolar para familias, secretaria y operadores: asistencia, comunicados, documentacion, pagos y casos sensibles.",
+    points: ["Menu escolar", "Casos por canal", "Encuestas por comunidad"],
   },
 ];
 
@@ -41,9 +41,9 @@ const TargetSection = () => {
       <div className="container mx-auto px-4">
         <div className="mx-auto mb-12 max-w-3xl text-center md:mb-16">
           <div className="chatboc-section-kicker mb-4">Sectores</div>
-          <h2 className="chatboc-section-heading">Una base común para verticales distintas</h2>
+          <h2 className="chatboc-section-heading">Una base comun para verticales distintas</h2>
           <p className="chatboc-section-copy mt-4">
-            La plataforma conserva una misma forma de operar y se adapta a cada organización, equipo, permiso y canal disponible.
+            La plataforma conserva una misma forma de operar y se adapta a cada organizacion, equipo, permiso y canal disponible.
           </p>
         </div>
 
@@ -89,7 +89,7 @@ const TargetSection = () => {
             onClick={handleConsultingClick}
           >
             <Calendar className="mr-2 h-4 w-4" />
-            Agendar consultoría
+            Agendar consultoria
           </Button>
         </div>
       </div>
