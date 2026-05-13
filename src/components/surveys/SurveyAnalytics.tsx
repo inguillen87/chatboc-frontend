@@ -1039,7 +1039,7 @@ export const SurveyAnalytics = ({
                 </li>
               ))}
               {!utmBreakdown.length && (
-                <li className="text-muted-foreground">Aún no se registraron campañas etiquetadas.</li>
+                <li className="text-muted-foreground">Aun no se registraron campanias etiquetadas.</li>
               )}
             </ul>
           </div>
@@ -1048,26 +1048,26 @@ export const SurveyAnalytics = ({
 
       <Card>
         <CardHeader>
-          <CardTitle>Radar geoespacial en vivo</CardTitle>
-          <CardDescription>Intensidad y focos de participación basados en los puntos del backend.</CardDescription>
+          <CardTitle>Radar de participacion</CardTitle>
+          <CardDescription>Intensidad y focos de participacion segun las respuestas con ubicacion.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-lg border border-border/60 bg-card/40 p-3">
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Cobertura geográfica</p>
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Cobertura territorial</p>
               <p className="text-xl font-semibold">{geoCoverageLabel}</p>
             </div>
             <div className="rounded-lg border border-border/60 bg-card/40 p-3">
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Peso geoespacial total</p>
-              <p className="text-xl font-semibold">{geoIntensity.totalWeight || '—'}</p>
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Peso territorial total</p>
+              <p className="text-xl font-semibold">{geoIntensity.totalWeight || '-'}</p>
             </div>
             <div className="rounded-lg border border-border/60 bg-card/40 p-3">
               <p className="text-xs uppercase tracking-wide text-muted-foreground">Pico por punto</p>
-              <p className="text-xl font-semibold">{geoIntensity.maxWeight || '—'}</p>
+              <p className="text-xl font-semibold">{geoIntensity.maxWeight || '-'}</p>
             </div>
             <div className="rounded-lg border border-border/60 bg-card/40 p-3 sm:col-span-3">
               <p className="text-xs uppercase tracking-wide text-muted-foreground">Promedio por punto</p>
-              <p className="text-xl font-semibold">{geoIntensity.avgWeight ? geoIntensity.avgWeight.toFixed(1) : '—'}</p>
+              <p className="text-xl font-semibold">{geoIntensity.avgWeight ? geoIntensity.avgWeight.toFixed(1) : '-'}</p>
             </div>
             <div className="sm:col-span-3 space-y-2 rounded-lg border border-primary/20 bg-primary/5 p-3">
               <p className="text-xs uppercase tracking-wide text-primary">Pulso de actividad</p>
@@ -1095,16 +1095,16 @@ export const SurveyAnalytics = ({
             </div>
           </div>
           <div className="rounded-lg border border-border/60 p-3">
-            <p className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">Top hotspots</p>
+            <p className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">Zonas principales</p>
             <ul className="space-y-2 text-sm">
               {geoIntensity.hotspots.map((point, index) => (
                 <li key={`${point.lat}-${point.lng}-${index}`} className="flex items-center justify-between rounded-md border border-border/50 px-2 py-1.5">
-                  <span>#{index + 1} · {point.lat.toFixed(3)}, {point.lng.toFixed(3)}</span>
+                  <span>#{index + 1} - {point.lat.toFixed(3)}, {point.lng.toFixed(3)}</span>
                   <span className="font-semibold">{point.respuestas}</span>
                 </li>
               ))}
               {!geoIntensity.hotspots.length ? (
-                <li className="text-muted-foreground">Sin hotspots para mostrar todavía.</li>
+                <li className="text-muted-foreground">Sin zonas para mostrar todavia.</li>
               ) : null}
             </ul>
           </div>
@@ -1114,7 +1114,7 @@ export const SurveyAnalytics = ({
       <Card>
         <CardHeader>
           <CardTitle>Mapa de calor</CardTitle>
-          <CardDescription>Ubicaciones aproximadas de participación (si están disponibles).</CardDescription>
+          <CardDescription>Ubicaciones aproximadas de participacion cuando las respuestas las incluyen.</CardDescription>
         </CardHeader>
         <CardContent>
           {usingSyntheticPoints ? (
@@ -1134,7 +1134,22 @@ export const SurveyAnalytics = ({
                   ))}
                 </div>
               ) : null}
+              <MeasuredContainer className="h-[360px] min-w-0 overflow-hidden rounded-lg border border-border/60">
+                <MapLibreMap
+                  className="h-full w-full"
+                  center={heatmapCenter}
+                  heatmapData={heatmapData}
+                  fitToBounds={heatmapBounds.length ? heatmapBounds : undefined}
+                  initialZoom={heatmapBounds.length ? 12 : 4}
+                  provider={provider}
+                  onProviderUnavailable={handleProviderUnavailable}
+                  onBoundingBoxChange={handleBoundingBoxChange}
+                />
+              </MeasuredContainer>
               <div className="overflow-x-auto">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Zonas principales
+                </p>
                 <table className="min-w-full divide-y divide-border text-sm">
                   <thead>
                     <tr className="text-left text-muted-foreground">
@@ -1170,18 +1185,6 @@ export const SurveyAnalytics = ({
                   </p>
                 ) : null}
               </div>
-              <MeasuredContainer className="h-[320px] min-w-0 overflow-hidden rounded-lg border border-border/60">
-                <MapLibreMap
-                  className="h-full w-full"
-                  center={heatmapCenter}
-                  heatmapData={heatmapData}
-                  fitToBounds={heatmapBounds.length ? heatmapBounds : undefined}
-                  initialZoom={heatmapBounds.length ? 12 : 4}
-                  provider={provider}
-                  onProviderUnavailable={handleProviderUnavailable}
-                  onBoundingBoxChange={handleBoundingBoxChange}
-                />
-              </MeasuredContainer>
             </div>
           ) : (
             <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
@@ -1194,14 +1197,14 @@ export const SurveyAnalytics = ({
       <Card>
         <CardHeader className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
           <div>
-            <CardTitle>Mapa de participación</CardTitle>
+            <CardTitle>Mapa de participacion</CardTitle>
             <CardDescription>Ubicaciones aproximadas de las respuestas recibidas.</CardDescription>
           </div>
           <div className="flex flex-col items-start gap-1 md:items-end">
             <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Motor de mapa
+              Vista de mapa
             </span>
-            <span className="text-[11px] text-muted-foreground">MapLibre GL (WebGL)</span>
+            <span className="text-[11px] text-muted-foreground">Mapa interactivo</span>
             <MapProviderToggle
               value={provider}
               onChange={setProvider}
@@ -1247,14 +1250,14 @@ export const SurveyAnalytics = ({
           ) : heatmapData.length ? (
             <div className="flex h-full flex-col items-center justify-center rounded-lg border border-border/60 bg-muted/10 p-4 text-center">
               <div className="h-2 w-40 animate-pulse rounded-full bg-primary/30" />
-              <p className="mt-3 text-sm font-medium">Preparando mapa y capas geoespaciales…</p>
+              <p className="mt-3 text-sm font-medium">Preparando el mapa con las respuestas geolocalizadas.</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Estamos validando proveedores y recursos antes de renderizar la vista.
+                Organizando las zonas para mostrar una lectura clara.
               </p>
             </div>
           ) : (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-              {toNonEmptyString(mapMetaRecord?.empty_state) ?? 'No hay datos georreferenciados para esta encuesta todavía.'}
+              {toNonEmptyString(mapMetaRecord?.empty_state) ?? 'No hay datos georreferenciados para esta encuesta todavia.'}
             </div>
           )}
         </CardContent>

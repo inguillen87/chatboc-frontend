@@ -22,8 +22,6 @@ import { useUser } from '@/hooks/useUser';
 const statusLabel = (query: { isLoading: boolean; isError: boolean; data?: { contract_version?: string; version?: string } }) => {
   if (query.isLoading) return 'Cargando';
   if (query.isError) return 'Revisar';
-  if (query.data?.contract_version) return query.data.contract_version;
-  if (query.data?.version) return query.data.version;
   return query.data ? 'Activo' : 'Pendiente';
 };
 
@@ -98,66 +96,66 @@ const EnterpriseOpsPage = () => {
   const modules = [
     {
       key: 'api-v2-foundation',
-      title: 'API v2 foundation',
+      title: 'Estado general',
       to: '/enterprise',
       icon: ServerCog,
-      note: 'Healthcheck v2 y resolucion estricta de tenant para nuevas capacidades.',
+      note: 'Base de la operacion, sesiones y datos listos para trabajar.',
       query: foundationQuery,
     },
     {
       key: 'tenant-health',
-      title: 'Tenant health',
+      title: 'Salud de la organizacion',
       to: '/enterprise',
       icon: HeartPulse,
-      note: 'Score, checks, integraciones, colas, errores y acciones recomendadas.',
+      note: 'Integraciones, colas, alertas y acciones recomendadas.',
       query: healthQuery,
     },
     {
       key: 'employee-coverage',
-      title: 'Employee coverage',
+      title: 'Equipo y cobertura',
       to: '/empleados',
       icon: Users,
-      note: 'Cobertura por empleados, categorias, zonas, canales, workload y alertas.',
+      note: 'Categorias, zonas, canales y carga de trabajo por persona.',
       query: coverageQuery,
     },
     {
       key: 'executive-summary',
-      title: 'Executive summary',
+      title: 'Resumen ejecutivo',
       to: '/superadmin',
       icon: BarChart3,
-      note: 'KPIs multi-tenant, risky tenants, health ranking y recommended actions.',
+      note: 'Indicadores, riesgos y decisiones para administrar mejor.',
       query: executiveQuery,
     },
     {
       key: 'inbox-omnichannel',
-      title: 'Inbox omnicanal',
+      title: 'Conversaciones',
       to: currentSlug ? `/t/${encodeURIComponent(currentSlug)}/inbox` : '/tickets',
       icon: Inbox,
-      note: 'Lista omnicanal, timeline, contact, location, presence y actions.',
+      note: 'Conversaciones, reclamos, ubicaciones y acciones en continuidad.',
       query: inboxQuery,
     },
     {
       key: 'notifications',
-      title: 'Notifications hooks',
+      title: 'Canales y avisos',
       to: '/notificaciones',
       icon: BellRing,
-      note: 'Preferences, triggers, delivery config, templates y delivery status.',
+      note: 'Notificaciones, reglas de envio y estado de entrega.',
       query: hooksQuery,
     },
     {
       key: 'templates',
-      title: 'Templates',
+      title: 'Respuestas rapidas',
       to: '/perfil/plantillas-respuesta',
       icon: FileText,
-      note: 'Plantillas por canal listas para permisos, variables y versionado.',
+      note: 'Mensajes reutilizables para responder mejor y mas rapido.',
       query: hooksQuery,
     },
     {
       key: 'live-chat',
-      title: 'Live chat / admin bridge',
+      title: 'Atencion en vivo',
       to: '/chatcrm',
       icon: MessagesSquare,
-      note: 'Continuidad operativa entre conversaciones, handoff y contexto.',
+      note: 'Continuidad entre conversaciones, derivacion humana y contexto.',
       query: inboxQuery,
     },
   ] as const;
@@ -165,10 +163,10 @@ const EnterpriseOpsPage = () => {
   return (
     <section className="mx-auto w-full max-w-6xl space-y-6 py-6">
       <EnterprisePageHeader
-        badge="Enterprise workspace"
+        badge="Centro operativo"
         title="Operacion omnicanal"
-        description="Modulos operativos conectados a contratos SaaS P1 canonicos, con datos backend-driven y acciones renderizadas desde payload."
-        meta={`${modules.length} modulos disponibles`}
+        description="Un tablero para ordenar conversaciones, reclamos, equipo, canales y decisiones del dia."
+        meta={`${modules.length} secciones disponibles`}
       />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -207,19 +205,19 @@ const EnterpriseOpsPage = () => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
               <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-              SaaS P1 live
+              Preparado para operar
             </CardTitle>
-            <CardDescription>Resumen directo de las respuestas canonicas disponibles para este contexto.</CardDescription>
+            <CardDescription>Resumen de disponibilidad para este espacio de trabajo.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3 sm:grid-cols-3">
-            <ReadinessStat label="API v2" value={foundationQuery.data?.ok ? foundationQuery.data.version : '--'} />
-            <ReadinessStat label="Tenant v2" value={String(currentTenantQuery.data?.tenant?.slug ?? currentSlug ?? '--')} />
-            <ReadinessStat label="Health" value={formatHealth(healthQuery.data?.health_score)} />
-            <ReadinessStat label="Coverage" value={String(coverageQuery.data?.employees.length ?? 0)} />
-            <ReadinessStat label="Inbox" value={String(inboxQuery.data?.items.length ?? 0)} />
-            <ReadinessStat label="Hooks" value={String(hooksQuery.data?.preferences.length ?? 0)} />
-            <ReadinessStat label="Delivery" value={formatHealth(deliveryQuery.data?.success_rate)} />
-            <ReadinessStat label="Executive" value={String(executiveQuery.data?.recommended_actions.length ?? (isSuperadmin ? 0 : 'solo superadmin'))} />
+            <ReadinessStat label="Sistema" value={foundationQuery.data?.ok ? 'listo' : '--'} />
+            <ReadinessStat label="Organizacion" value={String(currentTenantQuery.data?.tenant?.slug ?? currentSlug ?? '--')} />
+            <ReadinessStat label="Salud" value={formatHealth(healthQuery.data?.health_score)} />
+            <ReadinessStat label="Equipo" value={String(coverageQuery.data?.employees.length ?? 0)} />
+            <ReadinessStat label="Conversaciones" value={String(inboxQuery.data?.items.length ?? 0)} />
+            <ReadinessStat label="Canales" value={String(hooksQuery.data?.preferences.length ?? 0)} />
+            <ReadinessStat label="Entregas" value={formatHealth(deliveryQuery.data?.success_rate)} />
+            <ReadinessStat label="Decisiones" value={String(executiveQuery.data?.recommended_actions.length ?? (isSuperadmin ? 0 : '--'))} />
           </CardContent>
         </Card>
 
@@ -227,19 +225,19 @@ const EnterpriseOpsPage = () => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
               <ServerCog className="h-5 w-5 text-muted-foreground" />
-              Contratos P1
+              Estado de secciones
             </CardTitle>
-            <CardDescription>Versiones detectadas en runtime.</CardDescription>
+            <CardDescription>Senales para saber que se puede usar ahora.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 text-sm text-muted-foreground">
-            <ContractLine label="API v2 health" value={foundationQuery.data?.version} />
-            <ContractLine label="Tenant current" value={currentTenantQuery.data?.contract_version ?? currentTenantQuery.data?.tenant?.slug} />
-            <ContractLine label="Tenant health" value={healthQuery.data?.contract_version} />
-            <ContractLine label="Employee coverage" value={coverageQuery.data?.contract_version} />
-            <ContractLine label="Notifications hooks" value={hooksQuery.data?.contract_version} />
-            <ContractLine label="Delivery status" value={deliveryQuery.data?.contract_version} />
-            <ContractLine label="Inbox" value={inboxQuery.data?.contract_version} />
-            <ContractLine label="Executive" value={executiveQuery.data?.contract_version} />
+            <ContractLine label="Base operativa" value={foundationQuery.data?.ok ? 'activo' : undefined} />
+            <ContractLine label="Perfil de la organizacion" value={currentTenantQuery.data?.tenant?.slug ? 'activo' : undefined} />
+            <ContractLine label="Salud operativa" value={healthQuery.data ? 'activo' : undefined} />
+            <ContractLine label="Equipo" value={coverageQuery.data ? 'activo' : undefined} />
+            <ContractLine label="Canales" value={hooksQuery.data ? 'activo' : undefined} />
+            <ContractLine label="Entregas" value={deliveryQuery.data ? 'activo' : undefined} />
+            <ContractLine label="Reclamos" value={inboxQuery.data ? 'activo' : undefined} />
+            <ContractLine label="Resumen ejecutivo" value={executiveQuery.data ? 'activo' : undefined} />
           </CardContent>
         </Card>
       </div>

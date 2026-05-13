@@ -18,6 +18,24 @@ const readString = (value: unknown): string | null =>
 const readBoolean = (value: unknown): boolean | null =>
   typeof value === 'boolean' ? value : null;
 
+const TECHNICAL_MESSAGE_PATTERNS = [
+  /requested url was not found/i,
+  /if you entered the url manually/i,
+  /check your spelling/i,
+  /not found on the server/i,
+  /method not allowed/i,
+  /internal server error/i,
+  /traceback/i,
+  /request_id/i,
+  /\b404\b/i,
+];
+
+const publicDescription = (value: string | null): string | null => {
+  if (!value) return null;
+  if (TECHNICAL_MESSAGE_PATTERNS.some((pattern) => pattern.test(value))) return null;
+  return value;
+};
+
 export const mapSurveyError = (
   params: {
     error?: unknown;
@@ -50,14 +68,14 @@ export const mapSurveyError = (
   const actionHint = payloadActionHint;
 
   const payloadTitle = readString(details.title);
-  const payloadDescription = readString(details.description) ?? readString(details.message);
+  const payloadDescription = publicDescription(readString(details.description) ?? readString(details.message));
   const payloadPrimary = readString(details.primary_cta) ?? readString(details.primaryCta);
   const payloadSecondary = readString(details.secondary_cta) ?? readString(details.secondaryCta);
 
   if (statusCode === 404) {
     return {
       title: payloadTitle ?? 'No encontramos esta encuesta',
-      description: payloadDescription ?? 'Revisá el enlace o explorá otras encuestas activas.',
+      description: payloadDescription ?? 'Revisa el enlace o explora otras encuestas activas.',
       primaryCta: payloadPrimary ?? 'Ver encuestas activas',
       secondaryCta: payloadSecondary ?? 'Volver al inicio',
       actionHint: actionHint ?? 'view_other_surveys',
@@ -70,8 +88,8 @@ export const mapSurveyError = (
 
   if (reasonCode === 'survey_not_published') {
     return {
-      title: payloadTitle ?? 'Esta encuesta todavía no está publicada',
-      description: payloadDescription ?? 'Podés explorar otras encuestas disponibles en este momento.',
+      title: payloadTitle ?? 'Esta encuesta todavia no esta publicada',
+      description: payloadDescription ?? 'Podes explorar otras encuestas disponibles en este momento.',
       primaryCta: payloadPrimary ?? 'Ver encuestas activas',
       secondaryCta: payloadSecondary ?? 'Volver al inicio',
       actionHint: actionHint ?? 'view_other_surveys',
@@ -84,8 +102,8 @@ export const mapSurveyError = (
 
   if (reasonCode === 'survey_outside_active_window') {
     return {
-      title: payloadTitle ?? 'Esta encuesta no está disponible en este momento',
-      description: payloadDescription ?? 'La encuesta tiene una ventana de publicación específica.',
+      title: payloadTitle ?? 'Esta encuesta no esta disponible en este momento',
+      description: payloadDescription ?? 'La encuesta tiene una ventana de publicacion especifica.',
       primaryCta: payloadPrimary ?? 'Ver otras encuestas',
       secondaryCta: payloadSecondary ?? 'Volver al inicio',
       actionHint: actionHint ?? 'view_other_surveys',
@@ -98,8 +116,8 @@ export const mapSurveyError = (
 
   if (reasonCode === 'social_token_required') {
     return {
-      title: payloadTitle ?? 'Necesitás iniciar sesión social para comentar',
-      description: payloadDescription ?? 'Conectá una cuenta social válida para habilitar los comentarios.',
+      title: payloadTitle ?? 'Necesitas iniciar sesion social para comentar',
+      description: payloadDescription ?? 'Conecta una cuenta social valida para habilitar los comentarios.',
       primaryCta: payloadPrimary ?? 'Conectar cuenta social',
       secondaryCta: payloadSecondary ?? 'Volver al inicio',
       actionHint: actionHint ?? 'retry',
@@ -112,8 +130,8 @@ export const mapSurveyError = (
 
   if (reasonCode === 'invalid_social_token') {
     return {
-      title: payloadTitle ?? 'Tu sesión social expiró',
-      description: payloadDescription ?? 'Volvé a conectar tu cuenta social para continuar.',
+      title: payloadTitle ?? 'Tu sesion social expiro',
+      description: payloadDescription ?? 'Volve a conectar tu cuenta social para continuar.',
       primaryCta: payloadPrimary ?? 'Reconectar cuenta',
       secondaryCta: payloadSecondary ?? 'Volver al inicio',
       actionHint: actionHint ?? 'retry',
@@ -127,8 +145,8 @@ export const mapSurveyError = (
   if (reasonCode === 'social_identity_mismatch') {
     return {
       title: payloadTitle ?? 'La identidad social no coincide',
-      description: payloadDescription ?? 'Conectá la misma cuenta social para poder publicar.',
-      primaryCta: payloadPrimary ?? 'Reintentar conexión',
+      description: payloadDescription ?? 'Conecta la misma cuenta social para poder publicar.',
+      primaryCta: payloadPrimary ?? 'Reintentar conexion',
       secondaryCta: payloadSecondary ?? 'Volver al inicio',
       actionHint: actionHint ?? 'retry',
       retryable: false,
@@ -140,7 +158,7 @@ export const mapSurveyError = (
 
   return {
     title: payloadTitle ?? 'No pudimos cargar esta encuesta',
-    description: payloadDescription ?? 'Probá nuevamente en unos segundos.',
+    description: payloadDescription ?? 'Proba nuevamente en unos segundos.',
     primaryCta: payloadPrimary ?? 'Reintentar',
     secondaryCta: payloadSecondary ?? 'Volver al inicio',
     actionHint: actionHint ?? 'retry',

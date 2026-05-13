@@ -90,9 +90,9 @@ const addLayer = (map: Map, layer: any) => {
 };
 
 const FALLBACK_MESSAGES: Record<MapProviderUnavailableReason, string> = {
-  "missing-api-key": "Google Maps no está configurado. Cambiamos automáticamente a MapLibre.",
-  "load-error": "No se pudo cargar Google Maps. Cambiamos automáticamente a MapLibre.",
-  "heatmap-unavailable": "Google Maps dejó de ofrecer mapas de calor. Cambiamos automáticamente a MapLibre.",
+  "missing-api-key": "Mostramos la vista de mapa disponible para esta cuenta.",
+  "load-error": "Mostramos la vista de mapa disponible para esta cuenta.",
+  "heatmap-unavailable": "Mostramos la vista de mapa disponible para esta cuenta.",
 };
 
 type MapLibreModule = typeof import("maplibre-gl");
@@ -834,9 +834,7 @@ export default function MapLibreMap({
             mapInstance.setStyle(nextStyle);
           } else {
             exhaustedStyles = true;
-            setMapError(
-              "No se pudieron cargar los estilos del mapa. Verificá la conexión o usá un tile OSM del backend.",
-            );
+            setMapError("No se pudo cargar el mapa. Revisa la conexion e intenta nuevamente.");
           }
         };
 

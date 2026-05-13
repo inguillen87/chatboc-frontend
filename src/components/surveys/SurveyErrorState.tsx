@@ -46,7 +46,7 @@ export const SurveyErrorState = ({
             <p className="text-lg font-medium">{title}</p>
             <p className="text-sm text-muted-foreground">{description}</p>
             {requestId ? (
-              <p className="text-[11px] text-muted-foreground/80">request_id: {requestId}</p>
+              <p className="text-[11px] text-muted-foreground/80">Codigo de soporte: {requestId}</p>
             ) : null}
           </div>
           <div className="flex flex-wrap items-center justify-center gap-2">

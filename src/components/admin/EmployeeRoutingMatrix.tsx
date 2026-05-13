@@ -62,6 +62,25 @@ const ChipList = ({ items, empty = "--" }: { items?: string[]; empty?: string })
   );
 };
 
+const AssignmentResultSummary = ({ result }: { result: AnyRecord }) => {
+  if (result.error) {
+    return <p className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{asString(result.error)}</p>;
+  }
+
+  const assigned = asString(first(result, ["assigned", "assigned_count", "updated", "updated_count"])) || "0";
+  const reviewed = asString(first(result, ["total", "processed", "preview_count", "matched_count"])) || assigned;
+  const dryRun = Boolean(first(result, ["dry_run", "preview"]));
+
+  return (
+    <div className="rounded-xl border bg-muted/20 p-3 text-sm">
+      <p className="font-semibold">{dryRun ? "Previsualizacion lista" : "Asignacion aplicada"}</p>
+      <p className="mt-1 text-muted-foreground">
+        {reviewed} casos revisados. {assigned} asignaciones sugeridas o aplicadas.
+      </p>
+    </div>
+  );
+};
+
 interface EmployeeRoutingMatrixProps {
   tenantSlug?: string | null;
 }
@@ -130,10 +149,10 @@ export default function EmployeeRoutingMatrix({ tenantSlug }: EmployeeRoutingMat
         },
         tenantSlug,
       );
-      setScopeMessage("Scope actualizado. Refrescando matriz...");
+      setScopeMessage("Cobertura actualizada. Refrescando equipo...");
       await loadRouting();
     } catch (err) {
-      setScopeMessage(getErrorMessage(err, "No se pudo actualizar el scope."));
+      setScopeMessage(getErrorMessage(err, "No se pudo actualizar la cobertura."));
     } finally {
       setSavingScope(false);
     }
@@ -157,9 +176,9 @@ export default function EmployeeRoutingMatrix({ tenantSlug }: EmployeeRoutingMat
     <Card className="border-border/60">
       <CardHeader className="gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <CardTitle className="text-base">Employee routing</CardTitle>
+          <CardTitle className="text-base">Equipo y asignacion</CardTitle>
           <CardDescription>
-            Matriz `employee.routing.v1` para categorias, zonas, canales, permisos y carga.
+            Cobertura por categorias, zonas, canales, permisos y carga de trabajo.
           </CardDescription>
         </div>
         <Button type="button" variant="outline" size="sm" onClick={loadRouting} disabled={loading}>
@@ -184,7 +203,7 @@ export default function EmployeeRoutingMatrix({ tenantSlug }: EmployeeRoutingMat
               Equipo
             </div>
             <p className="text-2xl font-black">{routing?.employees.length ?? (loading ? "--" : 0)}</p>
-            <p className="mt-1 text-xs text-muted-foreground">Empleados cargados para este tenant.</p>
+            <p className="mt-1 text-xs text-muted-foreground">Personas disponibles para asignar casos.</p>
           </div>
           <div className="rounded-2xl border border-border/60 p-4">
             <div className="mb-3 flex items-center gap-2 font-semibold">
@@ -200,7 +219,7 @@ export default function EmployeeRoutingMatrix({ tenantSlug }: EmployeeRoutingMat
               Recomendaciones
             </div>
             <p className="text-2xl font-black">{routing?.recommendations.length ?? "--"}</p>
-            <p className="mt-1 text-xs text-muted-foreground">Con score y razones visibles.</p>
+            <p className="mt-1 text-xs text-muted-foreground">Sugerencias para equilibrar el trabajo.</p>
           </div>
         </div>
 
@@ -248,16 +267,16 @@ export default function EmployeeRoutingMatrix({ tenantSlug }: EmployeeRoutingMat
               ))}
               {!routing?.employees.length ? (
                 <div className="px-4 py-8 text-sm text-muted-foreground">
-                  {loading ? "Cargando equipo..." : "Sin empleados publicados para routing."}
+                  {loading ? "Cargando equipo..." : "Sin empleados publicados para asignacion."}
                 </div>
               ) : null}
             </div>
           </div>
 
           <div className="rounded-2xl border border-border/60 p-4">
-            <h3 className="font-semibold">Editor de scope</h3>
+            <h3 className="font-semibold">Editor de cobertura</h3>
             <p className="mt-1 text-xs text-muted-foreground">
-              {"Guarda en PATCH /api/v2/employees/{employee_id}/routing-scope."}
+              Elegi que atiende cada persona para equilibrar el trabajo.
             </p>
             {selectedEmployee ? (
               <form className="mt-4 space-y-3" onSubmit={handleSaveScope}>
@@ -274,7 +293,7 @@ export default function EmployeeRoutingMatrix({ tenantSlug }: EmployeeRoutingMat
                 <Input
                   value={scopeForm.channels}
                   onChange={(event) => setScopeForm((prev) => ({ ...prev, channels: event.target.value }))}
-                  placeholder="channels separados por coma"
+                  placeholder="canales separados por coma"
                 />
                 <Input
                   value={scopeForm.permisos}
@@ -283,7 +302,7 @@ export default function EmployeeRoutingMatrix({ tenantSlug }: EmployeeRoutingMat
                 />
                 <Button type="submit" className="w-full" disabled={savingScope}>
                   <Save className="mr-2 h-4 w-4" />
-                  {savingScope ? "Guardando..." : "Guardar scope"}
+                  {savingScope ? "Guardando..." : "Guardar cobertura"}
                 </Button>
                 {scopeMessage ? <p className="text-xs text-muted-foreground">{scopeMessage}</p> : null}
               </form>
@@ -300,22 +319,18 @@ export default function EmployeeRoutingMatrix({ tenantSlug }: EmployeeRoutingMat
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
                 <div className="font-semibold">Auto-asignacion</div>
-                <p className="text-xs text-muted-foreground">Primero previsualiza con dry_run.</p>
+                <p className="text-xs text-muted-foreground">Primero revisa el resultado sin aplicar cambios.</p>
               </div>
               <div className="flex gap-2">
                 <Button type="button" variant="outline" size="sm" disabled={assignLoading} onClick={() => handleAutoAssign(true)}>
-                  Preview
+                  Previsualizar
                 </Button>
                 <Button type="button" size="sm" disabled={assignLoading} onClick={() => handleAutoAssign(false)}>
                   Aplicar
                 </Button>
               </div>
             </div>
-            {assignResult ? (
-              <pre className="max-h-48 overflow-auto rounded-xl bg-muted p-3 text-xs">
-                {JSON.stringify(assignResult, null, 2)}
-              </pre>
-            ) : (
+            {assignResult ? <AssignmentResultSummary result={assignResult} /> : (
               <p className="text-sm text-muted-foreground">Sin ejecucion reciente.</p>
             )}
           </div>
@@ -328,7 +343,7 @@ export default function EmployeeRoutingMatrix({ tenantSlug }: EmployeeRoutingMat
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <p className="font-semibold">
-                        {asString(first(item.ticket, ["source_model", "type"])) || "ticket"} #
+                        {asString(first(item.ticket, ["source_model", "type"])) || "Caso"} #
                         {asString(first(item.ticket, ["id", "ticket_id"])) || "--"}
                       </p>
                       <p className="text-xs text-muted-foreground">
@@ -338,12 +353,12 @@ export default function EmployeeRoutingMatrix({ tenantSlug }: EmployeeRoutingMat
                     <Pill>{item.score ?? "--"}</Pill>
                   </div>
                   <div className="mt-2">
-                    <ChipList items={item.reasons} empty="sin razones publicadas" />
+                    <ChipList items={item.reasons} empty="sin razones disponibles" />
                   </div>
                 </div>
               ))}
               {!routing?.recommendations.length ? (
-                <p className="text-sm text-muted-foreground">Sin recomendaciones publicadas.</p>
+                <p className="text-sm text-muted-foreground">Sin recomendaciones disponibles.</p>
               ) : null}
             </div>
           </div>
@@ -361,12 +376,12 @@ export default function EmployeeRoutingMatrix({ tenantSlug }: EmployeeRoutingMat
                   {asString(first(item, ["title", "label", "categoria", "category"])) || `Item ${index + 1}`}
                 </div>
                 <div className="mt-1 text-xs text-muted-foreground">
-                  {asString(first(item, ["channel", "canal", "status", "estado"])) || "sin metadata"}
+                  {asString(first(item, ["channel", "canal", "status", "estado"])) || "sin datos"}
                 </div>
               </div>
             ))}
             {!routing?.queues.unassigned.length ? (
-              <p className="text-sm text-muted-foreground">No hay cola sin asignar publicada.</p>
+              <p className="text-sm text-muted-foreground">No hay casos sin asignar.</p>
             ) : null}
           </div>
         </div>

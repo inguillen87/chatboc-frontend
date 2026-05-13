@@ -21,7 +21,13 @@ export default function PermissionDenied() {
       requiredRoles: denialState.requiredRoles ?? [],
       from: denialState.from ?? location.pathname,
     });
-  }, [denialState.from, denialState.reason, denialState.requiredCapabilities, denialState.requiredRoles, location.pathname]);
+  }, [
+    denialState.from,
+    denialState.reason,
+    denialState.requiredCapabilities,
+    denialState.requiredRoles,
+    location.pathname,
+  ]);
 
   const requestAccessHref = React.useMemo(() => {
     const subject = encodeURIComponent('Solicitud de acceso - Chatboc');
@@ -30,33 +36,35 @@ export default function PermissionDenied() {
         `Ruta: ${denialState.from || location.pathname}`,
         denialState.reason ? `Motivo: ${denialState.reason}` : '',
         denialState.currentRole ? `Rol actual: ${denialState.currentRole}` : '',
-        denialState.requiredRoles?.length ? `Roles requeridos: ${denialState.requiredRoles.join(', ')}` : '',
+        denialState.requiredRoles?.length ? `Roles internos: ${denialState.requiredRoles.join(', ')}` : '',
         denialState.requiredCapabilities?.length
-          ? `Capabilities requeridas: ${denialState.requiredCapabilities.join(', ')}`
+          ? `Permisos internos: ${denialState.requiredCapabilities.join(', ')}`
           : '',
       ]
         .filter(Boolean)
         .join('\n'),
     );
     return `mailto:soporte@chatboc.ar?subject=${subject}&body=${body}`;
-  }, [denialState.currentRole, denialState.from, denialState.reason, denialState.requiredCapabilities, denialState.requiredRoles, location.pathname]);
+  }, [
+    denialState.currentRole,
+    denialState.from,
+    denialState.reason,
+    denialState.requiredCapabilities,
+    denialState.requiredRoles,
+    location.pathname,
+  ]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center text-center p-8">
-      <div className="max-w-xl space-y-4">
-        <h1 className="text-3xl font-bold mb-4">Acceso restringido</h1>
-        <p>Tu usuario no cuenta con los permisos necesarios para esta sección.</p>
-        <p className="mt-2">Contactá al administrador si creés que se trata de un error.</p>
-        {denialState.requiredCapabilities?.length ? (
-          <p className="text-sm text-muted-foreground">
-            Capabilities requeridas: <span className="font-medium">{denialState.requiredCapabilities.join(', ')}</span>
-          </p>
-        ) : null}
-        {denialState.requiredRoles?.length ? (
-          <p className="text-sm text-muted-foreground">
-            Roles requeridos: <span className="font-medium">{denialState.requiredRoles.join(', ')}</span>
-          </p>
-        ) : null}
+    <div className="flex min-h-screen items-center justify-center p-8 text-center">
+      <div className="max-w-xl space-y-4 rounded-2xl border border-border/70 bg-card/70 p-8 shadow-sm">
+        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-primary">Acceso del equipo</p>
+        <h1 className="text-3xl font-bold">Este modulo no esta habilitado para tu cuenta</h1>
+        <p className="text-muted-foreground">
+          Podes volver al panel o pedir que un administrador active esta seccion para tu usuario.
+        </p>
+        <p className="text-sm text-muted-foreground">
+          Si sos administrador, revisa el rol y los accesos asignados a esta cuenta.
+        </p>
         <div className="mt-6 flex flex-wrap justify-center gap-3">
           <Button variant="outline" onClick={() => navigate(-1)}>
             Volver

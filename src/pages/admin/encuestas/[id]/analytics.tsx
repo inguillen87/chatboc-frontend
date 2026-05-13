@@ -1477,7 +1477,7 @@ export default function SurveyAnalyticsPage() {
         <Card>
           <CardHeader>
             <CardTitle>{asSafeText(enterpriseUiConfig?.executive_kpis_title) || 'Indicadores ejecutivos'}</CardTitle>
-            <CardDescription>{asSafeText(enterpriseUiConfig?.executive_kpis_description) || 'KPIs normalizados según la configuración entregada por el backend.'}</CardDescription>
+            <CardDescription>{asSafeText(enterpriseUiConfig?.executive_kpis_description) || 'Indicadores listos para leer la participacion, los resultados y las alertas.'}</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             {executiveKpisEntries.map((item) => {

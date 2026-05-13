@@ -545,8 +545,8 @@ const routes: RouteConfig[] = [
   {
     path: '/empleados',
     element: <InternalUsers />,
-    roles: ['tenant_admin', 'superadmin', 'tenant_admin'],
-    requiredCapabilities: ['settings.tenant.write'],
+    roles: ['tenant_admin', 'superadmin'],
+    requiredCapabilities: ['employees.read', 'tenant.employees.read', 'employees.write', 'tenant.employees.write'],
   },
 
   {

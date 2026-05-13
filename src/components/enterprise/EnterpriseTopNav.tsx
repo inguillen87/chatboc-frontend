@@ -2,12 +2,12 @@ import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 
 const items = [
-  { to: '/enterprise', label: 'Workspace' },
-  { to: '/tickets', label: 'Inbox' },
-  { to: '/chatcrm', label: 'Live bridge' },
-  { to: '/empleados', label: 'Roles/empleados' },
-  { to: '/notificaciones', label: 'Notificaciones' },
-  { to: '/perfil/plantillas-respuesta', label: 'Templates' },
+  { to: '/tickets', label: 'Reclamos' },
+  { to: '/empleados', label: 'Equipo' },
+  { to: '/analytics/operations', label: 'Metricas y mapa' },
+  { to: '/admin/encuestas', label: 'Encuestas' },
+  { to: '/notificaciones', label: 'Canales' },
+  { to: '/perfil/plantillas-respuesta', label: 'Respuestas rapidas' },
 ] as const;
 
 export const EnterpriseTopNav = () => {

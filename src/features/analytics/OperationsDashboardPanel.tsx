@@ -107,6 +107,24 @@ const statusVariant = (status?: string): 'default' | 'secondary' | 'destructive'
   return 'outline';
 };
 
+const statusLabel = (status?: string) => {
+  const normalized = (status || '').toLowerCase();
+  if (normalized === 'fresh' || normalized === 'ready') return 'al dia';
+  if (normalized === 'degraded' || normalized === 'stale') return 'requiere revision';
+  if (normalized === 'empty') return 'sin actividad';
+  if (normalized === 'error') return 'con error';
+  return status || 'sin estado';
+};
+
+const priorityLabel = (priority?: string) => {
+  const normalized = (priority || '').toLowerCase();
+  if (normalized === 'critical') return 'critico';
+  if (normalized === 'high') return 'alta';
+  if (normalized === 'medium' || normalized === 'warning') return 'media';
+  if (normalized === 'low') return 'baja';
+  return priority || 'prioridad';
+};
+
 const resolveLabel = (data: OperationsDashboardV1 | undefined, key: string, fallback: string) => {
   const labels = data?.frontend_contract?.labels;
   const backendLabel = labels && typeof labels[key] === 'string' ? labels[key].trim() : '';
@@ -191,15 +209,15 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
   const canRenderDashboard = freshness?.summary?.can_render_dashboard;
 
   if (dashboardQuery.isLoading && !data) {
-    return <ViewState status="loading" description="Cargando operaciones normalizadas." className={className} />;
+    return <ViewState status="loading" description="Cargando actividad operativa." className={className} />;
   }
 
   if (dashboardQuery.isError && !data) {
     return (
       <ViewState
         status="partial"
-        title="Operaciones no disponible"
-        description={getErrorMessage(dashboardQuery.error, 'No se pudo cargar el contrato operations.dashboard.v1.')}
+        title="Estadisticas no disponibles"
+        description={getErrorMessage(dashboardQuery.error, 'No se pudo cargar la actividad operativa.')}
         action={
           <Button type="button" variant="outline" onClick={() => void dashboardQuery.refetch()}>
             <RefreshCw className="h-4 w-4" />
@@ -220,22 +238,19 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="space-y-1">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              {data.contract_version || 'operations.dashboard.v1'}
-            </p>
-            {data.request_id ? <Badge variant="outline">Req {data.request_id}</Badge> : null}
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Tablero operativo</p>
           </div>
-          <h2 className="text-xl font-semibold tracking-tight">Operaciones</h2>
+          <h2 className="text-xl font-semibold tracking-tight">Actividad y decisiones</h2>
           <p className="max-w-2xl text-sm text-muted-foreground">
-            Tickets, encuestas, canales, empleados, mapa y acciones desde contratos v2 compartidos.
+            Reclamos, encuestas, canales, equipo, mapa y acciones recomendadas para resolver primero.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {refreshSeconds ? <Badge variant="outline">{refreshSeconds}s refresh</Badge> : null}
+          {refreshSeconds ? <Badge variant="outline">Actualizacion cada {refreshSeconds}s</Badge> : null}
           {dashboardQuery.isFetching || heatmapQuery.isFetching || actionCenterQuery.isFetching || freshnessQuery.isFetching ? (
             <Badge variant="secondary">Actualizando</Badge>
           ) : null}
-          {freshness?.status ? <Badge variant={statusVariant(freshness.status)}>{freshness.status}</Badge> : null}
+          {freshness?.status ? <Badge variant={statusVariant(freshness.status)}>{statusLabel(freshness.status)}</Badge> : null}
           <Button
             type="button"
             variant="outline"
@@ -259,7 +274,7 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
         <ViewState
           status="partial"
           title="Datos operativos no disponibles"
-          description={freshness?.reason_code || 'El contrato de frescura indica que no conviene renderizar el dashboard para este periodo.'}
+          description="No hay datos suficientes para dibujar esta vista en el periodo seleccionado."
           className="min-h-[140px]"
         />
       ) : null}
@@ -313,15 +328,14 @@ function FreshnessBanner({ freshness }: { freshness: OperationsFreshnessV1 }) {
           <DatabaseZap className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="text-sm font-medium">{freshness.contract_version || 'operations.freshness.v1'}</p>
-              {freshness.status ? <Badge variant={statusVariant(freshness.status)}>{freshness.status}</Badge> : null}
-              {freshness.reason_code ? <Badge variant="outline">{freshness.reason_code}</Badge> : null}
+              <p className="text-sm font-medium">Estado de datos</p>
+              {freshness.status ? <Badge variant={statusVariant(freshness.status)}>{statusLabel(freshness.status)}</Badge> : null}
             </div>
             <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
-              <span>{formatNumber(summary.fresh_sources)} fresh</span>
-              <span>{formatNumber(summary.stale_sources)} stale</span>
-              <span>{formatNumber(summary.empty_sources)} empty</span>
-              {latestAt ? <span>latest_at {latestAt}</span> : null}
+              <span>{formatNumber(summary.fresh_sources)} fuentes al dia</span>
+              <span>{formatNumber(summary.stale_sources)} por revisar</span>
+              <span>{formatNumber(summary.empty_sources)} sin actividad</span>
+              {latestAt ? <span>ultimo dato {latestAt}</span> : null}
             </div>
           </div>
         </div>
@@ -338,21 +352,15 @@ function FreshnessBanner({ freshness }: { freshness: OperationsFreshnessV1 }) {
 }
 
 function FreshnessSourceChip({ source }: { source: OperationsFreshnessSource }) {
-  const label = source.label || source.key || 'source';
+  const label = source.label || source.key || 'fuente';
   const action = source.recommended_action;
-  const actionLabel = action?.title || action?.id || action?.ui_hint || action?.endpoint;
-  const actionEndpoint = action?.endpoint;
+  const actionLabel = action?.title;
 
   return (
     <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border bg-background px-2.5 py-1 text-xs">
       <span className="shrink-0 font-medium">{label}</span>
-      {source.status ? <span className="text-muted-foreground">{source.status}</span> : null}
-      {source.reason_code ? <span className="min-w-0 truncate text-muted-foreground">{source.reason_code}</span> : null}
-      {actionLabel && actionEndpoint ? (
-        <a className="shrink-0 text-primary underline-offset-2 hover:underline" href={actionEndpoint}>
-          {actionLabel}
-        </a>
-      ) : actionLabel ? (
+      {source.status ? <span className="text-muted-foreground">{statusLabel(source.status)}</span> : null}
+      {actionLabel ? (
         <span className="shrink-0 text-muted-foreground">{actionLabel}</span>
       ) : null}
     </span>
@@ -377,13 +385,13 @@ function KpiGrid({
   const metrics = [
     {
       key: 'open_tickets',
-      label: resolveLabel(data, 'open_tickets', 'Tickets abiertos'),
+      label: resolveLabel(data, 'open_tickets', 'Reclamos abiertos'),
       value: readNumber(data.summary.open_tickets, ticketsSummary.open_tickets, ticketsSummary.open, ticketsSummary.abiertos),
       icon: Ticket,
     },
     {
       key: 'overdue_tickets',
-      label: resolveLabel(data, 'overdue_tickets', 'Tickets vencidos'),
+      label: resolveLabel(data, 'overdue_tickets', 'Reclamos vencidos'),
       value: readNumber(data.summary.overdue_tickets, ticketsSummary.overdue_tickets, ticketsSummary.overdue, ticketsSummary.vencidos),
       icon: AlertTriangle,
     },
@@ -395,7 +403,7 @@ function KpiGrid({
     },
     {
       key: 'live_votes',
-      label: resolveLabel(data, 'live_votes', 'Votos live'),
+      label: resolveLabel(data, 'live_votes', 'Votos en vivo'),
       value: readNumber(data.summary.live_votes, surveysSummary.votaciones_live, surveysSummary.live_votes),
       icon: Activity,
     },
@@ -407,13 +415,13 @@ function KpiGrid({
     },
     {
       key: 'employees',
-      label: resolveLabel(data, 'employees', 'Empleados'),
+      label: resolveLabel(data, 'employees', 'Equipo'),
       value: readNumber(data.summary.employees, employeesSummary.employees, employeesSummary.total, data.employees?.items?.length),
       icon: Users,
     },
     {
       key: 'map_points',
-      label: resolveLabel(data, 'map_points', 'Puntos mapa'),
+      label: resolveLabel(data, 'map_points', 'Puntos en mapa'),
       value: readNumber(data.summary.map_points, heatmapSummary.points, heatmap?.points.length),
       icon: MapPin,
     },
@@ -451,7 +459,7 @@ function AlertsStrip({ alerts }: { alerts: OperationsAlert[] }) {
   return (
     <div className="grid gap-2">
       {alerts.slice(0, 4).map((alert, index) => {
-        const title = asString(alert.title) ?? asString(alert.reason_code) ?? `alert-${index + 1}`;
+        const title = asString(alert.title) ?? `Alerta ${index + 1}`;
         const message = asString(alert.message) ?? asString(alert.description);
         return (
           <div
@@ -465,10 +473,9 @@ function AlertsStrip({ alerts }: { alerts: OperationsAlert[] }) {
                 {message ? <p className="text-muted-foreground">{message}</p> : null}
               </div>
             </div>
-            {alert.severity || alert.reason_code ? (
+            {alert.severity ? (
               <div className="flex shrink-0 flex-wrap gap-1">
-                {alert.severity ? <Badge variant={priorityVariant(alert.severity)}>{alert.severity}</Badge> : null}
-                {alert.reason_code ? <Badge variant="outline">{alert.reason_code}</Badge> : null}
+                {alert.severity ? <Badge variant={priorityVariant(alert.severity)}>{priorityLabel(alert.severity)}</Badge> : null}
               </div>
             ) : null}
           </div>
@@ -486,7 +493,7 @@ function TrendsPanel({ data }: { data: OperationsDashboardV1 }) {
     <Card>
       <CardHeader>
         <CardTitle className="text-lg">Tendencias</CardTitle>
-        <CardDescription>Comparacion contra el periodo anterior del contrato.</CardDescription>
+        <CardDescription>Comparacion contra el periodo anterior.</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3 sm:grid-cols-2">
         {trends.slice(0, 8).map((trend, index) => {
@@ -498,9 +505,9 @@ function TrendsPanel({ data }: { data: OperationsDashboardV1 }) {
                 {direction ? <Badge variant="outline">{direction}</Badge> : null}
               </div>
               <div className="mt-2 grid grid-cols-3 gap-2 text-xs text-muted-foreground">
-                <MetricMini label="current" value={formatNumber(trend.current)} />
-                <MetricMini label="previous" value={formatNumber(trend.previous)} />
-                <MetricMini label="change" value={formatNumber(trend.percent_change, '%')} />
+                <MetricMini label="Actual" value={formatNumber(trend.current)} />
+                <MetricMini label="Anterior" value={formatNumber(trend.previous)} />
+                <MetricMini label="Cambio" value={formatNumber(trend.percent_change, '%')} />
               </div>
             </div>
           );
@@ -512,10 +519,10 @@ function TrendsPanel({ data }: { data: OperationsDashboardV1 }) {
 
 function TicketBreakdowns({ data }: { data: OperationsDashboardV1 }) {
   const groups = [
-    { key: 'by_status', title: resolveLabel(data, 'tickets_by_status', 'Tickets por estado'), items: data.tickets?.by_status },
-    { key: 'by_channel', title: resolveLabel(data, 'tickets_by_channel', 'Tickets por canal'), items: data.tickets?.by_channel },
-    { key: 'by_category', title: resolveLabel(data, 'tickets_by_category', 'Tickets por categoria'), items: data.tickets?.by_category },
-    { key: 'by_priority', title: resolveLabel(data, 'tickets_by_priority', 'Tickets por prioridad'), items: data.tickets?.by_priority },
+    { key: 'by_status', title: resolveLabel(data, 'tickets_by_status', 'Reclamos por estado'), items: data.tickets?.by_status },
+    { key: 'by_channel', title: resolveLabel(data, 'tickets_by_channel', 'Reclamos por canal'), items: data.tickets?.by_channel },
+    { key: 'by_category', title: resolveLabel(data, 'tickets_by_category', 'Reclamos por categoria'), items: data.tickets?.by_category },
+    { key: 'by_priority', title: resolveLabel(data, 'tickets_by_priority', 'Reclamos por prioridad'), items: data.tickets?.by_priority },
   ].filter((group) => hasItems(group.items));
 
   if (!groups.length) return null;
@@ -553,8 +560,8 @@ function EngagementPanel({ data }: { data: OperationsDashboardV1 }) {
             <CardTitle className="text-lg">{resolveLabel(data, 'channels', 'Canales y live chat')}</CardTitle>
             <CardDescription>
               {data.live_chat?.active_viewers !== undefined
-                ? `${formatNumber(data.live_chat.active_viewers)} active_viewers`
-                : data.contract_version || 'operations.dashboard.v1'}
+                ? `${formatNumber(data.live_chat.active_viewers)} personas activas`
+                : 'Conversaciones y participacion del periodo'}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -563,7 +570,7 @@ function EngagementPanel({ data }: { data: OperationsDashboardV1 }) {
                 <BreakdownRow key={item.id || item.key || index} item={item} />
               ))
             ) : (
-              <ViewState status="empty" description="Sin items de canales para este periodo." className="min-h-[120px]" />
+              <ViewState status="empty" description="Sin actividad de canales para este periodo." className="min-h-[120px]" />
             )}
           </CardContent>
         </Card>
@@ -585,9 +592,9 @@ function EmployeePanel({ data }: { data: OperationsDashboardV1 }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-lg">{resolveLabel(data, 'employees', 'Cobertura de empleados')}</CardTitle>
+        <CardTitle className="text-lg">{resolveLabel(data, 'employees', 'Cobertura del equipo')}</CardTitle>
         <CardDescription>
-          {coverageRate !== undefined ? `${formatNumber(coverageRate, '%')} coverage_rate` : data.contract_version || 'employee coverage'}
+          {coverageRate !== undefined ? `${formatNumber(coverageRate, '%')} de cobertura` : 'Categorias y canales cubiertos por el equipo'}
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4 lg:grid-cols-3">
@@ -655,15 +662,15 @@ function OperationsHeatmapPanel({
   }, [bounds]);
 
   if (loading && !heatmap) {
-    return <ViewState status="loading" description="Cargando heatmap operacional." />;
+    return <ViewState status="loading" description="Cargando mapa operativo." />;
   }
 
   if (error && !heatmap) {
     return (
       <ViewState
         status="partial"
-        title="Heatmap no disponible"
-        description={getErrorMessage(error, 'No se pudo cargar operations.heatmap.v1.')}
+        title="Mapa no disponible"
+        description={getErrorMessage(error, 'No se pudo cargar el mapa operativo.')}
         action={
           <Button type="button" variant="outline" onClick={refetch}>
             <RefreshCw className="h-4 w-4" />
@@ -678,8 +685,8 @@ function OperationsHeatmapPanel({
   const isFreshnessBlocked = canRenderHeatmap === false;
   const isEmpty = isFreshnessBlocked || renderState === 'empty' || !filteredPoints.length;
   const emptyDescription = isFreshnessBlocked
-    ? freshness?.reason_code || 'El contrato de frescura indica que el heatmap no deberia renderizarse para este periodo.'
-    : 'El contrato indica estado empty o no hay coordenadas para las capas activas.';
+    ? 'No hay datos suficientes para dibujar el mapa en este periodo.'
+    : 'Todavia no hay coordenadas para las capas activas.';
 
   return (
     <Card>
@@ -688,9 +695,9 @@ function OperationsHeatmapPanel({
           <div>
             <CardTitle className="flex items-center gap-2 text-lg">
               <MapPin className="h-5 w-5" />
-              Heatmap operacional
+              Mapa operativo
             </CardTitle>
-            <CardDescription>{heatmap?.contract_version || 'operations.heatmap.v1'}</CardDescription>
+            <CardDescription>Reclamos, respuestas y eventos con ubicacion.</CardDescription>
           </div>
           {heatmap?.summary ? (
             <Badge variant="outline">{formatNumber(heatmap.summary.points)} puntos</Badge>
@@ -766,11 +773,11 @@ function ActionCenterPanel({
           <div>
             <CardTitle className="flex items-center gap-2 text-lg">
               <CheckCircle2 className="h-5 w-5" />
-              Action center
+              Acciones recomendadas
             </CardTitle>
-            <CardDescription>Acciones priorizadas para el equipo; no se ejecutan automaticamente.</CardDescription>
+            <CardDescription>Prioridades para resolver ahora y equilibrar el trabajo.</CardDescription>
           </div>
-          <Button type="button" size="icon" variant="ghost" onClick={refetch} aria-label="Actualizar action center">
+          <Button type="button" size="icon" variant="ghost" onClick={refetch} aria-label="Actualizar acciones">
             <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
           </Button>
         </div>
@@ -785,7 +792,7 @@ function ActionCenterPanel({
         ) : null}
 
         {error && !items.length ? (
-          <ViewState status="partial" description={getErrorMessage(error, 'No se pudo cargar operations.action_center.v1.')} className="min-h-[180px]" />
+          <ViewState status="partial" description={getErrorMessage(error, 'No se pudieron cargar las recomendaciones.')} className="min-h-[180px]" />
         ) : null}
 
         {!loading && !items.length && !error ? (
@@ -804,7 +811,7 @@ function HotspotsPanel({ data, heatmap }: { data: OperationsDashboardV1; heatmap
   const hotspots = [...(data.maps?.heatmap?.hotspots ?? []), ...(heatmap?.hotspots ?? [])].slice(0, 8);
   if (!hotspots.length) return null;
 
-  return <BreakdownCard title={resolveLabel(data, 'hotspots', 'Hotspots')} items={hotspots} />;
+  return <BreakdownCard title={resolveLabel(data, 'hotspots', 'Zonas calientes')} items={hotspots} />;
 }
 
 function BreakdownCard({ title, items }: { title: string; items: OperationsBucketItem[] }) {
@@ -843,10 +850,9 @@ function BreakdownRow({ item }: { item: OperationsBucketItem }) {
 }
 
 function ActionItemRow({ item }: { item: OperationsActionItem }) {
-  const title = asString(item.title) ?? asString(item.id) ?? asString(item.reason_code) ?? 'action';
+  const title = asString(item.title) ?? 'Accion recomendada';
   const description = asString(item.description);
-  const method = asString(item.method);
-  const endpoint = asString(item.endpoint);
+  const impact = asString(item.impact);
 
   return (
     <div className="rounded-lg border px-3 py-3">
@@ -855,17 +861,10 @@ function ActionItemRow({ item }: { item: OperationsActionItem }) {
           <p className="font-medium">{title}</p>
           {description ? <p className="mt-1 text-sm text-muted-foreground">{description}</p> : null}
         </div>
-        {item.priority ? <Badge variant={priorityVariant(item.priority)}>{item.priority}</Badge> : null}
+        {item.priority ? <Badge variant={priorityVariant(item.priority)}>{priorityLabel(item.priority)}</Badge> : null}
       </div>
       <div className="mt-3 flex flex-wrap gap-1 text-xs">
-        {item.reason_code ? <Badge variant="outline">{item.reason_code}</Badge> : null}
-        {item.ui_hint ? <Badge variant="secondary">{item.ui_hint}</Badge> : null}
-        {method ? <Badge variant="outline">{method}</Badge> : null}
-        {endpoint ? (
-          <span className="max-w-full truncate rounded border bg-muted/40 px-2 py-0.5 font-mono text-muted-foreground">
-            {endpoint}
-          </span>
-        ) : null}
+        {impact ? <Badge variant="secondary">{impact}</Badge> : null}
       </div>
     </div>
   );
@@ -891,10 +890,16 @@ function MiniList({ title, items }: { title: string; items: OperationsBucketItem
 function MetricMini({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-md border bg-muted/20 px-2 py-1">
-      <p className="truncate text-muted-foreground">{label}</p>
+      <p className="truncate text-muted-foreground">{humanizeMetricLabel(label)}</p>
       <p className="font-semibold">{value}</p>
     </div>
   );
+}
+
+function humanizeMetricLabel(label: string) {
+  const normalized = label.replace(/[_-]+/g, ' ').trim();
+  if (!normalized) return 'Indicador';
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
 }
 
 export default OperationsDashboardPanel;
