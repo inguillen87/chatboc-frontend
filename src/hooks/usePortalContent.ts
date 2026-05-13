@@ -2,24 +2,36 @@ import { useCallback, useEffect, useState } from 'react';
 import { useTenant } from '@/context/TenantContext';
 import { useUser } from '@/hooks/useUser';
 import { apiClient } from '@/api/client'; // Use the central client
-import { getDemoPortalContent } from '@/data/portalDemoContent';
 import { PortalContent, PortalPremiumBundle } from '@/types/unified';
 import { mergePortalExperience } from '@/utils/portalExperience';
+
+const EMPTY_PORTAL_CONTENT: PortalContent = {
+  notifications: [],
+  events: [],
+  news: [],
+  catalog: [],
+  activities: [],
+  surveys: [],
+  loyaltySummary: null,
+};
 
 export function usePortalContent() {
   const { currentSlug } = useTenant();
   const { user } = useUser();
-  const [content, setContent] = useState<PortalContent>(() => getDemoPortalContent());
+  const [content, setContent] = useState<PortalContent>(EMPTY_PORTAL_CONTENT);
   const [isLoading, setIsLoading] = useState(false);
-  const [isDemo, setIsDemo] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [bundle, setBundle] = useState<PortalPremiumBundle | null>(null);
 
   const fetchContent = useCallback(async () => {
-    if (!currentSlug) return;
+    if (!currentSlug) {
+      setContent(EMPTY_PORTAL_CONTENT);
+      setBundle(null);
+      setError(null);
+      return;
+    }
 
     setIsLoading(true);
-    setIsDemo(false);
     setError(null);
 
     try {
@@ -50,10 +62,9 @@ export function usePortalContent() {
       setContent(merged);
       setBundle(bundleResponse.status === 'fulfilled' ? bundleResponse.value : null);
     } catch (err: any) {
-      console.warn('Failed to fetch portal content, falling back to demo', err);
-      setIsDemo(true);
+      console.warn('Failed to fetch portal content', err);
       setError(err);
-      setContent(getDemoPortalContent());
+      setContent(EMPTY_PORTAL_CONTENT);
       setBundle(null);
     } finally {
       setIsLoading(false);
@@ -70,7 +81,7 @@ export function usePortalContent() {
     content,
     bundle,
     isLoading,
-    isDemo,
+    isDemo: false,
     error,
     refetch: fetchContent,
   };

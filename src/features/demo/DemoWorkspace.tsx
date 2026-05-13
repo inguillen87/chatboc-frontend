@@ -13,9 +13,6 @@ const readBlockDetail = (block: { detail?: string | null; description?: string |
   block.detail || block.description || block.subtitle || null;
 
 const readSectorLabel = (sector?: DemoSector | null) => {
-  if (sector === 'educacion') return 'Colegios';
-  if (sector === 'gobierno') return 'Gobiernos';
-  if (sector === 'empresas') return 'Empresas';
   return sector ? String(sector) : null;
 };
 

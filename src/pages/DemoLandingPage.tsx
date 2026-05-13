@@ -381,7 +381,7 @@ const DemoLandingPage = () => {
                   {tenant.slug ? (
                     <MarketCartProvider tenantSlug={tenant.slug}>
                       <div className="h-full bg-muted/10 p-4">
-                        <ProductCatalog tenantSlug={tenant.slug} isDemoMode />
+                        <ProductCatalog tenantSlug={tenant.slug} />
                       </div>
                     </MarketCartProvider>
                   ) : (

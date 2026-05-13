@@ -52,7 +52,6 @@ import {
 } from '@/components/ui/table';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle, FileDown } from 'lucide-react';
-import { generateJuninDemoHeatmap, JUNIN_DEMO_NOTICE } from '@/utils/demoHeatmap';
 import {
   clearEndpointUnavailable,
   isEndpointMarkedUnavailable,
@@ -350,20 +349,14 @@ export default function MunicipalAnalytics() {
       }
     } catch (err: any) {
       console.error('Error fetching municipal analytics data:', err);
-      const demoHeatmap = generateJuninDemoHeatmap(120);
-      const fallback = buildFallbackAnalytics(null, demoHeatmap);
-      setData(fallback);
-      setHeatmapData(demoHeatmap);
-      setHeatmapDetails({ points: demoHeatmap });
+      setData(buildFallbackAnalytics(null, []));
+      setHeatmapData([]);
+      setHeatmapDetails({ points: [] });
       setCharts([]);
       setAnalyticsDisabled(true);
       analyticsDisabledRef.current = true;
-      setAnalyticsWarning((prev) => {
-        const combined = `${ANALYTICS_WARNING_MESSAGE} ${JUNIN_DEMO_NOTICE}`;
-        if (!prev) return combined;
-        return prev.includes(JUNIN_DEMO_NOTICE) ? prev : `${prev} ${JUNIN_DEMO_NOTICE}`;
-      });
-      setError(null);
+      setAnalyticsWarning(ANALYTICS_WARNING_MESSAGE);
+      setError('No se pudieron cargar los datos municipales reales.');
     } finally {
       setLoading(false);
     }

@@ -47,7 +47,6 @@ export interface DemoCatalogResponse {
   pillars?: DemoCatalogPillar[];
   sector_groups?: DemoSectorGroup[];
   rubros?: Rubro[];
-  local_demo_mode?: boolean;
   catalog_error?: string | null;
 }
 

@@ -579,7 +579,10 @@ const Login = () => {
                 ? "bodega"
                 : "municipio",
       });
-      const sessionId = session.demo_session_id || session.session_id || `local_demo_${Date.now().toString(36)}`;
+      const sessionId = session.demo_session_id || session.session_id;
+      if (!sessionId) {
+        throw new Error("La demo real no devolvio session_id.");
+      }
       safeLocalStorage.setItem("demoMode", "true");
       safeLocalStorage.setItem("demoSessionId", sessionId);
       persistDemoTenant(session.tenant_slug || session.tenant?.slug || null);

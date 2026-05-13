@@ -1,5 +1,4 @@
 import { apiFetch } from '@/utils/api';
-import { DEMO_HIERARCHY } from '@/data/demoHierarchy';
 import { Rubro } from '@/types/rubro';
 
 const sortRubrosByName = (items: Rubro[]): Rubro[] =>
@@ -48,65 +47,20 @@ export const buildRubroTree = (flatRubros: Rubro[]): Rubro[] => {
   return roots;
 };
 
-const cloneRubro = (item: Rubro): Rubro => JSON.parse(JSON.stringify(item));
+export const getRubrosHierarchy = async (): Promise<Rubro[]> => {
+  const backendData = await fetchRubros();
+  if (!Array.isArray(backendData)) return [];
 
-const ensureFallbackRoot = (tree: Rubro[], fallbackId: number, fallbackKey: string) => {
-  const fallbackRoot = DEMO_HIERARCHY.find((item) => item.id === fallbackId);
-  if (!fallbackRoot) return;
-
-  const existingRoot = tree.find(
-    (root) => root.id === fallbackId || root.clave === fallbackKey,
+  const tree = buildRubroTree(backendData);
+  const prioritizedRoots = tree.filter(
+    (root) =>
+      root.id === 1 ||
+      root.id === 2 ||
+      root.id === 3 ||
+      root.clave === 'municipios_root' ||
+      root.clave === 'comerciales_root' ||
+      root.clave === 'educacion_root',
   );
 
-  if (!existingRoot) {
-    tree.push(cloneRubro(fallbackRoot));
-    return;
-  }
-
-  if (!existingRoot.subrubros || existingRoot.subrubros.length === 0) {
-    existingRoot.subrubros = cloneRubro(fallbackRoot).subrubros;
-  }
-};
-
-export const getRubrosHierarchy = async (): Promise<Rubro[]> => {
-  try {
-    let backendData: Rubro[] = [];
-
-    try {
-      backendData = await fetchRubros();
-    } catch (error) {
-      console.warn('Backend rubros fetch failed, using fallback hierarchy', error);
-      backendData = [];
-    }
-
-    if (!Array.isArray(backendData)) {
-      console.warn('Backend rubros invalid format, using fallback hierarchy');
-      return sortRubroTree(DEMO_HIERARCHY);
-    }
-
-    const tree = buildRubroTree(backendData);
-
-    ensureFallbackRoot(tree, 1, 'municipios_root');
-    ensureFallbackRoot(tree, 2, 'comerciales_root');
-    ensureFallbackRoot(tree, 3, 'educacion_root');
-
-    if (tree.length === 0) {
-      return sortRubroTree(DEMO_HIERARCHY);
-    }
-
-    const prioritizedRoots = tree.filter(
-      (root) =>
-        root.id === 1 ||
-        root.id === 2 ||
-        root.id === 3 ||
-        root.clave === 'municipios_root' ||
-        root.clave === 'comerciales_root' ||
-        root.clave === 'educacion_root',
-    );
-
-    return sortRubroTree(prioritizedRoots.length ? prioritizedRoots : tree);
-  } catch (error) {
-    console.warn('Error processing rubros hierarchy, using fallback hierarchy', error);
-    return sortRubroTree(DEMO_HIERARCHY);
-  }
+  return sortRubroTree(prioritizedRoots.length ? prioritizedRoots : tree);
 };

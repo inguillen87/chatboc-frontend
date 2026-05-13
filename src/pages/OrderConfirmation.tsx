@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowRightLeft, CheckCircle, Clock, ExternalLink, Hash, Loader2, ShoppingBag, XCircle } from 'lucide-react';
+import { ArrowRightLeft, CheckCircle, Clock, ExternalLink, Hash, Loader2, Package, ShoppingBag, XCircle } from 'lucide-react';
 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,7 +13,6 @@ import { useTenant } from '@/context/TenantContext';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { cn } from '@/lib/utils';
 import { buildTenantPath } from '@/utils/tenantPaths';
-import { getProductPlaceholderImage } from '@/utils/cartPayload';
 import { getCommercialStageLabel, getCommercialStageTone, getCommercialToneClassName, normalizeChannelLabel } from '@/utils/orderCommercial';
 
 interface OrderItem {
@@ -177,6 +176,7 @@ const OrderConfirmationPage = () => {
   const [order, setOrder] = useState<OrderSummary | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [failedImageKeys, setFailedImageKeys] = useState<Set<string>>(() => new Set());
 
   const catalogPath = buildTenantPath('/productos', currentSlug);
   const cartPath = buildTenantPath('/cart', currentSlug);
@@ -352,32 +352,35 @@ const OrderConfirmationPage = () => {
                       {order.items.map((item, index) => {
                         const modality = (item.modalidad ?? '').toLowerCase();
                         const badgeVariant = modality === 'donacion' ? 'success' : modality === 'puntos' ? 'outline' : 'secondary';
-                        const badgeLabel =
-                          modality === 'donacion' ? 'Donación' : modality === 'puntos' ? 'Canje con puntos' : 'Compra';
-                        const placeholder = getProductPlaceholderImage({
-                          id: item.nombre,
-                          nombre: item.nombre,
-                          precio_unitario: item.precio_unitario ?? 0,
-                          modalidad: modality,
-                        } as any);
+                        const badgeLabel = modality === 'donacion' ? 'Donacion' : modality === 'puntos' ? 'Canje con puntos' : 'Compra';
+                        const imageKey = `${item.nombre}-${index}`;
+                        const hasImage = Boolean(item.imagen_url && !failedImageKeys.has(imageKey));
 
                         return (
                           <div
-                            key={`${item.nombre}-${index}`}
+                            key={imageKey}
                             className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border rounded-lg p-3 bg-card"
                           >
                             <div className="flex items-center gap-3">
-                              <img
-                                src={item.imagen_url ?? placeholder}
-                                alt={item.nombre}
-                                className="h-14 w-14 rounded-md object-cover border"
-                                loading="lazy"
-                                onError={(event) => {
-                                  if (event.currentTarget.src !== placeholder) {
-                                    event.currentTarget.src = placeholder;
-                                  }
-                                }}
-                              />
+                              {hasImage ? (
+                                <img
+                                  src={item.imagen_url}
+                                  alt={item.nombre}
+                                  className="h-14 w-14 rounded-md object-cover border"
+                                  loading="lazy"
+                                  onError={() => {
+                                    setFailedImageKeys((prev) => {
+                                      const next = new Set(prev);
+                                      next.add(imageKey);
+                                      return next;
+                                    });
+                                  }}
+                                />
+                              ) : (
+                                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-md border bg-muted text-muted-foreground">
+                                  <Package className="h-5 w-5" />
+                                </div>
+                              )}
                               <div>
                                 <p className="font-medium text-foreground">{item.nombre}</p>
                                 <p className="text-sm text-muted-foreground">Cantidad: {item.cantidad}</p>
@@ -390,7 +393,7 @@ const OrderConfirmationPage = () => {
                               {item.modalidad === 'puntos' ? (
                                 <p className="font-semibold text-primary">{(item.precio_puntos ?? 0) * item.cantidad} pts</p>
                               ) : item.modalidad === 'donacion' ? (
-                                <p className="font-semibold text-foreground">Donación</p>
+                                <p className="font-semibold text-foreground">Donacion</p>
                               ) : (
                                 <p className="font-semibold text-foreground">{formatCurrency((item.precio_unitario ?? 0) * item.cantidad)}</p>
                               )}

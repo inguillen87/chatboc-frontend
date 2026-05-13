@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { apiFetch } from '@/utils/api';
 import type { HeatPoint } from '@/services/statsService';
-import { generateJuninDemoHeatmap, JUNIN_DEMO_NOTICE } from '@/utils/demoHeatmap';
 import {
   Select,
   SelectContent,
@@ -146,7 +145,7 @@ interface StatsResponse {
   agentPerformance?: AgentPerformanceMetric[];
 }
 
-interface FallbackFilters {
+interface FilterOptions {
   rubros: string[];
   barrios: string[];
   tipos: string[];
@@ -160,7 +159,7 @@ interface FilterState {
   rango?: string;
 }
 
-type FiltersApiResponse = Partial<Record<keyof FallbackFilters, unknown>>;
+type FiltersApiResponse = Partial<Record<keyof FilterOptions, unknown>>;
 
 interface TicketRecord {
   id: string;
@@ -181,42 +180,42 @@ interface TicketRecord {
   agent: string;
 }
 
-const FALLBACK_FILTERS: FallbackFilters = {
+const DEFAULT_FILTERS: FilterOptions = {
   rubros: [],
   barrios: [],
   tipos: [],
   rangos: [
-    'Últimos 7 días',
-    'Últimos 30 días',
-    'Últimos 90 días',
-    'Últimos 180 días',
-    'Último año',
-    'Histórico',
+    'Ultimos 7 dias',
+    'Ultimos 30 dias',
+    'Ultimos 90 dias',
+    'Ultimos 180 dias',
+    'Ultimo ano',
+    'Historico',
   ],
 };
 
-const FALLBACK_RANGE_MAP: Record<string, number | null> = {
-  Histórico: null,
-  'Último año': 365,
-  'Últimos 180 días': 180,
-  'Últimos 90 días': 90,
-  'Últimos 30 días': 30,
-  'Últimos 7 días': 7,
+const RANGE_DAY_MAP: Record<string, number | null> = {
+  Historico: null,
+  'Ultimo ano': 365,
+  'Ultimos 180 dias': 180,
+  'Ultimos 90 dias': 90,
+  'Ultimos 30 dias': 30,
+  'Ultimos 7 dias': 7,
 };
 
-const FALLBACK_DAYS = [
+const DEFAULT_DAYS = [
   'Lunes',
   'Martes',
-  'Miércoles',
+  'Miercoles',
   'Jueves',
   'Viernes',
-  'Sábado',
+  'Sabado',
   'Domingo',
 ];
 
-const FALLBACK_TIME_SLOTS = ['Mañana', 'Mediodía', 'Tarde', 'Noche'];
+const DEFAULT_TIME_SLOTS = ['Manana', 'Mediodia', 'Tarde', 'Noche'];
 
-const FALLBACK_PIE_COLORS = [
+const CHART_PIE_COLORS = [
   '#2563eb',
   '#16a34a',
   '#f97316',
@@ -255,9 +254,9 @@ function formatMonthLabel(year: number, month: number) {
 }
 
 function createEmptyHeatmap(): HeatmapRow[] {
-  return FALLBACK_DAYS.map((day) => ({
+  return DEFAULT_DAYS.map((day) => ({
     day,
-    slots: FALLBACK_TIME_SLOTS.map((timeSlot) => ({ timeSlot, count: 0 })),
+    slots: DEFAULT_TIME_SLOTS.map((timeSlot) => ({ timeSlot, count: 0 })),
   }));
 }
 
@@ -504,12 +503,12 @@ function formatValue(value: number) {
   });
 }
 
-function getFallbackFilters(): FallbackFilters {
+function getDefaultFilters(): FilterOptions {
   return {
-    rubros: [...FALLBACK_FILTERS.rubros],
-    barrios: [...FALLBACK_FILTERS.barrios],
-    tipos: [...FALLBACK_FILTERS.tipos],
-    rangos: [...FALLBACK_FILTERS.rangos],
+    rubros: [...DEFAULT_FILTERS.rubros],
+    barrios: [...DEFAULT_FILTERS.barrios],
+    tipos: [...DEFAULT_FILTERS.tipos],
+    rangos: [...DEFAULT_FILTERS.rangos],
   };
 }
 
@@ -519,30 +518,30 @@ function isStringArray(value: unknown): value is string[] {
 
 function parseFiltersResponse(
   response: FiltersApiResponse | null | undefined,
-): { filters: FallbackFilters; usedFallback: boolean } {
-  const fallback = getFallbackFilters();
+): { filters: FilterOptions; usedDefaults: boolean } {
+  const defaults = getDefaultFilters();
 
   if (!response) {
-    return { filters: fallback, usedFallback: true };
+    return { filters: defaults, usedDefaults: true };
   }
 
-  let usedFallback = false;
-  const ensureArray = (value: unknown | undefined, fallbackValues: string[]) => {
+  let usedDefaults = false;
+  const ensureArray = (value: unknown | undefined, defaultValues: string[]) => {
     if (isStringArray(value)) {
       return [...value];
     }
-    usedFallback = true;
-    return fallbackValues;
+    usedDefaults = true;
+    return defaultValues;
   };
 
   return {
     filters: {
-      rubros: ensureArray(response.rubros, fallback.rubros),
-      barrios: ensureArray(response.barrios, fallback.barrios),
-      tipos: ensureArray(response.tipos, fallback.tipos),
-      rangos: ensureArray(response.rangos, fallback.rangos),
+      rubros: ensureArray(response.rubros, defaults.rubros),
+      barrios: ensureArray(response.barrios, defaults.barrios),
+      tipos: ensureArray(response.tipos, defaults.tipos),
+      rangos: ensureArray(response.rangos, defaults.rangos),
     },
-    usedFallback,
+    usedDefaults,
   };
 }
 
@@ -1080,91 +1079,16 @@ function createEmptyStats(): StatsResponse {
   };
 }
 
-const DEMO_CHANNELS = ['WhatsApp', 'App móvil', 'Web', 'Línea 147'];
-const DEMO_PRIORITIES = ['Alta', 'Media', 'Baja'];
-
-const seededRandom = (seed: number) => {
-  const x = Math.sin(seed) * 10000;
-  return x - Math.floor(x);
-};
-
-const buildDemoTicketRecords = (points: HeatPoint[]): TicketRecord[] => {
-  const now = Date.now();
-
-  return points.map((point, index) => {
-    const baseId = typeof point.id === 'number' ? point.id : index + 1;
-    const seed = baseId * 9301;
-    const createdDays = Math.floor(seededRandom(seed) * 90);
-    const createdHours = Math.floor(seededRandom(seed + 1) * 24);
-    const createdAt = new Date(now - createdDays * 86400000 - createdHours * 3600000);
-
-    const resolutionHours = Math.max(4, Math.round(seededRandom(seed + 2) * 120));
-    const resolvedProbability = seededRandom(seed + 3);
-    const resolvedAt =
-      resolvedProbability > 0.35
-        ? new Date(createdAt.getTime() + resolutionHours * 3600000)
-        : undefined;
-
-    const satisfactionBase = 3 + seededRandom(seed + 4) * 2;
-    const firstResponse = Math.max(1, Math.round(seededRandom(seed + 5) * 12));
-    const reopened = seededRandom(seed + 6) > 0.82;
-
-    const rawStatus = typeof point.estado === 'string' && point.estado.trim().length > 0
-      ? point.estado
-      : resolvedAt
-        ? 'Resuelto'
-        : 'En proceso';
-
-    const priorityIndex = Math.floor(seededRandom(seed + 7) * DEMO_PRIORITIES.length);
-    const channelIndex = Math.floor(seededRandom(seed + 8) * DEMO_CHANNELS.length);
-
-    const rubro = typeof point.categoria === 'string' && point.categoria.trim().length > 0
-      ? point.categoria.trim()
-      : 'General';
-
-    const barrio = typeof point.barrio === 'string' && point.barrio.trim().length > 0
-      ? point.barrio.trim()
-      : 'Sin barrio';
-
-    const tipo =
-      (typeof point.tipo_ticket === 'string' && point.tipo_ticket.trim().length > 0
-        ? point.tipo_ticket.trim()
-        : rubro) || 'General';
-
-    return {
-      id:
-        (typeof point.ticket === 'string' && point.ticket.trim().length > 0
-          ? point.ticket.trim()
-          : `DEMO-${String(baseId).padStart(4, '0')}`) ?? `DEMO-${String(baseId).padStart(4, '0')}`,
-      rubro,
-      barrio,
-      tipo,
-      status: normalizeStatusValue(rawStatus),
-      category: rubro,
-      priority: normalizePriorityValue(DEMO_PRIORITIES[priorityIndex] ?? 'Media'),
-      channel: normalizeChannelValue(DEMO_CHANNELS[channelIndex] ?? 'Web'),
-      createdAt,
-      resolvedAt,
-      resolutionTimeHours: resolvedAt ? Math.max(1, resolutionHours) : Math.max(1, createdDays * 24 + createdHours),
-      satisfaction: Number(Math.min(5, Math.max(2.5, satisfactionBase)).toFixed(2)),
-      firstResponseHours: firstResponse,
-      reopened,
-      surveyResponded: seededRandom(seed + 9) > 0.45,
-      agent: 'Equipo Municipal',
-    } satisfies TicketRecord;
-  });
-};
-
-function buildFallbackStats(
+function buildDerivedStats(
   filters: FilterState,
   sourceTickets?: TicketRecord[],
 ): StatsResponse {
   const now = new Date();
   const rangeKey =
-    filters.rango && filters.rango in FALLBACK_RANGE_MAP
+    filters.rango && filters.rango in RANGE_DAY_MAP
       ? filters.rango
-      : 'Histórico';
-  const daysRange = FALLBACK_RANGE_MAP[rangeKey ?? 'Histórico'];
+      : 'Historico';
+  const daysRange = RANGE_DAY_MAP[rangeKey ?? 'Historico'];
   const cutoff =
     typeof daysRange === 'number'
       ? new Date(now.getTime() - daysRange * 86400000)
@@ -1398,7 +1322,7 @@ function buildFallbackStats(
   });
   filteredTickets.forEach((ticket) => {
     const dayIndex = (ticket.createdAt.getDay() + 6) % 7;
-    const day = FALLBACK_DAYS[dayIndex];
+    const day = DEFAULT_DAYS[dayIndex];
     const timeSlot = determineTimeSlot(ticket.createdAt.getHours());
     const key = `${day}-${timeSlot}`;
     const cell = heatmapIndex.get(key);
@@ -1534,7 +1458,7 @@ function buildFallbackStats(
 
 interface StatsNormalizationResult {
   response: StatsResponse;
-  usedFallback: boolean;
+  derivedFromTickets: boolean;
 }
 
 function resolveStatsPayload(
@@ -1548,12 +1472,12 @@ function resolveStatsPayload(
   const ticketRecords = normalizeTicketRecords(extractTicketCandidates(payload));
 
   if (ticketRecords.length > 0) {
-    const derived = buildFallbackStats(filters, ticketRecords);
+    const derived = buildDerivedStats(filters, ticketRecords);
     const stats =
       apiStats.length > 0 ? mergeStatLists(apiStats, derived.stats) : derived.stats;
     return {
       response: { ...derived, stats },
-      usedFallback: false,
+      derivedFromTickets: true,
     };
   }
 
@@ -1663,12 +1587,12 @@ function resolveStatsPayload(
     );
     if (agentPerformance.length > 0) response.agentPerformance = agentPerformance;
 
-    return { response, usedFallback: false };
+    return { response, derivedFromTickets: false };
   }
 
   return {
-    response: buildFallbackStats(filters),
-    usedFallback: false,
+    response: buildDerivedStats(filters),
+    derivedFromTickets: false,
   };
 }
 
@@ -1685,7 +1609,7 @@ export default function MunicipalStats() {
   const [filtroBarrio, setFiltroBarrio] = useState('');
   const [filtroTipo, setFiltroTipo] = useState('');
   const [filtroRango, setFiltroRango] = useState('');
-  const [usingFallback, setUsingFallback] = useState(false);
+  const [usingDerivedSummary, setUsingDerivedSummary] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -1693,9 +1617,9 @@ export default function MunicipalStats() {
       .then((resp) => {
         if (!active) return;
         const parsed = parseFiltersResponse(resp);
-        if (parsed.usedFallback) {
+        if (parsed.usedDefaults) {
           console.warn(
-            'Municipal stats filters response was missing required arrays. Using fallback defaults for unavailable entries.',
+            'Municipal stats filters response was missing required arrays. Using default empty options for unavailable entries.',
           );
         }
         setRubros(parsed.filters.rubros);
@@ -1704,7 +1628,7 @@ export default function MunicipalStats() {
         setRangos(parsed.filters.rangos);
       })
       .catch((err) => {
-        console.warn('Using fallback filters for municipal stats', err);
+        console.warn('Municipal stats filters could not be loaded', err);
         if (!active) return;
         const parsed = parseFiltersResponse(null);
         setRubros(parsed.filters.rubros);
@@ -1739,22 +1663,12 @@ export default function MunicipalStats() {
       );
       const normalized = resolveStatsPayload(resp, filterState);
       setData(normalized.response);
-      setUsingFallback(normalized.usedFallback);
+      setUsingDerivedSummary(normalized.derivedFromTickets);
     } catch (err) {
       console.error('Error fetching municipal stats', err);
-      try {
-        const demoTickets = buildDemoTicketRecords(generateJuninDemoHeatmap(120));
-        const fallbackStats = buildFallbackStats(filterState, demoTickets);
-        setData(fallbackStats);
-        setUsingFallback(true);
-        setError(null);
-        console.warn('Municipal stats falling back to demo dataset due to API error.');
-      } catch (fallbackError) {
-        console.error('Failed to build demo stats fallback', fallbackError);
-        setError('No se pudieron cargar las estadísticas.');
-        setData(null);
-        setUsingFallback(false);
-      }
+      setError('No se pudieron cargar las estadisticas municipales.');
+      setData(null);
+      setUsingDerivedSummary(false);
     } finally {
       setLoading(false);
     }
@@ -1774,9 +1688,9 @@ export default function MunicipalStats() {
         tipo: filtroTipo || 'Todos',
         rango: filtroRango || 'Todos',
       },
-      usingFallback,
+      usingDerivedSummary,
     };
-  }, [data, filtroRubro, filtroBarrio, filtroTipo, filtroRango, usingFallback]);
+  }, [data, filtroRubro, filtroBarrio, filtroTipo, filtroRango, usingDerivedSummary]);
 
   const canExportStats = Boolean(statsExportConfig);
 
@@ -1802,7 +1716,7 @@ export default function MunicipalStats() {
   }, [data]);
 
   const timeSlots =
-    data?.heatmap?.[0]?.slots.map((slot) => slot.timeSlot) || FALLBACK_TIME_SLOTS;
+    data?.heatmap?.[0]?.slots.map((slot) => slot.timeSlot) || DEFAULT_TIME_SLOTS;
 
   if (loading)
     return <p className="p-4 text-center">Cargando estadísticas...</p>;
@@ -1824,10 +1738,9 @@ export default function MunicipalStats() {
           <h1 className="text-3xl font-extrabold text-primary">
             Estadísticas Municipales
           </h1>
-          {usingFallback ? (
+          {usingDerivedSummary ? (
             <p className="text-sm text-muted-foreground bg-muted/60 border border-dashed border-border rounded-md p-3">
-              Mostrando analíticas simuladas mientras se restablece la conexión
-              con el servidor. {JUNIN_DEMO_NOTICE}
+              Mostrando un resumen calculado desde los datos disponibles.
             </p>
           ) : null}
         </div>
@@ -2022,7 +1935,7 @@ export default function MunicipalStats() {
                           <Cell
                             key={entry.name}
                             fill={
-                              FALLBACK_PIE_COLORS[index % FALLBACK_PIE_COLORS.length]
+                              CHART_PIE_COLORS[index % CHART_PIE_COLORS.length]
                             }
                           />
                         ))}
@@ -2256,8 +2169,8 @@ export default function MunicipalStats() {
                             <Cell
                               key={entry.name}
                               fill={
-                                FALLBACK_PIE_COLORS[
-                                  (index + 3) % FALLBACK_PIE_COLORS.length
+                                CHART_PIE_COLORS[
+                                  (index + 3) % CHART_PIE_COLORS.length
                                 ]
                               }
                             />
@@ -2473,8 +2386,8 @@ export default function MunicipalStats() {
                 ))}
               </TableBody>
               <TableCaption>
-                {usingFallback
-                  ? 'Datos simulados mientras se restablece la conexión con el servidor.'
+                {usingDerivedSummary
+                  ? 'Resumen calculado desde datos disponibles.'
                   : 'Información provista por la plataforma municipal.'}
               </TableCaption>
             </Table>
@@ -2484,4 +2397,3 @@ export default function MunicipalStats() {
     </div>
   );
 }
-

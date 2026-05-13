@@ -21,15 +21,24 @@ import { Badge } from '@/components/ui/badge';
 import { useUser } from '@/hooks/useUser';
 import { cn } from '@/lib/utils';
 import { usePortalContent } from '@/hooks/usePortalContent';
-import { getDemoLoyaltySummary } from '@/utils/demoLoyalty';
 import { useTenant } from '@/context/TenantContext';
 import { buildTenantPath } from '@/utils/tenantPaths';
+
+const EMPTY_LOYALTY_SUMMARY = {
+  points: 0,
+  level: '',
+  surveysCompleted: 0,
+  suggestionsShared: 0,
+  claimsFiled: 0,
+  transactions: [],
+  availableRewards: [],
+};
 
 const UserDashboardPage = () => {
   const navigate = useNavigate();
   const { user } = useUser();
   const { currentSlug, tenant } = useTenant();
-  const { content, bundle, isDemo, isLoading, refetch } = usePortalContent();
+  const { content, bundle, isLoading, refetch } = usePortalContent();
 
   const getBadgeClasses = (statusType?: string): string => {
     switch (statusType?.toLowerCase()) {
@@ -54,7 +63,7 @@ const UserDashboardPage = () => {
   };
 
   const loyaltySummary = useMemo(
-    () => content.loyaltySummary ?? getDemoLoyaltySummary(),
+    () => content.loyaltySummary ?? EMPTY_LOYALTY_SUMMARY,
     [content],
   );
 
@@ -108,11 +117,6 @@ const UserDashboardPage = () => {
                 ? 'Gestioná tus trámites, reclamos y participá en tu comunidad.'
                 : 'Tu panel de cliente: seguí tus pedidos y descubrí beneficios.'}
             </p>
-            {isDemo && (
-              <div className="mt-3 inline-flex items-center gap-2 text-xs text-amber-600 bg-amber-50 px-3 py-1 rounded-full border border-amber-100">
-                <Sparkles className="h-3.5 w-3.5" /> Estás viendo datos de demostración
-              </div>
-            )}
           </div>
           <Button
             variant="ghost"
@@ -280,7 +284,6 @@ const UserDashboardPage = () => {
               ) : (
                   <div className="flex flex-col items-center justify-center h-40 text-center text-muted-foreground p-4 bg-muted/20 rounded-lg border border-dashed">
                       <p className="text-sm">No tienes actividad reciente.</p>
-                      {isDemo && <p className="text-xs mt-2 max-w-xs">Interactuá con el Chatbot o creá un pedido para ver actividad aquí.</p>}
                   </div>
               )}
             </SummaryCard>

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ApiError, NetworkError, getErrorMessage } from '@/utils/api';
+import { getErrorMessage } from '@/utils/api';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,12 +10,7 @@ import { formatCurrency } from '@/utils/currency';
 import { Loader2, ShoppingCart, AlertTriangle, Trash2, PlusCircle, MinusCircle, ArrowLeft, Package, Sparkles } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { useTenant } from '@/context/TenantContext';
-import {
-  getProductPlaceholderImage,
-} from '@/utils/cartPayload';
-import { getLocalCartProducts, setLocalCartItemQuantity, setLocalCartSnapshot } from '@/utils/localCart';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { getDemoLoyaltySummary } from '@/utils/demoLoyalty';
 import usePointsBalance from '@/hooks/usePointsBalance';
 import UploadOrderFromFile from '@/components/cart/UploadOrderFromFile';
 import { useUser } from '@/hooks/useUser';
@@ -24,29 +19,26 @@ import { Badge } from '@/components/ui/badge';
 import GuestContactDialog, { GuestContactValues } from '@/components/cart/GuestContactDialog';
 import { loadGuestContact, saveGuestContact } from '@/utils/guestContact';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { motion, AnimatePresence } from 'framer-motion';
-import { addMarketItem, fetchMarketCart, fetchMarketCatalog, removeMarketItem } from '@/api/market';
+import { addMarketItem, fetchMarketCart, removeMarketItem } from '@/api/market';
 import { MarketCartItem } from '@/types/market';
 
 // Adapting MarketCartItem to the local CartItem interface used in this component
 // ideally we should unify these types, but for now we adapt.
 interface CartItem extends ProductDetails {
   cantidad: number;
-  localCartKey?: string;
 }
 
 export default function CartPage() {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [cartMode, setCartMode] = useState<'api' | 'local'>('api');
-  const [loyaltySummary] = useState(() => getDemoLoyaltySummary());
+  const [failedImageKeys, setFailedImageKeys] = useState<Set<string>>(() => new Set());
   const navigate = useNavigate();
   const { currentSlug, isLoadingTenant } = useTenant();
   const { user } = useUser();
   const effectiveTenantSlug = useMemo(
-    () => currentSlug ?? user?.tenantSlug ?? safeLocalStorage.getItem('tenantSlug') ?? null,
+    () => currentSlug ?? user?.tenantSlug ?? null,
     [currentSlug, user?.tenantSlug],
   );
   const { points: pointsBalance, isLoading: isLoadingPoints, requiresAuth: pointsRequireAuth } = usePointsBalance({
@@ -61,10 +53,6 @@ export default function CartPage() {
   const loginPath = buildTenantPath('/login', effectiveTenantSlug);
   const registerPath = buildTenantPath('/register', effectiveTenantSlug);
 
-  const refreshLocalCart = useCallback(() => {
-    setCartItems(getLocalCartProducts());
-  }, []);
-
   useEffect(() => {
     if (pointsRequireAuth) {
       setShowPointsAuthPrompt(true);
@@ -73,35 +61,20 @@ export default function CartPage() {
 
   const numberFormatter = useMemo(() => new Intl.NumberFormat('es-AR'), []);
 
-  const shouldUseLocalCart = (err: unknown) => {
-    return (
-      (err instanceof ApiError && [400, 401, 403, 404, 405].includes(err.status)) ||
-      err instanceof NetworkError
-    );
-  };
-
   const loadCartData = useCallback(async () => {
     setLoading(true);
     setError(null);
 
-    if (cartMode === 'local') {
-      refreshLocalCart();
-      setLoading(false);
-      return;
-    }
-
     if (!effectiveTenantSlug) {
-      setCartMode('local');
-      refreshLocalCart();
+      setCartItems([]);
+      setError('No pudimos resolver el comercio para cargar tu carrito.');
       setLoading(false);
       return;
     }
 
     try {
-      // Use the centralized API functions
       const cartResponse = await fetchMarketCart(effectiveTenantSlug);
 
-      // Convert MarketCartItem[] to CartItem[]
       const populatedCartItems: CartItem[] = cartResponse.items.map((item: MarketCartItem) => ({
         id: item.id,
         nombre: item.name,
@@ -114,37 +87,13 @@ export default function CartPage() {
       }));
 
       setCartItems(populatedCartItems);
-
-      // Also update local snapshot for redundancy
-      if (populatedCartItems.length > 0) {
-        setLocalCartSnapshot(populatedCartItems.map((item) => ({ product: item, quantity: item.cantidad })));
-      } else {
-        // Fallback: If API returns empty but we have local items, rely on local items (Demo/Persistence Fallback)
-        const localItems = getLocalCartProducts();
-        if (localItems.length > 0) {
-           setCartMode('local');
-           setCartItems(localItems);
-           setLoading(false);
-           return;
-        }
-      }
-
-      if (cartResponse.isDemo) {
-        setCartMode('local');
-      }
-
     } catch (err) {
-      if (shouldUseLocalCart(err)) {
-        setCartMode('local');
-        refreshLocalCart();
-        return;
-      }
       const errorMessage = getErrorMessage(err, 'No se pudo cargar el carrito. Intenta de nuevo.');
       setError(errorMessage);
     } finally {
       setLoading(false);
     }
-  }, [cartMode, effectiveTenantSlug, refreshLocalCart]);
+  }, [effectiveTenantSlug]);
 
   useEffect(() => {
     if (!isLoadingTenant) {
@@ -168,15 +117,7 @@ export default function CartPage() {
     }
 
     try {
-      if (cartMode === 'local') {
-        const targetKey = productId ?? itemToUpdate.id?.toString() ?? productName;
-        const updated = setLocalCartItemQuantity(targetKey || productName, newQuantity);
-        setCartItems(updated);
-        toast({ description: `Cantidad actualizada.` });
-        return;
-      }
-
-      if (!effectiveTenantSlug) throw new Error("No tenant context");
+      if (!effectiveTenantSlug) throw new Error('Falta el comercio para actualizar el carrito.');
 
       const idToUse = productId ?? itemToUpdate.id ?? productName;
 
@@ -212,7 +153,7 @@ export default function CartPage() {
     }, 0);
   }, [cartItems]);
 
-  const effectivePointsBalance = cartMode === 'local' ? loyaltySummary.points : pointsBalance;
+  const effectivePointsBalance = pointsBalance;
   const pointsAfterSubtotal = Math.max(effectivePointsBalance - pointsTotal, 0);
   const hasPointsDeficit = pointsTotal > effectivePointsBalance;
   const requiresAuthForPoints = (cartItems.some((item) => item.modalidad === 'puntos') && !user) || pointsRequireAuth;
@@ -278,16 +219,6 @@ export default function CartPage() {
           <AlertTitle className="text-primary font-medium">Finaliza con tus datos</AlertTitle>
           <AlertDescription>
             Te pediremos tus datos de contacto en el siguiente paso.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {cartMode === 'local' && (
-        <Alert className="mb-6 bg-warning/10 border-warning/30 text-warning-foreground">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Modo Demo</AlertTitle>
-          <AlertDescription>
-            Tus productos se guardan localmente para simular la experiencia.
           </AlertDescription>
         </Alert>
       )}
@@ -358,7 +289,10 @@ export default function CartPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
           <div className="lg:col-span-2 space-y-4">
             <AnimatePresence mode='popLayout'>
-            {cartItems.map((item) => (
+            {cartItems.map((item) => {
+              const imageKey = String(item.id ?? item.nombre);
+              const hasImage = Boolean(item.imagen_url && !failedImageKeys.has(imageKey));
+              return (
               <motion.div
                 layout
                 key={item.id || item.nombre}
@@ -367,18 +301,28 @@ export default function CartPage() {
                 exit={{ opacity: 0, x: 20 }}
                 transition={{ duration: 0.3 }}
               >
-                  <Card className="flex flex-col sm:flex-row items-center overflow-hidden border-border/60 hover:border-primary/30 transition-colors group">
+                <Card className="flex flex-col sm:flex-row items-center overflow-hidden border-border/60 hover:border-primary/30 transition-colors group">
                     <div className="w-full sm:w-32 h-32 sm:h-auto aspect-square bg-muted relative overflow-hidden shrink-0">
-                         <img
-                        src={item.imagen_url || getProductPlaceholderImage(item)}
-                        alt={item.nombre}
-                        loading="lazy"
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        onError={(e) => {
-                            const target = e.target as HTMLImageElement;
-                            target.src = getProductPlaceholderImage(item);
-                        }}
+                      {hasImage ? (
+                        <img
+                          src={item.imagen_url}
+                          alt={item.nombre}
+                          loading="lazy"
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          onError={() => {
+                            setFailedImageKeys((prev) => {
+                              const next = new Set(prev);
+                              next.add(imageKey);
+                              return next;
+                            });
+                          }}
                         />
+                      ) : (
+                        <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-xs text-muted-foreground">
+                          <Package className="h-6 w-6" />
+                          <span>Sin imagen</span>
+                        </div>
+                      )}
                     </div>
 
                     <CardContent className="p-4 flex-1 flex flex-col sm:flex-row justify-between items-start sm:items-center w-full gap-4">
@@ -432,7 +376,8 @@ export default function CartPage() {
                     </CardContent>
                 </Card>
               </motion.div>
-            ))}
+              );
+            })}
             </AnimatePresence>
           </div>
 

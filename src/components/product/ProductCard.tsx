@@ -4,8 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { formatCurrency } from '@/utils/currency';
-import { getProductPlaceholderImage } from '@/utils/cartPayload';
-import { ShoppingCart, ExternalLink } from 'lucide-react';
+import { ShoppingCart, ExternalLink, Package } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Interfaz detallada del producto
@@ -119,12 +118,11 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
     return `Mayorista: ${formatCurrency(precio_mayorista, currency)} (mín. ${cantidad_minima_mayorista} ${cantidad_minima_mayorista === 1 ? 'caja' : 'cajas'})`;
   }, [cantidad_minima_mayorista, currency, precio_mayorista]);
 
-  const placeholderImage = useMemo(() => getProductPlaceholderImage(product), [product]);
-  const [imageSrc, setImageSrc] = useState<string | null>(product.imagen_url ?? placeholderImage);
+  const [imageFailed, setImageFailed] = useState(false);
 
   useEffect(() => {
-    setImageSrc(product.imagen_url ?? placeholderImage);
-  }, [product, placeholderImage]);
+    setImageFailed(false);
+  }, [product.imagen_url]);
 
   const handleAddToCartClick = () => {
     if (quantity <= 0) return;
@@ -141,22 +139,18 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
   return (
     <Card className="relative flex flex-col justify-between w-full max-w-sm bg-card rounded-lg shadow-md hover:shadow-xl transition-shadow duration-300 overflow-hidden">
       <CardHeader className="p-0 relative">
-        {imageSrc ? (
+        {imagen_url && !imageFailed ? (
           <img
-            src={imageSrc}
+            src={imagen_url}
             alt={nombre}
             loading="lazy"
-            onError={(event) => {
-              const fallback = placeholderImage;
-              if (event.currentTarget.src !== fallback) {
-                setImageSrc(fallback);
-              }
-            }}
+            onError={() => setImageFailed(true)}
             className="w-full h-48 object-cover" // Ajustar altura de imagen
           />
         ) : (
-          <div className="w-full h-48 bg-muted flex items-center justify-center">
-            <ShoppingCart className="w-16 h-16 text-muted-foreground" /> {/* Placeholder Icon */}
+          <div className="w-full h-48 bg-muted flex flex-col items-center justify-center gap-2 text-muted-foreground">
+            <Package className="w-10 h-10" />
+            <span className="text-xs font-medium">Sin imagen</span>
           </div>
         )}
         {badge && (

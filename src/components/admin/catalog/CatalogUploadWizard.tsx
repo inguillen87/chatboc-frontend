@@ -82,16 +82,14 @@ const CatalogUploadWizard: React.FC<CatalogUploadWizardProps> = ({
         setUploadProgress(prev => Math.min(prev + 10, 90));
       }, 500);
 
-      // Call API (Expects CatalogPreviewV1 structure)
-      // If backend is not ready, we might need a mock fallback here
+      // Call API (expects CatalogPreviewV1 structure).
       let response: CatalogPreviewV1;
       try {
         response = await apiClient.adminUploadCatalog(tenantSlug, formData);
       } catch (e) {
-         // Fallback mock for demonstration if API fails or doesn't exist yet
-         console.warn("API failed, using mock data for demo", e);
+         console.warn("Catalog upload API failed", e);
          clearInterval(progressInterval);
-         throw e; // remove this if you want to force mock
+         throw e;
       }
 
       clearInterval(progressInterval);

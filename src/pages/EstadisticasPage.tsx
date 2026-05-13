@@ -1166,14 +1166,7 @@ export default function EstadisticasPage() {
         setCachedReport(report);
     } catch (e) {
         console.error("Failed to generate AI Report", e);
-        // Fallback to mock for now if backend endpoint is 404/500 during dev
-        setCachedReport({
-            summary: "Informe generado con datos de simulacion.",
-            opportunities: ["Oportunidad A", "Oportunidad B"],
-            threats: [],
-            tone: "Neutral",
-            _cached: false
-        });
+        setCachedReport(null);
     } finally {
         setIsGeneratingReport(false);
     }

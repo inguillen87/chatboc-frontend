@@ -54,9 +54,6 @@ const findSectorGroup = (
 
 const readSectorLabel = (group: DemoSectorGroup | null, sector: DemoSector | null) => {
   if (group?.label?.trim()) return group.label.trim();
-  if (sector === 'gobierno') return 'Gobierno';
-  if (sector === 'empresas') return 'Empresas';
-  if (sector === 'educacion') return 'Colegios e instituciones educativas';
   return sector ? String(sector) : 'Demo';
 };
 
@@ -86,72 +83,10 @@ const readSectorCatalogSlug = (sector: DemoSector | null) => {
   return null;
 };
 
-const buildDemoFallbackReply = ({
-  text,
-  sectorLabel,
-  catalogTitle,
-}: {
-  text: string;
-  sectorLabel: string | null;
-  catalogTitle?: string | null;
-}) => {
-  const cleanText = text.trim();
-  const context = sectorLabel ? ` en el recorrido de ${sectorLabel}` : '';
-  const resource = catalogTitle ? ` También dejé disponible el catálogo "${catalogTitle}" para que lo puedas descargar.` : '';
-
-  if (!cleanText) {
-    return `Demo lista${context}. Probá una consulta, adjuntá un archivo o usá una acción sugerida: la idea es ver cómo Chatboc ordena el caso y deja seguimiento para el equipo.${resource}`;
-  }
-
-  return `Listo, tomé "${cleanText}" como una consulta demo${context}. Chatboc puede responder, pedir datos faltantes, registrar el caso y derivarlo a una persona si hace falta.${resource}`;
-};
-
-const getDemoScenario = (sector: DemoSector | null, rubro?: string | null) => {
-  if (sector === 'educacion') {
-    return {
-      icon: GraduationCap,
-      title: 'Panel demo para dirección escolar',
-      subtitle: rubro || 'Colegio privado integral',
-      outcome: 'Familias, secretaría y equipo directivo viendo el mismo caso con contexto.',
-      modules: ['Resumen', 'Familias', 'Casos escolares', 'Comunicados', 'Pagos', 'Equipo', 'Canales'],
-      cards: [
-        { label: 'Casos abiertos', value: '18', detail: 'inasistencias, documentación y admisiones', icon: Inbox },
-        { label: 'Tiempo de respuesta', value: '4 min', detail: 'prioridad por sensibilidad del caso', icon: Clock3 },
-        { label: 'Canales activos', value: '3', detail: 'web, WhatsApp y voz', icon: MessageSquareText },
-      ],
-      timeline: ['Familia inicia consulta', 'Chatboc pide datos faltantes', 'Secretaría recibe el caso', 'Resumen por WhatsApp'],
-    };
-  }
-
-  if (sector === 'gobierno') {
-    return {
-      icon: MapPinned,
-      title: 'Centro de atención ciudadana',
-      subtitle: rubro || 'Gobierno y municipios',
-      outcome: 'Reclamos, turnos, noticias y participación ordenados por zona, prioridad y estado.',
-      modules: ['Resumen', 'Reclamos', 'Mapa', 'Encuestas', 'Noticias', 'Equipo', 'Canales'],
-      cards: [
-        { label: 'Reclamos activos', value: '42', detail: 'con zona, foto y estado', icon: Inbox },
-        { label: 'Mapa operativo', value: 'live', detail: 'capas por categoría y prioridad', icon: MapPinned },
-        { label: 'Participación', value: '8.7', detail: 'satisfacción y respuestas', icon: BarChart3 },
-      ],
-      timeline: ['Vecino envía ubicación', 'Se clasifica el reclamo', 'Área responsable toma el caso', 'Seguimiento con código'],
-    };
-  }
-
-  return {
-    icon: ShoppingCart,
-    title: 'Operación comercial con carrito',
-    subtitle: rubro || 'Empresa y ventas',
-    outcome: 'Catálogo, pedidos, consultas, pagos y seguimiento reunidos para vender sin perder contexto.',
-    modules: ['Resumen', 'Inbox', 'Catálogo', 'Pedidos', 'Clientes', 'Pagos', 'Canales'],
-    cards: [
-      { label: 'Pedidos', value: '26', detail: 'pendientes, pagos y entregas', icon: ShoppingCart },
-      { label: 'Leads', value: 'CRM', detail: 'contactos listos para seguimiento', icon: Users },
-      { label: 'Catálogo', value: '92%', detail: 'productos listos para vender', icon: FileText },
-    ],
-    timeline: ['Cliente consulta producto', 'Chatboc arma pedido', 'Se confirma contacto o pago', 'Historial queda guardado'],
-  };
+const getDemoPreviewIcon = (sector: DemoSector | null) => {
+  if (sector === 'educacion') return GraduationCap;
+  if (sector === 'gobierno') return MapPinned;
+  return ShoppingCart;
 };
 
 const DEMO_PREVIEW_ICONS = {
@@ -178,21 +113,17 @@ const resolvePreviewIcon = (value?: string | null) => {
   return match?.[1] ?? FileText;
 };
 
-const normalizePreviewModules = (preview: DemoAdminPreviewResponse | null, fallback: string[]) => {
+const normalizePreviewModules = (preview: DemoAdminPreviewResponse | null) => {
   const modules = Array.isArray(preview?.modules) ? preview.modules : [];
-  const labels = modules
+  return modules
     .map((module) => module.label ?? module.title ?? module.id)
     .filter((label): label is string => typeof label === 'string' && label.trim().length > 0)
     .map((label) => label.trim());
-  return labels.length ? labels : fallback;
 };
 
-const normalizePreviewCards = (
-  preview: DemoAdminPreviewResponse | null,
-  fallback: ReturnType<typeof getDemoScenario>['cards'],
-) => {
+const normalizePreviewCards = (preview: DemoAdminPreviewResponse | null) => {
   const cards = Array.isArray(preview?.cards) ? preview.cards : [];
-  const normalized = cards
+  return cards
     .map((card) => {
       const label = card.label ?? card.title ?? card.id ?? card.key;
       if (!label) return null;
@@ -206,13 +137,11 @@ const normalizePreviewCards = (
     .filter((card): card is { label: string; value: string | number; detail: string; icon: React.ElementType } =>
       Boolean(card),
     );
-
-  return normalized.length ? normalized : fallback;
 };
 
-const normalizePreviewTimeline = (preview: DemoAdminPreviewResponse | null, fallback: string[]) => {
+const normalizePreviewTimeline = (preview: DemoAdminPreviewResponse | null) => {
   const timeline = Array.isArray(preview?.timeline) ? preview.timeline : [];
-  const normalized = timeline
+  return timeline
     .map((item) => ({
       id: item.id ?? item.title ?? item.label ?? item.description,
       title: item.title ?? item.label ?? item.description,
@@ -221,10 +150,6 @@ const normalizePreviewTimeline = (preview: DemoAdminPreviewResponse | null, fall
     .filter((item): item is { id: string; title: string; description: string | null } =>
       typeof item.id === 'string' && typeof item.title === 'string' && item.title.trim().length > 0,
     );
-
-  return normalized.length
-    ? normalized
-    : fallback.map((title) => ({ id: title, title, description: null }));
 };
 
 const DemoAdminPreview = ({
@@ -236,25 +161,24 @@ const DemoAdminPreview = ({
   rubro?: string | null;
   preview?: DemoAdminPreviewResponse | null;
 }) => {
-  const scenario = getDemoScenario(sector, rubro);
-  const Icon = scenario.icon;
+  if (!preview) return null;
+
+  const Icon = getDemoPreviewIcon(sector);
   const labels = preview?.labels ?? {};
-  const modules = normalizePreviewModules(preview ?? null, scenario.modules);
-  const cards = normalizePreviewCards(preview ?? null, scenario.cards);
-  const timeline = normalizePreviewTimeline(preview ?? null, scenario.timeline);
-  const title = preview?.title?.trim() || scenario.title;
-  const subtitle = preview?.subtitle?.trim() || scenario.subtitle;
-  const outcome = preview?.description?.trim() || preview?.outcome?.trim() || scenario.outcome;
+  const modules = normalizePreviewModules(preview);
+  const cards = normalizePreviewCards(preview);
+  const timeline = normalizePreviewTimeline(preview);
+  const title = preview.title?.trim() || rubro || readSectorLabel(null, sector);
+  const subtitle = preview.subtitle?.trim() || rubro || readSectorLabel(null, sector);
+  const outcome = preview.description?.trim() || preview.outcome?.trim() || "";
   const adminLabel = labels.admin_preview ?? labels.admin ?? 'Admin demo';
   const viewLabel = labels.overview ?? labels.view ?? 'Vista 360';
-  const statusLabel = preview?.status_label?.trim() || (labels.status ?? 'listo para mostrar');
+  const statusLabel = preview.status_label?.trim() || labels.status || null;
   const timelineTitle = labels.timeline_title ?? labels.timeline ?? 'Recorrido visible para el equipo';
-  const timelineBadge = labels.timeline_badge ?? 'demo';
-  const timelineDetail = labels.timeline_detail ?? 'queda listo para continuar sin perder datos';
-  const summaryTitle = labels.summary_title ?? 'Lo que se ve en la demo';
-  const summaryDescription =
-    labels.summary_description ??
-    'Conversación, recursos, acciones, estado, equipo y seguimiento trabajan en el mismo recorrido.';
+  const timelineBadge = labels.timeline_badge ?? null;
+  const timelineDetail = labels.timeline_detail ?? null;
+  const summaryTitle = labels.summary_title ?? null;
+  const summaryDescription = labels.summary_description ?? null;
 
   return (
     <section className="overflow-hidden rounded-2xl border border-border/70 bg-card/80 shadow-sm backdrop-blur">
@@ -294,9 +218,11 @@ const DemoAdminPreview = ({
               <h3 className="mt-1 text-2xl font-bold tracking-tight text-foreground">{title}</h3>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{outcome}</p>
             </div>
-            <span className="w-fit rounded-full border border-success/25 bg-success/10 px-3 py-1 text-xs font-semibold text-success">
-              {statusLabel}
-            </span>
+            {statusLabel ? (
+              <span className="w-fit rounded-full border border-success/25 bg-success/10 px-3 py-1 text-xs font-semibold text-success">
+                {statusLabel}
+              </span>
+            ) : null}
           </div>
 
           <div className="grid gap-3">
@@ -314,33 +240,33 @@ const DemoAdminPreview = ({
           </div>
 
           <div className="mt-4 grid gap-3">
-            <div className="rounded-xl border border-border/70 bg-background/70 p-4">
-              <div className="mb-3 flex items-center justify-between">
-                <p className="text-sm font-semibold text-foreground">{timelineTitle}</p>
-                <span className="text-xs text-muted-foreground">{timelineBadge}</span>
-              </div>
-              <div className="space-y-3">
-                {timeline.map((step, index) => (
-                  <div key={step.id} className="flex items-start gap-3">
-                    <span className={`mt-1 h-2.5 w-2.5 rounded-full ${index < 2 ? 'bg-success' : index === 2 ? 'bg-primary' : 'bg-muted-foreground/35'}`} />
-                    <div>
-                      <p className="text-sm font-medium text-foreground">{step.title}</p>
-                      <p className="text-xs text-muted-foreground">{step.description ?? timelineDetail}</p>
+            {timeline.length ? (
+              <div className="rounded-xl border border-border/70 bg-background/70 p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <p className="text-sm font-semibold text-foreground">{timelineTitle}</p>
+                  {timelineBadge ? <span className="text-xs text-muted-foreground">{timelineBadge}</span> : null}
+                </div>
+                <div className="space-y-3">
+                  {timeline.map((step, index) => (
+                    <div key={step.id} className="flex items-start gap-3">
+                      <span className={`mt-1 h-2.5 w-2.5 rounded-full ${index < 2 ? 'bg-success' : index === 2 ? 'bg-primary' : 'bg-muted-foreground/35'}`} />
+                      <div>
+                        <p className="text-sm font-medium text-foreground">{step.title}</p>
+                        {step.description || timelineDetail ? (
+                          <p className="text-xs text-muted-foreground">{step.description ?? timelineDetail}</p>
+                        ) : null}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-            <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
-              <p className="text-sm font-semibold text-foreground">{summaryTitle}</p>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">{summaryDescription}</p>
-            </div>
-            <div className="hidden">
-              <p className="text-sm font-semibold text-foreground">Lo que debería ver un comprador</p>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                No solo un chat: una operación completa con conversación, recursos, acciones, estado, equipo y seguimiento.
-              </p>
-            </div>
+            ) : null}
+            {summaryTitle || summaryDescription ? (
+              <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
+                {summaryTitle ? <p className="text-sm font-semibold text-foreground">{summaryTitle}</p> : null}
+                {summaryDescription ? <p className="mt-2 text-sm leading-6 text-muted-foreground">{summaryDescription}</p> : null}
+              </div>
+            ) : null}
           </div>
         </div>
       </div>
@@ -364,7 +290,6 @@ const Demo = () => {
   const [demoTenantSlug, setDemoTenantSlug] = useState<string | null>(null);
   const [demoWorkspace, setDemoWorkspace] = useState<DemoWorkspaceConfig | null>(null);
   const [demoAdminPreview, setDemoAdminPreview] = useState<DemoAdminPreviewResponse | null>(null);
-  const [useLocalDemoRuntime, setUseLocalDemoRuntime] = useState(false);
   const [catalogDownloadError, setCatalogDownloadError] = useState<string | null>(null);
   const [isCatalogDownloading, setIsCatalogDownloading] = useState(false);
   const [contexto, setContexto] = useState({});
@@ -376,7 +301,6 @@ const Demo = () => {
   const rubroNormalizado = parseRubro(rubroClave);
 
   const activeChatBootstrap = demoWorkspace?.chat_bootstrap ?? null;
-  const isLocalDemoMode = false;
   const selectedSectorGroup = findSectorGroup(demoCatalog, sectorSeleccionado);
   const visibleRubrosDisponibles = useMemo(
     () => rubrosDisponibles.filter((root) => rootMatchesSector(root, sectorSeleccionado)),
@@ -417,7 +341,6 @@ const Demo = () => {
     setDemoTenantSlug(null);
     setDemoWorkspace(null);
     setDemoAdminPreview(null);
-    setUseLocalDemoRuntime(false);
     lastQueryRef.current = null;
     hydratedSessionRef.current = false;
     // The useEffect for loading rubros will trigger again due to rubroSeleccionado being null
@@ -511,7 +434,7 @@ const Demo = () => {
         setMessages([
           {
             id: Date.now(),
-            text: "No pudimos conectar la demo real en este momento. Reintentá en unos minutos.",
+            text: "No pudimos conectar la demo real en este momento. Reintenta en unos minutos.",
             isBot: true,
             timestamp: new Date(),
             query: undefined,
@@ -531,8 +454,8 @@ const Demo = () => {
     try {
       await downloadDemoCatalogPdf(activeCatalogAsset);
     } catch (error) {
-      console.warn('No se pudo generar el catálogo demo en el navegador', error);
-      setCatalogDownloadError('No se pudo generar el PDF en el navegador. Abrí la ficha del catálogo para intentarlo nuevamente.');
+      console.warn('No se pudo generar el catalogo demo en el navegador', error);
+      setCatalogDownloadError('No se pudo generar el PDF en el navegador. Abri la ficha del catalogo para intentarlo nuevamente.');
     } finally {
       setIsCatalogDownloading(false);
     }
@@ -585,7 +508,6 @@ const Demo = () => {
     setDemoSessionId(session.demo_session_id ?? session.session_id ?? sessionId);
     setDemoTenantSlug(session.tenant_slug ?? null);
     setDemoWorkspace(session.workspace ?? null);
-    setUseLocalDemoRuntime(false);
     setEsperandoRubro(false);
     openDemoWidget();
     void startDemoConversation(
@@ -633,7 +555,6 @@ const Demo = () => {
           setDemoSessionId(session.demo_session_id ?? null);
           setDemoTenantSlug(session.tenant_slug ?? null);
           setDemoWorkspace(session.workspace ?? null);
-          setUseLocalDemoRuntime(false);
           setEsperandoRubro(false);
           openDemoWidget();
           void startDemoConversation(normalizedRequestedSector, session.workspace?.chat_bootstrap ?? null, session.tenant_slug ?? null);
@@ -660,7 +581,6 @@ const Demo = () => {
           setDemoSessionId(session.demo_session_id ?? null);
           setDemoTenantSlug(session.tenant_slug ?? null);
           setDemoWorkspace(session.workspace ?? null);
-          setUseLocalDemoRuntime(false);
           setEsperandoRubro(false);
           openDemoWidget();
           void startDemoConversation(normalizedClave, session.workspace?.chat_bootstrap ?? null, session.tenant_slug ?? null);
@@ -698,7 +618,7 @@ const Demo = () => {
           {
             id: Date.now(),
             text:
-              "🔒 Límite de 15 preguntas en la demo alcanzado.<br><span class='block mt-2'><a href='/register' class='underline text-primary hover:text-primary/80'>Registrate para usar Chatboc sin límites</a> o <a href='https://wa.me/5492613168608?text=Hola! Estoy probando Chatboc y quiero implementarlo en mi empresa.' class='underline text-primary hover:text-primary/80' target='_blank'>contactanos</a> para planes comerciales.</span>",
+              "Limite de 15 preguntas en la demo alcanzado.<br><span class='block mt-2'><a href='/register' class='underline text-primary hover:text-primary/80'>Registrate para usar Chatboc sin limites</a> o <a href='https://wa.me/5492613168608?text=Hola! Estoy probando Chatboc y quiero implementarlo en mi empresa.' class='underline text-primary hover:text-primary/80' target='_blank'>contactanos</a> para planes comerciales.</span>",
             isBot: true,
             timestamp: new Date(),
             query: undefined,
@@ -786,7 +706,7 @@ const Demo = () => {
           ...prev,
           {
             id: Date.now(),
-            text: "No pudimos enviar la consulta a la demo real. Reintentá en unos minutos.",
+            text: "No pudimos enviar la consulta a la demo real. Reintenta en unos minutos.",
             isBot: true,
             timestamp: new Date(),
             query: lastQueryRef.current || undefined,
@@ -826,7 +746,6 @@ const Demo = () => {
       setDemoSessionId(session.demo_session_id ?? null);
       setDemoTenantSlug(session.tenant_slug ?? tenantSlug ?? null);
       setDemoWorkspace(session.workspace ?? null);
-      setUseLocalDemoRuntime(false);
       await startDemoConversation(
         sector,
         session.workspace?.chat_bootstrap ?? null,
@@ -836,7 +755,7 @@ const Demo = () => {
       setMessages([
         {
           id: Date.now(),
-          text: "No pudimos iniciar la demo real para este pilar. Reintentá en unos minutos.",
+          text: "No pudimos iniciar la demo real para este pilar. Reintenta en unos minutos.",
           isBot: true,
           timestamp: new Date(),
         },
@@ -860,7 +779,7 @@ const Demo = () => {
           />
           <h2 className="text-2xl font-bold mb-2 text-primary">Bienvenido a Chatboc</h2>
           <p className="mb-4 text-sm text-muted-foreground">
-            Elegí un pilar y después una categoría para iniciar una demo guiada.
+            Elegi un pilar y despues una categoria para iniciar una demo guiada.
           </p>
           <div className="mb-4">
             <DemoSectorStep
@@ -871,7 +790,7 @@ const Demo = () => {
             />
           </div>
           {sectorSeleccionado ? null : (
-            <p className="mb-3 text-xs text-muted-foreground">Primero seleccioná el sector para iniciar la demo.</p>
+            <p className="mb-3 text-xs text-muted-foreground">Primero selecciona el sector para iniciar la demo.</p>
           )}
           {sectorSeleccionado && visibleRubrosDisponibles.length === 0 ? (
             <div className="space-y-3 rounded-lg border bg-background/70 p-3 text-left">
@@ -930,7 +849,6 @@ const Demo = () => {
                   setDemoSessionId(session.demo_session_id ?? null);
                   setDemoTenantSlug(session.tenant_slug ?? fallbackTenantSlug ?? null);
                   setDemoWorkspace(session.workspace ?? null);
-                  setUseLocalDemoRuntime(false);
                   await startDemoConversation(
                     clave ?? etiqueta ?? rubro.nombre,
                     session.workspace?.chat_bootstrap ?? null,
@@ -940,7 +858,7 @@ const Demo = () => {
                   setMessages([
                     {
                       id: Date.now(),
-                      text: "No pudimos iniciar la demo real para este rubro. Reintentá en unos minutos.",
+                      text: "No pudimos iniciar la demo real para este rubro. Reintenta en unos minutos.",
                       isBot: true,
                       timestamp: new Date(),
                     },
@@ -990,10 +908,10 @@ const Demo = () => {
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">Demo completa</p>
               <h1 className="mt-2 text-2xl font-black tracking-tight text-foreground sm:text-3xl">
-                Probá el chat y mirá cómo queda la operación del equipo.
+                Proba el chat y mira como queda la operacion del equipo.
               </h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                La consulta, los adjuntos, el seguimiento, el catálogo y el panel trabajan juntos para que un director, municipio o empresa vea el recorrido completo.
+                La consulta, los adjuntos, el seguimiento, el catalogo y el panel trabajan juntos para que un director, municipio o empresa vea el recorrido completo.
               </p>
             </div>
             <div className="grid grid-cols-3 gap-2 text-center text-xs sm:min-w-[320px]">
@@ -1027,11 +945,11 @@ const Demo = () => {
                 <div className="p-4 sm:p-5">
                   <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
                     <FileText className="h-4 w-4" />
-                    Catálogo demo
+                    Catalogo demo
                   </div>
                   <h3 className="text-lg font-semibold text-foreground">{activeCatalogAsset.title}</h3>
                   <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                    {activeCatalogAsset.subtitle || "Material descargable para probar consultas, pedidos y trámites en esta demo."}
+                    {activeCatalogAsset.subtitle || "Material descargable para probar consultas, pedidos y tramites en esta demo."}
                   </p>
                   {activeCatalogAsset.highlights?.length ? (
                     <div className="mt-4 flex flex-wrap gap-2">
@@ -1083,3 +1001,4 @@ const Demo = () => {
 };
 
 export default Demo;
+

@@ -1,15 +1,6 @@
 import React from 'react';
 import type { DemoSector, DemoSectorGroup } from './demoTypes';
 
-const DEFAULT_SECTORS: DemoSector[] = ['gobierno', 'empresas', 'educacion'];
-
-const fallbackSectorLabel = (sector: DemoSector) => {
-  if (sector === 'gobierno') return 'Gobierno';
-  if (sector === 'empresas') return 'Empresas';
-  if (sector === 'educacion') return 'Colegios';
-  return String(sector);
-};
-
 export default function DemoSectorStep({
   onSelect,
   sectors,
@@ -21,14 +12,20 @@ export default function DemoSectorStep({
   sectorGroups?: DemoSectorGroup[];
   selectedSector?: DemoSector | null;
 }) {
-  const availableSectors = sectors?.length ? sectors : DEFAULT_SECTORS;
+  const availableSectors = sectors?.length
+    ? sectors
+    : (sectorGroups ?? [])
+        .map((group) => group.key)
+        .filter((sector): sector is DemoSector => typeof sector === 'string' && sector.trim().length > 0);
   const groupByKey = new Map((sectorGroups ?? []).map((group) => [String(group.key), group]));
+
+  if (!availableSectors.length) return null;
 
   return (
     <div className="grid gap-2 sm:grid-cols-3">
       {availableSectors.map((sector) => {
         const group = groupByKey.get(String(sector));
-        const label = group?.label?.trim() || fallbackSectorLabel(sector);
+        const label = group?.label?.trim() || String(sector);
         const description = group?.description?.trim();
         const selected = selectedSector === sector;
         return (

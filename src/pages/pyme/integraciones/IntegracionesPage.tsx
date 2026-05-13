@@ -634,12 +634,8 @@ const IntegracionesPage = () => {
       setIntegrations(data);
     } catch (error) {
       console.error('Error loading integrations:', error);
-      // Fallback mock data
-      setIntegrations([
-        { provider: 'mercadolibre', connected: false },
-        { provider: 'tiendanube', connected: true, lastSync: new Date().toISOString() },
-        { provider: 'whatsapp', connected: true }
-      ]);
+      setIntegrations([]);
+      toast.error('No se pudieron cargar las integraciones reales del tenant.');
     } finally {
       setLoading(false);
     }

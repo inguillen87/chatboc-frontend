@@ -1,4 +1,4 @@
-import { PortalContent, demoPortalContent } from '@/data/portalDemoContent';
+import { PortalContent } from '@/types/unified';
 
 export type PortalContentDTO = Partial<PortalContent> & {
   tenantSlug?: string;
@@ -45,11 +45,10 @@ export const fetchPortalContent = async (
         return (await response.json()) as PortalContentDTO;
       }
 
-      console.warn(`[Portal] API fetch failed for ${url} (Status: ${response.status}). Using demo content.`);
-      return demoPortalContent;
+      throw new Error(`Portal content request failed with status ${response.status}`);
 
   } catch (e) {
-      console.warn(`[Portal] Network error fetching ${url}. Using demo content.`, e);
-      return demoPortalContent;
+      console.warn(`[Portal] Network error fetching ${url}.`, e);
+      throw e;
   }
 };

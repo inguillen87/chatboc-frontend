@@ -681,7 +681,7 @@ export interface MunicipalStatsExportOptions {
     tipo: string;
     rango: string;
   };
-  usingFallback?: boolean;
+  usingDerivedSummary?: boolean;
 }
 
 const flattenHeatmap = (rows: StatsHeatmapRow[] | undefined) => {
@@ -713,7 +713,7 @@ export const exportMunicipalStatsPdf = (options: MunicipalStatsExportOptions) =>
     ['Período', formatOptional(options.filters.rango, 'Todos')],
     [
       'Fuente de datos',
-      options.usingFallback ? 'Datos simulados por el frontend' : 'Datos provistos por el backend',
+      options.usingDerivedSummary ? 'Resumen calculado desde datos disponibles' : 'Datos provistos por la plataforma',
     ],
   ];
   cursor = addPdfSection(doc, cursor, 'Filtros aplicados', ['Filtro', 'Valor'], filterBody);
@@ -895,7 +895,7 @@ export const exportMunicipalStatsExcel = (options: MunicipalStatsExportOptions) 
     { Indicador: 'Período', Valor: options.filters.rango || 'Todos' },
     {
       Indicador: 'Fuente de datos',
-      Valor: options.usingFallback ? 'Datos simulados por el frontend' : 'Datos provistos por el backend',
+      Valor: options.usingDerivedSummary ? 'Resumen calculado desde datos disponibles' : 'Datos provistos por la plataforma',
     },
   ];
   data.stats.forEach((item) => {

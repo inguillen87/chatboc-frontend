@@ -105,14 +105,7 @@ import {
   fetchCatalogVectorSyncStatus,
 } from '@/services/catalogService';
 import { requestDocumentPreview } from '@/services/documentIntelligenceService';
-import {
-  JUNIN_DEMO_BARRIOS,
-  JUNIN_DEMO_CATEGORIES,
-  JUNIN_DEMO_NOTICE,
-  JUNIN_DEMO_TICKET_TYPES,
-  generateJuninDemoHeatmap,
-  mergeAndSortStrings,
-} from '@/utils/demoHeatmap';
+import { mergeAndSortStrings } from '@/utils/collections';
 import ImportWizard from "@/components/catalog/ImportWizard";
 
 
@@ -717,10 +710,9 @@ export default function Perfil() {
       const usedFallback = combinedHeatmap.length === 0;
 
       if (usedFallback) {
-        combinedHeatmap = generateJuninDemoHeatmap();
         toast({
-          title: 'Datos de demostración',
-          description: JUNIN_DEMO_NOTICE,
+          title: 'Mapa sin datos',
+          description: 'No hay puntos reales disponibles para mostrar con los filtros actuales.',
         });
       }
 
@@ -734,13 +726,13 @@ export default function Perfil() {
       const barriosFromHeatmap = Array.from(
         new Set(combinedHeatmap.map((d) => d.barrio).filter((b): b is string => Boolean(b))),
       );
-      const barrios = mergeAndSortStrings(barriosFromHeatmap, usedFallback ? [...JUNIN_DEMO_BARRIOS] : []);
+      const barrios = mergeAndSortStrings(barriosFromHeatmap, []);
       setAvailableBarrios(barrios);
 
       const tiposFromHeatmap = Array.from(
         new Set(combinedHeatmap.map((d) => d.tipo_ticket).filter((t): t is string => Boolean(t))),
       );
-      const tipos = mergeAndSortStrings(tiposFromHeatmap, usedFallback ? [...JUNIN_DEMO_TICKET_TYPES] : []);
+      const tipos = mergeAndSortStrings(tiposFromHeatmap, []);
       setAvailableTipos(tipos);
 
       const categoriasFromHeatmap = Array.from(
@@ -753,9 +745,7 @@ export default function Perfil() {
           : [];
 
       const mergedCategorias = mergeAndSortStrings(categoriasFromApi, categoriasFromHeatmap);
-      const finalCategorias = usedFallback
-        ? mergeAndSortStrings(mergedCategorias, [...JUNIN_DEMO_CATEGORIES])
-        : mergedCategorias;
+      const finalCategorias = mergedCategorias;
       setAvailableCategories(finalCategorias);
 
     } catch (error) {
@@ -765,28 +755,11 @@ export default function Perfil() {
         title: "Error al cargar datos del mapa",
         description: getErrorMessage(error),
       });
-      const fallbackPoints = generateJuninDemoHeatmap();
-      setHeatmapData(fallbackPoints);
-      setHeatmapDetails({ points: fallbackPoints });
-      const barrios = mergeAndSortStrings(
-        Array.from(new Set(fallbackPoints.map((d) => d.barrio).filter((b): b is string => Boolean(b)))),
-        [...JUNIN_DEMO_BARRIOS],
-      );
-      setAvailableBarrios(barrios);
-      const tipos = mergeAndSortStrings(
-        Array.from(new Set(fallbackPoints.map((d) => d.tipo_ticket).filter((t): t is string => Boolean(t)))),
-        [...JUNIN_DEMO_TICKET_TYPES],
-      );
-      setAvailableTipos(tipos);
-      const categorias = mergeAndSortStrings(
-        Array.from(new Set(fallbackPoints.map((d) => d.categoria).filter((c): c is string => Boolean(c)))),
-        [...JUNIN_DEMO_CATEGORIES],
-      );
-      setAvailableCategories(categorias);
-      toast({
-        title: 'Datos de demostración',
-        description: JUNIN_DEMO_NOTICE,
-      });
+      setHeatmapData([]);
+      setHeatmapDetails({ points: [] });
+      setAvailableBarrios([]);
+      setAvailableTipos([]);
+      setAvailableCategories([]);
     } finally {
       setIsMapLoading(false);
     }

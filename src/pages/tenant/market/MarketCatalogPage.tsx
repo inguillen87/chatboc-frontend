@@ -9,15 +9,12 @@ import { Button } from '@/components/ui/button';
 import { fetchMarketCatalog } from '@/api/market';
 import { Copy, MessageCircle, QrCode, ShoppingBag } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
-import { Badge } from '@/components/ui/badge';
-import { buildDemoMarketCatalog } from '@/data/marketDemo';
 import { buildTenantPath } from '@/utils/tenantPaths';
 
 function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
   const [products, setProducts] = useState<MarketProduct[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [isDemo, setIsDemo] = useState(false);
   const [shareMeta, setShareMeta] = useState<Pick<MarketCatalogResponse, 'publicCartUrl' | 'whatsappShareUrl'> | null>(
     null,
   );
@@ -40,23 +37,19 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
   useEffect(() => {
     setIsLoading(true);
     setError(null);
-    setIsDemo(false);
     fetchMarketCatalog(tenantSlug)
       .then((response) => {
         const availableProducts = (response?.products ?? []).filter(p => p.disponible !== false);
         setProducts(availableProducts);
-        setIsDemo(Boolean(response?.isDemo));
         setShareMeta({
           publicCartUrl: response?.publicCartUrl ?? null,
           whatsappShareUrl: response?.whatsappShareUrl ?? null,
         });
       })
       .catch((err) => {
-        const demo = buildDemoMarketCatalog(tenantSlug).catalog;
-        setProducts(demo.products);
-        setIsDemo(true);
+        setProducts([]);
         setShareMeta({ publicCartUrl: null, whatsappShareUrl: null });
-        setError(err instanceof Error ? err.message : 'No se pudo cargar el catálogo en vivo. Mostramos una demo.');
+        setError(err instanceof Error ? err.message : 'No se pudo cargar el catalogo real.');
       })
       .finally(() => setIsLoading(false));
   }, [tenantSlug]);
@@ -106,18 +99,9 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
           }} disabled={!shareUrl}>
             <QrCode className="mr-2 h-4 w-4" /> QR
           </Button>
-          {isDemo ? <Badge variant="secondary">Demo</Badge> : null}
         </div>
       </header>
 
-      {isDemo ? (
-        <Alert>
-          <AlertTitle>Catálogo demo listo para mostrar</AlertTitle>
-          <AlertDescription>
-            Usa este catálogo de demostración para compartir por WhatsApp o escaneando el QR mientras se conecta el catálogo real.
-          </AlertDescription>
-        </Alert>
-      ) : null}
 
       {error ? (
         <Alert variant="destructive">

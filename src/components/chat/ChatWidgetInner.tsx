@@ -22,13 +22,11 @@ import { useTenant } from "@/context/TenantContext";
 import { toast } from "sonner";
 import { tenantService } from "@/services/tenantService";
 import { ChatWidgetProps } from "./types";
-import { MOCK_TENANT_INFO, MOCK_JUNIN_TENANT_INFO } from "@/data/mockTenantData";
 import { hexToHsl, getContrastColorHsl } from "@/utils/color";
 import { apiClient } from "@/api/client";
 import { esRubroPublico } from "@/utils/chatEndpoints";
 import { getChatbocBotAvatar } from "@/utils/brandAssets";
-import { createDemoSession, createLocalDemoSession } from "@/features/demo/demoApi";
-import { DEMO_SECTOR_GROUPS } from "@/data/demoHierarchy";
+import { createDemoSession } from "@/features/demo/demoApi";
 import getOrCreateChatSessionId from "@/utils/chatSessionId";
 import {
   getWidgetCartSnapshot,
@@ -47,8 +45,6 @@ import { TENANT_PLACEHOLDER_SLUGS } from "@/constants/tenant";
 
 // Alias for backward compatibility if needed locally, though direct usage is preferred
 const PLACEHOLDER_SLUGS_SET = TENANT_PLACEHOLDER_SLUGS;
-
-const PLATFORM_DEMO_SECTOR_ORDER = ["educacion", "gobierno", "empresas"];
 
 const readFirstString = (...values: unknown[]) => {
   for (const value of values) {
@@ -79,27 +75,6 @@ const readOptionalBoolean = (value: unknown, fallback = false) => {
   return fallback;
 };
 
-function buildPlatformQuickMenu() {
-  const groupsByKey = new Map(DEMO_SECTOR_GROUPS.map((group) => [String(group.key), group]));
-  const orderedGroups = PLATFORM_DEMO_SECTOR_ORDER
-    .map((key) => groupsByKey.get(key))
-    .filter(Boolean);
-  const remainingGroups = DEMO_SECTOR_GROUPS.filter(
-    (group) => !PLATFORM_DEMO_SECTOR_ORDER.includes(String(group.key)),
-  );
-
-  return [...orderedGroups, ...remainingGroups].map((group) => ({
-    id: `select_${group.key}`,
-    label: group.label,
-    description: group.description,
-    cta_label: group.cta_label,
-    intent: "select_demo_sector",
-    sector: group.key,
-    tenant_slug: group.tenant_slug,
-    rubro: group.default_rubro || group.default_rubro_slug || group.tenant_slug,
-  }));
-}
-
 function normalizeCtaMessages(rawMessages: any): string[] {
   if (!Array.isArray(rawMessages)) return [];
 
@@ -114,7 +89,7 @@ function normalizeCtaMessages(rawMessages: any): string[] {
 }
 
 function buildPlatformWidgetFallbackConfig() {
-  const quickMenu = buildPlatformQuickMenu();
+  const quickMenu: any[] = [];
 
   return {
     contract_version: "public.widget_config.v1",
@@ -124,12 +99,11 @@ function buildPlatformWidgetFallbackConfig() {
       nombre: "Chatboc",
       white_label: false,
     },
-    local_demo_mode: true,
     onboarding: {
       contract_version: "public.widget_onboarding.v1",
       mode: "platform_sector_selector",
-      title: "Que queres probar?",
-      entry_question: "Que tipo de organizacion queres simular?",
+      title: "",
+      entry_question: "",
       required_step: "select_sector",
       autostart_after_selection: true,
       selection_endpoint: "/api/v2/demo/session",
@@ -192,7 +166,7 @@ function isPlatformWidgetConfig(config: any) {
 
 function normalizePlatformWidgetConfig(rawConfig: any) {
   const fallback = buildPlatformWidgetFallbackConfig();
-  if (!isPlatformWidgetConfig(rawConfig)) return fallback;
+  if (!isPlatformWidgetConfig(rawConfig)) return null;
 
   const quickMenu = Array.isArray(rawConfig.quick_menu)
     ? rawConfig.quick_menu
@@ -896,25 +870,12 @@ function ChatWidgetInner({
   const [widgetUx, setWidgetUx] = useState(DEFAULT_WIDGET_UX);
   const [cursorTrailPoint, setCursorTrailPoint] = useState<{ x: number; y: number } | null>(null);
   const applyWidgetFallbackProfile = useCallback(() => {
-    const mockData = resolvedTenantSlug?.includes('junin') ? MOCK_JUNIN_TENANT_INFO : MOCK_TENANT_INFO;
-    const inferredTipo = tipoChat || 'pyme';
-    const fallbackInfo = {
-      ...mockData,
-      nombre_empresa: welcomeTitle || mockData.nombre,
-      logo_url: headerLogoUrl || customLauncherLogoUrl || mockData.logo_url,
-      cta_messages: ctaMessage ? [{ text: ctaMessage }] : mockData.cta_messages,
-      slug: resolvedTenantSlug || mockData.slug || null,
-      tipo_chat: inferredTipo,
-      default_open: (typeof defaultOpen === 'boolean') ? defaultOpen : mockData.default_open,
-    };
-    setEntityInfo(fallbackInfo);
-    setWidgetUx({
-      ...DEFAULT_WIDGET_UX,
-      preset: inferredTipo === 'municipio' ? 'civic-premium' : 'commerce-neon',
-    });
-    setResolvedTipoChat(inferredTipo === 'municipio' ? 'municipio' : 'pyme');
-    setProfileError(null);
-  }, [resolvedTenantSlug, tipoChat, welcomeTitle, headerLogoUrl, customLauncherLogoUrl, ctaMessage, defaultOpen]);
+    const inferredTipo = tipoChat === 'municipio' ? 'municipio' : 'pyme';
+    setEntityInfo(null);
+    setWidgetUx(DEFAULT_WIDGET_UX);
+    setResolvedTipoChat(inferredTipo);
+    setProfileError("No pudimos cargar la configuracion real del widget.");
+  }, [tipoChat]);
 
   // Apply Theme Config
   useEffect(() => {
@@ -1391,17 +1352,11 @@ function ChatWidgetInner({
     setPlatformSelectionLoadingId(optionId);
     setPlatformSelectionError(null);
     try {
-      const session = entityInfo?.local_demo_mode
-        ? createLocalDemoSession({
-            sector,
-            tenant_slug: tenantSlug || null,
-            rubro,
-          })
-        : await createDemoSession({
-            sector,
-            tenant_slug: tenantSlug || null,
-            rubro,
-          });
+      const session = await createDemoSession({
+        sector,
+        tenant_slug: tenantSlug || null,
+        rubro,
+      });
       const workspace = session.workspace || {};
       const demoTenantSlug = session.tenant_slug || session.tenant?.slug || tenantSlug || null;
       const bootstrapPayload = workspace.chat_bootstrap?.payload || {};
@@ -1448,39 +1403,7 @@ function ChatWidgetInner({
       setResolvedTipoChat(nextTipo);
       setChatPanelResetKey((current) => current + 1);
     } catch (error) {
-      const session = createLocalDemoSession({
-        sector,
-        tenant_slug: tenantSlug || null,
-        rubro,
-      });
-      const workspace = session.workspace || {};
-      const demoTenantSlug = session.tenant_slug || session.tenant?.slug || tenantSlug || null;
-      const nextTipo = sector === "gobierno" ? "municipio" : "pyme";
-      setEntityInfo({
-        ...(entityInfo || {}),
-        ...workspace,
-        tenant: session.tenant || entityInfo?.tenant || null,
-        slug: demoTenantSlug || entityInfo?.slug || null,
-        tenant_slug: demoTenantSlug,
-        nombre_empresa: workspace.title || session.tenant?.nombre || entityInfo?.nombre_empresa || "Chatboc",
-        tipo_chat: nextTipo,
-        rubro: rubro || entityInfo?.rubro || null,
-        rubro_clave: rubro || entityInfo?.rubro_clave || null,
-        quick_menu: workspace.quick_replies || [],
-        onboarding: {
-          ...(entityInfo?.onboarding || {}),
-          mode: "demo_session",
-        },
-        chat_bootstrap: null,
-        local_demo_mode: true,
-        media_capabilities: workspace.media_capabilities || entityInfo?.media_capabilities || null,
-        conversion_ctas: workspace.conversion_ctas || entityInfo?.conversion_ctas || null,
-        animation_tokens: workspace.animation_tokens || entityInfo?.animation_tokens || null,
-      });
-      setActiveDemoTenantSlug(demoTenantSlug);
-      setSelectedRubro(extractRubroKey(rubro) ?? null);
-      setResolvedTipoChat(nextTipo);
-      setChatPanelResetKey((current) => current + 1);
+      setPlatformSelectionError("No pudimos iniciar esta demo real. Reintentá en unos minutos.");
     } finally {
       setPlatformSelectionLoadingId(null);
     }
@@ -1897,9 +1820,9 @@ function ChatWidgetInner({
                     setResolvedTipoChat(info.tipo_chat === 'municipio' ? 'municipio' : 'pyme');
                 }
              } catch (err) {
-                console.warn("Failed to fetch public widget config, falling back to ownerToken if available", err);
+                console.warn("Failed to fetch public widget config; trying ownerToken profile if available", err);
 
-                  // Handle 500/404 explicitly by falling back to mock data if no ownerToken OR if ownerToken fails
+                  // If the public config is unavailable, keep the widget in a degraded no-content state.
                   const is500 = (err as any)?.status === 500 || (err as any)?.statusCode === 500;
 
                   if (is500 || !ownerToken) {
@@ -1942,10 +1865,16 @@ function ChatWidgetInner({
 
       if (!ownerToken) {
         const rawPlatformConfig = await tenantService.getPlatformWidgetConfig().catch((error) => {
-          console.warn("ChatWidget: no se pudo cargar widget-config plataforma, usando fallback local.", error);
-          return buildPlatformWidgetFallbackConfig();
+          console.warn("ChatWidget: no se pudo cargar widget-config plataforma.", error);
+          return null;
         });
         const publicConfig: any = normalizePlatformWidgetConfig(rawPlatformConfig);
+        if (!publicConfig) {
+          setEntityInfo(null);
+          setProfileError("No pudimos cargar la configuracion real del widget.");
+          setProfileLoading(false);
+          return;
+        }
         const platformTenant = publicConfig.tenant || {};
         setEntityInfo({
           ...publicConfig,
@@ -2008,7 +1937,7 @@ function ChatWidgetInner({
   useEffect(() => {
     let isActive = true;
     const loadCatalogInfo = async () => {
-      const isDemoSession = entityInfo?.onboarding?.mode === "demo_session" || entityInfo?.local_demo_mode === true;
+      const isDemoSession = entityInfo?.onboarding?.mode === "demo_session";
       const isPlatformTenant = chatTenantSlug === "chatboc-platform";
       if (!chatTenantSlug || isDemoSession || isPlatformTenant) {
         setCatalogInfo(null);
@@ -2030,7 +1959,7 @@ function ChatWidgetInner({
     return () => {
       isActive = false;
     };
-  }, [chatTenantSlug, entityInfo?.local_demo_mode, entityInfo?.onboarding?.mode]);
+  }, [chatTenantSlug, entityInfo?.onboarding?.mode]);
 
   useEffect(() => {
     let isActive = true;

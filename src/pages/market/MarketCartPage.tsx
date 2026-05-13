@@ -31,7 +31,6 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/co
 import { formatCurrency } from '@/utils/currency';
 import { getValidStoredToken } from '@/utils/authTokens';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { MARKET_DEMO_SECTIONS, buildDemoMarketCatalog } from '@/data/marketDemo';
 import { ApiError, getErrorMessage } from '@/utils/api';
 
 type ContactInfo = {
@@ -324,8 +323,7 @@ export default function MarketCartPage() {
     checkoutMutation.mutate(payload);
   };
 
-  const fallbackCatalog = useMemo(() => buildDemoMarketCatalog(tenantSlug).catalog, [tenantSlug]);
-  const catalogData = catalogQuery.data ?? (catalogQuery.isError ? fallbackCatalog : undefined);
+  const catalogData = catalogQuery.data;
   const rawCatalogProducts: MarketProduct[] = catalogData?.products ?? [];
   const catalogProducts = useMemo(() => rawCatalogProducts.filter((product) => product.disponible !== false), [rawCatalogProducts]);
   const catalogServerError = catalogQuery.error instanceof ApiError && catalogQuery.error.status >= 500;
@@ -340,7 +338,6 @@ export default function MarketCartPage() {
     : cartQuery.error instanceof Error
       ? cartQuery.error.message
       : null;
-  const isDemoCatalog = Boolean(catalogData?.isDemo || (!catalogQuery.data && catalogQuery.isError));
   const canCopy = Boolean(shareUrl && navigator?.clipboard);
   const canShareWhatsApp = Boolean(shareMessage);
   const cartCustomerProfile = cartQuery.data?.customer_profile ?? null;
@@ -372,7 +369,7 @@ export default function MarketCartPage() {
       ),
     ];
 
-    const computedCatalogSections = catalogData?.sections?.length ? catalogData.sections : MARKET_DEMO_SECTIONS;
+    const computedCatalogSections = catalogData?.sections ?? [];
 
     const computedPaidProducts = catalogProducts.filter((product) => !product.points);
     const computedRedeemableProducts = catalogProducts.filter(
@@ -404,12 +401,8 @@ export default function MarketCartPage() {
       averageRating: computedAverageRating,
       catalogSections: computedCatalogSections,
       categories: computedCategories,
-      heroImage:
-        catalogData?.heroImageUrl ??
-        'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1200&q=80',
-      heroSubtitle:
-        catalogData?.heroSubtitle ??
-        'Demostración pública del catálogo multi-tenant con fotos, canjes, carrito y buscador listo para compartir.',
+      heroImage: catalogData?.heroImageUrl ?? null,
+      heroSubtitle: catalogData?.heroSubtitle ?? null,
       paidProducts: computedPaidProducts,
       redeemableProducts: computedRedeemableProducts,
       sectionsWithItems: computedSectionsWithItems,
@@ -601,7 +594,6 @@ export default function MarketCartPage() {
             <div className="space-y-4 p-6 md:p-8">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="secondary">Catálogo público</Badge>
-                {isDemoCatalog ? <Badge variant="outline">Modo demo</Badge> : null}
                 {catalogQuery.data?.tenantName ? (
                   <Badge variant="outline" className="flex items-center gap-1">
                     <Sparkles className="h-3.5 w-3.5" /> {catalogQuery.data.tenantName}
@@ -612,7 +604,7 @@ export default function MarketCartPage() {
                 <h2 className="text-2xl font-semibold leading-tight sm:text-3xl">
                   Marketplace listo para compartir
                 </h2>
-                <p className="max-w-2xl text-base text-muted-foreground">{heroSubtitle}</p>
+                {heroSubtitle ? <p className="max-w-2xl text-base text-muted-foreground">{heroSubtitle}</p> : null}
               </div>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
@@ -628,7 +620,7 @@ export default function MarketCartPage() {
                 </div>
                 <div className="rounded-xl border bg-muted/40 p-4">
                   <p className="text-xs uppercase text-muted-foreground">Carrito</p>
-                  <p className="text-xl font-semibold">/market/{tenantSlug || 'demo'}/cart</p>
+                  <p className="text-xl font-semibold">/market/{tenantSlug}/cart</p>
                   <p className="text-xs text-muted-foreground">URL lista para QR y WhatsApp.</p>
                 </div>
                 <div className="rounded-xl border bg-muted/40 p-4">
@@ -655,15 +647,17 @@ export default function MarketCartPage() {
                 </Button>
               </div>
             </div>
-            <div className="relative hidden min-h-[260px] overflow-hidden bg-muted/50 md:block">
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent" />
-              <img
-                src={heroImage}
-                alt="Portada del catálogo"
-                className="h-full w-full object-cover"
-                loading="lazy"
-              />
-            </div>
+            {heroImage ? (
+              <div className="relative hidden min-h-[260px] overflow-hidden bg-muted/50 md:block">
+                <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent" />
+                <img
+                  src={heroImage}
+                  alt="Portada del catalogo"
+                  className="h-full w-full object-cover"
+                  loading="lazy"
+                />
+              </div>
+            ) : null}
           </div>
         </section>
 
@@ -739,21 +733,12 @@ export default function MarketCartPage() {
               ) : null}
             </div>
 
-            {isDemoCatalog ? (
-              <Alert>
-                <AlertTitle>Catálogo de demostración</AlertTitle>
-                <AlertDescription>
-                  {catalogData?.demoReason || 'Mostramos un catálogo listo para probar mientras se conecta el catálogo en vivo.'}
-                </AlertDescription>
-              </Alert>
-            ) : null}
 
-            {!isDemoCatalog && catalogServerError ? (
+            {catalogServerError ? (
               <Alert variant="destructive">
-                <AlertTitle>{catalogQuery.data?.isDemo ? 'Catálogo de demostración' : 'No pudimos cargar el catálogo'}</AlertTitle>
+                <AlertTitle>No pudimos cargar el catalogo</AlertTitle>
                 <AlertDescription>
-                  {catalogQuery.data?.demoReason ??
-                    (catalogErrorMessage || 'Intenta nuevamente desde el enlace o QR.')}
+                  {catalogErrorMessage || 'Intenta nuevamente desde el enlace o QR.'}
                 </AlertDescription>
               </Alert>
             ) : null}
@@ -828,14 +813,6 @@ export default function MarketCartPage() {
               </Alert>
             ) : null}
 
-            {(catalogQuery.data?.isDemo || cartQuery.data?.isDemo) && !cartErrorMessage ? (
-              <Alert className="mt-3" variant="default">
-                <AlertTitle>Modo demo activado</AlertTitle>
-                <AlertDescription>
-                  Usamos un catalogo de demostracion mientras se completa la configuracion de este tenant. Puedes compartir el enlace o
-                  finalizar un pedido de prueba para mostrar el flujo completo.
-                </AlertDescription>
-              </Alert>
             ) : null}
 
             <div className="mt-3 text-xs text-muted-foreground">

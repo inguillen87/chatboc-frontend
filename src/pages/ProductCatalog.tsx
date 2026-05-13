@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ApiError, NetworkError, apiFetch, getErrorMessage } from '@/utils/api';
+import { ApiError, apiFetch, getErrorMessage } from '@/utils/api';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 import ProductCard, { AddToCartOptions, ProductDetails } from '@/components/product/ProductCard';
@@ -9,18 +9,13 @@ import { Loader2, ShoppingCart, AlertTriangle, Search } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { useTenant } from '@/context/TenantContext';
-import { DEFAULT_PUBLIC_PRODUCTS } from '@/data/defaultProducts';
-import { DEMO_CATALOGS as MOCK_CATALOGS } from '@/data/mockCatalogs';
 import { enhanceProductDetails, normalizeProductsPayload } from '@/utils/cartPayload';
-import { addProductToLocalCart } from '@/utils/localCart';
 import useCartCount from '@/hooks/useCartCount';
-import { getDemoLoyaltySummary } from '@/utils/demoLoyalty';
 import usePointsBalance from '@/hooks/usePointsBalance';
 import UploadOrderFromFile from '@/components/cart/UploadOrderFromFile';
 import { useUser } from '@/hooks/useUser';
 import { buildTenantApiPath, buildTenantPath } from '@/utils/tenantPaths';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { addMarketItem, searchCatalog } from '@/api/market';
@@ -29,10 +24,9 @@ import { UploadCloud } from 'lucide-react';
 
 interface ProductCatalogProps {
   tenantSlug?: string;
-  isDemoMode?: boolean;
 }
 
-export default function ProductCatalog({ tenantSlug: propTenantSlug, isDemoMode }: ProductCatalogProps) {
+export default function ProductCatalog({ tenantSlug: propTenantSlug }: ProductCatalogProps) {
   const [allProducts, setAllProducts] = useState<ProductDetails[]>([]);
   const [searchResults, setSearchResults] = useState<ProductDetails[] | null>(null);
   const [filteredProducts, setFilteredProducts] = useState<ProductDetails[]>([]);
@@ -42,10 +36,6 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug, isDemoMode 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('todos');
   const [selectedModality, setSelectedModality] = useState<'todos' | 'venta' | 'puntos' | 'donacion'>('todos');
-  const [catalogSource, setCatalogSource] = useState<'api' | 'fallback'>('api');
-  const [cartMode, setCartMode] = useState<'api' | 'local'>('api');
-  const [hasDemoModalities, setHasDemoModalities] = useState(false);
-  const [loyaltySummary] = useState(() => getDemoLoyaltySummary());
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importLoading, setImportLoading] = useState(false);
@@ -53,7 +43,7 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug, isDemoMode 
   const { user } = useUser();
   const cartCount = useCartCount();
   const effectiveTenantSlug = useMemo(
-    () => propTenantSlug ?? currentSlug ?? user?.tenantSlug ?? safeLocalStorage.getItem('tenantSlug') ?? null,
+    () => propTenantSlug ?? currentSlug ?? user?.tenantSlug ?? null,
     [propTenantSlug, currentSlug, user?.tenantSlug],
   );
   const { points: pointsBalance, requiresAuth: pointsRequireAuth, error: pointsError } = usePointsBalance({
@@ -61,7 +51,7 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug, isDemoMode 
     tenantSlug: effectiveTenantSlug,
   });
   const [showPointsAuthPrompt, setShowPointsAuthPrompt] = useState(false);
-  const [pointsAuthMessage, setPointsAuthMessage] = useState<string>('Para usar tus puntos tenés que iniciar sesión o registrarte.');
+  const [pointsAuthMessage, setPointsAuthMessage] = useState<string>('Para usar tus puntos tenes que iniciar sesion o registrarte.');
 
   const catalogPath = buildTenantPath('/productos', effectiveTenantSlug);
   const cartPath = buildTenantPath('/cart', effectiveTenantSlug);
@@ -73,8 +63,7 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug, isDemoMode 
     [effectiveTenantSlug],
   );
 
-  const shouldShowDemoLoyalty = catalogSource === 'fallback' || cartMode === 'local';
-  const shouldShowLiveLoyalty = !shouldShowDemoLoyalty && !!user;
+  const shouldShowLiveLoyalty = !!user;
   const isAdmin = useMemo(() => {
     const r = user?.rol?.toLowerCase();
     return r === 'admin' || r === 'super_admin' || r === 'empleado';
@@ -89,91 +78,14 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug, isDemoMode 
     [effectiveTenantSlug],
   );
 
-  const shouldUseDemoCatalog = (err: unknown) => {
-    return (
-      (err instanceof ApiError && [400, 401, 403, 405].includes(err.status)) ||
-      err instanceof NetworkError
-    );
-  };
-
-  const activateDemoCatalog = () => {
-    try {
-        setCatalogSource('fallback');
-        setCartMode('local');
-        let sourceProducts = DEFAULT_PUBLIC_PRODUCTS;
-
-        if (effectiveTenantSlug) {
-            // Find matching mock catalog key
-            const key = Object.keys(MOCK_CATALOGS).find(k => effectiveTenantSlug.includes(k));
-
-            if (key) {
-                sourceProducts = MOCK_CATALOGS[key].map(p => ({
-                    id: String(p.id),
-                    nombre: p.name,
-                    descripcion: p.description ?? null,
-                    precio_unitario: typeof p.price === 'number' ? p.price : parseFloat(String(p.price || 0)),
-                    modalidad: p.modality ?? 'venta',
-                    precio_puntos: p.points ?? null,
-                    imagen_url: p.imageUrl ?? null,
-                    categoria: p.category ?? null,
-                    marca: p.brand ?? null,
-                    promocion_activa: p.promoInfo ?? null,
-                    disponible: true,
-                    origen: 'demo' as const,
-                    checkout_type: p.checkout_type,
-                    external_url: p.external_url
-                }));
-            }
-        }
-
-        setAllProducts(sourceProducts);
-        setFilteredProducts(sourceProducts);
-        setError(null);
-        setHasDemoModalities(false);
-    } catch (e) {
-        console.error("Error loading demo catalog", e);
-        // Safe fallback
-        setAllProducts(DEFAULT_PUBLIC_PRODUCTS);
-        setFilteredProducts(DEFAULT_PUBLIC_PRODUCTS);
-    }
-  };
-
-  const mergeWithDemoModalities = (products: ProductDetails[]) => {
-    const modalitySet = new Set(
-      products.map((product) => (product.modalidad ? product.modalidad.toLowerCase() : 'venta')),
-    );
-
-    const complementary = DEFAULT_PUBLIC_PRODUCTS.filter((product) => {
-      const modality = product.modalidad ? product.modalidad.toLowerCase() : 'venta';
-      return ['puntos', 'donacion'].includes(modality) && !modalitySet.has(modality);
-    }).map((product, index) => ({ ...product, id: `demo-${product.id ?? index}`, origen: 'demo' as const }));
-
-    if (complementary.length === 0) {
-      return { products, added: false };
-    }
-
-    const existingIds = new Set(products.map((product) => String(product.id)));
-    const uniqueComplements = complementary.filter((product) => !existingIds.has(String(product.id)));
-
-    return { products: [...products, ...uniqueComplements], added: uniqueComplements.length > 0 };
-  };
-
   useEffect(() => {
     setLoading(true);
     setError(null);
 
-    // If demo mode is explicitly enabled and we have a matching mock, load it immediately
-    if (isDemoMode && effectiveTenantSlug) {
-        const key = Object.keys(MOCK_CATALOGS).find(k => effectiveTenantSlug.includes(k));
-        if (key) {
-            activateDemoCatalog();
-            setLoading(false);
-            return;
-        }
-    }
-
     if (!effectiveTenantSlug) {
-      activateDemoCatalog();
+      setAllProducts([]);
+      setFilteredProducts([]);
+      setError('No se pudo resolver el comercio para cargar el catalogo real.');
       setLoading(false);
       return;
     }
@@ -188,26 +100,14 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug, isDemoMode 
              normalized = normalized.filter((item) => item.disponible !== false);
           }
 
-        if (normalized.length === 0) {
-          activateDemoCatalog();
-        } else {
-          const { products: withDemo, added } = mergeWithDemoModalities(normalized);
-          setCatalogSource('api');
-          setCartMode('api');
-          setHasDemoModalities(added);
-          setAllProducts(withDemo);
-          setFilteredProducts(withDemo);
-        }
+        setAllProducts(normalized);
+        setFilteredProducts(normalized);
       })
       .catch((err: any) => {
-        if (shouldUseDemoCatalog(err) || (err instanceof ApiError && err.status === 404)) {
-          activateDemoCatalog();
-          return;
-        }
-        setError(getErrorMessage(err, 'No se pudieron cargar los productos. Intenta de nuevo más tarde.'));
+        setError(getErrorMessage(err, 'No se pudieron cargar los productos. Intenta de nuevo mas tarde.'));
       })
       .finally(() => setLoading(false));
-  }, [effectiveTenantSlug, productsApiPath, sharedRequestOptions]);
+  }, [effectiveTenantSlug, productsApiPath, sharedRequestOptions, isAdmin]);
 
   // Server-side search effect
   useEffect(() => {
@@ -229,11 +129,6 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug, isDemoMode 
             setSearchResults(finalResults);
         } catch (e) {
             console.error("Search failed", e);
-            // On error, we might fallback to local filtering of allProducts, or show error
-            // For now, let's just keep searchResults as null or empty?
-            // Better to leave it null so it falls back to local filtering of allProducts if desired,
-            // OR set empty list.
-            // Given the requirement is "hits /catalogo/buscar", we should rely on it.
             setSearchResults([]);
         } finally {
             setSearchLoading(false);
@@ -316,7 +211,7 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug, isDemoMode 
   const handleImportCatalog = async () => {
     if (!effectiveTenantSlug || !importFile) return;
     setImportLoading(true);
-    const toastId = toast.loading("Subiendo catálogo...", { description: "Por favor espere." });
+    const toastId = toast.loading("Subiendo catalogo...", { description: "Por favor espere." });
 
     try {
       const formData = new FormData();
@@ -337,12 +232,12 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug, isDemoMode 
               if (statusData.status === 'completed') {
                   clearInterval(pollInterval);
                   setImportLoading(false);
-                  toast.success("Catálogo actualizado", { id: toastId, description: "La búsqueda inteligente está lista." });
+                  toast.success("Catalogo actualizado", { id: toastId, description: "La busqueda inteligente esta lista." });
                   setTimeout(() => window.location.reload(), 1500);
               } else if (statusData.status === 'failed' || statusData.status === 'error') {
                   clearInterval(pollInterval);
                   setImportLoading(false);
-                  toast.error("Error en procesamiento", { id: toastId, description: statusData.message || "Ocurrió un error." });
+                  toast.error("Error en procesamiento", { id: toastId, description: statusData.message || "Ocurrio un error." });
               } else {
                   toast.loading(`Actualizando IA (${pct}%)...`, { id: toastId });
               }
@@ -371,7 +266,7 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug, isDemoMode 
     const isPointsProduct = (product.modalidad ?? '').toString().toLowerCase() === 'puntos';
 
     if (isPointsProduct && !user) {
-      setPointsAuthMessage('Para usar tus puntos tenés que iniciar sesión o registrarte.');
+      setPointsAuthMessage('Para usar tus puntos tenes que iniciar sesion o registrarte.');
       setShowPointsAuthPrompt(true);
       return;
     }
@@ -389,49 +284,35 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug, isDemoMode 
     const quantityLabel = `${quantity} ${mode === 'case' ? 'caja(s)' : 'unidad(es)'}`;
 
     try {
-      const isDemoProduct = product.origen === 'demo';
-      const shouldUseLocalCart = cartMode === 'local' || isDemoProduct || !effectiveTenantSlug;
+      const shouldUseLocalCart = !effectiveTenantSlug;
 
       if (shouldUseLocalCart) {
-        addProductToLocalCart(product, totalUnits);
         toast({
-          title: '✅ Producto agregado',
-          description: `${product.nombre} se guardó en tu carrito (${quantityLabel}). Escribe “Ver carrito” o usa el botón para continuar.`,
+          title: 'No se pudo resolver el comercio',
+          description: 'Necesitamos el comercio real para guardar el carrito.',
+          variant: 'destructive',
         });
         return;
       }
 
-      // Use centralized API function which handles correct payload and 400/fallback internally
+      // Use the backend cart only; no local cart is created here.
       if (effectiveTenantSlug) {
           await addMarketItem(effectiveTenantSlug, {
               productId: String(product.id),
               quantity: totalUnits
           });
           toast({
-            title: "✅ Producto agregado",
-            description: `${product.nombre} agregado al carrito. Escribe “Ver carrito” para continuar o toca el ícono de carrito.`,
+            title: "Producto agregado",
+            description: `${product.nombre} agregado al carrito. Escribe "Ver carrito" para continuar o toca el icono de carrito.`,
             className: "bg-green-500 text-white",
           });
       }
 
     } catch (err) {
-      // Fallback handled by addMarketItem implicitly by returning local cart if API fails with 40x
-      // But if it throws completely, we catch here.
-      // Check if the error suggests we should switch to local mode
-      if (shouldUseDemoCatalog(err)) {
-        setCartMode('local');
-        addProductToLocalCart(product, totalUnits);
-        toast({
-            title: 'Modo demo activo',
-            description: `${product.nombre} se guardó en tu carrito local (${quantityLabel}).`,
-        });
-        return;
-      }
-
       if (err instanceof ApiError && err.status === 401) {
         const code = err.body?.code || err.body?.error_code || err.body?.errorCode;
         if (code === 'REQUIERE_LOGIN_PUNTOS') {
-          setPointsAuthMessage('Para usar tus puntos tenés que iniciar sesión o registrarte.');
+          setPointsAuthMessage('Para usar tus puntos tenes que iniciar sesion o registrarte.');
           setShowPointsAuthPrompt(true);
           return;
         }
@@ -464,7 +345,7 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug, isDemoMode 
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)] p-4 text-destructive">
         <AlertTriangle className="h-12 w-12 mb-4" />
-        <p className="text-lg font-semibold">Ocurrió un error</p>
+        <p className="text-lg font-semibold">Ocurrio un error</p>
         <p>{error}</p>
         <Button onClick={() => window.location.reload()} className="mt-4">Reintentar</Button>
       </div>
@@ -475,7 +356,7 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug, isDemoMode 
     <div className="container mx-auto p-4 md:p-8">
       <header className="mb-8">
         <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
-          <h1 className="text-3xl md:text-4xl font-bold text-foreground">Nuestro Catálogo</h1>
+          <h1 className="text-3xl md:text-4xl font-bold text-foreground">Nuestro Catalogo</h1>
           <div className="flex gap-2 w-full sm:w-auto">
             {isAdmin && (
               <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
@@ -484,7 +365,7 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug, isDemoMode 
                 </Button>
                 <DialogContent>
                   <DialogHeader>
-                    <DialogTitle>Importar Catálogo</DialogTitle>
+                    <DialogTitle>Importar Catalogo</DialogTitle>
                     <DialogDescription>Sube un archivo CSV o Excel para actualizar tus productos masivamente.</DialogDescription>
                   </DialogHeader>
                   <div className="grid w-full items-center gap-4 py-4">
@@ -501,7 +382,7 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug, isDemoMode 
                         </div>
                         <div className="space-y-1">
                           <p className="text-sm font-medium text-foreground">
-                            {importFile ? importFile.name : "Hacé click para seleccionar un archivo"}
+                            {importFile ? importFile.name : "Hace click para seleccionar un archivo"}
                           </p>
                           {!importFile && (
                             <p className="text-xs text-muted-foreground">
@@ -542,38 +423,6 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug, isDemoMode 
             </Button>
           </div>
         </div>
-        {(catalogSource === 'fallback' || cartMode === 'local' || hasDemoModalities) && (
-          <div className="flex flex-wrap gap-2 mb-4">
-            {catalogSource === 'fallback' && (
-              <Badge variant="secondary">Catálogo demo para visitantes</Badge>
-            )}
-            {cartMode === 'local' && (
-              <Badge variant="outline">Carrito demo guardado en este dispositivo</Badge>
-            )}
-            {hasDemoModalities && cartMode !== 'local' && (
-              <Badge variant="outline">Incluye opciones demo de canje y donación</Badge>
-            )}
-          </div>
-        )}
-        {shouldShowDemoLoyalty && (
-          <div className="w-full mb-4 rounded-xl border border-primary/20 bg-gradient-to-r from-primary/5 via-primary/10 to-transparent p-4 shadow-sm">
-            <p className="text-sm uppercase tracking-wide text-primary/80 font-semibold mb-2">Puntos en modo demo</p>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <p className="text-sm text-muted-foreground">Saldo disponible</p>
-                <p className="text-xl font-bold text-primary">{numberFormatter.format(loyaltySummary.points)} pts</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Encuestas y sondeos respondidos</p>
-                <p className="text-lg font-semibold">{loyaltySummary.surveysCompleted}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Ideas y reclamos registrados</p>
-                <p className="text-lg font-semibold">{loyaltySummary.suggestionsShared + loyaltySummary.claimsFiled}</p>
-              </div>
-            </div>
-          </div>
-        )}
         {shouldShowLiveLoyalty && (
           <div className="w-full mb-4 rounded-lg border border-border bg-card p-4 shadow-sm grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
@@ -581,18 +430,18 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug, isDemoMode 
               <p className="text-xl font-bold text-primary">{numberFormatter.format(pointsBalance)} pts</p>
             </div>
             <div className="md:col-span-2">
-              <p className="text-sm text-muted-foreground mb-2">Sube una nota de pedido para armar el carrito automáticamente.</p>
-              <UploadOrderFromFile onCartUpdated={() => toast({ title: 'Carrito actualizado', description: 'Revisa tu carrito para confirmar los ítems detectados.' })} />
+              <p className="text-sm text-muted-foreground mb-2">Sube una nota de pedido para armar el carrito automaticamente.</p>
+              <UploadOrderFromFile onCartUpdated={() => toast({ title: 'Carrito actualizado', description: 'Revisa tu carrito para confirmar los items detectados.' })} />
             </div>
           </div>
         )}
-        {!shouldShowDemoLoyalty && !user && (
+        {!user && (
           <div className="w-full mb-4 rounded-lg border border-dashed border-primary/30 bg-card p-4 shadow-sm grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="md:col-span-2">
-              <p className="text-sm text-muted-foreground mb-2">Inicia sesión para ver tu saldo de puntos y canjear productos.</p>
+              <p className="text-sm text-muted-foreground mb-2">Inicia sesion para ver tu saldo de puntos y canjear productos.</p>
               <div className="flex gap-2 flex-wrap">
                 <Button asChild variant="default" size="sm">
-                  <Link to={loginPath}>Iniciar sesión</Link>
+                  <Link to={loginPath}>Iniciar sesion</Link>
                 </Button>
                 <Button asChild variant="outline" size="sm">
                   <Link to={registerPath}>Crear cuenta</Link>
@@ -613,7 +462,7 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug, isDemoMode 
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
           <Input
             type="text"
-            placeholder="Buscar productos por nombre, descripción, categoría..."
+            placeholder="Buscar productos por nombre, descripcion, categoria..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-10 py-2 text-base rounded-md border-border focus:ring-primary focus:border-primary"
@@ -644,7 +493,7 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug, isDemoMode 
             { value: 'todos', label: 'Todas las modalidades' },
             { value: 'venta', label: 'Compra' },
             { value: 'puntos', label: 'Canje con puntos' },
-            { value: 'donacion', label: 'Donación' },
+            { value: 'donacion', label: 'Donacion' },
           ].map((option) => (
             <Button
               key={option.value}
@@ -687,10 +536,10 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug, isDemoMode 
         <div className="text-center py-12">
           <Search className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
           <p className="text-xl text-muted-foreground">
-            {allProducts.length > 0 ? "No se encontraron productos para tu búsqueda." : "Aún no hay productos en el catálogo."}
+            {allProducts.length > 0 ? "No se encontraron productos para tu busqueda." : "Aun no hay productos en el catalogo."}
           </p>
           {allProducts.length > 0 && searchTerm && (
-             <p className="text-sm text-muted-foreground mt-2">Intenta con otros términos de búsqueda.</p>
+             <p className="text-sm text-muted-foreground mt-2">Intenta con otros terminos de busqueda.</p>
           )}
         </div>
       )}
@@ -698,12 +547,12 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug, isDemoMode 
       <Dialog open={showPointsAuthPrompt} onOpenChange={setShowPointsAuthPrompt}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Inicia sesión para usar tus puntos</DialogTitle>
+            <DialogTitle>Inicia sesion para usar tus puntos</DialogTitle>
             <DialogDescription>{pointsAuthMessage}</DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex flex-col sm:flex-row sm:justify-end gap-2">
             <Button asChild variant="default">
-              <Link to={loginPath}>Iniciar sesión</Link>
+              <Link to={loginPath}>Iniciar sesion</Link>
             </Button>
             <Button asChild variant="outline">
               <Link to={registerPath}>Crear cuenta</Link>

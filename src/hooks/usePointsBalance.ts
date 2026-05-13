@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError, apiFetch, getErrorMessage } from '@/utils/api';
-import { getDemoLoyaltySummary } from '@/utils/demoLoyalty';
 
 interface UsePointsBalanceOptions {
   enabled?: boolean;
@@ -18,7 +17,7 @@ export interface PointsBalance {
 
 export const usePointsBalance = (options: UsePointsBalanceOptions = {}): PointsBalance => {
   const { enabled = true, tenantSlug = null } = options;
-  const [points, setPoints] = useState<number>(getDemoLoyaltySummary().points);
+  const [points, setPoints] = useState<number>(0);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [requiresAuth, setRequiresAuth] = useState(false);
@@ -53,6 +52,7 @@ export const usePointsBalance = (options: UsePointsBalanceOptions = {}): PointsB
     if (!enabled) {
       setRequiresAuth(false);
       setIsLoading(false);
+      setPoints(0);
       return null;
     }
 
@@ -108,7 +108,7 @@ export const usePointsBalance = (options: UsePointsBalanceOptions = {}): PointsB
     }
 
     if (isMountedRef.current && lastError) {
-      setError(getErrorMessage(lastError, 'No se pudo actualizar tu saldo de puntos. Mostramos un valor estimado.'));
+      setError(getErrorMessage(lastError, 'No se pudo actualizar tu saldo de puntos.'));
     }
 
     return null;

@@ -517,10 +517,11 @@ export const SurveyAnalytics = ({
     [heatmapMetaRecord, renderContractRecord],
   );
   const mapRenderReady = useMemo(() => {
+    if (usingSyntheticPoints) return false;
     if (!mapMetaRecord) return true;
     if (typeof mapMetaRecord.render_ready === 'boolean') return mapMetaRecord.render_ready;
     return true;
-  }, [mapMetaRecord]);
+  }, [mapMetaRecord, usingSyntheticPoints]);
   const providerHint = useMemo(() => normalizeMapProvider(mapMetaRecord?.provider_hint), [mapMetaRecord]);
   const fallbackProvider = useMemo(
     () => normalizeMapProvider(mapMetaRecord?.fallback_provider) ?? 'maplibre',
@@ -537,11 +538,12 @@ export const SurveyAnalytics = ({
   }, [aggregatedHeatmapPoints]);
 
   const heatmapData = useMemo(() => {
+    if (usingSyntheticPoints) return [];
     const allZero = aggregatedHeatmapPoints.length > 0 && aggregatedHeatmapPoints.every((point) => point.respuestas <= 0);
     return aggregatedHeatmapPoints.map((point) => ({
       lat: point.lat,
       lng: point.lng,
-      weight: usingSyntheticPoints || allZero ? Math.max(1, point.respuestas || 0) : point.respuestas,
+      weight: allZero ? Math.max(1, point.respuestas || 0) : point.respuestas,
       categoria: point.categoria,
       canal: point.canal,
       categoryColor: point.categoria ? categoryColorMap.get(point.categoria) : undefined,
@@ -1117,7 +1119,7 @@ export const SurveyAnalytics = ({
         <CardContent>
           {usingSyntheticPoints ? (
             <div className="mb-3 inline-flex rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs text-amber-700">
-              Modo demo (ubicaciones simuladas)
+              El mapa se oculta porque no hay ubicaciones reales disponibles.
             </div>
           ) : null}
           {mapRenderReady && aggregatedHeatmapPoints.length ? (
@@ -1211,7 +1213,7 @@ export const SurveyAnalytics = ({
         <CardContent className="h-[420px]">
           {usingSyntheticPoints ? (
             <div className="mb-3 inline-flex rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs text-amber-700">
-              Modo demo (ubicaciones simuladas)
+              El mapa se oculta porque no hay ubicaciones reales disponibles.
             </div>
           ) : null}
           {mapRenderReady && heatmapData.length && boundingBoxValue ? (

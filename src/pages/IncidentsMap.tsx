@@ -17,12 +17,7 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import {
-  JUNIN_DEMO_CENTER,
-  JUNIN_DEMO_NOTICE,
-  generateJuninDemoHeatmap,
-  mergeAndSortStrings,
-} from '@/utils/demoHeatmap';
+import { mergeAndSortStrings } from '@/utils/collections';
 import { useMapProvider } from '@/hooks/useMapProvider';
 import type { MapProvider, MapProviderUnavailableReason } from '@/hooks/useMapProvider';
 import { MapProviderToggle } from '@/components/MapProviderToggle';
@@ -232,9 +227,7 @@ export default function IncidentsMap() {
         }
       }
 
-      if (options?.fallback) {
-        setCenter({ lat: JUNIN_DEMO_CENTER[1], lng: JUNIN_DEMO_CENTER[0] });
-      } else if (adminCoords) {
+      if (adminCoords) {
         setCenter({ lat: adminCoords[1], lng: adminCoords[0] });
       }
     },
@@ -322,8 +315,7 @@ export default function IncidentsMap() {
       const usedFallback = combinedHeatmap.length === 0;
 
       if (usedFallback) {
-        combinedHeatmap = generateJuninDemoHeatmap();
-        setError(JUNIN_DEMO_NOTICE);
+        setError('No hay puntos de mapa disponibles con los filtros actuales.');
       }
 
       applyHeatmapDataset(
@@ -338,10 +330,9 @@ export default function IncidentsMap() {
     } catch (err) {
       const message =
         err instanceof ApiError ? err.message : 'Error al cargar datos del mapa';
-      setError(`${message}. ${JUNIN_DEMO_NOTICE}`);
+      setError(message);
       setCharts([]);
-      const fallbackPoints = generateJuninDemoHeatmap();
-      applyHeatmapDataset({ points: fallbackPoints }, { mergeFilters: true, fallback: true });
+      applyHeatmapDataset({ points: [] }, { mergeFilters: false, fallback: false });
       console.error('Error fetching map data:', err);
     } finally {
       setIsLoading(false);

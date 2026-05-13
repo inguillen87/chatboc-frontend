@@ -14,14 +14,11 @@ import AddressAutocomplete from '@/components/ui/AddressAutocomplete';
 import { ArrowRightLeft, Loader2, AlertTriangle, ArrowLeft, CheckCircle, CreditCard, Hash, MapPin, User, Check, MessageCircle, Phone, ExternalLink, ListChecks } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 
-import { ApiError, NetworkError, getErrorMessage } from '@/utils/api';
+import { ApiError, getErrorMessage } from '@/utils/api';
 import { useUser } from '@/hooks/useUser';
 import { ProductDetails } from '@/components/product/ProductCard';
 import { formatCurrency } from '@/utils/currency';
 import { useTenant } from '@/context/TenantContext';
-import { safeLocalStorage } from '@/utils/safeLocalStorage';
-import { getLocalCartProducts, clearLocalCart } from '@/utils/localCart';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import usePointsBalance from '@/hooks/usePointsBalance';
 import { buildTenantPath } from '@/utils/tenantPaths';
 import { loadGuestContact, saveGuestContact } from '@/utils/guestContact';
@@ -52,25 +49,7 @@ type CheckoutFormData = z.infer<typeof checkoutSchema>;
 
 interface CartItem extends ProductDetails {
   cantidad: number;
-  localCartKey?: string;
 }
-
-interface DemoOrderSnapshot {
-  createdAt: string;
-  payload: unknown;
-}
-
-const persistDemoOrder = (snapshot: DemoOrderSnapshot) => {
-  try {
-    const raw = safeLocalStorage.getItem('chatboc_demo_orders');
-    const parsed = raw ? JSON.parse(raw) : [];
-    const existing = Array.isArray(parsed) ? parsed : [];
-    const next = [snapshot, ...existing].slice(0, 20);
-    safeLocalStorage.setItem('chatboc_demo_orders', JSON.stringify(next));
-  } catch (err) {
-    console.warn('[ProductCheckoutPage] No se pudo guardar el pedido demo', err);
-  }
-};
 
 const fadeInUp = {
   hidden: { opacity: 0, y: 20 },
@@ -93,7 +72,7 @@ export default function ProductCheckoutPage() {
   const { currentSlug } = useTenant();
 
   const effectiveTenantSlug = useMemo(
-    () => currentSlug ?? user?.tenantSlug ?? safeLocalStorage.getItem('tenantSlug') ?? null,
+    () => currentSlug ?? user?.tenantSlug ?? null,
     [currentSlug, user?.tenantSlug],
   );
 
@@ -110,7 +89,6 @@ export default function ProductCheckoutPage() {
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [checkoutResult, setCheckoutResult] = useState<CheckoutStartResponse | null>(null);
   const [showPointsAuthPrompt, setShowPointsAuthPrompt] = useState(false);
-  const [checkoutMode, setCheckoutMode] = useState<'api' | 'local'>('api');
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [shippingCoords, setShippingCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [isLocating, setIsLocating] = useState(false);
@@ -149,45 +127,14 @@ export default function ProductCheckoutPage() {
     }
   }, [user, setValue]);
 
-  const shouldUseLocalCart = (err: unknown) => {
-    if (err instanceof ApiError) {
-      if ([400, 401, 403, 405].includes(err.status)) return true;
-      const errorCode = err.body?.code || err.body?.error_code || err.body?.errorCode;
-      if (errorCode && String(errorCode).toLowerCase().includes('tenant')) return true;
-    }
-    return err instanceof NetworkError;
-  };
-
-  const loadLocalCart = useCallback(() => {
-    const localItems = getLocalCartProducts();
-    if (!localItems.length) {
-      toast({
-        title: 'Carrito vacío',
-        description: 'Agregá productos para finalizar la simulación.',
-        variant: 'destructive',
-      });
-      navigate(catalogPath);
-      return false;
-    }
-    setCartItems(localItems);
-    return true;
-  }, [catalogPath, navigate]);
-
   useEffect(() => {
     const loadCart = async () => {
       setIsLoadingCart(true);
       setError(null);
 
-      if (checkoutMode === 'local') {
-        loadLocalCart();
-        setIsLoadingCart(false);
-        return;
-      }
-
       if (!effectiveTenantSlug) {
-        setCheckoutMode('local');
-        loadLocalCart();
-        setError('Selecciona un municipio o inicia sesión para finalizar tu compra.');
+        setCartItems([]);
+        setError('Selecciona un comercio para finalizar tu compra.');
         setIsLoadingCart(false);
         return;
       }
@@ -196,66 +143,36 @@ export default function ProductCheckoutPage() {
         const cartData = await fetchMarketCart(effectiveTenantSlug);
 
         if (!cartData.items || cartData.items.length === 0) {
-          // Fallback: If API returns empty but we have local items, rely on local items
-          const localItems = getLocalCartProducts();
-          if (localItems.length > 0) {
-             setCheckoutMode('local');
-             setCartItems(localItems);
-             setIsLoadingCart(false);
-             return;
-          }
-
           toast({
-            title: 'Carrito vacío',
+            title: 'Carrito vacio',
             description: 'No hay productos para finalizar la compra.',
             variant: 'destructive',
           });
           navigate(catalogPath);
-        } else {
-          // Map MarketCartItem to component's CartItem (ProductDetails + cantidad)
-          // We need to map the fields correctly as MarketCartItem uses 'price' not 'precio_unitario'
-          const mappedItems: CartItem[] = cartData.items.map(item => ({
-            id: item.id,
-            nombre: item.name,
-            descripcion: item.description ?? undefined,
-            precio_unitario: item.price ?? 0,
-            precio_puntos: item.points ?? 0,
-            modalidad: item.modality ?? 'venta',
-            imageUrl: item.imageUrl ?? undefined,
-            cantidad: item.quantity,
-            // Add other fields required by ProductDetails if necessary, defaulting if missing
-            category: item.category ?? undefined,
-          }));
-          setCartItems(mappedItems);
-        }
-      } catch (err) {
-        if (shouldUseLocalCart(err)) {
-          setCheckoutMode('local');
-          loadLocalCart();
-          setError(getErrorMessage(err, 'No se pudo cargar el carrito del servidor. Seguimos con el carrito local.'));
           return;
         }
 
+        const mappedItems: CartItem[] = cartData.items.map(item => ({
+          id: item.id,
+          nombre: item.name,
+          descripcion: item.description ?? undefined,
+          precio_unitario: item.price ?? 0,
+          precio_puntos: item.points ?? 0,
+          modalidad: item.modality ?? 'venta',
+          imageUrl: item.imageUrl ?? undefined,
+          cantidad: item.quantity,
+          category: item.category ?? undefined,
+        }));
+        setCartItems(mappedItems);
+      } catch (err) {
         const errorMessage = getErrorMessage(err, 'No se pudo cargar tu carrito.');
-        if (err instanceof ApiError && err.status === 400 && errorMessage.toLowerCase().includes('tenant')) {
-           setCheckoutMode('local');
-           loadLocalCart();
-           return;
-        }
-
         setError(errorMessage);
       } finally {
         setIsLoadingCart(false);
       }
     };
     loadCart();
-  }, [
-    catalogPath,
-    checkoutMode,
-    effectiveTenantSlug,
-    loadLocalCart,
-    navigate,
-  ]);
+  }, [catalogPath, effectiveTenantSlug, navigate]);
 
   const subtotal = useMemo(() => {
     return cartItems.reduce(
@@ -289,11 +206,11 @@ export default function ProductCheckoutPage() {
   );
 
   const requiresAuthForPoints = useMemo(
-    () => cartItems.some((item) => item.modalidad === 'puntos') && !user && checkoutMode !== 'local',
-    [cartItems, user, checkoutMode],
+    () => cartItems.some((item) => item.modalidad === 'puntos') && !user,
+    [cartItems, user],
   );
 
-  const hasPointsDeficit = checkoutMode !== 'local' && missingPoints > 0;
+  const hasPointsDeficit = missingPoints > 0;
   const completionLabel = useMemo(
     () => (hasDonations ? 'donación' : pointsTotal > 0 ? 'canje' : 'compra'),
     [hasDonations, pointsTotal],
@@ -352,8 +269,7 @@ export default function ProductCheckoutPage() {
 
     try {
       if (requiresAuthForPoints) {
-        const warning = 'Inicia sesión para canjear tus puntos.';
-        setCheckoutError(warning);
+        setCheckoutError('Inicia sesion para canjear tus puntos.');
         setIsSubmitting(false);
         return;
       }
@@ -364,56 +280,55 @@ export default function ProductCheckoutPage() {
         return;
       }
 
-      if (checkoutMode === 'local') {
-        persistDemoOrder({
-          payload: { ...pedidoData, modo: 'demo' },
-          createdAt: new Date().toISOString(),
-        });
-        clearLocalCart();
-        setCartItems([]);
-        setCheckoutResult({ status: 'demo', commercial_state: { stage: 'awaiting_confirmation', channel: 'web', supports_handoff: true } });
-        setOrderPlaced(true);
-        return;
-      }
-
-      const shouldSkipMp = data.metodoPago === 'acordar';
-
-      if (!effectiveTenantSlug) throw new Error("Falta el ID del comercio");
+      if (!effectiveTenantSlug) throw new Error('Falta el ID del comercio');
 
       const response = await startMarketCheckout(effectiveTenantSlug, {
         ...pedidoData,
         items: cartItems.map(item => ({
           productId: item.id,
-          quantity: item.cantidad
+          quantity: item.cantidad,
         })),
         customer: {
           ...pedidoData.cliente,
           name: pedidoData.cliente.nombre,
-          phone: pedidoData.cliente.telefono
+          phone: pedidoData.cliente.telefono,
         },
         shipping: {
           method: pedidoData.envio.metodo,
           address: pedidoData.envio.direccion,
           notes: pedidoData.envio.notas,
-          coordinates: pedidoData.envio.coordenadas
+          coordinates: pedidoData.envio.coordenadas,
         },
         payment: {
-          method: pedidoData.metodo_pago
-        }
+          method: pedidoData.metodo_pago,
+        },
       });
 
       setCheckoutResult(response);
 
-      if (response.status === 'confirmed' || response.status === 'demo') {
+      if (response.paymentUrl) {
+        window.location.href = response.paymentUrl;
+        return;
+      }
+
+      const normalizedStatus = String(response.status ?? response.estado ?? '').toLowerCase();
+      const hasOrderReference = Boolean(
+        response.market_order_id ||
+        response.order_id ||
+        response.orderId ||
+        response.external_reference ||
+        response.preference_id ||
+        response.preferenceId
+      );
+      const acceptedStatuses = new Set(['confirmed', 'pending', 'created', 'awaiting_confirmation', 'approved']);
+
+      if (acceptedStatuses.has(normalizedStatus) || hasOrderReference) {
         setOrderPlaced(true);
         await applyPointsAdjustments();
-      } else if (response.paymentUrl) {
-         window.location.href = response.paymentUrl;
-      } else {
-         // Fallback if status is unknown but no error thrown
-         setCheckoutResult(response);
-         setOrderPlaced(true);
+        return;
       }
+
+      setCheckoutError(response.message || 'El servidor no confirmo la creacion del pedido.');
     } catch (err) {
       if (err instanceof ApiError) {
         const code = err.body?.code || err.body?.error_code || err.body?.errorCode;
@@ -434,9 +349,6 @@ export default function ProductCheckoutPage() {
       setIsSubmitting(false);
     }
   };
-
-  const isDemoMode = checkoutMode === 'local';
-
   // Lifecycle Redirect Logic
   const handleViewOrders = useCallback(() => {
     // If logged in, go to Portal Orders
@@ -456,7 +368,6 @@ export default function ProductCheckoutPage() {
 
 
   if (orderPlaced) {
-    const demoSuccess = checkoutMode === 'local';
     const stageLabel = getCommercialStageLabel(checkoutResult?.commercial_state?.stage ?? checkoutResult?.estado ?? checkoutResult?.status ?? null);
     const marketOrderId = checkoutResult?.market_order_id ?? checkoutResult?.order_id ?? checkoutResult?.orderId ?? null;
     const paymentReference = checkoutResult?.preference_id ?? checkoutResult?.preferenceId ?? null;
@@ -498,12 +409,10 @@ export default function ProductCheckoutPage() {
             transition={{ delay: 0.2 }}
         >
             <h1 className="text-4xl font-extrabold text-foreground mb-4 tracking-tight">
-            {demoSuccess ? '¡Pedido Demo Guardado!' : '¡Excelente!'}
+            Excelente
             </h1>
             <p className="text-xl text-muted-foreground mb-10 max-w-lg mx-auto">
-            {demoSuccess
-                ? 'La simulación se registró con éxito en este navegador. Regístrate o inicia sesión para verlo en tu portal.'
-                : `Hemos recibido tu ${completionLabel}. Te enviamos los detalles a tu correo.`}
+              Hemos recibido tu {completionLabel}. Te enviamos los detalles a tu correo.
             </p>
 
             <div className="mx-auto mb-8 grid max-w-4xl gap-3 text-left sm:grid-cols-2 xl:grid-cols-4">
@@ -585,7 +494,6 @@ export default function ProductCheckoutPage() {
             <div className="flex flex-col gap-4 sm:flex-row justify-center items-center">
                 {!user ? (
                    <>
-                     {/* Prioritize direct portal access for demos to avoid friction */}
                      <Button size="lg" className="w-full sm:w-auto shadow-lg bg-primary hover:bg-primary/90" onClick={handleViewOrders}>
                         Ver pedido en el Portal
                      </Button>
@@ -879,15 +787,6 @@ export default function ProductCheckoutPage() {
                 </CardFooter>
              </Card>
 
-             {isDemoMode && (
-                <Alert className="bg-orange-50 dark:bg-orange-900/10 border-orange-200 text-orange-800 dark:text-orange-200">
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertTitle>Modo Simulación</AlertTitle>
-                    <AlertDescription className="text-xs">
-                        No se realizará ningún cobro real.
-                    </AlertDescription>
-                </Alert>
-             )}
           </div>
         </motion.div>
       </form>
