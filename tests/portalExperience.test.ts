@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { mapHistoryToActivities, mapNetworkFeedToNews, mapSurveysHistory, mergePortalExperience } from '@/utils/portalExperience';
-import { getDemoPortalContent } from '@/data/portalDemoContent';
+import type { PortalContent } from '@/types/unified';
+
+const basePortalContent = (): PortalContent => ({
+  notifications: [],
+  events: [],
+  news: [],
+  catalog: [],
+  activities: [],
+  surveys: [],
+  loyaltySummary: null,
+});
 
 describe('portalExperience utils', () => {
   it('maps history timeline to activities', () => {
@@ -34,7 +44,7 @@ describe('portalExperience utils', () => {
 
   it('merges backend responses into portal content', () => {
     const merged = mergePortalExperience(
-      getDemoPortalContent(),
+      basePortalContent(),
       {
         orders: [{ id: 1001, status: 'shipped', status_label: 'En camino', total: 1000, created_at: '2026-02-14T09:00:00Z' }],
         timeline: [{ id: 't1', type: 'points', status: 'earned', at: '2026-02-14T11:00:00Z' }],

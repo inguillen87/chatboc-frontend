@@ -21,6 +21,7 @@ import { Label } from '@/components/ui/label';
 import { addMarketItem } from '@/api/market';
 import { apiClient } from '@/api/client';
 import { UploadCloud } from 'lucide-react';
+import type { TenantPublicInfo } from '@/types/tenant';
 
 interface ProductCatalogProps {
   tenantSlug?: string;
@@ -78,6 +79,68 @@ const getProductTenantSignals = (product: ProductDetails): string[] => {
     .filter((value): value is string => Boolean(value));
 };
 
+const normalizeVerticalSignal = (value: unknown): string | null => {
+  const signal = normalizeSlugSignal(value);
+  if (!signal) return null;
+
+  if (/municip|gobierno|government|public|ciudad|comuna/.test(signal)) return 'public_sector';
+  if (/pyme|empresa|commerce|comerc|market|tienda|bodega|retail/.test(signal)) return 'business';
+  if (/educ|coleg|school|campus|familia/.test(signal)) return 'education';
+  return null;
+};
+
+const getVerticalSignalsFromRecord = (record: Record<string, unknown> | null): string[] => {
+  if (!record) return [];
+  return [
+    record.vertical,
+    record.sector,
+    record.tipo,
+    record.tipo_chat,
+    record.tipoChat,
+    record.subvertical,
+    record.rubro,
+    asRecord(record.tenant)?.tipo,
+    asRecord(record.tenant)?.vertical,
+    asRecord(record.tenant)?.sector,
+  ]
+    .map(normalizeVerticalSignal)
+    .filter((value): value is string => Boolean(value));
+};
+
+const getProductVerticalSignals = (product: ProductDetails): string[] => {
+  const raw = asRecord(product.source_payload);
+  return Array.from(
+    new Set([
+      ...getVerticalSignalsFromRecord(product as unknown as Record<string, unknown>),
+      ...getVerticalSignalsFromRecord(raw),
+    ]),
+  );
+};
+
+const getTenantVerticalSignals = (
+  tenantInfo: TenantPublicInfo | null | undefined,
+  userInfo: unknown,
+): string[] => {
+  const userRecord = asRecord(userInfo);
+  return Array.from(
+    new Set([
+      ...getVerticalSignalsFromRecord(tenantInfo as unknown as Record<string, unknown> | null),
+      ...getVerticalSignalsFromRecord(userRecord),
+    ]),
+  );
+};
+
+const matchesTenantVertical = (
+  product: ProductDetails,
+  tenantInfo: TenantPublicInfo | null | undefined,
+  userInfo: unknown,
+): boolean => {
+  const productSignals = getProductVerticalSignals(product);
+  const tenantSignals = getTenantVerticalSignals(tenantInfo, userInfo);
+  if (!productSignals.length || !tenantSignals.length) return true;
+  return productSignals.some((signal) => tenantSignals.includes(signal));
+};
+
 const belongsToTenant = (product: ProductDetails, tenantSlug: string): boolean => {
   const expected = normalizeSlugSignal(tenantSlug);
   if (!expected) return false;
@@ -132,8 +195,11 @@ const canRenderTenantCatalogProduct = (
   product: ProductDetails,
   tenantSlug: string,
   isAdmin: boolean,
+  tenantInfo?: TenantPublicInfo | null,
+  userInfo?: unknown,
 ): boolean => {
   if (!belongsToTenant(product, tenantSlug)) return false;
+  if (!matchesTenantVertical(product, tenantInfo, userInfo)) return false;
   if (isMarkedAsNonRealProduct(product)) return false;
   if (!isAdmin && product.disponible === false) return false;
   return hasRealCartId(product) || Boolean(product.external_url);
@@ -164,7 +230,7 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug }: ProductCa
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importLoading, setImportLoading] = useState(false);
-  const { currentSlug } = useTenant();
+  const { currentSlug, tenant } = useTenant();
   const { user } = useUser();
   const cartCount = useCartCount();
   const effectiveTenantSlug = useMemo(
@@ -223,7 +289,7 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug }: ProductCa
             .map((item) => enhanceProductDetails({ ...item, origen: 'api' as const }));
 
           normalized = normalized.filter((item) =>
-            canRenderTenantCatalogProduct(item, effectiveTenantSlug, isAdmin),
+            canRenderTenantCatalogProduct(item, effectiveTenantSlug, isAdmin, tenant, user),
           );
 
         setAllProducts(normalized);
@@ -233,7 +299,7 @@ export default function ProductCatalog({ tenantSlug: propTenantSlug }: ProductCa
         setError(getErrorMessage(err, 'No se pudieron cargar los productos. Intenta de nuevo mas tarde.'));
       })
       .finally(() => setLoading(false));
-  }, [effectiveTenantSlug, productsApiPath, sharedRequestOptions, isAdmin]);
+  }, [effectiveTenantSlug, productsApiPath, sharedRequestOptions, isAdmin, tenant, user]);
 
   useEffect(() => {
     const normalizedCategory = selectedCategory.trim().toLowerCase();

@@ -60,6 +60,7 @@ import {
   exportMunicipalStatsExcel,
   exportMunicipalStatsPdf,
 } from '@/services/exportService';
+import { MeasuredContainer } from '@/components/analytics/MeasuredContainer';
 
 interface StatItem {
   label: string;
@@ -225,6 +226,14 @@ const CHART_PIE_COLORS = [
   '#facc15',
   '#10b981',
 ];
+
+const SafeResponsiveContainer = ({ children }: { children: React.ReactElement }) => (
+  <MeasuredContainer minWidth={280} minHeight={220} renderWhenVisible className="h-full min-w-0">
+    <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220} debounce={120}>
+      {children}
+    </ResponsiveContainer>
+  </MeasuredContainer>
+);
 
 const RESOLVED_STATUSES = new Set(['Resuelto', 'Cerrado']);
 
@@ -1887,7 +1896,7 @@ export default function MunicipalStats() {
                 <ChartContainer
                   config={{ tickets: { label: 'Tickets', color: '#2563eb' } }}
                 >
-                  <ResponsiveContainer width="100%" height="100%">
+                  <SafeResponsiveContainer>
                     <BarChart
                       data={data.categoryBreakdown.map((item) => ({
                         name: item.name,
@@ -1905,7 +1914,7 @@ export default function MunicipalStats() {
                         radius={4}
                       />
                     </BarChart>
-                  </ResponsiveContainer>
+                  </SafeResponsiveContainer>
                 </ChartContainer>
               </div>
             </CardContent>
@@ -1920,7 +1929,7 @@ export default function MunicipalStats() {
             <CardContent>
               <div className="h-80">
                 <ChartContainer config={{ estados: { label: 'Estado' } }}>
-                  <ResponsiveContainer width="100%" height="100%">
+                  <SafeResponsiveContainer>
                     <PieChart>
                       <Pie
                         data={data.statusBreakdown}
@@ -1943,7 +1952,7 @@ export default function MunicipalStats() {
                       <Tooltip />
                       <Legend />
                     </PieChart>
-                  </ResponsiveContainer>
+                  </SafeResponsiveContainer>
                 </ChartContainer>
               </div>
             </CardContent>
@@ -1962,7 +1971,7 @@ export default function MunicipalStats() {
                 <ChartContainer
                   config={{ tickets: { label: 'Tickets', color: '#0ea5e9' } }}
                 >
-                  <ResponsiveContainer width="100%" height="100%">
+                  <SafeResponsiveContainer>
                     <BarChart
                       data={data.priorityBreakdown.map((item) => ({
                         name: item.name,
@@ -1980,7 +1989,7 @@ export default function MunicipalStats() {
                         radius={4}
                       />
                     </BarChart>
-                  </ResponsiveContainer>
+                  </SafeResponsiveContainer>
                 </ChartContainer>
               </div>
             </CardContent>
@@ -1997,7 +2006,7 @@ export default function MunicipalStats() {
                 <ChartContainer
                   config={{ tickets: { label: 'Tickets', color: '#f97316' } }}
                 >
-                  <ResponsiveContainer width="100%" height="100%">
+                  <SafeResponsiveContainer>
                     <BarChart
                       data={data.channelBreakdown.map((item) => ({
                         name: item.name,
@@ -2015,7 +2024,7 @@ export default function MunicipalStats() {
                         radius={4}
                       />
                     </BarChart>
-                  </ResponsiveContainer>
+                  </SafeResponsiveContainer>
                 </ChartContainer>
               </div>
             </CardContent>
@@ -2043,7 +2052,7 @@ export default function MunicipalStats() {
                   reabiertos: { label: 'Reabiertos', color: '#f59e0b' },
                 }}
               >
-                <ResponsiveContainer width="100%" height="100%">
+                <SafeResponsiveContainer>
                   <LineChart data={data.monthlyTrend}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="label" />
@@ -2079,7 +2088,7 @@ export default function MunicipalStats() {
                       dot={false}
                     />
                   </LineChart>
-                </ResponsiveContainer>
+                </SafeResponsiveContainer>
               </ChartContainer>
             </div>
           </CardContent>
@@ -2131,7 +2140,7 @@ export default function MunicipalStats() {
                   <ChartContainer
                     config={{ average: { label: 'Promedio', color: '#0ea5e9' } }}
                   >
-                    <ResponsiveContainer width="100%" height="100%">
+                    <SafeResponsiveContainer>
                       <LineChart data={data.satisfactionTrend}>
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="label" />
@@ -2146,7 +2155,7 @@ export default function MunicipalStats() {
                           dot
                         />
                       </LineChart>
-                    </ResponsiveContainer>
+                    </SafeResponsiveContainer>
                   </ChartContainer>
                 </div>
               ) : null}
@@ -2154,7 +2163,7 @@ export default function MunicipalStats() {
               {data.satisfactionDistribution?.length ? (
                 <div className="h-72">
                   <ChartContainer config={{ distribucion: { label: 'Distribución' } }}>
-                    <ResponsiveContainer width="100%" height="100%">
+                    <SafeResponsiveContainer>
                       <PieChart>
                         <Pie
                           data={data.satisfactionDistribution}
@@ -2179,7 +2188,7 @@ export default function MunicipalStats() {
                         <Tooltip />
                         <Legend />
                       </PieChart>
-                    </ResponsiveContainer>
+                    </SafeResponsiveContainer>
                   </ChartContainer>
                 </div>
               ) : null}
@@ -2253,7 +2262,7 @@ export default function MunicipalStats() {
                 <ChartContainer
                   config={{ tickets: { label: 'Tickets', color: '#9333ea' } }}
                 >
-                  <ResponsiveContainer width="100%" height="100%">
+                  <SafeResponsiveContainer>
                     <BarChart
                       data={data.barrioBreakdown.map((item) => ({
                         name: item.name,
@@ -2271,7 +2280,7 @@ export default function MunicipalStats() {
                         radius={4}
                       />
                     </BarChart>
-                  </ResponsiveContainer>
+                  </SafeResponsiveContainer>
                 </ChartContainer>
               </div>
             </CardContent>
@@ -2290,7 +2299,7 @@ export default function MunicipalStats() {
                 <ChartContainer
                   config={{ avgHours: { label: 'Horas', color: '#14b8a6' } }}
                 >
-                  <ResponsiveContainer width="100%" height="100%">
+                  <SafeResponsiveContainer>
                     <BarChart data={data.categoryResolution}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis
@@ -2308,7 +2317,7 @@ export default function MunicipalStats() {
                         radius={4}
                       />
                     </BarChart>
-                  </ResponsiveContainer>
+                  </SafeResponsiveContainer>
                 </ChartContainer>
               </div>
             </CardContent>
@@ -2328,7 +2337,7 @@ export default function MunicipalStats() {
               <ChartContainer
                 config={{ tickets: { label: 'Tickets', color: '#facc15' } }}
               >
-                <ResponsiveContainer width="100%" height="100%">
+                <SafeResponsiveContainer>
                   <BarChart
                     data={data.backlogAging.map((item) => ({
                       range: item.range,
@@ -2346,7 +2355,7 @@ export default function MunicipalStats() {
                       radius={4}
                     />
                   </BarChart>
-                </ResponsiveContainer>
+                </SafeResponsiveContainer>
               </ChartContainer>
             </div>
           </CardContent>

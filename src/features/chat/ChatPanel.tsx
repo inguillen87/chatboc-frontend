@@ -123,6 +123,24 @@ const leadFieldLabel = (field: ChatLeadCaptureField, index: number) =>
 const isLeadEndpoint = (endpoint?: string | null) =>
   typeof endpoint === 'string' && endpoint.toLowerCase().includes('lead-capture');
 
+const isTechnicalAssistantReply = (response: unknown, replyText?: string | null) => {
+  if (response && typeof response === 'object' && !Array.isArray(response)) {
+    const record = response as Record<string, unknown>;
+    const status = Number(record.status ?? record.status_code ?? record.code);
+    if (Number.isFinite(status) && status >= 400) return true;
+    if (record.error && typeof record.error === 'object') return true;
+  }
+
+  const normalized = String(replyText ?? '').trim().toLowerCase();
+  return [
+    'not found',
+    'method not allowed',
+    'internal server error',
+    'server error',
+    'failed to fetch',
+  ].includes(normalized);
+};
+
 const buildInitialMessages = (context?: ChatPanelContext, initialMessages?: ChatUiMessage[]) => {
   if (initialMessages?.length) return initialMessages;
   if (!context?.welcomeMessage?.trim()) return [];
@@ -394,6 +412,9 @@ function StandaloneChatPanel({
             resolvedContext.tenantSlug,
           );
           const replyText = extractChatBootstrapReplyText(response);
+          if (isTechnicalAssistantReply(response, replyText)) {
+            throw new Error('Respuesta tecnica del runtime de chat demo.');
+          }
           if (!replyText) return;
           setMessages((prev) => [
             ...prev,
@@ -404,13 +425,13 @@ function StandaloneChatPanel({
               timestamp: new Date().toISOString(),
             },
           ]);
-        } catch (err) {
+        } catch {
           setMessages((prev) => [
             ...prev,
             {
               id: `e-${Date.now()}`,
               role: 'system',
-              text: getErrorMessage(err, 'No se pudo completar la conversacion demo.'),
+              text: 'No pudimos enviar la consulta a la demo real. Reintenta en unos minutos.',
               timestamp: new Date().toISOString(),
             },
           ]);

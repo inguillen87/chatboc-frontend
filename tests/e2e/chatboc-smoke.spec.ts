@@ -80,7 +80,7 @@ const mockCommonApis = async (page: import('@playwright/test').Page) => {
     });
   });
 
-  await page.route('**/ask/**', async (route) => {
+  await page.route(/.*\/ask(\/.*)?(\?.*)?$/, async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -108,8 +108,8 @@ test.describe('Chatboc smoke e2e', () => {
 
     await page.goto('/');
 
-    await expect(page.getByRole('heading', { name: /Agentes IA para operar conversaciones/i })).toBeVisible();
-    await expect(page.getByRole('button', { name: /Probar demo/i }).first()).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Converti conversaciones en casos/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Probar reclamo real/i }).first()).toBeVisible();
     expect(realtimeRequests).toEqual([]);
   });
 
@@ -130,7 +130,7 @@ test.describe('Chatboc smoke e2e', () => {
   });
 
   test('demo degrada sin mostrar error crudo cuando falla el chat backend', async ({ page }) => {
-    await page.route('**/ask/**', async (route) => {
+    await page.route(/.*\/ask(\/.*)?(\?.*)?$/, async (route) => {
       await route.fulfill({
         status: 404,
         contentType: 'application/json',
@@ -142,9 +142,9 @@ test.describe('Chatboc smoke e2e', () => {
     await page.getByRole('button', { name: /Colegios/i }).click();
     await page.getByRole('button', { name: /Iniciar demo colegio/i }).click();
     await page.getByPlaceholder(/Escrib/i).last().fill('Necesito justificar una inasistencia');
-    await page.getByRole('button', { name: /Enviar mensaje/i }).click();
+    await page.getByRole('button', { name: /^Enviar$/i }).click();
 
-    await expect(page.getByText(/La demo quedo activa en modo guiado/i)).toBeVisible();
+    await expect(page.getByText(/No pudimos enviar la consulta a la demo real/i)).toBeVisible();
     await expect(page.getByText(/Error 404/i)).toHaveCount(0);
   });
 
@@ -155,8 +155,9 @@ test.describe('Chatboc smoke e2e', () => {
 
     await expect(page.getByText(/Asistente Virtual/i)).toBeVisible();
 
-    const composer = page.getByRole('textbox', { name: /Escribir mensaje/i });
-    const educationSector = page.getByRole('button', { name: /Colegios e instituciones educativas/i });
+    const widget = page.getByRole('region', { name: /Chat widget/i });
+    const composer = widget.getByRole('textbox', { name: /Escribir mensaje/i });
+    const educationSector = widget.getByRole('button', { name: /Colegios/i });
     const composerVisible = await composer.isVisible().catch(() => false);
     const sectorSelectorVisible = await educationSector.isVisible().catch(() => false);
 
@@ -167,8 +168,8 @@ test.describe('Chatboc smoke e2e', () => {
       await expect(page.getByRole('button', { name: /Probar llamada IA/i })).toBeVisible();
     } else {
       await expect(educationSector).toBeVisible();
-      await expect(page.getByRole('button', { name: /Empresas y comercios/i })).toBeVisible();
-      await expect(page.getByRole('button', { name: /Gobiernos y sector publico/i })).toBeVisible();
+      await expect(widget.getByRole('button', { name: /Empresas/i })).toBeVisible();
+      await expect(widget.getByRole('button', { name: /Gobiernos/i })).toBeVisible();
     }
   });
 });

@@ -30,7 +30,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useTenant } from "@/context/TenantContext";
-import { getErrorMessage } from "@/utils/api";
+import { ApiError, getErrorMessage } from "@/utils/api";
 
 type AnyRecord = Record<string, any>;
 
@@ -47,9 +47,17 @@ const MODULE_ICONS: Record<string, React.ElementType> = {
 
 const USER_PORTAL_MODULE_IDS = new Set([
   "portal",
+  "portal_user",
+  "portal_usuario",
+  "portal_cliente",
+  "portal_vecino",
+  "user-portal",
   "user_portal",
+  "client-portal",
   "client_portal",
+  "customer-portal",
   "customer_portal",
+  "neighbor-portal",
   "neighbor_portal",
 ]);
 
@@ -144,6 +152,15 @@ const renderRecordValue = (value: unknown) => {
   return String(value);
 };
 
+const cleanOperationalError = (error: unknown) => {
+  const message = getErrorMessage(error, "No se pudo cargar el perfil operativo del tenant.");
+  const cleanMessage = /<html|<body|internal server error/i.test(message)
+    ? "El perfil operativo del tenant no pudo cargarse desde el servidor."
+    : message;
+  const requestId = error instanceof ApiError ? error.requestId : undefined;
+  return requestId ? `${cleanMessage} Request ID: ${requestId}` : cleanMessage;
+};
+
 export default function TenantAdminOperatingSystem({ tenantSlug }: { tenantSlug?: string | null }) {
   const { currentSlug } = useTenant();
   const effectiveSlug = tenantSlug || currentSlug;
@@ -159,10 +176,8 @@ export default function TenantAdminOperatingSystem({ tenantSlug }: { tenantSlug?
     try {
       const response = await getTenantAdminExperienceV2(effectiveSlug);
       setBundle(response);
-      const firstModule = response.modules[0]?.id;
-      setActiveModule(typeof firstModule === "string" ? firstModule : "summary");
     } catch (err) {
-      setError(getErrorMessage(err, "No se pudo cargar el perfil operativo del tenant."));
+      setError(cleanOperationalError(err));
       setBundle(null);
     } finally {
       setLoading(false);
@@ -212,6 +227,15 @@ export default function TenantAdminOperatingSystem({ tenantSlug }: { tenantSlug?
     if (hasWhatsappExperience) return [{ id: "widget_whatsapp", label: "Widget/WhatsApp/Voz" }];
     return [{ id: "summary", label: "Resumen" }];
   }, [bundle, hasWhatsappExperience]);
+
+  useEffect(() => {
+    if (!modules.length) return;
+    const selectedStillExists = modules.some((module) => String(module.id || "") === activeModule);
+    if (!selectedStillExists) {
+      const firstModule = modules[0]?.id;
+      setActiveModule(typeof firstModule === "string" ? firstModule : "summary");
+    }
+  }, [activeModule, modules]);
 
   const readinessChecks = isRecord(readiness.checks) ? readiness.checks : {};
   const freshnessStatus = String(freshness.status || first(freshness, ["state", "reason_code"]) || "ready");

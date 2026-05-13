@@ -110,6 +110,26 @@ const resolvePreviewIcon = (value?: string | null) => {
   return match?.[1] ?? FileText;
 };
 
+const isTechnicalChatFailure = (response: unknown, replyText?: string | null) => {
+  if (response && typeof response === 'object' && !Array.isArray(response)) {
+    const record = response as Record<string, unknown>;
+    const status = Number(record.status ?? record.status_code ?? record.code);
+    if (Number.isFinite(status) && status >= 400) return true;
+    if (record.error && typeof record.error === 'object') return true;
+    const reason = String(record.reason_code ?? record.error_code ?? '').trim().toLowerCase();
+    if (reason && (reason.includes('error') || reason.includes('not_found'))) return true;
+  }
+
+  const normalizedReply = String(replyText ?? '').trim().toLowerCase();
+  return [
+    'not found',
+    'method not allowed',
+    'internal server error',
+    'server error',
+    'failed to fetch',
+  ].includes(normalizedReply);
+};
+
 const normalizePreviewModules = (preview: DemoAdminPreviewResponse | null) => {
   const modules = Array.isArray(preview?.modules) ? preview.modules : [];
   return modules
@@ -394,6 +414,9 @@ const Demo = () => {
 
         setContexto((response as any)?.contexto_actualizado || {});
         const respuestaText = response.respuesta_usuario || "No recibimos una respuesta para esta consulta.";
+        if (isTechnicalChatFailure(response, respuestaText)) {
+          throw new Error('Respuesta tecnica del runtime de chat demo.');
+        }
         const botones = extractButtonsFromResponse(response);
 
         const botMessage: Message = {
@@ -638,6 +661,9 @@ const Demo = () => {
         setContexto((response as any)?.contexto_actualizado || {});
 
         const respuestaText = response.respuesta_usuario || "No recibimos una respuesta para esta consulta.";
+        if (isTechnicalChatFailure(response, respuestaText)) {
+          throw new Error('Respuesta tecnica del runtime de chat demo.');
+        }
         const botones = extractButtonsFromResponse(response);
 
         const botMessage: Message = {

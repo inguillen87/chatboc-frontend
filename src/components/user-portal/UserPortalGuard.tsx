@@ -4,6 +4,7 @@ import { Loader2 } from 'lucide-react';
 
 import { useUser } from '@/hooks/useUser';
 import { getValidStoredToken } from '@/utils/authTokens';
+import { isBackofficeRole } from '@/utils/roles';
 
 interface Props {
   children: React.ReactElement;
@@ -34,7 +35,6 @@ const UserPortalGuard: React.FC<Props> = ({ children, allowGuestPaths }) => {
   });
 
   const canBypassAuth = isGuestAllowed && !hasAnyToken;
-  console.log('[UserPortalGuard]', { pathname: location.pathname, isGuestAllowed, allowGuestPaths, hasAnyToken, user: !!user });
 
   if (loading && !canBypassAuth) {
     return (
@@ -54,6 +54,16 @@ const UserPortalGuard: React.FC<Props> = ({ children, allowGuestPaths }) => {
       <Navigate
         to="/user/login"
         state={{ redirectTo: location.pathname + location.search }}
+        replace
+      />
+    );
+  }
+
+  if (isBackofficeRole(user.rol)) {
+    return (
+      <Navigate
+        to="/perfil"
+        state={{ blockedPortalPath: location.pathname + location.search }}
         replace
       />
     );

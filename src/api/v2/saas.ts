@@ -1073,13 +1073,14 @@ export const getTenantAdminExperienceV2 = async (tenantSlug?: string | null) => 
   try {
     response = await panelApi.get<unknown>(
       encoded ? `/api/v2/tenants/${encoded}/admin-experience` : '/api/v2/tenant/admin-experience',
-      { tenantSlug, baseUrlOverride: SAME_ORIGIN_API_BASE },
+      { tenantSlug, baseUrlOverride: SAME_ORIGIN_API_BASE, headers: { Accept: 'application/json' } },
     );
   } catch (error) {
     if (!shouldFallbackEndpoint(error) || encoded) throw error;
     response = await panelApi.get<unknown>('/api/v2/tenant/admin-experience', {
       tenantSlug,
       baseUrlOverride: SAME_ORIGIN_API_BASE,
+      headers: { Accept: 'application/json' },
     });
   }
   return normalizeTenantAdminExperienceV2(response);
