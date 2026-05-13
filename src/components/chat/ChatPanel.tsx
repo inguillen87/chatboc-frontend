@@ -746,6 +746,23 @@ const ChatPanel = (props: ChatPanelProps) => {
     commerceSession?.cart?.items_count,
     cartCount,
   );
+  const portalDestinationAvailable = Boolean(
+    readFirstString(
+      commerceSession?.portal?.history_endpoint,
+      commerceSession?.history?.endpoint,
+      commerceSession?.history?.history_endpoint,
+      commerceSession?.portal?.url,
+      commerceSession?.portal?.view_url,
+    ),
+  );
+  const commercePrimaryActions = commerceSession?.frontend_contract?.primary_actions;
+  const portalRequestedByContract =
+    Array.isArray(commercePrimaryActions) && commercePrimaryActions.includes("portal");
+  const portalEnabledFlag = commerceSession?.portal?.enabled;
+  const portalEnabled =
+    portalEnabledFlag === undefined || portalEnabledFlag === null
+      ? portalRequestedByContract
+      : readBackendFlag(portalEnabledFlag, false);
   const widgetCommerceActions = useMemo(() => {
     if (!isEmbeddedCommerceWidget) {
       return [] as Array<{
@@ -817,10 +834,8 @@ const ChatPanel = (props: ChatPanelProps) => {
     }
 
     if (
-      readBackendFlag(
-        commerceSession?.portal?.enabled,
-        Boolean(commerceSession?.portal?.history_endpoint || commerceSession?.portal?.url),
-      ) &&
+      portalEnabled &&
+      portalDestinationAvailable &&
       onOpenPortal
     ) {
       actions.push({
@@ -843,6 +858,8 @@ const ChatPanel = (props: ChatPanelProps) => {
     commerceSession?.cart,
     commerceSession?.catalog,
     commerceSession?.portal,
+    portalDestinationAvailable,
+    portalEnabled,
     isEmbeddedCommerceWidget,
     onCart,
     onOpenCatalog,

@@ -1273,13 +1273,32 @@ function ChatWidgetInner({
     const slug = sanitizeTenantSlug(commerceTenantSlug) ?? activeDemoTenantSlug ?? resolvedTenantSlug ?? storedTenant;
     const authToken = authTokenState ?? safeLocalStorage.getItem("authToken") ?? safeLocalStorage.getItem("chatAuthToken");
     const hasSession = Boolean(authToken && user);
+    const portalUrl = readFirstString(widgetCommerceSession?.portal?.url, widgetCommerceSession?.portal?.view_url);
+    const portalHistoryEndpoint = readFirstString(
+      widgetCommerceSession?.portal?.history_endpoint,
+      widgetCommerceSession?.history?.endpoint,
+      widgetCommerceSession?.history?.history_endpoint,
+    );
+    const primaryActions = widgetCommerceSession?.frontend_contract?.primary_actions;
+    const portalRequestedByContract =
+      Array.isArray(primaryActions) && primaryActions.includes("portal");
+    const portalEnabledFlag = widgetCommerceSession?.portal?.enabled;
+    const portalEnabled =
+      portalEnabledFlag === undefined || portalEnabledFlag === null
+        ? portalRequestedByContract
+        : readOptionalBoolean(portalEnabledFlag, false);
+    const hasPortalDestination = Boolean(portalUrl || portalHistoryEndpoint);
 
-    if (!slug) {
-      openUserPanel();
+    if (!slug || !portalEnabled || !hasPortalDestination) {
+      toast.error("El portal de usuario no esta disponible para esta sesion.");
       return;
     }
 
-    if (!hasSession) {
+    const requiresAccount =
+      readOptionalBoolean(widgetCommerceSession?.portal?.requires_auth, false) ||
+      readOptionalBoolean(widgetCommerceSession?.portal?.requires_login, false);
+
+    if (requiresAccount && !hasSession) {
       setPendingRedirect("portal");
       setView("login");
       setIsOpen(true);
@@ -1287,9 +1306,9 @@ function ChatWidgetInner({
     }
 
     const destination =
-      readFirstString(widgetCommerceSession?.portal?.url, widgetCommerceSession?.portal?.view_url) ||
+      portalUrl ||
       buildTenantNavigationUrl({
-        basePath: "/portal",
+        basePath: "/portal/dashboard",
         tenantSlug: slug,
         tenant,
         fallbackQueryParam: "tenant_slug",
@@ -1300,10 +1319,16 @@ function ChatWidgetInner({
     activeDemoTenantSlug,
     authTokenState,
     commerceTenantSlug,
-    openUserPanel,
     resolvedTenantSlug,
     tenant,
     user,
+    widgetCommerceSession?.frontend_contract?.primary_actions,
+    widgetCommerceSession?.history?.endpoint,
+    widgetCommerceSession?.history?.history_endpoint,
+    widgetCommerceSession?.portal?.enabled,
+    widgetCommerceSession?.portal?.history_endpoint,
+    widgetCommerceSession?.portal?.requires_auth,
+    widgetCommerceSession?.portal?.requires_login,
     widgetCommerceSession?.portal?.url,
     widgetCommerceSession?.portal?.view_url,
   ]);

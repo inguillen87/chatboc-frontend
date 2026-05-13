@@ -249,25 +249,24 @@ const userPortalRoutes: RouteConfig[] = [
     userPortal: true,
     allowGuest: true,
   },
-  // Added required generic routes for navigation fallbacks
+];
+
+const publicLegacyRoutes: RouteConfig[] = [
   {
     path: '/noticias/eventos',
-    element: <UserEventsPage />,
-    userPortal: true,
-    allowGuest: true
+    element: <TenantEventsPage />,
+    allowGuest: true,
   },
   {
     path: '/noticias/encuestas',
-    element: <UserSurveysPage />,
-    userPortal: true,
-    allowGuest: true
+    element: <PublicSurveysIndex />,
+    allowGuest: true,
   },
   {
     path: '/municipio/reclamos/nuevo',
     element: <TenantTicketFormPage />,
-    userPortal: true,
-    allowGuest: true
-  }
+    allowGuest: true,
+  },
 ];
 
 // Generar rutas con prefijo de tenant para el portal
@@ -383,6 +382,7 @@ const routes: RouteConfig[] = [
   ...userPortalRoutes,
   ...canonicalTenantPortalRoutes,
   ...tenantPortalRoutes,
+  ...publicLegacyRoutes,
 
   // --- GENERIC / FALLBACK ROUTES ---
 
@@ -431,7 +431,7 @@ const routes: RouteConfig[] = [
   { path: '/perfil', element: <Perfil /> },
   { path: '/enterprise', element: <EnterpriseOpsPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
   { path: '/bot-settings', element: <BotSettingsEnterprise />, roles: ['tenant_admin', 'tenant_admin', 'superadmin'] },
-  { path: '/perfil/pedidos', element: <Navigate to="/portal/pedidos" replace /> },
+  { path: '/perfil/pedidos', element: <Navigate to="/pedidos" replace /> },
   { path: '/chat', element: <ChatPage /> },
   { path: '/chat/:ticketId', element: <TicketLookup /> },
   { path: '/checkout', element: <Checkout /> },
@@ -469,8 +469,7 @@ const routes: RouteConfig[] = [
   {
     path: '/usuarios',
     element: <UsuariosPage />,
-    roles: ['tenant_admin', 'employee', 'superadmin'],
-    requiredCapabilities: ['settings.tenant.write'],
+    roles: ['tenant_admin', 'superadmin'],
   },
   { path: '/notifications', element: <NotificationSettings /> },
   { path: '/ticket', element: <TicketLookup /> },
@@ -546,7 +545,6 @@ const routes: RouteConfig[] = [
     path: '/empleados',
     element: <InternalUsers />,
     roles: ['tenant_admin', 'superadmin'],
-    requiredCapabilities: ['employees.read', 'tenant.employees.read', 'employees.write', 'tenant.employees.write'],
   },
 
   {

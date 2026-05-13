@@ -371,3 +371,54 @@ Reglas:
 - Si el backend no manda `action`, frontend no muestra resultado.
 - Si no hay `workflow_steps`, frontend no muestra pasos.
 - No usar textos tecnicos visibles para cliente.
+
+## Delta portal usuario vs admin tenant 2026-05-13
+
+Objetivo: separar el portal de usuario del panel admin. El portal no es una seccion operativa del tenant admin; es la experiencia del vecino, cliente, familia o comprador que queda asociado al tenant por WhatsApp, chat widget, compra, reclamo, pedido o encuesta.
+
+Estado frontend:
+
+- Las rutas legacy de noticias/encuestas/reclamos ya no se registran como `userPortal`.
+- `/perfil/pedidos` vuelve al panel admin de pedidos y no redirige al portal.
+- El widget embebido no inventa portal: solo muestra/abre Portal si `widget-commerce-session` publica `portal.enabled` o `frontend_contract.primary_actions` incluye `portal`, y ademas existe `portal.url`, `portal.view_url`, `portal.history_endpoint`, `history.endpoint` o `history.history_endpoint`.
+- El portal se abre como experiencia de usuario asociada. No se usa como modulo del admin tenant.
+
+Pedido backend:
+
+- No publicar Portal dentro de `tenant.admin_experience.v1.modules` ni en menus del backoffice admin.
+- Admin tenant debe recibir modulos operativos: inbox, reclamos/tickets, pedidos, catalogo, encuestas, analytics, empleados, integraciones, WhatsApp y configuracion.
+- Usuario final debe recibir portal desde `GET /api/public/widget-commerce-session` y `GET /api/public/widget-user/tenant-history`, con tenant, anon/chat session y `widget_session_token`.
+- Si el portal no esta disponible para esa sesion, no publicar `primary_actions: ["portal"]` ni `portal.enabled=true`.
+- `GET /api/v2/tenants/{tenant_slug}/admin-experience` no debe responder HTML 500; si falla una fuente, responder JSON con `tenant.admin_experience.v1`, `request_id`, modulos degradados y `health.status`.
+- `GET /api/public/encuestas/v1` y `GET /api/public/encuestas/v1/{slug}` deben responder JSON publico o contrato de no encontrado, no 404 sin contrato para experiencias publicas.
+
+Contrato minimo recomendado para portal de usuario:
+
+```json
+{
+  "contract_version": "public.widget_commerce_session.v1",
+  "frontend_contract": {
+    "render_as": "embedded_tenant_operating_widget",
+    "primary_actions": ["chat", "catalog", "cart", "portal"]
+  },
+  "session": {
+    "widget_session_token": "wst_...",
+    "can_link_account": true
+  },
+  "portal": {
+    "enabled": true,
+    "label": "Mi actividad",
+    "history_endpoint": "/api/public/widget-user/tenant-history",
+    "link_session_endpoint": "/api/public/widget-user/link-session"
+  },
+  "history": {
+    "endpoint": "/api/public/widget-user/tenant-history"
+  }
+}
+```
+
+Reglas:
+
+- Portal es para historial, pedidos, reclamos, encuestas, beneficios y mensajes del usuario final.
+- Admin panel es para operar el tenant; no necesita Portal.
+- No mezclar datos entre tenants: catalogo, carrito e historial deben quedar filtrados por `tenant_slug` + `widget_session_token`/`anon_id`/`chat_session_id`.

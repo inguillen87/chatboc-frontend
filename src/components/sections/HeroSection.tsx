@@ -29,28 +29,6 @@ interface HeroSectionProps {
   experience?: LandingExperience | null;
 }
 
-const defaultProofItems = [
-  "Web, WhatsApp y panel en una sola operacion",
-  "Reclamos, pedidos, encuestas y leads con seguimiento",
-  "Texto, voz, imagenes, archivos, ubicacion y llamadas cuando el canal lo permite",
-];
-
-const defaultDashboardRows = [
-  { label: "Conversaciones", value: "Entendidas", detail: "web + WhatsApp", tone: "bg-emerald-500" },
-  { label: "Casos", value: "Ordenados", detail: "prioridad y cola", tone: "bg-amber-500" },
-  { label: "Ventas", value: "Seguibles", detail: "carrito + contacto", tone: "bg-sky-500" },
-];
-
-const signalRows = [
-  { label: "Encuestas y comentarios", detail: "participacion visible", tone: "bg-primary" },
-  { label: "Reclamos y ubicaciones", detail: "zonas accionables", tone: "bg-emerald-500" },
-  { label: "Pedidos y leads", detail: "seguimiento comercial", tone: "bg-amber-500" },
-];
-
-const defaultHeroHeadline = "Converti cada mensaje en ventas, reclamos resueltos y decisiones claras.";
-const defaultHeroDescription =
-  "Chatboc entiende texto, audios, imagenes, archivos, ubicaciones y llamadas. Crea casos, pedidos, encuestas, mapas y seguimiento para que colegios, gobiernos y pymes operen mejor desde el primer dia.";
-
 const isRecord = (value: unknown): value is AnyRecord =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
@@ -106,10 +84,9 @@ const readItemLabel = (value: unknown, defaultValue = "") => {
 };
 
 const normalizeProofItems = (source: unknown) => {
-  const items = asArray(source)
+  return asArray(source)
     .map((item) => readItemLabel(item))
     .filter(Boolean);
-  return items.length ? items : defaultProofItems;
 };
 
 const normalizeMetrics = (source: unknown) => {
@@ -119,16 +96,16 @@ const normalizeMetrics = (source: unknown) => {
       if (!isRecord(item)) return null;
       const label = readText(item, ["label", "title", "name"]);
       const value = readText(item, ["value", "metric", "count", "score"]);
-      if (!label && !value) return null;
+      if (!label || !value) return null;
       return {
-        label: label || `Metric ${index + 1}`,
-        value: value || "-",
+        label,
+        value,
         detail: readText(item, ["detail", "description", "subtitle"]),
         tone: readText(item, ["tone", "color_class"], tones[index % tones.length]),
       };
     })
-    .filter(Boolean) as typeof defaultDashboardRows;
-  return items.length ? items.slice(0, 3) : defaultDashboardRows;
+    .filter(Boolean) as Array<{ label: string; value: string; detail: string; tone: string }>;
+  return items.slice(0, 3);
 };
 
 const normalizeWorkflowSteps = (source: unknown) =>
@@ -219,7 +196,8 @@ const normalizeDemoInputs = (source: unknown, fallback: ConversationInput[] = []
         return { kind: inferInputKind(label), label };
       }
       if (!isRecord(item)) return null;
-      const label = readText(item, ["label", "title", "name", "text", "mode"], "Entrada");
+      const label = readText(item, ["label", "title", "name", "text", "mode"]);
+      if (!label) return null;
       const rawKind = readRawText(item, ["kind", "type", "mode", "id"], label);
       return { kind: inferInputKind(rawKind), label };
     })
@@ -267,7 +245,6 @@ const normalizeConversationFlows = (source: unknown): ConversationFlow[] => {
       const role = readRawText(item, ["role", "author", "from"]).toLowerCase();
       return role.includes("assistant") || role.includes("agent") || role.includes("bot") || role.includes("chatboc");
     });
-    const threadCopy = threadMessages.map((item) => readText(item, ["text", "message", "content", "copy"])).join(" ");
     const action = normalizeAction(
       first(sourceRecord, ["action", "result", "outcome", "ticket", "order", "case"]),
       first(sourceRecord, ["cta", "primary_cta", "demo_cta"]),
@@ -280,21 +257,11 @@ const normalizeConversationFlows = (source: unknown): ConversationFlow[] => {
     return [
       {
         id: readRawText(sourceRecord, ["id", "key", "slug"], "conversation"),
-        label: readText(sourceRecord, ["label", "title", "name", "tab_label"], "Conversacion"),
+        label: readText(sourceRecord, ["label", "title", "name", "tab_label"]),
         sector: readRawText(sourceRecord, ["sector", "vertical", "mode", "kind"], ""),
         message: readText(firstUser, ["text", "message", "content", "copy"]),
         response: readText(firstAssistant, ["text", "message", "content", "copy"]),
-        inputs: normalizeDemoInputs(first(sourceRecord, ["inputs", "media", "input_modes", "attachments", "capabilities"]), [
-          ...(threadCopy.toLowerCase().includes("foto") || threadCopy.toLowerCase().includes("imagen")
-            ? [{ kind: "image", label: "Imagen" }]
-            : []),
-          ...(threadCopy.toLowerCase().includes("ubicaci")
-            ? [{ kind: "location", label: "Ubicacion" }]
-            : []),
-          ...(threadCopy.toLowerCase().includes("audio") || threadCopy.toLowerCase().includes("voz")
-            ? [{ kind: "audio", label: "Audio" }]
-            : []),
-        ]),
+        inputs: normalizeDemoInputs(first(sourceRecord, ["inputs", "media", "input_modes", "attachments", "capabilities"])),
         action,
         highlights,
         tone: readText(sourceRecord, ["tone", "color_class"], "bg-primary"),
@@ -311,7 +278,7 @@ const normalizeConversationFlows = (source: unknown): ConversationFlow[] => {
       const cta = isRecord(first(item, ["cta", "primary_cta", "demo_cta"]))
         ? (first(item, ["cta", "primary_cta", "demo_cta"]) as AnyRecord)
         : {};
-      const label = readText(item, ["label", "title", "name", "sector_label", "tab_label"], `Demo ${index + 1}`);
+      const label = readText(item, ["label", "title", "name", "sector_label", "tab_label"]);
       const sector = readRawText(item, ["sector", "vertical", "mode", "kind"], "");
       const id = readRawText(item, ["id", "key", "slug"], sector || label || `demo-${index + 1}`)
         .toLowerCase()
@@ -383,17 +350,9 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
   const tokens = isRecord(experience?.tokens) ? experience.tokens : {};
   const colors = isRecord(first(tokens, ["colors", "palette"])) ? (first(tokens, ["colors", "palette"]) as AnyRecord) : {};
 
-  const heroHeadline = readText(
-    hero,
-    ["headline", "title", "heading", "h1"],
-    defaultHeroHeadline,
-  );
-  const headline = isBrandOnlyHeadline(heroHeadline) ? defaultHeroHeadline : heroHeadline;
-  const description = readText(
-    hero,
-    ["subheadline", "subtitle", "description", "copy", "body"],
-    defaultHeroDescription,
-  );
+  const heroHeadline = readText(hero, ["headline", "title", "heading", "h1"]);
+  const headline = isBrandOnlyHeadline(heroHeadline) ? readText(hero, ["value_prop", "main_copy"]) : heroHeadline;
+  const description = readText(hero, ["subheadline", "subtitle", "description", "copy", "body"]);
 
   const proofItems = normalizeProofItems(
     first(hero, ["proof_items", "trust_signals", "proof", "badges"]) ?? experience?.proof_bar,
@@ -403,19 +362,15 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
   );
   const workflowSteps = normalizeWorkflowSteps(first(hero, ["workflow_steps", "agent_steps", "steps", "process_steps"]));
   const primaryCta = normalizeCta(first(hero, ["primary_cta", "primaryCta"]) ?? asArray(experience?.ctas)[0], {
-    label: "Ver demo por rubro",
-    target: "/demo",
+    label: "",
+    target: "",
   });
   const secondaryCta = normalizeCta(first(hero, ["secondary_cta", "secondaryCta"]) ?? asArray(experience?.ctas)[1], {
-    label: "Quiero verlo para mi organizacion",
-    target: "/register",
+    label: "",
+    target: "",
   });
-  const previewTitle = readText(hero, ["preview_title", "dashboard_title"], "Centro de operaciones");
-  const previewCopy = readText(
-    hero,
-    ["preview_copy", "dashboard_description"],
-    "Vista compacta para equipos que atienden, venden y resuelven.",
-  );
+  const previewTitle = readText(hero, ["preview_title", "dashboard_title"]);
+  const previewCopy = readText(hero, ["preview_copy", "dashboard_description"]);
   const conversationFlows = useMemo(
     () => {
       const experienceRecord = isRecord(experience) ? (experience as AnyRecord) : undefined;
@@ -445,6 +400,9 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
   const activeAction = activeFlow?.action;
   const ActiveFlowIcon = activeFlow ? getFlowIcon(activeFlow) : Bot;
   const ActiveActionIcon = activeAction ? getActionIcon(activeAction.label) : ClipboardCheck;
+  const actionSectionLabel = readText(hero, ["action_section_label", "result_label"]);
+  const agentTitle = readText(hero, ["agent_title"]);
+  const agentSubtitle = readText(hero, ["agent_subtitle"]);
   const heroPrimaryCta = {
     label: activeAction?.ctaLabel || primaryCta.label,
     target: activeAction?.ctaTarget || primaryCta.target,
@@ -468,45 +426,57 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
       <div className="container mx-auto px-4">
         <div className="grid items-center gap-10 lg:grid-cols-[0.92fr_1.08fr]">
           <div className="max-w-3xl">
-            <h1 className="text-4xl font-bold leading-[1.03] tracking-normal text-foreground sm:text-5xl md:text-6xl xl:text-7xl">
-              {headline}
-            </h1>
+            {headline && (
+              <h1 className="text-4xl font-bold leading-[1.03] tracking-normal text-foreground sm:text-5xl md:text-6xl xl:text-7xl">
+                {headline}
+              </h1>
+            )}
 
-            <p className="mt-6 max-w-2xl text-lg leading-8 text-muted-foreground md:text-xl">
-              {description}
-            </p>
+            {description && (
+              <p className="mt-6 max-w-2xl text-lg leading-8 text-muted-foreground md:text-xl">
+                {description}
+              </p>
+            )}
 
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <Button
-                size="lg"
-                className="chatboc-cta-primary h-12 w-full rounded-[8px] px-6 text-base font-semibold sm:w-auto"
-                onClick={() => navigateTo(heroPrimaryCta.target)}
-              >
-                <Zap className="mr-2 h-5 w-5" />
-                {heroPrimaryCta.label}
-              </Button>
-              <Button
-                variant="outline"
-                size="lg"
-                className="h-12 w-full rounded-[8px] border-border/80 bg-background/70 px-6 text-base font-semibold shadow-sm backdrop-blur hover:border-primary/40 hover:bg-primary/5 sm:w-auto"
-                onClick={() => navigateTo(secondaryCta.target)}
-              >
-                {secondaryCta.label}
-                <ArrowRight className="ml-2 h-5 w-5" />
-              </Button>
-            </div>
+            {(heroPrimaryCta.label || secondaryCta.label) && (
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                {heroPrimaryCta.label && (
+                  <Button
+                    size="lg"
+                    className="chatboc-cta-primary h-12 w-full rounded-[8px] px-6 text-base font-semibold sm:w-auto"
+                    onClick={() => navigateTo(heroPrimaryCta.target)}
+                  >
+                    <Zap className="mr-2 h-5 w-5" />
+                    {heroPrimaryCta.label}
+                  </Button>
+                )}
+                {secondaryCta.label && (
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    className="h-12 w-full rounded-[8px] border-border/80 bg-background/70 px-6 text-base font-semibold shadow-sm backdrop-blur hover:border-primary/40 hover:bg-primary/5 sm:w-auto"
+                    onClick={() => navigateTo(secondaryCta.target)}
+                  >
+                    {secondaryCta.label}
+                    <ArrowRight className="ml-2 h-5 w-5" />
+                  </Button>
+                )}
+              </div>
+            )}
 
-            <div className="mt-8 grid gap-3 sm:grid-cols-3">
-              {proofItems.slice(0, 3).map((item) => (
-                <div
-                  key={item}
-                  className="flex items-start gap-2 rounded-[8px] border border-border/60 bg-background/70 px-3 py-3 text-sm text-muted-foreground backdrop-blur"
-                >
-                  <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-success" />
-                  <span>{item}</span>
-                </div>
-              ))}
-            </div>
+            {proofItems.length > 0 && (
+              <div className="mt-8 grid gap-3 sm:grid-cols-3">
+                {proofItems.slice(0, 3).map((item) => (
+                  <div
+                    key={item}
+                    className="flex items-start gap-2 rounded-[8px] border border-border/60 bg-background/70 px-3 py-3 text-sm text-muted-foreground backdrop-blur"
+                  >
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-success" />
+                    <span>{item}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="relative">
@@ -514,15 +484,18 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
             <div className="chatboc-command-shell chatboc-dashboard-scan overflow-hidden">
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 bg-muted/40 px-4 py-3">
                 <div>
-                  <p className="text-sm font-semibold text-foreground">{previewTitle}</p>
-                  <p className="text-xs text-muted-foreground">{previewCopy}</p>
+                  {previewTitle && <p className="text-sm font-semibold text-foreground">{previewTitle}</p>}
+                  {previewCopy && <p className="text-xs text-muted-foreground">{previewCopy}</p>}
                 </div>
-                <div className="chatboc-live-chip rounded-[8px] bg-success/10 px-3 py-1.5 text-xs font-semibold text-success">
-                  {readText(hero, ["status_label", "preview_status"], "Operando")}
-                </div>
+                {readText(hero, ["status_label", "preview_status"]) && (
+                  <div className="chatboc-live-chip rounded-[8px] bg-success/10 px-3 py-1.5 text-xs font-semibold text-success">
+                    {readText(hero, ["status_label", "preview_status"])}
+                  </div>
+                )}
               </div>
 
               <div className="grid gap-5 p-4 md:p-5 xl:grid-cols-[1.02fr_0.98fr]">
+                {activeFlow && (
                 <div className="relative overflow-hidden rounded-[16px] border border-border/70 bg-background/80 p-4 shadow-sm">
                   <div className="absolute inset-x-0 top-0 h-24 bg-[linear-gradient(90deg,hsl(var(--primary)/0.18),hsl(var(--success)/0.12),transparent)]" />
                   <div className="relative flex items-center gap-3">
@@ -601,6 +574,7 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
                     </div>
                   </div>
                 </div>
+                )}
 
                 <div className="space-y-4">
                   {activeAction && (
@@ -611,9 +585,11 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
                             <ActiveActionIcon className="h-5 w-5" />
                           </div>
                           <div>
-                            <p className="text-xs font-semibold uppercase tracking-normal text-muted-foreground">
-                              {readText(hero, ["action_section_label", "result_label"], "Resultado")}
-                            </p>
+                            {actionSectionLabel && (
+                              <p className="text-xs font-semibold uppercase tracking-normal text-muted-foreground">
+                                {actionSectionLabel}
+                              </p>
+                            )}
                             <p className="text-lg font-bold text-foreground">{activeAction.label}</p>
                           </div>
                         </div>
@@ -646,14 +622,12 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
                   {workflowSteps.length > 0 && (
                     <div className="rounded-[16px] border border-border/70 bg-background/80 p-4 shadow-sm">
                       <div className="mb-4 flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-semibold text-foreground">
-                            {readText(hero, ["agent_title"], "Agente IA operativo")}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {readText(hero, ["agent_subtitle"], "Responde, deriva y registra contexto")}
-                          </p>
-                        </div>
+                        {(agentTitle || agentSubtitle) && (
+                          <div>
+                            {agentTitle && <p className="text-sm font-semibold text-foreground">{agentTitle}</p>}
+                            {agentSubtitle && <p className="text-xs text-muted-foreground">{agentSubtitle}</p>}
+                          </div>
+                        )}
                         <span className={`h-2.5 w-2.5 rounded-full ${activeFlow?.tone || "bg-primary"}`} />
                       </div>
 
@@ -678,26 +652,18 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
                 </div>
               </div>
 
-              <div className="grid gap-0 border-t border-border/70 md:grid-cols-3">
-                {dashboardRows.map((row) => (
-                  <div key={row.label} className="border-b border-border/70 p-4 md:border-b-0 md:border-r last:md:border-r-0">
-                    <div className={`mb-3 h-1.5 w-10 rounded-full ${row.tone}`} />
-                    <p className="text-xs text-muted-foreground">{row.label}</p>
-                    <p className="mt-1 text-xl font-bold text-foreground">{row.value}</p>
-                    <p className="mt-1 text-[11px] text-muted-foreground">{row.detail}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="mt-4 grid gap-3 sm:grid-cols-3">
-              {signalRows.map((row) => (
-                <div key={row.label} className="rounded-[8px] border border-border/70 bg-background/70 px-3 py-3 backdrop-blur">
-                  <span className={`mb-2 block h-1.5 w-8 rounded-full ${row.tone}`} />
-                  <p className="text-xs font-semibold text-foreground">{row.label}</p>
-                  <p className="mt-1 text-[11px] text-muted-foreground">{row.detail}</p>
+              {dashboardRows.length > 0 && (
+                <div className="grid gap-0 border-t border-border/70 md:grid-cols-3">
+                  {dashboardRows.map((row) => (
+                    <div key={row.label} className="border-b border-border/70 p-4 md:border-b-0 md:border-r last:md:border-r-0">
+                      <div className={`mb-3 h-1.5 w-10 rounded-full ${row.tone}`} />
+                      <p className="text-xs text-muted-foreground">{row.label}</p>
+                      <p className="mt-1 text-xl font-bold text-foreground">{row.value}</p>
+                      {row.detail && <p className="mt-1 text-[11px] text-muted-foreground">{row.detail}</p>}
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
             </div>
           </div>
         </div>
