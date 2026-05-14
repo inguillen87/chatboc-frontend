@@ -137,6 +137,24 @@ const readFirstString = (...values: unknown[]) => {
   return "";
 };
 
+const readStoredLeadContact = () => {
+  try {
+    const storedUser = JSON.parse(safeLocalStorage.getItem("user") || "null");
+    return {
+      name: readFirstString(storedUser?.name, storedUser?.nombre),
+      email: readFirstString(storedUser?.email),
+      phone: readFirstString(
+        storedUser?.telefono,
+        storedUser?.phone,
+        storedUser?.whatsapp,
+        storedUser?.celular,
+      ),
+    };
+  } catch {
+    return { name: "", email: "", phone: "" };
+  }
+};
+
 const readFirstNumber = (...values: unknown[]) => {
   for (const value of values) {
     if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -2430,6 +2448,35 @@ const ChatPanel = (props: ChatPanelProps) => {
         (effectiveLeadCapture?.fields?.length ?? 0) === 0;
 
       if (shouldPostLead) {
+        const storedContact = readStoredLeadContact();
+        const actionPayload = action.payload ?? {};
+        const leadName = readFirstString(actionPayload.nombre, actionPayload.name, storedContact.name);
+        const leadEmail = readFirstString(actionPayload.email, storedContact.email);
+        const leadPhone = readFirstString(
+          actionPayload.telefono,
+          actionPayload.phone,
+          actionPayload.whatsapp,
+          storedContact.phone,
+        );
+
+        if (!leadName && !leadEmail && !leadPhone) {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `lead-request-${Date.now()}`,
+              text: "Para guardar el seguimiento, decime tu nombre y un WhatsApp o email.",
+              isBot: true,
+              timestamp: new Date(),
+              data: {
+                fuente: "demo_lead_capture",
+                pedir_info: "nombre",
+                trigger: action.intent || action.id || "lead_capture",
+              },
+            },
+          ]);
+          return;
+        }
+
         try {
           const chatSessionId = getOrCreateChatSessionId();
           const anonId = getOrCreateAnonId();
@@ -2454,6 +2501,9 @@ const ChatPanel = (props: ChatPanelProps) => {
               source: "widget_chat",
               trigger,
               idempotency_key: idempotencyKey,
+              name: leadName || undefined,
+              email: leadEmail || undefined,
+              phone: leadPhone || undefined,
               fields: {},
               intent: action.intent ?? undefined,
               cta_id: action.id,

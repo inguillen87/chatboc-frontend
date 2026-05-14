@@ -149,6 +149,24 @@ const readRawText = (record: AnyRecord | undefined | null, keys: string[], defau
   return defaultValue;
 };
 
+const DEFAULT_HEADLINE = "Converti conversaciones en operaciones reales";
+const DEFAULT_DESCRIPTION =
+  "Chatboc atiende por web o WhatsApp, pide los datos justos y deja casos, pedidos o leads listos para operar.";
+
+const normalizeHeroMediaUrl = (raw: string) => {
+  const value = raw.trim();
+  if (!value) return "";
+  if (/^(https?:|data:|blob:)/i.test(value)) return value;
+
+  // Backend can publish static demo hints before the asset exists on the
+  // frontend host. Avoid showing broken images in the first viewport.
+  if (value.startsWith("/static/")) {
+    return "";
+  }
+
+  return value.startsWith("/") ? value : `/${value}`;
+};
+
 const isBrandOnlyHeadline = (value: string) => {
   const normalized = value.toLowerCase().replace(/[^a-z0-9]/g, "");
   return !normalized || normalized === "chatboc" || normalized === "chatbocar";
@@ -244,7 +262,9 @@ const normalizeDemoInputs = (source: unknown, fallback: ConversationInput[] = []
         kind: inferInputKind(rawKind),
         label,
         detail: readText(item, ["detail", "description", "subtitle", "transcript", "summary"]),
-        previewUrl: readRawText(item, ["preview_url", "thumbnail_url", "image_url", "file_url", "url", "src", "href"]),
+        previewUrl: normalizeHeroMediaUrl(
+          readRawText(item, ["preview_url", "thumbnail_url", "image_url", "file_url", "url", "src", "href"]),
+        ),
         address: readText(item, ["address", "direccion", "formatted_address"]),
         lat: readRawText(item, ["lat", "latitude"]),
         lng: readRawText(item, ["lng", "lon", "longitude"]),
@@ -397,6 +417,54 @@ const getActionIcon = (value: string) => {
   return ClipboardCheck;
 };
 
+const HeroInputCard = ({ input }: { input: ConversationInput }) => {
+  const [imageFailed, setImageFailed] = React.useState(false);
+  const [imageReady, setImageReady] = React.useState(false);
+  const InputIcon = getInputIcon(input.kind);
+  const inputKind = inferInputKind(input.kind);
+  const canLoadImage = inputKind === "image" && input.previewUrl && !imageFailed;
+  const showVisualPlaceholder = (inputKind === "image" || inputKind === "file") && (!canLoadImage || imageFailed);
+  const hasLocation = inputKind === "location" && (input.address || input.lat || input.lng);
+
+  return (
+    <div className="chatboc-hero-attachment">
+      <div className="flex items-center gap-2 font-semibold">
+        <InputIcon className="h-4 w-4 text-primary" />
+        <span>{input.label}</span>
+      </div>
+      {canLoadImage && (
+        <img
+          src={input.previewUrl}
+          alt={input.label}
+          className={imageReady ? "mt-2 h-24 w-full rounded-[10px] object-cover" : "hidden"}
+          loading="lazy"
+          onLoad={() => setImageReady(true)}
+          onError={() => {
+            setImageFailed(true);
+            setImageReady(false);
+          }}
+        />
+      )}
+      {showVisualPlaceholder && (
+        <div className="chatboc-hero-attachment__placeholder mt-2">
+          <InputIcon className="h-5 w-5" />
+        </div>
+      )}
+      {hasLocation && (
+        <div className="mt-2 rounded-[10px] border border-primary/15 bg-primary/5 px-2 py-2 text-[11px] leading-5 text-foreground">
+          {input.address && <p>{input.address}</p>}
+          {(input.lat || input.lng) && (
+            <p className="text-muted-foreground">
+              {[input.lat, input.lng].filter(Boolean).join(", ")}
+            </p>
+          )}
+        </div>
+      )}
+      {input.detail && <p className="mt-2 leading-5">{input.detail}</p>}
+    </div>
+  );
+};
+
 const HeroSection = ({ experience }: HeroSectionProps) => {
   const navigate = useNavigate();
 
@@ -405,8 +473,11 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
   const colors = isRecord(first(tokens, ["colors", "palette"])) ? (first(tokens, ["colors", "palette"]) as AnyRecord) : {};
 
   const heroHeadline = readText(hero, ["headline", "title", "heading", "h1"]);
-  const headline = isBrandOnlyHeadline(heroHeadline) ? readText(hero, ["value_prop", "main_copy"]) : heroHeadline;
-  const description = readText(hero, ["subheadline", "subtitle", "description", "copy", "body"]);
+  const headline =
+    (isBrandOnlyHeadline(heroHeadline) ? readText(hero, ["value_prop", "main_copy"]) : heroHeadline) ||
+    DEFAULT_HEADLINE;
+  const description =
+    readText(hero, ["subheadline", "subtitle", "description", "copy", "body"]) || DEFAULT_DESCRIPTION;
 
   const proofItems = normalizeProofItems(
     first(hero, ["proof_items", "trust_signals", "proof", "badges"]) ?? experience?.proof_bar,
@@ -471,6 +542,9 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
     Boolean(activeAction) ||
     activeWorkflowSteps.length > 0 ||
     dashboardRows.length > 0;
+  const headlineWords = headline.split(/\s+/).filter(Boolean);
+  const headlineLead = headlineWords.slice(0, Math.max(2, headlineWords.length - 3)).join(" ");
+  const headlineAccent = headlineWords.slice(Math.max(2, headlineWords.length - 3)).join(" ");
 
   const navigateTo = (target: string) => {
     if (!target) return;
@@ -484,11 +558,12 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
   return (
     <section className="chatboc-hero-grid overflow-hidden pt-20 pb-12 text-foreground md:pt-28 md:pb-16" style={accentStyle}>
       <div className="container mx-auto px-4">
-        <div className={`grid items-center gap-10 ${showHeroPreview ? "lg:grid-cols-[0.92fr_1.08fr]" : ""}`}>
-          <div className="max-w-3xl">
+        <div className={`grid items-center gap-10 ${showHeroPreview ? "lg:grid-cols-[0.9fr_1.1fr]" : ""}`}>
+          <div className="min-w-0 max-w-3xl">
             {headline && (
-              <h1 className="text-4xl font-bold leading-[1.03] tracking-normal text-foreground sm:text-5xl md:text-6xl xl:text-7xl">
-                {headline}
+              <h1 className="chatboc-hero-headline text-4xl font-bold leading-[1.02] tracking-normal text-foreground sm:text-5xl md:text-6xl xl:text-7xl">
+                <span>{headlineLead}</span>{" "}
+                {headlineAccent && <span className="chatboc-hero-headline__accent">{headlineAccent}</span>}
               </h1>
             )}
 
@@ -540,41 +615,38 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
           </div>
 
           {showHeroPreview && (
-          <div className="relative">
+          <div className="relative min-w-0">
             <div className="chatboc-hero-aura" aria-hidden="true" />
-            <div className="chatboc-command-shell chatboc-dashboard-scan overflow-hidden">
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 bg-muted/40 px-4 py-3">
-                <div>
-                  {previewTitle && <p className="text-sm font-semibold text-foreground">{previewTitle}</p>}
-                  {previewCopy && <p className="text-xs text-muted-foreground">{previewCopy}</p>}
-                </div>
-                {readText(hero, ["status_label", "preview_status"]) && (
-                  <div className="chatboc-live-chip rounded-[8px] bg-success/10 px-3 py-1.5 text-xs font-semibold text-success">
-                    {readText(hero, ["status_label", "preview_status"])}
-                  </div>
-                )}
-              </div>
-
-              <div className="grid gap-5 p-4 md:p-5 xl:grid-cols-[1.02fr_0.98fr]">
-                {activeFlow && (
-                <div className="relative overflow-hidden rounded-[16px] border border-border/70 bg-background/80 p-4 shadow-sm">
-                  <div className="absolute inset-x-0 top-0 h-24 bg-[linear-gradient(90deg,hsl(var(--primary)/0.18),hsl(var(--success)/0.12),transparent)]" />
-                  <div className="relative flex items-center gap-3">
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[8px] border border-primary/20 bg-primary/10 text-primary shadow-sm">
-                      <ActiveFlowIcon className="h-5 w-5" />
+            <div className="chatboc-hero-preview">
+              {activeFlow && (
+                <div className="chatboc-phone-demo">
+                  <div className="chatboc-phone-demo__bar">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-primary/20 bg-primary/10 text-primary">
+                        <ActiveFlowIcon className="h-5 w-5" />
+                      </div>
+                      <div className="min-w-0">
+                        {readText(hero, ["conversation_title", "demo_title"], previewTitle) && (
+                          <p className="truncate text-sm font-bold text-foreground">
+                            {readText(hero, ["conversation_title", "demo_title"], previewTitle)}
+                          </p>
+                        )}
+                        {readText(hero, ["conversation_subtitle", "demo_subtitle"], previewCopy) && (
+                          <p className="truncate text-xs text-muted-foreground">
+                            {readText(hero, ["conversation_subtitle", "demo_subtitle"], previewCopy)}
+                          </p>
+                        )}
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-foreground">
-                        {readText(hero, ["conversation_title", "demo_title"], previewTitle)}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {readText(hero, ["conversation_subtitle", "demo_subtitle"], previewCopy)}
-                      </p>
-                    </div>
+                    {readText(hero, ["status_label", "preview_status"]) && (
+                      <div className="chatboc-live-chip shrink-0 rounded-[8px] bg-success/10 px-3 py-1.5 text-xs font-semibold text-success">
+                        {readText(hero, ["status_label", "preview_status"])}
+                      </div>
+                    )}
                   </div>
 
                   {conversationFlows.length > 1 && (
-                    <div className="relative mt-4 flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="demo">
+                    <div className="chatboc-phone-demo__tabs" role="tablist" aria-label="demo">
                       {conversationFlows.map((flow) => {
                         const FlowIcon = getFlowIcon(flow);
                         const isActive = flow.id === activeFlow?.id;
@@ -582,180 +654,139 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
                           <button
                             key={flow.id}
                             type="button"
-                            className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-[8px] border px-3 py-2 text-xs font-semibold transition-colors ${
-                              isActive
-                                ? "border-primary bg-primary text-primary-foreground shadow-sm"
-                                : "border-border/70 bg-card/70 text-muted-foreground hover:border-primary/40 hover:text-foreground"
-                            }`}
+                            className={`chatboc-phone-demo__tab ${isActive ? "chatboc-phone-demo__tab--active" : ""}`}
                             onClick={() => setActiveFlowId(flow.id)}
                           >
                             <FlowIcon className="h-4 w-4" />
-                            {flow.label}
+                            <span>{flow.label}</span>
                           </button>
                         );
                       })}
                     </div>
                   )}
 
-                  <div className="relative mt-5 space-y-4">
+                  <div className="chatboc-phone-demo__screen">
                     <div className="flex justify-end">
-                      <div className="max-w-[86%] rounded-[14px] rounded-tr-[4px] bg-primary px-4 py-3 text-sm leading-6 text-primary-foreground shadow-[0_18px_36px_hsl(var(--primary)/0.20)]">
-                        {activeFlow?.message}
+                      <div className="chatboc-phone-demo__bubble chatboc-phone-demo__bubble--user">
+                        {activeFlow.message}
                       </div>
                     </div>
 
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      {activeFlow?.inputs.map((input) => {
-                        const InputIcon = getInputIcon(input.kind);
-                        const isImageInput = inferInputKind(input.kind) === "image" && input.previewUrl;
-                        const isLocationInput = inferInputKind(input.kind) === "location";
-                        return (
-                          <div
-                            key={`${activeFlow.id}-${input.kind}-${input.label}`}
-                            className="min-h-16 rounded-[8px] border border-border/70 bg-muted/60 p-3 text-xs text-muted-foreground"
-                          >
-                            <div className="flex items-center gap-2 font-semibold">
-                              <InputIcon className="h-4 w-4 text-primary" />
-                              <span>{input.label}</span>
-                            </div>
-                            {isImageInput && (
-                              <img
-                                src={input.previewUrl}
-                                alt=""
-                                aria-hidden="true"
-                                className="mt-2 h-20 w-full rounded-[8px] object-cover"
-                              />
-                            )}
-                            {isLocationInput && (input.address || input.lat || input.lng) && (
-                              <div className="mt-2 rounded-[8px] border border-primary/15 bg-primary/5 px-2 py-2 text-[11px] leading-5 text-foreground">
-                                {input.address && <p>{input.address}</p>}
-                                {(input.lat || input.lng) && (
-                                  <p className="text-muted-foreground">
-                                    {[input.lat, input.lng].filter(Boolean).join(", ")}
-                                  </p>
-                                )}
-                              </div>
-                            )}
-                            {input.detail && <p className="mt-2 leading-5">{input.detail}</p>}
-                          </div>
-                        );
-                      })}
-                    </div>
+                    {activeFlow.inputs.length > 0 && (
+                      <div className="chatboc-phone-demo__attachments">
+                        {activeFlow.inputs.map((input) => (
+                          <HeroInputCard key={`${activeFlow.id}-${input.kind}-${input.label}`} input={input} />
+                        ))}
+                      </div>
+                    )}
 
                     <div className="flex items-start gap-3">
                       <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-primary/20 bg-primary/10 text-primary">
                         <Bot className="h-4 w-4" />
                       </div>
-                      <div className="max-w-[88%] rounded-[14px] rounded-tl-[4px] border border-border/70 bg-card px-4 py-3 text-sm leading-6 text-card-foreground shadow-sm">
-                        {activeFlow?.response}
+                      <div className="chatboc-phone-demo__bubble chatboc-phone-demo__bubble--agent">
+                        {activeFlow.response}
                       </div>
                     </div>
-                  </div>
-                </div>
-                )}
 
-                <div className="space-y-4">
-                  {activeAction && (
-                    <div className="rounded-[16px] border border-border/70 bg-background/80 p-4 shadow-sm">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-[8px] bg-primary/10 text-primary">
-                            <ActiveActionIcon className="h-5 w-5" />
+                    {activeAction && (
+                      <div className="chatboc-phone-demo__result">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-start gap-3">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-primary/10 text-primary">
+                              <ActiveActionIcon className="h-5 w-5" />
+                            </div>
+                            <div>
+                              {actionSectionLabel && (
+                                <p className="text-xs font-semibold uppercase tracking-normal text-muted-foreground">
+                                  {actionSectionLabel}
+                                </p>
+                              )}
+                              <p className="text-lg font-bold text-foreground">{activeAction.label}</p>
+                            </div>
                           </div>
-                          <div>
-                            {actionSectionLabel && (
-                              <p className="text-xs font-semibold uppercase tracking-normal text-muted-foreground">
-                                {actionSectionLabel}
-                              </p>
-                            )}
-                            <p className="text-lg font-bold text-foreground">{activeAction.label}</p>
-                          </div>
+                          {activeAction.status && (
+                            <span className="rounded-[8px] border border-success/20 bg-success/10 px-2.5 py-1 text-[11px] font-semibold text-success">
+                              {activeAction.status}
+                            </span>
+                          )}
                         </div>
-                        {activeAction.status && (
-                          <span className="rounded-[8px] border border-success/20 bg-success/10 px-2.5 py-1 text-[11px] font-semibold text-success">
-                            {activeAction.status}
-                          </span>
+
+                        {activeAction.detail && (
+                          <p className="mt-4 text-sm leading-6 text-muted-foreground">{activeAction.detail}</p>
+                        )}
+
+                        {activeAction.fields.length > 0 && (
+                          <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                            {activeAction.fields.map((field) => (
+                              <div
+                                key={`${activeFlow.id}-${field.label}-${field.value}`}
+                                className="rounded-[8px] border border-border/70 bg-muted/40 px-3 py-2"
+                              >
+                                <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
+                                  {field.label}
+                                </p>
+                                <p className="mt-1 text-sm font-semibold text-foreground">{field.value}</p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {activeFlow.highlights.length > 0 && (
+                          <div className="mt-4 flex flex-wrap gap-2">
+                            {activeFlow.highlights.map((chip) => (
+                              <span
+                                key={`${activeFlow.id}-${chip}`}
+                                className="rounded-[8px] border border-border/70 bg-muted/60 px-2.5 py-1 text-[11px] font-semibold text-foreground"
+                              >
+                                {chip}
+                              </span>
+                            ))}
+                          </div>
                         )}
                       </div>
+                    )}
 
-                      {activeAction.detail && (
-                        <p className="mt-4 text-sm leading-6 text-muted-foreground">{activeAction.detail}</p>
-                      )}
-
-                      {activeAction.fields.length > 0 && (
-                        <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                          {activeAction.fields.map((field) => (
-                            <div
-                              key={`${activeFlow?.id}-${field.label}-${field.value}`}
-                              className="rounded-[8px] border border-border/70 bg-muted/40 px-3 py-2"
-                            >
-                              <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">
-                                {field.label}
-                              </p>
-                              <p className="mt-1 text-sm font-semibold text-foreground">{field.value}</p>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {Boolean(activeFlow?.highlights.length) && (
-                        <div className="mt-4 flex flex-wrap gap-2">
-                          {activeFlow?.highlights.map((chip) => (
-                            <span
-                              key={`${activeFlow.id}-${chip}`}
-                              className="rounded-[8px] border border-border/70 bg-muted/60 px-2.5 py-1 text-[11px] font-semibold text-foreground"
-                            >
-                              {chip}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {activeWorkflowSteps.length > 0 && (
-                    <div className="rounded-[16px] border border-border/70 bg-background/80 p-4 shadow-sm">
-                      <div className="mb-4 flex items-center justify-between gap-3">
+                    {activeWorkflowSteps.length > 0 && (
+                      <div className="chatboc-phone-demo__steps">
                         {(agentTitle || agentSubtitle) && (
-                          <div>
+                          <div className="mb-3">
                             {agentTitle && <p className="text-sm font-semibold text-foreground">{agentTitle}</p>}
                             {agentSubtitle && <p className="text-xs text-muted-foreground">{agentSubtitle}</p>}
                           </div>
                         )}
-                        <span className={`h-2.5 w-2.5 rounded-full ${activeFlow?.tone || "bg-primary"}`} />
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          {activeWorkflowSteps.map((step, index) => (
+                            <div key={step} className="flex items-center gap-3 rounded-[8px] border border-border/70 bg-muted/40 px-3 py-2">
+                              <span
+                                className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold ${
+                                  index <= activeFlowIndex
+                                    ? "bg-primary text-primary-foreground"
+                                    : "bg-muted text-muted-foreground"
+                                }`}
+                              >
+                                {index + 1}
+                              </span>
+                              <span className="text-xs font-semibold text-foreground">{step}</span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
+                    )}
+                  </div>
 
-                      <div className="space-y-3">
-                        {activeWorkflowSteps.map((step, index) => (
-                          <div key={step} className="flex items-center gap-3 rounded-[8px] border border-border/70 bg-muted/40 px-3 py-2">
-                            <span
-                              className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold ${
-                                index <= activeFlowIndex
-                                  ? "bg-primary text-primary-foreground"
-                                  : "bg-muted text-muted-foreground"
-                              }`}
-                            >
-                              {index + 1}
-                            </span>
-                            <span className="text-xs font-semibold text-foreground">{step}</span>
-                          </div>
-                        ))}
-                      </div>
+                  {dashboardRows.length > 0 && (
+                    <div className="chatboc-phone-demo__metrics">
+                      {dashboardRows.map((row) => (
+                        <div key={row.label} className="min-w-0">
+                          <div className={`mb-2 h-1.5 w-9 rounded-full ${row.tone}`} />
+                          <p className="truncate text-xs text-muted-foreground">{row.label}</p>
+                          <p className="mt-1 text-xl font-bold text-foreground">{row.value}</p>
+                          {row.detail && <p className="mt-1 truncate text-[11px] text-muted-foreground">{row.detail}</p>}
+                        </div>
+                      ))}
                     </div>
                   )}
-                </div>
-              </div>
-
-              {dashboardRows.length > 0 && (
-                <div className="grid gap-0 border-t border-border/70 md:grid-cols-3">
-                  {dashboardRows.map((row) => (
-                    <div key={row.label} className="border-b border-border/70 p-4 md:border-b-0 md:border-r last:md:border-r-0">
-                      <div className={`mb-3 h-1.5 w-10 rounded-full ${row.tone}`} />
-                      <p className="text-xs text-muted-foreground">{row.label}</p>
-                      <p className="mt-1 text-xl font-bold text-foreground">{row.value}</p>
-                      {row.detail && <p className="mt-1 text-[11px] text-muted-foreground">{row.detail}</p>}
-                    </div>
-                  ))}
                 </div>
               )}
             </div>

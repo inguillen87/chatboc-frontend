@@ -96,6 +96,175 @@
   .chatboc-message-glow {
     box-shadow: 0 18px 36px hsl(var(--primary) / 0.22);
   }
+  .chatboc-hero-headline {
+    max-width: 11.6ch;
+    text-wrap: balance;
+    text-shadow: 0 1px 0 hsl(var(--background) / 0.26);
+  }
+  .chatboc-hero-headline__accent {
+    color: hsl(var(--primary));
+  }
+  .dark .chatboc-hero-headline__accent {
+    color: #7db0ff;
+  }
+  .chatboc-hero-preview {
+    position: relative;
+    border-radius: 28px;
+    padding: 1px;
+    background:
+      linear-gradient(135deg, hsl(var(--primary) / 0.34), hsl(var(--success) / 0.22), hsl(var(--border) / 0.72)),
+      hsl(var(--card));
+    box-shadow: 0 32px 100px rgba(15, 23, 42, 0.18);
+  }
+  .dark .chatboc-hero-preview {
+    box-shadow: 0 34px 110px rgba(0, 0, 0, 0.52);
+  }
+  .chatboc-phone-demo {
+    position: relative;
+    overflow: hidden;
+    border-radius: 27px;
+    background:
+      radial-gradient(circle at 12% 0%, hsl(var(--primary) / 0.14), transparent 34%),
+      radial-gradient(circle at 86% 16%, hsl(var(--success) / 0.12), transparent 30%),
+      hsl(var(--card) / 0.96);
+    color: hsl(var(--card-foreground));
+    backdrop-filter: blur(22px);
+  }
+  .chatboc-phone-demo::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      linear-gradient(90deg, hsl(var(--primary) / 0.05), transparent 30%, transparent 68%, hsl(var(--success) / 0.06)),
+      linear-gradient(180deg, hsl(var(--background) / 0.32), transparent 42%);
+  }
+  .chatboc-phone-demo__bar,
+  .chatboc-phone-demo__tabs,
+  .chatboc-phone-demo__screen,
+  .chatboc-phone-demo__metrics {
+    position: relative;
+    z-index: 1;
+  }
+  .chatboc-phone-demo__bar {
+    display: flex;
+    min-height: 76px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    border-bottom: 1px solid hsl(var(--border) / 0.7);
+    padding: 1rem;
+    background: hsl(var(--muted) / 0.34);
+  }
+  .chatboc-phone-demo__tabs {
+    display: flex;
+    gap: 0.5rem;
+    overflow-x: auto;
+    border-bottom: 1px solid hsl(var(--border) / 0.62);
+    padding: 0.75rem 1rem;
+  }
+  .chatboc-phone-demo__tabs::-webkit-scrollbar {
+    height: 0;
+  }
+  .chatboc-phone-demo__tab {
+    display: inline-flex;
+    min-height: 2.25rem;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 0.5rem;
+    border-radius: 8px;
+    border: 1px solid hsl(var(--border) / 0.72);
+    background: hsl(var(--card) / 0.62);
+    padding: 0.5rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: hsl(var(--muted-foreground));
+    transition: border-color 180ms ease, background-color 180ms ease, color 180ms ease;
+  }
+  .chatboc-phone-demo__tab--active {
+    border-color: hsl(var(--primary));
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+  }
+  .chatboc-phone-demo__screen {
+    display: flex;
+    min-height: 520px;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1rem;
+  }
+  .chatboc-phone-demo__bubble {
+    max-width: min(88%, 32rem);
+    border-radius: 16px;
+    padding: 0.9rem 1rem;
+    font-size: 0.92rem;
+    line-height: 1.55;
+  }
+  .chatboc-phone-demo__bubble--user {
+    border-top-right-radius: 6px;
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+    box-shadow: 0 18px 38px hsl(var(--primary) / 0.22);
+  }
+  .chatboc-phone-demo__bubble--agent {
+    border: 1px solid hsl(var(--border) / 0.72);
+    border-top-left-radius: 6px;
+    background: hsl(var(--card) / 0.86);
+    color: hsl(var(--card-foreground));
+    box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
+  }
+  .chatboc-phone-demo__attachments {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.6rem;
+  }
+  .chatboc-hero-attachment {
+    min-height: 4.5rem;
+    border-radius: 12px;
+    border: 1px solid hsl(var(--border) / 0.72);
+    background: hsl(var(--muted) / 0.54);
+    padding: 0.75rem;
+    font-size: 0.75rem;
+    color: hsl(var(--muted-foreground));
+  }
+  .chatboc-hero-attachment__placeholder {
+    display: flex;
+    min-height: 5rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    border: 1px dashed hsl(var(--primary) / 0.28);
+    background:
+      linear-gradient(135deg, hsl(var(--primary) / 0.10), hsl(var(--success) / 0.08)),
+      hsl(var(--background) / 0.48);
+    color: hsl(var(--primary));
+  }
+  .chatboc-phone-demo__result,
+  .chatboc-phone-demo__steps {
+    border-radius: 16px;
+    border: 1px solid hsl(var(--border) / 0.72);
+    background: hsl(var(--background) / 0.78);
+    padding: 1rem;
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+  }
+  .dark .chatboc-phone-demo__result,
+  .dark .chatboc-phone-demo__steps {
+    box-shadow: 0 18px 44px rgba(0, 0, 0, 0.28);
+  }
+  .chatboc-phone-demo__metrics {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0;
+    border-top: 1px solid hsl(var(--border) / 0.7);
+    background: hsl(var(--background) / 0.48);
+  }
+  .chatboc-phone-demo__metrics > div {
+    border-right: 1px solid hsl(var(--border) / 0.62);
+    padding: 1rem;
+  }
+  .chatboc-phone-demo__metrics > div:last-child {
+    border-right: 0;
+  }
   .chatboc-hero-aura {
     position: absolute;
     inset: -10% 0 auto 10%;
@@ -153,6 +322,29 @@
   }
   .dark .chatboc-hero-grid {
     background: hsl(var(--background));
+  }
+  @media (max-width: 640px) {
+    .chatboc-hero-headline {
+      max-width: 11.5ch;
+    }
+    .chatboc-phone-demo__bar {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+    .chatboc-phone-demo__screen {
+      min-height: 0;
+    }
+    .chatboc-phone-demo__attachments,
+    .chatboc-phone-demo__metrics {
+      grid-template-columns: 1fr;
+    }
+    .chatboc-phone-demo__metrics > div {
+      border-right: 0;
+      border-bottom: 1px solid hsl(var(--border) / 0.62);
+    }
+    .chatboc-phone-demo__metrics > div:last-child {
+      border-bottom: 0;
+    }
   }
   .chatboc-muted-band {
     background:
