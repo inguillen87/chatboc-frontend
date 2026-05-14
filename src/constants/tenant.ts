@@ -56,6 +56,7 @@ export const TENANT_PLACEHOLDER_SLUGS = new Set([
   'casos',
   'casos-de-uso',
   'use-cases',
+  'contacto',
   'pymes',
   'empresas',
   'municipios',

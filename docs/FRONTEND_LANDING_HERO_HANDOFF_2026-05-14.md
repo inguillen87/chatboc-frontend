@@ -90,7 +90,8 @@ Cada `flow` puede tener:
   ],
   "action": {
     "label": "Reclamo creado",
-    "status": "Listo para operar",
+    "status": "ready",
+    "status_label": "Listo para operar",
     "detail": "Ticket con categoria, prioridad, zona, evidencia y equipo sugerido.",
     "creates": "ticket",
     "fields": [
@@ -125,12 +126,13 @@ Cada `flow` puede tener:
 - Si el input indica `image` o `file` pero no hay URL valida, mostrar solo el dato textual recibido. No mostrar placeholder visual ni imagen rota.
 - Si hay `address`, `lat` o `lng`, mostrar resumen de ubicacion.
 - Si hay `action.fields`, `metadata`, `summary_items`, `facts`, `details` o `attributes`, renderizarlos como resumen operativo.
+- No mostrar `status` o `state` crudos si son valores de maquina. Para badges visibles usar `status_label`, `display_status`, `badge_label`, `state_label` o `badge`.
 - Si no hay demo conversacional real, ocultar el mockup derecho y usar hero editorial simple.
 - No mostrar PDF como accion principal del hero.
 
 ## Copy esperado desde backend
 
-El copy visible debe llegar desde `GET /api/public/landing-experience`. Frontend puede conservar defaults tecnicos mínimos para no romper render, pero la experiencia publica debe estar controlada por backend.
+El copy visible debe llegar desde `GET /api/public/landing-experience`. Frontend puede conservar defaults tecnicos minimos para no romper render, pero la experiencia publica debe estar controlada por backend.
 
 Headline base:
 
@@ -160,7 +162,7 @@ CTAs:
 
 ```txt
 Probar una conversacion real -> /demo
-Hablar con ventas -> /contacto
+Hablar con ventas -> /demo?intent=ventas
 ```
 
 ## UX objetivo

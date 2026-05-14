@@ -416,6 +416,7 @@ const routes: RouteConfig[] = [
   ...withTenantPrefixes('/:tenant/user/register', { element: <UserRegister /> }),
   { path: '/cuenta', element: <UserAccount /> },
   { path: '/demo', element: <Demo /> },
+  { path: '/contacto', element: <Navigate to="/demo?intent=ventas" replace /> },
   { path: '/demo-catalogs/:catalogFile', element: <DemoCatalogDownloadPage /> },
   { path: '/demo/:slug', element: <DemoLandingPage /> },
   { path: '/casos', element: <Navigate to="/demo" replace /> },

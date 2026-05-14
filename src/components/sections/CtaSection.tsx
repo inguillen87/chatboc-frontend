@@ -14,10 +14,10 @@ const CtaSection = () => {
             <Bot className="h-6 w-6" />
           </div>
           <h2 className="mx-auto max-w-3xl text-3xl font-bold leading-tight tracking-normal md:text-5xl">
-            Listo para convertir atención, ventas y soporte en una operación más inteligente
+            Listo para convertir atencion, ventas y soporte en una operacion mas inteligente
           </h2>
           <p className="mx-auto mt-5 max-w-3xl text-base leading-7 text-muted-foreground md:text-lg">
-            Probá una demo, hablá con un asesor o creá tu cuenta para empezar con una experiencia simple, clara y lista para operar.
+            Proba una demo, habla con un asesor o crea tu cuenta para empezar con una experiencia simple, clara y lista para operar.
           </p>
 
           <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
@@ -34,7 +34,7 @@ const CtaSection = () => {
               size="lg"
               variant="outline"
               className="h-12 w-full rounded-[8px] border-border/80 font-semibold hover:border-primary/40 hover:bg-primary/5 sm:w-auto"
-              onClick={() => navigate("/contacto")}
+              onClick={() => navigate("/demo?intent=ventas")}
             >
               <MessageSquareHeart className="mr-2 h-5 w-5" />
               Hablar con un asesor
@@ -55,7 +55,7 @@ const CtaSection = () => {
             onClick={() => navigate("/login")}
             className="mt-7 text-sm font-medium text-muted-foreground underline underline-offset-4 transition-colors hover:text-primary"
           >
-            Ya tengo cuenta, iniciar sesión
+            Ya tengo cuenta, iniciar sesion
           </button>
         </div>
       </div>

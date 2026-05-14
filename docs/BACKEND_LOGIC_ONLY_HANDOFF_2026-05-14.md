@@ -132,6 +132,7 @@ Cada flow debe ser logico y trazable:
     "creates": "ticket",
     "label": "Reclamo creado",
     "status": "ready",
+    "status_label": "Listo para operar",
     "fields": [
       { "label": "Categoria", "value": "Semaforo" },
       { "label": "Prioridad", "value": "Alta" },
@@ -153,6 +154,7 @@ Reglas:
 - No mandar metricas sin fuente.
 - No mandar PDF como accion principal.
 - No mandar datos de bodega dentro de municipio ni datos de municipio dentro de pyme.
+- `status` y `state` son campos de maquina. Si backend quiere mostrar un badge visible, debe mandar `status_label`, `display_status`, `badge_label`, `state_label` o `badge`.
 
 ### 2. Demo session
 

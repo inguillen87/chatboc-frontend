@@ -101,12 +101,28 @@ const readBootstrapString = (
   return null;
 };
 
+const readShortChatSessionId = (value: unknown): string | null => {
+  const trimmed = typeof value === 'string' ? value.trim() : '';
+  if (!trimmed) return null;
+  return trimmed.length <= 36 && !trimmed.includes('.') ? trimmed : null;
+};
+
 const normalizeBootstrapHeaders = (bootstrap: ChatBootstrapConfig) => {
   const headers = normalizeHeaders(bootstrap.headers) ?? {};
+  if (headers['X-Chat-Session-Id'] && !readShortChatSessionId(headers['X-Chat-Session-Id'])) {
+    delete headers['X-Chat-Session-Id'];
+  }
   const demoSessionId = readBootstrapString(bootstrap.payload, [
     'demo_session_id',
     'session',
-  ]) ?? readBootstrapString(bootstrap.query, ['demo_session_id', 'session']);
+  ]) ?? readBootstrapString(bootstrap.query, ['demo_session_id', 'session'])
+    ?? readBootstrapString(headers, ['X-Demo-Session-Id', 'X-Demo-Session']);
+  const chatSessionId =
+    readShortChatSessionId(headers['X-Chat-Session-Id'])
+    ?? readShortChatSessionId(bootstrap.payload?.chat_session_id)
+    ?? readShortChatSessionId(bootstrap.payload?.session_id)
+    ?? readShortChatSessionId(bootstrap.query?.chat_session_id)
+    ?? readShortChatSessionId(bootstrap.query?.session_id);
   const tenantSlug = readBootstrapString(bootstrap.payload, [
     'tenant_slug',
     'tenant',
@@ -116,7 +132,9 @@ const normalizeBootstrapHeaders = (bootstrap: ChatBootstrapConfig) => {
   if (demoSessionId) {
     headers['X-Demo-Session-Id'] ||= demoSessionId;
     headers['X-Demo-Session'] ||= demoSessionId;
-    headers['X-Chat-Session-Id'] ||= demoSessionId;
+  }
+  if (chatSessionId) {
+    headers['X-Chat-Session-Id'] ||= chatSessionId;
   }
   if (tenantSlug) {
     headers['X-Tenant-Slug'] ||= tenantSlug;
@@ -150,6 +168,12 @@ const resolveBootstrapMethod = (method?: string | null): ChatBootstrapHttpMethod
 
 const buildJsonPayload = (bootstrap: ChatBootstrapConfig, payload: ChatBootstrapMessagePayload) => {
   const basePayload = isRecord(bootstrap.payload) ? { ...bootstrap.payload } : {};
+  if ('chat_session_id' in basePayload && !readShortChatSessionId(basePayload.chat_session_id)) {
+    delete basePayload.chat_session_id;
+  }
+  if ('session_id' in basePayload && !readShortChatSessionId(basePayload.session_id)) {
+    delete basePayload.session_id;
+  }
   const text = payload.text?.trim() ?? '';
   basePayload.pregunta = text;
 

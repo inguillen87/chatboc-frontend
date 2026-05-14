@@ -155,7 +155,7 @@ const DEFAULT_DESCRIPTION =
 const DEFAULT_CONVERSATION_TITLE = "WhatsApp operativo";
 const DEFAULT_CONVERSATION_SUBTITLE = "Un caso entra, el agente pide datos y deja una accion trazable.";
 const DEFAULT_PRIMARY_CTA = { label: "Probar una conversacion real", target: "/demo" };
-const DEFAULT_SECONDARY_CTA = { label: "Hablar con ventas", target: "/contacto" };
+const DEFAULT_SECONDARY_CTA = { label: "Hablar con ventas", target: "/demo?intent=ventas" };
 
 const normalizeHeroMediaUrl = (raw: string) => {
   const value = raw.trim();
@@ -285,7 +285,7 @@ const normalizeAction = (source: unknown, ctaSource?: unknown): ConversationActi
   const cta = isRecord(ctaSource) ? ctaSource : {};
   const label = readText(action, ["label", "title", "name", "status_label"]);
   const detail = readText(action, ["detail", "description", "summary", "copy"]);
-  const status = readText(action, ["status", "state", "badge"]);
+  const status = readText(action, ["status_label", "display_status", "badge_label", "state_label", "badge"]);
 
   if (!label && !detail && !status) return undefined;
 
@@ -442,8 +442,12 @@ const HeroInputCard = ({ input }: { input: ConversationInput }) => {
   const InputIcon = getInputIcon(input.kind);
   const inputKind = inferInputKind(input.kind);
   const canLoadImage = inputKind === "image" && input.previewUrl && !imageFailed;
-  const showImageShell = inputKind === "image" && (!imageReady || !input.previewUrl || imageFailed);
   const hasLocation = inputKind === "location" && (input.address || input.lat || input.lng);
+
+  React.useEffect(() => {
+    setImageFailed(false);
+    setImageReady(false);
+  }, [input.previewUrl]);
 
   return (
     <div className={`chatboc-hero-attachment chatboc-hero-attachment--${inputKind}`}>
@@ -451,27 +455,18 @@ const HeroInputCard = ({ input }: { input: ConversationInput }) => {
         <InputIcon className="h-4 w-4 text-primary" />
         <span>{input.label}</span>
       </div>
-      {inputKind === "image" && (
-        <div className="chatboc-hero-attachment__media mt-2">
-          {showImageShell && (
-            <div className="chatboc-hero-attachment__visual">
-              <ImageIcon className="h-5 w-5 text-primary" />
-            </div>
-          )}
-          {canLoadImage && (
-            <img
-              src={input.previewUrl}
-              alt={input.label}
-              className={imageReady ? "h-full w-full rounded-[10px] object-cover" : "hidden"}
-              loading="lazy"
-              onLoad={() => setImageReady(true)}
-              onError={() => {
-                setImageFailed(true);
-                setImageReady(false);
-              }}
-            />
-          )}
-        </div>
+      {inputKind === "image" && canLoadImage && (
+        <img
+          src={input.previewUrl}
+          alt={input.label}
+          className={imageReady ? "mt-2 h-24 w-full rounded-[10px] object-cover" : "hidden"}
+          loading="lazy"
+          onLoad={() => setImageReady(true)}
+          onError={() => {
+            setImageFailed(true);
+            setImageReady(false);
+          }}
+        />
       )}
       {hasLocation && (
         <div className="mt-2 rounded-[10px] border border-primary/15 bg-primary/5 px-2 py-2 text-[11px] leading-5 text-foreground">

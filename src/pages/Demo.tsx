@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useLocation } from "react-router-dom";
 import {
+  AlertTriangle,
   BarChart3,
   CheckCircle2,
   Clock3,
@@ -33,8 +34,62 @@ import type {
 } from '@/features/demo/demoTypes';
 import { sendChatBootstrapMessage } from '@/features/chat/chatApi';
 import { CHATBOC_ORBIT_AVATAR } from '@/utils/brandAssets';
+import { ApiError, getErrorMessage } from '@/utils/api';
 
 const MAX_PREGUNTAS = 15;
+
+type DemoUiError = {
+  message: string;
+  requestId?: string | null;
+};
+
+const readRequestIdFromError = (error: unknown): string | null => {
+  if (error instanceof ApiError) {
+    return error.requestId ?? error.body?.request_id ?? null;
+  }
+  if (error && typeof error === 'object') {
+    const source = error as Record<string, unknown>;
+    const requestId = source.request_id ?? source.requestId;
+    return typeof requestId === 'string' && requestId.trim() ? requestId.trim() : null;
+  }
+  return null;
+};
+
+const buildDemoError = (error: unknown, fallback: string): DemoUiError => {
+  const requestId = readRequestIdFromError(error);
+  const message = getErrorMessage(error, fallback).replace(/\s*\(Req ID: .*?\)\s*$/, '');
+  return { message, requestId };
+};
+
+const DemoErrorPanel = ({
+  error,
+  onRetry,
+}: {
+  error: DemoUiError;
+  onRetry?: () => void;
+}) => (
+  <div className="rounded-2xl border border-destructive/35 bg-destructive/10 p-4 text-sm text-destructive" role="alert">
+    <div className="flex items-start gap-3">
+      <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
+      <div className="min-w-0 flex-1">
+        <p className="font-semibold">La demo real no pudo continuar.</p>
+        <p className="mt-1 break-words text-destructive/90">{error.message}</p>
+        {error.requestId ? (
+          <p className="mt-2 text-xs text-destructive/80">request_id: {error.requestId}</p>
+        ) : null}
+      </div>
+      {onRetry ? (
+        <button
+          type="button"
+          className="rounded-lg border border-destructive/40 px-3 py-1.5 text-xs font-semibold hover:bg-destructive/10"
+          onClick={onRetry}
+        >
+          Reintentar
+        </button>
+      ) : null}
+    </div>
+  </div>
+);
 
 const findSectorGroup = (
   catalog: DemoCatalogResponse | null,
@@ -332,6 +387,7 @@ const Demo = () => {
   const [demoTenantSlug, setDemoTenantSlug] = useState<string | null>(null);
   const [demoWorkspace, setDemoWorkspace] = useState<DemoWorkspaceConfig | null>(null);
   const [demoAdminPreview, setDemoAdminPreview] = useState<DemoAdminPreviewResponse | null>(null);
+  const [demoError, setDemoError] = useState<DemoUiError | null>(null);
   const [contexto, setContexto] = useState({});
   const lastQueryRef = useRef<string | null>(null);
   const initialDemoLoadRef = useRef(false);
@@ -364,18 +420,21 @@ const Demo = () => {
     setDemoTenantSlug(null);
     setDemoWorkspace(null);
     setDemoAdminPreview(null);
+    setDemoError(null);
     lastQueryRef.current = null;
     hydratedSessionRef.current = false;
     // The useEffect for loading rubros will trigger again due to rubroSeleccionado being null
     // or rather, we explicitly set esperandoRubro to true and then the rubro loading logic runs
     getDemoCatalog()
         .then((data) => {
+          setDemoError(null);
           setDemoCatalog(data);
           setRubrosDisponibles(Array.isArray(data?.rubros) ? data.rubros : []);
         })
-        .catch(() => {
+        .catch((error) => {
           setDemoCatalog(null);
           setRubrosDisponibles([]);
+          setDemoError(buildDemoError(error, 'No se pudo cargar el catalogo de demos.'));
         });
   };
 
@@ -408,6 +467,7 @@ const Demo = () => {
       setMessages([]);
       setPreguntasUsadas(0);
       setContexto({});
+      setDemoError(null);
       lastQueryRef.current = null;
 
       try {
@@ -449,7 +509,8 @@ const Demo = () => {
         };
 
         setMessages([botMessage]);
-      } catch {
+      } catch (error) {
+        setDemoError(buildDemoError(error, 'No se pudo conectar con el chat real de la demo.'));
         const unavailableMessage = buildRuntimeUnavailableMessage(workspace);
         setMessages(unavailableMessage ? [unavailableMessage] : []);
       } finally {
@@ -547,6 +608,7 @@ const Demo = () => {
         category_slug: normalizedRequestedSector,
       })
         .then((session) => {
+          setDemoError(null);
           setSectorSeleccionado(normalizedRequestedSector);
           setRubroSeleccionado(label);
           setRubroClaveSeleccionado(normalizedRequestedSector);
@@ -561,9 +623,10 @@ const Demo = () => {
             session.workspace ?? null,
           );
         })
-        .catch(() => {
+        .catch((error) => {
           setEsperandoRubro(true);
           setMessages([]);
+          setDemoError(buildDemoError(error, 'No se pudo iniciar la demo real.'));
         });
       return;
     }
@@ -576,6 +639,7 @@ const Demo = () => {
         category_slug: normalizedClave,
       })
         .then((session) => {
+          setDemoError(null);
           setRubroClaveSeleccionado(normalizedClave);
           if (!rubroSeleccionado) {
             setRubroSeleccionado(storedLabel || storedClave);
@@ -591,23 +655,26 @@ const Demo = () => {
             session.workspace ?? null,
           );
         })
-        .catch(() => {
+        .catch((error) => {
           safeLocalStorage.removeItem("rubroSeleccionado");
           safeLocalStorage.removeItem("rubroSeleccionado_label");
           setEsperandoRubro(true);
           setMessages([]);
+          setDemoError(buildDemoError(error, 'No se pudo recuperar la demo anterior.'));
         });
     } else if (!storedClave) {
       setEsperandoRubro(true);
       setMessages([]);
       getDemoCatalog()
         .then((data) => {
+          setDemoError(null);
           setDemoCatalog(data);
           setRubrosDisponibles(Array.isArray(data?.rubros) ? data.rubros : []);
         })
-        .catch(() => {
+        .catch((error) => {
           setDemoCatalog(null);
           setRubrosDisponibles([]);
+          setDemoError(buildDemoError(error, 'No se pudo cargar el catalogo de demos.'));
         });
     }
   }, [location.search, location.state, rubroClaveSeleccionado, rubroSeleccionado, startDemoConversation, openDemoWidget]);
@@ -645,6 +712,7 @@ const Demo = () => {
       setMessages((prev) => [...prev, userMessage]);
       lastQueryRef.current = text;
       setIsTyping(true);
+      setDemoError(null);
 
       try {
         if (!activeChatBootstrap) {
@@ -692,7 +760,8 @@ const Demo = () => {
         setMessages((prev) => [...prev, botMessage]);
         lastQueryRef.current = null;
         setPreguntasUsadas((prev) => prev + 1);
-      } catch {
+      } catch (error) {
+        setDemoError(buildDemoError(error, 'No se pudo responder desde la demo real.'));
         const unavailableMessage = buildRuntimeUnavailableMessage(demoWorkspace, lastQueryRef.current);
         if (unavailableMessage) setMessages((prev) => [...prev, unavailableMessage]);
         lastQueryRef.current = null;
@@ -717,6 +786,7 @@ const Demo = () => {
     setMessages([]);
     setPreguntasUsadas(0);
     setContexto({});
+    setDemoError(null);
     openDemoWidget();
 
     try {
@@ -735,15 +805,16 @@ const Demo = () => {
         session.workspace ?? null,
       );
     } catch (error) {
+      setDemoError(buildDemoError(error, 'No se pudo iniciar la demo real.'));
       setMessages([]);
     }
-  }, [openDemoWidget, sectorSeleccionado, startDemoConversation]);
+  }, [demoCatalog, openDemoWidget, sectorSeleccionado, startDemoConversation]);
 
   // Rubros selector UI
   if (esperandoRubro) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4 py-8 text-foreground dark:bg-gradient-to-b dark:from-[#10141b] dark:to-[#181d24]">
-        <div className="w-full max-w-4xl rounded-[2rem] border border-border bg-card/90 p-5 shadow-2xl shadow-black/10 backdrop-blur dark:bg-[#191f2b] sm:p-7">
+        <div className="w-full max-w-5xl rounded-[2rem] border border-border bg-card/90 p-5 shadow-2xl shadow-black/10 backdrop-blur dark:bg-[#191f2b] sm:p-7">
           <div className="mb-5 flex items-center gap-3 text-left">
             <img
               src={CHATBOC_ORBIT_AVATAR}
@@ -755,11 +826,11 @@ const Demo = () => {
             />
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">Demo guiada</p>
-              <h2 className="text-2xl font-bold tracking-tight text-foreground">Elegí una operación real para probar</h2>
+              <h1 className="text-2xl font-bold tracking-tight text-foreground">Elegí una operación real para probar</h1>
             </div>
           </div>
           <p className="mb-5 max-w-2xl text-left text-sm leading-6 text-muted-foreground">
-            La demo muestra solo capacidades disponibles y permite ver como una conversación se convierte en una acción operativa.
+            La demo muestra capacidades disponibles y permite ver cómo una conversación se convierte en una acción operativa.
           </p>
           <div className="mb-4">
             <DemoSectorStep
@@ -770,7 +841,7 @@ const Demo = () => {
             />
           </div>
           {sectorSeleccionado ? null : (
-            <p className="mb-3 text-xs text-muted-foreground">Primero selecciona el sector para iniciar la demo.</p>
+            <p className="mb-3 text-xs text-muted-foreground">Seleccioná un sector para iniciar una demo guiada.</p>
           )}
           {sectorSeleccionado && visibleRubrosDisponibles.length === 0 ? (
             <div className="space-y-3 rounded-lg border bg-background/70 p-3 text-left">
@@ -816,6 +887,7 @@ const Demo = () => {
               setRubroSeleccionado(etiqueta || clave || null);
               setRubroClaveSeleccionado(clave ?? null);
               setEsperandoRubro(false);
+              setDemoError(null);
               openDemoWidget();
               void (async () => {
                 try {
@@ -834,7 +906,8 @@ const Demo = () => {
                     session.tenant_slug ?? sessionTenantSlug ?? null,
                     session.workspace ?? null,
                   );
-                } catch {
+                } catch (error) {
+                  setDemoError(buildDemoError(error, 'No se pudo iniciar la demo real.'));
                   setMessages([]);
                 }
               })();
@@ -860,7 +933,7 @@ const Demo = () => {
               }}
             />
             <span className="text-xl font-semibold tracking-tight text-foreground">
-              Chatboc <span className="text-lg text-muted-foreground">· Demo</span>
+              Chatboc <span className="text-lg text-muted-foreground">- Demo</span>
             </span>
           </div>
           {rubroSeleccionado ? (
@@ -881,10 +954,10 @@ const Demo = () => {
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">Demo completa</p>
               <h1 className="mt-2 text-2xl font-black tracking-tight text-foreground sm:text-3xl">
-                Proba el chat y mira como queda la operacion del equipo.
+                Proba una conversacion real y mira que queda listo para operar.
               </h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                La consulta, los adjuntos, el seguimiento, el catalogo y el panel trabajan juntos para que un director, municipio o empresa vea el recorrido completo.
+                El chat toma texto, adjuntos y seguimiento; el panel muestra el resultado operativo para que el equipo actue.
               </p>
             </div>
             <div className="grid grid-cols-3 gap-2 text-center text-xs sm:min-w-[320px]">

@@ -102,10 +102,42 @@ describe('sendChatBootstrapMessage', () => {
         headers: expect.objectContaining({
           'X-Demo-Session-Id': 'demo-session-1',
           'X-Demo-Session': 'demo-session-1',
-          'X-Chat-Session-Id': 'demo-session-1',
           'X-Tenant-Slug': 'municipio',
         }),
       }),
     );
+  });
+
+  it('does not reuse a long demo JWT as the chat session id', async () => {
+    const demoJwt = 'header.payload.signature.with.more.characters.than.allowed.for.chat.session';
+
+    await sendChatBootstrapMessage(
+      {
+        contract_version: 'demo.chat_bootstrap.v1',
+        endpoint: '/api/ask/municipio',
+        method: 'POST',
+        headers: { 'X-Chat-Session-Id': demoJwt },
+        query: { tenant_slug: 'municipio' },
+        payload: {
+          tipo_chat: 'municipio',
+          tenant_slug: 'municipio',
+          demo_session_id: demoJwt,
+          chat_session_id: demoJwt,
+          demo_mode: true,
+        },
+      },
+      { text: 'Quiero iniciar un reclamo' },
+    );
+
+    const [, options] = apiFetchMock.mock.calls[0];
+    expect(options.headers).toEqual(
+      expect.objectContaining({
+        'X-Demo-Session-Id': demoJwt,
+        'X-Demo-Session': demoJwt,
+        'X-Tenant-Slug': 'municipio',
+      }),
+    );
+    expect(options.headers).not.toHaveProperty('X-Chat-Session-Id');
+    expect(options.body).not.toHaveProperty('chat_session_id');
   });
 });
