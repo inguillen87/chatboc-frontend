@@ -1,5 +1,10 @@
 export const PUBLIC_MARKETING_SLUG_REDIRECTS: Record<string, string> = {
   demo: "/demo",
+  "demo-catalogs": "/demo",
+  media: "/",
+  public: "/",
+  assets: "/",
+  static: "/",
   casos: "/demo",
   "casos-de-uso": "/demo",
   sectores: "/demo",

@@ -89,8 +89,8 @@ const DemoCard = ({ item, sector, group }: { item: Rubro; sector: DemoSector; gr
         category_slug: readRubroSlug(item),
         tenant_slug: item.demo?.slug ?? group?.tenant_slug ?? null,
       });
-      const sessionId = session.demo_session_id || session.session_id;
-      if (!sessionId) throw new Error("missing_demo_session_id");
+      const sessionId = session.chat_session_id || session.session_id;
+      if (!sessionId) throw new Error("missing_chat_session_id");
       navigate(`/demo?session=${encodeURIComponent(sessionId)}`, {
         state: {
           demoSession: session,
@@ -167,8 +167,8 @@ const PillarDemoCard = ({ sector, group }: { sector: DemoSector; group: DemoSect
         category_slug: defaultRubro,
         tenant_slug: group.tenant_slug ?? group.demo_tenant_slug ?? group.default_tenant_slug ?? null,
       });
-      const sessionId = session.demo_session_id || session.session_id;
-      if (!sessionId) throw new Error("missing_demo_session_id");
+      const sessionId = session.chat_session_id || session.session_id;
+      if (!sessionId) throw new Error("missing_chat_session_id");
       navigate(`/demo?session=${encodeURIComponent(sessionId)}`, {
         state: {
           demoSession: session,

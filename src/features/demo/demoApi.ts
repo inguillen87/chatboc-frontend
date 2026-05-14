@@ -59,7 +59,8 @@ const normalizeDemoSector = (value?: string | null): DemoSector => {
 
 const normalizeDemoSessionResponse = (response: DemoSessionResponse): DemoSessionResponse => ({
   ...response,
-  demo_session_id: response.demo_session_id ?? response.session_id ?? null,
+  demo_session_id: response.demo_session_id ?? undefined,
+  chat_session_id: readShortChatSessionId(response.chat_session_id) ?? readShortChatSessionId(response.session_id) ?? null,
   tenant_slug: response.tenant_slug ?? response.tenant?.slug ?? null,
   workspace: normalizeWorkspaceConfig(response),
 });
@@ -88,9 +89,10 @@ const findAssetSectorFromResponse = (response: DemoSessionResponse): DemoSector 
 };
 
 const isDemoSessionAlignedWithSelection = (response: DemoSessionResponse, payload: DemoSessionPayload) => {
-  const requestedSector = normalizeDemoSector(
-    String(payload.sector ?? payload.pillar ?? payload.category_slug ?? payload.rubro ?? ''),
-  );
+  const requestedSectorRaw = [payload.sector, payload.pillar, payload.category_slug, payload.rubro]
+    .map((value) => String(value ?? '').trim())
+    .find((value) => value.length > 0);
+  const requestedSector = requestedSectorRaw ? normalizeDemoSector(requestedSectorRaw) : null;
   const requestedTenant = payload.tenant_slug?.trim();
   const responseTenant = response.tenant_slug ?? response.tenant?.slug ?? null;
 
@@ -102,11 +104,11 @@ const isDemoSessionAlignedWithSelection = (response: DemoSessionResponse, payloa
   ).trim();
   if (explicitVertical) {
     const normalizedVertical = normalizeDemoSector(explicitVertical);
-    if (normalizedVertical !== requestedSector) return false;
+    if (requestedSector && normalizedVertical !== requestedSector) return false;
   }
 
   const responseAssetSector = findAssetSectorFromResponse(response);
-  if (responseAssetSector && responseAssetSector !== requestedSector) return false;
+  if (requestedSector && responseAssetSector && responseAssetSector !== requestedSector) return false;
 
   return true;
 };
@@ -170,8 +172,8 @@ const normalizeWorkspaceConfig = (response: DemoSessionResponse): DemoWorkspaceC
       response.chat_seed?.chat_bootstrap ??
       null,
     {
-      demoSessionId: response.demo_session_id ?? response.session_id ?? null,
-      chatSessionId: response.chat_session_id ?? response.session_id ?? null,
+      demoSessionId: response.demo_session_id ?? null,
+      chatSessionId: readShortChatSessionId(response.chat_session_id) ?? readShortChatSessionId(response.session_id),
       tenantSlug: response.tenant_slug ?? response.tenant?.slug ?? null,
     },
   );
@@ -248,15 +250,20 @@ const normalizeChatBootstrap = (
   const headers = value.headers && typeof value.headers === 'object' ? { ...value.headers } : {};
   const payload = value.payload && typeof value.payload === 'object' ? { ...value.payload } : undefined;
   const query = value.query && typeof value.query === 'object' ? { ...value.query } : undefined;
+  const session = value.session && typeof value.session === 'object' ? { ...value.session } : {};
   const demoSessionId =
     context?.demoSessionId ??
+    (typeof session.demo_session_id === 'string' ? session.demo_session_id : null) ??
     (typeof payload?.demo_session_id === 'string' ? payload.demo_session_id : null) ??
     (typeof query?.demo_session_id === 'string' ? query.demo_session_id : null);
   const chatSessionId =
     readShortChatSessionId(context?.chatSessionId) ??
+    readShortChatSessionId(session.chat_session_id) ??
     readShortChatSessionId(headers['X-Chat-Session-Id']) ??
     readShortChatSessionId(payload?.chat_session_id) ??
-    readShortChatSessionId(query?.chat_session_id);
+    readShortChatSessionId(payload?.session_id) ??
+    readShortChatSessionId(query?.chat_session_id) ??
+    readShortChatSessionId(query?.session_id);
   const tenantSlug =
     context?.tenantSlug ??
     (typeof payload?.tenant_slug === 'string' ? payload.tenant_slug : null) ??
@@ -265,17 +272,26 @@ const normalizeChatBootstrap = (
   if (headers['X-Chat-Session-Id'] && !readShortChatSessionId(headers['X-Chat-Session-Id'])) {
     delete headers['X-Chat-Session-Id'];
   }
+  if (payload?.chat_session_id && !readShortChatSessionId(payload.chat_session_id)) delete payload.chat_session_id;
+  if (payload?.session_id && !readShortChatSessionId(payload.session_id)) delete payload.session_id;
+  if (query) {
+    delete query.chat_session_id;
+    delete query.session_id;
+    delete query.demo_session_id;
+    delete query.demoSessionId;
+    delete query.session;
+  }
 
   if (demoSessionId) {
     headers['X-Demo-Session-Id'] ||= demoSessionId;
     headers['X-Demo-Session'] ||= demoSessionId;
+    session.demo_session_id ||= demoSessionId;
     if (payload && !payload.demo_session_id) payload.demo_session_id = demoSessionId;
-    if (query && !query.demo_session_id) query.demo_session_id = demoSessionId;
   }
   if (chatSessionId) {
     headers['X-Chat-Session-Id'] ||= chatSessionId;
+    session.chat_session_id ||= chatSessionId;
     if (payload && !payload.chat_session_id) payload.chat_session_id = chatSessionId;
-    if (query && !query.chat_session_id) query.chat_session_id = chatSessionId;
   }
   if (tenantSlug) {
     headers['X-Tenant-Slug'] ||= tenantSlug;
@@ -286,11 +302,14 @@ const normalizeChatBootstrap = (
   return {
     contract_version: typeof value.contract_version === 'string' ? value.contract_version : null,
     endpoint: typeof value.endpoint === 'string' ? value.endpoint : null,
+    same_origin_endpoint: typeof value.same_origin_endpoint === 'string' ? value.same_origin_endpoint : null,
     fallback_endpoint: typeof value.fallback_endpoint === 'string' ? value.fallback_endpoint : null,
     method: typeof value.method === 'string' ? value.method : null,
     headers: Object.keys(headers).length ? headers : undefined,
     query,
     payload,
+    session: Object.keys(session).length ? session : undefined,
+    empty_states: value.empty_states && typeof value.empty_states === 'object' ? value.empty_states : undefined,
     supports: value.supports && typeof value.supports === 'object' ? value.supports : undefined,
   };
 };

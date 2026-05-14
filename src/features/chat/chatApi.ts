@@ -54,9 +54,6 @@ interface LeadCaptureSubmitOptions {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 
-const shouldFallbackEndpoint = (error: unknown) =>
-  error instanceof ApiError && [404, 405, 501].includes(error.status);
-
 const appendQuery = (endpoint: string, query?: Record<string, unknown>) => {
   if (!query || !Object.keys(query).length) return endpoint;
   const [pathWithSearch, hash = ''] = endpoint.split('#');
@@ -107,27 +104,44 @@ const readShortChatSessionId = (value: unknown): string | null => {
   return trimmed.length <= 36 && !trimmed.includes('.') ? trimmed : null;
 };
 
+const readBootstrapSession = (bootstrap: ChatBootstrapConfig): Record<string, unknown> | undefined =>
+  isRecord(bootstrap.session) ? bootstrap.session : undefined;
+
+const getBootstrapSessionValues = (bootstrap: ChatBootstrapConfig) => {
+  const headers = normalizeHeaders(bootstrap.headers) ?? {};
+  const session = readBootstrapSession(bootstrap);
+  const demoSessionId =
+    readBootstrapString(session, ['demo_session_id', 'demoSessionId'])
+    ?? readBootstrapString(bootstrap.payload, ['demo_session_id', 'demoSessionId', 'session'])
+    ?? readBootstrapString(bootstrap.query, ['demo_session_id', 'demoSessionId', 'session'])
+    ?? readBootstrapString(headers, ['X-Demo-Session-Id', 'X-Demo-Session']);
+  const chatSessionId =
+    readShortChatSessionId(session?.chat_session_id)
+    ?? readShortChatSessionId(session?.session_id)
+    ?? readShortChatSessionId(headers['X-Chat-Session-Id'])
+    ?? readShortChatSessionId(bootstrap.payload?.chat_session_id)
+    ?? readShortChatSessionId(bootstrap.payload?.session_id)
+    ?? readShortChatSessionId(bootstrap.query?.chat_session_id)
+    ?? readShortChatSessionId(bootstrap.query?.session_id);
+  const tenantSlug =
+    readBootstrapString(session, ['tenant_slug', 'tenant', 'slug'])
+    ?? readBootstrapString(bootstrap.payload, ['tenant_slug', 'tenant', 'slug'])
+    ?? readBootstrapString(bootstrap.query, ['tenant_slug', 'tenant', 'slug'])
+    ?? readBootstrapString(headers, ['X-Tenant-Slug']);
+
+  return {
+    chatSessionId,
+    demoSessionId,
+    tenantSlug,
+  };
+};
+
 const normalizeBootstrapHeaders = (bootstrap: ChatBootstrapConfig) => {
   const headers = normalizeHeaders(bootstrap.headers) ?? {};
   if (headers['X-Chat-Session-Id'] && !readShortChatSessionId(headers['X-Chat-Session-Id'])) {
     delete headers['X-Chat-Session-Id'];
   }
-  const demoSessionId = readBootstrapString(bootstrap.payload, [
-    'demo_session_id',
-    'session',
-  ]) ?? readBootstrapString(bootstrap.query, ['demo_session_id', 'session'])
-    ?? readBootstrapString(headers, ['X-Demo-Session-Id', 'X-Demo-Session']);
-  const chatSessionId =
-    readShortChatSessionId(headers['X-Chat-Session-Id'])
-    ?? readShortChatSessionId(bootstrap.payload?.chat_session_id)
-    ?? readShortChatSessionId(bootstrap.payload?.session_id)
-    ?? readShortChatSessionId(bootstrap.query?.chat_session_id)
-    ?? readShortChatSessionId(bootstrap.query?.session_id);
-  const tenantSlug = readBootstrapString(bootstrap.payload, [
-    'tenant_slug',
-    'tenant',
-    'slug',
-  ]) ?? readBootstrapString(bootstrap.query, ['tenant_slug', 'tenant', 'slug']);
+  const { chatSessionId, demoSessionId, tenantSlug } = getBootstrapSessionValues(bootstrap);
 
   if (demoSessionId) {
     headers['X-Demo-Session-Id'] ||= demoSessionId;
@@ -141,6 +155,20 @@ const normalizeBootstrapHeaders = (bootstrap: ChatBootstrapConfig) => {
   }
 
   return Object.keys(headers).length ? headers : undefined;
+};
+
+const sanitizeBootstrapQuery = (bootstrap: ChatBootstrapConfig) => {
+  const query = isRecord(bootstrap.query) ? { ...bootstrap.query } : {};
+  delete query.chat_session_id;
+  delete query.session_id;
+  delete query.demo_session_id;
+  delete query.demoSessionId;
+  delete query.session;
+
+  const { tenantSlug } = getBootstrapSessionValues(bootstrap);
+  if (tenantSlug && !query.tenant_slug && !query.tenant) query.tenant_slug = tenantSlug;
+
+  return Object.keys(query).length ? query : undefined;
 };
 
 const isBackendRootChatEndpoint = (endpoint: string) => {
@@ -174,6 +202,10 @@ const buildJsonPayload = (bootstrap: ChatBootstrapConfig, payload: ChatBootstrap
   if ('session_id' in basePayload && !readShortChatSessionId(basePayload.session_id)) {
     delete basePayload.session_id;
   }
+  const { chatSessionId, demoSessionId, tenantSlug } = getBootstrapSessionValues(bootstrap);
+  if (demoSessionId && !basePayload.demo_session_id) basePayload.demo_session_id = demoSessionId;
+  if (chatSessionId && !basePayload.chat_session_id) basePayload.chat_session_id = chatSessionId;
+  if (tenantSlug && !basePayload.tenant_slug && !basePayload.tenant) basePayload.tenant_slug = tenantSlug;
   const text = payload.text?.trim() ?? '';
   basePayload.pregunta = text;
 
@@ -364,15 +396,14 @@ export const sendChatBootstrapMessage = async (
   const endpoint =
     payload.audioBlob && payload.audioEndpoint?.trim()
       ? payload.audioEndpoint.trim()
-      : bootstrap.endpoint?.trim();
-  const fallbackEndpoint = bootstrap.fallback_endpoint?.trim();
+      : bootstrap.same_origin_endpoint?.trim() || bootstrap.endpoint?.trim();
 
-  if (!endpoint && !fallbackEndpoint) {
+  if (!endpoint) {
     throw new ApiError('El contrato de chat demo no incluye endpoint.', 400);
   }
 
   const requestEndpoint = async (target: string) =>
-    apiFetch<unknown>(appendQuery(target, bootstrap.query), {
+    apiFetch<unknown>(appendQuery(target, sanitizeBootstrapQuery(bootstrap)), {
       method: resolveBootstrapMethod(bootstrap.method),
       body: payload.audioBlob ? buildAudioPayload(bootstrap, payload) : buildJsonPayload(bootstrap, payload),
       headers: (() => {
@@ -392,10 +423,5 @@ export const sendChatBootstrapMessage = async (
       baseUrlOverride: resolveSameOriginChatBase(target),
     });
 
-  try {
-    return normalizeChatBootstrapResponse(await requestEndpoint(endpoint || fallbackEndpoint || '/ask'));
-  } catch (error) {
-    if (!fallbackEndpoint || !shouldFallbackEndpoint(error)) throw error;
-    return normalizeChatBootstrapResponse(await requestEndpoint(fallbackEndpoint));
-  }
+  return normalizeChatBootstrapResponse(await requestEndpoint(endpoint));
 };

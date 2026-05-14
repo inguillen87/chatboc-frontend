@@ -579,12 +579,17 @@ const Login = () => {
                 ? "bodega"
                 : "municipio",
       });
-      const sessionId = session.demo_session_id || session.session_id;
+      const sessionId = session.chat_session_id || session.session_id;
       if (!sessionId) {
-        throw new Error("La demo real no devolvio session_id.");
+        throw new Error("La demo real no devolvio chat_session_id.");
       }
       safeLocalStorage.setItem("demoMode", "true");
-      safeLocalStorage.setItem("demoSessionId", sessionId);
+      if (session.demo_session_id) {
+        safeLocalStorage.setItem("demoSessionId", session.demo_session_id);
+      } else {
+        safeLocalStorage.removeItem("demoSessionId");
+      }
+      safeLocalStorage.setItem("demoChatSessionId", sessionId);
       persistDemoTenant(session.tenant_slug || session.tenant?.slug || null);
       navigate(`/demo?sector=${publicDemoSector}&session=${encodeURIComponent(sessionId)}`, {
         state: {

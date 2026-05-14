@@ -121,25 +121,19 @@ describe('listPublicSurveys', () => {
     expect(result.__badPayload).toBe(true);
   });
 
-  it('tries the real /api/public non-v1 alias before returning an empty state', async () => {
+  it('does not retry non-v1 or /public aliases when strict v1 contract fails', async () => {
     apiFetchMock.mockRejectedValueOnce(new ApiError('Not Found', 404));
-    apiFetchMock.mockResolvedValueOnce([
-      { slug: 'votacion-en-vivo-luis-petri', titulo: 'Votacion', tipo: 'opinion', preguntas: [] },
-    ]);
 
     const result = await listPublicSurveys();
 
-    expect(result).toHaveLength(1);
+    expect(result).toHaveLength(0);
+    expect(result.__badPayload).toBe(true);
     expect(apiFetchMock).toHaveBeenNthCalledWith(
       1,
       '/api/public/encuestas/v1',
       expect.any(Object),
     );
-    expect(apiFetchMock).toHaveBeenNthCalledWith(
-      2,
-      '/api/public/encuestas',
-      expect.any(Object),
-    );
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
   });
 });
 

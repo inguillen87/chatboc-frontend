@@ -118,7 +118,11 @@ export default function ChatComposer({
   };
 
   const uploadAttachment = async (file: File, mode: ChatMediaInputModeConfig | undefined) => {
-    const endpoint = mode?.upload_endpoint || '/archivos/upload/chat_attachment';
+    const endpoint = mode?.upload_endpoint?.trim();
+    if (!endpoint) {
+      setError('Esta accion no esta disponible en esta demo.');
+      return null;
+    }
     const responseKey = mode?.upload_response_key || 'attachmentInfo';
     const createFormData = () => {
       const formData = new FormData();
@@ -186,7 +190,7 @@ export default function ChatComposer({
             audioBlob,
             audioFilename: `audio-${Date.now()}.webm`,
             audioField: audioMode?.multipart_field || 'audio_file',
-            audioEndpoint: audioMode?.chat_endpoint || '/ask',
+            audioEndpoint: audioMode?.chat_endpoint || undefined,
           });
           setText('');
           setError(null);

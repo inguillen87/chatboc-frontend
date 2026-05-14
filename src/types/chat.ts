@@ -211,6 +211,9 @@ export interface ChatLeadCaptureConfig {
   enabled?: boolean;
   title?: string | null;
   fields?: ChatLeadCaptureField[];
+  required_fields?: string[];
+  required_any_of?: string[][];
+  submit_contract?: string | null;
   trigger_intents?: string[];
   endpoint?: string | null;
   success_message?: string | null;

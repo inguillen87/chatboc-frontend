@@ -130,6 +130,8 @@ describe('sendChatBootstrapMessage', () => {
     );
 
     const [, options] = apiFetchMock.mock.calls[0];
+    const [endpoint] = apiFetchMock.mock.calls[0];
+    expect(endpoint).not.toContain('chat_session_id=');
     expect(options.headers).toEqual(
       expect.objectContaining({
         'X-Demo-Session-Id': demoJwt,
@@ -139,5 +141,56 @@ describe('sendChatBootstrapMessage', () => {
     );
     expect(options.headers).not.toHaveProperty('X-Chat-Session-Id');
     expect(options.body).not.toHaveProperty('chat_session_id');
+  });
+
+  it('prefers the same-origin endpoint published by chat_bootstrap', async () => {
+    await sendChatBootstrapMessage(
+      {
+        contract_version: 'demo.chat_bootstrap.v1',
+        endpoint: '/ask/municipio',
+        same_origin_endpoint: '/api/ask/municipio',
+        method: 'POST',
+        headers: { 'X-Tenant-Slug': 'municipio' },
+        query: { tenant_slug: 'municipio' },
+        session: {
+          chat_session_id: 'short-session-id',
+          demo_session_id: 'demo-token',
+        },
+      },
+      { text: 'Hola' },
+    );
+
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      '/api/ask/municipio?tenant_slug=municipio',
+      expect.objectContaining({
+        method: 'POST',
+        baseUrlOverride: undefined,
+        headers: expect.objectContaining({
+          'X-Chat-Session-Id': 'short-session-id',
+          'X-Demo-Session-Id': 'demo-token',
+          'X-Tenant-Slug': 'municipio',
+        }),
+      }),
+    );
+  });
+
+  it('does not retry legacy fallback endpoints when runtime rejects the request', async () => {
+    apiFetchMock.mockRejectedValueOnce(new Error('missing'));
+
+    await expect(
+      sendChatBootstrapMessage(
+        {
+          contract_version: 'demo.chat_bootstrap.v1',
+          endpoint: '/api/ask/municipio',
+          fallback_endpoint: '/public/ask/municipio',
+          method: 'POST',
+          query: { tenant_slug: 'municipio' },
+        },
+        { text: 'Hola' },
+      ),
+    ).rejects.toThrow('missing');
+
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+    expect(apiFetchMock.mock.calls[0][0]).toBe('/api/ask/municipio?tenant_slug=municipio');
   });
 });

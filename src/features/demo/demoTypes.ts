@@ -145,11 +145,18 @@ export interface DemoSessionResponse {
 export interface DemoChatBootstrap {
   contract_version?: string | null;
   endpoint?: string | null;
+  same_origin_endpoint?: string | null;
   fallback_endpoint?: string | null;
   method?: string | null;
   headers?: Record<string, string>;
   query?: Record<string, unknown>;
   payload?: Record<string, unknown>;
+  session?: {
+    chat_session_id?: string | null;
+    demo_session_id?: string | null;
+    [key: string]: unknown;
+  } | null;
+  empty_states?: Record<string, ChatExperienceBlock>;
   supports?: Record<string, boolean>;
 }
 

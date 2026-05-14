@@ -43,7 +43,6 @@ export async function getLandingExperience(
       tenantSlug: query.tenantSlug || query.tenant || query.slug || null,
       isWidgetRequest: true,
       omitCredentials: true,
-      legacyFallbackPath: `/public/landing-experience`,
     });
   } catch (error) {
     if (error instanceof ApiError && [404, 405, 501].includes(error.status)) {
@@ -52,4 +51,3 @@ export async function getLandingExperience(
     return null;
   }
 }
-

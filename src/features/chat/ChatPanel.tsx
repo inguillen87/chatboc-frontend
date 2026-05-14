@@ -7,7 +7,7 @@ import HandoffBanner from './HandoffBanner';
 import ConversationRating from './ConversationRating';
 import ChatEmptyState from './ChatEmptyState';
 import { Button } from '@/components/ui/button';
-import { getErrorMessage } from '@/utils/api';
+import { ApiError, getErrorMessage } from '@/utils/api';
 import { getOrCreateAnonId } from '@/utils/anonId';
 import getOrCreateChatSessionId from '@/utils/chatSessionId';
 import {
@@ -18,7 +18,7 @@ import {
   type LeadCaptureNextAction,
   type LeadCaptureResponse,
 } from './chatApi';
-import type { ChatPanelContext, ChatUiMessage, HandoffLabels, HandoffState, QuickReplyItem } from './chatTypes';
+import type { ChatBootstrapConfig, ChatPanelContext, ChatUiMessage, HandoffLabels, HandoffState, QuickReplyItem } from './chatTypes';
 import type {
   ChatAnimationTokens,
   ChatConversionCtaAction,
@@ -58,6 +58,184 @@ type StandaloneChatPanelProps = Omit<FeatureChatPanelProps, 'variant'>;
 
 const isHumanRequest = (text: string) => /human|persona|operador|agente/i.test(text);
 const HIGH_INTENT_TERMS = ['checkout', 'pedido', 'derivar_humano', 'humano', 'reclamo', 'estado'];
+
+type LeadFieldErrors = Record<string, string>;
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+const normalizeLeadValue = (value: unknown) =>
+  typeof value === 'string' ? value.trim() : value === null || value === undefined ? '' : String(value).trim();
+
+const readShortChatSessionId = (value: unknown): string | null => {
+  const trimmed = typeof value === 'string' ? value.trim() : '';
+  if (!trimmed) return null;
+  return trimmed.length <= 36 && !trimmed.includes('.') ? trimmed : null;
+};
+
+const readRecordString = (source: Record<string, unknown> | undefined | null, keys: string[]) => {
+  if (!source) return null;
+  for (const key of keys) {
+    const value = source[key];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+    if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  }
+  return null;
+};
+
+const readBootstrapSession = (bootstrap?: ChatBootstrapConfig | null) =>
+  bootstrap && isRecord(bootstrap.session) ? bootstrap.session : undefined;
+
+const readBootstrapRuntimeEndpoint = (bootstrap?: ChatBootstrapConfig | null) =>
+  bootstrap?.same_origin_endpoint?.trim() || bootstrap?.endpoint?.trim() || '';
+
+const readBootstrapChatSessionId = (bootstrap?: ChatBootstrapConfig | null) => {
+  const session = readBootstrapSession(bootstrap);
+  return (
+    readShortChatSessionId(session?.chat_session_id) ??
+    readShortChatSessionId(session?.session_id) ??
+    readShortChatSessionId(bootstrap?.headers?.['X-Chat-Session-Id']) ??
+    readShortChatSessionId(bootstrap?.payload?.chat_session_id) ??
+    readShortChatSessionId(bootstrap?.payload?.session_id) ??
+    readShortChatSessionId(bootstrap?.query?.chat_session_id) ??
+    readShortChatSessionId(bootstrap?.query?.session_id)
+  );
+};
+
+const readBootstrapDemoSessionId = (bootstrap?: ChatBootstrapConfig | null) => {
+  const session = readBootstrapSession(bootstrap);
+  return (
+    readRecordString(session, ['demo_session_id', 'demoSessionId']) ??
+    readRecordString(bootstrap?.payload, ['demo_session_id', 'demoSessionId']) ??
+    readRecordString(bootstrap?.query, ['demo_session_id', 'demoSessionId']) ??
+    readRecordString(bootstrap?.headers, ['X-Demo-Session-Id', 'X-Demo-Session'])
+  );
+};
+
+const normalizeFieldErrorValue = (value: unknown) => {
+  if (typeof value === 'string' && value.trim()) return value.trim();
+  if (Array.isArray(value)) {
+    const joined = value.map((item) => normalizeLeadValue(item)).filter(Boolean).join(' ');
+    return joined || 'Campo requerido.';
+  }
+  if (isRecord(value)) {
+    return readRecordString(value, ['message', 'detail', 'error']) ?? 'Campo requerido.';
+  }
+  return 'Campo requerido.';
+};
+
+const extractLeadFieldErrors = (error: unknown): LeadFieldErrors => {
+  const body = error instanceof ApiError && isRecord(error.body) ? error.body : null;
+  const nestedError = isRecord(body?.error) ? body.error : null;
+  const source =
+    (isRecord(body?.field_errors) && body?.field_errors) ||
+    (isRecord(body?.errors) && body?.errors) ||
+    (isRecord(nestedError?.field_errors) ? nestedError.field_errors : null);
+  const errors: LeadFieldErrors = {};
+
+  if (isRecord(source)) {
+    Object.entries(source).forEach(([key, value]) => {
+      if (!key.trim()) return;
+      errors[key] = normalizeFieldErrorValue(value);
+    });
+  }
+
+  const requiredFields = Array.isArray(body?.required_fields) ? body?.required_fields : [];
+  requiredFields.forEach((field) => {
+    if (typeof field === 'string' && field.trim() && !errors[field]) {
+      errors[field] = 'Campo requerido.';
+    }
+  });
+
+  return errors;
+};
+
+const validateLeadValues = (
+  config: ChatLeadCaptureConfig,
+  fields: ChatLeadCaptureField[],
+  values: Record<string, unknown>,
+): LeadFieldErrors => {
+  const errors: LeadFieldErrors = {};
+  const fieldNames = new Set(fields.map((field, index) => getLeadFieldName(field, index)));
+  const requiredFields = new Set<string>(
+    [
+      ...(config.required_fields ?? []),
+      ...fields
+        .map((field, index) => (field.required ? getLeadFieldName(field, index) : null))
+        .filter((name): name is string => Boolean(name)),
+    ].filter((name) => fieldNames.has(name)),
+  );
+
+  requiredFields.forEach((field) => {
+    if (!normalizeLeadValue(values[field])) {
+      errors[field] = 'Campo requerido.';
+    }
+  });
+
+  (config.required_any_of ?? []).forEach((group) => {
+    const availableGroup = group.filter((field) => fieldNames.has(field));
+    if (!availableGroup.length) return;
+    const hasAny = availableGroup.some((field) => Boolean(normalizeLeadValue(values[field])));
+    if (hasAny) return;
+    availableGroup.forEach((field) => {
+      errors[field] ||= 'Completa al menos una forma de contacto.';
+    });
+  });
+
+  return errors;
+};
+
+const normalizeRuntimeNextAction = (value: unknown): LeadCaptureNextAction | null => {
+  if (!isRecord(value)) return null;
+  const label = readRecordString(value, ['label', 'title', 'text']);
+  const endpoint = readRecordString(value, ['endpoint', 'href', 'url']);
+  const id = readRecordString(value, ['id', 'key']);
+  const method = readRecordString(value, ['method']);
+  const uiHint = readRecordString(value, ['ui_hint', 'uiHint']);
+  const payload = isRecord(value.payload) ? value.payload : null;
+  if (!label && !endpoint && !id) return null;
+  return {
+    id,
+    label: label ?? id ?? endpoint,
+    endpoint,
+    method,
+    payload,
+    ui_hint: uiHint,
+  };
+};
+
+const extractRuntimeLeadResult = (response: unknown): LeadCaptureResponse | null => {
+  if (!isRecord(response)) return null;
+  const lead: Record<string, unknown> = isRecord(response.lead) ? response.lead : {};
+  const nextActions = Array.isArray(response.next_actions)
+    ? response.next_actions.map(normalizeRuntimeNextAction).filter((item): item is LeadCaptureNextAction => Boolean(item))
+    : Array.isArray(lead.next_actions)
+      ? lead.next_actions.map(normalizeRuntimeNextAction).filter((item): item is LeadCaptureNextAction => Boolean(item))
+      : [];
+  const leadId =
+    readRecordString(lead, ['lead_id', 'id']) ??
+    readRecordString(response, ['lead_id']);
+  const ticketId =
+    readRecordString(lead, ['ticket_id', 'case_id']) ??
+    readRecordString(response, ['ticket_id', 'case_id']);
+  const status =
+    readRecordString(lead, ['status']) ??
+    readRecordString(response, ['status']);
+  const requestId = readRecordString(response, ['request_id']);
+
+  if (!leadId && !ticketId && !status && !nextActions.length && !requestId) return null;
+
+  return {
+    ok: response.ok === true || lead.created === true || Boolean(leadId || ticketId),
+    contract_version: readRecordString(response, ['contract_version']),
+    request_id: requestId,
+    lead_id: leadId,
+    ticket_id: ticketId,
+    status,
+    next_actions: nextActions,
+    raw: response,
+  };
+};
 
 const readBlockTitle = (block?: ChatExperienceBlock | null) =>
   block?.title?.trim() || block?.label?.trim() || block?.text?.trim() || '';
@@ -202,6 +380,7 @@ function StandaloneChatPanel({
   const [leadValues, setLeadValues] = useState<Record<string, string>>({});
   const [leadStatus, setLeadStatus] = useState<'idle' | 'sending' | 'sent'>('idle');
   const [leadError, setLeadError] = useState<string | null>(null);
+  const [leadFieldErrors, setLeadFieldErrors] = useState<LeadFieldErrors>({});
   const [leadResult, setLeadResult] = useState<LeadCaptureResponse | null>(null);
   const resolvedBlueprint =
     experienceBlueprint ?? resolvedContext.experienceBlueprint ?? null;
@@ -211,14 +390,16 @@ function StandaloneChatPanel({
     mediaCapabilities ?? resolvedContext.mediaCapabilities ?? resolvedBlueprint?.media_capabilities ?? null;
   const resolvedConversionCtas =
     conversionCtas ?? resolvedContext.conversionCtas ?? resolvedBlueprint?.conversion_ctas ?? null;
-  const resolvedEmptyStates =
-    emptyStates ?? resolvedContext.emptyStates ?? resolvedBlueprint?.empty_states ?? {};
   const resolvedAnimationTokens =
     animationTokens ?? resolvedContext.animationTokens ?? resolvedBlueprint?.animation_tokens ?? null;
   const resolvedChatBootstrap = resolvedContext.chatBootstrap ?? null;
-  const hasRuntimeChat = Boolean(
-    resolvedChatBootstrap?.endpoint?.trim() || resolvedChatBootstrap?.fallback_endpoint?.trim(),
-  );
+  const resolvedEmptyStates = {
+    ...(resolvedBlueprint?.empty_states ?? {}),
+    ...(resolvedContext.emptyStates ?? {}),
+    ...(emptyStates ?? {}),
+    ...(resolvedChatBootstrap?.empty_states ?? {}),
+  };
+  const hasRuntimeChat = Boolean(readBootstrapRuntimeEndpoint(resolvedChatBootstrap));
   const firstVisit =
     resolvedContext.firstVisit ??
     resolvedBlueprint?.first_visit ??
@@ -291,11 +472,25 @@ function StandaloneChatPanel({
     values: Record<string, unknown>,
     meta: Record<string, unknown> = {},
   ) => {
+    const fields = config.fields ?? [];
+    const normalizedValues = Object.fromEntries(
+      Object.entries(values).map(([key, value]) => [key, normalizeLeadValue(value)]),
+    );
+    const validationErrors = validateLeadValues(config, fields, normalizedValues);
+    if (Object.keys(validationErrors).length) {
+      setLeadFieldErrors(validationErrors);
+      setLeadError(null);
+      setLeadStatus('idle');
+      return;
+    }
+
     setLeadStatus('sending');
     setLeadError(null);
+    setLeadFieldErrors({});
     setLeadResult(null);
     try {
-      const chatSessionId = getOrCreateChatSessionId();
+      const chatSessionId = readBootstrapChatSessionId(resolvedChatBootstrap) ?? getOrCreateChatSessionId();
+      const demoSessionId = readBootstrapDemoSessionId(resolvedChatBootstrap);
       const anonId = getOrCreateAnonId();
       const cleanMeta = Object.fromEntries(
         Object.entries(meta).filter(([, value]) => value !== undefined),
@@ -310,8 +505,11 @@ function StandaloneChatPanel({
         config,
         {
           ...cleanMeta,
+          ...normalizedValues,
           tenant_slug: resolvedContext.tenantSlug ?? undefined,
+          sector: resolvedContext.sector ?? undefined,
           tipo_chat: resolvedContext.tipoChat,
+          demo_session_id: demoSessionId ?? undefined,
           chat_session_id: chatSessionId,
           anon_id: anonId || undefined,
           channel: typeof cleanMeta.channel === 'string' ? cleanMeta.channel : 'web',
@@ -320,7 +518,7 @@ function StandaloneChatPanel({
           intent: typeof cleanMeta.intent === 'string' ? cleanMeta.intent : trigger,
           conversation_id: conversationId ?? undefined,
           idempotency_key: idempotencyKey,
-          fields: values,
+          fields: normalizedValues,
         },
         resolvedContext.tenantSlug,
         { idempotencyKey },
@@ -330,6 +528,7 @@ function StandaloneChatPanel({
       setActiveLead(null);
       setActiveLeadMeta({});
       setLeadValues({});
+      setLeadFieldErrors({});
       const success = response.message_body?.trim() || config.success_message?.trim();
       if (success) {
         setMessages((prev) => [
@@ -343,6 +542,10 @@ function StandaloneChatPanel({
         ]);
       }
     } catch (err) {
+      const fieldErrors = extractLeadFieldErrors(err);
+      if (Object.keys(fieldErrors).length) {
+        setLeadFieldErrors(fieldErrors);
+      }
       setLeadError(getErrorMessage(err, 'No se pudo guardar el seguimiento.'));
       setLeadStatus('idle');
     }
@@ -360,6 +563,7 @@ function StandaloneChatPanel({
     setActiveLeadMeta(meta);
     setLeadResult(null);
     setLeadValues({});
+    setLeadFieldErrors({});
     setLeadStatus('idle');
     setLeadError(null);
   };
@@ -405,6 +609,10 @@ function StandaloneChatPanel({
           const replyText = extractChatBootstrapReplyText(response);
           if (isTechnicalAssistantReply(response, replyText)) {
             throw new Error('Respuesta tecnica del runtime de chat demo.');
+          }
+          const runtimeLeadResult = extractRuntimeLeadResult(response);
+          if (runtimeLeadResult) {
+            setLeadResult(runtimeLeadResult);
           }
           if (!replyText) return;
           setMessages((prev) => [
@@ -572,6 +780,8 @@ function StandaloneChatPanel({
             const name = getLeadFieldName(field, index);
             const label = leadFieldLabel(field, index);
             const inputType = field.type === 'email' || field.type === 'tel' ? field.type : 'text';
+            const requiredByContract = field.required || (activeLead.required_fields ?? []).includes(name);
+            const fieldError = leadFieldErrors[name];
             return (
               <label key={name} className="block space-y-1">
                 <span className="text-xs font-medium text-muted-foreground">{label}</span>
@@ -579,10 +789,17 @@ function StandaloneChatPanel({
                   <select
                     className="w-full rounded-md border bg-background px-2 py-1.5 text-sm"
                     value={leadValues[name] || ''}
-                    required={field.required}
-                    onChange={(event) =>
-                      setLeadValues((prev) => ({ ...prev, [name]: event.target.value }))
-                    }
+                    required={requiredByContract}
+                    aria-invalid={Boolean(fieldError)}
+                    onChange={(event) => {
+                      setLeadValues((prev) => ({ ...prev, [name]: event.target.value }));
+                      setLeadFieldErrors((prev) => {
+                        if (!prev[name]) return prev;
+                        const next = { ...prev };
+                        delete next[name];
+                        return next;
+                      });
+                    }}
                   >
                     <option value="" />
                     {field.options.map((option, optionIndex) => {
@@ -599,13 +816,21 @@ function StandaloneChatPanel({
                     className="w-full rounded-md border bg-background px-2 py-1.5 text-sm"
                     type={inputType}
                     value={leadValues[name] || ''}
-                    required={field.required}
+                    required={requiredByContract}
+                    aria-invalid={Boolean(fieldError)}
                     placeholder={field.placeholder ?? undefined}
-                    onChange={(event) =>
-                      setLeadValues((prev) => ({ ...prev, [name]: event.target.value }))
-                    }
+                    onChange={(event) => {
+                      setLeadValues((prev) => ({ ...prev, [name]: event.target.value }));
+                      setLeadFieldErrors((prev) => {
+                        if (!prev[name]) return prev;
+                        const next = { ...prev };
+                        delete next[name];
+                        return next;
+                      });
+                    }}
                   />
                 )}
+                {fieldError ? <span className="block text-xs text-destructive">{fieldError}</span> : null}
               </label>
             );
           })}
@@ -618,6 +843,7 @@ function StandaloneChatPanel({
               onClick={() => {
                 setActiveLead(null);
                 setActiveLeadMeta({});
+                setLeadFieldErrors({});
               }}
               disabled={leadStatus === 'sending'}
             >

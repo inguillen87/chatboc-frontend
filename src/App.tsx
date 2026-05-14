@@ -76,6 +76,8 @@ function AppRoutes() {
   const rutasSinWidget = [
     // '/', // ENABLE WIDGET ON LANDING PAGE
     "/iframe",
+    "/demo",
+    "/demo-catalogs",
     "/login",
     "/register",
     "/user/login",

@@ -1,5 +1,5 @@
 import React from 'react';
-import { BarChart3, CheckCircle2, Smartphone } from 'lucide-react';
+import { AlertTriangle, BarChart3, CheckCircle2, Smartphone } from 'lucide-react';
 import ChatPanel from '@/features/chat/ChatPanel';
 import type { DemoSector, DemoWorkspaceConfig } from './demoTypes';
 
@@ -19,6 +19,29 @@ const readWorkspaceLabel = (
   }
 
   return fallback;
+};
+
+const hasChatRuntime = (workspace: DemoWorkspaceConfig | null | undefined) =>
+  Boolean(
+    workspace?.chat_bootstrap?.same_origin_endpoint?.trim() ||
+      workspace?.chat_bootstrap?.endpoint?.trim(),
+  );
+
+const readRuntimeUnavailableState = (workspace: DemoWorkspaceConfig | null | undefined) => {
+  const state =
+    workspace?.chat_bootstrap?.empty_states?.runtime_unavailable ??
+    workspace?.empty_states?.runtime_unavailable ??
+    workspace?.experience_blueprint?.empty_states?.runtime_unavailable;
+
+  return {
+    title: state?.title || state?.label || 'Demo conversacional no disponible',
+    description:
+      state?.description ||
+      state?.detail ||
+      state?.subtitle ||
+      state?.text ||
+      'Esta experiencia todavia no esta disponible para probar en vivo.',
+  };
 };
 
 export default function DemoWorkspace({
@@ -42,6 +65,8 @@ export default function DemoWorkspace({
   const educationQuickMenu = Array.isArray(workspace?.education?.quick_menu)
     ? workspace.education.quick_menu
     : null;
+  const runtimeAvailable = hasChatRuntime(workspace);
+  const runtimeUnavailable = readRuntimeUnavailableState(workspace);
   const chatTitle = readWorkspaceLabel(
     workspace,
     ['chat_title', 'conversation_title', 'phone_title'],
@@ -74,7 +99,7 @@ export default function DemoWorkspace({
                 <p className="truncate text-xs text-muted-foreground">{phoneSubtitle}</p>
               </div>
             </div>
-            {workspace?.chat_bootstrap?.endpoint ? (
+            {runtimeAvailable ? (
               <span className="inline-flex items-center gap-1 rounded-full border border-success/30 bg-success/10 px-2 py-1 text-[11px] font-semibold text-success">
                 <CheckCircle2 className="h-3 w-3" />
                 online
@@ -83,45 +108,57 @@ export default function DemoWorkspace({
           </div>
 
           <div className="max-h-[720px] min-h-[560px] overflow-y-auto rounded-[1.2rem] border border-border/50 bg-muted/15 p-3">
-            <ChatPanel
-              variant="standalone"
-              context={{
-                tenantSlug: tenantSlug ?? null,
-                sector: sector ?? null,
-                rubro: rubro ?? null,
-                tipoChat: sector === 'gobierno' ? 'municipio' : 'pyme',
-                welcomeMessage: workspace?.welcome_message ?? null,
-                quickReplies: workspace?.quick_replies ?? [],
-                firstVisit: workspace?.first_visit ?? workspace?.experience_blueprint?.first_visit ?? null,
-                sampleConversations,
-                trustSignals:
-                  workspace?.trust_signals ??
-                  workspace?.experience_blueprint?.trust_signals ??
-                  [],
-                experienceBlueprint: workspace?.experience_blueprint ?? null,
-                leadCapture: workspace?.lead_capture ?? workspace?.experience_blueprint?.lead_capture ?? null,
-                mediaCapabilities: workspace?.media_capabilities ?? null,
-                chatBootstrap: workspace?.chat_bootstrap ?? null,
-                conversionCtas:
-                  workspace?.conversion_ctas ??
-                  workspace?.experience_blueprint?.conversion_ctas ??
-                  null,
-                animationTokens: workspace?.animation_tokens ?? null,
-                emptyStates:
-                  workspace?.empty_states ?? workspace?.experience_blueprint?.empty_states ?? undefined,
-              }}
-              quickMenu={educationQuickMenu}
-              handoffState="none"
-              handoffLabels={workspace?.handoff_labels ?? undefined}
-              leadCapture={workspace?.lead_capture ?? workspace?.experience_blueprint?.lead_capture ?? null}
-              mediaCapabilities={workspace?.media_capabilities ?? null}
-              conversionCtas={workspace?.conversion_ctas ?? workspace?.experience_blueprint?.conversion_ctas ?? null}
-              animationTokens={workspace?.animation_tokens ?? null}
-              emptyStates={workspace?.empty_states ?? workspace?.experience_blueprint?.empty_states ?? undefined}
-              experienceBlueprint={workspace?.experience_blueprint ?? null}
-              supportChannels={workspace?.support_channels ?? null}
-              realtimeVoice={workspace?.realtime_voice ?? workspace?.support_channels?.voice_call?.capabilities ?? null}
-            />
+            {runtimeAvailable ? (
+              <ChatPanel
+                variant="standalone"
+                context={{
+                  tenantSlug: tenantSlug ?? null,
+                  sector: sector ?? null,
+                  rubro: rubro ?? null,
+                  tipoChat: sector === 'gobierno' ? 'municipio' : 'pyme',
+                  welcomeMessage: workspace?.welcome_message ?? null,
+                  quickReplies: workspace?.quick_replies ?? [],
+                  firstVisit: workspace?.first_visit ?? workspace?.experience_blueprint?.first_visit ?? null,
+                  sampleConversations,
+                  trustSignals:
+                    workspace?.trust_signals ??
+                    workspace?.experience_blueprint?.trust_signals ??
+                    [],
+                  experienceBlueprint: workspace?.experience_blueprint ?? null,
+                  leadCapture: workspace?.lead_capture ?? workspace?.experience_blueprint?.lead_capture ?? null,
+                  mediaCapabilities: workspace?.media_capabilities ?? null,
+                  chatBootstrap: workspace?.chat_bootstrap ?? null,
+                  conversionCtas:
+                    workspace?.conversion_ctas ??
+                    workspace?.experience_blueprint?.conversion_ctas ??
+                    null,
+                  animationTokens: workspace?.animation_tokens ?? null,
+                  emptyStates:
+                    workspace?.empty_states ?? workspace?.experience_blueprint?.empty_states ?? undefined,
+                }}
+                quickMenu={educationQuickMenu}
+                handoffState="none"
+                handoffLabels={workspace?.handoff_labels ?? undefined}
+                leadCapture={workspace?.lead_capture ?? workspace?.experience_blueprint?.lead_capture ?? null}
+                mediaCapabilities={workspace?.media_capabilities ?? null}
+                conversionCtas={workspace?.conversion_ctas ?? workspace?.experience_blueprint?.conversion_ctas ?? null}
+                animationTokens={workspace?.animation_tokens ?? null}
+                emptyStates={workspace?.empty_states ?? workspace?.experience_blueprint?.empty_states ?? undefined}
+                experienceBlueprint={workspace?.experience_blueprint ?? null}
+                supportChannels={workspace?.support_channels ?? null}
+                realtimeVoice={workspace?.realtime_voice ?? workspace?.support_channels?.voice_call?.capabilities ?? null}
+              />
+            ) : (
+              <div className="flex min-h-[520px] flex-col items-center justify-center rounded-[1rem] border border-dashed border-border/70 bg-card/50 p-6 text-center">
+                <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+                  <AlertTriangle className="h-5 w-5" />
+                </span>
+                <p className="max-w-xs text-base font-semibold text-foreground">{runtimeUnavailable.title}</p>
+                <p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground">
+                  {runtimeUnavailable.description}
+                </p>
+              </div>
+            )}
           </div>
         </div>
 

@@ -28,7 +28,8 @@ import {
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
 type PrimitiveParam = string | number | boolean | undefined | null;
-type QueryParams = Record<string, PrimitiveParam | PrimitiveParam[]>;
+type QueryParamValue = PrimitiveParam | PrimitiveParam[] | readonly PrimitiveParam[];
+type QueryParams = object;
 
 const PUBLIC_SURVEY_API_BASE =
   typeof PUBLIC_SURVEY_BASE_URL === 'string' && PUBLIC_SURVEY_BASE_URL.trim()
@@ -40,7 +41,7 @@ const PUBLIC_CHAT_CONTEXT_STORAGE_KEY = 'chatboc_public_chat_context';
 const buildQueryString = (params?: QueryParams) => {
   if (!params) return '';
   const search = new URLSearchParams();
-  Object.entries(params).forEach(([key, value]) => {
+  Object.entries(params as Record<string, QueryParamValue>).forEach(([key, value]) => {
     if (value === undefined || value === null || value === '') return;
 
     const appendValue = (input: PrimitiveParam) => {
@@ -54,7 +55,7 @@ const buildQueryString = (params?: QueryParams) => {
     };
 
     if (Array.isArray(value)) {
-      const normalized = value
+      const normalized = (value as readonly PrimitiveParam[])
         .map((item) => {
           if (item === undefined || item === null || item === '') return null;
           if (typeof item === 'number') {
@@ -73,7 +74,7 @@ const buildQueryString = (params?: QueryParams) => {
       return;
     }
 
-    appendValue(value);
+    appendValue(value as PrimitiveParam);
   });
   const query = search.toString();
   return query ? `?${query}` : '';
@@ -307,9 +308,6 @@ const attemptRecoveryFromAdminList = async (): Promise<PublicSurveyListResult | 
 export const getPublicSurvey = async (slug: string, tenantSlug?: string): Promise<SurveyPublic> => {
   const response = await callPublicSurveyEndpoint<unknown>(buildPublicSurveyPaths(
     `/api/public/encuestas/v1/${slug}`,
-    `/public/encuestas/v1/${slug}`,
-    `/api/public/encuestas/${slug}`,
-    `/public/encuestas/${slug}`,
   ), {
     skipAuth: true,
     omitCredentials: true,
@@ -331,6 +329,23 @@ export const getPublicSurvey = async (slug: string, tenantSlug?: string): Promis
       throw new Error('El servidor devolvió un payload inválido para el contrato encuestas.public.v1.');
     }
     return normalizeSurveyPreguntas(survey as SurveyPublic);
+  }
+
+  if ((response as Record<string, unknown>).contract_version === 'public.survey_resolution.v1') {
+    const record = response as Record<string, unknown>;
+    const status =
+      typeof record.status === 'number'
+        ? record.status
+        : typeof record.status_code === 'number'
+          ? record.status_code
+          : 404;
+    const message =
+      typeof record.message === 'string' && record.message.trim()
+        ? record.message.trim()
+        : typeof record.title === 'string' && record.title.trim()
+          ? record.title.trim()
+          : 'No encontramos esta encuesta.';
+    throw new ApiError(message, status, record, typeof record.request_id === 'string' ? record.request_id : undefined);
   }
 
   return normalizeSurveyPreguntas(response as SurveyPublic);
@@ -364,10 +379,9 @@ const callPublicSurveyEndpoint = async <T>(paths: string[], options: ApiFetchOpt
 const buildPublicSurveyPaths = (...paths: string[]) => {
   if (paths.length === 0) return [];
   const unique = Array.from(new Set(paths.filter(Boolean)));
-  if (!ENABLE_PUBLIC_SURVEY_LEGACY_FALLBACK) {
-    return unique.filter((path) => path.startsWith('/api/public/'));
-  }
-  return unique;
+  const contractPaths = unique.filter((path) => path.startsWith('/api/public/encuestas/v1'));
+  if (contractPaths.length) return contractPaths;
+  return unique.filter((path) => path.startsWith('/api/public/'));
 };
 
 const FALLBACK_SURVEY_URL_REGEX = /https?:\/\/[\S]+\/e\/([a-z0-9-]+)/gi;
@@ -427,9 +441,6 @@ export const listPublicSurveys = async (tenantSlug?: string): Promise<PublicSurv
   try {
     const response = await callPublicSurveyEndpoint<unknown>(buildPublicSurveyPaths(
       '/api/public/encuestas/v1',
-      '/public/encuestas/v1',
-      '/api/public/encuestas',
-      '/public/encuestas',
     ), {
       skipAuth: true,
       omitCredentials: true,
@@ -541,8 +552,7 @@ export const getPublicSurveyLiveResults = (
   },
 ): Promise<SurveyLivePublicResultsPayload> =>
   callPublicSurveyEndpoint<SurveyLivePublicResultsPayload>(buildPublicSurveyPaths(
-    `/api/public/encuestas/${slug}/live-results${buildQueryString(params)}`,
-    `/public/encuestas/${slug}/live-results${buildQueryString(params)}`,
+    `/api/public/encuestas/v1/${slug}/live-results${buildQueryString(params)}`,
   ), {
     skipAuth: true,
     omitCredentials: true,
@@ -560,8 +570,7 @@ export const postPublicResponse = (
   tenantSlug?: string,
 ): Promise<{ ok: boolean; id?: number; contact_key?: string; conversation_id?: string; contract_version?: string; request_id?: string }> =>
   callPublicSurveyEndpoint<{ ok: boolean; id?: number; contact_key?: string; conversation_id?: string; contract_version?: string; request_id?: string }>(buildPublicSurveyPaths(
-    `/api/public/encuestas/${slug}/respuestas`,
-    `/public/encuestas/${slug}/respuestas`,
+    `/api/public/encuestas/v1/${slug}/responder`,
   ), {
     method: 'POST',
     body: payload,
@@ -624,8 +633,7 @@ export const getSurveyComments = (
   offset = 0,
 ): Promise<SurveyComment[]> =>
   callPublicSurveyEndpoint<SurveyComment[]>(buildPublicSurveyPaths(
-    `/api/public/encuestas/${slug}/comentarios?limit=${limit}&offset=${offset}`,
-    `/public/encuestas/${slug}/comentarios?limit=${limit}&offset=${offset}`,
+    `/api/public/encuestas/v1/${slug}/comentarios?limit=${limit}&offset=${offset}`,
   ), {
     skipAuth: true,
     omitCredentials: true,
@@ -654,8 +662,7 @@ export const postSurveyComment = (
   tenantSlug?: string,
 ): Promise<SurveyComment> =>
   callPublicSurveyEndpoint<SurveyComment>(buildPublicSurveyPaths(
-    `/api/public/encuestas/${slug}/comentarios`,
-    `/public/encuestas/${slug}/comentarios`,
+    `/api/public/encuestas/v1/${slug}/comentarios`,
   ), {
     method: 'POST',
     body: payload,

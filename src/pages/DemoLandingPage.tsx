@@ -1,172 +1,95 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import {
-  ArrowRight,
-  ArrowUpRight,
-  BarChart2,
-  Bot,
-  Calendar,
-  CheckCircle2,
-  Loader2,
-  MessageSquare,
-  PhoneCall,
-  PieChart,
-  QrCode,
-  ShieldCheck,
-  ShoppingBag,
-  Smartphone,
-  Store,
-  Users,
-} from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { AlertTriangle, ArrowLeft, Loader2, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { DashboardPreview } from "@/components/demo/DashboardPreview";
-import { ContextualSurvey } from "@/components/demo/ContextualSurvey";
-import { VotingWidget } from "@/components/demo/VotingWidget";
-import { MarketCartProvider } from "@/context/MarketCartContext";
-import { useTenant } from "@/context/TenantContext";
-import { getTenantPublicInfoFlexible, listTenantEvents, listTenantNews } from "@/api/tenant";
-import ProductCatalog from "@/pages/ProductCatalog";
-import type { TenantEventItem, TenantNewsItem, TenantPublicInfo } from "@/types/tenant";
-import type { RealtimeVoiceCapabilities } from "@/types/realtimeVoice";
-import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import DemoWorkspace from "@/features/demo/DemoWorkspace";
-import {
-  getRealtimeVoiceBadges,
-  isRealtimeVoiceRenderable,
-} from "@/utils/realtimeVoice";
+import { createDemoSession } from "@/features/demo/demoApi";
+import type { DemoSector, DemoSessionResponse } from "@/features/demo/demoTypes";
+import { ApiError, getErrorMessage } from "@/utils/api";
+import { CHATBOC_ORBIT_AVATAR } from "@/utils/brandAssets";
+import { safeLocalStorage } from "@/utils/safeLocalStorage";
 
-const openWidget = () => {
-  document.querySelector(".chatboc-toggle-btn")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+type DemoPageError = {
+  message: string;
+  requestId?: string | null;
 };
 
-const DemoHero = ({
-  tenant,
-  realtimeVoice,
-  showRealtimeVoice,
-}: {
-  tenant: TenantPublicInfo;
-  realtimeVoice?: RealtimeVoiceCapabilities | null;
-  showRealtimeVoice?: boolean;
-}) => {
-  const isMunicipio = tenant.tipo === "municipio" || tenant.slug === "municipio" || tenant.slug === "demo-municipio";
-  const realtimeVoiceBadges = getRealtimeVoiceBadges(realtimeVoice);
-
-  return (
-    <section className="chatboc-hero-grid overflow-hidden pt-24 pb-12 text-foreground md:pt-32 md:pb-16">
-      <div className="container mx-auto px-4">
-        <div className="mx-auto max-w-5xl text-center">
-          <div className="mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-[8px] border border-border/70 bg-card/90 p-3 shadow-sm md:h-28 md:w-28">
-            {tenant.logo_url ? (
-              <img src={tenant.logo_url} alt={tenant.nombre} className="h-full w-full object-contain" />
-            ) : (
-              <Store className="h-10 w-10 text-primary" />
-            )}
-          </div>
-
-          <Badge className="mb-5 rounded-[8px] border border-primary/20 bg-primary/5 px-4 py-1.5 text-primary hover:bg-primary/5">
-            Demo interactiva
-          </Badge>
-          <h1 className="mx-auto max-w-4xl text-4xl font-bold leading-tight tracking-normal md:text-6xl">{tenant.nombre}</h1>
-          <p className="mx-auto mt-5 max-w-3xl text-lg leading-8 text-muted-foreground md:text-xl">
-            {tenant.descripcion ||
-              "Simulación real de una experiencia Chatboc conectada a chat, panel, catálogo, contenido y analítica operativa."}
-          </p>
-
-          <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
-            <Button size="lg" className="chatboc-cta-primary h-12 rounded-[8px] px-7 font-semibold" onClick={openWidget}>
-              <MessageSquare className="mr-2 h-5 w-5" />
-              Abrir chat demo
-            </Button>
-            {showRealtimeVoice ? (
-              <Button
-                variant="secondary"
-                size="lg"
-                className="h-12 rounded-[8px] px-7 font-semibold"
-                onClick={openWidget}
-              >
-                <PhoneCall className="mr-2 h-5 w-5" />
-                Probar llamada IA
-              </Button>
-            ) : null}
-            <Button
-              variant="outline"
-              size="lg"
-              className="h-12 rounded-[8px] border-border/80 px-7 font-semibold hover:border-primary/40 hover:bg-primary/5"
-              onClick={() => document.getElementById("demo-interactive-section")?.scrollIntoView({ behavior: "smooth" })}
-            >
-              {isMunicipio ? <Users className="mr-2 h-5 w-5" /> : <ShoppingBag className="mr-2 h-5 w-5" />}
-              Ver experiencia
-            </Button>
-          </div>
-
-          {showRealtimeVoice && realtimeVoiceBadges.length > 0 ? (
-            <div className="mt-5 flex flex-wrap justify-center gap-2">
-              {realtimeVoiceBadges.map((badge) => (
-                <span
-                  key={badge}
-                  className="rounded-[8px] border border-primary/20 bg-primary/5 px-3 py-1.5 text-xs font-semibold text-primary"
-                >
-                  {badge}
-                </span>
-              ))}
-            </div>
-          ) : null}
-
-          <div className="mx-auto mt-10 max-w-4xl">
-            <div className="mb-3 flex items-center justify-center gap-2 text-sm font-medium text-muted-foreground">
-              <BarChart2 className="h-4 w-4" />
-              Vista previa del panel operativo
-            </div>
-            <div className="chatboc-landing-panel chatboc-dashboard-scan h-[300px] overflow-hidden p-2">
-              <DashboardPreview type={isMunicipio ? "municipio" : "pyme"} tenantName={tenant.nombre} />
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
+const readRequestId = (error: unknown): string | null => {
+  if (error instanceof ApiError) {
+    return error.requestId ?? error.body?.request_id ?? null;
+  }
+  if (!error || typeof error !== "object") return null;
+  const source = error as Record<string, unknown>;
+  const value = source.request_id ?? source.requestId;
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 };
 
-const FeatureCard = ({ icon, title, desc }: { icon: React.ReactNode; title: string; desc: string }) => (
-  <Card className="chatboc-hover-lift h-full rounded-[8px] border-border/70 bg-card/90 shadow-sm">
-    <CardHeader>
-      <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-[8px] bg-primary/10 text-primary">{icon}</div>
-      <CardTitle className="text-xl">{title}</CardTitle>
-    </CardHeader>
-    <CardContent>
-      <CardDescription className="text-base leading-7">{desc}</CardDescription>
-    </CardContent>
-  </Card>
-);
+const buildDemoPageError = (error: unknown): DemoPageError => ({
+  message: getErrorMessage(error, "No pudimos iniciar esta demo. Intenta nuevamente en unos minutos.").replace(
+    /\s*\(Req ID: .*?\)\s*$/,
+    "",
+  ),
+  requestId: readRequestId(error),
+});
 
-const DemoLandingPage = () => {
+const normalizeSector = (value?: string | null): DemoSector | null => {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  if (!normalized) return null;
+  if (normalized.includes("educ") || normalized.includes("coleg") || normalized.includes("escuela")) {
+    return "educacion";
+  }
+  if (normalized.includes("gob") || normalized.includes("muni") || normalized.includes("public")) {
+    return "gobierno";
+  }
+  if (normalized.includes("empresa") || normalized.includes("pyme") || normalized.includes("comerc")) {
+    return "empresas";
+  }
+  return normalized as DemoSector;
+};
+
+const readSessionSector = (session: DemoSessionResponse | null): DemoSector | null => {
+  if (!session) return null;
+  const payload = session.workspace?.chat_bootstrap?.payload ?? session.chat_bootstrap?.payload ?? {};
+  const query = session.workspace?.chat_bootstrap?.query ?? session.chat_bootstrap?.query ?? {};
+  const candidates = [
+    payload.vertical,
+    payload.sector,
+    payload.pillar,
+    query.vertical,
+    query.sector,
+    query.pillar,
+    session.tenant?.tipo,
+    session.tenant_slug,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate !== "string") continue;
+    const sector = normalizeSector(candidate);
+    if (sector) return sector;
+  }
+
+  return null;
+};
+
+const readDemoTitle = (session: DemoSessionResponse | null, slug?: string | null) => {
+  const candidates = [
+    session?.workspace?.title,
+    session?.tenant?.nombre,
+    session?.tenant_slug,
+    slug,
+  ];
+  return candidates.find((value) => typeof value === "string" && value.trim())?.trim() ?? "Demo Chatboc";
+};
+
+export default function DemoLandingPage() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
-  const [tenant, setTenant] = useState<TenantPublicInfo | null>(null);
-  const [news, setNews] = useState<TenantNewsItem[]>([]);
-  const [events, setEvents] = useState<TenantEventItem[]>([]);
+  const [session, setSession] = useState<DemoSessionResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const { setTenantSlug } = useTenant();
-  const effectiveRealtimeVoice =
-    tenant?.realtime_voice ||
-    tenant?.widget?.realtime_voice ||
-    tenant?.support_channels?.voice_call?.capabilities ||
-    tenant?.widget?.support_channels?.voice_call?.capabilities ||
-    null;
-  const voiceCallConfig = useMemo(
-    () =>
-      tenant?.support_channels?.voice_call ||
-      tenant?.widget?.support_channels?.voice_call ||
-      null,
-    [tenant?.support_channels?.voice_call, tenant?.widget?.support_channels?.voice_call],
-  );
-  const showRealtimeVoice = isRealtimeVoiceRenderable(
-    effectiveRealtimeVoice,
-    voiceCallConfig,
-  );
+  const [error, setError] = useState<DemoPageError | null>(null);
+
+  const sector = useMemo(() => readSessionSector(session), [session]);
+  const title = useMemo(() => readDemoTitle(session, slug), [session, slug]);
 
   useEffect(() => {
     safeLocalStorage.removeItem("chatboc_chat_session_id");
@@ -174,295 +97,158 @@ const DemoLandingPage = () => {
   }, [slug]);
 
   useEffect(() => {
-    if (!slug) {
-      navigate("/demo");
-      return;
-    }
+    let cancelled = false;
 
-    const loadDemo = async () => {
+    const loadSession = async () => {
+      if (!slug?.trim()) {
+        navigate("/demo", { replace: true });
+        return;
+      }
+
       try {
         setLoading(true);
-        const data = await getTenantPublicInfoFlexible(slug);
-        setTenant(data);
+        setError(null);
+        const response = await createDemoSession({ tenant_slug: slug.trim() });
+        if (cancelled) return;
+        setSession(response);
 
-        if (data.slug) {
-          setTenantSlug(data.slug);
-          const [newsData, eventsData] = await Promise.all([
-            listTenantNews(data.slug).catch(() => []),
-            listTenantEvents(data.slug).catch(() => []),
-          ]);
-          setNews(newsData);
-          setEvents(eventsData);
+        if (response.chat_session_id) {
+          safeLocalStorage.setItem("chatboc_chat_session_id", response.chat_session_id);
         }
-
-        setTimeout(() => {
-          if (!document.querySelector(".chatboc-widget-window")) {
-            openWidget();
-          }
-        }, 1500);
+        if (response.demo_session_id) {
+          safeLocalStorage.setItem("chatboc_demo_session_id", response.demo_session_id);
+        }
+        if (response.tenant_slug) {
+          safeLocalStorage.setItem("tenantSlug", response.tenant_slug);
+        }
       } catch (err) {
-        console.error("Failed to load demo:", err);
-        setError("No pudimos cargar la demo solicitada. Verificá el enlace o intentá nuevamente.");
+        if (!cancelled) {
+          setSession(null);
+          setError(buildDemoPageError(err));
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
-    loadDemo();
-  }, [slug, navigate, setTenantSlug]);
+    void loadSession();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [navigate, slug]);
+
+  const retry = () => {
+    setSession(null);
+    setError(null);
+    setLoading(true);
+    queueMicrotask(async () => {
+      try {
+        if (!slug?.trim()) {
+          navigate("/demo", { replace: true });
+          return;
+        }
+        const response = await createDemoSession({ tenant_slug: slug.trim() });
+        setSession(response);
+        if (response.chat_session_id) {
+          safeLocalStorage.setItem("chatboc_chat_session_id", response.chat_session_id);
+        }
+        if (response.demo_session_id) {
+          safeLocalStorage.setItem("chatboc_demo_session_id", response.demo_session_id);
+        }
+        if (response.tenant_slug) {
+          safeLocalStorage.setItem("tenantSlug", response.tenant_slug);
+        }
+      } catch (err) {
+        setError(buildDemoPageError(err));
+      } finally {
+        setLoading(false);
+      }
+    });
+  };
 
   if (loading) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4 text-center">
-        <Loader2 className="mb-4 h-12 w-12 animate-spin text-primary" />
-        <p className="text-lg text-muted-foreground">Configurando entorno de demostración...</p>
+      <div className="min-h-screen bg-background text-foreground">
+        <main className="mx-auto flex min-h-screen w-full max-w-5xl flex-col items-center justify-center px-4 text-center">
+          <Loader2 className="mb-4 h-10 w-10 animate-spin text-primary" />
+          <p className="text-base font-semibold">Preparando la demo...</p>
+          <p className="mt-2 max-w-md text-sm text-muted-foreground">
+            Estamos abriendo una sesion operativa real para esta experiencia.
+          </p>
+        </main>
       </div>
     );
   }
 
-  if (error || !tenant) {
+  if (error || !session) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4 text-center">
-        <div className="mb-4 rounded-[8px] bg-destructive/10 p-4 text-destructive">
-          <Store className="h-8 w-8" />
-        </div>
-        <h1 className="mb-2 text-2xl font-bold">Algo salió mal</h1>
-        <p className="mb-6 max-w-md text-muted-foreground">{error || "Demo no encontrada."}</p>
-        <Button onClick={() => navigate("/")} variant="outline" className="rounded-[8px]">
-          Volver al inicio
-        </Button>
+      <div className="min-h-screen bg-background text-foreground">
+        <main className="mx-auto flex min-h-screen w-full max-w-3xl flex-col items-center justify-center px-4 text-center">
+          <span className="mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+            <AlertTriangle className="h-6 w-6" />
+          </span>
+          <h1 className="text-2xl font-bold">No pudimos abrir esta demo</h1>
+          <p className="mt-3 max-w-xl text-sm leading-6 text-muted-foreground">
+            {error?.message ?? "La experiencia solicitada no esta disponible en este momento."}
+          </p>
+          {error?.requestId ? (
+            <p className="mt-3 text-xs text-muted-foreground">request_id: {error.requestId}</p>
+          ) : null}
+          <div className="mt-7 flex flex-wrap justify-center gap-3">
+            <Button variant="outline" onClick={() => navigate("/demo")}>
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Ver demos
+            </Button>
+            <Button onClick={retry}>
+              <RotateCcw className="mr-2 h-4 w-4" />
+              Reintentar
+            </Button>
+          </div>
+        </main>
       </div>
     );
   }
-
-  const hasContent = news.length > 0 || events.length > 0;
-  const isMunicipio = tenant.tipo === "municipio" || tenant.slug === "municipio" || tenant.slug === "demo-municipio";
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <DemoHero
-        tenant={tenant}
-        realtimeVoice={effectiveRealtimeVoice}
-        showRealtimeVoice={showRealtimeVoice}
-      />
-
-      <main className="container mx-auto px-4 py-16 md:py-20">
-        <div className="mb-12">
-          <DemoWorkspace tenantSlug={tenant.slug} sector={isMunicipio ? "gobierno" : "empresas"} />
+      <main className="mx-auto w-full max-w-6xl px-4 py-8 md:py-12">
+        <div className="mb-6 flex items-center justify-between gap-4">
+          <Button variant="ghost" className="px-2" onClick={() => navigate("/demo")}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Demos
+          </Button>
+          <img src={CHATBOC_ORBIT_AVATAR} alt="Chatboc" className="h-10 w-10 rounded-full" />
         </div>
 
-        <div className="mx-auto mb-12 max-w-3xl text-center">
-          <div className="chatboc-section-kicker mb-4">Experiencia conectada</div>
-          <h2 className="chatboc-section-heading">La conversación y el panel se actualizan juntos</h2>
-          <p className="chatboc-section-copy mt-4">
-            Esta demo abre el widget, muestra el recorrido del usuario y deja ver cómo cada consulta puede convertirse en seguimiento, venta o atención.
-          </p>
-        </div>
-
-        <div className="mb-20 grid gap-4 md:grid-cols-3">
-          <FeatureCard
-            icon={<Smartphone className="h-6 w-6" />}
-            title="Omnicanalidad"
-            desc="La misma lógica puede operar web, widget y canales conversacionales sin duplicar la experiencia."
-          />
-          <FeatureCard
-            icon={<PieChart className="h-6 w-6" />}
-            title="Métricas útiles"
-            desc="La demo muestra conversación, contenido, tickets o catálogo como parte de un circuito medible."
-          />
-          <FeatureCard
-            icon={<ShieldCheck className="h-6 w-6" />}
-            title="Experiencia consistente"
-            desc="La marca, los mensajes y las acciones se mantienen ordenados en web, chat y panel."
-          />
-        </div>
-
-        {hasContent ? (
-          <section className="mb-20">
-            <div className="mb-10 text-center">
-              <Badge className="mb-3 rounded-[8px] border-transparent bg-secondary text-secondary-foreground hover:bg-secondary">
-                Portal público
-              </Badge>
-              <h2 className="text-3xl font-bold tracking-normal">Novedades de {tenant.nombre}</h2>
-              <p className="mt-3 text-muted-foreground">Contenido publicado para esta organización.</p>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {news.map((item) => (
-                <Card key={item.id} className="chatboc-hover-lift overflow-hidden rounded-[8px] border-border/70">
-                  {item.cover_url ? (
-                    <div className="relative h-48 w-full bg-muted">
-                      <img src={item.cover_url} alt={item.titulo} className="h-full w-full object-cover" />
-                      <div className="absolute right-2 top-2 rounded-[8px] bg-background/90 px-2 py-1 text-xs font-semibold backdrop-blur">
-                        Noticia
-                      </div>
-                    </div>
-                  ) : null}
-                  <CardHeader>
-                    <CardTitle className="line-clamp-2 text-lg">{item.titulo}</CardTitle>
-                    <CardDescription className="line-clamp-3">{item.resumen}</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <Button variant="link" className="h-auto p-0 text-primary">
-                      Leer más
-                      <ArrowUpRight className="ml-1 h-3 w-3" />
-                    </Button>
-                  </CardContent>
-                </Card>
-              ))}
-              {events.map((item) => (
-                <Card key={item.id} className="chatboc-hover-lift overflow-hidden rounded-[8px] border-border/70">
-                  {item.cover_url ? (
-                    <div className="relative h-48 w-full bg-muted">
-                      <img src={item.cover_url} alt={item.titulo} className="h-full w-full object-cover" />
-                      <div className="absolute right-2 top-2 flex items-center gap-1 rounded-[8px] bg-background/90 px-2 py-1 text-xs font-semibold backdrop-blur">
-                        <Calendar className="h-3 w-3" />
-                        Evento
-                      </div>
-                    </div>
-                  ) : null}
-                  <CardHeader>
-                    <CardTitle className="line-clamp-2 text-lg">{item.titulo}</CardTitle>
-                    <CardDescription className="flex items-center gap-2">
-                      <Calendar className="h-4 w-4 opacity-70" />
-                      {item.starts_at ? new Date(item.starts_at).toLocaleDateString() : "Próximamente"}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <Button variant="link" className="h-auto p-0 text-primary">
-                      Ver detalles
-                      <ArrowUpRight className="ml-1 h-3 w-3" />
-                    </Button>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </section>
-        ) : null}
-
-        <section id="demo-interactive-section" className="mb-20 scroll-mt-24">
-          <div className="mb-10 text-center">
-            <Badge className="mb-3 rounded-[8px] border-transparent bg-secondary text-secondary-foreground hover:bg-secondary">
-              Experiencia de usuario
-            </Badge>
-            <h2 className="text-3xl font-bold tracking-normal">{isMunicipio ? "Participación ciudadana" : "Catálogo digital inteligente"}</h2>
-            <p className="mx-auto mt-3 max-w-2xl text-muted-foreground">
-              {isMunicipio
-                ? "Vista de referencia para probar una votación simple conectada a la experiencia del portal."
-                : "Vista de referencia para explorar catálogo, carrito y feedback contextual dentro de la organización."}
-            </p>
-          </div>
-
-          <div className="chatboc-landing-panel overflow-hidden">
-            {isMunicipio ? (
-              <div className="grid md:grid-cols-2">
-                <div className="flex flex-col justify-center bg-muted/30 p-6 md:p-10">
-                  <h3 className="mb-4 text-2xl font-bold">Votación demo</h3>
-                  <p className="mb-6 text-muted-foreground">
-                    Ejemplo de participación digital con una pregunta breve y respuesta inmediata.
-                  </p>
-                  <div className="w-full max-w-md rounded-[8px] border bg-background p-5 shadow-sm">
-                    <VotingWidget question="¿Qué opción priorizarías?" yesLabel="Opción A" noLabel="Opción B" />
-                  </div>
-                </div>
-                <div className="flex items-center justify-center bg-primary/5 p-8 text-center md:p-10">
-                  <div className="max-w-sm">
-                    <QrCode className="mx-auto mb-6 h-28 w-28 text-primary opacity-80" />
-                    <h4 className="mb-2 font-semibold">Acceso rápido</h4>
-                    <p className="text-sm text-muted-foreground">
-                      El portal puede distribuirse por QR, link público o canal conversacional.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="grid min-h-[600px] grid-cols-1 lg:grid-cols-3">
-                <div className="border-border/60 lg:col-span-2 lg:border-r">
-                  {tenant.slug ? (
-                    <MarketCartProvider tenantSlug={tenant.slug}>
-                      <div className="h-full bg-muted/10 p-4">
-                        <ProductCatalog tenantSlug={tenant.slug} />
-                      </div>
-                    </MarketCartProvider>
-                  ) : (
-                    <div className="flex h-full items-center justify-center p-12 text-muted-foreground">
-                      Catálogo no disponible en esta demo.
-                    </div>
-                  )}
-                </div>
-                <div className="flex flex-col items-center justify-center bg-background p-6 text-center">
-                  <Badge className="mb-3 rounded-[8px] border border-border bg-background text-foreground hover:bg-background">
-                    Feedback
-                  </Badge>
-                  <h4 className="text-lg font-semibold">Encuestas contextuales</h4>
-                  <p className="mb-6 mt-2 text-sm text-muted-foreground">
-                    Captura señales después de una compra, consulta o interacción.
-                  </p>
-                  <ContextualSurvey />
-                </div>
-              </div>
-            )}
-          </div>
-        </section>
-
-        <section className="chatboc-landing-panel p-6 md:p-10">
-          <div className="grid gap-10 md:grid-cols-2 md:items-center">
+        <section className="mb-8 rounded-[24px] border bg-card/70 p-5 shadow-sm md:p-8">
+          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-primary">Demo operativa</p>
+          <div className="mt-3 grid gap-4 md:grid-cols-[1fr_auto] md:items-end">
             <div>
-              <h2 className="text-3xl font-bold tracking-normal">Activá una experiencia similar para tu organización</h2>
-              <ul className="mt-6 space-y-3 text-muted-foreground">
-                {[
-                  "Configuración guiada para salir rápido",
-                  "Widget, panel y canales conectados a tu organización",
-                  "Soporte para evolución por etapas",
-                  "Integración progresiva con sistemas existentes",
-                ].map((item) => (
-                  <li key={item} className="flex items-start gap-3">
-                    <CheckCircle2 className="mt-0.5 h-5 w-5 flex-shrink-0 text-success" />
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-              <Button size="lg" className="chatboc-cta-primary mt-8 rounded-[8px] px-7 font-semibold" onClick={() => navigate("/register")}>
-                Crear cuenta
-                <ArrowRight className="ml-2 h-5 w-5" />
-              </Button>
+              <h1 className="max-w-3xl text-3xl font-bold leading-tight tracking-normal md:text-5xl">
+                {title}
+              </h1>
+              {session.workspace?.welcome_message ? (
+                <p className="mt-4 max-w-2xl text-base leading-7 text-muted-foreground">
+                  {session.workspace.welcome_message}
+                </p>
+              ) : null}
             </div>
-            <div className="rounded-[8px] border border-border/70 bg-background p-7 text-center shadow-sm">
-              <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-[8px] bg-primary/10 text-primary">
-                <Bot className="h-7 w-7" />
-              </div>
-              <h3 className="text-xl font-semibold">Panel y agente en el mismo circuito</h3>
-              <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                Conversaciones, contenido, acciones y métricas avanzan juntas para que el equipo trabaje con contexto.
-              </p>
-              <Button variant="outline" size="sm" className="mt-5 rounded-[8px]" onClick={openWidget}>
-                Abrir chat
-              </Button>
-            </div>
+            {session.chat_session_id ? (
+              <span className="rounded-full border bg-background px-3 py-1 text-xs font-medium text-muted-foreground">
+                sesion activa
+              </span>
+            ) : null}
           </div>
         </section>
-      </main>
 
-      <footer className="border-t border-border bg-muted/20 py-10 text-center">
-        <div className="container mx-auto px-4">
-          <div className="mb-4 flex items-center justify-center gap-2">
-            <img
-              src="/chatboc_frontend_pack/branding/chatboc/navbar/chatboc-navbar-mark-circle.svg"
-              alt="Chatboc"
-              className="h-8 w-8 rounded-full"
-            />
-            <span className="font-bold">Chatboc</span>
-          </div>
-          <p className="mx-auto max-w-lg text-sm text-muted-foreground">
-            Plataforma de agentes IA para operar conversaciones, ventas y servicios con experiencias simples y medibles.
-          </p>
-          <div className="mt-6 text-xs text-muted-foreground/70">
-            © {new Date().getFullYear()} Chatboc Technologies. Todos los derechos reservados.
-          </div>
-        </div>
-      </footer>
+        <DemoWorkspace
+          tenantSlug={session.tenant_slug ?? slug ?? null}
+          sector={sector}
+          rubro={session.tenant?.tipo ?? null}
+          workspace={session.workspace ?? null}
+        />
+      </main>
     </div>
   );
-};
-
-export default DemoLandingPage;
+}
