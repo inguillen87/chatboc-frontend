@@ -171,6 +171,7 @@ const normalizeWorkspaceConfig = (response: DemoSessionResponse): DemoWorkspaceC
       null,
     {
       demoSessionId: response.demo_session_id ?? response.session_id ?? null,
+      chatSessionId: response.chat_session_id ?? response.session_id ?? null,
       tenantSlug: response.tenant_slug ?? response.tenant?.slug ?? null,
     },
   );
@@ -227,9 +228,21 @@ const normalizeWorkspaceConfig = (response: DemoSessionResponse): DemoWorkspaceC
   };
 };
 
+const readString = (value: unknown): string | null => {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+};
+
+const readShortChatSessionId = (value: unknown): string | null => {
+  const trimmed = readString(value);
+  if (!trimmed) return null;
+  return trimmed.length <= 36 && !trimmed.includes('.') ? trimmed : null;
+};
+
 const normalizeChatBootstrap = (
   value: DemoChatBootstrap | null,
-  context?: { demoSessionId?: string | null; tenantSlug?: string | null },
+  context?: { demoSessionId?: string | null; chatSessionId?: string | null; tenantSlug?: string | null },
 ): DemoChatBootstrap | null => {
   if (!value || typeof value !== 'object') return null;
   const headers = value.headers && typeof value.headers === 'object' ? { ...value.headers } : {};
@@ -239,17 +252,30 @@ const normalizeChatBootstrap = (
     context?.demoSessionId ??
     (typeof payload?.demo_session_id === 'string' ? payload.demo_session_id : null) ??
     (typeof query?.demo_session_id === 'string' ? query.demo_session_id : null);
+  const chatSessionId =
+    readShortChatSessionId(context?.chatSessionId) ??
+    readShortChatSessionId(headers['X-Chat-Session-Id']) ??
+    readShortChatSessionId(payload?.chat_session_id) ??
+    readShortChatSessionId(query?.chat_session_id);
   const tenantSlug =
     context?.tenantSlug ??
     (typeof payload?.tenant_slug === 'string' ? payload.tenant_slug : null) ??
     (typeof query?.tenant_slug === 'string' ? query.tenant_slug : null);
 
+  if (headers['X-Chat-Session-Id'] && !readShortChatSessionId(headers['X-Chat-Session-Id'])) {
+    delete headers['X-Chat-Session-Id'];
+  }
+
   if (demoSessionId) {
     headers['X-Demo-Session-Id'] ||= demoSessionId;
     headers['X-Demo-Session'] ||= demoSessionId;
-    headers['X-Chat-Session-Id'] ||= demoSessionId;
     if (payload && !payload.demo_session_id) payload.demo_session_id = demoSessionId;
     if (query && !query.demo_session_id) query.demo_session_id = demoSessionId;
+  }
+  if (chatSessionId) {
+    headers['X-Chat-Session-Id'] ||= chatSessionId;
+    if (payload && !payload.chat_session_id) payload.chat_session_id = chatSessionId;
+    if (query && !query.chat_session_id) query.chat_session_id = chatSessionId;
   }
   if (tenantSlug) {
     headers['X-Tenant-Slug'] ||= tenantSlug;

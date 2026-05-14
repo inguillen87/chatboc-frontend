@@ -110,25 +110,37 @@
   .chatboc-hero-preview {
     position: relative;
     margin-left: auto;
-    width: min(100%, 33rem);
-    border-radius: 34px;
-    padding: 10px;
+    width: min(100%, 29rem);
+    border-radius: 42px;
+    padding: 12px;
     background:
-      linear-gradient(135deg, hsl(var(--primary) / 0.34), hsl(var(--success) / 0.22), hsl(var(--border) / 0.72)),
-      linear-gradient(180deg, hsl(var(--card)), hsl(var(--muted) / 0.72));
-    box-shadow: 0 32px 100px rgba(15, 23, 42, 0.18), inset 0 0 0 1px hsl(var(--border) / 0.54);
+      linear-gradient(145deg, hsl(var(--foreground) / 0.92), hsl(var(--foreground) / 0.78)),
+      linear-gradient(135deg, hsl(var(--primary) / 0.34), hsl(var(--success) / 0.22));
+    box-shadow: 0 34px 105px rgba(15, 23, 42, 0.22), inset 0 0 0 1px hsl(var(--border) / 0.45);
   }
   .chatboc-hero-preview::before {
     content: "";
     position: absolute;
     left: 50%;
-    top: 0.55rem;
+    top: 0.62rem;
     z-index: 3;
     height: 0.28rem;
     width: 4.2rem;
     transform: translateX(-50%);
     border-radius: 999px;
-    background: hsl(var(--foreground) / 0.18);
+    background: hsl(var(--background) / 0.78);
+  }
+  .chatboc-hero-preview::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: 0.7rem;
+    z-index: 3;
+    height: 0.22rem;
+    width: 5.5rem;
+    transform: translateX(-50%);
+    border-radius: 999px;
+    background: hsl(var(--background) / 0.48);
   }
   .dark .chatboc-hero-preview {
     box-shadow: 0 34px 110px rgba(0, 0, 0, 0.52);
@@ -136,11 +148,11 @@
   .chatboc-phone-demo {
     position: relative;
     display: flex;
-    height: min(720px, calc(100vh - 180px));
-    min-height: 560px;
+    height: min(690px, calc(100vh - 158px));
+    min-height: 570px;
     flex-direction: column;
     overflow: hidden;
-    border-radius: 28px;
+    border-radius: 32px;
     background:
       radial-gradient(circle at 12% 0%, hsl(var(--primary) / 0.14), transparent 34%),
       radial-gradient(circle at 86% 16%, hsl(var(--success) / 0.12), transparent 30%),
@@ -212,11 +224,16 @@
     flex: 1;
     flex-direction: column;
     gap: 0.72rem;
-    overflow: hidden;
-    padding: 0.85rem;
+    overflow: auto;
+    padding: 0.85rem 0.85rem 1.05rem;
+    scrollbar-width: none;
+  }
+  .chatboc-phone-demo__screen::-webkit-scrollbar {
+    width: 0;
+    height: 0;
   }
   .chatboc-phone-demo__bubble {
-    max-width: min(88%, 32rem);
+    max-width: min(86%, 21rem);
     border-radius: 14px;
     padding: 0.78rem 0.86rem;
     font-size: 0.86rem;
@@ -241,7 +258,7 @@
     gap: 0.52rem;
   }
   .chatboc-hero-attachment {
-    min-height: 4.1rem;
+    min-height: 4.9rem;
     border-radius: 12px;
     border: 1px solid hsl(var(--border) / 0.72);
     background: hsl(var(--muted) / 0.54);

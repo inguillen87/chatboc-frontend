@@ -233,9 +233,21 @@ chat_session_context.chat_session_id VARCHAR(36)
 Accion:
 
 - Usar `X-Chat-Session-Id` o `chat_session_id` si viene.
+- Validar que `X-Chat-Session-Id` sea un id corto apto para `VARCHAR(36)`.
+- Si `X-Chat-Session-Id` viene largo, contiene formato JWT o supera 36 caracteres, tratarlo como ausente.
 - Si no viene, crear UUID v4.
 - Guardar el JWT original en `context_data.demo_session_id`.
-- Si el JWT es invalido o vencido, responder JSON, no 500.
+- Si el JWT es invalido, vencido o incompatible, responder JSON con `request_id`, no 500 ni HTML.
+
+Evidencia de produccion recibida:
+
+```txt
+POST /ask/municipio?...demo_session_id=JWT_LARGO 500
+psycopg.errors.StringDataRightTruncation: value too long for type character varying(36)
+INSERT INTO chat_session_context (chat_session_id, ...)
+```
+
+Frontend ya no envia el JWT largo como `X-Chat-Session-Id`; lo conserva en `X-Demo-Session-Id` y `demo_session_id`. Backend igual debe ser defensivo para builds cacheados.
 
 ### 4. Lead capture
 

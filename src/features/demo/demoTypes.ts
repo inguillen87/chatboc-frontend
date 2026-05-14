@@ -104,6 +104,7 @@ export interface DemoSessionResponse {
   contract_version?: string;
   request_id?: string;
   session_id?: string;
+  chat_session_id?: string | null;
   demo_session_id?: string;
   tenant_slug?: string | null;
   tenant?: {
