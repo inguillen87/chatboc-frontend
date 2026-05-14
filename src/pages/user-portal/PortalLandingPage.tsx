@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useWidgetSessionStore } from '@/stores';
 import { useTenant } from '@/context/TenantContext';
 import { Loader2 } from 'lucide-react';
+import { buildTenantPath } from '@/utils/tenantPaths';
 
 export const PortalLandingPage: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -25,7 +26,7 @@ export const PortalLandingPage: React.FC = () => {
       if (returnTo && returnTo.startsWith('/')) {
         navigate(returnTo, { replace: true });
       } else if (currentSlug) {
-        navigate(`/${currentSlug}/portal/dashboard`, { replace: true });
+        navigate(buildTenantPath('/portal/dashboard', currentSlug), { replace: true });
       } else {
         navigate('/portal/dashboard', { replace: true });
       }

@@ -1,6 +1,12 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Home, ShoppingBag, ListChecks, UserCircle, Menu as MenuIcon } from 'lucide-react'; // Usar MenuIcon para "Más"
+import { Home, ListChecks, Menu as MenuIcon, ShoppingBag } from 'lucide-react';
+
+import { useTenant } from '@/context/TenantContext';
+import { buildTenantPath } from '@/utils/tenantPaths';
+import type { PortalContent } from '@/types/unified';
+import type { WidgetCommerceSession } from '@/types/widgetCommerce';
+import type { WidgetPortalClaim, WidgetPortalOrder } from '@/utils/widgetPortal';
 
 interface NavItem {
   path: string;
@@ -9,24 +15,81 @@ interface NavItem {
   exact?: boolean;
 }
 
-const bottomNavItems: NavItem[] = [
-  { path: '/portal/dashboard', label: 'Inicio', icon: <Home className="h-5 w-5" />, exact: true },
-  { path: '/portal/catalogo', label: 'Catálogo', icon: <ShoppingBag className="h-5 w-5" /> },
-  { path: '/portal/pedidos', label: 'Gestiones', icon: <ListChecks className="h-5 w-5" /> },
-  // El cuarto ítem ahora será "Más" para abrir el Sheet/SideNav
-];
-
 interface BottomNavigationBarProps {
-  onOpenMobileMenu?: () => void; // Callback para abrir el menú lateral en mobile
+  onOpenMobileMenu?: () => void;
+  portalNavigation?: {
+    content: PortalContent;
+    commerceSession: WidgetCommerceSession | null;
+    publicClaims: WidgetPortalClaim[];
+    publicOrders: WidgetPortalOrder[];
+  };
 }
 
-const BottomNavigationBar: React.FC<BottomNavigationBarProps> = ({ onOpenMobileMenu }) => {
-  const location = useLocation();
+const EMPTY_CONTENT: PortalContent = {
+  notifications: [],
+  events: [],
+  news: [],
+  catalog: [],
+  activities: [],
+  surveys: [],
+  loyaltySummary: null,
+};
 
-  // Función para determinar si una ruta está activa, considerando subrutas para "Más"
+const BottomNavigationBar: React.FC<BottomNavigationBarProps> = ({ onOpenMobileMenu, portalNavigation }) => {
+  const location = useLocation();
+  const { currentSlug, tenant } = useTenant();
+  const content = portalNavigation?.content ?? EMPTY_CONTENT;
+  const commerceSession = portalNavigation?.commerceSession ?? null;
+  const publicClaims = portalNavigation?.publicClaims ?? [];
+  const publicOrders = portalNavigation?.publicOrders ?? [];
+  const isMunicipio = tenant?.tipo === 'municipio';
+  const actionLabels = commerceSession?.frontend_contract?.action_labels ?? {};
+  const catalogEnabled = commerceSession?.catalog?.enabled === true || content.catalog.length > 0;
+  const historyEnabled =
+    publicClaims.length > 0 ||
+    publicOrders.length > 0 ||
+    content.activities.length > 0 ||
+    Boolean(commerceSession?.history || commerceSession?.portal);
+
+  const bottomNavItems = useMemo<NavItem[]>(
+    () => [
+      {
+        path: buildTenantPath('/portal/dashboard', currentSlug),
+        label: actionLabels.home || 'Inicio',
+        icon: <Home className="h-5 w-5" />,
+        exact: true,
+      },
+      ...(catalogEnabled
+        ? [
+            {
+              path: buildTenantPath('/portal/catalogo', currentSlug),
+              label: actionLabels.catalog || commerceSession?.catalog?.label || (isMunicipio ? 'Tramites' : 'Catalogo'),
+              icon: <ShoppingBag className="h-5 w-5" />,
+            },
+          ]
+        : []),
+      ...(historyEnabled
+        ? [
+            {
+              path: buildTenantPath(isMunicipio ? '/portal/reclamos' : '/portal/pedidos', currentSlug),
+              label: actionLabels.history || commerceSession?.history?.label || 'Historial',
+              icon: <ListChecks className="h-5 w-5" />,
+            },
+          ]
+        : []),
+    ],
+    [actionLabels, catalogEnabled, commerceSession?.catalog?.label, commerceSession?.history?.label, currentSlug, historyEnabled, isMunicipio],
+  );
+
   const isMoreSectionActive = () => {
-    const morePaths = ['/portal/noticias', '/portal/eventos', '/portal/beneficios', '/portal/encuestas', '/portal/cuenta'];
-    return morePaths.some(path => location.pathname.startsWith(path));
+    const morePaths = [
+      buildTenantPath('/portal/noticias', currentSlug),
+      buildTenantPath('/portal/eventos', currentSlug),
+      buildTenantPath('/portal/beneficios', currentSlug),
+      buildTenantPath('/portal/encuestas', currentSlug),
+      buildTenantPath('/portal/cuenta', currentSlug),
+    ];
+    return morePaths.some((path) => location.pathname.startsWith(path));
   };
 
   const bottomButtonBaseClasses = 'flex flex-col items-center justify-center p-1 w-full h-full transition-colors duration-150';
@@ -40,7 +103,7 @@ const BottomNavigationBar: React.FC<BottomNavigationBarProps> = ({ onOpenMobileM
     <nav className="md:hidden bg-card border-t border-border shadow-t-lg fixed bottom-0 left-0 right-0 z-30 h-16">
       <ul className="flex justify-around items-center h-full max-w-full mx-auto">
         {bottomNavItems.map((item) => (
-          <li key={item.path} className="flex-1">
+          <li key={item.path} className="flex-1 min-w-0">
             <NavLink
               to={item.path}
               end={item.exact}
@@ -52,18 +115,14 @@ const BottomNavigationBar: React.FC<BottomNavigationBarProps> = ({ onOpenMobileM
               }}
             >
               {item.icon}
-              <span className="text-[0.65rem] mt-0.5 leading-tight">{item.label}</span>
+              <span className="mt-0.5 max-w-full truncate px-1 text-[0.65rem] leading-tight">{item.label}</span>
             </NavLink>
           </li>
         ))}
-        {/* Botón "Más" para abrir el menú lateral (Sheet) */}
-        <li className="flex-1">
-          <button
-            onClick={onOpenMobileMenu}
-            className={moreButtonClasses}
-          >
+        <li className="flex-1 min-w-0">
+          <button onClick={onOpenMobileMenu} className={moreButtonClasses}>
             <MenuIcon className="h-5 w-5" />
-            <span className="text-[0.65rem] mt-0.5 leading-tight">Más</span>
+            <span className="mt-0.5 text-[0.65rem] leading-tight">{actionLabels.more || 'Mas'}</span>
           </button>
         </li>
       </ul>

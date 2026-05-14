@@ -1,7 +1,7 @@
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { GoogleOAuthProvider } from "@react-oauth/google";
-import { HashRouter, Navigate, Route, Routes } from "react-router-dom";
+import { HashRouter, Navigate, Route, Routes, useParams } from "react-router-dom";
 
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -23,6 +23,7 @@ import UserAccountPage from "@/pages/user-portal/UserAccountPage";
 import { PortalLandingPage } from "@/pages/user-portal/PortalLandingPage";
 import TenantTicketFormPage from "@/pages/tenant/TenantTicketFormPage";
 import NotFound from "@/pages/NotFound";
+import { buildTenantPath } from "@/utils/tenantPaths";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -45,10 +46,26 @@ const guestPortalPaths = [
   "/portal/beneficios",
   "/portal/encuestas",
   "/portal/cuenta",
+  "/t/:tenant/portal/dashboard",
+  "/t/:tenant/portal/catalogo",
+  "/t/:tenant/portal/pedidos",
+  "/t/:tenant/portal/reclamos",
+  "/t/:tenant/portal/noticias",
+  "/t/:tenant/portal/eventos",
+  "/t/:tenant/portal/beneficios",
+  "/t/:tenant/portal/encuestas",
+  "/t/:tenant/portal/cuenta",
   "/noticias/eventos",
   "/noticias/encuestas",
   "/municipio/reclamos/nuevo",
 ];
+
+function PortalTenantRedirect() {
+  const params = useParams();
+  const tenant = typeof params.tenant === "string" ? params.tenant.trim() : "";
+  if (!tenant) return <Navigate to="/portal/dashboard" replace />;
+  return <Navigate to={buildTenantPath("/portal/dashboard", tenant)} replace />;
+}
 
 function PortalRoutes() {
   return (
@@ -67,7 +84,7 @@ function PortalRoutes() {
             }
           >
             <Route path="/portal/dashboard" element={<UserDashboardPage />} />
-            <Route path="/portal/:tenant" element={<Navigate to="/portal/dashboard" replace />} />
+            <Route path="/portal/:tenant" element={<PortalTenantRedirect />} />
             <Route path="/portal/catalogo" element={<UserCatalogPage />} />
             <Route path="/portal/pedidos" element={<UserOrdersPage />} />
             <Route path="/portal/reclamos" element={<UserClaimsPage />} />
@@ -76,6 +93,15 @@ function PortalRoutes() {
             <Route path="/portal/beneficios" element={<UserBenefitsPage />} />
             <Route path="/portal/encuestas" element={<UserSurveysPage />} />
             <Route path="/portal/cuenta" element={<UserAccountPage />} />
+            <Route path="/t/:tenant/portal/dashboard" element={<UserDashboardPage />} />
+            <Route path="/t/:tenant/portal/catalogo" element={<UserCatalogPage />} />
+            <Route path="/t/:tenant/portal/pedidos" element={<UserOrdersPage />} />
+            <Route path="/t/:tenant/portal/reclamos" element={<UserClaimsPage />} />
+            <Route path="/t/:tenant/portal/noticias" element={<UserNewsPage />} />
+            <Route path="/t/:tenant/portal/eventos" element={<UserEventsPage />} />
+            <Route path="/t/:tenant/portal/beneficios" element={<UserBenefitsPage />} />
+            <Route path="/t/:tenant/portal/encuestas" element={<UserSurveysPage />} />
+            <Route path="/t/:tenant/portal/cuenta" element={<UserAccountPage />} />
             <Route path="/noticias/eventos" element={<UserEventsPage />} />
             <Route path="/noticias/encuestas" element={<UserSurveysPage />} />
             <Route

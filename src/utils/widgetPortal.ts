@@ -435,6 +435,10 @@ const normalizeLoyaltySummary = (
     surveysCompleted: surveysCompleted ?? 0,
     suggestionsShared: suggestionsShared ?? 0,
     claimsFiled: claimsFiled ?? 0,
+    hasParticipationMetrics:
+      surveysCompleted !== undefined ||
+      suggestionsShared !== undefined ||
+      claimsFiled !== undefined,
     availableRewards: rewards.map((reward) => ({
       id: reward.id,
       title: reward.title,

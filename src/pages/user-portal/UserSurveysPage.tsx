@@ -30,28 +30,30 @@ const UserSurveysPage = () => {
         </Button>
       </div>
 
-      <Card className="border border-muted/70 shadow-sm">
-        <CardHeader>
-          <CardTitle>Resumen de participacion</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-3">
-          <div className="p-3 rounded-lg bg-muted/40 flex flex-col gap-1">
-            <span className="text-xs text-muted-foreground">Encuestas completadas</span>
-            <span className="text-2xl font-semibold">{summary?.surveysCompleted ?? 0}</span>
-          </div>
-          <div className="p-3 rounded-lg bg-muted/40 flex flex-col gap-1">
-            <span className="text-xs text-muted-foreground">Sugerencias enviadas</span>
-            <span className="text-2xl font-semibold">{summary?.suggestionsShared ?? 0}</span>
-          </div>
-          <div className="p-3 rounded-lg bg-muted/40 flex flex-col gap-1">
-            <span className="text-xs text-muted-foreground">Reclamos registrados</span>
-            <span className="text-2xl font-semibold">{summary?.claimsFiled ?? 0}</span>
-          </div>
-        </CardContent>
-        <CardFooter className="text-xs text-muted-foreground">
-          {error ? 'No se pudieron cargar todos los datos de participacion.' : 'Datos entregados por el portal del tenant.'}
-        </CardFooter>
-      </Card>
+      {summary?.hasParticipationMetrics ? (
+        <Card className="border border-muted/70 shadow-sm">
+          <CardHeader>
+            <CardTitle>Resumen de participacion</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4 md:grid-cols-3">
+            <div className="p-3 rounded-lg bg-muted/40 flex flex-col gap-1">
+              <span className="text-xs text-muted-foreground">Encuestas completadas</span>
+              <span className="text-2xl font-semibold">{summary.surveysCompleted}</span>
+            </div>
+            <div className="p-3 rounded-lg bg-muted/40 flex flex-col gap-1">
+              <span className="text-xs text-muted-foreground">Sugerencias enviadas</span>
+              <span className="text-2xl font-semibold">{summary.suggestionsShared}</span>
+            </div>
+            <div className="p-3 rounded-lg bg-muted/40 flex flex-col gap-1">
+              <span className="text-xs text-muted-foreground">Reclamos registrados</span>
+              <span className="text-2xl font-semibold">{summary.claimsFiled}</span>
+            </div>
+          </CardContent>
+          <CardFooter className="text-xs text-muted-foreground">
+            {error ? 'No se pudieron cargar todos los datos de participacion.' : 'Datos entregados por el portal del tenant.'}
+          </CardFooter>
+        </Card>
+      ) : null}
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card className="bg-card/80 border border-muted/70 shadow-sm">
@@ -92,7 +94,9 @@ const UserSurveysPage = () => {
             {suggestions.length > 0 ? (
               suggestions.map((item, index) => {
                 const record = item as Record<string, unknown>;
-                const title = String(record.title || record.label || record.name || `Item ${index + 1}`);
+                const rawTitle = record.title || record.label || record.name;
+                if (!rawTitle) return null;
+                const title = String(rawTitle);
                 const status = record.status ? String(record.status) : null;
                 const impact = record.impact ? String(record.impact) : null;
                 return (

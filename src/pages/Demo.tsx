@@ -404,6 +404,26 @@ const Demo = () => {
     }
   }, []);
 
+  const refreshDemoAdminPreview = useCallback(async () => {
+    if (!sectorSeleccionado) {
+      setDemoAdminPreview(null);
+      return null;
+    }
+
+    try {
+      const preview = await getDemoAdminPreview({
+        sector: sectorSeleccionado,
+        tenant_slug: demoPreviewTenantSlug,
+        chat_session_id: demoPreviewChatSessionId,
+      });
+      setDemoAdminPreview(preview);
+      return preview;
+    } catch {
+      setDemoAdminPreview(null);
+      return null;
+    }
+  }, [demoPreviewChatSessionId, demoPreviewTenantSlug, sectorSeleccionado]);
+
   useEffect(() => {
     if (!sectorSeleccionado) {
       setDemoAdminPreview(null);
@@ -757,6 +777,9 @@ const Demo = () => {
               sector={sectorSeleccionado}
               rubro={rubroSeleccionado}
               workspace={demoWorkspace}
+              onRuntimeResult={() => {
+                void refreshDemoAdminPreview();
+              }}
             />
           </div>
 

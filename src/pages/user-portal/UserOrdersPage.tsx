@@ -189,7 +189,7 @@ const LegacyOrderCard = ({ order, currentSlug }: { order: Order; currentSlug: st
 const UserOrdersPage = () => {
   const { currentSlug } = useTenant();
   const { user } = useUser();
-  const { publicOrders, isLoading: portalLoading } = usePortalContent();
+  const { content, commerceSession, publicOrders, isLoading: portalLoading } = usePortalContent();
   const [orders, setOrders] = useState<Order[]>([]);
   const [legacyLoading, setLegacyLoading] = useState(false);
 
@@ -221,6 +221,7 @@ const UserOrdersPage = () => {
   }, [currentSlug, publicOrders.length, user]);
 
   const catalogPath = useMemo(() => buildTenantPath('/productos', currentSlug ?? undefined), [currentSlug]);
+  const catalogEnabled = commerceSession?.catalog?.enabled === true || content.catalog.length > 0;
   const loading = portalLoading || legacyLoading;
   const hasPublicOrders = publicOrders.length > 0;
   const hasLegacyOrders = orders.length > 0;
@@ -229,9 +230,11 @@ const UserOrdersPage = () => {
     <div className="container mx-auto max-w-4xl space-y-6 p-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Mis pedidos</h1>
-        <Button variant="outline" size="sm" asChild>
-          <a href={catalogPath}>Ir a la tienda</a>
-        </Button>
+        {catalogEnabled ? (
+          <Button variant="outline" size="sm" asChild>
+            <a href={catalogPath}>{commerceSession?.catalog?.cta_label || commerceSession?.catalog?.label || 'Ir al catalogo'}</a>
+          </Button>
+        ) : null}
       </div>
 
       {loading ? (
@@ -242,7 +245,9 @@ const UserOrdersPage = () => {
         <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-12 text-center text-muted-foreground">
           <Package className="mb-4 h-12 w-12 opacity-20" />
           <p>No tenes pedidos registrados aun.</p>
-          <Button variant="link" className="mt-2" asChild><a href={catalogPath}>Explorar catalogo</a></Button>
+          {catalogEnabled ? (
+            <Button variant="link" className="mt-2" asChild><a href={catalogPath}>Explorar catalogo</a></Button>
+          ) : null}
         </div>
       ) : (
         <div className="space-y-4">

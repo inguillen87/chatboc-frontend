@@ -178,6 +178,7 @@ export interface PortalLoyaltySummary {
   surveysCompleted: number;
   suggestionsShared: number;
   claimsFiled: number;
+  hasParticipationMetrics?: boolean;
   transactions?: LoyaltyTransaction[];
   availableRewards?: LoyaltyReward[];
 }

@@ -49,11 +49,13 @@ export default function DemoWorkspace({
   sector,
   rubro,
   workspace,
+  onRuntimeResult,
 }: {
   tenantSlug?: string | null;
   sector?: DemoSector | null;
   rubro?: string | null;
   workspace?: DemoWorkspaceConfig | null;
+  onRuntimeResult?: (response: unknown, result: unknown) => void;
 }) {
   const valueCards = workspace?.value_cards ?? [];
   const sampleConversations =
@@ -147,6 +149,7 @@ export default function DemoWorkspace({
                 experienceBlueprint={workspace?.experience_blueprint ?? null}
                 supportChannels={workspace?.support_channels ?? null}
                 realtimeVoice={workspace?.realtime_voice ?? workspace?.support_channels?.voice_call?.capabilities ?? null}
+                onRuntimeResult={onRuntimeResult}
               />
             ) : (
               <div className="flex min-h-[520px] flex-col items-center justify-center rounded-[1rem] border border-dashed border-border/70 bg-card/50 p-6 text-center">

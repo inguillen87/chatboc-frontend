@@ -104,9 +104,10 @@ export function usePortalContent() {
       session?.cart?.endpoint,
     );
 
+    const shouldFetchCart = session?.cart?.enabled !== false;
     const [historyResponse, cartResponse] = await Promise.allSettled([
       getWidgetTenantHistory(historyEndpoint, request),
-      getWidgetCartSnapshot(cartEndpoint, request),
+      shouldFetchCart ? getWidgetCartSnapshot(cartEndpoint, request) : Promise.resolve(null),
     ]);
 
     const history = historyResponse.status === 'fulfilled' ? historyResponse.value : null;

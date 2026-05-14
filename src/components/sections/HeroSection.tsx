@@ -160,139 +160,6 @@ const DEFAULT_CONVERSATION_SUBTITLE = "Un caso entra, el agente pide datos y dej
 const DEFAULT_PRIMARY_CTA = { label: "Probar una conversacion real", target: "/demo" };
 const DEFAULT_SECONDARY_CTA = { label: "Hablar con ventas", target: "/demo?intent=ventas" };
 
-const DEFAULT_CONVERSATION_FLOWS: ConversationFlow[] = [
-  {
-    id: "gobierno-reclamo-foto-ubicacion",
-    label: "Gobierno",
-    sector: "gobierno",
-    message: "Hola, hay un semaforo caido. Te mando foto, audio y ubicacion.",
-    response: "Recibi la evidencia. Clasifique el reclamo, marque la zona y lo deje listo para seguimiento.",
-    inputs: [
-      { kind: "image", label: "Foto", detail: "Evidencia visual del reclamo.", previewUrl: "", address: "", lat: "", lng: "" },
-      { kind: "audio", label: "Audio", detail: "Transcripcion resumida por IA.", previewUrl: "", address: "", lat: "", lng: "" },
-      {
-        kind: "location",
-        label: "Ubicacion",
-        detail: "Punto operativo para derivacion.",
-        previewUrl: "",
-        address: "Av. San Martin y Rivadavia",
-        lat: "-34.6083",
-        lng: "-58.3712",
-      },
-    ],
-    action: {
-      label: "Reclamo listo",
-      detail: "Categoria, prioridad, evidencia, zona y equipo sugerido quedan preparados para operar.",
-      status: "Trazable",
-      ctaLabel: "Probar reclamo real",
-      ctaTarget: "/demo?sector=gobierno&rubro=municipio",
-      fields: [
-        { label: "Categoria", value: "Semaforo" },
-        { label: "Prioridad", value: "Alta" },
-        { label: "Canal", value: "WhatsApp" },
-        { label: "Destino", value: "Transito" },
-      ],
-    },
-    resultTraceable: true,
-    highlights: ["foto", "audio", "ubicacion"],
-    workflowSteps: ["Entiende adjuntos", "Pide faltantes", "Crea caso", "Deja seguimiento"],
-    tone: "bg-primary",
-  },
-  {
-    id: "pyme-bodega-pedido-whatsapp",
-    label: "Bodega",
-    sector: "empresas",
-    message: "Hola, quiero 2 Malbec y 1 Cabernet. Me decis total y como sigo?",
-    response: "Arme el pedido desde el catalogo, tome el contacto y deje el tracking para seguimiento.",
-    inputs: [
-      { kind: "catalog", label: "Catalogo", detail: "Productos y variantes publicados por backend.", previewUrl: "", address: "", lat: "", lng: "" },
-      { kind: "cart", label: "Pedido", detail: "Lineas del carrito listas para confirmar.", previewUrl: "", address: "", lat: "", lng: "" },
-    ],
-    action: {
-      label: "Pedido preparado",
-      detail: "Cliente, telefono, productos y tracking quedan listos para que ventas cierre la operacion.",
-      status: "Seguible",
-      ctaLabel: "Probar pedido PYME",
-      ctaTarget: "/demo?sector=empresas&rubro=bodega",
-      fields: [
-        { label: "Productos", value: "2 Malbec, 1 Cabernet" },
-        { label: "Canal", value: "WhatsApp" },
-        { label: "Seguimiento", value: "Tracking listo" },
-        { label: "Equipo", value: "Ventas" },
-      ],
-    },
-    resultTraceable: true,
-    highlights: ["catalogo", "pedido", "tracking"],
-    workflowSteps: ["Lee catalogo", "Arma carrito", "Pide contacto", "Deja tracking"],
-    tone: "bg-success",
-  },
-  {
-    id: "pyme-ferreteria-materiales",
-    label: "Ferreteria",
-    sector: "empresas",
-    message: "Necesito cemento, arena y piedra para una obra. Te paso la zona y cantidad aproximada.",
-    response: "Ordene el pedido por materiales, detecte entrega posible y lo deje como oportunidad para cotizar.",
-    inputs: [
-      { kind: "cart", label: "Materiales", detail: "Cemento, arena, piedra y aridos.", previewUrl: "", address: "", lat: "", lng: "" },
-      {
-        kind: "location",
-        label: "Entrega",
-        detail: "Zona enviada para calcular envio.",
-        previewUrl: "",
-        address: "Obra en zona sur",
-        lat: "",
-        lng: "",
-      },
-    ],
-    action: {
-      label: "Cotizacion lista",
-      detail: "El equipo recibe materiales, cantidades, zona y contacto para responder sin perder el pedido.",
-      status: "En cola",
-      ctaLabel: "Probar ferreteria",
-      ctaTarget: "/demo?sector=empresas&rubro=ferreteria",
-      fields: [
-        { label: "Rubro", value: "Construccion" },
-        { label: "Pedido", value: "Cemento + aridos" },
-        { label: "Dato clave", value: "Zona de entrega" },
-        { label: "Destino", value: "Ventas" },
-      ],
-    },
-    resultTraceable: true,
-    highlights: ["materiales", "zona", "cotizacion"],
-    workflowSteps: ["Detecta rubro", "Arma solicitud", "Pide zona", "Deriva a ventas"],
-    tone: "bg-success",
-  },
-  {
-    id: "educacion-cuota-pago",
-    label: "Colegio",
-    sector: "educacion",
-    message: "Hola, quiero saber si tengo deuda de cuota y pedir el link de pago.",
-    response: "Identifique el legajo, prepare la consulta de secretaria y deje el pedido de pago ordenado.",
-    inputs: [
-      { kind: "payment", label: "Pago", detail: "Consulta de cuota o deuda.", previewUrl: "", address: "", lat: "", lng: "" },
-      { kind: "file", label: "Comprobante", detail: "Adjunto opcional para secretaria.", previewUrl: "", address: "", lat: "", lng: "" },
-      { kind: "calendar", label: "Turno", detail: "Agenda si la familia necesita atencion.", previewUrl: "", address: "", lat: "", lng: "" },
-    ],
-    action: {
-      label: "Pedido escolar listo",
-      detail: "Familia, motivo, adjunto y proximo paso quedan visibles para administracion escolar.",
-      status: "Ordenado",
-      ctaLabel: "Probar colegio",
-      ctaTarget: "/demo?sector=educacion&rubro=colegio",
-      fields: [
-        { label: "Motivo", value: "Cuota / pago" },
-        { label: "Area", value: "Secretaria" },
-        { label: "Adjunto", value: "Opcional" },
-        { label: "Seguimiento", value: "Familia" },
-      ],
-    },
-    resultTraceable: true,
-    highlights: ["cuotas", "familias", "secretaria"],
-    workflowSteps: ["Identifica familia", "Clasifica consulta", "Pide datos justos", "Deja caso"],
-    tone: "bg-primary",
-  },
-];
-
 const normalizeHeroMediaUrl = (raw: string) => {
   const value = raw.trim();
   if (!value) return "";
@@ -578,26 +445,9 @@ const normalizeConversationFlows = (source: unknown): ConversationFlow[] => {
 
 const mergeConversationFlows = (source: unknown) => {
   const backendFlows = normalizeConversationFlows(source);
-  const merged = backendFlows[0] ? [backendFlows[0]] : [];
-  const hasFlowLike = (candidate: ConversationFlow) => {
-    const candidateFamily = inferFlowFamily(candidate);
-    const candidateKey = `${candidate.id} ${candidate.label}`.toLowerCase();
-    return merged.some((flow) => {
-      const key = `${flow.id} ${flow.label}`.toLowerCase();
-      if (key.includes(candidate.id) || candidateKey.includes(flow.id)) return true;
-      if (candidate.label && key.includes(candidate.label.toLowerCase())) return true;
-      return inferFlowFamily(flow) === candidateFamily && candidateFamily !== "pyme";
-    });
-  };
-
-  DEFAULT_CONVERSATION_FLOWS.forEach((flow) => {
-    if (!hasFlowLike(flow)) merged.push(flow);
-  });
-  backendFlows.slice(1).forEach((flow) => {
-    if (!hasFlowLike(flow)) merged.push(flow);
-  });
-
-  return merged.slice(0, 6);
+  return backendFlows
+    .filter((flow) => Boolean(flow.action || flow.resultTraceable))
+    .slice(0, 6);
 };
 
 const getInputIcon = (kind: string) => {

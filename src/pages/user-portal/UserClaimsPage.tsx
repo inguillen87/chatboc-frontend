@@ -113,7 +113,7 @@ const PublicClaimCard = ({ claim }: { claim: WidgetPortalClaim }) => {
             {claim.detailEndpoint ? (
               <Button variant="ghost" size="sm" asChild>
                 <a href={claim.detailEndpoint} target="_blank" rel="noreferrer" className="flex items-center gap-1">
-                  Ver detalle <ExternalLink className="h-3 w-3" />
+                Ver seguimiento <ExternalLink className="h-3 w-3" />
                 </a>
               </Button>
             ) : null}
@@ -258,7 +258,7 @@ const UserClaimsPage = () => {
   const loading = portalLoading || legacyLoading;
   const hasPublicClaims = publicClaims.length > 0;
   const hasLegacyTickets = tickets.length > 0;
-  const canStartClaim = Boolean(currentSlug);
+  const claimStartPath = user && currentSlug ? buildTenantPath('/reclamos/nuevo', currentSlug) : null;
   const emptyTitle = useMemo(
     () => (user ? 'No tenes reclamos registrados aun.' : 'Todavia no hay reclamos vinculados a esta sesion.'),
     [user],
@@ -268,8 +268,8 @@ const UserClaimsPage = () => {
     <div className="container mx-auto max-w-4xl space-y-6 p-4">
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-2xl font-bold">Mis reclamos y solicitudes</h1>
-        {canStartClaim ? (
-          <Button onClick={() => navigate(buildTenantPath('/reclamos/nuevo', currentSlug))}>
+        {claimStartPath ? (
+          <Button onClick={() => navigate(claimStartPath)}>
             <PlusCircle className="mr-2 h-4 w-4" /> Nuevo reclamo
           </Button>
         ) : null}
@@ -285,8 +285,8 @@ const UserClaimsPage = () => {
         <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-12 text-center text-muted-foreground">
           <MessageSquare className="mb-4 h-12 w-12 opacity-20" />
           <p>{emptyTitle}</p>
-          {canStartClaim ? (
-            <Button variant="link" className="mt-2" onClick={() => navigate(buildTenantPath('/reclamos/nuevo', currentSlug))}>
+          {claimStartPath ? (
+            <Button variant="link" className="mt-2" onClick={() => navigate(claimStartPath)}>
               Iniciar un nuevo reclamo
             </Button>
           ) : null}

@@ -20,15 +20,33 @@ import { usePortalTheme } from '@/hooks/usePortalTheme';
 import { usePortalContent } from '@/hooks/usePortalContent';
 import NotificationCenter from '@/components/user-portal/notifications/NotificationCenter';
 import { Badge } from '@/components/ui/badge';
+import { useTenant } from '@/context/TenantContext';
+import { buildTenantPath } from '@/utils/tenantPaths';
 
 
 const UserPortalLayout: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
   const { user, setUser } = useUser();
-  const { content } = usePortalContent();
+  const { currentSlug, tenant } = useTenant();
+  const portalContent = usePortalContent();
+  const { content, commerceSession, publicProfile } = portalContent;
   const notifications = content.notifications ?? [];
   const { toggle, active, setTheme } = usePortalTheme();
+  const homePath = useMemo(() => buildTenantPath('/portal/dashboard', currentSlug), [currentSlug]);
+  const accountPath = useMemo(() => buildTenantPath('/portal/cuenta', currentSlug), [currentSlug]);
+  const loginPath = useMemo(() => buildTenantPath('/user/login', currentSlug), [currentSlug]);
+  const displayName =
+    user?.nombre_empresa ||
+    commerceSession?.tenant?.display_name ||
+    commerceSession?.tenant?.nombre ||
+    tenant?.nombre ||
+    tenant?.slug ||
+    commerceSession?.tenant?.tenant_slug ||
+    commerceSession?.tenant?.slug ||
+    'Chatboc';
+  const avatarImage = user?.logo_url || tenant?.logo_url || undefined;
+  const profileName = user?.name || publicProfile.name || null;
 
   const themeLabel = useMemo(() => {
     switch (active) {
@@ -55,7 +73,7 @@ const UserPortalLayout: React.FC = () => {
     // Redirigir
     const tenantSlug = user?.tenantSlug;
     if (tenantSlug) {
-      navigate(`/${tenantSlug}/user/login`);
+      navigate(buildTenantPath('/user/login', tenantSlug));
     } else {
       navigate('/login');
     }
@@ -68,18 +86,18 @@ const UserPortalLayout: React.FC = () => {
         <div className="container mx-auto px-4 flex items-center justify-between h-full">
           <div className="flex items-center gap-2">
             {/* Logo de la Organización */}
-            <Link to="/portal/dashboard" className="flex items-center gap-2">
+            <Link to={homePath} className="flex items-center gap-2">
               <Avatar className="h-8 w-8 sm:h-9 sm:w-9">
-                <AvatarImage src={user?.logo_url} alt={user?.nombre_empresa} />
+                <AvatarImage src={avatarImage} alt={displayName} />
                 <AvatarFallback>
                   <Building className="h-5 w-5 text-muted-foreground" />
                 </AvatarFallback>
               </Avatar>
               <span
                 className="font-semibold text-foreground hidden sm:inline-block truncate max-w-[150px] md:max-w-xs"
-                title={user?.nombre_empresa}
+                title={displayName}
               >
-                {user?.nombre_empresa}
+                {displayName}
               </span>
             </Link>
           </div>
@@ -128,18 +146,19 @@ const UserPortalLayout: React.FC = () => {
               />
             </div>
 
+            {user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="flex items-center gap-2 px-1 sm:px-2 py-1 h-auto rounded-full">
                   <Avatar className="h-8 w-8 sm:h-9 sm:w-9">
                     <AvatarImage src={user?.picture} alt={user?.name} />
                     <AvatarFallback className="text-sm">
-                      {user?.name?.charAt(0).toUpperCase()}
-                      {user?.name?.split(' ')[1]?.charAt(0).toUpperCase()}
+                      {profileName?.charAt(0).toUpperCase()}
+                      {profileName?.split(' ')[1]?.charAt(0).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                   <span className="hidden md:inline-block text-sm font-medium text-foreground">
-                    {user?.name}
+                    {profileName}
                   </span>
                   <ChevronDown className="h-4 w-4 text-muted-foreground hidden md:inline-block ml-1" />
                 </Button>
@@ -147,7 +166,7 @@ const UserPortalLayout: React.FC = () => {
               <DropdownMenuContent align="end" className="w-56 mt-1">
                 <DropdownMenuLabel className="font-normal">
                   <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium leading-none text-foreground">{user?.name}</p>
+                    <p className="text-sm font-medium leading-none text-foreground">{profileName}</p>
                     <p className="text-xs leading-none text-muted-foreground">
                       {user?.email}
                     </p>
@@ -155,7 +174,7 @@ const UserPortalLayout: React.FC = () => {
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
-                  <Link to="/portal/cuenta">
+                  <Link to={accountPath}>
                     <Settings className="mr-2 h-4 w-4" />
                     <span>Mi Cuenta</span>
                   </Link>
@@ -167,6 +186,11 @@ const UserPortalLayout: React.FC = () => {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            ) : (
+              <Button asChild variant="outline" size="sm" className="hidden sm:inline-flex">
+                <Link to={accountPath || loginPath}>Vincular sesion</Link>
+              </Button>
+            )}
 
             {/* Botón de Menú Hamburguesa para Mobile (controla el Sheet) */}
             <div className="md:hidden"> {/* Este botón solo se ve en mobile y controla el Sheet */}
@@ -178,7 +202,11 @@ const UserPortalLayout: React.FC = () => {
                   </Button>
                 </SheetTrigger>
                 <SheetContent side="right" className="w-72 p-0">
-                  <SideNavigationBar onLinkClick={() => setMobileMenuOpen(false)} onLogout={handleLogout} />
+                  <SideNavigationBar
+                    onLinkClick={() => setMobileMenuOpen(false)}
+                    onLogout={handleLogout}
+                    portalNavigation={portalContent}
+                  />
                 </SheetContent>
               </Sheet>
             </div>
@@ -189,7 +217,7 @@ const UserPortalLayout: React.FC = () => {
       <div className="flex flex-1 pt-16 md:pt-0"> {/* pt-16 en mobile para compensar navbar fijo */}
         {/* Menú Lateral (Desktop) */}
         <div className="hidden md:block md:fixed md:top-16 md:left-0 md:h-[calc(100vh-4rem)] md:z-30 shadow-md">
-            <SideNavigationBar onLogout={handleLogout} />
+            <SideNavigationBar onLogout={handleLogout} portalNavigation={portalContent} />
         </div>
 
         {/* Contenido Principal */}
@@ -200,7 +228,7 @@ const UserPortalLayout: React.FC = () => {
       </div>
 
       {/* Barra de Navegación Inferior (Mobile) */}
-      <BottomNavigationBar onOpenMobileMenu={() => setMobileMenuOpen(true)} />
+      <BottomNavigationBar onOpenMobileMenu={() => setMobileMenuOpen(true)} portalNavigation={portalContent} />
     </div>
   );
 };

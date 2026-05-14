@@ -35,6 +35,9 @@ const UserDashboardPage = () => {
     isLoading,
     refetch,
     publicProfile,
+    publicClaims,
+    publicOrders,
+    commerceSession,
     registrationResult,
     registrationError,
     registerWidgetProfile,
@@ -66,11 +69,11 @@ const UserDashboardPage = () => {
   };
 
   const loyaltySummary = useMemo(() => content.loyaltySummary ?? null, [content]);
+  const hasParticipationMetrics = Boolean(loyaltySummary?.hasParticipationMetrics);
 
   // Normalize optional arrays from the tenant portal contract.
   const activities = content.activities ?? [];
   const featuredNews = content.news ?? [];
-  const activeBenefits = (content.catalog ?? []).filter((item) => item.category === 'beneficios');
   const pendingSurveys = content.surveys ?? [];
   const notifications = content.notifications ?? [];
   const bundleHighlights = Array.isArray(bundle?.highlights) ? bundle.highlights : [];
@@ -79,6 +82,13 @@ const UserDashboardPage = () => {
   const bundleOrders = Array.isArray(bundle?.orders?.items) ? bundle.orders.items : [];
   const bundleClaims = Array.isArray(bundle?.claims?.items) ? bundle.claims.items : [];
   const bundlePromotions = Array.isArray(bundle?.promotions?.items) ? bundle.promotions.items : [];
+  const actionLabels = commerceSession?.frontend_contract?.action_labels ?? {};
+  const catalogEnabled = commerceSession?.catalog?.enabled === true || content.catalog.length > 0;
+  const historyEnabled =
+    publicClaims.length > 0 ||
+    publicOrders.length > 0 ||
+    activities.length > 0 ||
+    Boolean(commerceSession?.history || commerceSession?.portal);
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -146,9 +156,7 @@ const UserDashboardPage = () => {
               {user?.name ? `Hola, ${user.name}` : 'Hola, bienvenido'}
             </h1>
             <p className="text-muted-foreground mt-1">
-              {isMunicipio
-                ? 'Gestiona tus tramites, reclamos y participa en tu comunidad.'
-                : 'Tu panel de cliente: segui tus pedidos y descubri beneficios.'}
+              Historial y acciones publicadas para esta sesion.
             </p>
           </div>
           <Button
@@ -227,39 +235,31 @@ const UserDashboardPage = () => {
         </motion.div>
       ) : null}
 
-      {/* Primary Actions Grid */}
-      <motion.div className="grid grid-cols-1 sm:grid-cols-2 gap-4" variants={itemVariants}>
-        {isPyme && (
+      {(catalogEnabled || historyEnabled) ? (
+        <motion.div className="grid grid-cols-1 sm:grid-cols-2 gap-4" variants={itemVariants}>
+          {catalogEnabled ? (
             <Button
               size="lg"
               className="w-full py-8 text-lg shadow-sm hover:shadow-md transition-all h-auto flex flex-col items-center gap-2"
               onClick={() => navigate(buildTenantPath('/portal/catalogo', currentSlug))}
             >
-              <ShoppingBag className="h-6 w-6" />
-              <span>Ver catalogo</span>
+              {isMunicipio ? <ClipboardList className="h-6 w-6" /> : <ShoppingBag className="h-6 w-6" />}
+              <span>{actionLabels.catalog || commerceSession?.catalog?.cta_label || commerceSession?.catalog?.label || (isMunicipio ? 'Ver tramites' : 'Ver catalogo')}</span>
             </Button>
-        )}
-        {isMunicipio && (
+          ) : null}
+          {historyEnabled ? (
             <Button
               size="lg"
-              className="w-full py-8 text-lg shadow-sm hover:shadow-md transition-all h-auto flex flex-col items-center gap-2"
-              onClick={() => navigate(buildTenantPath('/portal/tramites', currentSlug))}
+              variant="outline"
+              className="w-full py-8 text-lg shadow-sm hover:shadow-md transition-all h-auto flex flex-col items-center gap-2 border-dashed border-2"
+              onClick={() => navigate(buildTenantPath(isMunicipio ? '/portal/reclamos' : '/portal/pedidos', currentSlug))}
             >
-              <ClipboardList className="h-6 w-6" />
-              <span>Iniciar tramite</span>
+              <PlusCircle className="h-6 w-6" />
+              <span>{actionLabels.history || commerceSession?.history?.cta_label || commerceSession?.history?.label || 'Ver seguimiento'}</span>
             </Button>
-        )}
-
-        <Button
-          size="lg"
-          variant="outline"
-          className="w-full py-8 text-lg shadow-sm hover:shadow-md transition-all h-auto flex flex-col items-center gap-2 border-dashed border-2"
-          onClick={() => navigate(buildTenantPath('/reclamos/nuevo', currentSlug))}
-        >
-          <PlusCircle className="h-6 w-6" />
-          <span>{isMunicipio ? 'Nuevo reclamo' : 'Nueva consulta'}</span>
-        </Button>
-      </motion.div>
+          ) : null}
+        </motion.div>
+      ) : null}
 
 
       {(bundleHighlights.length > 0 || bundleQuickActions.length > 0 || bundleModules.length > 0) && (
@@ -270,23 +270,27 @@ const UserDashboardPage = () => {
             className="h-full"
           >
             <div className="space-y-4">
-              {bundleHighlights.length > 0 ? (
+                  {bundleHighlights.length > 0 ? (
                 <div className="grid gap-3 sm:grid-cols-2">
                   {bundleHighlights.slice(0, 4).map((item, index) => (
-                    <div key={`${item.title || item.label || 'highlight'}-${index}`} className="rounded-xl border border-border bg-muted/20 p-3">
-                      <p className="text-sm font-semibold text-foreground">{String(item.title || item.label || item.name || `Highlight ${index + 1}`)}</p>
-                      {(item.description || item.summary) ? <p className="mt-1 text-xs text-muted-foreground">{String(item.description || item.summary)}</p> : null}
-                    </div>
+                    item.title || item.label || item.name ? (
+                      <div key={`${item.title || item.label || 'highlight'}-${index}`} className="rounded-xl border border-border bg-muted/20 p-3">
+                        <p className="text-sm font-semibold text-foreground">{String(item.title || item.label || item.name)}</p>
+                        {(item.description || item.summary) ? <p className="mt-1 text-xs text-muted-foreground">{String(item.description || item.summary)}</p> : null}
+                      </div>
+                    ) : null
                   ))}
                 </div>
               ) : null}
               {bundleModules.length > 0 ? (
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                   {bundleModules.slice(0, 6).map((item, index) => (
-                    <div key={`${item.id || item.title || 'module'}-${index}`} className="rounded-xl border border-border bg-background/80 p-3">
-                      <p className="text-sm font-semibold text-foreground">{String(item.title || item.label || item.name || `Modulo ${index + 1}`)}</p>
-                      {(item.description || item.summary) ? <p className="mt-1 text-xs text-muted-foreground">{String(item.description || item.summary)}</p> : null}
-                    </div>
+                    item.title || item.label || item.name ? (
+                      <div key={`${item.id || item.title || 'module'}-${index}`} className="rounded-xl border border-border bg-background/80 p-3">
+                        <p className="text-sm font-semibold text-foreground">{String(item.title || item.label || item.name)}</p>
+                        {(item.description || item.summary) ? <p className="mt-1 text-xs text-muted-foreground">{String(item.description || item.summary)}</p> : null}
+                      </div>
+                    ) : null
                   ))}
                 </div>
               ) : null}
@@ -299,18 +303,20 @@ const UserDashboardPage = () => {
             >
               <div className="space-y-3">
                 {bundleQuickActions.slice(0, 5).map((item, index) => (
-                  <button
-                    key={`${item.id || item.label || 'action'}-${index}`}
-                    type="button"
-                    onClick={() => {
-                      const href = typeof item.href === 'string' ? item.href : typeof item.path === 'string' ? item.path : null;
-                      if (href) navigate(buildTenantPath(href, currentSlug));
-                    }}
-                    className="w-full rounded-xl border border-border bg-background/80 p-3 text-left transition hover:border-primary/30 hover:bg-primary/5"
-                  >
-                    <p className="text-sm font-semibold text-foreground">{String(item.label || item.title || item.name || `Accion ${index + 1}`)}</p>
-                    {(item.description || item.summary) ? <p className="mt-1 text-xs text-muted-foreground">{String(item.description || item.summary)}</p> : null}
-                  </button>
+                  item.label || item.title || item.name ? (
+                    <button
+                      key={`${item.id || item.label || 'action'}-${index}`}
+                      type="button"
+                      onClick={() => {
+                        const href = typeof item.href === 'string' ? item.href : typeof item.path === 'string' ? item.path : null;
+                        if (href) navigate(buildTenantPath(href, currentSlug));
+                      }}
+                      className="w-full rounded-xl border border-border bg-background/80 p-3 text-left transition hover:border-primary/30 hover:bg-primary/5"
+                    >
+                      <p className="text-sm font-semibold text-foreground">{String(item.label || item.title || item.name)}</p>
+                      {(item.description || item.summary) ? <p className="mt-1 text-xs text-muted-foreground">{String(item.description || item.summary)}</p> : null}
+                    </button>
+                  ) : null
                 ))}
               </div>
             </SummaryCard>
@@ -343,18 +349,15 @@ const UserDashboardPage = () => {
             <SummaryCard
               title={isMunicipio ? "Tus reclamos y solicitudes" : "Actividad reciente"}
               icon={<History className="h-5 w-5" />}
-              ctaText={isMunicipio ? "Ver historial completo" : "Ver todos mis pedidos"}
+              ctaText={activities.length > 0 ? (isMunicipio ? "Ver historial completo" : "Ver todos mis pedidos") : undefined}
               onCtaClick={() => navigate(buildTenantPath(isMunicipio ? '/portal/reclamos' : '/portal/pedidos', currentSlug))}
               className="h-full"
             >
               {activities.length > 0 ? (
                   <ul className="divide-y divide-border">
-                    {activities.slice(0, 4).map((activity) => (
-                      <motion.li
-                        key={activity.id}
-                        className="py-3 px-1 hover:bg-muted/50 transition-colors -mx-1 rounded-sm"
-                      >
-                        <Link to={buildTenantPath(activity.link ?? '/portal/pedidos', currentSlug)} className="flex justify-between items-center group">
+                    {activities.slice(0, 4).map((activity) => {
+                      const activityBody = (
+                        <>
                           <div className="flex items-center gap-3">
                              <div className={cn("w-2 h-2 rounded-full flex-shrink-0",
                                 activity.statusType === 'success' ? 'bg-green-500' :
@@ -376,9 +379,25 @@ const UserDashboardPage = () => {
                               {activity.status}
                             </Badge>
                           )}
-                        </Link>
-                      </motion.li>
-                    ))}
+                        </>
+                      );
+                      return (
+                        <motion.li
+                          key={activity.id}
+                          className="py-3 px-1 hover:bg-muted/50 transition-colors -mx-1 rounded-sm"
+                        >
+                          {activity.link ? (
+                            <Link to={buildTenantPath(activity.link, currentSlug)} className="flex justify-between items-center group">
+                              {activityBody}
+                            </Link>
+                          ) : (
+                            <div className="flex justify-between items-center group">
+                              {activityBody}
+                            </div>
+                          )}
+                        </motion.li>
+                      );
+                    })}
                   </ul>
               ) : (
                   <div className="flex flex-col items-center justify-center h-40 text-center text-muted-foreground p-4 bg-muted/20 rounded-lg border border-dashed">
@@ -420,7 +439,7 @@ const UserDashboardPage = () => {
             )}
 
             {/* Participation / Points Stats */}
-            {loyaltySummary ? (
+            {loyaltySummary && (isPyme || hasParticipationMetrics) ? (
             <SummaryCard
                 title={isPyme ? "Tu Nivel" : "Tu Impacto"}
                 icon={<Sparkles className="h-5 w-5 text-yellow-500" />}
@@ -465,9 +484,11 @@ const UserDashboardPage = () => {
                         <div className="bg-primary/5 p-4 rounded-lg border border-primary/10">
                             <h4 className="font-semibold text-primary mb-2">{pendingSurveys[0].title}</h4>
                             <p className="text-xs text-muted-foreground mb-4">Tu opinion ayuda a mejorar. Participa cuando la organizacion tenga encuestas activas.</p>
-                            <Button size="sm" className="w-full" onClick={() => navigate(buildTenantPath(pendingSurveys[0].link || '/portal/encuestas', currentSlug))}>
-                                Responder encuesta
-                            </Button>
+                            {pendingSurveys[0].link ? (
+                              <Button size="sm" className="w-full" onClick={() => navigate(buildTenantPath(pendingSurveys[0].link!, currentSlug))}>
+                                  Responder encuesta
+                              </Button>
+                            ) : null}
                         </div>
                     </SummaryCard>
                 </motion.div>
@@ -483,8 +504,8 @@ const UserDashboardPage = () => {
                         onCtaClick={() => navigate(buildTenantPath('/portal/noticias', currentSlug))}
                     >
                          <div className="grid sm:grid-cols-2 gap-4">
-                            {featuredNews.slice(0, 2).map((news) => (
-                                <Link key={news.id} to={buildTenantPath(news.link ?? '/portal/noticias', currentSlug)} className="group block relative overflow-hidden rounded-lg border hover:border-primary/50 transition-colors">
+                            {featuredNews.slice(0, 2).map((news) => {
+                              const newsCard = (
                                     <div className="aspect-video w-full bg-muted relative">
                                         {news.coverUrl ? (
                                             <img src={news.coverUrl} alt={news.title} className="w-full h-full object-cover transition-transform group-hover:scale-105" />
@@ -496,11 +517,20 @@ const UserDashboardPage = () => {
                                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
                                         <div className="absolute bottom-0 left-0 p-3 text-white">
                                             <h4 className="font-semibold text-sm line-clamp-2 leading-snug text-shadow-sm">{news.title}</h4>
-                                            <span className="text-xs opacity-80 mt-1 block">{news.date}</span>
+                                            {news.date ? <span className="text-xs opacity-80 mt-1 block">{news.date}</span> : null}
                                         </div>
                                     </div>
+                              );
+                              return news.link ? (
+                                <Link key={news.id} to={buildTenantPath(news.link, currentSlug)} className="group block relative overflow-hidden rounded-lg border hover:border-primary/50 transition-colors">
+                                  {newsCard}
                                 </Link>
-                            ))}
+                              ) : (
+                                <div key={news.id} className="group block relative overflow-hidden rounded-lg border">
+                                  {newsCard}
+                                </div>
+                              );
+                            })}
                          </div>
                     </SummaryCard>
                 </motion.div>

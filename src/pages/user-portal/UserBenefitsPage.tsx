@@ -29,7 +29,10 @@ const UserBenefitsPage = () => {
   const rewards = useMemo(() => {
     if (summary?.availableRewards?.length) return summary.availableRewards;
     return content.catalog
-      .filter((item) => typeof item.price === 'number')
+      .filter((item) => {
+        const marker = `${item.priceLabel || ''} ${item.category || ''} ${item.status || ''}`.toLowerCase();
+        return typeof item.price === 'number' && /(pt|punto|beneficio|canje|reward)/.test(marker);
+      })
       .map((item) => ({
         id: item.id,
         title: item.title,
@@ -112,14 +115,18 @@ const UserBenefitsPage = () => {
               </div>
               <p className="text-3xl font-semibold">{summary.points.toLocaleString()} pts</p>
             </div>
-            <div className="rounded-lg bg-muted/30 p-3">
-              <p className="text-xs text-muted-foreground">Encuestas</p>
-              <p className="text-2xl font-semibold">{summary.surveysCompleted}</p>
-            </div>
-            <div className="rounded-lg bg-muted/30 p-3">
-              <p className="text-xs text-muted-foreground">Reclamos</p>
-              <p className="text-2xl font-semibold">{summary.claimsFiled}</p>
-            </div>
+            {summary.hasParticipationMetrics ? (
+              <>
+                <div className="rounded-lg bg-muted/30 p-3">
+                  <p className="text-xs text-muted-foreground">Encuestas</p>
+                  <p className="text-2xl font-semibold">{summary.surveysCompleted}</p>
+                </div>
+                <div className="rounded-lg bg-muted/30 p-3">
+                  <p className="text-xs text-muted-foreground">Reclamos</p>
+                  <p className="text-2xl font-semibold">{summary.claimsFiled}</p>
+                </div>
+              </>
+            ) : null}
           </CardContent>
         </Card>
       ) : null}

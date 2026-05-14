@@ -54,6 +54,7 @@ interface FeatureChatPanelProps {
   onCreateTicket?: () => void;
   onOpenWhatsApp?: () => void;
   onWaitOperator?: () => void;
+  onRuntimeResult?: (response: unknown, result: LeadCaptureResponse | null) => void;
 }
 
 type LegacyChatPanelProps = React.ComponentProps<typeof LegacyChatPanel> & {
@@ -429,6 +430,7 @@ function StandaloneChatPanel({
   onCreateTicket,
   onOpenWhatsApp,
   onWaitOperator,
+  onRuntimeResult,
 }: StandaloneChatPanelProps) {
   const resolvedContext: ChatPanelContext = context ?? { tipoChat: 'pyme' };
   const [runtimeHandoffState, setRuntimeHandoffState] = useState<HandoffState>(handoffState);
@@ -675,6 +677,7 @@ function StandaloneChatPanel({
           if (runtimeLeadResult) {
             setLeadResult(runtimeLeadResult);
           }
+          onRuntimeResult?.(response, runtimeLeadResult);
           if (!replyText) return;
           setMessages((prev) => [
             ...prev,
