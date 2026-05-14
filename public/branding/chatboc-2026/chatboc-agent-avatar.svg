@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 720" role="img" aria-labelledby="title desc">
+  <title id="title">Chatboc blue robot assistant</title>
+  <desc id="desc">Full body blue Chatboc robot assistant with map pin, speech bubble and neon accents.</desc>
+  <style>
+    @media (prefers-reduced-motion: no-preference) {
+      #robot { animation: float 5.4s ease-in-out infinite; transform-origin: 320px 380px; }
+      #right-hand { animation: wave 4.2s ease-in-out infinite; transform-origin: 470px 318px; }
+      #bubble { animation: bubble 3.8s ease-in-out infinite; transform-origin: 488px 110px; }
+      #pin { animation: pin 3.4s ease-in-out infinite; transform-origin: 475px 435px; }
+      #spark-a, #spark-b, #spark-c { animation: sparkle 2.6s ease-in-out infinite; }
+      #spark-b { animation-delay: .45s; }
+      #spark-c { animation-delay: .9s; }
+      @keyframes float { 0%,100% { transform: translateY(0) rotate(-.8deg); } 50% { transform: translateY(-12px) rotate(.8deg); } }
+      @keyframes wave { 0%,100% { transform: rotate(0deg); } 40% { transform: rotate(-8deg); } 70% { transform: rotate(5deg); } }
+      @keyframes bubble { 0%,100% { transform: translateY(0) scale(1); opacity: .94; } 50% { transform: translateY(-8px) scale(1.03); opacity: 1; } }
+      @keyframes pin { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+      @keyframes sparkle { 0%,100% { opacity: .25; transform: scale(.82); } 50% { opacity: 1; transform: scale(1); } }
+    }
+  </style>
+  <defs>
+    <radialGradient id="halo" cx="48%" cy="38%" r="60%">
+      <stop offset="0" stop-color="#67E8F9" stop-opacity=".62"/>
+      <stop offset=".45" stop-color="#0D35C3" stop-opacity=".28"/>
+      <stop offset="1" stop-color="#020617" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="blue" x1="186" x2="474" y1="238" y2="620" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1BA2FF"/>
+      <stop offset=".45" stop-color="#0D35C3"/>
+      <stop offset="1" stop-color="#082173"/>
+    </linearGradient>
+    <linearGradient id="helmet" x1="176" x2="459" y1="70" y2="320" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset=".48" stop-color="#EEF8FF"/>
+      <stop offset="1" stop-color="#BBD6FF"/>
+    </linearGradient>
+    <linearGradient id="visor" x1="166" x2="472" y1="157" y2="278" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#03103A"/>
+      <stop offset=".48" stop-color="#071E63"/>
+      <stop offset="1" stop-color="#1263FF"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="24" stdDeviation="24" flood-color="#001B67" flood-opacity=".33"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="9" flood-color="#4DD4FF" flood-opacity=".42"/>
+    </filter>
+  </defs>
+  <rect width="640" height="720" fill="none"/>
+  <ellipse cx="320" cy="370" rx="275" ry="302" fill="url(#halo)"/>
+  <circle id="spark-a" cx="110" cy="148" r="8" fill="#66D8FF"/>
+  <circle id="spark-b" cx="522" cy="205" r="7" fill="#22C55E"/>
+  <circle id="spark-c" cx="155" cy="488" r="6" fill="#FFD33D"/>
+  <g id="bubble">
+    <path d="M439 70h112c28 0 50 22 50 50v22c0 28-22 50-50 50h-44l-38 33 8-33h-38c-28 0-50-22-50-50v-22c0-28 22-50 50-50Z" fill="#FFD33D" filter="url(#shadow)"/>
+    <circle cx="458" cy="130" r="9" fill="#FFFFFF"/>
+    <circle cx="495" cy="130" r="9" fill="#FFFFFF"/>
+    <circle cx="532" cy="130" r="9" fill="#FFFFFF"/>
+  </g>
+  <g id="robot" filter="url(#shadow)">
+    <ellipse cx="320" cy="669" rx="153" ry="26" fill="#020617" opacity=".24"/>
+    <path d="M198 409c0-74 54-130 122-130s122 56 122 130v91c0 76-54 126-122 126s-122-50-122-126v-91Z" fill="url(#blue)"/>
+    <path d="M213 432c40 24 176 24 214 0" fill="none" stroke="#7DD3FC" stroke-width="10" opacity=".4" stroke-linecap="round"/>
+    <text x="320" y="495" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="42" font-weight="900" fill="#FFFFFF">Chatboc</text>
+    <path d="M217 555c-29 15-45 38-50 76h84c6-28 20-48 42-62Z" fill="#0A35C3"/>
+    <path d="M423 555c29 15 45 38 50 76h-84c-6-28-20-48-42-62Z" fill="#0A35C3"/>
+    <rect x="145" y="621" width="122" height="47" rx="24" fill="#F8FDFF"/>
+    <rect x="373" y="621" width="122" height="47" rx="24" fill="#F8FDFF"/>
+    <path d="M203 395c-53-16-84-4-107 41" fill="none" stroke="#0D35C3" stroke-width="32" stroke-linecap="round"/>
+    <circle cx="89" cy="454" r="32" fill="#F8FDFF"/>
+    <path id="right-hand" d="M438 397c47-3 79-23 96-63" fill="none" stroke="#0D35C3" stroke-width="32" stroke-linecap="round"/>
+    <circle cx="541" cy="316" r="32" fill="#F8FDFF"/>
+    <path d="M263 60c-52 21-83 67-83 126v54c0 84 55 137 140 137s140-53 140-137v-54c0-59-31-105-83-126-34-14-80-14-114 0Z" fill="url(#helmet)"/>
+    <rect x="154" y="154" width="332" height="144" rx="70" fill="url(#visor)"/>
+    <path d="M203 136c42-47 192-47 234 0" fill="none" stroke="#6EE7FF" stroke-width="17" stroke-linecap="round"/>
+    <circle cx="252" cy="220" r="34" fill="#FAFEFF"/>
+    <circle cx="388" cy="220" r="34" fill="#FAFEFF"/>
+    <circle cx="263" cy="207" r="12" fill="#92D5FF"/>
+    <circle cx="399" cy="207" r="12" fill="#92D5FF"/>
+    <path d="M276 268c24 24 64 24 88 0" fill="none" stroke="#FFFFFF" stroke-width="17" stroke-linecap="round"/>
+    <rect x="104" y="171" width="61" height="105" rx="30" fill="#0A35C3"/>
+    <rect x="475" y="171" width="61" height="105" rx="30" fill="#0A35C3"/>
+    <circle cx="236" cy="107" r="12" fill="#22C55E"/>
+    <circle cx="278" cy="107" r="12" fill="#22C55E"/>
+    <circle cx="320" cy="107" r="12" fill="#22C55E"/>
+  </g>
+  <g id="pin" filter="url(#shadow)">
+    <path d="M477 367c-40 0-72 32-72 72 0 56 72 128 72 128s72-72 72-128c0-40-32-72-72-72Z" fill="#22C55E"/>
+    <circle cx="477" cy="438" r="28" fill="#FFFFFF"/>
+  </g>
+</svg>

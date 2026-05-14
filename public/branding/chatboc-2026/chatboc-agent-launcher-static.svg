@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">Chatboc launcher</title>
+  <desc id="desc">Static blue Chatboc robot launcher badge.</desc>
+  <defs>
+    <radialGradient id="bg" cx="31%" cy="20%" r="78%">
+      <stop offset="0" stop-color="#7DE8FF"/>
+      <stop offset=".3" stop-color="#1684FF"/>
+      <stop offset=".68" stop-color="#0D35C3"/>
+      <stop offset="1" stop-color="#04103A"/>
+    </radialGradient>
+    <linearGradient id="helmet" x1="72" x2="190" y1="57" y2="172" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset=".5" stop-color="#EDF8FF"/>
+      <stop offset="1" stop-color="#BAD5FF"/>
+    </linearGradient>
+    <linearGradient id="visor" x1="72" x2="184" y1="96" y2="150" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#04103A"/>
+      <stop offset=".5" stop-color="#082173"/>
+      <stop offset="1" stop-color="#1064FF"/>
+    </linearGradient>
+    <filter id="shadow" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="16" stdDeviation="14" flood-color="#001B67" flood-opacity=".42"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="7" flood-color="#3DDCFF" flood-opacity=".52"/>
+    </filter>
+  </defs>
+  <circle cx="128" cy="128" r="121" fill="#03124A"/>
+  <circle cx="128" cy="128" r="109" fill="none" stroke="#66D8FF" stroke-width="9" opacity=".72"/>
+  <circle cx="128" cy="128" r="104" fill="url(#bg)"/>
+  <g filter="url(#shadow)">
+    <path d="M77 107c0-37 21-59 51-59s51 22 51 59v20c0 36-21 58-51 58s-51-22-51-58v-20Z" fill="url(#helmet)"/>
+    <rect x="66" y="96" width="124" height="62" rx="30" fill="url(#visor)"/>
+    <path d="M86 87c19-18 64-18 83 0" fill="none" stroke="#6EE7FF" stroke-width="8" stroke-linecap="round"/>
+    <circle cx="104" cy="126" r="13" fill="#FAFEFF"/>
+    <circle cx="152" cy="126" r="13" fill="#FAFEFF"/>
+    <circle cx="108" cy="121" r="5" fill="#92D5FF"/>
+    <circle cx="156" cy="121" r="5" fill="#92D5FF"/>
+    <path d="M110 150c11 9 25 9 36 0" fill="none" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round"/>
+    <rect x="50" y="104" width="25" height="45" rx="12" fill="#0A35C3"/>
+    <rect x="181" y="104" width="25" height="45" rx="12" fill="#0A35C3"/>
+    <path d="M80 173c25 24 71 24 96 0v44H80v-44Z" fill="#0D35C3"/>
+    <text x="128" y="204" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="800" fill="#FFFFFF">Chatboc</text>
+  </g>
+  <circle cx="63" cy="56" r="7" fill="#22C55E"/>
+  <circle cx="199" cy="65" r="7" fill="#FFD33D"/>
+</svg>

@@ -22,6 +22,7 @@ import {
   X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import ChatbocBrandLockup from "@/components/brand/ChatbocBrandLockup";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -37,7 +38,6 @@ import { useTenant } from "@/context/TenantContext";
 import useCartCount from "@/hooks/useCartCount";
 import { useLandingExperience } from "@/hooks/useLandingExperience";
 import { useUser } from "@/hooks/useUser";
-import { getChatbocBotAvatar } from "@/utils/brandAssets";
 import { hasRequiredRole, isBackofficeRole } from "@/utils/roles";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { buildTenantPath } from "@/utils/tenantPaths";
@@ -49,15 +49,6 @@ interface AdminNavLink {
   roles?: string[];
   requiredAnyCapabilities?: string[];
 }
-
-const NAVBAR_LOGO_LIGHT_PRIMARY =
-  "/chatboc_frontend_pack/branding/chatboc/avatar/chatboc-orbit-avatar.svg";
-const NAVBAR_LOGO_DARK_PRIMARY =
-  "/chatboc_frontend_pack/branding/chatboc/avatar/chatboc-orbit-avatar.svg";
-const NAVBAR_LOGO_LIGHT_PNG =
-  "/chatboc_frontend_pack/branding/chatboc/navbar/chatboc-navbar-mark-circle_64.png";
-const NAVBAR_LOGO_DARK_PNG =
-  "/chatboc_frontend_pack/branding/chatboc/navbar/chatboc-navbar-mark-clean_64.png";
 
 const landingNavItems = [
   { id: "problemas", label: "Problemas" },
@@ -98,7 +89,6 @@ const readLandingNavItems = (navigation: unknown) => {
 const Navbar: React.FC = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [isDark, setIsDark] = useState(false);
-  const [navbarLogoSrc, setNavbarLogoSrc] = useState(NAVBAR_LOGO_LIGHT_PRIMARY);
   const location = useLocation();
   const { user } = useUser();
   const cartCount = useCartCount();
@@ -230,13 +220,11 @@ const Navbar: React.FC = () => {
     if (currentTheme === "dark") {
       document.documentElement.classList.add("dark");
       setIsDark(true);
-      setNavbarLogoSrc(NAVBAR_LOGO_DARK_PRIMARY);
       return;
     }
 
     document.documentElement.classList.remove("dark");
     setIsDark(false);
-    setNavbarLogoSrc(NAVBAR_LOGO_LIGHT_PRIMARY);
   }, []);
 
   const toggleDarkMode = () => {
@@ -247,14 +235,12 @@ const Navbar: React.FC = () => {
       html.classList.remove("dark");
       safeLocalStorage.setItem("theme", "light");
       setIsDark(false);
-      setNavbarLogoSrc(NAVBAR_LOGO_LIGHT_PRIMARY);
       return;
     }
 
     html.classList.add("dark");
     safeLocalStorage.setItem("theme", "dark");
     setIsDark(true);
-    setNavbarLogoSrc(NAVBAR_LOGO_DARK_PRIMARY);
   };
 
   const scrollToSection = (id: string) => {
@@ -287,30 +273,18 @@ const Navbar: React.FC = () => {
     "w-full rounded-[8px] px-3 py-2 text-left text-sm font-medium text-foreground/80 transition-colors hover:bg-primary/5 hover:text-primary";
 
   return (
-    <header className="fixed left-0 right-0 top-0 z-50 border-b border-border/70 bg-background/90 px-4 py-2 shadow-[0_10px_30px_rgba(15,23,42,0.08)] backdrop-blur-xl transition-all">
+    <header className="chatboc-brand-navbar fixed left-0 right-0 top-0 z-50 border-b border-border/70 px-4 py-2 shadow-[0_10px_30px_rgba(15,23,42,0.08)] backdrop-blur-xl transition-all">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
         <button
           onClick={handleLogoClick}
-          className="group flex items-center gap-3 rounded-[8px] px-2 py-1 transition-colors hover:bg-primary/5"
+          className="group flex items-center rounded-[8px] px-1 py-1 transition-colors hover:bg-primary/5"
           aria-label="Ir al inicio de Chatboc"
         >
-          <img
-            src={navbarLogoSrc}
-            alt="Chatboc Bot"
-            loading="eager"
-            decoding="async"
-            className="h-8 w-8 rounded-full object-contain shadow-[0_4px_14px_rgba(15,23,42,0.18)] ring-1 ring-primary/20 transition-transform duration-300 group-hover:scale-105 sm:h-[34px] sm:w-[34px] lg:h-9 lg:w-9"
-            onError={() =>
-              setNavbarLogoSrc((prev) =>
-                prev === (isDark ? NAVBAR_LOGO_DARK_PRIMARY : NAVBAR_LOGO_LIGHT_PRIMARY)
-                  ? isDark
-                    ? NAVBAR_LOGO_DARK_PNG
-                    : NAVBAR_LOGO_LIGHT_PNG
-                  : getChatbocBotAvatar(isDark),
-              )
-            }
+          <ChatbocBrandLockup
+            size="nav"
+            tone={isDark ? "dark" : "light"}
+            className="transition-transform duration-300 group-hover:translate-y-[-1px] group-hover:scale-[1.01]"
           />
-          <span className="chatboc-brand-gradient text-2xl font-extrabold tracking-normal">chatboc.ar</span>
         </button>
 
         {isLanding ? (

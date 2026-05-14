@@ -25,7 +25,13 @@ import { ChatWidgetProps } from "./types";
 import { hexToHsl, getContrastColorHsl } from "@/utils/color";
 import { apiClient } from "@/api/client";
 import { esRubroPublico } from "@/utils/chatEndpoints";
-import { getChatbocBotAvatar } from "@/utils/brandAssets";
+import {
+  CHATBOC_AGENT_AVATAR,
+  CHATBOC_AGENT_LAUNCHER_ANIMATED,
+  CHATBOC_AGENT_LAUNCHER_STATIC,
+  CHATBOC_AGENT_MARK,
+  getChatbocBotAvatar,
+} from "@/utils/brandAssets";
 import { createDemoSession } from "@/features/demo/demoApi";
 import getOrCreateChatSessionId, { persistChatSessionId } from "@/utils/chatSessionId";
 import {
@@ -305,14 +311,10 @@ function ChatWidgetInner({
   borderRadius,
   fontFamily,
 }: ChatWidgetProps) {
-  const CHATBOC_WIDGET_ANIMATED =
-    "/chatboc_frontend_pack/branding/chatboc/avatar/chatboc-orbit-avatar.svg";
-  const CHATBOC_WIDGET_STATIC =
-    "/chatboc_frontend_pack/branding/chatboc/avatar/chatboc-orbit-reference.png";
-  const CHATBOC_WIDGET_PNG_FALLBACK =
-    "/chatboc_frontend_pack/branding/chatboc/avatar/chatboc-orbit-reference.png";
-  const CHATBOC_WIDGET_FALLBACK =
-    "/chatboc_frontend_pack/branding/chatboc/avatar/chatboc-orbit-avatar.svg";
+  const CHATBOC_WIDGET_ANIMATED = CHATBOC_AGENT_LAUNCHER_ANIMATED;
+  const CHATBOC_WIDGET_STATIC = CHATBOC_AGENT_LAUNCHER_STATIC;
+  const CHATBOC_WIDGET_PNG_FALLBACK = CHATBOC_AGENT_MARK;
+  const CHATBOC_WIDGET_FALLBACK = CHATBOC_AGENT_AVATAR;
   const DEFAULT_WIDGET_UX = {
     preset: 'premium',
     motionLevel: 'balanced',
@@ -2542,13 +2544,13 @@ function ChatWidgetInner({
                 key="chatboc-toggle-btn"
                 className={cn(
                   commonButtonStyles,
-                  "group relative w-full h-full overflow-hidden border border-white/35 bg-white dark:bg-slate-900 dark:border-slate-600/60"
+                  "chatboc-agent-launcher group relative w-full h-full overflow-hidden border border-white/35"
                 )}
                 style={{
                   borderRadius: "50%",
                   boxShadow: isDarkMode
-                    ? "0 10px 22px rgba(2, 6, 23, 0.45)"
-                    : "0 8px 20px rgba(15, 23, 42, 0.22)",
+                    ? "0 18px 42px rgba(2, 6, 23, 0.62), 0 0 0 1px rgba(125,176,255,0.24)"
+                    : "0 16px 34px rgba(15, 43, 110, 0.26), 0 0 0 1px rgba(255,255,255,0.76)",
                 }}
                 {...buttonAnimation}
                 whileHover={{
@@ -2586,14 +2588,13 @@ function ChatWidgetInner({
                     transition={{ duration: 2.8, repeat: Infinity, ease: "easeOut" }}
                   />
                 ) : null}
-                {/* Reemplazado por pack de branding Chatboc 2026-03-26 */}
                 <motion.img
                   src={launcherImageSrc}
                   alt=""
                   aria-hidden="true"
                   loading="eager"
                   decoding="async"
-                  className="h-full w-full object-contain drop-shadow-[0_4px_10px_rgba(0,35,110,0.18)]"
+                  className="h-full w-full object-contain drop-shadow-[0_8px_18px_rgba(0,35,110,0.28)]"
                   animate={
                     !isOpen && !prefersReducedMotion
                       ? { y: [0, -1.5, 0], scale: [1, 1.018, 1] }

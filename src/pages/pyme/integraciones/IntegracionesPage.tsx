@@ -18,7 +18,7 @@ import {
   MessageSquare, Send, Tags, Eye, Palette, Link2, Smartphone, Search,
   ShoppingBag, MessageCircle, Mail, Settings, ArrowRight, FileSpreadsheet,
   Save, Pencil, FileDown, PhoneCall, Clipboard, Sparkles, ShieldCheck,
-  KeyRound, Copy, Bot
+  KeyRound, Copy, Bot, QrCode
 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Textarea } from '@/components/ui/textarea';
@@ -80,6 +80,7 @@ type WhatsappSandboxResult = {
   deeplink?: string | null;
   copyText?: string | null;
   previewText?: string | null;
+  qrUrl?: string | null;
   requestId?: string | null;
   joinNumber?: string | null;
   joinPhrase?: string | null;
@@ -94,6 +95,7 @@ type WhatsappSandboxSetup = {
   deeplink?: string | null;
   copyText?: string | null;
   previewText?: string | null;
+  qrUrl?: string | null;
   joinNumber?: string | null;
   joinPhrase?: string | null;
   instructions: string[];
@@ -232,6 +234,17 @@ export const normalizeSandboxContract = (response: any): WhatsappSandboxSetup =>
     previewText: normalizeSandboxPreviewText(
       response?.preview || response?.message_preview || test?.preview || whatsappSandbox?.preview,
     ),
+    qrUrl: readTextValue(
+      response?.qr_url,
+      response?.qrUrl,
+      preview?.qr_url,
+      preview?.qrUrl,
+      sandbox?.qr_url,
+      sandbox?.qrUrl,
+      whatsappSandbox?.qr_url,
+      twilio?.qr_url,
+      channel?.qr_url,
+    ),
     joinNumber: readTextValue(
       response?.display_number,
       response?.phone_number,
@@ -260,9 +273,9 @@ export const normalizeSandboxContract = (response: any): WhatsappSandboxSetup =>
       test?.endpoint,
       sandbox?.test_endpoint,
       response?.test_endpoint,
-      response?.session_endpoint,
-      response?.links?.sandbox_session,
-      response?.links?.session_endpoint,
+      response?.frontend_contract?.test_endpoint,
+      response?.links?.test_endpoint,
+      response?.links?.sandbox_test,
     ),
     sessionEndpoint: readTextValue(
       response?.session_endpoint,
@@ -451,28 +464,48 @@ const IntegracionesPage = () => {
 
   const loadWhatsappSandboxSetup = async () => {
     if (!currentSlug) return;
+    const fallbackSessionEndpoint = `/api/v2/tenants/${encodeURIComponent(currentSlug)}/whatsapp/sandbox-session`;
     setSandboxSetupLoading(true);
     try {
       const response = await apiClient.get<any>(
         `/api/v2/tenants/${encodeURIComponent(currentSlug)}/whatsapp/sandbox-setup`,
-        { tenantSlug: currentSlug, suppressPanel401Redirect: true },
+        {
+          tenantSlug: currentSlug,
+          suppressPanel401Redirect: true,
+        },
       );
       const setup = normalizeSandboxContract(response);
-      setSandboxSetup(setup);
+      setSandboxSetup({
+        ...setup,
+        sessionEndpoint: setup.sessionEndpoint || fallbackSessionEndpoint,
+      });
       setWhatsappSandbox((prev) => ({
         ...prev,
         customerWhatsapp:
           prev.customerWhatsapp ||
           (setup.joinNumber ? setup.joinNumber.replace(/^whatsapp:/i, "") : ""),
         joinPhrase: prev.joinPhrase || setup.joinPhrase || "",
-        rubro: prev.rubro || readTextValue(response?.demo_context?.rubro, response?.demo_context?.sector) || "",
+        rubro:
+          prev.rubro ||
+          readTextValue(response?.demo_context?.rubro, response?.demo_context?.sector) ||
+          "",
         testMessage:
           prev.testMessage ||
-          readTextValue(response?.test?.sample_message, response?.sandbox?.sample_message, response?.sample_message) ||
+          readTextValue(
+            response?.demo_context?.test_message,
+            response?.test?.sample_message,
+            response?.test?.message,
+            response?.sandbox?.sample_message,
+            response?.sample_message,
+          ) ||
           "",
       }));
     } catch (error) {
-      setSandboxSetup(null);
+      setSandboxSetup({
+        instructions: [],
+        quickMenu: [],
+        sessionEndpoint: fallbackSessionEndpoint,
+      });
     } finally {
       setSandboxSetupLoading(false);
     }
@@ -830,8 +863,8 @@ const IntegracionesPage = () => {
     setSandboxLoading(true);
     try {
       const testEndpoint =
-        sandboxSetup?.sessionEndpoint ||
         sandboxSetup?.testEndpoint ||
+        sandboxSetup?.sessionEndpoint ||
         `/api/v2/tenants/${encodeURIComponent(currentSlug)}/whatsapp/sandbox-session`;
       const response = await apiClient.post<any>(
         testEndpoint,
@@ -857,6 +890,7 @@ const IntegracionesPage = () => {
         deeplink: remoteDeeplink,
         copyText: testResult.copyText,
         previewText: testResult.previewText,
+        qrUrl: testResult.qrUrl || sandboxSetup?.qrUrl || null,
         requestId: testResult.requestId,
         joinNumber: remoteJoinNumber,
         joinPhrase: remoteJoinPhrase,
@@ -900,6 +934,7 @@ const IntegracionesPage = () => {
     const effectiveJoinNumber = sandboxResult?.joinNumber || sandboxSetup?.joinNumber;
     const effectiveJoinPhrase =
       sandboxResult?.joinPhrase || sandboxSetup?.joinPhrase || whatsappSandbox.joinPhrase.trim();
+    const effectiveQrUrl = sandboxResult?.qrUrl || sandboxSetup?.qrUrl;
     const instructionPreview = sandboxResult?.instructions?.length
       ? sandboxResult.instructions
       : sandboxSetup?.instructions || [];
@@ -1042,6 +1077,19 @@ const IntegracionesPage = () => {
                 ) : null}
               </div>
             )}
+            {effectiveQrUrl ? (
+              <div className="mt-3 flex flex-col gap-3 rounded-lg border bg-muted/20 p-3 sm:flex-row sm:items-center">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <QrCode className="h-4 w-4 text-primary" />
+                  QR publicado por el contrato
+                </div>
+                <img
+                  src={effectiveQrUrl}
+                  alt=""
+                  className="h-28 w-28 rounded-md border bg-background object-contain p-1"
+                />
+              </div>
+            ) : null}
             {instructionPreview.length ? (
               <ol className="mt-3 grid gap-2 text-sm text-muted-foreground sm:grid-cols-3">
                 {instructionPreview.slice(0, 3).map((instruction, index) => (

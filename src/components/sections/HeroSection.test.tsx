@@ -31,7 +31,7 @@ describe('HeroSection backend-driven conversation demo', () => {
     expect(container.querySelector('.chatboc-phone-demo')).toBeNull();
   });
 
-  it('renders only backend-provided operational data and does not fake broken image previews', () => {
+  it('renders backend-provided operational data with a visible attachment preview', () => {
     const { container } = render(
       <MemoryRouter>
         <HeroSection
@@ -73,9 +73,10 @@ describe('HeroSection backend-driven conversation demo', () => {
 
     expect(container.querySelector('.chatboc-phone-demo')).not.toBeNull();
     expect(screen.getAllByText('Foto').length).toBeGreaterThan(0);
-    expect(screen.getByText('Categoria')).toBeInTheDocument();
-    expect(screen.getByText('Alumbrado')).toBeInTheDocument();
-    expect(screen.getByText('empresas')).toBeInTheDocument();
+    expect(screen.getByText('Categoria')).toBeTruthy();
+    expect(screen.getByText('Alumbrado')).toBeTruthy();
+    expect(screen.getByText('empresas')).toBeTruthy();
+    expect(screen.getByAltText('Foto')).toBeTruthy();
     expect(container.querySelector('.chatboc-hero-attachment__media')).toBeNull();
   });
 });

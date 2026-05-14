@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">Chatboc agent mark</title>
+  <desc id="desc">Blue and white Chatboc robot head inside a luminous chat badge.</desc>
+  <defs>
+    <radialGradient id="mark-bg" cx="34%" cy="18%" r="80%">
+      <stop offset="0" stop-color="#6EE7FF"/>
+      <stop offset=".28" stop-color="#1A7CFF"/>
+      <stop offset=".68" stop-color="#0A35C3"/>
+      <stop offset="1" stop-color="#03134A"/>
+    </radialGradient>
+    <linearGradient id="helmet" x1="53" x2="205" y1="46" y2="177" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset=".45" stop-color="#ECF7FF"/>
+      <stop offset="1" stop-color="#BFD9FF"/>
+    </linearGradient>
+    <linearGradient id="visor" x1="67" x2="191" y1="90" y2="151" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#05134A"/>
+      <stop offset=".52" stop-color="#082173"/>
+      <stop offset="1" stop-color="#0E55F2"/>
+    </linearGradient>
+    <filter id="soft-shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="14" stdDeviation="13" flood-color="#001B67" flood-opacity=".32"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="4" flood-color="#4DD4FF" flood-opacity=".42"/>
+    </filter>
+  </defs>
+  <rect x="14" y="16" width="228" height="208" rx="62" fill="url(#mark-bg)" filter="url(#soft-shadow)"/>
+  <path d="M72 219c9-7 19-17 22-28H65c-23 0-42-19-42-42V75c0-25 20-45 45-45h120c25 0 45 20 45 45v74c0 25-20 45-45 45h-64c-12 14-30 24-52 25Z" fill="none" stroke="#BEEBFF" stroke-width="8" opacity=".42" stroke-linejoin="round"/>
+  <g filter="url(#soft-shadow)">
+    <path d="M70 100c0-40 24-64 58-64s58 24 58 64v25c0 38-24 60-58 60s-58-22-58-60v-25Z" fill="url(#helmet)"/>
+    <path d="M60 113c0-13 8-24 20-29 12-32 78-32 96 0 12 5 20 16 20 29v14c0 13-11 24-24 24H84c-13 0-24-11-24-24v-14Z" fill="url(#visor)"/>
+    <path d="M87 95c18-20 64-22 82 0" fill="none" stroke="#6EE7FF" stroke-width="8" stroke-linecap="round" opacity=".85"/>
+    <circle cx="102" cy="121" r="13" fill="#F8FDFF"/>
+    <circle cx="154" cy="121" r="13" fill="#F8FDFF"/>
+    <circle cx="106" cy="116" r="5" fill="#9BD7FF"/>
+    <circle cx="158" cy="116" r="5" fill="#9BD7FF"/>
+    <path d="M108 148c12 11 28 11 40 0" fill="none" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round"/>
+    <rect x="45" y="102" width="24" height="48" rx="12" fill="#0D35C3"/>
+    <rect x="187" y="102" width="24" height="48" rx="12" fill="#0D35C3"/>
+    <rect x="77" y="67" width="102" height="12" rx="6" fill="#0D35C3" opacity=".35"/>
+  </g>
+  <circle cx="88" cy="59" r="7" fill="#22C55E"/>
+  <circle cx="111" cy="59" r="7" fill="#22C55E"/>
+  <circle cx="134" cy="59" r="7" fill="#22C55E"/>
+</svg>

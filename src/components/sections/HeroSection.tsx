@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
 import { Button } from "@/components/ui/button";
+import ChatbocBrandLockup from "@/components/brand/ChatbocBrandLockup";
 import {
   ArrowRight,
   Bot,
@@ -257,6 +258,113 @@ type ConversationFlow = {
   tone: string;
 };
 
+const svgPreview = (svg: string) => `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+
+const DEMO_ATTACHMENT_PREVIEWS: Record<string, string> = {
+  gobierno: svgPreview(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 260">
+      <defs>
+        <linearGradient id="sky" x1="0" x2="1" y1="0" y2="1">
+          <stop offset="0" stop-color="#dbeafe"/>
+          <stop offset="1" stop-color="#f8fafc"/>
+        </linearGradient>
+        <filter id="grain">
+          <feTurbulence type="fractalNoise" baseFrequency=".8" numOctaves="2" stitchTiles="stitch"/>
+          <feColorMatrix type="saturate" values=".35"/>
+          <feBlend mode="multiply" in2="SourceGraphic"/>
+        </filter>
+      </defs>
+      <rect width="420" height="260" rx="22" fill="url(#sky)"/>
+      <path d="M0 138h420v122H0z" fill="#64748b"/>
+      <path d="M0 160c58-18 112-16 162 5s102 19 156 0c38-13 72-18 102-12v107H0z" fill="#334155"/>
+      <path d="M0 142h420" stroke="#cbd5e1" stroke-width="10"/>
+      <path d="M48 185c44-12 75-11 92 4 15 14 44 17 75 7 22-8 47-4 72 11" fill="none" stroke="#94a3b8" stroke-width="9" stroke-linecap="round"/>
+      <ellipse cx="132" cy="205" rx="48" ry="20" fill="#0f172a" opacity=".52"/>
+      <ellipse cx="132" cy="198" rx="29" ry="11" fill="#64748b"/>
+      <path d="M308 56v104" stroke="#475569" stroke-width="8" stroke-linecap="round"/>
+      <path d="M282 52h68" stroke="#475569" stroke-width="9" stroke-linecap="round"/>
+      <circle cx="354" cy="56" r="17" fill="#fde68a"/>
+      <circle cx="354" cy="56" r="30" fill="#fde68a" opacity=".26"/>
+      <rect x="16" y="18" width="142" height="38" rx="19" fill="#ffffff" opacity=".88"/>
+      <circle cx="40" cy="37" r="9" fill="#2563eb"/>
+      <rect x="58" y="30" width="76" height="5" rx="2.5" fill="#94a3b8"/>
+      <rect x="58" y="41" width="52" height="5" rx="2.5" fill="#cbd5e1"/>
+      <rect width="420" height="260" rx="22" fill="#000000" opacity=".08" filter="url(#grain)"/>
+    </svg>
+  `),
+  pyme: svgPreview(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 260">
+      <defs>
+        <linearGradient id="desk" x1="0" x2="1" y1="0" y2="1">
+          <stop offset="0" stop-color="#fef3c7"/>
+          <stop offset="1" stop-color="#d97706"/>
+        </linearGradient>
+        <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow dx="0" dy="14" stdDeviation="10" flood-color="#7c2d12" flood-opacity=".26"/>
+        </filter>
+      </defs>
+      <rect width="420" height="260" rx="22" fill="url(#desk)"/>
+      <rect x="88" y="24" width="232" height="210" rx="12" fill="#fffaf0" filter="url(#shadow)" transform="rotate(-3 204 129)"/>
+      <rect x="116" y="50" width="84" height="10" rx="5" fill="#0f172a" opacity=".72" transform="rotate(-3 158 55)"/>
+      <rect x="115" y="75" width="166" height="4" rx="2" fill="#94a3b8" transform="rotate(-3 198 77)"/>
+      <rect x="115" y="94" width="184" height="4" rx="2" fill="#cbd5e1" transform="rotate(-3 207 96)"/>
+      <rect x="116" y="113" width="152" height="4" rx="2" fill="#cbd5e1" transform="rotate(-3 192 115)"/>
+      <path d="M124 142c25-9 42 8 66 2 22-6 38-20 62-13" fill="none" stroke="#1d4ed8" stroke-width="5" stroke-linecap="round" transform="rotate(-3 188 138)"/>
+      <path d="M125 165c18-7 30 5 46 0 22-7 36-14 58-9" fill="none" stroke="#1d4ed8" stroke-width="4" stroke-linecap="round" transform="rotate(-3 177 161)"/>
+      <rect x="230" y="178" width="58" height="22" rx="6" fill="#16a34a" opacity=".88" transform="rotate(-3 259 189)"/>
+      <circle cx="72" cy="204" r="32" fill="#78350f" opacity=".16"/>
+      <rect x="302" y="30" width="58" height="96" rx="12" fill="#0f172a" opacity=".82" transform="rotate(9 331 78)"/>
+      <rect x="314" y="46" width="35" height="58" rx="7" fill="#e0f2fe" transform="rotate(9 331 75)"/>
+    </svg>
+  `),
+  educacion: svgPreview(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 260">
+      <defs>
+        <linearGradient id="paper" x1="0" x2="1" y1="0" y2="1">
+          <stop offset="0" stop-color="#eef2ff"/>
+          <stop offset="1" stop-color="#ffffff"/>
+        </linearGradient>
+        <filter id="docshadow" x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow dx="0" dy="14" stdDeviation="12" flood-color="#312e81" flood-opacity=".2"/>
+        </filter>
+      </defs>
+      <rect width="420" height="260" rx="22" fill="#dbeafe"/>
+      <rect x="64" y="22" width="240" height="210" rx="14" fill="url(#paper)" filter="url(#docshadow)" transform="rotate(2 184 127)"/>
+      <circle cx="98" cy="61" r="18" fill="#6366f1" opacity=".9"/>
+      <rect x="128" y="50" width="112" height="8" rx="4" fill="#1e293b" opacity=".74"/>
+      <rect x="128" y="66" width="84" height="5" rx="2.5" fill="#94a3b8"/>
+      <rect x="94" y="98" width="176" height="5" rx="2.5" fill="#cbd5e1"/>
+      <rect x="94" y="119" width="190" height="5" rx="2.5" fill="#cbd5e1"/>
+      <rect x="94" y="140" width="156" height="5" rx="2.5" fill="#cbd5e1"/>
+      <rect x="94" y="166" width="78" height="24" rx="7" fill="#22c55e" opacity=".84"/>
+      <circle cx="250" cy="177" r="30" fill="none" stroke="#6366f1" stroke-width="8" opacity=".62"/>
+      <path d="M232 177l12 12 27-30" fill="none" stroke="#6366f1" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+      <rect x="286" y="58" width="72" height="120" rx="13" fill="#ffffff" opacity=".88" transform="rotate(-10 322 118)"/>
+      <rect x="302" y="86" width="40" height="6" rx="3" fill="#94a3b8" transform="rotate(-10 322 89)"/>
+      <rect x="301" y="108" width="42" height="42" rx="8" fill="#bfdbfe" transform="rotate(-10 322 129)"/>
+    </svg>
+  `),
+  platform: svgPreview(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 260">
+      <rect width="420" height="260" rx="22" fill="#e2e8f0"/>
+      <rect x="34" y="36" width="154" height="92" rx="18" fill="#ffffff"/>
+      <rect x="208" y="36" width="178" height="92" rx="18" fill="#ffffff"/>
+      <rect x="34" y="146" width="214" height="78" rx="18" fill="#ffffff"/>
+      <circle cx="82" cy="82" r="24" fill="#2563eb" opacity=".82"/>
+      <rect x="116" y="70" width="46" height="7" rx="3.5" fill="#94a3b8"/>
+      <rect x="116" y="86" width="34" height="7" rx="3.5" fill="#cbd5e1"/>
+      <path d="M232 90c35-32 77-30 122 6" fill="none" stroke="#16a34a" stroke-width="11" stroke-linecap="round"/>
+      <rect x="64" y="172" width="148" height="7" rx="3.5" fill="#94a3b8"/>
+      <rect x="64" y="190" width="108" height="7" rx="3.5" fill="#cbd5e1"/>
+    </svg>
+  `),
+};
+
+const getDemoAttachmentPreview = (inputKind: string, family: string) => {
+  if (["text", "audio", "location"].includes(inputKind)) return "";
+  return DEMO_ATTACHMENT_PREVIEWS[family] ?? DEMO_ATTACHMENT_PREVIEWS.platform;
+};
+
 const normalizeFieldRows = (source: unknown) => {
   const recordToRows = (record: AnyRecord) =>
     Object.entries(record)
@@ -473,8 +581,28 @@ const getInputIcon = (kind: string) => {
   }
 };
 
-const inferFlowFamily = (flow: { sector: string; label: string; id: string }) => {
-  const key = `${flow.sector} ${flow.label} ${flow.id}`.toLowerCase();
+const inferFlowFamily = (flow: {
+  sector: string;
+  label: string;
+  id: string;
+  message?: string;
+  response?: string;
+  action?: ConversationAction;
+  inputs?: ConversationInput[];
+}) => {
+  const key = [
+    flow.sector,
+    flow.label,
+    flow.id,
+    flow.message,
+    flow.response,
+    flow.action?.label,
+    flow.action?.detail,
+    ...(flow.inputs ?? []).flatMap((input) => [input.kind, input.label, input.detail]),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
   if (
     key.includes("educ") ||
     key.includes("coleg") ||
@@ -482,7 +610,10 @@ const inferFlowFamily = (flow: { sector: string; label: string; id: string }) =>
     key.includes("familia") ||
     key.includes("cuota") ||
     key.includes("secretaria") ||
-    key.includes("alumno")
+    key.includes("alumno") ||
+    key.includes("certificado") ||
+    key.includes("constancia") ||
+    key.includes("inasistencia")
   ) {
     return "educacion";
   }
@@ -503,7 +634,12 @@ const inferFlowFamily = (flow: { sector: string; label: string; id: string }) =>
     key.includes("gob") ||
     key.includes("muni") ||
     key.includes("reclamo") ||
-    key.includes("ticket")
+    key.includes("ticket") ||
+    key.includes("bache") ||
+    key.includes("alumbrado") ||
+    key.includes("calzada") ||
+    key.includes("semaforo") ||
+    key.includes("residuo")
   ) {
     return "gobierno";
   }
@@ -542,17 +678,18 @@ const getActionIcon = (value: string) => {
   return ClipboardCheck;
 };
 
-const HeroInputCard = ({ input }: { input: ConversationInput }) => {
+const HeroInputCard = ({ input, family }: { input: ConversationInput; family: string }) => {
   const [imageFailed, setImageFailed] = React.useState(false);
-  const [imageReady, setImageReady] = React.useState(false);
   const InputIcon = getInputIcon(input.kind);
   const inputKind = inferInputKind(input.kind);
-  const canLoadImage = inputKind === "image" && input.previewUrl && !imageFailed;
+  const backendPreviewUrl = input.previewUrl && !imageFailed ? input.previewUrl : "";
+  const fallbackPreviewUrl = getDemoAttachmentPreview(inputKind, family);
+  const imageSrc = backendPreviewUrl || fallbackPreviewUrl;
+  const canShowPreview = Boolean(imageSrc);
   const hasLocation = inputKind === "location" && (input.address || input.lat || input.lng);
 
   React.useEffect(() => {
     setImageFailed(false);
-    setImageReady(false);
   }, [input.previewUrl]);
 
   return (
@@ -561,16 +698,14 @@ const HeroInputCard = ({ input }: { input: ConversationInput }) => {
         <InputIcon className="h-4 w-4 text-primary" />
         <span>{input.label}</span>
       </div>
-      {inputKind === "image" && canLoadImage && (
+      {canShowPreview && (
         <img
-          src={input.previewUrl}
+          src={imageSrc}
           alt={input.label}
-          className={imageReady ? "mt-2 h-24 w-full rounded-[10px] object-cover" : "hidden"}
-          loading="lazy"
-          onLoad={() => setImageReady(true)}
+          className="chatboc-hero-attachment__photo"
+          loading="eager"
           onError={() => {
-            setImageFailed(true);
-            setImageReady(false);
+            if (backendPreviewUrl) setImageFailed(true);
           }}
         />
       )}
@@ -595,7 +730,7 @@ const HeroInputCard = ({ input }: { input: ConversationInput }) => {
           ))}
         </div>
       )}
-      {["catalog", "cart", "payment", "calendar", "file"].includes(inputKind) && (
+      {["catalog", "cart", "payment", "calendar", "file"].includes(inputKind) && !canShowPreview && (
         <div className={`chatboc-hero-mini-preview chatboc-hero-mini-preview--${inputKind} mt-2`} aria-hidden="true">
           <span />
           <span />
@@ -737,6 +872,8 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
       <div className="container mx-auto px-4">
         <div className={`grid items-center gap-10 ${showHeroPreview ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]" : ""}`}>
           <div className="min-w-0 max-w-3xl">
+            <ChatbocBrandLockup size="hero" tone="auto" showAgent className="mb-6" />
+
             {eyebrow && (
               <div className="mb-5 inline-flex max-w-full items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.22em] text-primary">
                 <span className="h-1.5 w-1.5 rounded-full bg-success" />
@@ -880,7 +1017,11 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
                       {activeFlow.inputs.length > 0 && (
                         <div className="chatboc-phone-demo__sequence chatboc-phone-demo__sequence--2 chatboc-phone-demo__attachments">
                           {activeFlow.inputs.map((input) => (
-                            <HeroInputCard key={`${activeFlow.id}-${input.kind}-${input.label}`} input={input} />
+                            <HeroInputCard
+                              key={`${activeFlow.id}-${input.kind}-${input.label}`}
+                              input={input}
+                              family={activeFlowFamily}
+                            />
                           ))}
                         </div>
                       )}
