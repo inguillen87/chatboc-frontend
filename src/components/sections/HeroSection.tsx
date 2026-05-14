@@ -212,6 +212,7 @@ type ConversationFlow = {
   response: string;
   inputs: ConversationInput[];
   action?: ConversationAction;
+  resultTraceable: boolean;
   highlights: string[];
   workflowSteps: string[];
   tone: string;
@@ -300,6 +301,14 @@ const normalizeAction = (source: unknown, ctaSource?: unknown): ConversationActi
   };
 };
 
+const isTraceableResult = (source: unknown) => {
+  if (!isRecord(source)) return false;
+  const traceable = source.traceable;
+  if (traceable === true) return true;
+  if (typeof traceable === "string") return traceable.toLowerCase() === "true";
+  return Boolean(readText(source, ["target", "panel", "kind", "id"]));
+};
+
 const normalizeConversationFlows = (source: unknown): ConversationFlow[] => {
   const items = asDemoArray(source);
   if (!items.length) return [];
@@ -325,6 +334,7 @@ const normalizeConversationFlows = (source: unknown): ConversationFlow[] => {
       first(sourceRecord, ["action", "result", "outcome", "ticket", "order", "case"]),
       first(sourceRecord, ["cta", "primary_cta", "demo_cta"]),
     );
+    const resultTraceable = isTraceableResult(first(sourceRecord, ["result", "outcome", "ticket", "order", "case"]));
     const highlights = asArray(first(sourceRecord, ["highlights", "chips", "outcomes", "tags"]))
       .map((chip) => readItemLabel(chip))
       .filter(Boolean)
@@ -339,6 +349,7 @@ const normalizeConversationFlows = (source: unknown): ConversationFlow[] => {
         response: readText(firstAssistant, ["text", "message", "content", "copy"]),
         inputs: normalizeDemoInputs(first(sourceRecord, ["inputs", "media", "input_modes", "attachments", "capabilities"])),
         action,
+        resultTraceable,
         highlights,
         workflowSteps: normalizeWorkflowSteps(first(sourceRecord, ["workflow_steps", "agent_steps", "steps", "process_steps"])),
         tone: readText(sourceRecord, ["tone", "color_class"], "bg-primary"),
@@ -351,6 +362,9 @@ const normalizeConversationFlows = (source: unknown): ConversationFlow[] => {
       if (!isRecord(item)) return null;
       const action = isRecord(first(item, ["action", "result", "outcome", "ticket", "order", "case"]))
         ? (first(item, ["action", "result", "outcome", "ticket", "order", "case"]) as AnyRecord)
+        : {};
+      const result = isRecord(first(item, ["result", "outcome", "ticket", "order", "case"]))
+        ? (first(item, ["result", "outcome", "ticket", "order", "case"]) as AnyRecord)
         : {};
       const cta = isRecord(first(item, ["cta", "primary_cta", "demo_cta"]))
         ? (first(item, ["cta", "primary_cta", "demo_cta"]) as AnyRecord)
@@ -373,6 +387,7 @@ const normalizeConversationFlows = (source: unknown): ConversationFlow[] => {
         response,
         inputs: normalizeDemoInputs(first(item, ["inputs", "media", "input_modes", "attachments", "capabilities"])),
         action: normalizeAction(action, cta),
+        resultTraceable: isTraceableResult(result),
         highlights: (() => {
           const chips = asArray(first(item, ["highlights", "chips", "outcomes", "tags"]))
             .map((chip) => readItemLabel(chip))
@@ -536,10 +551,7 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
     ["--chatboc-hero-accent" as string]: readText(colors, ["primary", "accent"], ""),
   } as React.CSSProperties;
   const showHeroPreview =
-    Boolean(activeFlow) ||
-    Boolean(activeAction) ||
-    activeWorkflowSteps.length > 0 ||
-    dashboardRows.length > 0;
+    Boolean(activeFlow?.message && activeFlow?.response && (activeAction || activeFlow.resultTraceable));
   const headlineWords = headline.split(/\s+/).filter(Boolean);
   const headlineLead = headlineWords.slice(0, Math.max(2, headlineWords.length - 3)).join(" ");
   const headlineAccent = headlineWords.slice(Math.max(2, headlineWords.length - 3)).join(" ");
@@ -556,10 +568,10 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
   return (
     <section className="chatboc-hero-grid overflow-hidden pt-20 pb-12 text-foreground md:pt-28 md:pb-16" style={accentStyle}>
       <div className="container mx-auto px-4">
-        <div className={`grid items-center gap-10 ${showHeroPreview ? "lg:grid-cols-[0.9fr_1.1fr]" : ""}`}>
+        <div className={`grid items-center gap-10 ${showHeroPreview ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]" : ""}`}>
           <div className="min-w-0 max-w-3xl">
             {headline && (
-              <h1 className="chatboc-hero-headline text-4xl font-bold leading-[1.02] tracking-normal text-foreground sm:text-5xl md:text-6xl xl:text-7xl">
+              <h1 className="chatboc-hero-headline text-4xl font-bold leading-[1.02] tracking-normal text-foreground sm:text-5xl md:text-6xl 2xl:text-7xl">
                 <span>{headlineLead}</span>{" "}
                 {headlineAccent && <span className="chatboc-hero-headline__accent">{headlineAccent}</span>}
               </h1>

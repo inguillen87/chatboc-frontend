@@ -34,6 +34,7 @@ export default function ChatComposer({
   draftText,
   intent,
   payload,
+  disabled = false,
 }: {
   onSend: (payload: ChatComposerPayload) => void;
   placeholder?: string;
@@ -42,6 +43,7 @@ export default function ChatComposer({
   draftText?: string | null;
   intent?: string | null;
   payload?: Record<string, unknown> | null;
+  disabled?: boolean;
 }) {
   const [text, setText] = useState('');
   const [composerState, setComposerState] = useState<string>('idle');
@@ -109,7 +111,7 @@ export default function ChatComposer({
       await uploadAttachment(attachmentDraft.file, attachmentDraft.mode === 'image' ? imageMode : fileMode);
       return;
     }
-    if (!trimmed || textMode?.enabled === false) return;
+    if (disabled || !trimmed || textMode?.enabled === false) return;
     onSend({ text: trimmed, intent, payload });
     setText('');
     setError(null);
@@ -303,9 +305,9 @@ export default function ChatComposer({
           onChange={(event) => setText(event.target.value)}
           placeholder={resolvedPlaceholder}
           aria-label="Mensaje"
-          disabled={textMode?.enabled === false || composerState !== 'idle'}
+          disabled={disabled || textMode?.enabled === false || composerState !== 'idle'}
         />
-        <Button type="submit" size="sm" aria-label={sendLabel} disabled={(!text.trim() && !attachmentDraft) || composerState !== 'idle'}>
+        <Button type="submit" size="sm" aria-label={sendLabel} disabled={disabled || (!text.trim() && !attachmentDraft) || composerState !== 'idle'}>
           <Send className="h-4 w-4" />
         </Button>
       </div>
@@ -320,7 +322,7 @@ export default function ChatComposer({
                 size="sm"
                 variant="outline"
                 className="h-8 gap-1.5 px-2 text-xs"
-                disabled={composerState !== 'idle' && !(action.type === 'audio' && isRecording)}
+                disabled={disabled || (composerState !== 'idle' && !(action.type === 'audio' && isRecording))}
                 onClick={() => handleAction(action.type)}
                 title={action.label}
               >

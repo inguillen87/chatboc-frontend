@@ -54,7 +54,12 @@ Objetivo: eliminar ruido visible y evitar mocks/fallbacks. Frontend debe renderi
 - Cada flow debe representar una accion real por rubro: reclamo municipal, pedido/lead pyme, caso escolar o votacion/sondeo.
 - No mandar logos grandes como reemplazo de demo. Si no hay demo real, omitir `conversation_demo`.
 - Cada demo accionable debe traer inputs reales cuando existan: imagen, ubicacion, audio, archivo o texto.
+- Si se manda una imagen, `preview_url` debe ser una URL valida y accesible. Si no hay imagen real, no mandar `preview_url`.
 - Si el agente crea algo, incluir `action` con `label`, `status`, `detail` y `fields` con ids reales o trazables.
+- Incluir `workflow_steps`, `highlights` y `metrics` solo cuando representen pasos/datos reales del flujo.
+- El CTA principal debe llevar a una demo o captura de lead funcional; si backend rechaza el lead, responder validacion JSON con campos requeridos.
+- `POST /ask/municipio` y aliases de demo no deben devolver 500 para `demo_session_id` valido. Deben responder contrato JSON del chat o error accionable con `request_id`.
+- `POST /api/public/lead-capture` debe aceptar el payload de landing/demo y crear lead real para seguimiento comercial o devolver validacion JSON especifica.
 - No publicar ids, metricas, productos, tickets ni heatmaps inventados para llenar la landing.
 
 ## Cambios frontend aplicados
@@ -64,6 +69,8 @@ Objetivo: eliminar ruido visible y evitar mocks/fallbacks. Frontend debe renderi
 - Errores HTML del admin experience se limpian en UI; backend sigue debiendo devolver JSON.
 - Catalogo tenant agrega defensa por señales explicitas de vertical/sector para evitar mezcla municipio/pyme si el backend manda esas señales.
 - Estadisticas municipales envuelven graficos en contenedor medido para evitar Recharts con ancho/alto invalidos.
+- Hero de landing ahora renderiza una demo conversacional tipo mobile desde `hero.conversation_demo`: tabs por rubro, mensaje usuario, adjuntos, respuesta IA, accion creada, pasos y metricas.
+- Frontend oculta imagenes rotas del hero. No muestra placeholders: si `preview_url` no carga, se elimina visualmente y queda solo el dato textual recibido.
 
 ## Pendiente backend
 
