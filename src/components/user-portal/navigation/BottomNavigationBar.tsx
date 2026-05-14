@@ -1,9 +1,9 @@
 import React, { useMemo } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useParams } from 'react-router-dom';
 import { Home, ListChecks, Menu as MenuIcon, ShoppingBag } from 'lucide-react';
 
 import { useTenant } from '@/context/TenantContext';
-import { buildTenantPath } from '@/utils/tenantPaths';
+import { buildTenantPath, readCanonicalTenantSlugFromPath } from '@/utils/tenantPaths';
 import type { PortalContent } from '@/types/unified';
 import type { WidgetCommerceSession } from '@/types/widgetCommerce';
 import type { WidgetPortalClaim, WidgetPortalOrder } from '@/utils/widgetPortal';
@@ -37,12 +37,17 @@ const EMPTY_CONTENT: PortalContent = {
 
 const BottomNavigationBar: React.FC<BottomNavigationBarProps> = ({ onOpenMobileMenu, portalNavigation }) => {
   const location = useLocation();
+  const routeParams = useParams();
   const { currentSlug, tenant } = useTenant();
   const content = portalNavigation?.content ?? EMPTY_CONTENT;
   const commerceSession = portalNavigation?.commerceSession ?? null;
   const publicClaims = portalNavigation?.publicClaims ?? [];
   const publicOrders = portalNavigation?.publicOrders ?? [];
-  const isMunicipio = tenant?.tipo === 'municipio';
+  const routeTenantSlug =
+    (typeof routeParams.tenant === 'string' ? routeParams.tenant : null) ||
+    (typeof window !== 'undefined' ? readCanonicalTenantSlugFromPath(window.location.pathname) : null);
+  const effectiveSlug = currentSlug || routeTenantSlug;
+  const isMunicipio = (commerceSession?.tenant?.tipo || tenant?.tipo) === 'municipio';
   const actionLabels = commerceSession?.frontend_contract?.action_labels ?? {};
   const catalogEnabled = commerceSession?.catalog?.enabled === true || content.catalog.length > 0;
   const historyEnabled =
@@ -54,7 +59,7 @@ const BottomNavigationBar: React.FC<BottomNavigationBarProps> = ({ onOpenMobileM
   const bottomNavItems = useMemo<NavItem[]>(
     () => [
       {
-        path: buildTenantPath('/portal/dashboard', currentSlug),
+        path: buildTenantPath('/portal/dashboard', effectiveSlug),
         label: actionLabels.home || 'Inicio',
         icon: <Home className="h-5 w-5" />,
         exact: true,
@@ -62,7 +67,7 @@ const BottomNavigationBar: React.FC<BottomNavigationBarProps> = ({ onOpenMobileM
       ...(catalogEnabled
         ? [
             {
-              path: buildTenantPath('/portal/catalogo', currentSlug),
+              path: buildTenantPath('/portal/catalogo', effectiveSlug),
               label: actionLabels.catalog || commerceSession?.catalog?.label || (isMunicipio ? 'Tramites' : 'Catalogo'),
               icon: <ShoppingBag className="h-5 w-5" />,
             },
@@ -71,23 +76,23 @@ const BottomNavigationBar: React.FC<BottomNavigationBarProps> = ({ onOpenMobileM
       ...(historyEnabled
         ? [
             {
-              path: buildTenantPath(isMunicipio ? '/portal/reclamos' : '/portal/pedidos', currentSlug),
+              path: buildTenantPath(isMunicipio ? '/portal/reclamos' : '/portal/pedidos', effectiveSlug),
               label: actionLabels.history || commerceSession?.history?.label || 'Historial',
               icon: <ListChecks className="h-5 w-5" />,
             },
           ]
         : []),
     ],
-    [actionLabels, catalogEnabled, commerceSession?.catalog?.label, commerceSession?.history?.label, currentSlug, historyEnabled, isMunicipio],
+    [actionLabels, catalogEnabled, commerceSession?.catalog?.label, commerceSession?.history?.label, effectiveSlug, historyEnabled, isMunicipio],
   );
 
   const isMoreSectionActive = () => {
     const morePaths = [
-      buildTenantPath('/portal/noticias', currentSlug),
-      buildTenantPath('/portal/eventos', currentSlug),
-      buildTenantPath('/portal/beneficios', currentSlug),
-      buildTenantPath('/portal/encuestas', currentSlug),
-      buildTenantPath('/portal/cuenta', currentSlug),
+      buildTenantPath('/portal/noticias', effectiveSlug),
+      buildTenantPath('/portal/eventos', effectiveSlug),
+      buildTenantPath('/portal/beneficios', effectiveSlug),
+      buildTenantPath('/portal/encuestas', effectiveSlug),
+      buildTenantPath('/portal/cuenta', effectiveSlug),
     ];
     return morePaths.some((path) => location.pathname.startsWith(path));
   };

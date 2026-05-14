@@ -106,7 +106,7 @@ const UserDashboardPage = () => {
   };
 
   // Determine Tenant Type for Conditional UI
-  const isMunicipio = tenant?.tipo === 'municipio';
+  const isMunicipio = (commerceSession?.tenant?.tipo || tenant?.tipo) === 'municipio';
   const isPyme = !isMunicipio;
   const registrationFieldErrors =
     registrationResult?.field_errors ??

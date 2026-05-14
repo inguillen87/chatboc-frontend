@@ -9,6 +9,20 @@ const isPlaceholderSlug = (slug?: string | null) => {
   return TENANT_PLACEHOLDER_SLUGS.has(slug.trim().toLowerCase());
 };
 
+export const readCanonicalTenantSlugFromPath = (pathname?: string | null) => {
+  if (!pathname) return null;
+  const canonicalMatch = pathname.match(/^\/t\/([^/]+)/i);
+  const portalMatch = pathname.match(/^\/portal\/([^/]+)/i);
+  const rawSlug = canonicalMatch?.[1] || portalMatch?.[1] || null;
+  if (!rawSlug) return null;
+  try {
+    const decoded = decodeURIComponent(rawSlug);
+    return isPlaceholderSlug(decoded) ? null : decoded;
+  } catch {
+    return isPlaceholderSlug(rawSlug) ? null : rawSlug;
+  }
+};
+
 const hasTenantPrefix = (path: string) =>
   TENANT_ROUTE_PREFIXES.some((prefix) => path.startsWith(`/${prefix}/`));
 

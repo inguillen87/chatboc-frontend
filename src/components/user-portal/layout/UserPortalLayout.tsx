@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Link, Outlet, useNavigate } from 'react-router-dom'; // import useNavigate
+import { Link, Outlet, useNavigate, useParams } from 'react-router-dom'; // import useNavigate
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,29 +21,35 @@ import { usePortalContent } from '@/hooks/usePortalContent';
 import NotificationCenter from '@/components/user-portal/notifications/NotificationCenter';
 import { Badge } from '@/components/ui/badge';
 import { useTenant } from '@/context/TenantContext';
-import { buildTenantPath } from '@/utils/tenantPaths';
+import { buildTenantPath, readCanonicalTenantSlugFromPath } from '@/utils/tenantPaths';
 
 
 const UserPortalLayout: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
+  const routeParams = useParams();
   const { user, setUser } = useUser();
   const { currentSlug, tenant } = useTenant();
   const portalContent = usePortalContent();
   const { content, commerceSession, publicProfile } = portalContent;
   const notifications = content.notifications ?? [];
   const { toggle, active, setTheme } = usePortalTheme();
-  const homePath = useMemo(() => buildTenantPath('/portal/dashboard', currentSlug), [currentSlug]);
-  const accountPath = useMemo(() => buildTenantPath('/portal/cuenta', currentSlug), [currentSlug]);
-  const loginPath = useMemo(() => buildTenantPath('/user/login', currentSlug), [currentSlug]);
+  const routeTenantSlug =
+    (typeof routeParams.tenant === 'string' ? routeParams.tenant : null) ||
+    (typeof window !== 'undefined' ? readCanonicalTenantSlugFromPath(window.location.pathname) : null);
+  const effectiveSlug = currentSlug || routeTenantSlug;
+  const homePath = useMemo(() => buildTenantPath('/portal/dashboard', effectiveSlug), [effectiveSlug]);
+  const accountPath = useMemo(() => buildTenantPath('/portal/cuenta', effectiveSlug), [effectiveSlug]);
+  const loginPath = useMemo(() => buildTenantPath('/user/login', effectiveSlug), [effectiveSlug]);
+  const tenantDisplayName = tenant?.slug && tenant.slug !== 'default' ? (tenant.nombre || tenant.slug) : null;
   const displayName =
     user?.nombre_empresa ||
     commerceSession?.tenant?.display_name ||
     commerceSession?.tenant?.nombre ||
-    tenant?.nombre ||
-    tenant?.slug ||
+    tenantDisplayName ||
     commerceSession?.tenant?.tenant_slug ||
     commerceSession?.tenant?.slug ||
+    effectiveSlug ||
     'Chatboc';
   const avatarImage = user?.logo_url || tenant?.logo_url || undefined;
   const profileName = user?.name || publicProfile.name || null;

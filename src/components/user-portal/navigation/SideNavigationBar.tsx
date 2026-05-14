@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate, useParams } from 'react-router-dom';
 import {
   AlertCircle,
   CalendarDays,
@@ -17,7 +17,7 @@ import {
 import { useUser } from '@/hooks/useUser';
 import { useTenant } from '@/context/TenantContext';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
-import { buildTenantPath } from '@/utils/tenantPaths';
+import { buildTenantPath, readCanonicalTenantSlugFromPath } from '@/utils/tenantPaths';
 import type { PortalContent } from '@/types/unified';
 import type { WidgetCommerceSession } from '@/types/widgetCommerce';
 import type { WidgetPortalClaim, WidgetPortalOrder } from '@/utils/widgetPortal';
@@ -53,6 +53,7 @@ const EMPTY_CONTENT: PortalContent = {
 
 const SideNavigationBar: React.FC<SideNavigationBarProps> = ({ onLinkClick, isCollapsed = false, onLogout, portalNavigation }) => {
   const navigate = useNavigate();
+  const routeParams = useParams();
   const { user, setUser } = useUser();
   const { currentSlug, tenant } = useTenant();
   const content = portalNavigation?.content ?? EMPTY_CONTENT;
@@ -60,10 +61,23 @@ const SideNavigationBar: React.FC<SideNavigationBarProps> = ({ onLinkClick, isCo
   const publicClaims = portalNavigation?.publicClaims ?? [];
   const publicOrders = portalNavigation?.publicOrders ?? [];
 
-  const isMunicipio = tenant?.tipo === 'municipio';
-  const homePath = useMemo(() => buildTenantPath('/portal/dashboard', currentSlug), [currentSlug]);
-  const accountPath = useMemo(() => buildTenantPath('/portal/cuenta', currentSlug), [currentSlug]);
-  const tenantName = tenant?.nombre || tenant?.slug || 'Portal';
+  const tenantFromContract = commerceSession?.tenant;
+  const isMunicipio = (tenantFromContract?.tipo || tenant?.tipo) === 'municipio';
+  const routeTenantSlug =
+    (typeof routeParams.tenant === 'string' ? routeParams.tenant : null) ||
+    (typeof window !== 'undefined' ? readCanonicalTenantSlugFromPath(window.location.pathname) : null);
+  const effectiveSlug = currentSlug || routeTenantSlug;
+  const homePath = useMemo(() => buildTenantPath('/portal/dashboard', effectiveSlug), [effectiveSlug]);
+  const accountPath = useMemo(() => buildTenantPath('/portal/cuenta', effectiveSlug), [effectiveSlug]);
+  const tenantDisplayName = tenant?.slug && tenant.slug !== 'default' ? (tenant.nombre || tenant.slug) : null;
+  const tenantName =
+    tenantFromContract?.display_name ||
+    tenantFromContract?.nombre ||
+    tenantDisplayName ||
+    tenantFromContract?.tenant_slug ||
+    tenantFromContract?.slug ||
+    effectiveSlug ||
+    'Portal';
   const actionLabels = commerceSession?.frontend_contract?.action_labels ?? {};
 
   const catalogEnabled = commerceSession?.catalog?.enabled === true || content.catalog.length > 0;
@@ -88,7 +102,7 @@ const SideNavigationBar: React.FC<SideNavigationBarProps> = ({ onLinkClick, isCo
       ...(catalogEnabled
         ? [
             {
-              path: buildTenantPath('/portal/catalogo', currentSlug),
+              path: buildTenantPath('/portal/catalogo', effectiveSlug),
               label: actionLabels.catalog || commerceSession?.catalog?.label || (isMunicipio ? 'Tramites' : 'Catalogo'),
               icon: isMunicipio ? <ClipboardList className="h-5 w-5" /> : <ShoppingBag className="h-5 w-5" />,
             },
@@ -97,7 +111,7 @@ const SideNavigationBar: React.FC<SideNavigationBarProps> = ({ onLinkClick, isCo
       ...(historyEnabled
         ? [
             {
-              path: buildTenantPath(isMunicipio ? '/portal/reclamos' : '/portal/pedidos', currentSlug),
+              path: buildTenantPath(isMunicipio ? '/portal/reclamos' : '/portal/pedidos', effectiveSlug),
               label: actionLabels.history || commerceSession?.history?.label || (isMunicipio ? 'Mis reclamos' : 'Mis pedidos'),
               icon: isMunicipio ? <AlertCircle className="h-5 w-5" /> : <ListChecks className="h-5 w-5" />,
             },
@@ -106,7 +120,7 @@ const SideNavigationBar: React.FC<SideNavigationBarProps> = ({ onLinkClick, isCo
       ...(newsEnabled
         ? [
             {
-              path: buildTenantPath('/portal/noticias', currentSlug),
+              path: buildTenantPath('/portal/noticias', effectiveSlug),
               label: actionLabels.news || 'Novedades',
               icon: <Newspaper className="h-5 w-5" />,
             },
@@ -115,7 +129,7 @@ const SideNavigationBar: React.FC<SideNavigationBarProps> = ({ onLinkClick, isCo
       ...(eventsEnabled
         ? [
             {
-              path: buildTenantPath('/portal/eventos', currentSlug),
+              path: buildTenantPath('/portal/eventos', effectiveSlug),
               label: actionLabels.events || 'Eventos',
               icon: <CalendarDays className="h-5 w-5" />,
             },
@@ -124,7 +138,7 @@ const SideNavigationBar: React.FC<SideNavigationBarProps> = ({ onLinkClick, isCo
       ...(benefitsEnabled
         ? [
             {
-              path: buildTenantPath('/portal/beneficios', currentSlug),
+              path: buildTenantPath('/portal/beneficios', effectiveSlug),
               label: actionLabels.benefits || 'Beneficios',
               icon: <TicketPercent className="h-5 w-5" />,
             },
@@ -133,7 +147,7 @@ const SideNavigationBar: React.FC<SideNavigationBarProps> = ({ onLinkClick, isCo
       ...(surveysEnabled
         ? [
             {
-              path: buildTenantPath('/portal/encuestas', currentSlug),
+              path: buildTenantPath('/portal/encuestas', effectiveSlug),
               label: actionLabels.surveys || 'Encuestas',
               icon: <MessageSquareQuote className="h-5 w-5" />,
             },
@@ -146,7 +160,7 @@ const SideNavigationBar: React.FC<SideNavigationBarProps> = ({ onLinkClick, isCo
       catalogEnabled,
       commerceSession?.catalog?.label,
       commerceSession?.history?.label,
-      currentSlug,
+      effectiveSlug,
       eventsEnabled,
       historyEnabled,
       homePath,

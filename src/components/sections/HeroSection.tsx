@@ -528,6 +528,9 @@ const getFlowIcon = (flow: { sector: string; label: string; id: string }) => {
   return Bot;
 };
 
+const getFlowTabLabel = (flow: { sector: string; label: string; id: string }) =>
+  flow.label || cleanLandingCopy(flow.sector || flow.id);
+
 const getActionIcon = (value: string) => {
   const key = value.toLowerCase();
   if (key.includes("pedido") || key.includes("order")) return PackageCheck;
@@ -570,15 +573,6 @@ const HeroInputCard = ({ input }: { input: ConversationInput }) => {
             setImageReady(false);
           }}
         />
-      )}
-      {inputKind === "image" && (!canLoadImage || !imageReady) && (
-        <div className="chatboc-hero-attachment__media mt-2" aria-hidden="true">
-          <div className="chatboc-hero-attachment__visual">
-            <ImageIcon className="h-5 w-5 text-primary" />
-            <span />
-            <i />
-          </div>
-        </div>
       )}
       {hasLocation && (
         <div className="mt-2 rounded-[10px] border border-primary/15 bg-primary/5 px-2 py-2 text-[11px] leading-5 text-foreground">
@@ -679,7 +673,7 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
         );
         return conversationFlows[(currentIndex + 1) % conversationFlows.length]?.id ?? current;
       });
-    }, 10800);
+    }, 14800);
     return () => window.clearInterval(timer);
   }, [conversationFlows, manualFlowSelection]);
 
@@ -705,12 +699,13 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
     const scrollScreen = () => {
       const screen = phoneScreenRef.current;
       if (!screen) return;
-      screen.scrollTo({ top: screen.scrollHeight, behavior: "smooth" });
+      const targetTop = Math.max(0, screen.scrollHeight - screen.clientHeight - 500);
+      screen.scrollTo({ top: targetTop, behavior: "smooth" });
       window.setTimeout(() => {
-        screen.scrollTop = screen.scrollHeight;
+        screen.scrollTop = targetTop;
       }, 460);
     };
-    const timers = [4600, 6200, 7300].map((delay) => window.setTimeout(scrollScreen, delay));
+    const timers = [6200, 7800, 9400, 10600].map((delay) => window.setTimeout(scrollScreen, delay));
     return () => timers.forEach((timer) => window.clearTimeout(timer));
   }, [activeFlow?.id]);
 
@@ -807,6 +802,8 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
           <div className="relative min-w-0">
             <div className="chatboc-hero-aura" aria-hidden="true" />
             <div className="chatboc-hero-preview">
+              <span className="chatboc-hero-preview__button chatboc-hero-preview__button--volume" aria-hidden="true" />
+              <span className="chatboc-hero-preview__button chatboc-hero-preview__button--power" aria-hidden="true" />
               {activeFlow && (
                 <div className={`chatboc-phone-demo ${getFlowFamilyClassName(activeFlowFamily)}`}>
                   <div className="chatboc-phone-demo__chrome" aria-hidden="true">
@@ -859,7 +856,7 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
                             }}
                           >
                             <FlowIcon className="h-4 w-4" />
-                            <span>{flow.label}</span>
+                            <span>{getFlowTabLabel(flow)}</span>
                           </button>
                         );
                       })}
@@ -867,6 +864,12 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
                   )}
 
                   <div key={activeFlow.id} ref={phoneScreenRef} className="chatboc-phone-demo__screen">
+                    <div className="chatboc-phone-demo__progress" aria-hidden="true">
+                      <span />
+                      <span />
+                      <span />
+                      <span />
+                    </div>
                     <div className="chatboc-phone-demo__thread">
                       <div className="chatboc-phone-demo__sequence chatboc-phone-demo__sequence--1 flex justify-end">
                         <div className="chatboc-phone-demo__bubble chatboc-phone-demo__bubble--user">
