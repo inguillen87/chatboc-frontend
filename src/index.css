@@ -651,25 +651,25 @@
     animation-delay: 280ms;
   }
   .chatboc-phone-demo__sequence--2 {
-    animation-delay: 1750ms;
+    animation-delay: 920ms;
   }
   .chatboc-phone-demo__sequence--3 {
-    animation-delay: 3180ms;
+    animation-delay: 2080ms;
   }
   .chatboc-phone-demo__sequence--4 {
-    animation-delay: 4550ms;
+    animation-delay: 3300ms;
   }
   .chatboc-phone-demo__sequence--5 {
-    animation-delay: 6120ms;
+    animation-delay: 4620ms;
   }
   .chatboc-phone-demo__sequence--6 {
-    animation-delay: 7280ms;
+    animation-delay: 5880ms;
   }
   .chatboc-phone-demo__sequence--7 {
-    animation-delay: 8240ms;
+    animation-delay: 6840ms;
   }
   .chatboc-phone-demo__sequence--8 {
-    animation-delay: 9020ms;
+    animation-delay: 7620ms;
   }
   .chatboc-phone-demo__typing {
     display: inline-flex;
@@ -707,16 +707,16 @@
     animation: chatboc-card-pop 720ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
   }
   .chatboc-phone-demo__attachments .chatboc-hero-attachment:nth-child(1) {
-    animation-delay: 1880ms;
+    animation-delay: 980ms;
   }
   .chatboc-phone-demo__attachments .chatboc-hero-attachment:nth-child(2) {
-    animation-delay: 2080ms;
+    animation-delay: 1120ms;
   }
   .chatboc-phone-demo__attachments .chatboc-hero-attachment:nth-child(3) {
-    animation-delay: 2280ms;
+    animation-delay: 1260ms;
   }
   .chatboc-phone-demo__attachments .chatboc-hero-attachment:nth-child(4) {
-    animation-delay: 2480ms;
+    animation-delay: 1400ms;
   }
   .chatboc-hero-attachment {
     min-height: 4.6rem;
