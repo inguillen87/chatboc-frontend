@@ -15,28 +15,21 @@ import {
 } from "lucide-react";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { resetChatSessionId } from "@/utils/chatSessionId";
-import getOrCreateAnonId from "@/utils/anonId";
 import RubroSelector from "@/components/chat/RubroSelector";
 import type { Rubro } from "@/types/rubro";
-import type { ChatExperienceBlock, Message, SendPayload } from "@/types/chat";
 import { extractRubroKey, extractRubroLabel } from "@/utils/rubros";
-import { extractButtonsFromResponse } from "@/utils/chatButtons";
 import DemoWorkspace from '@/features/demo/DemoWorkspace';
 import DemoSectorStep from '@/features/demo/DemoSectorStep';
 import { createDemoSession, getDemoAdminPreview, getDemoCatalog } from '@/features/demo/demoApi';
 import type {
   DemoAdminPreviewResponse,
   DemoCatalogResponse,
-  DemoChatBootstrap,
   DemoSector,
   DemoSectorGroup,
   DemoWorkspaceConfig,
 } from '@/features/demo/demoTypes';
-import { sendChatBootstrapMessage } from '@/features/chat/chatApi';
 import { CHATBOC_ORBIT_AVATAR } from '@/utils/brandAssets';
 import { ApiError, getErrorMessage } from '@/utils/api';
-
-const MAX_PREGUNTAS = 15;
 
 type DemoUiError = {
   message: string;
@@ -158,57 +151,6 @@ const resolvePreviewIcon = (value?: string | null) => {
   const normalized = String(value ?? '').trim().toLowerCase();
   const match = Object.entries(DEMO_PREVIEW_ICONS).find(([key]) => normalized.includes(key));
   return match?.[1] ?? FileText;
-};
-
-const isTechnicalChatFailure = (response: unknown, replyText?: string | null) => {
-  if (response && typeof response === 'object' && !Array.isArray(response)) {
-    const record = response as Record<string, unknown>;
-    const status = Number(record.status ?? record.status_code ?? record.code);
-    if (Number.isFinite(status) && status >= 400) return true;
-    if (record.error && typeof record.error === 'object') return true;
-    const reason = String(record.reason_code ?? record.error_code ?? '').trim().toLowerCase();
-    if (reason && (reason.includes('error') || reason.includes('not_found'))) return true;
-  }
-
-  const normalizedReply = String(replyText ?? '').trim().toLowerCase();
-  return [
-    'not found',
-    'method not allowed',
-    'internal server error',
-    'server error',
-    'failed to fetch',
-  ].includes(normalizedReply);
-};
-
-const readBlockText = (block?: ChatExperienceBlock | null) => {
-  const candidates = [block?.text, block?.description, block?.detail, block?.subtitle, block?.title, block?.label];
-  return candidates.find((value) => typeof value === 'string' && value.trim().length > 0)?.trim() ?? null;
-};
-
-const readRuntimeUnavailableBlock = (workspace?: DemoWorkspaceConfig | null): ChatExperienceBlock | null => {
-  const emptyStates = workspace?.empty_states ?? workspace?.experience_blueprint?.empty_states ?? null;
-  return (
-    emptyStates?.runtime_unavailable ??
-    emptyStates?.api_unavailable ??
-    emptyStates?.offline ??
-    emptyStates?.chat_unavailable ??
-    null
-  );
-};
-
-const buildRuntimeUnavailableMessage = (
-  workspace?: DemoWorkspaceConfig | null,
-  query?: string | null,
-): Message | null => {
-  const text = readBlockText(readRuntimeUnavailableBlock(workspace));
-  if (!text) return null;
-  return {
-    id: Date.now(),
-    text,
-    isBot: true,
-    timestamp: new Date(),
-    query: query || undefined,
-  };
 };
 
 const normalizePreviewModules = (preview: DemoAdminPreviewResponse | null) => {
@@ -374,26 +316,19 @@ const DemoAdminPreview = ({
 
 const Demo = () => {
   const location = useLocation();
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [isTyping, setIsTyping] = useState(false);
-  const [preguntasUsadas, setPreguntasUsadas] = useState(0);
   const [rubroSeleccionado, setRubroSeleccionado] = useState<string | null>(null);
   const [rubroClaveSeleccionado, setRubroClaveSeleccionado] = useState<string | null>(null);
   const [rubrosDisponibles, setRubrosDisponibles] = useState<Rubro[]>([]);
   const [esperandoRubro, setEsperandoRubro] = useState(true); // Initialize to true
-  const [anonId, setAnonId] = useState<string>("");
   const [sectorSeleccionado, setSectorSeleccionado] = useState<DemoSector | null>(null);
   const [demoCatalog, setDemoCatalog] = useState<DemoCatalogResponse | null>(null);
   const [demoTenantSlug, setDemoTenantSlug] = useState<string | null>(null);
   const [demoWorkspace, setDemoWorkspace] = useState<DemoWorkspaceConfig | null>(null);
   const [demoAdminPreview, setDemoAdminPreview] = useState<DemoAdminPreviewResponse | null>(null);
   const [demoError, setDemoError] = useState<DemoUiError | null>(null);
-  const [contexto, setContexto] = useState({});
-  const lastQueryRef = useRef<string | null>(null);
   const initialDemoLoadRef = useRef(false);
   const hydratedSessionRef = useRef(false);
 
-  const activeChatBootstrap = demoWorkspace?.chat_bootstrap ?? null;
   const selectedSectorGroup = findSectorGroup(demoCatalog, sectorSeleccionado);
   const visibleRubrosDisponibles = useMemo(
     () => rubrosDisponibles.filter((root) => rootMatchesSector(root, sectorSeleccionado)),
@@ -413,15 +348,11 @@ const Demo = () => {
     setRubroSeleccionado(null);
     setRubroClaveSeleccionado(null);
     setEsperandoRubro(true);
-    setMessages([]);
-    setPreguntasUsadas(0);
-    setContexto({});
     setSectorSeleccionado(null);
     setDemoTenantSlug(null);
     setDemoWorkspace(null);
     setDemoAdminPreview(null);
     setDemoError(null);
-    lastQueryRef.current = null;
     hydratedSessionRef.current = false;
     // The useEffect for loading rubros will trigger again due to rubroSeleccionado being null
     // or rather, we explicitly set esperandoRubro to true and then the rubro loading logic runs
@@ -446,79 +377,6 @@ const Demo = () => {
       console.debug('No se pudo abrir el widget en demo', error);
     }
   }, []);
-
-  const startDemoConversation = useCallback(
-    async (
-      rubroNombre: string,
-      bootstrapOverride?: DemoChatBootstrap | null,
-      tenantSlugOverride?: string | null,
-      workspaceOverride?: DemoWorkspaceConfig | null,
-    ) => {
-      const chatBootstrap = bootstrapOverride ?? activeChatBootstrap;
-      const tenantSlug = tenantSlugOverride ?? demoTenantSlug;
-      const workspace = workspaceOverride ?? demoWorkspace;
-
-      const currentAnonId = anonId || getOrCreateAnonId();
-      if (!anonId) {
-        setAnonId(currentAnonId);
-      }
-
-      setIsTyping(true);
-      setMessages([]);
-      setPreguntasUsadas(0);
-      setContexto({});
-      setDemoError(null);
-      lastQueryRef.current = null;
-
-      try {
-        if (!chatBootstrap) {
-          const unavailableMessage = buildRuntimeUnavailableMessage(workspace);
-          if (unavailableMessage) setMessages([unavailableMessage]);
-          return;
-        }
-
-        const response = await sendChatBootstrapMessage(
-          chatBootstrap,
-          {
-            text: "",
-            extraPayload: {
-              anon_id: currentAnonId,
-            },
-          },
-          tenantSlug,
-        );
-
-        setContexto((response as any)?.contexto_actualizado || {});
-        const respuestaText = response.respuesta_usuario || null;
-        if (!respuestaText) {
-          const unavailableMessage = buildRuntimeUnavailableMessage(workspace);
-          if (unavailableMessage) setMessages([unavailableMessage]);
-          return;
-        }
-        if (isTechnicalChatFailure(response, respuestaText)) {
-          throw new Error('Respuesta tecnica del runtime de chat demo.');
-        }
-        const botones = extractButtonsFromResponse(response);
-
-        const botMessage: Message = {
-          id: Date.now(),
-          text: respuestaText,
-          isBot: true,
-          timestamp: new Date(),
-          botones,
-        };
-
-        setMessages([botMessage]);
-      } catch (error) {
-        setDemoError(buildDemoError(error, 'No se pudo conectar con el chat real de la demo.'));
-        const unavailableMessage = buildRuntimeUnavailableMessage(workspace);
-        setMessages(unavailableMessage ? [unavailableMessage] : []);
-      } finally {
-        setIsTyping(false);
-      }
-    },
-    [activeChatBootstrap, anonId, demoTenantSlug, demoWorkspace, setAnonId, setContexto, setIsTyping, setMessages, setPreguntasUsadas]
-  );
 
   useEffect(() => {
     if (!sectorSeleccionado) {
@@ -568,19 +426,8 @@ const Demo = () => {
     setDemoWorkspace(session.workspace ?? null);
     setEsperandoRubro(false);
     openDemoWidget();
-    void startDemoConversation(
-      state.rubroSlug ?? rubroLabel ?? String(sector ?? ''),
-      session.workspace?.chat_bootstrap ?? null,
-      session.tenant_slug ?? null,
-      session.workspace ?? null,
-    );
-  }, [location.search, location.state, openDemoWidget, sectorSeleccionado, startDemoConversation]);
-
-
-  // Set Anon ID on mount
-  useEffect(() => {
-    setAnonId(getOrCreateAnonId());
-  }, []);
+    setDemoError(null);
+  }, [location.search, location.state, openDemoWidget, sectorSeleccionado]);
 
   // Load rubros and handle initial welcome message
   useEffect(() => {
@@ -616,16 +463,10 @@ const Demo = () => {
           setDemoWorkspace(session.workspace ?? null);
           setEsperandoRubro(false);
           openDemoWidget();
-          void startDemoConversation(
-            normalizedRequestedSector,
-            session.workspace?.chat_bootstrap ?? null,
-            session.tenant_slug ?? null,
-            session.workspace ?? null,
-          );
+          setDemoError(null);
         })
         .catch((error) => {
           setEsperandoRubro(true);
-          setMessages([]);
           setDemoError(buildDemoError(error, 'No se pudo iniciar la demo real.'));
         });
       return;
@@ -648,23 +489,16 @@ const Demo = () => {
           setDemoWorkspace(session.workspace ?? null);
           setEsperandoRubro(false);
           openDemoWidget();
-          void startDemoConversation(
-            normalizedClave,
-            session.workspace?.chat_bootstrap ?? null,
-            session.tenant_slug ?? null,
-            session.workspace ?? null,
-          );
+          setDemoError(null);
         })
         .catch((error) => {
           safeLocalStorage.removeItem("rubroSeleccionado");
           safeLocalStorage.removeItem("rubroSeleccionado_label");
           setEsperandoRubro(true);
-          setMessages([]);
           setDemoError(buildDemoError(error, 'No se pudo recuperar la demo anterior.'));
         });
     } else if (!storedClave) {
       setEsperandoRubro(true);
-      setMessages([]);
       getDemoCatalog()
         .then((data) => {
           setDemoError(null);
@@ -677,100 +511,7 @@ const Demo = () => {
           setDemoError(buildDemoError(error, 'No se pudo cargar el catalogo de demos.'));
         });
     }
-  }, [location.search, location.state, rubroClaveSeleccionado, rubroSeleccionado, startDemoConversation, openDemoWidget]);
-
-  const handleSendMessage = useCallback(
-    async (payload: SendPayload | string) => {
-      const text = typeof payload === "string" ? payload : payload.text;
-      const extras: Partial<SendPayload> = typeof payload === "string" ? {} : payload;
-      if (!text.trim() && !extras.action && !extras.archivo_url && !extras.ubicacion_usuario) return;
-      if (!rubroSeleccionado) return;
-      if (preguntasUsadas >= MAX_PREGUNTAS) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: Date.now(),
-            text:
-              "Limite de 15 preguntas en la demo alcanzado.<br><span class='block mt-2'><a href='/register' class='underline text-primary hover:text-primary/80'>Registrate para usar Chatboc sin limites</a> o <a href='https://wa.me/5492613168608?text=Hola! Estoy probando Chatboc y quiero implementarlo en mi empresa.' class='underline text-primary hover:text-primary/80' target='_blank'>contactanos</a> para planes comerciales.</span>",
-            isBot: true,
-            timestamp: new Date(),
-            query: undefined,
-          },
-        ]);
-        return;
-      }
-
-      const userMessage: Message = {
-        id: Date.now(),
-        text,
-        isBot: false,
-        timestamp: new Date(),
-        query: undefined,
-        mediaUrl: extras.es_foto ? extras.archivo_url : undefined,
-        locationData: extras.es_ubicacion ? extras.ubicacion_usuario : undefined,
-      };
-      setMessages((prev) => [...prev, userMessage]);
-      lastQueryRef.current = text;
-      setIsTyping(true);
-      setDemoError(null);
-
-      try {
-        if (!activeChatBootstrap) {
-          throw new Error('La demo real no tiene chat_bootstrap activo.');
-        }
-
-        const response = await sendChatBootstrapMessage(
-          activeChatBootstrap,
-          {
-            text,
-            intent: extras.action ?? extras.action_id ?? null,
-            payload: typeof extras.payload === 'object' && extras.payload !== null ? extras.payload : null,
-            attachmentInfo: extras.attachmentInfo ?? (extras.es_foto ? { url: extras.archivo_url } : undefined),
-            location: extras.location ?? extras.ubicacion_usuario,
-            extraPayload: {
-              anon_id: anonId || getOrCreateAnonId(),
-            },
-          },
-          demoTenantSlug,
-        );
-
-        setContexto((response as any)?.contexto_actualizado || {});
-
-        const respuestaText = response.respuesta_usuario || null;
-        if (!respuestaText) {
-          const unavailableMessage = buildRuntimeUnavailableMessage(demoWorkspace, lastQueryRef.current);
-          if (unavailableMessage) setMessages((prev) => [...prev, unavailableMessage]);
-          lastQueryRef.current = null;
-          return;
-        }
-        if (isTechnicalChatFailure(response, respuestaText)) {
-          throw new Error('Respuesta tecnica del runtime de chat demo.');
-        }
-        const botones = extractButtonsFromResponse(response);
-
-        const botMessage: Message = {
-          id: Date.now(),
-          text: respuestaText,
-          isBot: true,
-          timestamp: new Date(),
-          botones,
-          query: lastQueryRef.current || undefined,
-        };
-
-        setMessages((prev) => [...prev, botMessage]);
-        lastQueryRef.current = null;
-        setPreguntasUsadas((prev) => prev + 1);
-      } catch (error) {
-        setDemoError(buildDemoError(error, 'No se pudo responder desde la demo real.'));
-        const unavailableMessage = buildRuntimeUnavailableMessage(demoWorkspace, lastQueryRef.current);
-        if (unavailableMessage) setMessages((prev) => [...prev, unavailableMessage]);
-        lastQueryRef.current = null;
-      } finally {
-        setIsTyping(false);
-      }
-    },
-    [activeChatBootstrap, anonId, demoTenantSlug, demoWorkspace, rubroSeleccionado, preguntasUsadas]
-  );
+  }, [location.search, location.state, rubroClaveSeleccionado, rubroSeleccionado, openDemoWidget]);
 
   const startSectorDemo = useCallback(async () => {
     if (!sectorSeleccionado) return;
@@ -783,9 +524,6 @@ const Demo = () => {
     setRubroSeleccionado(label);
     setRubroClaveSeleccionado(sector);
     setEsperandoRubro(false);
-    setMessages([]);
-    setPreguntasUsadas(0);
-    setContexto({});
     setDemoError(null);
     openDemoWidget();
 
@@ -798,17 +536,11 @@ const Demo = () => {
       });
       setDemoTenantSlug(session.tenant_slug ?? tenantSlug ?? null);
       setDemoWorkspace(session.workspace ?? null);
-      await startDemoConversation(
-        sector,
-        session.workspace?.chat_bootstrap ?? null,
-        session.tenant_slug ?? tenantSlug ?? null,
-        session.workspace ?? null,
-      );
+      setDemoError(null);
     } catch (error) {
       setDemoError(buildDemoError(error, 'No se pudo iniciar la demo real.'));
-      setMessages([]);
     }
-  }, [demoCatalog, openDemoWidget, sectorSeleccionado, startDemoConversation]);
+  }, [demoCatalog, openDemoWidget, sectorSeleccionado]);
 
   // Rubros selector UI
   if (esperandoRubro) {
@@ -826,12 +558,17 @@ const Demo = () => {
             />
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">Demo guiada</p>
-              <h1 className="text-2xl font-bold tracking-tight text-foreground">Elegí una operación real para probar</h1>
+              <h1 className="text-2xl font-bold tracking-tight text-foreground">Elegi una operacion real para probar</h1>
             </div>
           </div>
           <p className="mb-5 max-w-2xl text-left text-sm leading-6 text-muted-foreground">
-            La demo muestra capacidades disponibles y permite ver cómo una conversación se convierte en una acción operativa.
+            La demo muestra capacidades disponibles y permite ver como una conversacion se convierte en una accion operativa.
           </p>
+          {demoError ? (
+            <div className="mb-4">
+              <DemoErrorPanel error={demoError} onRetry={sectorSeleccionado ? () => void startSectorDemo() : undefined} />
+            </div>
+          ) : null}
           <div className="mb-4">
             <DemoSectorStep
               sectors={demoCatalog?.sectors}
@@ -841,7 +578,7 @@ const Demo = () => {
             />
           </div>
           {sectorSeleccionado ? null : (
-            <p className="mb-3 text-xs text-muted-foreground">Seleccioná un sector para iniciar una demo guiada.</p>
+            <p className="mb-3 text-xs text-muted-foreground">Selecciona un sector para iniciar una demo guiada.</p>
           )}
           {sectorSeleccionado && visibleRubrosDisponibles.length === 0 ? (
             <div className="space-y-3 rounded-lg border bg-background/70 p-3 text-left">
@@ -900,15 +637,9 @@ const Demo = () => {
                   });
                   setDemoTenantSlug(session.tenant_slug ?? sessionTenantSlug ?? null);
                   setDemoWorkspace(session.workspace ?? null);
-                  await startDemoConversation(
-                    clave ?? etiqueta ?? rubro.nombre,
-                    session.workspace?.chat_bootstrap ?? null,
-                    session.tenant_slug ?? sessionTenantSlug ?? null,
-                    session.workspace ?? null,
-                  );
+                  setDemoError(null);
                 } catch (error) {
                   setDemoError(buildDemoError(error, 'No se pudo iniciar la demo real.'));
-                  setMessages([]);
                 }
               })();
             }}
@@ -950,37 +681,29 @@ const Demo = () => {
 
       <main className="w-full max-w-6xl flex-1 space-y-5 px-4 py-5 sm:px-6">
         <section className="overflow-hidden rounded-3xl border border-border/70 bg-card/70 p-5 shadow-sm backdrop-blur">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">Demo completa</p>
-              <h1 className="mt-2 text-2xl font-black tracking-tight text-foreground sm:text-3xl">
-                Proba una conversacion real y mira que queda listo para operar.
-              </h1>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                El chat toma texto, adjuntos y seguimiento; el panel muestra el resultado operativo para que el equipo actue.
-              </p>
-            </div>
-            <div className="grid grid-cols-3 gap-2 text-center text-xs sm:min-w-[320px]">
-              {["Chat", "Panel", "Historial"].map((label) => (
-                <span key={label} className="rounded-2xl border border-border/70 bg-background/70 px-3 py-3 font-semibold text-foreground">
-                  {label}
-                  <small className="mt-1 block text-muted-foreground">
-                    {label === "Chat" ? "web" : label === "Panel" ? "admin" : "usuario"}
-                  </small>
-                </span>
-              ))}
-            </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">Demo completa</p>
+            <h1 className="mt-2 max-w-3xl text-2xl font-black tracking-tight text-foreground sm:text-3xl">
+              Proba una conversacion real y mira que queda listo para operar.
+            </h1>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+              El chat toma texto, adjuntos y seguimiento; el panel muestra el resultado operativo para que el equipo actue.
+            </p>
           </div>
+          {demoError ? (
+            <div className="mt-4">
+              <DemoErrorPanel error={demoError} onRetry={sectorSeleccionado ? () => void startSectorDemo() : undefined} />
+            </div>
+          ) : null}
         </section>
 
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_430px]">
+        <div className="grid gap-5 xl:grid-cols-[minmax(340px,460px)_minmax(0,1fr)]">
           <div className="min-w-0">
             <DemoWorkspace
               tenantSlug={demoTenantSlug}
               sector={sectorSeleccionado}
               rubro={rubroSeleccionado}
               workspace={demoWorkspace}
-              onPrefill={(text) => void handleSendMessage(text)}
             />
           </div>
 

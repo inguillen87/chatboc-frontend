@@ -6,17 +6,17 @@ import { useNavigate } from "react-router-dom";
 const pricingOptions = [
   {
     name: "Plan Esencial",
-    headline: "Activación guiada para validar rápido",
+    headline: "Activacion guiada para validar rapido",
     description:
-      "Ideal para probar atención con IA, cargar contenido base y medir primeras conversaciones sin una implementación pesada.",
+      "Ideal para probar atencion con IA, cargar contenido base y medir primeras conversaciones sin una implementacion pesada.",
     features: [
       "Chat web listo para activar",
       "Base inicial de respuestas y documentos",
       "Seguimiento de conversaciones clave",
-      "Configuración acompañada por especialista",
-      "Panel básico con métricas esenciales",
+      "Configuracion acompanada por especialista",
+      "Panel basico con metricas esenciales",
     ],
-    cta: "Agendar activación",
+    cta: "Agendar activacion",
     ctaLink:
       "https://wa.me/5492613168608?text=Hola!%20Quiero%20activar%20el%20Plan%20Esencial%20de%20Chatboc%20junto%20a%20un%20especialista",
     highlight: false,
@@ -24,15 +24,15 @@ const pricingOptions = [
   },
   {
     name: "Plan Operativo",
-    headline: "Omnicanalidad, tickets y automatización",
+    headline: "Omnicanalidad, tickets y automatizacion",
     description:
       "Para equipos que ya atienden demanda real y necesitan conectar chat, leads, pedidos, soporte y reportes.",
     features: [
       "Todo lo del Plan Esencial",
       "Chat web, WhatsApp y panel operativo",
       "Tickets, leads y acciones contextuales",
-      "Métricas, tiempos y alertas principales",
-      "Acompañamiento estratégico continuo",
+      "Metricas, tiempos y alertas principales",
+      "Acompanamiento estrategico continuo",
     ],
     cta: "Hablar con un asesor",
     ctaLink:
@@ -46,13 +46,13 @@ const pricingOptions = [
     description:
       "Para gobiernos, instituciones y organizaciones que necesitan seguridad, gobierno de datos e integraciones a medida.",
     features: [
-      "Consultoría de arquitectura y operación",
-      "Integración con sistemas existentes",
-      "Dashboards ejecutivos multi-organización",
+      "Consultoria de arquitectura y operacion",
+      "Integracion con sistemas existentes",
+      "Dashboards ejecutivos multi-organizacion",
       "Tiempos, permisos y trazabilidad avanzada",
-      "Soporte dedicado para evolución continua",
+      "Soporte dedicado para evolucion continua",
     ],
-    cta: "Coordinar reunión",
+    cta: "Coordinar reunion",
     ctaLink:
       "https://wa.me/5492613168608?text=Hola!%20Necesito%20una%20propuesta%20institucional%20de%20Chatboc",
     highlight: false,
@@ -70,7 +70,7 @@ const PricingSection = () => {
           <div className="chatboc-section-kicker mb-4">Planes</div>
           <h2 className="chatboc-section-heading">Paquetes claros para empezar y escalar</h2>
           <p className="chatboc-section-copy mt-4">
-            La propuesta se adapta al nivel de operación: validar el canal, conectar procesos o desplegar una solución
+            La propuesta se adapta al nivel de operacion: validar el canal, conectar procesos o desplegar una solucion
             institucional con procesos e integraciones.
           </p>
         </div>

@@ -13,11 +13,9 @@ import TestimonialsSection from "@/components/sections/TestimonialsSection";
 import CtaSection from "@/components/sections/CtaSection";
 import ComingSoonSection from "@/components/sections/ComingSoonSection";
 import { useLandingExperience } from "@/hooks/useLandingExperience";
-import LandingExperienceSections, { hasRenderableLandingSections } from "@/components/sections/LandingExperienceSections";
 
 const Index = () => {
   const { experience: landingExperience } = useLandingExperience();
-  const hasDynamicSections = hasRenderableLandingSections(landingExperience);
   // Guard for mixed old/new client chunks while browsers refresh assets.
   // Legacy bundles may still reference showWidget on this page.
   const showWidget = false;
@@ -45,21 +43,15 @@ const Index = () => {
         </section>
         <ConsultingDifferenceSection />
         <SaaSOperatingSystemSection />
-        {hasDynamicSections ? (
-          <LandingExperienceSections experience={landingExperience} />
-        ) : (
-          <>
-            <ProblemsSection />
-            <SolutionSection />
-            <HowItWorksSection />
-            <TargetSection />
-            <DemoShowcaseSection />
-            <TestimonialsSection />
-            <PricingSection />
-            <CtaSection />
-            <ComingSoonSection />
-          </>
-        )}
+        <ProblemsSection />
+        <SolutionSection />
+        <HowItWorksSection />
+        <TargetSection />
+        <DemoShowcaseSection />
+        <TestimonialsSection />
+        <PricingSection />
+        <CtaSection />
+        <ComingSoonSection />
       </main>
       {showWidget && null}
     </>

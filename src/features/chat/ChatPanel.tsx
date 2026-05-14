@@ -649,16 +649,13 @@ function StandaloneChatPanel({
 
 function LeadCaptureResult({ result }: { result: LeadCaptureResponse }) {
   const traceItems = [
-    result.contract_version ? { label: 'Contrato', value: result.contract_version } : null,
-    result.lead_id ? { label: 'Lead', value: String(result.lead_id) } : null,
-    result.ticket_id ? { label: 'Ticket', value: String(result.ticket_id) } : null,
+    result.lead_id ? { label: 'Seguimiento', value: String(result.lead_id) } : null,
+    result.ticket_id ? { label: 'Caso', value: String(result.ticket_id) } : null,
     result.status ? { label: 'Estado', value: result.status } : null,
-    result.deduplicated ? { label: 'Deduplicado', value: 'true' } : null,
-    result.request_id ? { label: 'Req', value: result.request_id } : null,
   ].filter((item): item is { label: string; value: string } => Boolean(item));
   const hasActions = Boolean(result.next_actions?.length);
 
-  if (!traceItems.length && !hasActions) return null;
+  if (!traceItems.length && !hasActions && !result.request_id) return null;
 
   return (
     <div className="space-y-2 rounded-lg border bg-muted/20 p-3 text-xs" aria-label="Lead capturado">
@@ -673,6 +670,9 @@ function LeadCaptureResult({ result }: { result: LeadCaptureResponse }) {
         </div>
       ) : null}
       {hasActions ? <LeadCaptureNextActions actions={result.next_actions ?? []} /> : null}
+      {result.request_id ? (
+        <p className="break-all text-[11px] text-muted-foreground">request_id: {result.request_id}</p>
+      ) : null}
     </div>
   );
 }

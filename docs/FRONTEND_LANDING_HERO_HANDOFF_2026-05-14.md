@@ -4,22 +4,23 @@
 
 La primera pantalla de Chatboc debe vender una experiencia premium tipo WhatsApp operativo, sin mezclar responsabilidades con backend ni mostrar datos inventados.
 
-El backend define copy visible, CTAs, capacidades, endpoints y datos operativos trazables. El frontend define jerarquia visual, layout y comportamiento de render, pero no inventa textos, botones, casos, metricas, imagenes ni placeholders.
+El frontend define la experiencia comercial: copy de landing, jerarquia visual, layout, animaciones, estados responsive y comportamiento de render. El backend define capacidades, endpoints, sesiones, acciones y datos operativos trazables. El frontend no inventa resultados operativos: tickets, pedidos, leads, casos, metricas, productos, encuestas ni mapas.
 
 ## Frontera de responsabilidad
 
 ### Frontend owns
 
+- Headline, subheadline, CTAs y microcopy comercial de landing.
 - Layout del hero, mockup mobile, tabs, burbujas, animaciones y dark/light mode.
 - Jerarquia visual, ritmo de lectura y performance del primer viewport.
 - Estados de carga discretos mientras llega el contrato.
 - Ocultar secciones si no hay datos operativos reales.
 - Validar que imagenes remotas carguen antes de mostrarlas.
+- Renderizar sugerencias, botones y labels operativos solo cuando backend los envie para el flujo/tenant.
 
 ### Backend owns
 
 - `GET /api/public/landing-experience`.
-- Headline, subheadline, CTAs y microcopy comercial.
 - `hero.conversation_demo.flows[]` con datos operativos reales o trazables.
 - `POST /api/v2/demo/session`.
 - Chat bootstrap real con `demo_session_id` y `session_id`.
@@ -64,8 +65,7 @@ Campos operativos relevantes:
     "admin_preview_endpoint": "/api/v2/demo/admin-preview"
   },
   "runtime_rules": {
-    "frontend_owns_visual_design": true,
-    "backend_owns_visible_copy": true,
+    "frontend_owns_commercial_copy_and_visual_design": true,
     "backend_owns_sessions_actions_and_traceability": true,
     "do_not_publish_frontend_mock_data": true
   }
@@ -130,9 +130,9 @@ Cada `flow` puede tener:
 - Si no hay demo conversacional real, ocultar el mockup derecho y usar hero editorial simple.
 - No mostrar PDF como accion principal del hero.
 
-## Copy esperado desde backend
+## Copy base del frontend
 
-El copy visible debe llegar desde `GET /api/public/landing-experience`. Frontend puede conservar defaults tecnicos minimos para no romper render, pero la experiencia publica debe estar controlada por backend.
+El copy comercial de landing vive en frontend para poder iterar UX/UI sin tocar backend. Si backend envia labels o CTAs operativos dentro de `conversation_demo`, se renderizan en el mockup o en la demo porque representan acciones reales del flujo. Backend no debe decidir estetica, jerarquia, animacion ni composicion visual.
 
 Headline base:
 
@@ -189,7 +189,7 @@ La primera pantalla debe sentirse como:
 
 ## Checklist frontend
 
-- Hero carga rapido y luego usa copy/datos del backend.
+- Hero carga rapido con copy comercial local y luego usa datos operativos del backend.
 - Hero consume `conversation_demo` cuando existe.
 - Hero no muestra imagen rota ni placeholder.
 - Hero no muestra resultado si no hay `action` o `result`.

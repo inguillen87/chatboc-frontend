@@ -31,7 +31,6 @@ export default function DemoWorkspace({
   sector?: DemoSector | null;
   rubro?: string | null;
   workspace?: DemoWorkspaceConfig | null;
-  onPrefill?: (text: string) => void;
 }) {
   const valueCards = workspace?.value_cards ?? [];
   const sampleConversations =
@@ -55,8 +54,11 @@ export default function DemoWorkspace({
   );
   const availableModes = Object.entries(workspace?.media_capabilities?.input_modes ?? {})
     .filter(([, config]) => config?.enabled !== false)
-    .map(([key, config]) => config?.label || key)
-    .filter((label): label is string => typeof label === 'string' && label.trim().length > 0);
+    .map(([key, config]) => {
+      const label = (config as { label?: unknown } | undefined)?.label;
+      return typeof label === 'string' && label.trim() ? label.trim() : key;
+    })
+    .filter((label) => label.trim().length > 0);
 
   return (
     <div className="space-y-4">
