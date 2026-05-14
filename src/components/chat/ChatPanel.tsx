@@ -95,6 +95,9 @@ import {
 } from "@/utils/frontendTelemetry";
 import type { RealtimeVoiceCapabilities } from "@/types/realtimeVoice";
 import {
+  getRealtimeNetworkLabel,
+  getRealtimeSessionStatusLabel,
+  getRealtimeTimelineLabel,
   getRealtimeVoiceBadges,
   getRealtimeVoiceRequestModel,
   getRealtimeVoiceStarters,
@@ -465,6 +468,7 @@ interface ChatPanelProps {
       voice?: string;
       transport?: string;
       profile?: string;
+      session_endpoint?: string;
       label?: string;
       capabilities?: RealtimeVoiceCapabilities | null;
       features?: {
@@ -479,6 +483,7 @@ interface ChatPanelProps {
       enabled?: boolean;
       provider?: string;
       model?: string;
+      session_endpoint?: string;
       label?: string;
       features?: {
         cta_label?: string;
@@ -1589,6 +1594,7 @@ const ChatPanel = (props: ChatPanelProps) => {
   const realtimeVoiceEnabled = isRealtimeVoiceRenderable(
     effectiveRealtimeVoice,
     voiceCallConfig,
+    { voiceEnabled: realtimeConfig?.voiceEnabled },
   );
   const realtimeVideoEnabled = isRealtimeVideoRenderable(
     effectiveRealtimeVoice,
@@ -1635,10 +1641,6 @@ const ChatPanel = (props: ChatPanelProps) => {
   const [realtimeSessionId, setRealtimeSessionId] = useState<string | null>(
     null,
   );
-  const [realtimeRateLimit, setRealtimeRateLimit] = useState<{
-    limit?: string | null;
-    window?: string | null;
-  }>({});
   const [realtimeErrorCode, setRealtimeErrorCode] = useState<string | null>(
     null,
   );
@@ -1785,11 +1787,22 @@ const ChatPanel = (props: ChatPanelProps) => {
           requestedMode === "video" ? videoCallConfig?.model : voiceCallConfig?.model,
           voiceCallConfig?.model,
         );
-        const payload = await apiFetch<any>("/api/public/realtime/session", {
+        const sessionEndpoint = readFirstString(
+          requestedMode === "video"
+            ? videoCallConfig?.session_endpoint
+            : voiceCallConfig?.session_endpoint,
+          requestedMode === "video"
+            ? effectiveRealtimeVoice?.support_channels?.video_call?.session_endpoint
+            : effectiveRealtimeVoice?.support_channels?.voice_call?.session_endpoint,
+          effectiveRealtimeVoice?.support_channels?.voice_call?.session_endpoint,
+          "/api/public/realtime/session",
+        );
+        const payload = await apiFetch<any>(sessionEndpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             tenant_slug: tenantSlug,
+            widget_token: propEntityToken || undefined,
             channel: requestedMode,
             model: requestedModel,
             fallback_model:
@@ -1810,16 +1823,12 @@ const ChatPanel = (props: ChatPanelProps) => {
             profile:
               realtimeConfig?.profile ||
               voiceCallConfig?.profile ||
+              undefined,
+            active_vertical:
               effectiveRealtimeVoice?.active_vertical ||
               undefined,
           }),
           tenantSlug: tenantSlug || undefined,
-          onResponse: (response) => {
-            setRealtimeRateLimit({
-              limit: response.headers.get("X-RateLimit-Limit"),
-              window: response.headers.get("X-RateLimit-Window"),
-            });
-          },
         });
 
         const sessionId = readRealtimeSessionId(payload) || `rt_${Date.now()}`;
@@ -1829,7 +1838,7 @@ const ChatPanel = (props: ChatPanelProps) => {
         setRealtimeSessionId(sessionId);
         setSessionState("live");
         setAssistantSpeaking(true);
-        pushRealtimeTimeline(sessionId, "success");
+        pushRealtimeTimeline("Escuchando", "success");
         emitRealtimeAnalytics("realtime_session_started", requestedMode, {
           session_id: sessionId,
           model: responseModel,
@@ -1923,6 +1932,7 @@ const ChatPanel = (props: ChatPanelProps) => {
     [
       emitRealtimeAnalytics,
       effectiveRealtimeVoice,
+      propEntityToken,
       pushRealtimeTimeline,
       realtimeConfig,
       realtimeVideoEnabled,
@@ -1930,9 +1940,11 @@ const ChatPanel = (props: ChatPanelProps) => {
       sessionState,
       tenantSlug,
       videoCallConfig?.model,
+      videoCallConfig?.session_endpoint,
       voiceCallConfig?.fallback_model,
       voiceCallConfig?.model,
       voiceCallConfig?.profile,
+      voiceCallConfig?.session_endpoint,
       voiceCallConfig?.transport,
       voiceCallConfig?.voice,
     ],
@@ -1943,7 +1955,7 @@ const ChatPanel = (props: ChatPanelProps) => {
     setIsUserSpeaking(false);
     setAssistantSpeaking(false);
     if (realtimeSessionId) {
-      pushRealtimeTimeline(realtimeSessionId);
+      pushRealtimeTimeline("Finalizada");
     }
   }, [pushRealtimeTimeline, realtimeSessionId]);
 
@@ -2922,22 +2934,21 @@ const ChatPanel = (props: ChatPanelProps) => {
                 ) : (
                   <WifiOff className="h-3.5 w-3.5 text-amber-600" />
                 )}
-                {networkLatency}
+                {getRealtimeNetworkLabel(networkLatency)}
               </span>
-              <span>{sessionState}</span>
+              <span>
+                {getRealtimeSessionStatusLabel(sessionState, {
+                  isMicMuted,
+                  isUserSpeaking,
+                  assistantSpeaking,
+                })}
+              </span>
             </div>
             {realtimeErrorCode ? (
               <div className="mb-3 rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] text-amber-800">
-                {realtimeErrorCode}
+                {getRealtimeTimelineLabel(realtimeErrorCode)}
               </div>
             ) : null}
-            {realtimeRateLimit.limit || realtimeRateLimit.window ? (
-              <div className="mb-3 rounded-md border border-border bg-muted/50 px-2 py-1 text-[11px] text-muted-foreground">
-                {realtimeRateLimit.limit || "—"} ·{" "}
-                {realtimeRateLimit.window || "—"}
-              </div>
-            ) : null}
-
             <div className="mb-3">
               <RealtimeAvatarStage
                 mode={channelMode === "video" ? "video" : "voice"}
@@ -3037,7 +3048,7 @@ const ChatPanel = (props: ChatPanelProps) => {
                 ) : (
                   <Mic className="mr-1 h-4 w-4" />
                 )}
-                {isMicMuted ? "Unmute" : "Mute"}
+                {isMicMuted ? "Activar microfono" : "Silenciar"}
               </Button>
               <Button
                 type="button"
@@ -3057,7 +3068,7 @@ const ChatPanel = (props: ChatPanelProps) => {
                 ) : (
                   <CaptionsOff className="mr-1 h-4 w-4" />
                 )}
-                {captionsEnabled ? "ON" : "OFF"}
+                {captionsEnabled ? "Subtitulos activos" : "Activar subtitulos"}
               </Button>
               <Button
                 type="button"
@@ -3095,7 +3106,7 @@ const ChatPanel = (props: ChatPanelProps) => {
                           : "border-border bg-muted/40 text-muted-foreground",
                     )}
                   >
-                    {item.message}
+                    {getRealtimeTimelineLabel(item.message)}
                   </div>
                 ))}
               </div>

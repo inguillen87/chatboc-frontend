@@ -283,6 +283,61 @@ export const normalizeWidgetClaims = (history?: WidgetCommerceHistory | null): W
     .filter((entry): entry is WidgetPortalClaim => Boolean(entry));
 };
 
+const readClaimDetailCandidate = (payload: unknown): RawRecord | null => {
+  if (!isRecord(payload)) return null;
+  const candidates = [
+    payload.claim,
+    payload.ticket,
+    payload.reclamo,
+    payload.item,
+    payload.data,
+    payload,
+  ];
+  for (const candidate of candidates) {
+    if (isRecord(candidate)) return candidate;
+  }
+  return null;
+};
+
+export const normalizeWidgetClaimDetail = (payload: unknown): WidgetPortalClaim | null => {
+  const candidate = readClaimDetailCandidate(payload);
+  if (!candidate) return null;
+  return normalizeWidgetClaims({ claims: { items: [candidate] } })[0] ?? null;
+};
+
+const readDefined = <T,>(value: T | undefined): T | undefined => {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value === "string" && !value.trim()) return undefined;
+  return value;
+};
+
+export const mergeWidgetClaimDetail = (
+  base: WidgetPortalClaim,
+  detail?: WidgetPortalClaim | null,
+): WidgetPortalClaim => {
+  if (!detail) return base;
+  return {
+    ...base,
+    nroTicket: readDefined(detail.nroTicket) ?? base.nroTicket,
+    title: readDefined(detail.title) ?? base.title,
+    status: readDefined(detail.status) ?? base.status,
+    statusLabel: readDefined(detail.statusLabel) ?? base.statusLabel,
+    category: readDefined(detail.category) ?? base.category,
+    address: readDefined(detail.address) ?? base.address,
+    lat: readDefined(detail.lat) ?? base.lat,
+    lng: readDefined(detail.lng) ?? base.lng,
+    neighborName: readDefined(detail.neighborName) ?? base.neighborName,
+    neighborPhone: readDefined(detail.neighborPhone) ?? base.neighborPhone,
+    channel: readDefined(detail.channel) ?? base.channel,
+    detailEndpoint: readDefined(detail.detailEndpoint) ?? base.detailEndpoint,
+    commentEndpoint: readDefined(detail.commentEndpoint) ?? base.commentEndpoint,
+    photoEndpoint: readDefined(detail.photoEndpoint) ?? base.photoEndpoint,
+    createdAt: readDefined(detail.createdAt) ?? base.createdAt,
+    attachments: detail.attachments.length > 0 ? detail.attachments : base.attachments,
+    timeline: detail.timeline.length > 0 ? detail.timeline : base.timeline,
+  };
+};
+
 export const normalizeWidgetOrders = (history?: WidgetCommerceHistory | null): WidgetPortalOrder[] => {
   const source = isRecord(history) ? history : null;
   const items = [

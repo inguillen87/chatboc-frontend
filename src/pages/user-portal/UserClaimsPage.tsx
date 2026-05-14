@@ -15,13 +15,21 @@ import { useTenant } from '@/context/TenantContext';
 import { useUser } from '@/hooks/useUser';
 import { usePortalContent } from '@/hooks/usePortalContent';
 import { apiClient } from '@/api/client';
+import { getWidgetClaimDetail, type WidgetCommerceRequest } from '@/api/widgetCommerce';
 import { Ticket } from '@/types/unified';
-import type { WidgetPortalAttachment, WidgetPortalClaim } from '@/utils/widgetPortal';
+import {
+  mergeWidgetClaimDetail,
+  normalizeWidgetClaimDetail,
+  type WidgetPortalAttachment,
+  type WidgetPortalClaim,
+} from '@/utils/widgetPortal';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import TrackingMap from '@/components/ui/TrackingMap';
 import { buildTenantPath } from '@/utils/tenantPaths';
+import { getOrCreateAnonId } from '@/utils/anonId';
+import getOrCreateChatSessionId from '@/utils/chatSessionId';
 
 const STATUS_MAP: Record<string, string> = {
   open: 'Abierto',
@@ -84,11 +92,57 @@ const ClaimAttachment = ({ attachment }: { attachment: WidgetPortalAttachment })
   );
 };
 
-const PublicClaimCard = ({ claim }: { claim: WidgetPortalClaim }) => {
-  const title = claim.title || claim.category || (claim.nroTicket ? `#${claim.nroTicket}` : null);
-  const status = claim.statusLabel || claim.status;
-  const hasLocation = Number.isFinite(claim.lat) && Number.isFinite(claim.lng);
-  const createdAt = formatDate(claim.createdAt);
+const PublicClaimCard = ({
+  claim,
+  detailRequest,
+}: {
+  claim: WidgetPortalClaim;
+  detailRequest: WidgetCommerceRequest | null;
+}) => {
+  const [detailClaim, setDetailClaim] = useState<WidgetPortalClaim | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    if (!claim.detailEndpoint || !detailRequest?.tenantSlug) {
+      setDetailClaim(null);
+      setDetailLoading(false);
+      return;
+    }
+
+    setDetailLoading(true);
+    getWidgetClaimDetail(claim.detailEndpoint, detailRequest)
+      .then((payload) => {
+        const normalized = normalizeWidgetClaimDetail(payload);
+        if (active) setDetailClaim(normalized);
+      })
+      .catch(() => {
+        if (active) setDetailClaim(null);
+      })
+      .finally(() => {
+        if (active) setDetailLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [
+    claim.detailEndpoint,
+    detailRequest?.anonId,
+    detailRequest?.chatSessionId,
+    detailRequest?.tenantSlug,
+    detailRequest?.widgetSessionToken,
+    detailRequest?.widgetToken,
+  ]);
+
+  const renderClaim = useMemo(
+    () => mergeWidgetClaimDetail(claim, detailClaim),
+    [claim, detailClaim],
+  );
+  const title = renderClaim.title || renderClaim.category || (renderClaim.nroTicket ? `#${renderClaim.nroTicket}` : null);
+  const status = renderClaim.statusLabel || renderClaim.status;
+  const hasLocation = Number.isFinite(renderClaim.lat) && Number.isFinite(renderClaim.lng);
+  const createdAt = formatDate(renderClaim.createdAt);
 
   return (
     <Card className="overflow-hidden">
@@ -97,22 +151,22 @@ const PublicClaimCard = ({ claim }: { claim: WidgetPortalClaim }) => {
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="space-y-2">
               <div className="flex flex-wrap items-center gap-2">
-                {claim.nroTicket ? <span className="font-bold text-lg">#{claim.nroTicket}</span> : null}
+                {renderClaim.nroTicket ? <span className="font-bold text-lg">#{renderClaim.nroTicket}</span> : null}
                 {status ? <Badge variant="outline" className="capitalize">{status}</Badge> : null}
-                {claim.channel === 'whatsapp' ? <Badge variant="secondary">WhatsApp</Badge> : null}
+                {renderClaim.channel === 'whatsapp' ? <Badge variant="secondary">WhatsApp</Badge> : null}
               </div>
               {title ? <h3 className="text-lg font-semibold">{title}</h3> : null}
               {createdAt ? <p className="text-sm text-muted-foreground">{createdAt}</p> : null}
-              {claim.address ? (
+              {renderClaim.address ? (
                 <p className="flex items-center gap-2 text-sm text-muted-foreground">
                   <MapPin className="h-4 w-4" />
-                  {claim.address}
+                  {renderClaim.address}
                 </p>
               ) : null}
             </div>
-            {claim.detailEndpoint ? (
+            {renderClaim.detailEndpoint ? (
               <Button variant="ghost" size="sm" asChild>
-                <a href={claim.detailEndpoint} target="_blank" rel="noreferrer" className="flex items-center gap-1">
+                <a href={renderClaim.detailEndpoint} target="_blank" rel="noreferrer" className="flex items-center gap-1">
                 Ver seguimiento <ExternalLink className="h-3 w-3" />
                 </a>
               </Button>
@@ -125,35 +179,39 @@ const PublicClaimCard = ({ claim }: { claim: WidgetPortalClaim }) => {
             <div className="h-64 overflow-hidden rounded-xl border">
               <TrackingMap
                 customerLocation={{
-                  lat: claim.lat!,
-                  lng: claim.lng!,
-                  name: claim.address || title || claim.nroTicket,
+                  lat: renderClaim.lat!,
+                  lng: renderClaim.lng!,
+                  name: renderClaim.address || title || renderClaim.nroTicket,
                 }}
                 showDriverMarker={false}
-                status={claim.status || 'claim'}
+                status={renderClaim.status || 'claim'}
               />
             </div>
           ) : null}
 
-          {claim.attachments.length > 0 ? (
+          {detailLoading ? (
+            <p className="text-xs text-muted-foreground">Actualizando seguimiento...</p>
+          ) : null}
+
+          {renderClaim.attachments.length > 0 ? (
             <div>
               <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
                 <ImageIcon className="h-4 w-4" />
                 Evidencia
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
-                {claim.attachments.map((attachment) => (
+                {renderClaim.attachments.map((attachment) => (
                   <ClaimAttachment key={attachment.id || attachment.url} attachment={attachment} />
                 ))}
               </div>
             </div>
           ) : null}
 
-          {claim.timeline.length > 0 ? (
+          {renderClaim.timeline.length > 0 ? (
             <div>
               <h4 className="mb-3 text-sm font-semibold">Seguimiento</h4>
               <ol className="space-y-3 border-l pl-4">
-                {claim.timeline.map((event) => (
+                {renderClaim.timeline.map((event) => (
                   <li key={event.id} className="space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-sm font-medium">{event.label}</span>
@@ -169,16 +227,16 @@ const PublicClaimCard = ({ claim }: { claim: WidgetPortalClaim }) => {
             </div>
           ) : null}
 
-          {(claim.commentEndpoint || claim.photoEndpoint) ? (
+          {(renderClaim.commentEndpoint || renderClaim.photoEndpoint) ? (
             <div className="flex flex-wrap gap-2 border-t pt-4">
-              {claim.commentEndpoint ? (
+              {renderClaim.commentEndpoint ? (
                 <Button size="sm" variant="outline" asChild>
-                  <a href={claim.commentEndpoint} target="_blank" rel="noreferrer">Agregar comentario</a>
+                  <a href={renderClaim.commentEndpoint} target="_blank" rel="noreferrer">Agregar comentario</a>
                 </Button>
               ) : null}
-              {claim.photoEndpoint ? (
+              {renderClaim.photoEndpoint ? (
                 <Button size="sm" variant="outline" asChild>
-                  <a href={claim.photoEndpoint} target="_blank" rel="noreferrer">Agregar foto</a>
+                  <a href={renderClaim.photoEndpoint} target="_blank" rel="noreferrer">Agregar foto</a>
                 </Button>
               ) : null}
             </div>
@@ -221,10 +279,10 @@ const LegacyTicketCard = ({ ticket, currentSlug }: { ticket: Ticket; currentSlug
 );
 
 const UserClaimsPage = () => {
-  const { currentSlug } = useTenant();
+  const { currentSlug, widgetToken } = useTenant();
   const { user } = useUser();
   const navigate = useNavigate();
-  const { publicClaims, isLoading: portalLoading } = usePortalContent();
+  const { commerceSession, publicClaims, isLoading: portalLoading } = usePortalContent();
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [legacyLoading, setLegacyLoading] = useState(false);
 
@@ -259,6 +317,16 @@ const UserClaimsPage = () => {
   const hasPublicClaims = publicClaims.length > 0;
   const hasLegacyTickets = tickets.length > 0;
   const claimStartPath = user && currentSlug ? buildTenantPath('/reclamos/nuevo', currentSlug) : null;
+  const detailRequest = useMemo<WidgetCommerceRequest | null>(() => {
+    if (!currentSlug) return null;
+    return {
+      tenantSlug: currentSlug,
+      widgetToken,
+      chatSessionId: getOrCreateChatSessionId(),
+      anonId: getOrCreateAnonId(),
+      widgetSessionToken: commerceSession?.session?.widget_session_token || null,
+    };
+  }, [commerceSession?.session?.widget_session_token, currentSlug, widgetToken]);
   const emptyTitle = useMemo(
     () => (user ? 'No tenes reclamos registrados aun.' : 'Todavia no hay reclamos vinculados a esta sesion.'),
     [user],
@@ -294,7 +362,7 @@ const UserClaimsPage = () => {
       ) : (
         <div className="space-y-4">
           {hasPublicClaims
-            ? publicClaims.map((claim) => <PublicClaimCard key={claim.id} claim={claim} />)
+            ? publicClaims.map((claim) => <PublicClaimCard key={claim.id} claim={claim} detailRequest={detailRequest} />)
             : tickets.map((ticket) => <LegacyTicketCard key={ticket.id} ticket={ticket} currentSlug={currentSlug} />)}
         </div>
       )}

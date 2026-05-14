@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   getRealtimeVoiceBadges,
+  getRealtimeMicLabel,
+  getRealtimeModeLabel,
+  getRealtimeNetworkLabel,
   getRealtimeVoiceRequestModel,
   getRealtimeVoiceStarters,
   getRealtimeVoiceToolLabels,
+  getRealtimeSessionStatusLabel,
+  getRealtimeTimelineLabel,
   isRealtimeVideoRenderable,
   isRealtimeVoiceRenderable,
 } from "./realtimeVoice";
@@ -18,6 +23,34 @@ describe("realtime voice contract helpers", () => {
     expect(isRealtimeVoiceRenderable(capabilities, null)).toBe(false);
     expect(isRealtimeVoiceRenderable(capabilities, { enabled: false })).toBe(false);
     expect(isRealtimeVoiceRenderable(capabilities, { enabled: true })).toBe(true);
+    expect(
+      isRealtimeVoiceRenderable(capabilities, { enabled: true }, { voiceEnabled: false }),
+    ).toBe(false);
+  });
+
+  it("accepts voice_call gating from the standalone voice-capabilities contract", () => {
+    expect(
+      isRealtimeVoiceRenderable({
+        contract_version: "realtime.voice_capabilities.v1",
+        features: { tool_calling: true },
+        support_channels: {
+          voice_call: {
+            enabled: true,
+            channel: "voice_call",
+            provider: "openai_realtime",
+            session_endpoint: "/api/public/realtime/session",
+          },
+        },
+      }),
+    ).toBe(true);
+
+    expect(
+      isRealtimeVoiceRenderable({
+        contract_version: "realtime.voice_capabilities.v1",
+        features: { tool_calling: true },
+        support_channels: { voice_call: { enabled: false } },
+      }),
+    ).toBe(false);
   });
 
   it("does not render voice when backend explicitly disables it", () => {
@@ -53,6 +86,12 @@ describe("realtime voice contract helpers", () => {
         features: { human_handoff: true },
       }),
     ).toEqual(["Voz nativa", "Resumen operativo"]);
+    expect(
+      getRealtimeVoiceBadges({
+        native_speech_to_speech: true,
+        features: { human_handoff: true, post_call_receipt: true },
+      }),
+    ).toEqual([]);
 
     expect(
       getRealtimeVoiceStarters({
@@ -118,5 +157,17 @@ describe("realtime voice contract helpers", () => {
       }),
     ).toEqual(["Crear reclamo", "Consultar estado"]);
     expect(getRealtimeVoiceToolLabels({ active_vertical: "municipio" })).toEqual([]);
+  });
+
+  it("keeps realtime call UI states human and non-technical", () => {
+    expect(getRealtimeModeLabel("voice")).toBe("Llamada");
+    expect(getRealtimeModeLabel("video")).toBe("Canal visual");
+    expect(getRealtimeNetworkLabel("good")).toBe("Conexion estable");
+    expect(getRealtimeMicLabel({ isUserSpeaking: true })).toBe("Escuchando");
+    expect(getRealtimeSessionStatusLabel("live", { assistantSpeaking: true })).toBe("Procesando");
+    expect(getRealtimeTimelineLabel("registrando:create_claim")).toBe("Registrando");
+    expect(getRealtimeTimelineLabel("confirmado:create_claim")).toBe("Registro confirmado");
+    expect(getRealtimeTimelineLabel("rt_123456")).toBe("Escuchando");
+    expect(getRealtimeTimelineLabel("video_fallback_voice")).toBe("Cambiando a llamada");
   });
 });

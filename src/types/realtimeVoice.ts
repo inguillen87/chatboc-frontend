@@ -11,6 +11,7 @@ export interface RealtimeVoiceTransports {
 
 export interface RealtimeVoiceFeatures {
   barge_in?: boolean;
+  semantic_vad?: boolean;
   server_vad?: boolean;
   tool_calling?: boolean;
   whatsapp_followup?: boolean;
@@ -43,6 +44,22 @@ export interface RealtimeVoiceLanguagePolicy {
   [key: string]: unknown;
 }
 
+export interface RealtimeVoiceChannelCapability {
+  enabled?: boolean | null;
+  channel?: string | null;
+  provider?: string | null;
+  session_endpoint?: string | null;
+  capabilities?: RealtimeVoiceCapabilities | null;
+  features?: RealtimeVoiceFeatures | null;
+  [key: string]: unknown;
+}
+
+export interface RealtimeVoiceSupportChannels {
+  voice_call?: RealtimeVoiceChannelCapability | null;
+  video_call?: RealtimeVoiceChannelCapability | null;
+  [key: string]: unknown;
+}
+
 export interface RealtimeVoiceCapabilities {
   contract_version?: "realtime.voice_capabilities.v1" | string;
   enabled?: boolean | null;
@@ -57,6 +74,7 @@ export interface RealtimeVoiceCapabilities {
   avoid_external_stt_tts_loop?: boolean | null;
   transports?: RealtimeVoiceTransports | null;
   features?: RealtimeVoiceFeatures | null;
+  support_channels?: RealtimeVoiceSupportChannels | null;
   tools?:
     | RealtimeVoiceToolContract[]
     | Record<string, RealtimeVoiceToolContract | string | boolean | null>

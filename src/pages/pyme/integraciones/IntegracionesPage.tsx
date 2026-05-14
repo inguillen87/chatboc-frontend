@@ -88,6 +88,8 @@ type WhatsappSandboxResult = {
 };
 
 type WhatsappSandboxSetup = {
+  contractVersion?: string | null;
+  mode?: string | null;
   requestId?: string | null;
   deeplink?: string | null;
   copyText?: string | null;
@@ -97,6 +99,7 @@ type WhatsappSandboxSetup = {
   instructions: string[];
   quickMenu: QuickMenuPreviewItem[];
   testEndpoint?: string | null;
+  sessionEndpoint?: string | null;
 };
 
 const DEFAULT_WHATSAPP_SANDBOX: WhatsappSandboxState = {
@@ -172,17 +175,25 @@ const normalizeSandboxPreviewText = (source: unknown): string | null => {
   );
 };
 
-const normalizeSandboxContract = (response: any): WhatsappSandboxSetup => {
-  const sandbox = response?.sandbox ?? {};
+export const normalizeSandboxContract = (response: any): WhatsappSandboxSetup => {
+  const whatsappSandbox = response?.whatsapp_sandbox ?? {};
+  const sandbox = response?.sandbox ?? whatsappSandbox?.sandbox ?? {};
   const twilio = response?.twilio ?? {};
+  const session = response?.session ?? {};
+  const channel = response?.channel ?? {};
   const test = response?.test ?? {};
+  const preview = response?.preview ?? {};
   const responseInstructions = normalizeSandboxInstructions(response?.instructions);
   const instructions = responseInstructions.length
     ? responseInstructions
-    : normalizeSandboxInstructions(sandbox?.instructions);
+    : normalizeSandboxInstructions(sandbox?.instructions).length
+      ? normalizeSandboxInstructions(sandbox?.instructions)
+      : normalizeSandboxInstructions(whatsappSandbox?.instructions);
   const quickMenu = [
     response?.demo_context?.quick_menu,
+    session?.demo_context?.quick_menu,
     response?.quick_menu,
+    whatsappSandbox?.quick_menu,
     sandbox?.quick_menu,
   ]
     .flatMap((source) => (Array.isArray(source) ? source : []))
@@ -190,41 +201,75 @@ const normalizeSandboxContract = (response: any): WhatsappSandboxSetup => {
     .filter((item): item is QuickMenuPreviewItem => Boolean(item));
 
   return {
+    contractVersion: readTextValue(response?.contract_version, response?.contractVersion),
+    mode: readTextValue(
+      response?.mode,
+      response?.delivery_mode,
+      response?.frontend_contract?.mode,
+      response?.frontend_contract?.render_as,
+    ),
     requestId: readTextValue(response?.request_id, response?.requestId),
     deeplink: readTextValue(
       response?.deeplink,
       response?.wa_deeplink,
-      response?.preview?.deeplink,
+      preview?.deeplink,
+      preview?.wa_deeplink,
       sandbox?.wa_deeplink,
+      sandbox?.deeplink,
+      whatsappSandbox?.wa_deeplink,
       twilio?.wa_deeplink,
+      channel?.wa_deeplink,
     ),
     copyText: readTextValue(
       response?.copy_text,
       response?.copyText,
-      response?.preview?.copy_text,
-      response?.preview?.copyText,
+      preview?.copy_text,
+      preview?.copyText,
       test?.copy_text,
       sandbox?.copy_text,
+      whatsappSandbox?.copy_text,
     ),
     previewText: normalizeSandboxPreviewText(
-      response?.preview || response?.message_preview || test?.preview,
+      response?.preview || response?.message_preview || test?.preview || whatsappSandbox?.preview,
     ),
     joinNumber: readTextValue(
+      response?.display_number,
+      response?.phone_number,
       sandbox?.join_number,
       sandbox?.sandbox_number,
+      sandbox?.display_number,
       twilio?.join_number,
       twilio?.sandbox_number,
       response?.join_number,
       response?.sandbox_number,
+      whatsappSandbox?.display_number,
+      channel?.display_number,
+      channel?.sandbox_number,
     ),
     joinPhrase: readTextValue(
       sandbox?.join_phrase,
+      sandbox?.joinPhrase,
+      whatsappSandbox?.join_phrase,
       twilio?.join_phrase,
       response?.join_phrase,
+      session?.join_phrase,
     ),
     instructions,
     quickMenu,
-    testEndpoint: readTextValue(test?.endpoint, sandbox?.test_endpoint, response?.test_endpoint),
+    testEndpoint: readTextValue(
+      test?.endpoint,
+      sandbox?.test_endpoint,
+      response?.test_endpoint,
+      response?.session_endpoint,
+      response?.links?.sandbox_session,
+      response?.links?.session_endpoint,
+    ),
+    sessionEndpoint: readTextValue(
+      response?.session_endpoint,
+      response?.links?.sandbox_session,
+      response?.links?.session_endpoint,
+      response?.frontend_contract?.action_endpoint,
+    ),
   };
 };
 
@@ -726,7 +771,12 @@ const IntegracionesPage = () => {
       .join("\n\n");
 
   const buildSandboxDeeplink = () => {
-    const digits = whatsappSandbox.customerWhatsapp.replace(/[^\d]/g, "");
+    const digits = (
+      whatsappSandbox.customerWhatsapp ||
+      sandboxSetup?.joinNumber ||
+      sandboxResult?.joinNumber ||
+      ""
+    ).replace(/[^\d]/g, "");
     if (!digits) return null;
     const text = buildSandboxMessage();
     return `https://wa.me/${digits}${text ? `?text=${encodeURIComponent(text)}` : ""}`;
@@ -764,27 +814,25 @@ const IntegracionesPage = () => {
   const handlePrepareWhatsappSandbox = async () => {
     if (!currentSlug) return;
     const deeplink = buildSandboxDeeplink();
-    if (!whatsappSandbox.customerWhatsapp.replace(/[^\d]/g, "")) {
-      toast.error("Ingresá el WhatsApp del sandbox o del teléfono de prueba");
-      return;
-    }
 
     const payload = {
       tenant_slug: currentSlug,
-      whatsapp: whatsappSandbox.customerWhatsapp.trim(),
+      whatsapp: whatsappSandbox.customerWhatsapp.trim() || undefined,
       join_phrase: whatsappSandbox.joinPhrase.trim(),
       rubro: whatsappSandbox.rubro.trim(),
       brief: whatsappSandbox.brief.trim(),
       test_message: whatsappSandbox.testMessage.trim(),
       menu_preview: widgetQuickMenu.slice(0, 6),
+      quick_menu_received_by_frontend: widgetQuickMenu.slice(0, 6),
       source: "tenant_integrations_panel",
     };
 
     setSandboxLoading(true);
     try {
       const testEndpoint =
+        sandboxSetup?.sessionEndpoint ||
         sandboxSetup?.testEndpoint ||
-        `/api/v2/tenants/${encodeURIComponent(currentSlug)}/whatsapp/sandbox-test`;
+        `/api/v2/tenants/${encodeURIComponent(currentSlug)}/whatsapp/sandbox-session`;
       const response = await apiClient.post<any>(
         testEndpoint,
         payload,
@@ -805,7 +853,7 @@ const IntegracionesPage = () => {
       }
       setSandboxResult({
         mode: "remote",
-        message: "Prueba lista: se genero enlace, texto copiable y preview sin enviar mensajes reales.",
+        message: "Prueba lista: el backend registro la sesion sandbox y devolvio enlace, texto copiable y preview sin enviar mensajes reales.",
         deeplink: remoteDeeplink,
         copyText: testResult.copyText,
         previewText: testResult.previewText,
@@ -821,15 +869,15 @@ const IntegracionesPage = () => {
       }
     } catch (error: any) {
       const status = error instanceof ApiError ? error.status : Number(error?.status || 0);
-      setSandboxResult({
-        mode: "local",
-        message:
-          status === 404 || status === 405 || status === 501
-            ? "La prueba quedó lista para abrir manualmente mientras se actualiza el servicio."
-            : "No se pudo confirmar la preparación. Podés abrir WhatsApp con este enlace y seguir la prueba.",
-        deeplink,
-        requestId: error instanceof ApiError ? error.requestId : null,
-      });
+        setSandboxResult({
+          mode: "local",
+          message:
+            status === 404 || status === 405 || status === 501
+              ? "La prueba quedó lista para abrir manualmente con los datos cargados mientras se actualiza el servicio."
+              : "No se pudo confirmar la preparación. Podés abrir WhatsApp con este enlace si el contrato publicó número o completaste el teléfono de prueba.",
+          deeplink,
+          requestId: error instanceof ApiError ? error.requestId : null,
+        });
       if (status === 404 || status === 405 || status === 501) {
         toast.info("Prueba lista para abrir manualmente.");
       } else {

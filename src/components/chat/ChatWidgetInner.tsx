@@ -527,7 +527,7 @@ function ChatWidgetInner({
       ),
       profile: toText(
         attrs['data-realtime-profile'],
-        toText(realtimeVoice?.active_vertical, toText(realtimeMeta?.profile, '')),
+        toText(realtimeMeta?.profile, toText(supportChannels?.voice_call?.profile, 'realtime_voice_native')),
       ),
       voiceEnabled: toBool(attrs['data-realtime-voice-enabled'], Boolean(supportChannels?.voice_call?.enabled)),
       videoEnabled: toBool(attrs['data-realtime-video-enabled'], Boolean(supportChannels?.video_call?.enabled)),
@@ -593,6 +593,7 @@ function ChatWidgetInner({
     supportChannels?.voice_call?.fallback_model,
     supportChannels?.voice_call?.label,
     supportChannels?.voice_call?.model,
+    supportChannels?.voice_call?.profile,
     supportChannels?.voice_call?.voice,
   ]);
   const showCatalogCta =

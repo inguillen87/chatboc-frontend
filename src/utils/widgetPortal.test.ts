@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildPortalContentFromWidgetHistory,
+  mergeWidgetClaimDetail,
+  normalizeWidgetClaimDetail,
   normalizeWidgetClaims,
   normalizeWidgetOrders,
 } from './widgetPortal';
@@ -109,5 +111,40 @@ describe('widgetPortal public contract normalizers', () => {
     expect(content.loyaltySummary?.hasParticipationMetrics).toBe(true);
     expect(content.loyaltySummary?.surveysCompleted).toBe(3);
     expect(content.loyaltySummary?.claimsFiled).toBe(2);
+  });
+
+  it('normalizes claim detail payloads without losing the summary identity', () => {
+    const summary = normalizeWidgetClaims({
+      items: [
+        {
+          kind: 'claim',
+          id: 'claim-summary',
+          nro_ticket: 'MUN-77',
+          estado: 'recibido',
+          detail_endpoint: '/api/public/claims/MUN-77',
+        },
+      ],
+    })[0];
+    const detail = normalizeWidgetClaimDetail({
+      ticket: {
+        id: 77,
+        nro_ticket: 'MUN-77',
+        estado: 'en_proceso',
+        direccion: 'Belgrano 100',
+        lat: -34.62,
+        lng: -68.33,
+        attachments: [{ id: 'foto-1', url: 'https://cdn.example/foto-1.jpg', kind: 'image' }],
+        timeline: [{ id: 'recibido', label: 'Recibido' }, { id: 'zona', label: 'Zona asignada' }],
+      },
+    });
+
+    expect(detail?.timeline).toHaveLength(2);
+    const merged = mergeWidgetClaimDetail(summary, detail);
+    expect(merged.id).toBe('claim-summary');
+    expect(merged.status).toBe('en_proceso');
+    expect(merged.address).toBe('Belgrano 100');
+    expect(merged.lat).toBe(-34.62);
+    expect(merged.attachments[0].url).toBe('https://cdn.example/foto-1.jpg');
+    expect(merged.timeline.map((event) => event.label)).toEqual(['Recibido', 'Zona asignada']);
   });
 });

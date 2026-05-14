@@ -31,14 +31,16 @@ const boolish = (value: unknown) => {
 export const isRealtimeVoiceRenderable = (
   capabilities?: RealtimeVoiceCapabilities | null,
   voiceCall?: RealtimeVoiceSupportConfig | null,
-  options: { allowCapabilitiesOnly?: boolean } = {},
+  options: { allowCapabilitiesOnly?: boolean; voiceEnabled?: unknown } = {},
 ) => {
   if (!capabilities || capabilities.enabled === false) return false;
+  if (options.voiceEnabled !== undefined && !boolish(options.voiceEnabled)) return false;
 
   const toolCalling = boolish(capabilities.features?.tool_calling);
-  const voiceCallEnabled = boolish(voiceCall?.enabled);
+  const publishedVoiceCall = voiceCall ?? capabilities.support_channels?.voice_call ?? null;
+  const voiceCallEnabled = boolish(publishedVoiceCall?.enabled);
 
-  if (voiceCall) {
+  if (publishedVoiceCall) {
     return voiceCallEnabled && toolCalling;
   }
 
@@ -105,23 +107,7 @@ export const getRealtimeVoiceBadges = (capabilities?: RealtimeVoiceCapabilities 
     if (normalized.length) return normalized;
   }
 
-  const features = capabilities?.features ?? {};
-  const badges: string[] = [];
-
-  if (boolish(capabilities?.native_speech_to_speech)) {
-    badges.push("Voz en tiempo real");
-  }
-  if (boolish(features.barge_in)) {
-    badges.push("Interrupciones naturales");
-  }
-  if (boolish(features.post_call_receipt) || boolish(features.whatsapp_followup)) {
-    badges.push("Resumen por WhatsApp");
-  }
-  if (boolish(features.human_handoff)) {
-    badges.push("Derivacion humana");
-  }
-
-  return badges;
+  return [];
 };
 
 const collectToolLabels = (
@@ -184,4 +170,71 @@ export const getRealtimeVoiceStarters = (capabilities?: RealtimeVoiceCapabilitie
   }
 
   return [];
+};
+
+export type RealtimeSessionState = "idle" | "connecting" | "live" | "reconnecting" | "ended";
+export type RealtimeNetworkLatency = "good" | "unstable";
+
+export const getRealtimeModeLabel = (mode: "voice" | "video") =>
+  mode === "video" ? "Canal visual" : "Llamada";
+
+export const getRealtimeNetworkLabel = (latency?: RealtimeNetworkLatency | null) =>
+  latency === "unstable" ? "Conexion inestable" : "Conexion estable";
+
+export const getRealtimeMicLabel = (options: {
+  isMicMuted?: boolean | null;
+  isUserSpeaking?: boolean | null;
+}) => {
+  if (options.isMicMuted) return "Silenciado";
+  if (options.isUserSpeaking) return "Escuchando";
+  return "Listo";
+};
+
+export const getRealtimeSessionStatusLabel = (
+  state?: RealtimeSessionState | null,
+  options: {
+    isMicMuted?: boolean | null;
+    isUserSpeaking?: boolean | null;
+    assistantSpeaking?: boolean | null;
+  } = {},
+) => {
+  if (options.isMicMuted && state === "live") return "Pausada";
+  if (options.isUserSpeaking && state === "live") return "Escuchando";
+  if (options.assistantSpeaking && state === "live") return "Procesando";
+
+  switch (state) {
+    case "connecting":
+      return "Conectando";
+    case "live":
+      return "Escuchando";
+    case "reconnecting":
+      return "Reconectando";
+    case "ended":
+      return "Finalizada";
+    case "idle":
+    default:
+      return "Lista";
+  }
+};
+
+export const getRealtimeTimelineLabel = (message?: string | null) => {
+  const raw = typeof message === "string" ? message.trim() : "";
+  if (!raw) return "";
+  const normalized = raw.toLowerCase();
+
+  if (normalized.startsWith("registrando:")) return "Registrando";
+  if (normalized.startsWith("confirmado:")) return "Registro confirmado";
+  if (normalized.startsWith("pendiente:")) return "Confirmacion pendiente";
+  if (normalized.includes("comprobante")) return "Comprobante enviado";
+  if (normalized.includes("voice_not_enabled")) return "Llamada no disponible";
+  if (normalized.includes("video_unavailable") || normalized.includes("video_fallback")) {
+    return "Cambiando a llamada";
+  }
+  if (normalized.includes("failed") || normalized.includes("error") || normalized.includes("400")) {
+    return "No se pudo iniciar la llamada";
+  }
+  if (normalized.includes("->")) return "Cambio de canal";
+  if (/^(rt_|req_|sess_|session_|client_secret)/.test(normalized)) return "Escuchando";
+
+  return raw;
 };

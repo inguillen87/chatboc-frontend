@@ -2,6 +2,12 @@ import { Captions, Mic, MicOff, Radio, Video } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { CHATBOC_ORBIT_AVATAR } from "@/utils/brandAssets";
+import {
+  getRealtimeMicLabel,
+  getRealtimeModeLabel,
+  getRealtimeNetworkLabel,
+  getRealtimeSessionStatusLabel,
+} from "@/utils/realtimeVoice";
 
 export type RealtimeChannelMode = "voice" | "video";
 export type RealtimeSessionState =
@@ -51,10 +57,15 @@ export default function RealtimeAvatarStage({
   isMicMuted,
   networkLatency = "good",
 }: RealtimeAvatarStageProps) {
-  const avatarLabel = readAvatarText(avatarPersona, readAvatarText(avatarType, "robot"));
+  const avatarLabel = readAvatarText(avatarPersona, readAvatarText(avatarType, "Asistente IA"));
   const latestTranscript = transcript.slice(-2);
   const isLive = sessionState === "live";
   const avatarSrc = logoUrl || CHATBOC_ORBIT_AVATAR;
+  const statusLabel = getRealtimeSessionStatusLabel(sessionState, {
+    isMicMuted,
+    isUserSpeaking,
+    assistantSpeaking,
+  });
 
   return (
     <div className="overflow-hidden rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/10 via-background to-background shadow-sm">
@@ -77,7 +88,7 @@ export default function RealtimeAvatarStage({
                 : "bg-muted text-muted-foreground",
           )}
         >
-          {sessionState}
+          {statusLabel}
         </span>
       </div>
 
@@ -115,14 +126,14 @@ export default function RealtimeAvatarStage({
           <p className="text-sm font-semibold text-foreground">{avatarLabel}</p>
           <div className="mt-1 flex flex-wrap justify-center gap-1.5 text-[11px] text-muted-foreground">
             <span className="rounded-full border border-border/70 bg-background/80 px-2 py-0.5">
-              {mode}
+              {getRealtimeModeLabel(mode)}
             </span>
             <span className="rounded-full border border-border/70 bg-background/80 px-2 py-0.5">
-              {networkLatency}
+              {getRealtimeNetworkLabel(networkLatency)}
             </span>
             <span className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-background/80 px-2 py-0.5">
               {isMicMuted ? <MicOff className="h-3 w-3" /> : <Mic className="h-3 w-3" />}
-              {isMicMuted ? "muted" : isUserSpeaking ? "listening" : "ready"}
+              {getRealtimeMicLabel({ isMicMuted, isUserSpeaking })}
             </span>
           </div>
         </div>
@@ -151,13 +162,13 @@ export default function RealtimeAvatarStage({
         <div className="border-t border-border/60 bg-black px-3 py-2 text-xs font-medium text-white">
           <div className="mb-1 flex items-center gap-1 text-[10px] uppercase text-white/60">
             <Captions className="h-3 w-3" />
-            captions
+            Subtitulos
           </div>
           {latestTranscript.length > 0 ? (
             <div className="space-y-1">
               {latestTranscript.map((item) => (
                 <p key={item.id} className="line-clamp-2">
-                  <span className="mr-1 text-white/60">{item.role}</span>
+                  <span className="mr-1 text-white/60">{item.role === "user" ? "Vos" : "IA"}</span>
                   {item.text}
                 </p>
               ))}
