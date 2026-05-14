@@ -1,6 +1,5 @@
 import React, { useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import ChatbocBrandLockup from "@/components/brand/ChatbocBrandLockup";
 import {
   ArrowRight,
   Bot,
@@ -26,6 +25,7 @@ import { useNavigate } from "react-router-dom";
 
 import type { LandingExperience, LandingRecord } from "@/api/landingExperience";
 import { cleanLandingCopy } from "@/utils/landingCopy";
+import { CHATBOC_AGENT_AVATAR } from "@/utils/brandAssets";
 
 type AnyRecord = Record<string, any>;
 
@@ -872,8 +872,6 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
       <div className="container mx-auto px-4">
         <div className={`grid items-center gap-10 ${showHeroPreview ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]" : ""}`}>
           <div className="min-w-0 max-w-3xl">
-            <ChatbocBrandLockup size="hero" tone="auto" showAgent className="mb-6" />
-
             {eyebrow && (
               <div className="mb-5 inline-flex max-w-full items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.22em] text-primary">
                 <span className="h-1.5 w-1.5 rounded-full bg-success" />
@@ -895,7 +893,7 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
             )}
 
             {(heroPrimaryCta.label || secondaryCta.label) && (
-              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <div className="chatboc-hero-actions mt-8 flex flex-col gap-3 sm:flex-row">
                 {heroPrimaryCta.label && (
                   <Button
                     size="lg"
@@ -938,7 +936,17 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
           {showHeroPreview && (
           <div className="relative min-w-0">
             <div className="chatboc-hero-aura" aria-hidden="true" />
-            <div className="chatboc-hero-preview">
+            <div className="chatboc-hero-stage">
+              <div className="chatboc-hero-mascot" aria-hidden="true">
+                <img
+                  src={CHATBOC_AGENT_AVATAR}
+                  alt=""
+                  loading="eager"
+                  decoding="async"
+                  draggable={false}
+                />
+              </div>
+              <div className="chatboc-hero-preview">
               <span className="chatboc-hero-preview__button chatboc-hero-preview__button--volume" aria-hidden="true" />
               <span className="chatboc-hero-preview__button chatboc-hero-preview__button--power" aria-hidden="true" />
               {activeFlow && (
@@ -1169,6 +1177,7 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
                   )}
                 </div>
               )}
+              </div>
             </div>
           </div>
           )}
