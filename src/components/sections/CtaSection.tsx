@@ -5,6 +5,13 @@ import { useNavigate } from "react-router-dom";
 
 const CtaSection = () => {
   const navigate = useNavigate();
+  const openSalesWhatsApp = () => {
+    window.open(
+      "https://wa.me/5492613168608?text=Hola!%20Quiero%20ver%20Chatboc%20para%20mi%20organizacion",
+      "_blank",
+      "noopener,noreferrer",
+    );
+  };
 
   return (
     <section id="cta" className="bg-background py-16 text-foreground md:py-24">
@@ -34,7 +41,7 @@ const CtaSection = () => {
               size="lg"
               variant="outline"
               className="h-12 w-full rounded-[8px] border-border/80 font-semibold hover:border-primary/40 hover:bg-primary/5 sm:w-auto"
-              onClick={() => navigate("/demo?intent=ventas")}
+              onClick={openSalesWhatsApp}
             >
               <MessageSquareHeart className="mr-2 h-5 w-5" />
               Hablar con un asesor

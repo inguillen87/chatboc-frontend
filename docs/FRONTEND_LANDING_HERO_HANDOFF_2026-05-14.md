@@ -162,7 +162,7 @@ CTAs:
 
 ```txt
 Probar una conversacion real -> /demo
-Hablar con ventas -> /demo?intent=ventas
+Hablar con ventas -> canal comercial directo definido por frontend
 ```
 
 ## UX objetivo
@@ -201,6 +201,15 @@ La primera pantalla debe sentirse como:
 - Dark mode mantiene contraste y jerarquia.
 
 ## Render QA 2026-05-14
+
+### QA local frontend de esta tanda
+
+- Landing publica carga sin imagenes rotas.
+- Desktop y mobile no tienen overflow horizontal.
+- No aparecen terminos tecnicos visibles en la landing publica.
+- `Sectores -> Probar gobierno` navega a `/demo?sector=gobierno` y aterriza arriba de la pantalla nueva.
+- `/demo?sector=gobierno` local carga sin 4xx/5xx en el bootstrap inicial.
+- El hero ya prioriza una demo tipo telefono/conversacion y no un logo como pieza principal.
 
 ### Error critico en chat demo gobierno
 

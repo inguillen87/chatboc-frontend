@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useLayoutEffect } from 'react';
 import { Outlet, useLocation, useSearchParams } from 'react-router-dom';
 import Navbar from './Navbar';
 import Footer from './Footer';
@@ -10,10 +10,10 @@ const Layout = () => {
   const [searchParams] = useSearchParams();
   const isEmbed = searchParams.get('mode') === 'embed';
 
-  // Scroll al top cada vez que cambias de ruta
-  useEffect(() => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }, [location.pathname]);
+  // Public navigation should land immediately at the top of the new screen.
+  useLayoutEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [location.pathname, location.search]);
 
   if (isEmbed) {
     return (

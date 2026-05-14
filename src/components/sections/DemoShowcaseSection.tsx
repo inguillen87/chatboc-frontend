@@ -254,10 +254,10 @@ const DemoShowcaseSection = () => {
       <div className="container relative mx-auto px-4">
         <div className="mx-auto mb-10 max-w-4xl text-center">
           <div className="chatboc-section-kicker mb-4">Demos</div>
-          <h2 className="chatboc-section-heading">Elegi un pilar y abri una operacion real de demo</h2>
+          <h2 className="chatboc-section-heading">Proba una conversacion real por sector</h2>
           <p className="chatboc-section-copy mt-4">
-            Proba colegios, gobiernos o empresas con recorridos concretos: reclamos, pedidos, encuestas, adjuntos,
-            ubicaciones, derivacion humana y seguimiento.
+            Elegi un rubro y abri un recorrido publicado: el chat pide datos, recibe adjuntos y muestra como
+            queda la operacion para el equipo.
           </p>
         </div>
 
@@ -310,7 +310,7 @@ const DemoShowcaseSection = () => {
                       {group.description ? <p className="mt-3 text-sm text-muted-foreground">{group.description}</p> : null}
                       {cards.length ? (
                         <p className="mt-5 rounded-[8px] border border-border/70 bg-card/70 p-3 text-sm text-muted-foreground">
-                          {cards.length} demos reales publicadas para este pilar.
+                          {cards.length} experiencias publicadas para iniciar desde este pilar.
                         </p>
                       ) : null}
                     </div>
