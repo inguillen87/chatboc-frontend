@@ -28,6 +28,54 @@ export interface LeadCaptureNextAction {
   ui_hint?: string | null;
 }
 
+export interface OperationalAttachment {
+  id?: string | number | null;
+  name?: string | null;
+  filename?: string | null;
+  url?: string | null;
+  type?: string | null;
+  archivo_adjunto_id?: string | number | null;
+  raw?: unknown;
+}
+
+export interface OperationalTicketResult {
+  nro_ticket?: string | number | null;
+  ticket_id?: string | number | null;
+  categoria?: string | null;
+  direccion?: string | null;
+  latitud?: number | null;
+  longitud?: number | null;
+  nombre_vecino?: string | null;
+  telefono_vecino?: string | null;
+  canal_ingreso?: string | null;
+  foto_url_directa?: string | null;
+  archivos_count?: number | null;
+  archivos?: OperationalAttachment[];
+  detail_endpoint?: string | null;
+  raw?: unknown;
+}
+
+export interface OperationalOrderDetail {
+  nombre_producto?: string | null;
+  cantidad?: number | null;
+  precio_unitario_original?: number | null;
+  subtotal_con_descuento?: number | null;
+  moneda?: string | null;
+  presentacion?: string | null;
+  sku?: string | null;
+  raw?: unknown;
+}
+
+export interface OperationalOrderResult {
+  nro_pedido?: string | number | null;
+  nombre_cliente?: string | null;
+  telefono_cliente?: string | null;
+  monto_total?: number | null;
+  detalles?: OperationalOrderDetail[];
+  tracking_url?: string | null;
+  raw?: unknown;
+}
+
 export interface LeadCaptureResponse {
   ok?: boolean;
   contract_version?: string | null;
@@ -44,6 +92,8 @@ export interface LeadCaptureResponse {
   idempotency_key?: string | null;
   message_body?: string | null;
   next_actions?: LeadCaptureNextAction[];
+  ticket?: OperationalTicketResult | null;
+  order?: OperationalOrderResult | null;
   raw?: unknown;
 }
 
@@ -53,6 +103,205 @@ interface LeadCaptureSubmitOptions {
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+const readString = (source: Record<string, unknown> | null | undefined, keys: string[]): string | null => {
+  if (!source) return null;
+  for (const key of keys) {
+    const value = source[key];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+    if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  }
+  return null;
+};
+
+const readNumber = (source: Record<string, unknown> | null | undefined, keys: string[]): number | null => {
+  if (!source) return null;
+  for (const key of keys) {
+    const value = source[key];
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    if (typeof value === 'string' && value.trim()) {
+      const parsed = Number(value);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+  }
+  return null;
+};
+
+const readFirstValue = (source: Record<string, unknown> | null | undefined, keys: string[]) => {
+  if (!source) return undefined;
+  for (const key of keys) {
+    const value = source[key];
+    if (value !== undefined && value !== null) return value;
+  }
+  return undefined;
+};
+
+const readNestedRecord = (source: Record<string, unknown>, keys: string[]): Record<string, unknown> | null => {
+  for (const key of keys) {
+    const value = source[key];
+    if (isRecord(value)) return value;
+  }
+  return null;
+};
+
+const normalizeOperationalAttachment = (value: unknown): OperationalAttachment | null => {
+  if (typeof value === 'string' && value.trim()) {
+    return { url: value.trim(), raw: value };
+  }
+  if (!isRecord(value)) return null;
+  const url = readString(value, ['url', 'file_url', 'download_url', 'media_url', 'foto_url_directa', 'href']);
+  const name = readString(value, ['name', 'nombre', 'label', 'title']);
+  const filename = readString(value, ['filename', 'file_name', 'nombre_archivo', 'original_filename']);
+  const id = readFirstValue(value, ['id', 'archivo_adjunto_id', 'attachment_id']);
+  const type = readString(value, ['type', 'tipo', 'mime_type', 'mimeType']);
+  if (!url && !name && !filename && id === undefined) return null;
+  return {
+    id: typeof id === 'string' || typeof id === 'number' ? id : null,
+    name,
+    filename,
+    url,
+    type,
+    archivo_adjunto_id: readFirstValue(value, ['archivo_adjunto_id', 'attachment_id']) as string | number | null | undefined,
+    raw: value,
+  };
+};
+
+const collectOperationalAttachments = (source: Record<string, unknown>): OperationalAttachment[] => {
+  const arrays = ['archivos', 'archivos_adjuntos', 'attachments', 'adjuntos', 'files', 'evidencias']
+    .flatMap((key) => {
+      const value = source[key];
+      if (Array.isArray(value)) return value;
+      return [];
+    });
+  const seen = new Set<string>();
+  return arrays
+    .map(normalizeOperationalAttachment)
+    .filter((item): item is OperationalAttachment => Boolean(item))
+    .filter((item) => {
+      const key = `${item.id ?? ''}|${item.url ?? ''}|${item.filename ?? item.name ?? ''}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+};
+
+const normalizeOperationalTicket = (source: unknown): OperationalTicketResult | null => {
+  if (!isRecord(source)) return null;
+  const location = isRecord(source.location) ? source.location : {};
+  const contact = isRecord(source.contact) ? source.contact : {};
+  const archivos = collectOperationalAttachments(source);
+  const archivosRaw = readFirstValue(source, ['archivos', 'archivos_count', 'cantidad_archivos', 'attachments_count']);
+  const archivosCount = Array.isArray(archivosRaw)
+    ? archivosRaw.length
+    : readNumber(source, ['archivos_count', 'cantidad_archivos', 'attachments_count']);
+  const ticket: OperationalTicketResult = {
+    nro_ticket: readString(source, ['nro_ticket', 'ticket_number', 'ticket_id', 'id']),
+    ticket_id: readString(source, ['ticket_id', 'id']),
+    categoria: readString(source, ['categoria', 'category']),
+    direccion: readString(source, ['direccion', 'address']) ?? readString(location, ['direccion', 'address']),
+    latitud: readNumber(source, ['latitud', 'lat', 'latitude']) ?? readNumber(location, ['latitud', 'lat', 'latitude']),
+    longitud: readNumber(source, ['longitud', 'lng', 'lon', 'longitude']) ?? readNumber(location, ['longitud', 'lng', 'lon', 'longitude']),
+    nombre_vecino:
+      readString(source, ['nombre_vecino', 'vecino_nombre', 'nombre_cliente', 'customer_name']) ??
+      readString(contact, ['nombre_vecino', 'nombre', 'name', 'display_name']),
+    telefono_vecino:
+      readString(source, ['telefono_vecino', 'telefono', 'phone', 'telefono_cliente']) ??
+      readString(contact, ['telefono_vecino', 'telefono', 'phone']),
+    canal_ingreso: readString(source, ['canal_ingreso', 'channel', 'canal']),
+    foto_url_directa: readString(source, ['foto_url_directa', 'foto_url', 'image_url', 'photo_url']),
+    archivos_count: archivosCount ?? (archivos.length ? archivos.length : null),
+    archivos,
+    detail_endpoint: readString(source, ['detail_endpoint', 'detail_url', 'endpoint']),
+    raw: source,
+  };
+
+  const hasRealSignal = Boolean(
+    ticket.nro_ticket ||
+    ticket.ticket_id ||
+    ticket.categoria ||
+    ticket.direccion ||
+    (ticket.latitud !== null && ticket.longitud !== null) ||
+    ticket.foto_url_directa ||
+    ticket.archivos?.length ||
+    ticket.archivos_count,
+  );
+  return hasRealSignal ? ticket : null;
+};
+
+const normalizeOperationalOrderDetail = (value: unknown): OperationalOrderDetail | null => {
+  if (!isRecord(value)) return null;
+  const detail: OperationalOrderDetail = {
+    nombre_producto: readString(value, ['nombre_producto', 'producto', 'nombre', 'name', 'title']),
+    cantidad: readNumber(value, ['cantidad', 'quantity']),
+    precio_unitario_original: readNumber(value, ['precio_unitario_original', 'precio_unitario', 'unit_price', 'price']),
+    subtotal_con_descuento: readNumber(value, ['subtotal_con_descuento', 'subtotal', 'total']),
+    moneda: readString(value, ['moneda', 'currency']),
+    presentacion: readString(value, ['presentacion', 'presentation']),
+    sku: readString(value, ['sku', 'codigo']),
+    raw: value,
+  };
+  return detail.nombre_producto || detail.cantidad !== null || detail.subtotal_con_descuento !== null ? detail : null;
+};
+
+const normalizeOperationalOrder = (source: unknown): OperationalOrderResult | null => {
+  if (!isRecord(source)) return null;
+  const customer = isRecord(source.customer) ? source.customer : {};
+  const detalles = Array.isArray(source.detalles)
+    ? source.detalles.map(normalizeOperationalOrderDetail).filter((item): item is OperationalOrderDetail => Boolean(item))
+    : [];
+  const nroPedido = readString(source, ['nro_pedido', 'order_number', 'pedido_id', 'order_id', 'id']);
+  const order: OperationalOrderResult = {
+    nro_pedido: nroPedido,
+    nombre_cliente:
+      readString(source, ['nombre_cliente', 'customer_name', 'name']) ??
+      readString(customer, ['nombre_cliente', 'name', 'nombre']),
+    telefono_cliente:
+      readString(source, ['telefono_cliente', 'customer_phone', 'telefono', 'phone']) ??
+      readString(customer, ['telefono_cliente', 'telefono', 'phone']),
+    monto_total: readNumber(source, ['monto_total', 'total', 'total_amount', 'amount']),
+    detalles,
+    tracking_url: readString(source, ['tracking_url', 'trackingUrl', 'tracking_endpoint']) ?? (nroPedido ? `/tracking/order/${encodeURIComponent(nroPedido)}` : null),
+    raw: source,
+  };
+
+  const hasRealSignal = Boolean(order.nro_pedido || order.monto_total !== null || order.detalles?.length);
+  return hasRealSignal ? order : null;
+};
+
+const extractOperationalTicket = (source: Record<string, unknown>): OperationalTicketResult | null => {
+  const candidates = [
+    source.ticket,
+    source.reclamo,
+    source.claim,
+    source.case,
+    readNestedRecord(source, ['lead'])?.ticket,
+    readNestedRecord(source, ['lead'])?.reclamo,
+    readNestedRecord(source, ['data'])?.ticket,
+    readNestedRecord(source, ['data'])?.reclamo,
+  ];
+  for (const candidate of candidates) {
+    const normalized = normalizeOperationalTicket(candidate);
+    if (normalized) return normalized;
+  }
+  return normalizeOperationalTicket(source);
+};
+
+const extractOperationalOrder = (source: Record<string, unknown>): OperationalOrderResult | null => {
+  const candidates = [
+    source.order,
+    source.pedido,
+    source.market_order,
+    readNestedRecord(source, ['lead'])?.order,
+    readNestedRecord(source, ['lead'])?.pedido,
+    readNestedRecord(source, ['data'])?.order,
+    readNestedRecord(source, ['data'])?.pedido,
+  ];
+  for (const candidate of candidates) {
+    const normalized = normalizeOperationalOrder(candidate);
+    if (normalized) return normalized;
+  }
+  return normalizeOperationalOrder(source);
+};
 
 const appendQuery = (endpoint: string, query?: Record<string, unknown>) => {
   if (!query || !Object.keys(query).length) return endpoint;
@@ -309,8 +558,9 @@ const normalizeLeadNextAction = (value: unknown): LeadCaptureNextAction | null =
   };
 };
 
-const normalizeLeadCaptureResponse = (response: unknown): LeadCaptureResponse => {
+export const normalizeLeadCaptureResponse = (response: unknown): LeadCaptureResponse => {
   const source = isRecord(response) ? response : {};
+  const lead = isRecord(source.lead) ? source.lead : {};
   const tenant = isRecord(source.tenant)
     ? {
         slug: typeof source.tenant.slug === 'string' ? source.tenant.slug : null,
@@ -321,7 +571,13 @@ const normalizeLeadCaptureResponse = (response: unknown): LeadCaptureResponse =>
     ? source.next_actions
         .map(normalizeLeadNextAction)
         .filter((item): item is LeadCaptureNextAction => Boolean(item))
+    : Array.isArray(lead.next_actions)
+      ? lead.next_actions
+          .map(normalizeLeadNextAction)
+          .filter((item): item is LeadCaptureNextAction => Boolean(item))
     : [];
+  const ticket = extractOperationalTicket(source);
+  const order = extractOperationalOrder(source);
 
   return {
     ok: typeof source.ok === 'boolean' ? source.ok : undefined,
@@ -331,17 +587,27 @@ const normalizeLeadCaptureResponse = (response: unknown): LeadCaptureResponse =>
     lead_id:
       typeof source.lead_id === 'string' || typeof source.lead_id === 'number'
         ? source.lead_id
-        : null,
+        : typeof lead.lead_id === 'string' || typeof lead.lead_id === 'number'
+          ? lead.lead_id
+          : typeof lead.id === 'string' || typeof lead.id === 'number'
+            ? lead.id
+            : null,
     ticket_id:
       typeof source.ticket_id === 'string' || typeof source.ticket_id === 'number'
         ? source.ticket_id
-        : null,
+        : typeof lead.ticket_id === 'string' || typeof lead.ticket_id === 'number'
+          ? lead.ticket_id
+          : typeof lead.case_id === 'string' || typeof lead.case_id === 'number'
+            ? lead.case_id
+            : null,
     ticket_type: typeof source.ticket_type === 'string' ? source.ticket_type : null,
-    status: typeof source.status === 'string' ? source.status : null,
+    status: typeof source.status === 'string' ? source.status : typeof lead.status === 'string' ? lead.status : null,
     deduplicated: source.deduplicated === true,
     idempotency_key: typeof source.idempotency_key === 'string' ? source.idempotency_key : null,
     message_body: typeof source.message_body === 'string' ? source.message_body : null,
     next_actions: nextActions,
+    ticket,
+    order,
     raw: response,
   };
 };

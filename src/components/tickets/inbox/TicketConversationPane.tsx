@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Clock3, MapPin, Paperclip, Send, ShieldCheck, UserRound } from 'lucide-react';
+import { Clock3, ExternalLink, Image as ImageIcon, MapPin, Paperclip, Send, ShieldCheck, UserRound } from 'lucide-react';
 
 import {
   getOmnichannelInboxDetailV2,
@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/use-toast';
+import TicketMap from '@/components/TicketMap';
 import type { TicketTimelineEvent } from '@/schemas/api';
 import type { ChatExperienceBlock } from '@/types/chat';
 import type { EducationCaseAlias } from '@/types/education';
@@ -28,6 +29,65 @@ interface TicketConversationPaneProps {
   ticket?: OmnichannelInboxItem;
   tenantSlug?: string | null;
   onActionComplete?: () => void;
+}
+
+const asText = (value: unknown) => (typeof value === 'string' && value.trim() ? value.trim() : null);
+
+const asFiniteNumber = (value: unknown) => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+};
+
+const readInboxLocationPoint = (location?: Record<string, unknown>) => {
+  if (!location) return null;
+  const lat = asFiniteNumber(location.latitud ?? location.lat ?? location.latitude);
+  const lng = asFiniteNumber(location.longitud ?? location.lng ?? location.lon ?? location.longitude);
+  if (lat === null || lng === null) return null;
+  return { lat, lng };
+};
+
+const readInboxAttachmentUrl = (attachment: Record<string, unknown>) =>
+  asText(attachment.url) ||
+  asText(attachment.file_url) ||
+  asText(attachment.download_url) ||
+  asText(attachment.media_url) ||
+  asText(attachment.foto_url_directa) ||
+  asText(attachment.href);
+
+const readInboxAttachmentLabel = (attachment: Record<string, unknown>, index: number) =>
+  asText(attachment.name) ||
+  asText(attachment.nombre) ||
+  asText(attachment.filename) ||
+  asText(attachment.file_name) ||
+  asText(attachment.type) ||
+  (attachment.archivo_adjunto_id ? `Archivo ${String(attachment.archivo_adjunto_id)}` : `Archivo ${index + 1}`);
+
+const isImageAttachment = (attachment: Record<string, unknown>) => {
+  const type = asText(attachment.type)?.toLowerCase() || asText(attachment.mime_type)?.toLowerCase() || '';
+  const url = readInboxAttachmentUrl(attachment)?.toLowerCase() || '';
+  return type.startsWith('image') || /\.(png|jpe?g|webp|gif|avif)(\?|#|$)/i.test(url);
+};
+
+const normalizeChannelLabel = (value?: string | null) =>
+  value?.trim().toLowerCase() === 'whatsapp' ? 'WhatsApp' : value?.trim() || null;
+
+function SafeInboxImage({ src, alt }: { src?: string | null; alt: string }) {
+  const [failed, setFailed] = useState(false);
+  const cleanSrc = src?.trim();
+  if (!cleanSrc || failed) return null;
+  return (
+    <img
+      src={cleanSrc}
+      alt={alt}
+      loading="lazy"
+      className="h-40 w-full rounded-[8px] border object-cover"
+      onError={() => setFailed(true)}
+    />
+  );
 }
 
 export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
@@ -121,19 +181,50 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
   const sourceMetadata = detailTicket.source_metadata ?? {};
   const assignee = detailTicket.assignee ?? {};
   const sla = detailTicket.sla ?? {};
-  const mapContract = detailTicket.map ?? {};
-  const canRenderMap = Boolean(mapContract.can_render) && Boolean(detailTicket.location?.lat && (detailTicket.location?.lng || detailTicket.location?.lon));
+  const locationPoint = readInboxLocationPoint(detailTicket.location);
+  const canRenderMap = Boolean(locationPoint);
   const attachments = detailTicket.attachments ?? [];
-  const frontendContract = detailTicket.frontend_contract?.render_as ? String(detailTicket.frontend_contract.render_as) : 'inbox_360_drawer';
+  const channelLabel = normalizeChannelLabel(detailTicket.canal_ingreso ?? detailTicket.channel);
+  const assigneeLabel = asText(assignee.name) || asText(assignee.email);
+  const slaLabel = asText(sla.status) || (sla.overdue === true ? 'Vencido' : null);
+  const attachmentCount = detailTicket.archivos_count ?? attachments.length;
+  const directPhotoUrl =
+    asText(detailTicket.foto_url_directa) ||
+    attachments.map((attachment) => (isImageAttachment(attachment) ? readInboxAttachmentUrl(attachment) : null)).find(Boolean) ||
+    null;
+  const locationAddress = asText(detailTicket.location?.address) || asText(detailTicket.location?.direccion);
+  const originRows = [
+    channelLabel ? ['Canal', channelLabel] as [string, string] : null,
+    asText(sourceMetadata.origin) ? ['Origen', String(sourceMetadata.origin)] as [string, string] : null,
+    asText(sourceMetadata.demo_session_id) ? ['Demo', String(sourceMetadata.demo_session_id)] as [string, string] : null,
+    asText(sourceMetadata.widget_id) ? ['Widget', String(sourceMetadata.widget_id)] as [string, string] : null,
+  ].filter((row): row is [string, string] => Boolean(row));
+  const locationRows = [
+    locationAddress ? ['Direccion', locationAddress] as [string, string] : null,
+    locationPoint ? ['Coordenadas', `${locationPoint.lat.toFixed(5)}, ${locationPoint.lng.toFixed(5)}`] as [string, string] : null,
+  ].filter((row): row is [string, string] => Boolean(row));
+  const attachmentRows = [
+    attachmentCount ? ['Total', String(attachmentCount)] as [string, string] : null,
+    directPhotoUrl ? ['Foto', 'Disponible'] as [string, string] : null,
+    detailQuery.isFetching ? ['Estado', 'Actualizando'] as [string, string] : null,
+    detailQuery.isError ? ['Estado', 'No disponible'] as [string, string] : null,
+  ].filter((row): row is [string, string] => Boolean(row));
+  const statusTiles = [
+    channelLabel ? { icon: ShieldCheck, label: 'Canal', value: channelLabel } : null,
+    assigneeLabel ? { icon: UserRound, label: 'Responsable', value: assigneeLabel } : null,
+    slaLabel ? { icon: Clock3, label: 'SLA', value: slaLabel } : null,
+    locationPoint ? { icon: MapPin, label: 'Ubicacion', value: 'Con coordenadas' } : null,
+    attachmentCount ? { icon: Paperclip, label: 'Adjuntos', value: String(attachmentCount) } : null,
+  ].filter((tile): tile is { icon: React.ElementType; label: string; value: string } => Boolean(tile));
 
   return (
     <div className="relative flex h-full w-full flex-col bg-background">
       <div className="flex min-h-14 shrink-0 items-center justify-between gap-3 border-b bg-card/50 px-4">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="truncate text-sm font-medium">#{detailTicket.ticket_id || detailTicket.id}</h3>
+            <h3 className="truncate text-sm font-medium">#{detailTicket.nro_ticket || detailTicket.ticket_id || detailTicket.id}</h3>
             <Badge variant="outline">{detailTicket.status}</Badge>
-            {detailTicket.channel ? <Badge variant="secondary">{detailTicket.channel}</Badge> : null}
+            {channelLabel ? <Badge variant="secondary">{channelLabel}</Badge> : null}
             {detailTicket.priority ? <Badge variant="outline">{detailTicket.priority}</Badge> : null}
           </div>
           {contactLabel ? <p className="mt-1 truncate text-xs text-muted-foreground">{contactLabel}</p> : null}
@@ -141,12 +232,13 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
         <PresenceAvatars users={detailTicket.presence} />
       </div>
 
-      <div className="grid gap-3 border-b bg-muted/10 px-4 py-3 text-xs md:grid-cols-4">
-        <StatusTile icon={ShieldCheck} label="SLA" value={String(sla.status ?? (sla.overdue ? 'overdue' : 'ok'))} />
-        <StatusTile icon={UserRound} label="Responsable" value={String(assignee.name ?? assignee.email ?? 'Sin asignar')} />
-        <StatusTile icon={Clock3} label="Contrato" value={frontendContract} />
-        <StatusTile icon={MapPin} label="Mapa" value={canRenderMap ? 'Con coordenadas' : String(mapContract.fallback_when_no_coordinates ?? 'timeline_only')} />
-      </div>
+      {statusTiles.length ? (
+        <div className="grid gap-3 border-b bg-muted/10 px-4 py-3 text-xs md:grid-cols-4">
+          {statusTiles.map((tile) => (
+            <StatusTile key={`${tile.label}-${tile.value}`} icon={tile.icon} label={tile.label} value={tile.value} />
+          ))}
+        </div>
+      ) : null}
 
       <AgentSummaryPanel
         isLoading={false}
@@ -173,43 +265,30 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
         </div>
       ) : null}
 
-      <div className="grid gap-3 border-b bg-background px-4 py-3 text-xs lg:grid-cols-[1fr_1fr_1fr]">
-        <MiniContractPanel
-          title="Origen"
-          rows={[
-            ['Canal', String(sourceMetadata.channel ?? sourceMetadata.origin ?? detailTicket.channel ?? '-')],
-            ['Demo', String(sourceMetadata.demo_session_id ?? '-')],
-            ['Widget', String(sourceMetadata.widget_id ?? '-')],
-          ]}
-        />
-        <MiniContractPanel
-          title="Ubicacion"
-          rows={[
-            ['Estado', canRenderMap ? 'ready' : 'timeline_only'],
-            ['Direccion', String(detailTicket.location?.address ?? detailTicket.location?.direccion ?? '-')],
-            ['Coordenadas', canRenderMap ? `${detailTicket.location?.lat}, ${detailTicket.location?.lng ?? detailTicket.location?.lon}` : '-'],
-          ]}
-        />
-        <MiniContractPanel
-          title="Adjuntos"
-          rows={[
-            ['Total', String(attachments.length)],
-            ['Mapa', String(mapContract.fallback_when_no_coordinates ?? '-')],
-            ['Detalle', detailQuery.isFetching ? 'Actualizando' : detailQuery.isError ? 'No disponible' : 'Sincronizado'],
-          ]}
-        />
-      </div>
+      {originRows.length || locationRows.length || attachmentRows.length ? (
+        <div className="grid gap-3 border-b bg-background px-4 py-3 text-xs lg:grid-cols-[1fr_1fr_1fr]">
+          <MiniContractPanel title="Origen" rows={originRows} />
+          <MiniContractPanel title="Ubicacion" rows={locationRows} />
+          <MiniContractPanel title="Adjuntos" rows={attachmentRows} />
+        </div>
+      ) : null}
 
       <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
-        {attachments.length ? (
-          <div className="flex flex-wrap gap-2">
-            {attachments.map((attachment, index) => (
-              <Badge key={`${String(attachment.id ?? attachment.url ?? index)}`} variant="outline" className="gap-1">
-                <Paperclip className="h-3 w-3" />
-                {String(attachment.name ?? attachment.filename ?? attachment.type ?? `Adjunto ${index + 1}`)}
-              </Badge>
-            ))}
-          </div>
+        {directPhotoUrl || attachments.length ? (
+          <EvidencePanel photoUrl={directPhotoUrl} attachments={attachments} />
+        ) : null}
+        {canRenderMap && locationPoint ? (
+          <TicketMap
+            ticket={{
+              latitud: locationPoint.lat,
+              longitud: locationPoint.lng,
+              direccion: locationAddress,
+            }}
+            hideTitle
+            showOverlay={false}
+            showAddressHint={Boolean(locationAddress)}
+            heightClassName="h-44"
+          />
         ) : null}
         {detailTicket.timeline.length ? (
           <TimelineMergeView events={detailTicket.timeline as TicketTimelineEvent[]} />
@@ -301,6 +380,7 @@ const StatusTile = ({
 );
 
 const MiniContractPanel = ({ title, rows }: { title: string; rows: Array<[string, string]> }) => (
+  rows.length ? (
   <div className="rounded-[8px] border bg-muted/10 p-3">
     <div className="mb-2 font-semibold text-foreground">{title}</div>
     <div className="space-y-1">
@@ -311,6 +391,50 @@ const MiniContractPanel = ({ title, rows }: { title: string; rows: Array<[string
         </div>
       ))}
     </div>
+  </div>
+  ) : null
+);
+
+const EvidencePanel = ({
+  photoUrl,
+  attachments,
+}: {
+  photoUrl?: string | null;
+  attachments: Record<string, unknown>[];
+}) => (
+  <div className="space-y-3 rounded-[8px] border bg-muted/10 p-3">
+    <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
+      <ImageIcon className="h-3.5 w-3.5 text-primary" />
+      Evidencia del caso
+    </div>
+    {photoUrl ? <SafeInboxImage src={photoUrl} alt="Evidencia adjunta al reclamo" /> : null}
+    {attachments.length ? (
+      <div className="flex flex-wrap gap-2">
+        {attachments.map((attachment, index) => {
+          const label = readInboxAttachmentLabel(attachment, index);
+          const url = readInboxAttachmentUrl(attachment);
+          const key = `${String(attachment.id ?? attachment.archivo_adjunto_id ?? url ?? label)}-${index}`;
+          return url ? (
+            <a
+              key={key}
+              href={url}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex max-w-full items-center gap-1 rounded-full border bg-background px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
+            >
+              <Paperclip className="h-3 w-3" />
+              <span className="truncate">{label}</span>
+              <ExternalLink className="h-3 w-3" />
+            </a>
+          ) : (
+            <Badge key={key} variant="outline" className="max-w-full gap-1">
+              <Paperclip className="h-3 w-3" />
+              <span className="truncate">{label}</span>
+            </Badge>
+          );
+        })}
+      </div>
+    ) : null}
   </div>
 );
 

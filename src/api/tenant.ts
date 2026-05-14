@@ -1,4 +1,5 @@
 import { apiFetch, ApiError } from '@/utils/api';
+import { SAME_ORIGIN_PROXY_BASE } from '@/config';
 import { normalizeEntityToken } from '@/utils/entityToken';
 import type {
   TenantEventItem,
@@ -13,6 +14,7 @@ import type {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
 
+const SAME_ORIGIN_API_BASE = SAME_ORIGIN_PROXY_BASE || '/api';
 
 const shouldLogFallbackWarnings = () => {
   const metaEnv = typeof import.meta !== 'undefined' ? (import.meta as any)?.env : undefined;
@@ -434,16 +436,8 @@ export async function getTenantPublicNavigation(slug: string): Promise<TenantPub
     omitEntityToken: true,
   } as const;
 
-  try {
-    const response = await apiFetch<unknown>(`/api/public/tenants/${encoded}/public-navigation`, options);
-    return normalizePublicNavigation(response, normalized);
-  } catch (error) {
-    if (!(error instanceof ApiError) || ![404, 405, 501].includes(error.status)) {
-      throw error;
-    }
-    const response = await apiFetch<unknown>(`/public/tenants/${encoded}/public-navigation`, options);
-    return normalizePublicNavigation(response, normalized);
-  }
+  const response = await apiFetch<unknown>(`/api/public/tenants/${encoded}/public-navigation`, options);
+  return normalizePublicNavigation(response, normalized);
 }
 
 export async function submitTenantTicket(
@@ -455,6 +449,7 @@ export async function submitTenantTicket(
     body: payload,
     tenantSlug: slug,
     omitChatSessionId: true,
+    baseUrlOverride: SAME_ORIGIN_API_BASE,
   });
 }
 
@@ -481,6 +476,7 @@ export async function listFollowedTenants(
       isWidgetRequest: Boolean(widgetToken),
       omitChatSessionId: true,
       suppressPanel401Redirect: true,
+      baseUrlOverride: SAME_ORIGIN_API_BASE,
     });
 
     return extractTenantArray(response)
@@ -500,6 +496,7 @@ export async function followTenant(slug: string): Promise<void> {
     body: { slug },
     tenantSlug: slug,
     omitChatSessionId: true,
+    baseUrlOverride: SAME_ORIGIN_API_BASE,
   });
 }
 
@@ -510,6 +507,7 @@ export async function unfollowTenant(slug: string): Promise<void> {
       body: { slug },
       tenantSlug: slug,
       omitChatSessionId: true,
+      baseUrlOverride: SAME_ORIGIN_API_BASE,
     });
   } catch (error) {
     if (error instanceof ApiError && error.status === 405) {
@@ -518,6 +516,7 @@ export async function unfollowTenant(slug: string): Promise<void> {
         body: { slug },
         tenantSlug: slug,
         omitChatSessionId: true,
+        baseUrlOverride: SAME_ORIGIN_API_BASE,
       });
       return;
     }

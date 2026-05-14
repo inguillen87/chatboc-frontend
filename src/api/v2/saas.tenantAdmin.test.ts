@@ -128,6 +128,44 @@ describe("tenant admin v2 contracts", () => {
     expect(normalized.item.frontend_contract?.render_as).toBe("inbox_360_drawer");
   });
 
+  it("normalizes real WhatsApp ticket fields for evidence and maps", () => {
+    const normalized = normalizeOmnichannelInboxDetailV2({
+      contract_version: "inbox.omnichannel.detail.v1",
+      item: {
+        id: 31735,
+        nro_ticket: "M-31735",
+        status: "nuevo",
+        categoria: "Semaforo",
+        canal_ingreso: "whatsapp",
+        direccion: "Av. San Martin y Rivadavia",
+        latitud: "-34.6083",
+        longitud: "-58.3712",
+        nombre_vecino: "QA Vecino",
+        telefono_vecino: "2610000000",
+        foto_url_directa: "https://cdn.example.com/foto.jpg",
+        archivos: [{ archivo_adjunto_id: 9, url: "https://cdn.example.com/foto.jpg" }],
+      },
+    });
+
+    expect(normalized.item.nro_ticket).toBe("M-31735");
+    expect(normalized.item.channel).toBe("whatsapp");
+    expect(normalized.item.contact).toMatchObject({
+      name: "QA Vecino",
+      phone: "2610000000",
+    });
+    expect(normalized.item.location).toMatchObject({
+      lat: -34.6083,
+      lng: -58.3712,
+      direccion: "Av. San Martin y Rivadavia",
+    });
+    expect(normalized.item.foto_url_directa).toBe("https://cdn.example.com/foto.jpg");
+    expect(normalized.item.archivos_count).toBe(1);
+    expect(normalized.item.attachments[0]).toMatchObject({
+      archivo_adjunto_id: 9,
+      url: "https://cdn.example.com/foto.jpg",
+    });
+  });
+
   it("normalizes production smoke report", () => {
     const normalized = normalizeProductionSmokeV2({
       contract_version: "platform.production_smoke.v1",

@@ -40,6 +40,46 @@ const ORDER_STEPS = [
   { id: 'entregado', label: 'Entregado' },
 ];
 
+type OrderMapPoint = { lat: number; lng: number; name?: string };
+
+const readNumber = (value: unknown): number | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+};
+
+const readString = (value: unknown): string | null =>
+  typeof value === 'string' && value.trim() ? value.trim() : null;
+
+const readPointFromRecord = (value: unknown, fallbackName?: string | null): OrderMapPoint | null => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const lat = readNumber(record.latitud ?? record.lat ?? record.latitude);
+  const lng = readNumber(record.longitud ?? record.lng ?? record.lon ?? record.longitude);
+  if (lat === null || lng === null) return null;
+  return {
+    lat,
+    lng,
+    name: readString(record.name) ?? readString(record.label) ?? fallbackName ?? undefined,
+  };
+};
+
+const readOrderPoint = (
+  order: PublicOrderTrackingResponse,
+  nestedKeys: Array<keyof PublicOrderTrackingResponse>,
+  fallbackName?: string | null,
+  includeTopLevel = true,
+) => {
+  for (const key of nestedKeys) {
+    const point = readPointFromRecord(order[key], fallbackName);
+    if (point) return point;
+  }
+  return includeTopLevel ? readPointFromRecord(order, fallbackName) : null;
+};
+
 export default function OrderTrackingPage() {
   const { nro_pedido } = useParams<{ nro_pedido: string }>();
   const [order, setOrder] = useState<PublicOrderTrackingResponse | null>(null);
@@ -207,6 +247,10 @@ export default function OrderTrackingPage() {
   const StatusIcon = STATUS_CONFIG[order.estado]?.icon || Clock;
   const statusInfo = STATUS_CONFIG[order.estado] || STATUS_CONFIG.pendiente;
   const currentStep = STATUS_CONFIG[order.estado]?.step || 0;
+  const deliveryPoint = readOrderPoint(order, ['delivery_location', 'customer_location'], order.direccion || 'Destino');
+  const storePoint = readOrderPoint(order, ['store_location'], order.pyme_nombre || 'Origen', false);
+  const driverPoint = readPointFromRecord(order.driver_location, 'Ubicacion actual');
+  const canRenderTrackingMap = Boolean(deliveryPoint || storePoint || driverPoint);
   const brandingStyle: React.CSSProperties = {
     ...(tenantBranding.primaryColor
       ? {
@@ -376,19 +420,17 @@ export default function OrderTrackingPage() {
             {/* Right Column: Info & Actions */}
             <div className="space-y-6">
                 <Card className="border-0 shadow-md ring-1 ring-black/5 h-fit overflow-hidden">
-                    <div className="h-48 w-full bg-slate-100 relative">
-                        {/* Live Map Visualization */}
-                        <TrackingMap status={order.estado} />
-                        {order.estado !== 'entregado' && order.estado !== 'cancelado' && (
-                             <div className="absolute bottom-2 right-2 bg-white/90 backdrop-blur px-2 py-1 rounded shadow text-[10px] font-bold text-indigo-600 flex items-center gap-1">
-                                 <span className="relative flex h-2 w-2">
-                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
-                                  </span>
-                                 EN VIVO
-                             </div>
-                        )}
-                    </div>
+                    {canRenderTrackingMap ? (
+                      <div className="h-48 w-full bg-slate-100 relative">
+                          <TrackingMap
+                            status={order.estado}
+                            customerLocation={deliveryPoint}
+                            storeLocation={storePoint}
+                            driverLocation={driverPoint ?? undefined}
+                            showDriverMarker={Boolean(driverPoint)}
+                          />
+                      </div>
+                    ) : null}
                     <CardHeader className="pb-4 border-b border-gray-50">
                         <CardTitle className="text-lg flex items-center gap-2">
                             <MapPin className="h-5 w-5 text-gray-400" />

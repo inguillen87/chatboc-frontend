@@ -1,6 +1,6 @@
 import React from 'react';
 import { TicketTimelineEvent } from '@/schemas/api';
-import { RefreshCcw, UserPlus, Info, CheckCircle2 } from 'lucide-react';
+import { RefreshCcw, UserPlus, Info, CheckCircle2, Paperclip } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { ReadStateBadge } from './ReadStateBadge';
@@ -22,6 +22,10 @@ export const TimelineMergeView: React.FC<TimelineMergeViewProps> = ({ events }) 
 
         if (event.type === 'message_created') {
           const isOwn = event.actor.type === 'agent' || event.actor.type === 'system';
+          const attachmentId =
+            event.payload?.archivo_adjunto_id ||
+            event.payload?.attachment_id ||
+            event.payload?.file_id;
           return (
             <div key={event.id} className={`flex flex-col max-w-[80%] ${isOwn ? 'self-end items-end' : 'self-start items-start'}`}>
               <div className="flex items-baseline gap-2 mb-1">
@@ -31,6 +35,12 @@ export const TimelineMergeView: React.FC<TimelineMergeViewProps> = ({ events }) 
               <div className={`p-3 rounded-lg text-sm ${isOwn ? 'bg-primary text-primary-foreground rounded-tr-sm' : 'bg-muted rounded-tl-sm'}`}>
                 {event.payload?.content as string || 'Mensaje sin contenido'}
               </div>
+              {attachmentId ? (
+                <Badge variant="outline" className="mt-1 gap-1 text-[10px] font-normal">
+                  <Paperclip className="h-3 w-3" />
+                  Archivo {String(attachmentId)}
+                </Badge>
+              ) : null}
               {isOwn && (
                  <div className="mt-1">
                    <ReadStateBadge status={(event.payload?.read_state as any) || 'sent'} />

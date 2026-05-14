@@ -13,6 +13,7 @@ interface TrackingMapProps {
     storeLocation?: MapPoint | null;
     customerLocation?: MapPoint | null;
     driverLocation?: MapPoint;
+    showDriverMarker?: boolean;
     status: string;
     className?: string;
 }
@@ -24,6 +25,7 @@ export default function TrackingMap({
     storeLocation = null,
     customerLocation = null,
     driverLocation,
+    showDriverMarker = true,
     status,
     className
 }: TrackingMapProps) {
@@ -123,7 +125,7 @@ export default function TrackingMap({
                 customerMarker.current = null;
             }
 
-            const showDriver = ['en_proceso', 'enviado', 'shipped', 'en_camino'].includes(status);
+            const showDriver = showDriverMarker && ['en_proceso', 'enviado', 'shipped', 'en_camino'].includes(status);
             if (showDriver) {
                 let progress = 0.1;
                 if (['enviado', 'shipped', 'en_camino'].includes(status)) progress = 0.6;

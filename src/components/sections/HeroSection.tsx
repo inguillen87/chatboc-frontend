@@ -3,8 +3,10 @@ import { Button } from "@/components/ui/button";
 import {
   ArrowRight,
   Bot,
+  CalendarDays,
   CheckCircle2,
   ClipboardCheck,
+  CreditCard,
   GraduationCap,
   Image as ImageIcon,
   Landmark,
@@ -181,6 +183,42 @@ const inferInputKind = (value: string) => {
   if (normalized.includes("foto") || normalized.includes("image") || normalized.includes("imagen")) return "image";
   if (normalized.includes("ubic") || normalized.includes("gps") || normalized.includes("map")) return "location";
   if (normalized.includes("audio") || normalized.includes("voz") || normalized.includes("voice")) return "audio";
+  if (
+    normalized.includes("turno") ||
+    normalized.includes("agenda") ||
+    normalized.includes("fecha") ||
+    normalized.includes("calendar") ||
+    normalized.includes("calendario")
+  ) {
+    return "calendar";
+  }
+  if (
+    normalized.includes("pago") ||
+    normalized.includes("cuota") ||
+    normalized.includes("deuda") ||
+    normalized.includes("cobro") ||
+    normalized.includes("payment")
+  ) {
+    return "payment";
+  }
+  if (
+    normalized.includes("catalog") ||
+    normalized.includes("producto") ||
+    normalized.includes("lista") ||
+    normalized.includes("precio")
+  ) {
+    return "catalog";
+  }
+  if (
+    normalized.includes("pedido") ||
+    normalized.includes("carrito") ||
+    normalized.includes("orden") ||
+    normalized.includes("order") ||
+    normalized.includes("checkout") ||
+    normalized.includes("cotiz")
+  ) {
+    return "cart";
+  }
   if (normalized.includes("archivo") || normalized.includes("adjunto") || normalized.includes("pdf") || normalized.includes("file")) return "file";
   return "text";
 };
@@ -412,6 +450,14 @@ const getInputIcon = (kind: string) => {
       return MapPin;
     case "audio":
       return Mic;
+    case "calendar":
+      return CalendarDays;
+    case "payment":
+      return CreditCard;
+    case "catalog":
+      return Store;
+    case "cart":
+      return ShoppingCart;
     case "file":
       return Paperclip;
     default:
@@ -419,11 +465,48 @@ const getInputIcon = (kind: string) => {
   }
 };
 
-const getFlowIcon = (flow: { sector: string; label: string; id: string }) => {
+const inferFlowFamily = (flow: { sector: string; label: string; id: string }) => {
   const key = `${flow.sector} ${flow.label} ${flow.id}`.toLowerCase();
-  if (key.includes("gob") || key.includes("muni")) return Landmark;
-  if (key.includes("educ") || key.includes("coleg")) return GraduationCap;
-  if (key.includes("pyme") || key.includes("empresa") || key.includes("venta")) return Store;
+  if (
+    key.includes("educ") ||
+    key.includes("coleg") ||
+    key.includes("escuela") ||
+    key.includes("familia") ||
+    key.includes("cuota") ||
+    key.includes("secretaria") ||
+    key.includes("alumno")
+  ) {
+    return "educacion";
+  }
+  if (
+    key.includes("pyme") ||
+    key.includes("empresa") ||
+    key.includes("venta") ||
+    key.includes("pedido") ||
+    key.includes("catalog") ||
+    key.includes("carrito") ||
+    key.includes("bodega") ||
+    key.includes("ferreter") ||
+    key.includes("almacen")
+  ) {
+    return "pyme";
+  }
+  if (
+    key.includes("gob") ||
+    key.includes("muni") ||
+    key.includes("reclamo") ||
+    key.includes("ticket")
+  ) {
+    return "gobierno";
+  }
+  return "platform";
+};
+
+const getFlowIcon = (flow: { sector: string; label: string; id: string }) => {
+  const family = inferFlowFamily(flow);
+  if (family === "gobierno") return Landmark;
+  if (family === "educacion") return GraduationCap;
+  if (family === "pyme") return Store;
   return Bot;
 };
 
@@ -433,6 +516,8 @@ const getActionIcon = (value: string) => {
   if (key.includes("carrito") || key.includes("venta")) return ShoppingCart;
   if (key.includes("reclamo") || key.includes("ticket")) return TicketCheck;
   if (key.includes("caso") || key.includes("familia")) return UsersRound;
+  if (key.includes("turno") || key.includes("agenda") || key.includes("calendario")) return CalendarDays;
+  if (key.includes("pago") || key.includes("cuota") || key.includes("deuda")) return CreditCard;
   return ClipboardCheck;
 };
 
@@ -546,6 +631,7 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
   const activeInputKinds = activeFlow?.inputs.map((input) => inferInputKind(input.kind)) ?? [];
   const ActiveFlowIcon = activeFlow ? getFlowIcon(activeFlow) : Bot;
   const ActiveActionIcon = activeAction ? getActionIcon(activeAction.label) : ClipboardCheck;
+  const activeFlowFamily = activeFlow ? inferFlowFamily(activeFlow) : "platform";
   const actionSectionLabel = readText(hero, ["action_section_label", "result_label"]);
   const agentTitle = readText(hero, ["agent_title"]);
   const agentSubtitle = readText(hero, ["agent_subtitle"]);
@@ -643,7 +729,7 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
             <div className="chatboc-hero-aura" aria-hidden="true" />
             <div className="chatboc-hero-preview">
               {activeFlow && (
-                <div className="chatboc-phone-demo">
+                <div className={`chatboc-phone-demo chatboc-phone-demo--${activeFlowFamily}`}>
                   <div className="chatboc-phone-demo__chrome" aria-hidden="true">
                     <span />
                     <div>
@@ -698,7 +784,7 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
                     </div>
                   )}
 
-                  <div className="chatboc-phone-demo__screen">
+                  <div key={activeFlow.id} className="chatboc-phone-demo__screen">
                     <div className="chatboc-phone-demo__thread">
                       <div className="flex justify-end">
                         <div className="chatboc-phone-demo__bubble chatboc-phone-demo__bubble--user">

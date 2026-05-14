@@ -178,6 +178,7 @@ export interface OmnichannelTimelineEvent {
 export interface OmnichannelInboxItem {
   id: string;
   ticket_id?: string;
+  nro_ticket?: string;
   detail_endpoint?: string;
   conversation_id?: string;
   title: string;
@@ -194,6 +195,9 @@ export interface OmnichannelInboxItem {
   contact?: UnknownRecord;
   location?: UnknownRecord;
   map?: UnknownRecord;
+  canal_ingreso?: string;
+  foto_url_directa?: string;
+  archivos_count?: number;
   attachments: UnknownRecord[];
   sla?: UnknownRecord;
   school_case?: EducationCaseAlias | null;
@@ -897,11 +901,100 @@ const normalizeTimeline = (value: unknown, ticketId: string): OmnichannelTimelin
     };
   });
 
+const normalizeInboxAttachment = (value: unknown): UnknownRecord | null => {
+  if (typeof value === 'string' && value.trim()) {
+    return { url: value.trim(), name: 'Adjunto' };
+  }
+  if (!isRecord(value)) return null;
+  const record = asRecord(value);
+  const url = asString(getFirst(record, ['url', 'file_url', 'download_url', 'media_url', 'foto_url_directa', 'href']));
+  const id = getFirst(record, ['id', 'archivo_adjunto_id', 'attachment_id']);
+  const name = asString(getFirst(record, ['name', 'nombre', 'label', 'title', 'filename', 'file_name', 'nombre_archivo']));
+  const type = asString(getFirst(record, ['type', 'tipo', 'mime_type', 'mimeType']));
+  if (!url && id === undefined && !name && !type) return null;
+  return {
+    ...record,
+    id,
+    archivo_adjunto_id: getFirst(record, ['archivo_adjunto_id', 'attachment_id']),
+    name,
+    filename: asString(getFirst(record, ['filename', 'file_name', 'nombre_archivo', 'original_filename'])) ?? name,
+    type,
+    url,
+  };
+};
+
+const collectInboxAttachments = (value: UnknownRecord): UnknownRecord[] => {
+  const candidates: unknown[] = [];
+  ['attachments', 'archivos', 'archivos_adjuntos', 'adjuntos', 'files', 'evidencias'].forEach((key) => {
+    const source = value[key];
+    if (Array.isArray(source)) candidates.push(...source);
+  });
+  const directPhoto = asString(getFirst(value, ['foto_url_directa', 'foto_url', 'image_url', 'photo_url']));
+  if (directPhoto) {
+    candidates.push({
+      id: 'foto_url_directa',
+      name: 'Foto',
+      type: 'image',
+      url: directPhoto,
+      foto_url_directa: directPhoto,
+    });
+  }
+  const seen = new Set<string>();
+  return candidates
+    .map(normalizeInboxAttachment)
+    .filter((item): item is UnknownRecord => Boolean(item))
+    .filter((item) => {
+      const key = String(item.id ?? item.archivo_adjunto_id ?? item.url ?? item.filename ?? item.name ?? '');
+      if (!key) return true;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+};
+
+const normalizeInboxContact = (value: UnknownRecord): UnknownRecord => {
+  const contact = asRecord(value.contact);
+  const name =
+    asString(getFirst(contact, ['name', 'nombre', 'display_name', 'nombre_vecino', 'nombre_cliente'])) ??
+    asString(getFirst(value, ['nombre_vecino', 'vecino_nombre', 'nombre_cliente', 'customer_name']));
+  const phone =
+    asString(getFirst(contact, ['phone', 'telefono', 'telefono_vecino', 'telefono_cliente'])) ??
+    asString(getFirst(value, ['telefono_vecino', 'telefono', 'phone', 'telefono_cliente', 'customer_phone']));
+  return {
+    ...contact,
+    ...(name ? { name, nombre: name, nombre_vecino: name } : {}),
+    ...(phone ? { phone, telefono: phone, telefono_vecino: phone } : {}),
+  };
+};
+
+const normalizeInboxLocation = (value: UnknownRecord): UnknownRecord => {
+  const location = asRecord(value.location);
+  const lat = asNumber(getFirst(location, ['latitud', 'lat', 'latitude'])) ?? asNumber(getFirst(value, ['latitud', 'lat', 'latitude']));
+  const lng =
+    asNumber(getFirst(location, ['longitud', 'lng', 'lon', 'longitude'])) ??
+    asNumber(getFirst(value, ['longitud', 'lng', 'lon', 'longitude']));
+  const address =
+    asString(getFirst(location, ['direccion', 'address'])) ??
+    asString(getFirst(value, ['direccion', 'address']));
+  return {
+    ...location,
+    ...(address ? { address, direccion: address } : {}),
+    ...(lat !== undefined ? { lat, latitud: lat } : {}),
+    ...(lng !== undefined ? { lng, longitud: lng } : {}),
+  };
+};
+
 export const normalizeOmnichannelInboxItemV2 = (value: unknown, index = 0): OmnichannelInboxItem | null => {
   if (!isRecord(value)) return null;
   const id = asString(getFirst(value, ['id', 'ticket_id', 'conversation_id', 'nro_ticket'])) ?? `inbox_${index + 1}`;
   const ticketId = asString(getFirst(value, ['ticket_id', 'id', 'nro_ticket']));
-  const contact = asRecord(value.contact);
+  const contact = normalizeInboxContact(value);
+  const location = normalizeInboxLocation(value);
+  const attachments = collectInboxAttachments(value);
+  const archivosRaw = getFirst(value, ['archivos_count', 'cantidad_archivos', 'attachments_count', 'archivos']);
+  const archivosCount = Array.isArray(archivosRaw)
+    ? archivosRaw.length
+    : asNumber(archivosRaw) ?? (attachments.length ? attachments.length : undefined);
   const schoolCase = normalizeEducationCaseAlias(getFirst(value, ['school_case', 'education_case', 'case_alias']));
   const timelineSource = getFirst(value, ['timeline', 'events', 'messages', 'conversation']);
   const experienceBlueprint = asRecord(value.experience_blueprint);
@@ -914,6 +1007,7 @@ export const normalizeOmnichannelInboxItemV2 = (value: unknown, index = 0): Omni
   return {
     id,
     ticket_id: ticketId,
+    nro_ticket: asString(getFirst(value, ['nro_ticket', 'ticket_number'])),
     detail_endpoint: asString(getFirst(value, ['detail_endpoint', 'detail_url', 'endpoint'])),
     conversation_id: asString(getFirst(value, ['conversation_id', 'conversationId'])),
     title:
@@ -923,17 +1017,20 @@ export const normalizeOmnichannelInboxItemV2 = (value: unknown, index = 0): Omni
     description: asString(getFirst(value, ['description', 'descripcion', 'detalle', 'summary'])),
     status: asString(getFirst(value, ['status', 'estado', 'state'])) ?? 'unknown',
     priority: asString(getFirst(value, ['priority', 'prioridad'])),
-    channel: asString(getFirst(value, ['channel', 'canal'])),
+    channel: asString(getFirst(value, ['channel', 'canal', 'canal_ingreso'])),
     category: asString(getFirst(value, ['category', 'categoria'])),
     intent: asString(getFirst(value, ['intent', 'intencion', 'intent_id'])),
     sensitivity: asString(getFirst(value, ['sensitivity', 'priority', 'prioridad'])),
     lastMessageAt: asString(getFirst(value, ['last_message_at', 'lastMessageAt', 'updated_at', 'fecha'])) ?? new Date().toISOString(),
     unreadCount: asNumber(getFirst(value, ['unread_count', 'unreadCount'])) ?? 0,
     assignee: value.assignee ? asRecord(value.assignee) : undefined,
-    contact: value.contact ? contact : undefined,
-    location: value.location ? asRecord(value.location) : undefined,
+    contact: Object.keys(contact).length ? contact : undefined,
+    location: Object.keys(location).length ? location : undefined,
     map: value.map ? asRecord(value.map) : undefined,
-    attachments: asArray(value.attachments).map(asRecord),
+    canal_ingreso: asString(getFirst(value, ['canal_ingreso', 'channel', 'canal'])),
+    foto_url_directa: asString(getFirst(value, ['foto_url_directa', 'foto_url', 'image_url', 'photo_url'])),
+    archivos_count: archivosCount,
+    attachments,
     sla: value.sla ? asRecord(value.sla) : undefined,
     school_case: schoolCase,
     presence: normalizePresence(getFirst(value, ['presence', 'viewers', 'active_viewers'])),

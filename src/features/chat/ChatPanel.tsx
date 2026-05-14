@@ -10,13 +10,19 @@ import { Button } from '@/components/ui/button';
 import { ApiError, getErrorMessage } from '@/utils/api';
 import { getOrCreateAnonId } from '@/utils/anonId';
 import getOrCreateChatSessionId from '@/utils/chatSessionId';
+import { ExternalLink, Image as ImageIcon, MapPin, PackageCheck, Paperclip, TicketCheck } from 'lucide-react';
 import {
   createLeadCaptureIdempotencyKey,
   extractChatBootstrapReplyText,
+  normalizeLeadCaptureResponse,
   sendChatBootstrapMessage,
   submitLeadCapture,
   type LeadCaptureNextAction,
   type LeadCaptureResponse,
+  type OperationalAttachment,
+  type OperationalOrderDetail,
+  type OperationalOrderResult,
+  type OperationalTicketResult,
 } from './chatApi';
 import type { ChatBootstrapConfig, ChatPanelContext, ChatUiMessage, HandoffLabels, HandoffState, QuickReplyItem } from './chatTypes';
 import type {
@@ -206,6 +212,7 @@ const normalizeRuntimeNextAction = (value: unknown): LeadCaptureNextAction | nul
 
 const extractRuntimeLeadResult = (response: unknown): LeadCaptureResponse | null => {
   if (!isRecord(response)) return null;
+  const normalized = normalizeLeadCaptureResponse(response);
   const lead: Record<string, unknown> = isRecord(response.lead) ? response.lead : {};
   const nextActions = Array.isArray(response.next_actions)
     ? response.next_actions.map(normalizeRuntimeNextAction).filter((item): item is LeadCaptureNextAction => Boolean(item))
@@ -223,16 +230,26 @@ const extractRuntimeLeadResult = (response: unknown): LeadCaptureResponse | null
     readRecordString(response, ['status']);
   const requestId = readRecordString(response, ['request_id']);
 
-  if (!leadId && !ticketId && !status && !nextActions.length && !requestId) return null;
+  if (
+    !leadId &&
+    !ticketId &&
+    !status &&
+    !nextActions.length &&
+    !requestId &&
+    !normalized.ticket &&
+    !normalized.order
+  ) return null;
 
   return {
     ok: response.ok === true || lead.created === true || Boolean(leadId || ticketId),
     contract_version: readRecordString(response, ['contract_version']),
     request_id: requestId,
-    lead_id: leadId,
-    ticket_id: ticketId,
-    status,
-    next_actions: nextActions,
+    lead_id: leadId ?? normalized.lead_id,
+    ticket_id: ticketId ?? normalized.ticket_id,
+    status: status ?? normalized.status,
+    next_actions: nextActions.length ? nextActions : normalized.next_actions,
+    ticket: normalized.ticket,
+    order: normalized.order,
     raw: response,
   };
 };
@@ -337,6 +354,49 @@ const readRuntimeUnavailableBlock = (emptyStates?: Record<string, ChatExperience
   emptyStates?.api_unavailable ??
   emptyStates?.offline ??
   null;
+
+const hasFiniteCoordinates = (ticket?: OperationalTicketResult | null) =>
+  typeof ticket?.latitud === 'number' &&
+  Number.isFinite(ticket.latitud) &&
+  typeof ticket.longitud === 'number' &&
+  Number.isFinite(ticket.longitud);
+
+const getAttachmentLabel = (attachment: OperationalAttachment, index: number) =>
+  attachment.name?.trim() ||
+  attachment.filename?.trim() ||
+  attachment.type?.trim() ||
+  (attachment.archivo_adjunto_id ? `Archivo ${attachment.archivo_adjunto_id}` : `Archivo ${index + 1}`);
+
+const getAttachmentUrl = (attachment: OperationalAttachment) =>
+  typeof attachment.url === 'string' && attachment.url.trim() ? attachment.url.trim() : null;
+
+const formatOperationalCurrency = (value?: number | null, currency = 'ARS') => {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+  try {
+    return new Intl.NumberFormat('es-AR', {
+      style: 'currency',
+      currency: currency || 'ARS',
+      maximumFractionDigits: 2,
+    }).format(value);
+  } catch {
+    return value.toLocaleString('es-AR', { maximumFractionDigits: 2 });
+  }
+};
+
+function SafeEvidenceImage({ src, alt }: { src?: string | null; alt: string }) {
+  const [failed, setFailed] = useState(false);
+  const cleanSrc = src?.trim();
+  if (!cleanSrc || failed) return null;
+  return (
+    <img
+      src={cleanSrc}
+      alt={alt}
+      loading="lazy"
+      className="h-24 w-full rounded-md border object-cover"
+      onError={() => setFailed(true)}
+    />
+  );
+}
 
 export default function ChatPanel(props: FeatureChatPanelProps & Partial<LegacyChatPanelProps>) {
   const {
@@ -881,10 +941,12 @@ function LeadCaptureResult({ result }: { result: LeadCaptureResponse }) {
   ].filter((item): item is { label: string; value: string } => Boolean(item));
   const hasActions = Boolean(result.next_actions?.length);
 
-  if (!traceItems.length && !hasActions && !result.request_id) return null;
+  if (!traceItems.length && !hasActions && !result.request_id && !result.ticket && !result.order) return null;
 
   return (
-    <div className="space-y-2 rounded-lg border bg-muted/20 p-3 text-xs" aria-label="Lead capturado">
+    <div className="space-y-3 rounded-lg border bg-muted/20 p-3 text-xs" aria-label="Resultado operativo">
+      {result.ticket ? <OperationalTicketCard ticket={result.ticket} /> : null}
+      {result.order ? <OperationalOrderCard order={result.order} /> : null}
       {traceItems.length ? (
         <div className="flex flex-wrap gap-2">
           {traceItems.map((item) => (
@@ -899,6 +961,184 @@ function LeadCaptureResult({ result }: { result: LeadCaptureResponse }) {
       {result.request_id ? (
         <p className="break-all text-[11px] text-muted-foreground">request_id: {result.request_id}</p>
       ) : null}
+    </div>
+  );
+}
+
+function OperationalTicketCard({ ticket }: { ticket: OperationalTicketResult }) {
+  const rows = [
+    ticket.nro_ticket ? { label: 'Ticket', value: String(ticket.nro_ticket) } : null,
+    ticket.categoria ? { label: 'Categoria', value: ticket.categoria } : null,
+    ticket.direccion ? { label: 'Direccion', value: ticket.direccion } : null,
+    ticket.nombre_vecino ? { label: 'Vecino', value: ticket.nombre_vecino } : null,
+    ticket.telefono_vecino ? { label: 'Telefono', value: ticket.telefono_vecino } : null,
+  ].filter((item): item is { label: string; value: string } => Boolean(item));
+  const hasLocation = hasFiniteCoordinates(ticket);
+  const whatsappCase = ticket.canal_ingreso?.trim().toLowerCase() === 'whatsapp';
+  const attachments = ticket.archivos ?? [];
+  const attachmentCount = ticket.archivos_count ?? attachments.length;
+
+  return (
+    <div className="rounded-[8px] border bg-background p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="inline-flex items-center gap-1.5 font-semibold text-foreground">
+          <TicketCheck className="h-3.5 w-3.5 text-primary" />
+          Reclamo creado
+        </span>
+        {whatsappCase ? (
+          <span className="rounded-full border bg-muted/40 px-2 py-0.5 text-[11px] text-muted-foreground">
+            Ingresado por WhatsApp
+          </span>
+        ) : ticket.canal_ingreso ? (
+          <span className="rounded-full border bg-muted/40 px-2 py-0.5 text-[11px] text-muted-foreground">
+            {ticket.canal_ingreso}
+          </span>
+        ) : null}
+      </div>
+
+      {rows.length ? (
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          {rows.map((row) => (
+            <div key={row.label} className="min-w-0 rounded-md border bg-muted/20 px-2.5 py-2">
+              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{row.label}</p>
+              <p className="mt-1 truncate font-semibold text-foreground">{row.value}</p>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      {hasLocation ? (
+        <div className="mt-3 rounded-md border bg-muted/20 p-2.5">
+          <div className="flex items-start gap-2">
+            <MapPin className="mt-0.5 h-3.5 w-3.5 text-primary" />
+            <div className="min-w-0">
+              <p className="font-medium text-foreground">Ubicacion recibida</p>
+              <p className="mt-0.5 text-muted-foreground">
+                {ticket.latitud!.toFixed(5)}, {ticket.longitud!.toFixed(5)}
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {ticket.foto_url_directa || attachments.length || attachmentCount ? (
+        <div className="mt-3 space-y-2">
+          {ticket.foto_url_directa ? (
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-1.5 font-medium text-foreground">
+                <ImageIcon className="h-3.5 w-3.5 text-primary" />
+                Evidencia
+              </div>
+              <SafeEvidenceImage src={ticket.foto_url_directa} alt="Foto enviada en el reclamo" />
+            </div>
+          ) : null}
+          {attachments.length ? (
+            <div className="flex flex-wrap gap-2">
+              {attachments.map((attachment, index) => {
+                const label = getAttachmentLabel(attachment, index);
+                const url = getAttachmentUrl(attachment);
+                return url ? (
+                  <a
+                    key={`${label}-${url}`}
+                    href={url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex max-w-full items-center gap-1 rounded-full border bg-muted/20 px-2 py-1 text-muted-foreground hover:text-foreground"
+                  >
+                    <Paperclip className="h-3 w-3" />
+                    <span className="truncate">{label}</span>
+                  </a>
+                ) : (
+                  <span
+                    key={`${label}-${index}`}
+                    className="inline-flex max-w-full items-center gap-1 rounded-full border bg-muted/20 px-2 py-1 text-muted-foreground"
+                  >
+                    <Paperclip className="h-3 w-3" />
+                    <span className="truncate">{label}</span>
+                  </span>
+                );
+              })}
+            </div>
+          ) : attachmentCount ? (
+            <span className="inline-flex items-center gap-1 rounded-full border bg-muted/20 px-2 py-1 text-muted-foreground">
+              <Paperclip className="h-3 w-3" />
+              {attachmentCount} archivo{attachmentCount === 1 ? '' : 's'}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function OperationalOrderCard({ order }: { order: OperationalOrderResult }) {
+  const rows = [
+    order.nro_pedido ? { label: 'Pedido', value: String(order.nro_pedido) } : null,
+    order.nombre_cliente ? { label: 'Cliente', value: order.nombre_cliente } : null,
+    order.telefono_cliente ? { label: 'Telefono', value: order.telefono_cliente } : null,
+    order.monto_total !== null && order.monto_total !== undefined
+      ? { label: 'Total', value: formatOperationalCurrency(order.monto_total) ?? String(order.monto_total) }
+      : null,
+  ].filter((item): item is { label: string; value: string } => Boolean(item));
+  const details = order.detalles ?? [];
+  const trackingUrl = order.nro_pedido ? (order.tracking_url || `/tracking/order/${encodeURIComponent(String(order.nro_pedido))}`) : null;
+
+  return (
+    <div className="rounded-[8px] border bg-background p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="inline-flex items-center gap-1.5 font-semibold text-foreground">
+          <PackageCheck className="h-3.5 w-3.5 text-primary" />
+          Pedido creado
+        </span>
+        {trackingUrl ? (
+          <a
+            href={trackingUrl}
+            className="inline-flex items-center gap-1 rounded-full border bg-muted/20 px-2 py-1 text-[11px] text-muted-foreground hover:text-foreground"
+          >
+            Tracking <ExternalLink className="h-3 w-3" />
+          </a>
+        ) : null}
+      </div>
+
+      {rows.length ? (
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          {rows.map((row) => (
+            <div key={row.label} className="min-w-0 rounded-md border bg-muted/20 px-2.5 py-2">
+              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{row.label}</p>
+              <p className="mt-1 truncate font-semibold text-foreground">{row.value}</p>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      {details.length ? (
+        <div className="mt-3 divide-y rounded-md border">
+          {details.map((detail, index) => (
+            <OrderDetailRow key={`${detail.sku ?? detail.nombre_producto ?? 'item'}-${index}`} detail={detail} />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function OrderDetailRow({ detail }: { detail: OperationalOrderDetail }) {
+  const currency = detail.moneda || 'ARS';
+  const subtotal = formatOperationalCurrency(detail.subtotal_con_descuento, currency);
+  const unit = formatOperationalCurrency(detail.precio_unitario_original, currency);
+  return (
+    <div className="flex items-start justify-between gap-3 px-2.5 py-2">
+      <div className="min-w-0">
+        {detail.nombre_producto ? (
+          <p className="truncate font-medium text-foreground">{detail.nombre_producto}</p>
+        ) : null}
+        <p className="mt-0.5 text-muted-foreground">
+          {detail.cantidad !== null && detail.cantidad !== undefined ? `${detail.cantidad} x ` : ''}
+          {unit ?? ''}
+          {detail.sku ? <span className="ml-2 font-mono text-[10px]">{detail.sku}</span> : null}
+        </p>
+      </div>
+      {subtotal ? <span className="shrink-0 font-semibold text-foreground">{subtotal}</span> : null}
     </div>
   );
 }

@@ -152,6 +152,11 @@
     box-shadow: 0 34px 110px rgba(0, 0, 0, 0.52);
   }
   .chatboc-phone-demo {
+    --chatboc-phone-accent: hsl(var(--primary));
+    --chatboc-phone-accent-foreground: hsl(var(--primary-foreground));
+    --chatboc-phone-accent-soft: hsl(var(--primary) / 0.12);
+    --chatboc-phone-wash-a: hsl(var(--primary) / 0.14);
+    --chatboc-phone-wash-b: hsl(var(--success) / 0.12);
     position: relative;
     display: flex;
     height: min(650px, calc(100vh - 158px));
@@ -160,8 +165,8 @@
     overflow: hidden;
     border-radius: 32px;
     background:
-      radial-gradient(circle at 12% 0%, hsl(var(--primary) / 0.14), transparent 34%),
-      radial-gradient(circle at 86% 16%, hsl(var(--success) / 0.12), transparent 30%),
+      radial-gradient(circle at 12% 0%, var(--chatboc-phone-wash-a), transparent 34%),
+      radial-gradient(circle at 86% 16%, var(--chatboc-phone-wash-b), transparent 30%),
       hsl(var(--card) / 0.96);
     color: hsl(var(--card-foreground));
     backdrop-filter: blur(22px);
@@ -172,8 +177,38 @@
     inset: 0;
     pointer-events: none;
     background:
-      linear-gradient(90deg, hsl(var(--primary) / 0.05), transparent 30%, transparent 68%, hsl(var(--success) / 0.06)),
+      linear-gradient(90deg, var(--chatboc-phone-accent-soft), transparent 30%, transparent 68%, var(--chatboc-phone-wash-b)),
       linear-gradient(180deg, hsl(var(--background) / 0.32), transparent 42%);
+  }
+  .chatboc-phone-demo--gobierno {
+    --chatboc-phone-accent: #2563eb;
+    --chatboc-phone-accent-foreground: #ffffff;
+    --chatboc-phone-accent-soft: rgba(37, 99, 235, 0.12);
+    --chatboc-phone-wash-a: rgba(59, 130, 246, 0.16);
+    --chatboc-phone-wash-b: rgba(20, 184, 166, 0.12);
+  }
+  .chatboc-phone-demo--pyme {
+    --chatboc-phone-accent: #0f9f6e;
+    --chatboc-phone-accent-foreground: #ffffff;
+    --chatboc-phone-accent-soft: rgba(15, 159, 110, 0.13);
+    --chatboc-phone-wash-a: rgba(16, 185, 129, 0.16);
+    --chatboc-phone-wash-b: rgba(245, 158, 11, 0.16);
+  }
+  .chatboc-phone-demo--educacion {
+    --chatboc-phone-accent: #6d5dfc;
+    --chatboc-phone-accent-foreground: #ffffff;
+    --chatboc-phone-accent-soft: rgba(109, 93, 252, 0.13);
+    --chatboc-phone-wash-a: rgba(109, 93, 252, 0.16);
+    --chatboc-phone-wash-b: rgba(14, 165, 233, 0.14);
+  }
+  .chatboc-phone-demo .text-primary {
+    color: var(--chatboc-phone-accent);
+  }
+  .chatboc-phone-demo .bg-primary {
+    background-color: var(--chatboc-phone-accent);
+  }
+  .chatboc-phone-demo .text-primary-foreground {
+    color: var(--chatboc-phone-accent-foreground);
   }
   .chatboc-phone-demo__chrome {
     position: relative;
@@ -258,9 +293,9 @@
     transition: border-color 180ms ease, background-color 180ms ease, color 180ms ease;
   }
   .chatboc-phone-demo__tab--active {
-    border-color: hsl(var(--primary));
-    background: hsl(var(--primary));
-    color: hsl(var(--primary-foreground));
+    border-color: var(--chatboc-phone-accent);
+    background: var(--chatboc-phone-accent);
+    color: var(--chatboc-phone-accent-foreground);
   }
   .chatboc-phone-demo__screen {
     display: flex;
@@ -271,6 +306,7 @@
     overflow: auto;
     padding: 0.85rem 0.85rem 1.05rem;
     scrollbar-width: none;
+    animation: chatboc-phone-flow-in 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
   }
   .chatboc-phone-demo__screen::-webkit-scrollbar {
     width: 0;
@@ -285,9 +321,9 @@
   }
   .chatboc-phone-demo__bubble--user {
     border-top-right-radius: 6px;
-    background: hsl(var(--primary));
-    color: hsl(var(--primary-foreground));
-    box-shadow: 0 18px 38px hsl(var(--primary) / 0.22);
+    background: var(--chatboc-phone-accent);
+    color: var(--chatboc-phone-accent-foreground);
+    box-shadow: 0 18px 38px var(--chatboc-phone-accent-soft);
   }
   .chatboc-phone-demo__bubble--agent {
     border: 1px solid hsl(var(--border) / 0.72);
@@ -360,6 +396,9 @@
     font-weight: 700;
     color: hsl(var(--muted-foreground));
   }
+  .chatboc-phone-demo__composer-chip svg {
+    color: var(--chatboc-phone-accent);
+  }
   .chatboc-phone-demo__result,
   .chatboc-phone-demo__steps {
     border-radius: 16px;
@@ -371,6 +410,16 @@
   .dark .chatboc-phone-demo__result,
   .dark .chatboc-phone-demo__steps {
     box-shadow: 0 18px 44px rgba(0, 0, 0, 0.28);
+  }
+  @keyframes chatboc-phone-flow-in {
+    from {
+      opacity: 0;
+      transform: translateY(10px) scale(0.985);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
   }
   .chatboc-phone-demo__metrics {
     display: grid;

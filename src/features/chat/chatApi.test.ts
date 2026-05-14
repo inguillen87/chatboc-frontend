@@ -36,7 +36,7 @@ vi.mock('@/utils/api', () => {
   };
 });
 
-import { sendChatBootstrapMessage } from './chatApi';
+import { normalizeLeadCaptureResponse, sendChatBootstrapMessage } from './chatApi';
 
 describe('sendChatBootstrapMessage', () => {
   beforeEach(() => {
@@ -192,5 +192,70 @@ describe('sendChatBootstrapMessage', () => {
 
     expect(apiFetchMock).toHaveBeenCalledTimes(1);
     expect(apiFetchMock.mock.calls[0][0]).toBe('/api/ask/municipio?tenant_slug=municipio');
+  });
+});
+
+describe('normalizeLeadCaptureResponse operational results', () => {
+  it('keeps real municipal ticket evidence and location fields', () => {
+    const normalized = normalizeLeadCaptureResponse({
+      ok: true,
+      request_id: 'req-ticket',
+      ticket: {
+        nro_ticket: 'M-31735',
+        categoria: 'Semaforo',
+        direccion: 'Av. San Martin y Rivadavia',
+        latitud: '-34.6083',
+        longitud: '-58.3712',
+        nombre_vecino: 'QA Vecino',
+        telefono_vecino: '2610000000',
+        canal_ingreso: 'whatsapp',
+        foto_url_directa: 'https://cdn.example.com/foto.jpg',
+        archivos: [{ archivo_adjunto_id: 7, url: 'https://cdn.example.com/foto.jpg', type: 'image/jpeg' }],
+      },
+    });
+
+    expect(normalized.ticket).toMatchObject({
+      nro_ticket: 'M-31735',
+      categoria: 'Semaforo',
+      direccion: 'Av. San Martin y Rivadavia',
+      latitud: -34.6083,
+      longitud: -58.3712,
+      canal_ingreso: 'whatsapp',
+      foto_url_directa: 'https://cdn.example.com/foto.jpg',
+      archivos_count: 1,
+    });
+    expect(normalized.ticket?.archivos?.[0]).toMatchObject({
+      archivo_adjunto_id: 7,
+      url: 'https://cdn.example.com/foto.jpg',
+    });
+  });
+
+  it('keeps real PyME order lines, total and tracking URL', () => {
+    const normalized = normalizeLeadCaptureResponse({
+      ok: true,
+      pedido: {
+        nro_pedido: 'P-1001',
+        nombre_cliente: 'QA Bodega',
+        telefono_cliente: '2611111111',
+        monto_total: 35000,
+        detalles: [
+          { nombre_producto: 'MALBEC', cantidad: 2, precio_unitario_original: 10000, subtotal_con_descuento: 20000, moneda: 'ARS' },
+          { nombre_producto: 'CABERNET SAUVIGNON', cantidad: 1, precio_unitario_original: 15000, subtotal_con_descuento: 15000, moneda: 'ARS' },
+        ],
+      },
+    });
+
+    expect(normalized.order).toMatchObject({
+      nro_pedido: 'P-1001',
+      nombre_cliente: 'QA Bodega',
+      telefono_cliente: '2611111111',
+      monto_total: 35000,
+      tracking_url: '/tracking/order/P-1001',
+    });
+    expect(normalized.order?.detalles).toHaveLength(2);
+    expect(normalized.order?.detalles?.[0]).toMatchObject({
+      nombre_producto: 'MALBEC',
+      cantidad: 2,
+    });
   });
 });

@@ -9,6 +9,16 @@ export interface PublicOrderTrackingResponse {
   email_cliente: string;
   telefono_cliente: string;
   direccion: string;
+  latitud?: number | string | null;
+  longitud?: number | string | null;
+  lat?: number | string | null;
+  lng?: number | string | null;
+  latitude?: number | string | null;
+  longitude?: number | string | null;
+  delivery_location?: Record<string, unknown> | null;
+  customer_location?: Record<string, unknown> | null;
+  store_location?: Record<string, unknown> | null;
+  driver_location?: Record<string, unknown> | null;
   detalles: Array<{
     nombre_producto: string;
     cantidad: number;
