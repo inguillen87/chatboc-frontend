@@ -89,6 +89,22 @@ export async function getWidgetCartSnapshot(
   );
 }
 
+export async function getWidgetClaimDetail<T = unknown>(
+  endpoint: string | null | undefined,
+  request: WidgetCommerceRequest,
+): Promise<T> {
+  const path = typeof endpoint === "string" && endpoint.trim()
+    ? endpoint.trim()
+    : "";
+  if (!path) {
+    throw new Error("missing_claim_detail_endpoint");
+  }
+  return apiFetch<T>(
+    withQuery(path, request),
+    publicWidgetOptions(request),
+  );
+}
+
 export async function registerWidgetUser(
   request: WidgetCommerceRequest,
   payload: WidgetUserRegisterPayload,
