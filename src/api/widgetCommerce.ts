@@ -11,7 +11,6 @@ export type WidgetCommerceRequest = {
   tenantSlug?: string | null;
   widgetToken?: string | null;
   chatSessionId?: string | null;
-  demoSessionId?: string | null;
   anonId?: string | null;
   widgetSessionToken?: string | null;
 };
@@ -27,7 +26,6 @@ const withQuery = (path: string, request: WidgetCommerceRequest) => {
   addParam(params, "tenant", request.tenantSlug);
   addParam(params, "widget_token", request.widgetToken);
   addParam(params, "chat_session_id", request.chatSessionId);
-  addParam(params, "demo_session_id", request.demoSessionId);
   addParam(params, "anon_id", request.anonId);
   addParam(params, "widget_session_token", request.widgetSessionToken);
 
@@ -41,7 +39,6 @@ const widgetHeaders = (request: WidgetCommerceRequest): Record<string, string> =
   if (request.tenantSlug) headers["X-Tenant-Slug"] = request.tenantSlug;
   if (request.widgetToken) headers["X-Widget-Token"] = request.widgetToken;
   if (request.chatSessionId) headers["X-Chat-Session-Id"] = request.chatSessionId;
-  if (request.demoSessionId) headers["X-Demo-Session-Id"] = request.demoSessionId;
   if (request.anonId) headers["X-Anon-Id"] = request.anonId;
   if (request.widgetSessionToken) headers["X-Widget-Session-Token"] = request.widgetSessionToken;
   return headers;

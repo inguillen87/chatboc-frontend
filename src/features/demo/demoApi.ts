@@ -57,13 +57,23 @@ const normalizeDemoSector = (value?: string | null): DemoSector => {
   return (normalized || 'empresas') as DemoSector;
 };
 
-const normalizeDemoSessionResponse = (response: DemoSessionResponse): DemoSessionResponse => ({
-  ...response,
-  demo_session_id: response.demo_session_id ?? undefined,
-  chat_session_id: readShortChatSessionId(response.chat_session_id) ?? readShortChatSessionId(response.session_id) ?? null,
-  tenant_slug: response.tenant_slug ?? response.tenant?.slug ?? null,
-  workspace: normalizeWorkspaceConfig(response),
-});
+const normalizeDemoSessionResponse = (response: DemoSessionResponse): DemoSessionResponse => {
+  const chatSessionId =
+    readShortChatSessionId(response.chat_session_id) ??
+    readShortChatSessionId(response.session_id) ??
+    readChatSessionIdFromBootstrap(response.workspace?.chat_bootstrap) ??
+    readChatSessionIdFromBootstrap(response.chat_bootstrap) ??
+    readChatSessionIdFromBootstrap(response.workspace?.chat_seed?.chat_bootstrap) ??
+    readChatSessionIdFromBootstrap(response.chat_seed?.chat_bootstrap);
+
+  return {
+    ...response,
+    demo_session_id: response.demo_session_id ?? undefined,
+    chat_session_id: chatSessionId,
+    tenant_slug: response.tenant_slug ?? response.tenant?.slug ?? null,
+    workspace: normalizeWorkspaceConfig(response, chatSessionId),
+  };
+};
 
 const findAssetSectorFromResponse = (response: DemoSessionResponse): DemoSector | null => {
   const candidates = [
@@ -151,7 +161,10 @@ const normalizeDemoCatalog = (response: DemoCatalogResponse): DemoCatalogRespons
   };
 };
 
-const normalizeWorkspaceConfig = (response: DemoSessionResponse): DemoWorkspaceConfig | null => {
+const normalizeWorkspaceConfig = (
+  response: DemoSessionResponse,
+  normalizedChatSessionId?: string | null,
+): DemoWorkspaceConfig | null => {
   const workspace: DemoWorkspaceConfig = response.workspace ?? {};
   const quickReplies = workspace.quick_replies ?? response.quick_replies ?? [];
   const valueCards = workspace.value_cards ?? response.value_cards ?? [];
@@ -173,7 +186,10 @@ const normalizeWorkspaceConfig = (response: DemoSessionResponse): DemoWorkspaceC
       null,
     {
       demoSessionId: response.demo_session_id ?? null,
-      chatSessionId: readShortChatSessionId(response.chat_session_id) ?? readShortChatSessionId(response.session_id),
+      chatSessionId:
+        readShortChatSessionId(normalizedChatSessionId) ??
+        readShortChatSessionId(response.chat_session_id) ??
+        readShortChatSessionId(response.session_id),
       tenantSlug: response.tenant_slug ?? response.tenant?.slug ?? null,
     },
   );
@@ -239,7 +255,24 @@ const readString = (value: unknown): string | null => {
 const readShortChatSessionId = (value: unknown): string | null => {
   const trimmed = readString(value);
   if (!trimmed) return null;
-  return trimmed.length <= 36 && !trimmed.includes('.') ? trimmed : null;
+  return trimmed.length <= 64 && !trimmed.includes('.') ? trimmed : null;
+};
+
+const readChatSessionIdFromBootstrap = (bootstrap?: DemoChatBootstrap | null): string | null => {
+  if (!bootstrap || typeof bootstrap !== 'object') return null;
+  const headers = bootstrap.headers && typeof bootstrap.headers === 'object' ? bootstrap.headers : {};
+  const payload = bootstrap.payload && typeof bootstrap.payload === 'object' ? bootstrap.payload : {};
+  const query = bootstrap.query && typeof bootstrap.query === 'object' ? bootstrap.query : {};
+  const session = bootstrap.session && typeof bootstrap.session === 'object' ? bootstrap.session : {};
+  return (
+    readShortChatSessionId(session.chat_session_id) ??
+    readShortChatSessionId(session.session_id) ??
+    readShortChatSessionId(headers['X-Chat-Session-Id']) ??
+    readShortChatSessionId(payload.chat_session_id) ??
+    readShortChatSessionId(payload.session_id) ??
+    readShortChatSessionId(query.chat_session_id) ??
+    readShortChatSessionId(query.session_id)
+  );
 };
 
 const normalizeChatBootstrap = (

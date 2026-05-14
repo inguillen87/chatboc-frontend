@@ -777,8 +777,30 @@ const ChatPanel = (props: ChatPanelProps) => {
     ) || readBackendFlag(commerceSession?.portal?.enabled, false),
   );
   const commercePrimaryActions = commerceSession?.frontend_contract?.primary_actions;
-  const portalRequestedByContract =
-    Array.isArray(commercePrimaryActions) && commercePrimaryActions.includes("portal");
+  const commerceActionsAriaLabel = readFirstString(
+    (commerceSession?.frontend_contract as Record<string, unknown> | null | undefined)?.actions_aria_label,
+    (commerceSession?.frontend_contract as Record<string, unknown> | null | undefined)?.action_group_label,
+  );
+  const commercePrimaryActionSet = useMemo(
+    () =>
+      new Set(
+        Array.isArray(commercePrimaryActions)
+          ? commercePrimaryActions
+              .map((action) => (typeof action === "string" ? action.trim().toLowerCase() : ""))
+              .filter(Boolean)
+          : [],
+      ),
+    [commercePrimaryActions],
+  );
+  const hasCommercePrimaryActionContract = commercePrimaryActionSet.size > 0;
+  const primaryActionIncludes = useCallback(
+    (action: string, aliases: string[] = []) => {
+      if (!hasCommercePrimaryActionContract) return true;
+      return [action, ...aliases].some((candidate) => commercePrimaryActionSet.has(candidate));
+    },
+    [commercePrimaryActionSet, hasCommercePrimaryActionContract],
+  );
+  const portalRequestedByContract = primaryActionIncludes("portal", ["history", "historial", "activity"]);
   const portalEnabledFlag = commerceSession?.portal?.enabled;
   const portalEnabled =
     !isBackofficeUser &&
@@ -806,81 +828,100 @@ const ChatPanel = (props: ChatPanelProps) => {
       active?: boolean;
     }> = [];
 
-    actions.push({
-      id: "chat",
-      label: readFirstString(commerceActionLabels.chat, "Chat"),
-      icon: MessageSquare,
-      onClick: () => undefined,
-      active: true,
-    });
+    const chatLabel = readFirstString(
+      commerceActionLabels.chat,
+      commerceSession?.chat?.cta_label,
+      commerceSession?.chat?.label,
+    );
+    if (primaryActionIncludes("chat", ["conversation", "conversacion"]) && chatLabel) {
+      actions.push({
+        id: "chat",
+        label: chatLabel,
+        icon: MessageSquare,
+        onClick: () => undefined,
+        active: true,
+      });
+    }
 
     if (
+      primaryActionIncludes("catalog", ["catalogo", "catalogue"]) &&
       readBackendFlag(
         commerceSession?.catalog?.enabled,
         Boolean(commerceSession?.catalog?.endpoint || commerceSession?.catalog?.view_url || commerceSession?.catalog?.url),
       ) &&
       onOpenCatalog
     ) {
-      actions.push({
-        id: "catalog",
-        label: readFirstString(
-          commerceActionLabels.catalog,
-          commerceSession?.catalog?.cta_label,
-          commerceSession?.catalog?.label,
-          "Catalogo",
-        ),
-        icon: BookOpen,
-        onClick: onOpenCatalog,
-      });
+      const catalogLabel = readFirstString(
+        commerceActionLabels.catalog,
+        commerceSession?.catalog?.cta_label,
+        commerceSession?.catalog?.label,
+      );
+      if (catalogLabel) {
+        actions.push({
+          id: "catalog",
+          label: catalogLabel,
+          icon: BookOpen,
+          onClick: onOpenCatalog,
+        });
+      }
     }
 
     if (
+      primaryActionIncludes("cart", ["carrito", "canje", "canjes", "benefits", "beneficios", "points", "puntos"]) &&
       readBackendFlag(
         commerceSession?.cart?.enabled,
         Boolean(commerceSession?.cart?.summary_endpoint || commerceSession?.cart?.items_endpoint || commerceSession?.cart?.url),
       ) &&
       onCart
     ) {
-      actions.push({
-        id: "cart",
-        label: readFirstString(
-          commerceActionLabels.cart,
-          commerceSession?.cart?.cta_label,
-          commerceSession?.cart?.label,
-          "Carrito",
-        ),
-        icon: ShoppingCart,
-        onClick: () => onCart("cart"),
-        badge: commerceCartCount > 0 ? commerceCartCount : undefined,
-      });
+      const cartLabel = readFirstString(
+        commerceActionLabels.cart,
+        commerceSession?.cart?.cta_label,
+        commerceSession?.cart?.label,
+      );
+      if (cartLabel) {
+        actions.push({
+          id: "cart",
+          label: cartLabel,
+          icon: ShoppingCart,
+          onClick: () => onCart("cart"),
+          badge: commerceCartCount > 0 ? commerceCartCount : undefined,
+        });
+      }
     }
 
     if (
+      primaryActionIncludes("portal", ["history", "historial", "activity"]) &&
       portalEnabled &&
       portalDestinationAvailable &&
       onOpenPortal
     ) {
-      actions.push({
-        id: "portal",
-        label: readFirstString(
-          commerceActionLabels.portal,
-          commerceSession?.portal?.cta_label,
-          commerceSession?.portal?.label,
-          "Mi actividad",
-        ),
-        icon: UserRound,
-        onClick: onOpenPortal,
-      });
+      const portalLabel = readFirstString(
+        commerceActionLabels.portal,
+        commerceActionLabels.history,
+        commerceSession?.portal?.cta_label,
+        commerceSession?.portal?.label,
+      );
+      if (portalLabel) {
+        actions.push({
+          id: "portal",
+          label: portalLabel,
+          icon: UserRound,
+          onClick: onOpenPortal,
+        });
+      }
     }
 
     return actions.slice(0, 4);
   }, [
     commerceActionLabels,
     commerceCartCount,
+    commerceSession?.chat,
     commerceSession?.cart,
     commerceSession?.catalog,
     commerceSession?.portal,
     isBackofficeUser,
+    primaryActionIncludes,
     portalDestinationAvailable,
     portalEnabled,
     isEmbeddedCommerceWidget,
@@ -3183,7 +3224,7 @@ const ChatPanel = (props: ChatPanelProps) => {
           <div
             className="mb-2 grid gap-1.5 rounded-2xl border border-border/70 bg-muted/25 p-1"
             style={{ gridTemplateColumns: `repeat(${Math.min(widgetCommerceActions.length, 4)}, minmax(0, 1fr))` }}
-            aria-label="Acciones del widget"
+            aria-label={commerceActionsAriaLabel ?? undefined}
           >
             {widgetCommerceActions.map((action) => {
               const Icon = action.icon;

@@ -114,6 +114,9 @@ export function usePortalContent() {
     if (history?.session?.chat_session_id) {
       persistChatSessionId(history.session.chat_session_id);
     }
+    if (cart?.session?.chat_session_id) {
+      persistChatSessionId(cart.session.chat_session_id);
+    }
 
     setCommerceSession(session);
     setWidgetHistory(history);

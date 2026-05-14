@@ -174,6 +174,41 @@ describe('sendChatBootstrapMessage', () => {
     );
   });
 
+  it('keeps backend sid chat sessions separate from the demo token', async () => {
+    const chatSessionId = 'sid_0123456789abcdef0123456789abcdef0123456789abcdef';
+    const demoSessionId = 'header.payload.signature';
+
+    await sendChatBootstrapMessage(
+      {
+        contract_version: 'demo.chat_bootstrap.v1',
+        endpoint: '/api/ask/municipio',
+        method: 'POST',
+        headers: { 'X-Tenant-Slug': 'municipio' },
+        query: { tenant_slug: 'municipio' },
+        session: {
+          chat_session_id: chatSessionId,
+          demo_session_id: demoSessionId,
+        },
+      },
+      { text: 'Quiero iniciar un reclamo' },
+    );
+
+    const [, options] = apiFetchMock.mock.calls[0];
+    expect(options.headers).toEqual(
+      expect.objectContaining({
+        'X-Chat-Session-Id': chatSessionId,
+        'X-Demo-Session-Id': demoSessionId,
+        'X-Tenant-Slug': 'municipio',
+      }),
+    );
+    expect(options.body).toEqual(
+      expect.objectContaining({
+        chat_session_id: chatSessionId,
+        demo_session_id: demoSessionId,
+      }),
+    );
+  });
+
   it('does not retry legacy fallback endpoints when runtime rejects the request', async () => {
     apiFetchMock.mockRejectedValueOnce(new Error('missing'));
 

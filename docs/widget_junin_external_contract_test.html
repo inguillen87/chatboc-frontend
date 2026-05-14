@@ -1,0 +1,789 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Chatboc Widget Junin - Contract Test</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #0b1020;
+        --panel: #101827;
+        --panel-2: #151f32;
+        --line: #26334d;
+        --text: #edf4ff;
+        --muted: #9fb0c8;
+        --brand: #4f8cff;
+        --brand-2: #22c55e;
+        --danger: #ef4444;
+        --warn: #f59e0b;
+        --radius: 14px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background:
+          radial-gradient(circle at 15% 10%, rgba(79, 140, 255, 0.18), transparent 32rem),
+          linear-gradient(180deg, #080d19 0%, #0b1020 100%);
+        color: var(--text);
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          sans-serif;
+      }
+
+      button,
+      input {
+        font: inherit;
+      }
+
+      .shell {
+        width: min(1180px, calc(100% - 32px));
+        margin: 0 auto;
+        padding: 32px 0 48px;
+      }
+
+      .hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
+        gap: 22px;
+        align-items: stretch;
+        margin-bottom: 18px;
+      }
+
+      .card {
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: rgba(16, 24, 39, 0.86);
+        box-shadow: 0 18px 60px rgba(0, 0, 0, 0.28);
+      }
+
+      .intro {
+        padding: 26px;
+      }
+
+      .eyebrow {
+        margin: 0 0 10px;
+        color: #7aa7ff;
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 0;
+        max-width: 780px;
+        font-size: clamp(32px, 5vw, 62px);
+        line-height: 0.96;
+        letter-spacing: 0;
+      }
+
+      .intro p {
+        max-width: 760px;
+        margin: 18px 0 0;
+        color: var(--muted);
+        font-size: 17px;
+        line-height: 1.55;
+      }
+
+      .session-panel {
+        padding: 20px;
+      }
+
+      .session-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 14px;
+      }
+
+      .session-title h2 {
+        margin: 0;
+        font-size: 18px;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        min-height: 28px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 4px 10px;
+        background: rgba(255, 255, 255, 0.04);
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .status-grid {
+        display: grid;
+        gap: 10px;
+      }
+
+      .status-row {
+        display: grid;
+        grid-template-columns: 130px minmax(0, 1fr);
+        gap: 12px;
+        align-items: center;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 10px;
+        background: rgba(255, 255, 255, 0.03);
+      }
+
+      .status-row span {
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 800;
+        text-transform: uppercase;
+      }
+
+      code {
+        overflow-wrap: anywhere;
+        color: #dbeafe;
+        font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+        font-size: 12px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: 360px minmax(0, 1fr);
+        gap: 18px;
+      }
+
+      .controls {
+        padding: 18px;
+      }
+
+      .field {
+        display: grid;
+        gap: 6px;
+        margin-bottom: 14px;
+      }
+
+      label {
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 800;
+        text-transform: uppercase;
+      }
+
+      input {
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 11px 12px;
+        background: #080d19;
+        color: var(--text);
+        outline: none;
+      }
+
+      input:focus {
+        border-color: var(--brand);
+        box-shadow: 0 0 0 3px rgba(79, 140, 255, 0.18);
+      }
+
+      .button-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 9px;
+        margin-top: 16px;
+      }
+
+      button {
+        min-height: 42px;
+        border: 1px solid rgba(79, 140, 255, 0.45);
+        border-radius: 10px;
+        background: rgba(79, 140, 255, 0.14);
+        color: var(--text);
+        cursor: pointer;
+        font-weight: 800;
+      }
+
+      button:hover {
+        background: rgba(79, 140, 255, 0.24);
+      }
+
+      button.primary {
+        border-color: #2f6df6;
+        background: #2f6df6;
+      }
+
+      button.secondary {
+        border-color: var(--line);
+        background: rgba(255, 255, 255, 0.04);
+      }
+
+      button.danger {
+        border-color: rgba(239, 68, 68, 0.6);
+        background: rgba(239, 68, 68, 0.14);
+      }
+
+      .results {
+        min-width: 0;
+        padding: 18px;
+      }
+
+      .result-header {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 14px;
+      }
+
+      .result-header h2 {
+        margin: 0;
+        font-size: 18px;
+      }
+
+      .checks {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+        margin-bottom: 14px;
+      }
+
+      .check {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 12px;
+        background: rgba(255, 255, 255, 0.03);
+      }
+
+      .check strong {
+        display: block;
+        margin-bottom: 4px;
+        font-size: 13px;
+      }
+
+      .check span {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.35;
+      }
+
+      .ok {
+        border-color: rgba(34, 197, 94, 0.45);
+      }
+
+      .ok strong {
+        color: #86efac;
+      }
+
+      .warn {
+        border-color: rgba(245, 158, 11, 0.45);
+      }
+
+      .warn strong {
+        color: #fbbf24;
+      }
+
+      .bad {
+        border-color: rgba(239, 68, 68, 0.45);
+      }
+
+      .bad strong {
+        color: #fca5a5;
+      }
+
+      pre {
+        min-height: 360px;
+        max-height: 620px;
+        overflow: auto;
+        margin: 0;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 14px;
+        background: #060a12;
+        color: #c7d2fe;
+        font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+        font-size: 12px;
+        line-height: 1.55;
+      }
+
+      .notice {
+        margin-top: 14px;
+        border: 1px solid rgba(34, 197, 94, 0.28);
+        border-radius: 12px;
+        padding: 12px;
+        background: rgba(34, 197, 94, 0.08);
+        color: #bbf7d0;
+        font-size: 13px;
+        line-height: 1.45;
+      }
+
+      @media (max-width: 920px) {
+        .hero,
+        .grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 640px) {
+        .shell {
+          width: min(100% - 20px, 1180px);
+          padding-top: 16px;
+        }
+
+        .intro,
+        .session-panel,
+        .controls,
+        .results {
+          padding: 14px;
+        }
+
+        .checks {
+          grid-template-columns: 1fr;
+        }
+
+        .status-row {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <div class="card intro">
+          <p class="eyebrow">Contrato publico externo</p>
+          <h1>Widget, portal ciudadano y seguimiento</h1>
+          <p>
+            Esta pagina valida CORS, sesion anonima, historial, carrito, registro progresivo y
+            vinculacion de sesion desde un origin externo. No reemplaza el widget final.
+          </p>
+        </div>
+
+        <aside class="card session-panel">
+          <div class="session-title">
+            <h2>Sesion local</h2>
+            <span class="pill" id="session-state">sin ejecutar</span>
+          </div>
+          <div class="status-grid">
+            <div class="status-row">
+              <span>Tenant</span>
+              <code id="tenant-code"></code>
+            </div>
+            <div class="status-row">
+              <span>Chat</span>
+              <code id="chat-code"></code>
+            </div>
+            <div class="status-row">
+              <span>Anon</span>
+              <code id="anon-code"></code>
+            </div>
+            <div class="status-row">
+              <span>Widget</span>
+              <code id="widget-session-code">sin token</code>
+            </div>
+          </div>
+        </aside>
+      </section>
+
+      <section class="grid">
+        <aside class="card controls">
+          <div class="field">
+            <label for="api-base">API base</label>
+            <input id="api-base" value="http://127.0.0.1:5000" />
+          </div>
+          <div class="field">
+            <label for="tenant">Tenant slug</label>
+            <input id="tenant" value="municipio" />
+          </div>
+          <div class="field">
+            <label for="widget-token">Widget token opcional</label>
+            <input id="widget-token" placeholder="token publico si aplica" />
+          </div>
+
+          <div class="button-grid">
+            <button class="primary" id="run-all" type="button">Validar contratos principales</button>
+            <button id="load-config" type="button">Cargar widget-config</button>
+            <button id="load-session" type="button">Cargar commerce-session</button>
+            <button id="load-history" type="button">Cargar tenant-history</button>
+            <button id="load-cart" type="button">Cargar cart summary</button>
+          </div>
+
+          <div class="field" style="margin-top: 22px">
+            <label for="name">Nombre para registro</label>
+            <input id="name" placeholder="Vecino Junin" />
+          </div>
+          <div class="field">
+            <label for="phone">Telefono</label>
+            <input id="phone" placeholder="+549261..." />
+          </div>
+          <div class="field">
+            <label for="email">Email opcional</label>
+            <input id="email" placeholder="correo@dominio.com" />
+          </div>
+
+          <div class="button-grid">
+            <button id="register-user" type="button">Registrar usuario del widget</button>
+            <button id="link-session" type="button">Vincular sesion</button>
+            <button class="secondary" id="refresh-ids" type="button">Refrescar IDs visibles</button>
+            <button class="danger" id="reset-session" type="button">Resetear sesion local</button>
+          </div>
+
+          <div class="notice">
+            La prueba debe mantener los headers X-Chat-Session-Id y X-Anon-Id estables.
+            Si backend devuelve un chat_session_id corto, esta pagina lo adopta.
+          </div>
+        </aside>
+
+        <section class="card results">
+          <div class="result-header">
+            <h2>Resultado</h2>
+            <span class="pill" id="last-action">esperando accion</span>
+          </div>
+
+          <div class="checks">
+            <div class="check warn" id="check-chat">
+              <strong>Chat corto</strong>
+              <span>pendiente</span>
+            </div>
+            <div class="check warn" id="check-anon">
+              <strong>Anon persistente</strong>
+              <span>pendiente</span>
+            </div>
+            <div class="check warn" id="check-portal">
+              <strong>Portal</strong>
+              <span>pendiente</span>
+            </div>
+          </div>
+
+          <pre id="output">{}</pre>
+        </section>
+      </section>
+    </main>
+
+    <script>
+      const STORAGE_PREFIX = "chatboc_external_widget_contract";
+      const CHAT_KEY = `${STORAGE_PREFIX}:chat_session_id`;
+      const ANON_KEY = `${STORAGE_PREFIX}:anon_id`;
+      const WIDGET_SESSION_KEY = `${STORAGE_PREFIX}:widget_session_token`;
+      const LAST_TENANT_KEY = `${STORAGE_PREFIX}:tenant_slug`;
+
+      const $ = (id) => document.getElementById(id);
+
+      const state = {
+        lastSession: null,
+        lastHistory: null,
+        lastCart: null,
+        lastRegister: null,
+      };
+
+      function generateId(prefix) {
+        if (crypto && typeof crypto.randomUUID === "function") {
+          return `${prefix}_${crypto.randomUUID()}`;
+        }
+        return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+      }
+
+      function isShortSessionId(value) {
+        return typeof value === "string" && value.trim() && value.length <= 64 && !value.includes(".");
+      }
+
+      function readInput(id) {
+        return $(id).value.trim();
+      }
+
+      function getTenant() {
+        return readInput("tenant") || "municipio";
+      }
+
+      function getApiBase() {
+        return readInput("api-base").replace(/\/+$/, "");
+      }
+
+      function getChatSessionId() {
+        const current = localStorage.getItem(CHAT_KEY);
+        if (isShortSessionId(current)) return current.trim();
+        const next = generateId("sid");
+        localStorage.setItem(CHAT_KEY, next);
+        return next;
+      }
+
+      function getAnonId() {
+        const current = localStorage.getItem(ANON_KEY);
+        if (current) return current;
+        const next = generateId("anon");
+        localStorage.setItem(ANON_KEY, next);
+        document.cookie = `chatboc_anon_id=${encodeURIComponent(next)}; path=/; max-age=31536000; SameSite=Lax`;
+        return next;
+      }
+
+      function getWidgetSessionToken() {
+        return localStorage.getItem(WIDGET_SESSION_KEY) || "";
+      }
+
+      function adoptSessionFrom(value) {
+        const session = value && typeof value === "object" ? value.session || value : null;
+        if (!session || typeof session !== "object") return;
+
+        if (isShortSessionId(session.chat_session_id)) {
+          localStorage.setItem(CHAT_KEY, session.chat_session_id.trim());
+        }
+
+        if (typeof session.anon_id === "string" && session.anon_id.trim()) {
+          localStorage.setItem(ANON_KEY, session.anon_id.trim());
+        }
+
+        if (typeof session.widget_session_token === "string" && session.widget_session_token.trim()) {
+          localStorage.setItem(WIDGET_SESSION_KEY, session.widget_session_token.trim());
+        }
+      }
+
+      function updateVisibleIds() {
+        const tenant = getTenant();
+        localStorage.setItem(LAST_TENANT_KEY, tenant);
+        $("tenant-code").textContent = tenant;
+        $("chat-code").textContent = getChatSessionId();
+        $("anon-code").textContent = getAnonId();
+        $("widget-session-code").textContent = getWidgetSessionToken() || "sin token";
+        $("session-state").textContent = isShortSessionId(getChatSessionId()) ? "sesion valida" : "sesion invalida";
+      }
+
+      function buildUrl(path, params = {}) {
+        const url = new URL(`${getApiBase()}${path}`);
+        const tenant = getTenant();
+        const query = {
+          tenant_slug: tenant,
+          tenant,
+          chat_session_id: getChatSessionId(),
+          anon_id: getAnonId(),
+          widget_token: readInput("widget-token"),
+          widget_session_token: getWidgetSessionToken(),
+          ...params,
+        };
+
+        Object.entries(query).forEach(([key, value]) => {
+          if (typeof value === "string" && value.trim()) {
+            url.searchParams.set(key, value.trim());
+          }
+        });
+
+        return url.toString();
+      }
+
+      function buildHeaders(extra = {}) {
+        const headers = {
+          "Accept": "application/json",
+          "X-Tenant-Slug": getTenant(),
+          "X-Chat-Session-Id": getChatSessionId(),
+          "X-Anon-Id": getAnonId(),
+          ...extra,
+        };
+
+        const widgetToken = readInput("widget-token");
+        const widgetSessionToken = getWidgetSessionToken();
+        if (widgetToken) headers["X-Widget-Token"] = widgetToken;
+        if (widgetSessionToken) headers["X-Widget-Session-Token"] = widgetSessionToken;
+        return headers;
+      }
+
+      async function requestJson(label, path, options = {}) {
+        const requestOptions = {
+          method: options.method || "GET",
+          credentials: "omit",
+          headers: buildHeaders(options.headers || {}),
+        };
+
+        if (options.body) {
+          requestOptions.headers["Content-Type"] = "application/json";
+          requestOptions.body = JSON.stringify(options.body);
+        }
+
+        const url = buildUrl(path, options.params || {});
+        $("last-action").textContent = label;
+        const startedAt = performance.now();
+        const response = await fetch(url, requestOptions);
+        const rawText = await response.text();
+        let data;
+        try {
+          data = rawText ? JSON.parse(rawText) : null;
+        } catch (error) {
+          data = { parse_error: true, raw: rawText.slice(0, 1200) };
+        }
+
+        const elapsedMs = Math.round(performance.now() - startedAt);
+        adoptSessionFrom(data);
+        updateVisibleIds();
+
+        const envelope = {
+          label,
+          ok: response.ok,
+          status: response.status,
+          elapsed_ms: elapsedMs,
+          url,
+          response: data,
+        };
+
+        if (!response.ok) {
+          throw envelope;
+        }
+
+        return envelope;
+      }
+
+      function renderOutput(value) {
+        $("output").textContent = JSON.stringify(value, null, 2);
+        updateChecks(value);
+      }
+
+      function classifyCheck(element, mode, title, message) {
+        element.className = `check ${mode}`;
+        element.querySelector("strong").textContent = title;
+        element.querySelector("span").textContent = message;
+      }
+
+      function updateChecks(value) {
+        const chatId = getChatSessionId();
+        classifyCheck(
+          $("check-chat"),
+          isShortSessionId(chatId) ? "ok" : "bad",
+          "Chat corto",
+          isShortSessionId(chatId) ? chatId : "valor invalido o demasiado largo",
+        );
+
+        classifyCheck(
+          $("check-anon"),
+          getAnonId() ? "ok" : "bad",
+          "Anon persistente",
+          getAnonId() ? "guardado en localStorage/cookie" : "faltante",
+        );
+
+        const response = value && value.response ? value.response : value;
+        const portal =
+          response?.portal?.view_url ||
+          response?.portal?.url ||
+          response?.profile?.portal?.view_url ||
+          response?.response?.portal?.view_url;
+        const verificationRequired = response?.status === "verification_required";
+        if (portal) {
+          classifyCheck($("check-portal"), "ok", "Portal", portal);
+        } else if (verificationRequired) {
+          classifyCheck($("check-portal"), "warn", "Portal", "requiere login o verificacion");
+        } else {
+          classifyCheck($("check-portal"), "warn", "Portal", "sin view_url publicado");
+        }
+      }
+
+      async function runAndRender(label, path, options) {
+        try {
+          const result = await requestJson(label, path, options);
+          renderOutput(result);
+          return result;
+        } catch (error) {
+          renderOutput({
+            error: true,
+            label,
+            detail: error,
+          });
+          return null;
+        }
+      }
+
+      async function loadConfig() {
+        const tenant = getTenant();
+        return runAndRender("widget-config", `/api/public/tenants/${encodeURIComponent(tenant)}/widget-config`);
+      }
+
+      async function loadSession() {
+        const result = await runAndRender("widget-commerce-session", "/api/public/widget-commerce-session");
+        state.lastSession = result?.response || null;
+        return result;
+      }
+
+      async function loadHistory() {
+        const result = await runAndRender("tenant-history", "/api/public/widget-user/tenant-history");
+        state.lastHistory = result?.response || null;
+        return result;
+      }
+
+      async function loadCart() {
+        const result = await runAndRender("cart-summary", "/api/pwa/public/cart/summary");
+        state.lastCart = result?.response || null;
+        return result;
+      }
+
+      async function registerUser() {
+        const payload = {
+          name: readInput("name"),
+          phone: readInput("phone") || null,
+          email: readInput("email") || null,
+        };
+
+        const result = await runAndRender("widget-user-register", "/api/public/widget-user/register", {
+          method: "POST",
+          body: payload,
+        });
+        state.lastRegister = result?.response || null;
+        return result;
+      }
+
+      async function linkSession() {
+        return runAndRender("widget-user-link-session", "/api/public/widget-user/link-session", {
+          method: "POST",
+          body: {},
+        });
+      }
+
+      async function runAll() {
+        const steps = [];
+        for (const step of [loadConfig, loadSession, loadHistory, loadCart]) {
+          const result = await step();
+          steps.push(result);
+        }
+        renderOutput({
+          ok: steps.every(Boolean),
+          steps,
+          local_session: {
+            tenant_slug: getTenant(),
+            chat_session_id: getChatSessionId(),
+            anon_id: getAnonId(),
+            widget_session_token: getWidgetSessionToken() || null,
+          },
+        });
+      }
+
+      function resetSession() {
+        localStorage.removeItem(CHAT_KEY);
+        localStorage.removeItem(ANON_KEY);
+        localStorage.removeItem(WIDGET_SESSION_KEY);
+        updateVisibleIds();
+        renderOutput({
+          ok: true,
+          message: "Sesion local reiniciada",
+          chat_session_id: getChatSessionId(),
+          anon_id: getAnonId(),
+        });
+      }
+
+      $("load-config").addEventListener("click", loadConfig);
+      $("load-session").addEventListener("click", loadSession);
+      $("load-history").addEventListener("click", loadHistory);
+      $("load-cart").addEventListener("click", loadCart);
+      $("register-user").addEventListener("click", registerUser);
+      $("link-session").addEventListener("click", linkSession);
+      $("run-all").addEventListener("click", runAll);
+      $("refresh-ids").addEventListener("click", updateVisibleIds);
+      $("reset-session").addEventListener("click", resetSession);
+      $("tenant").addEventListener("change", updateVisibleIds);
+
+      const storedTenant = localStorage.getItem(LAST_TENANT_KEY);
+      if (storedTenant) $("tenant").value = storedTenant;
+      updateVisibleIds();
+      renderOutput({
+        ready: true,
+        next_step: "Configura API base y presiona Validar contratos principales.",
+      });
+    </script>
+  </body>
+</html>

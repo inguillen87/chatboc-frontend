@@ -7,6 +7,7 @@ import { createDemoSession } from "@/features/demo/demoApi";
 import type { DemoSector, DemoSessionResponse } from "@/features/demo/demoTypes";
 import { ApiError, getErrorMessage } from "@/utils/api";
 import { CHATBOC_ORBIT_AVATAR } from "@/utils/brandAssets";
+import { persistChatSessionId, resetChatSessionId } from "@/utils/chatSessionId";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 
 type DemoPageError = {
@@ -94,6 +95,7 @@ export default function DemoLandingPage() {
   useEffect(() => {
     safeLocalStorage.removeItem("chatboc_chat_session_id");
     safeLocalStorage.removeItem("chatboc_thread_id");
+    resetChatSessionId();
   }, [slug]);
 
   useEffect(() => {
@@ -113,6 +115,7 @@ export default function DemoLandingPage() {
         setSession(response);
 
         if (response.chat_session_id) {
+          persistChatSessionId(response.chat_session_id);
           safeLocalStorage.setItem("chatboc_chat_session_id", response.chat_session_id);
         }
         if (response.demo_session_id) {
@@ -151,6 +154,7 @@ export default function DemoLandingPage() {
         const response = await createDemoSession({ tenant_slug: slug.trim() });
         setSession(response);
         if (response.chat_session_id) {
+          persistChatSessionId(response.chat_session_id);
           safeLocalStorage.setItem("chatboc_chat_session_id", response.chat_session_id);
         }
         if (response.demo_session_id) {

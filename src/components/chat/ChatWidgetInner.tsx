@@ -2015,7 +2015,6 @@ function ChatWidgetInner({
       tenantSlug: tenantSlug && !isPlatformTenant ? tenantSlug : null,
       widgetToken,
       chatSessionId: getOrCreateChatSessionId(),
-      demoSessionId: demoSessionId || null,
       anonId: getOrCreateAnonId(),
     };
 
@@ -2037,7 +2036,7 @@ function ChatWidgetInner({
     return () => {
       isActive = false;
     };
-  }, [chatTenantSlug, demoSessionId, resolvedOwnerToken]);
+  }, [chatTenantSlug, resolvedOwnerToken]);
 
   useEffect(() => {
     let isActive = true;
@@ -2060,7 +2059,6 @@ function ChatWidgetInner({
       tenantSlug,
       widgetToken,
       chatSessionId: getOrCreateChatSessionId(),
-      demoSessionId: demoSessionId || null,
       anonId: getOrCreateAnonId(),
       widgetSessionToken: widgetCommerceSession?.session?.widget_session_token || null,
     })
@@ -2081,7 +2079,6 @@ function ChatWidgetInner({
     };
   }, [
     commerceTenantSlug,
-    demoSessionId,
     resolvedOwnerToken,
     widgetCommerceSession?.history?.endpoint,
     widgetCommerceSession?.history?.history_endpoint,
@@ -2111,12 +2108,16 @@ function ChatWidgetInner({
       tenantSlug,
       widgetToken,
       chatSessionId: getOrCreateChatSessionId(),
-      demoSessionId: demoSessionId || null,
       anonId: getOrCreateAnonId(),
       widgetSessionToken: widgetCommerceSession?.session?.widget_session_token || null,
     })
       .then((cart) => {
-        if (isActive) setWidgetCommerceCart(cart);
+        if (isActive) {
+          if (cart?.session?.chat_session_id) {
+            persistChatSessionId(cart.session.chat_session_id);
+          }
+          setWidgetCommerceCart(cart);
+        }
       })
       .catch(() => {
         if (isActive) setWidgetCommerceCart(null);
@@ -2127,7 +2128,6 @@ function ChatWidgetInner({
     };
   }, [
     commerceTenantSlug,
-    demoSessionId,
     resolvedOwnerToken,
     widgetCommerceSession?.cart?.endpoint,
     widgetCommerceSession?.cart?.items_endpoint,

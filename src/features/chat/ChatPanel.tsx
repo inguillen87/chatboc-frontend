@@ -76,7 +76,7 @@ const normalizeLeadValue = (value: unknown) =>
 const readShortChatSessionId = (value: unknown): string | null => {
   const trimmed = typeof value === 'string' ? value.trim() : '';
   if (!trimmed) return null;
-  return trimmed.length <= 36 && !trimmed.includes('.') ? trimmed : null;
+  return trimmed.length <= 64 && !trimmed.includes('.') ? trimmed : null;
 };
 
 const readRecordString = (source: Record<string, unknown> | undefined | null, keys: string[]) => {

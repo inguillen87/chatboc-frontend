@@ -91,6 +91,7 @@ export interface WidgetCommerceHistory {
 export interface WidgetCommerceCartSnapshot {
   contract_version?: string | null;
   request_id?: string | null;
+  session?: WidgetCommerceSessionInfo | null;
   items_count?: number | null;
   total_items?: number | null;
   cart?: {

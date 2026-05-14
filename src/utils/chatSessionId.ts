@@ -25,6 +25,10 @@ export function getOrCreateChatSessionId(): string {
   }
   try {
     let sessionId = safeLocalStorage.getItem(CHAT_SESSION_ID_KEY);
+    if (sessionId && !isPersistableChatSessionId(sessionId)) {
+      safeLocalStorage.removeItem(CHAT_SESSION_ID_KEY);
+      sessionId = null;
+    }
     if (!sessionId) {
       sessionId = uuidv4();
       safeLocalStorage.setItem(CHAT_SESSION_ID_KEY, sessionId);

@@ -26,7 +26,18 @@ const UserBenefitsPage = () => {
   const [error, setError] = useState<string | null>(null);
 
   const summary = loyaltyData || content.loyaltySummary || null;
-  const rewards = summary?.availableRewards ?? [];
+  const rewards = useMemo(() => {
+    if (summary?.availableRewards?.length) return summary.availableRewards;
+    return content.catalog
+      .filter((item) => typeof item.price === 'number')
+      .map((item) => ({
+        id: item.id,
+        title: item.title,
+        cost: item.price ?? 0,
+        type: item.status ?? item.category ?? '',
+        description: item.description,
+      }));
+  }, [content.catalog, summary?.availableRewards]);
   const transactions = summary?.transactions ?? [];
 
   useEffect(() => {

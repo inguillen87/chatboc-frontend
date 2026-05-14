@@ -151,7 +151,7 @@ const normalizeAttachments = (item: RawRecord): WidgetPortalAttachment[] => {
   ];
 
   const normalized = raw
-    .map((entry, index) => {
+    .map<WidgetPortalAttachment | null>((entry, index) => {
       if (!isRecord(entry)) return null;
       const url = readString(entry.url, entry.href, entry.file_url, entry.download_url, entry.foto_url_directa);
       const id = readString(entry.id, entry.archivo_adjunto_id, url, `attachment-${index}`);
@@ -184,7 +184,7 @@ const normalizeTimeline = (item: RawRecord): WidgetPortalTimelineEvent[] =>
     ...getSectionItems(item.events),
     ...getSectionItems(item.eventos),
   ]
-    .map((entry, index) => {
+    .map<WidgetPortalTimelineEvent | null>((entry, index) => {
       if (!isRecord(entry)) return null;
       const label = readString(entry.label, entry.title, entry.description, entry.message, entry.status);
       if (!label) return null;
@@ -240,10 +240,15 @@ export const normalizeWidgetClaims = (history?: WidgetCommerceHistory | null): W
     ...getSectionItems(source?.claims),
     ...getSectionItems(source?.tickets),
     ...getSectionItems(source?.reclamos),
+    ...getSectionItems(source?.items).filter((entry) => {
+      if (!isRecord(entry)) return false;
+      const kind = readString(entry.kind, entry.type);
+      return ["claim", "ticket", "reclamo"].includes(String(kind || "").toLowerCase());
+    }),
   ];
 
   return items
-    .map((entry, index) => {
+    .map<WidgetPortalClaim | null>((entry, index) => {
       if (!isRecord(entry)) return null;
       const nroTicket = readString(entry.nro_ticket, entry.ticket_number, entry.ticket_id, entry.id);
       const detailEndpoint = normalizeEndpoint(entry, "detail_endpoint", "detail", "view_url", "url");
@@ -280,8 +285,17 @@ export const normalizeWidgetClaims = (history?: WidgetCommerceHistory | null): W
 
 export const normalizeWidgetOrders = (history?: WidgetCommerceHistory | null): WidgetPortalOrder[] => {
   const source = isRecord(history) ? history : null;
-  return getSectionItems(source?.orders)
-    .map((entry, index) => {
+  const items = [
+    ...getSectionItems(source?.orders),
+    ...getSectionItems(source?.pedidos),
+    ...getSectionItems(source?.items).filter((entry) => {
+      if (!isRecord(entry)) return false;
+      const kind = readString(entry.kind, entry.type);
+      return ["order", "pedido"].includes(String(kind || "").toLowerCase());
+    }),
+  ];
+  return items
+    .map<WidgetPortalOrder | null>((entry, index) => {
       if (!isRecord(entry)) return null;
       const nroPedido = readString(entry.nro_pedido, entry.order_number, entry.order_id, entry.id);
       const detailEndpoint = normalizeEndpoint(entry, "detail_endpoint", "detail", "view_url", "url");
@@ -300,7 +314,7 @@ export const normalizeWidgetOrders = (history?: WidgetCommerceHistory | null): W
         trackingUrl,
         detailEndpoint,
         items: details
-          .map((detail, detailIndex) => {
+          .map<WidgetPortalOrder["items"][number] | null>((detail, detailIndex) => {
             if (!isRecord(detail)) return null;
             return {
               id: readString(detail.id, detail.product_id, detail.sku, `item-${detailIndex}`) ?? `item-${detailIndex}`,
@@ -317,7 +331,7 @@ export const normalizeWidgetOrders = (history?: WidgetCommerceHistory | null): W
 
 const normalizeNotifications = (history?: WidgetCommerceHistory | null): PortalNotification[] =>
   getSectionItems(isRecord(history) ? history.notifications : null)
-    .map((entry, index) => {
+    .map<PortalNotification | null>((entry, index) => {
       if (!isRecord(entry)) return null;
       const title = readString(entry.title, entry.label);
       const message = readString(entry.message, entry.description, entry.summary);
@@ -337,7 +351,7 @@ const normalizeNotifications = (history?: WidgetCommerceHistory | null): PortalN
 
 const normalizeSurveys = (history?: WidgetCommerceHistory | null): PortalSurvey[] =>
   getSectionItems(isRecord(history) ? history.surveys : null)
-    .map((entry, index) => {
+    .map<PortalSurvey | null>((entry, index) => {
       if (!isRecord(entry)) return null;
       const title = readString(entry.title, entry.name, entry.label);
       if (!title) return null;
@@ -364,7 +378,7 @@ const normalizeRewards = (
   ];
 
   return items
-    .map((entry, index) => {
+    .map<PortalCatalogItem | null>((entry, index) => {
       if (!isRecord(entry)) return null;
       const points = readNumber(entry.points, entry.puntos, entry.points_cost, entry.cost_points, entry.redeem_points);
       if (points === undefined) return null;
@@ -374,7 +388,7 @@ const normalizeRewards = (
         id: readString(entry.id, entry.product_id, `reward-${index}`) ?? `reward-${index}`,
         title,
         description: readString(entry.description, entry.descripcion, entry.summary),
-        category: readString(entry.category, entry.categoria, "beneficios"),
+        category: readString(entry.category, entry.categoria),
         price: points,
         priceLabel: `${points} pts`,
         status: readString(entry.status, entry.estado),
@@ -410,11 +424,7 @@ const normalizeLoyaltySummary = (
   const claimsFiled = readNumber(counts?.claims, historySummary?.claims_filed);
 
   if (
-    points === undefined &&
-    rewards.length === 0 &&
-    surveysCompleted === undefined &&
-    suggestionsShared === undefined &&
-    claimsFiled === undefined
+    points === undefined
   ) {
     return null;
   }
@@ -429,7 +439,7 @@ const normalizeLoyaltySummary = (
       id: reward.id,
       title: reward.title,
       cost: reward.price ?? 0,
-      type: reward.status ?? "beneficio",
+      type: reward.status ?? reward.category ?? "",
       description: reward.description,
     })),
   };
@@ -445,7 +455,7 @@ const claimToActivity = (claim: WidgetPortalClaim): PortalActivity | null => {
     status: claim.statusLabel ?? claim.status,
     statusType: toStatusType(claim.status ?? claim.statusLabel),
     date: claim.createdAt,
-    link: claim.detailEndpoint ?? "/portal/reclamos",
+    link: claim.detailEndpoint,
   };
 };
 
@@ -458,7 +468,7 @@ const orderToActivity = (order: WidgetPortalOrder): PortalActivity | null => {
     type: "order",
     status: order.status,
     statusType: toStatusType(order.status),
-    link: order.detailEndpoint ?? order.trackingUrl ?? "/portal/pedidos",
+    link: order.detailEndpoint ?? order.trackingUrl,
   };
 };
 
@@ -492,4 +502,3 @@ export const overlayPortalContent = (base: PortalContent, overlay: PortalContent
   surveys: overlay.surveys.length > 0 ? overlay.surveys : base.surveys,
   loyaltySummary: overlay.loyaltySummary ?? base.loyaltySummary,
 });
-

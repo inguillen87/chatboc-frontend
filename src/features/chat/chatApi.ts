@@ -350,7 +350,7 @@ const readBootstrapString = (
 const readShortChatSessionId = (value: unknown): string | null => {
   const trimmed = typeof value === 'string' ? value.trim() : '';
   if (!trimmed) return null;
-  return trimmed.length <= 36 && !trimmed.includes('.') ? trimmed : null;
+  return trimmed.length <= 64 && !trimmed.includes('.') ? trimmed : null;
 };
 
 const readBootstrapSession = (bootstrap: ChatBootstrapConfig): Record<string, unknown> | undefined =>
