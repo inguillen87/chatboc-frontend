@@ -6,6 +6,8 @@ import { configDefaults } from 'vitest/config';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
+  const backendTarget = (env.VITE_BACKEND_URL || env.VITE_PROXY_TARGET || 'https://chatbot-backend-2e14.onrender.com').replace(/\/+$/, '');
+  const socketTarget = backendTarget.replace(/^http/i, 'ws');
 
   return {
     envPrefix: ['VITE_', 'NEXT_PUBLIC_'],
@@ -116,30 +118,30 @@ export default defineConfig(({ mode }) => {
       port: 5173,
       proxy: {
         '/api': {
-          target: 'https://chatbot-backend-2e14.onrender.com',
+          target: backendTarget,
           changeOrigin: true,
           secure: false,
           // Removed the rewrite to ensure /api/ prefix is forwarded to the backend
           // rewrite: (path) => path.replace(/^\/api/, ''),
         },
         '/ask': {
-          target: 'https://chatbot-backend-2e14.onrender.com',
+          target: backendTarget,
           changeOrigin: true,
           secure: false,
         },
         '/archivos': {
-          target: 'https://chatbot-backend-2e14.onrender.com',
+          target: backendTarget,
           changeOrigin: true,
           secure: false,
         },
         '/socket.io': {
-          target: 'wss://chatbot-backend-2e14.onrender.com',
+          target: socketTarget,
           ws: true,
           changeOrigin: true,
           secure: false,
         },
         '/api/socket.io': {
-          target: 'wss://chatbot-backend-2e14.onrender.com',
+          target: socketTarget,
           ws: true,
         },
       },

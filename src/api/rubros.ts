@@ -13,9 +13,10 @@ const sortRubroTree = (items: Rubro[]): Rubro[] =>
   }));
 
 export const fetchRubros = async (): Promise<Rubro[]> => {
-  return apiFetch<Rubro[]>('/rubros/', {
+  return apiFetch<Rubro[]>('/api/rubros/', {
     omitTenant: true,
     skipAuth: true,
+    baseUrlOverride: '/api',
   });
 };
 

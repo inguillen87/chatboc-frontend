@@ -442,26 +442,36 @@ const HeroInputCard = ({ input }: { input: ConversationInput }) => {
   const InputIcon = getInputIcon(input.kind);
   const inputKind = inferInputKind(input.kind);
   const canLoadImage = inputKind === "image" && input.previewUrl && !imageFailed;
+  const showImageShell = inputKind === "image" && (!imageReady || !input.previewUrl || imageFailed);
   const hasLocation = inputKind === "location" && (input.address || input.lat || input.lng);
 
   return (
-    <div className="chatboc-hero-attachment">
+    <div className={`chatboc-hero-attachment chatboc-hero-attachment--${inputKind}`}>
       <div className="flex items-center gap-2 font-semibold">
         <InputIcon className="h-4 w-4 text-primary" />
         <span>{input.label}</span>
       </div>
-      {canLoadImage && (
-        <img
-          src={input.previewUrl}
-          alt={input.label}
-          className={imageReady ? "mt-2 h-24 w-full rounded-[10px] object-cover" : "hidden"}
-          loading="lazy"
-          onLoad={() => setImageReady(true)}
-          onError={() => {
-            setImageFailed(true);
-            setImageReady(false);
-          }}
-        />
+      {inputKind === "image" && (
+        <div className="chatboc-hero-attachment__media mt-2">
+          {showImageShell && (
+            <div className="chatboc-hero-attachment__visual">
+              <ImageIcon className="h-5 w-5 text-primary" />
+            </div>
+          )}
+          {canLoadImage && (
+            <img
+              src={input.previewUrl}
+              alt={input.label}
+              className={imageReady ? "h-full w-full rounded-[10px] object-cover" : "hidden"}
+              loading="lazy"
+              onLoad={() => setImageReady(true)}
+              onError={() => {
+                setImageFailed(true);
+                setImageReady(false);
+              }}
+            />
+          )}
+        </div>
       )}
       {hasLocation && (
         <div className="mt-2 rounded-[10px] border border-primary/15 bg-primary/5 px-2 py-2 text-[11px] leading-5 text-foreground">
@@ -491,6 +501,7 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
     DEFAULT_HEADLINE;
   const description =
     readText(hero, ["subheadline", "subtitle", "description", "copy", "body"]) || DEFAULT_DESCRIPTION;
+  const eyebrow = readText(hero, ["eyebrow", "kicker", "badge_label", "tagline"]);
 
   const proofItems = normalizeProofItems(
     first(hero, ["proof_items", "trust_signals", "proof", "badges"]) ?? experience?.proof_bar,
@@ -537,6 +548,7 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
   );
   const activeAction = activeFlow?.action;
   const activeWorkflowSteps = activeFlow?.workflowSteps.length ? activeFlow.workflowSteps : workflowSteps;
+  const activeInputKinds = activeFlow?.inputs.map((input) => inferInputKind(input.kind)) ?? [];
   const ActiveFlowIcon = activeFlow ? getFlowIcon(activeFlow) : Bot;
   const ActiveActionIcon = activeAction ? getActionIcon(activeAction.label) : ClipboardCheck;
   const actionSectionLabel = readText(hero, ["action_section_label", "result_label"]);
@@ -570,6 +582,13 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
       <div className="container mx-auto px-4">
         <div className={`grid items-center gap-10 ${showHeroPreview ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]" : ""}`}>
           <div className="min-w-0 max-w-3xl">
+            {eyebrow && (
+              <div className="mb-5 inline-flex max-w-full items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.22em] text-primary">
+                <span className="h-1.5 w-1.5 rounded-full bg-success" />
+                <span className="truncate">{eyebrow}</span>
+              </div>
+            )}
+
             {headline && (
               <h1 className="chatboc-hero-headline text-4xl font-bold leading-[1.02] tracking-normal text-foreground sm:text-5xl md:text-6xl 2xl:text-7xl">
                 <span>{headlineLead}</span>{" "}
@@ -630,6 +649,15 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
             <div className="chatboc-hero-preview">
               {activeFlow && (
                 <div className="chatboc-phone-demo">
+                  <div className="chatboc-phone-demo__chrome" aria-hidden="true">
+                    <span />
+                    <div>
+                      <i />
+                      <i />
+                      <i />
+                    </div>
+                  </div>
+
                   <div className="chatboc-phone-demo__bar">
                     <div className="flex min-w-0 items-center gap-3">
                       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-primary/20 bg-primary/10 text-primary">
@@ -676,28 +704,47 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
                   )}
 
                   <div className="chatboc-phone-demo__screen">
-                    <div className="flex justify-end">
-                      <div className="chatboc-phone-demo__bubble chatboc-phone-demo__bubble--user">
-                        {activeFlow.message}
+                    <div className="chatboc-phone-demo__thread">
+                      <div className="flex justify-end">
+                        <div className="chatboc-phone-demo__bubble chatboc-phone-demo__bubble--user">
+                          {activeFlow.message}
+                        </div>
+                      </div>
+
+                      {activeFlow.inputs.length > 0 && (
+                        <div className="chatboc-phone-demo__attachments">
+                          {activeFlow.inputs.map((input) => (
+                            <HeroInputCard key={`${activeFlow.id}-${input.kind}-${input.label}`} input={input} />
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="flex items-start gap-3">
+                        <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-primary/20 bg-primary/10 text-primary">
+                          <Bot className="h-4 w-4" />
+                        </div>
+                        <div className="chatboc-phone-demo__bubble chatboc-phone-demo__bubble--agent">
+                          {activeFlow.response}
+                        </div>
                       </div>
                     </div>
 
-                    {activeFlow.inputs.length > 0 && (
-                      <div className="chatboc-phone-demo__attachments">
-                        {activeFlow.inputs.map((input) => (
-                          <HeroInputCard key={`${activeFlow.id}-${input.kind}-${input.label}`} input={input} />
-                        ))}
+                    {activeInputKinds.length > 0 && (
+                      <div className="chatboc-phone-demo__composer">
+                        {activeFlow.inputs.map((input) => {
+                          const ComposerIcon = getInputIcon(input.kind);
+                          return (
+                            <span
+                              key={`${activeFlow.id}-composer-${input.kind}-${input.label}`}
+                              className="chatboc-phone-demo__composer-chip"
+                            >
+                              <ComposerIcon className="h-3.5 w-3.5" />
+                              <span>{input.label}</span>
+                            </span>
+                          );
+                        })}
                       </div>
                     )}
-
-                    <div className="flex items-start gap-3">
-                      <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-primary/20 bg-primary/10 text-primary">
-                        <Bot className="h-4 w-4" />
-                      </div>
-                      <div className="chatboc-phone-demo__bubble chatboc-phone-demo__bubble--agent">
-                        {activeFlow.response}
-                      </div>
-                    </div>
 
                     {activeAction && (
                       <div className="chatboc-phone-demo__result">
