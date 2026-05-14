@@ -152,6 +152,10 @@ const readRawText = (record: AnyRecord | undefined | null, keys: string[], defau
 const DEFAULT_HEADLINE = "Converti conversaciones en operaciones reales";
 const DEFAULT_DESCRIPTION =
   "Chatboc atiende por web o WhatsApp, pide los datos justos y deja casos, pedidos o leads listos para operar.";
+const DEFAULT_CONVERSATION_TITLE = "WhatsApp operativo";
+const DEFAULT_CONVERSATION_SUBTITLE = "Un caso entra, el agente pide datos y deja una accion trazable.";
+const DEFAULT_PRIMARY_CTA = { label: "Probar una conversacion real", target: "/demo" };
+const DEFAULT_SECONDARY_CTA = { label: "Hablar con ventas", target: "/contacto" };
 
 const normalizeHeroMediaUrl = (raw: string) => {
   const value = raw.trim();
@@ -423,7 +427,6 @@ const HeroInputCard = ({ input }: { input: ConversationInput }) => {
   const InputIcon = getInputIcon(input.kind);
   const inputKind = inferInputKind(input.kind);
   const canLoadImage = inputKind === "image" && input.previewUrl && !imageFailed;
-  const showVisualPlaceholder = (inputKind === "image" || inputKind === "file") && (!canLoadImage || imageFailed);
   const hasLocation = inputKind === "location" && (input.address || input.lat || input.lng);
 
   return (
@@ -444,11 +447,6 @@ const HeroInputCard = ({ input }: { input: ConversationInput }) => {
             setImageReady(false);
           }}
         />
-      )}
-      {showVisualPlaceholder && (
-        <div className="chatboc-hero-attachment__placeholder mt-2">
-          <InputIcon className="h-5 w-5" />
-        </div>
       )}
       {hasLocation && (
         <div className="mt-2 rounded-[10px] border border-primary/15 bg-primary/5 px-2 py-2 text-[11px] leading-5 text-foreground">
@@ -487,15 +485,15 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
   );
   const workflowSteps = normalizeWorkflowSteps(first(hero, ["workflow_steps", "agent_steps", "steps", "process_steps"]));
   const primaryCta = normalizeCta(first(hero, ["primary_cta", "primaryCta"]) ?? asArray(experience?.ctas)[0], {
-    label: "",
-    target: "",
+    label: DEFAULT_PRIMARY_CTA.label,
+    target: DEFAULT_PRIMARY_CTA.target,
   });
   const secondaryCta = normalizeCta(first(hero, ["secondary_cta", "secondaryCta"]) ?? asArray(experience?.ctas)[1], {
-    label: "",
-    target: "",
+    label: DEFAULT_SECONDARY_CTA.label,
+    target: DEFAULT_SECONDARY_CTA.target,
   });
-  const previewTitle = readText(hero, ["preview_title", "dashboard_title"]);
-  const previewCopy = readText(hero, ["preview_copy", "dashboard_description"]);
+  const previewTitle = readText(hero, ["preview_title", "dashboard_title"]) || DEFAULT_CONVERSATION_TITLE;
+  const previewCopy = readText(hero, ["preview_copy", "dashboard_description"]) || DEFAULT_CONVERSATION_SUBTITLE;
   const conversationFlows = useMemo(
     () => {
       const experienceRecord = isRecord(experience) ? (experience as AnyRecord) : undefined;
