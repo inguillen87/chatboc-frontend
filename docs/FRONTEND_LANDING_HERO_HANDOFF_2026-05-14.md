@@ -2,24 +2,24 @@
 
 ## Objetivo
 
-La primera pantalla de Chatboc debe vender una experiencia premium tipo WhatsApp operativo, sin mezclar responsabilidades con backend.
+La primera pantalla de Chatboc debe vender una experiencia premium tipo WhatsApp operativo, sin mezclar responsabilidades con backend ni mostrar datos inventados.
 
-El backend no define copy comercial, estetica, layout, animaciones, imagenes decorativas ni decision visual. El backend solo publica capacidades, endpoints y datos operativos trazables.
+El backend define copy visible, CTAs, capacidades, endpoints y datos operativos trazables. El frontend define jerarquia visual, layout y comportamiento de render, pero no inventa textos, botones, casos, metricas, imagenes ni placeholders.
 
 ## Frontera de responsabilidad
 
 ### Frontend owns
 
-- Headline, subheadline, CTAs y microcopy comercial.
 - Layout del hero, mockup mobile, tabs, burbujas, animaciones y dark/light mode.
-- Imagenes decorativas o placeholders visuales.
 - Jerarquia visual, ritmo de lectura y performance del primer viewport.
-- Fallback UX cuando el backend tarda o no publica una demo conversacional.
+- Estados de carga discretos mientras llega el contrato.
 - Ocultar secciones si no hay datos operativos reales.
+- Validar que imagenes remotas carguen antes de mostrarlas.
 
 ### Backend owns
 
 - `GET /api/public/landing-experience`.
+- Headline, subheadline, CTAs y microcopy comercial.
 - `hero.conversation_demo.flows[]` con datos operativos reales o trazables.
 - `POST /api/v2/demo/session`.
 - Chat bootstrap real con `demo_session_id` y `session_id`.
@@ -64,7 +64,8 @@ Campos operativos relevantes:
     "admin_preview_endpoint": "/api/v2/demo/admin-preview"
   },
   "runtime_rules": {
-    "frontend_owns_copy_and_visual_design": true,
+    "frontend_owns_visual_design": true,
+    "backend_owns_visible_copy": true,
     "backend_owns_sessions_actions_and_traceability": true,
     "do_not_publish_frontend_mock_data": true
   }
@@ -121,15 +122,15 @@ Cada `flow` puede tener:
 - Renderizar el mockup tipo WhatsApp solo si existe al menos un `flow` con `action` o `result.traceable=true`.
 - No renderizar ticket, pedido, lead, metricas ni codigo si backend no lo envia.
 - Si `input.preview_url`, `thumbnail_url` o `image_url` existe y carga bien, mostrar imagen real.
-- Si el input indica `image` o `file` pero no hay URL valida, mostrar placeholder visual de adjunto, no imagen rota.
+- Si el input indica `image` o `file` pero no hay URL valida, mostrar solo el dato textual recibido. No mostrar placeholder visual ni imagen rota.
 - Si hay `address`, `lat` o `lng`, mostrar resumen de ubicacion.
 - Si hay `action.fields`, `metadata`, `summary_items`, `facts`, `details` o `attributes`, renderizarlos como resumen operativo.
 - Si no hay demo conversacional real, ocultar el mockup derecho y usar hero editorial simple.
 - No mostrar PDF como accion principal del hero.
 
-## Copy recomendado del frontend
+## Copy esperado desde backend
 
-El copy vive en frontend. Puede cambiar sin tocar backend.
+El copy visible debe llegar desde `GET /api/public/landing-experience`. Frontend puede conservar defaults tecnicos mínimos para no romper render, pero la experiencia publica debe estar controlada por backend.
 
 Headline base:
 
@@ -186,9 +187,9 @@ La primera pantalla debe sentirse como:
 
 ## Checklist frontend
 
-- Hero carga rapido con copy local aunque backend tarde.
+- Hero carga rapido y luego usa copy/datos del backend.
 - Hero consume `conversation_demo` cuando existe.
-- Hero no muestra imagen rota.
+- Hero no muestra imagen rota ni placeholder.
 - Hero no muestra resultado si no hay `action` o `result`.
 - CTA principal abre `/demo`.
 - Demo inicia con `POST /api/v2/demo/session`.
@@ -197,3 +198,79 @@ La primera pantalla debe sentirse como:
 - Mobile no tiene overflow horizontal.
 - Dark mode mantiene contraste y jerarquia.
 
+## Render QA 2026-05-14
+
+### Error critico en chat demo gobierno
+
+Render muestra que `POST /ask/municipio` falla porque backend esta persistiendo el JWT completo de `demo_session_id` como `chat_session_id`.
+
+La columna `chat_session_context.chat_session_id` es `VARCHAR(36)` y el JWT de demo supera ampliamente ese limite.
+
+Log observado:
+
+```txt
+sqlalchemy.exc.DataError: value too long for type character varying(36)
+INSERT INTO chat_session_context (chat_session_id, ...)
+chat_session_id='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+POST /ask/municipio?tenant_slug=municipio&demo_session_id=<jwt> -> 500
+```
+
+Accion backend requerida:
+
+- No usar `demo_session_id` JWT como `chat_session_context.chat_session_id`.
+- Decodificar/validar `demo_session_id` y derivar un `chat_session_id` corto, estable y trazable.
+- O usar `X-Chat-Session-Id` cuando frontend lo envie.
+- Si no existe `X-Chat-Session-Id`, crear un UUID v4 o un hash corto <= 36 chars a partir del JWT.
+- Guardar el JWT original solo en `context_data.demo_session_id` o en una columna preparada para tokens largos.
+- Nunca devolver 500 por este caso; si el JWT es invalido/expirado, devolver JSON accionable con `request_id`.
+
+Respuesta esperada:
+
+```json
+{
+  "contract_version": "chat.runtime.v1",
+  "request_id": "req_...",
+  "session": {
+    "chat_session_id": "uuid-or-short-id",
+    "demo_session_id": "jwt..."
+  },
+  "message": {
+    "role": "assistant",
+    "content": "..."
+  }
+}
+```
+
+### Tenant `media` detectado desde PDFs
+
+Render tambien muestra requests generados desde rutas `/media/demo_catalogs/...pdf` donde frontend/backend terminan resolviendo `tenant_slug=media`.
+
+Ejemplos:
+
+```txt
+GET /api/public/widget-commerce-session?tenant_slug=media&tenant=media -> 404
+GET /api/public/widget-user/tenant-history?tenant_slug=media&tenant=media -> 404
+GET /api/public/tenants/media/widget-config -> 200 pesado
+```
+
+Accion backend requerida:
+
+- Tratar `media` como slug reservado/publico, no como tenant real.
+- Si el `Referer` o path viene de `/media/demo_catalogs/...`, no iniciar bootstrap de comercio/widget por tenant `media`.
+- Para endpoints publicos tenant-aware, devolver JSON degradable con `reason_code=reserved_public_slug` o `tenant_resolution_failed`, `request_id` y CORS OK.
+- No cargar widget-config completo para `tenant_slug=media`.
+
+### Lead capture landing/demo
+
+Render muestra:
+
+```txt
+GET/POST /api/public/lead-capture?tenant_slug=municipio&tenant=municipio -> 400
+```
+
+Accion backend requerida:
+
+- Aceptar payload de landing/demo con `tenant_slug`, `sector`, `source`, `name`, `email`, `phone`, `message`, `demo_session_id`, `chat_session_id`, `anon_id`.
+- Crear un lead real para seguimiento comercial/superadmin.
+- Si faltan campos, responder 400 JSON con `contract_version`, `reason_code`, `required_fields`, `field_errors` y `request_id`.
+- No responder HTML ni errores genericos.
