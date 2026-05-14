@@ -1,88 +1,193 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 720" role="img" aria-labelledby="title desc">
-  <title id="title">Chatboc blue robot assistant</title>
-  <desc id="desc">Full body blue Chatboc robot assistant with map pin, speech bubble and neon accents.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 820" role="img" aria-labelledby="title desc">
+  <title id="title">Chatboc premium robot assistant</title>
+  <desc id="desc">A glossy blue and white 3D-style robot mascot with a glass visor, headset, chat bubble and location pin.</desc>
   <style>
     @media (prefers-reduced-motion: no-preference) {
-      #robot { animation: float 5.4s ease-in-out infinite; transform-origin: 320px 380px; }
-      #right-hand { animation: wave 4.2s ease-in-out infinite; transform-origin: 470px 318px; }
-      #bubble { animation: bubble 3.8s ease-in-out infinite; transform-origin: 488px 110px; }
-      #pin { animation: pin 3.4s ease-in-out infinite; transform-origin: 475px 435px; }
-      #spark-a, #spark-b, #spark-c { animation: sparkle 2.6s ease-in-out infinite; }
-      #spark-b { animation-delay: .45s; }
-      #spark-c { animation-delay: .9s; }
-      @keyframes float { 0%,100% { transform: translateY(0) rotate(-.8deg); } 50% { transform: translateY(-12px) rotate(.8deg); } }
-      @keyframes wave { 0%,100% { transform: rotate(0deg); } 40% { transform: rotate(-8deg); } 70% { transform: rotate(5deg); } }
-      @keyframes bubble { 0%,100% { transform: translateY(0) scale(1); opacity: .94; } 50% { transform: translateY(-8px) scale(1.03); opacity: 1; } }
-      @keyframes pin { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
-      @keyframes sparkle { 0%,100% { opacity: .25; transform: scale(.82); } 50% { opacity: 1; transform: scale(1); } }
+      #agent { animation: agent-float 6s ease-in-out infinite; transform-origin: 360px 720px; }
+      #right-arm { animation: right-wave 5.2s ease-in-out infinite; transform-origin: 494px 370px; }
+      #left-pin { animation: pin-float 3.6s ease-in-out infinite; transform-origin: 548px 510px; }
+      #chat-bubble { animation: bubble-float 4.1s ease-in-out infinite; transform-origin: 555px 151px; }
+      #visor-gloss { animation: visor-sweep 5.8s ease-in-out infinite; }
+      #spark-a, #spark-b, #spark-c { animation: spark-pulse 2.8s ease-in-out infinite; transform-origin: center; }
+      #spark-b { animation-delay: .5s; }
+      #spark-c { animation-delay: .95s; }
+      @keyframes agent-float { 0%,100% { transform: translateY(0) rotate(-.45deg); } 50% { transform: translateY(-14px) rotate(.55deg); } }
+      @keyframes right-wave { 0%,100% { transform: rotate(0deg); } 34% { transform: rotate(-8deg); } 68% { transform: rotate(5deg); } }
+      @keyframes pin-float { 0%,100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-9px) rotate(2deg); } }
+      @keyframes bubble-float { 0%,100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-7px) scale(1.025); } }
+      @keyframes visor-sweep { 0%,62% { transform: translateX(-320px) skewX(-16deg); opacity: 0; } 72% { opacity: .75; } 92%,100% { transform: translateX(310px) skewX(-16deg); opacity: 0; } }
+      @keyframes spark-pulse { 0%,100% { opacity: .34; transform: scale(.82); } 50% { opacity: 1; transform: scale(1.08); } }
     }
   </style>
   <defs>
-    <radialGradient id="halo" cx="48%" cy="38%" r="60%">
-      <stop offset="0" stop-color="#67E8F9" stop-opacity=".62"/>
-      <stop offset=".45" stop-color="#0D35C3" stop-opacity=".28"/>
+    <radialGradient id="halo" cx="48%" cy="35%" r="64%">
+      <stop offset="0" stop-color="#9ff6ff" stop-opacity=".9"/>
+      <stop offset=".27" stop-color="#38bdf8" stop-opacity=".45"/>
+      <stop offset=".62" stop-color="#1d4ed8" stop-opacity=".18"/>
       <stop offset="1" stop-color="#020617" stop-opacity="0"/>
     </radialGradient>
-    <linearGradient id="blue" x1="186" x2="474" y1="238" y2="620" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#1BA2FF"/>
-      <stop offset=".45" stop-color="#0D35C3"/>
-      <stop offset="1" stop-color="#082173"/>
+    <radialGradient id="helmet" cx="38%" cy="25%" r="80%">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset=".32" stop-color="#f7fdff"/>
+      <stop offset=".62" stop-color="#d7eaff"/>
+      <stop offset="1" stop-color="#8ab1f2"/>
+    </radialGradient>
+    <linearGradient id="helmet-rim" x1="184" x2="537" y1="112" y2="326" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset=".42" stop-color="#dff6ff"/>
+      <stop offset="1" stop-color="#1451d9"/>
     </linearGradient>
-    <linearGradient id="helmet" x1="176" x2="459" y1="70" y2="320" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#FFFFFF"/>
-      <stop offset=".48" stop-color="#EEF8FF"/>
-      <stop offset="1" stop-color="#BBD6FF"/>
+    <linearGradient id="visor" x1="195" x2="523" y1="232" y2="340" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#06164d"/>
+      <stop offset=".46" stop-color="#0d3ac8"/>
+      <stop offset=".74" stop-color="#071d71"/>
+      <stop offset="1" stop-color="#020617"/>
     </linearGradient>
-    <linearGradient id="visor" x1="166" x2="472" y1="157" y2="278" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#03103A"/>
-      <stop offset=".48" stop-color="#071E63"/>
-      <stop offset="1" stop-color="#1263FF"/>
+    <radialGradient id="visor-light" cx="36%" cy="28%" r="62%">
+      <stop offset="0" stop-color="#9beeff" stop-opacity=".95"/>
+      <stop offset=".22" stop-color="#38bdf8" stop-opacity=".54"/>
+      <stop offset=".68" stop-color="#0b1b5f" stop-opacity=".05"/>
+      <stop offset="1" stop-color="#020617" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="cap-blue" x1="217" x2="508" y1="93" y2="163" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#47d8ff"/>
+      <stop offset=".42" stop-color="#0d63ff"/>
+      <stop offset="1" stop-color="#0831b2"/>
     </linearGradient>
-    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
-      <feDropShadow dx="0" dy="24" stdDeviation="24" flood-color="#001B67" flood-opacity=".33"/>
-      <feDropShadow dx="0" dy="0" stdDeviation="9" flood-color="#4DD4FF" flood-opacity=".42"/>
+    <radialGradient id="body" cx="34%" cy="16%" r="92%">
+      <stop offset="0" stop-color="#57d7ff"/>
+      <stop offset=".28" stop-color="#1479ff"/>
+      <stop offset=".68" stop-color="#083fc7"/>
+      <stop offset="1" stop-color="#05206f"/>
+    </radialGradient>
+    <linearGradient id="body-side" x1="218" x2="505" y1="397" y2="688" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2dd4ff" stop-opacity=".45"/>
+      <stop offset=".5" stop-color="#1d4ed8" stop-opacity=".1"/>
+      <stop offset="1" stop-color="#020617" stop-opacity=".35"/>
+    </linearGradient>
+    <linearGradient id="limb-blue" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#38d6ff"/>
+      <stop offset=".42" stop-color="#0b65ff"/>
+      <stop offset="1" stop-color="#06267d"/>
+    </linearGradient>
+    <linearGradient id="white-part" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset=".52" stop-color="#e6f4ff"/>
+      <stop offset="1" stop-color="#9fbce8"/>
+    </linearGradient>
+    <linearGradient id="pin" x1="500" x2="608" y1="440" y2="573" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#66f6a3"/>
+      <stop offset=".5" stop-color="#22c55e"/>
+      <stop offset="1" stop-color="#0f8d45"/>
+    </linearGradient>
+    <linearGradient id="bubble" x1="492" x2="644" y1="109" y2="187" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffe66f"/>
+      <stop offset=".58" stop-color="#ffbf1f"/>
+      <stop offset="1" stop-color="#f59e0b"/>
+    </linearGradient>
+    <filter id="soft-shadow" x="-25%" y="-25%" width="150%" height="150%">
+      <feDropShadow dx="0" dy="24" stdDeviation="22" flood-color="#020617" flood-opacity=".45"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="12" flood-color="#38bdf8" flood-opacity=".26"/>
     </filter>
+    <filter id="hard-glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="0" stdDeviation="7" flood-color="#7dd3fc" flood-opacity=".64"/>
+      <feDropShadow dx="0" dy="12" stdDeviation="12" flood-color="#020617" flood-opacity=".28"/>
+    </filter>
+    <clipPath id="visor-clip">
+      <path d="M195 253c15-45 66-72 165-72 101 0 153 27 166 72 10 36-7 75-41 92-38 19-212 19-250 0-34-17-51-56-40-92Z"/>
+    </clipPath>
   </defs>
-  <rect width="640" height="720" fill="none"/>
-  <ellipse cx="320" cy="370" rx="275" ry="302" fill="url(#halo)"/>
-  <circle id="spark-a" cx="110" cy="148" r="8" fill="#66D8FF"/>
-  <circle id="spark-b" cx="522" cy="205" r="7" fill="#22C55E"/>
-  <circle id="spark-c" cx="155" cy="488" r="6" fill="#FFD33D"/>
-  <g id="bubble">
-    <path d="M439 70h112c28 0 50 22 50 50v22c0 28-22 50-50 50h-44l-38 33 8-33h-38c-28 0-50-22-50-50v-22c0-28 22-50 50-50Z" fill="#FFD33D" filter="url(#shadow)"/>
-    <circle cx="458" cy="130" r="9" fill="#FFFFFF"/>
-    <circle cx="495" cy="130" r="9" fill="#FFFFFF"/>
-    <circle cx="532" cy="130" r="9" fill="#FFFFFF"/>
+
+  <ellipse cx="360" cy="742" rx="184" ry="42" fill="#020617" opacity=".34"/>
+  <circle cx="358" cy="356" r="324" fill="url(#halo)" opacity=".78"/>
+  <path id="spark-a" d="M159 155h42M180 134v42" stroke="#fde047" stroke-width="14" stroke-linecap="round" opacity=".9"/>
+  <path id="spark-b" d="M607 267l32-22M614 304l38 8" stroke="#67e8f9" stroke-width="12" stroke-linecap="round" opacity=".82"/>
+  <path id="spark-c" d="M112 508l31 21M138 486l-18 34" stroke="#22c55e" stroke-width="11" stroke-linecap="round" opacity=".72"/>
+
+  <g id="chat-bubble" filter="url(#hard-glow)">
+    <path d="M502 114h98c24 0 42 18 42 40s-18 40-42 40h-31l-28 29 2-29h-41c-24 0-42-18-42-40s18-40 42-40Z" fill="url(#bubble)"/>
+    <circle cx="524" cy="154" r="7" fill="#fff7cc"/>
+    <circle cx="552" cy="154" r="7" fill="#fff7cc"/>
+    <circle cx="580" cy="154" r="7" fill="#fff7cc"/>
+    <path d="M502 119h95c20 0 35 14 35 33" fill="none" stroke="#fffbe8" stroke-width="8" stroke-linecap="round" opacity=".55"/>
   </g>
-  <g id="robot" filter="url(#shadow)">
-    <ellipse cx="320" cy="669" rx="153" ry="26" fill="#020617" opacity=".24"/>
-    <path d="M198 409c0-74 54-130 122-130s122 56 122 130v91c0 76-54 126-122 126s-122-50-122-126v-91Z" fill="url(#blue)"/>
-    <path d="M213 432c40 24 176 24 214 0" fill="none" stroke="#7DD3FC" stroke-width="10" opacity=".4" stroke-linecap="round"/>
-    <text x="320" y="495" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="42" font-weight="900" fill="#FFFFFF">Chatboc</text>
-    <path d="M217 555c-29 15-45 38-50 76h84c6-28 20-48 42-62Z" fill="#0A35C3"/>
-    <path d="M423 555c29 15 45 38 50 76h-84c-6-28-20-48-42-62Z" fill="#0A35C3"/>
-    <rect x="145" y="621" width="122" height="47" rx="24" fill="#F8FDFF"/>
-    <rect x="373" y="621" width="122" height="47" rx="24" fill="#F8FDFF"/>
-    <path d="M203 395c-53-16-84-4-107 41" fill="none" stroke="#0D35C3" stroke-width="32" stroke-linecap="round"/>
-    <circle cx="89" cy="454" r="32" fill="#F8FDFF"/>
-    <path id="right-hand" d="M438 397c47-3 79-23 96-63" fill="none" stroke="#0D35C3" stroke-width="32" stroke-linecap="round"/>
-    <circle cx="541" cy="316" r="32" fill="#F8FDFF"/>
-    <path d="M263 60c-52 21-83 67-83 126v54c0 84 55 137 140 137s140-53 140-137v-54c0-59-31-105-83-126-34-14-80-14-114 0Z" fill="url(#helmet)"/>
-    <rect x="154" y="154" width="332" height="144" rx="70" fill="url(#visor)"/>
-    <path d="M203 136c42-47 192-47 234 0" fill="none" stroke="#6EE7FF" stroke-width="17" stroke-linecap="round"/>
-    <circle cx="252" cy="220" r="34" fill="#FAFEFF"/>
-    <circle cx="388" cy="220" r="34" fill="#FAFEFF"/>
-    <circle cx="263" cy="207" r="12" fill="#92D5FF"/>
-    <circle cx="399" cy="207" r="12" fill="#92D5FF"/>
-    <path d="M276 268c24 24 64 24 88 0" fill="none" stroke="#FFFFFF" stroke-width="17" stroke-linecap="round"/>
-    <rect x="104" y="171" width="61" height="105" rx="30" fill="#0A35C3"/>
-    <rect x="475" y="171" width="61" height="105" rx="30" fill="#0A35C3"/>
-    <circle cx="236" cy="107" r="12" fill="#22C55E"/>
-    <circle cx="278" cy="107" r="12" fill="#22C55E"/>
-    <circle cx="320" cy="107" r="12" fill="#22C55E"/>
-  </g>
-  <g id="pin" filter="url(#shadow)">
-    <path d="M477 367c-40 0-72 32-72 72 0 56 72 128 72 128s72-72 72-128c0-40-32-72-72-72Z" fill="#22C55E"/>
-    <circle cx="477" cy="438" r="28" fill="#FFFFFF"/>
+
+  <g id="agent" filter="url(#soft-shadow)">
+    <g id="legs">
+      <path d="M278 610c-18 41-20 78-15 115h68c9-45 9-85 0-119Z" fill="url(#limb-blue)"/>
+      <path d="M389 606c-9 36-9 76 0 119h68c5-37 3-74-15-115Z" fill="url(#limb-blue)"/>
+      <path d="M242 709c23-19 76-20 100 0 15 12 8 35-13 37h-77c-21-2-26-24-10-37Z" fill="url(#white-part)"/>
+      <path d="M378 709c23-19 76-20 100 0 16 13 10 35-11 37h-78c-21-2-27-24-11-37Z" fill="url(#white-part)"/>
+      <path d="M266 723h53M403 723h52" stroke="#7da7e8" stroke-width="8" stroke-linecap="round" opacity=".42"/>
+    </g>
+
+    <path d="M228 412c17-63 62-102 132-102 69 0 116 39 132 102 16 60 10 144-29 190-23 28-56 42-103 42-46 0-80-14-103-42-39-46-45-130-29-190Z" fill="url(#body)"/>
+    <path d="M249 408c20-43 58-68 111-68 54 0 92 25 112 68 20 43 14 112-14 151-22 31-55 46-98 46s-76-15-98-46c-28-39-34-108-13-151Z" fill="url(#body-side)" opacity=".78"/>
+    <path d="M270 407c16-27 45-42 89-42 45 0 74 15 90 42" fill="none" stroke="#7dd3fc" stroke-width="12" stroke-linecap="round" opacity=".42"/>
+    <text x="360" y="540" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="48" font-weight="800" fill="#ffffff" opacity=".98">Chatboc</text>
+    <path d="M268 555c46 28 137 28 183 0" fill="none" stroke="#82e7ff" stroke-width="5" stroke-linecap="round" opacity=".34"/>
+
+    <g id="right-arm">
+      <path d="M468 415c31-13 57-14 78 1 19 14 26 37 16 55-11 20-37 25-58 12-14-9-27-15-43-12Z" fill="url(#limb-blue)"/>
+      <path d="M542 419c20-7 47 3 56 23 9 21-5 46-29 49-19 2-39-12-44-31-5-17 2-34 17-41Z" fill="url(#white-part)"/>
+      <path d="M574 429c28-5 49 4 56 22" fill="none" stroke="#eaf6ff" stroke-width="18" stroke-linecap="round"/>
+      <path d="M598 451l44 13" stroke="#eaf6ff" stroke-width="17" stroke-linecap="round"/>
+      <path d="M589 477l39 21" stroke="#eaf6ff" stroke-width="16" stroke-linecap="round"/>
+    </g>
+
+    <g id="left-arm">
+      <path d="M253 427c-35-9-64-3-82 17-18 20-16 48 3 63 19 15 46 7 58-14 9-15 20-25 37-28Z" fill="url(#limb-blue)"/>
+      <circle cx="174" cy="481" r="34" fill="url(#white-part)"/>
+      <path d="M154 470c18-10 38-9 57 2" fill="none" stroke="#ffffff" stroke-width="7" stroke-linecap="round" opacity=".55"/>
+    </g>
+
+    <g id="left-pin" filter="url(#hard-glow)">
+      <path d="M544 442c42 0 76 32 76 73 0 50-58 112-70 124-3 3-8 3-11 0-12-12-70-74-70-124 0-41 33-73 75-73Z" fill="url(#pin)"/>
+      <circle cx="544" cy="514" r="27" fill="#ecfff5"/>
+      <circle cx="544" cy="514" r="14" fill="#10b981"/>
+      <path d="M505 473c11-13 26-20 45-20" fill="none" stroke="#ffffff" stroke-width="8" stroke-linecap="round" opacity=".56"/>
+    </g>
+
+    <g id="headphones" opacity=".98">
+      <path d="M169 260c0-92 76-163 191-163 116 0 191 71 191 163" fill="none" stroke="#0b55ff" stroke-width="34" stroke-linecap="round"/>
+      <path d="M176 259c3-79 70-141 184-141 113 0 181 62 184 141" fill="none" stroke="#7dd3fc" stroke-width="11" stroke-linecap="round" opacity=".74"/>
+      <rect x="134" y="254" width="72" height="122" rx="34" fill="url(#limb-blue)"/>
+      <rect x="514" y="254" width="72" height="122" rx="34" fill="url(#limb-blue)"/>
+      <rect x="150" y="276" width="31" height="78" rx="16" fill="#7dd3fc" opacity=".35"/>
+      <rect x="539" y="276" width="31" height="78" rx="16" fill="#7dd3fc" opacity=".35"/>
+    </g>
+
+    <path d="M175 231c0-96 71-157 185-157s185 61 185 157c0 103-62 164-185 164s-185-61-185-164Z" fill="url(#helmet)"/>
+    <path d="M203 129c30-34 82-52 157-52 76 0 129 18 158 52-38 19-91 30-158 30s-119-11-157-30Z" fill="url(#cap-blue)"/>
+    <path d="M215 128c31-24 80-36 145-36 67 0 116 12 146 36" fill="none" stroke="#a9f2ff" stroke-width="10" stroke-linecap="round" opacity=".72"/>
+    <path d="M188 222c10-79 72-127 172-127 102 0 164 48 172 127" fill="none" stroke="url(#helmet-rim)" stroke-width="14" stroke-linecap="round" opacity=".76"/>
+
+    <path d="M195 253c15-45 66-72 165-72 101 0 153 27 166 72 10 36-7 75-41 92-38 19-212 19-250 0-34-17-51-56-40-92Z" fill="url(#visor)"/>
+    <path d="M195 253c15-45 66-72 165-72 101 0 153 27 166 72 10 36-7 75-41 92-38 19-212 19-250 0-34-17-51-56-40-92Z" fill="url(#visor-light)" opacity=".72"/>
+    <g clip-path="url(#visor-clip)">
+      <rect id="visor-gloss" x="145" y="179" width="92" height="196" fill="#ffffff" opacity=".34"/>
+      <path d="M215 244c34-29 83-43 145-43 63 0 112 14 146 43" fill="none" stroke="#8cf5ff" stroke-width="9" stroke-linecap="round" opacity=".48"/>
+      <ellipse cx="297" cy="286" rx="38" ry="44" fill="#f7fdff"/>
+      <ellipse cx="423" cy="286" rx="38" ry="44" fill="#f7fdff"/>
+      <ellipse cx="304" cy="292" rx="18" ry="22" fill="#2d7bff" opacity=".45"/>
+      <ellipse cx="430" cy="292" rx="18" ry="22" fill="#2d7bff" opacity=".45"/>
+      <circle cx="286" cy="266" r="10" fill="#ffffff"/>
+      <circle cx="412" cy="266" r="10" fill="#ffffff"/>
+      <circle cx="318" cy="315" r="7" fill="#ffffff" opacity=".58"/>
+      <circle cx="444" cy="315" r="7" fill="#ffffff" opacity=".58"/>
+      <path d="M330 337c18 19 42 19 60 0" fill="none" stroke="#ff7aa2" stroke-width="12" stroke-linecap="round"/>
+      <path d="M332 333c17 14 39 14 56 0" fill="none" stroke="#ffffff" stroke-width="5" stroke-linecap="round" opacity=".9"/>
+    </g>
+    <path d="M195 253c15-45 66-72 165-72 101 0 153 27 166 72 10 36-7 75-41 92-38 19-212 19-250 0-34-17-51-56-40-92Z" fill="none" stroke="#bdf8ff" stroke-width="7" opacity=".54"/>
+    <path d="M219 200c31-43 80-64 141-64 62 0 112 21 143 64" fill="none" stroke="#ffffff" stroke-width="13" stroke-linecap="round" opacity=".5"/>
+
+    <g opacity=".95">
+      <circle cx="315" cy="143" r="12" fill="#34d399"/>
+      <circle cx="360" cy="143" r="12" fill="#34d399"/>
+      <circle cx="405" cy="143" r="12" fill="#34d399"/>
+      <circle cx="315" cy="143" r="5" fill="#d1fae5"/>
+      <circle cx="360" cy="143" r="5" fill="#d1fae5"/>
+      <circle cx="405" cy="143" r="5" fill="#d1fae5"/>
+    </g>
   </g>
 </svg>

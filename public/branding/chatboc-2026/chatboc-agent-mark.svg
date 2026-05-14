@@ -1,44 +1,74 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
-  <title id="title">Chatboc agent mark</title>
-  <desc id="desc">Blue and white Chatboc robot head inside a luminous chat badge.</desc>
+  <title id="title">Chatboc premium robot mark</title>
+  <desc id="desc">Glossy blue robot head inside a luminous circular Chatboc badge.</desc>
   <defs>
-    <radialGradient id="mark-bg" cx="34%" cy="18%" r="80%">
-      <stop offset="0" stop-color="#6EE7FF"/>
-      <stop offset=".28" stop-color="#1A7CFF"/>
-      <stop offset=".68" stop-color="#0A35C3"/>
-      <stop offset="1" stop-color="#03134A"/>
+    <radialGradient id="bg" cx="32%" cy="18%" r="83%">
+      <stop offset="0" stop-color="#83efff"/>
+      <stop offset=".28" stop-color="#168dff"/>
+      <stop offset=".67" stop-color="#0b36c5"/>
+      <stop offset="1" stop-color="#04103a"/>
     </radialGradient>
-    <linearGradient id="helmet" x1="53" x2="205" y1="46" y2="177" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#FFFFFF"/>
-      <stop offset=".45" stop-color="#ECF7FF"/>
-      <stop offset="1" stop-color="#BFD9FF"/>
+    <linearGradient id="rim" x1="48" x2="214" y1="31" y2="224" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset=".36" stop-color="#6ee7ff"/>
+      <stop offset=".72" stop-color="#1558f3"/>
+      <stop offset="1" stop-color="#04103a"/>
     </linearGradient>
-    <linearGradient id="visor" x1="67" x2="191" y1="90" y2="151" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#05134A"/>
-      <stop offset=".52" stop-color="#082173"/>
-      <stop offset="1" stop-color="#0E55F2"/>
+    <linearGradient id="helmet" x1="67" x2="190" y1="43" y2="167" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset=".42" stop-color="#f4fbff"/>
+      <stop offset=".75" stop-color="#c9e1ff"/>
+      <stop offset="1" stop-color="#82abe8"/>
     </linearGradient>
-    <filter id="soft-shadow" x="-30%" y="-30%" width="160%" height="160%">
-      <feDropShadow dx="0" dy="14" stdDeviation="13" flood-color="#001B67" flood-opacity=".32"/>
-      <feDropShadow dx="0" dy="0" stdDeviation="4" flood-color="#4DD4FF" flood-opacity=".42"/>
+    <linearGradient id="visor" x1="56" x2="200" y1="93" y2="151" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#020b2d"/>
+      <stop offset=".48" stop-color="#061b67"/>
+      <stop offset=".78" stop-color="#0d4bf2"/>
+      <stop offset="1" stop-color="#1aa7ff"/>
+    </linearGradient>
+    <linearGradient id="blue" x1="75" x2="183" y1="151" y2="226" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#24b7ff"/>
+      <stop offset=".52" stop-color="#0d4bf2"/>
+      <stop offset="1" stop-color="#06175d"/>
+    </linearGradient>
+    <filter id="shadow" x="-35%" y="-35%" width="170%" height="170%">
+      <feDropShadow dx="0" dy="13" stdDeviation="12" flood-color="#00154f" flood-opacity=".36"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="6" flood-color="#66e7ff" flood-opacity=".52"/>
     </filter>
+    <clipPath id="circle-clip">
+      <circle cx="128" cy="128" r="113"/>
+    </clipPath>
+    <clipPath id="visor-clip">
+      <rect x="53" y="91" width="150" height="67" rx="32"/>
+    </clipPath>
   </defs>
-  <rect x="14" y="16" width="228" height="208" rx="62" fill="url(#mark-bg)" filter="url(#soft-shadow)"/>
-  <path d="M72 219c9-7 19-17 22-28H65c-23 0-42-19-42-42V75c0-25 20-45 45-45h120c25 0 45 20 45 45v74c0 25-20 45-45 45h-64c-12 14-30 24-52 25Z" fill="none" stroke="#BEEBFF" stroke-width="8" opacity=".42" stroke-linejoin="round"/>
-  <g filter="url(#soft-shadow)">
-    <path d="M70 100c0-40 24-64 58-64s58 24 58 64v25c0 38-24 60-58 60s-58-22-58-60v-25Z" fill="url(#helmet)"/>
-    <path d="M60 113c0-13 8-24 20-29 12-32 78-32 96 0 12 5 20 16 20 29v14c0 13-11 24-24 24H84c-13 0-24-11-24-24v-14Z" fill="url(#visor)"/>
-    <path d="M87 95c18-20 64-22 82 0" fill="none" stroke="#6EE7FF" stroke-width="8" stroke-linecap="round" opacity=".85"/>
-    <circle cx="102" cy="121" r="13" fill="#F8FDFF"/>
-    <circle cx="154" cy="121" r="13" fill="#F8FDFF"/>
-    <circle cx="106" cy="116" r="5" fill="#9BD7FF"/>
-    <circle cx="158" cy="116" r="5" fill="#9BD7FF"/>
-    <path d="M108 148c12 11 28 11 40 0" fill="none" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round"/>
-    <rect x="45" y="102" width="24" height="48" rx="12" fill="#0D35C3"/>
-    <rect x="187" y="102" width="24" height="48" rx="12" fill="#0D35C3"/>
-    <rect x="77" y="67" width="102" height="12" rx="6" fill="#0D35C3" opacity=".35"/>
+  <circle cx="128" cy="128" r="122" fill="#03124a"/>
+  <circle cx="128" cy="128" r="114" fill="url(#rim)" opacity=".95"/>
+  <circle cx="128" cy="128" r="105" fill="url(#bg)"/>
+  <g clip-path="url(#circle-clip)">
+    <path d="M-10 207 75 4h34L23 220Z" fill="#ffffff" opacity=".2"/>
+    <g filter="url(#shadow)">
+      <path d="M72 160c14 28 35 43 56 43s42-15 56-43v77H72Z" fill="url(#blue)"/>
+      <path d="M75 82c0-43 22-68 53-68s53 25 53 68v35c0 43-22 70-53 70s-53-27-53-70V82Z" fill="url(#helmet)"/>
+      <path d="M70 67c24-33 92-33 116 0" fill="none" stroke="#78e8ff" stroke-width="8" stroke-linecap="round"/>
+      <rect x="53" y="91" width="150" height="67" rx="32" fill="url(#visor)"/>
+      <g clip-path="url(#visor-clip)">
+        <path d="M63 97c36 13 94 15 132 3" fill="none" stroke="#69e6ff" stroke-width="7" opacity=".44"/>
+        <path d="M78 162 123 86h28l-46 76Z" fill="#ffffff" opacity=".22"/>
+      </g>
+      <rect x="38" y="96" width="27" height="57" rx="14" fill="#0b36c5"/>
+      <rect x="191" y="96" width="27" height="57" rx="14" fill="#0b36c5"/>
+      <circle cx="101" cy="123" r="15" fill="#fafeff"/>
+      <circle cx="155" cy="123" r="15" fill="#fafeff"/>
+      <circle cx="106" cy="117" r="5.5" fill="#8bd8ff"/>
+      <circle cx="160" cy="117" r="5.5" fill="#8bd8ff"/>
+      <path d="M108 146c13 12 27 12 40 0" fill="none" stroke="#ffffff" stroke-width="8" stroke-linecap="round"/>
+      <path d="M112 155c11 8 21 8 32 0" fill="none" stroke="#fb7185" stroke-width="5" stroke-linecap="round"/>
+      <circle cx="101" cy="53" r="6.5" fill="#2ee9a1"/>
+      <circle cx="123" cy="53" r="6.5" fill="#2ee9a1"/>
+      <circle cx="145" cy="53" r="6.5" fill="#2ee9a1"/>
+    </g>
   </g>
-  <circle cx="88" cy="59" r="7" fill="#22C55E"/>
-  <circle cx="111" cy="59" r="7" fill="#22C55E"/>
-  <circle cx="134" cy="59" r="7" fill="#22C55E"/>
+  <circle cx="128" cy="128" r="113" fill="none" stroke="#c7f7ff" stroke-width="4" opacity=".62"/>
+  <circle cx="128" cy="128" r="121" fill="none" stroke="#0d4bf2" stroke-width="2" opacity=".9"/>
 </svg>

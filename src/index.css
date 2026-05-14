@@ -348,12 +348,16 @@
     align-items: center;
     justify-items: end;
   }
+  .chatboc-hero-layout > div:first-child {
+    position: relative;
+    z-index: 4;
+  }
   .chatboc-hero-mascot {
     position: absolute;
-    left: clamp(-4.4rem, -5vw, -2.2rem);
-    bottom: clamp(1.2rem, 7vh, 4.7rem);
-    z-index: 1;
-    width: clamp(10.8rem, 19.5vw, 16.2rem);
+    left: clamp(-6.2rem, -8vw, -4.2rem);
+    bottom: clamp(-0.2rem, 3vh, 2rem);
+    z-index: 3;
+    width: clamp(14.6rem, 20vw, 17.5rem);
     pointer-events: none;
     transform-origin: center bottom;
     animation: chatboc-agent-float 6s ease-in-out infinite;
@@ -361,21 +365,21 @@
   .chatboc-hero-mascot::before {
     content: "";
     position: absolute;
-    inset: 18% 8% 10%;
+    inset: 20% 4% 9%;
     z-index: -1;
     border-radius: 999px;
     background:
-      radial-gradient(circle at 45% 34%, rgba(102, 216, 255, 0.28), transparent 56%),
-      radial-gradient(circle at 54% 68%, rgba(13, 53, 195, 0.2), transparent 58%);
-    filter: blur(16px);
+      radial-gradient(circle at 40% 28%, rgba(125, 211, 252, 0.48), transparent 48%),
+      radial-gradient(circle at 58% 72%, rgba(37, 99, 235, 0.28), transparent 54%);
+    filter: blur(18px);
   }
   .chatboc-hero-mascot img {
     display: block;
     width: 100%;
     height: auto;
     filter:
-      drop-shadow(0 22px 32px rgba(15, 43, 110, 0.2))
-      drop-shadow(0 0 12px rgba(102, 216, 255, 0.18));
+      drop-shadow(0 30px 44px rgba(2, 6, 23, 0.42))
+      drop-shadow(0 0 22px rgba(102, 216, 255, 0.3));
   }
   .chatboc-hero-preview > .chatboc-phone-demo::after {
     content: "";
@@ -1237,22 +1241,22 @@
       max-width: 12.4ch;
     }
     .chatboc-hero-grid {
-      padding-top: calc(4.85rem + env(safe-area-inset-top));
-      padding-bottom: 2.25rem;
+      padding-top: calc(4.25rem + env(safe-area-inset-top));
+      padding-bottom: 1.65rem;
     }
     .chatboc-hero-layout {
-      gap: 1.35rem;
+      gap: 0.95rem;
     }
     .chatboc-hero-description {
-      margin-top: 1.05rem;
+      margin-top: 0.85rem;
       font-size: 1rem;
-      line-height: 1.6;
+      line-height: 1.55;
     }
     .chatboc-hero-actions {
-      margin-top: 1.35rem;
+      margin-top: 1.05rem;
     }
     .chatboc-hero-proof {
-      margin-top: 1.35rem;
+      margin-top: 1.05rem;
     }
     .chatboc-brand-lockup--nav .chatboc-brand-lockup__name {
       font-size: 1.22rem;
@@ -1287,9 +1291,9 @@
       display: none;
     }
     .chatboc-hero-preview {
-      width: min(100%, 20rem);
+      width: min(calc(100vw - 4rem), 18.75rem);
       margin-inline: auto;
-      margin-top: 0.55rem;
+      margin-top: 0.35rem;
       border-radius: 38px;
       padding: 7px;
     }
@@ -1302,7 +1306,7 @@
       top: 0.38rem;
     }
     .chatboc-phone-demo {
-      height: clamp(360px, 48svh, 440px);
+      height: clamp(330px, 44svh, 400px);
       min-height: 0;
       border-radius: 28px;
     }

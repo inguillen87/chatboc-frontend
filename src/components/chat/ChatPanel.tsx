@@ -2633,6 +2633,10 @@ const ChatPanel = (props: ChatPanelProps) => {
         : [],
     [experienceBlueprint?.sample_conversations],
   );
+  const visibleSampleConversationBlocks = useMemo(
+    () => (isMobile ? sampleConversationBlocks.slice(0, 2) : sampleConversationBlocks),
+    [isMobile, sampleConversationBlocks],
+  );
   const trustSignalBlocks = useMemo(
     () =>
       Array.isArray(experienceBlueprint?.trust_signals)
@@ -2640,11 +2644,22 @@ const ChatPanel = (props: ChatPanelProps) => {
         : [],
     [experienceBlueprint?.trust_signals],
   );
+  const visibleTrustSignalBlocks = useMemo(
+    () => (isMobile ? [] : trustSignalBlocks),
+    [isMobile, trustSignalBlocks],
+  );
   const visibleConversionCtas = useMemo(() => {
+    if (isMobile && visibleMessages.length === 0) return [];
     const actions = effectiveConversionCtas?.actions ?? [];
     const maxVisible = Number(effectiveConversionCtas?.rules?.max_visible ?? 3);
-    return actions.slice(0, Number.isFinite(maxVisible) && maxVisible > 0 ? maxVisible : 3);
-  }, [effectiveConversionCtas?.actions, effectiveConversionCtas?.rules?.max_visible]);
+    const safeMaxVisible = Number.isFinite(maxVisible) && maxVisible > 0 ? maxVisible : 3;
+    return actions.slice(0, isMobile ? Math.min(safeMaxVisible, 2) : safeMaxVisible);
+  }, [
+    effectiveConversionCtas?.actions,
+    effectiveConversionCtas?.rules?.max_visible,
+    isMobile,
+    visibleMessages.length,
+  ]);
   const handleConversionCta = useCallback(
     async (action: ChatConversionCtaAction) => {
       const endpoint = action.endpoint || effectiveLeadCapture?.endpoint || "";
@@ -3296,10 +3311,10 @@ const ChatPanel = (props: ChatPanelProps) => {
           "chatboc-chat-scrollarea flex-1 p-2 sm:p-4 lg:px-6 min-h-0 flex flex-col gap-3 overflow-y-auto overscroll-contain",
         )}
       >
-        <div className="flex-1" />
+        <div className="hidden sm:block sm:flex-1" />
 
         {visibleMessages.length === 0 ? (
-             <div className="flex-1 flex flex-col justify-center items-center text-center p-4 mt-4 sm:p-6 sm:mt-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+             <div className="flex flex-col items-center text-center p-4 pt-6 sm:flex-1 sm:justify-center sm:p-6 sm:mt-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
                 <div className="w-14 h-14 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-3 sm:mb-4 sm:h-16 sm:w-16 dark:bg-primary/20 dark:text-blue-200">
                    <MessageSquare className="w-8 h-8" />
                 </div>
@@ -3307,9 +3322,9 @@ const ChatPanel = (props: ChatPanelProps) => {
                 <p className="text-sm text-muted-foreground mb-5 max-w-[260px] sm:mb-8 dark:text-slate-300">
                    {emptyStateDescription}
                 </p>
-                {sampleConversationBlocks.length ? (
-                  <div className="mb-4 flex max-w-[320px] flex-wrap justify-center gap-2">
-                    {sampleConversationBlocks.map((item, index) => {
+                {visibleSampleConversationBlocks.length ? (
+                  <div className="mb-3 flex max-w-[320px] flex-wrap justify-center gap-1.5 sm:mb-4 sm:gap-2">
+                    {visibleSampleConversationBlocks.map((item, index) => {
                       const label = readExperienceTitle(item);
                       if (!label) return null;
                       return (
@@ -3333,9 +3348,9 @@ const ChatPanel = (props: ChatPanelProps) => {
                     })}
                   </div>
                 ) : null}
-                {trustSignalBlocks.length ? (
+                {visibleTrustSignalBlocks.length ? (
                   <div className="flex max-w-[420px] flex-wrap justify-center gap-2 text-left text-xs" aria-label="Senales de confianza">
-                    {trustSignalBlocks.map((item, index) => {
+                    {visibleTrustSignalBlocks.map((item, index) => {
                       const label = readExperienceTitle(item);
                       const description = readExperienceDescription(item);
                       if (!label && !description) return null;

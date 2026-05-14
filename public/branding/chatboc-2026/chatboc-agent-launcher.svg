@@ -1,64 +1,85 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
-  <title id="title">Chatboc animated launcher</title>
-  <desc id="desc">Animated blue Chatboc robot launcher badge.</desc>
+  <title id="title">Chatboc animated premium robot launcher</title>
+  <desc id="desc">Animated glossy blue robot launcher badge.</desc>
   <style>
     @media (prefers-reduced-motion: no-preference) {
-      #agent { animation: float 3.8s ease-in-out infinite; transform-origin: 128px 132px; }
-      #ring { animation: pulse 2.8s ease-in-out infinite; transform-origin: 128px 128px; }
-      #shine { animation: sweep 4.6s ease-in-out infinite; }
-      #spark-a { animation: blink 2.2s ease-in-out infinite; }
-      #spark-b { animation: blink 2.2s ease-in-out .6s infinite; }
-      @keyframes float { 0%,100% { transform: translateY(0) rotate(-1deg); } 50% { transform: translateY(-5px) rotate(1deg); } }
-      @keyframes pulse { 0%,100% { opacity: .46; transform: scale(.96); } 50% { opacity: .9; transform: scale(1.02); } }
-      @keyframes sweep { 0%,62% { transform: translateX(-230px) rotate(12deg); opacity: 0; } 72% { opacity: .82; } 88%,100% { transform: translateX(230px) rotate(12deg); opacity: 0; } }
-      @keyframes blink { 0%,100% { opacity: .35; transform: scale(.8); } 50% { opacity: 1; transform: scale(1); } }
+      #agent { animation: float 3.9s ease-in-out infinite; transform-origin: 128px 180px; }
+      #outer-ring { animation: ring-pulse 2.8s ease-in-out infinite; transform-origin: 128px 128px; }
+      #shine { animation: shine 4.8s ease-in-out infinite; }
+      #dots circle { animation: dot 1.8s ease-in-out infinite; }
+      #dots circle:nth-child(2) { animation-delay: .18s; }
+      #dots circle:nth-child(3) { animation-delay: .36s; }
+      @keyframes float { 0%,100% { transform: translateY(0) rotate(-1deg); } 50% { transform: translateY(-6px) rotate(1deg); } }
+      @keyframes ring-pulse { 0%,100% { opacity: .55; transform: scale(.97); } 50% { opacity: .95; transform: scale(1.025); } }
+      @keyframes shine { 0%,62% { transform: translateX(-230px) skewX(-18deg); opacity: 0; } 72% { opacity: .75; } 92%,100% { transform: translateX(240px) skewX(-18deg); opacity: 0; } }
+      @keyframes dot { 0%,100% { transform: translateY(0); opacity: .74; } 50% { transform: translateY(-3px); opacity: 1; } }
     }
   </style>
   <defs>
-    <radialGradient id="bg" cx="31%" cy="20%" r="78%">
-      <stop offset="0" stop-color="#7DE8FF"/>
-      <stop offset=".3" stop-color="#1684FF"/>
-      <stop offset=".68" stop-color="#0D35C3"/>
-      <stop offset="1" stop-color="#04103A"/>
+    <radialGradient id="bg" cx="32%" cy="18%" r="83%">
+      <stop offset="0" stop-color="#83efff"/>
+      <stop offset=".28" stop-color="#168dff"/>
+      <stop offset=".67" stop-color="#0b36c5"/>
+      <stop offset="1" stop-color="#04103a"/>
     </radialGradient>
-    <linearGradient id="helmet" x1="72" x2="190" y1="57" y2="172" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#FFFFFF"/>
-      <stop offset=".5" stop-color="#EDF8FF"/>
-      <stop offset="1" stop-color="#BAD5FF"/>
+    <linearGradient id="helmet" x1="67" x2="190" y1="43" y2="167" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset=".42" stop-color="#f4fbff"/>
+      <stop offset=".75" stop-color="#c9e1ff"/>
+      <stop offset="1" stop-color="#82abe8"/>
     </linearGradient>
-    <linearGradient id="visor" x1="72" x2="184" y1="96" y2="150" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#04103A"/>
-      <stop offset=".5" stop-color="#082173"/>
-      <stop offset="1" stop-color="#1064FF"/>
+    <linearGradient id="visor" x1="56" x2="200" y1="93" y2="151" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#020b2d"/>
+      <stop offset=".48" stop-color="#061b67"/>
+      <stop offset=".78" stop-color="#0d4bf2"/>
+      <stop offset="1" stop-color="#1aa7ff"/>
     </linearGradient>
-    <filter id="shadow" x="-40%" y="-40%" width="180%" height="180%">
-      <feDropShadow dx="0" dy="16" stdDeviation="14" flood-color="#001B67" flood-opacity=".42"/>
-      <feDropShadow dx="0" dy="0" stdDeviation="7" flood-color="#3DDCFF" flood-opacity=".52"/>
+    <linearGradient id="blue" x1="75" x2="183" y1="151" y2="226" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#24b7ff"/>
+      <stop offset=".52" stop-color="#0d4bf2"/>
+      <stop offset="1" stop-color="#06175d"/>
+    </linearGradient>
+    <filter id="shadow" x="-35%" y="-35%" width="170%" height="170%">
+      <feDropShadow dx="0" dy="14" stdDeviation="13" flood-color="#00154f" flood-opacity=".42"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="7" flood-color="#66e7ff" flood-opacity=".58"/>
     </filter>
-    <clipPath id="clip">
-      <circle cx="128" cy="128" r="118"/>
+    <clipPath id="circle-clip">
+      <circle cx="128" cy="128" r="108"/>
+    </clipPath>
+    <clipPath id="visor-clip">
+      <rect x="53" y="91" width="150" height="67" rx="32"/>
     </clipPath>
   </defs>
-  <circle cx="128" cy="128" r="121" fill="#03124A"/>
-  <circle id="ring" cx="128" cy="128" r="109" fill="none" stroke="#66D8FF" stroke-width="9"/>
-  <circle cx="128" cy="128" r="104" fill="url(#bg)"/>
-  <g clip-path="url(#clip)">
-    <path id="shine" d="M-25 228 62 6h42L18 228Z" fill="#FFFFFF" opacity=".34"/>
+  <circle cx="128" cy="128" r="123" fill="#03124a"/>
+  <circle id="outer-ring" cx="128" cy="128" r="114" fill="none" stroke="#72e8ff" stroke-width="8"/>
+  <circle cx="128" cy="128" r="105" fill="url(#bg)"/>
+  <g clip-path="url(#circle-clip)">
+    <path id="shine" d="M-30 216 65 2h38L7 232Z" fill="#ffffff" opacity=".26"/>
     <g id="agent" filter="url(#shadow)">
-      <path d="M77 107c0-37 21-59 51-59s51 22 51 59v20c0 36-21 58-51 58s-51-22-51-58v-20Z" fill="url(#helmet)"/>
-      <rect x="66" y="96" width="124" height="62" rx="30" fill="url(#visor)"/>
-      <path d="M86 87c19-18 64-18 83 0" fill="none" stroke="#6EE7FF" stroke-width="8" stroke-linecap="round"/>
-      <circle cx="104" cy="126" r="13" fill="#FAFEFF"/>
-      <circle cx="152" cy="126" r="13" fill="#FAFEFF"/>
-      <circle cx="108" cy="121" r="5" fill="#92D5FF"/>
-      <circle cx="156" cy="121" r="5" fill="#92D5FF"/>
-      <path d="M110 150c11 9 25 9 36 0" fill="none" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round"/>
-      <rect x="50" y="104" width="25" height="45" rx="12" fill="#0A35C3"/>
-      <rect x="181" y="104" width="25" height="45" rx="12" fill="#0A35C3"/>
-      <path d="M80 173c25 24 71 24 96 0v44H80v-44Z" fill="#0D35C3"/>
-      <text x="128" y="204" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="800" fill="#FFFFFF">Chatboc</text>
+      <path d="M72 160c14 28 35 43 56 43s42-15 56-43v77H72Z" fill="url(#blue)"/>
+      <path d="M75 82c0-43 22-68 53-68s53 25 53 68v35c0 43-22 70-53 70s-53-27-53-70V82Z" fill="url(#helmet)"/>
+      <path d="M70 67c24-33 92-33 116 0" fill="none" stroke="#78e8ff" stroke-width="8" stroke-linecap="round"/>
+      <rect x="53" y="91" width="150" height="67" rx="32" fill="url(#visor)"/>
+      <g clip-path="url(#visor-clip)">
+        <path d="M63 97c36 13 94 15 132 3" fill="none" stroke="#69e6ff" stroke-width="7" opacity=".44"/>
+        <path d="M78 162 123 86h28l-46 76Z" fill="#ffffff" opacity=".22"/>
+      </g>
+      <rect x="38" y="96" width="27" height="57" rx="14" fill="#0b36c5"/>
+      <rect x="191" y="96" width="27" height="57" rx="14" fill="#0b36c5"/>
+      <circle cx="101" cy="123" r="15" fill="#fafeff"/>
+      <circle cx="155" cy="123" r="15" fill="#fafeff"/>
+      <circle cx="106" cy="117" r="5.5" fill="#8bd8ff"/>
+      <circle cx="160" cy="117" r="5.5" fill="#8bd8ff"/>
+      <path d="M108 146c13 12 27 12 40 0" fill="none" stroke="#ffffff" stroke-width="8" stroke-linecap="round"/>
+      <path d="M112 155c11 8 21 8 32 0" fill="none" stroke="#fb7185" stroke-width="5" stroke-linecap="round"/>
+      <g id="dots">
+        <circle cx="101" cy="53" r="6.5" fill="#2ee9a1"/>
+        <circle cx="123" cy="53" r="6.5" fill="#2ee9a1"/>
+        <circle cx="145" cy="53" r="6.5" fill="#2ee9a1"/>
+      </g>
     </g>
   </g>
-  <circle id="spark-a" cx="63" cy="56" r="7" fill="#22C55E"/>
-  <circle id="spark-b" cx="199" cy="65" r="7" fill="#FFD33D"/>
+  <circle cx="63" cy="58" r="6" fill="#22c55e"/>
+  <circle cx="199" cy="65" r="7" fill="#ffd33d"/>
+  <circle cx="128" cy="128" r="121" fill="none" stroke="#0d4bf2" stroke-width="2" opacity=".9"/>
 </svg>
