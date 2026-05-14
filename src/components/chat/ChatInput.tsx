@@ -43,12 +43,8 @@ interface Props {
 }
 
 
-const PLACEHOLDERS = [
-  "Escribí tu mensaje...",
-  "¿En qué puedo ayudarte hoy?",
-  "Probá: '¿Qué hace Chatboc?'",
-  "¿Cuánto cuesta el servicio?",
-];
+const PLACEHOLDERS = ["Escribí tu mensaje..."];
+const COMPACT_PLACEHOLDER_MAX_LENGTH = 42;
 
 // Emojis funcionales para reclamos comunes (incluye alternativas para
 // accesibilidad e inclusión). Se mantienen íconos claros y específicos.
@@ -189,6 +185,16 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
   const showAudioAction = supportsAudioInput && shouldShowToolbarAction("record_audio");
   const showEmojiAction = shouldShowToolbarAction("emoji");
   const currentGuidedFieldLabel = normalizeFieldLabel(guidedFlow?.currentField);
+  const resolvedPlaceholder =
+    attachmentPreview
+      ? "Agrega un comentario..."
+      : currentGuidedFieldLabel ||
+        (compactComposer &&
+        composerPlaceholder &&
+        composerPlaceholder.length > COMPACT_PLACEHOLDER_MAX_LENGTH
+          ? PLACEHOLDERS[0]
+          : composerPlaceholder) ||
+        PLACEHOLDERS[placeholderIndex];
   const guidedFields = React.useMemo(
     () => (guidedFlow?.fields || []).map((field) => normalizeFieldLabel(field)).filter((field): field is string => Boolean(field)),
     [guidedFlow?.fields],
@@ -212,6 +218,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
   }));
 
   useEffect(() => {
+    if (PLACEHOLDERS.length <= 1) return;
     const interval = setInterval(() => {
       setPlaceholderIndex((i) => (i + 1) % PLACEHOLDERS.length);
     }, 3500);
@@ -590,7 +597,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
   };
 
   return (
-    <div className="w-full flex flex-col gap-3 px-2 py-2 sm:px-3 sm:py-3 bg-background">
+    <div className="w-full flex flex-col gap-2 px-1.5 py-1.5 sm:px-2 sm:py-2 bg-background">
       {draftRecovered ? (
         <div className="rounded-xl border border-primary/30 bg-primary/10 px-3 py-2 text-xs text-primary">
           Recuperamos tu borrador anterior automáticamente.
@@ -650,17 +657,17 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
         </div>
       )}
       <div className="flex flex-col gap-2">
-        <div className="rounded-[28px] border border-border/70 bg-gradient-to-br from-background via-background to-muted/30 p-2 shadow-[0_18px_40px_rgba(15,23,42,0.08)]">
+        <div className="rounded-[24px] border border-border/70 bg-gradient-to-br from-background via-background to-muted/25 p-1.5 shadow-[0_10px_26px_rgba(15,23,42,0.07)] dark:shadow-[0_16px_32px_rgba(0,0,0,0.24)]">
           <div className="w-full">
           <input
             ref={internalRef}
             className={`
               w-full
-              rounded-[24px] px-4 py-3 sm:px-4 sm:py-3.5
+              rounded-[20px] px-4 py-2.5 sm:px-4 sm:py-3
               text-base
               outline-none transition-all duration-200
               focus:ring-2 focus:ring-primary/50 focus:border-transparent
-              placeholder:text-muted-foreground
+              placeholder:text-sm placeholder:text-muted-foreground sm:placeholder:text-base
               font-medium
               disabled:cursor-not-allowed
               bg-input/80 text-foreground
@@ -669,7 +676,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
               ${isTyping ? "opacity-60 bg-muted-foreground/10 dark:bg-muted-foreground/20" : ""}
             `}
             type="text"
-            placeholder={attachmentPreview ? "Añade un comentario..." : currentGuidedFieldLabel || composerPlaceholder || PLACEHOLDERS[placeholderIndex]}
+            placeholder={resolvedPlaceholder}
             value={input}
             onChange={(e) => {
               const val = e.target.value;
@@ -692,7 +699,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
           />
           </div>
         <div
-          className={`relative mt-2 flex w-full items-center gap-2 ${compactComposer ? "flex-nowrap" : "flex-wrap"}`}
+          className={`relative mt-1.5 flex w-full items-center gap-1.5 ${compactComposer ? "flex-nowrap" : "flex-wrap"}`}
           role="toolbar"
           aria-label="Acciones del mensaje"
         >
@@ -719,7 +726,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
               ))}
             </div>
           )}
-          <div className={`flex min-w-0 items-center gap-2 ${compactComposer ? "flex-nowrap" : "flex-wrap"}`}>
+          <div className={`flex min-w-0 items-center gap-1.5 ${compactComposer ? "flex-nowrap" : "flex-wrap"}`}>
             {showAttachAction ? (
               <div className="rounded-full border border-border/60 bg-background p-0.5 shadow-sm transition hover:shadow-md" title={attachmentLabel}>
               <AdjuntarArchivo
@@ -735,7 +742,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
               onClick={handleShareLocation}
               disabled={isTyping || isLocating || isRecording || !!attachmentPreview}
               className={`
-                flex h-11 w-11 items-center justify-center
+                flex h-10 w-10 items-center justify-center
                 rounded-full p-2.5 sm:p-3
                 shadow-md transition-all duration-150
                 focus:outline-none focus:ring-2 focus:ring-primary/60 focus:ring-offset-1 focus:ring-offset-background
@@ -768,7 +775,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
               }}
               disabled={isTyping || isLocating || !!attachmentPreview}
               className={`
-                flex h-11 w-11 items-center justify-center
+                flex h-10 w-10 items-center justify-center
                 rounded-full p-2.5 sm:p-3
                 shadow-md transition-all duration-150
                 focus:outline-none focus:ring-2 focus:ring-primary/60 focus:ring-offset-1 focus:ring-offset-background
@@ -789,7 +796,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
               onClick={() => setShowEmojis((v) => !v)}
               disabled={isTyping || isLocating || !!attachmentPreview}
               className={`
-                flex h-11 w-11 items-center justify-center
+                flex h-10 w-10 items-center justify-center
                 rounded-full p-2.5 sm:p-3
                 shadow-md transition-all duration-150
                 focus:outline-none focus:ring-2 focus:ring-primary/60 focus:ring-offset-1 focus:ring-offset-background
@@ -807,7 +814,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
           <button
             className={`
               ml-auto flex-shrink-0
-              flex h-12 w-12 items-center justify-center
+              flex h-11 w-11 items-center justify-center
               rounded-full p-3 sm:p-3.5
               shadow-md transition-all duration-150
               focus:outline-none focus:ring-2 focus:ring-primary/60 focus:ring-offset-1 focus:ring-offset-background

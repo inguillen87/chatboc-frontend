@@ -1474,12 +1474,15 @@ function ChatWidgetInner({
   }, []);
 
   const finalOpenWidth = useMemo(() => {
+    if (isMobileView && viewport.width) {
+      return `${viewport.width}px`;
+    }
     const desired = parseInt(openWidth, 10);
     const max = viewport.width - (initialPosition.right || 0) - 16;
     return !isNaN(desired) && viewport.width
       ? `${Math.min(desired, max)}px`
       : openWidth;
-  }, [openWidth, viewport.width, initialPosition.right]);
+  }, [isMobileView, openWidth, viewport.width, initialPosition.right]);
 
   const finalOpenHeight = useMemo(() => {
     // Determine the desired height
@@ -2167,8 +2170,8 @@ function ChatWidgetInner({
   const containerStyle: React.CSSProperties = useMemo(() => {
     if (mode === "standalone") {
       const baseStyle = {
-        right: `${closedOffsetRight}px`,
-        bottom: `${closedOffsetBottom}px`,
+        right: `${isOpen && isMobileView ? 0 : closedOffsetRight}px`,
+        bottom: `${isOpen && isMobileView ? 0 : closedOffsetBottom}px`,
         width: isOpen ? finalOpenWidth : launcherSize,
         height: isOpen ? finalOpenHeight : launcherHeight,
         zIndex: 999999,
