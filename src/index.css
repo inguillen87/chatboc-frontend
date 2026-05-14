@@ -271,6 +271,11 @@
     text-wrap: balance;
     text-shadow: 0 1px 0 hsl(var(--background) / 0.26);
   }
+  .dark .chatboc-hero-headline {
+    text-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.04),
+      0 22px 48px rgba(37, 99, 235, 0.2);
+  }
   .chatboc-hero-headline__accent {
     background: linear-gradient(135deg, hsl(var(--primary)) 0%, #2dd4bf 74%);
     -webkit-background-clip: text;
@@ -278,10 +283,11 @@
     color: transparent;
   }
   .dark .chatboc-hero-headline__accent {
-    background: linear-gradient(135deg, #ffffff 0%, #7db0ff 45%, #2dd4bf 100%);
+    background: linear-gradient(135deg, #eff6ff 0%, #60a5fa 34%, #22d3ee 68%, #34d399 100%);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
+    filter: drop-shadow(0 14px 34px rgba(34, 211, 238, 0.18));
   }
   .chatboc-hero-actions {
     align-items: stretch;
@@ -326,7 +332,13 @@
     background: hsl(var(--background) / 0.48);
   }
   .dark .chatboc-hero-preview {
-    box-shadow: 0 34px 110px rgba(0, 0, 0, 0.52);
+    background:
+      linear-gradient(145deg, #eef4ff 0%, #9fb3cd 42%, #273143 100%),
+      linear-gradient(135deg, rgba(96, 165, 250, 0.42), rgba(45, 212, 191, 0.18));
+    box-shadow:
+      0 38px 118px rgba(0, 0, 0, 0.62),
+      0 0 0 1px rgba(147, 197, 253, 0.2),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.36);
   }
   .chatboc-hero-stage {
     position: relative;
@@ -416,6 +428,15 @@
       inset 0 0 0 1px hsl(var(--background) / 0.34),
       inset 0 18px 28px hsl(var(--background) / 0.18);
   }
+  .dark .chatboc-phone-demo {
+    background:
+      radial-gradient(circle at 14% 0%, rgba(96, 165, 250, 0.2), transparent 34%),
+      radial-gradient(circle at 88% 16%, rgba(45, 212, 191, 0.14), transparent 32%),
+      linear-gradient(180deg, rgba(18, 25, 41, 0.98), rgba(7, 11, 22, 0.98));
+    box-shadow:
+      inset 0 0 0 1px rgba(219, 234, 254, 0.08),
+      inset 0 18px 34px rgba(255, 255, 255, 0.035);
+  }
   .chatboc-phone-demo::before {
     content: "";
     position: absolute;
@@ -424,6 +445,11 @@
     background:
       linear-gradient(90deg, var(--chatboc-phone-accent-soft), transparent 30%, transparent 68%, var(--chatboc-phone-wash-b)),
       linear-gradient(180deg, hsl(var(--background) / 0.32), transparent 42%);
+  }
+  .dark .chatboc-phone-demo::before {
+    background:
+      linear-gradient(90deg, rgba(96, 165, 250, 0.16), transparent 28%, transparent 68%, rgba(45, 212, 191, 0.12)),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.045), transparent 44%);
   }
   .chatboc-phone-demo--gobierno {
     --chatboc-phone-accent: #2563eb;
@@ -511,6 +537,12 @@
     padding: 0.85rem 0.95rem;
     background: hsl(var(--muted) / 0.34);
   }
+  .dark .chatboc-phone-demo__bar {
+    border-bottom-color: rgba(148, 163, 184, 0.16);
+    background:
+      linear-gradient(90deg, rgba(15, 23, 42, 0.82), rgba(30, 41, 59, 0.62)),
+      rgba(2, 6, 23, 0.42);
+  }
   .chatboc-phone-demo__tabs {
     display: flex;
     flex-shrink: 0;
@@ -518,6 +550,10 @@
     overflow-x: auto;
     border-bottom: 1px solid hsl(var(--border) / 0.62);
     padding: 0.6rem 0.85rem;
+  }
+  .dark .chatboc-phone-demo__tabs {
+    border-bottom-color: rgba(148, 163, 184, 0.14);
+    background: rgba(2, 6, 23, 0.2);
   }
   .chatboc-phone-demo__tabs::-webkit-scrollbar {
     height: 0;
@@ -536,6 +572,11 @@
     font-weight: 700;
     color: hsl(var(--muted-foreground));
     transition: border-color 180ms ease, background-color 180ms ease, color 180ms ease;
+  }
+  .dark .chatboc-phone-demo__tab {
+    border-color: rgba(148, 163, 184, 0.16);
+    background: rgba(15, 23, 42, 0.72);
+    color: rgba(226, 232, 240, 0.76);
   }
   .chatboc-phone-demo__tab--active {
     border-color: var(--chatboc-phone-accent);
@@ -623,11 +664,23 @@
     color: hsl(var(--card-foreground));
     box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
   }
+  .dark .chatboc-phone-demo__bubble--agent {
+    border-color: rgba(148, 163, 184, 0.18);
+    background: rgba(15, 23, 42, 0.88);
+    color: rgba(241, 245, 249, 0.94);
+    box-shadow:
+      0 16px 34px rgba(0, 0, 0, 0.34),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.025);
+  }
   .chatboc-phone-demo__bubble--agent::after {
     left: -0.28rem;
     border-left: 1px solid hsl(var(--border) / 0.72);
     border-bottom: 1px solid hsl(var(--border) / 0.72);
     clip-path: polygon(100% 0, 100% 100%, 0 100%);
+  }
+  .dark .chatboc-phone-demo__bubble--agent::after {
+    border-left-color: rgba(148, 163, 184, 0.18);
+    border-bottom-color: rgba(148, 163, 184, 0.18);
   }
   .chatboc-phone-demo__thread {
     display: flex;
@@ -641,6 +694,15 @@
       hsl(var(--background) / 0.34);
     background-size: 18px 18px, auto, auto;
     padding: 0.72rem;
+  }
+  .dark .chatboc-phone-demo__thread {
+    border-color: rgba(148, 163, 184, 0.14);
+    background:
+      radial-gradient(rgba(125, 211, 252, 0.09) 0 1px, transparent 1px),
+      linear-gradient(180deg, rgba(15, 23, 42, 0.72), rgba(2, 6, 23, 0.26)),
+      rgba(2, 6, 23, 0.3);
+    background-size: 18px 18px, auto, auto;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
   }
   .chatboc-phone-demo__sequence {
     opacity: 0;
@@ -680,6 +742,10 @@
     border: 1px solid hsl(var(--border) / 0.7);
     background: hsl(var(--card) / 0.76);
     padding: 0 0.78rem;
+  }
+  .dark .chatboc-phone-demo__typing {
+    border-color: rgba(148, 163, 184, 0.18);
+    background: rgba(15, 23, 42, 0.82);
   }
   .chatboc-phone-demo__typing span {
     display: block;
@@ -727,6 +793,12 @@
     font-size: 0.75rem;
     color: hsl(var(--muted-foreground));
   }
+  .dark .chatboc-hero-attachment {
+    border-color: rgba(148, 163, 184, 0.18);
+    background: rgba(15, 23, 42, 0.72);
+    color: rgba(203, 213, 225, 0.9);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.025);
+  }
   .chatboc-hero-attachment__photo {
     display: block;
     width: 100%;
@@ -738,6 +810,13 @@
     background: hsl(var(--background) / 0.72);
     box-shadow: 0 10px 22px rgba(15, 23, 42, 0.1);
   }
+  .dark .chatboc-hero-attachment__photo {
+    border-color: rgba(125, 211, 252, 0.16);
+    background: rgba(15, 23, 42, 0.82);
+    box-shadow:
+      0 14px 28px rgba(0, 0, 0, 0.36),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.035);
+  }
   .chatboc-hero-attachment__media {
     position: relative;
     height: 5.75rem;
@@ -747,6 +826,12 @@
     background:
       linear-gradient(135deg, hsl(var(--primary) / 0.12), hsl(var(--success) / 0.1)),
       hsl(var(--background) / 0.55);
+  }
+  .dark .chatboc-hero-attachment__media {
+    border-color: rgba(148, 163, 184, 0.16);
+    background:
+      linear-gradient(135deg, rgba(96, 165, 250, 0.16), rgba(45, 212, 191, 0.1)),
+      rgba(2, 6, 23, 0.56);
   }
   .chatboc-hero-attachment__visual {
     position: absolute;
@@ -830,6 +915,10 @@
     background: hsl(var(--background) / 0.52);
     padding-inline: 0.5rem;
   }
+  .dark .chatboc-hero-waveform {
+    border-color: rgba(148, 163, 184, 0.16);
+    background: rgba(2, 6, 23, 0.58);
+  }
   .chatboc-hero-waveform span {
     width: 0.2rem;
     border-radius: 999px;
@@ -853,6 +942,10 @@
     border: 1px solid hsl(var(--border) / 0.65);
     background: hsl(var(--background) / 0.52);
     padding: 0.58rem;
+  }
+  .dark .chatboc-hero-mini-preview {
+    border-color: rgba(148, 163, 184, 0.16);
+    background: rgba(2, 6, 23, 0.58);
   }
   .chatboc-hero-mini-preview span {
     display: block;
@@ -892,6 +985,10 @@
     background: hsl(var(--card) / 0.72);
     padding: 0.5rem;
   }
+  .dark .chatboc-phone-demo__composer {
+    border-color: rgba(148, 163, 184, 0.16);
+    background: rgba(15, 23, 42, 0.76);
+  }
   .chatboc-phone-demo__composer-chip {
     display: inline-flex;
     min-height: 1.9rem;
@@ -904,6 +1001,11 @@
     font-size: 0.69rem;
     font-weight: 700;
     color: hsl(var(--muted-foreground));
+  }
+  .dark .chatboc-phone-demo__composer-chip {
+    border-color: rgba(148, 163, 184, 0.16);
+    background: rgba(2, 6, 23, 0.38);
+    color: rgba(203, 213, 225, 0.9);
   }
   .chatboc-phone-demo__composer-chip svg {
     color: var(--chatboc-phone-accent);
@@ -921,6 +1023,11 @@
     color: hsl(var(--muted-foreground));
     font-size: 0.76rem;
     font-weight: 700;
+  }
+  .dark .chatboc-phone-demo__inputbar {
+    border-color: rgba(148, 163, 184, 0.18);
+    background: rgba(15, 23, 42, 0.86);
+    color: rgba(203, 213, 225, 0.9);
   }
   .chatboc-phone-demo__inputbar svg {
     display: block;
@@ -941,7 +1048,11 @@
   }
   .dark .chatboc-phone-demo__result,
   .dark .chatboc-phone-demo__steps {
-    box-shadow: 0 18px 44px rgba(0, 0, 0, 0.28);
+    border-color: rgba(148, 163, 184, 0.16);
+    background: rgba(2, 6, 23, 0.62);
+    box-shadow:
+      0 18px 44px rgba(0, 0, 0, 0.32),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.025);
   }
   @keyframes chatboc-phone-flow-in {
     from {
@@ -1004,9 +1115,16 @@
     border-top: 1px solid hsl(var(--border) / 0.7);
     background: hsl(var(--background) / 0.48);
   }
+  .dark .chatboc-phone-demo__metrics {
+    border-top-color: rgba(148, 163, 184, 0.16);
+    background: rgba(2, 6, 23, 0.42);
+  }
   .chatboc-phone-demo__metrics > div {
     border-right: 1px solid hsl(var(--border) / 0.62);
     padding: 0.75rem;
+  }
+  .dark .chatboc-phone-demo__metrics > div {
+    border-right-color: rgba(148, 163, 184, 0.14);
   }
   .chatboc-phone-demo__metrics > div:last-child {
     border-right: 0;
@@ -1025,6 +1143,13 @@
     opacity: 0.9;
     animation: chatboc-hero-aura 7s ease-in-out infinite;
   }
+  .dark .chatboc-hero-aura {
+    background:
+      radial-gradient(circle at 20% 34%, rgba(59, 130, 246, 0.28), transparent 36%),
+      radial-gradient(circle at 72% 54%, rgba(45, 212, 191, 0.18), transparent 38%),
+      radial-gradient(circle at 48% 80%, rgba(250, 204, 21, 0.08), transparent 30%);
+    opacity: 0.82;
+  }
   .chatboc-hero-avatar {
     animation: chatboc-hero-avatar 5.8s ease-in-out infinite;
   }
@@ -1040,7 +1165,10 @@
   .chatboc-hero-grid {
     position: relative;
     isolation: isolate;
-    background: hsl(var(--background));
+    background:
+      radial-gradient(circle at 74% 30%, rgba(37, 99, 235, 0.08), transparent 28%),
+      radial-gradient(circle at 50% 78%, rgba(20, 184, 166, 0.06), transparent 34%),
+      hsl(var(--background));
   }
   .chatboc-hero-grid::before {
     content: "";
@@ -1067,7 +1195,22 @@
     opacity: 0.9;
   }
   .dark .chatboc-hero-grid {
-    background: hsl(var(--background));
+    background:
+      radial-gradient(circle at 72% 35%, rgba(37, 99, 235, 0.15), transparent 32%),
+      radial-gradient(circle at 46% 78%, rgba(20, 184, 166, 0.08), transparent 34%),
+      linear-gradient(180deg, #070b14 0%, hsl(var(--background)) 58%, #070b14 100%);
+  }
+  .dark .chatboc-hero-grid::before {
+    background-image:
+      linear-gradient(rgba(96, 165, 250, 0.08) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(96, 165, 250, 0.08) 1px, transparent 1px);
+    opacity: 0.5;
+  }
+  .dark .chatboc-hero-grid::after {
+    background:
+      linear-gradient(90deg, transparent, rgba(96, 165, 250, 0.12), transparent),
+      linear-gradient(180deg, transparent, rgba(45, 212, 191, 0.07), transparent);
+    opacity: 0.95;
   }
   @media (prefers-reduced-motion: reduce) {
     .chatboc-brand-lockup__agent-shell,
