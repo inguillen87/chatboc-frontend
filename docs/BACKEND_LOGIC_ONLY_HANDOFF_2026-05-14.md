@@ -296,6 +296,42 @@ Reglas:
 - No devolver 400 generico.
 - No devolver HTML.
 - No perder el lead si viene desde demo publica.
+- Publicar `lead_capture.fields` con los campos requeridos para el formulario.
+- Frontend no va a enviar `POST /api/public/lead-capture` si backend no declara campos.
+- Si backend quiere capturar lead desde demo, debe declarar minimo nombre + telefono o email.
+
+### 4.1. Chat demo sin simulacion frontend
+
+Frontend no va a fabricar respuestas locales cuando no exista runtime real.
+
+Para que `/demo` permita escribir y responder, backend debe publicar en `workspace`:
+
+```json
+{
+  "chat_bootstrap": {
+    "endpoint": "/ask/municipio",
+    "fallback_endpoint": null,
+    "method": "POST",
+    "session": {
+      "chat_session_id": "uuid-or-short-id",
+      "demo_session_id": "jwt..."
+    }
+  },
+  "empty_states": {
+    "runtime_unavailable": {
+      "title": "Demo conversacional no disponible",
+      "description": "Mensaje apto para frontend cuando el runtime no esta listo."
+    }
+  }
+}
+```
+
+Reglas:
+
+- Si `chat_bootstrap.endpoint` o `fallback_endpoint` no existe, frontend bloquea el composer.
+- Si el runtime devuelve error tecnico, frontend solo muestra `empty_states.runtime_unavailable` si backend lo publica.
+- No se aceptan respuestas HTML, stack traces ni texto tecnico como mensaje de usuario.
+- No depender de PDFs para demostrar la demo conversacional.
 
 ### 5. Slugs reservados
 
@@ -423,4 +459,3 @@ Backend no tiene que decidir como vender visualmente. Tiene que garantizar que c
 - analitica generada,
 
 eso tenga una accion real atras, un `request_id`, una sesion valida y un destino operativo.
-

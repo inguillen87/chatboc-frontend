@@ -154,25 +154,11 @@ const buildInitialMessages = (context?: ChatPanelContext, initialMessages?: Chat
   ];
 };
 
-const buildLocalAssistantReply = (
-  payload: ChatComposerPayload,
-  context: ChatPanelContext,
-  replies: QuickReplyItem[],
-) => {
-  const text = payload.text?.trim();
-  const suggestions = replies
-    .map((item) => item.label?.trim())
-    .filter(Boolean)
-    .slice(0, 3);
-  const lines = [
-    text ? `Recibi tu consulta: "${text}".` : "Recibi tu mensaje.",
-    context.rubro ? `Estoy usando la demo de ${context.rubro}.` : null,
-    suggestions.length ? `Tambien podes probar: ${suggestions.join(", ")}.` : null,
-    "Si el caso necesita seguimiento, Chatboc lo deja ordenado para que una persona pueda continuarlo.",
-  ];
-
-  return lines.filter(Boolean).join("\n");
-};
+const readRuntimeUnavailableBlock = (emptyStates?: Record<string, ChatExperienceBlock>) =>
+  emptyStates?.runtime_unavailable ??
+  emptyStates?.api_unavailable ??
+  emptyStates?.offline ??
+  null;
 
 export default function ChatPanel(props: FeatureChatPanelProps & Partial<LegacyChatPanelProps>) {
   const {
@@ -230,6 +216,9 @@ function StandaloneChatPanel({
   const resolvedAnimationTokens =
     animationTokens ?? resolvedContext.animationTokens ?? resolvedBlueprint?.animation_tokens ?? null;
   const resolvedChatBootstrap = resolvedContext.chatBootstrap ?? null;
+  const hasRuntimeChat = Boolean(
+    resolvedChatBootstrap?.endpoint?.trim() || resolvedChatBootstrap?.fallback_endpoint?.trim(),
+  );
   const firstVisit =
     resolvedContext.firstVisit ??
     resolvedBlueprint?.first_visit ??
@@ -240,6 +229,9 @@ function StandaloneChatPanel({
     resolvedEmptyStates.empty ??
     resolvedEmptyStates.offline ??
     null;
+  const runtimeUnavailableState = readRuntimeUnavailableBlock(resolvedEmptyStates);
+  const runtimeUnavailableTitle = readBlockTitle(runtimeUnavailableState);
+  const runtimeUnavailableDescription = readBlockDescription(runtimeUnavailableState);
   const sampleConversations = useMemo(
     () =>
       normalizeExperienceBlocks(
@@ -362,7 +354,6 @@ function StandaloneChatPanel({
   ) => {
     const fields = config.fields ?? [];
     if (!fields.length) {
-      void submitLead(config, {}, meta);
       return;
     }
     setActiveLead(config);
@@ -403,7 +394,7 @@ function StandaloneChatPanel({
         payload: payload.payload ?? undefined,
       });
     }
-    if (resolvedChatBootstrap) {
+    if (hasRuntimeChat && resolvedChatBootstrap) {
       void (async () => {
         try {
           const response = await sendChatBootstrapMessage(
@@ -426,27 +417,19 @@ function StandaloneChatPanel({
             },
           ]);
         } catch {
+          const errorText = runtimeUnavailableDescription || runtimeUnavailableTitle;
+          if (!errorText) return;
           setMessages((prev) => [
             ...prev,
             {
               id: `e-${Date.now()}`,
               role: 'system',
-              text: 'No pudimos enviar la consulta a la demo real. Reintenta en unos minutos.',
+              text: errorText,
               timestamp: new Date().toISOString(),
             },
           ]);
         }
       })();
-    } else {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `a-${Date.now()}`,
-          role: 'assistant',
-          text: buildLocalAssistantReply(payload, resolvedContext, replies),
-          timestamp: new Date().toISOString(),
-        },
-      ]);
     }
     setComposerDraft(null);
     setComposerIntent(null);
@@ -560,6 +543,16 @@ function StandaloneChatPanel({
           ))}
         </div>
       ) : null}
+      {!hasRuntimeChat && (runtimeUnavailableTitle || runtimeUnavailableDescription) ? (
+        <div className="rounded-lg border border-border/70 bg-muted/25 p-3 text-sm" role="status">
+          {runtimeUnavailableTitle ? (
+            <p className="font-medium text-foreground">{runtimeUnavailableTitle}</p>
+          ) : null}
+          {runtimeUnavailableDescription ? (
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">{runtimeUnavailableDescription}</p>
+          ) : null}
+        </div>
+      ) : null}
       {activeLead ? (
         <form
           className="space-y-2 rounded-lg border bg-background/70 p-3 text-sm"
@@ -647,6 +640,7 @@ function StandaloneChatPanel({
         draftText={composerDraft}
         intent={composerIntent}
         payload={composerPayload}
+        disabled={!hasRuntimeChat}
       />
       <ConversationRating conversationId={conversationId} />
     </section>
