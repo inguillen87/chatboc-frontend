@@ -1473,9 +1473,20 @@ function ChatWidgetInner({
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
+  useEffect(() => {
+    if (mode !== "standalone" || typeof document === "undefined") return;
+    const shouldLockPage = isOpen && isMobileView;
+    document.documentElement.classList.toggle("chatboc-widget-open", shouldLockPage);
+    document.body.classList.toggle("chatboc-widget-open", shouldLockPage);
+    return () => {
+      document.documentElement.classList.remove("chatboc-widget-open");
+      document.body.classList.remove("chatboc-widget-open");
+    };
+  }, [isOpen, isMobileView, mode]);
+
   const finalOpenWidth = useMemo(() => {
-    if (isMobileView && viewport.width) {
-      return `${viewport.width}px`;
+    if (isMobileView) {
+      return "100dvw";
     }
     const desired = parseInt(openWidth, 10);
     const max = viewport.width - (initialPosition.right || 0) - 16;
@@ -1488,6 +1499,10 @@ function ChatWidgetInner({
     // Determine the desired height
     const desired = parseInt(openHeight, 10);
     const heightToUse = isNaN(desired) ? 680 : desired;
+
+    if (isMobileView) {
+      return "100dvh";
+    }
 
     if (mode === 'iframe') {
         // Even in iframe mode, we should respect the viewport height to avoid scrolling issues in the host
@@ -1511,7 +1526,7 @@ function ChatWidgetInner({
     // If "chatito chiquito" issue persists, ensure we default to a reasonable minimum if openHeight is invalid
     // If calculating against viewport, make sure we at least respect the requested height if viewport is weirdly small (unless mobile)
     // UPDATE: To solve "chatito chiquito", we prioritize the larger size if space permits.
-    const finalHeight = (viewport.height && !isMobileView) ? Math.min(heightToUse, effectiveMax) : (isMobileView ? viewport.height : heightToUse);
+    const finalHeight = viewport.height ? Math.min(heightToUse, effectiveMax) : heightToUse;
 
     return `${finalHeight}px`;
   }, [openHeight, viewport.height, initialPosition.bottom, mode, isMobileView]);
@@ -2169,9 +2184,26 @@ function ChatWidgetInner({
 
   const containerStyle: React.CSSProperties = useMemo(() => {
     if (mode === "standalone") {
+      if (isOpen && isMobileView) {
+        return {
+          inset: 0,
+          width: finalOpenWidth,
+          height: finalOpenHeight,
+          maxWidth: "100dvw",
+          maxHeight: "100dvh",
+          zIndex: 999999,
+          transition: "opacity 0.18s ease",
+          transform: "none",
+        };
+      }
+
       const baseStyle = {
-        right: `${isOpen && isMobileView ? 0 : closedOffsetRight}px`,
-        bottom: `${isOpen && isMobileView ? 0 : closedOffsetBottom}px`,
+        right: isMobileView
+          ? `calc(env(safe-area-inset-right) + ${closedOffsetRight}px)`
+          : `${closedOffsetRight}px`,
+        bottom: isMobileView
+          ? `calc(env(safe-area-inset-bottom) + ${closedOffsetBottom}px)`
+          : `${closedOffsetBottom}px`,
         width: isOpen ? finalOpenWidth : launcherSize,
         height: isOpen ? finalOpenHeight : launcherHeight,
         zIndex: 999999,

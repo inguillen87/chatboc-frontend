@@ -58,13 +58,16 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
     typeof maxVisible === "number" && Number.isFinite(maxVisible) && maxVisible > 0
       ? Math.floor(maxVisible)
       : 0;
+  const effectiveMaxVisible = isMobile
+    ? Math.min(normalizedMaxVisible || 2, 2)
+    : normalizedMaxVisible;
   const shouldCollapse =
-    collapseExtra && normalizedMaxVisible > 0 && filteredButtons.length > normalizedMaxVisible;
+    (collapseExtra || isMobile) && effectiveMaxVisible > 0 && filteredButtons.length > effectiveMaxVisible;
   const visibleButtons =
     shouldCollapse && !showAll
-      ? filteredButtons.slice(0, normalizedMaxVisible)
+      ? filteredButtons.slice(0, effectiveMaxVisible)
       : filteredButtons;
-  const hiddenCount = shouldCollapse ? filteredButtons.length - normalizedMaxVisible : 0;
+  const hiddenCount = shouldCollapse ? filteredButtons.length - effectiveMaxVisible : 0;
 
   const formatButtonLabel = (label: string) => {
     const trimmed = label?.trim?.() || '';

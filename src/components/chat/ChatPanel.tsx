@@ -816,21 +816,27 @@ const ChatPanel = (props: ChatPanelProps) => {
   });
   const socketDisabledByBackend = !canAttemptSocket;
   const compactHeaderActions = Boolean(
-    isPlatformOnboarding ||
+    isMobile ||
+      isPlatformOnboarding ||
       uiHints?.density === "compact" ||
       uiHints?.toolbar?.avoid_header_action_overload ||
       uiHints?.composer?.icon_buttons_only,
   );
   const collapsedToolbarActions = new Set(uiHints?.toolbar?.collapse ?? []);
   const isToolbarActionCollapsed = (action: string) => collapsedToolbarActions.has(action);
-  const collapseExtraQuickReplies = Boolean(
-    uiHints && uiHints.collapse_extra_quick_replies !== false,
-  );
-  const quickReplyLimit =
+  const collapseExtraQuickReplies =
+    isMobile ||
+    Boolean(
+      uiHints && uiHints.collapse_extra_quick_replies !== false,
+    );
+  const configuredQuickReplyLimit =
     typeof uiHints?.max_visible_quick_replies === "number" &&
     uiHints.max_visible_quick_replies > 0
       ? uiHints.max_visible_quick_replies
       : 3;
+  const quickReplyLimit = isMobile
+    ? Math.min(configuredQuickReplyLimit, 2)
+    : configuredQuickReplyLimit;
   const isEmbeddedCommerceWidget =
     commerceSession?.frontend_contract?.render_as === "embedded_tenant_operating_widget";
   const commerceActionLabels: Record<string, string> =
@@ -2272,10 +2278,10 @@ const ChatPanel = (props: ChatPanelProps) => {
     });
   }
 
-  const visibleCompactFooterActions = compactFooterActions.slice(0, 4);
-  const hiddenCompactFooterActions = compactFooterActions.slice(4);
+  const compactFooterVisibleLimit = isMobile ? 0 : 4;
+  const visibleCompactFooterActions = compactFooterActions.slice(0, compactFooterVisibleLimit);
+  const hiddenCompactFooterActions = compactFooterActions.slice(compactFooterVisibleLimit);
   const shouldShowActionTrayToggle =
-    compactFooterActions.length > 0 ||
     hiddenCompactFooterActions.length > 0 ||
     realtimeVoiceBadges.length > 0 ||
     realtimeVoiceToolLabels.length > 0 ||
@@ -3287,18 +3293,18 @@ const ChatPanel = (props: ChatPanelProps) => {
         aria-live="polite"
         className={cn(
           chatContentMaxWidthClass,
-          "flex-1 p-2 sm:p-4 lg:px-6 min-h-0 flex flex-col gap-3 overflow-y-auto",
+          "chatboc-chat-scrollarea flex-1 p-2 sm:p-4 lg:px-6 min-h-0 flex flex-col gap-3 overflow-y-auto overscroll-contain",
         )}
       >
         <div className="flex-1" />
 
         {visibleMessages.length === 0 ? (
-             <div className="flex-1 flex flex-col justify-center items-center text-center p-6 mt-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <div className="w-16 h-16 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-4 dark:bg-primary/20 dark:text-blue-200">
+             <div className="flex-1 flex flex-col justify-center items-center text-center p-4 mt-4 sm:p-6 sm:mt-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="w-14 h-14 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-3 sm:mb-4 sm:h-16 sm:w-16 dark:bg-primary/20 dark:text-blue-200">
                    <MessageSquare className="w-8 h-8" />
                 </div>
-                <h3 className="text-lg font-semibold mb-2 text-foreground dark:text-slate-50">{emptyStateTitle}</h3>
-                <p className="text-sm text-muted-foreground mb-8 max-w-[260px] dark:text-slate-300">
+                <h3 className="text-base font-semibold mb-2 text-foreground sm:text-lg dark:text-slate-50">{emptyStateTitle}</h3>
+                <p className="text-sm text-muted-foreground mb-5 max-w-[260px] sm:mb-8 dark:text-slate-300">
                    {emptyStateDescription}
                 </p>
                 {sampleConversationBlocks.length ? (
@@ -3381,7 +3387,7 @@ const ChatPanel = (props: ChatPanelProps) => {
         <div ref={messagesEndRef} />
       </div>
       <ScrollToBottomButton target={chatContainerRef.current} />
-      <div className="w-full bg-card/95 px-2.5 py-1.5 pb-[max(env(safe-area-inset-bottom),0.45rem)] border-t min-w-0 relative backdrop-blur-sm">
+      <div className="chatboc-chat-footer w-full bg-card/95 px-2 py-1 pb-[max(env(safe-area-inset-bottom),0.45rem)] sm:px-2.5 sm:py-1.5 border-t min-w-0 relative backdrop-blur-sm">
         {smartHint && (
           <div className="absolute bottom-full left-0 w-full px-4 pb-2 z-10">
             <div className="bg-amber-50 text-amber-900 p-3 rounded-lg shadow-md flex justify-between items-start gap-2 text-sm border border-amber-200 animate-in slide-in-from-bottom-2 fade-in">
@@ -3408,7 +3414,7 @@ const ChatPanel = (props: ChatPanelProps) => {
             )}
             aria-label={commerceActionsAriaLabel ?? undefined}
           >
-            <div className="flex min-w-0 items-center gap-1 overflow-x-auto">
+            <div className={cn("chatboc-action-strip flex min-w-0 items-center gap-1 overflow-x-auto", isMobile ? "justify-end" : null)}>
               {visibleCompactFooterActions.map((action) => {
                 const Icon = action.icon;
                 return (
@@ -3440,7 +3446,7 @@ const ChatPanel = (props: ChatPanelProps) => {
                   </button>
                 );
               })}
-              {hiddenCompactFooterActions.length > 0 ? (
+              {hiddenCompactFooterActions.length > 0 && !isMobile ? (
                 <span className="inline-flex h-8 shrink-0 items-center rounded-full border border-border/50 bg-muted/35 px-2 text-[11px] font-semibold text-muted-foreground">
                   +{hiddenCompactFooterActions.length}
                 </span>

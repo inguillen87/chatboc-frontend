@@ -3,6 +3,8 @@ import { MessageCircleMore, Sparkles } from "lucide-react";
 import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 import AccessibilityToggle, { Prefs } from "./AccessibilityToggle";
 import type { ChatWidgetUiHints } from "@/types/chat";
+import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const IconButton = {
   Close: (props: React.SVGProps<SVGSVGElement>) => (
@@ -108,6 +110,8 @@ const ChatHeader: React.FC<Props> = ({
   recommendationLabel,
   compactActions = false,
 }) => {
+  const isMobile = useIsMobile();
+  const isUltraCompact = compactActions && isMobile;
   const liveChatSocketEnabled = isEnabledFlag(
     supportChannels?.live_chat?.socket_enabled,
     false,
@@ -120,8 +124,6 @@ const ChatHeader: React.FC<Props> = ({
   const liveChatLabel = typeof supportChannels?.live_chat?.label === 'string' ? supportChannels.live_chat.label.trim() : '';
   const whatsappLabel = typeof supportChannels?.whatsapp?.label === 'string' ? supportChannels.whatsapp.label.trim() : '';
   const showLiveBadge = Boolean(!compactActions && liveChatVisible);
-  const actionButtonClass =
-    "flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/10 p-2 text-white/85 backdrop-blur transition motion-safe:hover:scale-[1.03] hover:bg-white/16 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-1 focus-visible:ring-offset-primary";
   const rawStatusLabel = recommendationLabel || (liveChatVisible ? liveChatLabel : whatsappVisible ? whatsappLabel : null);
   const statusLabel = (() => {
     const normalized = typeof rawStatusLabel === "string" ? rawStatusLabel.trim() : "";
@@ -129,17 +131,25 @@ const ChatHeader: React.FC<Props> = ({
     const blocked = new Set(["widget", "whatsapp", "voice", "chat", "canal"]);
     return blocked.has(normalized.toLowerCase()) ? null : normalized;
   })();
+  const showCartButton = Boolean(
+    onCart && !isUltraCompact && (!compactActions || Boolean(cartCount && cartCount > 0)),
+  );
+  const actionButtonClass = cn(
+    "flex items-center justify-center rounded-full border border-white/10 bg-white/10 text-white/85 backdrop-blur transition motion-safe:hover:scale-[1.03] hover:bg-white/16 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-1 focus-visible:ring-offset-primary",
+    isUltraCompact ? "h-8 w-8 p-1.5" : "h-9 w-9 p-2",
+  );
 
   return (
     <div
       className={`
         relative flex items-center justify-between flex-shrink-0 w-full overflow-hidden rounded-t-[inherit]
-        border-b border-white/10 px-3 py-3.5 sm:px-4 sm:py-4
+        border-b border-white/10 px-2.5 py-2.5 sm:px-4 sm:py-4
         text-white transition-all
       `}
       style={{
         background: 'linear-gradient(135deg, color-mix(in srgb, hsl(var(--primary)) 88%, #020617), color-mix(in srgb, hsl(var(--primary)) 64%, #38bdf8 36%))',
         boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.12)',
+        paddingTop: isUltraCompact ? "max(0.625rem, env(safe-area-inset-top))" : undefined,
       }}
     >
       <div className="pointer-events-none absolute inset-0 opacity-70">
@@ -147,13 +157,19 @@ const ChatHeader: React.FC<Props> = ({
         <div className="absolute -right-10 top-0 h-24 w-24 rounded-full bg-cyan-300/20 blur-2xl" />
         <div className="absolute bottom-0 right-10 h-20 w-20 rounded-full bg-fuchsia-300/10 blur-2xl" />
       </div>
-      <div className="relative flex min-w-0 items-center gap-3 sm:gap-4">
-        <div className="relative flex h-11 w-11 items-center justify-center rounded-[18px] border border-white/20 bg-white/10 shadow-[0_10px_35px_rgba(0,0,0,0.22)] backdrop-blur-xl">
-          <span className="absolute inset-[2px] rounded-[16px] bg-gradient-to-br from-white/18 to-white/5" />
+      <div className="relative flex min-w-0 items-center gap-2.5 sm:gap-4">
+        <div className={cn(
+          "relative flex items-center justify-center border border-white/20 bg-white/10 shadow-[0_10px_35px_rgba(0,0,0,0.22)] backdrop-blur-xl",
+          isUltraCompact ? "h-9 w-9 rounded-[14px]" : "h-11 w-11 rounded-[18px]",
+        )}>
+          <span className={cn(
+            "absolute inset-[2px] bg-gradient-to-br from-white/18 to-white/5",
+            isUltraCompact ? "rounded-[12px]" : "rounded-[16px]",
+          )} />
           <div className="relative flex items-center justify-center">
             <ChatbocLogoAnimated
               src={logoUrl}
-              size={32}
+              size={isUltraCompact ? 26 : 32}
               smiling={isTyping}
               movingEyes={isTyping}
               blinking
@@ -164,7 +180,7 @@ const ChatHeader: React.FC<Props> = ({
         </div>
         <div className="min-w-0 overflow-hidden">
           <div className="flex items-center gap-2">
-            <span className="truncate text-base font-black tracking-[0.02em] sm:text-[1.02rem]">
+            <span className="truncate text-sm font-black tracking-[0.02em] sm:text-[1.02rem]">
               {title || 'Chatboc'}
             </span>
             {showLiveBadge ? (
@@ -174,17 +190,17 @@ const ChatHeader: React.FC<Props> = ({
               </span>
             ) : null}
           </div>
-          <div className="mt-0.5 flex items-center gap-1.5 text-xs text-white/82">
+          <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-white/82 sm:text-xs">
             <MessageCircleMore className="h-3.5 w-3.5 shrink-0" />
             <span className="truncate font-medium">{subtitle || 'Asistente Virtual'}</span>
           </div>
-          {statusLabel ? (
+          {statusLabel && !isUltraCompact ? (
             <div className="mt-1 inline-flex items-center gap-1 text-[11px] text-white/80">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" />
               <span className="truncate">{statusLabel}</span>
             </div>
           ) : null}
-          {isTyping ? (
+          {isTyping && !isUltraCompact ? (
             <div className="mt-2 inline-flex items-center gap-1 rounded-full border border-emerald-300/25 bg-emerald-400/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-50">
               <span className="relative flex h-2 w-2">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-300 opacity-75" />
@@ -195,8 +211,13 @@ const ChatHeader: React.FC<Props> = ({
           ) : null}
         </div>
       </div>
-      <div className="relative flex items-center gap-1.5 sm:gap-2">
-        <AccessibilityToggle onChange={onA11yChange} compact={compactActions} hints={accessibilityHints} />
+      <div className="relative flex shrink-0 items-center gap-1 sm:gap-2">
+        <AccessibilityToggle
+          onChange={onA11yChange}
+          compact={compactActions}
+          hints={accessibilityHints}
+          className={isUltraCompact ? "h-8 w-8" : undefined}
+        />
         {onBack ? (
           <button
             onClick={onBack}
@@ -216,7 +237,7 @@ const ChatHeader: React.FC<Props> = ({
             <IconButton.User className="h-5 w-5" />
           </button>
         ) : null}
-        {onCart && (!compactActions || Boolean(cartCount && cartCount > 0)) && (
+        {showCartButton && (
           <button
             onClick={() => onCart()}
             className={`relative ${actionButtonClass}`}

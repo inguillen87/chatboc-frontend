@@ -870,7 +870,7 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
   return (
     <section className="chatboc-hero-grid overflow-hidden pt-20 pb-12 text-foreground md:pt-28 md:pb-16" style={accentStyle}>
       <div className="container mx-auto px-4">
-        <div className={`grid items-center gap-10 ${showHeroPreview ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]" : ""}`}>
+        <div className={`chatboc-hero-layout grid items-center gap-10 ${showHeroPreview ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]" : ""}`}>
           <div className="min-w-0 max-w-3xl">
             {eyebrow && (
               <div className="mb-5 inline-flex max-w-full items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.22em] text-primary">
@@ -887,7 +887,7 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
             )}
 
             {description && (
-              <p className="mt-6 max-w-2xl text-lg leading-8 text-muted-foreground md:text-xl">
+              <p className="chatboc-hero-description mt-6 max-w-2xl text-lg leading-8 text-muted-foreground md:text-xl">
                 {description}
               </p>
             )}
@@ -919,7 +919,7 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
             )}
 
             {proofItems.length > 0 && (
-              <div className="mt-8 grid gap-3 sm:grid-cols-3">
+              <div className="chatboc-hero-proof mt-8 grid gap-3 sm:grid-cols-3">
                 {proofItems.slice(0, 3).map((item) => (
                   <div
                     key={item}

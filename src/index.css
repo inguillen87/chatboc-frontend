@@ -17,6 +17,7 @@
     background-image: linear-gradient(90deg, #7db0ff 0%, #66d8ff 52%, #2a69ff 100%);
   }
   .chatboc-brand-navbar {
+    padding-top: max(0.5rem, env(safe-area-inset-top));
     background:
       linear-gradient(90deg, hsl(var(--background) / 0.94), hsl(var(--background) / 0.88)),
       radial-gradient(circle at 12% 0%, rgba(26, 124, 255, 0.14), transparent 26%),
@@ -1235,6 +1236,24 @@
     .chatboc-hero-headline {
       max-width: 12.4ch;
     }
+    .chatboc-hero-grid {
+      padding-top: calc(4.85rem + env(safe-area-inset-top));
+      padding-bottom: 2.25rem;
+    }
+    .chatboc-hero-layout {
+      gap: 1.35rem;
+    }
+    .chatboc-hero-description {
+      margin-top: 1.05rem;
+      font-size: 1rem;
+      line-height: 1.6;
+    }
+    .chatboc-hero-actions {
+      margin-top: 1.35rem;
+    }
+    .chatboc-hero-proof {
+      margin-top: 1.35rem;
+    }
     .chatboc-brand-lockup--nav .chatboc-brand-lockup__name {
       font-size: 1.22rem;
     }
@@ -1268,9 +1287,9 @@
       display: none;
     }
     .chatboc-hero-preview {
-      width: min(100%, 18.9rem);
+      width: min(100%, 20rem);
       margin-inline: auto;
-      margin-top: 0.2rem;
+      margin-top: 0.55rem;
       border-radius: 38px;
       padding: 7px;
     }
@@ -1283,7 +1302,7 @@
       top: 0.38rem;
     }
     .chatboc-phone-demo {
-      height: clamp(334px, 39vh, 356px);
+      height: clamp(360px, 48svh, 440px);
       min-height: 0;
       border-radius: 28px;
     }
@@ -1707,9 +1726,68 @@ body,
   overflow-y: auto;
 }
 
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+.chat-root {
+  -webkit-tap-highlight-color: transparent;
+  min-height: 0;
+}
+
+.chat-root input,
+.chat-root textarea,
+.chat-root button {
+  touch-action: manipulation;
+}
+
+.chat-root input,
+.chat-root textarea {
+  font-size: 16px;
+}
+
+.chatboc-chat-scrollarea {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--border) / 0.7) transparent;
+  scroll-padding-bottom: 1rem;
+}
+
+.chatboc-chat-scrollarea::-webkit-scrollbar,
+.chatboc-action-strip::-webkit-scrollbar {
+  height: 0;
+  width: 0;
+}
+
+.chatboc-action-strip {
+  scrollbar-width: none;
+}
+
 @media (max-width: 639px) {
   body {
-    padding-bottom: 6rem;
+    padding-bottom: calc(5rem + env(safe-area-inset-bottom));
+  }
+
+  html.chatboc-widget-open,
+  body.chatboc-widget-open {
+    overscroll-behavior: none;
+    overflow: hidden;
+  }
+
+  body.chatboc-widget-open {
+    padding-bottom: 0;
+  }
+
+  .chatboc-container {
+    max-width: 100dvw;
+  }
+
+  .chatboc-container .chat-root {
+    border-radius: 0 !important;
+  }
+
+  .chatboc-chat-footer {
+    padding-bottom: max(0.55rem, env(safe-area-inset-bottom));
   }
 }
 

@@ -189,8 +189,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
     attachmentPreview
       ? "Agrega un comentario..."
       : currentGuidedFieldLabel ||
-        (compactComposer &&
-        composerPlaceholder &&
+        (composerPlaceholder &&
         composerPlaceholder.length > COMPACT_PLACEHOLDER_MAX_LENGTH
           ? PLACEHOLDERS[0]
           : composerPlaceholder) ||
@@ -597,7 +596,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
   };
 
   return (
-    <div className="w-full flex flex-col gap-2 px-1.5 py-1.5 sm:px-2 sm:py-2 bg-background">
+    <div className="chatboc-chat-composer w-full flex flex-col gap-1.5 px-1 py-1 sm:gap-2 sm:px-2 sm:py-2 bg-background">
       {draftRecovered ? (
         <div className="rounded-xl border border-primary/30 bg-primary/10 px-3 py-2 text-xs text-primary">
           Recuperamos tu borrador anterior automáticamente.
@@ -657,13 +656,13 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
         </div>
       )}
       <div className="flex flex-col gap-2">
-        <div className="rounded-[24px] border border-border/70 bg-gradient-to-br from-background via-background to-muted/25 p-1.5 shadow-[0_10px_26px_rgba(15,23,42,0.07)] dark:shadow-[0_16px_32px_rgba(0,0,0,0.24)]">
+        <div className="rounded-[22px] border border-border/70 bg-gradient-to-br from-background via-background to-muted/25 p-1 shadow-[0_10px_26px_rgba(15,23,42,0.07)] sm:rounded-[24px] sm:p-1.5 dark:shadow-[0_16px_32px_rgba(0,0,0,0.24)]">
           <div className="w-full">
           <input
             ref={internalRef}
             className={`
               w-full
-              rounded-[20px] px-4 py-2.5 sm:px-4 sm:py-3
+              rounded-[18px] px-3.5 py-2 sm:rounded-[20px] sm:px-4 sm:py-3
               text-base
               outline-none transition-all duration-200
               focus:ring-2 focus:ring-primary/50 focus:border-transparent
@@ -699,7 +698,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
           />
           </div>
         <div
-          className={`relative mt-1.5 flex w-full items-center gap-1.5 ${compactComposer ? "flex-nowrap" : "flex-wrap"}`}
+          className={`relative mt-1 flex w-full items-center gap-1 sm:mt-1.5 sm:gap-1.5 ${compactComposer ? "flex-nowrap" : "flex-wrap"}`}
           role="toolbar"
           aria-label="Acciones del mensaje"
         >
@@ -728,7 +727,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
           )}
           <div className={`flex min-w-0 items-center gap-1.5 ${compactComposer ? "flex-nowrap" : "flex-wrap"}`}>
             {showAttachAction ? (
-              <div className="rounded-full border border-border/60 bg-background p-0.5 shadow-sm transition hover:shadow-md" title={attachmentLabel}>
+              <div className="rounded-full border border-border/60 bg-background p-0.5 shadow-sm transition hover:shadow-md [&_button]:h-9 [&_button]:w-9 sm:[&_button]:h-10 sm:[&_button]:w-10" title={attachmentLabel}>
               <AdjuntarArchivo
                 ref={adjRef}
                 onFileSelected={handleFileSelected}
@@ -742,8 +741,8 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
               onClick={handleShareLocation}
               disabled={isTyping || isLocating || isRecording || !!attachmentPreview}
               className={`
-                flex h-10 w-10 items-center justify-center
-                rounded-full p-2.5 sm:p-3
+                flex h-9 w-9 items-center justify-center sm:h-10 sm:w-10
+                rounded-full p-2 sm:p-3
                 shadow-md transition-all duration-150
                 focus:outline-none focus:ring-2 focus:ring-primary/60 focus:ring-offset-1 focus:ring-offset-background
                 active:scale-95
@@ -754,7 +753,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
               title={locationLabel}
               type="button"
             >
-              {isLocating ? <div className="h-5 w-5 rounded-full border-2 border-current border-t-transparent animate-spin" /> : <MapPin className="w-5 h-5" />}
+              {isLocating ? <div className="h-4 w-4 rounded-full border-2 border-current border-t-transparent animate-spin sm:h-5 sm:w-5" /> : <MapPin className="h-4 w-4 sm:h-5 sm:w-5" />}
             </button>
             ) : null}
             {showAudioAction ? (
@@ -775,8 +774,8 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
               }}
               disabled={isTyping || isLocating || !!attachmentPreview}
               className={`
-                flex h-10 w-10 items-center justify-center
-                rounded-full p-2.5 sm:p-3
+                flex h-9 w-9 items-center justify-center sm:h-10 sm:w-10
+                rounded-full p-2 sm:p-3
                 shadow-md transition-all duration-150
                 focus:outline-none focus:ring-2 focus:ring-primary/60 focus:ring-offset-1 focus:ring-offset-background
                 active:scale-95
@@ -788,7 +787,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
               title={audioLabel}
               type="button"
             >
-              {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+              {isRecording ? <MicOff className="h-4 w-4 sm:h-5 sm:w-5" /> : <Mic className="h-4 w-4 sm:h-5 sm:w-5" />}
             </button>
             ) : null}
             {showEmojiAction ? (
@@ -796,8 +795,8 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
               onClick={() => setShowEmojis((v) => !v)}
               disabled={isTyping || isLocating || !!attachmentPreview}
               className={`
-                flex h-10 w-10 items-center justify-center
-                rounded-full p-2.5 sm:p-3
+                flex h-9 w-9 items-center justify-center sm:h-10 sm:w-10
+                rounded-full p-2 sm:p-3
                 shadow-md transition-all duration-150
                 focus:outline-none focus:ring-2 focus:ring-primary/60 focus:ring-offset-1 focus:ring-offset-background
                 active:scale-95
@@ -807,15 +806,15 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
               aria-label="Mostrar emojis"
               type="button"
             >
-              <Smile className="w-5 h-5" />
+              <Smile className="h-4 w-4 sm:h-5 sm:w-5" />
             </button>
             ) : null}
           </div>
           <button
             className={`
               ml-auto flex-shrink-0
-              flex h-11 w-11 items-center justify-center
-              rounded-full p-3 sm:p-3.5
+              flex h-10 w-10 items-center justify-center sm:h-11 sm:w-11
+              rounded-full p-2.5 sm:p-3.5
               shadow-md transition-all duration-150
               focus:outline-none focus:ring-2 focus:ring-primary/60 focus:ring-offset-1 focus:ring-offset-background
               active:scale-95
@@ -827,7 +826,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
             aria-label="Enviar mensaje"
             type="button"
           >
-            {input.trim() || attachmentPreview ? <ArrowUp className="w-5 h-5" /> : <Send className="w-5 h-5" />}
+            {input.trim() || attachmentPreview ? <ArrowUp className="h-4 w-4 sm:h-5 sm:w-5" /> : <Send className="h-4 w-4 sm:h-5 sm:w-5" />}
           </button>
         </div>
         {(input.trim() || attachmentPreview || currentGuidedFieldLabel) ? (
