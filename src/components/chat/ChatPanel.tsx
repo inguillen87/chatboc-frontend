@@ -96,7 +96,10 @@ import {
 import type { RealtimeVoiceCapabilities } from "@/types/realtimeVoice";
 import {
   getRealtimeVoiceBadges,
+  getRealtimeVoiceRequestModel,
   getRealtimeVoiceStarters,
+  getRealtimeVoiceToolLabels,
+  isRealtimeVideoRenderable,
   isRealtimeVoiceRenderable,
 } from "@/utils/realtimeVoice";
 import {
@@ -209,6 +212,60 @@ const normalizeRealtimeToolPayload = (
       null,
     details,
   };
+};
+
+const asRecord = (value: unknown): Record<string, any> =>
+  value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, any>)
+    : {};
+
+const readRealtimeSessionId = (payload: unknown) => {
+  const source = asRecord(payload);
+  const session = asRecord(source.session);
+  const clientSecret = asRecord(source.client_secret);
+  const clientSecrets = asRecord(source.client_secrets);
+  const clientSecretsSession = asRecord(clientSecrets.session);
+  const clientSecretsSecret = asRecord(clientSecrets.client_secret);
+
+  return readFirstString(
+    session.id,
+    session.session_id,
+    source.session_id,
+    source.realtime_session_id,
+    clientSecretsSession.id,
+    clientSecretsSession.session_id,
+    clientSecrets.session_id,
+    clientSecretsSecret.session_id,
+    clientSecretsSecret.id,
+    clientSecret.session_id,
+    clientSecret.id,
+  );
+};
+
+const readRealtimeResponseModel = (payload: unknown) => {
+  const source = asRecord(payload);
+  const session = asRecord(source.session);
+  const clientSecret = asRecord(source.client_secret);
+  const clientSecrets = asRecord(source.client_secrets);
+  const clientSecretsSession = asRecord(clientSecrets.session);
+
+  return readFirstString(
+    source.model,
+    session.model,
+    clientSecrets.model,
+    clientSecretsSession.model,
+    clientSecret.model,
+  );
+};
+
+const readRealtimeClientSecretsContract = (payload: unknown) => {
+  const source = asRecord(payload);
+  const clientSecrets = asRecord(source.client_secrets);
+  return readFirstString(
+    clientSecrets.contract_version,
+    source.client_secrets_contract_version,
+    source.contract_version,
+  );
 };
 
 const leadNextActionsToButtons = (actions?: LeadCaptureNextAction[] | null) =>
@@ -440,6 +497,7 @@ interface ChatPanelProps {
     profile?: string;
     voiceEnabled?: boolean;
     videoEnabled?: boolean;
+    liveVideoAnalysis?: boolean;
     avatarEnabled?: boolean;
     avatarType?: string;
     avatarPersona?: string;
@@ -1532,9 +1590,10 @@ const ChatPanel = (props: ChatPanelProps) => {
     effectiveRealtimeVoice,
     voiceCallConfig,
   );
-  const realtimeVideoEnabled = Boolean(
-    boolish(videoCallConfig?.enabled) &&
-      boolish(realtimeConfig?.videoEnabled ?? true),
+  const realtimeVideoEnabled = isRealtimeVideoRenderable(
+    effectiveRealtimeVoice,
+    videoCallConfig,
+    realtimeConfig,
   );
   const realtimeVoiceBadges = useMemo(
     () => getRealtimeVoiceBadges(effectiveRealtimeVoice),
@@ -1542,6 +1601,10 @@ const ChatPanel = (props: ChatPanelProps) => {
   );
   const realtimeVoiceStarters = useMemo(
     () => getRealtimeVoiceStarters(effectiveRealtimeVoice),
+    [effectiveRealtimeVoice],
+  );
+  const realtimeVoiceToolLabels = useMemo(
+    () => getRealtimeVoiceToolLabels(effectiveRealtimeVoice),
     [effectiveRealtimeVoice],
   );
   const [channelMode, setChannelMode] = useState<"chat" | "voice" | "video">(
@@ -1716,18 +1779,19 @@ const ChatPanel = (props: ChatPanelProps) => {
       };
 
       const requestRealtimeSession = async (requestedMode: "voice" | "video") => {
+        const requestedModel = getRealtimeVoiceRequestModel(
+          effectiveRealtimeVoice,
+          realtimeConfig?.model,
+          requestedMode === "video" ? videoCallConfig?.model : voiceCallConfig?.model,
+          voiceCallConfig?.model,
+        );
         const payload = await apiFetch<any>("/api/public/realtime/session", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             tenant_slug: tenantSlug,
             channel: requestedMode,
-            model:
-              effectiveRealtimeVoice?.recommended_model ||
-              realtimeConfig?.model ||
-              voiceCallConfig?.model ||
-              videoCallConfig?.model ||
-              undefined,
+            model: requestedModel,
             fallback_model:
               effectiveRealtimeVoice?.fallback_model ||
               realtimeConfig?.fallbackModel ||
@@ -1758,20 +1822,18 @@ const ChatPanel = (props: ChatPanelProps) => {
           },
         });
 
-        const sessionId =
-          payload?.session?.id || payload?.session_id || `rt_${Date.now()}`;
+        const sessionId = readRealtimeSessionId(payload) || `rt_${Date.now()}`;
+        const responseModel =
+          readRealtimeResponseModel(payload) || requestedModel || undefined;
+        const clientSecretsContract = readRealtimeClientSecretsContract(payload);
         setRealtimeSessionId(sessionId);
         setSessionState("live");
         setAssistantSpeaking(true);
         pushRealtimeTimeline(sessionId, "success");
         emitRealtimeAnalytics("realtime_session_started", requestedMode, {
           session_id: sessionId,
-          model:
-            payload?.model ||
-            effectiveRealtimeVoice?.recommended_model ||
-            realtimeConfig?.model ||
-            voiceCallConfig?.model ||
-            videoCallConfig?.model,
+          model: responseModel,
+          client_secrets_contract_version: clientSecretsContract || undefined,
         });
 
         if (
@@ -2806,7 +2868,12 @@ const ChatPanel = (props: ChatPanelProps) => {
       {channelMode !== "chat" ? (
         <div className="px-2 sm:px-4 pt-2">
           <div className={cn(chatContentMaxWidthClass, "rounded-2xl border border-border/70 bg-background/90 p-3 shadow-sm")}>
-            <div className="mb-3 grid grid-cols-3 gap-1 rounded-xl border border-border/70 bg-muted/30 p-1">
+            <div
+              className={cn(
+                "mb-3 grid gap-1 rounded-xl border border-border/70 bg-muted/30 p-1",
+                realtimeVideoEnabled && videoCallLabel ? "grid-cols-3" : "grid-cols-2",
+              )}
+            >
               <button
                 type="button"
                 className="rounded-lg px-2 py-1.5 text-xs font-medium text-muted-foreground transition hover:bg-background hover:text-foreground"
@@ -2833,22 +2900,20 @@ const ChatPanel = (props: ChatPanelProps) => {
               >
                 Llamada
               </button>
-              <button
-                type="button"
-                disabled={!realtimeVideoEnabled}
-                className={cn(
-                  "rounded-lg px-2 py-1.5 text-xs font-medium transition disabled:opacity-40",
-                  channelMode === "video"
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:bg-background hover:text-foreground",
-                )}
-                onClick={() => {
-                  if (!realtimeVideoEnabled) return;
-                  setChannelMode("video");
-                }}
-              >
-                Video
-              </button>
+              {realtimeVideoEnabled && videoCallLabel ? (
+                <button
+                  type="button"
+                  className={cn(
+                    "rounded-lg px-2 py-1.5 text-xs font-medium transition",
+                    channelMode === "video"
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:bg-background hover:text-foreground",
+                  )}
+                  onClick={() => setChannelMode("video")}
+                >
+                  {videoCallLabel}
+                </button>
+              ) : null}
             </div>
             <div className="mb-3 flex items-center justify-between text-xs text-muted-foreground">
               <span className="inline-flex items-center gap-1">
@@ -2879,7 +2944,7 @@ const ChatPanel = (props: ChatPanelProps) => {
                 sessionState={sessionState}
                 title={
                   channelMode === "video"
-                    ? videoCallLabel || "Video"
+                    ? videoCallLabel || voiceCallLabel
                     : voiceCallLabel
                 }
                 avatarType={realtimeConfig?.avatarType || "robot"}
@@ -2900,6 +2965,18 @@ const ChatPanel = (props: ChatPanelProps) => {
                       className="rounded-md border border-primary/15 bg-primary/5 px-2 py-1 text-[11px] font-medium text-primary"
                     >
                       {badge}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+              {channelMode === "voice" && realtimeVoiceToolLabels.length > 0 ? (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {realtimeVoiceToolLabels.slice(0, 4).map((label) => (
+                    <span
+                      key={label}
+                      className="rounded-md border border-border/70 bg-background px-2 py-1 text-[11px] font-medium text-foreground"
+                    >
+                      {label}
                     </span>
                   ))}
                 </div>
@@ -3325,6 +3402,18 @@ const ChatPanel = (props: ChatPanelProps) => {
                 ))}
               </div>
             ) : null}
+            {realtimeVoiceToolLabels.length > 0 ? (
+              <div className="flex flex-wrap gap-1">
+                {realtimeVoiceToolLabels.slice(0, 4).map((label) => (
+                  <span
+                    key={label}
+                    className="rounded-md border border-border/70 bg-background px-2 py-1 text-[11px] font-medium text-foreground"
+                  >
+                    {label}
+                  </span>
+                ))}
+              </div>
+            ) : null}
             {realtimeVoiceStarters.length > 0 ? (
               <div className="flex flex-wrap gap-1">
                 {realtimeVoiceStarters.slice(0, 3).map((starter) => (
@@ -3341,14 +3430,14 @@ const ChatPanel = (props: ChatPanelProps) => {
             ) : null}
           </div>
         ) : null}
-        {!activeTicketId && realtimeVideoEnabled && !isToolbarActionCollapsed("video_call") ? (
+        {!activeTicketId && realtimeVideoEnabled && videoCallLabel && !isToolbarActionCollapsed("video_call") ? (
           <Button
             onClick={() => beginRealtimeSession("video")}
             className="w-full mb-2"
             variant="outline"
           >
             <Video className="mr-2 h-4 w-4" />
-            {videoCallLabel || "Video"}
+            {videoCallLabel}
           </Button>
         ) : null}
         {sessionState === "ended" ? (

@@ -131,7 +131,7 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug }: { tenantS
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">WhatsApp productivo</p>
             <h3 className="mt-1 text-lg font-semibold text-foreground">Activacion guiada por Chatboc</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              El tenant ve un flujo guiado; la plataforma automatiza subcuenta, servicio, registro embebido y sender.
+              El cliente ve un flujo guiado en Chatboc; la plataforma prepara los pasos tecnicos y deja cada estado trazable.
             </p>
           </div>
         </div>

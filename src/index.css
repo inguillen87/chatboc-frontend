@@ -870,6 +870,11 @@
       width: 100%;
       padding: 7px;
     }
+    body:has(.chatboc-hero-preview) .chatboc-container:not(:has(.chat-root)) {
+      top: 4.7rem !important;
+      right: 1rem !important;
+      bottom: auto !important;
+    }
     .chatboc-hero-preview::before {
       top: 0.38rem;
     }

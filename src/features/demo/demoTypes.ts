@@ -82,6 +82,39 @@ export interface DemoAdminPreviewTimelineItem {
   [key: string]: unknown;
 }
 
+export interface DemoAdminPreviewMapPoint {
+  id?: string | number | null;
+  label?: string | null;
+  title?: string | null;
+  description?: string | null;
+  address?: string | null;
+  direccion?: string | null;
+  category?: string | null;
+  categoria?: string | null;
+  status?: string | null;
+  lat?: string | number | null;
+  lng?: string | number | null;
+  latitude?: string | number | null;
+  longitude?: string | number | null;
+  latitud?: string | number | null;
+  longitud?: string | number | null;
+  [key: string]: unknown;
+}
+
+export interface DemoAdminPreviewMap {
+  enabled?: boolean | null;
+  title?: string | null;
+  label?: string | null;
+  description?: string | null;
+  points?: DemoAdminPreviewMapPoint[] | null;
+  render_contract?: {
+    can_render_map?: boolean | null;
+    can_render_heatmap?: boolean | null;
+    [key: string]: unknown;
+  } | null;
+  [key: string]: unknown;
+}
+
 export interface DemoAdminPreviewResponse {
   contract_version?: string | null;
   request_id?: string | null;
@@ -95,6 +128,7 @@ export interface DemoAdminPreviewResponse {
   modules?: DemoAdminPreviewModule[];
   cards?: DemoAdminPreviewCard[];
   timeline?: DemoAdminPreviewTimelineItem[];
+  map?: DemoAdminPreviewMap | null;
   catalog?: Record<string, unknown> | null;
   labels?: Record<string, string | null | undefined> | null;
   [key: string]: unknown;

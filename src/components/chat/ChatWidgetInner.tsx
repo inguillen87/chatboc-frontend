@@ -531,6 +531,19 @@ function ChatWidgetInner({
       ),
       voiceEnabled: toBool(attrs['data-realtime-voice-enabled'], Boolean(supportChannels?.voice_call?.enabled)),
       videoEnabled: toBool(attrs['data-realtime-video-enabled'], Boolean(supportChannels?.video_call?.enabled)),
+      liveVideoAnalysis: toBool(
+        attrs['data-realtime-live-video-analysis'],
+        Boolean(
+          realtimeVoice?.features?.live_video_analysis ||
+            realtimeVoice?.features?.video_analysis_ready ||
+            realtimeVoice?.features?.multimodal_capture ||
+            supportChannels?.video_call?.features?.live_video_analysis ||
+            supportChannels?.video_call?.features?.video_analysis_ready ||
+            supportChannels?.video_call?.features?.analysis_ready ||
+            supportChannels?.video_call?.features?.multimodal_capture ||
+            supportChannels?.video_call?.features?.visual_capture,
+        ),
+      ),
       avatarEnabled: toBool(attrs['data-avatar-enabled'], false),
       avatarType: toText(attrs['data-avatar-type'], 'robot'),
       avatarPersona: toText(attrs['data-avatar-persona'], ''),
@@ -573,6 +586,7 @@ function ChatWidgetInner({
     supportChannels?.live_chat?.socket_url,
     realtimeVoice,
     supportChannels?.video_call?.enabled,
+    supportChannels?.video_call?.features,
     supportChannels?.video_call?.label,
     supportChannels?.video_call?.model,
     supportChannels?.voice_call?.enabled,
@@ -2294,6 +2308,7 @@ function ChatWidgetInner({
         data-realtime-profile={realtimeConfig.profile || ''}
         data-realtime-voice-enabled={String(Boolean(realtimeConfig.voiceEnabled))}
         data-realtime-video-enabled={String(Boolean(realtimeConfig.videoEnabled))}
+        data-realtime-live-video-analysis={String(Boolean(realtimeConfig.liveVideoAnalysis))}
         data-avatar-enabled={String(Boolean(realtimeConfig.avatarEnabled))}
         data-avatar-type={realtimeConfig.avatarType || 'robot'}
         data-avatar-persona={realtimeConfig.avatarPersona || ''}

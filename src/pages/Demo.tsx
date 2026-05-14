@@ -24,13 +24,17 @@ import WhatsappSandboxLauncher from '@/features/demo/WhatsappSandboxLauncher';
 import { createDemoSession, getDemoAdminPreview, getDemoCatalog } from '@/features/demo/demoApi';
 import type {
   DemoAdminPreviewResponse,
+  DemoAdminPreviewMapPoint,
   DemoCatalogResponse,
   DemoSector,
   DemoSectorGroup,
   DemoWorkspaceConfig,
 } from '@/features/demo/demoTypes';
+import type { HeatPoint } from '@/services/statsService';
 import { CHATBOC_ORBIT_AVATAR } from '@/utils/brandAssets';
 import { ApiError, getErrorMessage } from '@/utils/api';
+
+const MapLibreMap = React.lazy(() => import('@/components/MapLibreMap'));
 
 type DemoUiError = {
   message: string;
@@ -193,6 +197,143 @@ const normalizePreviewTimeline = (preview: DemoAdminPreviewResponse | null) => {
     );
 };
 
+const readFiniteNumber = (...values: unknown[]): number | null => {
+  for (const value of values) {
+    const parsed = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN;
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+};
+
+const readMapPointText = (point: DemoAdminPreviewMapPoint, keys: string[]) => {
+  for (const key of keys) {
+    const value = point[key];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+    if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  }
+  return null;
+};
+
+type NormalizedPreviewMapPoint = {
+  id: string;
+  label: string;
+  lat: number;
+  lng: number;
+  address?: string | null;
+  category?: string | null;
+  status?: string | null;
+};
+
+const normalizePreviewMap = (preview: DemoAdminPreviewResponse | null) => {
+  const map = preview?.map;
+  if (!map || typeof map !== 'object') return null;
+  if (map.enabled === false || map.render_contract?.can_render_map === false) return null;
+
+  const points = Array.isArray(map.points) ? map.points : [];
+  const normalizedPoints: NormalizedPreviewMapPoint[] = points
+    .map<NormalizedPreviewMapPoint | null>((point, index) => {
+      if (!point || typeof point !== 'object') return null;
+      const lat = readFiniteNumber(point.lat, point.latitude, point.latitud);
+      const lng = readFiniteNumber(point.lng, point.longitude, point.longitud);
+      if (lat === null || lng === null) return null;
+      const id = String(point.id ?? `${lat}:${lng}:${index}`);
+      const coordinateLabel = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+      return {
+        id,
+        label:
+          readMapPointText(point, ['label', 'title', 'nro_ticket', 'ticket', 'case_id', 'id']) ??
+          coordinateLabel,
+        lat,
+        lng,
+        address: readMapPointText(point, ['address', 'direccion']),
+        category: readMapPointText(point, ['category', 'categoria']),
+        status: readMapPointText(point, ['status', 'estado']),
+      };
+    })
+    .filter((point): point is NormalizedPreviewMapPoint => Boolean(point));
+
+  if (!normalizedPoints.length) return null;
+  return {
+    title: map.title?.trim() || map.label?.trim() || preview?.labels?.map_title || 'Ubicaciones reales',
+    description: map.description?.trim() || preview?.labels?.map_description || null,
+    points: normalizedPoints,
+  };
+};
+
+const DemoPreviewMap = ({
+  title,
+  description,
+  points,
+}: {
+  title: string;
+  description?: string | null;
+  points: NormalizedPreviewMapPoint[];
+}) => {
+  const heatmapData: HeatPoint[] = points.map((point, index) => ({
+    id: index + 1,
+    ticket: point.label,
+    lat: point.lat,
+    lng: point.lng,
+    weight: 1,
+    totalWeight: 1,
+    categoria: point.category ?? undefined,
+    direccion: point.address ?? undefined,
+    estado: point.status ?? undefined,
+  }));
+  const bounds = points.map((point) => [point.lng, point.lat] as [number, number]);
+  const center = bounds[0];
+
+  return (
+    <div className="rounded-xl border border-border/70 bg-background/70 p-4" aria-label="Ubicaciones reales del admin preview">
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-foreground">{title}</p>
+          {description ? <p className="mt-1 text-xs leading-5 text-muted-foreground">{description}</p> : null}
+        </div>
+        <span className="rounded-full border bg-muted/40 px-2 py-1 text-[11px] text-muted-foreground">
+          {points.length}
+        </span>
+      </div>
+      <React.Suspense
+        fallback={
+          <div className="flex h-48 items-center justify-center rounded-xl border text-xs text-muted-foreground">
+            Cargando mapa...
+          </div>
+        }
+      >
+        <MapLibreMap
+          className="h-48 rounded-xl border"
+          heatmapData={heatmapData}
+          showHeatmap={false}
+          center={center}
+          fitToBounds={bounds.length ? bounds : undefined}
+          initialZoom={bounds.length > 1 ? 12 : 14}
+          disableClientClustering
+        />
+      </React.Suspense>
+      <div className="mt-3 grid gap-2">
+        {points.slice(0, 4).map((point) => (
+          <div key={`row-${point.id}`} className="rounded-lg border bg-muted/20 px-3 py-2 text-xs">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-semibold text-foreground">{point.label}</span>
+              {point.category ? <span className="text-muted-foreground">{point.category}</span> : null}
+              {point.status ? (
+                <span className="rounded-full border bg-background px-2 py-0.5 text-[11px] text-muted-foreground">
+                  {point.status}
+                </span>
+              ) : null}
+            </div>
+            <p className="mt-1 text-muted-foreground">
+              {point.address ? `${point.address} - ` : ''}
+              {point.lat.toFixed(5)}, {point.lng.toFixed(5)}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 const readDemoWorkspaceChatSessionId = (workspace?: DemoWorkspaceConfig | null) => {
   const bootstrap = workspace?.chat_bootstrap;
   const candidates = [
@@ -226,6 +367,7 @@ const DemoAdminPreview = ({
   const modules = normalizePreviewModules(preview);
   const cards = normalizePreviewCards(preview);
   const timeline = normalizePreviewTimeline(preview);
+  const previewMap = normalizePreviewMap(preview);
   const title = preview.title?.trim() || rubro || readSectorLabel(null, sector);
   const subtitle = preview.subtitle?.trim() || rubro || readSectorLabel(null, sector);
   const outcome = preview.description?.trim() || preview.outcome?.trim() || "";
@@ -318,6 +460,13 @@ const DemoAdminPreview = ({
                   ))}
                 </div>
               </div>
+            ) : null}
+            {previewMap ? (
+              <DemoPreviewMap
+                title={previewMap.title}
+                description={previewMap.description}
+                points={previewMap.points}
+              />
             ) : null}
             {summaryTitle || summaryDescription ? (
               <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">

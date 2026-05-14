@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   getRealtimeVoiceBadges,
+  getRealtimeVoiceRequestModel,
   getRealtimeVoiceStarters,
+  getRealtimeVoiceToolLabels,
+  isRealtimeVideoRenderable,
   isRealtimeVoiceRenderable,
 } from "./realtimeVoice";
 
@@ -58,5 +61,62 @@ describe("realtime voice contract helpers", () => {
     ).toEqual(["Consultar disponibilidad", "Hablar con ventas"]);
 
     expect(getRealtimeVoiceStarters({ active_vertical: "pyme" })).toEqual([]);
+  });
+
+  it("defaults session requests to gpt-realtime only when realtime capabilities exist", () => {
+    expect(getRealtimeVoiceRequestModel(null, "")).toBeUndefined();
+    expect(getRealtimeVoiceRequestModel({ enabled: true }, "")).toBe("gpt-realtime");
+    expect(
+      getRealtimeVoiceRequestModel(
+        { enabled: true, recommended_model: "gpt-realtime-mini" },
+        "legacy-model",
+      ),
+    ).toBe("gpt-realtime-mini");
+  });
+
+  it("does not expose video unless backend explicitly publishes live visual readiness", () => {
+    const capabilities = {
+      contract_version: "realtime.voice_capabilities.v1",
+      features: { tool_calling: true },
+    };
+
+    expect(isRealtimeVideoRenderable(capabilities, { enabled: true })).toBe(false);
+    expect(
+      isRealtimeVideoRenderable(
+        { ...capabilities, features: { tool_calling: true, live_video_analysis: true } },
+        { enabled: true },
+      ),
+    ).toBe(true);
+    expect(
+      isRealtimeVideoRenderable(
+        capabilities,
+        { enabled: true, features: { analysis_ready: true } },
+        { videoEnabled: true },
+      ),
+    ).toBe(true);
+    expect(
+      isRealtimeVideoRenderable(
+        { ...capabilities, features: { tool_calling: true, live_video_analysis: true } },
+        { enabled: true },
+        { videoEnabled: false },
+      ),
+    ).toBe(false);
+  });
+
+  it("renders operational tool labels only from backend-published contracts", () => {
+    expect(
+      getRealtimeVoiceToolLabels({
+        tools: [
+          { id: "create_claim", label: "Crear reclamo" },
+          { id: "create_claim_duplicate", label: "Crear reclamo" },
+          { id: "hidden", label: "Oculto", enabled: false },
+        ],
+        tool_catalog: {
+          check_status: { title: "Consultar estado" },
+          raw_boolean_tool: true,
+        },
+      }),
+    ).toEqual(["Crear reclamo", "Consultar estado"]);
+    expect(getRealtimeVoiceToolLabels({ active_vertical: "municipio" })).toEqual([]);
   });
 });

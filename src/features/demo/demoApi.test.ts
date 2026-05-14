@@ -16,7 +16,7 @@ vi.mock('@/data/demoCatalogAssets', () => ({
   findDemoCatalogAsset: vi.fn(() => null),
 }));
 
-import { createDemoWhatsappSandbox, getDemoWhatsappSandbox } from './demoApi';
+import { createDemoWhatsappSandbox, getDemoAdminPreview, getDemoWhatsappSandbox } from './demoApi';
 
 describe('demo WhatsApp sandbox API', () => {
   beforeEach(() => {
@@ -100,5 +100,31 @@ describe('demo WhatsApp sandbox API', () => {
     expect(response.session?.chat_session_id).toBe('sid_post_123');
     expect(response.whatsapp_sandbox?.rubro_options).toEqual([]);
     expect(response.whatsapp_sandbox?.scenario_scripts).toEqual([]);
+  });
+});
+
+describe('demo admin preview API', () => {
+  beforeEach(() => {
+    demoGetMock.mockReset();
+    demoPostMock.mockReset();
+  });
+
+  it('passes the same chat_session_id used by the runtime conversation', async () => {
+    demoGetMock.mockResolvedValue({
+      contract_version: 'demo.admin_preview.v1',
+      cards: [],
+      map: { enabled: false, points: [] },
+    });
+
+    await getDemoAdminPreview({
+      sector: 'gobierno',
+      tenant_slug: 'municipio',
+      chat_session_id: 'sid_demo_gobierno_123',
+    });
+
+    expect(demoGetMock).toHaveBeenCalledWith(
+      '/api/v2/demo/admin-preview?sector=gobierno&tenant_slug=municipio&chat_session_id=sid_demo_gobierno_123',
+      { baseUrlOverride: '/api' },
+    );
   });
 });

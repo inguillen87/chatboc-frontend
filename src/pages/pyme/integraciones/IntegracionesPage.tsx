@@ -831,7 +831,7 @@ const IntegracionesPage = () => {
         requestId: error instanceof ApiError ? error.requestId : null,
       });
       if (status === 404 || status === 405 || status === 501) {
-        toast.info("Sandbox listo para prueba manual.");
+        toast.info("Prueba lista para abrir manualmente.");
       } else {
         toast.error("No se pudo preparar el sandbox.");
       }
@@ -863,10 +863,10 @@ const IntegracionesPage = () => {
             <div className="space-y-2">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="secondary" className="gap-1">
-                  <ShieldCheck className="h-3.5 w-3.5" /> Twilio Sandbox
+                  <ShieldCheck className="h-3.5 w-3.5" /> Modo prueba: copiar o abrir link
                 </Badge>
                 <Badge variant="secondary" className="gap-1">
-                  <Bot className="h-3.5 w-3.5" /> Menu del tenant
+                  <Bot className="h-3.5 w-3.5" /> Menu publicado
                 </Badge>
                 {sandboxSetupLoading ? (
                   <Badge variant="outline" className="gap-1">
@@ -877,7 +877,7 @@ const IntegracionesPage = () => {
               <div>
                 <h3 className="text-xl font-semibold tracking-tight">Probar WhatsApp antes de salir a producción</h3>
               <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-                  Prepará una prueba guiada con el número, la frase clave y el brief del rubro. El menú visible sale de la configuración del tenant cuando está disponible.
+                  Prepará una prueba guiada con número, frase de unión y brief del rubro. El usuario abre WhatsApp desde un enlace o copia las instrucciones; no se promete envío automático desde el backend.
                 </p>
               </div>
             </div>
@@ -909,7 +909,7 @@ const IntegracionesPage = () => {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="sandbox-join">Frase clave Twilio</Label>
+                  <Label htmlFor="sandbox-join">Frase de unión</Label>
                   <Input
                     id="sandbox-join"
                     value={whatsappSandbox.joinPhrase}
@@ -960,7 +960,7 @@ const IntegracionesPage = () => {
               <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                 <Button onClick={handlePrepareWhatsappSandbox} disabled={sandboxLoading} className="flex-1">
                   {sandboxLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-                  Generar prueba
+                  Preparar enlace
                 </Button>
                 <Button
                   variant="outline"
@@ -982,13 +982,13 @@ const IntegracionesPage = () => {
               <div className="mt-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
                 {effectiveJoinNumber ? (
                   <div className="rounded-lg border bg-muted/30 px-3 py-2">
-                    <span className="font-semibold text-foreground">Numero sandbox: </span>
+                    <span className="font-semibold text-foreground">Número de prueba: </span>
                     <span className="font-mono">{effectiveJoinNumber}</span>
                   </div>
                 ) : null}
                 {effectiveJoinPhrase ? (
                   <div className="rounded-lg border bg-muted/30 px-3 py-2">
-                    <span className="font-semibold text-foreground">Frase join: </span>
+                    <span className="font-semibold text-foreground">Frase de unión: </span>
                     <span className="font-mono">{effectiveJoinPhrase}</span>
                   </div>
                 ) : null}
@@ -1022,7 +1022,7 @@ const IntegracionesPage = () => {
           {sandboxResult && (
             <Alert className="mt-4">
               <CheckCircle2 className="h-4 w-4" />
-              <AlertTitle>{sandboxResult.mode === "remote" ? "Sandbox listo" : "Prueba manual lista"}</AlertTitle>
+              <AlertTitle>{sandboxResult.mode === "remote" ? "Prueba lista" : "Prueba manual lista"}</AlertTitle>
               <AlertDescription>
                 {sandboxResult.message}
                 {sandboxResult.requestId ? ` Req: ${sandboxResult.requestId}` : ""}

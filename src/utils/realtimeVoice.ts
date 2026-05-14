@@ -6,6 +6,17 @@ export interface RealtimeVoiceSupportConfig {
   [key: string]: unknown;
 }
 
+export interface RealtimeVideoSupportConfig extends RealtimeVoiceSupportConfig {
+  features?: {
+    live_video_analysis?: string | number | boolean | null;
+    video_analysis_ready?: string | number | boolean | null;
+    analysis_ready?: string | number | boolean | null;
+    multimodal_capture?: string | number | boolean | null;
+    visual_capture?: string | number | boolean | null;
+    [key: string]: string | number | boolean | null | undefined;
+  } | null;
+}
+
 const boolish = (value: unknown) => {
   if (typeof value === "boolean") return value;
   if (typeof value === "number") return value === 1;
@@ -32,6 +43,47 @@ export const isRealtimeVoiceRenderable = (
   }
 
   return Boolean(options.allowCapabilitiesOnly && toolCalling);
+};
+
+const firstText = (...values: unknown[]) => {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+};
+
+export const getRealtimeVoiceRequestModel = (
+  capabilities?: RealtimeVoiceCapabilities | null,
+  ...fallbacks: unknown[]
+) => {
+  return (
+    firstText(capabilities?.recommended_model, ...fallbacks) ||
+    (capabilities ? "gpt-realtime" : undefined)
+  );
+};
+
+export const isRealtimeVideoRenderable = (
+  capabilities?: RealtimeVoiceCapabilities | null,
+  videoCall?: RealtimeVideoSupportConfig | null,
+  realtimeConfig?: { videoEnabled?: unknown; liveVideoAnalysis?: unknown } | null,
+) => {
+  if (!videoCall || !boolish(videoCall.enabled)) return false;
+  if (realtimeConfig && !boolish(realtimeConfig.videoEnabled ?? true)) return false;
+
+  const features = capabilities?.features ?? {};
+  const videoFeatures = videoCall.features ?? {};
+
+  return [
+    features.live_video_analysis,
+    features.video_analysis_ready,
+    features.multimodal_capture,
+    videoFeatures.live_video_analysis,
+    videoFeatures.video_analysis_ready,
+    videoFeatures.analysis_ready,
+    videoFeatures.multimodal_capture,
+    videoFeatures.visual_capture,
+    realtimeConfig?.liveVideoAnalysis,
+  ].some(boolish);
 };
 
 export const getRealtimeVoiceBadges = (capabilities?: RealtimeVoiceCapabilities | null) => {
@@ -70,6 +122,49 @@ export const getRealtimeVoiceBadges = (capabilities?: RealtimeVoiceCapabilities 
   }
 
   return badges;
+};
+
+const collectToolLabels = (
+  source:
+    | RealtimeVoiceCapabilities["tools"]
+    | RealtimeVoiceCapabilities["tool_catalog"]
+    | RealtimeVoiceCapabilities["actions"]
+    | undefined,
+) => {
+  const entries = Array.isArray(source)
+    ? source.map((item) => [undefined, item] as const)
+    : source && typeof source === "object"
+      ? Object.entries(source)
+      : [];
+
+  return entries
+    .map(([fallbackKey, value]) => {
+      if (value === false || value === null || value === undefined) return "";
+      if (typeof value === "string") return value.trim();
+      if (value === true) return "";
+      if (typeof value !== "object") return "";
+      if (value.enabled === false) return "";
+      return firstText(value.label, value.title, value.name, value.id, fallbackKey);
+    })
+    .filter((item) => item.length > 0);
+};
+
+export const getRealtimeVoiceToolLabels = (
+  capabilities?: RealtimeVoiceCapabilities | null,
+) => {
+  const seen = new Set<string>();
+  const labels = [
+    ...collectToolLabels(capabilities?.tools),
+    ...collectToolLabels(capabilities?.tool_catalog),
+    ...collectToolLabels(capabilities?.actions),
+  ];
+
+  return labels.filter((label) => {
+    const normalized = label.toLowerCase();
+    if (seen.has(normalized)) return false;
+    seen.add(normalized);
+    return true;
+  });
 };
 
 export const getRealtimeVoiceStarters = (capabilities?: RealtimeVoiceCapabilities | null) => {
