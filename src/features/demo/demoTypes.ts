@@ -220,3 +220,100 @@ export interface DemoWorkspaceConfig {
     sample_conversations?: ChatExperienceBlock[];
   } | null;
 }
+
+export interface DemoWhatsappSandboxOption {
+  id?: string | null;
+  key?: string | null;
+  value?: string | null;
+  slug?: string | null;
+  label?: string | null;
+  title?: string | null;
+  name?: string | null;
+  description?: string | null;
+  detail?: string | null;
+  subtitle?: string | null;
+  sector?: DemoSector | string | null;
+  rubro?: string | null;
+  rubro_slug?: string | null;
+  tenant_slug?: string | null;
+  disabled?: boolean | null;
+  [key: string]: unknown;
+}
+
+export interface DemoWhatsappSandboxScript {
+  id?: string | null;
+  key?: string | null;
+  label?: string | null;
+  title?: string | null;
+  message?: string | null;
+  text?: string | null;
+  prompt?: string | null;
+  description?: string | null;
+  steps?: unknown[] | null;
+  [key: string]: unknown;
+}
+
+export interface DemoWhatsappSandboxResource {
+  id?: string | null;
+  key?: string | null;
+  label?: string | null;
+  title?: string | null;
+  url?: string | null;
+  href?: string | null;
+  type?: string | null;
+  kind?: string | null;
+  [key: string]: unknown;
+}
+
+export interface DemoWhatsappSandboxResponse {
+  contract_version?: string | null;
+  request_id?: string | null;
+  requires_auth?: boolean | null;
+  session?: {
+    demo_session_id?: string | null;
+    chat_session_id?: string | null;
+    session_id?: string | null;
+    max_messages?: number | string | null;
+    [key: string]: unknown;
+  } | null;
+  whatsapp_sandbox?: {
+    contract_version?: string | null;
+    rubro_options?: DemoWhatsappSandboxOption[];
+    sandbox?: {
+      display_number?: string | null;
+      join_phrase?: string | null;
+      wa_deeplink?: string | null;
+      qr_url?: string | null;
+      [key: string]: unknown;
+    } | null;
+    trial_policy?: {
+      max_messages?: number | string | null;
+      free_inputs?: string[] | null;
+      [key: string]: unknown;
+    } | null;
+    scenario_scripts?: DemoWhatsappSandboxScript[];
+    catalog?: {
+      resources?: DemoWhatsappSandboxResource[];
+      pdf_excel_upload_demo?: {
+        enabled?: boolean | null;
+        label?: string | null;
+        title?: string | null;
+        description?: string | null;
+        [key: string]: unknown;
+      } | null;
+      [key: string]: unknown;
+    } | null;
+    surveys_votings?: {
+      enabled?: boolean | null;
+      label?: string | null;
+      title?: string | null;
+      description?: string | null;
+      endpoint?: string | null;
+      url?: string | null;
+      href?: string | null;
+      [key: string]: unknown;
+    } | null;
+    [key: string]: unknown;
+  } | null;
+  [key: string]: unknown;
+}

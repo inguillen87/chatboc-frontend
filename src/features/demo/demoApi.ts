@@ -8,6 +8,7 @@ import type {
   DemoSessionResponse,
   DemoSector,
   DemoWorkspaceConfig,
+  DemoWhatsappSandboxResponse,
 } from './demoTypes';
 
 export const getDemoCatalog = async (): Promise<DemoCatalogResponse> => {
@@ -21,6 +22,13 @@ export type DemoSessionPayload = {
   rubro_slug?: string;
   category_slug?: string;
   tenant_slug?: string | null;
+};
+
+export type DemoWhatsappSandboxPayload = {
+  sector?: DemoSector | string | null;
+  rubro?: string | null;
+  tenant_slug?: string | null;
+  source?: string | null;
 };
 
 export const getDemoAdminPreview = async (params: {
@@ -49,6 +57,32 @@ export const createDemoSession = async (payload: DemoSessionPayload) => {
   return normalized;
 };
 
+export const getDemoWhatsappSandbox = async (
+  params: DemoWhatsappSandboxPayload = {},
+): Promise<DemoWhatsappSandboxResponse> => {
+  const query = new URLSearchParams();
+  if (params.sector) query.set('sector', String(params.sector));
+  if (params.rubro) query.set('rubro', String(params.rubro));
+  if (params.tenant_slug) query.set('tenant_slug', String(params.tenant_slug));
+  if (params.source) query.set('source', String(params.source));
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+  return normalizeDemoWhatsappSandboxResponse(
+    await demoApi.get<DemoWhatsappSandboxResponse>(`/api/v2/demo/whatsapp-sandbox${suffix}`, {
+      baseUrlOverride: '/api',
+    }),
+  );
+};
+
+export const createDemoWhatsappSandbox = async (
+  payload: DemoWhatsappSandboxPayload = {},
+): Promise<DemoWhatsappSandboxResponse> => {
+  return normalizeDemoWhatsappSandboxResponse(
+    await demoApi.post<DemoWhatsappSandboxResponse>('/api/v2/demo/whatsapp-sandbox', payload, {
+      baseUrlOverride: '/api',
+    }),
+  );
+};
+
 const normalizeDemoSector = (value?: string | null): DemoSector => {
   const normalized = String(value ?? '').trim().toLowerCase();
   if (normalized.includes('educ') || normalized.includes('coleg') || normalized.includes('escuela')) return 'educacion';
@@ -72,6 +106,38 @@ const normalizeDemoSessionResponse = (response: DemoSessionResponse): DemoSessio
     chat_session_id: chatSessionId,
     tenant_slug: response.tenant_slug ?? response.tenant?.slug ?? null,
     workspace: normalizeWorkspaceConfig(response, chatSessionId),
+  };
+};
+
+const normalizeDemoWhatsappSandboxResponse = (
+  response: DemoWhatsappSandboxResponse,
+): DemoWhatsappSandboxResponse => {
+  const session = response.session && typeof response.session === 'object' ? response.session : null;
+  const chatSessionId =
+    readShortChatSessionId(session?.chat_session_id) ??
+    readShortChatSessionId(session?.session_id);
+
+  return {
+    ...response,
+    session: session
+      ? {
+          ...session,
+          chat_session_id: chatSessionId ?? null,
+        }
+      : session,
+    whatsapp_sandbox: response.whatsapp_sandbox
+      ? {
+          ...response.whatsapp_sandbox,
+          rubro_options: Array.isArray(response.whatsapp_sandbox.rubro_options)
+            ? response.whatsapp_sandbox.rubro_options
+            : [],
+          scenario_scripts: Array.isArray(response.whatsapp_sandbox.scenario_scripts)
+            ? response.whatsapp_sandbox.scenario_scripts
+            : [],
+          catalog: response.whatsapp_sandbox.catalog ?? null,
+          surveys_votings: response.whatsapp_sandbox.surveys_votings ?? null,
+        }
+      : null,
   };
 };
 
