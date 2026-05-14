@@ -774,7 +774,7 @@ const ChatPanel = (props: ChatPanelProps) => {
       commerceSession?.history?.history_endpoint,
       commerceSession?.portal?.url,
       commerceSession?.portal?.view_url,
-    ),
+    ) || readBackendFlag(commerceSession?.portal?.enabled, false),
   );
   const commercePrimaryActions = commerceSession?.frontend_contract?.primary_actions;
   const portalRequestedByContract =

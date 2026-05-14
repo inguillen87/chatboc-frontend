@@ -27,7 +27,7 @@ import { apiClient } from "@/api/client";
 import { esRubroPublico } from "@/utils/chatEndpoints";
 import { getChatbocBotAvatar } from "@/utils/brandAssets";
 import { createDemoSession } from "@/features/demo/demoApi";
-import getOrCreateChatSessionId from "@/utils/chatSessionId";
+import getOrCreateChatSessionId, { persistChatSessionId } from "@/utils/chatSessionId";
 import {
   getWidgetCartSnapshot,
   getWidgetCommerceSession,
@@ -1294,7 +1294,7 @@ function ChatWidgetInner({
       portalEnabledFlag === undefined || portalEnabledFlag === null
         ? portalRequestedByContract
         : readOptionalBoolean(portalEnabledFlag, false);
-    const hasPortalDestination = Boolean(portalUrl || portalHistoryEndpoint);
+    const hasPortalDestination = Boolean(portalUrl || portalHistoryEndpoint || slug);
 
     if (!slug || !portalEnabled || !hasPortalDestination) {
       toast.error("El portal de usuario no esta disponible para esta sesion.");
@@ -1314,12 +1314,14 @@ function ChatWidgetInner({
 
     const destination =
       portalUrl ||
-      buildTenantNavigationUrl({
-        basePath: "/portal/dashboard",
-        tenantSlug: slug,
-        tenant,
-        fallbackQueryParam: "tenant_slug",
-      });
+      (typeof window !== "undefined"
+        ? new URL(`/portal/${encodeURIComponent(slug)}`, window.location.origin).toString()
+        : buildTenantNavigationUrl({
+            basePath: "/portal/dashboard",
+            tenantSlug: slug,
+            tenant,
+            fallbackQueryParam: "tenant_slug",
+          }));
 
     window.open(destination, "_blank");
   }, [
@@ -2020,6 +2022,9 @@ function ChatWidgetInner({
     getWidgetCommerceSession(request)
       .then((session) => {
         if (!isActive) return;
+        if (session?.session?.chat_session_id) {
+          persistChatSessionId(session.session.chat_session_id);
+        }
         setWidgetCommerceSession(session);
       })
       .catch(() => {
@@ -2060,7 +2065,12 @@ function ChatWidgetInner({
       widgetSessionToken: widgetCommerceSession?.session?.widget_session_token || null,
     })
       .then((history) => {
-        if (isActive) setWidgetCommerceHistory(history);
+        if (isActive) {
+          if (history?.session?.chat_session_id) {
+            persistChatSessionId(history.session.chat_session_id);
+          }
+          setWidgetCommerceHistory(history);
+        }
       })
       .catch(() => {
         if (isActive) setWidgetCommerceHistory(null);

@@ -76,6 +76,18 @@ const DEFAULT_TENANT_CONTEXT: TenantContextValue = {
 };
 
 const TENANT_PATH_REGEX = new RegExp(`^/(?:${TENANT_ROUTE_PREFIXES.join('|')}|demo)/([^/]+)`, 'i');
+const PORTAL_SECTION_SEGMENTS = new Set([
+  'dashboard',
+  'catalogo',
+  'pedidos',
+  'reclamos',
+  'noticias',
+  'eventos',
+  'beneficios',
+  'encuestas',
+  'cuenta',
+  'tramites',
+]);
 
 const shouldLogTenantWarnings = () => {
   const metaEnv = typeof import.meta !== 'undefined' ? (import.meta as any)?.env : undefined;
@@ -135,6 +147,15 @@ const extractSlugFromLocation = (pathname: string, search: string): string | nul
   // Handle direct tenant paths (e.g. /bodega/productos)
   // We exclude reserved prefixes
   const segments = pathname.split('/').filter(Boolean);
+  if (segments[0]?.toLowerCase() === 'portal' && segments[1] && !PORTAL_SECTION_SEGMENTS.has(segments[1].toLowerCase())) {
+    try {
+      return sanitizeTenantSlug(decodeURIComponent(segments[1]));
+    } catch (error) {
+      console.warn('[TenantContext] No se pudo decodificar el tenant del portal publico', error);
+      return sanitizeTenantSlug(segments[1]);
+    }
+  }
+
   if (segments.length > 0) {
       const potentialSlug = segments[0];
       const reserved = new Set([...LOCAL_PLACEHOLDER_SLUGS, ...TENANT_ROUTE_PREFIXES, 'demo']);

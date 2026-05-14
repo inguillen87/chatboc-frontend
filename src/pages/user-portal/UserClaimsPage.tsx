@@ -1,126 +1,301 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
+import {
+  ExternalLink,
+  Image as ImageIcon,
+  MapPin,
+  MessageSquare,
+  Paperclip,
+  PlusCircle,
+} from 'lucide-react';
+
 import { useTenant } from '@/context/TenantContext';
+import { useUser } from '@/hooks/useUser';
+import { usePortalContent } from '@/hooks/usePortalContent';
 import { apiClient } from '@/api/client';
 import { Ticket } from '@/types/unified';
+import type { WidgetPortalAttachment, WidgetPortalClaim } from '@/utils/widgetPortal';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
-import { MessageSquare, ExternalLink, PlusCircle } from 'lucide-react';
+import TrackingMap from '@/components/ui/TrackingMap';
 import { buildTenantPath } from '@/utils/tenantPaths';
-import { useNavigate } from 'react-router-dom';
 
 const STATUS_MAP: Record<string, string> = {
-  open: "Abierto",
-  pending: "Pendiente",
-  closed: "Cerrado",
-  resolved: "Resuelto",
-  in_progress: "En proceso"
+  open: 'Abierto',
+  pending: 'Pendiente',
+  closed: 'Cerrado',
+  resolved: 'Resuelto',
+  in_progress: 'En proceso',
 };
 
-const STATUS_VARIANTS: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-  open: "default",
-  pending: "secondary",
-  closed: "outline",
-  resolved: "outline",
-  in_progress: "default"
+const STATUS_VARIANTS: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
+  open: 'default',
+  pending: 'secondary',
+  closed: 'outline',
+  resolved: 'outline',
+  in_progress: 'default',
 };
+
+const formatDate = (value?: string) => {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return format(parsed, "d 'de' MMMM yyyy", { locale: es });
+};
+
+const ClaimAttachment = ({ attachment }: { attachment: WidgetPortalAttachment }) => {
+  const [failed, setFailed] = useState(false);
+  if (!attachment.url) {
+    return (
+      <div className="rounded-lg border bg-muted/20 p-3 text-sm text-muted-foreground">
+        <Paperclip className="mb-2 h-4 w-4" />
+        {attachment.label || attachment.id}
+      </div>
+    );
+  }
+
+  if (failed) {
+    return null;
+  }
+
+  const isImage = attachment.kind?.toLowerCase().includes('image') || /\.(png|jpe?g|webp|gif)$/i.test(attachment.url);
+  if (isImage) {
+    return (
+      <a href={attachment.url} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-lg border bg-muted/20">
+        <img
+          src={attachment.url}
+          alt={attachment.label || 'Adjunto'}
+          className="h-36 w-full object-cover"
+          onError={() => setFailed(true)}
+        />
+        {attachment.label ? <span className="block px-3 py-2 text-xs text-muted-foreground">{attachment.label}</span> : null}
+      </a>
+    );
+  }
+
+  return (
+    <a href={attachment.url} target="_blank" rel="noreferrer" className="rounded-lg border bg-muted/20 p-3 text-sm text-primary hover:underline">
+      <Paperclip className="mb-2 h-4 w-4" />
+      {attachment.label || attachment.url}
+    </a>
+  );
+};
+
+const PublicClaimCard = ({ claim }: { claim: WidgetPortalClaim }) => {
+  const title = claim.title || claim.category || (claim.nroTicket ? `#${claim.nroTicket}` : null);
+  const status = claim.statusLabel || claim.status;
+  const hasLocation = Number.isFinite(claim.lat) && Number.isFinite(claim.lng);
+  const createdAt = formatDate(claim.createdAt);
+
+  return (
+    <Card className="overflow-hidden">
+      <CardContent className="p-0">
+        <div className="border-b bg-muted/20 p-4">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                {claim.nroTicket ? <span className="font-bold text-lg">#{claim.nroTicket}</span> : null}
+                {status ? <Badge variant="outline" className="capitalize">{status}</Badge> : null}
+                {claim.channel === 'whatsapp' ? <Badge variant="secondary">WhatsApp</Badge> : null}
+              </div>
+              {title ? <h3 className="text-lg font-semibold">{title}</h3> : null}
+              {createdAt ? <p className="text-sm text-muted-foreground">{createdAt}</p> : null}
+              {claim.address ? (
+                <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <MapPin className="h-4 w-4" />
+                  {claim.address}
+                </p>
+              ) : null}
+            </div>
+            {claim.detailEndpoint ? (
+              <Button variant="ghost" size="sm" asChild>
+                <a href={claim.detailEndpoint} target="_blank" rel="noreferrer" className="flex items-center gap-1">
+                  Ver detalle <ExternalLink className="h-3 w-3" />
+                </a>
+              </Button>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="space-y-5 p-4">
+          {hasLocation ? (
+            <div className="h-64 overflow-hidden rounded-xl border">
+              <TrackingMap
+                customerLocation={{
+                  lat: claim.lat!,
+                  lng: claim.lng!,
+                  name: claim.address || title || claim.nroTicket,
+                }}
+                showDriverMarker={false}
+                status={claim.status || 'claim'}
+              />
+            </div>
+          ) : null}
+
+          {claim.attachments.length > 0 ? (
+            <div>
+              <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
+                <ImageIcon className="h-4 w-4" />
+                Evidencia
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {claim.attachments.map((attachment) => (
+                  <ClaimAttachment key={attachment.id || attachment.url} attachment={attachment} />
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {claim.timeline.length > 0 ? (
+            <div>
+              <h4 className="mb-3 text-sm font-semibold">Seguimiento</h4>
+              <ol className="space-y-3 border-l pl-4">
+                {claim.timeline.map((event) => (
+                  <li key={event.id} className="space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-medium">{event.label}</span>
+                      {event.status ? <Badge variant="outline" className="text-[11px]">{event.status}</Badge> : null}
+                    </div>
+                    {event.description && event.description !== event.label ? (
+                      <p className="text-sm text-muted-foreground">{event.description}</p>
+                    ) : null}
+                    {event.at ? <p className="text-xs text-muted-foreground">{formatDate(event.at) || event.at}</p> : null}
+                  </li>
+                ))}
+              </ol>
+            </div>
+          ) : null}
+
+          {(claim.commentEndpoint || claim.photoEndpoint) ? (
+            <div className="flex flex-wrap gap-2 border-t pt-4">
+              {claim.commentEndpoint ? (
+                <Button size="sm" variant="outline" asChild>
+                  <a href={claim.commentEndpoint} target="_blank" rel="noreferrer">Agregar comentario</a>
+                </Button>
+              ) : null}
+              {claim.photoEndpoint ? (
+                <Button size="sm" variant="outline" asChild>
+                  <a href={claim.photoEndpoint} target="_blank" rel="noreferrer">Agregar foto</a>
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+const LegacyTicketCard = ({ ticket, currentSlug }: { ticket: Ticket; currentSlug: string | null }) => (
+  <Card className="overflow-hidden">
+    <CardContent className="p-0">
+      <div className="flex flex-col gap-4 border-b bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <div className="flex items-center gap-3">
+            <span className="font-bold text-lg">#{ticket.id}</span>
+            <Badge variant={STATUS_VARIANTS[ticket.status] || 'default'} className="capitalize">
+              {STATUS_MAP[ticket.status] || ticket.status}
+            </Badge>
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">{formatDate(ticket.created_at)}</p>
+        </div>
+        <Button variant="ghost" size="sm" asChild>
+          <a href={buildTenantPath(`/chat/${ticket.id}`, currentSlug)} className="flex items-center gap-1">
+            Ver detalles <ExternalLink className="h-3 w-3" />
+          </a>
+        </Button>
+      </div>
+      <div className="p-4">
+        <h3 className="mb-2 text-lg font-medium">{ticket.subject}</h3>
+        {ticket.messages?.length > 0 ? (
+          <div className="line-clamp-2 rounded-md bg-muted/30 p-3 text-sm text-muted-foreground">
+            {ticket.messages[ticket.messages.length - 1].content}
+          </div>
+        ) : null}
+      </div>
+    </CardContent>
+  </Card>
+);
 
 const UserClaimsPage = () => {
   const { currentSlug } = useTenant();
+  const { user } = useUser();
   const navigate = useNavigate();
+  const { publicClaims, isLoading: portalLoading } = usePortalContent();
   const [tickets, setTickets] = useState<Ticket[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [legacyLoading, setLegacyLoading] = useState(false);
 
   useEffect(() => {
-    if (currentSlug) {
-      loadTickets();
-    }
-  }, [currentSlug]);
-
-  const loadTickets = async () => {
-    setLoading(true);
-    try {
-      if (!currentSlug) return;
-      const data = await apiClient.listTickets(currentSlug);
-      if (data && data.length > 0) {
-        setTickets(data);
-      } else {
-        setTickets([]);
-      }
-    } catch (error) {
-      console.error('Error loading tickets:', error);
+    let active = true;
+    if (!currentSlug || !user || publicClaims.length > 0) {
       setTickets([]);
-    } finally {
-      setLoading(false);
+      setLegacyLoading(false);
+      return;
     }
-  };
+
+    setLegacyLoading(true);
+    apiClient
+      .listTickets(currentSlug)
+      .then((data) => {
+        if (active) setTickets(Array.isArray(data) ? data : []);
+      })
+      .catch((error) => {
+        console.error('Error loading tickets:', error);
+        if (active) setTickets([]);
+      })
+      .finally(() => {
+        if (active) setLegacyLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [currentSlug, publicClaims.length, user]);
+
+  const loading = portalLoading || legacyLoading;
+  const hasPublicClaims = publicClaims.length > 0;
+  const hasLegacyTickets = tickets.length > 0;
+  const canStartClaim = Boolean(currentSlug);
+  const emptyTitle = useMemo(
+    () => (user ? 'No tenes reclamos registrados aun.' : 'Todavia no hay reclamos vinculados a esta sesion.'),
+    [user],
+  );
 
   return (
-    <div className="container mx-auto p-4 max-w-4xl space-y-6">
-      <div className="flex items-center justify-between">
-         <h1 className="text-2xl font-bold">Mis reclamos y solicitudes</h1>
-         <Button onClick={() => navigate(buildTenantPath('/reclamos/nuevo', currentSlug))}>
-            <PlusCircle className="mr-2 h-4 w-4"/> Nuevo reclamo
-         </Button>
+    <div className="container mx-auto max-w-4xl space-y-6 p-4">
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold">Mis reclamos y solicitudes</h1>
+        {canStartClaim ? (
+          <Button onClick={() => navigate(buildTenantPath('/reclamos/nuevo', currentSlug))}>
+            <PlusCircle className="mr-2 h-4 w-4" /> Nuevo reclamo
+          </Button>
+        ) : null}
       </div>
 
       {loading ? (
         <div className="space-y-4">
-             {[1,2].map(i => <div key={i} className="h-32 bg-muted/20 animate-pulse rounded-lg"/>)}
+          {[1, 2].map((item) => (
+            <div key={item} className="h-32 animate-pulse rounded-lg bg-muted/20" />
+          ))}
         </div>
-      ) : tickets.length === 0 ? (
-        <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed rounded-lg text-muted-foreground">
-          <MessageSquare className="h-12 w-12 mb-4 opacity-20" />
-          <p>No tenés reclamos registrados aún.</p>
-          <Button variant="link" className="mt-2" onClick={() => navigate(buildTenantPath('/reclamos/nuevo', currentSlug))}>
-            Iniciar un nuevo reclamo
-          </Button>
+      ) : !hasPublicClaims && !hasLegacyTickets ? (
+        <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-12 text-center text-muted-foreground">
+          <MessageSquare className="mb-4 h-12 w-12 opacity-20" />
+          <p>{emptyTitle}</p>
+          {canStartClaim ? (
+            <Button variant="link" className="mt-2" onClick={() => navigate(buildTenantPath('/reclamos/nuevo', currentSlug))}>
+              Iniciar un nuevo reclamo
+            </Button>
+          ) : null}
         </div>
       ) : (
         <div className="space-y-4">
-          {tickets.map(ticket => (
-            <Card key={ticket.id} className="overflow-hidden">
-              <CardContent className="p-0">
-                 <div className="p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-muted/20 border-b">
-                    <div>
-                      <div className="flex items-center gap-3">
-                        <span className="font-bold text-lg">#{ticket.id}</span>
-                        <Badge variant={STATUS_VARIANTS[ticket.status] || 'default'} className="capitalize">
-                           {STATUS_MAP[ticket.status] || ticket.status}
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-muted-foreground flex items-center gap-2 mt-1">
-                        {format(new Date(ticket.created_at), "d 'de' MMMM yyyy", { locale: es })}
-                      </p>
-                    </div>
-
-                    <div className="text-right">
-                       <Button variant="ghost" size="sm" asChild>
-                          <a href={buildTenantPath(`/chat/${ticket.id}`, currentSlug)} className="flex items-center gap-1">
-                              Ver detalles <ExternalLink className="h-3 w-3"/>
-                          </a>
-                       </Button>
-                    </div>
-                 </div>
-
-                 <div className="p-4">
-                    <h3 className="font-medium text-lg mb-2">{ticket.subject}</h3>
-                    {ticket.messages && ticket.messages.length > 0 && (
-                        <div className="bg-muted/30 p-3 rounded-md text-sm text-muted-foreground line-clamp-2">
-                            "{ticket.messages[ticket.messages.length - 1].content}"
-                        </div>
-                    )}
-                    <div className="mt-4 pt-4 border-t flex justify-end">
-                        <Button size="sm" variant="outline" onClick={() => navigate(buildTenantPath(`/chat/${ticket.id}`, currentSlug))}>
-                            Ver seguimiento
-                        </Button>
-                    </div>
-                 </div>
-              </CardContent>
-            </Card>
-          ))}
+          {hasPublicClaims
+            ? publicClaims.map((claim) => <PublicClaimCard key={claim.id} claim={claim} />)
+            : tickets.map((ticket) => <LegacyTicketCard key={ticket.id} ticket={ticket} currentSlug={currentSlug} />)}
         </div>
       )}
     </div>

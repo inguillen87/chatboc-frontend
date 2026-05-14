@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import {
@@ -13,6 +13,7 @@ import {
   BellRing,
   RefreshCw,
   Sparkles,
+  UserRound,
 } from 'lucide-react';
 
 import SummaryCard from '@/components/user-portal/dashboard/SummaryCard';
@@ -28,7 +29,19 @@ const UserDashboardPage = () => {
   const navigate = useNavigate();
   const { user } = useUser();
   const { currentSlug, tenant } = useTenant();
-  const { content, bundle, isLoading, refetch } = usePortalContent();
+  const {
+    content,
+    bundle,
+    isLoading,
+    refetch,
+    publicProfile,
+    registrationResult,
+    registrationError,
+    registerWidgetProfile,
+  } = usePortalContent();
+  const [registrationForm, setRegistrationForm] = useState({ name: '', phone: '', email: '' });
+  const [registrationStatus, setRegistrationStatus] = useState<'idle' | 'saving' | 'saved' | 'verification_required'>('idle');
+  const [localRegistrationError, setLocalRegistrationError] = useState<string | null>(null);
 
   const getBadgeClasses = (statusType?: string): string => {
     switch (statusType?.toLowerCase()) {
@@ -85,6 +98,39 @@ const UserDashboardPage = () => {
   // Determine Tenant Type for Conditional UI
   const isMunicipio = tenant?.tipo === 'municipio';
   const isPyme = !isMunicipio;
+  const registrationFieldErrors =
+    registrationResult?.field_errors ??
+    ((registrationError as any)?.body?.field_errors as Record<string, string | string[]> | undefined) ??
+    null;
+
+  const getRegistrationFieldError = (field: string) => {
+    const value = registrationFieldErrors?.[field];
+    if (Array.isArray(value)) return value.join(', ');
+    return typeof value === 'string' ? value : null;
+  };
+
+  const submitProgressiveRegistration = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setLocalRegistrationError(null);
+    const name = registrationForm.name.trim();
+    const phone = registrationForm.phone.trim();
+    const email = registrationForm.email.trim();
+    if (!name || (!phone && !email)) {
+      setLocalRegistrationError('Completa nombre y al menos un telefono o email.');
+      return;
+    }
+    setRegistrationStatus('saving');
+    try {
+      const result = await registerWidgetProfile({ name, phone: phone || null, email: email || null });
+      if (result?.status === 'verification_required') {
+        setRegistrationStatus('verification_required');
+      } else {
+        setRegistrationStatus('saved');
+      }
+    } catch {
+      setRegistrationStatus('idle');
+    }
+  };
 
   return (
     <motion.div
@@ -116,6 +162,70 @@ const UserDashboardPage = () => {
           </Button>
         </div>
       </motion.div>
+
+      {publicProfile.canRegister && !user ? (
+        <motion.div variants={itemVariants}>
+          <SummaryCard
+            title="Guardar seguimiento"
+            icon={<UserRound className="h-5 w-5 text-primary" />}
+            className="border-primary/20 bg-primary/5"
+          >
+            <form className="grid gap-3 md:grid-cols-[1fr_1fr_1fr_auto]" onSubmit={submitProgressiveRegistration}>
+              <label className="space-y-1 text-sm">
+                <span className="text-muted-foreground">Nombre</span>
+                <input
+                  value={registrationForm.name}
+                  onChange={(event) => setRegistrationForm((current) => ({ ...current, name: event.target.value }))}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
+                  autoComplete="name"
+                />
+                {getRegistrationFieldError('name') ? (
+                  <span className="text-xs text-destructive">{getRegistrationFieldError('name')}</span>
+                ) : null}
+              </label>
+              <label className="space-y-1 text-sm">
+                <span className="text-muted-foreground">Telefono</span>
+                <input
+                  value={registrationForm.phone}
+                  onChange={(event) => setRegistrationForm((current) => ({ ...current, phone: event.target.value }))}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
+                  autoComplete="tel"
+                />
+                {getRegistrationFieldError('phone') ? (
+                  <span className="text-xs text-destructive">{getRegistrationFieldError('phone')}</span>
+                ) : null}
+              </label>
+              <label className="space-y-1 text-sm">
+                <span className="text-muted-foreground">Email</span>
+                <input
+                  value={registrationForm.email}
+                  onChange={(event) => setRegistrationForm((current) => ({ ...current, email: event.target.value }))}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
+                  autoComplete="email"
+                  type="email"
+                />
+                {getRegistrationFieldError('email') || getRegistrationFieldError('email_or_phone') ? (
+                  <span className="text-xs text-destructive">
+                    {getRegistrationFieldError('email') || getRegistrationFieldError('email_or_phone')}
+                  </span>
+                ) : null}
+              </label>
+              <div className="flex items-end">
+                <Button type="submit" disabled={registrationStatus === 'saving'} className="w-full">
+                  {registrationStatus === 'saving' ? 'Guardando' : 'Vincular'}
+                </Button>
+              </div>
+            </form>
+            {localRegistrationError ? <p className="mt-3 text-sm text-destructive">{localRegistrationError}</p> : null}
+            {registrationStatus === 'saved' ? (
+              <p className="mt-3 text-sm text-green-700">Listo. Refrescamos tu historial y tus datos quedan vinculados.</p>
+            ) : null}
+            {registrationStatus === 'verification_required' ? (
+              <p className="mt-3 text-sm text-amber-700">Ese email necesita verificacion antes de vincular la cuenta.</p>
+            ) : null}
+          </SummaryCard>
+        </motion.div>
+      ) : null}
 
       {/* Primary Actions Grid */}
       <motion.div className="grid grid-cols-1 sm:grid-cols-2 gap-4" variants={itemVariants}>
@@ -254,9 +364,11 @@ const UserDashboardPage = () => {
                                 <p className="text-sm font-medium text-foreground group-hover:text-primary transition-colors">
                                     {activity.description}
                                 </p>
-                                <p className="text-xs text-muted-foreground flex items-center gap-1">
-                                  {activity.type} - {activity.date}
-                                </p>
+                                {(activity.type || activity.date) ? (
+                                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                                    {[activity.type, activity.date].filter(Boolean).join(' - ')}
+                                  </p>
+                                ) : null}
                              </div>
                           </div>
                           {activity.status && (

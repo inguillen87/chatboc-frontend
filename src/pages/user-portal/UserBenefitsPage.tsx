@@ -9,36 +9,29 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useTenant } from '@/context/TenantContext';
 import { usePortalContent } from '@/hooks/usePortalContent';
+import { useUser } from '@/hooks/useUser';
 import { PortalLoyaltySummary } from '@/types/unified';
 import { buildTenantPath } from '@/utils/tenantPaths';
-
-const EMPTY_LOYALTY_SUMMARY: PortalLoyaltySummary = {
-  points: 0,
-  level: '',
-  surveysCompleted: 0,
-  suggestionsShared: 0,
-  claimsFiled: 0,
-  transactions: [],
-  availableRewards: [],
-};
 
 const UserBenefitsPage = () => {
   const { content } = usePortalContent();
   const { currentSlug } = useTenant();
+  const { user } = useUser();
   const loginPath = useMemo(() => buildTenantPath('/login', currentSlug ?? undefined), [currentSlug]);
+  const registerPath = useMemo(() => buildTenantPath('/portal/dashboard', currentSlug ?? undefined), [currentSlug]);
 
   const [loyaltyData, setLoyaltyData] = useState<PortalLoyaltySummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [redeeming, setRedeeming] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const summary = loyaltyData || content.loyaltySummary || EMPTY_LOYALTY_SUMMARY;
-  const rewards = summary.availableRewards ?? [];
-  const transactions = summary.transactions ?? [];
+  const summary = loyaltyData || content.loyaltySummary || null;
+  const rewards = summary?.availableRewards ?? [];
+  const transactions = summary?.transactions ?? [];
 
   useEffect(() => {
     const fetchLoyaltyDetails = async () => {
-      if (!currentSlug) return;
+      if (!currentSlug || !user) return;
       setLoading(true);
       setError(null);
       try {
@@ -53,7 +46,7 @@ const UserBenefitsPage = () => {
     };
 
     fetchLoyaltyDetails();
-  }, [currentSlug]);
+  }, [currentSlug, user]);
 
   const handleRedeem = async (rewardId: string) => {
     if (!currentSlug) return;
@@ -80,7 +73,7 @@ const UserBenefitsPage = () => {
             Consulta tu saldo, canjes disponibles y movimientos vinculados a este tenant.
           </p>
         </div>
-        {!loyaltyData && (
+        {!user && !content.loyaltySummary && (
           <Button asChild variant="outline">
             <a href={loginPath}>Iniciar sesion</a>
           </Button>
@@ -95,28 +88,30 @@ const UserBenefitsPage = () => {
         </Alert>
       )}
 
-      <Card className="border border-muted/70 shadow-sm">
-        <CardHeader>
-          <CardTitle>Resumen de puntos</CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <Wallet className="h-5 w-5 text-primary" />
-              <span className="text-sm text-muted-foreground">Saldo actual</span>
+      {summary ? (
+        <Card className="border border-muted/70 shadow-sm">
+          <CardHeader>
+            <CardTitle>Resumen de puntos</CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Wallet className="h-5 w-5 text-primary" />
+                <span className="text-sm text-muted-foreground">Saldo actual</span>
+              </div>
+              <p className="text-3xl font-semibold">{summary.points.toLocaleString()} pts</p>
             </div>
-            <p className="text-3xl font-semibold">{summary.points.toLocaleString()} pts</p>
-          </div>
-          <div className="rounded-lg bg-muted/30 p-3">
-            <p className="text-xs text-muted-foreground">Encuestas</p>
-            <p className="text-2xl font-semibold">{summary.surveysCompleted}</p>
-          </div>
-          <div className="rounded-lg bg-muted/30 p-3">
-            <p className="text-xs text-muted-foreground">Reclamos</p>
-            <p className="text-2xl font-semibold">{summary.claimsFiled}</p>
-          </div>
-        </CardContent>
-      </Card>
+            <div className="rounded-lg bg-muted/30 p-3">
+              <p className="text-xs text-muted-foreground">Encuestas</p>
+              <p className="text-2xl font-semibold">{summary.surveysCompleted}</p>
+            </div>
+            <div className="rounded-lg bg-muted/30 p-3">
+              <p className="text-xs text-muted-foreground">Reclamos</p>
+              <p className="text-2xl font-semibold">{summary.claimsFiled}</p>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card className="bg-card/80 border border-muted/70 shadow-sm">
@@ -143,7 +138,7 @@ const UserBenefitsPage = () => {
                       size="sm"
                       variant="secondary"
                       className="mt-1"
-                      disabled={summary.points < reward.cost || !!redeeming}
+                      disabled={!user || !summary || summary.points < reward.cost || !!redeeming}
                       onClick={() => handleRedeem(reward.id)}
                     >
                       {redeeming === reward.id ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Canjear'}
@@ -158,7 +153,11 @@ const UserBenefitsPage = () => {
             )}
           </CardContent>
           <CardFooter className="text-xs text-muted-foreground">
-            Canjes sujetos a disponibilidad.
+            {user ? 'Canjes sujetos a disponibilidad.' : (
+              <a href={registerPath} className="text-primary hover:underline">
+                Deja tus datos para vincular la sesion antes de canjear.
+              </a>
+            )}
           </CardFooter>
         </Card>
 

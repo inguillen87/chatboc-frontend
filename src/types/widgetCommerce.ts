@@ -44,9 +44,24 @@ export interface WidgetCommerceEndpointBlock {
 export interface WidgetCommerceHistory {
   contract_version?: string | null;
   request_id?: string | null;
+  session?: WidgetCommerceSessionInfo | null;
+  profile?: {
+    user_id?: string | number | null;
+    can_register?: boolean | null;
+    status?: string | null;
+    name?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    [key: string]: unknown;
+  } | null;
+  tenant_follow?: {
+    linked?: boolean | null;
+    [key: string]: unknown;
+  } | null;
   cart?: {
     items_count?: number | null;
     total_items?: number | null;
+    items?: unknown[] | null;
     [key: string]: unknown;
   } | null;
   claims?: {
@@ -60,6 +75,11 @@ export interface WidgetCommerceHistory {
     [key: string]: unknown;
   } | null;
   messages?: {
+    items?: unknown[];
+    count?: number | null;
+    [key: string]: unknown;
+  } | null;
+  surveys?: {
     items?: unknown[];
     count?: number | null;
     [key: string]: unknown;
@@ -103,5 +123,46 @@ export interface WidgetCommerceSession {
     empty_state_behavior?: string | null;
     [key: string]: unknown;
   } | null;
+  [key: string]: unknown;
+}
+
+export interface WidgetUserRegisterPayload {
+  name: string;
+  phone?: string | null;
+  email?: string | null;
+}
+
+export interface WidgetUserRegisterResponse {
+  contract_version?: string | null;
+  request_id?: string | null;
+  status?: string | null;
+  ok?: boolean | null;
+  reason_code?: string | null;
+  required_fields?: string[] | null;
+  field_errors?: Record<string, string | string[]> | null;
+  profile?: {
+    user_id?: string | number | null;
+    can_register?: boolean | null;
+    status?: string | null;
+    name?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    [key: string]: unknown;
+  } | null;
+  tenant_follow?: {
+    linked?: boolean | null;
+    [key: string]: unknown;
+  } | null;
+  merge?: {
+    municipio_tickets?: number | null;
+    market_carts?: number | null;
+    chat_contexts?: number | null;
+    [key: string]: unknown;
+  } | null;
+  portal?: {
+    view_url?: string | null;
+    [key: string]: unknown;
+  } | null;
+  session?: WidgetCommerceSessionInfo | null;
   [key: string]: unknown;
 }

@@ -502,6 +502,16 @@ const inferFlowFamily = (flow: { sector: string; label: string; id: string }) =>
   return "platform";
 };
 
+const FLOW_FAMILY_CLASSNAMES: Record<string, string> = {
+  gobierno: "chatboc-phone-demo--gobierno",
+  pyme: "chatboc-phone-demo--pyme",
+  educacion: "chatboc-phone-demo--educacion",
+  platform: "chatboc-phone-demo--platform",
+};
+
+const getFlowFamilyClassName = (family: string) =>
+  FLOW_FAMILY_CLASSNAMES[family] ?? FLOW_FAMILY_CLASSNAMES.platform;
+
 const getFlowIcon = (flow: { sector: string; label: string; id: string }) => {
   const family = inferFlowFamily(flow);
   if (family === "gobierno") return Landmark;
@@ -729,7 +739,7 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
             <div className="chatboc-hero-aura" aria-hidden="true" />
             <div className="chatboc-hero-preview">
               {activeFlow && (
-                <div className={`chatboc-phone-demo chatboc-phone-demo--${activeFlowFamily}`}>
+                <div className={`chatboc-phone-demo ${getFlowFamilyClassName(activeFlowFamily)}`}>
                   <div className="chatboc-phone-demo__chrome" aria-hidden="true">
                     <span />
                     <div>

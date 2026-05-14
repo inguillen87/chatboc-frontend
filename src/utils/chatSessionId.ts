@@ -4,6 +4,14 @@ import { v4 as uuidv4 } from 'uuid';
 
 const CHAT_SESSION_ID_KEY = 'chat_session_id';
 
+const isPersistableChatSessionId = (value: string) => {
+  const normalized = value.trim();
+  if (!normalized) return false;
+  if (normalized.length > 64) return false;
+  if (normalized.includes('.')) return false;
+  return true;
+};
+
 /**
  * Retrieves the chat session ID from local storage.
  * If not found, generates a new UUID v4, stores it, and returns it.
@@ -50,6 +58,26 @@ export function resetChatSessionId(): string {
   }
 
   return newSessionId;
+}
+
+export function persistChatSessionId(sessionId?: string | null): string | null {
+  if (typeof sessionId !== 'string' || !isPersistableChatSessionId(sessionId)) {
+    return null;
+  }
+
+  const normalized = sessionId.trim();
+
+  if (typeof window === 'undefined') {
+    return normalized;
+  }
+
+  try {
+    safeLocalStorage.setItem(CHAT_SESSION_ID_KEY, normalized);
+  } catch (error) {
+    console.error('Error persisting chat session ID in localStorage:', error);
+  }
+
+  return normalized;
 }
 
 export default getOrCreateChatSessionId;

@@ -28,7 +28,7 @@ import { TicketInboxPage } from '@/components/tickets/inbox';
 import PedidosPage from '@/pages/pyme/pedidos/PedidosPage';
 import IntegracionesPage from '@/pages/pyme/integraciones/IntegracionesPage';
 import UsuariosPage from '@/pages/UsuariosPage';
-import { TENANT_PLACEHOLDER_SLUGS, TENANT_ROUTE_PREFIXES } from '@/utils/tenantPaths';
+import { buildTenantPath, TENANT_PLACEHOLDER_SLUGS, TENANT_ROUTE_PREFIXES } from '@/utils/tenantPaths';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { getReservedPublicSlugRedirect } from '@/utils/publicRoutes';
 import ProductCatalog from '@/pages/ProductCatalog';
@@ -149,6 +149,16 @@ const TenantHomeRoute = () => {
     return <Navigate to={publicRedirect} replace />;
   }
   return <TenantHomePage />;
+};
+
+const PortalTenantEntryRedirect = () => {
+  const params = useParams();
+  const tenant = typeof params.tenant === 'string' ? params.tenant.trim() : '';
+  const publicRedirect = getReservedPublicSlugRedirect(tenant);
+  if (publicRedirect || !tenant || TENANT_PLACEHOLDER_SLUGS.has(tenant.toLowerCase())) {
+    return <Navigate to="/portal/dashboard" replace />;
+  }
+  return <Navigate to={buildTenantPath('/portal/dashboard', tenant)} replace />;
 };
 
 const resolvePreferredTenantForEducation = (): string | null => {
@@ -379,6 +389,7 @@ const routes: RouteConfig[] = [
     : []),
 
   // --- USER PORTAL ROUTES ---
+  { path: '/portal/:tenant', element: <PortalTenantEntryRedirect />, userPortal: true, allowGuest: true },
   ...userPortalRoutes,
   ...canonicalTenantPortalRoutes,
   ...tenantPortalRoutes,

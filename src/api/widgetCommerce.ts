@@ -3,9 +3,11 @@ import type {
   WidgetCommerceCartSnapshot,
   WidgetCommerceHistory,
   WidgetCommerceSession,
+  WidgetUserRegisterPayload,
+  WidgetUserRegisterResponse,
 } from "@/types/widgetCommerce";
 
-type WidgetCommerceRequest = {
+export type WidgetCommerceRequest = {
   tenantSlug?: string | null;
   widgetToken?: string | null;
   chatSessionId?: string | null;
@@ -87,5 +89,41 @@ export async function getWidgetCartSnapshot(
   return apiFetch<WidgetCommerceCartSnapshot>(
     withQuery(path, request),
     publicWidgetOptions(request),
+  );
+}
+
+export async function registerWidgetUser(
+  request: WidgetCommerceRequest,
+  payload: WidgetUserRegisterPayload,
+  endpoint?: string | null,
+): Promise<WidgetUserRegisterResponse> {
+  const path = typeof endpoint === "string" && endpoint.trim()
+    ? endpoint.trim()
+    : "/api/public/widget-user/register";
+  return apiFetch<WidgetUserRegisterResponse>(
+    withQuery(path, request),
+    {
+      ...publicWidgetOptions(request),
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function linkWidgetSession(
+  request: WidgetCommerceRequest,
+  payload: Record<string, unknown> = {},
+  endpoint?: string | null,
+): Promise<WidgetUserRegisterResponse> {
+  const path = typeof endpoint === "string" && endpoint.trim()
+    ? endpoint.trim()
+    : "/api/public/widget-user/link-session";
+  return apiFetch<WidgetUserRegisterResponse>(
+    withQuery(path, request),
+    {
+      ...publicWidgetOptions(request),
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
   );
 }

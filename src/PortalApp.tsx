@@ -36,6 +36,7 @@ const queryClient = new QueryClient({
 
 const guestPortalPaths = [
   "/portal/dashboard",
+  "/portal/:tenant",
   "/portal/catalogo",
   "/portal/pedidos",
   "/portal/reclamos",
@@ -66,6 +67,7 @@ function PortalRoutes() {
             }
           >
             <Route path="/portal/dashboard" element={<UserDashboardPage />} />
+            <Route path="/portal/:tenant" element={<Navigate to="/portal/dashboard" replace />} />
             <Route path="/portal/catalogo" element={<UserCatalogPage />} />
             <Route path="/portal/pedidos" element={<UserOrdersPage />} />
             <Route path="/portal/reclamos" element={<UserClaimsPage />} />
