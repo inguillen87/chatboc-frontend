@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, Loader2, MessageSquareText, RefreshCw, ShieldCheck, TriangleAlert } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Loader2, MessageSquareText, RefreshCw, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { tenantService } from "@/services/tenantService";
 import { getErrorMessage } from "@/utils/api";
@@ -159,7 +159,7 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug }: { tenantS
           {!envReady ? (
             <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
               <div className="flex items-start gap-2">
-                <TriangleAlert className="mt-0.5 h-4 w-4 text-amber-600" />
+                <AlertTriangle className="mt-0.5 h-4 w-4 text-amber-600" />
                 <div>
                   <p className="font-medium text-foreground">Configuracion pendiente de plataforma</p>
                   {missingEnv?.length ? (
