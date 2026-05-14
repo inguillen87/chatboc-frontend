@@ -151,6 +151,8 @@ export default function WhatsappSandboxLauncher({
     ? trialPolicy.free_inputs.filter((input): input is string => typeof input === 'string' && input.trim().length > 0)
     : [];
   const joinPhrase = readText(sandbox?.join_phrase);
+  const activationMessage = readText(sandbox?.activation_message);
+  const requiresJoinPhrase = sandbox?.requires_join_phrase === false ? false : Boolean(joinPhrase);
   const displayNumber = readText(sandbox?.display_number);
   const deeplink = readText(sandbox?.wa_deeplink);
   const qrUrl = readText(sandbox?.qr_url);
@@ -306,7 +308,7 @@ export default function WhatsappSandboxLauncher({
                 <p className="mt-1 text-sm font-semibold text-foreground">{displayNumber}</p>
               </div>
             ) : null}
-            {joinPhrase ? (
+            {requiresJoinPhrase && joinPhrase ? (
               <div className="rounded-2xl border bg-background/70 p-4">
                 <Clipboard className="mb-3 h-4 w-4 text-primary" />
                 <p className="text-xs text-muted-foreground">Frase</p>
@@ -323,6 +325,13 @@ export default function WhatsappSandboxLauncher({
               </div>
             ) : null}
           </div>
+
+          {!requiresJoinPhrase && activationMessage ? (
+            <div className="mt-4 rounded-2xl border bg-background/70 p-4">
+              <p className="text-xs text-muted-foreground">Mensaje inicial</p>
+              <p className="mt-1 text-sm font-semibold text-foreground">{activationMessage}</p>
+            </div>
+          ) : null}
 
           {freeInputs.length ? (
             <div className="mt-4 flex flex-wrap gap-2">
@@ -375,7 +384,7 @@ export default function WhatsappSandboxLauncher({
               onClick={() => window.open(deeplink, '_blank', 'noopener,noreferrer')}
             >
               <ExternalLink className="mr-2 h-4 w-4" />
-              Abrir WhatsApp
+              {requiresJoinPhrase ? 'Abrir WhatsApp' : 'Abrir WhatsApp directo'}
             </Button>
           ) : null}
 

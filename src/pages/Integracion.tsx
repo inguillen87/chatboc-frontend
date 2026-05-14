@@ -47,6 +47,7 @@ import { tenantService } from "@/services/tenantService";
 import MenuBuilder from "@/components/tenant/MenuBuilder";
 import IntegracionesPage from "@/pages/pyme/integraciones/IntegracionesPage"; // Import new professional integrations page
 import { extractDemoExperienceSources, type DemoExperienceSources } from "@/utils/demoExperienceBlueprint";
+import WhatsappTechProviderOnboarding from "@/components/integrations/WhatsappTechProviderOnboarding";
 
 const Integracion = () => {
   const navigate = useNavigate();
@@ -427,6 +428,10 @@ const Integracion = () => {
                 <CardDescription>Gestiona el número asignado a tu cuenta.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
+                <WhatsappTechProviderOnboarding tenantSlug={tenantSlug} />
+
+                <Separator />
+
                 {config.whatsapp?.has_number ? (
                   <div className="rounded-md border bg-green-50 p-4 dark:bg-green-900/20">
                     <div className="flex items-center gap-2 text-green-700 dark:text-green-300">

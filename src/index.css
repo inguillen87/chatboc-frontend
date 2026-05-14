@@ -116,9 +116,9 @@
   .chatboc-hero-preview {
     position: relative;
     margin-left: auto;
-    width: min(100%, 28.25rem);
-    border-radius: 42px;
-    padding: 12px;
+    width: min(100%, 31rem);
+    border-radius: 48px;
+    padding: 13px;
     background:
       linear-gradient(145deg, hsl(var(--foreground) / 0.92), hsl(var(--foreground) / 0.78)),
       linear-gradient(135deg, hsl(var(--primary) / 0.34), hsl(var(--success) / 0.22));
@@ -151,6 +151,17 @@
   .dark .chatboc-hero-preview {
     box-shadow: 0 34px 110px rgba(0, 0, 0, 0.52);
   }
+  .chatboc-hero-preview > .chatboc-phone-demo::after {
+    content: "";
+    position: absolute;
+    right: -0.92rem;
+    top: 9.4rem;
+    z-index: 4;
+    width: 0.2rem;
+    height: 5.7rem;
+    border-radius: 999px;
+    background: hsl(var(--foreground) / 0.72);
+  }
   .chatboc-phone-demo {
     --chatboc-phone-accent: hsl(var(--primary));
     --chatboc-phone-accent-foreground: hsl(var(--primary-foreground));
@@ -159,17 +170,18 @@
     --chatboc-phone-wash-b: hsl(var(--success) / 0.12);
     position: relative;
     display: flex;
-    height: min(650px, calc(100vh - 158px));
+    height: min(640px, calc(100vh - 180px));
     min-height: 540px;
     flex-direction: column;
     overflow: hidden;
-    border-radius: 32px;
+    border-radius: 36px;
     background:
       radial-gradient(circle at 12% 0%, var(--chatboc-phone-wash-a), transparent 34%),
       radial-gradient(circle at 86% 16%, var(--chatboc-phone-wash-b), transparent 30%),
       hsl(var(--card) / 0.96);
     color: hsl(var(--card-foreground));
     backdrop-filter: blur(22px);
+    box-shadow: inset 0 0 0 1px hsl(var(--background) / 0.34);
   }
   .chatboc-phone-demo::before {
     content: "";
@@ -214,16 +226,16 @@
     position: relative;
     z-index: 1;
     display: flex;
-    min-height: 2rem;
+    min-height: 2.12rem;
     flex-shrink: 0;
     align-items: center;
     justify-content: space-between;
-    padding: 0.55rem 1.05rem 0.25rem;
+    padding: 0.65rem 1.05rem 0.25rem;
     color: hsl(var(--muted-foreground));
   }
   .chatboc-phone-demo__chrome > span {
-    height: 0.32rem;
-    width: 3.6rem;
+    height: 0.34rem;
+    width: 4.2rem;
     border-radius: 999px;
     background: hsl(var(--foreground) / 0.13);
   }
@@ -263,7 +275,7 @@
     justify-content: space-between;
     gap: 0.75rem;
     border-bottom: 1px solid hsl(var(--border) / 0.7);
-    padding: 0.85rem 0.9rem;
+    padding: 0.85rem 0.95rem;
     background: hsl(var(--muted) / 0.34);
   }
   .chatboc-phone-demo__tabs {
@@ -302,9 +314,9 @@
     min-height: 0;
     flex: 1;
     flex-direction: column;
-    gap: 0.66rem;
+    gap: 0.72rem;
     overflow: auto;
-    padding: 0.85rem 0.85rem 1.05rem;
+    padding: 0.9rem 0.88rem 1.08rem;
     scrollbar-width: none;
     animation: chatboc-phone-flow-in 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
   }
@@ -335,13 +347,67 @@
   .chatboc-phone-demo__thread {
     display: flex;
     flex-direction: column;
-    gap: 0.72rem;
+    gap: 0.74rem;
     border-radius: 18px;
     border: 1px solid hsl(var(--border) / 0.62);
     background:
       linear-gradient(180deg, hsl(var(--background) / 0.18), transparent),
       hsl(var(--background) / 0.34);
-    padding: 0.68rem;
+    padding: 0.72rem;
+  }
+  .chatboc-phone-demo__sequence {
+    opacity: 0;
+    transform: translateY(12px) scale(0.985);
+    animation: chatboc-message-rise 760ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+  .chatboc-phone-demo__sequence--1 {
+    animation-delay: 180ms;
+  }
+  .chatboc-phone-demo__sequence--2 {
+    animation-delay: 1120ms;
+  }
+  .chatboc-phone-demo__sequence--3 {
+    animation-delay: 2180ms;
+  }
+  .chatboc-phone-demo__sequence--4 {
+    animation-delay: 3080ms;
+  }
+  .chatboc-phone-demo__sequence--5 {
+    animation-delay: 4100ms;
+  }
+  .chatboc-phone-demo__sequence--6 {
+    animation-delay: 4860ms;
+  }
+  .chatboc-phone-demo__sequence--7 {
+    animation-delay: 5480ms;
+  }
+  .chatboc-phone-demo__sequence--8 {
+    animation-delay: 5920ms;
+  }
+  .chatboc-phone-demo__typing {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.28rem;
+    min-height: 2.1rem;
+    border-radius: 999px;
+    border: 1px solid hsl(var(--border) / 0.7);
+    background: hsl(var(--card) / 0.76);
+    padding: 0 0.78rem;
+  }
+  .chatboc-phone-demo__typing span {
+    display: block;
+    width: 0.34rem;
+    height: 0.34rem;
+    border-radius: 999px;
+    background: var(--chatboc-phone-accent);
+    opacity: 0.42;
+    animation: chatboc-typing-dot 1.2s ease-in-out infinite;
+  }
+  .chatboc-phone-demo__typing span:nth-child(2) {
+    animation-delay: 160ms;
+  }
+  .chatboc-phone-demo__typing span:nth-child(3) {
+    animation-delay: 320ms;
   }
   .chatboc-phone-demo__attachments {
     display: grid;
@@ -373,6 +439,121 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    overflow: hidden;
+    background:
+      linear-gradient(145deg, transparent 0 54%, rgba(15, 23, 42, 0.08) 55%),
+      radial-gradient(circle at 24% 26%, rgba(255, 255, 255, 0.78), transparent 16%),
+      linear-gradient(135deg, var(--chatboc-phone-accent-soft), var(--chatboc-phone-wash-b));
+  }
+  .chatboc-hero-attachment__visual svg {
+    position: relative;
+    z-index: 2;
+    filter: drop-shadow(0 8px 16px rgba(15, 23, 42, 0.18));
+  }
+  .chatboc-hero-attachment__visual span,
+  .chatboc-hero-attachment__visual i {
+    position: absolute;
+    display: block;
+    border-radius: 999px;
+    background: var(--chatboc-phone-accent);
+    opacity: 0.2;
+  }
+  .chatboc-hero-attachment__visual span {
+    right: 0.8rem;
+    bottom: 0.72rem;
+    width: 2.9rem;
+    height: 0.46rem;
+    transform: rotate(-8deg);
+  }
+  .chatboc-hero-attachment__visual i {
+    left: 0.8rem;
+    bottom: 1rem;
+    width: 2.2rem;
+    height: 0.38rem;
+    transform: rotate(11deg);
+  }
+  .chatboc-hero-location-map {
+    position: relative;
+    height: 3.2rem;
+    overflow: hidden;
+    border-radius: 8px;
+    margin-bottom: 0.5rem;
+    background:
+      linear-gradient(90deg, transparent 48%, hsl(var(--border) / 0.7) 49% 51%, transparent 52%),
+      linear-gradient(0deg, transparent 48%, hsl(var(--border) / 0.7) 49% 51%, transparent 52%),
+      radial-gradient(circle at 52% 45%, var(--chatboc-phone-accent) 0 0.28rem, transparent 0.3rem),
+      hsl(var(--background) / 0.72);
+  }
+  .chatboc-hero-location-map span {
+    position: absolute;
+    left: 19%;
+    top: 54%;
+    width: 64%;
+    height: 0.22rem;
+    border-radius: 999px;
+    background: var(--chatboc-phone-accent);
+    opacity: 0.38;
+    transform: rotate(-12deg);
+  }
+  .chatboc-hero-location-map i {
+    position: absolute;
+    right: 25%;
+    top: 28%;
+    width: 0.62rem;
+    height: 0.62rem;
+    border-radius: 999px 999px 999px 0;
+    background: var(--chatboc-phone-accent);
+    transform: rotate(-45deg);
+  }
+  .chatboc-hero-waveform {
+    display: flex;
+    align-items: center;
+    gap: 0.18rem;
+    height: 2.45rem;
+    border-radius: 10px;
+    border: 1px solid hsl(var(--border) / 0.65);
+    background: hsl(var(--background) / 0.52);
+    padding-inline: 0.5rem;
+  }
+  .chatboc-hero-waveform span {
+    width: 0.2rem;
+    border-radius: 999px;
+    background: var(--chatboc-phone-accent);
+    opacity: 0.72;
+  }
+  .chatboc-hero-waveform span:nth-child(odd) {
+    height: 0.74rem;
+  }
+  .chatboc-hero-waveform span:nth-child(even) {
+    height: 1.35rem;
+  }
+  .chatboc-hero-waveform span:nth-child(3n) {
+    height: 1.9rem;
+  }
+  .chatboc-hero-mini-preview {
+    display: grid;
+    gap: 0.34rem;
+    border-radius: 10px;
+    border: 1px solid hsl(var(--border) / 0.65);
+    background: hsl(var(--background) / 0.52);
+    padding: 0.58rem;
+  }
+  .chatboc-hero-mini-preview span {
+    display: block;
+    height: 0.46rem;
+    border-radius: 999px;
+    background: hsl(var(--muted-foreground) / 0.18);
+  }
+  .chatboc-hero-mini-preview span:first-child {
+    width: 72%;
+    background: var(--chatboc-phone-accent);
+    opacity: 0.58;
+  }
+  .chatboc-hero-mini-preview span:nth-child(2) {
+    width: 88%;
+  }
+  .chatboc-hero-mini-preview span:nth-child(3) {
+    width: 54%;
   }
   .chatboc-phone-demo__composer {
     display: flex;
@@ -399,6 +580,29 @@
   .chatboc-phone-demo__composer-chip svg {
     color: var(--chatboc-phone-accent);
   }
+  .chatboc-phone-demo__inputbar {
+    display: flex;
+    min-height: 2.58rem;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    border-radius: 999px;
+    border: 1px solid hsl(var(--border) / 0.72);
+    background: hsl(var(--card) / 0.82);
+    padding: 0.42rem 0.55rem 0.42rem 0.92rem;
+    color: hsl(var(--muted-foreground));
+    font-size: 0.76rem;
+    font-weight: 700;
+  }
+  .chatboc-phone-demo__inputbar svg {
+    display: block;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 999px;
+    background: var(--chatboc-phone-accent);
+    color: var(--chatboc-phone-accent-foreground);
+    padding: 0.48rem;
+  }
   .chatboc-phone-demo__result,
   .chatboc-phone-demo__steps {
     border-radius: 16px;
@@ -419,6 +623,23 @@
     to {
       opacity: 1;
       transform: translateY(0) scale(1);
+    }
+  }
+  @keyframes chatboc-message-rise {
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+  @keyframes chatboc-typing-dot {
+    0%,
+    100% {
+      transform: translateY(0);
+      opacity: 0.34;
+    }
+    50% {
+      transform: translateY(-0.18rem);
+      opacity: 0.92;
     }
   }
   .chatboc-phone-demo__metrics {
@@ -494,6 +715,14 @@
   .dark .chatboc-hero-grid {
     background: hsl(var(--background));
   }
+  @media (prefers-reduced-motion: reduce) {
+    .chatboc-phone-demo__sequence,
+    .chatboc-phone-demo__typing span {
+      opacity: 1;
+      transform: none;
+      animation: none;
+    }
+  }
   @media (max-width: 640px) {
     .chatboc-hero-headline {
       max-width: 12.4ch;
@@ -508,6 +737,7 @@
     .chatboc-phone-demo {
       height: auto;
       min-height: 0;
+      border-radius: 30px;
     }
     .chatboc-phone-demo__chrome {
       min-height: 1.7rem;

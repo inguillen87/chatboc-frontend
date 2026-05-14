@@ -13,7 +13,7 @@ export interface ChatComposerPayload {
   intent?: string | null;
   payload?: Record<string, unknown> | null;
   attachmentInfo?: unknown;
-  location?: { lat: number; lon: number; accuracy?: number | null };
+  location?: { lat: number; lng?: number; lon?: number; address?: string | null; accuracy?: number | null };
   audioBlob?: Blob;
   audioFilename?: string;
   audioField?: string;
@@ -165,7 +165,7 @@ export default function ChatComposer({
         payload,
         location: {
           lat: coords.latitud,
-          lon: coords.longitud,
+          lng: coords.longitud,
         },
       });
       setText('');

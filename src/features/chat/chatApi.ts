@@ -11,7 +11,7 @@ export interface ChatBootstrapMessagePayload {
   intent?: string | null;
   payload?: Record<string, unknown> | null;
   attachmentInfo?: unknown;
-  location?: { lat: number; lon: number; accuracy?: number | null };
+  location?: { lat: number; lng?: number; lon?: number; address?: string | null; accuracy?: number | null };
   audioBlob?: Blob;
   audioFilename?: string;
   audioField?: string;
@@ -94,6 +94,13 @@ export interface LeadCaptureResponse {
   next_actions?: LeadCaptureNextAction[];
   ticket?: OperationalTicketResult | null;
   order?: OperationalOrderResult | null;
+  media_understanding?: OperationalMediaUnderstanding | null;
+  raw?: unknown;
+}
+
+export interface OperationalMediaUnderstanding {
+  supports?: string[];
+  received?: string[];
   raw?: unknown;
 }
 
@@ -303,6 +310,30 @@ const extractOperationalOrder = (source: Record<string, unknown>): OperationalOr
   return normalizeOperationalOrder(source);
 };
 
+const normalizeStringArray = (value: unknown): string[] => {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => (typeof item === 'string' ? item.trim() : ''))
+    .filter(Boolean);
+};
+
+const normalizeMediaUnderstanding = (source: unknown): OperationalMediaUnderstanding | null => {
+  if (!isRecord(source)) return null;
+  const supports = normalizeStringArray(source.supports);
+  const received = normalizeStringArray(source.received);
+  if (!supports.length && !received.length) return null;
+  return {
+    supports,
+    received,
+    raw: source,
+  };
+};
+
+const extractMediaUnderstanding = (source: Record<string, unknown>): OperationalMediaUnderstanding | null =>
+  normalizeMediaUnderstanding(source.media_understanding) ??
+  normalizeMediaUnderstanding(readNestedRecord(source, ['data'])?.media_understanding) ??
+  normalizeMediaUnderstanding(readNestedRecord(source, ['lead'])?.media_understanding);
+
 const appendQuery = (endpoint: string, query?: Record<string, unknown>) => {
   if (!query || !Object.keys(query).length) return endpoint;
   const [pathWithSearch, hash = ''] = endpoint.split('#');
@@ -461,7 +492,14 @@ const buildJsonPayload = (bootstrap: ChatBootstrapConfig, payload: ChatBootstrap
   if (payload.intent) basePayload.intent = payload.intent;
   if (payload.payload) basePayload.payload = payload.payload;
   if (payload.attachmentInfo) basePayload.attachmentInfo = payload.attachmentInfo;
-  if (payload.location) basePayload.location = payload.location;
+  if (payload.location) {
+    const location = {
+      ...payload.location,
+      lng: payload.location.lng ?? payload.location.lon,
+    };
+    if ('lon' in location) delete location.lon;
+    basePayload.location = location;
+  }
   if (payload.extraPayload) {
     const protectedBackendKeys = new Set(['tipo_chat', 'tenant_slug', 'tenant', 'rubro', 'rubro_clave', 'demo_session_id', 'demo_mode']);
     Object.entries(payload.extraPayload).forEach(([key, value]) => {
@@ -578,6 +616,7 @@ export const normalizeLeadCaptureResponse = (response: unknown): LeadCaptureResp
     : [];
   const ticket = extractOperationalTicket(source);
   const order = extractOperationalOrder(source);
+  const mediaUnderstanding = extractMediaUnderstanding(source);
 
   return {
     ok: typeof source.ok === 'boolean' ? source.ok : undefined,
@@ -608,6 +647,7 @@ export const normalizeLeadCaptureResponse = (response: unknown): LeadCaptureResp
     next_actions: nextActions,
     ticket,
     order,
+    media_understanding: mediaUnderstanding,
     raw: response,
   };
 };

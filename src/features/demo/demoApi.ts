@@ -1,5 +1,7 @@
 import { demoApi } from '@/api/v2/client';
 import { findDemoCatalogAsset } from '@/data/demoCatalogAssets';
+import { persistChatSessionId } from '@/utils/chatSessionId';
+import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import type {
   DemoAdminPreviewResponse,
   DemoCatalogResponse,
@@ -34,10 +36,12 @@ export type DemoWhatsappSandboxPayload = {
 export const getDemoAdminPreview = async (params: {
   sector?: DemoSector | string | null;
   tenant_slug?: string | null;
+  chat_session_id?: string | null;
 }): Promise<DemoAdminPreviewResponse> => {
   const query = new URLSearchParams();
   if (params.sector) query.set('sector', String(params.sector));
   if (params.tenant_slug) query.set('tenant_slug', params.tenant_slug);
+  if (params.chat_session_id) query.set('chat_session_id', params.chat_session_id);
   const suffix = query.toString() ? `?${query.toString()}` : '';
   return demoApi.get<DemoAdminPreviewResponse>(`/api/v2/demo/admin-preview${suffix}`, {
     baseUrlOverride: '/api',
@@ -49,6 +53,7 @@ export const createDemoSession = async (payload: DemoSessionPayload) => {
     baseUrlOverride: '/api',
   });
   const normalized = normalizeDemoSessionResponse(response);
+  persistDemoRuntimeSession(normalized);
 
   if (!isDemoSessionAlignedWithSelection(normalized, payload)) {
     throw new Error('La demo real recibida no coincide con la seleccion solicitada.');
@@ -139,6 +144,14 @@ const normalizeDemoWhatsappSandboxResponse = (
         }
       : null,
   };
+};
+
+const persistDemoRuntimeSession = (response: DemoSessionResponse) => {
+  const chatSessionId = readShortChatSessionId(response.chat_session_id);
+  if (chatSessionId) persistChatSessionId(chatSessionId);
+  if (typeof response.demo_session_id === 'string' && response.demo_session_id.trim()) {
+    safeLocalStorage.setItem('chatboc_demo_session_id', response.demo_session_id.trim());
+  }
 };
 
 const findAssetSectorFromResponse = (response: DemoSessionResponse): DemoSector | null => {

@@ -55,6 +55,31 @@ export const tenantService = {
     });
   },
 
+  getWhatsappTechProvider: async (slug: string): Promise<any> => {
+    return apiFetch<any>(`/api/v2/tenants/${encodeURIComponent(slug)}/whatsapp/tech-provider`, {
+      tenantSlug: slug,
+    });
+  },
+
+  provisionWhatsappTechProvider: async (slug: string, payload: Record<string, unknown> = {}): Promise<any> => {
+    return apiFetch<any>(`/api/v2/tenants/${encodeURIComponent(slug)}/whatsapp/tech-provider/provision`, {
+      method: "POST",
+      body: payload,
+      tenantSlug: slug,
+    });
+  },
+
+  completeWhatsappEmbeddedSignup: async (
+    slug: string,
+    payload: { waba_id?: string | null; phone_number_id?: string | null; session_id?: string | null },
+  ): Promise<any> => {
+    return apiFetch<any>(`/api/v2/tenants/${encodeURIComponent(slug)}/whatsapp/tech-provider/embedded-signup`, {
+      method: "POST",
+      body: payload,
+      tenantSlug: slug,
+    });
+  },
+
   // Public endpoints
   getPublicMenu: async (slug: string, channel: "widget" | "whatsapp" = "widget") => {
     return apiFetch(`${PUBLIC_BASE_URL}/${slug}/menu?channel=${channel}`);

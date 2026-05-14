@@ -20,6 +20,7 @@ import type { Rubro } from "@/types/rubro";
 import { extractRubroKey, extractRubroLabel } from "@/utils/rubros";
 import DemoWorkspace from '@/features/demo/DemoWorkspace';
 import DemoSectorStep from '@/features/demo/DemoSectorStep';
+import WhatsappSandboxLauncher from '@/features/demo/WhatsappSandboxLauncher';
 import { createDemoSession, getDemoAdminPreview, getDemoCatalog } from '@/features/demo/demoApi';
 import type {
   DemoAdminPreviewResponse,
@@ -192,6 +193,23 @@ const normalizePreviewTimeline = (preview: DemoAdminPreviewResponse | null) => {
     );
 };
 
+const readDemoWorkspaceChatSessionId = (workspace?: DemoWorkspaceConfig | null) => {
+  const bootstrap = workspace?.chat_bootstrap;
+  const candidates = [
+    bootstrap?.session?.chat_session_id,
+    bootstrap?.session?.session_id,
+    bootstrap?.headers?.['X-Chat-Session-Id'],
+    bootstrap?.payload?.chat_session_id,
+    bootstrap?.payload?.session_id,
+  ];
+  for (const candidate of candidates) {
+    if (typeof candidate !== 'string') continue;
+    const trimmed = candidate.trim();
+    if (trimmed && trimmed.length <= 64 && !trimmed.includes('.')) return trimmed;
+  }
+  return null;
+};
+
 const DemoAdminPreview = ({
   sector,
   rubro,
@@ -328,6 +346,10 @@ const Demo = () => {
   const [demoError, setDemoError] = useState<DemoUiError | null>(null);
   const initialDemoLoadRef = useRef(false);
   const hydratedSessionRef = useRef(false);
+  const demoQuery = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const requestedSandboxSector = demoQuery.get('sector');
+  const requestedSandboxRubro = demoQuery.get('rubro');
+  const requestedSandboxTenant = demoQuery.get('tenant_slug') ?? demoQuery.get('tenant');
 
   const selectedSectorGroup = findSectorGroup(demoCatalog, sectorSeleccionado);
   const visibleRubrosDisponibles = useMemo(
@@ -337,6 +359,10 @@ const Demo = () => {
   const demoPreviewTenantSlug = useMemo(
     () => demoTenantSlug ?? readSectorTenantSlug(selectedSectorGroup) ?? readSectorCatalogSlug(sectorSeleccionado),
     [demoTenantSlug, sectorSeleccionado, selectedSectorGroup],
+  );
+  const demoPreviewChatSessionId = useMemo(
+    () => readDemoWorkspaceChatSessionId(demoWorkspace),
+    [demoWorkspace],
   );
 
 
@@ -388,6 +414,7 @@ const Demo = () => {
     getDemoAdminPreview({
       sector: sectorSeleccionado,
       tenant_slug: demoPreviewTenantSlug,
+      chat_session_id: demoPreviewChatSessionId,
     })
       .then((preview) => {
         if (active) setDemoAdminPreview(preview);
@@ -399,7 +426,7 @@ const Demo = () => {
     return () => {
       active = false;
     };
-  }, [demoPreviewTenantSlug, sectorSeleccionado]);
+  }, [demoPreviewChatSessionId, demoPreviewTenantSlug, sectorSeleccionado]);
 
   useEffect(() => {
     if (hydratedSessionRef.current) return;
@@ -441,6 +468,25 @@ const Demo = () => {
       requestedSector === 'educacion' || requestedSector === 'gobierno' || requestedSector === 'empresas'
         ? requestedSector
         : null;
+    const requestedRubro = new URLSearchParams(location.search).get('rubro');
+
+    if (normalizedRequestedSector && requestedRubro && !storedClave) {
+      setSectorSeleccionado(normalizedRequestedSector);
+      setRubroClaveSeleccionado(requestedRubro);
+      setEsperandoRubro(true);
+      getDemoCatalog()
+        .then((data) => {
+          setDemoError(null);
+          setDemoCatalog(data);
+          setRubrosDisponibles(Array.isArray(data?.rubros) ? data.rubros : []);
+        })
+        .catch((error) => {
+          setDemoCatalog(null);
+          setRubrosDisponibles([]);
+          setDemoError(buildDemoError(error, 'No se pudo cargar el catalogo de demos.'));
+        });
+      return;
+    }
 
     if (normalizedRequestedSector && !storedClave) {
       const catalogGroup = findSectorGroup(
@@ -575,6 +621,13 @@ const Demo = () => {
               sectorGroups={demoCatalog?.sector_groups}
               selectedSector={sectorSeleccionado}
               onSelect={setSectorSeleccionado}
+            />
+          </div>
+          <div className="mb-5">
+            <WhatsappSandboxLauncher
+              initialSector={sectorSeleccionado ?? requestedSandboxSector}
+              initialRubro={rubroClaveSeleccionado ?? requestedSandboxRubro}
+              initialTenantSlug={demoPreviewTenantSlug ?? requestedSandboxTenant}
             />
           </div>
           {sectorSeleccionado ? null : (

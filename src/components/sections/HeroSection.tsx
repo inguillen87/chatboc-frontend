@@ -14,6 +14,7 @@ import {
   Mic,
   PackageCheck,
   Paperclip,
+  Send,
   ShoppingCart,
   Store,
   TicketCheck,
@@ -158,6 +159,139 @@ const DEFAULT_CONVERSATION_TITLE = "WhatsApp operativo";
 const DEFAULT_CONVERSATION_SUBTITLE = "Un caso entra, el agente pide datos y deja una accion trazable.";
 const DEFAULT_PRIMARY_CTA = { label: "Probar una conversacion real", target: "/demo" };
 const DEFAULT_SECONDARY_CTA = { label: "Hablar con ventas", target: "/demo?intent=ventas" };
+
+const DEFAULT_CONVERSATION_FLOWS: ConversationFlow[] = [
+  {
+    id: "gobierno-reclamo-foto-ubicacion",
+    label: "Gobierno",
+    sector: "gobierno",
+    message: "Hola, hay un semaforo caido. Te mando foto, audio y ubicacion.",
+    response: "Recibi la evidencia. Clasifique el reclamo, marque la zona y lo deje listo para seguimiento.",
+    inputs: [
+      { kind: "image", label: "Foto", detail: "Evidencia visual del reclamo.", previewUrl: "", address: "", lat: "", lng: "" },
+      { kind: "audio", label: "Audio", detail: "Transcripcion resumida por IA.", previewUrl: "", address: "", lat: "", lng: "" },
+      {
+        kind: "location",
+        label: "Ubicacion",
+        detail: "Punto operativo para derivacion.",
+        previewUrl: "",
+        address: "Av. San Martin y Rivadavia",
+        lat: "-34.6083",
+        lng: "-58.3712",
+      },
+    ],
+    action: {
+      label: "Reclamo listo",
+      detail: "Categoria, prioridad, evidencia, zona y equipo sugerido quedan preparados para operar.",
+      status: "Trazable",
+      ctaLabel: "Probar reclamo real",
+      ctaTarget: "/demo?sector=gobierno&rubro=municipio",
+      fields: [
+        { label: "Categoria", value: "Semaforo" },
+        { label: "Prioridad", value: "Alta" },
+        { label: "Canal", value: "WhatsApp" },
+        { label: "Destino", value: "Transito" },
+      ],
+    },
+    resultTraceable: true,
+    highlights: ["foto", "audio", "ubicacion"],
+    workflowSteps: ["Entiende adjuntos", "Pide faltantes", "Crea caso", "Deja seguimiento"],
+    tone: "bg-primary",
+  },
+  {
+    id: "pyme-bodega-pedido-whatsapp",
+    label: "Bodega",
+    sector: "empresas",
+    message: "Hola, quiero 2 Malbec y 1 Cabernet. Me decis total y como sigo?",
+    response: "Arme el pedido desde el catalogo, tome el contacto y deje el tracking para seguimiento.",
+    inputs: [
+      { kind: "catalog", label: "Catalogo", detail: "Productos y variantes publicados por backend.", previewUrl: "", address: "", lat: "", lng: "" },
+      { kind: "cart", label: "Pedido", detail: "Lineas del carrito listas para confirmar.", previewUrl: "", address: "", lat: "", lng: "" },
+    ],
+    action: {
+      label: "Pedido preparado",
+      detail: "Cliente, telefono, productos y tracking quedan listos para que ventas cierre la operacion.",
+      status: "Seguible",
+      ctaLabel: "Probar pedido PYME",
+      ctaTarget: "/demo?sector=empresas&rubro=bodega",
+      fields: [
+        { label: "Productos", value: "2 Malbec, 1 Cabernet" },
+        { label: "Canal", value: "WhatsApp" },
+        { label: "Seguimiento", value: "Tracking listo" },
+        { label: "Equipo", value: "Ventas" },
+      ],
+    },
+    resultTraceable: true,
+    highlights: ["catalogo", "pedido", "tracking"],
+    workflowSteps: ["Lee catalogo", "Arma carrito", "Pide contacto", "Deja tracking"],
+    tone: "bg-success",
+  },
+  {
+    id: "pyme-ferreteria-materiales",
+    label: "Ferreteria",
+    sector: "empresas",
+    message: "Necesito cemento, arena y piedra para una obra. Te paso la zona y cantidad aproximada.",
+    response: "Ordene el pedido por materiales, detecte entrega posible y lo deje como oportunidad para cotizar.",
+    inputs: [
+      { kind: "cart", label: "Materiales", detail: "Cemento, arena, piedra y aridos.", previewUrl: "", address: "", lat: "", lng: "" },
+      {
+        kind: "location",
+        label: "Entrega",
+        detail: "Zona enviada para calcular envio.",
+        previewUrl: "",
+        address: "Obra en zona sur",
+        lat: "",
+        lng: "",
+      },
+    ],
+    action: {
+      label: "Cotizacion lista",
+      detail: "El equipo recibe materiales, cantidades, zona y contacto para responder sin perder el pedido.",
+      status: "En cola",
+      ctaLabel: "Probar ferreteria",
+      ctaTarget: "/demo?sector=empresas&rubro=ferreteria",
+      fields: [
+        { label: "Rubro", value: "Construccion" },
+        { label: "Pedido", value: "Cemento + aridos" },
+        { label: "Dato clave", value: "Zona de entrega" },
+        { label: "Destino", value: "Ventas" },
+      ],
+    },
+    resultTraceable: true,
+    highlights: ["materiales", "zona", "cotizacion"],
+    workflowSteps: ["Detecta rubro", "Arma solicitud", "Pide zona", "Deriva a ventas"],
+    tone: "bg-success",
+  },
+  {
+    id: "educacion-cuota-pago",
+    label: "Colegio",
+    sector: "educacion",
+    message: "Hola, quiero saber si tengo deuda de cuota y pedir el link de pago.",
+    response: "Identifique el legajo, prepare la consulta de secretaria y deje el pedido de pago ordenado.",
+    inputs: [
+      { kind: "payment", label: "Pago", detail: "Consulta de cuota o deuda.", previewUrl: "", address: "", lat: "", lng: "" },
+      { kind: "file", label: "Comprobante", detail: "Adjunto opcional para secretaria.", previewUrl: "", address: "", lat: "", lng: "" },
+      { kind: "calendar", label: "Turno", detail: "Agenda si la familia necesita atencion.", previewUrl: "", address: "", lat: "", lng: "" },
+    ],
+    action: {
+      label: "Pedido escolar listo",
+      detail: "Familia, motivo, adjunto y proximo paso quedan visibles para administracion escolar.",
+      status: "Ordenado",
+      ctaLabel: "Probar colegio",
+      ctaTarget: "/demo?sector=educacion&rubro=colegio",
+      fields: [
+        { label: "Motivo", value: "Cuota / pago" },
+        { label: "Area", value: "Secretaria" },
+        { label: "Adjunto", value: "Opcional" },
+        { label: "Seguimiento", value: "Familia" },
+      ],
+    },
+    resultTraceable: true,
+    highlights: ["cuotas", "familias", "secretaria"],
+    workflowSteps: ["Identifica familia", "Clasifica consulta", "Pide datos justos", "Deja caso"],
+    tone: "bg-primary",
+  },
+];
 
 const normalizeHeroMediaUrl = (raw: string) => {
   const value = raw.trim();
@@ -442,6 +576,30 @@ const normalizeConversationFlows = (source: unknown): ConversationFlow[] => {
   return flows.length ? flows.slice(0, 4) : [];
 };
 
+const mergeConversationFlows = (source: unknown) => {
+  const backendFlows = normalizeConversationFlows(source);
+  const merged = backendFlows[0] ? [backendFlows[0]] : [];
+  const hasFlowLike = (candidate: ConversationFlow) => {
+    const candidateFamily = inferFlowFamily(candidate);
+    const candidateKey = `${candidate.id} ${candidate.label}`.toLowerCase();
+    return merged.some((flow) => {
+      const key = `${flow.id} ${flow.label}`.toLowerCase();
+      if (key.includes(candidate.id) || candidateKey.includes(flow.id)) return true;
+      if (candidate.label && key.includes(candidate.label.toLowerCase())) return true;
+      return inferFlowFamily(flow) === candidateFamily && candidateFamily !== "pyme";
+    });
+  };
+
+  DEFAULT_CONVERSATION_FLOWS.forEach((flow) => {
+    if (!hasFlowLike(flow)) merged.push(flow);
+  });
+  backendFlows.slice(1).forEach((flow) => {
+    if (!hasFlowLike(flow)) merged.push(flow);
+  });
+
+  return merged.slice(0, 6);
+};
+
 const getInputIcon = (kind: string) => {
   switch (inferInputKind(kind)) {
     case "image":
@@ -563,14 +721,41 @@ const HeroInputCard = ({ input }: { input: ConversationInput }) => {
           }}
         />
       )}
+      {inputKind === "image" && (!canLoadImage || !imageReady) && (
+        <div className="chatboc-hero-attachment__media mt-2" aria-hidden="true">
+          <div className="chatboc-hero-attachment__visual">
+            <ImageIcon className="h-5 w-5 text-primary" />
+            <span />
+            <i />
+          </div>
+        </div>
+      )}
       {hasLocation && (
         <div className="mt-2 rounded-[10px] border border-primary/15 bg-primary/5 px-2 py-2 text-[11px] leading-5 text-foreground">
+          <div className="chatboc-hero-location-map" aria-hidden="true">
+            <span />
+            <i />
+          </div>
           {input.address && <p>{input.address}</p>}
           {(input.lat || input.lng) && (
             <p className="text-muted-foreground">
               {[input.lat, input.lng].filter(Boolean).join(", ")}
             </p>
           )}
+        </div>
+      )}
+      {inputKind === "audio" && (
+        <div className="chatboc-hero-waveform mt-2" aria-hidden="true">
+          {Array.from({ length: 12 }).map((_, index) => (
+            <span key={index} />
+          ))}
+        </div>
+      )}
+      {["catalog", "cart", "payment", "calendar", "file"].includes(inputKind) && (
+        <div className={`chatboc-hero-mini-preview chatboc-hero-mini-preview--${inputKind} mt-2`} aria-hidden="true">
+          <span />
+          <span />
+          <span />
         </div>
       )}
       {input.detail && <p className="mt-2 leading-5">{input.detail}</p>}
@@ -614,7 +799,7 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
     () => {
       const experienceRecord = isRecord(experience) ? (experience as AnyRecord) : undefined;
       const heroMedia = isRecord(first(hero, ["media"])) ? (first(hero, ["media"]) as AnyRecord) : undefined;
-      return normalizeConversationFlows(
+      return mergeConversationFlows(
         first(hero, ["conversation_demo", "demo_conversation", "live_demo", "workflow_demo", "sample_conversations"]) ??
           first(heroMedia, ["conversation_demo", "demo_conversation", "live_demo", "workflow_demo", "chat_preview", "sample_conversations"]) ??
           first(experienceRecord, ["conversation_demo", "demo_conversation", "live_demo", "sample_conversations"]) ??
@@ -624,12 +809,29 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
     [experience, hero],
   );
   const [activeFlowId, setActiveFlowId] = React.useState(conversationFlows[0]?.id ?? "");
+  const [manualFlowSelection, setManualFlowSelection] = React.useState(false);
+  const phoneScreenRef = React.useRef<HTMLDivElement | null>(null);
 
   React.useEffect(() => {
     if (!conversationFlows.some((flow) => flow.id === activeFlowId)) {
       setActiveFlowId(conversationFlows[0]?.id ?? "");
     }
   }, [activeFlowId, conversationFlows]);
+
+  React.useEffect(() => {
+    if (manualFlowSelection || conversationFlows.length < 2) return undefined;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return undefined;
+    const timer = window.setInterval(() => {
+      setActiveFlowId((current) => {
+        const currentIndex = Math.max(
+          conversationFlows.findIndex((flow) => flow.id === current),
+          0,
+        );
+        return conversationFlows[(currentIndex + 1) % conversationFlows.length]?.id ?? current;
+      });
+    }, 10800);
+    return () => window.clearInterval(timer);
+  }, [conversationFlows, manualFlowSelection]);
 
   const activeFlow = conversationFlows.find((flow) => flow.id === activeFlowId) ?? conversationFlows[0];
   const activeFlowIndex = Math.max(
@@ -645,6 +847,23 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
   const actionSectionLabel = readText(hero, ["action_section_label", "result_label"]);
   const agentTitle = readText(hero, ["agent_title"]);
   const agentSubtitle = readText(hero, ["agent_subtitle"]);
+
+  React.useEffect(() => {
+    if (!activeFlow?.id) return undefined;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return undefined;
+
+    const scrollScreen = () => {
+      const screen = phoneScreenRef.current;
+      if (!screen) return;
+      screen.scrollTo({ top: screen.scrollHeight, behavior: "smooth" });
+      window.setTimeout(() => {
+        screen.scrollTop = screen.scrollHeight;
+      }, 460);
+    };
+    const timers = [4600, 6200, 7300].map((delay) => window.setTimeout(scrollScreen, delay));
+    return () => timers.forEach((timer) => window.clearTimeout(timer));
+  }, [activeFlow?.id]);
+
   const heroPrimaryCta = {
     label: activeAction?.ctaLabel || primaryCta.label,
     target: activeAction?.ctaTarget || primaryCta.target,
@@ -784,7 +1003,10 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
                             key={flow.id}
                             type="button"
                             className={`chatboc-phone-demo__tab ${isActive ? "chatboc-phone-demo__tab--active" : ""}`}
-                            onClick={() => setActiveFlowId(flow.id)}
+                            onClick={() => {
+                              setManualFlowSelection(true);
+                              setActiveFlowId(flow.id);
+                            }}
                           >
                             <FlowIcon className="h-4 w-4" />
                             <span>{flow.label}</span>
@@ -794,23 +1016,34 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
                     </div>
                   )}
 
-                  <div key={activeFlow.id} className="chatboc-phone-demo__screen">
+                  <div key={activeFlow.id} ref={phoneScreenRef} className="chatboc-phone-demo__screen">
                     <div className="chatboc-phone-demo__thread">
-                      <div className="flex justify-end">
+                      <div className="chatboc-phone-demo__sequence chatboc-phone-demo__sequence--1 flex justify-end">
                         <div className="chatboc-phone-demo__bubble chatboc-phone-demo__bubble--user">
                           {activeFlow.message}
                         </div>
                       </div>
 
                       {activeFlow.inputs.length > 0 && (
-                        <div className="chatboc-phone-demo__attachments">
+                        <div className="chatboc-phone-demo__sequence chatboc-phone-demo__sequence--2 chatboc-phone-demo__attachments">
                           {activeFlow.inputs.map((input) => (
                             <HeroInputCard key={`${activeFlow.id}-${input.kind}-${input.label}`} input={input} />
                           ))}
                         </div>
                       )}
 
-                      <div className="flex items-start gap-3">
+                      <div className="chatboc-phone-demo__sequence chatboc-phone-demo__sequence--3 flex items-center gap-2 pl-1">
+                        <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-primary/20 bg-primary/10 text-primary">
+                          <Bot className="h-4 w-4" />
+                        </div>
+                        <div className="chatboc-phone-demo__typing" aria-hidden="true">
+                          <span />
+                          <span />
+                          <span />
+                        </div>
+                      </div>
+
+                      <div className="chatboc-phone-demo__sequence chatboc-phone-demo__sequence--4 flex items-start gap-3">
                         <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-primary/20 bg-primary/10 text-primary">
                           <Bot className="h-4 w-4" />
                         </div>
@@ -820,25 +1053,8 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
                       </div>
                     </div>
 
-                    {activeInputKinds.length > 0 && (
-                      <div className="chatboc-phone-demo__composer">
-                        {activeFlow.inputs.map((input) => {
-                          const ComposerIcon = getInputIcon(input.kind);
-                          return (
-                            <span
-                              key={`${activeFlow.id}-composer-${input.kind}-${input.label}`}
-                              className="chatboc-phone-demo__composer-chip"
-                            >
-                              <ComposerIcon className="h-3.5 w-3.5" />
-                              <span>{input.label}</span>
-                            </span>
-                          );
-                        })}
-                      </div>
-                    )}
-
                     {activeAction && (
-                      <div className="chatboc-phone-demo__result">
+                      <div className="chatboc-phone-demo__sequence chatboc-phone-demo__sequence--5 chatboc-phone-demo__result">
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex items-start gap-3">
                             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-primary/10 text-primary">
@@ -896,7 +1112,7 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
                     )}
 
                     {activeWorkflowSteps.length > 0 && (
-                      <div className="chatboc-phone-demo__steps">
+                      <div className="chatboc-phone-demo__sequence chatboc-phone-demo__sequence--6 chatboc-phone-demo__steps">
                         {(agentTitle || agentSubtitle) && (
                           <div className="mb-3">
                             {agentTitle && <p className="text-sm font-semibold text-foreground">{agentTitle}</p>}
@@ -921,6 +1137,28 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
                         </div>
                       </div>
                     )}
+
+                    {activeInputKinds.length > 0 && (
+                      <div className="chatboc-phone-demo__sequence chatboc-phone-demo__sequence--7 chatboc-phone-demo__composer">
+                        {activeFlow.inputs.map((input) => {
+                          const ComposerIcon = getInputIcon(input.kind);
+                          return (
+                            <span
+                              key={`${activeFlow.id}-composer-${input.kind}-${input.label}`}
+                              className="chatboc-phone-demo__composer-chip"
+                            >
+                              <ComposerIcon className="h-3.5 w-3.5" />
+                              <span>{input.label}</span>
+                            </span>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    <div className="chatboc-phone-demo__sequence chatboc-phone-demo__sequence--8 chatboc-phone-demo__inputbar" aria-hidden="true">
+                      <span>Mensaje por WhatsApp</span>
+                      <Send className="h-4 w-4" />
+                    </div>
                   </div>
 
                   {dashboardRows.length > 0 && (

@@ -282,6 +282,8 @@ export interface DemoWhatsappSandboxResponse {
     sandbox?: {
       display_number?: string | null;
       join_phrase?: string | null;
+      activation_message?: string | null;
+      requires_join_phrase?: boolean | null;
       wa_deeplink?: string | null;
       qr_url?: string | null;
       [key: string]: unknown;

@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { ApiError, getErrorMessage } from '@/utils/api';
 import { getOrCreateAnonId } from '@/utils/anonId';
 import getOrCreateChatSessionId from '@/utils/chatSessionId';
-import { ExternalLink, Image as ImageIcon, MapPin, PackageCheck, Paperclip, TicketCheck } from 'lucide-react';
+import { ExternalLink, FileText, Image as ImageIcon, MapPin, Mic, PackageCheck, Paperclip, TicketCheck, Video } from 'lucide-react';
 import {
   createLeadCaptureIdempotencyKey,
   extractChatBootstrapReplyText,
@@ -250,6 +250,7 @@ const extractRuntimeLeadResult = (response: unknown): LeadCaptureResponse | null
     next_actions: nextActions.length ? nextActions : normalized.next_actions,
     ticket: normalized.ticket,
     order: normalized.order,
+    media_understanding: normalized.media_understanding,
     raw: response,
   };
 };
@@ -939,7 +940,17 @@ function LeadCaptureResult({ result }: { result: LeadCaptureResponse }) {
     result.ticket_id ? { label: 'Caso', value: String(result.ticket_id) } : null,
     result.status ? { label: 'Estado', value: result.status } : null,
   ].filter((item): item is { label: string; value: string } => Boolean(item));
-  const hasActions = Boolean(result.next_actions?.length);
+  const visibleActions = (result.next_actions ?? []).filter((action) => {
+    if (!result.ticket) return true;
+    const normalized = `${action.id ?? ''} ${action.label ?? ''}`.toLowerCase();
+    return !(
+      normalized.includes('crear ticket') ||
+      normalized.includes('create ticket') ||
+      normalized.includes('crear reclamo') ||
+      normalized.includes('create claim')
+    );
+  });
+  const hasActions = Boolean(visibleActions.length);
 
   if (!traceItems.length && !hasActions && !result.request_id && !result.ticket && !result.order) return null;
 
@@ -947,6 +958,9 @@ function LeadCaptureResult({ result }: { result: LeadCaptureResponse }) {
     <div className="space-y-3 rounded-lg border bg-muted/20 p-3 text-xs" aria-label="Resultado operativo">
       {result.ticket ? <OperationalTicketCard ticket={result.ticket} /> : null}
       {result.order ? <OperationalOrderCard order={result.order} /> : null}
+      {result.media_understanding ? (
+        <MediaUnderstandingChips media={result.media_understanding} />
+      ) : null}
       {traceItems.length ? (
         <div className="flex flex-wrap gap-2">
           {traceItems.map((item) => (
@@ -957,10 +971,45 @@ function LeadCaptureResult({ result }: { result: LeadCaptureResponse }) {
           ))}
         </div>
       ) : null}
-      {hasActions ? <LeadCaptureNextActions actions={result.next_actions ?? []} /> : null}
+      {hasActions ? <LeadCaptureNextActions actions={visibleActions} /> : null}
       {result.request_id ? (
         <p className="break-all text-[11px] text-muted-foreground">request_id: {result.request_id}</p>
       ) : null}
+    </div>
+  );
+}
+
+function MediaUnderstandingChips({
+  media,
+}: {
+  media: NonNullable<LeadCaptureResponse['media_understanding']>;
+}) {
+  const received = media.received ?? [];
+  if (!received.length) return null;
+
+  const iconFor = (kind: string) => {
+    const normalized = kind.toLowerCase();
+    if (normalized.includes('image') || normalized.includes('foto')) return ImageIcon;
+    if (normalized.includes('audio') || normalized.includes('voice')) return Mic;
+    if (normalized.includes('video')) return Video;
+    if (normalized.includes('location') || normalized.includes('ubic')) return MapPin;
+    return FileText;
+  };
+
+  return (
+    <div className="flex flex-wrap gap-2" aria-label="Medios recibidos">
+      {received.map((kind) => {
+        const Icon = iconFor(kind);
+        return (
+          <span
+            key={kind}
+            className="inline-flex max-w-full items-center gap-1 rounded-full border bg-background px-2 py-1 text-muted-foreground"
+          >
+            <Icon className="h-3 w-3 text-primary" />
+            <span className="truncate">{kind}</span>
+          </span>
+        );
+      })}
     </div>
   );
 }
@@ -993,6 +1042,14 @@ function OperationalTicketCard({ ticket }: { ticket: OperationalTicketResult }) 
           <span className="rounded-full border bg-muted/40 px-2 py-0.5 text-[11px] text-muted-foreground">
             {ticket.canal_ingreso}
           </span>
+        ) : null}
+        {ticket.detail_endpoint ? (
+          <a
+            href={ticket.detail_endpoint}
+            className="inline-flex items-center gap-1 rounded-full border bg-muted/20 px-2 py-0.5 text-[11px] text-muted-foreground hover:text-foreground"
+          >
+            Ver seguimiento <ExternalLink className="h-3 w-3" />
+          </a>
         ) : null}
       </div>
 

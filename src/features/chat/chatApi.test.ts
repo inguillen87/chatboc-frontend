@@ -209,6 +209,37 @@ describe('sendChatBootstrapMessage', () => {
     );
   });
 
+  it('sends shared location with lng for demo municipio runtime', async () => {
+    await sendChatBootstrapMessage(
+      {
+        contract_version: 'demo.chat_bootstrap.v1',
+        endpoint: '/api/ask/municipio',
+        method: 'POST',
+        headers: { 'X-Tenant-Slug': 'municipio' },
+        query: { tenant_slug: 'municipio' },
+        session: {
+          chat_session_id: 'sid_demo_municipio',
+          demo_session_id: 'demo-token',
+        },
+      },
+      {
+        text: 'Te comparto ubicacion del bache',
+        location: {
+          lat: -34.61,
+          lon: -58.44,
+          address: 'Av. San Martin 123',
+        },
+      },
+    );
+
+    const [, options] = apiFetchMock.mock.calls[0];
+    expect(options.body.location).toEqual({
+      lat: -34.61,
+      lng: -58.44,
+      address: 'Av. San Martin 123',
+    });
+  });
+
   it('does not retry legacy fallback endpoints when runtime rejects the request', async () => {
     apiFetchMock.mockRejectedValueOnce(new Error('missing'));
 
@@ -247,6 +278,10 @@ describe('normalizeLeadCaptureResponse operational results', () => {
         foto_url_directa: 'https://cdn.example.com/foto.jpg',
         archivos: [{ archivo_adjunto_id: 7, url: 'https://cdn.example.com/foto.jpg', type: 'image/jpeg' }],
       },
+      media_understanding: {
+        received: ['image', 'location'],
+        supports: ['text', 'image', 'audio', 'location'],
+      },
     });
 
     expect(normalized.ticket).toMatchObject({
@@ -263,6 +298,7 @@ describe('normalizeLeadCaptureResponse operational results', () => {
       archivo_adjunto_id: 7,
       url: 'https://cdn.example.com/foto.jpg',
     });
+    expect(normalized.media_understanding?.received).toEqual(['image', 'location']);
   });
 
   it('keeps real PyME order lines, total and tracking URL', () => {
