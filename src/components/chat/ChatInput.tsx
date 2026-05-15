@@ -650,7 +650,13 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
             <p className="text-sm font-medium text-foreground truncate">{attachmentPreview.file.name}</p>
             <p className="text-xs text-muted-foreground">{(attachmentPreview.file.size / 1024).toFixed(1)} KB</p>
           </div>
-          <Button variant="ghost" size="icon" className="absolute top-1 right-1 w-6 h-6" onClick={() => setAttachmentPreview(null)}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute top-1 right-1 w-6 h-6"
+            onClick={() => setAttachmentPreview(null)}
+            aria-label="Quitar adjunto"
+          >
             <X className="w-4 h-4" />
           </Button>
         </div>

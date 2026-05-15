@@ -234,14 +234,12 @@ export default function ScrollMascotGuide() {
     if (!sections.length) return;
 
     const isMobileViewport = window.matchMedia("(max-width: 768px)").matches;
-    setExpanded(!isMobileViewport);
+    setExpanded(!isMobileViewport && window.scrollY > 160);
     setIsWinking(true);
     const winkTimer = window.setTimeout(() => setIsWinking(false), 720);
-    const collapseTimer = window.setTimeout(() => setExpanded(false), 4600);
 
     return () => {
       window.clearTimeout(winkTimer);
-      window.clearTimeout(collapseTimer);
     };
   }, [activeIndex, sections.length]);
 

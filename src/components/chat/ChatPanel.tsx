@@ -3438,6 +3438,7 @@ const ChatPanel = (props: ChatPanelProps) => {
               <button
                 onClick={() => setSmartHint(null)}
                 className="text-amber-500 hover:text-amber-700 p-0.5"
+                aria-label="Cerrar sugerencia"
               >
                 <X size={14} />
               </button>

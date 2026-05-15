@@ -28,14 +28,20 @@ export default defineConfig(({ mode }) => {
           'favicon/favicon-maskable-512x512.png',
         ],
         manifest: {
-          name: 'Chatboc',
+          id: '/',
+          name: 'Chatboc | Plataforma operativa IA',
           short_name: 'Chatboc',
-          description: 'Chatboc - IA para Gobiernos y Empresas',
+          description: 'Chatboc - IA operativa para gobiernos, colegios y empresas.',
+          lang: 'es-AR',
+          dir: 'ltr',
           start_url: '/?pwa=1',
           scope: '/',
           display: 'standalone',
+          display_override: ['window-controls-overlay', 'standalone', 'minimal-ui'],
+          orientation: 'any',
           background_color: '#ffffff',
           theme_color: '#0f62fe',
+          categories: ['business', 'productivity', 'utilities'],
           icons: [
             {
               src: 'favicon/favicon-192x192.png',
@@ -60,6 +66,29 @@ export default defineConfig(({ mode }) => {
               purpose: 'maskable',
             },
           ],
+          shortcuts: [
+            {
+              name: 'Abrir demo',
+              short_name: 'Demo',
+              description: 'Probar una experiencia demo de Chatboc.',
+              url: '/demo?pwa=1',
+              icons: [{ src: 'favicon/favicon-192x192.png', sizes: '192x192' }],
+            },
+            {
+              name: 'Panel',
+              short_name: 'Panel',
+              description: 'Entrar al panel operativo.',
+              url: '/login?pwa=1',
+              icons: [{ src: 'favicon/favicon-192x192.png', sizes: '192x192' }],
+            },
+            {
+              name: 'Seguimiento',
+              short_name: 'Estado',
+              description: 'Consultar estado de reclamos o pedidos.',
+              url: '/tracking?pwa=1',
+              icons: [{ src: 'favicon/favicon-192x192.png', sizes: '192x192' }],
+            },
+          ],
         },
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
@@ -78,6 +107,24 @@ export default defineConfig(({ mode }) => {
                 expiration: {
                   maxEntries: 60,
                   maxAgeSeconds: 60 * 10,
+                },
+              },
+            },
+            {
+              urlPattern: ({ url }) =>
+                url.pathname.startsWith('/api/v2/demo/') ||
+                url.pathname.startsWith('/api/pwa/public/') ||
+                url.pathname.startsWith('/api/public/tracking/'),
+              handler: 'NetworkFirst',
+              options: {
+                cacheName: 'public-demo-api',
+                networkTimeoutSeconds: 4,
+                cacheableResponse: {
+                  statuses: [0, 200, 201, 202, 204],
+                },
+                expiration: {
+                  maxEntries: 80,
+                  maxAgeSeconds: 60 * 15,
                 },
               },
             },

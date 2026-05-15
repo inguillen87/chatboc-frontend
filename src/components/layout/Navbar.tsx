@@ -381,6 +381,7 @@ const Navbar: React.FC = () => {
           <button
             onClick={toggleDarkMode}
             title="Modo claro / oscuro"
+            aria-label={isDark ? "Activar modo claro" : "Activar modo oscuro"}
             className="rounded-full p-2 text-foreground transition-colors hover:bg-accent"
           >
             {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}

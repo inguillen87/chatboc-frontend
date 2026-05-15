@@ -1,11 +1,18 @@
 {
-  "name": "Chatboc | Tu experto virtual",
+  "id": "/",
+  "name": "Chatboc | Plataforma operativa IA",
   "short_name": "Chatboc",
-  "description": "Automatizá consultas, ventas y atención al cliente con IA para pymes y municipios.",
-  "start_url": "/",
+  "description": "Chatboc - IA operativa para gobiernos, colegios y empresas.",
+  "lang": "es-AR",
+  "dir": "ltr",
+  "start_url": "/?pwa=1",
+  "scope": "/",
   "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "orientation": "any",
   "background_color": "#ffffff",
   "theme_color": "#0f62fe",
+  "categories": ["business", "productivity", "utilities"],
   "icons": [
     {
       "src": "/chatboc_frontend_pack/branding/chatboc/avatar/chatboc-orbit-avatar.svg",
@@ -33,6 +40,29 @@
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Abrir demo",
+      "short_name": "Demo",
+      "description": "Probar una experiencia demo de Chatboc.",
+      "url": "/demo?pwa=1",
+      "icons": [{ "src": "/favicon/favicon-192x192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Panel",
+      "short_name": "Panel",
+      "description": "Entrar al panel operativo.",
+      "url": "/login?pwa=1",
+      "icons": [{ "src": "/favicon/favicon-192x192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Seguimiento",
+      "short_name": "Estado",
+      "description": "Consultar estado de reclamos o pedidos.",
+      "url": "/tracking?pwa=1",
+      "icons": [{ "src": "/favicon/favicon-192x192.png", "sizes": "192x192", "type": "image/png" }]
     }
   ]
 }

@@ -270,13 +270,20 @@ const toggleLayers = (
   map: Map,
   showHeatmap: boolean,
   showPolygons: boolean,
-  layerIds: { heat: string; circles: string },
+  layerIds: { heat: string; halo: string; circles: string },
 ) => {
   if (map.getLayer(layerIds.heat)) {
     map.setLayoutProperty(
       layerIds.heat,
       "visibility",
       showHeatmap && !showPolygons ? "visible" : "none",
+    );
+  }
+  if (map.getLayer(layerIds.halo)) {
+    map.setLayoutProperty(
+      layerIds.halo,
+      "visibility",
+      !showHeatmap && !showPolygons ? "visible" : "none",
     );
   }
   if (map.getLayer(layerIds.circles)) {
@@ -371,6 +378,7 @@ export default function MapLibreMap({
   const configuredLayerIds = useMemo(
     () => ({
       heat: geoLayerConfig?.layers?.heatmap?.id?.trim() || "tickets-heat",
+      halo: `${geoLayerConfig?.layers?.points?.id?.trim() || "tickets-circles"}-halo`,
       circles: geoLayerConfig?.layers?.points?.id?.trim() || "tickets-circles",
     }),
     [geoLayerConfig?.layers?.heatmap?.id, geoLayerConfig?.layers?.points?.id],
@@ -738,16 +746,74 @@ export default function MapLibreMap({
                 ["linear"],
                 ["heatmap-density"],
                 0,
-                "rgba(34, 197, 94, 0)", // Transparent Green
-                0.2,
-                "rgba(34, 197, 94, 0.6)", // Green-500
-                0.4,
-                "rgba(234, 179, 8, 0.7)", // Yellow-500
-                0.6,
-                "rgba(249, 115, 22, 0.8)", // Orange-500
+                "rgba(56, 189, 248, 0)",
+                0.18,
+                "rgba(45, 212, 191, 0.62)",
+                0.36,
+                "rgba(59, 130, 246, 0.72)",
+                0.58,
+                "rgba(168, 85, 247, 0.76)",
+                0.78,
+                "rgba(251, 191, 36, 0.84)",
                 1,
-                "rgba(239, 68, 68, 0.95)", // Red-500
+                "rgba(244, 63, 94, 0.96)",
               ],
+            },
+          });
+
+          addLayer(map, {
+            id: configuredLayerIds.halo,
+            type: "circle",
+            source: "points",
+            minzoom: 8,
+            paint: {
+              "circle-radius": [
+                "interpolate",
+                ["linear"],
+                ["zoom"],
+                8,
+                [
+                  "max",
+                  12,
+                  ["*", ["sqrt", ["coalesce", ["get", "clusterSize"], 1]], 3.2],
+                ],
+                16,
+                [
+                  "max",
+                  24,
+                  ["*", ["sqrt", ["coalesce", ["get", "clusterSize"], 1]], 5.2],
+                ],
+              ],
+              "circle-color": [
+                "case",
+                ["has", "categoryColor"],
+                ["get", "categoryColor"],
+                [
+                  "interpolate",
+                  ["linear"],
+                  ["coalesce", ["get", "averageWeight"], 1],
+                  0,
+                  "#38bdf8",
+                  10,
+                  "#2563eb",
+                  24,
+                  "#a855f7",
+                  42,
+                  "#f43f5e",
+                ],
+              ],
+              "circle-opacity": [
+                "interpolate",
+                ["linear"],
+                ["zoom"],
+                8,
+                0.18,
+                14,
+                0.28,
+                16,
+                0.2,
+              ],
+              "circle-blur": 0.86,
             },
           });
 

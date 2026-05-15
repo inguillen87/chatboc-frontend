@@ -1511,7 +1511,7 @@ function ChatWidgetInner({
     const heightToUse = isNaN(desired) ? 680 : desired;
 
     if (isMobileView) {
-      return "min(72dvh, 680px)";
+      return "min(58dvh, 560px)";
     }
 
     if (mode === 'iframe') {

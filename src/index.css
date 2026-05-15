@@ -358,10 +358,10 @@
   }
   .chatboc-hero-mascot {
     position: absolute;
-    right: clamp(-0.55rem, 0vw, 0.35rem);
-    top: clamp(24.7rem, 54vh, 28.8rem);
+    right: clamp(-12.2rem, -11.2vw, -8rem);
+    top: clamp(13.6rem, 31vh, 16.8rem);
     z-index: 6;
-    width: clamp(11.2rem, 12.2vw, 13.8rem);
+    width: clamp(11.6rem, 12.6vw, 13.4rem);
     pointer-events: none;
     transform-origin: center bottom;
     animation: chatboc-agent-float 6s ease-in-out infinite;
@@ -384,6 +384,39 @@
     filter:
       drop-shadow(0 28px 42px rgba(2, 6, 23, 0.38))
       drop-shadow(0 0 26px rgba(102, 216, 255, 0.34));
+  }
+  .chatboc-mascot-3d {
+    position: relative;
+    display: block;
+    width: 100%;
+    aspect-ratio: 1 / 1.18;
+    contain: layout paint;
+  }
+  .chatboc-mascot-3d__fallback,
+  .chatboc-mascot-3d__canvas {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+  .chatboc-mascot-3d__fallback {
+    object-fit: contain;
+    opacity: 1;
+    transition: opacity 0.28s ease;
+  }
+  .chatboc-mascot-3d--ready .chatboc-mascot-3d__fallback {
+    opacity: 0;
+  }
+  .chatboc-mascot-3d__canvas {
+    opacity: 0;
+    filter:
+      drop-shadow(0 28px 42px rgba(2, 6, 23, 0.38))
+      drop-shadow(0 0 26px rgba(102, 216, 255, 0.34));
+    transition: opacity 0.32s ease;
+  }
+  .chatboc-mascot-3d--ready .chatboc-mascot-3d__canvas {
+    opacity: 1;
   }
   .chatboc-hero-preview > .chatboc-phone-demo::after {
     content: "";
@@ -1404,9 +1437,9 @@
       justify-items: center;
     }
     .chatboc-hero-mascot {
-      right: 0.75rem;
-      top: clamp(25.5rem, 57vh, 31rem);
-      width: clamp(8.6rem, 17vw, 10.4rem);
+      right: clamp(-2.1rem, -4vw, -1rem);
+      top: clamp(14.5rem, 35vh, 18.5rem);
+      width: clamp(9.6rem, 19vw, 12rem);
     }
     .chatboc-hero-preview {
       width: min(calc(100vw - 5rem), 34rem);
@@ -1589,6 +1622,126 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
+
+  :focus-visible {
+    outline: 3px solid hsl(var(--ring) / 0.72);
+    outline-offset: 3px;
+  }
+}
+
+.chatboc-skip-link {
+  position: fixed;
+  left: 1rem;
+  top: calc(0.75rem + env(safe-area-inset-top));
+  z-index: 1000003;
+  transform: translateY(-150%);
+  border-radius: 8px;
+  background: hsl(var(--foreground));
+  color: hsl(var(--background));
+  padding: 0.65rem 0.95rem;
+  font-size: 0.9rem;
+  font-weight: 800;
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.22);
+  transition: transform 0.16s ease;
+}
+
+.chatboc-skip-link:focus {
+  transform: translateY(0);
+}
+
+.chatboc-a11y-dock {
+  position: fixed;
+  left: calc(1rem + env(safe-area-inset-left));
+  bottom: calc(1rem + env(safe-area-inset-bottom));
+  z-index: 1000001;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chatboc-a11y-dock__button {
+  border-color: hsl(var(--border) / 0.85) !important;
+  background: hsl(var(--card) / 0.94) !important;
+  color: hsl(var(--foreground)) !important;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.16);
+}
+
+.chatboc-pwa-install {
+  position: fixed;
+  left: calc(1rem + env(safe-area-inset-left));
+  bottom: calc(4.9rem + env(safe-area-inset-bottom));
+  z-index: 42;
+  display: flex;
+  width: min(420px, calc(100vw - 2rem));
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.9rem;
+  border: 1px solid hsl(var(--border) / 0.85);
+  border-radius: 12px;
+  background: hsl(var(--card) / 0.96);
+  padding: 0.85rem;
+  color: hsl(var(--card-foreground));
+  box-shadow: 0 22px 70px rgba(15, 23, 42, 0.18);
+  backdrop-filter: blur(14px);
+}
+
+body.chatboc-widget-open .chatboc-a11y-dock,
+body.chatboc-widget-open .chatboc-pwa-install {
+  display: none;
+}
+
+:root.a11y-dyslexia body {
+  font-family: var(--chat-font, 'Lexend', Verdana, system-ui, -apple-system, Segoe UI, Roboto, Arial);
+  line-height: var(--chat-line-height, 1.8);
+  letter-spacing: var(--chat-letter-spacing, 0.0125em);
+}
+
+:root.a11y-simplified main p,
+:root.a11y-simplified main li {
+  max-width: 72ch;
+}
+
+:root.a11y-high-contrast {
+  --border: 224 40% 24%;
+  --input: 210 24% 94%;
+  --ring: 50 100% 55%;
+}
+
+.dark.a11y-high-contrast {
+  --border: 210 40% 78%;
+  --input: 223 18% 16%;
+  --ring: 50 100% 58%;
+}
+
+:root.a11y-high-contrast .chatboc-brand-navbar,
+:root.a11y-high-contrast .chatboc-landing-panel,
+:root.a11y-high-contrast .chatboc-command-shell,
+:root.a11y-high-contrast .chatboc-phone-demo,
+:root.a11y-high-contrast .chat-root {
+  border-color: hsl(var(--foreground) / 0.42) !important;
+}
+
+:root.a11y-high-contrast a,
+:root.a11y-high-contrast button {
+  text-decoration-thickness: 0.12em;
+}
+
+:root.a11y-large-controls button,
+:root.a11y-large-controls [role="button"],
+:root.a11y-large-controls a,
+:root.a11y-large-controls input,
+:root.a11y-large-controls select,
+:root.a11y-large-controls textarea {
+  min-height: 44px;
+}
+
+:root.a11y-reduced-motion *,
+:root.a11y-reduced-motion *::before,
+:root.a11y-reduced-motion *::after {
+  scroll-behavior: auto !important;
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
 }
 
 @keyframes pulse {
@@ -1816,11 +1969,49 @@ html {
   }
 
   .chatboc-container .chat-root {
-    border-radius: 0 !important;
+    border-radius: inherit !important;
+  }
+
+  body.chatboc-widget-open .chatboc-container[data-mode="standalone"] {
+    border-radius: 24px 24px 0 0;
+    box-shadow: 0 -18px 58px rgba(15, 23, 42, 0.28);
+  }
+
+  body.chatboc-widget-open .chatboc-container[data-mode="standalone"]::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 0.46rem;
+    z-index: 1000000;
+    width: 3.4rem;
+    height: 0.28rem;
+    transform: translateX(-50%);
+    border-radius: 999px;
+    background: hsl(var(--muted-foreground) / 0.36);
   }
 
   .chatboc-chat-footer {
     padding-bottom: max(0.55rem, env(safe-area-inset-bottom));
+  }
+
+  .chatboc-pwa-install {
+    left: 0.75rem;
+    right: 0.75rem;
+    bottom: calc(5rem + env(safe-area-inset-bottom));
+    width: auto;
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .chatboc-pwa-install > div:last-child {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .chatboc-a11y-dock {
+    left: calc(0.75rem + env(safe-area-inset-left));
+    top: calc(4.75rem + env(safe-area-inset-top));
+    bottom: auto;
   }
 }
 
