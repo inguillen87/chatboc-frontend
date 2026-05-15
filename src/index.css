@@ -358,10 +358,10 @@
   }
   .chatboc-hero-mascot {
     position: absolute;
-    right: clamp(-12.2rem, -11.2vw, -8rem);
-    top: clamp(13.6rem, 31vh, 16.8rem);
+    right: clamp(-9.6rem, -10vw, -8.3rem);
+    top: clamp(8.9rem, 20vh, 12rem);
     z-index: 6;
-    width: clamp(11.6rem, 12.6vw, 13.4rem);
+    width: clamp(12.4rem, 14vw, 14.8rem);
     pointer-events: none;
     transform-origin: center bottom;
     animation: chatboc-agent-float 6s ease-in-out infinite;
@@ -1333,7 +1333,7 @@
       display: none;
     }
     .chatboc-hero-preview {
-      width: min(calc(100vw - 1.5rem), 23rem);
+      width: min(calc(100vw - 2.5rem), 22.25rem);
       margin-inline: auto;
       margin-top: 0.55rem;
       transform: none;
@@ -1341,9 +1341,9 @@
       padding: 8px;
     }
     body:has(.chatboc-hero-preview) .chatboc-container:not(:has(.chat-root)) {
-      top: 4.7rem !important;
+      top: auto !important;
       right: 1rem !important;
-      bottom: auto !important;
+      bottom: calc(1rem + env(safe-area-inset-bottom)) !important;
     }
     .chatboc-hero-preview::before {
       top: 0.38rem;
@@ -1437,9 +1437,9 @@
       justify-items: center;
     }
     .chatboc-hero-mascot {
-      right: clamp(-2.1rem, -4vw, -1rem);
-      top: clamp(14.5rem, 35vh, 18.5rem);
-      width: clamp(9.6rem, 19vw, 12rem);
+      right: clamp(0.7rem, 2.4vw, 1.4rem);
+      top: clamp(9.75rem, 22vh, 13.5rem);
+      width: clamp(9rem, 18vw, 11.25rem);
     }
     .chatboc-hero-preview {
       width: min(calc(100vw - 5rem), 34rem);

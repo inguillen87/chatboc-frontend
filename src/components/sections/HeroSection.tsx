@@ -913,7 +913,7 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
   };
 
   return (
-    <section className="chatboc-hero-grid overflow-hidden pt-16 pb-12 text-foreground md:pt-16 md:pb-16" style={accentStyle}>
+    <section className="chatboc-hero-grid overflow-visible pt-16 pb-12 text-foreground md:pt-16 md:pb-16" style={accentStyle}>
       <div className="container mx-auto px-4 2xl:max-w-[1480px]">
         <div className={`chatboc-hero-layout grid items-center gap-8 lg:gap-12 xl:gap-16 ${showHeroPreview ? "lg:grid-cols-[minmax(0,0.84fr)_minmax(30rem,1.16fr)] xl:grid-cols-[minmax(0,0.78fr)_minmax(34rem,1.22fr)]" : ""}`}>
           <div className="min-w-0 max-w-3xl">
