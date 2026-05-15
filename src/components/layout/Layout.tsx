@@ -18,7 +18,7 @@ const Layout = () => {
   if (isEmbed) {
     return (
       <div className="flex flex-col min-h-screen bg-transparent">
-        <main className="flex-1 w-full">
+        <main id="main-content" tabIndex={-1} className="flex-1 w-full">
           <Outlet />
         </main>
       </div>
@@ -29,7 +29,7 @@ const Layout = () => {
     <div className="flex flex-col min-h-screen bg-background text-foreground transition-colors duration-300">
       <DemoModeBanner />
       <Navbar />
-      <main className="flex-1 pt-20 px-4 sm:px-6 md:px-8 lg:px-16 max-w-7xl mx-auto w-full">
+      <main id="main-content" tabIndex={-1} className="flex-1 pt-20 px-4 sm:px-6 md:px-8 lg:px-16 max-w-7xl mx-auto w-full">
         <Outlet />
       </main>
       <ScrollToTopButton />

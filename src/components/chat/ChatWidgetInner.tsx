@@ -15,7 +15,7 @@ import type { AnimatePresenceProps } from "framer-motion";
 import { useUser } from "@/hooks/useUser";
 import { apiFetch, getErrorMessage } from "@/utils/api";
 import ReadingRuler from "./ReadingRuler";
-import { readAccessibilityPrefs, type Prefs } from "./AccessibilityToggle";
+import { ACCESSIBILITY_EVENT, readAccessibilityPrefs, type Prefs } from "./AccessibilityToggle";
 import { useCartCount } from "@/hooks/useCartCount";
 import { buildTenantNavigationUrl, TENANT_ROUTE_PREFIXES } from "@/utils/tenantPaths"; // Fixed import
 import { useTenant } from "@/context/TenantContext";
@@ -1128,9 +1128,17 @@ function ChatWidgetInner({
     const handleStorage = () => {
       setA11yPrefs(readAccessibilityPrefs());
     };
+    const handleAccessibilityChange = (event: Event) => {
+      const detail = (event as CustomEvent<Prefs>).detail;
+      setA11yPrefs(detail ?? readAccessibilityPrefs());
+    };
     if (typeof window !== "undefined") {
       window.addEventListener("storage", handleStorage);
-      return () => window.removeEventListener("storage", handleStorage);
+      window.addEventListener(ACCESSIBILITY_EVENT, handleAccessibilityChange as EventListener);
+      return () => {
+        window.removeEventListener("storage", handleStorage);
+        window.removeEventListener(ACCESSIBILITY_EVENT, handleAccessibilityChange as EventListener);
+      };
     }
   }, []);
 
@@ -1503,7 +1511,7 @@ function ChatWidgetInner({
     const heightToUse = isNaN(desired) ? 680 : desired;
 
     if (isMobileView) {
-      return "100dvh";
+      return "min(72dvh, 680px)";
     }
 
     if (mode === 'iframe') {
@@ -2205,11 +2213,14 @@ function ChatWidgetInner({
     if (mode === "standalone") {
       if (isOpen && isMobileView) {
         return {
-          inset: 0,
+          left: 0,
+          right: 0,
+          top: "auto",
+          bottom: 0,
           width: finalOpenWidth,
           height: finalOpenHeight,
           maxWidth: "100dvw",
-          maxHeight: "100dvh",
+          maxHeight: "calc(100dvh - max(4.75rem, env(safe-area-inset-top)))",
           zIndex: 999999,
           transition: "opacity 0.18s ease",
           transform: "none",
@@ -2430,8 +2441,13 @@ function ChatWidgetInner({
             <motion.div
               key="chatboc-panel-open"
               className={cn(commonPanelStyles, "w-full h-full shadow-xl")}
+              role={isMobileView ? "dialog" : undefined}
+              aria-modal={isMobileView ? "false" : undefined}
+              aria-label="Chatboc asistente virtual"
               style={{
-                  borderRadius: isMobileView ? "0" : (borderRadius !== undefined ? `${borderRadius}px` : "16px"),
+                  borderRadius: isMobileView
+                    ? "24px 24px 0 0"
+                    : (borderRadius !== undefined ? `${borderRadius}px` : "16px"),
                   background: chatBackground || (widgetUx.glassmorphism
                     ? presetVisualProfile.panelGradient
                     : "hsl(var(--card))"),

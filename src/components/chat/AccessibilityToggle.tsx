@@ -26,6 +26,7 @@ export type Prefs = {
 };
 
 const LS_KEY = "chatboc_accessibility";
+export const ACCESSIBILITY_EVENT = "chatboc:a11y-change";
 
 export const DEFAULT_ACCESSIBILITY_PREFS: Prefs = {
   dyslexia: false,
@@ -47,6 +48,25 @@ export const readAccessibilityPrefs = (): Prefs => {
     return DEFAULT_ACCESSIBILITY_PREFS;
   }
 };
+
+export const applyAccessibilityPrefs = (prefs: Prefs) => {
+  if (typeof document === "undefined") return;
+  const root = document.documentElement;
+  root.classList.toggle("a11y-dyslexia", !!prefs.dyslexia);
+  root.classList.toggle("a11y-simplified", !!prefs.simplified);
+  root.classList.toggle("a11y-high-contrast", !!prefs.highContrast);
+  root.classList.toggle("a11y-large-controls", !!prefs.largeControls);
+  root.classList.toggle("a11y-captions", !!prefs.captions);
+  root.classList.toggle("a11y-reduced-motion", !!prefs.reducedMotion);
+};
+
+const arePrefsEqual = (a: Prefs, b: Prefs) =>
+  a.dyslexia === b.dyslexia &&
+  a.simplified === b.simplified &&
+  a.highContrast === b.highContrast &&
+  a.largeControls === b.largeControls &&
+  a.captions === b.captions &&
+  a.reducedMotion === b.reducedMotion;
 
 const options = [
   {
@@ -120,6 +140,17 @@ export default function AccessibilityToggle({
 }) {
   const [prefs, setPrefs] = useState<Prefs>(readAccessibilityPrefs);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const syncPrefs = (event: Event) => {
+      const detail = (event as CustomEvent<Prefs>).detail;
+      if (!detail) return;
+      setPrefs((current) => (arePrefsEqual(current, detail) ? current : detail));
+    };
+    window.addEventListener(ACCESSIBILITY_EVENT, syncPrefs as EventListener);
+    return () => window.removeEventListener(ACCESSIBILITY_EVENT, syncPrefs as EventListener);
+  }, []);
+
   const visibleOptions = useMemo(
     () =>
       options.filter((option) => {
@@ -149,13 +180,10 @@ export default function AccessibilityToggle({
   useEffect(() => {
     safeLocalStorage.setItem(LS_KEY, JSON.stringify(prefs));
     onChange?.(prefs);
-    const root = document.documentElement;
-    root.classList.toggle("a11y-dyslexia", !!prefs.dyslexia);
-    root.classList.toggle("a11y-simplified", !!prefs.simplified);
-    root.classList.toggle("a11y-high-contrast", !!prefs.highContrast);
-    root.classList.toggle("a11y-large-controls", !!prefs.largeControls);
-    root.classList.toggle("a11y-captions", !!prefs.captions);
-    root.classList.toggle("a11y-reduced-motion", !!prefs.reducedMotion);
+    applyAccessibilityPrefs(prefs);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent(ACCESSIBILITY_EVENT, { detail: prefs }));
+    }
   }, [prefs, onChange]);
 
   const activeCount = visibleOptions.reduce(

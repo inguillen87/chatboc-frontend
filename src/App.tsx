@@ -26,6 +26,8 @@ import TokenRedirectWrapper from "@/components/TokenRedirectWrapper";
 import { CapabilitiesProvider } from '@/context/CapabilitiesContext';
 import { toCanonicalTenantPath } from '@/utils/canonicalTenantRouting';
 import { AppShellStatusBar } from '@/components/app-shell/AppShellStatusBar';
+import { AppAccessibility } from '@/components/app-shell/AppAccessibility';
+import { PwaInstallPrompt } from '@/components/app-shell/PwaInstallPrompt';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -182,7 +184,9 @@ const App = () => {
                   <CapabilitiesProvider>
                     <RealtimeAlertsProvider>
                       <AppShellStatusBar />
+                      <AppAccessibility />
                       <AppRoutes />
+                      <PwaInstallPrompt />
                     </RealtimeAlertsProvider>
                   </CapabilitiesProvider>
                 </TenantProvider>
