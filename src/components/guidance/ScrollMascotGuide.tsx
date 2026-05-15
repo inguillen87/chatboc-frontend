@@ -244,7 +244,7 @@ export default function ScrollMascotGuide() {
     };
   }, [activeIndex, sections.length]);
 
-  if (!routeAllowsGuide || dismissed || sections.length < 2) return null;
+  if (!routeAllowsGuide || dismissed || sections.length < 1) return null;
 
   const current = sections[Math.min(activeIndex, sections.length - 1)];
   const rootClassName = [
