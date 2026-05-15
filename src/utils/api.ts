@@ -330,10 +330,11 @@ const inferTenantSlug = (explicitTenant?: string | null, pathForFallback?: strin
 export const resolveTenantSlug = (
   explicitTenant?: string | null,
   pathForFallback?: string | null,
+  options: { persist?: boolean } = {},
 ): string | null => {
   const resolved = inferTenantSlug(explicitTenant, pathForFallback);
 
-  if (resolved) {
+  if (resolved && options.persist !== false) {
     try {
       safeLocalStorage.setItem("tenantSlug", resolved);
     } catch (error) {
@@ -504,6 +505,11 @@ interface ApiFetchOptions {
    * When provided, attaches the tenant slug so the backend can scope the request.
    */
   tenantSlug?: string | null;
+  /**
+   * Set false for scoped demo requests so public examples never overwrite
+   * the browser's real tenant context.
+   */
+  persistTenantSlug?: boolean;
   /**
    * When provided, overrides the base URL used to resolve the request path.
    * Useful for public modules (e.g. encuestas) that must hit a canonical host
@@ -681,6 +687,7 @@ export async function apiFetch<T>(
     isWidgetRequest,
     omitChatSessionId,
     tenantSlug,
+    persistTenantSlug,
     baseUrlOverride,
     omitEntityToken,
     omitTenant,
@@ -734,7 +741,7 @@ export async function apiFetch<T>(
     ? null
     : treatAsWidget && tenantSlug === undefined
       ? null
-      : resolveTenantSlug(tenantSlug, path);
+      : resolveTenantSlug(tenantSlug, path, { persist: persistTenantSlug !== false });
   const panelToken = usePanelSessionStore.getState().authToken || safeLocalStorage.getItem("authToken");
   const chatToken = useWidgetSessionStore.getState().chatAuthToken || safeLocalStorage.getItem("chatAuthToken");
   let storedRole: string | null = null;
@@ -1017,7 +1024,7 @@ export async function apiFetch<T>(
     const allowPublicOriginFallback = (isSameOriginProxy || isCurrentOriginBase) && shouldOmitEntityTokenForRoute;
     const urlsToTry = [buildUrl(base, isApiBase)];
 
-    if (!isApiBase && hasApiPrefix) {
+    if (!isApiBase && hasApiPrefix && !isPublicRoute) {
       urlsToTry.push(buildUrl(base, true));
     }
 

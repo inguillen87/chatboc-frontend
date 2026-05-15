@@ -584,7 +584,7 @@ function StandaloneChatPanel({
           fields: normalizedValues,
         },
         resolvedContext.tenantSlug,
-        { idempotencyKey },
+        { idempotencyKey, persistTenantSlug: !demoSessionId },
       );
       setLeadStatus('sent');
       setLeadResult(response);

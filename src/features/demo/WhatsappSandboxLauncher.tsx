@@ -19,8 +19,7 @@ import type {
   DemoWhatsappSandboxScript,
 } from './demoTypes';
 import { ApiError, getErrorMessage } from '@/utils/api';
-import { persistChatSessionId } from '@/utils/chatSessionId';
-import { safeLocalStorage } from '@/utils/safeLocalStorage';
+import { persistDemoRuntimeStorage } from './demoStorage';
 
 type LauncherError = {
   message: string;
@@ -83,11 +82,7 @@ const readPositiveNumber = (...values: unknown[]): number | null => {
 const persistSandboxSession = (response: DemoWhatsappSandboxResponse | null) => {
   const session = response?.session;
   if (!session) return;
-  const persisted = persistChatSessionId(session.chat_session_id ?? session.session_id ?? null);
-  if (persisted) safeLocalStorage.setItem('chatboc_chat_session_id', persisted);
-  if (typeof session.demo_session_id === 'string' && session.demo_session_id.trim()) {
-    safeLocalStorage.setItem('chatboc_demo_session_id', session.demo_session_id.trim());
-  }
+  persistDemoRuntimeStorage(session);
 };
 
 export default function WhatsappSandboxLauncher({

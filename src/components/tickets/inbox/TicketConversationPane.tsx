@@ -182,7 +182,7 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
   const assignee = detailTicket.assignee ?? {};
   const sla = detailTicket.sla ?? {};
   const locationPoint = readInboxLocationPoint(detailTicket.location);
-  const canRenderMap = Boolean(locationPoint);
+  const canRenderMap = detailTicket.map?.can_render === false ? false : Boolean(locationPoint);
   const attachments = detailTicket.attachments ?? [];
   const channelLabel = normalizeChannelLabel(detailTicket.canal_ingreso ?? detailTicket.channel);
   const assigneeLabel = asText(assignee.name) || asText(assignee.email);

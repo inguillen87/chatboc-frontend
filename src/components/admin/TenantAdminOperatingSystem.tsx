@@ -21,11 +21,14 @@ import {
 
 import {
   getTenantAdminExperienceV2,
+  normalizeOmnichannelInboxItemV2,
+  type OmnichannelInboxItem,
   type TenantAdminExperienceV2,
 } from "@/api/v2/saas";
 import CatalogQualityCommandCenter from "@/components/admin/CatalogQualityCommandCenter";
 import EmployeeRoutingMatrix from "@/components/admin/EmployeeRoutingMatrix";
 import WhatsappOperationsHub from "@/components/admin/WhatsappOperationsHub";
+import { TicketConversationPane } from "@/components/tickets/inbox/TicketConversationPane";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -66,6 +69,24 @@ const isRecord = (value: unknown): value is AnyRecord =>
 
 const asArray = (value: unknown): AnyRecord[] =>
   Array.isArray(value) ? value.filter(isRecord) : [];
+
+const asString = (value: unknown): string => {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  if (typeof value === "boolean") return value ? "true" : "false";
+  return "";
+};
+
+const asStringList = (value: unknown): string[] => {
+  if (Array.isArray(value)) {
+    return value.map(asString).map((item) => item.trim()).filter(Boolean);
+  }
+  if (isRecord(value)) {
+    return Object.keys(value).filter(Boolean);
+  }
+  const single = asString(value).trim();
+  return single ? [single] : [];
+};
 
 const first = (record: AnyRecord | undefined | null, keys: string[]) => {
   if (!record) return undefined;
@@ -145,6 +166,9 @@ const EmptyPanel = ({ label }: { label: string }) => (
 
 const readLeadLabel = (lead: AnyRecord, index: number) =>
   String(first(lead, ["contact", "contact_name", "name", "nombre", "intent", "ticket_id", "id"]) || `Lead ${index + 1}`);
+
+const readLeadTicket = (lead: AnyRecord | null): OmnichannelInboxItem | null =>
+  lead ? normalizeOmnichannelInboxItemV2(lead) : null;
 
 const renderRecordValue = (value: unknown) => {
   if (value === undefined || value === null || value === "") return "—";
@@ -237,10 +261,24 @@ export default function TenantAdminOperatingSystem({ tenantSlug }: { tenantSlug?
     }
   }, [activeModule, modules]);
 
+  const activeModuleConfig = useMemo(
+    () => modules.find((module) => String(module.id || "") === activeModule) ?? null,
+    [activeModule, modules],
+  );
+  const selectedLeadTicket = useMemo(() => readLeadTicket(selectedLead), [selectedLead]);
+  const selectedLeadTicketId = selectedLeadTicket?.ticket_id || selectedLeadTicket?.id;
   const readinessChecks = isRecord(readiness.checks) ? readiness.checks : {};
+  const freshnessSummary = isRecord(freshness.summary) ? freshness.summary : {};
+  const canRenderHeatmap = first(freshnessSummary, ["can_render_heatmap", "heatmap_enabled"]);
   const freshnessStatus = String(freshness.status || first(freshness, ["state", "reason_code"]) || "ready");
   const healthScore = first(bundle?.health, ["score", "health_score"]) ?? first(profile, ["health_score", "score"]);
   const readinessScore = first(readiness, ["score", "readiness_score"]);
+  const educationAdminMenu = isRecord(education.admin_menu) ? education.admin_menu : {};
+  const educationPanelSections = asArray(first(educationAdminMenu, ["panel_sections", "sections", "items"]));
+  const educationMediaInputs = asStringList(
+    first(educationProfile, ["media_inputs", "inputs", "supported_media"]) ??
+      first(education, ["media_inputs", "supported_media"]),
+  );
 
   if (loading) {
     return (
@@ -360,7 +398,11 @@ export default function TenantAdminOperatingSystem({ tenantSlug }: { tenantSlug?
                 Estados, vistas y acciones se actualizan desde la configuracion del tenant.
               </CardDescription>
             </CardHeader>
-            <CardContent className="grid gap-4 lg:grid-cols-2">
+            <CardContent className="space-y-4">
+              {activeModuleConfig ? (
+                <ModuleContractSummary module={activeModuleConfig} />
+              ) : null}
+              <div className="grid gap-4 lg:grid-cols-2">
               <div className="rounded-2xl border border-border/60 p-4">
                 <div className="mb-3 flex items-center gap-2 font-semibold">
                   <CheckCircle2 className="h-4 w-4 text-emerald-600" />
@@ -392,7 +434,7 @@ export default function TenantAdminOperatingSystem({ tenantSlug }: { tenantSlug?
                   </div>
                   <div className="flex justify-between rounded-lg border px-3 py-2">
                     <span>Heatmap</span>
-                    <span>{first(freshness, ["summary", "can_render_heatmap"]) === false ? "Sin datos" : "Listo"}</span>
+                    <span>{canRenderHeatmap === false ? "Sin datos" : "Listo"}</span>
                   </div>
                   <div className="flex justify-between rounded-lg border px-3 py-2">
                     <span>Refresh</span>
@@ -423,6 +465,7 @@ export default function TenantAdminOperatingSystem({ tenantSlug }: { tenantSlug?
                   <MetricCard label="Votos live" value={formatNumber(first(surveySummary, ["votaciones_live", "live_votes"]))} icon={Activity} />
                   <MetricCard label="Leads abiertos" value={formatNumber(first(leadCapture, ["open_leads", "open"]))} icon={Inbox} />
                 </div>
+              </div>
               </div>
             </CardContent>
           </Card>
@@ -472,19 +515,32 @@ export default function TenantAdminOperatingSystem({ tenantSlug }: { tenantSlug?
             </Card>
           ) : null}
 
-          {educationProfile.is_education || asArray(first(education, ["admin_menu", "panel_sections"])).length ? (
+          {educationProfile.is_education || educationPanelSections.length || educationMediaInputs.length ? (
             <Card className="border-border/60">
               <CardHeader>
                 <CardTitle className="text-base">Educacion</CardTitle>
                 <CardDescription>Secciones escolares configuradas para este tenant.</CardDescription>
               </CardHeader>
-              <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                {asArray(first(education, ["admin_menu", "panel_sections"])).map((section, index) => (
-                  <div key={String(section.id || index)} className="rounded-2xl border p-4">
-                    <div className="font-semibold">{String(section.label || section.title || section.id || "Seccion")}</div>
-                    <div className="mt-1 text-xs text-muted-foreground">{String(section.route || section.status || "Disponible en el panel")}</div>
+              <CardContent className="space-y-4">
+                {educationMediaInputs.length ? (
+                  <div className="rounded-2xl border border-border/60 p-4">
+                    <div className="mb-3 text-sm font-semibold">Media inputs</div>
+                    <div className="flex flex-wrap gap-2">
+                      {educationMediaInputs.map((input) => (
+                        <StatePill key={input} value={input} />
+                      ))}
+                    </div>
                   </div>
-                ))}
+                ) : null}
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  {educationPanelSections.map((section, index) => (
+                    <div key={String(section.id || index)} className="rounded-2xl border p-4">
+                      <div className="font-semibold">{String(section.label || section.title || section.id || "Seccion")}</div>
+                      <div className="mt-1 text-xs text-muted-foreground">{String(section.route || section.endpoint || section.status || "Disponible en el panel")}</div>
+                      <ModuleContractSummary module={section} compact />
+                    </div>
+                  ))}
+                </div>
               </CardContent>
             </Card>
           ) : null}
@@ -492,14 +548,23 @@ export default function TenantAdminOperatingSystem({ tenantSlug }: { tenantSlug?
       </div>
 
       <Sheet open={Boolean(selectedLead)} onOpenChange={(open) => !open && setSelectedLead(null)}>
-        <SheetContent className="w-full overflow-y-auto p-0 sm:max-w-[420px]">
+        <SheetContent className="w-full overflow-y-auto p-0 sm:max-w-[720px]">
           <SheetHeader className="border-b bg-muted/20 p-5 text-left">
             <SheetTitle>Lead 360</SheetTitle>
             <SheetDescription>
               Vista compacta para soporte, ventas o mesa de entrada.
             </SheetDescription>
           </SheetHeader>
-          {selectedLead ? (
+          {selectedLead && selectedLeadTicket && selectedLeadTicketId ? (
+            <div className="h-[calc(100vh-92px)] min-h-[520px]">
+              <TicketConversationPane
+                ticketId={String(selectedLeadTicketId)}
+                ticket={selectedLeadTicket}
+                tenantSlug={effectiveSlug}
+                onActionComplete={loadBundle}
+              />
+            </div>
+          ) : selectedLead ? (
             <div className="space-y-4 p-5">
               <div className="rounded-[8px] border bg-background p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Resumen</p>
@@ -556,5 +621,69 @@ const LeadDetailBlock = ({
         </div>
       ))}
     </div>
+  </div>
+);
+
+const ModuleContractSummary = ({
+  module,
+  compact = false,
+}: {
+  module: AnyRecord;
+  compact?: boolean;
+}) => {
+  const secondaryEndpoints = asArray(module.secondary_endpoints);
+  const widgets = asArray(module.widgets);
+  const endpoint = asString(module.endpoint).trim();
+  const route = asString(module.route).trim();
+
+  if (!endpoint && !route && !secondaryEndpoints.length && !widgets.length) {
+    return null;
+  }
+
+  return (
+    <div className={compact ? "mt-3 space-y-2 text-xs" : "rounded-2xl border border-border/60 bg-muted/10 p-4 text-sm"}>
+      {!compact ? (
+        <div className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+          Contrato del modulo
+        </div>
+      ) : null}
+      <div className="grid gap-2 md:grid-cols-2">
+        {route ? <ContractLine label="Route" value={route} /> : null}
+        {endpoint ? <ContractLine label="Endpoint" value={endpoint} /> : null}
+      </div>
+      {secondaryEndpoints.length ? (
+        <div className="mt-3">
+          <div className="mb-2 text-xs font-semibold text-muted-foreground">Secondary endpoints</div>
+          <div className="flex flex-wrap gap-2">
+            {secondaryEndpoints.map((item, index) => (
+              <StatePill
+                key={`${asString(first(item, ["id", "endpoint", "route", "label"])) || "endpoint"}-${index}`}
+                value={asString(first(item, ["label", "endpoint", "route", "id"])) || `endpoint_${index + 1}`}
+              />
+            ))}
+          </div>
+        </div>
+      ) : null}
+      {widgets.length ? (
+        <div className="mt-3">
+          <div className="mb-2 text-xs font-semibold text-muted-foreground">Widgets</div>
+          <div className="flex flex-wrap gap-2">
+            {widgets.map((item, index) => (
+              <StatePill
+                key={`${asString(first(item, ["id", "label", "type"])) || "widget"}-${index}`}
+                value={asString(first(item, ["label", "id", "type"])) || `widget_${index + 1}`}
+              />
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+};
+
+const ContractLine = ({ label, value }: { label: string; value: string }) => (
+  <div className="grid min-w-0 gap-1 rounded-[8px] border bg-background px-3 py-2">
+    <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{label}</span>
+    <span className="truncate font-medium text-foreground">{value}</span>
   </div>
 );

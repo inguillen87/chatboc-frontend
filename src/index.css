@@ -296,15 +296,17 @@
   .chatboc-hero-preview {
     position: relative;
     z-index: 2;
-    margin-left: auto;
-    width: min(100%, 26.25rem);
-    border-radius: 54px;
-    padding: 14px;
+    margin-inline: auto;
+    width: min(100%, 36rem);
+    transform: translateY(-2rem) scale(0.92);
+    transform-origin: top center;
+    border-radius: 62px;
+    padding: 16px;
     background:
       linear-gradient(145deg, hsl(var(--foreground) / 0.92), hsl(var(--foreground) / 0.78)),
       linear-gradient(135deg, hsl(var(--primary) / 0.34), hsl(var(--success) / 0.22));
     box-shadow:
-      0 34px 105px rgba(15, 23, 42, 0.22),
+      0 42px 130px rgba(15, 23, 42, 0.25),
       inset 0 0 0 1px hsl(var(--background) / 0.42),
       inset 0 -18px 36px rgba(0, 0, 0, 0.2);
   }
@@ -344,9 +346,11 @@
   .chatboc-hero-stage {
     position: relative;
     display: grid;
-    min-height: min(680px, calc(100vh - 172px));
-    align-items: center;
-    justify-items: end;
+    min-height: min(780px, calc(100svh - 98px));
+    align-items: start;
+    justify-items: center;
+    overflow: visible;
+    padding-top: clamp(1.25rem, 4svh, 3rem);
   }
   .chatboc-hero-layout > div:first-child {
     position: relative;
@@ -354,10 +358,10 @@
   }
   .chatboc-hero-mascot {
     position: absolute;
-    left: clamp(-6.2rem, -8vw, -4.2rem);
-    bottom: clamp(-0.2rem, 3vh, 2rem);
-    z-index: 3;
-    width: clamp(14.6rem, 20vw, 17.5rem);
+    right: clamp(-0.55rem, 0vw, 0.35rem);
+    top: clamp(24.7rem, 54vh, 28.8rem);
+    z-index: 6;
+    width: clamp(11.2rem, 12.2vw, 13.8rem);
     pointer-events: none;
     transform-origin: center bottom;
     animation: chatboc-agent-float 6s ease-in-out infinite;
@@ -365,7 +369,7 @@
   .chatboc-hero-mascot::before {
     content: "";
     position: absolute;
-    inset: 20% 4% 9%;
+    inset: 22% 2% 8%;
     z-index: -1;
     border-radius: 999px;
     background:
@@ -378,8 +382,8 @@
     width: 100%;
     height: auto;
     filter:
-      drop-shadow(0 30px 44px rgba(2, 6, 23, 0.42))
-      drop-shadow(0 0 22px rgba(102, 216, 255, 0.3));
+      drop-shadow(0 28px 42px rgba(2, 6, 23, 0.38))
+      drop-shadow(0 0 26px rgba(102, 216, 255, 0.34));
   }
   .chatboc-hero-preview > .chatboc-phone-demo::after {
     content: "";
@@ -418,11 +422,11 @@
     --chatboc-phone-wash-b: hsl(var(--success) / 0.12);
     position: relative;
     display: flex;
-    height: min(640px, calc(100vh - 190px));
+    height: clamp(590px, calc(100svh - 280px), 780px);
     min-height: 590px;
     flex-direction: column;
     overflow: hidden;
-    border-radius: 42px;
+    border-radius: 46px;
     background:
       radial-gradient(circle at 12% 0%, var(--chatboc-phone-wash-a), transparent 34%),
       radial-gradient(circle at 86% 16%, var(--chatboc-phone-wash-b), transparent 30%),
@@ -490,11 +494,11 @@
     position: relative;
     z-index: 1;
     display: flex;
-    min-height: 2.12rem;
+    min-height: 2.28rem;
     flex-shrink: 0;
     align-items: center;
     justify-content: space-between;
-    padding: 0.65rem 1.05rem 0.25rem;
+    padding: 0.76rem 1.18rem 0.28rem;
     color: hsl(var(--muted-foreground));
   }
   .chatboc-phone-demo__chrome > span {
@@ -533,13 +537,13 @@
   }
   .chatboc-phone-demo__bar {
     display: flex;
-    min-height: 66px;
+    min-height: 78px;
     flex-shrink: 0;
     align-items: center;
     justify-content: space-between;
     gap: 0.75rem;
     border-bottom: 1px solid hsl(var(--border) / 0.7);
-    padding: 0.85rem 0.95rem;
+    padding: 1rem 1.08rem;
     background: hsl(var(--muted) / 0.34);
   }
   .dark .chatboc-phone-demo__bar {
@@ -551,10 +555,10 @@
   .chatboc-phone-demo__tabs {
     display: flex;
     flex-shrink: 0;
-    gap: 0.5rem;
+    gap: 0.58rem;
     overflow-x: auto;
     border-bottom: 1px solid hsl(var(--border) / 0.62);
-    padding: 0.6rem 0.85rem;
+    padding: 0.72rem 0.95rem;
   }
   .dark .chatboc-phone-demo__tabs {
     border-bottom-color: rgba(148, 163, 184, 0.14);
@@ -565,15 +569,15 @@
   }
   .chatboc-phone-demo__tab {
     display: inline-flex;
-    min-height: 2.25rem;
+    min-height: 2.48rem;
     flex-shrink: 0;
     align-items: center;
     gap: 0.5rem;
     border-radius: 8px;
     border: 1px solid hsl(var(--border) / 0.72);
     background: hsl(var(--card) / 0.62);
-    padding: 0.5rem 0.75rem;
-    font-size: 0.75rem;
+    padding: 0.56rem 0.85rem;
+    font-size: 0.79rem;
     font-weight: 700;
     color: hsl(var(--muted-foreground));
     transition: border-color 180ms ease, background-color 180ms ease, color 180ms ease;
@@ -593,9 +597,9 @@
     min-height: 0;
     flex: 1;
     flex-direction: column;
-    gap: 0.74rem;
+    gap: 0.9rem;
     overflow: auto;
-    padding: 0.82rem 0.88rem 1.08rem;
+    padding: 1rem 1.05rem 1.2rem;
     scrollbar-width: none;
     animation: chatboc-phone-flow-in 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
   }
@@ -624,13 +628,13 @@
     animation: chatboc-progress-pass 10.6s ease-in-out forwards;
   }
   .chatboc-phone-demo__progress span:nth-child(2)::after {
-    animation-delay: 1.8s;
+    animation-delay: 0.55s;
   }
   .chatboc-phone-demo__progress span:nth-child(3)::after {
-    animation-delay: 4.25s;
+    animation-delay: 1.05s;
   }
   .chatboc-phone-demo__progress span:nth-child(4)::after {
-    animation-delay: 6.95s;
+    animation-delay: 1.55s;
   }
   .chatboc-phone-demo__screen::-webkit-scrollbar {
     width: 0;
@@ -638,11 +642,11 @@
   }
   .chatboc-phone-demo__bubble {
     position: relative;
-    max-width: min(86%, 21rem);
-    border-radius: 14px;
-    padding: 0.78rem 0.86rem;
-    font-size: 0.86rem;
-    line-height: 1.5;
+    max-width: min(88%, 24rem);
+    border-radius: 16px;
+    padding: 0.9rem 0.98rem;
+    font-size: 0.94rem;
+    line-height: 1.55;
   }
   .chatboc-phone-demo__bubble::after {
     content: "";
@@ -690,15 +694,15 @@
   .chatboc-phone-demo__thread {
     display: flex;
     flex-direction: column;
-    gap: 0.74rem;
-    border-radius: 18px;
+    gap: 0.88rem;
+    border-radius: 22px;
     border: 1px solid hsl(var(--border) / 0.62);
     background:
       radial-gradient(hsl(var(--foreground) / 0.05) 0 1px, transparent 1px),
       linear-gradient(180deg, hsl(var(--background) / 0.18), transparent),
       hsl(var(--background) / 0.34);
     background-size: 18px 18px, auto, auto;
-    padding: 0.72rem;
+    padding: 0.92rem;
   }
   .dark .chatboc-phone-demo__thread {
     border-color: rgba(148, 163, 184, 0.14);
@@ -715,28 +719,28 @@
     animation: chatboc-message-rise 920ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
   }
   .chatboc-phone-demo__sequence--1 {
-    animation-delay: 280ms;
+    animation-delay: 90ms;
   }
   .chatboc-phone-demo__sequence--2 {
-    animation-delay: 920ms;
+    animation-delay: 240ms;
   }
   .chatboc-phone-demo__sequence--3 {
-    animation-delay: 2080ms;
+    animation-delay: 420ms;
   }
   .chatboc-phone-demo__sequence--4 {
-    animation-delay: 3300ms;
+    animation-delay: 620ms;
   }
   .chatboc-phone-demo__sequence--5 {
-    animation-delay: 4620ms;
+    animation-delay: 840ms;
   }
   .chatboc-phone-demo__sequence--6 {
-    animation-delay: 5880ms;
+    animation-delay: 1060ms;
   }
   .chatboc-phone-demo__sequence--7 {
-    animation-delay: 6840ms;
+    animation-delay: 1280ms;
   }
   .chatboc-phone-demo__sequence--8 {
-    animation-delay: 7620ms;
+    animation-delay: 1500ms;
   }
   .chatboc-phone-demo__typing {
     display: inline-flex;
@@ -770,7 +774,11 @@
   .chatboc-phone-demo__attachments {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.52rem;
+    gap: 0.64rem;
+  }
+  .chatboc-phone-demo__attachments .chatboc-hero-attachment--image,
+  .chatboc-phone-demo__attachments .chatboc-hero-attachment--file {
+    grid-column: 1 / -1;
   }
   .chatboc-phone-demo__attachments .chatboc-hero-attachment {
     opacity: 0;
@@ -790,12 +798,12 @@
     animation-delay: 1400ms;
   }
   .chatboc-hero-attachment {
-    min-height: 4.6rem;
-    border-radius: 12px;
+    min-height: 5.1rem;
+    border-radius: 14px;
     border: 1px solid hsl(var(--border) / 0.72);
     background: hsl(var(--muted) / 0.54);
-    padding: 0.65rem;
-    font-size: 0.75rem;
+    padding: 0.72rem;
+    font-size: 0.79rem;
     color: hsl(var(--muted-foreground));
   }
   .dark .chatboc-hero-attachment {
@@ -807,9 +815,9 @@
   .chatboc-hero-attachment__photo {
     display: block;
     width: 100%;
-    height: 7rem;
-    margin-top: 0.55rem;
-    border-radius: 10px;
+    height: 8.75rem;
+    margin-top: 0.62rem;
+    border-radius: 12px;
     border: 1px solid hsl(var(--border) / 0.68);
     object-fit: cover;
     background: hsl(var(--background) / 0.72);
@@ -984,11 +992,11 @@
   .chatboc-phone-demo__composer {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.4rem;
-    border-radius: 14px;
+    gap: 0.45rem;
+    border-radius: 16px;
     border: 1px solid hsl(var(--border) / 0.66);
     background: hsl(var(--card) / 0.72);
-    padding: 0.5rem;
+    padding: 0.58rem;
   }
   .dark .chatboc-phone-demo__composer {
     border-color: rgba(148, 163, 184, 0.16);
@@ -996,14 +1004,14 @@
   }
   .chatboc-phone-demo__composer-chip {
     display: inline-flex;
-    min-height: 1.9rem;
+    min-height: 2.08rem;
     align-items: center;
     gap: 0.36rem;
     border-radius: 999px;
     border: 1px solid hsl(var(--border) / 0.72);
     background: hsl(var(--muted) / 0.42);
-    padding: 0.36rem 0.55rem;
-    font-size: 0.69rem;
+    padding: 0.42rem 0.64rem;
+    font-size: 0.73rem;
     font-weight: 700;
     color: hsl(var(--muted-foreground));
   }
@@ -1017,7 +1025,7 @@
   }
   .chatboc-phone-demo__inputbar {
     display: flex;
-    min-height: 2.58rem;
+    min-height: 2.86rem;
     align-items: center;
     justify-content: space-between;
     gap: 0.75rem;
@@ -1026,7 +1034,7 @@
     background: hsl(var(--card) / 0.82);
     padding: 0.42rem 0.55rem 0.42rem 0.92rem;
     color: hsl(var(--muted-foreground));
-    font-size: 0.76rem;
+    font-size: 0.82rem;
     font-weight: 700;
   }
   .dark .chatboc-phone-demo__inputbar {
@@ -1045,10 +1053,10 @@
   }
   .chatboc-phone-demo__result,
   .chatboc-phone-demo__steps {
-    border-radius: 16px;
+    border-radius: 18px;
     border: 1px solid hsl(var(--border) / 0.72);
     background: hsl(var(--background) / 0.78);
-    padding: 0.82rem;
+    padding: 0.98rem;
     box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
   }
   .dark .chatboc-phone-demo__result,
@@ -1126,7 +1134,7 @@
   }
   .chatboc-phone-demo__metrics > div {
     border-right: 1px solid hsl(var(--border) / 0.62);
-    padding: 0.75rem;
+    padding: 0.78rem 0.88rem;
   }
   .dark .chatboc-phone-demo__metrics > div {
     border-right-color: rgba(148, 163, 184, 0.14);
@@ -1286,16 +1294,18 @@
     .chatboc-hero-stage {
       min-height: 0;
       justify-items: center;
+      padding-top: 0;
     }
     .chatboc-hero-mascot {
       display: none;
     }
     .chatboc-hero-preview {
-      width: min(calc(100vw - 4rem), 18.75rem);
+      width: min(calc(100vw - 1.5rem), 23rem);
       margin-inline: auto;
-      margin-top: 0.35rem;
-      border-radius: 38px;
-      padding: 7px;
+      margin-top: 0.55rem;
+      transform: none;
+      border-radius: 42px;
+      padding: 8px;
     }
     body:has(.chatboc-hero-preview) .chatboc-container:not(:has(.chat-root)) {
       top: 4.7rem !important;
@@ -1306,19 +1316,19 @@
       top: 0.38rem;
     }
     .chatboc-phone-demo {
-      height: clamp(330px, 44svh, 400px);
+      height: clamp(520px, 70svh, 660px);
       min-height: 0;
-      border-radius: 28px;
+      border-radius: 32px;
     }
     .chatboc-phone-demo__chrome {
       min-height: 1.32rem;
       padding: 0.42rem 0.78rem 0.08rem;
     }
     .chatboc-phone-demo__bar {
-      min-height: 48px;
+      min-height: 54px;
       align-items: center;
       flex-direction: row;
-      padding: 0.54rem 0.7rem;
+      padding: 0.62rem 0.74rem;
     }
     .chatboc-phone-demo__bar .h-10.w-10 {
       height: 2rem;
@@ -1329,26 +1339,26 @@
       padding: 0.42rem 0.58rem;
     }
     .chatboc-phone-demo__tab {
-      min-height: 1.92rem;
+      min-height: 2rem;
       gap: 0.34rem;
       padding: 0.36rem 0.5rem;
-      font-size: 0.66rem;
+      font-size: 0.68rem;
     }
     .chatboc-phone-demo__screen {
       min-height: 0;
       overflow: auto;
-      gap: 0.52rem;
-      padding: 0.48rem 0.55rem 0.64rem;
+      gap: 0.58rem;
+      padding: 0.58rem 0.62rem 0.72rem;
     }
     .chatboc-phone-demo__thread {
-      gap: 0.48rem;
-      border-radius: 14px;
-      padding: 0.5rem;
+      gap: 0.54rem;
+      border-radius: 16px;
+      padding: 0.58rem;
     }
     .chatboc-phone-demo__bubble {
-      padding: 0.56rem 0.64rem;
-      font-size: 0.78rem;
-      line-height: 1.4;
+      padding: 0.62rem 0.7rem;
+      font-size: 0.82rem;
+      line-height: 1.45;
     }
     .chatboc-phone-demo__metrics {
       grid-template-columns: 1fr;
@@ -1359,8 +1369,8 @@
     }
     .chatboc-hero-attachment {
       min-height: 0;
-      padding: 0.48rem;
-      font-size: 0.64rem;
+      padding: 0.52rem;
+      font-size: 0.67rem;
     }
     .chatboc-hero-attachment p {
       display: -webkit-box;
@@ -1384,8 +1394,27 @@
       border-bottom: 0;
     }
     .chatboc-hero-attachment__photo {
-      height: 4.9rem;
+      height: 6.2rem;
       margin-top: 0.36rem;
+    }
+  }
+  @media (min-width: 641px) and (max-width: 1023px) {
+    .chatboc-hero-stage {
+      min-height: 760px;
+      justify-items: center;
+    }
+    .chatboc-hero-mascot {
+      right: 0.75rem;
+      top: clamp(25.5rem, 57vh, 31rem);
+      width: clamp(8.6rem, 17vw, 10.4rem);
+    }
+    .chatboc-hero-preview {
+      width: min(calc(100vw - 5rem), 34rem);
+      transform: translateY(-1.25rem) scale(0.93);
+    }
+    .chatboc-phone-demo {
+      height: clamp(560px, 68svh, 700px);
+      min-height: 560px;
     }
   }
   @media (min-width: 520px) and (max-width: 640px) {

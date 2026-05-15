@@ -788,6 +788,8 @@ function ChatWidgetInner({
   );
 
   useEffect(() => {
+    if (entityInfo?.onboarding?.mode === "demo_session") return;
+
     const sanitized = sanitizeTenantSlug(resolvedTenantSlug);
     if (sanitized) {
       safeLocalStorage.setItem("tenantSlug", sanitized);
@@ -797,7 +799,7 @@ function ChatWidgetInner({
     if (isEmbedded) {
       safeLocalStorage.removeItem("tenantSlug");
     }
-  }, [isEmbedded, resolvedTenantSlug]);
+  }, [entityInfo?.onboarding?.mode, isEmbedded, resolvedTenantSlug]);
 
   useEffect(() => {
     if (!isEmbedded) return;
@@ -2038,8 +2040,9 @@ function ChatWidgetInner({
       ? resolvedOwnerToken.trim()
       : null;
     const isPlatformTenant = tenantSlug === "chatboc-platform";
+    const isDemoSession = entityInfo?.onboarding?.mode === "demo_session";
 
-      if ((!tenantSlug || isPlatformTenant) && !widgetToken) {
+      if (isDemoSession || ((!tenantSlug || isPlatformTenant) && !widgetToken)) {
         setWidgetCommerceSession(null);
         setWidgetCommerceHistory(null);
         setWidgetCommerceCart(null);
@@ -2071,10 +2074,17 @@ function ChatWidgetInner({
     return () => {
       isActive = false;
     };
-  }, [chatTenantSlug, resolvedOwnerToken]);
+  }, [chatTenantSlug, entityInfo?.onboarding?.mode, resolvedOwnerToken]);
 
   useEffect(() => {
     let isActive = true;
+    const isDemoSession = entityInfo?.onboarding?.mode === "demo_session";
+    if (isDemoSession) {
+      setWidgetCommerceHistory(null);
+      return () => {
+        isActive = false;
+      };
+    }
     const historyEndpoint = readFirstString(
       widgetCommerceSession?.portal?.history_endpoint,
       widgetCommerceSession?.history?.history_endpoint,
@@ -2119,10 +2129,18 @@ function ChatWidgetInner({
     widgetCommerceSession?.history?.history_endpoint,
     widgetCommerceSession?.portal?.history_endpoint,
     widgetCommerceSession?.session?.widget_session_token,
+    entityInfo?.onboarding?.mode,
   ]);
 
   useEffect(() => {
     let isActive = true;
+    const isDemoSession = entityInfo?.onboarding?.mode === "demo_session";
+    if (isDemoSession) {
+      setWidgetCommerceCart(null);
+      return () => {
+        isActive = false;
+      };
+    }
     const cartEndpoint = readFirstString(
       widgetCommerceSession?.cart?.summary_endpoint,
       widgetCommerceSession?.cart?.items_endpoint,
@@ -2169,6 +2187,7 @@ function ChatWidgetInner({
     widgetCommerceSession?.cart?.legacy_endpoint,
     widgetCommerceSession?.cart?.summary_endpoint,
     widgetCommerceSession?.session?.widget_session_token,
+    entityInfo?.onboarding?.mode,
   ]);
 
   useEffect(() => {

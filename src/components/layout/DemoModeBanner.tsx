@@ -1,23 +1,25 @@
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
-
-const DEMO_MODE_KEY = 'demoMode';
+import {
+  clearDemoRuntimeStorage,
+  DEMO_MODE_STORAGE_KEY,
+} from '@/features/demo/demoStorage';
 
 const DemoModeBanner = () => {
   const [isDemoMode, setIsDemoMode] = useState(false);
 
   useEffect(() => {
-    setIsDemoMode(safeLocalStorage.getItem(DEMO_MODE_KEY) === 'true');
+    setIsDemoMode(safeLocalStorage.getItem(DEMO_MODE_STORAGE_KEY) === 'true');
   }, []);
 
   if (!isDemoMode) return null;
 
   const handleReset = () => {
-    safeLocalStorage.removeItem(DEMO_MODE_KEY);
+    safeLocalStorage.removeItem(DEMO_MODE_STORAGE_KEY);
+    clearDemoRuntimeStorage();
     safeLocalStorage.removeItem('authToken');
     safeLocalStorage.removeItem('tenantId');
-    safeLocalStorage.removeItem('tenantSlug');
     window.location.href = '/login';
   };
 

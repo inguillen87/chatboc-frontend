@@ -25,6 +25,25 @@ const normalizeExternalMapLibreAsset = (value: unknown): string => {
   return trimmed;
 };
 
+const normalizeMapLibreStyleUrl = (value: unknown): string => {
+  const trimmed = String(value ?? "").trim();
+  if (!trimmed) return "";
+
+  try {
+    const url = new URL(
+      trimmed,
+      typeof window !== "undefined" ? window.location.origin : "http://localhost",
+    );
+    if (url.hostname.toLowerCase() === "maps.chatboc.ar") {
+      return "";
+    }
+  } catch {
+    return "";
+  }
+
+  return trimmed;
+};
+
 const MAPLIBRE_EXTERNAL_JS_URL = normalizeExternalMapLibreAsset(
   import.meta.env.VITE_MAPLIBRE_JS_URL ?? import.meta.env.NEXT_PUBLIC_MAPLIBRE_JS_URL,
 );
@@ -531,11 +550,11 @@ export default function MapLibreMap({
         if (!isMounted || !mapContainerRef.current) return;
 
         const key = apiKeyRef.current;
-        const contractStyleUrl = typeof geoLayerConfig?.style_url === "string" ? geoLayerConfig.style_url.trim() : "";
-        const envStyleUrl = String(
-          import.meta.env.VITE_MAPLIBRE_STYLE_URL ?? import.meta.env.NEXT_PUBLIC_MAPLIBRE_STYLE_URL ?? "",
-        ).trim();
-        const customStyle = (mapStyleUrl ?? "").trim() || contractStyleUrl || envStyleUrl;
+        const contractStyleUrl = normalizeMapLibreStyleUrl(geoLayerConfig?.style_url);
+        const envStyleUrl = normalizeMapLibreStyleUrl(
+          import.meta.env.VITE_MAPLIBRE_STYLE_URL ?? import.meta.env.NEXT_PUBLIC_MAPLIBRE_STYLE_URL,
+        );
+        const customStyle = normalizeMapLibreStyleUrl(mapStyleUrl) || contractStyleUrl || envStyleUrl;
         const customTileUrl = (mapTileUrl ?? "").trim();
         const customTileAttribution =
           (mapTileAttribution ?? "").trim() || "© OpenStreetMap contributors";

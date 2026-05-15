@@ -106,6 +106,7 @@ export interface OperationalMediaUnderstanding {
 
 interface LeadCaptureSubmitOptions {
   idempotencyKey?: string | null;
+  persistTenantSlug?: boolean;
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -688,6 +689,7 @@ export const submitLeadCapture = async (
     skipAuth: true,
     isWidgetRequest: true,
     tenantSlug,
+    persistTenantSlug: options.persistTenantSlug,
     suppressPanel401Redirect: true,
     sendAnonId: true,
   });

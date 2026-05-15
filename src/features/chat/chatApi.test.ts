@@ -36,7 +36,7 @@ vi.mock('@/utils/api', () => {
   };
 });
 
-import { normalizeLeadCaptureResponse, sendChatBootstrapMessage } from './chatApi';
+import { normalizeLeadCaptureResponse, sendChatBootstrapMessage, submitLeadCapture } from './chatApi';
 
 describe('sendChatBootstrapMessage', () => {
   beforeEach(() => {
@@ -328,5 +328,36 @@ describe('normalizeLeadCaptureResponse operational results', () => {
       nombre_producto: 'MALBEC',
       cantidad: 2,
     });
+  });
+});
+
+describe('submitLeadCapture', () => {
+  beforeEach(() => {
+    apiFetchMock.mockReset();
+    panelPostMock.mockReset();
+    apiFetchMock.mockResolvedValue({ ok: true });
+  });
+
+  it('can submit demo leads without persisting the demo tenant as the browser tenant', async () => {
+    await submitLeadCapture(
+      { endpoint: '/api/public/lead-capture' },
+      {
+        demo_session_id: 'demo-token',
+        chat_session_id: 'sid_demo',
+        channel: 'web',
+      },
+      'municipio',
+      { idempotencyKey: 'demo-lead-key', persistTenantSlug: false },
+    );
+
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      '/api/public/lead-capture',
+      expect.objectContaining({
+        tenantSlug: 'municipio',
+        persistTenantSlug: false,
+        skipAuth: true,
+        isWidgetRequest: true,
+      }),
+    );
   });
 });

@@ -1,7 +1,6 @@
 import { demoApi } from '@/api/v2/client';
 import { findDemoCatalogAsset } from '@/data/demoCatalogAssets';
-import { persistChatSessionId } from '@/utils/chatSessionId';
-import { safeLocalStorage } from '@/utils/safeLocalStorage';
+import { persistDemoRuntimeStorage } from './demoStorage';
 import type {
   DemoAdminPreviewResponse,
   DemoCatalogResponse,
@@ -147,11 +146,7 @@ const normalizeDemoWhatsappSandboxResponse = (
 };
 
 const persistDemoRuntimeSession = (response: DemoSessionResponse) => {
-  const chatSessionId = readShortChatSessionId(response.chat_session_id);
-  if (chatSessionId) persistChatSessionId(chatSessionId);
-  if (typeof response.demo_session_id === 'string' && response.demo_session_id.trim()) {
-    safeLocalStorage.setItem('chatboc_demo_session_id', response.demo_session_id.trim());
-  }
+  persistDemoRuntimeStorage(response);
 };
 
 const findAssetSectorFromResponse = (response: DemoSessionResponse): DemoSector | null => {

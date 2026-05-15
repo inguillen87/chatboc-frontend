@@ -10,7 +10,6 @@ import {
   YAxis,
   Tooltip,
   Legend,
-  ResponsiveContainer,
 } from 'recharts';
 import useRequireRole from '@/hooks/useRequireRole';
 import type { Role } from '@/utils/roles';
@@ -87,19 +86,18 @@ export default function MunicipalMessageMetrics() {
           <CardTitle className="text-xl">Visualización</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="h-64">
-            <ChartContainer config={{}}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData}>
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="value" fill="#4682B4" />
-                </BarChart>
-              </ResponsiveContainer>
-            </ChartContainer>
-          </div>
+          <ChartContainer
+            className="h-64"
+            config={{ value: { label: 'Mensajes', color: '#4682B4' } }}
+          >
+            <BarChart data={chartData}>
+              <XAxis dataKey="name" />
+              <YAxis />
+              <Tooltip />
+              <Legend />
+              <Bar dataKey="value" fill="#4682B4" />
+            </BarChart>
+          </ChartContainer>
         </CardContent>
       </Card>
 

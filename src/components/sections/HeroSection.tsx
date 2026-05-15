@@ -264,84 +264,127 @@ const DEMO_ATTACHMENT_PREVIEWS: Record<string, string> = {
   gobierno: svgPreview(`
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 260">
       <defs>
-        <linearGradient id="sky" x1="0" x2="1" y1="0" y2="1">
-          <stop offset="0" stop-color="#dbeafe"/>
+        <linearGradient id="govSky" x1="0" x2="1" y1="0" y2="1">
+          <stop offset="0" stop-color="#bfdbfe"/>
+          <stop offset=".46" stop-color="#eff6ff"/>
           <stop offset="1" stop-color="#f8fafc"/>
         </linearGradient>
-        <filter id="grain">
-          <feTurbulence type="fractalNoise" baseFrequency=".8" numOctaves="2" stitchTiles="stitch"/>
+        <linearGradient id="govRoad" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0" stop-color="#94a3b8"/>
+          <stop offset=".48" stop-color="#475569"/>
+          <stop offset="1" stop-color="#1e293b"/>
+        </linearGradient>
+        <filter id="govPhotoNoise">
+          <feTurbulence type="fractalNoise" baseFrequency=".58" numOctaves="3" seed="8"/>
           <feColorMatrix type="saturate" values=".35"/>
-          <feBlend mode="multiply" in2="SourceGraphic"/>
+          <feComponentTransfer>
+            <feFuncA type="table" tableValues="0 .16"/>
+          </feComponentTransfer>
+        </filter>
+        <filter id="govDepth" x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow dx="0" dy="12" stdDeviation="14" flood-color="#0f172a" flood-opacity=".22"/>
         </filter>
       </defs>
-      <rect width="420" height="260" rx="22" fill="url(#sky)"/>
-      <path d="M0 138h420v122H0z" fill="#64748b"/>
-      <path d="M0 160c58-18 112-16 162 5s102 19 156 0c38-13 72-18 102-12v107H0z" fill="#334155"/>
-      <path d="M0 142h420" stroke="#cbd5e1" stroke-width="10"/>
-      <path d="M48 185c44-12 75-11 92 4 15 14 44 17 75 7 22-8 47-4 72 11" fill="none" stroke="#94a3b8" stroke-width="9" stroke-linecap="round"/>
-      <ellipse cx="132" cy="205" rx="48" ry="20" fill="#0f172a" opacity=".52"/>
-      <ellipse cx="132" cy="198" rx="29" ry="11" fill="#64748b"/>
-      <path d="M308 56v104" stroke="#475569" stroke-width="8" stroke-linecap="round"/>
-      <path d="M282 52h68" stroke="#475569" stroke-width="9" stroke-linecap="round"/>
-      <circle cx="354" cy="56" r="17" fill="#fde68a"/>
-      <circle cx="354" cy="56" r="30" fill="#fde68a" opacity=".26"/>
-      <rect x="16" y="18" width="142" height="38" rx="19" fill="#ffffff" opacity=".88"/>
-      <circle cx="40" cy="37" r="9" fill="#2563eb"/>
-      <rect x="58" y="30" width="76" height="5" rx="2.5" fill="#94a3b8"/>
-      <rect x="58" y="41" width="52" height="5" rx="2.5" fill="#cbd5e1"/>
-      <rect width="420" height="260" rx="22" fill="#000000" opacity=".08" filter="url(#grain)"/>
+      <rect width="420" height="260" rx="22" fill="url(#govSky)"/>
+      <path d="M0 94c42-17 92-21 150-12 54 8 92 22 150 10 48-10 86-9 120 5v40H0z" fill="#dbeafe"/>
+      <path d="M0 130h420v130H0z" fill="url(#govRoad)"/>
+      <path d="M0 132c44 16 90 20 138 12 56-9 96-16 150-2 45 12 89 14 132 2v22c-49 15-96 13-142 0-48-14-92-7-145 4-49 10-94 4-133-12z" fill="#cbd5e1" opacity=".68"/>
+      <path d="M42 196c45-10 72-4 98 11 22 13 56 11 92 0 34-11 70-8 110 11" fill="none" stroke="#cbd5e1" stroke-width="9" stroke-linecap="round" opacity=".7"/>
+      <g filter="url(#govDepth)">
+        <ellipse cx="146" cy="202" rx="58" ry="24" fill="#020617" opacity=".56"/>
+        <ellipse cx="146" cy="195" rx="39" ry="13" fill="#475569"/>
+        <path d="M98 197c23-18 66-19 93 1-23 12-67 15-93-1z" fill="#94a3b8" opacity=".85"/>
+      </g>
+      <path d="M304 55v105" stroke="#334155" stroke-width="8" stroke-linecap="round"/>
+      <path d="M279 52h68" stroke="#334155" stroke-width="9" stroke-linecap="round"/>
+      <circle cx="354" cy="55" r="18" fill="#fde68a"/>
+      <circle cx="354" cy="55" r="34" fill="#fde68a" opacity=".22"/>
+      <rect x="22" y="18" width="168" height="40" rx="18" fill="#ffffff" opacity=".92"/>
+      <circle cx="48" cy="38" r="10" fill="#2563eb"/>
+      <rect x="66" y="31" width="88" height="5" rx="2.5" fill="#64748b"/>
+      <rect x="66" y="42" width="60" height="5" rx="2.5" fill="#cbd5e1"/>
+      <rect width="420" height="260" rx="22" fill="#000000" filter="url(#govPhotoNoise)"/>
+      <rect x="12" y="12" width="396" height="236" rx="18" fill="none" stroke="#ffffff" stroke-opacity=".38"/>
     </svg>
   `),
   pyme: svgPreview(`
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 260">
       <defs>
         <linearGradient id="desk" x1="0" x2="1" y1="0" y2="1">
-          <stop offset="0" stop-color="#fef3c7"/>
-          <stop offset="1" stop-color="#d97706"/>
+          <stop offset="0" stop-color="#fed7aa"/>
+          <stop offset=".45" stop-color="#f59e0b"/>
+          <stop offset="1" stop-color="#92400e"/>
         </linearGradient>
-        <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-          <feDropShadow dx="0" dy="14" stdDeviation="10" flood-color="#7c2d12" flood-opacity=".26"/>
+        <filter id="receiptShadow" x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow dx="0" dy="18" stdDeviation="12" flood-color="#431407" flood-opacity=".32"/>
+        </filter>
+        <filter id="pymeNoise">
+          <feTurbulence type="fractalNoise" baseFrequency=".72" numOctaves="2" seed="4"/>
+          <feColorMatrix type="saturate" values=".28"/>
+          <feComponentTransfer>
+            <feFuncA type="table" tableValues="0 .12"/>
+          </feComponentTransfer>
         </filter>
       </defs>
       <rect width="420" height="260" rx="22" fill="url(#desk)"/>
-      <rect x="88" y="24" width="232" height="210" rx="12" fill="#fffaf0" filter="url(#shadow)" transform="rotate(-3 204 129)"/>
-      <rect x="116" y="50" width="84" height="10" rx="5" fill="#0f172a" opacity=".72" transform="rotate(-3 158 55)"/>
-      <rect x="115" y="75" width="166" height="4" rx="2" fill="#94a3b8" transform="rotate(-3 198 77)"/>
-      <rect x="115" y="94" width="184" height="4" rx="2" fill="#cbd5e1" transform="rotate(-3 207 96)"/>
-      <rect x="116" y="113" width="152" height="4" rx="2" fill="#cbd5e1" transform="rotate(-3 192 115)"/>
-      <path d="M124 142c25-9 42 8 66 2 22-6 38-20 62-13" fill="none" stroke="#1d4ed8" stroke-width="5" stroke-linecap="round" transform="rotate(-3 188 138)"/>
-      <path d="M125 165c18-7 30 5 46 0 22-7 36-14 58-9" fill="none" stroke="#1d4ed8" stroke-width="4" stroke-linecap="round" transform="rotate(-3 177 161)"/>
-      <rect x="230" y="178" width="58" height="22" rx="6" fill="#16a34a" opacity=".88" transform="rotate(-3 259 189)"/>
-      <circle cx="72" cy="204" r="32" fill="#78350f" opacity=".16"/>
-      <rect x="302" y="30" width="58" height="96" rx="12" fill="#0f172a" opacity=".82" transform="rotate(9 331 78)"/>
-      <rect x="314" y="46" width="35" height="58" rx="7" fill="#e0f2fe" transform="rotate(9 331 75)"/>
+      <path d="M0 196c72-28 137-30 196-6 67 27 142 25 224-6v76H0z" fill="#451a03" opacity=".2"/>
+      <rect x="78" y="22" width="236" height="214" rx="10" fill="#fff7ed" filter="url(#receiptShadow)" transform="rotate(-4 196 129)"/>
+      <rect x="108" y="48" width="96" height="11" rx="5.5" fill="#111827" opacity=".82" transform="rotate(-4 156 53)"/>
+      <rect x="108" y="70" width="166" height="5" rx="2.5" fill="#94a3b8" transform="rotate(-4 191 73)"/>
+      <rect x="108" y="88" width="182" height="5" rx="2.5" fill="#cbd5e1" transform="rotate(-4 199 90)"/>
+      <rect x="108" y="107" width="148" height="5" rx="2.5" fill="#cbd5e1" transform="rotate(-4 182 109)"/>
+      <path d="M118 138c28-12 48 7 76 1 24-5 44-22 76-11" fill="none" stroke="#1d4ed8" stroke-width="5.5" stroke-linecap="round" transform="rotate(-4 194 134)"/>
+      <path d="M120 162c21-9 35 6 55 0 25-8 42-16 68-8" fill="none" stroke="#1d4ed8" stroke-width="4.2" stroke-linecap="round" transform="rotate(-4 181 158)"/>
+      <path d="M120 184c14 8 30 10 47 5 16-4 28-4 41 0" fill="none" stroke="#0f172a" stroke-width="3.6" stroke-linecap="round" opacity=".5" transform="rotate(-4 164 184)"/>
+      <rect x="232" y="177" width="61" height="24" rx="6" fill="#16a34a" opacity=".9" transform="rotate(-4 262 189)"/>
+      <rect x="310" y="32" width="62" height="104" rx="13" fill="#0f172a" opacity=".86" transform="rotate(8 341 84)"/>
+      <rect x="323" y="50" width="37" height="62" rx="8" fill="#e0f2fe" transform="rotate(8 342 81)"/>
+      <circle cx="66" cy="204" r="34" fill="#78350f" opacity=".17"/>
+      <rect width="420" height="260" rx="22" fill="#000000" filter="url(#pymeNoise)"/>
+      <rect x="12" y="12" width="396" height="236" rx="18" fill="none" stroke="#ffffff" stroke-opacity=".26"/>
     </svg>
   `),
   educacion: svgPreview(`
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 260">
       <defs>
-        <linearGradient id="paper" x1="0" x2="1" y1="0" y2="1">
-          <stop offset="0" stop-color="#eef2ff"/>
+        <linearGradient id="schoolBg" x1="0" x2="1" y1="0" y2="1">
+          <stop offset="0" stop-color="#dbeafe"/>
+          <stop offset=".5" stop-color="#eef2ff"/>
           <stop offset="1" stop-color="#ffffff"/>
         </linearGradient>
+        <linearGradient id="schoolPaper" x1="0" x2="1" y1="0" y2="1">
+          <stop offset="0" stop-color="#ffffff"/>
+          <stop offset="1" stop-color="#eef2ff"/>
+        </linearGradient>
         <filter id="docshadow" x="-20%" y="-20%" width="140%" height="140%">
-          <feDropShadow dx="0" dy="14" stdDeviation="12" flood-color="#312e81" flood-opacity=".2"/>
+          <feDropShadow dx="0" dy="16" stdDeviation="13" flood-color="#312e81" flood-opacity=".22"/>
+        </filter>
+        <filter id="schoolNoise">
+          <feTurbulence type="fractalNoise" baseFrequency=".62" numOctaves="2" seed="12"/>
+          <feColorMatrix type="saturate" values=".38"/>
+          <feComponentTransfer>
+            <feFuncA type="table" tableValues="0 .11"/>
+          </feComponentTransfer>
         </filter>
       </defs>
-      <rect width="420" height="260" rx="22" fill="#dbeafe"/>
-      <rect x="64" y="22" width="240" height="210" rx="14" fill="url(#paper)" filter="url(#docshadow)" transform="rotate(2 184 127)"/>
-      <circle cx="98" cy="61" r="18" fill="#6366f1" opacity=".9"/>
-      <rect x="128" y="50" width="112" height="8" rx="4" fill="#1e293b" opacity=".74"/>
-      <rect x="128" y="66" width="84" height="5" rx="2.5" fill="#94a3b8"/>
-      <rect x="94" y="98" width="176" height="5" rx="2.5" fill="#cbd5e1"/>
-      <rect x="94" y="119" width="190" height="5" rx="2.5" fill="#cbd5e1"/>
-      <rect x="94" y="140" width="156" height="5" rx="2.5" fill="#cbd5e1"/>
-      <rect x="94" y="166" width="78" height="24" rx="7" fill="#22c55e" opacity=".84"/>
-      <circle cx="250" cy="177" r="30" fill="none" stroke="#6366f1" stroke-width="8" opacity=".62"/>
-      <path d="M232 177l12 12 27-30" fill="none" stroke="#6366f1" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
-      <rect x="286" y="58" width="72" height="120" rx="13" fill="#ffffff" opacity=".88" transform="rotate(-10 322 118)"/>
-      <rect x="302" y="86" width="40" height="6" rx="3" fill="#94a3b8" transform="rotate(-10 322 89)"/>
-      <rect x="301" y="108" width="42" height="42" rx="8" fill="#bfdbfe" transform="rotate(-10 322 129)"/>
+      <rect width="420" height="260" rx="22" fill="url(#schoolBg)"/>
+      <rect x="62" y="22" width="244" height="212" rx="14" fill="url(#schoolPaper)" filter="url(#docshadow)" transform="rotate(2 184 128)"/>
+      <circle cx="98" cy="60" r="18" fill="#6366f1" opacity=".95"/>
+      <path d="M88 61h20M98 51v20" stroke="#ffffff" stroke-width="4" stroke-linecap="round"/>
+      <rect x="128" y="48" width="118" height="9" rx="4.5" fill="#1e293b" opacity=".8"/>
+      <rect x="128" y="66" width="88" height="5" rx="2.5" fill="#94a3b8"/>
+      <rect x="94" y="96" width="180" height="5" rx="2.5" fill="#cbd5e1"/>
+      <rect x="94" y="118" width="194" height="5" rx="2.5" fill="#cbd5e1"/>
+      <rect x="94" y="140" width="158" height="5" rx="2.5" fill="#cbd5e1"/>
+      <rect x="94" y="166" width="82" height="25" rx="7" fill="#22c55e" opacity=".86"/>
+      <circle cx="250" cy="177" r="31" fill="none" stroke="#6366f1" stroke-width="8" opacity=".65"/>
+      <path d="M232 177l12 12 28-31" fill="none" stroke="#6366f1" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+      <rect x="286" y="58" width="74" height="122" rx="13" fill="#ffffff" opacity=".92" filter="url(#docshadow)" transform="rotate(-10 323 119)"/>
+      <rect x="302" y="86" width="41" height="6" rx="3" fill="#64748b" transform="rotate(-10 322 89)"/>
+      <rect x="301" y="108" width="43" height="43" rx="8" fill="#bfdbfe" transform="rotate(-10 322 130)"/>
+      <path d="M310 132l8 8 18-23" fill="none" stroke="#2563eb" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" transform="rotate(-10 323 129)"/>
+      <rect width="420" height="260" rx="22" fill="#000000" filter="url(#schoolNoise)"/>
+      <rect x="12" y="12" width="396" height="236" rx="18" fill="none" stroke="#ffffff" stroke-opacity=".36"/>
     </svg>
   `),
   platform: svgPreview(`
@@ -868,9 +911,9 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
   };
 
   return (
-    <section className="chatboc-hero-grid overflow-hidden pt-20 pb-12 text-foreground md:pt-28 md:pb-16" style={accentStyle}>
-      <div className="container mx-auto px-4">
-        <div className={`chatboc-hero-layout grid items-center gap-10 ${showHeroPreview ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]" : ""}`}>
+    <section className="chatboc-hero-grid overflow-hidden pt-16 pb-12 text-foreground md:pt-16 md:pb-16" style={accentStyle}>
+      <div className="container mx-auto px-4 2xl:max-w-[1480px]">
+        <div className={`chatboc-hero-layout grid items-center gap-8 lg:gap-12 xl:gap-16 ${showHeroPreview ? "lg:grid-cols-[minmax(0,0.84fr)_minmax(30rem,1.16fr)] xl:grid-cols-[minmax(0,0.78fr)_minmax(34rem,1.22fr)]" : ""}`}>
           <div className="min-w-0 max-w-3xl">
             {eyebrow && (
               <div className="mb-5 inline-flex max-w-full items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.22em] text-primary">

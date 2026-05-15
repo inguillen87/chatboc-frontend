@@ -16,12 +16,57 @@ vi.mock('@/data/demoCatalogAssets', () => ({
   findDemoCatalogAsset: vi.fn(() => null),
 }));
 
-import { createDemoWhatsappSandbox, getDemoAdminPreview, getDemoWhatsappSandbox } from './demoApi';
+import { safeLocalStorage } from '@/utils/safeLocalStorage';
+import { createDemoSession, createDemoWhatsappSandbox, getDemoAdminPreview, getDemoWhatsappSandbox } from './demoApi';
+import {
+  DEMO_CHAT_SESSION_STORAGE_KEY,
+  DEMO_SESSION_STORAGE_KEY,
+  DEMO_TENANT_STORAGE_KEY,
+} from './demoStorage';
+
+describe('demo session API', () => {
+  beforeEach(() => {
+    demoGetMock.mockReset();
+    demoPostMock.mockReset();
+    safeLocalStorage.clear();
+  });
+
+  it('persists demo tenant/session under demo-only keys without overwriting real tenant context', async () => {
+    safeLocalStorage.setItem('tenantSlug', 'colegio-pago');
+    demoPostMock.mockResolvedValue({
+      contract_version: 'demo.session.v2',
+      demo_session_id: 'demo-token-123',
+      chat_session_id: 'sid_demo_municipio_123',
+      tenant_slug: 'municipio',
+      tenant: { slug: 'municipio', tipo: 'municipio' },
+      workspace: {
+        chat_bootstrap: {
+          endpoint: '/api/ask/municipio',
+          payload: {
+            vertical: 'gobierno',
+            tenant_slug: 'municipio',
+          },
+        },
+      },
+    });
+
+    const response = await createDemoSession({ sector: 'gobierno', tenant_slug: 'municipio' });
+
+    expect(response.tenant_slug).toBe('municipio');
+    expect(safeLocalStorage.getItem(DEMO_SESSION_STORAGE_KEY)).toBe('demo-token-123');
+    expect(safeLocalStorage.getItem(DEMO_CHAT_SESSION_STORAGE_KEY)).toBe('sid_demo_municipio_123');
+    expect(safeLocalStorage.getItem(DEMO_TENANT_STORAGE_KEY)).toBe('municipio');
+    expect(safeLocalStorage.getItem('tenantSlug')).toBe('colegio-pago');
+    expect(safeLocalStorage.getItem('chat_session_id')).toBeNull();
+    expect(safeLocalStorage.getItem('chatboc_chat_session_id')).toBeNull();
+  });
+});
 
 describe('demo WhatsApp sandbox API', () => {
   beforeEach(() => {
     demoGetMock.mockReset();
     demoPostMock.mockReset();
+    safeLocalStorage.clear();
   });
 
   it('loads the no-login WhatsApp sandbox launcher from the backend contract', async () => {

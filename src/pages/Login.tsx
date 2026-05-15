@@ -15,13 +15,16 @@ import { buildTenantPath } from "@/utils/tenantPaths";
 import { DemoModeDisabledError, enterpriseService, extractDemoFrontendContract, isSupportedDemoFrontendContract, type DemoCatalogEntryPoint, type DemoCatalogTenant, type DemoCatalogResponse, type DemoFrontendContract, type DemoRubro } from "@/services/enterpriseService";
 import { getRubrosHierarchy } from "@/api/rubros";
 import { createDemoSession } from "@/features/demo/demoApi";
+import {
+  DEMO_MODE_STORAGE_KEY,
+  persistDemoRuntimeStorage,
+} from "@/features/demo/demoStorage";
 import { mapDemoOptionsFromHierarchy } from "@/utils/enterpriseExperience";
 import { getDemoAccessProfiles } from "@/utils/demoAccessProfiles";
 import { useDateSettings } from "@/hooks/useDateSettings";
 import { LOCALE_OPTIONS } from "@/utils/localeOptions";
 import { getFranchisePartnerConfig } from "@/utils/franchisePartnerConfig";
 import { trackFrontendEvent } from "@/utils/frontendTelemetry";
-import { TENANT_PLACEHOLDER_SLUGS } from "@/constants/tenant";
 
 
 const isDevEnvironment = () => {
@@ -119,10 +122,10 @@ const Login = () => {
     if (joined.includes("empresa") || joined.includes("pyme") || joined.includes("bodega") || joined.includes("comerc")) return "empresas";
     return "gobierno";
   };
-  const persistDemoTenant = (tenantSlug?: string | null) => {
-    const normalized = typeof tenantSlug === "string" ? tenantSlug.trim() : "";
-    if (!normalized || TENANT_PLACEHOLDER_SLUGS.has(normalized.toLowerCase())) return;
-    safeLocalStorage.setItem("tenantSlug", normalized);
+  const resolveDefaultDemoTenantSlug = (sector?: string | null) => {
+    if (sector === "educacion") return "colegio-demo";
+    if (sector === "empresas") return "bodega";
+    return "municipio";
   };
 
   const isSectorFirstMode = demoFrontendContract.demo_selector?.mode === 'sector_first';
@@ -278,7 +281,7 @@ const Login = () => {
     const preloadHints = new Set((demoFrontendContract.preload_before_login || []).map((item) => item.trim().toLowerCase()));
     if (preloadHints.size === 0) return;
 
-    const tenantSlug = tenantSlugHint || currentSlug || safeLocalStorage.getItem('tenantSlug') || 'municipio';
+    const tenantSlug = tenantSlugHint || resolveDefaultDemoTenantSlug(demoSector);
     const jobs: Promise<unknown>[] = [];
 
     if (preloadHints.has('catalog')) {
@@ -290,6 +293,7 @@ const Login = () => {
         skipAuth: true,
         tenantSlug,
         omitCredentials: true,
+        persistTenantSlug: false,
       }).catch(() => undefined));
     }
 
@@ -298,11 +302,12 @@ const Login = () => {
         skipAuth: true,
         tenantSlug,
         omitCredentials: true,
+        persistTenantSlug: false,
       }).catch(() => undefined));
     }
 
     await Promise.all(jobs);
-  }, [currentSlug, demoFrontendContract.preload_before_login]);
+  }, [demoFrontendContract.preload_before_login, demoSector]);
 
   const navigateToTenantCatalog = useCallback(
     (tenantSlug?: string | null) => {
@@ -560,8 +565,6 @@ const Login = () => {
       const tenantSlugHint =
         (typeof resolvedPayloadRecord.tenant_slug === 'string' && resolvedPayloadRecord.tenant_slug) ||
         (typeof resolvedPayloadRecord.tenantSlug === 'string' && resolvedPayloadRecord.tenantSlug) ||
-        currentSlug ||
-        safeLocalStorage.getItem('tenantSlug') ||
         null;
 
       void runDemoPreloadHints(tenantSlugHint);
@@ -583,14 +586,8 @@ const Login = () => {
       if (!sessionId) {
         throw new Error("La demo real no devolvio chat_session_id.");
       }
-      safeLocalStorage.setItem("demoMode", "true");
-      if (session.demo_session_id) {
-        safeLocalStorage.setItem("demoSessionId", session.demo_session_id);
-      } else {
-        safeLocalStorage.removeItem("demoSessionId");
-      }
-      safeLocalStorage.setItem("demoChatSessionId", sessionId);
-      persistDemoTenant(session.tenant_slug || session.tenant?.slug || null);
+      safeLocalStorage.setItem(DEMO_MODE_STORAGE_KEY, "true");
+      persistDemoRuntimeStorage(session);
       navigate(`/demo?sector=${publicDemoSector}&session=${encodeURIComponent(sessionId)}`, {
         state: {
           demoSession: session,

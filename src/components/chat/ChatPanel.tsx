@@ -2278,14 +2278,9 @@ const ChatPanel = (props: ChatPanelProps) => {
     });
   }
 
-  const compactFooterVisibleLimit = isMobile ? 0 : 4;
+  const compactFooterVisibleLimit = 0;
   const visibleCompactFooterActions = compactFooterActions.slice(0, compactFooterVisibleLimit);
   const hiddenCompactFooterActions = compactFooterActions.slice(compactFooterVisibleLimit);
-  const shouldShowActionTrayToggle =
-    hiddenCompactFooterActions.length > 0 ||
-    realtimeVoiceBadges.length > 0 ||
-    realtimeVoiceToolLabels.length > 0 ||
-    realtimeVoiceStarters.length > 0;
   const shouldRenderExperienceBanner = Boolean(
     recommendedExperienceLabel ||
       recommendedExperienceSummary,
@@ -2787,6 +2782,14 @@ const ChatPanel = (props: ChatPanelProps) => {
       const candidate = (btn.action_id || btn.action || "").toLowerCase();
       return candidate === "open_demo_form";
     });
+  const hasSecondaryChatActions =
+    visibleConversionCtas.length > 0 || Boolean(persistentLeadButton);
+  const shouldShowActionTrayToggle =
+    hiddenCompactFooterActions.length > 0 ||
+    realtimeVoiceBadges.length > 0 ||
+    realtimeVoiceToolLabels.length > 0 ||
+    realtimeVoiceStarters.length > 0 ||
+    hasSecondaryChatActions;
 
   const validateLeadCaptureInput = useCallback(
     (payload: { text: string; action?: string; action_id?: string }) => {
@@ -3419,7 +3422,7 @@ const ChatPanel = (props: ChatPanelProps) => {
             </div>
           </div>
         )}
-        {compactFooterActions.length > 0 ? (
+        {compactFooterActions.length > 0 || shouldShowActionTrayToggle ? (
           <div
             className={cn(
               "mb-1 border border-border/70 bg-background/85 shadow-sm backdrop-blur dark:bg-slate-950/85",
@@ -3461,7 +3464,7 @@ const ChatPanel = (props: ChatPanelProps) => {
                   </button>
                 );
               })}
-              {hiddenCompactFooterActions.length > 0 && !isMobile ? (
+              {hiddenCompactFooterActions.length > 0 && visibleCompactFooterActions.length > 0 && !isMobile ? (
                 <span className="inline-flex h-8 shrink-0 items-center rounded-full border border-border/50 bg-muted/35 px-2 text-[11px] font-semibold text-muted-foreground">
                   +{hiddenCompactFooterActions.length}
                 </span>
@@ -3488,35 +3491,78 @@ const ChatPanel = (props: ChatPanelProps) => {
                   transition={{ duration: 0.18 }}
                   className="overflow-hidden"
                 >
-                  <div className="mt-1.5 grid gap-1.5 sm:grid-cols-2">
-                    {compactFooterActions.map((action) => {
-                      const Icon = action.icon;
-                      return (
+                  {compactFooterActions.length > 0 ? (
+                    <div className="mt-1.5 grid gap-1.5 sm:grid-cols-2">
+                      {compactFooterActions.map((action) => {
+                        const Icon = action.icon;
+                        return (
+                          <button
+                            key={`expanded-${action.id}`}
+                            type="button"
+                            className={cn(
+                              "inline-flex min-h-9 items-center gap-2 rounded-xl border px-2.5 py-1.5 text-left text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
+                              action.tone === "primary"
+                                ? "border-primary/25 bg-primary/10 text-primary hover:bg-primary/15"
+                                : "border-border/60 bg-background/80 text-foreground hover:border-primary/30 hover:bg-muted/45",
+                            )}
+                            onClick={() => {
+                              action.onClick();
+                              setIsActionTrayOpen(false);
+                            }}
+                          >
+                            <Icon className="h-4 w-4 shrink-0" />
+                            <span className="min-w-0 flex-1 truncate">{action.label}</span>
+                            {action.badge ? (
+                              <span className="rounded-full bg-emerald-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
+                                {action.badge > 99 ? "99+" : action.badge}
+                              </span>
+                            ) : null}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+                  {hasSecondaryChatActions ? (
+                    <div className="mt-1.5 grid gap-1.5 sm:grid-cols-2">
+                      {visibleConversionCtas.map((action) => (
                         <button
-                          key={`expanded-${action.id}`}
+                          key={`cta-${action.id}`}
                           type="button"
                           className={cn(
                             "inline-flex min-h-9 items-center gap-2 rounded-xl border px-2.5 py-1.5 text-left text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
-                            action.tone === "primary"
+                            action.style === "primary" || action.style === "accent"
                               ? "border-primary/25 bg-primary/10 text-primary hover:bg-primary/15"
                               : "border-border/60 bg-background/80 text-foreground hover:border-primary/30 hover:bg-muted/45",
                           )}
                           onClick={() => {
-                            action.onClick();
+                            void handleConversionCta(action);
                             setIsActionTrayOpen(false);
                           }}
                         >
-                          <Icon className="h-4 w-4 shrink-0" />
+                          <Sparkles className="h-4 w-4 shrink-0" />
                           <span className="min-w-0 flex-1 truncate">{action.label}</span>
-                          {action.badge ? (
-                            <span className="rounded-full bg-emerald-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
-                              {action.badge > 99 ? "99+" : action.badge}
-                            </span>
-                          ) : null}
                         </button>
-                      );
-                    })}
-                  </div>
+                      ))}
+                      {persistentLeadButton ? (
+                        <button
+                          type="button"
+                          className="inline-flex min-h-9 items-center gap-2 rounded-xl border border-border/60 bg-background/80 px-2.5 py-1.5 text-left text-xs font-semibold text-foreground transition hover:border-primary/30 hover:bg-muted/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                          onClick={() => {
+                            handleSend({
+                              text: persistentLeadButton.texto,
+                              action: persistentLeadButton.action,
+                              action_id: persistentLeadButton.action_id,
+                              source: "button",
+                            });
+                            setIsActionTrayOpen(false);
+                          }}
+                        >
+                          <ArrowRightLeft className="h-4 w-4 shrink-0" />
+                          <span className="min-w-0 flex-1 truncate">{persistentLeadButton.texto}</span>
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : null}
                   {realtimeVoiceEnabled &&
                   !isToolbarActionCollapsed("voice_call") &&
                   (realtimeVoiceBadges.length > 0 ||
@@ -3676,39 +3722,6 @@ const ChatPanel = (props: ChatPanelProps) => {
               />
             </div>
           </div>
-        ) : null}
-
-        {visibleConversionCtas.length ? (
-          <div className="mb-2 flex flex-wrap gap-2" aria-label="Acciones sugeridas">
-            {visibleConversionCtas.map((action) => (
-              <Button
-                key={action.id}
-                size="sm"
-                variant={action.style === "primary" || action.style === "accent" ? "default" : "outline"}
-                className="h-auto whitespace-normal text-xs"
-                onClick={() => void handleConversionCta(action)}
-              >
-                {action.label}
-              </Button>
-            ))}
-          </div>
-        ) : null}
-
-        {persistentLeadButton ? (
-          <Button
-            variant="outline"
-            className="mb-2 w-full"
-            onClick={() =>
-              handleSend({
-                text: persistentLeadButton.texto,
-                action: persistentLeadButton.action,
-                action_id: persistentLeadButton.action_id,
-                source: "button",
-              })
-            }
-          >
-            {persistentLeadButton.texto}
-          </Button>
         ) : null}
 
         {contexto.estado_conversacion === "recolectando_datos_personales" ? (

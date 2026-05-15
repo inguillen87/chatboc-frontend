@@ -627,7 +627,7 @@ export default function MunicipalAnalytics() {
           </CardHeader>
           <CardContent className="flex-1 pt-6">
             <div className="h-full min-h-[260px]">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220} debounce={120}>
                 <BarChart data={chartData}>
                   <XAxis dataKey="name" />
                   <YAxis allowDecimals={false} />
@@ -650,7 +650,7 @@ export default function MunicipalAnalytics() {
           </CardHeader>
           <CardContent className="flex-1 pt-6">
             <div className="h-full min-h-[260px]">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220} debounce={120}>
                 <PieChart>
                   <Pie
                     data={categoryTotals}
@@ -683,7 +683,7 @@ export default function MunicipalAnalytics() {
           </CardHeader>
           <CardContent className="flex-1 pt-6">
             <div className="h-full min-h-[260px]">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220} debounce={120}>
                 <BarChart data={stackedStatusData}>
                   <XAxis dataKey="name" />
                   <YAxis allowDecimals={false} />
@@ -714,7 +714,7 @@ export default function MunicipalAnalytics() {
           </CardHeader>
           <CardContent className="flex-1 pt-6">
             <div className="h-full min-h-[260px]">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220} debounce={120}>
                 <BarChart data={genderData}>
                   <XAxis dataKey="name" />
                   <YAxis allowDecimals={false} />
@@ -737,7 +737,7 @@ export default function MunicipalAnalytics() {
           </CardHeader>
           <CardContent className="flex-1 pt-6">
             <div className="h-full min-h-[260px]">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={280} minHeight={220} debounce={120}>
                 <BarChart data={ageData}>
                   <XAxis dataKey="name" />
                   <YAxis allowDecimals={false} />

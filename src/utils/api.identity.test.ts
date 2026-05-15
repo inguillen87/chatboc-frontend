@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { resolveOmnichannelContactKey, resolveOmnichannelConversationId } from '@/utils/api';
+import { resolveOmnichannelContactKey, resolveOmnichannelConversationId, resolveTenantSlug } from '@/utils/api';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
 describe('resolveOmnichannelContactKey', () => {
@@ -32,6 +32,21 @@ describe('resolveOmnichannelContactKey', () => {
     safeLocalStorage.setItem('user', JSON.stringify({ contact_key: 'user-contact-key' }));
     const resolved = resolveOmnichannelContactKey(null, {}, 'anon-123', { contactKey: 'persisted-contact-key' });
     expect(resolved).toBe('persisted-contact-key');
+  });
+});
+
+describe('resolveTenantSlug persistence control', () => {
+  beforeEach(() => {
+    safeLocalStorage.clear();
+  });
+
+  it('does not overwrite the stored tenant when persistence is disabled for demo requests', () => {
+    safeLocalStorage.setItem('tenantSlug', 'colegio-pago');
+
+    const resolved = resolveTenantSlug('municipio', '/api/public/lead-capture', { persist: false });
+
+    expect(resolved).toBe('municipio');
+    expect(safeLocalStorage.getItem('tenantSlug')).toBe('colegio-pago');
   });
 });
 
