@@ -269,6 +269,8 @@
   }
   .chatboc-hero-headline {
     max-width: 12.9ch;
+    position: relative;
+    z-index: 5;
     text-wrap: balance;
     text-shadow: 0 1px 0 hsl(var(--background) / 0.26);
   }
@@ -343,6 +345,41 @@
       0 0 0 1px rgba(147, 197, 253, 0.2),
       inset 0 0 0 1px rgba(255, 255, 255, 0.36);
   }
+  @media (min-width: 1024px) {
+    .chatboc-hero-layout {
+      grid-template-columns: minmax(0, 0.74fr) minmax(33rem, 1.26fr) !important;
+      column-gap: clamp(4.5rem, 6.5vw, 8rem);
+    }
+    .chatboc-hero-headline {
+      max-width: 11.1ch;
+      font-size: clamp(3.85rem, 4.35vw, 5.25rem);
+      line-height: 1.01;
+    }
+    .chatboc-hero-preview {
+      width: min(100%, 38rem);
+      margin-inline: auto 0;
+      transform: translate(1.45rem, -2rem) scale(0.94);
+    }
+  }
+  @media (min-width: 1280px) {
+    .chatboc-hero-layout {
+      grid-template-columns: minmax(0, 0.68fr) minmax(36rem, 1.32fr) !important;
+      column-gap: clamp(5.75rem, 7.2vw, 9.5rem);
+    }
+    .chatboc-hero-preview {
+      width: min(100%, 38.75rem);
+      transform: translate(2.75rem, -2rem) scale(0.95);
+    }
+  }
+  @media (min-width: 1536px) {
+    .chatboc-hero-headline {
+      max-width: 11.25ch;
+      font-size: clamp(4.1rem, 4.2vw, 5.2rem);
+    }
+    .chatboc-hero-preview {
+      transform: translate(3.4rem, -2rem) scale(0.95);
+    }
+  }
   .chatboc-hero-stage {
     position: relative;
     display: grid;
@@ -355,68 +392,6 @@
   .chatboc-hero-layout > div:first-child {
     position: relative;
     z-index: 4;
-  }
-  .chatboc-hero-mascot {
-    position: absolute;
-    right: clamp(-9.6rem, -10vw, -8.3rem);
-    top: clamp(8.9rem, 20vh, 12rem);
-    z-index: 6;
-    width: clamp(12.4rem, 14vw, 14.8rem);
-    pointer-events: none;
-    transform-origin: center bottom;
-    animation: chatboc-agent-float 6s ease-in-out infinite;
-  }
-  .chatboc-hero-mascot::before {
-    content: "";
-    position: absolute;
-    inset: 22% 2% 8%;
-    z-index: -1;
-    border-radius: 999px;
-    background:
-      radial-gradient(circle at 40% 28%, rgba(125, 211, 252, 0.48), transparent 48%),
-      radial-gradient(circle at 58% 72%, rgba(37, 99, 235, 0.28), transparent 54%);
-    filter: blur(18px);
-  }
-  .chatboc-hero-mascot img {
-    display: block;
-    width: 100%;
-    height: auto;
-    filter:
-      drop-shadow(0 28px 42px rgba(2, 6, 23, 0.38))
-      drop-shadow(0 0 26px rgba(102, 216, 255, 0.34));
-  }
-  .chatboc-mascot-3d {
-    position: relative;
-    display: block;
-    width: 100%;
-    aspect-ratio: 1 / 1.18;
-    contain: layout paint;
-  }
-  .chatboc-mascot-3d__fallback,
-  .chatboc-mascot-3d__canvas {
-    position: absolute;
-    inset: 0;
-    display: block;
-    width: 100%;
-    height: 100%;
-  }
-  .chatboc-mascot-3d__fallback {
-    object-fit: contain;
-    opacity: 1;
-    transition: opacity 0.28s ease;
-  }
-  .chatboc-mascot-3d--ready .chatboc-mascot-3d__fallback {
-    opacity: 0;
-  }
-  .chatboc-mascot-3d__canvas {
-    opacity: 0;
-    filter:
-      drop-shadow(0 28px 42px rgba(2, 6, 23, 0.38))
-      drop-shadow(0 0 26px rgba(102, 216, 255, 0.34));
-    transition: opacity 0.32s ease;
-  }
-  .chatboc-mascot-3d--ready .chatboc-mascot-3d__canvas {
-    opacity: 1;
   }
   .chatboc-hero-preview > .chatboc-phone-demo::after {
     content: "";
@@ -1260,8 +1235,7 @@
   }
   @media (prefers-reduced-motion: reduce) {
     .chatboc-brand-lockup__agent-shell,
-    .chatboc-agent-launcher::after,
-    .chatboc-hero-mascot {
+    .chatboc-agent-launcher::after {
       animation: none;
     }
     .chatboc-phone-demo__sequence,
@@ -1329,9 +1303,6 @@
       justify-items: center;
       padding-top: 0;
     }
-    .chatboc-hero-mascot {
-      display: none;
-    }
     .chatboc-hero-preview {
       width: min(calc(100vw - 2.5rem), 22.25rem);
       margin-inline: auto;
@@ -1344,6 +1315,9 @@
       top: auto !important;
       right: 1rem !important;
       bottom: calc(1rem + env(safe-area-inset-bottom)) !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+      transform: translateY(10px) scale(0.92) !important;
     }
     .chatboc-hero-preview::before {
       top: 0.38rem;
@@ -1435,11 +1409,6 @@
     .chatboc-hero-stage {
       min-height: 760px;
       justify-items: center;
-    }
-    .chatboc-hero-mascot {
-      right: clamp(0.7rem, 2.4vw, 1.4rem);
-      top: clamp(9.75rem, 22vh, 13.5rem);
-      width: clamp(9rem, 18vw, 11.25rem);
     }
     .chatboc-hero-preview {
       width: min(calc(100vw - 5rem), 34rem);
@@ -2206,21 +2175,53 @@ html {
 
 .chatboc-scroll-guide__avatar-button {
   position: relative;
-  width: 82px;
-  height: 104px;
+  width: 78px;
+  height: 100px;
   flex: 0 0 auto;
   border: 0;
-  border-radius: 28px;
+  border-radius: 999px 999px 30px 30px;
   background:
-    radial-gradient(circle at 50% 12%, rgba(125, 236, 255, 0.8), transparent 33%),
-    linear-gradient(180deg, rgba(37, 99, 235, 0.18), rgba(16, 185, 129, 0.12));
+    radial-gradient(circle at 50% 14%, rgba(177, 240, 255, 0.9), transparent 28%),
+    radial-gradient(circle at 50% 72%, rgba(37, 99, 235, 0.24), transparent 58%),
+    linear-gradient(180deg, rgba(10, 20, 43, 0.08), rgba(16, 185, 129, 0.1));
   box-shadow:
-    0 18px 48px rgba(37, 99, 235, 0.24),
-    inset 0 0 0 1px rgba(59, 130, 246, 0.18);
+    0 20px 54px rgba(37, 99, 235, 0.28),
+    0 0 0 1px rgba(125, 211, 252, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.44);
   cursor: pointer;
+  isolation: isolate;
   pointer-events: auto;
   transform-origin: 50% 100%;
-  animation: chatboc-guide-walk 1.35s ease-in-out infinite;
+  animation: chatboc-guide-walk 1.18s ease-in-out infinite;
+}
+
+.chatboc-scroll-guide__avatar-button::before,
+.chatboc-scroll-guide__avatar-button::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.chatboc-scroll-guide__avatar-button::before {
+  inset: -11px -13px 2px;
+  border-radius: inherit;
+  background:
+    radial-gradient(circle at 52% 15%, rgba(96, 165, 250, 0.28), transparent 35%),
+    radial-gradient(circle at 50% 78%, rgba(45, 212, 191, 0.22), transparent 42%);
+  filter: blur(10px);
+  opacity: 0.92;
+}
+
+.chatboc-scroll-guide__avatar-button::after {
+  left: 50%;
+  bottom: -6px;
+  width: 72px;
+  height: 16px;
+  border-radius: 999px;
+  background: radial-gradient(ellipse, rgba(14, 165, 233, 0.26), rgba(15, 23, 42, 0.1) 64%, transparent 72%);
+  transform: translateX(-50%);
+  animation: chatboc-guide-shadow-step 1.18s ease-in-out infinite;
 }
 
 .chatboc-scroll-guide__avatar-button:focus-visible {
@@ -2231,10 +2232,15 @@ html {
 .chatboc-scroll-guide__avatar {
   position: relative;
   z-index: 2;
-  width: 100%;
-  height: 100%;
+  width: 112%;
+  height: 112%;
+  margin-left: -6%;
+  margin-top: -8%;
   object-fit: contain;
-  filter: drop-shadow(0 16px 24px rgba(15, 23, 42, 0.2));
+  filter:
+    drop-shadow(0 17px 26px rgba(15, 23, 42, 0.22))
+    drop-shadow(0 0 16px rgba(125, 211, 252, 0.28));
+  animation: chatboc-guide-avatar-sway 1.18s ease-in-out infinite;
 }
 
 .chatboc-scroll-guide__wink {
@@ -2258,25 +2264,27 @@ html {
 .chatboc-scroll-guide__feet {
   position: absolute;
   z-index: 1;
-  left: 17px;
-  right: 17px;
-  bottom: 6px;
+  left: 18px;
+  right: 18px;
+  bottom: 4px;
   display: flex;
   justify-content: space-between;
   pointer-events: none;
 }
 
 .chatboc-scroll-guide__feet span {
-  width: 22px;
-  height: 7px;
+  width: 20px;
+  height: 6px;
   border-radius: 999px;
-  background: rgba(15, 23, 42, 0.18);
-  filter: blur(1px);
-  animation: chatboc-guide-step 1.35s ease-in-out infinite;
+  background: rgba(226, 246, 255, 0.92);
+  box-shadow:
+    0 5px 12px rgba(15, 23, 42, 0.18),
+    inset 0 0 0 1px rgba(37, 99, 235, 0.12);
+  animation: chatboc-guide-step 1.18s ease-in-out infinite;
 }
 
 .chatboc-scroll-guide__feet span + span {
-  animation-delay: 0.66s;
+  animation-delay: 0.59s;
 }
 
 .chatboc-scroll-guide__bubble {
@@ -2393,21 +2401,47 @@ body.chatboc-widget-open .chatboc-scroll-guide {
 
 @keyframes chatboc-guide-walk {
   0%, 100% {
-    transform: translateY(0) rotate(-0.5deg);
+    transform: translate3d(-2px, 0, 0) rotate(-1.1deg);
+  }
+  28% {
+    transform: translate3d(2px, -5px, 0) rotate(1deg);
+  }
+  56% {
+    transform: translate3d(4px, 0, 0) rotate(1.4deg);
+  }
+  78% {
+    transform: translate3d(0, -4px, 0) rotate(-0.4deg);
+  }
+}
+
+@keyframes chatboc-guide-avatar-sway {
+  0%, 100% {
+    transform: rotate(-1.4deg);
   }
   50% {
-    transform: translateY(-4px) rotate(0.8deg);
+    transform: rotate(1.8deg);
   }
 }
 
 @keyframes chatboc-guide-step {
   0%, 100% {
-    transform: translateX(-2px) scaleX(0.88);
-    opacity: 0.32;
+    transform: translateX(-4px) translateY(1px) rotate(8deg) scaleX(0.92);
+    opacity: 0.58;
   }
   50% {
-    transform: translateX(2px) scaleX(1.1);
-    opacity: 0.52;
+    transform: translateX(5px) translateY(-1px) rotate(-7deg) scaleX(1.08);
+    opacity: 1;
+  }
+}
+
+@keyframes chatboc-guide-shadow-step {
+  0%, 100% {
+    transform: translateX(-50%) scaleX(0.92);
+    opacity: 0.58;
+  }
+  50% {
+    transform: translateX(-50%) scaleX(1.08);
+    opacity: 0.36;
   }
 }
 
@@ -2503,6 +2537,8 @@ body.chatboc-widget-open .chatboc-scroll-guide {
   .animate-ping,
   .animate-spin,
   .chatboc-scroll-guide__avatar-button,
+  .chatboc-scroll-guide__avatar-button::after,
+  .chatboc-scroll-guide__avatar,
   .chatboc-scroll-guide__feet span,
   .chatboc-scroll-guide--wink .chatboc-scroll-guide__wink {
     animation: none !important;

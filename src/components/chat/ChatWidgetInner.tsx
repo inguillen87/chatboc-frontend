@@ -421,6 +421,7 @@ function ChatWidgetInner({
   );
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   const [launcherImageSrc, setLauncherImageSrc] = useState(CHATBOC_WIDGET_ANIMATED);
+  const [hideClosedLauncherForHeroPreview, setHideClosedLauncherForHeroPreview] = useState(false);
 
   const { tenant, currentSlug } = useTenant();
   const storedTenantSlug = useMemo(
@@ -826,6 +827,52 @@ function ChatWidgetInner({
     window.addEventListener("resize", checkMobile);
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
+
+  useEffect(() => {
+    if (
+      typeof window === "undefined" ||
+      mode !== "standalone" ||
+      !isMobileView ||
+      isOpen
+    ) {
+      setHideClosedLauncherForHeroPreview(false);
+      return;
+    }
+
+    let animationFrame = 0;
+    const timers: number[] = [];
+
+    const checkHeroPreview = () => {
+      const heroPreview = document.querySelector(".chatboc-hero-preview");
+      if (!heroPreview) {
+        setHideClosedLauncherForHeroPreview(false);
+        return;
+      }
+
+      const rect = heroPreview.getBoundingClientRect();
+      const visibleHeight = Math.max(0, Math.min(rect.bottom, window.innerHeight) - Math.max(rect.top, 0));
+      const visibleRatio = visibleHeight / Math.max(rect.height, 1);
+      setHideClosedLauncherForHeroPreview(visibleRatio > 0.12);
+    };
+
+    const scheduleCheck = () => {
+      if (animationFrame) window.cancelAnimationFrame(animationFrame);
+      animationFrame = window.requestAnimationFrame(checkHeroPreview);
+    };
+
+    checkHeroPreview();
+    timers.push(window.setTimeout(checkHeroPreview, 250));
+    timers.push(window.setTimeout(checkHeroPreview, 850));
+    window.addEventListener("scroll", scheduleCheck, { passive: true });
+    window.addEventListener("resize", scheduleCheck);
+
+    return () => {
+      if (animationFrame) window.cancelAnimationFrame(animationFrame);
+      timers.forEach((timer) => window.clearTimeout(timer));
+      window.removeEventListener("scroll", scheduleCheck);
+      window.removeEventListener("resize", scheduleCheck);
+    };
+  }, [isMobileView, isOpen, mode]);
 
   useEffect(() => {
     getOrCreateAnonId();
@@ -2227,7 +2274,8 @@ function ChatWidgetInner({
         };
       }
 
-      const baseStyle = {
+      const shouldHideClosedLauncher = isMobileView && !isOpen && hideClosedLauncherForHeroPreview;
+      const baseStyle: React.CSSProperties = {
         right: isMobileView
           ? `calc(env(safe-area-inset-right) + ${closedOffsetRight}px)`
           : `${closedOffsetRight}px`,
@@ -2237,9 +2285,15 @@ function ChatWidgetInner({
         width: isOpen ? finalOpenWidth : launcherSize,
         height: isOpen ? finalOpenHeight : launcherHeight,
         zIndex: 999999,
-        transition: 'width 0.3s ease, height 0.3s ease, bottom 0.3s ease, right 0.3s ease',
+        opacity: shouldHideClosedLauncher ? 0 : 1,
+        pointerEvents: shouldHideClosedLauncher ? "none" : undefined,
+        transition: 'width 0.3s ease, height 0.3s ease, bottom 0.3s ease, right 0.3s ease, opacity 0.18s ease, transform 0.18s ease',
         // FORCE NONE ON MOBILE TO PREVENT BACKEND INJECTION ISSUES
-        transform: isMobileView ? 'none' : undefined
+        transform: isMobileView
+          ? shouldHideClosedLauncher
+            ? "translateY(10px) scale(0.92)"
+            : "none"
+          : undefined
       };
 
       // Specifically override if backend sends scale via other means, though 'style' prop usually wins over external CSS classes unless !important
@@ -2259,7 +2313,7 @@ function ChatWidgetInner({
       };
     }
     return {};
-  }, [mode, isOpen, finalOpenWidth, finalOpenHeight, launcherSize, launcherHeight, isMobileView, closedOffsetBottom, closedOffsetRight]);
+  }, [mode, isOpen, finalOpenWidth, finalOpenHeight, launcherSize, launcherHeight, isMobileView, closedOffsetBottom, closedOffsetRight, hideClosedLauncherForHeroPreview]);
 
   const panelAnimation = prefersReducedMotion
     ? {

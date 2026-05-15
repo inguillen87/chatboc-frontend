@@ -25,11 +25,8 @@ import { useNavigate } from "react-router-dom";
 
 import type { LandingExperience, LandingRecord } from "@/api/landingExperience";
 import { cleanLandingCopy } from "@/utils/landingCopy";
-import { CHATBOC_AGENT_AVATAR } from "@/utils/brandAssets";
 
 type AnyRecord = Record<string, any>;
-
-const ChatbocMascot3D = React.lazy(() => import("@/components/visuals/ChatbocMascot3D"));
 
 interface HeroSectionProps {
   experience?: LandingExperience | null;
@@ -982,21 +979,6 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
           <div className="relative min-w-0">
             <div className="chatboc-hero-aura" aria-hidden="true" />
             <div className="chatboc-hero-stage">
-              <div className="chatboc-hero-mascot" aria-hidden="true">
-                <React.Suspense
-                  fallback={
-                    <img
-                      src={CHATBOC_AGENT_AVATAR}
-                      alt=""
-                      loading="eager"
-                      decoding="async"
-                      draggable={false}
-                    />
-                  }
-                >
-                  <ChatbocMascot3D className="chatboc-hero-mascot__three" decorative />
-                </React.Suspense>
-              </div>
               <div className="chatboc-hero-preview">
               <span className="chatboc-hero-preview__button chatboc-hero-preview__button--volume" aria-hidden="true" />
               <span className="chatboc-hero-preview__button chatboc-hero-preview__button--power" aria-hidden="true" />
