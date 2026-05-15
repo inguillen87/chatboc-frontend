@@ -22,12 +22,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useTenant } from '@/context/TenantContext';
 import { cn } from '@/lib/utils';
 import { getErrorMessage } from '@/utils/api';
+import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
 import {
   getOperationsActionCenterV2,
   getOperationsDashboardV2,
   getOperationsFreshnessV2,
   getOperationsHeatmapV2,
+  getPublicMapConfigV1,
 } from './analyticsApi';
 import type {
   OperationsActionItem,
@@ -38,6 +40,7 @@ import type {
   OperationsFreshnessV1,
   OperationsHeatmapPoint,
   OperationsHeatmapV1,
+  PublicMapConfigV1,
 } from './analyticsTypes';
 
 const numberFormatter = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 });
@@ -59,6 +62,11 @@ const asString = (value: unknown): string | undefined => {
   const trimmed = value.trim();
   return trimmed || undefined;
 };
+
+const readStoredTenantSlug = () =>
+  asString(safeLocalStorage.getItem('tenantSlug')) ??
+  asString(safeLocalStorage.getItem('tenant_slug')) ??
+  asString(safeLocalStorage.getItem('currentTenantSlug'));
 
 const formatNumber = (value: unknown, suffix = '') => {
   const parsed = asNumber(value);
@@ -137,13 +145,165 @@ const getRefreshSeconds = (...values: Array<number | undefined>) => {
   return parsed;
 };
 
+type HeatmapFilterKey = 'categoria' | 'rango_edad' | 'genero' | 'canal' | 'source' | 'barrio' | 'estado' | 'distrito';
+type HeatmapQueryKey = HeatmapFilterKey | 'range' | 'scope' | 'days';
+type HeatmapFilterState = Partial<Record<HeatmapQueryKey, string>>;
+
+type HeatmapFilterConfig = {
+  key: HeatmapFilterKey;
+  queryParam: keyof HeatmapFilterState;
+  labelKey: string;
+  fallbackLabel: string;
+  pointFields: string[];
+};
+
+type HeatmapFilterOption = {
+  value: string;
+  label: string;
+  count?: number;
+};
+
+const HEATMAP_FILTERS: HeatmapFilterConfig[] = [
+  {
+    key: 'categoria',
+    queryParam: 'categoria',
+    labelKey: 'filter_categoria',
+    fallbackLabel: 'Categoria',
+    pointFields: ['categoria', 'category'],
+  },
+  {
+    key: 'rango_edad',
+    queryParam: 'rango_edad',
+    labelKey: 'filter_rango_edad',
+    fallbackLabel: 'Edad',
+    pointFields: ['rango_edad', 'age_range', 'ageRange', 'edad', 'age'],
+  },
+  {
+    key: 'genero',
+    queryParam: 'genero',
+    labelKey: 'filter_genero',
+    fallbackLabel: 'Genero',
+    pointFields: ['genero', 'gender', 'sexo'],
+  },
+  {
+    key: 'canal',
+    queryParam: 'canal',
+    labelKey: 'filter_canal',
+    fallbackLabel: 'Canal',
+    pointFields: ['canal', 'channel'],
+  },
+  {
+    key: 'source',
+    queryParam: 'source',
+    labelKey: 'filter_source',
+    fallbackLabel: 'Fuente',
+    pointFields: ['source', 'type', 'layer'],
+  },
+  {
+    key: 'barrio',
+    queryParam: 'barrio',
+    labelKey: 'filter_barrio',
+    fallbackLabel: 'Barrio',
+    pointFields: ['barrio', 'neighborhood'],
+  },
+  {
+    key: 'distrito',
+    queryParam: 'distrito',
+    labelKey: 'filter_distrito',
+    fallbackLabel: 'Distrito',
+    pointFields: ['distrito', 'district'],
+  },
+  {
+    key: 'estado',
+    queryParam: 'estado',
+    labelKey: 'filter_estado',
+    fallbackLabel: 'Estado',
+    pointFields: ['estado', 'status'],
+  },
+];
+
+const HEATMAP_FILTER_ALIASES: Record<string, HeatmapFilterKey> = {
+  category: 'categoria',
+  categories: 'categoria',
+  categoria: 'categoria',
+  categorias: 'categoria',
+  age: 'rango_edad',
+  edad: 'rango_edad',
+  age_range: 'rango_edad',
+  agerange: 'rango_edad',
+  rango_edad: 'rango_edad',
+  gender: 'genero',
+  genero: 'genero',
+  sexo: 'genero',
+  channel: 'canal',
+  canal: 'canal',
+  source: 'source',
+  fuente: 'source',
+  layer: 'source',
+  type: 'source',
+  barrio: 'barrio',
+  neighborhood: 'barrio',
+  distrito: 'distrito',
+  district: 'distrito',
+  status: 'estado',
+  estado: 'estado',
+};
+
+const normalizeHeatmapFilterKey = (value: unknown): HeatmapFilterKey | null => {
+  const normalized = asString(value)?.toLowerCase().replace(/[\s-]+/g, '_');
+  if (!normalized) return null;
+  return HEATMAP_FILTER_ALIASES[normalized] ?? null;
+};
+
+const readItemOptionValue = (item: OperationsBucketItem): string | undefined =>
+  asString(item.value) ??
+  asString(item.key) ??
+  asString(item.id) ??
+  asString(item.label) ??
+  asString(item.title) ??
+  asString(item.name);
+
+const readPointField = (point: OperationsHeatmapPoint, config: HeatmapFilterConfig): string | undefined => {
+  for (const field of config.pointFields) {
+    const value = (point as Record<string, unknown>)[field];
+    if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+    const parsed = asString(value);
+    if (parsed) return parsed;
+  }
+  return undefined;
+};
+
+const cleanHeatmapFilters = (filters: HeatmapFilterState): HeatmapFilterState =>
+  Object.fromEntries(
+    Object.entries(filters)
+      .map(([key, value]) => [key, asString(value)] as const)
+      .filter(([, value]) => Boolean(value)),
+  ) as HeatmapFilterState;
+
+const DEFAULT_HEATMAP_FILTERS: HeatmapFilterState = {
+  range: 'all',
+  scope: 'historical',
+};
+
+const HEATMAP_PERIOD_KEYS = new Set<HeatmapQueryKey>(['range', 'scope', 'days']);
+
+const keepHeatmapPeriodFilters = (filters: HeatmapFilterState): HeatmapFilterState => {
+  const next = Object.fromEntries(
+    Object.entries(filters).filter(([key]) => HEATMAP_PERIOD_KEYS.has(key as HeatmapQueryKey)),
+  ) as HeatmapFilterState;
+  return Object.keys(next).length ? next : DEFAULT_HEATMAP_FILTERS;
+};
+
 interface OperationsDashboardPanelProps {
   className?: string;
 }
 
 export function OperationsDashboardPanel({ className }: OperationsDashboardPanelProps) {
   const { currentSlug } = useTenant();
-  const tenantSlug = currentSlug || undefined;
+  const storedTenantSlug = useMemo(() => readStoredTenantSlug(), []);
+  const tenantSlug = currentSlug || storedTenantSlug || undefined;
+  const [heatmapFilters, setHeatmapFilters] = useState<HeatmapFilterState>(DEFAULT_HEATMAP_FILTERS);
+  const activeHeatmapFilters = useMemo(() => cleanHeatmapFilters(heatmapFilters), [heatmapFilters]);
 
   const dashboardQuery = useQuery({
     queryKey: ['v2-operations-dashboard', tenantSlug],
@@ -153,10 +313,17 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
   });
 
   const heatmapQuery = useQuery({
-    queryKey: ['v2-operations-heatmap', tenantSlug],
-    queryFn: () => getOperationsHeatmapV2({ tenantSlug }),
+    queryKey: ['v2-operations-heatmap', tenantSlug, activeHeatmapFilters],
+    queryFn: () => getOperationsHeatmapV2({ tenantSlug, ...activeHeatmapFilters }),
     retry: 0,
     staleTime: 30_000,
+  });
+
+  const mapConfigQuery = useQuery({
+    queryKey: ['public-map-config-v1', tenantSlug],
+    queryFn: () => getPublicMapConfigV1({ tenantSlug }),
+    retry: 0,
+    staleTime: 10 * 60_000,
   });
 
   const actionCenterQuery = useQuery({
@@ -295,6 +462,9 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
             loading={heatmapQuery.isLoading}
             error={heatmapQuery.error}
             canRenderHeatmap={canRenderHeatmap}
+            filters={activeHeatmapFilters}
+            onFiltersChange={setHeatmapFilters}
+            mapConfig={mapConfigQuery.data}
             refetch={() => void refetchHeatmap()}
           />
         </div>
@@ -618,6 +788,9 @@ function OperationsHeatmapPanel({
   loading,
   error,
   canRenderHeatmap,
+  filters,
+  onFiltersChange,
+  mapConfig,
   refetch,
 }: {
   heatmap?: OperationsHeatmapV1;
@@ -625,6 +798,9 @@ function OperationsHeatmapPanel({
   loading: boolean;
   error: unknown;
   canRenderHeatmap?: boolean;
+  filters: HeatmapFilterState;
+  onFiltersChange: React.Dispatch<React.SetStateAction<HeatmapFilterState>>;
+  mapConfig?: PublicMapConfigV1;
   refetch: () => void;
 }) {
   const layers = heatmap?.render_contract?.layers ?? [];
@@ -635,16 +811,170 @@ function OperationsHeatmapPanel({
     setEnabledLayers(layers);
   }, [layersKey]);
 
+  const uiLabels = heatmap?.ui?.labels ?? heatmap?.frontend_contract?.labels ?? {};
+  const filterControls = useMemo(() => {
+    const byKey = new Map<HeatmapFilterKey, Map<string, HeatmapFilterOption>>();
+    const ensureGroup = (key: HeatmapFilterKey) => {
+      const existing = byKey.get(key);
+      if (existing) return existing;
+      const next = new Map<string, HeatmapFilterOption>();
+      byKey.set(key, next);
+      return next;
+    };
+    const addOption = (key: HeatmapFilterKey, value: unknown, labelCandidate?: unknown, countCandidate?: unknown) => {
+      const parsedValue = typeof value === 'number' && Number.isFinite(value) ? String(value) : asString(value);
+      if (!parsedValue) return;
+      const label =
+        (typeof labelCandidate === 'number' && Number.isFinite(labelCandidate) ? String(labelCandidate) : asString(labelCandidate)) ??
+        parsedValue;
+      const group = ensureGroup(key);
+      const previous = group.get(parsedValue);
+      const count = readNumber(countCandidate);
+      group.set(parsedValue, {
+        value: parsedValue,
+        label,
+        count: count !== undefined ? count : previous?.count,
+      });
+    };
+
+    (heatmap?.facets ?? []).forEach((facet) => {
+      const key = normalizeHeatmapFilterKey(facet.key ?? facet.field ?? facet.query_param);
+      if (!key) return;
+      facet.items.forEach((item) => {
+        addOption(key, readItemOptionValue(item), itemLabel(item), itemValue(item));
+      });
+    });
+
+    Object.entries(heatmap?.segments ?? {}).forEach(([segmentKey, items]) => {
+      const key = normalizeHeatmapFilterKey(segmentKey);
+      if (!key) return;
+      items.forEach((item) => {
+        addOption(key, readItemOptionValue(item), itemLabel(item), itemValue(item));
+      });
+    });
+
+    (heatmap?.points ?? []).forEach((point) => {
+      HEATMAP_FILTERS.forEach((config) => {
+        addOption(config.key, readPointField(point, config));
+      });
+    });
+
+    return HEATMAP_FILTERS.map((config) => {
+      const options = Array.from(byKey.get(config.key)?.values() ?? [])
+        .sort((a, b) => {
+          const countDelta = (b.count ?? 0) - (a.count ?? 0);
+          if (countDelta) return countDelta;
+          return a.label.localeCompare(b.label, 'es');
+        })
+        .slice(0, 60);
+
+      return {
+        ...config,
+        label: uiLabels[config.labelKey] || config.fallbackLabel,
+        options,
+      };
+    }).filter((config) => config.options.length > 0);
+  }, [heatmap?.facets, heatmap?.points, heatmap?.segments, uiLabels]);
+
+  const hasActiveSegmentFilters = Object.keys(filters).length > 0;
+  const clearFiltersLabel = uiLabels.clear_filters || 'Limpiar filtros';
+  const allLabel = uiLabels.filter_all || 'Todos';
+
   const filteredPoints = useMemo(() => {
     if (!heatmap?.points.length) return [] as OperationsHeatmapPoint[];
-    if (!layers.length || enabledLayers.length === layers.length) return heatmap.points;
+    const layerFiltered = (() => {
+      if (!layers.length || enabledLayers.length === layers.length) return heatmap.points;
 
-    const enabled = new Set(enabledLayers.map((layer) => layer.toLowerCase()));
-    return heatmap.points.filter((point) => {
-      const pointLayer = String(point.layer ?? point.source ?? point.type ?? '').trim().toLowerCase();
-      return !pointLayer || enabled.has(pointLayer);
-    });
-  }, [enabledLayers, heatmap?.points, layers]);
+      const enabled = new Set(enabledLayers.map((layer) => layer.toLowerCase()));
+      return heatmap.points.filter((point) => {
+        const pointLayer = String(point.layer ?? point.source ?? point.type ?? '').trim().toLowerCase();
+        return !pointLayer || enabled.has(pointLayer);
+      });
+    })();
+
+    const activeFilters = Object.entries(filters)
+      .map(([key, value]) => {
+        const config = HEATMAP_FILTERS.find((candidate) => candidate.key === key);
+        const parsedValue = asString(value);
+        return config && parsedValue ? { config, value: parsedValue } : null;
+      })
+      .filter((item): item is { config: HeatmapFilterConfig; value: string } => item !== null);
+
+    if (!activeFilters.length) return layerFiltered;
+
+    return layerFiltered.filter((point) =>
+      activeFilters.every(({ config, value }) => {
+        const pointValue = readPointField(point, config);
+        if (!pointValue) return true;
+        return pointValue === value;
+      }),
+    );
+  }, [enabledLayers, filters, heatmap?.points, layers]);
+
+  const segmentBreakdowns = useMemo(() => {
+    if (!filteredPoints.length) return [] as Array<{ key: HeatmapFilterKey; label: string; items: OperationsBucketItem[] }>;
+
+    return filterControls
+      .map((config) => {
+        const acc = new Map<string, { label: string; count: number; weight: number }>();
+        filteredPoints.forEach((point) => {
+          const value = readPointField(point, config);
+          if (!value) return;
+          const previous = acc.get(value) ?? { label: value, count: 0, weight: 0 };
+          previous.count += 1;
+          previous.weight += readNumber(point.weight) ?? 1;
+          acc.set(value, previous);
+        });
+        const items = Array.from(acc.entries())
+          .map(([value, item]) => ({
+            key: value,
+            label: item.label,
+            count: item.count,
+            value: Number(item.weight.toFixed(2)),
+          }))
+          .sort((a, b) => (b.value ?? 0) - (a.value ?? 0))
+          .slice(0, 5);
+        return { key: config.key, label: config.label, items };
+      })
+      .filter((group) => group.items.length > 0);
+  }, [filterControls, filteredPoints]);
+
+  const activeFilterSummaries = useMemo(
+    () =>
+      filterControls
+        .map((config) => {
+          const value = filters[config.queryParam];
+          if (!value) return null;
+          const option = config.options.find((candidate) => candidate.value === value);
+          return {
+            key: config.key,
+            queryParam: config.queryParam,
+            label: config.label,
+            value,
+            optionLabel: option?.label ?? value,
+          };
+        })
+        .filter(
+          (item): item is {
+            key: HeatmapFilterKey;
+            queryParam: keyof HeatmapFilterState;
+            label: string;
+            value: string;
+            optionLabel: string;
+          } => item !== null,
+        ),
+    [filterControls, filters],
+  );
+
+  const backendAppliedFilters = useMemo(() => {
+    if (!heatmap?.filters_applied) return [] as Array<{ key: string; value: string }>;
+    return Object.entries(heatmap.filters_applied)
+      .map(([key, value]) => {
+        const parsed = typeof value === 'number' && Number.isFinite(value) ? String(value) : asString(value);
+        return parsed ? { key, value: parsed } : null;
+      })
+      .filter((item): item is { key: string; value: string } => item !== null);
+  }, [heatmap?.filters_applied]);
 
   const bounds = useMemo(
     () =>
@@ -660,6 +990,26 @@ function OperationsHeatmapPanel({
     const lat = bounds.reduce((sum, point) => sum + point[1], 0) / bounds.length;
     return [lng, lat] as [number, number];
   }, [bounds]);
+
+  const renderState = heatmap?.render_contract?.state;
+  const isFreshnessBlocked = canRenderHeatmap === false;
+  const isEmpty = isFreshnessBlocked || renderState === 'empty' || !filteredPoints.length;
+  const emptyDescription = isFreshnessBlocked
+    ? 'No hay datos suficientes para dibujar el mapa en este periodo.'
+    : 'Todavia no hay coordenadas para las capas activas.';
+  const selectedFiltersLabel = uiLabels.selected_filters || 'Filtros activos';
+  const visiblePointsLabel = uiLabels.visible_points || 'Puntos visibles';
+  const backendFiltersLabel = uiLabels.backend_filters || 'Filtros aplicados por backend';
+  const mapStyleUrl = asString(heatmap?.render_contract?.style_url) ?? mapConfig?.style_url;
+  const mapProviderFromConfig = mapConfig?.provider === 'google' ? 'google' : 'maplibre';
+  const mapProvider = mapStyleUrl ? 'maplibre' : mapProviderFromConfig;
+  const mapGeoLayerConfig = useMemo(
+    () => ({
+      ...(heatmap?.render_contract ?? {}),
+      ...(mapStyleUrl ? { style_url: mapStyleUrl } : {}),
+    }),
+    [heatmap?.render_contract, mapStyleUrl],
+  );
 
   if (loading && !heatmap) {
     return <ViewState status="loading" description="Cargando mapa operativo." />;
@@ -680,13 +1030,6 @@ function OperationsHeatmapPanel({
       />
     );
   }
-
-  const renderState = heatmap?.render_contract?.state;
-  const isFreshnessBlocked = canRenderHeatmap === false;
-  const isEmpty = isFreshnessBlocked || renderState === 'empty' || !filteredPoints.length;
-  const emptyDescription = isFreshnessBlocked
-    ? 'No hay datos suficientes para dibujar el mapa en este periodo.'
-    : 'Todavia no hay coordenadas para las capas activas.';
 
   return (
     <Card>
@@ -730,6 +1073,94 @@ function OperationsHeatmapPanel({
             })}
           </div>
         ) : null}
+        {filterControls.length ? (
+          <div className="rounded-lg border bg-muted/20 p-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-medium">{uiLabels.segment_filters || 'Segmentos del mapa'}</p>
+                <p className="text-xs text-muted-foreground">
+                  {uiLabels.segment_filters_description || 'Cruza puntos reales por categoria, edad, genero, canal y zona cuando el backend los publica.'}
+                </p>
+              </div>
+              {hasActiveSegmentFilters ? (
+                <Button type="button" size="sm" variant="outline" onClick={() => onFiltersChange({})}>
+                  {clearFiltersLabel}
+                </Button>
+              ) : null}
+            </div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+              {filterControls.map((config) => (
+                <label key={config.key} className="space-y-1 text-xs font-medium text-muted-foreground">
+                  <span>{config.label}</span>
+                  <select
+                    value={filters[config.queryParam] ?? ''}
+                    onChange={(event) => {
+                      const nextValue = event.target.value.trim();
+                      onFiltersChange((current) => {
+                        const next = { ...current };
+                        if (nextValue) {
+                          next[config.queryParam] = nextValue;
+                        } else {
+                          delete next[config.queryParam];
+                        }
+                        return next;
+                      });
+                    }}
+                    className="h-9 w-full rounded-md border bg-background px-2 text-sm text-foreground shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  >
+                    <option value="">{allLabel}</option>
+                    {config.options.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.count !== undefined ? `${option.label} (${formatNumber(option.count)})` : option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ))}
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              <Badge variant="secondary">
+                {visiblePointsLabel}: {formatNumber(filteredPoints.length)}
+              </Badge>
+              {activeFilterSummaries.length ? (
+                <>
+                  <span>{selectedFiltersLabel}:</span>
+                  {activeFilterSummaries.map((filter) => (
+                    <Button
+                      key={`${filter.queryParam}-${filter.value}`}
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 gap-1 px-2 text-xs"
+                      onClick={() =>
+                        onFiltersChange((current) => {
+                          const next = { ...current };
+                          delete next[filter.queryParam];
+                          return next;
+                        })
+                      }
+                    >
+                      <span className="font-medium">{filter.label}:</span>
+                      <span>{filter.optionLabel}</span>
+                    </Button>
+                  ))}
+                </>
+              ) : null}
+              {backendAppliedFilters.length ? (
+                <span className="text-[11px]">
+                  {backendFiltersLabel}: {backendAppliedFilters.map((filter) => `${filter.key}=${filter.value}`).join(', ')}
+                </span>
+              ) : null}
+            </div>
+            {segmentBreakdowns.length ? (
+              <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                {segmentBreakdowns.slice(0, 6).map((group) => (
+                  <MiniList key={group.key} title={group.label} items={group.items} />
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
         {isEmpty ? (
           <ViewState
             status="empty"
@@ -745,6 +1176,11 @@ function OperationsHeatmapPanel({
             fitToBounds={bounds.length ? bounds : undefined}
             initialZoom={bounds.length ? 11 : 4}
             className="h-[360px] rounded-lg border sm:h-[460px]"
+            provider={mapProvider}
+            mapStyleUrl={mapStyleUrl}
+            maptilerKey={mapConfig?.maptiler_key}
+            googleMapsKey={mapConfig?.google_maps_key}
+            geoLayerConfig={mapGeoLayerConfig}
             disableClientClustering
           />
         )}

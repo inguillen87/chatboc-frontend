@@ -140,6 +140,44 @@ export interface OperationsHeatmapPoint {
   source?: string;
   type?: string;
   label?: string;
+  category?: string;
+  categoria?: string;
+  channel?: string;
+  canal?: string;
+  gender?: string;
+  genero?: string;
+  sexo?: string;
+  age?: string | number;
+  edad?: string | number;
+  age_range?: string;
+  rango_edad?: string;
+  barrio?: string;
+  distrito?: string;
+  status?: string;
+  estado?: string;
+  severity?: string;
+  severidad?: string;
+  [key: string]: unknown;
+}
+
+export interface OperationsHeatmapFacet {
+  key: string;
+  field: string;
+  query_param: string;
+  label: string;
+  ui_hint?: string;
+  items: OperationsBucketItem[];
+  [key: string]: unknown;
+}
+
+export interface OperationsHeatmapDemographics {
+  source?: string;
+  gender: OperationsBucketItem[];
+  age_ranges: OperationsBucketItem[];
+  known_gender_points?: number;
+  known_age_points?: number;
+  unknown_gender_points?: number;
+  unknown_age_points?: number;
   [key: string]: unknown;
 }
 
@@ -160,6 +198,30 @@ export interface OperationsHeatmapV1 {
   points: OperationsHeatmapPoint[];
   cells: OperationsBucketItem[];
   hotspots: OperationsBucketItem[];
+  facets: OperationsHeatmapFacet[];
+  category_layers: OperationsBucketItem[];
+  demographics?: OperationsHeatmapDemographics;
+  segments?: Record<string, OperationsBucketItem[]>;
+  applied_filters?: Record<string, unknown>;
+  filters_applied?: Record<string, unknown>;
+  ui?: {
+    labels?: Record<string, string>;
+    [key: string]: unknown;
+  };
+  frontend_contract?: OperationsFrontendContract;
+}
+
+export interface PublicMapConfigV1 {
+  contract_version?: string;
+  provider?: string;
+  available_providers?: string[];
+  provider_aliases?: Record<string, unknown>;
+  style_url?: string;
+  style_url_source?: string;
+  style_url_warning?: string | null;
+  maptiler_key?: string;
+  google_maps_key?: string;
+  [key: string]: unknown;
 }
 
 export interface OperationsActionCenterV1 {

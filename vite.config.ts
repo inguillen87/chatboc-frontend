@@ -134,6 +134,26 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: false,
         },
+        '/auth': {
+          target: backendTarget,
+          changeOrigin: true,
+          secure: false,
+        },
+        '/me': {
+          target: backendTarget,
+          changeOrigin: true,
+          secure: false,
+        },
+        '/municipal': {
+          target: backendTarget,
+          changeOrigin: true,
+          secure: false,
+        },
+        '/estadisticas': {
+          target: backendTarget,
+          changeOrigin: true,
+          secure: false,
+        },
         '/socket.io': {
           target: socketTarget,
           ws: true,
