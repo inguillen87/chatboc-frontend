@@ -14,7 +14,6 @@ import {
   Users,
 } from 'lucide-react';
 
-import MapLibreMap from '@/components/MapLibreMap';
 import { ViewState } from '@/components/app-shell/ViewState';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -31,6 +30,7 @@ import {
   getOperationsHeatmapV2,
   getPublicMapConfigV1,
 } from './analyticsApi';
+import { PremiumTerritoryHeatmap } from './PremiumTerritoryMap';
 import type {
   OperationsActionItem,
   OperationsAlert,
@@ -1054,40 +1054,25 @@ function OperationsHeatmapPanel({
     [heatmap?.category_layers],
   );
 
-  const bounds = useMemo(
-    () =>
-      filteredPoints
-        .map((point) => [Number(point.lng), Number(point.lat)] as [number, number])
-        .filter(([lng, lat]) => Number.isFinite(lng) && Number.isFinite(lat)),
-    [filteredPoints],
-  );
-
-  const center = useMemo(() => {
-    if (!bounds.length) return undefined;
-    const lng = bounds.reduce((sum, point) => sum + point[0], 0) / bounds.length;
-    const lat = bounds.reduce((sum, point) => sum + point[1], 0) / bounds.length;
-    return [lng, lat] as [number, number];
-  }, [bounds]);
-
   const renderState = heatmap?.render_contract?.state;
   const isFreshnessBlocked = canRenderHeatmap === false;
-  const isEmpty = isFreshnessBlocked || renderState === 'empty' || !filteredPoints.length;
+  const allowDemoFallback = import.meta.env.DEV && !isFreshnessBlocked && renderState !== 'empty';
+  const isEmpty = isFreshnessBlocked || renderState === 'empty' || (!filteredPoints.length && !allowDemoFallback);
   const emptyDescription = isFreshnessBlocked
     ? 'No hay datos suficientes para dibujar el mapa en este periodo.'
     : 'Todavia no hay coordenadas para las capas activas.';
   const selectedFiltersLabel = uiLabels.selected_filters || 'Filtros activos';
   const visiblePointsLabel = uiLabels.visible_points || 'Puntos visibles';
   const backendFiltersLabel = uiLabels.backend_filters || 'Filtros aplicados por backend';
-  const mapStyleUrl = asString(heatmap?.render_contract?.style_url) ?? mapConfig?.style_url;
-  const mapProviderFromConfig = mapConfig?.provider === 'google' ? 'google' : 'maplibre';
-  const mapProvider = mapStyleUrl ? 'maplibre' : mapProviderFromConfig;
-  const mapGeoLayerConfig = useMemo(
-    () => ({
-      ...(heatmap?.render_contract ?? {}),
-      ...(mapStyleUrl ? { style_url: mapStyleUrl } : {}),
-    }),
-    [heatmap?.render_contract, mapStyleUrl],
-  );
+  const tenantVertical = asString(heatmap?.tenant?.vertical ?? heatmap?.tenant?.tipo ?? heatmap?.tenant?.sector);
+  const demoProfile =
+    tenantVertical === 'educacion' || tenantVertical === 'colegio'
+      ? 'colegio'
+      : tenantVertical === 'empresa' || tenantVertical === 'empresas' || tenantVertical === 'pyme'
+        ? 'empresa'
+        : tenantVertical === 'gobierno' || tenantVertical === 'municipio'
+          ? 'gobierno'
+          : 'general';
 
   if (loading && !heatmap) {
     return <ViewState status="loading" description="Cargando mapa operativo." />;
@@ -1339,19 +1324,24 @@ function OperationsHeatmapPanel({
             className="min-h-[320px]"
           />
         ) : (
-          <MapLibreMap
-            heatmapData={filteredPoints as any}
-            showHeatmap
-            center={center}
-            fitToBounds={bounds.length ? bounds : undefined}
-            initialZoom={bounds.length ? 11 : 4}
-            className="h-[360px] rounded-lg border sm:h-[460px]"
-            provider={mapProvider}
-            mapStyleUrl={mapStyleUrl}
-            maptilerKey={mapConfig?.maptiler_key}
-            googleMapsKey={mapConfig?.google_maps_key}
-            geoLayerConfig={mapGeoLayerConfig}
-            disableClientClustering
+          <PremiumTerritoryHeatmap
+            points={filteredPoints}
+            heatmap={heatmap}
+            labels={uiLabels}
+            mapConfig={mapConfig}
+            allowDemoFallback={allowDemoFallback}
+            demoProfile={demoProfile}
+            activeFilters={activeFilterSummaries.map((filter) => ({
+              key: String(filter.queryParam),
+              label: filter.label,
+              value: filter.optionLabel,
+              onClear: () =>
+                onFiltersChange((current) => {
+                  const next = { ...current };
+                  delete next[filter.queryParam];
+                  return next;
+                }),
+            }))}
           />
         )}
       </CardContent>
