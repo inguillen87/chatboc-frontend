@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   normalizeCatalogQualityV2,
+  normalizeEmployeeCoverageV2,
   normalizeEmployeeRoutingV2,
   normalizeOmnichannelInboxDetailV2,
   normalizeProductionSmokeV2,
@@ -94,6 +95,37 @@ describe("tenant admin v2 contracts", () => {
     expect(normalized.queues.unassigned_count).toBe(1);
     expect(normalized.recommendations[0].score).toBe(96);
     expect(normalized.recommendations[0].reasons).toContain("zone_match");
+  });
+
+  it("normalizes employee coverage permissions separately from channels", () => {
+    const normalized = normalizeEmployeeCoverageV2({
+      contract_version: "employee.coverage.v1",
+      coverage: {
+        categories: [{ id: "alumbrado", label: "Alumbrado", count: 0 }],
+        zones: ["centro"],
+        channels: ["whatsapp"],
+        permisos: ["tickets_read", "tickets_assign"],
+      },
+      employees: [
+        {
+          id: 10,
+          name: "Mesa de entrada",
+          scope: {
+            categorias: ["alumbrado"],
+            zonas: ["centro"],
+            channels: ["whatsapp"],
+            permisos: ["tickets_read"],
+          },
+          workload: 2,
+        },
+      ],
+    });
+
+    expect(normalized.contract_version).toBe("employee.coverage.v1");
+    expect(normalized.categories[0].label).toBe("Alumbrado");
+    expect(normalized.channels[0].id).toBe("whatsapp");
+    expect(normalized.permisos.map((item) => item.id)).toEqual(["tickets_read", "tickets_assign"]);
+    expect(normalized.permisos.map((item) => item.id)).not.toEqual(normalized.channels.map((item) => item.id));
   });
 
   it("normalizes inbox 360 detail fields", () => {

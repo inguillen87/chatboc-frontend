@@ -28,14 +28,27 @@ describe('operations heatmap v2 contract', () => {
         },
       ],
       segments: {
-        genero: [{ key: 'femenino', label: 'Femenino', count: 3 }],
-        rango_edad: [{ key: '35-44', label: '35-44', count: 2 }],
+        category: [{ key: 'alumbrado', label: 'Alumbrado', count: 4 }],
+        gender: [{ key: 'femenino', label: 'Femenino', count: 3 }],
+        age_range: [{ key: '35-44', label: '35-44', count: 2 }],
+        source: [{ key: 'tickets', label: 'Tickets', count: 4 }],
       },
-      filters_applied: {
+      applied_filters: {
         categoria: 'alumbrado',
         genero: 'femenino',
         rango_edad: '35-44',
+        source: 'tickets',
       },
+      demographics: {
+        source: 'real_metadata_only',
+        gender: [{ key: 'unknown', label: 'unknown', count: 1 }],
+        age_ranges: [{ key: '35-44', label: '35-44', count: 2 }],
+        known_gender_points: 3,
+        known_age_points: 2,
+        unknown_gender_points: 1,
+        unknown_age_points: 0,
+      },
+      category_layers: [{ key: 'alumbrado', label: 'Alumbrado', count: 4 }],
       points: [
         {
           id: 10,
@@ -46,6 +59,7 @@ describe('operations heatmap v2 contract', () => {
           genero: 'femenino',
           rango_edad: '35-44',
           canal: 'whatsapp',
+          source: 'tickets',
           barrio: 'Centro',
           estado: 'nuevo',
         },
@@ -57,6 +71,9 @@ describe('operations heatmap v2 contract', () => {
       categoria: 'alumbrado',
       genero: 'femenino',
       rango_edad: '35-44',
+      source: 'tickets',
+      range: 'all',
+      scope: 'historical',
       canal: 'whatsapp',
       barrio: 'Centro',
       estado: 'nuevo',
@@ -67,6 +84,9 @@ describe('operations heatmap v2 contract', () => {
     expect(url).toContain('categoria=alumbrado');
     expect(url).toContain('genero=femenino');
     expect(url).toContain('rango_edad=35-44');
+    expect(url).toContain('source=tickets');
+    expect(url).toContain('range=all');
+    expect(url).toContain('scope=historical');
     expect(url).toContain('canal=whatsapp');
     expect(url).toContain('barrio=Centro');
     expect(url).toContain('estado=nuevo');
@@ -81,12 +101,17 @@ describe('operations heatmap v2 contract', () => {
       genero: 'femenino',
       rango_edad: '35-44',
       canal: 'whatsapp',
+      source: 'tickets',
       barrio: 'Centro',
       estado: 'nuevo',
     });
     expect(response.facets[0].items[0]).toMatchObject({ label: 'Alumbrado', count: 4 });
-    expect(response.segments?.genero?.[0]).toMatchObject({ label: 'Femenino', count: 3 });
+    expect(response.segments?.gender?.[0]).toMatchObject({ label: 'Femenino', count: 3 });
     expect(response.filters_applied?.categoria).toBe('alumbrado');
+    expect(response.applied_filters?.source).toBe('tickets');
+    expect(response.demographics?.source).toBe('real_metadata_only');
+    expect(response.demographics?.gender[0]).toMatchObject({ label: 'unknown', count: 1 });
+    expect(response.category_layers[0]).toMatchObject({ label: 'Alumbrado', count: 4 });
   });
 
   it('reads the backend map config contract for operational maps', async () => {

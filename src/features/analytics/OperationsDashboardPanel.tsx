@@ -273,6 +273,15 @@ const readPointField = (point: OperationsHeatmapPoint, config: HeatmapFilterConf
   return undefined;
 };
 
+const heatmapDisplayLabel = (value: unknown, fallback?: unknown): string => {
+  const parsed = asString(value) ?? asString(fallback) ?? '';
+  const normalized = parsed.toLowerCase().replace(/[\s-]+/g, '_');
+  if (['unknown', 'sin_dato', 'sin_datos', 'no_informado', 'no_informada', 'null', 'undefined'].includes(normalized)) {
+    return 'Sin dato';
+  }
+  return parsed || 'Sin dato';
+};
+
 const cleanHeatmapFilters = (filters: HeatmapFilterState): HeatmapFilterState =>
   Object.fromEntries(
     Object.entries(filters)
@@ -824,9 +833,10 @@ function OperationsHeatmapPanel({
     const addOption = (key: HeatmapFilterKey, value: unknown, labelCandidate?: unknown, countCandidate?: unknown) => {
       const parsedValue = typeof value === 'number' && Number.isFinite(value) ? String(value) : asString(value);
       if (!parsedValue) return;
-      const label =
+      const rawLabel =
         (typeof labelCandidate === 'number' && Number.isFinite(labelCandidate) ? String(labelCandidate) : asString(labelCandidate)) ??
         parsedValue;
+      const label = heatmapDisplayLabel(rawLabel, parsedValue);
       const group = ensureGroup(key);
       const previous = group.get(parsedValue);
       const count = readNumber(countCandidate);
@@ -876,9 +886,14 @@ function OperationsHeatmapPanel({
     }).filter((config) => config.options.length > 0);
   }, [heatmap?.facets, heatmap?.points, heatmap?.segments, uiLabels]);
 
-  const hasActiveSegmentFilters = Object.keys(filters).length > 0;
+  const hasActiveSegmentFilters = Object.keys(filters).some((key) => !HEATMAP_PERIOD_KEYS.has(key as HeatmapQueryKey));
   const clearFiltersLabel = uiLabels.clear_filters || 'Limpiar filtros';
   const allLabel = uiLabels.filter_all || 'Todos';
+  const periodLabel = uiLabels.period_filter || 'Periodo';
+  const selectedPeriod =
+    filters.range === 'all' || filters.scope === 'historical'
+      ? 'historical'
+      : asString(filters.days) ?? '365';
 
   const filteredPoints = useMemo(() => {
     if (!heatmap?.points.length) return [] as OperationsHeatmapPoint[];
@@ -928,7 +943,7 @@ function OperationsHeatmapPanel({
         const items = Array.from(acc.entries())
           .map(([value, item]) => ({
             key: value,
-            label: item.label,
+            label: heatmapDisplayLabel(item.label, value),
             count: item.count,
             value: Number(item.weight.toFixed(2)),
           }))
@@ -975,6 +990,69 @@ function OperationsHeatmapPanel({
       })
       .filter((item): item is { key: string; value: string } => item !== null);
   }, [heatmap?.filters_applied]);
+
+  const demographicItems = useMemo(() => {
+    const summary = heatmap?.summary ?? {};
+    return [
+      {
+        key: 'known_gender_points',
+        label: uiLabels.known_gender_points || 'Genero conocido',
+        value: readNumber(heatmap?.demographics?.known_gender_points) ?? readNumber(summary.points_with_gender),
+      },
+      {
+        key: 'unknown_gender_points',
+        label: uiLabels.unknown_gender_points || 'Genero sin dato',
+        value: readNumber(heatmap?.demographics?.unknown_gender_points) ?? readNumber(summary.unknown_gender_points),
+      },
+      {
+        key: 'known_age_points',
+        label: uiLabels.known_age_points || 'Edad conocida',
+        value: readNumber(heatmap?.demographics?.known_age_points) ?? readNumber(summary.points_with_age),
+      },
+      {
+        key: 'unknown_age_points',
+        label: uiLabels.unknown_age_points || 'Edad sin dato',
+        value: readNumber(heatmap?.demographics?.unknown_age_points) ?? readNumber(summary.unknown_age_points),
+      },
+    ].filter((item): item is { key: string; label: string; value: number } => item.value !== undefined);
+  }, [heatmap?.demographics, heatmap?.summary, uiLabels]);
+
+  const demographicBreakdowns = useMemo(() => {
+    const groups = [
+      {
+        key: 'gender',
+        label: uiLabels.demographic_gender || 'Genero',
+        items: heatmap?.demographics?.gender ?? [],
+      },
+      {
+        key: 'age_ranges',
+        label: uiLabels.demographic_age_ranges || 'Rangos de edad',
+        items: heatmap?.demographics?.age_ranges ?? [],
+      },
+    ];
+
+    return groups
+      .map((group) => ({
+        ...group,
+        items: group.items.map((item) => ({
+          ...item,
+          label: heatmapDisplayLabel(itemLabel(item), readItemOptionValue(item)),
+        })),
+      }))
+      .filter((group) => group.items.length > 0);
+  }, [heatmap?.demographics, uiLabels]);
+
+  const categoryLayerItems = useMemo(
+    () =>
+      (heatmap?.category_layers ?? [])
+        .map((item) => ({
+          ...item,
+          label: heatmapDisplayLabel(itemLabel(item), readItemOptionValue(item)),
+          key: readItemOptionValue(item) ?? item.key,
+        }))
+        .filter((item) => asString(item.key)),
+    [heatmap?.category_layers],
+  );
 
   const bounds = useMemo(
     () =>
@@ -1083,10 +1161,43 @@ function OperationsHeatmapPanel({
                 </p>
               </div>
               {hasActiveSegmentFilters ? (
-                <Button type="button" size="sm" variant="outline" onClick={() => onFiltersChange({})}>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => onFiltersChange((current) => keepHeatmapPeriodFilters(current))}
+                >
                   {clearFiltersLabel}
                 </Button>
               ) : null}
+            </div>
+            <div className="mt-3 max-w-xs space-y-1 text-xs font-medium text-muted-foreground">
+              <span>{periodLabel}</span>
+              <select
+                value={selectedPeriod}
+                onChange={(event) => {
+                  const nextValue = event.target.value;
+                  onFiltersChange((current) => {
+                    const next = { ...current };
+                    delete next.range;
+                    delete next.scope;
+                    delete next.days;
+                    if (nextValue === 'historical') {
+                      next.range = 'all';
+                      next.scope = 'historical';
+                    } else {
+                      next.days = nextValue;
+                    }
+                    return next;
+                  });
+                }}
+                className="h-9 w-full rounded-md border bg-background px-2 text-sm text-foreground shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+              >
+                <option value="historical">{uiLabels.period_historical || 'Historico completo'}</option>
+                <option value="365">{uiLabels.period_365 || 'Ultimos 365 dias'}</option>
+                <option value="90">{uiLabels.period_90 || 'Ultimos 90 dias'}</option>
+                <option value="30">{uiLabels.period_30 || 'Ultimos 30 dias'}</option>
+              </select>
             </div>
             <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
               {filterControls.map((config) => (
@@ -1157,6 +1268,65 @@ function OperationsHeatmapPanel({
                 {segmentBreakdowns.slice(0, 6).map((group) => (
                   <MiniList key={group.key} title={group.label} items={group.items} />
                 ))}
+              </div>
+            ) : null}
+            {demographicItems.length || demographicBreakdowns.length ? (
+              <div className="mt-3 rounded-md border bg-background/70 p-3">
+                <div className="flex flex-col gap-1">
+                  <p className="text-sm font-medium">{uiLabels.demographics_title || 'Cobertura demografica'}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {uiLabels.demographics_description || 'Solo se muestran rangos publicados por backend; los valores unknown se tratan como sin dato.'}
+                  </p>
+                </div>
+                {demographicItems.length ? (
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                    {demographicItems.map((item) => (
+                      <div key={item.key} className="rounded-md border bg-muted/20 p-2">
+                        <p className="text-xs text-muted-foreground">{item.label}</p>
+                        <p className="text-lg font-semibold">{formatNumber(item.value)}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                {demographicBreakdowns.length ? (
+                  <div className="mt-3 grid gap-2 md:grid-cols-2">
+                    {demographicBreakdowns.map((group) => (
+                      <MiniList key={group.key} title={group.label} items={group.items} />
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+            {categoryLayerItems.length ? (
+              <div className="mt-3 rounded-md border bg-background/70 p-3">
+                <p className="text-sm font-medium">{uiLabels.category_layers || 'Capas por categoria'}</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {categoryLayerItems.map((item) => {
+                    const value = asString(item.key) ?? '';
+                    const active = filters.categoria === value;
+                    return (
+                      <Button
+                        key={value}
+                        type="button"
+                        size="sm"
+                        variant={active ? 'default' : 'outline'}
+                        onClick={() =>
+                          onFiltersChange((current) => {
+                            const next = { ...current };
+                            if (active) {
+                              delete next.categoria;
+                            } else {
+                              next.categoria = value;
+                            }
+                            return next;
+                          })
+                        }
+                      >
+                        {item.label}
+                      </Button>
+                    );
+                  })}
+                </div>
               </div>
             ) : null}
           </div>

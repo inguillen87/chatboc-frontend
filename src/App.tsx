@@ -11,6 +11,7 @@ import { BrowserRouter, Routes, Route, useLocation, useNavigate } from "react-ro
 import Layout from "./components/layout/Layout";
 import NotFound from "./pages/NotFound";
 import ChatWidget from "@/components/chat/ChatWidget";
+import ScrollMascotGuide from "@/components/guidance/ScrollMascotGuide";
 import routes from "./routesConfig";
 import AccessRoute from "@/components/access/AccessRoute";
 import UserPortalGuard from "@/components/user-portal/UserPortalGuard";
@@ -152,6 +153,8 @@ function AppRoutes() {
         ))}
         <Route path="*" element={<NotFound />} />
       </Routes>
+
+      <ScrollMascotGuide />
 
       {/* Monta el widget global SOLO si no estás en demo/integracion/login/register/iframe */}
       {!ocultarWidgetGlobalEnApp && (

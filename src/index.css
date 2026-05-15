@@ -1994,6 +1994,305 @@ html {
   }
 }
 
+.chatboc-scroll-guide {
+  position: fixed;
+  z-index: 45;
+  top: var(--chatboc-guide-top, 150px);
+  right: clamp(0.75rem, 2.2vw, 2rem);
+  width: min(340px, calc(100vw - 1.5rem));
+  transform: translateY(-50%);
+  pointer-events: none;
+  transition: top 0.58s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.chatboc-scroll-guide__stage {
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 0.7rem;
+}
+
+.chatboc-scroll-guide__avatar-button {
+  position: relative;
+  width: 82px;
+  height: 104px;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at 50% 12%, rgba(125, 236, 255, 0.8), transparent 33%),
+    linear-gradient(180deg, rgba(37, 99, 235, 0.18), rgba(16, 185, 129, 0.12));
+  box-shadow:
+    0 18px 48px rgba(37, 99, 235, 0.24),
+    inset 0 0 0 1px rgba(59, 130, 246, 0.18);
+  cursor: pointer;
+  pointer-events: auto;
+  transform-origin: 50% 100%;
+  animation: chatboc-guide-walk 1.35s ease-in-out infinite;
+}
+
+.chatboc-scroll-guide__avatar-button:focus-visible {
+  outline: 3px solid hsl(var(--primary) / 0.45);
+  outline-offset: 3px;
+}
+
+.chatboc-scroll-guide__avatar {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 16px 24px rgba(15, 23, 42, 0.2));
+}
+
+.chatboc-scroll-guide__wink {
+  position: absolute;
+  z-index: 3;
+  top: 33px;
+  left: 38px;
+  width: 12px;
+  height: 4px;
+  border-radius: 999px;
+  background: #031b4d;
+  opacity: 0;
+  transform: rotate(-7deg);
+  box-shadow: 0 0 8px rgba(125, 211, 252, 0.78);
+}
+
+.chatboc-scroll-guide--wink .chatboc-scroll-guide__wink {
+  animation: chatboc-guide-wink 0.72s ease;
+}
+
+.chatboc-scroll-guide__feet {
+  position: absolute;
+  z-index: 1;
+  left: 17px;
+  right: 17px;
+  bottom: 6px;
+  display: flex;
+  justify-content: space-between;
+  pointer-events: none;
+}
+
+.chatboc-scroll-guide__feet span {
+  width: 22px;
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.18);
+  filter: blur(1px);
+  animation: chatboc-guide-step 1.35s ease-in-out infinite;
+}
+
+.chatboc-scroll-guide__feet span + span {
+  animation-delay: 0.66s;
+}
+
+.chatboc-scroll-guide__bubble {
+  position: relative;
+  max-width: 236px;
+  padding: 0.82rem 0.95rem 0.9rem;
+  border: 1px solid rgba(59, 130, 246, 0.18);
+  border-radius: 18px 18px 6px 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(246, 250, 255, 0.92)),
+    radial-gradient(circle at 10% 0%, rgba(45, 212, 191, 0.14), transparent 38%);
+  box-shadow:
+    0 24px 60px rgba(15, 23, 42, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.82);
+  color: hsl(var(--foreground));
+  pointer-events: auto;
+  transform-origin: 100% 100%;
+  transition:
+    opacity 0.24s ease,
+    transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.chatboc-scroll-guide__bubble::after {
+  content: "";
+  position: absolute;
+  right: -8px;
+  bottom: 17px;
+  width: 16px;
+  height: 16px;
+  background: rgba(246, 250, 255, 0.96);
+  border-right: 1px solid rgba(59, 130, 246, 0.18);
+  border-bottom: 1px solid rgba(59, 130, 246, 0.18);
+  transform: rotate(-45deg);
+}
+
+.chatboc-scroll-guide--compact .chatboc-scroll-guide__bubble {
+  opacity: 0;
+  transform: translateX(12px) scale(0.92);
+  pointer-events: none;
+}
+
+.chatboc-scroll-guide__dismiss {
+  position: absolute;
+  top: 0.45rem;
+  right: 0.45rem;
+  display: inline-flex;
+  width: 1.55rem;
+  height: 1.55rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(59, 130, 246, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+}
+
+.chatboc-scroll-guide__meta,
+.chatboc-scroll-guide__title,
+.chatboc-scroll-guide__copy {
+  display: block;
+  padding-right: 1.55rem;
+}
+
+.chatboc-scroll-guide__meta {
+  margin-bottom: 0.28rem;
+  color: hsl(var(--primary));
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.chatboc-scroll-guide__title {
+  color: hsl(var(--foreground));
+  font-size: 0.95rem;
+  line-height: 1.18;
+}
+
+.chatboc-scroll-guide__copy {
+  display: -webkit-box;
+  margin-top: 0.36rem;
+  overflow: hidden;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.78rem;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.dark .chatboc-scroll-guide__bubble {
+  border-color: rgba(96, 165, 250, 0.24);
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(2, 6, 23, 0.9)),
+    radial-gradient(circle at 10% 0%, rgba(45, 212, 191, 0.2), transparent 42%);
+  box-shadow:
+    0 24px 70px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.dark .chatboc-scroll-guide__bubble::after {
+  background: rgba(9, 17, 34, 0.98);
+  border-color: rgba(96, 165, 250, 0.24);
+}
+
+.dark .chatboc-scroll-guide__dismiss {
+  background: rgba(15, 23, 42, 0.72);
+  border-color: rgba(96, 165, 250, 0.22);
+}
+
+body.chatboc-widget-open .chatboc-scroll-guide {
+  display: none;
+}
+
+@keyframes chatboc-guide-walk {
+  0%, 100% {
+    transform: translateY(0) rotate(-0.5deg);
+  }
+  50% {
+    transform: translateY(-4px) rotate(0.8deg);
+  }
+}
+
+@keyframes chatboc-guide-step {
+  0%, 100% {
+    transform: translateX(-2px) scaleX(0.88);
+    opacity: 0.32;
+  }
+  50% {
+    transform: translateX(2px) scaleX(1.1);
+    opacity: 0.52;
+  }
+}
+
+@keyframes chatboc-guide-wink {
+  0%, 100% {
+    opacity: 0;
+    transform: rotate(-7deg) scaleX(0.6);
+  }
+  28%, 58% {
+    opacity: 1;
+    transform: rotate(-7deg) scaleX(1);
+  }
+}
+
+@media (max-width: 768px) {
+  .chatboc-scroll-guide {
+    top: auto;
+    right: auto;
+    bottom: calc(5.1rem + env(safe-area-inset-bottom));
+    left: 0.75rem;
+    width: min(92vw, 350px);
+    transform: none;
+  }
+
+  .chatboc-scroll-guide__stage {
+    flex-direction: row;
+    align-items: flex-end;
+    justify-content: flex-start;
+    gap: 0.55rem;
+  }
+
+  .chatboc-scroll-guide__avatar-button {
+    width: 62px;
+    height: 78px;
+    border-radius: 21px;
+  }
+
+  .chatboc-scroll-guide__wink {
+    top: 25px;
+    left: 29px;
+    width: 9px;
+  }
+
+  .chatboc-scroll-guide__bubble {
+    max-width: min(72vw, 245px);
+    padding: 0.68rem 0.78rem 0.72rem;
+    border-radius: 15px 15px 15px 5px;
+    transform-origin: 0 100%;
+  }
+
+  .chatboc-scroll-guide__bubble::after {
+    left: -7px;
+    right: auto;
+    border-right: 0;
+    border-left: 1px solid rgba(59, 130, 246, 0.18);
+    transform: rotate(45deg);
+  }
+
+  .chatboc-scroll-guide--compact .chatboc-scroll-guide__bubble {
+    transform: translateX(-10px) scale(0.92);
+  }
+
+  .chatboc-scroll-guide__meta {
+    font-size: 0.62rem;
+  }
+
+  .chatboc-scroll-guide__title {
+    font-size: 0.84rem;
+  }
+
+  .chatboc-scroll-guide__copy {
+    font-size: 0.72rem;
+    -webkit-line-clamp: 2;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -2008,7 +2307,14 @@ html {
   .animate-float,
   .animate-pulse-subtle,
   .animate-ping,
-  .animate-spin {
+  .animate-spin,
+  .chatboc-scroll-guide__avatar-button,
+  .chatboc-scroll-guide__feet span,
+  .chatboc-scroll-guide--wink .chatboc-scroll-guide__wink {
     animation: none !important;
+  }
+
+  .chatboc-scroll-guide {
+    transition: none !important;
   }
 }

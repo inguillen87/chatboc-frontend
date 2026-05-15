@@ -37,11 +37,19 @@ const first = (record: AnyRecord | undefined, keys: string[]) => {
   return undefined;
 };
 
+const asArray = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
+
 const parseCsv = (value: string) =>
   value
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+
+const toStringList = (value: unknown): string[] => {
+  if (Array.isArray(value)) return value.flatMap(toStringList);
+  const single = asString(value);
+  return single ? parseCsv(single) : [];
+};
 
 const Pill = ({ children }: { children: React.ReactNode }) => (
   <span className="inline-flex items-center rounded-full border border-border bg-background px-2.5 py-0.5 text-xs font-semibold">
@@ -81,6 +89,23 @@ const AssignmentResultSummary = ({ result }: { result: AnyRecord }) => {
   );
 };
 
+const readPreviewAssignments = (result: AnyRecord | null) => {
+  if (!result || result.error) return [];
+  const candidate =
+    result.preview ||
+    result.items ||
+    result.assignments ||
+    result.recommendations ||
+    result.results ||
+    result.matches;
+  return asArray(candidate)
+    .map((item) => (item && typeof item === "object" ? (item as AnyRecord) : null))
+    .filter((item): item is AnyRecord => Boolean(item));
+};
+
+const isDryRunResult = (result: AnyRecord | null) =>
+  Boolean(result && !result.error && (result.dry_run === true || result.preview === true || result.mode === "preview"));
+
 interface EmployeeRoutingMatrixProps {
   tenantSlug?: string | null;
 }
@@ -100,6 +125,8 @@ export default function EmployeeRoutingMatrix({ tenantSlug }: EmployeeRoutingMat
   const [scopeMessage, setScopeMessage] = useState<string | null>(null);
   const [assignLoading, setAssignLoading] = useState(false);
   const [assignResult, setAssignResult] = useState<AnyRecord | null>(null);
+  const previewAssignments = useMemo(() => readPreviewAssignments(assignResult), [assignResult]);
+  const canApplyPreview = isDryRunResult(assignResult) || previewAssignments.length > 0;
 
   const loadRouting = async () => {
     setLoading(true);
@@ -159,8 +186,12 @@ export default function EmployeeRoutingMatrix({ tenantSlug }: EmployeeRoutingMat
   };
 
   const handleAutoAssign = async (dryRun: boolean) => {
+    if (!dryRun && !canApplyPreview) return;
+    if (!dryRun && typeof window !== "undefined" && !window.confirm("Aplicar la asignacion sugerida por el preview?")) {
+      return;
+    }
     setAssignLoading(true);
-    setAssignResult(null);
+    if (dryRun) setAssignResult(null);
     try {
       const response = await postEmployeeRoutingAutoAssignV2({ dry_run: dryRun }, tenantSlug);
       setAssignResult(response && typeof response === "object" ? (response as AnyRecord) : { response });
@@ -178,7 +209,7 @@ export default function EmployeeRoutingMatrix({ tenantSlug }: EmployeeRoutingMat
         <div>
           <CardTitle className="text-base">Equipo y asignacion</CardTitle>
           <CardDescription>
-            Cobertura por categorias, zonas, canales, permisos y carga de trabajo.
+            Cobertura por categorias, zonas, channels, permisos y carga de trabajo.
           </CardDescription>
         </div>
         <Button type="button" variant="outline" size="sm" onClick={loadRouting} disabled={loading}>
@@ -240,36 +271,40 @@ export default function EmployeeRoutingMatrix({ tenantSlug }: EmployeeRoutingMat
 
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
           <div className="overflow-hidden rounded-2xl border border-border/60">
-            <div className="grid grid-cols-[minmax(160px,1fr)_1fr_1fr_1fr_96px] gap-3 border-b px-4 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-              <span>Empleado</span>
-              <span>Categorias</span>
-              <span>Zonas</span>
-              <span>Canales</span>
-              <span>Carga</span>
-            </div>
-            <div className="divide-y">
-              {(routing?.employees ?? []).map((employee) => (
-                <button
-                  key={employee.id}
-                  type="button"
-                  onClick={() => setSelectedEmployee(employee)}
-                  className="grid w-full grid-cols-[minmax(160px,1fr)_1fr_1fr_1fr_96px] items-start gap-3 px-4 py-3 text-left text-sm transition hover:bg-muted/40"
-                >
-                  <span>
-                    <span className="block font-semibold">{employee.name}</span>
-                    <span className="text-xs text-muted-foreground">#{employee.id}</span>
-                  </span>
-                  <ChipList items={employee.scope.categorias} />
-                  <ChipList items={employee.scope.zonas} />
-                  <ChipList items={employee.scope.channels} />
-                  <span className="font-semibold">{employee.workload_open ?? "--"}</span>
-                </button>
-              ))}
-              {!routing?.employees.length ? (
-                <div className="px-4 py-8 text-sm text-muted-foreground">
-                  {loading ? "Cargando equipo..." : "Sin empleados publicados para asignacion."}
+            <div className="overflow-x-auto">
+              <div className="min-w-[780px]">
+                <div className="grid grid-cols-[minmax(160px,1fr)_1fr_1fr_1fr_96px] gap-3 border-b px-4 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                  <span>Empleado</span>
+                  <span>Categorias</span>
+                  <span>Zonas</span>
+                  <span>Channels</span>
+                  <span>Carga</span>
                 </div>
-              ) : null}
+                <div className="divide-y">
+                  {(routing?.employees ?? []).map((employee) => (
+                    <button
+                      key={employee.id}
+                      type="button"
+                      onClick={() => setSelectedEmployee(employee)}
+                      className="grid w-full grid-cols-[minmax(160px,1fr)_1fr_1fr_1fr_96px] items-start gap-3 px-4 py-3 text-left text-sm transition hover:bg-muted/40"
+                    >
+                      <span>
+                        <span className="block font-semibold">{employee.name}</span>
+                        <span className="text-xs text-muted-foreground">#{employee.id}</span>
+                      </span>
+                      <ChipList items={employee.scope.categorias} />
+                      <ChipList items={employee.scope.zonas} />
+                      <ChipList items={employee.scope.channels} />
+                      <span className="font-semibold">{employee.workload_open ?? "--"}</span>
+                    </button>
+                  ))}
+                  {!routing?.employees.length ? (
+                    <div className="px-4 py-8 text-sm text-muted-foreground">
+                      {loading ? "Cargando equipo..." : "Sin empleados publicados para asignacion."}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
             </div>
           </div>
 
@@ -293,7 +328,7 @@ export default function EmployeeRoutingMatrix({ tenantSlug }: EmployeeRoutingMat
                 <Input
                   value={scopeForm.channels}
                   onChange={(event) => setScopeForm((prev) => ({ ...prev, channels: event.target.value }))}
-                  placeholder="canales separados por coma"
+                  placeholder="channels separados por coma"
                 />
                 <Input
                   value={scopeForm.permisos}
@@ -325,14 +360,46 @@ export default function EmployeeRoutingMatrix({ tenantSlug }: EmployeeRoutingMat
                 <Button type="button" variant="outline" size="sm" disabled={assignLoading} onClick={() => handleAutoAssign(true)}>
                   Previsualizar
                 </Button>
-                <Button type="button" size="sm" disabled={assignLoading} onClick={() => handleAutoAssign(false)}>
-                  Aplicar
+                <Button type="button" size="sm" disabled={assignLoading || !canApplyPreview} onClick={() => handleAutoAssign(false)}>
+                  Aplicar preview
                 </Button>
               </div>
             </div>
             {assignResult ? <AssignmentResultSummary result={assignResult} /> : (
               <p className="text-sm text-muted-foreground">Sin ejecucion reciente.</p>
             )}
+            {previewAssignments.length ? (
+              <div className="mt-3 space-y-2">
+                {previewAssignments.slice(0, 6).map((item, index) => {
+                  const ticket = item.ticket && typeof item.ticket === "object" ? (item.ticket as AnyRecord) : item;
+                  const assignee =
+                    item.suggested_assignee && typeof item.suggested_assignee === "object"
+                      ? (item.suggested_assignee as AnyRecord)
+                      : item.assignee && typeof item.assignee === "object"
+                        ? (item.assignee as AnyRecord)
+                        : undefined;
+                  return (
+                    <div key={`${asString(first(ticket, ["id", "ticket_id"])) || index}`} className="rounded-xl border bg-background p-3 text-sm">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="font-semibold">
+                            {asString(first(ticket, ["source_model", "type", "model"])) || "Caso"} #
+                            {asString(first(ticket, ["id", "ticket_id", "nro_ticket"])) || index + 1}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {asString(first(assignee, ["name", "nombre", "display_name", "email"])) || "sin empleado sugerido"}
+                          </p>
+                        </div>
+                        <Pill>{asString(first(item, ["score", "confidence"])) || "--"}</Pill>
+                      </div>
+                      <div className="mt-2">
+                        <ChipList items={toStringList(first(item, ["reasons", "reason_codes"]))} empty="sin razones disponibles" />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
           </div>
 
           <div className="rounded-2xl border border-border/60 p-4">

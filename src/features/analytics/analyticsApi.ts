@@ -601,6 +601,7 @@ export const getOperationsHeatmapV2 = async (params?: {
   tenant_id?: number | string | null;
   from?: string | null;
   to?: string | null;
+  days?: number | string | null;
   range?: string | null;
   scope?: string | null;
   channel?: string | null;

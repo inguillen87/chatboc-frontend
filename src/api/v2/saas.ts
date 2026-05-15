@@ -678,9 +678,13 @@ export const normalizeEmployeeCoverageV2 = (response: unknown): EmployeeCoverage
   const channelSource =
     getFirst(coverage, ['channels', 'canales', 'channel_coverage']) ??
     getFirst(record, ['channels', 'canales', 'channel_coverage']);
+  const permissionSource =
+    getFirst(coverage, ['permisos', 'permissions', 'permission_coverage']) ??
+    getFirst(record, ['permisos', 'permissions', 'permission_coverage']);
   const categories = normalizeBuckets(categorySource);
   const zones = normalizeBuckets(zoneSource);
   const channels = normalizeBuckets(channelSource);
+  const permissions = normalizeBuckets(permissionSource);
 
   return {
     contract_version: asString(record.contract_version),
@@ -695,8 +699,8 @@ export const normalizeEmployeeCoverageV2 = (response: unknown): EmployeeCoverage
     categorias: categories,
     zonas: zones,
     canales: channels,
-    permisos: channels,
-    items: [...categories, ...zones, ...channels],
+    permisos: permissions,
+    items: [...categories, ...zones, ...channels, ...permissions],
   };
 };
 
