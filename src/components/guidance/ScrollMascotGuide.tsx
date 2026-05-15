@@ -123,7 +123,7 @@ export default function ScrollMascotGuide() {
   const [sections, setSections] = React.useState<GuideSection[]>([]);
   const [activeIndex, setActiveIndex] = React.useState(0);
   const [guideTop, setGuideTop] = React.useState(150);
-  const [expanded, setExpanded] = React.useState(true);
+  const [expanded, setExpanded] = React.useState(false);
   const [isWinking, setIsWinking] = React.useState(false);
   const [dismissed, setDismissed] = React.useState(() => {
     if (typeof sessionStorage === "undefined") return false;
@@ -184,8 +184,8 @@ export default function ScrollMascotGuide() {
         document.documentElement.scrollHeight - window.innerHeight
       );
       const scrollProgress = Math.min(1, Math.max(0, window.scrollY / maxScroll));
-      const minTop = 112;
-      const maxTop = Math.max(minTop, window.innerHeight - 210);
+      const minTop = 176;
+      const maxTop = Math.max(minTop, window.innerHeight - 230);
       setGuideTop(Math.round(minTop + (maxTop - minTop) * scrollProgress));
 
       const anchorY = window.innerHeight * 0.38;
@@ -233,7 +233,8 @@ export default function ScrollMascotGuide() {
   React.useEffect(() => {
     if (!sections.length) return;
 
-    setExpanded(true);
+    const isMobileViewport = window.matchMedia("(max-width: 768px)").matches;
+    setExpanded(!isMobileViewport);
     setIsWinking(true);
     const winkTimer = window.setTimeout(() => setIsWinking(false), 720);
     const collapseTimer = window.setTimeout(() => setExpanded(false), 4600);

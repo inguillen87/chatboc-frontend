@@ -2233,50 +2233,53 @@ body.chatboc-widget-open .chatboc-scroll-guide {
 
 @media (max-width: 768px) {
   .chatboc-scroll-guide {
-    top: auto;
-    right: auto;
-    bottom: calc(5.1rem + env(safe-area-inset-bottom));
-    left: 0.75rem;
-    width: min(92vw, 350px);
+    top: calc(4.55rem + env(safe-area-inset-top));
+    right: 0.75rem;
+    bottom: auto;
+    left: auto;
+    width: min(78vw, 280px);
     transform: none;
   }
 
   .chatboc-scroll-guide__stage {
-    flex-direction: row;
-    align-items: flex-end;
+    position: relative;
+    flex-direction: row-reverse;
+    align-items: flex-start;
     justify-content: flex-start;
     gap: 0.55rem;
   }
 
   .chatboc-scroll-guide__avatar-button {
-    width: 62px;
-    height: 78px;
-    border-radius: 21px;
+    width: 54px;
+    height: 68px;
+    border-radius: 20px;
   }
 
   .chatboc-scroll-guide__wink {
-    top: 25px;
-    left: 29px;
+    top: 22px;
+    left: 25px;
     width: 9px;
   }
 
   .chatboc-scroll-guide__bubble {
-    max-width: min(72vw, 245px);
+    max-width: min(72vw, 230px);
     padding: 0.68rem 0.78rem 0.72rem;
-    border-radius: 15px 15px 15px 5px;
-    transform-origin: 0 100%;
+    border-radius: 15px 15px 5px 15px;
+    transform-origin: 100% 0;
   }
 
   .chatboc-scroll-guide__bubble::after {
-    left: -7px;
-    right: auto;
-    border-right: 0;
-    border-left: 1px solid rgba(59, 130, 246, 0.18);
-    transform: rotate(45deg);
+    top: 18px;
+    right: -7px;
+    bottom: auto;
+    left: auto;
+    border-right: 1px solid rgba(59, 130, 246, 0.18);
+    border-left: 0;
+    transform: rotate(-45deg);
   }
 
   .chatboc-scroll-guide--compact .chatboc-scroll-guide__bubble {
-    transform: translateX(-10px) scale(0.92);
+    transform: translateX(10px) scale(0.92);
   }
 
   .chatboc-scroll-guide__meta {

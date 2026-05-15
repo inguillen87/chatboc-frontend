@@ -17,6 +17,22 @@ interface ChatButtonsProps {
   moreLabel?: string;
 }
 
+const endpointPathname = (endpoint?: string | null) => {
+  const trimmed = endpoint?.trim();
+  if (!trimmed) return "";
+  try {
+    const base = typeof window !== "undefined" && window.location?.origin ? window.location.origin : "http://localhost";
+    return new URL(trimmed, base).pathname.toLowerCase();
+  } catch {
+    return trimmed.startsWith("/") ? trimmed.toLowerCase() : "";
+  }
+};
+
+const isApiNavigationEndpoint = (endpoint?: string | null) => {
+  const pathname = endpointPathname(endpoint);
+  return pathname.startsWith("/api/") || /^\/v\d+\//.test(pathname);
+};
+
 const ChatButtons: React.FC<ChatButtonsProps> = ({
   botones,
   onButtonClick,
@@ -136,12 +152,19 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
 
     const resolvedUrl = boton.url ? resolveUrl(boton.url) : undefined;
 
-    if (resolvedUrl) {
+    if (resolvedUrl && !isApiNavigationEndpoint(resolvedUrl)) {
       openExternalLink(resolvedUrl);
       return;
     }
 
-    onButtonClick({ text: boton.texto, payload: boton.payload, source: 'button' });
+    onButtonClick({
+      text: boton.texto,
+      payload: {
+        ...(boton.payload ?? {}),
+        endpoint: boton.url ?? undefined,
+      },
+      source: 'button',
+    });
   };
 
   const baseClass = isDemoSelector
@@ -160,7 +183,7 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
       transition={{ delay: 0.2, duration: 0.3 }}
     >
       {visibleButtons.map((boton, index) =>
-        boton.url ? (
+        boton.url && !isApiNavigationEndpoint(boton.url) ? (
           <a
             key={index}
             href={resolveUrl(boton.url)}

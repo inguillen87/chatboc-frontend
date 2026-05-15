@@ -90,6 +90,22 @@ const readRecordString = (source: Record<string, unknown> | undefined | null, ke
   return null;
 };
 
+const endpointPathname = (endpoint?: string | null) => {
+  const trimmed = endpoint?.trim();
+  if (!trimmed) return '';
+  try {
+    const base = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : 'http://localhost';
+    return new URL(trimmed, base).pathname.toLowerCase();
+  } catch {
+    return trimmed.startsWith('/') ? trimmed.toLowerCase() : '';
+  }
+};
+
+const isApiNavigationEndpoint = (endpoint?: string | null) => {
+  const pathname = endpointPathname(endpoint);
+  return pathname.startsWith('/api/') || /^\/v\d+\//.test(pathname);
+};
+
 const readBootstrapSession = (bootstrap?: ChatBootstrapConfig | null) =>
   bootstrap && isRecord(bootstrap.session) ? bootstrap.session : undefined;
 
@@ -592,6 +608,7 @@ function StandaloneChatPanel({
       setActiveLeadMeta({});
       setLeadValues({});
       setLeadFieldErrors({});
+      onRuntimeResult?.(response.raw ?? response, response);
       const success = response.message_body?.trim() || config.success_message?.trim();
       if (success) {
         setMessages((prev) => [
@@ -920,7 +937,10 @@ function StandaloneChatPanel({
         </form>
       ) : null}
       {leadResult ? (
-        <LeadCaptureResult result={leadResult} />
+        <LeadCaptureResult
+          result={leadResult}
+          onOpenResult={() => onRuntimeResult?.(leadResult.raw ?? leadResult, leadResult)}
+        />
       ) : null}
       <ChatComposer
         onSend={appendUserMessage}
@@ -937,7 +957,13 @@ function StandaloneChatPanel({
   );
 }
 
-function LeadCaptureResult({ result }: { result: LeadCaptureResponse }) {
+function LeadCaptureResult({
+  result,
+  onOpenResult,
+}: {
+  result: LeadCaptureResponse;
+  onOpenResult?: () => void;
+}) {
   const traceItems = [
     result.lead_id ? { label: 'Seguimiento', value: String(result.lead_id) } : null,
     result.ticket_id ? { label: 'Caso', value: String(result.ticket_id) } : null,
@@ -959,7 +985,7 @@ function LeadCaptureResult({ result }: { result: LeadCaptureResponse }) {
 
   return (
     <div className="space-y-3 rounded-lg border bg-muted/20 p-3 text-xs" aria-label="Resultado operativo">
-      {result.ticket ? <OperationalTicketCard ticket={result.ticket} /> : null}
+      {result.ticket ? <OperationalTicketCard ticket={result.ticket} onOpenResult={onOpenResult} /> : null}
       {result.order ? <OperationalOrderCard order={result.order} /> : null}
       {result.media_understanding ? (
         <MediaUnderstandingChips media={result.media_understanding} />
@@ -974,7 +1000,7 @@ function LeadCaptureResult({ result }: { result: LeadCaptureResponse }) {
           ))}
         </div>
       ) : null}
-      {hasActions ? <LeadCaptureNextActions actions={visibleActions} /> : null}
+      {hasActions ? <LeadCaptureNextActions actions={visibleActions} onOpenResult={onOpenResult} /> : null}
       {result.request_id ? (
         <p className="break-all text-[11px] text-muted-foreground">request_id: {result.request_id}</p>
       ) : null}
@@ -1017,7 +1043,13 @@ function MediaUnderstandingChips({
   );
 }
 
-function OperationalTicketCard({ ticket }: { ticket: OperationalTicketResult }) {
+function OperationalTicketCard({
+  ticket,
+  onOpenResult,
+}: {
+  ticket: OperationalTicketResult;
+  onOpenResult?: () => void;
+}) {
   const rows = [
     ticket.nro_ticket ? { label: 'Ticket', value: String(ticket.nro_ticket) } : null,
     ticket.categoria ? { label: 'Categoria', value: ticket.categoria } : null,
@@ -1046,13 +1078,22 @@ function OperationalTicketCard({ ticket }: { ticket: OperationalTicketResult }) 
             {ticket.canal_ingreso}
           </span>
         ) : null}
-        {ticket.detail_endpoint ? (
+        {ticket.detail_endpoint && !isApiNavigationEndpoint(ticket.detail_endpoint) ? (
           <a
             href={ticket.detail_endpoint}
             className="inline-flex items-center gap-1 rounded-full border bg-muted/20 px-2 py-0.5 text-[11px] text-muted-foreground hover:text-foreground"
           >
             Ver seguimiento <ExternalLink className="h-3 w-3" />
           </a>
+        ) : ticket.detail_endpoint || onOpenResult ? (
+          <button
+            type="button"
+            onClick={onOpenResult}
+            disabled={!onOpenResult}
+            className="inline-flex items-center gap-1 rounded-full border bg-muted/20 px-2 py-0.5 text-[11px] text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Ver en panel
+          </button>
         ) : null}
       </div>
 
@@ -1203,7 +1244,13 @@ function OrderDetailRow({ detail }: { detail: OperationalOrderDetail }) {
   );
 }
 
-function LeadCaptureNextActions({ actions }: { actions: LeadCaptureNextAction[] }) {
+function LeadCaptureNextActions({
+  actions,
+  onOpenResult,
+}: {
+  actions: LeadCaptureNextAction[];
+  onOpenResult?: () => void;
+}) {
   const visibleActions = actions.filter((action) => action.label?.trim());
   if (!visibleActions.length) return null;
 
@@ -1214,10 +1261,26 @@ function LeadCaptureNextActions({ actions }: { actions: LeadCaptureNextAction[] 
         const endpoint = action.endpoint?.trim();
         const key = action.id?.trim() || `${label}-${index}`;
 
-        if (endpoint) {
+        if (endpoint && !isApiNavigationEndpoint(endpoint)) {
           return (
             <Button key={key} type="button" size="sm" variant="outline" className="h-auto text-xs" asChild>
               <a href={endpoint}>{label}</a>
+            </Button>
+          );
+        }
+
+        if (endpoint && isApiNavigationEndpoint(endpoint)) {
+          return (
+            <Button
+              key={key}
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-auto text-xs"
+              disabled={!onOpenResult}
+              onClick={onOpenResult}
+            >
+              {label}
             </Button>
           );
         }

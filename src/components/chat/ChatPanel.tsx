@@ -282,15 +282,37 @@ const readRealtimeClientSecretsContract = (payload: unknown) => {
   );
 };
 
+const endpointPathname = (endpoint?: string | null) => {
+  const trimmed = endpoint?.trim();
+  if (!trimmed) return "";
+  try {
+    const base = typeof window !== "undefined" && window.location?.origin ? window.location.origin : "http://localhost";
+    return new URL(trimmed, base).pathname.toLowerCase();
+  } catch {
+    return trimmed.startsWith("/") ? trimmed.toLowerCase() : "";
+  }
+};
+
+const isApiNavigationEndpoint = (endpoint?: string | null) => {
+  const pathname = endpointPathname(endpoint);
+  return pathname.startsWith("/api/") || /^\/v\d+\//.test(pathname);
+};
+
 const leadNextActionsToButtons = (actions?: LeadCaptureNextAction[] | null) =>
   (actions ?? [])
     .filter((action) => action.label?.trim())
-    .map((action) => ({
-      texto: action.label?.trim() || "",
-      url: action.endpoint?.trim() || undefined,
-      action_id: action.id?.trim() || undefined,
-      payload: action.payload ?? undefined,
-    }));
+    .map((action) => {
+      const endpoint = action.endpoint?.trim() || "";
+      return {
+        texto: action.label?.trim() || "",
+        url: endpoint && !isApiNavigationEndpoint(endpoint) ? endpoint : undefined,
+        action_id: action.id?.trim() || (endpoint && isApiNavigationEndpoint(endpoint) ? "open_result_in_panel" : undefined),
+        payload: {
+          ...(action.payload ?? {}),
+          endpoint: endpoint || undefined,
+        },
+      };
+    });
 
 const normalizeOnboardingOption = (
   item: unknown,
