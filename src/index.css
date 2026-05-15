@@ -299,39 +299,41 @@
     position: relative;
     z-index: 2;
     margin-inline: auto;
-    width: min(100%, 36rem);
+    width: clamp(19.25rem, 23vw, 23.75rem);
     transform: translateY(-2rem) scale(0.92);
     transform-origin: top center;
-    border-radius: 62px;
-    padding: 16px;
+    border-radius: 58px;
+    padding: 13px;
     background:
-      linear-gradient(145deg, hsl(var(--foreground) / 0.92), hsl(var(--foreground) / 0.78)),
-      linear-gradient(135deg, hsl(var(--primary) / 0.34), hsl(var(--success) / 0.22));
+      linear-gradient(145deg, hsl(var(--foreground) / 0.94), hsl(var(--foreground) / 0.78)),
+      linear-gradient(135deg, hsl(var(--primary) / 0.32), hsl(var(--success) / 0.2));
     box-shadow:
-      0 42px 130px rgba(15, 23, 42, 0.25),
+      0 42px 130px rgba(15, 23, 42, 0.28),
+      0 18px 36px rgba(15, 23, 42, 0.16),
       inset 0 0 0 1px hsl(var(--background) / 0.42),
-      inset 0 -18px 36px rgba(0, 0, 0, 0.2);
+      inset 0 -16px 34px rgba(0, 0, 0, 0.24);
   }
   .chatboc-hero-preview::before {
     content: "";
     position: absolute;
     left: 50%;
-    top: 0.62rem;
+    top: 0.72rem;
     z-index: 3;
-    height: 0.28rem;
-    width: 4.2rem;
+    height: 0.34rem;
+    width: 4.45rem;
     transform: translateX(-50%);
     border-radius: 999px;
-    background: hsl(var(--background) / 0.78);
+    background: linear-gradient(90deg, rgba(15, 23, 42, 0.76), rgba(2, 6, 23, 0.96), rgba(15, 23, 42, 0.76));
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.26);
   }
   .chatboc-hero-preview::after {
     content: "";
     position: absolute;
     left: 50%;
-    bottom: 0.7rem;
+    bottom: 0.62rem;
     z-index: 3;
-    height: 0.22rem;
-    width: 5.5rem;
+    height: 0.2rem;
+    width: 5.1rem;
     transform: translateX(-50%);
     border-radius: 999px;
     background: hsl(var(--background) / 0.48);
@@ -356,9 +358,9 @@
       line-height: 1.01;
     }
     .chatboc-hero-preview {
-      width: min(100%, 38rem);
+      width: clamp(20.5rem, 23vw, 23.5rem);
       margin-inline: auto 0;
-      transform: translate(1.45rem, -2rem) scale(0.94);
+      transform: translate(1rem, -2rem) scale(0.98);
     }
   }
   @media (min-width: 1280px) {
@@ -367,8 +369,8 @@
       column-gap: clamp(5.75rem, 7.2vw, 9.5rem);
     }
     .chatboc-hero-preview {
-      width: min(100%, 38.75rem);
-      transform: translate(2.75rem, -2rem) scale(0.95);
+      width: clamp(21.25rem, 23vw, 24.25rem);
+      transform: translate(2rem, -2rem) scale(0.99);
     }
   }
   @media (min-width: 1536px) {
@@ -377,7 +379,7 @@
       font-size: clamp(4.1rem, 4.2vw, 5.2rem);
     }
     .chatboc-hero-preview {
-      transform: translate(3.4rem, -2rem) scale(0.95);
+      transform: translate(2.75rem, -2rem) scale(1);
     }
   }
   .chatboc-hero-stage {
@@ -396,8 +398,8 @@
   .chatboc-hero-preview > .chatboc-phone-demo::after {
     content: "";
     position: absolute;
-    right: -0.92rem;
-    top: 9.4rem;
+    right: -0.78rem;
+    top: 9.2rem;
     z-index: 4;
     width: 0.2rem;
     height: 5.7rem;
@@ -413,14 +415,14 @@
     box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.22);
   }
   .chatboc-hero-preview__button--volume {
-    left: -0.18rem;
-    top: 8.8rem;
-    height: 4.7rem;
+    left: -0.14rem;
+    top: 8.7rem;
+    height: 4.5rem;
   }
   .chatboc-hero-preview__button--power {
-    right: -0.18rem;
-    top: 16.1rem;
-    height: 3.6rem;
+    right: -0.14rem;
+    top: 15.7rem;
+    height: 3.35rem;
   }
   .chatboc-phone-demo {
     --chatboc-phone-accent: hsl(var(--primary));
@@ -430,11 +432,11 @@
     --chatboc-phone-wash-b: hsl(var(--success) / 0.12);
     position: relative;
     display: flex;
-    height: clamp(590px, calc(100svh - 280px), 780px);
-    min-height: 590px;
+    height: clamp(660px, calc(100svh - 210px), 790px);
+    min-height: 660px;
     flex-direction: column;
     overflow: hidden;
-    border-radius: 46px;
+    border-radius: 43px;
     background:
       radial-gradient(circle at 12% 0%, var(--chatboc-phone-wash-a), transparent 34%),
       radial-gradient(circle at 86% 16%, var(--chatboc-phone-wash-b), transparent 30%),
@@ -1304,28 +1306,22 @@
       padding-top: 0;
     }
     .chatboc-hero-preview {
-      width: min(calc(100vw - 2.5rem), 22.25rem);
+      width: min(calc(100vw - 5.25rem), 20rem);
       margin-inline: auto;
       margin-top: 0.55rem;
       transform: none;
-      border-radius: 42px;
-      padding: 8px;
-    }
-    body:has(.chatboc-hero-preview) .chatboc-container:not(:has(.chat-root)) {
-      top: auto !important;
-      right: 1rem !important;
-      bottom: calc(1rem + env(safe-area-inset-bottom)) !important;
-      opacity: 0 !important;
-      pointer-events: none !important;
-      transform: translateY(10px) scale(0.92) !important;
+      border-radius: 44px;
+      padding: 9px;
     }
     .chatboc-hero-preview::before {
-      top: 0.38rem;
+      top: 0.44rem;
+      width: 3.65rem;
+      height: 0.28rem;
     }
     .chatboc-phone-demo {
-      height: clamp(520px, 70svh, 660px);
+      height: clamp(620px, 76svh, 720px);
       min-height: 0;
-      border-radius: 32px;
+      border-radius: 34px;
     }
     .chatboc-phone-demo__chrome {
       min-height: 1.32rem;
@@ -1411,12 +1407,12 @@
       justify-items: center;
     }
     .chatboc-hero-preview {
-      width: min(calc(100vw - 5rem), 34rem);
-      transform: translateY(-1.25rem) scale(0.93);
+      width: min(calc(100vw - 10rem), 24.25rem);
+      transform: translateY(-1.25rem) scale(0.98);
     }
     .chatboc-phone-demo {
-      height: clamp(560px, 68svh, 700px);
-      min-height: 560px;
+      height: clamp(680px, 76svh, 800px);
+      min-height: 680px;
     }
   }
   @media (min-width: 520px) and (max-width: 640px) {
@@ -1935,6 +1931,12 @@ html {
 
   .chatboc-container {
     max-width: 100dvw;
+  }
+
+  html.chatboc-hero-preview-visible:not(.chatboc-widget-open) .chatboc-container[data-mode="standalone"] {
+    opacity: 0 !important;
+    pointer-events: none !important;
+    transform: translateY(10px) scale(0.92) !important;
   }
 
   .chatboc-container .chat-root {

@@ -829,6 +829,10 @@ function ChatWidgetInner({
   }, []);
 
   useEffect(() => {
+    const toggleHeroPreviewVisibilityClass = (visible: boolean) => {
+      document.documentElement.classList.toggle("chatboc-hero-preview-visible", visible);
+    };
+
     if (
       typeof window === "undefined" ||
       mode !== "standalone" ||
@@ -836,23 +840,32 @@ function ChatWidgetInner({
       isOpen
     ) {
       setHideClosedLauncherForHeroPreview(false);
+      if (typeof document !== "undefined") {
+        toggleHeroPreviewVisibilityClass(false);
+      }
       return;
     }
 
     let animationFrame = 0;
     const timers: number[] = [];
+    let mutationObserver: MutationObserver | null = null;
 
     const checkHeroPreview = () => {
       const heroPreview = document.querySelector(".chatboc-hero-preview");
       if (!heroPreview) {
         setHideClosedLauncherForHeroPreview(false);
+        toggleHeroPreviewVisibilityClass(false);
         return;
       }
 
       const rect = heroPreview.getBoundingClientRect();
       const visibleHeight = Math.max(0, Math.min(rect.bottom, window.innerHeight) - Math.max(rect.top, 0));
       const visibleRatio = visibleHeight / Math.max(rect.height, 1);
-      setHideClosedLauncherForHeroPreview(visibleRatio > 0.12);
+      const launcherOverlapZoneTop = window.innerHeight - 120;
+      const overlapsLauncherZone = rect.top < window.innerHeight && rect.bottom > launcherOverlapZoneTop;
+      const shouldHideLauncher = visibleRatio > 0.08 || overlapsLauncherZone;
+      setHideClosedLauncherForHeroPreview(shouldHideLauncher);
+      toggleHeroPreviewVisibilityClass(shouldHideLauncher);
     };
 
     const scheduleCheck = () => {
@@ -863,14 +876,26 @@ function ChatWidgetInner({
     checkHeroPreview();
     timers.push(window.setTimeout(checkHeroPreview, 250));
     timers.push(window.setTimeout(checkHeroPreview, 850));
+    timers.push(window.setTimeout(checkHeroPreview, 1600));
+    timers.push(window.setTimeout(checkHeroPreview, 2600));
+    timers.push(window.setTimeout(checkHeroPreview, 4200));
     window.addEventListener("scroll", scheduleCheck, { passive: true });
     window.addEventListener("resize", scheduleCheck);
+    window.addEventListener("load", scheduleCheck);
+
+    if ("MutationObserver" in window && document.body) {
+      mutationObserver = new MutationObserver(scheduleCheck);
+      mutationObserver.observe(document.body, { childList: true, subtree: true });
+    }
 
     return () => {
       if (animationFrame) window.cancelAnimationFrame(animationFrame);
       timers.forEach((timer) => window.clearTimeout(timer));
       window.removeEventListener("scroll", scheduleCheck);
       window.removeEventListener("resize", scheduleCheck);
+      window.removeEventListener("load", scheduleCheck);
+      mutationObserver?.disconnect();
+      toggleHeroPreviewVisibilityClass(false);
     };
   }, [isMobileView, isOpen, mode]);
 
@@ -1558,7 +1583,7 @@ function ChatWidgetInner({
     const heightToUse = isNaN(desired) ? 680 : desired;
 
     if (isMobileView) {
-      return "min(58dvh, 560px)";
+      return "calc(100dvh - max(4.5rem, env(safe-area-inset-top)) - 0.75rem)";
     }
 
     if (mode === 'iframe') {
