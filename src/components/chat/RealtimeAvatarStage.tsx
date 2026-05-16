@@ -29,6 +29,7 @@ interface RealtimeAvatarStageProps {
   title: string;
   avatarType?: string | null;
   avatarPersona?: string | null;
+  avatarDisplayName?: string | null;
   logoUrl?: string | null;
   captionsEnabled?: boolean;
   transcript?: RealtimeTranscriptItem[];
@@ -49,6 +50,7 @@ export default function RealtimeAvatarStage({
   title,
   avatarType,
   avatarPersona,
+  avatarDisplayName,
   logoUrl,
   captionsEnabled,
   transcript = [],
@@ -57,10 +59,15 @@ export default function RealtimeAvatarStage({
   isMicMuted,
   networkLatency = "good",
 }: RealtimeAvatarStageProps) {
-  const avatarLabel = readAvatarText(avatarPersona, readAvatarText(avatarType, "Asistente IA"));
+  const normalizedAvatarType = readAvatarText(avatarType, "robot");
+  const avatarLabel = readAvatarText(
+    avatarDisplayName,
+    readAvatarText(avatarPersona, readAvatarText(normalizedAvatarType, "Asistente IA")),
+  );
   const latestTranscript = transcript.slice(-2);
   const isLive = sessionState === "live";
-  const avatarSrc = logoUrl || CHATBOC_ORBIT_AVATAR;
+  const shouldUseMascotFallback = normalizedAvatarType === "chatboc_bot" || normalizedAvatarType === "robot";
+  const avatarSrc = shouldUseMascotFallback ? CHATBOC_ORBIT_AVATAR : logoUrl || CHATBOC_ORBIT_AVATAR;
   const statusLabel = getRealtimeSessionStatusLabel(sessionState, {
     isMicMuted,
     isUserSpeaking,
@@ -114,6 +121,9 @@ export default function RealtimeAvatarStage({
             alt=""
             className="h-16 w-16 rounded-2xl object-contain drop-shadow-[0_8px_18px_rgba(37,99,235,0.22)]"
             draggable={false}
+            onError={(event) => {
+              event.currentTarget.src = CHATBOC_ORBIT_AVATAR;
+            }}
           />
           {isLive ? (
             <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border border-background bg-emerald-500">

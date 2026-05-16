@@ -33,18 +33,17 @@ export const isRealtimeVoiceRenderable = (
   voiceCall?: RealtimeVoiceSupportConfig | null,
   options: { allowCapabilitiesOnly?: boolean; voiceEnabled?: unknown } = {},
 ) => {
-  if (!capabilities || capabilities.enabled === false) return false;
+  if (capabilities?.enabled === false) return false;
   if (options.voiceEnabled !== undefined && !boolish(options.voiceEnabled)) return false;
 
-  const toolCalling = boolish(capabilities.features?.tool_calling);
-  const publishedVoiceCall = voiceCall ?? capabilities.support_channels?.voice_call ?? null;
+  const publishedVoiceCall = voiceCall ?? capabilities?.support_channels?.voice_call ?? null;
   const voiceCallEnabled = boolish(publishedVoiceCall?.enabled);
 
   if (publishedVoiceCall) {
-    return voiceCallEnabled && toolCalling;
+    return voiceCallEnabled;
   }
 
-  return Boolean(options.allowCapabilitiesOnly && toolCalling);
+  return Boolean(options.allowCapabilitiesOnly && boolish(capabilities?.features?.tool_calling));
 };
 
 const firstText = (...values: unknown[]) => {
@@ -71,21 +70,8 @@ export const isRealtimeVideoRenderable = (
 ) => {
   if (!videoCall || !boolish(videoCall.enabled)) return false;
   if (realtimeConfig && !boolish(realtimeConfig.videoEnabled ?? true)) return false;
-
-  const features = capabilities?.features ?? {};
-  const videoFeatures = videoCall.features ?? {};
-
-  return [
-    features.live_video_analysis,
-    features.video_analysis_ready,
-    features.multimodal_capture,
-    videoFeatures.live_video_analysis,
-    videoFeatures.video_analysis_ready,
-    videoFeatures.analysis_ready,
-    videoFeatures.multimodal_capture,
-    videoFeatures.visual_capture,
-    realtimeConfig?.liveVideoAnalysis,
-  ].some(boolish);
+  if (capabilities?.enabled === false) return false;
+  return true;
 };
 
 export const getRealtimeVoiceBadges = (capabilities?: RealtimeVoiceCapabilities | null) => {
@@ -135,6 +121,19 @@ const collectToolLabels = (
     .filter((item) => item.length > 0);
 };
 
+const collectVerticalToolLabels = (verticals: RealtimeVoiceCapabilities["verticals"]) => {
+  if (!verticals || typeof verticals !== "object") return [];
+
+  return Object.values(verticals).flatMap((vertical) => {
+    if (!vertical || typeof vertical !== "object") return [];
+    return [
+      ...collectToolLabels(vertical.actions),
+      ...collectToolLabels(vertical.tools),
+      ...collectToolLabels(vertical.tool_catalog),
+    ];
+  });
+};
+
 export const getRealtimeVoiceToolLabels = (
   capabilities?: RealtimeVoiceCapabilities | null,
 ) => {
@@ -143,6 +142,7 @@ export const getRealtimeVoiceToolLabels = (
     ...collectToolLabels(capabilities?.tools),
     ...collectToolLabels(capabilities?.tool_catalog),
     ...collectToolLabels(capabilities?.actions),
+    ...collectVerticalToolLabels(capabilities?.verticals),
   ];
 
   return labels.filter((label) => {

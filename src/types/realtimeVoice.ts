@@ -87,6 +87,24 @@ export interface RealtimeVoiceCapabilities {
     | RealtimeVoiceToolContract[]
     | Record<string, RealtimeVoiceToolContract | string | boolean | null>
     | null;
+  verticals?: Record<
+    string,
+    {
+      actions?:
+        | RealtimeVoiceToolContract[]
+        | Record<string, RealtimeVoiceToolContract | string | boolean | null>
+        | null;
+      tools?:
+        | RealtimeVoiceToolContract[]
+        | Record<string, RealtimeVoiceToolContract | string | boolean | null>
+        | null;
+      tool_catalog?:
+        | RealtimeVoiceToolContract[]
+        | Record<string, RealtimeVoiceToolContract | string | boolean | null>
+        | null;
+      [key: string]: unknown;
+    } | null
+  > | null;
   language_policy?: RealtimeVoiceLanguagePolicy | null;
   starter_messages?: string[];
   starters?: string[];

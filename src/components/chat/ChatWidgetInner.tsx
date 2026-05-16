@@ -565,6 +565,7 @@ function ChatWidgetInner({
     const realtimeMeta =
       entityInfo?.builder_config?.enterprise_iteration?.realtime || {};
     const publicRealtime = entityInfo?.realtime || entityInfo?.widget?.realtime || {};
+    const avatarMeta = entityInfo?.avatar || entityInfo?.widget?.avatar || publicRealtime?.avatar || {};
     const voiceHandoff = realtimeMeta?.voice_handoff || {};
     const toBool = (value: unknown, fallback = false) => {
       if (typeof value === 'boolean') return value;
@@ -623,9 +624,12 @@ function ChatWidgetInner({
             supportChannels?.video_call?.features?.visual_capture,
         ),
       ),
-      avatarEnabled: toBool(attrs['data-avatar-enabled'], false),
-      avatarType: toText(attrs['data-avatar-type'], 'robot'),
-      avatarPersona: toText(attrs['data-avatar-persona'], ''),
+      avatarEnabled: toBool(attrs['data-avatar-enabled'], toBool(avatarMeta?.enabled, false)),
+      avatarContractVersion: toText(attrs['data-avatar-contract-version'], toText(avatarMeta?.contract_version, '')),
+      avatarType: toText(attrs['data-avatar-type'], toText(avatarMeta?.type, 'robot')),
+      avatarPersona: toText(attrs['data-avatar-persona'], toText(avatarMeta?.persona, '')),
+      avatarDisplayName: toText(attrs['data-avatar-display-name'], toText(avatarMeta?.display_name, '')),
+      avatarStateSource: toText(attrs['data-avatar-state-source'], toText(avatarMeta?.state_source, '')),
       voiceLabel: toText(attrs['data-realtime-voice-label'], toText(supportChannels?.voice_call?.label, '')),
       videoLabel: toText(attrs['data-realtime-video-label'], toText(supportChannels?.video_call?.label, '')),
       socketEnabled: toBool(
@@ -658,6 +662,8 @@ function ChatWidgetInner({
   }, [
     entityInfo?.builder_config?.enterprise_iteration?.realtime,
     entityInfo?.realtime,
+    entityInfo?.avatar,
+    entityInfo?.widget?.avatar,
     entityInfo?.widget?.attributes,
     entityInfo?.widget?.realtime,
     supportChannels?.live_chat?.fallback_mode,
@@ -2709,8 +2715,11 @@ function ChatWidgetInner({
         data-realtime-video-enabled={String(Boolean(realtimeConfig.videoEnabled))}
         data-realtime-live-video-analysis={String(Boolean(realtimeConfig.liveVideoAnalysis))}
         data-avatar-enabled={String(Boolean(realtimeConfig.avatarEnabled))}
+        data-avatar-contract-version={realtimeConfig.avatarContractVersion || ''}
         data-avatar-type={realtimeConfig.avatarType || 'robot'}
         data-avatar-persona={realtimeConfig.avatarPersona || ''}
+        data-avatar-display-name={realtimeConfig.avatarDisplayName || ''}
+        data-avatar-state-source={realtimeConfig.avatarStateSource || ''}
         data-realtime-voice-label={realtimeConfig.voiceLabel || ''}
         data-realtime-video-label={realtimeConfig.videoLabel || ''}
         className={cn(

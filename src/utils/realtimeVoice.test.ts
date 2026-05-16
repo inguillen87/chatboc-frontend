@@ -17,7 +17,7 @@ describe("realtime voice contract helpers", () => {
   it("requires backend capabilities and enabled voice_call for the public CTA", () => {
     const capabilities = {
       contract_version: "realtime.voice_capabilities.v1",
-      features: { tool_calling: true },
+      features: { tool_calling: false },
     };
 
     expect(isRealtimeVoiceRenderable(capabilities, null)).toBe(false);
@@ -66,7 +66,7 @@ describe("realtime voice contract helpers", () => {
     ).toBe(false);
   });
 
-  it("does not render voice when tool calling is unavailable", () => {
+  it("renders voice from support_channels even when tool labels are unavailable", () => {
     expect(
       isRealtimeVoiceRenderable(
         {
@@ -75,7 +75,7 @@ describe("realtime voice contract helpers", () => {
         },
         { enabled: true },
       ),
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("keeps badges and starters backend-first", () => {
@@ -113,13 +113,13 @@ describe("realtime voice contract helpers", () => {
     ).toBe("gpt-realtime-mini");
   });
 
-  it("does not expose video unless backend explicitly publishes live visual readiness", () => {
+  it("exposes video when backend publishes video_call as enabled", () => {
     const capabilities = {
       contract_version: "realtime.voice_capabilities.v1",
       features: { tool_calling: true },
     };
 
-    expect(isRealtimeVideoRenderable(capabilities, { enabled: true })).toBe(false);
+    expect(isRealtimeVideoRenderable(capabilities, { enabled: true })).toBe(true);
     expect(
       isRealtimeVideoRenderable(
         { ...capabilities, features: { tool_calling: true, live_video_analysis: true } },
@@ -157,6 +157,33 @@ describe("realtime voice contract helpers", () => {
       }),
     ).toEqual(["Crear reclamo", "Consultar estado"]);
     expect(getRealtimeVoiceToolLabels({ active_vertical: "municipio" })).toEqual([]);
+  });
+
+  it("reads realtime actions published by vertical contracts", () => {
+    expect(
+      getRealtimeVoiceToolLabels({
+        verticals: {
+          general: {
+            actions: [
+              {
+                id: "registrar_solicitud_operativa",
+                label: "Registrar solicitud",
+              },
+              {
+                id: "capturar_lead_comercial",
+                label: "Solicitud comercial",
+              },
+            ],
+          },
+          pyme: {
+            actions: {
+              crear_pedido: { label: "Crear pedido", enabled: true },
+              hidden: { label: "Oculto", enabled: false },
+            },
+          },
+        },
+      }),
+    ).toEqual(["Registrar solicitud", "Solicitud comercial", "Crear pedido"]);
   });
 
   it("keeps realtime call UI states human and non-technical", () => {

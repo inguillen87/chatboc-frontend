@@ -288,6 +288,91 @@ const readRealtimeClientSecretsContract = (payload: unknown) => {
   );
 };
 
+const readRealtimeSessionCapabilities = (
+  payload: unknown,
+): RealtimeVoiceCapabilities | null => {
+  const source = asRecord(payload);
+  const session = asRecord(source.session);
+  const candidate: RealtimeVoiceCapabilities = {
+    ...asRecord(source.capabilities),
+    ...asRecord(source.realtime),
+    ...asRecord(source.voice_capabilities),
+    tools: source.tools ?? session.tools,
+    tool_catalog: source.tool_catalog ?? session.tool_catalog,
+    actions: source.actions ?? session.actions,
+    verticals: source.verticals ?? session.verticals,
+    active_vertical: source.active_vertical ?? session.active_vertical,
+    features: source.features ?? session.features,
+    badges: source.badges ?? session.badges,
+    trust_badges: source.trust_badges ?? session.trust_badges,
+    badge_labels: source.badge_labels ?? session.badge_labels,
+    starter_messages: source.starter_messages ?? session.starter_messages,
+    starters: source.starters ?? session.starters,
+    voice_starters: source.voice_starters ?? session.voice_starters,
+  };
+
+  const hasRenderableData = [
+    candidate.tools,
+    candidate.tool_catalog,
+    candidate.actions,
+    candidate.verticals,
+    candidate.badges,
+    candidate.trust_badges,
+    candidate.badge_labels,
+    candidate.starter_messages,
+    candidate.starters,
+    candidate.voice_starters,
+  ].some((value) => {
+    if (Array.isArray(value)) return value.length > 0;
+    return Boolean(value && typeof value === "object" && Object.keys(value).length > 0);
+  });
+
+  return hasRenderableData ? candidate : null;
+};
+
+const readRealtimeDetailLines = (details?: Record<string, unknown>) => {
+  if (!details) return [];
+  const payload = asRecord(details.payload);
+  const source = Object.keys(payload).length ? { ...details, ...payload } : details;
+  const location = asRecord(source.ubicacion || source.location);
+  const lines: Array<[string, string]> = [
+    [
+      "ID",
+      readFirstString(
+        source.id,
+        source.ticket,
+        source.ticket_id,
+        source.numero,
+        source.comprobante,
+        source.request_id,
+      ),
+    ],
+    [
+      "Tipo",
+      readFirstString(source.tipo_solicitud, source.tipo, source.kind),
+    ],
+    [
+      "Categoria",
+      readFirstString(source.categoria, source.category),
+    ],
+    [
+      "Estado",
+      readFirstString(source.estado, source.status),
+    ],
+    [
+      "Ubicacion",
+      readFirstString(
+        location.address,
+        location.direccion,
+        source.address,
+        source.direccion,
+      ),
+    ],
+  ];
+
+  return lines.filter(([, value]) => value).slice(0, 5);
+};
+
 const endpointPathname = (endpoint?: string | null) => {
   const trimmed = endpoint?.trim();
   if (!trimmed) return "";
@@ -808,8 +893,11 @@ interface ChatPanelProps {
     videoEnabled?: boolean;
     liveVideoAnalysis?: boolean;
     avatarEnabled?: boolean;
+    avatarContractVersion?: string;
     avatarType?: string;
     avatarPersona?: string;
+    avatarDisplayName?: string;
+    avatarStateSource?: string;
     voiceLabel?: string;
     videoLabel?: string;
     voiceHandoff?: {
@@ -1916,18 +2004,6 @@ const ChatPanel = (props: ChatPanelProps) => {
     videoCallConfig,
     realtimeConfig,
   );
-  const realtimeVoiceBadges = useMemo(
-    () => getRealtimeVoiceBadges(effectiveRealtimeVoice),
-    [effectiveRealtimeVoice],
-  );
-  const realtimeVoiceStarters = useMemo(
-    () => getRealtimeVoiceStarters(effectiveRealtimeVoice),
-    [effectiveRealtimeVoice],
-  );
-  const realtimeVoiceToolLabels = useMemo(
-    () => getRealtimeVoiceToolLabels(effectiveRealtimeVoice),
-    [effectiveRealtimeVoice],
-  );
   const [channelMode, setChannelMode] = useState<"chat" | "voice" | "video">(
     "chat",
   );
@@ -1952,13 +2028,33 @@ const ChatPanel = (props: ChatPanelProps) => {
       id: string;
       message: string;
       tone?: "neutral" | "success" | "warning";
+      details?: Record<string, unknown>;
     }>
   >([]);
   const [realtimeSessionId, setRealtimeSessionId] = useState<string | null>(
     null,
   );
+  const [realtimeAvatarMeta, setRealtimeAvatarMeta] = useState<Record<string, any> | null>(
+    null,
+  );
+  const [realtimeSessionCapabilities, setRealtimeSessionCapabilities] =
+    useState<RealtimeVoiceCapabilities | null>(null);
   const [realtimeErrorCode, setRealtimeErrorCode] = useState<string | null>(
     null,
+  );
+  const realtimeDisplayCapabilities =
+    realtimeSessionCapabilities ?? effectiveRealtimeVoice;
+  const realtimeVoiceBadges = useMemo(
+    () => getRealtimeVoiceBadges(realtimeDisplayCapabilities),
+    [realtimeDisplayCapabilities],
+  );
+  const realtimeVoiceStarters = useMemo(
+    () => getRealtimeVoiceStarters(realtimeDisplayCapabilities),
+    [realtimeDisplayCapabilities],
+  );
+  const realtimeVoiceToolLabels = useMemo(
+    () => getRealtimeVoiceToolLabels(realtimeDisplayCapabilities),
+    [realtimeDisplayCapabilities],
   );
 
   useEffect(() => {
@@ -2004,10 +2100,14 @@ const ChatPanel = (props: ChatPanelProps) => {
   }, [activeTicketId, sessionState]);
 
   const pushRealtimeTimeline = useCallback(
-    (message: string, tone: "neutral" | "success" | "warning" = "neutral") => {
+    (
+      message: string,
+      tone: "neutral" | "success" | "warning" = "neutral",
+      details?: Record<string, unknown>,
+    ) => {
       setRealtimeTimeline((prev) => [
         ...prev.slice(-8),
-        { id: `${Date.now()}_${Math.random()}`, message, tone },
+        { id: `${Date.now()}_${Math.random()}`, message, tone, details },
       ]);
     },
     [],
@@ -2022,11 +2122,11 @@ const ChatPanel = (props: ChatPanelProps) => {
       trackFrontendEvent(eventName, {
         tenant: tenantSlug || "unknown",
         channel,
-        session_id: activeTicketId || `rt_${Date.now()}`,
+        session_id: realtimeSessionId || activeTicketId || `rt_${Date.now()}`,
         ...extra,
       });
     },
-    [tenantSlug, activeTicketId],
+    [tenantSlug, realtimeSessionId, activeTicketId],
   );
 
   const postRealtimeActionEvent = useCallback(
@@ -2148,6 +2248,7 @@ const ChatPanel = (props: ChatPanelProps) => {
               undefined,
             active_vertical:
               effectiveRealtimeVoice?.active_vertical ||
+              (tipoChat === "municipio" ? "municipio" : resolvedSelectedRubro || "pyme") ||
               undefined,
           }),
           tenantSlug: tenantSlug || undefined,
@@ -2157,7 +2258,10 @@ const ChatPanel = (props: ChatPanelProps) => {
         const responseModel =
           readRealtimeResponseModel(payload) || requestedModel || undefined;
         const clientSecretsContract = readRealtimeClientSecretsContract(payload);
+        const avatarMeta = asRecord(payload?.avatar);
+        setRealtimeSessionCapabilities(readRealtimeSessionCapabilities(payload));
         setRealtimeSessionId(sessionId);
+        setRealtimeAvatarMeta(Object.keys(avatarMeta).length ? avatarMeta : null);
         setSessionState("live");
         setAssistantSpeaking(true);
         pushRealtimeTimeline("Escuchando", "success");
@@ -2173,11 +2277,15 @@ const ChatPanel = (props: ChatPanelProps) => {
         ) {
           emitRealtimeAnalytics("avatar_rendered", "video", {
             avatar_type:
-              payload?.avatar?.type || realtimeConfig?.avatarType || "robot",
+              avatarMeta.type || realtimeConfig?.avatarType || "robot",
             avatar_persona:
-              payload?.avatar?.persona ||
+              avatarMeta.persona ||
               realtimeConfig?.avatarPersona ||
               null,
+            avatar_contract_version:
+              avatarMeta.contract_version ||
+              realtimeConfig?.avatarContractVersion ||
+              undefined,
           });
         }
 
@@ -2239,6 +2347,8 @@ const ChatPanel = (props: ChatPanelProps) => {
 
         setSessionState("ended");
         setChannelMode("chat");
+        setRealtimeSessionCapabilities(null);
+        setRealtimeAvatarMeta(null);
         setRealtimeErrorCode(errorInfo.code);
         pushRealtimeTimeline(
           errorInfo.code || errorInfo.message,
@@ -2261,6 +2371,8 @@ const ChatPanel = (props: ChatPanelProps) => {
       realtimeVoiceEnabled,
       sessionState,
       tenantSlug,
+      tipoChat,
+      resolvedSelectedRubro,
       videoCallConfig?.model,
       videoCallConfig?.session_endpoint,
       voiceCallConfig?.fallback_model,
@@ -2276,6 +2388,8 @@ const ChatPanel = (props: ChatPanelProps) => {
     setSessionState("ended");
     setIsUserSpeaking(false);
     setAssistantSpeaking(false);
+    setRealtimeAvatarMeta(null);
+    setRealtimeSessionCapabilities(null);
     if (realtimeSessionId) {
       pushRealtimeTimeline("Finalizada");
     }
@@ -2293,6 +2407,15 @@ const ChatPanel = (props: ChatPanelProps) => {
       );
       if (!normalized) return;
 
+      if (normalized.status !== "ok") {
+        pushRealtimeTimeline(
+          `pendiente:${normalized.action}`,
+          "warning",
+          normalized.details,
+        );
+        return;
+      }
+
       pushRealtimeTimeline(`registrando:${normalized.action}`);
       emitRealtimeAnalytics("business_action_executed", normalized.channel, {
         action: normalized.action,
@@ -2309,6 +2432,7 @@ const ChatPanel = (props: ChatPanelProps) => {
         pushRealtimeTimeline(
           `${ok ? "confirmado" : "pendiente"}:${normalized.action}`,
           ok ? "success" : "warning",
+          normalized.details,
         );
       });
     };
@@ -2439,13 +2563,13 @@ const ChatPanel = (props: ChatPanelProps) => {
       voiceCallConfig?.features?.cta_label,
       voiceCallConfig?.label,
       realtimeConfig?.voiceLabel,
-      effectiveRealtimeVoice?.voice ? `Probar llamada IA` : null,
+      effectiveRealtimeVoice?.voice ? `Llamar ahora` : null,
     ];
     for (const candidate of candidates) {
       if (typeof candidate === "string" && candidate.trim())
         return candidate.trim();
     }
-    return "Probar llamada IA";
+    return "Llamar ahora";
   }, [
     effectiveRealtimeVoice?.voice,
     realtimeConfig?.voiceLabel,
@@ -2464,7 +2588,7 @@ const ChatPanel = (props: ChatPanelProps) => {
       if (typeof candidate === "string" && candidate.trim())
         return candidate.trim();
     }
-    return null;
+    return "Videollamada con asistente";
   }, [
     realtimeConfig?.avatarPersona,
     realtimeConfig?.videoLabel,
@@ -3406,8 +3530,15 @@ const ChatPanel = (props: ChatPanelProps) => {
                     ? videoCallLabel || voiceCallLabel
                     : voiceCallLabel
                 }
-                avatarType={realtimeConfig?.avatarType || "robot"}
-                avatarPersona={realtimeConfig?.avatarPersona || null}
+                avatarType={readFirstString(realtimeAvatarMeta?.type, realtimeConfig?.avatarType, "robot")}
+                avatarPersona={readFirstString(realtimeAvatarMeta?.persona, realtimeConfig?.avatarPersona) || null}
+                avatarDisplayName={
+                  readFirstString(
+                    realtimeAvatarMeta?.display_name,
+                    realtimeConfig?.avatarDisplayName,
+                    realtimeConfig?.avatarPersona,
+                  ) || null
+                }
                 logoUrl={headerLogoUrl || null}
                 captionsEnabled={captionsEnabled}
                 transcript={transcript}
@@ -3542,21 +3673,34 @@ const ChatPanel = (props: ChatPanelProps) => {
             ) : null}
             {realtimeTimeline.length > 0 ? (
               <div className="mt-2 space-y-1">
-                {realtimeTimeline.map((item) => (
-                  <div
-                    key={item.id}
-                    className={cn(
-                      "rounded-md border px-2 py-1 text-[11px]",
-                      item.tone === "success"
-                        ? "border-emerald-300 bg-emerald-50 text-emerald-700"
-                        : item.tone === "warning"
-                          ? "border-amber-300 bg-amber-50 text-amber-800"
-                          : "border-border bg-muted/40 text-muted-foreground",
-                    )}
-                  >
-                    {getRealtimeTimelineLabel(item.message)}
-                  </div>
-                ))}
+                {realtimeTimeline.map((item) => {
+                  const detailLines = readRealtimeDetailLines(item.details);
+                  return (
+                    <div
+                      key={item.id}
+                      className={cn(
+                        "rounded-md border px-2 py-1 text-[11px]",
+                        item.tone === "success"
+                          ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+                          : item.tone === "warning"
+                            ? "border-amber-300 bg-amber-50 text-amber-800"
+                            : "border-border bg-muted/40 text-muted-foreground",
+                      )}
+                    >
+                      <div>{getRealtimeTimelineLabel(item.message)}</div>
+                      {detailLines.length > 0 ? (
+                        <div className="mt-1 grid gap-0.5 text-[10px] opacity-90">
+                          {detailLines.map(([label, value]) => (
+                            <div key={`${item.id}_${label}`} className="flex gap-1">
+                              <span className="font-medium">{label}:</span>
+                              <span className="truncate">{value}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
               </div>
             ) : null}
           </div>
