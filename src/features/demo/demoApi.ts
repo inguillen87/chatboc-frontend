@@ -23,6 +23,11 @@ export type DemoSessionPayload = {
   rubro_slug?: string;
   category_slug?: string;
   tenant_slug?: string | null;
+  label?: string | null;
+  surface?: string | null;
+  source?: string | null;
+  anon_id?: string | null;
+  chat_session_id?: string | null;
 };
 
 export type DemoWhatsappSandboxPayload = {
@@ -47,14 +52,20 @@ export const getDemoAdminPreview = async (params: {
   });
 };
 
-export const createDemoSession = async (payload: DemoSessionPayload) => {
+export const createDemoSession = async (
+  payload: DemoSessionPayload,
+  options: { strictSelection?: boolean } = {},
+) => {
   const response = await demoApi.post<DemoSessionResponse>('/api/v2/demo/session', payload, {
     baseUrlOverride: '/api',
   });
   const normalized = normalizeDemoSessionResponse(response);
+  if (!isUsableDemoSessionResponse(normalized)) {
+    throw new Error('La demo real no devolvio sesion de chat utilizable.');
+  }
   persistDemoRuntimeSession(normalized);
 
-  if (!isDemoSessionAlignedWithSelection(normalized, payload)) {
+  if (options.strictSelection !== false && !isDemoSessionAlignedWithSelection(normalized, payload)) {
     throw new Error('La demo real recibida no coincide con la seleccion solicitada.');
   }
 
@@ -96,20 +107,44 @@ const normalizeDemoSector = (value?: string | null): DemoSector => {
 };
 
 const normalizeDemoSessionResponse = (response: DemoSessionResponse): DemoSessionResponse => {
+  const session = response.session && typeof response.session === 'object' ? response.session : null;
   const chatSessionId =
     readShortChatSessionId(response.chat_session_id) ??
     readShortChatSessionId(response.session_id) ??
+    readShortChatSessionId(session?.chat_session_id) ??
+    readShortChatSessionId(session?.session_id) ??
     readChatSessionIdFromBootstrap(response.workspace?.chat_bootstrap) ??
     readChatSessionIdFromBootstrap(response.chat_bootstrap) ??
     readChatSessionIdFromBootstrap(response.workspace?.chat_seed?.chat_bootstrap) ??
     readChatSessionIdFromBootstrap(response.chat_seed?.chat_bootstrap);
+  const demoSessionId =
+    readString(response.demo_session_id) ??
+    readString(session?.demo_session_id) ??
+    readString(response.workspace?.chat_bootstrap?.session?.demo_session_id) ??
+    readString(response.chat_bootstrap?.session?.demo_session_id);
+  const tenantSlug =
+    response.tenant_slug ??
+    response.tenant?.slug ??
+    (typeof session?.tenant_slug === 'string' ? session.tenant_slug : null) ??
+    null;
 
   return {
     ...response,
-    demo_session_id: response.demo_session_id ?? undefined,
+    demo_session_id: demoSessionId ?? undefined,
     chat_session_id: chatSessionId,
-    tenant_slug: response.tenant_slug ?? response.tenant?.slug ?? null,
-    workspace: normalizeWorkspaceConfig(response, chatSessionId),
+    tenant_slug: tenantSlug,
+    session: session
+      ? {
+          ...session,
+          demo_session_id: demoSessionId ?? session.demo_session_id ?? null,
+          chat_session_id: chatSessionId ?? null,
+        }
+      : session,
+    workspace: normalizeWorkspaceConfig(response, {
+      chatSessionId,
+      demoSessionId,
+      tenantSlug,
+    }),
   };
 };
 
@@ -193,6 +228,43 @@ const isDemoSessionAlignedWithSelection = (response: DemoSessionResponse, payloa
   return true;
 };
 
+const isUsableDemoSessionResponse = (response: DemoSessionResponse) => {
+  if (response.ok === false) return false;
+  if (isDemoRubroSelectionStep(response)) return true;
+
+  const chatSessionId =
+    readShortChatSessionId(response.chat_session_id) ??
+    readShortChatSessionId(response.session?.chat_session_id) ??
+    readShortChatSessionId(response.session?.session_id) ??
+    readChatSessionIdFromBootstrap(response.workspace?.chat_bootstrap) ??
+    readChatSessionIdFromBootstrap(response.chat_bootstrap) ??
+    readChatSessionIdFromBootstrap(response.workspace?.chat_seed?.chat_bootstrap) ??
+    readChatSessionIdFromBootstrap(response.chat_seed?.chat_bootstrap);
+  const chatBootstrap =
+    response.workspace?.chat_bootstrap ??
+    response.chat_bootstrap ??
+    response.workspace?.chat_seed?.chat_bootstrap ??
+    response.chat_seed?.chat_bootstrap ??
+    null;
+
+  return Boolean(chatSessionId && chatBootstrap);
+};
+
+const isDemoRubroSelectionStep = (response: DemoSessionResponse) => {
+  const nextStep = String(response.next_step ?? response.frontend_contract?.next_step ?? '').trim().toLowerCase();
+  const onboardingStatus = String(response.widget_onboarding?.status ?? '').trim().toLowerCase();
+  const renderAs = String(response.frontend_contract?.render_as ?? response.workspace?.rubro_selector?.render_as ?? '').trim().toLowerCase();
+  const categories = response.workspace?.rubro_selector?.categories;
+
+  return Boolean(
+    response.requires_rubro_selection === true ||
+      nextStep === 'select_rubro' ||
+      onboardingStatus === 'select_rubro' ||
+      renderAs === 'demo_rubro_selector' ||
+      (renderAs === 'rubro_selector' && Array.isArray(categories)),
+  );
+};
+
 const normalizeDemoCatalog = (response: DemoCatalogResponse): DemoCatalogResponse => {
   const incomingPillars = Array.isArray(response.pillars) ? response.pillars : [];
   const pillarSectors = incomingPillars
@@ -233,13 +305,21 @@ const normalizeDemoCatalog = (response: DemoCatalogResponse): DemoCatalogRespons
 
 const normalizeWorkspaceConfig = (
   response: DemoSessionResponse,
-  normalizedChatSessionId?: string | null,
+  context: {
+    chatSessionId?: string | null;
+    demoSessionId?: string | null;
+    tenantSlug?: string | null;
+  } = {},
 ): DemoWorkspaceConfig | null => {
   const workspace: DemoWorkspaceConfig = response.workspace ?? {};
   const quickReplies = workspace.quick_replies ?? response.quick_replies ?? [];
   const valueCards = workspace.value_cards ?? response.value_cards ?? [];
   const catalogResources = workspace.catalog_resources ?? (response as any).catalog_resources ?? [];
   const welcomeMessage = workspace.welcome_message ?? response.welcome_message ?? null;
+  const rubroSelector = workspace.rubro_selector ?? null;
+  const defaultMenu = workspace.default_menu ?? (response as any).default_menu ?? null;
+  const quickMenu = workspace.quick_menu ?? (response as any).quick_menu ?? null;
+  const rubroContext = workspace.rubro_context ?? (response as any).rubro_context ?? null;
   const handoffLabels = workspace.handoff_labels ?? response.handoff_labels ?? null;
   const experienceBlueprint = workspace.experience_blueprint ?? response.experience_blueprint ?? null;
   const leadCapture = workspace.lead_capture ?? response.lead_capture ?? experienceBlueprint?.lead_capture ?? null;
@@ -255,12 +335,12 @@ const normalizeWorkspaceConfig = (
       response.chat_seed?.chat_bootstrap ??
       null,
     {
-      demoSessionId: response.demo_session_id ?? null,
+      demoSessionId: context.demoSessionId ?? response.demo_session_id ?? null,
       chatSessionId:
-        readShortChatSessionId(normalizedChatSessionId) ??
+        readShortChatSessionId(context.chatSessionId) ??
         readShortChatSessionId(response.chat_session_id) ??
         readShortChatSessionId(response.session_id),
-      tenantSlug: response.tenant_slug ?? response.tenant?.slug ?? null,
+      tenantSlug: context.tenantSlug ?? response.tenant_slug ?? response.tenant?.slug ?? null,
     },
   );
   const firstVisit = workspace.first_visit ?? experienceBlueprint?.first_visit ?? null;
@@ -277,6 +357,10 @@ const normalizeWorkspaceConfig = (
     !valueCards.length &&
     !welcomeMessage &&
     !catalogResources.length &&
+    !rubroSelector &&
+    !defaultMenu &&
+    !quickMenu &&
+    !rubroContext &&
     !handoffLabels &&
     !workspace.title &&
     !firstVisit &&
@@ -288,6 +372,11 @@ const normalizeWorkspaceConfig = (
     !animationTokens &&
     !emptyStates &&
     !education &&
+    !workspace.rubro_tools &&
+    !workspace.business_tools &&
+    !workspace.operational_tools &&
+    !workspace.tools &&
+    !workspace.toolkit &&
     !chatBootstrap
   ) {
     return null;
@@ -296,6 +385,12 @@ const normalizeWorkspaceConfig = (
   return {
     title: workspace.title ?? null,
     welcome_message: welcomeMessage,
+    rubro: workspace.rubro ?? null,
+    rubro_clave: workspace.rubro_clave ?? null,
+    rubro_context: rubroContext,
+    rubro_selector: rubroSelector,
+    default_menu: defaultMenu,
+    quick_menu: quickMenu,
     quick_replies: quickReplies,
     value_cards: valueCards,
     catalog_resources: catalogResources,
@@ -311,6 +406,11 @@ const normalizeWorkspaceConfig = (
     animation_tokens: animationTokens,
     empty_states: emptyStates,
     education,
+    rubro_tools: workspace.rubro_tools ?? null,
+    business_tools: workspace.business_tools ?? null,
+    operational_tools: workspace.operational_tools ?? null,
+    tools: workspace.tools ?? null,
+    toolkit: workspace.toolkit ?? null,
     chat_bootstrap: chatBootstrap,
     chat_seed: workspace.chat_seed ?? response.chat_seed ?? null,
   };
@@ -411,6 +511,8 @@ const normalizeChatBootstrap = (
     headers: Object.keys(headers).length ? headers : undefined,
     query,
     payload,
+    default_menu: value.default_menu,
+    quick_menu: value.quick_menu,
     session: Object.keys(session).length ? session : undefined,
     empty_states: value.empty_states && typeof value.empty_states === 'object' ? value.empty_states : undefined,
     supports: value.supports && typeof value.supports === 'object' ? value.supports : undefined,

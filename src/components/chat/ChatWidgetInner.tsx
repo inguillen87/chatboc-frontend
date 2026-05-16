@@ -33,7 +33,7 @@ import {
   getChatbocBotAvatar,
 } from "@/utils/brandAssets";
 import { createDemoSession } from "@/features/demo/demoApi";
-import getOrCreateChatSessionId, { persistChatSessionId } from "@/utils/chatSessionId";
+import getOrCreateChatSessionId, { persistChatSessionId, resetChatSessionId } from "@/utils/chatSessionId";
 import { isPublicPlatformSurfacePath } from "@/utils/widgetTenantResolution";
 import {
   getWidgetCartSnapshot,
@@ -81,6 +81,81 @@ const readOptionalBoolean = (value: unknown, fallback = false) => {
     if (["false", "0", "no", "off", "disabled"].includes(normalized)) return false;
   }
   return fallback;
+};
+
+const isPlainRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === "object" && !Array.isArray(value);
+
+const normalizeRubroSelectorOptions = (selector: unknown) => {
+  const record = isPlainRecord(selector) ? selector : {};
+  const categories = Array.isArray(record.categories)
+    ? record.categories
+    : Array.isArray(record.items)
+      ? record.items
+      : [];
+
+  return categories
+    .map((item, index) => {
+      if (typeof item === "string") {
+        const label = item.trim();
+        const rubro = extractRubroKey(label);
+        return label && rubro ? { id: `rubro-${index}`, label, rubro, sector: "empresas" } : null;
+      }
+      if (!isPlainRecord(item)) return null;
+      const label = readFirstString(item.label, item.title, item.name, item.text, item.display_name, item.slug, item.value, item.key);
+      const rubro = extractRubroKey(
+        readFirstString(item.rubro, item.rubro_slug, item.rubro_key, item.slug, item.value, item.key, label),
+      );
+      if (!label || !rubro) return null;
+      const payload = isPlainRecord(item.payload)
+        ? item.payload
+        : isPlainRecord(item.data)
+          ? item.data
+          : null;
+      return {
+        id: readFirstString(item.id, item.key, item.slug, item.value) || `rubro-${index}`,
+        label,
+        title: readFirstString(item.title, item.name) || null,
+        description: readFirstString(item.description, item.subtitle, item.detail) || null,
+        sector: "empresas",
+        rubro,
+        payload,
+      };
+    })
+    .filter(Boolean);
+};
+
+const getSessionRubroSelector = (session: any) =>
+  session?.workspace?.rubro_selector ||
+  session?.widget_onboarding?.rubro_selector ||
+  session?.frontend_contract?.rubro_selector ||
+  null;
+
+const isRubroSelectionDemoSession = (session: any) => {
+  const nextStep = readFirstString(session?.next_step, session?.frontend_contract?.next_step).toLowerCase();
+  const status = readFirstString(session?.widget_onboarding?.status).toLowerCase();
+  const renderAs = readFirstString(session?.frontend_contract?.render_as, session?.workspace?.rubro_selector?.render_as).toLowerCase();
+  return Boolean(
+    session?.requires_rubro_selection === true ||
+      nextStep === "select_rubro" ||
+      status === "select_rubro" ||
+      renderAs === "demo_rubro_selector" ||
+      renderAs === "rubro_selector",
+  );
+};
+
+const pickMenuSource = (...sources: unknown[]) => {
+  for (const source of sources) {
+    if (!source) continue;
+    if (Array.isArray(source) && source.length) return { items: source };
+    if (isPlainRecord(source)) {
+      if (Array.isArray(source.items) && source.items.length) return source;
+      if (Array.isArray(source.options) && source.options.length) return { ...source, items: source.options };
+      if (Array.isArray(source.buttons) && source.buttons.length) return { ...source, items: source.buttons };
+      if (Array.isArray(source.botones) && source.botones.length) return { ...source, items: source.botones };
+    }
+  }
+  return null;
 };
 
 function normalizeCtaMessages(rawMessages: any): string[] {
@@ -1500,6 +1575,7 @@ function ChatWidgetInner({
 
   const handlePlatformSelection = useCallback(async (option: any) => {
     if (!option || typeof option !== "object") return;
+    if (platformSelectionLoadingId) return;
     const optionId = String(option.id || option.sector || option.label || "platform_option");
     const normalizeSectorCandidate = (value: unknown) =>
       String(value ?? "")
@@ -1525,29 +1601,96 @@ function ChatWidgetInner({
               ? option.sector
               : undefined;
     const tenantSlug = typeof option.tenant_slug === "string" ? option.tenant_slug : undefined;
-    const rubro = typeof option.rubro === "string" ? option.rubro : tenantSlug;
+    const optionPayload = isPlainRecord(option.payload) ? option.payload : {};
+    const rubro = extractRubroKey(
+      readFirstString(
+        option.rubro,
+        option.slug,
+        option.value,
+        optionPayload.rubro,
+        optionPayload.rubro_slug,
+        optionPayload.rubro_key,
+      ),
+    ) || (typeof tenantSlug === "string" ? tenantSlug : undefined);
+    const isRubroSelectorStep =
+      entityInfo?.onboarding?.mode === "demo_rubro_selector" ||
+      entityInfo?.widget_onboarding?.status === "select_rubro" ||
+      entityInfo?.frontend_contract?.next_step === "select_rubro";
     const isPlatformSectorSelector =
       entityInfo?.onboarding?.mode === "platform_sector_selector" ||
       entityInfo?.tenant?.tipo === "platform" ||
       entityInfo?.tenant?.slug === "chatboc-platform";
-    if (isPlatformSectorSelector && (sector === "educacion" || sector === "gobierno" || sector === "empresas")) {
-      safeLocalStorage.setItem("demoSectorSeleccionado", sector);
-      safeLocalStorage.removeItem("rubroSeleccionado");
-      safeLocalStorage.removeItem("rubroSeleccionado_label");
-      safeLocalStorage.removeItem("tenantSlug");
-      window.location.assign(`/demo?sector=${encodeURIComponent(sector)}`);
-      return;
-    }
     setPlatformSelectionLoadingId(optionId);
     setPlatformSelectionError(null);
     try {
-      const session = await createDemoSession({
-        sector,
-        tenant_slug: tenantSlug || null,
-        rubro,
+      const label = readFirstString(option.label, option.title, option.name, option.sector, sector);
+      const chatSessionIdForDemo = isRubroSelectorStep ? getOrCreateChatSessionId() : resetChatSessionId();
+      const sessionPayload = isPlatformSectorSelector || isRubroSelectorStep
+        ? {
+            surface: "widget",
+            source: isRubroSelectorStep ? "landing_widget_rubro_selector" : "landing_widget_selector",
+            sector: isRubroSelectorStep ? "empresas" : sector,
+            label,
+            ...(isRubroSelectorStep && rubro ? { rubro } : {}),
+            anon_id: getOrCreateAnonId() || null,
+            chat_session_id: chatSessionIdForDemo || null,
+          }
+        : {
+            sector,
+            tenant_slug: tenantSlug || null,
+            rubro,
+          };
+      const session = await createDemoSession(sessionPayload, {
+        strictSelection: !isPlatformSectorSelector,
       });
       const workspace = session.workspace || {};
-      const demoTenantSlug = session.tenant_slug || session.tenant?.slug || tenantSlug || null;
+      if (isRubroSelectionDemoSession(session)) {
+        const selector = getSessionRubroSelector(session);
+        const rubroOptions = normalizeRubroSelectorOptions(selector);
+        const nextInfo = {
+          ...(entityInfo || {}),
+          ...workspace,
+          tenant: entityInfo?.tenant || session.tenant || null,
+          slug: entityInfo?.slug || null,
+          tenant_slug: null,
+          tipo_chat: "pyme",
+          chat_bootstrap: null,
+          quick_menu: rubroOptions,
+          onboarding: {
+            ...(entityInfo?.onboarding || {}),
+            ...(session.widget_onboarding || {}),
+            mode: "demo_rubro_selector",
+            title:
+              readFirstString((selector as any)?.title, session.widget_onboarding?.title, entityInfo?.onboarding?.title) ||
+              entityInfo?.onboarding?.title ||
+              null,
+            entry_question:
+              readFirstString(
+                (selector as any)?.entry_question,
+                (selector as any)?.question,
+                (selector as any)?.label,
+                session.widget_onboarding?.entry_question,
+                entityInfo?.onboarding?.entry_question,
+              ) || entityInfo?.onboarding?.entry_question || null,
+            quick_menu: rubroOptions,
+          },
+          widget_onboarding: session.widget_onboarding || null,
+          frontend_contract: session.frontend_contract || null,
+          rubro_selector: selector,
+        };
+        setEntityInfo(nextInfo);
+        setActiveDemoTenantSlug(null);
+        setSelectedRubro(null);
+        setResolvedTipoChat("pyme");
+        return;
+      }
+      const demoTenantSlug =
+        session.session?.tenant_slug || session.tenant_slug || session.tenant?.slug || (!isPlatformSectorSelector ? tenantSlug : null) || null;
+      const demoChatSessionId =
+        session.session?.chat_session_id || session.chat_session_id || workspace.chat_bootstrap?.session?.chat_session_id || null;
+      if (demoChatSessionId) {
+        persistChatSessionId(demoChatSessionId);
+      }
       const bootstrapPayload = workspace.chat_bootstrap?.payload || {};
       const backendRubro = extractRubroKey(
         bootstrapPayload.rubro_clave ||
@@ -1572,17 +1715,30 @@ function ChatWidgetInner({
         tipo_chat: nextTipo,
         rubro: backendRubro || rubro || entityInfo?.rubro || null,
         rubro_clave: backendRubro || rubro || entityInfo?.rubro_clave || null,
-        quick_menu: Array.isArray(workspace.quick_replies)
-          ? workspace.quick_replies
-          : Array.isArray(workspace.education?.quick_menu)
-            ? workspace.education.quick_menu
-            : [],
+        default_menu: pickMenuSource(
+          workspace.default_menu,
+          workspace.chat_bootstrap?.default_menu,
+          session.widget_onboarding?.default_menu,
+          workspace.quick_menu,
+          workspace.quick_replies,
+        ),
+        quick_menu: Array.isArray((workspace.default_menu as any)?.items)
+          ? (workspace.default_menu as any).items
+          : Array.isArray(workspace.quick_menu)
+            ? workspace.quick_menu
+            : Array.isArray(workspace.quick_replies)
+              ? workspace.quick_replies
+              : Array.isArray(workspace.education?.quick_menu)
+                ? workspace.education.quick_menu
+                : [],
+        rubro_context: workspace.rubro_context || null,
         onboarding: {
           ...(entityInfo?.onboarding || {}),
           mode: "demo_session",
         },
         ui_hints: entityInfo?.ui_hints || null,
         chat_bootstrap: workspace.chat_bootstrap || session.chat_bootstrap || null,
+        widget_onboarding: session.widget_onboarding || null,
         experience_blueprint: workspace.experience_blueprint || entityInfo?.experience_blueprint || null,
         first_visit: workspace.first_visit || entityInfo?.first_visit || null,
         sample_conversations: workspace.sample_conversations || entityInfo?.sample_conversations || [],
@@ -1599,11 +1755,13 @@ function ChatWidgetInner({
       setResolvedTipoChat(nextTipo);
       setChatPanelResetKey((current) => current + 1);
     } catch (error) {
-      setPlatformSelectionError("No pudimos iniciar esta demo real. Reintentá en unos minutos.");
+      setPlatformSelectionError(
+        getErrorMessage(error, "No pudimos iniciar esta demo real. Reintentá en unos minutos."),
+      );
     } finally {
       setPlatformSelectionLoadingId(null);
     }
-  }, [entityInfo]);
+  }, [entityInfo, platformSelectionLoadingId]);
 
   const [viewport, setViewport] = useState({
     width: typeof window !== "undefined" ? window.innerWidth : 0,
@@ -2650,6 +2808,12 @@ function ChatWidgetInner({
                     widgetId={widgetId}
                     entityToken={resolvedOwnerToken ?? undefined}
                     quickMenu={entityInfo?.quick_menu}
+                    defaultMenu={
+                      entityInfo?.default_menu ||
+                      entityInfo?.widget_onboarding?.default_menu ||
+                      chatBootstrap?.default_menu ||
+                      null
+                    }
                     onboarding={entityInfo?.onboarding ?? null}
                     uiHints={effectiveUiHints}
                     commerceSession={widgetCommerceSession}

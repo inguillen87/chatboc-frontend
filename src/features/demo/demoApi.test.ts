@@ -98,6 +98,213 @@ describe('demo session API', () => {
     expect(safeLocalStorage.getItem(DEMO_CHAT_SESSION_STORAGE_KEY)).toBe('sid_demo_educacion_123');
     expect(safeLocalStorage.getItem(DEMO_TENANT_STORAGE_KEY)).toBe('qa-colegio-sandbox');
   });
+
+  it('accepts compact widget selector sessions without reusing a previous tenant', async () => {
+    safeLocalStorage.setItem('tenantSlug', 'junin-1');
+    demoPostMock.mockResolvedValue({
+      contract_version: 'demo.session.v2',
+      ok: true,
+      ready: true,
+      status: 'ready',
+      response_profile: 'widget_compact',
+      demo_session_id: 'demo-widget-token',
+      chat_session_id: 'sid_widget_gob_1',
+      session: {
+        demo_session_id: 'demo-widget-token',
+        chat_session_id: 'sid_widget_gob_1',
+        tenant_slug: 'municipio',
+        sector: 'gobierno',
+        rubro: 'municipio',
+      },
+      workspace: {
+        chat_bootstrap: {
+          same_origin_endpoint: '/api/ask/municipio',
+          headers: {},
+          payload: { vertical: 'gobierno' },
+        },
+      },
+      widget_onboarding: {
+        status: 'ready',
+        open_chat: true,
+        close_selector: true,
+        send_init_once: true,
+      },
+    });
+
+    const response = await createDemoSession(
+      {
+        surface: 'widget',
+        source: 'landing_widget_selector',
+        sector: 'gobierno',
+        label: 'Gobiernos',
+        anon_id: 'anon-1',
+      },
+      { strictSelection: false },
+    );
+
+    expect(demoPostMock).toHaveBeenCalledWith(
+      '/api/v2/demo/session',
+      {
+        surface: 'widget',
+        source: 'landing_widget_selector',
+        sector: 'gobierno',
+        label: 'Gobiernos',
+        anon_id: 'anon-1',
+      },
+      { baseUrlOverride: '/api' },
+    );
+    expect(response.chat_session_id).toBe('sid_widget_gob_1');
+    expect(response.session?.tenant_slug).toBe('municipio');
+    expect(response.workspace?.chat_bootstrap?.headers?.['X-Chat-Session-Id']).toBe('sid_widget_gob_1');
+    expect(response.workspace?.chat_bootstrap?.headers?.['X-Demo-Session-Id']).toBe('demo-widget-token');
+    expect(response.workspace?.chat_bootstrap?.payload?.tenant_slug).toBe('municipio');
+    expect(safeLocalStorage.getItem(DEMO_SESSION_STORAGE_KEY)).toBe('demo-widget-token');
+    expect(safeLocalStorage.getItem(DEMO_CHAT_SESSION_STORAGE_KEY)).toBe('sid_widget_gob_1');
+    expect(safeLocalStorage.getItem(DEMO_TENANT_STORAGE_KEY)).toBe('municipio');
+    expect(safeLocalStorage.getItem('tenantSlug')).toBe('junin-1');
+  });
+
+  it('treats empresas without rubro as a valid rubro selection step', async () => {
+    demoPostMock.mockResolvedValue({
+      contract_version: 'demo.session.v2',
+      ok: true,
+      ready: true,
+      status: 'ready',
+      next_step: 'select_rubro',
+      requires_rubro_selection: true,
+      workspace: {
+        rubro_selector: {
+          contract_version: 'demo.rubro_selector.v1',
+          render_as: 'rubro_selector',
+          sector: 'empresas',
+          categories: [
+            { slug: 'bodega', label: 'Bodega' },
+            { slug: 'ferreteria', label: 'Ferreteria' },
+          ],
+        },
+      },
+      widget_onboarding: {
+        status: 'select_rubro',
+        open_chat: false,
+        close_selector: false,
+        send_init_once: false,
+      },
+      frontend_contract: {
+        render_as: 'demo_rubro_selector',
+        next_step: 'select_rubro',
+        rubro_selector_path: 'workspace.rubro_selector',
+      },
+    });
+
+    const response = await createDemoSession(
+      {
+        surface: 'widget',
+        source: 'landing_widget_selector',
+        sector: 'empresas',
+        label: 'Empresas',
+      },
+      { strictSelection: false },
+    );
+
+    expect(response.requires_rubro_selection).toBe(true);
+    expect(response.workspace?.rubro_selector?.categories).toHaveLength(2);
+    expect(response.workspace?.chat_bootstrap).toBeNull();
+    expect(safeLocalStorage.getItem(DEMO_SESSION_STORAGE_KEY)).toBeNull();
+    expect(safeLocalStorage.getItem(DEMO_CHAT_SESSION_STORAGE_KEY)).toBeNull();
+    expect(safeLocalStorage.getItem(DEMO_TENANT_STORAGE_KEY)).toBeNull();
+  });
+
+  it('preserves rubro context and backend default menu for explicit empresa rubro sessions', async () => {
+    demoPostMock.mockResolvedValue({
+      contract_version: 'demo.session.v2',
+      ok: true,
+      ready: true,
+      status: 'ready',
+      demo_session_id: 'demo-bodega-token',
+      chat_session_id: 'sid_widget_bodega_1',
+      session: {
+        demo_session_id: 'demo-bodega-token',
+        chat_session_id: 'sid_widget_bodega_1',
+        tenant_slug: 'bodega',
+        sector: 'empresas',
+        rubro: 'bodega',
+      },
+      workspace: {
+        rubro_context: { slug: 'bodega', label: 'Bodega' },
+        default_menu: {
+          contract_version: 'demo.default_menu.v1',
+          render_as: 'quick_menu',
+          items: [{ id: 'catalogo_vinos', label: 'Catalogo de vinos', intent: 'ver_catalogo' }],
+        },
+        chat_bootstrap: {
+          same_origin_endpoint: '/api/ask/pyme',
+          payload: {
+            vertical: 'empresas',
+            rubro: 'bodega',
+            tenant_slug: 'bodega',
+            demo_metadata: {
+              rubro: 'bodega',
+            },
+          },
+          default_menu: {
+            items: [{ id: 'pedido', label: 'Hacer pedido', intent: 'crear_pedido' }],
+          },
+        },
+      },
+    });
+
+    const response = await createDemoSession(
+      {
+        surface: 'widget',
+        source: 'landing_widget_rubro_selector',
+        sector: 'empresas',
+        rubro: 'bodega',
+        label: 'Bodega',
+      },
+      { strictSelection: false },
+    );
+
+    expect(demoPostMock).toHaveBeenCalledWith(
+      '/api/v2/demo/session',
+      {
+        surface: 'widget',
+        source: 'landing_widget_rubro_selector',
+        sector: 'empresas',
+        rubro: 'bodega',
+        label: 'Bodega',
+      },
+      { baseUrlOverride: '/api' },
+    );
+    expect(response.workspace?.rubro_context?.slug).toBe('bodega');
+    expect((response.workspace?.default_menu as any)?.items?.[0]?.intent).toBe('ver_catalogo');
+    expect((response.workspace?.chat_bootstrap?.default_menu as any)?.items?.[0]?.intent).toBe('crear_pedido');
+    expect(response.workspace?.chat_bootstrap?.payload?.rubro).toBe('bodega');
+    expect(response.workspace?.chat_bootstrap?.headers?.['X-Chat-Session-Id']).toBe('sid_widget_bodega_1');
+    expect(response.workspace?.chat_bootstrap?.headers?.['X-Demo-Session-Id']).toBe('demo-bodega-token');
+  });
+
+  it('rejects demo sessions that do not provide a usable chat bootstrap', async () => {
+    demoPostMock.mockResolvedValue({
+      contract_version: 'demo.session.v2',
+      ok: true,
+      session: {
+        chat_session_id: 'sid_without_bootstrap',
+      },
+      workspace: {},
+    });
+
+    await expect(
+      createDemoSession(
+        {
+          surface: 'widget',
+          source: 'landing_widget_selector',
+          sector: 'gobierno',
+          label: 'Gobiernos',
+        },
+        { strictSelection: false },
+      ),
+    ).rejects.toThrow('sesion de chat utilizable');
+  });
 });
 
 describe('demo WhatsApp sandbox API', () => {

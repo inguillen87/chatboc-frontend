@@ -94,6 +94,7 @@ import { extractSmartHint } from "@/utils/smartHints";
 import {
   trackFrontendEvent,
 } from "@/utils/frontendTelemetry";
+import { mergeButtons } from "@/utils/chatButtons";
 import type { RealtimeVoiceCapabilities } from "@/types/realtimeVoice";
 import {
   getRealtimeNetworkLabel,
@@ -334,10 +335,12 @@ const normalizeOnboardingOption = (
           ? source.text.trim()
           : "";
   if (!label) return null;
-  const readText = (key: string) =>
-    typeof source[key] === "string" && String(source[key]).trim()
-      ? String(source[key]).trim()
-      : null;
+  const readText = (key: string) => {
+    const value = source[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+    if (typeof value === "number" && Number.isFinite(value)) return String(value);
+    return null;
+  };
   const payload =
     source.payload && typeof source.payload === "object" && !Array.isArray(source.payload)
       ? (source.payload as Record<string, unknown>)
@@ -345,12 +348,24 @@ const normalizeOnboardingOption = (
   return {
     id: readText("id") || readText("key") || `onboarding-${index}`,
     label,
+    title: readText("title"),
+    name: readText("name"),
     description: readText("description") || readText("subtitle") || readText("detail"),
     cta_label: readText("cta_label") || readText("ctaLabel"),
     intent: readText("intent"),
+    action: readText("action") || readText("accion"),
+    action_id: readText("action_id") || readText("actionId"),
     sector: readText("sector"),
     tenant_slug: readText("tenant_slug") || readText("tenantSlug"),
-    rubro: readText("rubro") || readText("rubro_slug") || readText("rubro_key"),
+    rubro:
+      readText("rubro") ||
+      readText("rubro_slug") ||
+      readText("rubro_key") ||
+      readText("slug") ||
+      readText("value") ||
+      readText("key"),
+    slug: readText("slug"),
+    value: readText("value"),
     payload,
   };
 };
@@ -564,6 +579,7 @@ interface ChatPanelProps {
     downloadLabel?: string | null;
   } | null;
   quickMenu?: unknown;
+  defaultMenu?: unknown;
   onboarding?: ChatWidgetOnboarding | null;
   uiHints?: ChatWidgetUiHints | null;
   commerceSession?: WidgetCommerceSession | null;
@@ -614,6 +630,7 @@ const ChatPanel = (props: ChatPanelProps) => {
     a11yPrefs,
     catalogCard,
     quickMenu,
+    defaultMenu,
     onboarding,
     uiHints,
     commerceSession,
@@ -682,8 +699,9 @@ const ChatPanel = (props: ChatPanelProps) => {
       .map(normalizeOnboardingOption)
       .filter((item): item is ChatWidgetOnboardingOption => Boolean(item));
   }, [onboarding?.quick_menu, quickMenu]);
+  const onboardingMode = onboarding?.mode;
   const isPlatformOnboarding =
-    onboarding?.mode === "platform_sector_selector" &&
+    (onboardingMode === "platform_sector_selector" || onboardingMode === "demo_rubro_selector") &&
     platformOptions.length > 0 &&
     !chatBootstrap;
   const normalizedPropRubro = extractRubroKey(selectedRubro);
@@ -2643,6 +2661,25 @@ const ChatPanel = (props: ChatPanelProps) => {
   const emptyStateDescription =
     readExperienceDescription(resolvedEmptyBlock) ||
     "Escribí tu consulta abajo o usá las opciones del menú.";
+  const defaultMenuButtons = useMemo(
+    () =>
+      mergeButtons(
+        defaultMenu,
+        chatBootstrap?.default_menu,
+        chatBootstrap?.quick_menu,
+        chatBootstrap?.payload?.default_menu,
+        chatBootstrap?.payload?.quick_menu,
+        (chatBootstrap?.payload?.demo_metadata as Record<string, unknown> | undefined)?.default_menu,
+      ),
+    [
+      defaultMenu,
+      chatBootstrap?.default_menu,
+      chatBootstrap?.quick_menu,
+      chatBootstrap?.payload?.default_menu,
+      chatBootstrap?.payload?.quick_menu,
+      chatBootstrap?.payload?.demo_metadata,
+    ],
+  );
   const sampleConversationBlocks = useMemo(
     () =>
       Array.isArray(experienceBlueprint?.sample_conversations)
@@ -2950,11 +2987,14 @@ const ChatPanel = (props: ChatPanelProps) => {
                     type="button"
                     className="group relative flex min-h-[76px] w-full items-center justify-between gap-3 overflow-hidden rounded-[8px] border border-border/70 bg-card px-3.5 py-3 text-left text-sm font-semibold text-foreground shadow-sm transition hover:-translate-y-0.5 hover:border-primary/40 hover:bg-primary/5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-wait disabled:opacity-70"
                     disabled={Boolean(platformSelectionLoadingId)}
+                    aria-busy={isLoading}
                     onClick={() => void onPlatformSelection?.(option)}
                   >
                     <span className="absolute inset-y-0 left-0 w-1 bg-primary/75 opacity-70 transition group-hover:opacity-100" />
                     <span className="min-w-0 pl-1">
-                      <span className="block truncate text-[0.95rem]">{option.label}</span>
+                      <span className="block truncate text-[0.95rem]">
+                        {isLoading ? "Iniciando demo..." : option.label}
+                      </span>
                       {option.description ? (
                         <span className="mt-1 line-clamp-2 block text-xs font-medium leading-snug text-muted-foreground">
                           {option.description}
@@ -3347,6 +3387,28 @@ const ChatPanel = (props: ChatPanelProps) => {
                 <p className="text-sm text-muted-foreground mb-5 max-w-[260px] sm:mb-8 dark:text-slate-300">
                    {emptyStateDescription}
                 </p>
+                {defaultMenuButtons.length ? (
+                  <div className="mb-3 flex max-w-[340px] flex-wrap justify-center gap-1.5 sm:mb-4 sm:gap-2">
+                    {defaultMenuButtons.map((item, index) => (
+                      <Button
+                        key={`${item.texto || item.action || item.action_id || "menu"}-${index}`}
+                        size="sm"
+                        variant="outline"
+                        className="h-auto whitespace-normal text-xs"
+                        onClick={() =>
+                          handleSend({
+                            text: item.texto,
+                            action: item.action || item.action_id || item.accion_interna || undefined,
+                            payload: item.payload,
+                            source: "button",
+                          })
+                        }
+                      >
+                        {item.texto}
+                      </Button>
+                    ))}
+                  </div>
+                ) : null}
                 {visibleSampleConversationBlocks.length ? (
                   <div className="mb-3 flex max-w-[320px] flex-wrap justify-center gap-1.5 sm:mb-4 sm:gap-2">
                     {visibleSampleConversationBlocks.map((item, index) => {

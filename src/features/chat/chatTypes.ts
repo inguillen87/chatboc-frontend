@@ -40,6 +40,8 @@ export interface ChatBootstrapConfig {
   } | null;
   empty_states?: Record<string, ChatExperienceBlock>;
   supports?: Record<string, boolean>;
+  default_menu?: unknown;
+  quick_menu?: unknown;
 }
 
 export type HandoffState = 'none' | 'requested_by_user' | 'required_by_backend' | 'api_unavailable';

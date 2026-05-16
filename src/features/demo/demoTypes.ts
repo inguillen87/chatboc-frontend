@@ -136,10 +136,25 @@ export interface DemoAdminPreviewResponse {
 
 export interface DemoSessionResponse {
   contract_version?: string;
+  ok?: boolean | null;
+  ready?: boolean | null;
+  status?: string | null;
+  next_step?: string | null;
+  requires_rubro_selection?: boolean | null;
+  response_profile?: string | null;
   request_id?: string;
   session_id?: string;
   chat_session_id?: string | null;
   demo_session_id?: string;
+  session?: {
+    demo_session_id?: string | null;
+    chat_session_id?: string | null;
+    session_id?: string | null;
+    tenant_slug?: string | null;
+    sector?: DemoSector | string | null;
+    rubro?: string | null;
+    [key: string]: unknown;
+  } | null;
   tenant_slug?: string | null;
   tenant?: {
     id?: number | string | null;
@@ -164,6 +179,22 @@ export interface DemoSessionResponse {
     } | null;
     [key: string]: unknown;
   } | null;
+  widget_onboarding?: {
+    status?: string | null;
+    open_chat?: boolean | null;
+    close_selector?: boolean | null;
+    send_init_once?: boolean | null;
+    chat_bootstrap_path?: string | null;
+    rubro_selector?: Record<string, unknown> | null;
+    default_menu?: unknown;
+    [key: string]: unknown;
+  } | null;
+  frontend_contract?: {
+    render_as?: string | null;
+    next_step?: string | null;
+    rubro_selector_path?: string | null;
+    [key: string]: unknown;
+  } | null;
   chat_seed?: {
     chat_bootstrap?: DemoChatBootstrap | null;
     sample_conversations?: ChatExperienceBlock[];
@@ -185,6 +216,8 @@ export interface DemoChatBootstrap {
   headers?: Record<string, string>;
   query?: Record<string, unknown>;
   payload?: Record<string, unknown>;
+  default_menu?: unknown;
+  quick_menu?: unknown;
   session?: {
     chat_session_id?: string | null;
     demo_session_id?: string | null;
@@ -272,6 +305,18 @@ export interface DemoCatalogResource {
 export interface DemoWorkspaceConfig {
   title?: string | null;
   welcome_message?: string | null;
+  rubro?: string | null;
+  rubro_clave?: string | null;
+  rubro_context?: Record<string, unknown> | null;
+  rubro_selector?: {
+    contract_version?: string | null;
+    render_as?: string | null;
+    sector?: DemoSector | string | null;
+    categories?: unknown[];
+    [key: string]: unknown;
+  } | null;
+  default_menu?: unknown;
+  quick_menu?: unknown;
   quick_replies?: QuickReplyItem[];
   value_cards?: DemoWorkspaceCard[];
   catalog_resources?: DemoCatalogResource[];
@@ -295,7 +340,7 @@ export interface DemoWorkspaceConfig {
     } | null;
     [key: string]: unknown;
   } | null;
-  rubro_tools?: DemoRubroTool[] | null;
+  rubro_tools?: DemoRubroTool[] | Record<string, unknown> | null;
   business_tools?: DemoRubroTool[] | null;
   operational_tools?: DemoRubroTool[] | null;
   tools?: DemoRubroTool[] | null;

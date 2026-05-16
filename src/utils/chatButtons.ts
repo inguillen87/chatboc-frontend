@@ -54,8 +54,8 @@ const normalizeButton = (raw: any): Boton | null => {
     raw.display_name,
     raw.displayName
   );
-  const actionId = pickFirstString(raw.action_id, raw.actionId);
-  const action = pickFirstString(raw.action, actionId);
+  const actionId = pickFirstString(raw.action_id, raw.actionId, raw.intent_id, raw.intentId);
+  const action = pickFirstString(raw.action, raw.intent, raw.accion, actionId);
   const accionInterna = pickFirstString(raw.accion_interna, raw.internal_action, raw.internalAction);
   const url = ensureAbsoluteUrl(pickFirstString(raw.url, raw.link, raw.href));
   const payload = raw?.payload ?? raw?.data ?? raw?.extra ?? raw?.meta ?? raw?.parameters ?? raw?.params ?? raw?.value_payload;
@@ -122,6 +122,10 @@ export const extractButtonsFromResponse = (data: any): Boton[] => {
     data.buttons,
     data.botonesSugeridos,
     data.quick_replies,
+    data.quick_menu,
+    data.default_menu,
+    data.menu,
+    data.widget_onboarding?.default_menu,
     data.metadata
   );
 };

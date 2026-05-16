@@ -285,19 +285,27 @@ export interface ChatAnimationTokens {
 
 export interface ChatWidgetOnboardingOption {
   id?: string | null;
+  key?: string | null;
+  value?: string | null;
   label?: string | null;
+  title?: string | null;
+  name?: string | null;
   description?: string | null;
   cta_label?: string | null;
   intent?: string | null;
+  action?: string | null;
+  action_id?: string | null;
   sector?: string | null;
   tenant_slug?: string | null;
   rubro?: string | null;
+  slug?: string | null;
   payload?: Record<string, unknown> | null;
 }
 
 export interface ChatWidgetOnboarding {
   contract_version?: string | null;
   mode?: string | null;
+  status?: string | null;
   title?: string | null;
   entry_question?: string | null;
   required_step?: string | null;
@@ -305,6 +313,11 @@ export interface ChatWidgetOnboarding {
   selection_endpoint?: string | null;
   catalog_endpoint?: string | null;
   chat_header_policy?: string | null;
+  open_chat?: boolean | null;
+  close_selector?: boolean | null;
+  send_init_once?: boolean | null;
+  rubro_selector?: Record<string, unknown> | null;
+  default_menu?: unknown;
   quick_menu?: ChatWidgetOnboardingOption[];
 }
 
