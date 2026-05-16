@@ -140,6 +140,115 @@ export interface ChatMediaCapabilities {
   input_modes?: Record<string, ChatMediaInputModeConfig>;
 }
 
+export interface ChatRubroToolResource {
+  id?: string | null;
+  key?: string | null;
+  label?: string | null;
+  title?: string | null;
+  name?: string | null;
+  description?: string | null;
+  url?: string | null;
+  href?: string | null;
+  download_url?: string | null;
+  action_url?: string | null;
+  deeplink?: string | null;
+  wa_deeplink?: string | null;
+  maps_url?: string | null;
+  google_maps_url?: string | null;
+  action_label?: string | null;
+  cta_label?: string | null;
+  type?: string | null;
+  [key: string]: unknown;
+}
+
+export interface ChatRubroToolLocation {
+  id?: string | null;
+  label?: string | null;
+  name?: string | null;
+  address?: string | null;
+  direccion?: string | null;
+  lat?: string | number | null;
+  lng?: string | number | null;
+  latitude?: string | number | null;
+  longitude?: string | number | null;
+  maps_url?: string | null;
+  google_maps_url?: string | null;
+  map_url?: string | null;
+  action_url?: string | null;
+  url?: string | null;
+  href?: string | null;
+  action_label?: string | null;
+  cta_label?: string | null;
+  [key: string]: unknown;
+}
+
+export interface ChatRubroToolField {
+  label?: string | null;
+  title?: string | null;
+  key?: string | null;
+  name?: string | null;
+  value?: string | number | boolean | null;
+  text?: string | number | boolean | null;
+  detail?: string | number | boolean | null;
+  [key: string]: unknown;
+}
+
+export interface ChatRubroTool {
+  id?: string | null;
+  key?: string | null;
+  type?: string | null;
+  kind?: string | null;
+  label?: string | null;
+  title?: string | null;
+  name?: string | null;
+  description?: string | null;
+  enabled?: boolean | null;
+  action_label?: string | null;
+  cta_label?: string | null;
+  action_url?: string | null;
+  url?: string | null;
+  href?: string | null;
+  deeplink?: string | null;
+  wa_deeplink?: string | null;
+  maps_url?: string | null;
+  google_maps_url?: string | null;
+  fields?: ChatRubroToolField[] | Record<string, unknown>;
+  items?: unknown[];
+  resources?: ChatRubroToolResource[];
+  price_resources?: ChatRubroToolResource[];
+  locations?: ChatRubroToolLocation[];
+  contact?: Record<string, unknown> | null;
+  hours?: unknown;
+  faq_preview?: unknown[];
+  frontend_contract?: Record<string, unknown> | null;
+  [key: string]: unknown;
+}
+
+export interface ChatRubroToolsContract {
+  contract_version?: string | null;
+  sector?: string | null;
+  rubro?: string | null;
+  tenant_slug?: string | null;
+  display_name?: string | null;
+  tools?: ChatRubroTool[];
+  enabled_tools?: ChatRubroTool[];
+  resources?: ChatRubroToolResource[];
+  price_resources?: ChatRubroToolResource[];
+  locations?: ChatRubroToolLocation[];
+  contact?: Record<string, unknown> | null;
+  hours?: unknown;
+  faq_preview?: unknown[];
+  frontend_contract?: {
+    render_as?: string | null;
+    source_path?: string | null;
+    hide_disabled_tools?: boolean | null;
+    open_maps_with?: string | null;
+    do_not_invent_missing_tools?: boolean | null;
+    [key: string]: unknown;
+  } | null;
+  [key: string]: unknown;
+}
+
 export interface ChatUxRecommendedExperience {
   supports_confirmation_cards?: boolean;
   supports_multimodal_intake?: boolean;

@@ -196,6 +196,7 @@ const collectOperationalAttachments = (source: Record<string, unknown>): Operati
 const normalizeOperationalTicket = (source: unknown): OperationalTicketResult | null => {
   if (!isRecord(source)) return null;
   const location = isRecord(source.location) ? source.location : {};
+  const map = isRecord(source.map) ? source.map : {};
   const contact = isRecord(source.contact) ? source.contact : {};
   const archivos = collectOperationalAttachments(source);
   const archivosRaw = readFirstValue(source, ['archivos', 'archivos_count', 'cantidad_archivos', 'attachments_count']);
@@ -207,8 +208,14 @@ const normalizeOperationalTicket = (source: unknown): OperationalTicketResult | 
     ticket_id: readString(source, ['ticket_id', 'id']),
     categoria: readString(source, ['categoria', 'category']),
     direccion: readString(source, ['direccion', 'address']) ?? readString(location, ['direccion', 'address']),
-    latitud: readNumber(source, ['latitud', 'lat', 'latitude']) ?? readNumber(location, ['latitud', 'lat', 'latitude']),
-    longitud: readNumber(source, ['longitud', 'lng', 'lon', 'longitude']) ?? readNumber(location, ['longitud', 'lng', 'lon', 'longitude']),
+    latitud:
+      readNumber(source, ['latitud', 'lat', 'latitude']) ??
+      readNumber(location, ['latitud', 'lat', 'latitude']) ??
+      readNumber(map, ['latitud', 'lat', 'latitude']),
+    longitud:
+      readNumber(source, ['longitud', 'lng', 'lon', 'longitude']) ??
+      readNumber(location, ['longitud', 'lng', 'lon', 'longitude']) ??
+      readNumber(map, ['longitud', 'lng', 'lon', 'longitude']),
     nombre_vecino:
       readString(source, ['nombre_vecino', 'vecino_nombre', 'nombre_cliente', 'customer_name']) ??
       readString(contact, ['nombre_vecino', 'nombre', 'name', 'display_name']),
@@ -279,6 +286,7 @@ const normalizeOperationalOrder = (source: unknown): OperationalOrderResult | nu
 const extractOperationalTicket = (source: Record<string, unknown>): OperationalTicketResult | null => {
   const candidates = [
     source.ticket,
+    source.created_entity,
     source.reclamo,
     source.claim,
     source.case,
@@ -297,6 +305,7 @@ const extractOperationalTicket = (source: Record<string, unknown>): OperationalT
 const extractOperationalOrder = (source: Record<string, unknown>): OperationalOrderResult | null => {
   const candidates = [
     source.order,
+    source.created_entity,
     source.pedido,
     source.market_order,
     readNestedRecord(source, ['lead'])?.order,

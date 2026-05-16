@@ -12,6 +12,7 @@ import {
   MessageSquareText,
   ShoppingCart,
   Users,
+  X,
 } from "lucide-react";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { resetChatSessionId } from "@/utils/chatSessionId";
@@ -33,7 +34,7 @@ import type {
 } from '@/features/demo/demoTypes';
 import type { HeatPoint } from '@/services/statsService';
 import { CHATBOC_ORBIT_AVATAR } from '@/utils/brandAssets';
-import { ApiError, getErrorMessage } from '@/utils/api';
+import { ApiError, apiFetch, getErrorMessage } from '@/utils/api';
 
 const MapLibreMap = React.lazy(() => import('@/components/MapLibreMap'));
 
@@ -54,6 +55,14 @@ type DemoRuntimeEvent = {
   result?: LeadCaptureResponse | null;
   updatedAt: string;
 };
+
+type DemoDetailDrawerState = {
+  event: DemoRuntimeEvent;
+  endpoint: string | null;
+  data: unknown;
+  loading: boolean;
+  error: DemoUiError | null;
+} | null;
 
 const readRequestIdFromError = (error: unknown): string | null => {
   if (error instanceof ApiError) {
@@ -163,12 +172,33 @@ const rootMatchesSector = (root: Rubro, sector: DemoSector | null) => {
 
 const getRubrosForSector = (catalog: DemoCatalogResponse | null, sector: DemoSector | null) => {
   const roots = Array.isArray(catalog?.rubros) ? catalog.rubros : [];
-  return roots.filter((root) => rootMatchesSector(root, sector));
+  return roots
+    .filter((root) => rootMatchesSector(root, sector))
+    .map(pruneUnavailableDemoRubro)
+    .filter((root): root is Rubro => Boolean(root));
+};
+
+const isDemoRubroClickable = (rubro: Rubro) => {
+  const source = rubro as Rubro & Record<string, unknown>;
+  return source.demo_ready !== false && source.disabled !== true && source.enabled !== false;
+};
+
+const pruneUnavailableDemoRubro = (rubro: Rubro): Rubro | null => {
+  const children = Array.isArray(rubro.subrubros)
+    ? rubro.subrubros.map(pruneUnavailableDemoRubro).filter((item): item is Rubro => Boolean(item))
+    : [];
+  if (!isDemoRubroClickable(rubro) && !children.length) return null;
+  return { ...rubro, subrubros: children };
 };
 
 const readRubroTenantSlug = (rubro: Rubro) => {
   const rubroAny = rubro as Rubro & Record<string, unknown>;
+  const sessionPayload =
+    rubroAny.session_payload && typeof rubroAny.session_payload === 'object'
+      ? (rubroAny.session_payload as Record<string, unknown>)
+      : null;
   const candidates = [
+    sessionPayload?.tenant_slug,
     rubroAny.tenant_slug,
     rubroAny.demo_tenant_slug,
     rubroAny.default_tenant_slug,
@@ -178,9 +208,47 @@ const readRubroTenantSlug = (rubro: Rubro) => {
   return candidates.find((value) => typeof value === 'string' && value.trim())?.trim() ?? null;
 };
 
+const readRubroSessionPayload = (rubro: Rubro): Record<string, unknown> => {
+  const rubroAny = rubro as Rubro & Record<string, unknown>;
+  return rubroAny.session_payload && typeof rubroAny.session_payload === 'object'
+    ? { ...(rubroAny.session_payload as Record<string, unknown>) }
+    : {};
+};
+
+const findRubroByKey = (rubros: Rubro[], key: string | null) => {
+  const normalizedKey = normalizeDemoText(key);
+  if (!normalizedKey) return null;
+
+  const visit = (items: Rubro[]): Rubro | null => {
+    for (const rubro of items) {
+      const rubroAny = rubro as Rubro & Record<string, unknown>;
+      const candidates = [
+        extractRubroKey(rubro),
+        extractRubroLabel(rubro),
+        rubro.clave,
+        rubro.nombre,
+        rubroAny.key,
+        rubroAny.slug,
+        rubroAny.rubro_slug,
+        rubroAny.category_slug,
+        rubroAny.label,
+        rubroAny.title,
+      ];
+      if (candidates.some((candidate) => normalizeDemoText(candidate as string | number | null) === normalizedKey)) {
+        return rubro;
+      }
+      const childMatch = Array.isArray(rubro.subrubros) ? visit(rubro.subrubros) : null;
+      if (childMatch) return childMatch;
+    }
+    return null;
+  };
+
+  return visit(rubros);
+};
+
 const readSectorCatalogSlug = (sector: DemoSector | null) => {
   if (sector === 'gobierno') return 'municipio';
-  if (sector === 'empresas') return 'bodega';
+  if (sector === 'empresas') return null;
   if (sector === 'educacion') return 'colegio-demo';
   return null;
 };
@@ -400,6 +468,42 @@ const buildDemoRuntimeEvent = (
   };
 };
 
+const readRecordString = (source: unknown, keys: string[]) => {
+  if (!source || typeof source !== 'object') return null;
+  const record = source as Record<string, unknown>;
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return null;
+};
+
+const readNestedRecord = (source: unknown, key: string) => {
+  if (!source || typeof source !== 'object') return null;
+  const value = (source as Record<string, unknown>)[key];
+  return value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
+};
+
+const readDemoEventDetailEndpoint = (event: DemoRuntimeEvent) =>
+  event.ticket?.detail_endpoint ??
+  readRecordString(event.result?.raw, ['detail_endpoint', 'detail_url', 'endpoint']) ??
+  readRecordString(readNestedRecord(event.result?.raw, 'created_entity'), ['detail_endpoint', 'detail_url', 'endpoint']) ??
+  readRecordString(readNestedRecord(event.result?.raw, 'ticket'), ['detail_endpoint', 'detail_url', 'endpoint']) ??
+  readRecordString(readNestedRecord(event.result?.raw, 'lead'), ['detail_endpoint', 'detail_url', 'endpoint']);
+
+const normalizeDemoDetailEndpoint = (endpoint: string | null) => {
+  if (!endpoint || typeof window === 'undefined' || !window.location?.origin) return null;
+
+  try {
+    const url = new URL(endpoint, window.location.origin);
+    if (url.origin !== window.location.origin) return null;
+    if (!url.pathname.startsWith('/api/')) return null;
+    return `${url.pathname}${url.search}`;
+  } catch {
+    return null;
+  }
+};
+
 const readDemoEventTicketLabel = (event: DemoRuntimeEvent) =>
   event.ticketId ?? event.leadId ?? event.requestId ?? event.id;
 
@@ -545,6 +649,94 @@ const DemoPreviewMap = ({
   );
 };
 
+const DemoDetailDrawer = ({
+  detail,
+  onClose,
+}: {
+  detail: DemoDetailDrawerState;
+  onClose: () => void;
+}) => {
+  if (!detail) return null;
+
+  const { event, endpoint, data, loading, error } = detail;
+  const ticket = event.ticket;
+  const detailJson = data ? JSON.stringify(data, null, 2) : null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 p-3 sm:items-center" role="dialog" aria-modal="true">
+      <div className="max-h-[88vh] w-full max-w-xl overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
+        <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Vista 360</p>
+            <h3 className="mt-1 truncate text-lg font-bold text-foreground">{readDemoEventTicketLabel(event)}</h3>
+          </div>
+          <button
+            type="button"
+            className="rounded-full border border-border bg-background p-2 text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+            onClick={onClose}
+            aria-label="Cerrar detalle"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="max-h-[calc(88vh-72px)] overflow-y-auto p-4">
+          <div className="grid gap-2 text-xs sm:grid-cols-2">
+            {event.status ? (
+              <div className="rounded-lg border bg-muted/20 px-3 py-2">
+                <p className="font-medium text-muted-foreground">Estado</p>
+                <p className="mt-1 text-foreground">{event.status}</p>
+              </div>
+            ) : null}
+            {ticket?.categoria ? (
+              <div className="rounded-lg border bg-muted/20 px-3 py-2">
+                <p className="font-medium text-muted-foreground">Categoria</p>
+                <p className="mt-1 text-foreground">{ticket.categoria}</p>
+              </div>
+            ) : null}
+            {ticket?.direccion ? (
+              <div className="rounded-lg border bg-muted/20 px-3 py-2 sm:col-span-2">
+                <p className="font-medium text-muted-foreground">Direccion</p>
+                <p className="mt-1 text-foreground">{ticket.direccion}</p>
+              </div>
+            ) : null}
+            {event.requestId ? (
+              <div className="rounded-lg border bg-muted/20 px-3 py-2 sm:col-span-2">
+                <p className="font-medium text-muted-foreground">request_id</p>
+                <p className="mt-1 break-all font-mono text-[11px] text-foreground">{event.requestId}</p>
+              </div>
+            ) : null}
+            {endpoint ? (
+              <div className="rounded-lg border bg-muted/20 px-3 py-2 sm:col-span-2">
+                <p className="font-medium text-muted-foreground">detail_endpoint</p>
+                <p className="mt-1 break-all font-mono text-[11px] text-foreground">{endpoint}</p>
+              </div>
+            ) : null}
+          </div>
+
+          {loading ? (
+            <div className="mt-4 rounded-xl border bg-muted/20 p-4 text-sm text-muted-foreground">
+              Cargando detalle operativo...
+            </div>
+          ) : error ? (
+            <div className="mt-4">
+              <DemoErrorPanel error={error} />
+            </div>
+          ) : detailJson ? (
+            <pre className="mt-4 max-h-72 overflow-auto rounded-xl border bg-muted/20 p-3 text-[11px] leading-5 text-foreground">
+              {detailJson}
+            </pre>
+          ) : (
+            <div className="mt-4 rounded-xl border border-dashed bg-muted/10 p-4 text-sm text-muted-foreground">
+              El backend no publico un detalle ampliado para este caso. Se muestra el snapshot recibido en la conversacion.
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const readDemoWorkspaceChatSessionId = (workspace?: DemoWorkspaceConfig | null) => {
   const bootstrap = workspace?.chat_bootstrap;
   const candidates = [
@@ -562,6 +754,23 @@ const readDemoWorkspaceChatSessionId = (workspace?: DemoWorkspaceConfig | null) 
   return null;
 };
 
+const readDemoWorkspaceDemoSessionId = (workspace?: DemoWorkspaceConfig | null) => {
+  const bootstrap = workspace?.chat_bootstrap;
+  const candidates = [
+    bootstrap?.session?.demo_session_id,
+    bootstrap?.headers?.['X-Demo-Session-Id'],
+    bootstrap?.headers?.['X-Demo-Session'],
+    bootstrap?.payload?.demo_session_id,
+    bootstrap?.query?.demo_session_id,
+  ];
+  for (const candidate of candidates) {
+    if (typeof candidate !== 'string') continue;
+    const trimmed = candidate.trim();
+    if (trimmed && trimmed.length <= 128 && !trimmed.includes('.')) return trimmed;
+  }
+  return null;
+};
+
 const DemoAdminPreview = ({
   sector,
   rubro,
@@ -569,6 +778,7 @@ const DemoAdminPreview = ({
   runtimeEvents = [],
   activeTarget = 'summary',
   onActiveTargetChange,
+  onOpenEventDetail,
 }: {
   sector: DemoSector | null;
   rubro?: string | null;
@@ -576,6 +786,7 @@ const DemoAdminPreview = ({
   runtimeEvents?: DemoRuntimeEvent[];
   activeTarget?: DemoAdminPanelTarget;
   onActiveTargetChange?: (target: DemoAdminPanelTarget) => void;
+  onOpenEventDetail?: (event: DemoRuntimeEvent) => void;
 }) => {
   if (!preview) return null;
 
@@ -747,6 +958,13 @@ const DemoAdminPreview = ({
                     <div className="mt-3 flex flex-wrap gap-2">
                       <button
                         type="button"
+                        onClick={() => onOpenEventDetail?.(event)}
+                        className="rounded-full border bg-background px-3 py-1.5 text-xs font-semibold text-foreground transition hover:border-primary/40 hover:text-primary"
+                      >
+                        Ver detalle
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => onActiveTargetChange?.('map')}
                         disabled={!hasTicketLocation(event.ticket)}
                         className="rounded-full border bg-muted/20 px-3 py-1.5 text-xs font-medium text-muted-foreground transition hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
@@ -832,6 +1050,7 @@ const Demo = () => {
   const [demoError, setDemoError] = useState<DemoUiError | null>(null);
   const [demoRuntimeEvents, setDemoRuntimeEvents] = useState<DemoRuntimeEvent[]>([]);
   const [demoAdminPanelTarget, setDemoAdminPanelTarget] = useState<DemoAdminPanelTarget>('summary');
+  const [demoDetailDrawer, setDemoDetailDrawer] = useState<DemoDetailDrawerState>(null);
   const initialDemoLoadRef = useRef(false);
   const hydratedSessionRef = useRef(false);
   const demoQuery = useMemo(() => new URLSearchParams(location.search), [location.search]);
@@ -852,6 +1071,10 @@ const Demo = () => {
     () => readDemoWorkspaceChatSessionId(demoWorkspace),
     [demoWorkspace],
   );
+  const demoPreviewDemoSessionId = useMemo(
+    () => readDemoWorkspaceDemoSessionId(demoWorkspace),
+    [demoWorkspace],
+  );
 
 
   // Action: reset demo and choose another rubro
@@ -868,6 +1091,7 @@ const Demo = () => {
     setDemoAdminPreview(null);
     setDemoError(null);
     setDemoRuntimeEvents([]);
+    setDemoDetailDrawer(null);
     setDemoAdminPanelTarget('summary');
     hydratedSessionRef.current = false;
     // The useEffect for loading rubros will trigger again due to rubroSeleccionado being null
@@ -905,6 +1129,7 @@ const Demo = () => {
         sector: sectorSeleccionado,
         tenant_slug: demoPreviewTenantSlug,
         chat_session_id: demoPreviewChatSessionId,
+        demo_session_id: demoPreviewDemoSessionId,
       });
       setDemoAdminPreview(preview);
       return preview;
@@ -912,7 +1137,7 @@ const Demo = () => {
       setDemoAdminPreview(null);
       return null;
     }
-  }, [demoPreviewChatSessionId, demoPreviewTenantSlug, sectorSeleccionado]);
+  }, [demoPreviewChatSessionId, demoPreviewDemoSessionId, demoPreviewTenantSlug, sectorSeleccionado]);
 
   useEffect(() => {
     setDemoRuntimeEvents([]);
@@ -936,6 +1161,52 @@ const Demo = () => {
     [refreshDemoAdminPreview],
   );
 
+  const handleOpenDemoDetail = useCallback(
+    (event: DemoRuntimeEvent) => {
+      const endpoint = normalizeDemoDetailEndpoint(readDemoEventDetailEndpoint(event));
+      setDemoDetailDrawer({
+        event,
+        endpoint,
+        data: null,
+        loading: Boolean(endpoint),
+        error: null,
+      });
+
+      if (!endpoint) return;
+
+      void apiFetch<unknown>(endpoint, {
+        method: 'GET',
+        tenantSlug: demoPreviewTenantSlug ?? undefined,
+        persistTenantSlug: false,
+        suppressPanel401Redirect: true,
+      })
+        .then((data) => {
+          setDemoDetailDrawer((current) =>
+            current?.event.id === event.id
+              ? {
+                  ...current,
+                  data,
+                  loading: false,
+                  error: null,
+                }
+              : current,
+          );
+        })
+        .catch((error) => {
+          setDemoDetailDrawer((current) =>
+            current?.event.id === event.id
+              ? {
+                  ...current,
+                  loading: false,
+                  error: buildDemoError(error, 'No se pudo cargar el detalle operativo.'),
+                }
+              : current,
+          );
+        });
+    },
+    [demoPreviewTenantSlug],
+  );
+
   useEffect(() => {
     if (!sectorSeleccionado) {
       setDemoAdminPreview(null);
@@ -947,6 +1218,7 @@ const Demo = () => {
       sector: sectorSeleccionado,
       tenant_slug: demoPreviewTenantSlug,
       chat_session_id: demoPreviewChatSessionId,
+      demo_session_id: demoPreviewDemoSessionId,
     })
       .then((preview) => {
         if (active) setDemoAdminPreview(preview);
@@ -958,7 +1230,7 @@ const Demo = () => {
     return () => {
       active = false;
     };
-  }, [demoPreviewChatSessionId, demoPreviewTenantSlug, sectorSeleccionado]);
+  }, [demoPreviewChatSessionId, demoPreviewDemoSessionId, demoPreviewTenantSlug, sectorSeleccionado]);
 
   useEffect(() => {
     if (hydratedSessionRef.current) return;
@@ -1015,11 +1287,18 @@ const Demo = () => {
           setRubrosDisponibles(Array.isArray(data?.rubros) ? data.rubros : []);
         }
         const catalogGroup = findSectorGroup(data, normalizedRequestedSector);
-        const sessionTenantSlug = readSectorTenantSlug(catalogGroup) ?? readSectorCatalogSlug(normalizedRequestedSector);
+        const sectorRubros = getRubrosForSector(data, normalizedRequestedSector);
+        const requestedRubroMeta = findRubroByKey(sectorRubros, requestedRubro);
+        const sessionPayload = requestedRubroMeta ? readRubroSessionPayload(requestedRubroMeta) : {};
+        const sessionTenantSlug =
+          (requestedRubroMeta ? readRubroTenantSlug(requestedRubroMeta) : null) ??
+          readSectorTenantSlug(catalogGroup) ??
+          readSectorCatalogSlug(normalizedRequestedSector);
         safeLocalStorage.setItem("demoSectorSeleccionado", normalizedRequestedSector);
         safeLocalStorage.setItem("rubroSeleccionado", requestedRubro);
         safeLocalStorage.setItem("rubroSeleccionado_label", requestedRubro);
         const session = await createDemoSession({
+          ...sessionPayload,
           sector: normalizedRequestedSector,
           tenant_slug: sessionTenantSlug,
           rubro: requestedRubro,
@@ -1067,6 +1346,15 @@ const Demo = () => {
 
         if (sectorRubros.length > 0) {
           setEsperandoRubro(true);
+          return null;
+        }
+
+        if (normalizedRequestedSector === 'empresas') {
+          setEsperandoRubro(true);
+          setDemoError({
+            message: 'No hay rubros publicados para Empresas en este momento.',
+            requestId: typeof catalog?.request_id === 'string' ? catalog.request_id : null,
+          });
           return null;
         }
 
@@ -1148,9 +1436,35 @@ const Demo = () => {
     if (!sectorSeleccionado) return;
     const sector = sectorSeleccionado;
     const group = findSectorGroup(demoCatalog, sector);
+    const sectorRubros = getRubrosForSector(demoCatalog, sector);
     const label = readSectorLabel(group, sector);
     const tenantSlug = readSectorTenantSlug(group);
     const defaultRubro = readSectorDefaultRubro(group, sector);
+
+    if (sector === 'empresas') {
+      setSectorSeleccionado(sector);
+      setRubroSeleccionado(null);
+      setRubroClaveSeleccionado(null);
+      setDemoTenantSlug(null);
+      setDemoWorkspace(null);
+      setEsperandoRubro(true);
+      setDemoError(
+        sectorRubros.length
+          ? null
+          : {
+              message: 'No hay rubros publicados para Empresas en este momento.',
+              requestId: typeof demoCatalog?.request_id === 'string' ? demoCatalog.request_id : null,
+            },
+      );
+      return;
+    }
+
+    if (sectorRubros.length > 0) {
+      setSectorSeleccionado(sector);
+      setEsperandoRubro(true);
+      setDemoError(null);
+      return;
+    }
 
     setSectorSeleccionado(sector);
     setRubroSeleccionado(label);
@@ -1273,12 +1587,21 @@ const Demo = () => {
               openDemoWidget();
               void (async () => {
                 try {
+                  const rubroAny = rubro as Rubro & Record<string, unknown>;
+                  const sessionPayload = readRubroSessionPayload(rubro);
+                  const selectedRubro =
+                    clave ??
+                    (typeof rubroAny.rubro_slug === 'string' ? rubroAny.rubro_slug : null) ??
+                    (typeof rubroAny.category_slug === 'string' ? rubroAny.category_slug : null) ??
+                    etiqueta ??
+                    rubro.nombre;
                   const sessionTenantSlug = readRubroTenantSlug(rubro) ?? readSectorTenantSlug(selectedSectorGroup);
                   const session = await createDemoSession({
+                    ...sessionPayload,
                     sector: sectorSeleccionado,
-                    rubro: clave ?? etiqueta ?? rubro.nombre,
-                    rubro_slug: clave ?? etiqueta ?? rubro.nombre,
-                    category_slug: clave ?? etiqueta ?? rubro.nombre,
+                    rubro: selectedRubro,
+                    rubro_slug: selectedRubro,
+                    category_slug: selectedRubro,
                     tenant_slug: sessionTenantSlug,
                   });
                   setDemoTenantSlug(session.tenant_slug ?? sessionTenantSlug ?? null);
@@ -1362,9 +1685,11 @@ const Demo = () => {
               runtimeEvents={demoRuntimeEvents}
               activeTarget={demoAdminPanelTarget}
               onActiveTargetChange={setDemoAdminPanelTarget}
+              onOpenEventDetail={handleOpenDemoDetail}
             />
           </aside>
         </div>
+        <DemoDetailDrawer detail={demoDetailDrawer} onClose={() => setDemoDetailDrawer(null)} />
       </main>
     </div>
   );

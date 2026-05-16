@@ -26,6 +26,10 @@ import {
   ChatExperienceBlueprint,
   ChatLeadCaptureConfig,
   ChatMediaCapabilities,
+  ChatRubroTool,
+  ChatRubroToolLocation,
+  ChatRubroToolResource,
+  ChatRubroToolsContract,
   ChatUxChannelCapabilities,
   ChatWidgetOnboarding,
   ChatWidgetOnboardingOption,
@@ -85,6 +89,7 @@ import {
   UserRound,
   Video,
   MoreHorizontal,
+  ExternalLink,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { getInitialMunicipioContext } from "@/utils/contexto_municipio";
@@ -465,6 +470,257 @@ const channelCapabilitiesFromMedia = (
   };
 };
 
+type NormalizedRubroTool = {
+  id: string;
+  kind: string;
+  label: string;
+  description: string;
+  url: string;
+  urlLabel: string;
+  lines: string[];
+};
+
+const readArray = <T = unknown,>(...values: unknown[]): T[] => {
+  for (const value of values) {
+    if (Array.isArray(value)) return value.filter(Boolean) as T[];
+  }
+  return [];
+};
+
+const readResourceUrl = (...resources: Array<Record<string, unknown> | undefined>) => {
+  for (const resource of resources) {
+    const url = readFirstString(
+      resource?.url,
+      resource?.href,
+      resource?.download_url,
+      resource?.action_url,
+      resource?.deeplink,
+      resource?.wa_deeplink,
+      resource?.maps_url,
+      resource?.google_maps_url,
+    );
+    if (url) return url;
+  }
+  return "";
+};
+
+const readLocationUrl = (...locations: Array<Record<string, unknown> | undefined>) => {
+  for (const location of locations) {
+    const url = readFirstString(
+      location?.maps_url,
+      location?.google_maps_url,
+      location?.map_url,
+      location?.action_url,
+      location?.url,
+      location?.href,
+    );
+    if (url) return url;
+  }
+  return "";
+};
+
+const readDisplayLine = (...values: unknown[]) => {
+  const line = readFirstString(...values);
+  return line.length > 96 ? `${line.slice(0, 93)}...` : line;
+};
+
+const readHoursLine = (hours: unknown) => {
+  if (Array.isArray(hours)) return readDisplayLine(hours[0]);
+  if (typeof hours === "string") return readDisplayLine(hours);
+
+  const record = asRecord(hours);
+  for (const [key, value] of Object.entries(record)) {
+    const valueText = readFirstString(value);
+    if (key && valueText) return readDisplayLine(`${key}: ${valueText}`);
+  }
+
+  return "";
+};
+
+const normalizeRubroToolFieldValue = (value: unknown) => {
+  if (typeof value === "string" && value.trim()) return value.trim();
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  if (typeof value === "boolean") return value ? "si" : "no";
+  return "";
+};
+
+const normalizeRubroToolFields = (value: unknown) => {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => {
+        const record = asRecord(item);
+        const label = readFirstString(record.label, record.title, record.key, record.name);
+        const fieldValue = normalizeRubroToolFieldValue(record.value ?? record.text ?? record.detail);
+        return label && fieldValue ? `${label}: ${fieldValue}` : "";
+      })
+      .filter(Boolean);
+  }
+
+  const record = asRecord(value);
+  return Object.entries(record)
+    .map(([key, fieldValue]) => {
+      const normalizedValue = normalizeRubroToolFieldValue(fieldValue);
+      return key && normalizedValue ? `${key.replace(/_/g, " ")}: ${normalizedValue}` : "";
+    })
+    .filter(Boolean);
+};
+
+const normalizeRubroToolTray = (
+  rubroTools: ChatRubroToolsContract | ChatRubroTool[] | Record<string, unknown> | null | undefined,
+): NormalizedRubroTool[] => {
+  if (!rubroTools) return [];
+  const contract = Array.isArray(rubroTools) ? null : asRecord(rubroTools);
+  const topLevelResources = readArray<ChatRubroToolResource>(contract?.resources);
+  const topLevelPriceResources = readArray<ChatRubroToolResource>(contract?.price_resources);
+  const topLevelLocations = readArray<ChatRubroToolLocation>(contract?.locations);
+  const topLevelFaq = readArray<Record<string, unknown>>(contract?.faq_preview);
+  const topLevelContact = asRecord(contract?.contact);
+  const enabledTools = Array.isArray(rubroTools)
+    ? rubroTools
+    : readArray<ChatRubroTool>(contract?.enabled_tools);
+  const rawTools = enabledTools.length
+    ? enabledTools
+    : readArray<ChatRubroTool>(contract?.tools);
+
+  return rawTools
+    .filter((tool) => tool?.enabled === true)
+    .map((tool, index) => {
+      const record = asRecord(tool);
+      const id = readFirstString(record.id, record.key, record.type, record.slug, `tool-${index}`);
+      const label = readFirstString(record.label, record.title, record.name, record.text);
+      if (!label) return null;
+      const kind = readFirstString(record.kind, record.type, record.key, record.id).toLowerCase();
+      const description = readFirstString(record.description, record.subtitle, record.detail);
+      const toolResources = readArray<ChatRubroToolResource>(record.resources, record.items);
+      const toolPriceResources = readArray<ChatRubroToolResource>(record.price_resources);
+      const toolLocations = readArray<ChatRubroToolLocation>(record.locations, record.items);
+      const toolFaq = readArray<Record<string, unknown>>(record.faq_preview);
+      const contact = Object.keys(asRecord(record.contact)).length ? asRecord(record.contact) : topLevelContact;
+      const hours = record.hours ?? contract?.hours;
+      const resources =
+        kind.includes("price") || kind.includes("precio") || kind.includes("stock")
+          ? [...toolPriceResources, ...toolResources, ...topLevelPriceResources]
+          : [...toolResources, ...topLevelResources];
+      const locations =
+        kind.includes("location") || kind.includes("ubic") || kind.includes("map")
+          ? [...toolLocations, ...topLevelLocations]
+          : toolLocations;
+      const firstResource = asRecord(resources[0]);
+      const firstLocation = asRecord(locations[0]);
+      const firstFaq = asRecord((toolFaq[0] ?? topLevelFaq[0]) as Record<string, unknown> | undefined);
+      const fieldLines = normalizeRubroToolFields(record.fields);
+      const url =
+        readFirstString(
+          record.action_url,
+          record.url,
+          record.href,
+          record.deeplink,
+          record.wa_deeplink,
+          record.maps_url,
+          record.google_maps_url,
+        ) ||
+        readLocationUrl(firstLocation) ||
+        readResourceUrl(firstResource) ||
+        readFirstString(contact.web, contact.website, contact.url);
+      const urlLabel = readFirstString(
+        record.action_label,
+        record.cta_label,
+        firstLocation.action_label,
+        firstLocation.cta_label,
+        firstResource.action_label,
+        firstResource.cta_label,
+      );
+      const lines = [
+        ...fieldLines,
+        readDisplayLine(firstLocation.address, firstLocation.direccion, firstLocation.label, firstLocation.name),
+        readDisplayLine(firstResource.label, firstResource.title, firstResource.name),
+        readDisplayLine(contact.phone, contact.telefono, contact.whatsapp, contact.email, contact.web, contact.website),
+        readHoursLine(hours),
+        readDisplayLine(firstFaq.question, firstFaq.label, firstFaq.title),
+      ].filter(Boolean);
+
+      return {
+        id,
+        kind,
+        label,
+        description,
+        url,
+        urlLabel,
+        lines: lines.slice(0, 2),
+      };
+    })
+    .filter((tool): tool is NormalizedRubroTool => Boolean(tool));
+};
+
+const RubroToolTray = ({ tools }: { tools: NormalizedRubroTool[] }) => {
+  if (!tools.length) return null;
+
+  return (
+    <div
+      className="mb-3 grid w-full max-w-[360px] gap-2 text-left sm:mb-4"
+      aria-label="Herramientas disponibles del rubro"
+    >
+      {tools.map((tool) => {
+        const content = (
+          <>
+            <span className="flex min-w-0 items-start justify-between gap-2">
+              <span className="min-w-0">
+                <span className="block truncate text-xs font-semibold text-foreground dark:text-slate-50">
+                  {tool.label}
+                </span>
+                {tool.description ? (
+                  <span className="mt-0.5 block text-[11px] leading-snug text-muted-foreground dark:text-slate-300">
+                    {tool.description}
+                  </span>
+                ) : null}
+              </span>
+              {tool.url ? (
+                <ExternalLink className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true" />
+              ) : null}
+            </span>
+            {tool.lines.length ? (
+              <span className="mt-1.5 flex flex-wrap gap-1">
+                {tool.lines.map((line) => (
+                  <span
+                    key={line}
+                    className="max-w-full truncate rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground dark:bg-slate-800 dark:text-slate-300"
+                  >
+                    {line}
+                  </span>
+                ))}
+              </span>
+            ) : null}
+            {tool.url && tool.urlLabel ? (
+              <span className="mt-1.5 block text-[11px] font-semibold text-primary">
+                {tool.urlLabel}
+              </span>
+            ) : null}
+          </>
+        );
+
+        return tool.url ? (
+          <a
+            key={tool.id}
+            href={tool.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block rounded-[8px] border border-border/70 bg-background/80 px-3 py-2 shadow-sm transition hover:border-primary/40 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:border-slate-700/80 dark:bg-slate-900/90"
+          >
+            {content}
+          </a>
+        ) : (
+          <div
+            key={tool.id}
+            className="rounded-[8px] border border-border/70 bg-background/80 px-3 py-2 shadow-sm dark:border-slate-700/80 dark:bg-slate-900/90"
+          >
+            {content}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
 interface ChatPanelProps {
   mode?: "standalone" | "iframe" | "script";
   widgetId?: string;
@@ -580,6 +836,7 @@ interface ChatPanelProps {
   } | null;
   quickMenu?: unknown;
   defaultMenu?: unknown;
+  rubroTools?: ChatRubroToolsContract | ChatRubroTool[] | Record<string, unknown> | null;
   onboarding?: ChatWidgetOnboarding | null;
   uiHints?: ChatWidgetUiHints | null;
   commerceSession?: WidgetCommerceSession | null;
@@ -631,6 +888,7 @@ const ChatPanel = (props: ChatPanelProps) => {
     catalogCard,
     quickMenu,
     defaultMenu,
+    rubroTools,
     onboarding,
     uiHints,
     commerceSession,
@@ -2680,6 +2938,25 @@ const ChatPanel = (props: ChatPanelProps) => {
       chatBootstrap?.payload?.demo_metadata,
     ],
   );
+  const rubroToolItems = useMemo(
+    () =>
+      normalizeRubroToolTray(
+        rubroTools ??
+          (chatBootstrap?.payload?.rubro_tools as ChatRubroToolsContract | undefined) ??
+          (chatBootstrap?.payload?.rubro_tool_summary as ChatRubroToolsContract | undefined) ??
+          ((chatBootstrap?.payload?.demo_metadata as Record<string, unknown> | undefined)
+            ?.rubro_tools as ChatRubroToolsContract | undefined) ??
+          ((chatBootstrap?.payload?.demo_metadata as Record<string, unknown> | undefined)
+            ?.tool_summary as ChatRubroToolsContract | undefined) ??
+          null,
+      ),
+    [
+      chatBootstrap?.payload?.demo_metadata,
+      chatBootstrap?.payload?.rubro_tool_summary,
+      chatBootstrap?.payload?.rubro_tools,
+      rubroTools,
+    ],
+  );
   const sampleConversationBlocks = useMemo(
     () =>
       Array.isArray(experienceBlueprint?.sample_conversations)
@@ -2887,7 +3164,7 @@ const ChatPanel = (props: ChatPanelProps) => {
           onProfile={onOpenUserPanel}
           muted={muted}
           onToggleSound={onToggleSound}
-          onCart={() => onCart?.()}
+          onCart={onCart ? () => onCart() : undefined}
           cartCount={cartCount}
           logoUrl={headerLogoUrl}
           title={welcomeTitle}
@@ -3036,7 +3313,7 @@ const ChatPanel = (props: ChatPanelProps) => {
         onProfile={onOpenUserPanel}
         muted={muted}
         onToggleSound={onToggleSound}
-        onCart={() => onCart?.()}
+        onCart={onCart ? () => onCart() : undefined}
         cartCount={cartCount}
         logoUrl={headerLogoUrl}
         title={welcomeTitle}
@@ -3409,6 +3686,7 @@ const ChatPanel = (props: ChatPanelProps) => {
                     ))}
                   </div>
                 ) : null}
+                <RubroToolTray tools={rubroToolItems} />
                 {visibleSampleConversationBlocks.length ? (
                   <div className="mb-3 flex max-w-[320px] flex-wrap justify-center gap-1.5 sm:mb-4 sm:gap-2">
                     {visibleSampleConversationBlocks.map((item, index) => {
@@ -3474,6 +3752,11 @@ const ChatPanel = (props: ChatPanelProps) => {
             collapseExtraQuickReplies={collapseExtraQuickReplies}
           />
         ))}
+            {rubroToolItems.length ? (
+              <div className="flex justify-center">
+                <RubroToolTray tools={rubroToolItems} />
+              </div>
+            ) : null}
           </>
         )}
         {isTyping && (

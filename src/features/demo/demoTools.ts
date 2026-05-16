@@ -42,18 +42,6 @@ const readString = (source: UnknownRecord | null | undefined, keys: string[]) =>
   return undefined;
 };
 
-const readNumber = (source: UnknownRecord | null | undefined, keys: string[]) => {
-  if (!source) return undefined;
-  for (const key of keys) {
-    const value = source[key];
-    if (typeof value === 'number' && Number.isFinite(value)) return value;
-    if (typeof value === 'string' && value.trim() && Number.isFinite(Number(value))) {
-      return Number(value);
-    }
-  }
-  return undefined;
-};
-
 const normalizeKind = (tool: UnknownRecord) =>
   (readString(tool, ['id', 'key', 'kind', 'type', 'category', 'tool_type']) || 'tool')
     .toLowerCase()
@@ -90,47 +78,22 @@ const normalizeFields = (value: unknown): NormalizedDemoToolField[] => {
     .filter((field): field is NormalizedDemoToolField => Boolean(field));
 };
 
-const buildGoogleMapsHref = (tool: UnknownRecord) => {
-  const location = asRecord(tool.location);
-  const source = location ?? tool;
-  const explicitUrl = readString(source, ['maps_url', 'google_maps_url', 'map_url']);
-  if (explicitUrl) return explicitUrl;
-
-  const lat = readNumber(source, ['lat', 'latitude', 'latitud']);
-  const lng = readNumber(source, ['lng', 'longitude', 'longitud']);
-  const address = readString(source, ['address', 'direccion']);
-  const query = lat !== undefined && lng !== undefined ? `${lat},${lng}` : address;
-
-  return query ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}` : undefined;
-};
-
 const firstItemRecord = (tool: UnknownRecord) => {
   const items = Array.isArray(tool.items) ? tool.items : [];
   return asRecord(items[0]);
 };
 
-const buildActionHref = (tool: UnknownRecord, kind: string) => {
-  const explicitUrl = readString(tool, ['url', 'href', 'action_url', 'deeplink', 'wa_deeplink']);
+const buildActionHref = (tool: UnknownRecord) => {
+  const explicitUrl = readString(tool, ['url', 'href', 'action_url', 'deeplink', 'wa_deeplink', 'maps_url', 'google_maps_url']);
   if (explicitUrl) return explicitUrl;
+
+  const location = asRecord(tool.location);
+  const locationUrl = readString(location, ['maps_url', 'google_maps_url', 'map_url', 'url', 'href']);
+  if (locationUrl) return locationUrl;
 
   const firstItem = firstItemRecord(tool);
   const firstItemUrl = readString(firstItem, ['url', 'href', 'action_url', 'maps_url', 'google_maps_url']);
   if (firstItemUrl) return firstItemUrl;
-
-  if (kind.includes('location') || kind.includes('ubic') || kind.includes('map')) {
-    return buildGoogleMapsHref(tool);
-  }
-
-  const data = asRecord(tool.data);
-  const phone = readString(tool, ['phone', 'telefono', 'tel']) || readString(data, ['phone', 'telefono', 'whatsapp', 'tel']);
-  if (phone && (kind.includes('phone') || kind.includes('telefono') || kind.includes('whatsapp'))) {
-    return kind.includes('whatsapp')
-      ? `https://wa.me/${phone.replace(/\D+/g, '')}`
-      : `tel:${phone.replace(/\s+/g, '')}`;
-  }
-
-  const email = readString(tool, ['email', 'mail']) || readString(data, ['email', 'mail']);
-  if (email && kind.includes('email')) return `mailto:${email}`;
 
   return undefined;
 };
@@ -161,14 +124,14 @@ export const normalizeDemoRubroTools = (
   collectTools(workspace)
     .map((candidate, index) => {
       const tool = asRecord(candidate);
-      if (!tool || tool.enabled === false) return null;
+      if (!tool || tool.enabled !== true) return null;
 
       const label = readString(tool, ['label', 'title', 'name']);
       if (!label) return null;
 
       const kind = normalizeKind(tool);
       const actionLabel = readString(tool, ['action_label', 'cta_label', 'button_label']);
-      const actionHref = buildActionHref(tool, kind);
+      const actionHref = buildActionHref(tool);
       const id = readString(tool, ['id', 'key', 'slug']) || `${kind}-${index}`;
       const dataFields = normalizeFields(tool.data);
       const itemFields = normalizeFields(firstItemRecord(tool));

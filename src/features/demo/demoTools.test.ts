@@ -10,6 +10,7 @@ describe('normalizeDemoRubroTools', () => {
           key: 'catalog',
           kind: 'catalog',
           label: 'Catalogo',
+          enabled: true,
           description: 'Productos publicados por el tenant.',
           action_label: 'Ver catalogo',
           endpoint: '/api/public/tenants/ferreteria/catalog',
@@ -37,13 +38,14 @@ describe('normalizeDemoRubroTools', () => {
     });
   });
 
-  it('builds a Google Maps URL only from backend location data', () => {
+  it('uses only backend-provided Google Maps URLs for locations', () => {
     const workspace: DemoWorkspaceConfig = {
       business_tools: [
         {
           key: 'location',
           kind: 'location',
           label: 'Sucursal',
+          enabled: true,
           action_label: 'Abrir mapa',
           location: {
             lat: -34.585,
@@ -55,16 +57,37 @@ describe('normalizeDemoRubroTools', () => {
 
     const [tool] = normalizeDemoRubroTools(workspace);
 
-    expect(tool.actionHref).toBe(
-      'https://www.google.com/maps/search/?api=1&query=-34.585%2C-60.943',
-    );
+    expect(tool.actionHref).toBeUndefined();
+  });
+
+  it('keeps explicit backend maps_url without constructing a fallback', () => {
+    const workspace: DemoWorkspaceConfig = {
+      business_tools: [
+        {
+          key: 'location',
+          kind: 'location',
+          label: 'Sucursal',
+          enabled: true,
+          action_label: 'Abrir mapa',
+          location: {
+            lat: -34.585,
+            lng: -60.943,
+            maps_url: 'https://www.google.com/maps?q=sucursal-demo',
+          },
+        },
+      ],
+    };
+
+    const [tool] = normalizeDemoRubroTools(workspace);
+
+    expect(tool.actionHref).toBe('https://www.google.com/maps?q=sucursal-demo');
   });
 
   it('skips disabled tools and reads nested toolkit tools', () => {
     const workspace = {
       tools: [{ label: 'Lista de precios', kind: 'price_list', enabled: false }],
       toolkit: {
-        tools: [{ label: 'Consultas frecuentes', kind: 'faq', status_label: 'Disponible' }],
+        tools: [{ label: 'Consultas frecuentes', kind: 'faq', enabled: true, status_label: 'Disponible' }],
       },
     } as DemoWorkspaceConfig;
 
@@ -87,6 +110,7 @@ describe('normalizeDemoRubroTools', () => {
             id: 'location',
             kind: 'rubro_tool',
             label: 'Ubicacion',
+            enabled: true,
             description: 'Direcciones con enlace operativo a Google Maps.',
             action_label: 'Abrir Google Maps',
             items: [

@@ -52,6 +52,58 @@ import type { ChatBootstrapConfig } from "@/features/chat/chatTypes";
 
 const PUBLIC_CHAT_CONTEXT_KEY = "chatboc_public_chat_context";
 
+const normalizeMenuSectionsForMessage = (
+  sections: unknown,
+): Message["menu_sections"] => {
+  if (!Array.isArray(sections)) return [];
+
+  return sections
+    .map((section, sectionIndex) => {
+      const sectionRecord =
+        section && typeof section === "object"
+          ? (section as Record<string, unknown>)
+          : {};
+      const rows = Array.isArray(sectionRecord.rows) ? sectionRecord.rows : [];
+      const normalizedRows = rows
+        .map((row, rowIndex) => {
+          const rowRecord =
+            row && typeof row === "object"
+              ? (row as Record<string, unknown>)
+              : {};
+          const title = pickFirstString(
+            rowRecord.title,
+            rowRecord.label,
+            rowRecord.text,
+            rowRecord.nombre,
+            rowRecord.name,
+          );
+          if (!title) return null;
+          const id =
+            pickFirstString(rowRecord.id, rowRecord.value, rowRecord.key, rowRecord.slug) ||
+            `menu_${sectionIndex}_${rowIndex}`;
+          const description = pickFirstString(
+            rowRecord.description,
+            rowRecord.descripcion,
+            rowRecord.subtitle,
+          );
+          return {
+            id,
+            title,
+            ...(description ? { description } : {}),
+          };
+        })
+        .filter((row): row is NonNullable<typeof row> => Boolean(row));
+
+      if (!normalizedRows.length) return null;
+      const title = pickFirstString(sectionRecord.title, sectionRecord.label);
+      return {
+        ...(title ? { title } : {}),
+        rows: normalizedRows,
+      };
+    })
+    .filter((section): section is NonNullable<typeof section> => Boolean(section));
+};
+
 const clearStoredPublicChatContext = () => {
   try {
     safeLocalStorage.removeItem(PUBLIC_CHAT_CONTEXT_KEY);
@@ -1281,7 +1333,9 @@ export function useChatLogic({
       const rawInteractiveSections =
         data.interactive_sections || data.metadata?.interactive_sections;
       const interactiveSections =
-        filterLegacyDemoSelectorSections(rawInteractiveSections);
+        normalizeMenuSectionsForMessage(
+          filterLegacyDemoSelectorSections(rawInteractiveSections),
+        );
       const rawInteractiveListSections =
         data.interactive_list?.sections ||
         data.interactiveList?.sections ||

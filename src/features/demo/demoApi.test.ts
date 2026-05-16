@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const { demoGetMock, demoPostMock, findDemoCatalogAssetMock } = vi.hoisted(() => ({
   demoGetMock: vi.fn(),
   demoPostMock: vi.fn(),
-  findDemoCatalogAssetMock: vi.fn(() => null),
+  findDemoCatalogAssetMock: vi.fn<(key: unknown) => any>(() => null),
 }));
 
 vi.mock('@/api/v2/client', () => ({
@@ -62,6 +62,25 @@ describe('demo session API', () => {
     expect(safeLocalStorage.getItem('tenantSlug')).toBe('colegio-pago');
     expect(safeLocalStorage.getItem('chat_session_id')).toBeNull();
     expect(safeLocalStorage.getItem('chatboc_chat_session_id')).toBeNull();
+  });
+
+  it('requests admin preview by demo_session_id when available', async () => {
+    demoGetMock.mockResolvedValue({
+      contract_version: 'demo.admin_preview.v1',
+      metrics: {},
+    });
+
+    await getDemoAdminPreview({
+      sector: 'empresas',
+      tenant_slug: 'ferreteria',
+      chat_session_id: 'sid_demo_ferreteria',
+      demo_session_id: 'demo_ferreteria_1',
+    });
+
+    expect(demoGetMock).toHaveBeenCalledWith(
+      '/api/v2/demo/admin-preview?sector=empresas&tenant_slug=ferreteria&chat_session_id=sid_demo_ferreteria&demo_session_id=demo_ferreteria_1',
+      { baseUrlOverride: '/api' },
+    );
   });
 
   it('accepts backend-canonicalized demo tenants when sector and rubro match the selector', async () => {
@@ -170,6 +189,8 @@ describe('demo session API', () => {
       ok: true,
       ready: true,
       status: 'ready',
+      demo_session_id: 'should-not-persist-before-rubro',
+      chat_session_id: 'sid_should_not_persist_before_rubro',
       next_step: 'select_rubro',
       requires_rubro_selection: true,
       workspace: {
@@ -231,6 +252,31 @@ describe('demo session API', () => {
       },
       workspace: {
         rubro_context: { slug: 'bodega', label: 'Bodega' },
+        rubro_tools: {
+          contract_version: 'demo.rubro_tools.v1',
+          sector: 'empresas',
+          rubro: 'bodega',
+          enabled_tools: [
+            {
+              id: 'location',
+              label: 'Ubicacion',
+              enabled: true,
+              locations: [
+                {
+                  label: 'Sucursal demo',
+                  address: 'Av Demo 123',
+                  maps_url: 'https://www.google.com/maps?q=Av+Demo+123',
+                },
+              ],
+            },
+          ],
+          frontend_contract: {
+            render_as: 'tool_tray',
+            hide_disabled_tools: true,
+            open_maps_with: 'items[].maps_url',
+            do_not_invent_missing_tools: true,
+          },
+        },
         default_menu: {
           contract_version: 'demo.default_menu.v1',
           render_as: 'quick_menu',
@@ -250,6 +296,12 @@ describe('demo session API', () => {
             items: [{ id: 'pedido', label: 'Hacer pedido', intent: 'crear_pedido' }],
           },
         },
+      },
+      widget_onboarding: {
+        status: 'ready',
+        open_chat: true,
+        close_selector: true,
+        send_init_once: true,
       },
     });
 
@@ -276,6 +328,10 @@ describe('demo session API', () => {
       { baseUrlOverride: '/api' },
     );
     expect(response.workspace?.rubro_context?.slug).toBe('bodega');
+    expect((response.workspace?.rubro_tools as any)?.enabled_tools?.[0]?.locations?.[0]?.maps_url).toBe(
+      'https://www.google.com/maps?q=Av+Demo+123',
+    );
+    expect((response.workspace?.rubro_tools as any)?.frontend_contract?.do_not_invent_missing_tools).toBe(true);
     expect((response.workspace?.default_menu as any)?.items?.[0]?.intent).toBe('ver_catalogo');
     expect((response.workspace?.chat_bootstrap?.default_menu as any)?.items?.[0]?.intent).toBe('crear_pedido');
     expect(response.workspace?.chat_bootstrap?.payload?.rubro).toBe('bodega');
@@ -304,6 +360,54 @@ describe('demo session API', () => {
         { strictSelection: false },
       ),
     ).rejects.toThrow('sesion de chat utilizable');
+  });
+
+  it('does not open a widget demo chat unless backend explicitly allows it', async () => {
+    demoPostMock.mockResolvedValue({
+      contract_version: 'demo.session.v2',
+      ok: true,
+      ready: true,
+      status: 'ready',
+      demo_session_id: 'demo-widget-token',
+      chat_session_id: 'sid_widget_empresas_1',
+      session: {
+        demo_session_id: 'demo-widget-token',
+        chat_session_id: 'sid_widget_empresas_1',
+        tenant_slug: 'ferreteria',
+        sector: 'empresas',
+        rubro: 'ferreteria',
+      },
+      workspace: {
+        chat_bootstrap: {
+          same_origin_endpoint: '/api/ask/pyme',
+          headers: {},
+          payload: { vertical: 'empresas', rubro: 'ferreteria' },
+        },
+      },
+      widget_onboarding: {
+        status: 'ready',
+        open_chat: false,
+        close_selector: false,
+        send_init_once: false,
+      },
+    });
+
+    await expect(
+      createDemoSession(
+        {
+          surface: 'widget',
+          source: 'landing_widget_rubro_selector',
+          sector: 'empresas',
+          rubro: 'ferreteria',
+          label: 'Ferreteria',
+        },
+        { strictSelection: false },
+      ),
+    ).rejects.toThrow('no autorizo abrir el chat');
+
+    expect(safeLocalStorage.getItem(DEMO_SESSION_STORAGE_KEY)).toBeNull();
+    expect(safeLocalStorage.getItem(DEMO_CHAT_SESSION_STORAGE_KEY)).toBeNull();
+    expect(safeLocalStorage.getItem(DEMO_TENANT_STORAGE_KEY)).toBeNull();
   });
 });
 

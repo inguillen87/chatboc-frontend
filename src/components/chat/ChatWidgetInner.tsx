@@ -1258,6 +1258,31 @@ function ChatWidgetInner({
     widgetCommerceSession?.cart?.items_count,
   );
   const effectiveCartCount = commerceCartCount > 0 ? commerceCartCount : cartCount;
+  const hasPublishedCommercialCatalog = useMemo(() => {
+    const catalog = widgetCommerceSession?.catalog;
+    const primaryActions = widgetCommerceSession?.frontend_contract?.primary_actions;
+    const catalogRequestedByContract =
+      Array.isArray(primaryActions) && primaryActions.includes("catalog");
+    const catalogEnabled =
+      catalogRequestedByContract ||
+      readOptionalBoolean(catalog?.enabled, false) ||
+      readOptionalBoolean(catalogInfo?.enabled, false);
+    const hasCatalogDestination = Boolean(
+      readFirstString(
+        catalog?.view_url,
+        catalog?.url,
+        catalog?.endpoint,
+        catalogInfo?.view_url,
+        catalogInfo?.url,
+        catalogCard.viewUrl,
+        catalogCard.downloadUrl,
+      ),
+    );
+
+    return catalogEnabled && hasCatalogDestination;
+  }, [catalogCard.downloadUrl, catalogCard.viewUrl, catalogInfo, widgetCommerceSession]);
+  const shouldExposeCommerceControls =
+    resolvedTipoChat !== "municipio" || hasPublishedCommercialCatalog;
   const entityDefaultRubro = useMemo(() => {
     if (!entityInfo) return null;
 
@@ -1748,6 +1773,13 @@ function ChatWidgetInner({
         conversion_ctas: workspace.conversion_ctas || entityInfo?.conversion_ctas || null,
         animation_tokens: workspace.animation_tokens || entityInfo?.animation_tokens || null,
         empty_states: workspace.empty_states || entityInfo?.empty_states || null,
+        rubro_tools:
+          workspace.rubro_tools ||
+          workspace.business_tools ||
+          workspace.operational_tools ||
+          workspace.tools ||
+          workspace.toolkit ||
+          null,
       };
       setEntityInfo(nextInfo);
       setActiveDemoTenantSlug(demoTenantSlug);
@@ -2768,8 +2800,8 @@ function ChatWidgetInner({
                     showProfile={false}
                     muted={muted}
                     onToggleSound={toggleMuted}
-                    onCart={openCart}
-                    cartCount={effectiveCartCount}
+                    onCart={shouldExposeCommerceControls ? openCart : undefined}
+                    cartCount={shouldExposeCommerceControls ? effectiveCartCount : 0}
                     logoUrl={headerLogoUrl || customLauncherLogoUrl || entityInfo?.logo_url || getChatbocBotAvatar(isDarkMode)}
                     title={headerTitle}
                     subtitle={headerSubtitle}
@@ -2816,10 +2848,18 @@ function ChatWidgetInner({
                     }
                     onboarding={entityInfo?.onboarding ?? null}
                     uiHints={effectiveUiHints}
-                    commerceSession={widgetCommerceSession}
-                    commerceHistory={widgetCommerceHistory}
+                    commerceSession={shouldExposeCommerceControls ? widgetCommerceSession : null}
+                    commerceHistory={shouldExposeCommerceControls ? widgetCommerceHistory : null}
                     chatBootstrap={chatBootstrap}
-                    onOpenCatalog={() => openCart("catalog")}
+                    rubroTools={
+                      entityInfo?.rubro_tools ||
+                      entityInfo?.business_tools ||
+                      entityInfo?.operational_tools ||
+                      entityInfo?.tools ||
+                      entityInfo?.toolkit ||
+                      null
+                    }
+                    onOpenCatalog={shouldExposeCommerceControls ? () => openCart("catalog") : undefined}
                     onOpenPortal={openPortal}
                     onPlatformSelection={handlePlatformSelection}
                     platformSelectionLoadingId={platformSelectionLoadingId}
@@ -2850,11 +2890,11 @@ function ChatWidgetInner({
                     onOpenUserPanel={openUserPanel}
                     muted={muted}
                     onToggleSound={toggleMuted}
-                    onCart={openCart}
-                    cartCount={effectiveCartCount}
+                    onCart={shouldExposeCommerceControls ? openCart : undefined}
+                    cartCount={shouldExposeCommerceControls ? effectiveCartCount : 0}
                     selectedRubro={selectedRubro ?? entityDefaultRubro}
                     onRubroSelect={handleRubroSelect}
-                    catalogCard={catalogCard}
+                    catalogCard={shouldExposeCommerceControls ? catalogCard : undefined}
                     headerLogoUrl={headerLogoUrl || customLauncherLogoUrl || entityInfo?.logo_url || getChatbocBotAvatar(isDarkMode)}
                     welcomeTitle={headerTitle}
                     welcomeSubtitle={headerSubtitle}

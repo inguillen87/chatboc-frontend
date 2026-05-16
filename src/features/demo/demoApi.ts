@@ -41,11 +41,13 @@ export const getDemoAdminPreview = async (params: {
   sector?: DemoSector | string | null;
   tenant_slug?: string | null;
   chat_session_id?: string | null;
+  demo_session_id?: string | null;
 }): Promise<DemoAdminPreviewResponse> => {
   const query = new URLSearchParams();
   if (params.sector) query.set('sector', String(params.sector));
   if (params.tenant_slug) query.set('tenant_slug', params.tenant_slug);
   if (params.chat_session_id) query.set('chat_session_id', params.chat_session_id);
+  if (params.demo_session_id) query.set('demo_session_id', params.demo_session_id);
   const suffix = query.toString() ? `?${query.toString()}` : '';
   return demoApi.get<DemoAdminPreviewResponse>(`/api/v2/demo/admin-preview${suffix}`, {
     baseUrlOverride: '/api',
@@ -60,16 +62,34 @@ export const createDemoSession = async (
     baseUrlOverride: '/api',
   });
   const normalized = normalizeDemoSessionResponse(response);
+  const isRubroSelectionStep = isDemoRubroSelectionStep(normalized);
   if (!isUsableDemoSessionResponse(normalized)) {
     throw new Error('La demo real no devolvio sesion de chat utilizable.');
   }
-  persistDemoRuntimeSession(normalized);
+  if (isWidgetDemoSelectorPayload(payload) && !isRubroSelectionStep) {
+    if (normalized.widget_onboarding?.open_chat !== true) {
+      throw new Error('La demo real no autorizo abrir el chat.');
+    }
+  }
 
   if (options.strictSelection !== false && !isDemoSessionAlignedWithSelection(normalized, payload)) {
     throw new Error('La demo real recibida no coincide con la seleccion solicitada.');
   }
 
+  if (!isRubroSelectionStep) {
+    persistDemoRuntimeSession(normalized);
+  }
+
   return normalized;
+};
+
+const isWidgetDemoSelectorPayload = (payload: DemoSessionPayload) => {
+  if (!payload || typeof payload !== 'object') return false;
+  const source = String((payload as Record<string, unknown>).source ?? '').trim();
+  return (
+    (payload as Record<string, unknown>).surface === 'widget' &&
+    (source === 'landing_widget_selector' || source === 'landing_widget_rubro_selector')
+  );
 };
 
 export const getDemoWhatsappSandbox = async (
