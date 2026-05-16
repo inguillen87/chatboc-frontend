@@ -127,12 +127,55 @@ const readSectorTenantSlug = (group: DemoSectorGroup | null) => {
   return candidates.find((value) => typeof value === 'string' && value.trim())?.trim() ?? null;
 };
 
+const readSectorDefaultRubro = (group: DemoSectorGroup | null, sector: DemoSector | null) => {
+  const candidates = [group?.default_rubro, group?.default_rubro_slug, sector];
+  return candidates.find((value) => typeof value === 'string' && value.trim())?.trim() ?? null;
+};
+
+const normalizeDemoText = (value?: string | number | null) =>
+  String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+
 const rootMatchesSector = (root: Rubro, sector: DemoSector | null) => {
   if (!sector) return false;
-  if (sector === 'gobierno') return root.id === 1 || root.clave === 'municipios_root';
-  if (sector === 'empresas') return root.id === 2 || root.clave === 'comerciales_root';
-  if (sector === 'educacion') return root.id === 3 || root.clave === 'educacion_root';
-  return String(root.clave || root.nombre || '').toLowerCase().includes(String(sector).toLowerCase());
+  const rootAny = root as Rubro & Record<string, unknown>;
+  const declaredSector = normalizeDemoText(
+    [rootAny.sector, rootAny.pillar, rootAny.vertical].filter(Boolean).join(' '),
+  );
+  const key = normalizeDemoText(
+    [root.clave, root.nombre, rootAny.key, rootAny.slug, rootAny.label, rootAny.title].filter(Boolean).join(' '),
+  );
+  const name = normalizeDemoText([root.nombre, rootAny.label, rootAny.title].filter(Boolean).join(' '));
+  if (declaredSector && declaredSector.includes(normalizeDemoText(sector))) return true;
+  if (sector === 'gobierno') {
+    return root.id === 1 || declaredSector.includes('gobierno') || key.includes('municip') || name.includes('gobierno') || name.includes('public');
+  }
+  if (sector === 'empresas') {
+    return root.id === 2 || declaredSector.includes('empresa') || declaredSector.includes('pyme') || key.includes('comercial') || name.includes('empresa') || name.includes('comerc');
+  }
+  if (sector === 'educacion') {
+    return root.id === 3 || declaredSector.includes('educacion') || key.includes('educacion') || name.includes('coleg') || name.includes('escuela');
+  }
+  return key.includes(normalizeDemoText(sector)) || name.includes(normalizeDemoText(sector));
+};
+
+const getRubrosForSector = (catalog: DemoCatalogResponse | null, sector: DemoSector | null) => {
+  const roots = Array.isArray(catalog?.rubros) ? catalog.rubros : [];
+  return roots.filter((root) => rootMatchesSector(root, sector));
+};
+
+const readRubroTenantSlug = (rubro: Rubro) => {
+  const rubroAny = rubro as Rubro & Record<string, unknown>;
+  const candidates = [
+    rubroAny.tenant_slug,
+    rubroAny.demo_tenant_slug,
+    rubroAny.default_tenant_slug,
+    rubro.demo?.slug,
+    rubroAny.slug,
+  ];
+  return candidates.find((value) => typeof value === 'string' && value.trim())?.trim() ?? null;
 };
 
 const readSectorCatalogSlug = (sector: DemoSector | null) => {
@@ -798,7 +841,7 @@ const Demo = () => {
 
   const selectedSectorGroup = findSectorGroup(demoCatalog, sectorSeleccionado);
   const visibleRubrosDisponibles = useMemo(
-    () => rubrosDisponibles.filter((root) => rootMatchesSector(root, sectorSeleccionado)),
+    () => getRubrosForSector({ rubros: rubrosDisponibles }, sectorSeleccionado),
     [rubrosDisponibles, sectorSeleccionado],
   );
   const demoPreviewTenantSlug = useMemo(
@@ -952,48 +995,100 @@ const Demo = () => {
 
     const storedClave = safeLocalStorage.getItem("rubroSeleccionado");
     const storedLabel = safeLocalStorage.getItem("rubroSeleccionado_label");
+    const storedSector = safeLocalStorage.getItem("demoSectorSeleccionado");
     const requestedSector = new URLSearchParams(location.search).get('sector') as DemoSector | null;
     const normalizedRequestedSector =
       requestedSector === 'educacion' || requestedSector === 'gobierno' || requestedSector === 'empresas'
         ? requestedSector
         : null;
     const requestedRubro = new URLSearchParams(location.search).get('rubro');
+    const effectiveStoredClave =
+      normalizedRequestedSector && storedSector !== normalizedRequestedSector ? null : storedClave;
+    const effectiveStoredLabel = effectiveStoredClave ? storedLabel : null;
 
-    if (normalizedRequestedSector && requestedRubro && !storedClave) {
-      setSectorSeleccionado(normalizedRequestedSector);
-      setRubroClaveSeleccionado(requestedRubro);
-      setEsperandoRubro(true);
-      getDemoCatalog()
-        .then((data) => {
+    if (normalizedRequestedSector && requestedRubro && !effectiveStoredClave) {
+      void (async () => {
+        const data = demoCatalog ?? await getDemoCatalog();
+        if (!demoCatalog) {
           setDemoError(null);
           setDemoCatalog(data);
           setRubrosDisponibles(Array.isArray(data?.rubros) ? data.rubros : []);
-        })
-        .catch((error) => {
-          setDemoCatalog(null);
-          setRubrosDisponibles([]);
-          setDemoError(buildDemoError(error, 'No se pudo cargar el catalogo de demos.'));
+        }
+        const catalogGroup = findSectorGroup(data, normalizedRequestedSector);
+        const sessionTenantSlug = readSectorTenantSlug(catalogGroup) ?? readSectorCatalogSlug(normalizedRequestedSector);
+        safeLocalStorage.setItem("demoSectorSeleccionado", normalizedRequestedSector);
+        safeLocalStorage.setItem("rubroSeleccionado", requestedRubro);
+        safeLocalStorage.setItem("rubroSeleccionado_label", requestedRubro);
+        const session = await createDemoSession({
+          sector: normalizedRequestedSector,
+          tenant_slug: sessionTenantSlug,
+          rubro: requestedRubro,
+          rubro_slug: requestedRubro,
+          pillar: normalizedRequestedSector,
+          category_slug: requestedRubro,
         });
+        setDemoError(null);
+        setSectorSeleccionado(normalizedRequestedSector);
+        setRubroSeleccionado(requestedRubro);
+        setRubroClaveSeleccionado(requestedRubro);
+        setDemoTenantSlug(session.tenant_slug ?? sessionTenantSlug ?? null);
+        setDemoWorkspace(session.workspace ?? null);
+        setEsperandoRubro(false);
+        openDemoWidget();
+      })().catch((error) => {
+        setSectorSeleccionado(normalizedRequestedSector);
+        setRubroClaveSeleccionado(requestedRubro);
+        setEsperandoRubro(true);
+        setDemoError(buildDemoError(error, 'No se pudo iniciar la demo real.'));
+      });
       return;
     }
 
-    if (normalizedRequestedSector && !storedClave) {
-      const catalogGroup = findSectorGroup(
-        { sector_groups: demoCatalog?.sector_groups ?? [] } as DemoCatalogResponse,
-        normalizedRequestedSector,
-      );
-      const label = readSectorLabel(catalogGroup, normalizedRequestedSector);
-      void createDemoSession({
-        sector: normalizedRequestedSector,
-        tenant_slug: readSectorTenantSlug(catalogGroup) ?? readSectorCatalogSlug(normalizedRequestedSector),
-        pillar: normalizedRequestedSector,
-        category_slug: normalizedRequestedSector,
-      })
-        .then((session) => {
+    if (normalizedRequestedSector && !effectiveStoredClave) {
+      void (async () => {
+        const catalog = demoCatalog ?? await getDemoCatalog();
+        if (!demoCatalog) {
+          setDemoCatalog(catalog);
+          setRubrosDisponibles(Array.isArray(catalog?.rubros) ? catalog.rubros : []);
+        }
+        const catalogGroup = findSectorGroup(catalog, normalizedRequestedSector);
+        const sectorRubros = getRubrosForSector(catalog, normalizedRequestedSector);
+        const label = readSectorLabel(catalogGroup, normalizedRequestedSector);
+        const defaultRubro = readSectorDefaultRubro(catalogGroup, normalizedRequestedSector);
+        safeLocalStorage.setItem("demoSectorSeleccionado", normalizedRequestedSector);
+        safeLocalStorage.removeItem("rubroSeleccionado");
+        safeLocalStorage.removeItem("rubroSeleccionado_label");
+        setDemoError(null);
+        setSectorSeleccionado(normalizedRequestedSector);
+        setRubroSeleccionado(null);
+        setRubroClaveSeleccionado(null);
+        setDemoTenantSlug(null);
+        setDemoWorkspace(null);
+
+        if (sectorRubros.length > 0) {
+          setEsperandoRubro(true);
+          return null;
+        }
+
+        safeLocalStorage.setItem("rubroSeleccionado", defaultRubro ?? normalizedRequestedSector);
+        safeLocalStorage.setItem("rubroSeleccionado_label", label);
+        const session = await createDemoSession({
+          sector: normalizedRequestedSector,
+          tenant_slug: readSectorTenantSlug(catalogGroup) ?? readSectorCatalogSlug(normalizedRequestedSector),
+          rubro: defaultRubro ?? normalizedRequestedSector,
+          rubro_slug: defaultRubro ?? normalizedRequestedSector,
+          pillar: normalizedRequestedSector,
+          category_slug: defaultRubro ?? normalizedRequestedSector,
+        });
+        return { session, label, defaultRubro };
+      })()
+        .then((result) => {
+          if (!result) return;
+          const { session, label, defaultRubro } = result;
           setDemoError(null);
           setSectorSeleccionado(normalizedRequestedSector);
           setRubroSeleccionado(label);
-          setRubroClaveSeleccionado(normalizedRequestedSector);
+          setRubroClaveSeleccionado(defaultRubro ?? normalizedRequestedSector);
           setDemoTenantSlug(session.tenant_slug ?? null);
           setDemoWorkspace(session.workspace ?? null);
           setEsperandoRubro(false);
@@ -1007,8 +1102,8 @@ const Demo = () => {
       return;
     }
 
-    if (storedClave && !rubroClaveSeleccionado) {
-      const normalizedClave = extractRubroKey(storedClave) ?? storedClave;
+    if (effectiveStoredClave && !rubroClaveSeleccionado) {
+      const normalizedClave = extractRubroKey(effectiveStoredClave) ?? effectiveStoredClave;
       void createDemoSession({
         rubro: normalizedClave,
         rubro_slug: normalizedClave,
@@ -1018,7 +1113,7 @@ const Demo = () => {
           setDemoError(null);
           setRubroClaveSeleccionado(normalizedClave);
           if (!rubroSeleccionado) {
-            setRubroSeleccionado(storedLabel || storedClave);
+            setRubroSeleccionado(effectiveStoredLabel || effectiveStoredClave);
           }
           setDemoTenantSlug(session.tenant_slug ?? null);
           setDemoWorkspace(session.workspace ?? null);
@@ -1029,10 +1124,11 @@ const Demo = () => {
         .catch((error) => {
           safeLocalStorage.removeItem("rubroSeleccionado");
           safeLocalStorage.removeItem("rubroSeleccionado_label");
+          safeLocalStorage.removeItem("demoSectorSeleccionado");
           setEsperandoRubro(true);
           setDemoError(buildDemoError(error, 'No se pudo recuperar la demo anterior.'));
         });
-    } else if (!storedClave) {
+    } else if (!effectiveStoredClave) {
       setEsperandoRubro(true);
       getDemoCatalog()
         .then((data) => {
@@ -1054,20 +1150,26 @@ const Demo = () => {
     const group = findSectorGroup(demoCatalog, sector);
     const label = readSectorLabel(group, sector);
     const tenantSlug = readSectorTenantSlug(group);
+    const defaultRubro = readSectorDefaultRubro(group, sector);
 
     setSectorSeleccionado(sector);
     setRubroSeleccionado(label);
-    setRubroClaveSeleccionado(sector);
+    setRubroClaveSeleccionado(defaultRubro ?? sector);
     setEsperandoRubro(false);
     setDemoError(null);
+    safeLocalStorage.setItem("demoSectorSeleccionado", sector);
+    safeLocalStorage.setItem("rubroSeleccionado", defaultRubro ?? sector);
+    safeLocalStorage.setItem("rubroSeleccionado_label", label);
     openDemoWidget();
 
     try {
       const session = await createDemoSession({
         sector,
         tenant_slug: tenantSlug,
+        rubro: defaultRubro ?? sector,
+        rubro_slug: defaultRubro ?? sector,
         pillar: sector,
-        category_slug: String(sector),
+        category_slug: defaultRubro ?? String(sector),
       });
       setDemoTenantSlug(session.tenant_slug ?? tenantSlug ?? null);
       setDemoWorkspace(session.workspace ?? null);
@@ -1163,6 +1265,7 @@ const Demo = () => {
                 return;
               }
 
+              safeLocalStorage.setItem("demoSectorSeleccionado", sectorSeleccionado);
               setRubroSeleccionado(etiqueta || clave || null);
               setRubroClaveSeleccionado(clave ?? null);
               setEsperandoRubro(false);
@@ -1170,9 +1273,10 @@ const Demo = () => {
               openDemoWidget();
               void (async () => {
                 try {
-                  const sessionTenantSlug = rubro.demo?.slug ?? readSectorTenantSlug(selectedSectorGroup);
+                  const sessionTenantSlug = readRubroTenantSlug(rubro) ?? readSectorTenantSlug(selectedSectorGroup);
                   const session = await createDemoSession({
                     sector: sectorSeleccionado,
+                    rubro: clave ?? etiqueta ?? rubro.nombre,
                     rubro_slug: clave ?? etiqueta ?? rubro.nombre,
                     category_slug: clave ?? etiqueta ?? rubro.nombre,
                     tenant_slug: sessionTenantSlug,

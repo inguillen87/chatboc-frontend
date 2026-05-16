@@ -34,6 +34,7 @@ import {
 } from "@/utils/brandAssets";
 import { createDemoSession } from "@/features/demo/demoApi";
 import getOrCreateChatSessionId, { persistChatSessionId } from "@/utils/chatSessionId";
+import { isPublicPlatformSurfacePath } from "@/utils/widgetTenantResolution";
 import {
   getWidgetCartSnapshot,
   getWidgetCommerceSession,
@@ -720,7 +721,12 @@ function ChatWidgetInner({
     return sanitizeTenantSlug(cfg.tenant || cfg.tenantSlug || cfg.tenant_slug);
   }, []);
 
-  const embeddedTenantSlug = useMemo(() => {
+  const isPublicPlatformSurface = useMemo(() => {
+    if (typeof window === "undefined" || isEmbedded) return false;
+    return isPublicPlatformSurfacePath(window.location.pathname);
+  }, [isEmbedded]);
+
+  const explicitResolvedTenantSlug = useMemo(() => {
     const candidates = [
       contextOverride?.tenantSlug,
       explicitTenantSlug,
@@ -728,8 +734,6 @@ function ChatWidgetInner({
       tenantSlugFromLocation,
       tenantSlugFromScripts,
       tenantSlugFromSubdomain,
-      currentSlug,
-      tenant?.slug,
       tenantSlugFromGlobalConfig,
     ];
 
@@ -742,8 +746,6 @@ function ChatWidgetInner({
   }, [
     contextOverride,
     explicitTenantSlug,
-    currentSlug,
-    tenant?.slug,
     tenantSlugFromEntity,
     tenantSlugFromLocation,
     tenantSlugFromScripts,
@@ -751,13 +753,32 @@ function ChatWidgetInner({
     tenantSlugFromGlobalConfig,
   ]);
 
+  const accountTenantSlug = useMemo(() => {
+    const candidates = [currentSlug, tenant?.slug];
+
+    for (const candidate of candidates) {
+      const sanitized = sanitizeTenantSlug(candidate);
+      if (sanitized) return sanitized;
+    }
+
+    return null;
+  }, [currentSlug, tenant?.slug]);
+
+  const embeddedTenantSlug = useMemo(() => {
+    if (explicitResolvedTenantSlug) return explicitResolvedTenantSlug;
+    if (isPublicPlatformSurface) return null;
+    return accountTenantSlug;
+  }, [accountTenantSlug, explicitResolvedTenantSlug, isPublicPlatformSurface]);
+
   const resolvedTenantSlug = useMemo(() => {
     if (isEmbedded) {
       return embeddedTenantSlug;
     }
 
-    return embeddedTenantSlug || storedTenantSlug;
-  }, [embeddedTenantSlug, isEmbedded, storedTenantSlug]);
+    if (embeddedTenantSlug) return embeddedTenantSlug;
+    if (isPublicPlatformSurface) return null;
+    return storedTenantSlug;
+  }, [embeddedTenantSlug, isEmbedded, isPublicPlatformSurface, storedTenantSlug]);
   const chatTenantSlug = activeDemoTenantSlug || resolvedTenantSlug;
   const chatBootstrap = entityInfo?.chat_bootstrap ?? entityInfo?.workspace?.chat_bootstrap ?? null;
   const effectiveUiHints: ChatWidgetUiHints | null = useMemo(() => {
@@ -797,10 +818,10 @@ function ChatWidgetInner({
       return;
     }
 
-    if (isEmbedded) {
+    if (isEmbedded || isPublicPlatformSurface) {
       safeLocalStorage.removeItem("tenantSlug");
     }
-  }, [entityInfo?.onboarding?.mode, isEmbedded, resolvedTenantSlug]);
+  }, [entityInfo?.onboarding?.mode, isEmbedded, isPublicPlatformSurface, resolvedTenantSlug]);
 
   useEffect(() => {
     if (!isEmbedded) return;
@@ -1480,9 +1501,43 @@ function ChatWidgetInner({
   const handlePlatformSelection = useCallback(async (option: any) => {
     if (!option || typeof option !== "object") return;
     const optionId = String(option.id || option.sector || option.label || "platform_option");
-    const sector = typeof option.sector === "string" ? option.sector : undefined;
+    const normalizeSectorCandidate = (value: unknown) =>
+      String(value ?? "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase();
+    const sectorCandidate = [
+      option.sector,
+      option.pillar,
+      option.id,
+      option.key,
+      option.label,
+      option.title,
+    ].map(normalizeSectorCandidate);
+    const sector =
+      sectorCandidate.some((value) => value.includes("educacion") || value.includes("coleg"))
+        ? "educacion"
+        : sectorCandidate.some((value) => value.includes("gobierno") || value.includes("municip"))
+          ? "gobierno"
+          : sectorCandidate.some((value) => value.includes("empresa") || value.includes("pyme") || value.includes("comerc"))
+            ? "empresas"
+            : typeof option.sector === "string"
+              ? option.sector
+              : undefined;
     const tenantSlug = typeof option.tenant_slug === "string" ? option.tenant_slug : undefined;
     const rubro = typeof option.rubro === "string" ? option.rubro : tenantSlug;
+    const isPlatformSectorSelector =
+      entityInfo?.onboarding?.mode === "platform_sector_selector" ||
+      entityInfo?.tenant?.tipo === "platform" ||
+      entityInfo?.tenant?.slug === "chatboc-platform";
+    if (isPlatformSectorSelector && (sector === "educacion" || sector === "gobierno" || sector === "empresas")) {
+      safeLocalStorage.setItem("demoSectorSeleccionado", sector);
+      safeLocalStorage.removeItem("rubroSeleccionado");
+      safeLocalStorage.removeItem("rubroSeleccionado_label");
+      safeLocalStorage.removeItem("tenantSlug");
+      window.location.assign(`/demo?sector=${encodeURIComponent(sector)}`);
+      return;
+    }
     setPlatformSelectionLoadingId(optionId);
     setPlatformSelectionError(null);
     try {
@@ -1494,6 +1549,13 @@ function ChatWidgetInner({
       const workspace = session.workspace || {};
       const demoTenantSlug = session.tenant_slug || session.tenant?.slug || tenantSlug || null;
       const bootstrapPayload = workspace.chat_bootstrap?.payload || {};
+      const backendRubro = extractRubroKey(
+        bootstrapPayload.rubro_clave ||
+          bootstrapPayload.rubro ||
+          workspace.rubro_clave ||
+          workspace.rubro ||
+          rubro,
+      );
       const nextTipo =
         bootstrapPayload.tipo_chat === "municipio" ||
         session.tenant?.tipo === "municipio" ||
@@ -1508,8 +1570,8 @@ function ChatWidgetInner({
         tenant_slug: demoTenantSlug,
         nombre_empresa: workspace.title || session.tenant?.nombre || entityInfo?.nombre_empresa || "Chatboc",
         tipo_chat: nextTipo,
-        rubro: rubro || workspace.chat_bootstrap?.payload?.rubro || entityInfo?.rubro || null,
-        rubro_clave: rubro || workspace.chat_bootstrap?.payload?.rubro_clave || entityInfo?.rubro_clave || null,
+        rubro: backendRubro || rubro || entityInfo?.rubro || null,
+        rubro_clave: backendRubro || rubro || entityInfo?.rubro_clave || null,
         quick_menu: Array.isArray(workspace.quick_replies)
           ? workspace.quick_replies
           : Array.isArray(workspace.education?.quick_menu)
@@ -1533,7 +1595,7 @@ function ChatWidgetInner({
       };
       setEntityInfo(nextInfo);
       setActiveDemoTenantSlug(demoTenantSlug);
-      setSelectedRubro(extractRubroKey(rubro) ?? null);
+      setSelectedRubro(backendRubro ?? extractRubroKey(rubro) ?? null);
       setResolvedTipoChat(nextTipo);
       setChatPanelResetKey((current) => current + 1);
     } catch (error) {

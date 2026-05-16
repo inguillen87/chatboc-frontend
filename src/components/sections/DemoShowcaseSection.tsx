@@ -40,7 +40,7 @@ const LANDING_DEMO_ORDER: DemoSector[] = ["educacion", "gobierno", "empresas"];
 const getIconForCategory = (cat: Pick<Rubro, "clave" | "nombre"> | DemoSectorGroup | null | undefined) => {
   const key = String((cat as any)?.key ?? (cat as any)?.clave ?? "");
   if (key && categoryIcons[key]) return categoryIcons[key];
-  const name = String((cat as any)?.label ?? (cat as any)?.nombre ?? "");
+  const name = String((cat as any)?.label ?? (cat as any)?.nombre ?? (cat as any)?.title ?? "");
   const found = Object.keys(categoryIcons).find((candidate) => name.includes(candidate));
   return found ? categoryIcons[found] : <Store className="h-4 w-4" />;
 };
@@ -52,31 +52,51 @@ const normalize = (value?: string | null) =>
     .toLowerCase();
 
 const rootMatchesSector = (root: Rubro, sector: DemoSector) => {
-  const key = normalize(root.clave || root.nombre);
-  const name = normalize(root.nombre);
+  const declaredSector = normalize(
+    [(root as any).sector, (root as any).pillar, (root as any).vertical].filter(Boolean).join(" "),
+  );
+  const key = normalize(
+    [root.clave, root.nombre, (root as any).key, (root as any).slug, (root as any).label, (root as any).title]
+      .filter(Boolean)
+      .join(" "),
+  );
+  const name = normalize([root.nombre, (root as any).label, (root as any).title].filter(Boolean).join(" "));
+  if (declaredSector && declaredSector.includes(normalize(sector))) return true;
   if (sector === "educacion") return key.includes("educacion") || name.includes("coleg");
-  if (sector === "gobierno") return key.includes("municip") || name.includes("gobierno") || name.includes("public");
-  if (sector === "empresas") return key.includes("comercial") || name.includes("empresa") || name.includes("comerc");
+  if (sector === "gobierno") return declaredSector.includes("gobierno") || key.includes("municip") || name.includes("gobierno") || name.includes("public");
+  if (sector === "empresas") return declaredSector.includes("empresa") || declaredSector.includes("pyme") || key.includes("comercial") || name.includes("empresa") || name.includes("comerc");
   return key.includes(normalize(sector)) || name.includes(normalize(sector));
 };
 
 const flattenDemoCards = (root: Rubro): Rubro[] => {
   const result: Rubro[] = [];
   const visit = (node: Rubro) => {
-    if (node.demo) result.push(node);
+    if (node.demo || (node as any).tenant_slug || (node as any).slug || (node as any).key) result.push(node);
     (node.subrubros || []).forEach(visit);
   };
   visit(root);
   return result;
 };
 
-const readRubroSlug = (item: Rubro) => item.demo?.slug || item.clave || item.nombre;
+const readRubroLabel = (item: Rubro) =>
+  String(item.demo?.nombre || item.nombre || (item as any).label || (item as any).title || (item as any).key || (item as any).slug || '').trim();
+
+const readRubroDescription = (item: Rubro, group?: DemoSectorGroup) =>
+  String(item.demo?.descripcion || (item as any).descripcion || (item as any).description || group?.description || readRubroLabel(item)).trim();
+
+const readRubroSlug = (item: Rubro) =>
+  String(item.demo?.slug || item.clave || (item as any).rubro_slug || (item as any).key || (item as any).slug || item.nombre || (item as any).label || '').trim();
+
+const readRubroTenantSlug = (item: Rubro, group?: DemoSectorGroup) =>
+  String((item as any).tenant_slug || (item as any).demo_tenant_slug || item.demo?.slug || (item as any).slug || group?.tenant_slug || '').trim() || null;
 
 const DemoCard = ({ item, sector, group }: { item: Rubro; sector: DemoSector; group?: DemoSectorGroup }) => {
   const navigate = useNavigate();
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  if (!item.demo) return null;
+  const rubroLabel = readRubroLabel(item);
+  const rubroDescription = readRubroDescription(item, group);
+  if (!rubroLabel) return null;
 
   const startDemo = async () => {
     setStarting(true);
@@ -85,9 +105,10 @@ const DemoCard = ({ item, sector, group }: { item: Rubro; sector: DemoSector; gr
       const session = await createDemoSession({
         sector,
         pillar: sector,
+        rubro: readRubroSlug(item),
         rubro_slug: readRubroSlug(item),
         category_slug: readRubroSlug(item),
-        tenant_slug: item.demo?.slug ?? group?.tenant_slug ?? null,
+        tenant_slug: readRubroTenantSlug(item, group),
       });
       const sessionId = session.chat_session_id || session.session_id;
       if (!sessionId) throw new Error("missing_chat_session_id");
@@ -95,7 +116,7 @@ const DemoCard = ({ item, sector, group }: { item: Rubro; sector: DemoSector; gr
         state: {
           demoSession: session,
           sector,
-          rubroLabel: item.demo?.nombre || item.nombre,
+          rubroLabel,
           rubroSlug: readRubroSlug(item),
         },
       });
@@ -114,14 +135,14 @@ const DemoCard = ({ item, sector, group }: { item: Rubro; sector: DemoSector; gr
         </div>
         <div className="flex items-start justify-between gap-3">
           <CardTitle className="text-base font-semibold leading-snug transition-colors group-hover:text-primary">
-            {item.demo.nombre || item.nombre}
+            {rubroLabel}
           </CardTitle>
           <Badge variant="secondary" className="h-5 rounded-[8px] px-2 text-[10px]">
             Demo
           </Badge>
         </div>
         <CardDescription className="line-clamp-2 text-sm">
-          {item.demo.descripcion || group?.description || item.nombre}
+          {rubroDescription}
         </CardDescription>
       </CardHeader>
       <CardContent className="flex-1">
@@ -164,6 +185,8 @@ const PillarDemoCard = ({ sector, group }: { sector: DemoSector; group: DemoSect
       const session = await createDemoSession({
         sector,
         pillar: sector,
+        rubro: defaultRubro,
+        rubro_slug: defaultRubro,
         category_slug: defaultRubro,
         tenant_slug: group.tenant_slug ?? group.demo_tenant_slug ?? group.default_tenant_slug ?? null,
       });

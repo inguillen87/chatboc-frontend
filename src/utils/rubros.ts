@@ -45,7 +45,11 @@ export function extractRubroKey(value: unknown): string | null {
 
   if (typeof value === "object") {
     const raw =
+      (typeof (value as any).rubro === "string" && (value as any).rubro.trim()) ||
+      (typeof (value as any).rubro_slug === "string" && (value as any).rubro_slug.trim()) ||
       (typeof (value as any).clave === "string" && (value as any).clave.trim()) ||
+      (typeof (value as any).key === "string" && (value as any).key.trim()) ||
+      (typeof (value as any).slug === "string" && (value as any).slug.trim()) ||
       (typeof (value as any).nombre === "string" && (value as any).nombre.trim()) ||
       (typeof (value as any).name === "string" && (value as any).name.trim()) ||
       (typeof (value as any).label === "string" && (value as any).label.trim()) ||
@@ -87,7 +91,10 @@ export function extractRubroLabel(value: unknown): string | null {
       (typeof (value as any).nombre === "string" && (value as any).nombre.trim()) ||
       (typeof (value as any).name === "string" && (value as any).name.trim()) ||
       (typeof (value as any).label === "string" && (value as any).label.trim()) ||
+      (typeof (value as any).title === "string" && (value as any).title.trim()) ||
       (typeof (value as any).clave === "string" && (value as any).clave.trim()) ||
+      (typeof (value as any).key === "string" && (value as any).key.trim()) ||
+      (typeof (value as any).slug === "string" && (value as any).slug.trim()) ||
       null;
 
     return label;

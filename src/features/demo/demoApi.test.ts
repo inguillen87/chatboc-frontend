@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { demoGetMock, demoPostMock } = vi.hoisted(() => ({
+const { demoGetMock, demoPostMock, findDemoCatalogAssetMock } = vi.hoisted(() => ({
   demoGetMock: vi.fn(),
   demoPostMock: vi.fn(),
+  findDemoCatalogAssetMock: vi.fn(() => null),
 }));
 
 vi.mock('@/api/v2/client', () => ({
@@ -13,7 +14,7 @@ vi.mock('@/api/v2/client', () => ({
 }));
 
 vi.mock('@/data/demoCatalogAssets', () => ({
-  findDemoCatalogAsset: vi.fn(() => null),
+  findDemoCatalogAsset: findDemoCatalogAssetMock,
 }));
 
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
@@ -28,6 +29,8 @@ describe('demo session API', () => {
   beforeEach(() => {
     demoGetMock.mockReset();
     demoPostMock.mockReset();
+    findDemoCatalogAssetMock.mockReset();
+    findDemoCatalogAssetMock.mockReturnValue(null);
     safeLocalStorage.clear();
   });
 
@@ -59,6 +62,41 @@ describe('demo session API', () => {
     expect(safeLocalStorage.getItem('tenantSlug')).toBe('colegio-pago');
     expect(safeLocalStorage.getItem('chat_session_id')).toBeNull();
     expect(safeLocalStorage.getItem('chatboc_chat_session_id')).toBeNull();
+  });
+
+  it('accepts backend-canonicalized demo tenants when sector and rubro match the selector', async () => {
+    findDemoCatalogAssetMock.mockImplementation((key: unknown) =>
+      String(key) === 'catalogo_demo_colegios' ? { sector: 'educacion' } : null,
+    );
+    demoPostMock.mockResolvedValue({
+      contract_version: 'demo.session.v2',
+      demo_session_id: 'demo-token-edu',
+      chat_session_id: 'sid_demo_educacion_123',
+      tenant_slug: 'qa-colegio-sandbox',
+      tenant: { slug: 'qa-colegio-sandbox', tipo: 'pyme' },
+      workspace: {
+        catalog_resources: [{ id: 'catalogo_demo_colegios' }],
+        chat_bootstrap: {
+          endpoint: '/api/ask/pyme',
+          payload: {
+            vertical: 'educacion',
+            rubro: 'colegios',
+            tenant_slug: 'qa-colegio-sandbox',
+          },
+        },
+      },
+    });
+
+    const response = await createDemoSession({
+      sector: 'educacion',
+      tenant_slug: 'colegio-demo',
+      rubro: 'colegios',
+    });
+
+    expect(response.tenant_slug).toBe('qa-colegio-sandbox');
+    expect(safeLocalStorage.getItem(DEMO_SESSION_STORAGE_KEY)).toBe('demo-token-edu');
+    expect(safeLocalStorage.getItem(DEMO_CHAT_SESSION_STORAGE_KEY)).toBe('sid_demo_educacion_123');
+    expect(safeLocalStorage.getItem(DEMO_TENANT_STORAGE_KEY)).toBe('qa-colegio-sandbox');
   });
 });
 

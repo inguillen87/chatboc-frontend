@@ -10,6 +10,24 @@ interface RubroSelectorProps {
   onSelect: (rubro: Rubro) => void;
 }
 
+const getRubroLabel = (rubro: Rubro | any) =>
+  String(
+    rubro?.demo?.nombre ||
+      rubro?.nombre ||
+      rubro?.label ||
+      rubro?.title ||
+      rubro?.name ||
+      rubro?.key ||
+      rubro?.slug ||
+      '',
+  ).trim();
+
+const getRubroDescription = (rubro: Rubro | any) =>
+  String(rubro?.demo?.descripcion || rubro?.descripcion || rubro?.description || rubro?.subtitle || '').trim();
+
+const getRubroDemoPreview = (rubro: Rubro | any): TenantDemoSummary['widget_preview'] | undefined =>
+  rubro?.demo?.widget_preview || rubro?.widget_preview || rubro?.preview || undefined;
+
 const RubroSelector: React.FC<RubroSelectorProps> = ({ rubros, onSelect }) => {
   const getPreviewClass = (preset?: string) => {
     if (!preset) return 'border-primary/10 hover:border-primary/30 hover:bg-primary/10';
@@ -36,8 +54,10 @@ const RubroSelector: React.FC<RubroSelectorProps> = ({ rubros, onSelect }) => {
   const uniqueRubros = useMemo(() => {
     const mergedMap = new Map<string, Rubro>();
 
-    rubros.forEach(r => {
-        const key = r.nombre.trim().toLowerCase();
+    rubros.forEach((r, index) => {
+        const label = getRubroLabel(r);
+        if (!label) return;
+        const key = String((r as any).id ?? (r as any).key ?? (r as any).slug ?? label ?? index).trim().toLowerCase();
         if (mergedMap.has(key)) {
             // Merge subrubros if existing
             const existing = mergedMap.get(key)!;
@@ -59,44 +79,68 @@ const RubroSelector: React.FC<RubroSelectorProps> = ({ rubros, onSelect }) => {
       <Accordion type="single" collapsible className="w-full space-y-2">
         {uniqueRubros.map((root) => (
           <AccordionItem
-            key={root.id}
-            value={String(root.id)}
+            key={String((root as any).id ?? (root as any).key ?? (root as any).slug ?? getRubroLabel(root))}
+            value={String((root as any).id ?? (root as any).key ?? (root as any).slug ?? getRubroLabel(root))}
             className="border border-primary/20 bg-gradient-to-r from-primary/[0.06] via-background to-secondary/10 rounded-xl px-2 shadow-sm backdrop-blur"
           >
             <AccordionTrigger className="capitalize text-base font-semibold py-3 hover:no-underline px-1 transition-colors hover:text-primary">
-                {root.nombre}
+                {getRubroLabel(root)}
             </AccordionTrigger>
             <AccordionContent className="pb-3 pt-1">
               {/* Level 1: Subcategories */}
               {Array.isArray(root.subrubros) && root.subrubros.length > 0 ? (
                 <div className="space-y-4">
+                  {(root.demo || getRubroDescription(root)) ? (
+                    <motion.div whileHover={{ scale: 1.02, y: -1 }} whileTap={{ scale: 0.98 }}>
+                      <Button
+                        variant="secondary"
+                        className={`w-full justify-between h-auto py-2 px-3 bg-background/80 border text-left whitespace-normal rounded-lg shadow-sm hover:shadow-md transition-all ${getPreviewClass(getRubroDemoPreview(root)?.preset)}`}
+                        style={getPreviewStyle(getRubroDemoPreview(root))}
+                        onClick={() => onSelect(root)}
+                        data-widget-preset={getRubroDemoPreview(root)?.preset}
+                        data-motion-level={getRubroDemoPreview(root)?.motion_level}
+                        data-gradient-start={getRubroDemoPreview(root)?.gradient_start}
+                        data-gradient-end={getRubroDemoPreview(root)?.gradient_end}
+                      >
+                        <div className="flex flex-col items-start gap-0.5">
+                          <span className="font-medium text-sm">{getRubroLabel(root)}</span>
+                          {getRubroDescription(root) && (
+                            <span className="text-[10px] text-muted-foreground line-clamp-1 font-normal">
+                              {getRubroDescription(root)}
+                            </span>
+                          )}
+                        </div>
+                        <ChevronRight className="h-4 w-4 text-muted-foreground/50" />
+                      </Button>
+                    </motion.div>
+                  ) : null}
                   {root.subrubros.map((level1) => (
                     <div key={level1.id} className="space-y-2">
                         {/* Only show header if it has children (Level 2 items) */}
                         {level1.subrubros && level1.subrubros.length > 0 ? (
                             <>
                                 <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider pl-1 border-b pb-1 mb-2">
-                                    {level1.nombre}
+                                    {getRubroLabel(level1)}
                                 </h4>
                                 <div className="grid grid-cols-1 gap-2">
                                     {level1.subrubros.map((level2) => (
-                                        level2.demo ? (
-                                            <motion.div key={level2.id} whileHover={{ scale: 1.02, y: -1 }} whileTap={{ scale: 0.98 }}>
+                                        (level2.demo || getRubroDescription(level2)) ? (
+                                            <motion.div key={(level2 as any).id ?? (level2 as any).key ?? (level2 as any).slug ?? getRubroLabel(level2)} whileHover={{ scale: 1.02, y: -1 }} whileTap={{ scale: 0.98 }}>
                                                 <Button
                                                     variant="secondary"
-                                                    className={`w-full justify-between h-auto py-2 px-3 bg-background/80 border text-left whitespace-normal rounded-lg shadow-sm hover:shadow-md transition-all ${getPreviewClass(level2.demo.widget_preview?.preset)}`}
-                                                    style={getPreviewStyle(level2.demo.widget_preview)}
+                                                    className={`w-full justify-between h-auto py-2 px-3 bg-background/80 border text-left whitespace-normal rounded-lg shadow-sm hover:shadow-md transition-all ${getPreviewClass(getRubroDemoPreview(level2)?.preset)}`}
+                                                    style={getPreviewStyle(getRubroDemoPreview(level2))}
                                                     onClick={() => onSelect(level2)}
-                                                    data-widget-preset={level2.demo.widget_preview?.preset}
-                                                    data-motion-level={level2.demo.widget_preview?.motion_level}
-                                                    data-gradient-start={level2.demo.widget_preview?.gradient_start}
-                                                    data-gradient-end={level2.demo.widget_preview?.gradient_end}
+                                                    data-widget-preset={getRubroDemoPreview(level2)?.preset}
+                                                    data-motion-level={getRubroDemoPreview(level2)?.motion_level}
+                                                    data-gradient-start={getRubroDemoPreview(level2)?.gradient_start}
+                                                    data-gradient-end={getRubroDemoPreview(level2)?.gradient_end}
                                                 >
                                                     <div className="flex flex-col items-start gap-0.5">
-                                                        <span className="font-medium text-sm">{level2.demo.nombre || level2.nombre}</span>
-                                                        {level2.demo.descripcion && (
+                                                        <span className="font-medium text-sm">{getRubroLabel(level2)}</span>
+                                                        {getRubroDescription(level2) && (
                                                             <span className="text-[10px] text-muted-foreground line-clamp-1 font-normal">
-                                                                {level2.demo.descripcion}
+                                                                {getRubroDescription(level2)}
                                                             </span>
                                                         )}
                                                     </div>
@@ -107,24 +151,24 @@ const RubroSelector: React.FC<RubroSelectorProps> = ({ rubros, onSelect }) => {
                                     ))}
                                 </div>
                             </>
-                        ) : level1.demo ? (
+                        ) : (level1.demo || getRubroLabel(level1)) ? (
                             // Direct Level 1 Item (no subcategories, just a demo itself)
                             <motion.div whileHover={{ scale: 1.02, y: -1 }} whileTap={{ scale: 0.98 }}>
                                 <Button
                                     variant="secondary"
-                                    className={`w-full justify-between h-auto py-2 px-3 bg-background/80 border text-left whitespace-normal rounded-lg shadow-sm hover:shadow-md transition-all ${getPreviewClass(level1.demo.widget_preview?.preset)}`}
-                                    style={getPreviewStyle(level1.demo.widget_preview)}
+                                    className={`w-full justify-between h-auto py-2 px-3 bg-background/80 border text-left whitespace-normal rounded-lg shadow-sm hover:shadow-md transition-all ${getPreviewClass(getRubroDemoPreview(level1)?.preset)}`}
+                                    style={getPreviewStyle(getRubroDemoPreview(level1))}
                                     onClick={() => onSelect(level1)}
-                                    data-widget-preset={level1.demo.widget_preview?.preset}
-                                    data-motion-level={level1.demo.widget_preview?.motion_level}
-                                    data-gradient-start={level1.demo.widget_preview?.gradient_start}
-                                    data-gradient-end={level1.demo.widget_preview?.gradient_end}
+                                    data-widget-preset={getRubroDemoPreview(level1)?.preset}
+                                    data-motion-level={getRubroDemoPreview(level1)?.motion_level}
+                                    data-gradient-start={getRubroDemoPreview(level1)?.gradient_start}
+                                    data-gradient-end={getRubroDemoPreview(level1)?.gradient_end}
                                 >
                                     <div className="flex flex-col items-start gap-0.5">
-                                        <span className="font-medium text-sm">{level1.demo.nombre || level1.nombre}</span>
-                                        {level1.demo.descripcion && (
+                                        <span className="font-medium text-sm">{getRubroLabel(level1)}</span>
+                                        {getRubroDescription(level1) && (
                                             <span className="text-[10px] text-muted-foreground line-clamp-1 font-normal">
-                                                {level1.demo.descripcion}
+                                                {getRubroDescription(level1)}
                                             </span>
                                         )}
                                     </div>
@@ -137,9 +181,34 @@ const RubroSelector: React.FC<RubroSelectorProps> = ({ rubros, onSelect }) => {
                 </div>
               ) : (
                 // Fallback for roots without subcategories (direct items?)
-                <div className="text-sm text-muted-foreground p-2">
+                (root.demo || getRubroLabel(root)) ? (
+                  <motion.div whileHover={{ scale: 1.02, y: -1 }} whileTap={{ scale: 0.98 }}>
+                    <Button
+                      variant="secondary"
+                      className={`w-full justify-between h-auto py-2 px-3 bg-background/80 border text-left whitespace-normal rounded-lg shadow-sm hover:shadow-md transition-all ${getPreviewClass(getRubroDemoPreview(root)?.preset)}`}
+                      style={getPreviewStyle(getRubroDemoPreview(root))}
+                      onClick={() => onSelect(root)}
+                      data-widget-preset={getRubroDemoPreview(root)?.preset}
+                      data-motion-level={getRubroDemoPreview(root)?.motion_level}
+                      data-gradient-start={getRubroDemoPreview(root)?.gradient_start}
+                      data-gradient-end={getRubroDemoPreview(root)?.gradient_end}
+                    >
+                      <div className="flex flex-col items-start gap-0.5">
+                        <span className="font-medium text-sm">{getRubroLabel(root)}</span>
+                        {getRubroDescription(root) && (
+                          <span className="text-[10px] text-muted-foreground line-clamp-1 font-normal">
+                            {getRubroDescription(root)}
+                          </span>
+                        )}
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground/50" />
+                    </Button>
+                  </motion.div>
+                ) : (
+                  <div className="text-sm text-muted-foreground p-2">
                     No hay opciones disponibles.
-                </div>
+                  </div>
+                )
               )}
             </AccordionContent>
           </AccordionItem>

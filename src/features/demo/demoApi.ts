@@ -177,10 +177,6 @@ const isDemoSessionAlignedWithSelection = (response: DemoSessionResponse, payloa
     .map((value) => String(value ?? '').trim())
     .find((value) => value.length > 0);
   const requestedSector = requestedSectorRaw ? normalizeDemoSector(requestedSectorRaw) : null;
-  const requestedTenant = payload.tenant_slug?.trim();
-  const responseTenant = response.tenant_slug ?? response.tenant?.slug ?? null;
-
-  if (requestedTenant && responseTenant && requestedTenant !== responseTenant) return false;
 
   const responsePayload = response.workspace?.chat_bootstrap?.payload ?? response.chat_bootstrap?.payload ?? {};
   const explicitVertical = String(
