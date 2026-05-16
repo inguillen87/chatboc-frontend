@@ -1,7 +1,24 @@
 import React from 'react';
-import { AlertTriangle, BarChart3, CheckCircle2, Smartphone } from 'lucide-react';
+import {
+  AlertTriangle,
+  BarChart3,
+  BookOpen,
+  CheckCircle2,
+  Clock3,
+  ExternalLink,
+  FileText,
+  HelpCircle,
+  MapPin,
+  PackageCheck,
+  Phone,
+  ShoppingCart,
+  Smartphone,
+  Tags,
+  Wrench,
+} from 'lucide-react';
 import ChatPanel from '@/features/chat/ChatPanel';
 import type { DemoSector, DemoWorkspaceConfig } from './demoTypes';
+import { normalizeDemoRubroTools, type NormalizedDemoRubroTool } from './demoTools';
 
 const readSectorLabel = (sector?: DemoSector | null) => (sector ? String(sector) : null);
 
@@ -44,6 +61,99 @@ const readRuntimeUnavailableState = (workspace: DemoWorkspaceConfig | null | und
   };
 };
 
+const getToolIcon = (kind: string) => {
+  if (kind.includes('catalog') || kind.includes('product')) return ShoppingCart;
+  if (kind.includes('price') || kind.includes('precio') || kind.includes('promo')) return Tags;
+  if (kind.includes('location') || kind.includes('ubic') || kind.includes('map')) return MapPin;
+  if (kind.includes('hour') || kind.includes('horario') || kind.includes('schedule')) return Clock3;
+  if (kind.includes('phone') || kind.includes('telefono') || kind.includes('whatsapp')) return Phone;
+  if (kind.includes('faq') || kind.includes('consulta') || kind.includes('question')) return HelpCircle;
+  if (kind.includes('file') || kind.includes('pdf') || kind.includes('document')) return FileText;
+  if (kind.includes('tracking') || kind.includes('pedido') || kind.includes('order')) return PackageCheck;
+  if (kind.includes('guide') || kind.includes('playbook')) return BookOpen;
+  return Wrench;
+};
+
+const DemoRubroToolsPanel = ({
+  workspace,
+  tools,
+}: {
+  workspace?: DemoWorkspaceConfig | null;
+  tools: NormalizedDemoRubroTool[];
+}) => {
+  if (!tools.length) return null;
+
+  const title = readWorkspaceLabel(
+    workspace,
+    ['rubro_tools_title', 'tools_title', 'toolkit_title'],
+    'Herramientas del rubro',
+  );
+  const description = readWorkspaceLabel(
+    workspace,
+    ['rubro_tools_description', 'tools_description', 'toolkit_description'],
+    'Catalogo, precios, ubicacion, horarios y consultas disponibles para esta demo.',
+  );
+
+  return (
+    <section className="rounded-2xl border bg-background/80 p-4 shadow-sm">
+      <div className="mb-3">
+        <p className="text-sm font-semibold text-foreground">{title}</p>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">{description}</p>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {tools.map((tool) => {
+          const Icon = getToolIcon(tool.kind);
+          const isExternal = Boolean(tool.actionHref && /^https?:\/\//i.test(tool.actionHref));
+
+          return (
+            <article key={tool.id} className="rounded-xl border bg-card/70 p-3">
+              <div className="flex items-start gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <Icon className="h-4 w-4" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-sm font-semibold text-foreground">{tool.label}</p>
+                    {tool.statusLabel ? (
+                      <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
+                        {tool.statusLabel}
+                      </span>
+                    ) : null}
+                  </div>
+                  {tool.description ? (
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">{tool.description}</p>
+                  ) : null}
+                  {tool.fields.length ? (
+                    <dl className="mt-2 grid gap-1 text-xs">
+                      {tool.fields.slice(0, 4).map((field) => (
+                        <div key={`${tool.id}-${field.label}`} className="flex justify-between gap-3">
+                          <dt className="text-muted-foreground">{field.label}</dt>
+                          <dd className="text-right font-medium text-foreground">{field.value}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  ) : null}
+                  {tool.actionHref && tool.actionLabel ? (
+                    <a
+                      href={tool.actionHref}
+                      target={isExternal ? '_blank' : undefined}
+                      rel={isExternal ? 'noreferrer' : undefined}
+                      className="mt-3 inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    >
+                      {tool.actionLabel}
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                  ) : null}
+                </div>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+};
+
 export default function DemoWorkspace({
   tenantSlug,
   sector,
@@ -67,6 +177,7 @@ export default function DemoWorkspace({
   const educationQuickMenu = Array.isArray(workspace?.education?.quick_menu)
     ? workspace.education.quick_menu
     : null;
+  const rubroTools = normalizeDemoRubroTools(workspace);
   const runtimeAvailable = hasChatRuntime(workspace);
   const runtimeUnavailable = readRuntimeUnavailableState(workspace);
   const chatTitle = readWorkspaceLabel(
@@ -172,6 +283,8 @@ export default function DemoWorkspace({
           ))}
         </div>
       </section>
+
+      <DemoRubroToolsPanel workspace={workspace} tools={rubroTools} />
 
       {valueCards.length ? (
         <div className="grid gap-2 text-xs sm:grid-cols-2">

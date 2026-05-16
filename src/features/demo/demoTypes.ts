@@ -203,6 +203,60 @@ export interface DemoWorkspaceCard {
   cta_label?: string | null;
 }
 
+export interface DemoRubroToolField {
+  label?: string | null;
+  value?: string | number | boolean | null;
+  [key: string]: unknown;
+}
+
+export interface DemoRubroToolLocation {
+  label?: string | null;
+  address?: string | null;
+  direccion?: string | null;
+  lat?: string | number | null;
+  lng?: string | number | null;
+  latitude?: string | number | null;
+  longitude?: string | number | null;
+  maps_url?: string | null;
+  google_maps_url?: string | null;
+  [key: string]: unknown;
+}
+
+export interface DemoRubroTool {
+  id?: string | null;
+  key?: string | null;
+  kind?: string | null;
+  type?: string | null;
+  label?: string | null;
+  title?: string | null;
+  name?: string | null;
+  description?: string | null;
+  detail?: string | null;
+  status?: string | null;
+  status_label?: string | null;
+  enabled?: boolean | null;
+  cta_label?: string | null;
+  action_label?: string | null;
+  url?: string | null;
+  href?: string | null;
+  action_url?: string | null;
+  endpoint?: string | null;
+  method?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  address?: string | null;
+  direccion?: string | null;
+  lat?: string | number | null;
+  lng?: string | number | null;
+  latitude?: string | number | null;
+  longitude?: string | number | null;
+  maps_url?: string | null;
+  google_maps_url?: string | null;
+  fields?: DemoRubroToolField[] | Record<string, unknown> | null;
+  location?: DemoRubroToolLocation | null;
+  [key: string]: unknown;
+}
+
 export interface DemoCatalogResource {
   id?: string | null;
   key?: string | null;
@@ -239,6 +293,14 @@ export interface DemoWorkspaceConfig {
       capabilities?: RealtimeVoiceCapabilities | null;
       [key: string]: unknown;
     } | null;
+    [key: string]: unknown;
+  } | null;
+  rubro_tools?: DemoRubroTool[] | null;
+  business_tools?: DemoRubroTool[] | null;
+  operational_tools?: DemoRubroTool[] | null;
+  tools?: DemoRubroTool[] | null;
+  toolkit?: {
+    tools?: DemoRubroTool[] | null;
     [key: string]: unknown;
   } | null;
   education?: {
