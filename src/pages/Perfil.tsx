@@ -90,6 +90,7 @@ import UsuariosPage from '@/pages/UsuariosPage';
 import SmartPedidosWrapper from '@/pages/SmartPedidosWrapper';
 import InternalUsers from '@/pages/InternalUsers';
 import IncidentsMap from '@/pages/IncidentsMap';
+import BackofficeCommandCenter from '@/components/backoffice/BackofficeCommandCenter';
 import { getTicketStats, getHeatmapPoints, HeatmapDataset } from "@/services/statsService";
 import AnalyticsHeatmap from "@/components/analytics/Heatmap";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
@@ -1707,6 +1708,7 @@ export default function Perfil() {
   const renderedSecondaryControlCards = controlCardsFromBackend
     ? backendControlCards.slice(4)
     : secondaryControlCards;
+  const backofficeScope = esMunicipio ? 'municipio' : user?.tipo_chat || perfil.rubro || 'pyme';
 
   return (
     <div className="flex min-h-screen flex-col bg-background px-2 py-6 text-foreground dark:bg-gradient-to-tr dark:from-slate-950 dark:to-slate-900 sm:px-4 md:px-6 lg:px-8">
@@ -1795,6 +1797,8 @@ export default function Perfil() {
             </CardContent>
           </Card>
         </div>
+
+        <BackofficeCommandCenter tenantSlug={derivedTenantSlug} scope={backofficeScope} />
       </section>
 
       <Tabs value={activeProfileTab} onValueChange={(value) => updateProfileTab(value as ProfileTabValue)} className="w-full max-w-7xl mx-auto">
