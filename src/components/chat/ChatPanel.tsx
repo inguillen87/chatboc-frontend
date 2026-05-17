@@ -3135,6 +3135,7 @@ const ChatPanel = (props: ChatPanelProps) => {
     () =>
       mergeButtons(
         defaultMenu,
+        quickMenu,
         chatBootstrap?.default_menu,
         chatBootstrap?.quick_menu,
         chatBootstrap?.payload?.default_menu,
@@ -3143,6 +3144,7 @@ const ChatPanel = (props: ChatPanelProps) => {
       ),
     [
       defaultMenu,
+      quickMenu,
       chatBootstrap?.default_menu,
       chatBootstrap?.quick_menu,
       chatBootstrap?.payload?.default_menu,
@@ -3908,6 +3910,7 @@ const ChatPanel = (props: ChatPanelProps) => {
                           handleSend({
                             text: item.texto,
                             action: item.action || item.action_id || item.accion_interna || undefined,
+                            action_id: item.action_id || undefined,
                             payload: item.payload,
                             source: "button",
                           })

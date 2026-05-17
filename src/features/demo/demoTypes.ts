@@ -350,6 +350,7 @@ export interface DemoWorkspaceConfig {
   } | null;
   education?: {
     profile?: Record<string, unknown> | null;
+    primary_actions?: unknown[] | null;
     quick_menu?: unknown[] | null;
     whatsapp_playbook?: Record<string, unknown> | null;
     admin_menu?: Record<string, unknown> | null;
@@ -435,6 +436,7 @@ export interface DemoWhatsappSandboxResponse {
       [key: string]: unknown;
     } | null;
     scenario_scripts?: DemoWhatsappSandboxScript[];
+    whatsapp_playbook?: Record<string, unknown> | null;
     catalog?: {
       resources?: DemoWhatsappSandboxResource[];
       pdf_excel_upload_demo?: {

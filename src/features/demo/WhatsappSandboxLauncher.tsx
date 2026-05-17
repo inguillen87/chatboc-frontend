@@ -66,6 +66,71 @@ const scriptTitle = (script: DemoWhatsappSandboxScript) =>
 const scriptBody = (script: DemoWhatsappSandboxScript) =>
   readText(script.message, script.text, script.prompt, script.description);
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+const readArray = (source: unknown, key: string) => {
+  if (!isRecord(source)) return [];
+  const value = source[key];
+  return Array.isArray(value) ? value : [];
+};
+
+const normalizePlaybookScript = (value: unknown, index: number): DemoWhatsappSandboxScript | null => {
+  if (typeof value === 'string' && value.trim()) {
+    return { id: `playbook-${index}`, label: value.trim(), message: value.trim() };
+  }
+  if (!isRecord(value)) return null;
+  const label = readText(value.label, value.title, value.name, value.text, value.message, value.prompt);
+  if (!label) return null;
+  return {
+    id: readText(value.id, value.key, value.action_id, value.intent) ?? `playbook-${index}`,
+    key: readText(value.key, value.action_id, value.intent),
+    label,
+    title: readText(value.title, value.label),
+    message: readText(value.message, value.text, value.prompt, value.description),
+    text: readText(value.text, value.message, value.prompt),
+    prompt: readText(value.prompt),
+    description: readText(value.description, value.detail, value.subtitle),
+    raw: value,
+  };
+};
+
+const collectPlaybookScripts = (launcher: DemoWhatsappSandboxResponse | null) => {
+  const sandbox = launcher?.whatsapp_sandbox;
+  const candidates = [
+    (sandbox as Record<string, unknown> | null | undefined)?.whatsapp_playbook,
+    isRecord((sandbox as Record<string, unknown> | null | undefined)?.education)
+      ? ((sandbox as Record<string, unknown>).education as Record<string, unknown>).whatsapp_playbook
+      : null,
+    isRecord((launcher as Record<string, unknown> | null | undefined)?.education)
+      ? ((launcher as Record<string, unknown>).education as Record<string, unknown>).whatsapp_playbook
+      : null,
+    isRecord((launcher as Record<string, unknown> | null | undefined)?.workspace) &&
+    isRecord(((launcher as Record<string, unknown>).workspace as Record<string, unknown>).education)
+      ? (((launcher as Record<string, unknown>).workspace as Record<string, unknown>).education as Record<string, unknown>)
+          .whatsapp_playbook
+      : null,
+  ];
+
+  const seen = new Set<string>();
+  return candidates.flatMap((playbook) =>
+    [
+      ...readArray(playbook, 'primary_actions'),
+      ...readArray(playbook, 'quick_menu'),
+      ...readArray(playbook, 'actions'),
+      ...readArray(playbook, 'starter_messages'),
+    ]
+      .map(normalizePlaybookScript)
+      .filter((item): item is DemoWhatsappSandboxScript => Boolean(item))
+      .filter((item) => {
+        const key = readText(item.key, item.id, item.label, item.title);
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      }),
+  );
+};
+
 const resourceLabel = (resource: DemoWhatsappSandboxResource) =>
   readText(resource.label, resource.title, resource.id, resource.key, resource.type, resource.kind);
 
@@ -135,6 +200,15 @@ export default function WhatsappSandboxLauncher({
   const trialPolicy = launcher?.whatsapp_sandbox?.trial_policy ?? null;
   const options = launcher?.whatsapp_sandbox?.rubro_options ?? [];
   const scripts = (launcher?.whatsapp_sandbox?.scenario_scripts ?? []).filter((script) => scriptTitle(script));
+  const playbookScripts = collectPlaybookScripts(launcher);
+  const displayScripts = [...playbookScripts, ...scripts].filter((script, index, all) => {
+    const key = readText(script.key, script.id, script.label, script.title) ?? `script-${index}`;
+    return all.findIndex((candidate, candidateIndex) => {
+      const candidateKey =
+        readText(candidate.key, candidate.id, candidate.label, candidate.title) ?? `script-${candidateIndex}`;
+      return candidateKey === key;
+    }) === index;
+  });
   const catalog = launcher?.whatsapp_sandbox?.catalog ?? null;
   const catalogResources = Array.isArray(catalog?.resources)
     ? catalog.resources.filter((resource) => resourceLabel(resource))
@@ -338,11 +412,11 @@ export default function WhatsappSandboxLauncher({
             </div>
           ) : null}
 
-          {scripts.length ? (
+          {displayScripts.length ? (
             <div className="mt-5 rounded-2xl border bg-background/70 p-4">
               <p className="text-sm font-semibold text-foreground">Scripts sugeridos</p>
               <div className="mt-3 grid gap-2">
-                {scripts.slice(0, 4).map((script, index) => {
+                {displayScripts.slice(0, 4).map((script, index) => {
                   const title = scriptTitle(script);
                   const body = scriptBody(script);
                   if (!title) return null;
@@ -403,7 +477,7 @@ export default function WhatsappSandboxLauncher({
                     key={readText(resource.id, resource.key, label) ?? index}
                     href={href}
                     target="_blank"
-                    rel="noreferrer"
+                    rel="noopener noreferrer"
                     className="mt-2 block rounded-xl border bg-card px-3 py-2 text-xs font-medium text-foreground hover:border-primary/40"
                   >
                     {label}
@@ -432,7 +506,7 @@ export default function WhatsappSandboxLauncher({
                 <a
                   href={surveyUrl}
                   target="_blank"
-                  rel="noreferrer"
+                  rel="noopener noreferrer"
                   className="mt-3 inline-flex text-xs font-semibold text-primary hover:underline"
                 >
                   Abrir

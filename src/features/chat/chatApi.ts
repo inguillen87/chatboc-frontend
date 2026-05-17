@@ -1,5 +1,6 @@
 import { panelApi } from '@/api/v2/client';
 import { ApiError, apiFetch } from '@/utils/api';
+import { getOrCreateAnonId } from '@/utils/anonIdGenerator';
 import { createLeadCaptureIdempotencyKey } from '@/utils/leadCapture';
 import type { ChatBootstrapConfig, ChatRatingValue } from './chatTypes';
 import type { ChatLeadCaptureConfig } from '@/types/chat';
@@ -16,6 +17,7 @@ export interface ChatBootstrapMessagePayload {
   audioFilename?: string;
   audioField?: string;
   audioEndpoint?: string;
+  action_id?: string | null;
   extraPayload?: Record<string, unknown>;
 }
 
@@ -418,11 +420,16 @@ const getBootstrapSessionValues = (bootstrap: ChatBootstrapConfig) => {
     ?? readBootstrapString(bootstrap.payload, ['tenant_slug', 'tenant', 'slug'])
     ?? readBootstrapString(bootstrap.query, ['tenant_slug', 'tenant', 'slug'])
     ?? readBootstrapString(headers, ['X-Tenant-Slug']);
+  const anonId =
+    readBootstrapString(bootstrap.payload, ['anon_id', 'anonId'])
+    ?? readBootstrapString(bootstrap.query, ['anon_id', 'anonId'])
+    ?? readBootstrapString(headers, ['X-Anon-Id', 'X-Anonymous-Id']);
 
   return {
     chatSessionId,
     demoSessionId,
     tenantSlug,
+    anonId,
   };
 };
 
@@ -431,7 +438,7 @@ const normalizeBootstrapHeaders = (bootstrap: ChatBootstrapConfig) => {
   if (headers['X-Chat-Session-Id'] && !readShortChatSessionId(headers['X-Chat-Session-Id'])) {
     delete headers['X-Chat-Session-Id'];
   }
-  const { chatSessionId, demoSessionId, tenantSlug } = getBootstrapSessionValues(bootstrap);
+  const { chatSessionId, demoSessionId, tenantSlug, anonId } = getBootstrapSessionValues(bootstrap);
 
   if (demoSessionId) {
     headers['X-Demo-Session-Id'] ||= demoSessionId;
@@ -442,6 +449,10 @@ const normalizeBootstrapHeaders = (bootstrap: ChatBootstrapConfig) => {
   }
   if (tenantSlug) {
     headers['X-Tenant-Slug'] ||= tenantSlug;
+  }
+  const resolvedAnonId = anonId || getOrCreateAnonId();
+  if (resolvedAnonId) {
+    headers['X-Anon-Id'] ||= resolvedAnonId;
   }
 
   return Object.keys(headers).length ? headers : undefined;
@@ -500,6 +511,7 @@ const buildJsonPayload = (bootstrap: ChatBootstrapConfig, payload: ChatBootstrap
   basePayload.pregunta = text;
 
   if (payload.intent) basePayload.intent = payload.intent;
+  if (payload.action_id) basePayload.action_id = payload.action_id;
   if (payload.payload) basePayload.payload = payload.payload;
   if (payload.attachmentInfo) basePayload.attachmentInfo = payload.attachmentInfo;
   if (payload.location) {

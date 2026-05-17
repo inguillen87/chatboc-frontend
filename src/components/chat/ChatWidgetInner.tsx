@@ -158,6 +158,44 @@ const pickMenuSource = (...sources: unknown[]) => {
   return null;
 };
 
+const isEducationWorkspace = (workspace: any, sector?: string | null) =>
+  sector === "educacion" ||
+  workspace?.experience_blueprint?.experience_type === "education" ||
+  workspace?.education_profile?.is_education === true ||
+  workspace?.education?.education_profile?.is_education === true ||
+  workspace?.education?.profile?.is_education === true;
+
+const mergeActionMenus = (...sources: unknown[]) => {
+  const seen = new Set<string>();
+  const items: unknown[] = [];
+
+  sources.forEach((source) => {
+    const list = Array.isArray(source) ? source : [];
+    list.forEach((item) => {
+      if (!isPlainRecord(item)) return;
+      const key = readFirstString(item.action_id, item.action, item.intent, item.id, item.key, item.label, item.title);
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      items.push(item);
+    });
+  });
+
+  return items;
+};
+
+const readEducationQuickMenu = (workspace: any) => {
+  return mergeActionMenus(
+    workspace?.education?.primary_actions,
+    workspace?.education?.quick_menu,
+    workspace?.education_profile?.primary_actions,
+    workspace?.education_profile?.quick_menu,
+    workspace?.education?.whatsapp_playbook?.primary_actions,
+    workspace?.education?.whatsapp_playbook?.quick_menu,
+    workspace?.education?.whatsapp_playbook?.actions,
+    workspace?.experience_blueprint?.conversion_ctas?.actions,
+  );
+};
+
 function normalizeCtaMessages(rawMessages: any): string[] {
   if (!Array.isArray(rawMessages)) return [];
 
@@ -482,6 +520,12 @@ function ChatWidgetInner({
 
   const [duplicateInstance, setDuplicateInstance] = useState(false);
   const resolvedOwnerToken = useMemo(() => {
+    const isDemoSessionContext =
+      Boolean(activeDemoTenantSlug) ||
+      entityInfo?.onboarding?.mode === "demo_session" ||
+      entityInfo?.widget_onboarding?.status === "ready";
+    if (isDemoSessionContext && !ownerToken) return null;
+    if (isDemoSessionContext && isPublicPlatformSurface) return null;
     if (ownerToken) return ownerToken;
     return (
       entityInfo?.owner_token ||
@@ -490,7 +534,10 @@ function ChatWidgetInner({
       entityInfo?.token ||
       null
     );
-  }, [entityInfo, ownerToken]);
+  }, [activeDemoTenantSlug, entityInfo, isPublicPlatformSurface, ownerToken]);
+  const openPanelRef = useRef<HTMLDivElement>(null);
+  const launcherButtonRef = useRef<HTMLButtonElement>(null);
+  const lastFocusedElementRef = useRef<HTMLElement | null>(null);
 
   const [isMobileView, setIsMobileView] = useState(
     typeof window !== "undefined" && window.innerWidth < 640
@@ -1210,6 +1257,11 @@ function ChatWidgetInner({
 
     setIsOpen((prevIsOpen) => {
       const nextIsOpen = !prevIsOpen;
+      if (nextIsOpen && typeof document !== "undefined") {
+        lastFocusedElementRef.current = document.activeElement instanceof HTMLElement
+          ? document.activeElement
+          : launcherButtonRef.current;
+      }
       if (!nextIsOpen) {
           safeLocalStorage.setItem('widget_manually_closed', '1');
       }
@@ -1222,6 +1274,61 @@ function ChatWidgetInner({
       }
       return nextIsOpen;
     });
+  }, [isOpen]);
+
+  const handleOpenPanelKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setIsOpen(false);
+      safeLocalStorage.setItem('widget_manually_closed', '1');
+      return;
+    }
+
+    if (event.key !== "Tab") return;
+    const panel = openPanelRef.current;
+    if (!panel) return;
+    const focusables = Array.from(
+      panel.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ),
+    ).filter((element) => element.offsetParent !== null || element === document.activeElement);
+
+    if (!focusables.length) {
+      event.preventDefault();
+      panel.focus();
+      return;
+    }
+
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    const active = document.activeElement;
+    if (event.shiftKey && active === first) {
+      event.preventDefault();
+      last.focus();
+      return;
+    }
+    if (!event.shiftKey && active === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) {
+      lastFocusedElementRef.current?.focus?.();
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      const panel = openPanelRef.current;
+      if (!panel) return;
+      const firstFocusable = panel.querySelector<HTMLElement>(
+        'button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
+      );
+      (firstFocusable ?? panel).focus();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, [isOpen]);
 
   const handleProactiveClick = useCallback(() => {
@@ -1736,6 +1843,25 @@ function ChatWidgetInner({
         sector === "gobierno"
           ? "municipio"
           : "pyme";
+      const educationWorkspace = isEducationWorkspace(workspace, sector);
+      const educationQuickMenu = readEducationQuickMenu(workspace);
+      const primaryDefaultMenu = pickMenuSource(
+        educationWorkspace ? educationQuickMenu : null,
+        workspace.default_menu,
+        workspace.chat_bootstrap?.default_menu,
+        session.widget_onboarding?.default_menu,
+        workspace.quick_menu,
+        workspace.quick_replies,
+      );
+      const primaryQuickMenu = educationWorkspace && educationQuickMenu.length
+        ? educationQuickMenu
+        : Array.isArray((workspace.default_menu as any)?.items)
+          ? (workspace.default_menu as any).items
+          : Array.isArray(workspace.quick_menu)
+            ? workspace.quick_menu
+            : Array.isArray(workspace.quick_replies)
+              ? workspace.quick_replies
+              : educationQuickMenu;
       const nextInfo = {
         ...(entityInfo || {}),
         ...workspace,
@@ -1746,22 +1872,8 @@ function ChatWidgetInner({
         tipo_chat: nextTipo,
         rubro: backendRubro || rubro || entityInfo?.rubro || null,
         rubro_clave: backendRubro || rubro || entityInfo?.rubro_clave || null,
-        default_menu: pickMenuSource(
-          workspace.default_menu,
-          workspace.chat_bootstrap?.default_menu,
-          session.widget_onboarding?.default_menu,
-          workspace.quick_menu,
-          workspace.quick_replies,
-        ),
-        quick_menu: Array.isArray((workspace.default_menu as any)?.items)
-          ? (workspace.default_menu as any).items
-          : Array.isArray(workspace.quick_menu)
-            ? workspace.quick_menu
-            : Array.isArray(workspace.quick_replies)
-              ? workspace.quick_replies
-              : Array.isArray(workspace.education?.quick_menu)
-                ? workspace.education.quick_menu
-                : [],
+        default_menu: primaryDefaultMenu,
+        quick_menu: primaryQuickMenu,
         rubro_context: workspace.rubro_context || null,
         onboarding: {
           ...(entityInfo?.onboarding || {}),
@@ -2779,11 +2891,14 @@ function ChatWidgetInner({
           <SafeAnimatePresence mode="wait" initial={false}>
             {isOpen ? (
             <motion.div
+              ref={openPanelRef}
               key="chatboc-panel-open"
               className={cn(commonPanelStyles, "w-full h-full shadow-xl")}
-              role={isMobileView ? "dialog" : undefined}
-              aria-modal={isMobileView ? "false" : undefined}
+              role="dialog"
+              aria-modal="true"
               aria-label="Chatboc asistente virtual"
+              tabIndex={-1}
+              onKeyDown={handleOpenPanelKeyDown}
               style={{
                   borderRadius: isMobileView
                     ? "24px 24px 0 0"
@@ -2965,6 +3080,7 @@ function ChatWidgetInner({
                 </motion.button>
               )}
               <motion.button
+                ref={launcherButtonRef}
                 key="chatboc-toggle-btn"
                 className={cn(
                   commonButtonStyles,

@@ -174,9 +174,13 @@ export default function DemoWorkspace({
   const analyticsEntries = analyticsSummary
     ? Object.entries(analyticsSummary).filter(([, value]) => value !== null && value !== undefined)
     : [];
-  const educationQuickMenu = Array.isArray(workspace?.education?.quick_menu)
-    ? workspace.education.quick_menu
-    : null;
+  const educationQuickMenu = [
+    ...(Array.isArray(workspace?.education?.primary_actions) ? workspace.education.primary_actions : []),
+    ...(Array.isArray(workspace?.education?.quick_menu) ? workspace.education.quick_menu : []),
+    ...(Array.isArray(workspace?.education?.whatsapp_playbook?.quick_menu)
+      ? workspace.education.whatsapp_playbook.quick_menu
+      : []),
+  ];
   const rubroTools = normalizeDemoRubroTools(workspace);
   const runtimeAvailable = hasChatRuntime(workspace);
   const runtimeUnavailable = readRuntimeUnavailableState(workspace);

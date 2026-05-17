@@ -209,6 +209,56 @@ describe('sendChatBootstrapMessage', () => {
     );
   });
 
+  it('sends education action ids and anon headers through the published chat_bootstrap', async () => {
+    await sendChatBootstrapMessage(
+      {
+        contract_version: 'demo.chat_bootstrap.v1',
+        endpoint: '/api/ask/pyme',
+        method: 'POST',
+        headers: { 'X-Tenant-Slug': 'qa-colegio-sandbox' },
+        payload: {
+          tipo_chat: 'pyme',
+          tenant_slug: 'qa-colegio-sandbox',
+          demo_mode: true,
+          anon_id: 'anon-education-1',
+        },
+        session: {
+          chat_session_id: 'sid_school_case',
+          demo_session_id: 'demo-school-token',
+        },
+      },
+      {
+        text: '',
+        intent: 'create_school_case',
+        action_id: 'create_school_case',
+        extraPayload: {
+          action_id: 'create_school_case',
+          education_context: { is_education: true },
+        },
+      },
+    );
+
+    const [, options] = apiFetchMock.mock.calls[0];
+    expect(options.headers).toEqual(
+      expect.objectContaining({
+        'X-Chat-Session-Id': 'sid_school_case',
+        'X-Demo-Session-Id': 'demo-school-token',
+        'X-Tenant-Slug': 'qa-colegio-sandbox',
+        'X-Anon-Id': 'anon-education-1',
+      }),
+    );
+    expect(options.body).toEqual(
+      expect.objectContaining({
+        pregunta: '',
+        tipo_chat: 'pyme',
+        tenant_slug: 'qa-colegio-sandbox',
+        demo_mode: true,
+        action_id: 'create_school_case',
+        education_context: { is_education: true },
+      }),
+    );
+  });
+
   it('sends shared location with lng for demo municipio runtime', async () => {
     await sendChatBootstrapMessage(
       {
