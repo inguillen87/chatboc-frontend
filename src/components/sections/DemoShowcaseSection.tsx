@@ -340,8 +340,13 @@ const DemoShowcaseSection = () => {
 
                     {cards.length ? (
                       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                        {cards.map((item) => (
-                          <DemoCard key={item.id} item={item as Rubro} sector={sector} group={group} />
+                        {cards.map((item, index) => (
+                          <DemoCard
+                            key={String(item.id ?? item.key ?? item.slug ?? item.rubro_slug ?? `${sector}-${index}`)}
+                            item={item as Rubro}
+                            sector={sector}
+                            group={group}
+                          />
                         ))}
                       </div>
                     ) : (

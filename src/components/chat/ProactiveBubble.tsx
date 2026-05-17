@@ -29,15 +29,11 @@ const ProactiveBubble: React.FC<ProactiveBubbleProps> = ({
       onClick={onClick}
       role="alert"
       aria-live="polite"
-      style={{
-        animation: 'float 3s ease-in-out infinite',
-      }}
     >
       <div
         className="relative bg-primary text-primary-foreground px-4 py-3 rounded-lg shadow-lg font-semibold transition-colors duration-300"
         style={{
             boxShadow: 'var(--shadow)',
-            animation: 'pulse-shadow 3s ease-in-out infinite',
         }}
       >
         <span className="block">{message}</span>

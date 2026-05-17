@@ -100,6 +100,7 @@ import {
   trackFrontendEvent,
 } from "@/utils/frontendTelemetry";
 import { mergeButtons } from "@/utils/chatButtons";
+import { getVisitorName } from "@/utils/visitorName";
 import type { RealtimeVoiceCapabilities } from "@/types/realtimeVoice";
 import {
   getRealtimeNetworkLabel,
@@ -598,6 +599,9 @@ type NormalizedRubroTool = {
   description: string;
   url: string;
   urlLabel: string;
+  actionId: string;
+  payload: Record<string, unknown>;
+  behavior: "external" | "chat";
   lines: string[];
 };
 
@@ -656,6 +660,55 @@ const readHoursLine = (hours: unknown) => {
   }
 
   return "";
+};
+
+const isDownloadableRubroTool = (
+  id: string,
+  kind: string,
+  label: string,
+  url: string,
+  resource?: Record<string, unknown>,
+) => {
+  if (!url) return false;
+  const haystack = [
+    id,
+    kind,
+    label,
+    readFirstString(resource?.kind, resource?.type, resource?.label, resource?.title, resource?.name),
+    url,
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  if (
+    [
+      "catalog",
+      "catalogo",
+      "catálogo",
+      "price",
+      "precio",
+      "precios",
+      "promo",
+      "stock",
+      "lista",
+      "resource",
+      "recurso",
+      "download",
+      "descarga",
+      "pdf",
+      "excel",
+      "xlsx",
+      "xls",
+      "csv",
+      "doc",
+      "document",
+      "archivo",
+    ].some((token) => haystack.includes(token))
+  ) {
+    return true;
+  }
+
+  return /\.(pdf|xlsx?|csv|docx?|pptx?|zip)(?:[?#]|$)/i.test(url);
 };
 
 const normalizeRubroToolFieldValue = (value: unknown) => {
@@ -743,6 +796,16 @@ const normalizeRubroToolTray = (
         readLocationUrl(firstLocation) ||
         readResourceUrl(firstResource) ||
         readFirstString(contact.web, contact.website, contact.url);
+      const behavior = isDownloadableRubroTool(id, kind, label, url, firstResource) ? "external" : "chat";
+      const actionId = readFirstString(
+        record.action_id,
+        record.action,
+        record.intent,
+        record.id,
+        record.key,
+        record.type,
+        record.slug,
+      );
       const urlLabel = readFirstString(
         record.action_label,
         record.cta_label,
@@ -765,15 +828,29 @@ const normalizeRubroToolTray = (
         kind,
         label,
         description,
-        url,
+        url: behavior === "external" ? url : "",
         urlLabel,
+        actionId,
+        behavior,
+        payload: {
+          rubro_tool_id: id,
+          rubro_tool_kind: kind || id,
+          rubro_tool_label: label,
+          source: "workspace.rubro_tools.enabled_tools",
+        },
         lines: lines.slice(0, 2),
       };
     })
     .filter((tool): tool is NormalizedRubroTool => Boolean(tool));
 };
 
-const RubroToolTray = ({ tools }: { tools: NormalizedRubroTool[] }) => {
+const RubroToolTray = ({
+  tools,
+  onToolAction,
+}: {
+  tools: NormalizedRubroTool[];
+  onToolAction?: (tool: NormalizedRubroTool) => void;
+}) => {
   if (!tools.length) return null;
 
   return (
@@ -797,6 +874,8 @@ const RubroToolTray = ({ tools }: { tools: NormalizedRubroTool[] }) => {
               </span>
               {tool.url ? (
                 <ExternalLink className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true" />
+              ) : tool.behavior === "chat" ? (
+                <MessageSquare className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true" />
               ) : null}
             </span>
             {tool.lines.length ? (
@@ -829,6 +908,15 @@ const RubroToolTray = ({ tools }: { tools: NormalizedRubroTool[] }) => {
           >
             {content}
           </a>
+        ) : tool.behavior === "chat" && onToolAction ? (
+          <button
+            key={tool.id}
+            type="button"
+            onClick={() => onToolAction(tool)}
+            className="block w-full rounded-[8px] border border-border/70 bg-background/80 px-3 py-2 text-left shadow-sm transition hover:border-primary/40 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:border-slate-700/80 dark:bg-slate-900/90"
+          >
+            {content}
+          </button>
         ) : (
           <div
             key={tool.id}
@@ -1112,6 +1200,7 @@ const ChatPanel = (props: ChatPanelProps) => {
   );
   const [chatTrialLimitNotice, setChatTrialLimitNotice] =
     useState<ChatTrialLimitNotice | null>(null);
+  const [storedVisitorName, setStoredVisitorName] = useState(() => getVisitorName());
   const {
     messages,
     isTyping,
@@ -1139,6 +1228,17 @@ const ChatPanel = (props: ChatPanelProps) => {
     autoInitEnabled,
     onTrialLimit: setChatTrialLimitNotice,
   });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const syncVisitorName = () => setStoredVisitorName(getVisitorName());
+    window.addEventListener("storage", syncVisitorName);
+    window.addEventListener("focus", syncVisitorName);
+    return () => {
+      window.removeEventListener("storage", syncVisitorName);
+      window.removeEventListener("focus", syncVisitorName);
+    };
+  }, []);
   const visibleMessages = useMemo(
     () =>
       messages.filter((message) => {
@@ -3131,6 +3231,30 @@ const ChatPanel = (props: ChatPanelProps) => {
   const emptyStateDescription =
     readExperienceDescription(resolvedEmptyBlock) ||
     "Escribí tu consulta abajo o usá las opciones del menú.";
+  const visitorDisplayName = readFirstString(
+    user?.nombre,
+    user?.name,
+    user?.displayName,
+    user?.email,
+    storedVisitorName,
+  );
+  const rubroDisplayName = readFirstString(
+    (rubroTools as Record<string, unknown> | null | undefined)?.display_name,
+    (rubroTools as Record<string, unknown> | null | undefined)?.rubro,
+    chatBootstrap?.payload?.rubro_label,
+    chatBootstrap?.payload?.rubro_nombre,
+    chatBootstrap?.payload?.rubro,
+    resolvedSelectedRubro,
+  );
+  const personalizedEmptyTitle = visitorDisplayName
+    ? `${emptyStateTitle.replace(/[?.!Â¿]+$/g, "")}, ${visitorDisplayName}`
+    : emptyStateTitle;
+  const menuContextLabel = rubroDisplayName
+    ? `Menu corto para ${rubroDisplayName}. Elegi una opcion o escribi con tus palabras.`
+    : "Menu corto. Elegi una opcion o escribi con tus palabras.";
+  const visitorNameHint = visitorDisplayName
+    ? null
+    : "Para atenderte mejor, primero podes decirme tu nombre.";
   const defaultMenuButtons = useMemo(
     () =>
       mergeButtons(
@@ -3152,6 +3276,10 @@ const ChatPanel = (props: ChatPanelProps) => {
       chatBootstrap?.payload?.demo_metadata,
     ],
   );
+  const visibleDefaultMenuButtons = useMemo(
+    () => defaultMenuButtons.slice(0, isMobile ? 3 : 4),
+    [defaultMenuButtons, isMobile],
+  );
   const rubroToolItems = useMemo(
     () =>
       normalizeRubroToolTray(
@@ -3170,6 +3298,20 @@ const ChatPanel = (props: ChatPanelProps) => {
       chatBootstrap?.payload?.rubro_tools,
       rubroTools,
     ],
+  );
+  const handleRubroToolAction = useCallback(
+    (tool: NormalizedRubroTool) => {
+      if (tool.behavior !== "chat") return;
+      const actionId = tool.actionId || tool.kind || tool.id;
+      handleSend({
+        text: tool.label,
+        action: actionId,
+        action_id: actionId,
+        payload: tool.payload,
+        source: "button",
+      });
+    },
+    [handleSend],
   );
   const sampleConversationBlocks = useMemo(
     () =>
@@ -3894,18 +4036,26 @@ const ChatPanel = (props: ChatPanelProps) => {
                 <div className="w-14 h-14 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-3 sm:mb-4 sm:h-16 sm:w-16 dark:bg-primary/20 dark:text-blue-200">
                    <MessageSquare className="w-8 h-8" />
                 </div>
-                <h3 className="text-base font-semibold mb-2 text-foreground sm:text-lg dark:text-slate-50">{emptyStateTitle}</h3>
+                <h3 className="text-base font-semibold mb-2 text-foreground sm:text-lg dark:text-slate-50">{personalizedEmptyTitle}</h3>
                 <p className="text-sm text-muted-foreground mb-5 max-w-[260px] sm:mb-8 dark:text-slate-300">
                    {emptyStateDescription}
                 </p>
-                {defaultMenuButtons.length ? (
+                {visitorNameHint ? (
+                  <p className="-mt-3 mb-4 max-w-[300px] rounded-[8px] border border-primary/15 bg-primary/5 px-3 py-2 text-xs text-muted-foreground dark:border-blue-400/20 dark:bg-blue-400/10 dark:text-slate-300">
+                    {visitorNameHint}
+                  </p>
+                ) : null}
+                {visibleDefaultMenuButtons.length ? (
                   <div className="mb-3 flex max-w-[340px] flex-wrap justify-center gap-1.5 sm:mb-4 sm:gap-2">
-                    {defaultMenuButtons.map((item, index) => (
+                    <p className="basis-full text-center text-[11px] font-medium text-muted-foreground dark:text-slate-300">
+                      {menuContextLabel}
+                    </p>
+                    {visibleDefaultMenuButtons.map((item, index) => (
                       <Button
                         key={`${item.texto || item.action || item.action_id || "menu"}-${index}`}
                         size="sm"
                         variant="outline"
-                        className="h-auto whitespace-normal text-xs"
+                        className="h-auto whitespace-normal rounded-[8px] px-3 py-2 text-xs"
                         onClick={() =>
                           handleSend({
                             text: item.texto,
@@ -3921,7 +4071,7 @@ const ChatPanel = (props: ChatPanelProps) => {
                     ))}
                   </div>
                 ) : null}
-                <RubroToolTray tools={rubroToolItems} />
+                <RubroToolTray tools={rubroToolItems} onToolAction={handleRubroToolAction} />
                 {visibleSampleConversationBlocks.length ? (
                   <div className="mb-3 flex max-w-[320px] flex-wrap justify-center gap-1.5 sm:mb-4 sm:gap-2">
                     {visibleSampleConversationBlocks.map((item, index) => {
@@ -3989,7 +4139,7 @@ const ChatPanel = (props: ChatPanelProps) => {
         ))}
             {rubroToolItems.length ? (
               <div className="flex justify-center">
-                <RubroToolTray tools={rubroToolItems} />
+                <RubroToolTray tools={rubroToolItems} onToolAction={handleRubroToolAction} />
               </div>
             ) : null}
           </>

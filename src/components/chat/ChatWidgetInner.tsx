@@ -27,7 +27,6 @@ import { apiClient } from "@/api/client";
 import { esRubroPublico } from "@/utils/chatEndpoints";
 import {
   CHATBOC_AGENT_AVATAR,
-  CHATBOC_AGENT_LAUNCHER_ANIMATED,
   CHATBOC_AGENT_LAUNCHER_STATIC,
   CHATBOC_AGENT_MARK,
   getChatbocBotAvatar,
@@ -451,7 +450,6 @@ function ChatWidgetInner({
   borderRadius,
   fontFamily,
 }: ChatWidgetProps) {
-  const CHATBOC_WIDGET_ANIMATED = CHATBOC_AGENT_LAUNCHER_ANIMATED;
   const CHATBOC_WIDGET_STATIC = CHATBOC_AGENT_LAUNCHER_STATIC;
   const CHATBOC_WIDGET_PNG_FALLBACK = CHATBOC_AGENT_MARK;
   const CHATBOC_WIDGET_FALLBACK = CHATBOC_AGENT_AVATAR;
@@ -464,7 +462,7 @@ function ChatWidgetInner({
     gradientEnd: '#007aff',
     typingAnimation: 'wave-dots',
     bubbleAnimation: 'soft-rise',
-    launcherAnimation: 'pulse-glow',
+    launcherAnimation: 'none',
     messageEnterAnimation: 'fade-up',
     logoBadgeStyle: 'ring',
     cursorTrail: false,
@@ -501,7 +499,7 @@ function ChatWidgetInner({
       gradientEnd: normalizeUxString(attrs['data-gradient-end'] ?? ux.gradient_end, DEFAULT_WIDGET_UX.gradientEnd),
       typingAnimation: normalizeUxString(attrs['data-typing-animation'] ?? ux.typing_animation, DEFAULT_WIDGET_UX.typingAnimation),
       bubbleAnimation: normalizeUxString(attrs['data-bubble-animation'] ?? ux.bubble_animation, DEFAULT_WIDGET_UX.bubbleAnimation),
-      launcherAnimation: normalizeUxString(attrs['data-launcher-animation'] ?? ux.launcher_animation, DEFAULT_WIDGET_UX.launcherAnimation),
+      launcherAnimation: DEFAULT_WIDGET_UX.launcherAnimation,
       messageEnterAnimation: normalizeUxString(attrs['data-message-enter-animation'] ?? ux.message_enter_animation, DEFAULT_WIDGET_UX.messageEnterAnimation),
       logoBadgeStyle: normalizeUxString(attrs['data-logo-badge-style'] ?? ux.logo_badge_style, DEFAULT_WIDGET_UX.logoBadgeStyle),
       cursorTrail: normalizeUxBool(attrs['data-cursor-trail'] ?? ux.cursor_trail, DEFAULT_WIDGET_UX.cursorTrail),
@@ -575,7 +573,7 @@ function ChatWidgetInner({
     typeof window !== "undefined" && window.innerWidth < 640
   );
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
-  const [launcherImageSrc, setLauncherImageSrc] = useState(CHATBOC_WIDGET_ANIMATED);
+  const [launcherImageSrc, setLauncherImageSrc] = useState(CHATBOC_WIDGET_STATIC);
   const [hideClosedLauncherForHeroPreview, setHideClosedLauncherForHeroPreview] = useState(false);
 
   const { tenant, currentSlug } = useTenant();
@@ -2029,9 +2027,7 @@ function ChatWidgetInner({
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
   );
 
-  const launcherAssetSrc = prefersReducedMotion
-    ? CHATBOC_WIDGET_STATIC
-    : CHATBOC_WIDGET_ANIMATED;
+  const launcherAssetSrc = CHATBOC_WIDGET_STATIC;
 
   useEffect(() => {
     setLauncherImageSrc(launcherAssetSrc);
@@ -2832,10 +2828,10 @@ function ChatWidgetInner({
         transition: { duration: 0.12 },
       }
     : {
-        initial: { scale: 0, opacity: 0 },
-        animate: { scale: 1, opacity: 1 },
-        exit: { scale: 0, opacity: 0 },
-        transition: { type: "spring", stiffness: 300, damping: 20 / motionScale },
+        initial: { opacity: 0 },
+        animate: { opacity: 1 },
+        exit: { opacity: 0 },
+        transition: { duration: 0.18 * motionScale, ease: "easeOut" },
       };
 
   useEffect(() => {
@@ -3155,63 +3151,22 @@ function ChatWidgetInner({
                     : "0 16px 34px rgba(15, 43, 110, 0.26), 0 0 0 1px rgba(255,255,255,0.76)",
                 }}
                 {...buttonAnimation}
-                whileHover={{
-                  y: prefersReducedMotion ? 0 : -1,
-                  scale: prefersReducedMotion ? 1 : 1.03,
-                  transition: { type: "spring", stiffness: 420, damping: 24 },
-                }}
-                whileTap={prefersReducedMotion ? { scale: 1 } : { scale: 0.98 }}
+                whileHover={{ scale: 1 }}
+                whileTap={{ scale: 1 }}
                 onClick={toggleChat}
                 aria-label="Abrir chat"
                 title="Abrir asistente IA"
               >
-                {!prefersReducedMotion && !isOpen ? (
-                  <motion.span
-                    aria-hidden="true"
-                    className="pointer-events-none absolute inset-0 rounded-full"
-                    style={{
-                      boxShadow: isDarkMode
-                        ? "0 0 0 0 rgba(59,130,246,0.45)"
-                        : "0 0 0 0 rgba(37,99,235,0.28)",
-                    }}
-                    animate={{
-                      boxShadow: isDarkMode
-                        ? [
-                            "0 0 0 0 rgba(59,130,246,0.45)",
-                            "0 0 0 12px rgba(59,130,246,0)",
-                            "0 0 0 0 rgba(59,130,246,0)",
-                          ]
-                        : [
-                            "0 0 0 0 rgba(37,99,235,0.28)",
-                            "0 0 0 12px rgba(37,99,235,0)",
-                            "0 0 0 0 rgba(37,99,235,0)",
-                          ],
-                    }}
-                    transition={{ duration: 2.8, repeat: Infinity, ease: "easeOut" }}
-                  />
-                ) : null}
-                <motion.img
+                <img
                   src={launcherImageSrc}
                   alt=""
                   aria-hidden="true"
                   loading="eager"
                   decoding="async"
                   className="h-full w-full object-contain drop-shadow-[0_8px_18px_rgba(0,35,110,0.28)]"
-                  animate={
-                    !isOpen && !prefersReducedMotion
-                      ? { y: [0, -1.5, 0], scale: [1, 1.018, 1] }
-                      : undefined
-                  }
-                  transition={
-                    !isOpen && !prefersReducedMotion
-                      ? { duration: 2.8, repeat: Infinity, ease: "easeInOut" }
-                      : undefined
-                  }
                   onError={() =>
                     setLauncherImageSrc(
-                      launcherImageSrc === CHATBOC_WIDGET_ANIMATED
-                        ? CHATBOC_WIDGET_STATIC
-                        : launcherImageSrc === CHATBOC_WIDGET_STATIC
+                      launcherImageSrc === CHATBOC_WIDGET_STATIC
                           ? CHATBOC_WIDGET_PNG_FALLBACK
                           : launcherImageSrc === CHATBOC_WIDGET_PNG_FALLBACK
                             ? CHATBOC_WIDGET_FALLBACK
