@@ -133,20 +133,56 @@ Frontend abre `resource.url` tal como viene, con link externo o descarga. No con
 
 ## Accesibilidad
 
-Backend puede publicar hints, pero el minimo esperado para UX es:
+Base recomendada: WCAG 2.2 AA. El widget debe tratar chat, voz y avatar como superficies accesibles, no como decoracion.
 
-- labels accesibles para acciones iconicas,
-- estados de carga claros,
-- subtitulos/transcripcion para realtime/avatar,
-- compatibilidad con teclado,
-- respeto de `prefers-reduced-motion`.
+Requisitos minimos:
+
+- El widget abierto debe tener `role="dialog"` o region equivalente, titulo accesible y cierre con `Escape`.
+- Foco atrapado dentro del widget mientras esta abierto; al cerrar, vuelve al boton que lo abrio.
+- Todos los botones iconicos tienen `aria-label`.
+- Mensajes nuevos anuncian cambios con `aria-live="polite"`.
+- Estados de carga usan `aria-busy`; botones bloqueados usan `aria-disabled`.
+- Navegacion 100% por teclado: abrir, cerrar, escribir, enviar, adjuntar, menu tres puntos y elegir accion.
+- Avatar/realtime con controles visibles: pausar animacion, silenciar, activar subtitulos/transcripcion y repetir ultimo mensaje.
+- Respetar `prefers-reduced-motion`; animaciones no deben ser obligatorias.
+- Contraste suficiente en modo claro y oscuro; foco visible y no solo por color.
+- Inputs con etiquetas reales, no solo placeholders.
+- Adjuntos y ubicacion tienen descripciones accesibles.
+
+Tooltip/ayuda contextual sugerida:
+
+```txt
+Chatboc tambien esta pensado para personas que no pueden o no quieren escribir. Podes usar voz, subtitulos, lectura, adjuntos y derivacion humana para comunicarte con una institucion o empresa sin quedar afuera.
+```
+
+No mostrarlo como modal invasivo. Usar tooltip/ayuda contextual cerca del boton de voz/avatar y una entrada clara en el menu de accesibilidad.
+
+## Copy por rubro
+
+Si `experience_blueprint.experience_type === "education"` no usar textos municipales como:
+
+- reclamos urbanos
+- turnos municipales
+- vecino
+- tramites express municipales
+
+Usar lenguaje escolar solo si backend lo publica:
+
+- caso escolar
+- secretaria
+- familia
+- alumno/curso
+- inasistencia
+- certificado
+- comunicado
 
 ## QA compartida
 
 1. Cambiar de Empresas a Colegios no conserva token/owner anterior.
-2. El saludo de Colegios no menciona municipio.
-3. `create_school_case`, `justify_absence` y `talk_secretary` llegan como `action_id`.
-4. Adjuntos tras `justify_absence` crean caso escolar.
-5. `talk_secretary` crea ticket visible para admin con estado de espera.
-6. PDFs demo abren desde `/api/v2/demo/catalog-assets/...`.
-7. Widget funciona con teclado y lector de pantalla.
+2. El primer saludo de Colegios no menciona municipio.
+3. Los tres botones del menu rapido envian `action_id` al backend y reciben respuesta real.
+4. Adjuntar imagen/PDF despues de `justify_absence` crea caso escolar.
+5. `talk_secretary` crea ticket visible para admin con estado `esperando_agente_en_vivo`.
+6. PDFs demo abren desde `/api/v2/demo/catalog-assets/...` sin 404 SPA.
+7. Widget se usa completo con teclado y lector de pantalla.
+8. Avatar/realtime tiene transcripcion, pausa y modo reducido.
