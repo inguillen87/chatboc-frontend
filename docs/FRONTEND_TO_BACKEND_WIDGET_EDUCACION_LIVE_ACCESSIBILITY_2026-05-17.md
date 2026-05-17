@@ -13,6 +13,8 @@ Evitar mezcla de rubros en demos escolares y alinear widget web, WhatsApp sandbo
 - `workspace.education.profile.is_education === true`
 - `workspace.education.quick_menu`
 - `workspace.education.primary_actions`
+- `workspace.education_profile.quick_menu`
+- `workspace.education_profile.primary_actions`
 - `workspace.education.whatsapp_playbook`
 - `experience_blueprint.conversion_ctas.actions`
 - `workspace.chat_bootstrap`
