@@ -12,6 +12,7 @@ export interface AttachmentInfo {
 // Define cómo es un objeto Boton
 export interface Boton {
   texto: string;
+  description?: string;
   url?: string;
   accion_interna?: string; // Para acciones que el frontend debe interpretar sin enviar al backend (ej. abrir panel)
   action?: string; // Valor que se envía al backend cuando se hace clic en el botón

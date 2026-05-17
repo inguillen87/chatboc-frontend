@@ -26,7 +26,7 @@ En produccion se vieron estos casos:
 
 ### 1. Chat bootstrap siempre accionable
 
-`POST /api/v2/demo/session` debe publicar:
+`POST /api/v2/demo/session` debe publicar `workspace.chat_bootstrap` y, por compatibilidad, puede publicarlo tambien en `chat_bootstrap`.
 
 ```json
 {
@@ -34,6 +34,8 @@ En produccion se vieron estos casos:
     "chat_bootstrap": {
       "contract_version": "demo.chat_bootstrap.v1",
       "endpoint": "/api/ask/pyme",
+      "same_origin_endpoint": "/api/ask/pyme",
+      "fallback_endpoint": null,
       "method": "POST",
       "query": {
         "tenant_slug": "qa-colegio-sandbox",
@@ -47,6 +49,7 @@ En produccion se vieron estos casos:
       },
       "payload": {
         "tenant_slug": "qa-colegio-sandbox",
+        "tenant": "qa-colegio-sandbox",
         "tipo_chat": "pyme",
         "demo_mode": true
       }
@@ -58,8 +61,30 @@ En produccion se vieron estos casos:
 Reglas:
 
 - No publicar `/ask` como endpoint visual/publico si no acepta `POST` en produccion.
-- Si se publica `same_origin_endpoint`, debe ser `/api/ask/pyme` o `/api/ask/municipio`.
+- `endpoint` y `same_origin_endpoint` deben ser `/api/ask`, `/api/ask/pyme` o `/api/ask/municipio`.
+- `fallback_endpoint` debe ser `null` o una ruta `/api/ask/...`; nunca `/ask`.
 - `X-Demo-Session-Id` y `X-Chat-Session-Id` no deben confundirse: el primero identifica la demo; el segundo la conversacion.
+- Frontend debe usar el endpoint publicado. No debe probar bases alternativas despues de una respuesta de limite.
+
+### 1.1 Request para acciones de menu
+
+Cada click de menu se envia como `POST` al endpoint de `chat_bootstrap`.
+
+```json
+{
+  "pregunta": "",
+  "tenant_slug": "qa-colegio-sandbox",
+  "tipo_chat": "pyme",
+  "demo_mode": true,
+  "action_id": "create_school_case",
+  "education_context": { "is_education": true }
+}
+```
+
+Regla backend importante:
+
+- `pregunta=""` con `action_id` no es una solicitud de menu.
+- Solo tratar como menu inicial cuando `action_id` este ausente y `pregunta` sea `""` o `"__INIT__"`, o cuando `action_id` sea `menu`, `menu_principal`, `menu_colegio` o `main_menu`.
 
 ### 2. Toda accion debe devolver contenido renderizable
 
@@ -78,10 +103,11 @@ Cuando frontend envia:
 Backend debe responder con al menos uno de estos bloques:
 
 - `message`, `respuesta`, `texto`, `message_to_user` o `message_body`.
+- `messages[]`, `assistant_message.content`, `chat_messages[]` o `respuesta_usuario`.
 - `botones` / `buttons` / `quick_replies`.
 - `interactive_sections` o `interactive_list.sections`.
 - `confirmation_card`.
-- `data` con resultado operativo real: `ticket_id`, `chat_id`, `status`, `school_case`, `order`, `claim`.
+- `data` con resultado operativo real: `ticket_id`, `chat_id`, `status`, `school_case`, `order`, `claim`, `lead` o `handoff`.
 
 Ejemplo minimo:
 
@@ -99,6 +125,26 @@ Ejemplo minimo:
   }
 }
 ```
+
+Reglas frontend:
+
+- No descartar botones por falta de `messages[]`.
+- Si backend responde `200` sin texto pero con `data`, renderizar resultado operativo.
+- Si backend responde `200` sin ningun bloque renderizable, mostrar estado vacio controlado y loggear warning compacto.
+
+### 2.1 Lectura de mensajes
+
+Orden recomendado:
+
+1. `messages[].content`
+2. `assistant_message.content`
+3. `chat_messages[].content`
+4. `message_body`
+5. `message_to_user`
+6. `respuesta`
+7. `respuesta_usuario`
+8. `texto`
+9. `message`
 
 ### 3. Contrato de menu corto por rubro
 
@@ -143,6 +189,12 @@ Formato recomendado:
 
 Reglas:
 
+- Aliases frontend soportados:
+  - label: `label`, `texto`, `title`, `cta_label`.
+  - action id: `action_id`, `intent`, `action`, `id`, `key`.
+  - descripcion: `description`, `descripcion`, `detail`.
+- Deduplicar por `action_id`, `intent`, `action`, `id`, `key`, `label` o `title`.
+- Renderizar solo `enabled !== false`.
 - Menus operativos no deben traer `url` salvo que sean PDF, Excel, catalogo descargable o recurso externo.
 - `label`, `description`, `action_id` y `payload` salen del backend.
 - Para pyme/gobierno/colegio usar lenguaje del rubro. No mezclar textos municipales en colegio.
@@ -250,6 +302,8 @@ Reglas:
 - Catalogos, PDFs, listas de precio, Excel y promos descargables pueden abrirse fuera del chat.
 - Pedido, checkout, cotizacion, contacto, imagen para reconocer producto y ubicacion deben continuar dentro del chat.
 - Frontend no calcula totales, envio, stock ni precio final. Renderiza solo lo confirmado por backend.
+- Si backend responde `amount_validated: false`, frontend no muestra monto final confirmado.
+- Pedido confirmado requiere validacion backend en el ultimo paso.
 
 ### 3.4 Rubros nuevos o genericos
 
@@ -294,6 +348,13 @@ Ejemplo:
 }
 ```
 
+Reglas:
+
+- Recursos con `url` se abren como link externo.
+- Recursos operativos con `action_id` se ejecutan dentro del chat.
+- No convertir `/api/v2/demo/catalog-assets/...` ni `/media/demo_catalogs/...` en rutas SPA.
+- No enviar un PDF como mensaje de chat.
+
 ### 5. Errores y limites de demo
 
 Si la demo queda limitada, responder JSON estable:
@@ -323,6 +384,61 @@ Reglas:
 - `403` solo debe usarse para token invalido, tenant bloqueado o limite real.
 - Si hay `403`, incluir siempre `reason_code`, `message` y `request_id`.
 - No devolver HTML ni stack traces.
+- Reason codes esperados: `demo_message_limit_reached`, `anonymous_trial_limit_reached`, `anonymous_message_limit_reached`.
+- Frontend bloquea composer y botones operativos, mantiene historial visible y muestra card comercial desde `upgrade`.
+- Frontend no reintenta en `/ask`, `/api/ask/pyme` ni otra base.
+
+### 6. Marketplace e inventario Pro
+
+Documento completo: `docs/FRONTEND_TO_BACKEND_MARKETPLACE_INVENTORY_PRO_2026_05_17.md`.
+
+Reglas para demos:
+
+- `demo_mode=true` no confirma stock real, inventario, precio final ni disponibilidad comercial.
+- El catalogo demo puede mostrar recursos ilustrativos y descargables.
+- Botones de pedido en demo muestran el flujo, pero la confirmacion comercial real queda deshabilitada o marcada como demo.
+
+Reglas para tenants pagos:
+
+- Admin, widget, WhatsApp, chat profesional, carrito y pedidos usan el mismo catalogo backend.
+- Frontend renderiza `stock`, `stock_quantity`, `stock_status`, `available_to_sell`, `inventory`, `catalog_version` y `request_id` cuando backend los publica.
+- Frontend no calcula stock ni precio final.
+- Pedido confirmado requiere validacion backend en el ultimo paso.
+
+Endpoints a consumir:
+
+- `GET /api/admin/tenants/{tenant_slug}/catalog`
+- `GET /api/admin/tenants/{tenant_slug}/catalog/items`
+- `PATCH /api/admin/tenants/{tenant_slug}/catalog/items/{item_id}`
+- `POST /api/admin/catalog/import`
+- `GET /api/admin/catalog/import/{upload_id}`
+- `PUT /api/admin/catalog/import/{upload_id}`
+- `POST /api/admin/catalog/import/{upload_id}/commit`
+- `GET /api/v2/tenants/{tenant_slug}/catalog/quality`
+
+Importacion:
+
+- `mode=upsert`: actualiza por SKU y crea faltantes.
+- `mode=replace`: reemplaza catalogo del tenant.
+- `mode=stock_only`: actualiza solo stock por SKU y no crea productos nuevos.
+
+### 7. Accesibilidad minima del widget
+
+Base recomendada: WCAG 2.2 AA.
+
+Requisitos minimos:
+
+- El widget abierto debe tener `role="dialog"` o region equivalente, titulo accesible y cierre con `Escape`.
+- Foco atrapado dentro del widget mientras esta abierto; al cerrar, vuelve al boton que lo abrio.
+- Todos los botones iconicos tienen `aria-label`.
+- Mensajes nuevos anuncian cambios con `aria-live="polite"`.
+- Estados de carga usan `aria-busy`; botones bloqueados usan `aria-disabled`.
+- Navegacion 100% por teclado: abrir, cerrar, escribir, enviar, adjuntar, menu tres puntos y elegir accion.
+- Avatar/realtime con controles visibles: pausar animacion, silenciar, activar subtitulos/transcripcion y repetir ultimo mensaje.
+- Respetar `prefers-reduced-motion`.
+- Contraste suficiente en modo claro y oscuro; foco visible y no solo por color.
+- Inputs con etiquetas reales, no solo placeholders.
+- Adjuntos y ubicacion tienen descripciones accesibles.
 
 ## QA compartida
 
@@ -339,3 +455,11 @@ Reglas:
 11. `Consultar producto`, `Crear pedido` y `Cotizar envio` deben operar dentro del chat. Catalogos y listas descargables abren como link externo.
 12. La respuesta de cualquier accion debe mostrar mensaje, card, botones o resultado operativo, no warning de payload sin mensajes.
 13. Agotar limite de demo debe mostrar card comercial, no error rojo ni reintento automatico.
+14. Cambiar Empresas -> Colegios -> Gobiernos no conserva `tenant_slug`, `widget_token` ni `chat_bootstrap` anterior.
+15. Colegios no muestra copy municipal.
+16. Gobiernos no muestra copy comercial.
+17. Empresas no muestra monto final si no fue validado por backend.
+18. PDFs demo abren desde `/api/v2/demo/catalog-assets/...` sin pasar por React Router.
+19. Widget se usa completo con teclado y lector de pantalla.
+20. Tenant pago puede actualizar stock por `PATCH` y por import `stock_only`.
+21. Widget/WhatsApp no confirma compra si `stock_status` es `stock_unknown` u `out_of_stock`.

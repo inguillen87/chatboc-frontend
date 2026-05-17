@@ -31,10 +31,27 @@ describe('mergeButtons', () => {
   it('deduplicates actions across generic, school and commerce menu sources', () => {
     const buttons = mergeButtons(
       [{ label: 'Crear caso escolar', action_id: 'create_school_case' }],
-      { quick_menu: [{ label: 'Crear caso escolar', action_id: 'create_school_case' }] },
+      { quick_menu: [{ label: 'Abrir caso escolar', action_id: 'create_school_case' }] },
       { primary_actions: [{ label: 'Crear pedido', action_id: 'crear_pedido' }] },
     );
 
     expect(buttons.map((button) => button.action_id)).toEqual(['create_school_case', 'crear_pedido']);
+  });
+
+  it('skips disabled backend buttons and supports cta label aliases', () => {
+    const buttons = mergeButtons({
+      actions: [
+        { cta_label: 'Hacer reclamo', action_id: 'crear_reclamo', description: 'Dentro del chat' },
+        { label: 'Turno viejo', action_id: 'turno_viejo', enabled: false },
+      ],
+    });
+
+    expect(buttons).toEqual([
+      expect.objectContaining({
+        texto: 'Hacer reclamo',
+        action_id: 'crear_reclamo',
+        description: 'Dentro del chat',
+      }),
+    ]);
   });
 });

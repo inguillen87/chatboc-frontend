@@ -48,9 +48,12 @@ const extractArray = (source: any): any[] => {
 
 const normalizeButton = (raw: any): Boton | null => {
   if (!raw || typeof raw !== "object") return null;
+  if (raw.enabled === false) return null;
   const texto = pickFirstString(
     raw.texto,
     raw.label,
+    raw.cta_label,
+    raw.ctaLabel,
     raw.title,
     raw.nombre,
     raw.name,
@@ -59,6 +62,7 @@ const normalizeButton = (raw: any): Boton | null => {
     raw.display_name,
     raw.displayName
   );
+  const description = pickFirstString(raw.description, raw.descripcion, raw.detail, raw.subtitle, raw.help_text, raw.helpText);
   const actionId = pickFirstString(raw.action_id, raw.actionId, raw.intent_id, raw.intentId);
   const action = pickFirstString(raw.action, raw.intent, raw.accion, actionId);
   const accionInterna = pickFirstString(raw.accion_interna, raw.internal_action, raw.internalAction);
@@ -73,6 +77,9 @@ const normalizeButton = (raw: any): Boton | null => {
     texto: texto || action || accionInterna || url || "Opción",
   };
 
+  if (description) {
+    boton.description = description;
+  }
   if (url) {
     boton.url = url;
   }
@@ -103,7 +110,7 @@ export const mergeButtons = (...sources: any[]): Boton[] => {
       .map(normalizeButton)
       .forEach((btn) => {
         if (!btn) return;
-        const key = `${btn.texto}|${btn.action || ""}|${btn.accion_interna || ""}|${btn.url || ""}`;
+        const key = btn.action_id || btn.action || btn.accion_interna || btn.url || btn.texto;
         if (!seen.has(key)) {
           seen.add(key);
           result.push(btn);

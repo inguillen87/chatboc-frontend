@@ -196,6 +196,7 @@ export type ChatTrialLimitNotice = {
 const CHAT_TRIAL_LIMIT_CODES = new Set([
   "demo_message_limit_reached",
   "anonymous_trial_limit_reached",
+  "anonymous_message_limit_reached",
 ]);
 
 const readChatTrialLimitNotice = (error: unknown): ChatTrialLimitNotice | null => {
@@ -1285,6 +1286,10 @@ export function useChatLogic({
       ? rawPayload
       : Array.isArray(rawPayload?.messages)
         ? rawPayload.messages
+        : Array.isArray(rawPayload?.chat_messages)
+          ? rawPayload.chat_messages
+          : Array.isArray(rawPayload?.chatMessages)
+            ? rawPayload.chatMessages
         : Array.isArray(rawPayload?.responses)
           ? rawPayload.responses
           : [rawPayload];
@@ -1459,23 +1464,25 @@ export function useChatLogic({
           messageType === "interactive_buttons");
 
       const rawText = pickFirstString(
-        data.comentario,
+        data.content,
+        data.assistant_message?.content,
+        data.assistantMessage?.content,
         data.message_body,
         data.messageBody,
+        data.message_to_user,
+        data.messageToUser,
         data.respuesta,
+        data.respuesta_usuario,
         data.reply,
         data.texto,
         data.text,
         data.message,
-        data.content,
-        data.respuesta_usuario,
+        data.comentario,
         data.html_text,
         data.html,
         data.caption,
         data.descripcion,
         data.description,
-        data.message_to_user,
-        data.messageToUser,
       );
 
       const attachmentInfo = normalizeAttachmentInfo(
