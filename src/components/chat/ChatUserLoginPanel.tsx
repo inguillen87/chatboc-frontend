@@ -165,7 +165,7 @@ const ChatUserLoginPanel: React.FC<Props> = ({ onSuccess, onShowRegister, entity
 
       const token = (data as any)?.token;
       const userData = (data as any)?.user ?? data;
-      const entityToken =
+      const responseEntityToken =
         (userData as any)?.entityToken || (userData as any)?.entity_token || safeLocalStorage.getItem("entityToken");
       const tenantSlug = (userData as any)?.tenantSlug || (userData as any)?.tenant_slug;
 
@@ -177,8 +177,8 @@ const ChatUserLoginPanel: React.FC<Props> = ({ onSuccess, onShowRegister, entity
       if (tenantSlug) {
         safeLocalStorage.setItem("tenantSlug", tenantSlug);
       }
-      if (entityToken) {
-        safeLocalStorage.setItem("entityToken", entityToken);
+      if (responseEntityToken) {
+        safeLocalStorage.setItem("entityToken", responseEntityToken);
       }
 
       await refreshUser();

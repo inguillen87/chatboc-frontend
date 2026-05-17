@@ -519,6 +519,12 @@ function ChatWidgetInner({
   const [widgetCommerceCart, setWidgetCommerceCart] = useState<WidgetCommerceCartSnapshot | null>(null);
 
   const [duplicateInstance, setDuplicateInstance] = useState(false);
+  const isEmbedded = mode !== "standalone";
+  const isPublicPlatformSurface = useMemo(() => {
+    if (typeof window === "undefined" || isEmbedded) return false;
+    return isPublicPlatformSurfacePath(window.location.pathname);
+  }, [isEmbedded]);
+
   const resolvedOwnerToken = useMemo(() => {
     const isDemoSessionContext =
       Boolean(activeDemoTenantSlug) ||
@@ -552,7 +558,6 @@ function ChatWidgetInner({
     [],
   );
 
-  const isEmbedded = mode !== "standalone";
   const catalogMetadata = useMemo(() => {
     if (!catalogInfo) return null;
     return (
@@ -848,11 +853,6 @@ function ChatWidgetInner({
     const cfg = (window as any).CHATBOC_CONFIG || {};
     return sanitizeTenantSlug(cfg.tenant || cfg.tenantSlug || cfg.tenant_slug);
   }, []);
-
-  const isPublicPlatformSurface = useMemo(() => {
-    if (typeof window === "undefined" || isEmbedded) return false;
-    return isPublicPlatformSurfacePath(window.location.pathname);
-  }, [isEmbedded]);
 
   const explicitResolvedTenantSlug = useMemo(() => {
     const candidates = [
@@ -1287,11 +1287,11 @@ function ChatWidgetInner({
     if (event.key !== "Tab") return;
     const panel = openPanelRef.current;
     if (!panel) return;
-    const focusables = Array.from(
+    const focusables = (Array.from(
       panel.querySelectorAll<HTMLElement>(
         'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
       ),
-    ).filter((element) => element.offsetParent !== null || element === document.activeElement);
+    ) as HTMLElement[]).filter((element) => element.offsetParent !== null || element === document.activeElement);
 
     if (!focusables.length) {
       event.preventDefault();

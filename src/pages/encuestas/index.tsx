@@ -371,6 +371,8 @@ const SurveysPublicIndex = () => {
           const participationUrl = getPublicSurveyUrl(survey.slug) || '';
           const qrUrl = getPublicSurveyQrUrl(survey.slug, { size: 512 });
           const widgetUrl = participationUrl ? buildWidgetUrlWithChannel(participationUrl) : '';
+          const qrPagePath = getPublicSurveyQrPageUrl(survey.slug, { absolute: false }) || '#';
+          const qrPageUrl = getPublicSurveyQrPageUrl(survey.slug);
           const whatsappShareMessage = participationUrl
             ? buildSurveyShareMessage(
                 survey,
@@ -383,8 +385,6 @@ const SurveysPublicIndex = () => {
                 getSurveyChannelAssets(survey, 'whatsapp'),
               )
             : '';
-          const qrPagePath = getPublicSurveyQrPageUrl(survey.slug, { absolute: false }) || '#';
-          const qrPageUrl = getPublicSurveyQrPageUrl(survey.slug);
 
           const handleCopyLink = async () => {
             if (!participationUrl) return;
