@@ -94,6 +94,25 @@ Estados esperados:
 - fuera de horario: descripcion de horarios publicada por backend.
 - admin: nuevo ticket visible con categoria/alias escolar y estado `esperando_agente_en_vivo`.
 
+Respuesta minima soportada:
+
+```json
+{
+  "success": true,
+  "request_id": "req_...",
+  "fuente": "education_widget_live_handoff",
+  "data": {
+    "ticket_id": 123,
+    "chat_id": "P-123456",
+    "status": "esperando_agente_en_vivo",
+    "live_chat": {},
+    "school_case": {}
+  }
+}
+```
+
+Frontend normaliza `data.ticket_id`, `data.chat_id`, `data.status` y `data.school_case` como resultado operativo escolar. No inventa disponibilidad, horario ni contenido de secretaria si `data.live_chat` no lo publica.
+
 ## Adjuntos y casos escolares
 
 Imagenes y PDFs en contexto escolar se tratan como adjuntos de caso escolar. Backend debe crear ticket `pyme` con alias `school_case` cuando corresponda y devolver identificador, estado, `request_id` y acciones siguientes.

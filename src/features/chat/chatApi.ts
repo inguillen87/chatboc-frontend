@@ -43,6 +43,9 @@ export interface OperationalAttachment {
 export interface OperationalTicketResult {
   nro_ticket?: string | number | null;
   ticket_id?: string | number | null;
+  chat_id?: string | number | null;
+  status?: string | null;
+  ticket_type?: string | null;
   categoria?: string | null;
   direccion?: string | null;
   latitud?: number | null;
@@ -208,6 +211,9 @@ const normalizeOperationalTicket = (source: unknown): OperationalTicketResult | 
   const ticket: OperationalTicketResult = {
     nro_ticket: readString(source, ['nro_ticket', 'ticket_number', 'ticket_id', 'id']),
     ticket_id: readString(source, ['ticket_id', 'id']),
+    chat_id: readString(source, ['chat_id', 'case_id', 'nro_caso']),
+    status: readString(source, ['status', 'estado']),
+    ticket_type: readString(source, ['ticket_type', 'kind', 'type', 'alias']),
     categoria: readString(source, ['categoria', 'category']),
     direccion: readString(source, ['direccion', 'address']) ?? readString(location, ['direccion', 'address']),
     latitud:
@@ -292,6 +298,9 @@ const extractOperationalTicket = (source: Record<string, unknown>): OperationalT
     source.reclamo,
     source.claim,
     source.case,
+    readNestedRecord(source, ['data']),
+    readNestedRecord(source, ['data'])?.school_case,
+    readNestedRecord(source, ['data'])?.created_entity,
     readNestedRecord(source, ['lead'])?.ticket,
     readNestedRecord(source, ['lead'])?.reclamo,
     readNestedRecord(source, ['data'])?.ticket,
@@ -656,13 +665,28 @@ export const normalizeLeadCaptureResponse = (response: unknown): LeadCaptureResp
     ticket_id:
       typeof source.ticket_id === 'string' || typeof source.ticket_id === 'number'
         ? source.ticket_id
+        : typeof readNestedRecord(source, ['data'])?.ticket_id === 'string' ||
+            typeof readNestedRecord(source, ['data'])?.ticket_id === 'number'
+          ? (readNestedRecord(source, ['data'])?.ticket_id as string | number)
         : typeof lead.ticket_id === 'string' || typeof lead.ticket_id === 'number'
           ? lead.ticket_id
           : typeof lead.case_id === 'string' || typeof lead.case_id === 'number'
             ? lead.case_id
             : null,
-    ticket_type: typeof source.ticket_type === 'string' ? source.ticket_type : null,
-    status: typeof source.status === 'string' ? source.status : typeof lead.status === 'string' ? lead.status : null,
+    ticket_type:
+      typeof source.ticket_type === 'string'
+        ? source.ticket_type
+        : typeof readNestedRecord(source, ['data'])?.ticket_type === 'string'
+          ? (readNestedRecord(source, ['data'])?.ticket_type as string)
+          : null,
+    status:
+      typeof source.status === 'string'
+        ? source.status
+        : typeof readNestedRecord(source, ['data'])?.status === 'string'
+          ? (readNestedRecord(source, ['data'])?.status as string)
+          : typeof lead.status === 'string'
+            ? lead.status
+            : null,
     deduplicated: source.deduplicated === true,
     idempotency_key: typeof source.idempotency_key === 'string' ? source.idempotency_key : null,
     message_body: typeof source.message_body === 'string' ? source.message_body : null,

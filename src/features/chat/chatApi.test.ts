@@ -379,6 +379,29 @@ describe('normalizeLeadCaptureResponse operational results', () => {
       cantidad: 2,
     });
   });
+
+  it('keeps compact education live handoff data as an operational school case', () => {
+    const normalized = normalizeLeadCaptureResponse({
+      success: true,
+      request_id: 'req-school-live',
+      fuente: 'education_widget_live_handoff',
+      data: {
+        ticket_id: 123,
+        chat_id: 'P-123456',
+        status: 'esperando_agente_en_vivo',
+        live_chat: {},
+        school_case: {},
+      },
+    });
+
+    expect(normalized.ticket_id).toBe(123);
+    expect(normalized.status).toBe('esperando_agente_en_vivo');
+    expect(normalized.ticket).toMatchObject({
+      ticket_id: '123',
+      chat_id: 'P-123456',
+      status: 'esperando_agente_en_vivo',
+    });
+  });
 });
 
 describe('submitLeadCapture', () => {

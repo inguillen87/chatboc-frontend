@@ -1052,6 +1052,8 @@ function OperationalTicketCard({
 }) {
   const rows = [
     ticket.nro_ticket ? { label: 'Ticket', value: String(ticket.nro_ticket) } : null,
+    ticket.chat_id ? { label: 'Caso', value: String(ticket.chat_id) } : null,
+    ticket.status ? { label: 'Estado', value: ticket.status } : null,
     ticket.categoria ? { label: 'Categoria', value: ticket.categoria } : null,
     ticket.direccion ? { label: 'Direccion', value: ticket.direccion } : null,
     ticket.nombre_vecino ? { label: 'Vecino', value: ticket.nombre_vecino } : null,
@@ -1061,13 +1063,18 @@ function OperationalTicketCard({
   const whatsappCase = ticket.canal_ingreso?.trim().toLowerCase() === 'whatsapp';
   const attachments = ticket.archivos ?? [];
   const attachmentCount = ticket.archivos_count ?? attachments.length;
+  const isSchoolCase = (() => {
+    const raw = ticket.raw && typeof ticket.raw === 'object' ? ticket.raw as Record<string, unknown> : {};
+    const source = `${ticket.ticket_type ?? ''} ${raw.fuente ?? ''} ${raw.alias ?? ''}`.toLowerCase();
+    return source.includes('school') || source.includes('education') || Boolean(raw.school_case);
+  })();
 
   return (
     <div className="rounded-[8px] border bg-background p-3">
       <div className="flex flex-wrap items-center gap-2">
         <span className="inline-flex items-center gap-1.5 font-semibold text-foreground">
           <TicketCheck className="h-3.5 w-3.5 text-primary" />
-          Reclamo creado
+          {isSchoolCase ? 'Caso escolar creado' : 'Reclamo creado'}
         </span>
         {whatsappCase ? (
           <span className="rounded-full border bg-muted/40 px-2 py-0.5 text-[11px] text-muted-foreground">
