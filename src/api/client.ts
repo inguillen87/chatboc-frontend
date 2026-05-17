@@ -666,6 +666,51 @@ export const apiClient = {
     });
   },
 
+  adminCreateCatalogImport: async (
+    tenantSlug: string,
+    payload: FormData | Record<string, unknown>,
+  ): Promise<any> => {
+    const isFormData = payload instanceof FormData;
+    if (isFormData) {
+      if (!payload.has('tenant_slug')) payload.append('tenant_slug', tenantSlug);
+      if (!payload.has('source')) payload.append('source', 'admin_upload');
+    }
+    return apiFetch<any>('/api/admin/catalog/import', {
+      method: 'POST',
+      body: isFormData ? payload : { tenant_slug: tenantSlug, source: 'admin_upload', ...payload },
+      tenantSlug,
+      headers: isFormData ? {} : undefined,
+    });
+  },
+
+  adminGetCatalogImport: async (tenantSlug: string, uploadId: string | number): Promise<any> => {
+    return apiFetch<any>(`/api/admin/catalog/import/${encodeURIComponent(String(uploadId))}`, { tenantSlug });
+  },
+
+  adminUpdateCatalogImport: async (
+    tenantSlug: string,
+    uploadId: string | number,
+    payload: Record<string, unknown>,
+  ): Promise<any> => {
+    return apiFetch<any>(`/api/admin/catalog/import/${encodeURIComponent(String(uploadId))}`, {
+      method: 'PUT',
+      body: { tenant_slug: tenantSlug, ...payload },
+      tenantSlug,
+    });
+  },
+
+  adminCommitCatalogImport: async (
+    tenantSlug: string,
+    uploadId: string | number,
+    payload: Record<string, unknown> = {},
+  ): Promise<any> => {
+    return apiFetch<any>(`/api/admin/catalog/import/${encodeURIComponent(String(uploadId))}/commit`, {
+      method: 'POST',
+      body: { tenant_slug: tenantSlug, ...payload },
+      tenantSlug,
+    });
+  },
+
   adminConfirmCatalog: async (tenantSlug: string, payload: { upload_token: string; mapping_override?: Record<string, string> }): Promise<any> => {
       return apiFetch<any>("/api/catalog/confirm", {
           method: "POST",

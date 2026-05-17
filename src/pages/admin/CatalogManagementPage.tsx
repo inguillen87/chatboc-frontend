@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useUser } from '@/hooks/useUser';
+import CatalogQualityCommandCenter from '@/components/admin/CatalogQualityCommandCenter';
 import CatalogUploadWizard from '@/components/admin/catalog/CatalogUploadWizard';
 import ProductImageManager from '@/components/admin/catalog/ProductImageManager';
 import {
@@ -429,6 +430,8 @@ const CatalogManagementPage = ({ tenantSlugOverride, embedded = false }: Catalog
           )}
         </CardContent>
       </Card>
+
+      <CatalogQualityCommandCenter tenantSlug={effectiveTenantSlug} marketplace={catalogContract || undefined} />
     </div>
   );
 };
