@@ -19,6 +19,7 @@ import {
 import ChatPanel from '@/features/chat/ChatPanel';
 import type { DemoSector, DemoWorkspaceConfig } from './demoTypes';
 import { normalizeDemoRubroTools, type NormalizedDemoRubroTool } from './demoTools';
+import { readWorkspaceActionMenu } from '@/utils/widgetActionMenu';
 
 const readSectorLabel = (sector?: DemoSector | null) => (sector ? String(sector) : null);
 
@@ -43,122 +44,6 @@ const hasChatRuntime = (workspace: DemoWorkspaceConfig | null | undefined) =>
     workspace?.chat_bootstrap?.same_origin_endpoint?.trim() ||
       workspace?.chat_bootstrap?.endpoint?.trim(),
   );
-
-const asArray = (value: unknown): unknown[] => {
-  if (!value) return [];
-  if (Array.isArray(value)) return value;
-  if (typeof value !== 'object') return [];
-  const record = value as Record<string, unknown>;
-  if (Array.isArray(record.items)) return record.items;
-  if (Array.isArray(record.options)) return record.options;
-  if (Array.isArray(record.buttons)) return record.buttons;
-  if (Array.isArray(record.botones)) return record.botones;
-  if (Array.isArray(record.actions)) return record.actions;
-  if (Array.isArray(record.primary_actions)) return record.primary_actions;
-  if (Array.isArray(record.quick_menu)) return record.quick_menu;
-  if (Array.isArray(record.quick_replies)) return record.quick_replies;
-  if (Array.isArray(record.starter_messages)) return record.starter_messages;
-  return [];
-};
-
-const readActionKey = (item: Record<string, unknown>) => {
-  const values = [item.action_id, item.action, item.intent, item.id, item.key, item.label, item.title, item.texto];
-  for (const value of values) {
-    if (typeof value === 'string' && value.trim()) return value.trim();
-  }
-  return '';
-};
-
-const mergeActionMenus = (...sources: unknown[]) => {
-  const seen = new Set<string>();
-  const items: unknown[] = [];
-
-  sources.forEach((source) => {
-    asArray(source).forEach((item) => {
-      if (!item || typeof item !== 'object' || Array.isArray(item)) return;
-      const key = readActionKey(item as Record<string, unknown>);
-      if (!key || seen.has(key)) return;
-      seen.add(key);
-      items.push(item);
-    });
-  });
-
-  return items;
-};
-
-const readWorkspaceActionMenu = (
-  workspace: (DemoWorkspaceConfig & Record<string, any>) | null | undefined,
-  sector?: DemoSector | null,
-  rubro?: string | null,
-) => {
-  if (!workspace) return [];
-  const activeVertical =
-    workspace.active_vertical ||
-    workspace.vertical ||
-    workspace.experience_blueprint?.active_vertical ||
-    rubro ||
-    sector;
-  const verticals = workspace.verticals && typeof workspace.verticals === 'object' ? workspace.verticals : {};
-  const activeVerticalConfig =
-    (activeVertical && verticals?.[activeVertical]) ||
-    (rubro && verticals?.[rubro]) ||
-    (sector && verticals?.[sector]) ||
-    null;
-
-  return mergeActionMenus(
-    workspace.primary_actions,
-    workspace.quick_menu,
-    workspace.default_menu,
-    workspace.quick_replies,
-    workspace.chat_bootstrap?.primary_actions,
-    workspace.chat_bootstrap?.quick_menu,
-    workspace.chat_bootstrap?.default_menu,
-    workspace.chat_bootstrap?.payload?.primary_actions,
-    workspace.chat_bootstrap?.payload?.quick_menu,
-    workspace.chat_bootstrap?.payload?.default_menu,
-    activeVerticalConfig,
-    activeVerticalConfig?.actions,
-    activeVerticalConfig?.primary_actions,
-    activeVerticalConfig?.quick_menu,
-    workspace.government,
-    workspace.government?.primary_actions,
-    workspace.government?.quick_menu,
-    workspace.government?.actions,
-    workspace.gobierno,
-    workspace.gobierno?.primary_actions,
-    workspace.gobierno?.quick_menu,
-    workspace.gobierno?.actions,
-    workspace.municipio,
-    workspace.municipio?.primary_actions,
-    workspace.municipio?.quick_menu,
-    workspace.municipio?.actions,
-    workspace.education?.primary_actions,
-    workspace.education?.quick_menu,
-    workspace.education_profile?.primary_actions,
-    workspace.education_profile?.quick_menu,
-    workspace.education?.whatsapp_playbook?.primary_actions,
-    workspace.education?.whatsapp_playbook?.quick_menu,
-    workspace.education?.whatsapp_playbook?.actions,
-    workspace.pyme,
-    workspace.pyme?.primary_actions,
-    workspace.pyme?.quick_menu,
-    workspace.pyme?.actions,
-    workspace.business,
-    workspace.business?.primary_actions,
-    workspace.business?.quick_menu,
-    workspace.business?.actions,
-    workspace.commerce,
-    workspace.commerce?.primary_actions,
-    workspace.commerce?.quick_menu,
-    workspace.commerce?.actions,
-    workspace.operational_menu,
-    workspace.operational_menu?.primary_actions,
-    workspace.operational_menu?.quick_menu,
-    workspace.operational_menu?.actions,
-    workspace.conversion_ctas?.actions,
-    workspace.experience_blueprint?.conversion_ctas?.actions,
-  );
-};
 
 const readRuntimeUnavailableState = (workspace: DemoWorkspaceConfig | null | undefined) => {
   const state =

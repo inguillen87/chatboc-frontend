@@ -1084,15 +1084,31 @@ export function useChatLogic({
 
       const operationalFieldsSource = [
         ["ticket_id", record.ticket_id ?? record.ticketId],
+        ["nro_ticket", record.nro_ticket ?? record.ticket_number ?? record.ticketNumber],
         ["chat_id", record.chat_id ?? record.chatId],
         ["request_id", record.request_id ?? record.requestId],
         ["status", record.status ?? record.estado],
         ["case_id", record.case_id ?? record.caseId],
+        ["order_id", record.order_id ?? record.orderId],
+        ["pedido_id", record.pedido_id ?? record.pedidoId],
+        ["nro_pedido", record.nro_pedido ?? record.order_number ?? record.orderNumber],
+        ["lead_id", record.lead_id ?? record.leadId],
+        ["tipo_solicitud", record.tipo_solicitud ?? record.request_type ?? record.requestType],
+        ["categoria", record.categoria ?? record.category],
+        ["ubicacion", record.ubicacion ?? record.location ?? record.address ?? record.direccion],
+        ["stock_status", record.stock_status ?? record.stockStatus],
+        ["amount_validated", record.amount_validated ?? record.amountValidated],
       ]
         .filter(
-          ([, value]) => typeof value === "string" || typeof value === "number",
+          ([, value]) =>
+            typeof value === "string" ||
+            typeof value === "number" ||
+            typeof value === "boolean",
         )
-        .map(([label, value]) => ({ label, value }));
+        .map(([label, value]) => ({
+          label,
+          value: typeof value === "boolean" ? String(value) : value,
+        }));
 
       const fieldsSource = Array.isArray(record.fields)
         ? record.fields
@@ -1115,6 +1131,11 @@ export function useChatLogic({
       const preferredChannels = normalizeStringList(
         record.preferred_handoff_channels ?? record.preferredHandoffChannels,
       );
+      const amountValidated = record.amount_validated ?? record.amountValidated;
+      const totalCandidate =
+        amountValidated === false
+          ? undefined
+          : record.total ?? record.estimated_total ?? record.total_estimado;
 
       const normalizedCard: ConfirmationCardData = {
         title: pickFirstString(record.title, record.titulo) || undefined,
@@ -1171,13 +1192,9 @@ export function useChatLogic({
             record.descripcion,
           ) || undefined,
         total:
-          typeof (record.total ?? record.estimated_total ?? record.total_estimado)
-            === "string" ||
-          typeof (record.total ?? record.estimated_total ?? record.total_estimado)
-            === "number"
-            ? (record.total ?? record.estimated_total ?? record.total_estimado) as
-                | string
-                | number
+          typeof totalCandidate === "string" ||
+          typeof totalCandidate === "number"
+            ? totalCandidate as string | number
             : undefined,
         currency:
           pickFirstString(record.currency, record.moneda) || undefined,
@@ -1629,9 +1646,19 @@ export function useChatLogic({
         (dataPayload as any)?.confirmation_card ??
           (dataPayload as any)?.claim_confirmation ??
           (dataPayload as any)?.order_confirmation ??
+          (dataPayload as any)?.school_case ??
+          (dataPayload as any)?.order ??
+          (dataPayload as any)?.claim ??
+          (dataPayload as any)?.lead ??
+          (dataPayload as any)?.handoff ??
           data.confirmation_card ??
           data.claim_confirmation ??
           data.order_confirmation ??
+          data.school_case ??
+          data.order ??
+          data.claim ??
+          data.lead ??
+          data.handoff ??
           data.voice_confirmation ??
           data.metadata?.confirmation_card,
         (dataPayload as Record<string, unknown> | null) ?? null,
@@ -2829,6 +2856,9 @@ export function useChatLogic({
 
       setIsTyping(true);
 
+      let actionTelemetryTenantSlug: string | null = tenantSlug || null;
+      let actionTelemetryTipoChat: "pyme" | "municipio" = tipoChat;
+
       try {
         const allowRubroInference = tipoChat !== "municipio";
         const storedUser = JSON.parse(
@@ -2844,6 +2874,7 @@ export function useChatLogic({
 
         const tipoChatFinal = enforceTipoChatForRubro(tipoChat, resolvedRubro);
         const rubro = tipoChatFinal === "pyme" ? resolvedRubro : null;
+        actionTelemetryTipoChat = tipoChatFinal;
 
         const updatedContext = updateMunicipioContext(contexto, {
           userInput: userMessageText,
@@ -2862,6 +2893,7 @@ export function useChatLogic({
           typeof tenantSlug === "string" && tenantSlug.trim()
             ? tenantSlug.trim()
             : undefined;
+        actionTelemetryTenantSlug = tenantSlugForPayload || tenantSlug || null;
         const requestBody: Record<string, any> = {
           pregunta: questionForBackend,
           contexto_previo: updatedContext,
@@ -2977,15 +3009,49 @@ export function useChatLogic({
             entityToken,
           });
         }
-        processBotPayload(response, {
+        const renderedResponse = processBotPayload(response, {
           fallbackOnEmpty: !socketRef.current || !socketRef.current.connected,
         });
+        if (resolvedAction || resolvedActionId) {
+          trackWidgetEvent(
+            renderedResponse
+              ? "business_action_completed"
+              : "business_action_failed",
+            {
+              tenant_slug: tenantSlugForPayload || tenantSlug || null,
+              tipo_chat: tipoChatFinal,
+              action: resolvedAction || null,
+              action_id: resolvedActionId || null,
+              reason: renderedResponse ? "rendered_response" : "empty_renderable_payload",
+              endpoint_source: chatBootstrap ? "chat_bootstrap" : "legacy_ask_endpoint",
+            },
+          );
+          if (!renderedResponse) {
+            trackWidgetEvent("widget_contract_issue", {
+              tenant_slug: tenantSlugForPayload || tenantSlug || null,
+              tipo_chat: tipoChatFinal,
+              action: resolvedAction || null,
+              action_id: resolvedActionId || null,
+              issue: "empty_renderable_payload",
+            });
+          }
+        }
       } catch (error: any) {
         if (error instanceof ApiError && error.status === 409) {
           resetChatSessionId();
         }
         const trialLimitNotice = readChatTrialLimitNotice(error);
         if (trialLimitNotice) {
+          if (resolvedAction || resolvedActionId) {
+            trackWidgetEvent("business_action_failed", {
+              tenant_slug: actionTelemetryTenantSlug,
+              tipo_chat: actionTelemetryTipoChat,
+              action: resolvedAction || null,
+              action_id: resolvedActionId || null,
+              reason: trialLimitNotice.code,
+              request_id: trialLimitNotice.requestId || null,
+            });
+          }
           onTrialLimit?.(trialLimitNotice);
           setMessages((prev) => [
             ...prev,
@@ -3006,6 +3072,26 @@ export function useChatLogic({
           ]);
           setIsTyping(false);
           return;
+        }
+        if (resolvedAction || resolvedActionId) {
+          trackWidgetEvent("business_action_failed", {
+            tenant_slug: actionTelemetryTenantSlug,
+            tipo_chat: actionTelemetryTipoChat,
+            action: resolvedAction || null,
+            action_id: resolvedActionId || null,
+            reason:
+              error instanceof ApiError
+                ? error.body && typeof error.body === "object"
+                  ? pickFirstString(
+                      (error.body as Record<string, unknown>).reason_code,
+                      (error.body as Record<string, unknown>).error,
+                      (error.body as Record<string, unknown>).code,
+                    ) || `http_${error.status}`
+                  : `http_${error.status}`
+                : "request_error",
+            request_id:
+              error instanceof ApiError ? error.requestId || null : null,
+          });
         }
         const errorMsg = getErrorMessage(
           error,

@@ -99,6 +99,7 @@ import { extractSmartHint } from "@/utils/smartHints";
 import {
   trackFrontendEvent,
 } from "@/utils/frontendTelemetry";
+import { trackWidgetEvent } from "@/utils/widgetTelemetry";
 import { mergeButtons } from "@/utils/chatButtons";
 import { getVisitorName } from "@/utils/visitorName";
 import type { RealtimeVoiceCapabilities } from "@/types/realtimeVoice";
@@ -3338,8 +3339,38 @@ const ChatPanel = (props: ChatPanelProps) => {
     ],
   );
   const visibleDefaultMenuButtons = useMemo(
-    () => defaultMenuButtons.slice(0, isMobile ? 3 : 4),
-    [defaultMenuButtons, isMobile],
+    () => defaultMenuButtons.slice(0, 3),
+    [defaultMenuButtons],
+  );
+  const sendDefaultMenuButton = useCallback(
+    (item: (typeof defaultMenuButtons)[number], placement: "empty" | "persistent") => {
+      const actionId =
+        item.action || item.action_id || item.accion_interna || undefined;
+      trackWidgetEvent("widget_action_clicked", {
+        tenant_slug: tenantSlug || null,
+        tipo_chat: tipoChat,
+        action: actionId || null,
+        action_id: item.action_id || null,
+        placement,
+      });
+      if (actionId) {
+        trackWidgetEvent("business_action_started", {
+          tenant_slug: tenantSlug || null,
+          tipo_chat: tipoChat,
+          action: actionId,
+          action_id: item.action_id || null,
+          source: "widget_menu",
+        });
+      }
+      handleSend({
+        text: item.texto,
+        action: actionId,
+        action_id: item.action_id || undefined,
+        payload: item.payload,
+        source: "button",
+      });
+    },
+    [defaultMenuButtons, handleSend, tenantSlug, tipoChat],
   );
   const rubroToolItems = useMemo(
     () =>
@@ -3364,6 +3395,20 @@ const ChatPanel = (props: ChatPanelProps) => {
     (tool: NormalizedRubroTool) => {
       if (tool.behavior !== "chat") return;
       const actionId = tool.actionId || tool.kind || tool.id;
+      trackWidgetEvent("widget_action_clicked", {
+        tenant_slug: tenantSlug || null,
+        tipo_chat: tipoChat,
+        action: actionId,
+        action_id: tool.actionId || null,
+        placement: "rubro_tool_tray",
+      });
+      trackWidgetEvent("business_action_started", {
+        tenant_slug: tenantSlug || null,
+        tipo_chat: tipoChat,
+        action: actionId,
+        action_id: tool.actionId || null,
+        source: "rubro_tool_tray",
+      });
       handleSend({
         text: tool.label,
         action: actionId,
@@ -3372,7 +3417,7 @@ const ChatPanel = (props: ChatPanelProps) => {
         source: "button",
       });
     },
-    [handleSend],
+    [handleSend, tenantSlug, tipoChat],
   );
   const sampleConversationBlocks = useMemo(
     () =>
@@ -4107,7 +4152,7 @@ const ChatPanel = (props: ChatPanelProps) => {
                   </p>
                 ) : null}
                 {visibleDefaultMenuButtons.length ? (
-                  <div className="mb-3 flex max-w-[340px] flex-wrap justify-center gap-1.5 sm:mb-4 sm:gap-2">
+                  <div className="mb-3 grid w-full max-w-[340px] gap-1.5 sm:mb-4 sm:gap-2">
                     <p className="basis-full text-center text-[11px] font-medium text-muted-foreground dark:text-slate-300">
                       {menuContextLabel}
                     </p>
@@ -4116,18 +4161,17 @@ const ChatPanel = (props: ChatPanelProps) => {
                         key={`${item.texto || item.action || item.action_id || "menu"}-${index}`}
                         size="sm"
                         variant="outline"
-                        className="h-auto whitespace-normal rounded-[8px] px-3 py-2 text-xs"
-                        onClick={() =>
-                          handleSend({
-                            text: item.texto,
-                            action: item.action || item.action_id || item.accion_interna || undefined,
-                            action_id: item.action_id || undefined,
-                            payload: item.payload,
-                            source: "button",
-                          })
-                        }
+                        className="h-auto min-h-10 justify-start whitespace-normal rounded-[8px] px-3 py-2 text-left text-xs"
+                        onClick={() => sendDefaultMenuButton(item, "empty")}
                       >
-                        {item.texto}
+                        <span className="min-w-0">
+                          <span className="block font-semibold leading-snug">{item.texto}</span>
+                          {item.description ? (
+                            <span className="mt-0.5 block text-[11px] font-normal leading-snug text-muted-foreground dark:text-slate-300">
+                              {item.description}
+                            </span>
+                          ) : null}
+                        </span>
                       </Button>
                     ))}
                   </div>
@@ -4200,7 +4244,7 @@ const ChatPanel = (props: ChatPanelProps) => {
         ))}
             {visibleDefaultMenuButtons.length && !activeTrialLimitNotice ? (
               <div className="flex justify-center">
-                <div className="mb-1 flex max-w-[340px] flex-wrap justify-center gap-1.5 rounded-xl border border-border/70 bg-background/80 px-2.5 py-2 shadow-sm sm:gap-2 dark:bg-slate-950/75">
+                <div className="mb-1 grid w-full max-w-[340px] gap-1.5 rounded-xl border border-border/70 bg-background/80 px-2.5 py-2 shadow-sm sm:gap-2 dark:bg-slate-950/75">
                   <p className="basis-full text-center text-[11px] font-medium text-muted-foreground dark:text-slate-300">
                     {menuContextLabel}
                   </p>
@@ -4209,22 +4253,17 @@ const ChatPanel = (props: ChatPanelProps) => {
                       key={`${item.texto || item.action || item.action_id || "menu"}-persistent-${index}`}
                       size="sm"
                       variant="outline"
-                      className="h-auto whitespace-normal rounded-[8px] px-3 py-2 text-xs"
-                      onClick={() =>
-                        handleSend({
-                          text: item.texto,
-                          action:
-                            item.action ||
-                            item.action_id ||
-                            item.accion_interna ||
-                            undefined,
-                          action_id: item.action_id || undefined,
-                          payload: item.payload,
-                          source: "button",
-                        })
-                      }
+                      className="h-auto min-h-10 justify-start whitespace-normal rounded-[8px] px-3 py-2 text-left text-xs"
+                      onClick={() => sendDefaultMenuButton(item, "persistent")}
                     >
-                      {item.texto}
+                      <span className="min-w-0">
+                        <span className="block font-semibold leading-snug">{item.texto}</span>
+                        {item.description ? (
+                          <span className="mt-0.5 block text-[11px] font-normal leading-snug text-muted-foreground dark:text-slate-300">
+                            {item.description}
+                          </span>
+                        ) : null}
+                      </span>
                     </Button>
                   ))}
                 </div>
