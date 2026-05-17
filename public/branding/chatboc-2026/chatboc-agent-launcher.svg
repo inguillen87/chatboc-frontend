@@ -3,13 +3,25 @@
   <desc id="desc">Animated glossy blue robot launcher badge.</desc>
   <style>
     @media (prefers-reduced-motion: no-preference) {
-      #agent { animation: float 3.9s ease-in-out infinite; transform-origin: 128px 180px; }
+      #agent { animation: walk-float 1.18s ease-in-out infinite; transform-origin: 128px 202px; }
+      #left-foot { animation: left-foot-step 1.18s ease-in-out infinite; transform-origin: 100px 221px; }
+      #right-foot { animation: right-foot-step 1.18s ease-in-out infinite; transform-origin: 156px 221px; }
+      #left-eye, #left-pupil { animation: eye-blink 5.6s ease-in-out infinite; transform-origin: 101px 123px; }
+      #right-eye, #right-pupil { animation: eye-wink 5.6s ease-in-out infinite; transform-origin: 155px 123px; }
+      #left-pupil, #right-pupil { animation-name: eye-look; animation-duration: 4.2s; animation-timing-function: ease-in-out; animation-iteration-count: infinite; }
+      #mouth, #mouth-tongue { animation: mouth-talk 2.1s ease-in-out infinite; transform-origin: 128px 149px; }
       #outer-ring { animation: ring-pulse 2.8s ease-in-out infinite; transform-origin: 128px 128px; }
       #shine { animation: shine 4.8s ease-in-out infinite; }
       #dots circle { animation: dot 1.8s ease-in-out infinite; }
       #dots circle:nth-child(2) { animation-delay: .18s; }
       #dots circle:nth-child(3) { animation-delay: .36s; }
-      @keyframes float { 0%,100% { transform: translateY(0) rotate(-1deg); } 50% { transform: translateY(-6px) rotate(1deg); } }
+      @keyframes walk-float { 0%,100% { transform: translate(-2px,0) rotate(-1.4deg); } 28% { transform: translate(2px,-6px) rotate(1.2deg); } 56% { transform: translate(4px,0) rotate(1.6deg); } 78% { transform: translate(0,-4px) rotate(-.6deg); } }
+      @keyframes left-foot-step { 0%,100% { transform: translate(-6px,1px) rotate(8deg); } 50% { transform: translate(7px,-5px) rotate(-7deg); } }
+      @keyframes right-foot-step { 0%,100% { transform: translate(7px,-5px) rotate(-7deg); } 50% { transform: translate(-6px,1px) rotate(8deg); } }
+      @keyframes eye-blink { 0%,88%,100% { transform: scaleY(1); } 91%,94% { transform: scaleY(.12); } }
+      @keyframes eye-wink { 0%,68%,100% { transform: scaleY(1); } 72%,80% { transform: scaleY(.1); } 85% { transform: scaleY(1); } }
+      @keyframes eye-look { 0%,100% { transform: translateX(0); } 32% { transform: translateX(3px); } 62% { transform: translateX(-2px); } }
+      @keyframes mouth-talk { 0%,100% { transform: translateY(0) scaleY(.75); } 24% { transform: translateY(2px) scaleY(1.28); } 50% { transform: translateY(-1px) scaleY(.88); } 76% { transform: translateY(2px) scaleY(1.16); } }
       @keyframes ring-pulse { 0%,100% { opacity: .55; transform: scale(.97); } 50% { opacity: .95; transform: scale(1.025); } }
       @keyframes shine { 0%,62% { transform: translateX(-230px) skewX(-18deg); opacity: 0; } 72% { opacity: .75; } 92%,100% { transform: translateX(240px) skewX(-18deg); opacity: 0; } }
       @keyframes dot { 0%,100% { transform: translateY(0); opacity: .74; } 50% { transform: translateY(-3px); opacity: 1; } }
@@ -57,6 +69,8 @@
     <path id="shine" d="M-30 216 65 2h38L7 232Z" fill="#ffffff" opacity=".26"/>
     <g id="agent" filter="url(#shadow)">
       <path d="M72 160c14 28 35 43 56 43s42-15 56-43v77H72Z" fill="url(#blue)"/>
+      <ellipse id="left-foot" cx="99" cy="222" rx="22" ry="9" fill="#eaf6ff" opacity=".96"/>
+      <ellipse id="right-foot" cx="157" cy="222" rx="22" ry="9" fill="#eaf6ff" opacity=".96"/>
       <path d="M75 82c0-43 22-68 53-68s53 25 53 68v35c0 43-22 70-53 70s-53-27-53-70V82Z" fill="url(#helmet)"/>
       <path d="M70 67c24-33 92-33 116 0" fill="none" stroke="#78e8ff" stroke-width="8" stroke-linecap="round"/>
       <rect x="53" y="91" width="150" height="67" rx="32" fill="url(#visor)"/>
@@ -66,12 +80,12 @@
       </g>
       <rect x="38" y="96" width="27" height="57" rx="14" fill="#0b36c5"/>
       <rect x="191" y="96" width="27" height="57" rx="14" fill="#0b36c5"/>
-      <circle cx="101" cy="123" r="15" fill="#fafeff"/>
-      <circle cx="155" cy="123" r="15" fill="#fafeff"/>
-      <circle cx="106" cy="117" r="5.5" fill="#8bd8ff"/>
-      <circle cx="160" cy="117" r="5.5" fill="#8bd8ff"/>
-      <path d="M108 146c13 12 27 12 40 0" fill="none" stroke="#ffffff" stroke-width="8" stroke-linecap="round"/>
-      <path d="M112 155c11 8 21 8 32 0" fill="none" stroke="#fb7185" stroke-width="5" stroke-linecap="round"/>
+      <circle id="left-eye" cx="101" cy="123" r="15" fill="#fafeff"/>
+      <circle id="right-eye" cx="155" cy="123" r="15" fill="#fafeff"/>
+      <circle id="left-pupil" cx="106" cy="117" r="5.5" fill="#8bd8ff"/>
+      <circle id="right-pupil" cx="160" cy="117" r="5.5" fill="#8bd8ff"/>
+      <path id="mouth" d="M108 146c13 12 27 12 40 0" fill="none" stroke="#ffffff" stroke-width="8" stroke-linecap="round"/>
+      <path id="mouth-tongue" d="M112 155c11 8 21 8 32 0" fill="none" stroke="#fb7185" stroke-width="5" stroke-linecap="round"/>
       <g id="dots">
         <circle cx="101" cy="53" r="6.5" fill="#2ee9a1"/>
         <circle cx="123" cy="53" r="6.5" fill="#2ee9a1"/>

@@ -4,18 +4,36 @@
   <style>
     @media (prefers-reduced-motion: no-preference) {
       #agent { animation: agent-float 6s ease-in-out infinite; transform-origin: 360px 720px; }
-      #right-arm { animation: right-wave 5.2s ease-in-out infinite; transform-origin: 494px 370px; }
+      #right-arm { animation: right-wave 2.9s cubic-bezier(.34,1.56,.64,1) infinite; transform-origin: 494px 370px; }
+      #left-arm { animation: left-balance 3.2s ease-in-out infinite; transform-origin: 250px 430px; }
+      #left-leg { animation: left-leg-step 1.05s ease-in-out infinite; transform-origin: 306px 604px; }
+      #right-leg { animation: right-leg-step 1.05s ease-in-out infinite; transform-origin: 415px 604px; }
+      #left-foot { animation: left-foot-step 1.05s ease-in-out infinite; transform-origin: 292px 724px; }
+      #right-foot { animation: right-foot-step 1.05s ease-in-out infinite; transform-origin: 428px 724px; }
       #left-pin { animation: pin-float 3.6s ease-in-out infinite; transform-origin: 548px 510px; }
       #chat-bubble { animation: bubble-float 4.1s ease-in-out infinite; transform-origin: 555px 151px; }
       #visor-gloss { animation: visor-sweep 5.8s ease-in-out infinite; }
+      #right-eye, #right-pupil, #right-eye-spark-a, #right-eye-spark-b { animation: robot-wink 6.2s ease-in-out infinite; transform-origin: 423px 286px; }
+      #left-pupil, #right-pupil { animation: eye-look 4.4s ease-in-out infinite; transform-origin: center; }
+      #mouth-smile { animation: mouth-speak 2.15s ease-in-out infinite; transform-origin: 360px 338px; }
+      #mouth-highlight { animation: mouth-highlight 2.15s ease-in-out infinite; transform-origin: 360px 335px; }
       #spark-a, #spark-b, #spark-c { animation: spark-pulse 2.8s ease-in-out infinite; transform-origin: center; }
       #spark-b { animation-delay: .5s; }
       #spark-c { animation-delay: .95s; }
       @keyframes agent-float { 0%,100% { transform: translateY(0) rotate(-.45deg); } 50% { transform: translateY(-14px) rotate(.55deg); } }
-      @keyframes right-wave { 0%,100% { transform: rotate(0deg); } 34% { transform: rotate(-8deg); } 68% { transform: rotate(5deg); } }
+      @keyframes right-wave { 0%,100% { transform: rotate(0deg); } 12% { transform: rotate(-18deg); } 24% { transform: rotate(11deg); } 36% { transform: rotate(-15deg); } 48% { transform: rotate(7deg); } 66% { transform: rotate(0deg); } }
+      @keyframes left-balance { 0%,100% { transform: rotate(0deg); } 50% { transform: rotate(4deg); } }
+      @keyframes left-leg-step { 0%,100% { transform: translateX(-7px) rotate(5deg); } 50% { transform: translateX(6px) rotate(-4deg); } }
+      @keyframes right-leg-step { 0%,100% { transform: translateX(6px) rotate(-5deg); } 50% { transform: translateX(-7px) rotate(4deg); } }
+      @keyframes left-foot-step { 0%,100% { transform: translate(-8px,1px) rotate(7deg); } 50% { transform: translate(8px,-6px) rotate(-8deg); } }
+      @keyframes right-foot-step { 0%,100% { transform: translate(8px,-6px) rotate(-8deg); } 50% { transform: translate(-8px,1px) rotate(7deg); } }
       @keyframes pin-float { 0%,100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-9px) rotate(2deg); } }
       @keyframes bubble-float { 0%,100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-7px) scale(1.025); } }
       @keyframes visor-sweep { 0%,62% { transform: translateX(-320px) skewX(-16deg); opacity: 0; } 72% { opacity: .75; } 92%,100% { transform: translateX(310px) skewX(-16deg); opacity: 0; } }
+      @keyframes robot-wink { 0%,72%,100% { transform: scaleY(1); opacity: 1; } 76%,82% { transform: scaleY(.12); opacity: .88; } 86% { transform: scaleY(1); opacity: 1; } }
+      @keyframes eye-look { 0%,100% { transform: translateX(0); } 35% { transform: translateX(5px); } 65% { transform: translateX(-4px); } }
+      @keyframes mouth-speak { 0%,100% { transform: translateY(0) scaleY(.72); } 22% { transform: translateY(2px) scaleY(1.32); } 48% { transform: translateY(-1px) scaleY(.9); } 72% { transform: translateY(2px) scaleY(1.18); } }
+      @keyframes mouth-highlight { 0%,100% { opacity: .75; transform: translateY(0) scaleX(.92); } 35%,72% { opacity: 1; transform: translateY(2px) scaleX(1.08); } }
       @keyframes spark-pulse { 0%,100% { opacity: .34; transform: scale(.82); } 50% { opacity: 1; transform: scale(1.08); } }
     }
   </style>
@@ -114,10 +132,10 @@
 
   <g id="agent" filter="url(#soft-shadow)">
     <g id="legs">
-      <path d="M278 610c-18 41-20 78-15 115h68c9-45 9-85 0-119Z" fill="url(#limb-blue)"/>
-      <path d="M389 606c-9 36-9 76 0 119h68c5-37 3-74-15-115Z" fill="url(#limb-blue)"/>
-      <path d="M242 709c23-19 76-20 100 0 15 12 8 35-13 37h-77c-21-2-26-24-10-37Z" fill="url(#white-part)"/>
-      <path d="M378 709c23-19 76-20 100 0 16 13 10 35-11 37h-78c-21-2-27-24-11-37Z" fill="url(#white-part)"/>
+      <path id="left-leg" d="M278 610c-18 41-20 78-15 115h68c9-45 9-85 0-119Z" fill="url(#limb-blue)"/>
+      <path id="right-leg" d="M389 606c-9 36-9 76 0 119h68c5-37 3-74-15-115Z" fill="url(#limb-blue)"/>
+      <path id="left-foot" d="M242 709c23-19 76-20 100 0 15 12 8 35-13 37h-77c-21-2-26-24-10-37Z" fill="url(#white-part)"/>
+      <path id="right-foot" d="M378 709c23-19 76-20 100 0 16 13 10 35-11 37h-78c-21-2-27-24-11-37Z" fill="url(#white-part)"/>
       <path d="M266 723h53M403 723h52" stroke="#7da7e8" stroke-width="8" stroke-linecap="round" opacity=".42"/>
     </g>
 
@@ -167,16 +185,16 @@
     <g clip-path="url(#visor-clip)">
       <rect id="visor-gloss" x="145" y="179" width="92" height="196" fill="#ffffff" opacity=".34"/>
       <path d="M215 244c34-29 83-43 145-43 63 0 112 14 146 43" fill="none" stroke="#8cf5ff" stroke-width="9" stroke-linecap="round" opacity=".48"/>
-      <ellipse cx="297" cy="286" rx="38" ry="44" fill="#f7fdff"/>
-      <ellipse cx="423" cy="286" rx="38" ry="44" fill="#f7fdff"/>
-      <ellipse cx="304" cy="292" rx="18" ry="22" fill="#2d7bff" opacity=".45"/>
-      <ellipse cx="430" cy="292" rx="18" ry="22" fill="#2d7bff" opacity=".45"/>
-      <circle cx="286" cy="266" r="10" fill="#ffffff"/>
-      <circle cx="412" cy="266" r="10" fill="#ffffff"/>
-      <circle cx="318" cy="315" r="7" fill="#ffffff" opacity=".58"/>
-      <circle cx="444" cy="315" r="7" fill="#ffffff" opacity=".58"/>
-      <path d="M330 337c18 19 42 19 60 0" fill="none" stroke="#ff7aa2" stroke-width="12" stroke-linecap="round"/>
-      <path d="M332 333c17 14 39 14 56 0" fill="none" stroke="#ffffff" stroke-width="5" stroke-linecap="round" opacity=".9"/>
+      <ellipse id="left-eye" cx="297" cy="286" rx="38" ry="44" fill="#f7fdff"/>
+      <ellipse id="right-eye" cx="423" cy="286" rx="38" ry="44" fill="#f7fdff"/>
+      <ellipse id="left-pupil" cx="304" cy="292" rx="18" ry="22" fill="#2d7bff" opacity=".45"/>
+      <ellipse id="right-pupil" cx="430" cy="292" rx="18" ry="22" fill="#2d7bff" opacity=".45"/>
+      <circle id="left-eye-spark-a" cx="286" cy="266" r="10" fill="#ffffff"/>
+      <circle id="right-eye-spark-a" cx="412" cy="266" r="10" fill="#ffffff"/>
+      <circle id="left-eye-spark-b" cx="318" cy="315" r="7" fill="#ffffff" opacity=".58"/>
+      <circle id="right-eye-spark-b" cx="444" cy="315" r="7" fill="#ffffff" opacity=".58"/>
+      <path id="mouth-smile" d="M330 337c18 19 42 19 60 0" fill="none" stroke="#ff7aa2" stroke-width="12" stroke-linecap="round"/>
+      <path id="mouth-highlight" d="M332 333c17 14 39 14 56 0" fill="none" stroke="#ffffff" stroke-width="5" stroke-linecap="round" opacity=".9"/>
     </g>
     <path d="M195 253c15-45 66-72 165-72 101 0 153 27 166 72 10 36-7 75-41 92-38 19-212 19-250 0-34-17-51-56-40-92Z" fill="none" stroke="#bdf8ff" stroke-width="7" opacity=".54"/>
     <path d="M219 200c31-43 80-64 141-64 62 0 112 21 143 64" fill="none" stroke="#ffffff" stroke-width="13" stroke-linecap="round" opacity=".5"/>

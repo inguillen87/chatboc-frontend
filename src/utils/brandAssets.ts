@@ -1,9 +1,9 @@
 export const CHATBOC_AGENT_AVATAR =
-  "/branding/chatboc-2026/chatboc-agent-avatar.svg";
+  "/branding/chatboc-2026/chatboc-agent-avatar.svg?v=20260517-motion2";
 export const CHATBOC_AGENT_MARK =
   "/branding/chatboc-2026/chatboc-agent-mark.svg";
 export const CHATBOC_AGENT_LAUNCHER_ANIMATED =
-  "/branding/chatboc-2026/chatboc-agent-launcher.svg";
+  "/branding/chatboc-2026/chatboc-agent-launcher.svg?v=20260517-motion2";
 export const CHATBOC_AGENT_LAUNCHER_STATIC =
   "/branding/chatboc-2026/chatboc-agent-launcher-static.svg";
 

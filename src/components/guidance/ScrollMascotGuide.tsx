@@ -1,4 +1,11 @@
 import React from "react";
+import {
+  motion,
+  useMotionValue,
+  useReducedMotion,
+  useSpring,
+  useTransform,
+} from "framer-motion";
 import { X } from "lucide-react";
 import { useLocation } from "react-router-dom";
 
@@ -120,6 +127,13 @@ function collectGuideSections(): GuideSection[] {
 
 export default function ScrollMascotGuide() {
   const location = useLocation();
+  const prefersReducedMotion = useReducedMotion();
+  const pointerX = useMotionValue(0);
+  const pointerY = useMotionValue(0);
+  const springX = useSpring(pointerX, { stiffness: 170, damping: 18, mass: 0.42 });
+  const springY = useSpring(pointerY, { stiffness: 170, damping: 18, mass: 0.42 });
+  const rotateY = useTransform(springX, [-1, 1], [10, -10]);
+  const rotateX = useTransform(springY, [-1, 1], [-8, 8]);
   const [sections, setSections] = React.useState<GuideSection[]>([]);
   const [activeIndex, setActiveIndex] = React.useState(0);
   const [guideTop, setGuideTop] = React.useState(150);
@@ -259,6 +273,20 @@ export default function ScrollMascotGuide() {
     setDismissed(true);
   };
 
+  const resetPointerDepth = () => {
+    pointerX.set(0);
+    pointerY.set(0);
+  };
+
+  const handleAvatarPointerMove = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (prefersReducedMotion) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const nextX = ((event.clientX - rect.left) / rect.width - 0.5) * 2;
+    const nextY = ((event.clientY - rect.top) / rect.height - 0.5) * 2;
+    pointerX.set(Math.max(-1, Math.min(1, nextX)));
+    pointerY.set(Math.max(-1, Math.min(1, nextY)));
+  };
+
   return (
     <aside
       className={rootClassName}
@@ -266,13 +294,28 @@ export default function ScrollMascotGuide() {
       aria-label="Chatboc guia contextual"
     >
       <div className="chatboc-scroll-guide__stage">
-        <button
+        <motion.button
           className="chatboc-scroll-guide__avatar-button"
           type="button"
+          style={prefersReducedMotion ? undefined : { rotateX, rotateY }}
           onClick={() => setExpanded((value) => !value)}
+          onPointerMove={handleAvatarPointerMove}
+          onPointerLeave={resetPointerDepth}
+          onBlur={resetPointerDepth}
           aria-expanded={expanded}
           aria-label={expanded ? "Ocultar guia" : "Mostrar guia"}
         >
+          <span className="chatboc-scroll-guide__back-glow" aria-hidden="true" />
+          <span className="chatboc-scroll-guide__rim-light" aria-hidden="true" />
+          <span
+            className="chatboc-scroll-guide__spark chatboc-scroll-guide__spark--one"
+            aria-hidden="true"
+          />
+          <span
+            className="chatboc-scroll-guide__spark chatboc-scroll-guide__spark--two"
+            aria-hidden="true"
+          />
+          <span className="chatboc-scroll-guide__shine" aria-hidden="true" />
           <img
             className="chatboc-scroll-guide__avatar"
             src={CHATBOC_AGENT_AVATAR}
@@ -284,7 +327,7 @@ export default function ScrollMascotGuide() {
             <span />
             <span />
           </span>
-        </button>
+        </motion.button>
 
         <div className="chatboc-scroll-guide__bubble" aria-live="polite">
           <button
