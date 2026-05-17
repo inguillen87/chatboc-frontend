@@ -2856,7 +2856,9 @@ export function useChatLogic({
             }),
           ...(visitorName && { nombre_usuario: visitorName }),
           session_id: sessionId,
-          ...(tenantSlugForPayload ? { tenant_slug: tenantSlugForPayload } : {}),
+          ...(tenantSlugForPayload
+            ? { tenant_slug: tenantSlugForPayload, tenant: tenantSlugForPayload }
+            : {}),
         };
 
         if (sanitizedDiffers || emojiFallback) {

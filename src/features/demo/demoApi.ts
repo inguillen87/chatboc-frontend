@@ -1,5 +1,6 @@
 import { demoApi } from '@/api/v2/client';
 import { findDemoCatalogAsset } from '@/data/demoCatalogAssets';
+import { normalizeDemoResourceUrlsDeep } from '@/utils/demoResourceUrls';
 import { persistDemoRuntimeStorage } from './demoStorage';
 import type {
   DemoAdminPreviewResponse,
@@ -143,8 +144,8 @@ const normalizeDemoSessionResponse = (response: DemoSessionResponse): DemoSessio
     readString(response.workspace?.chat_bootstrap?.session?.demo_session_id) ??
     readString(response.chat_bootstrap?.session?.demo_session_id);
   const tenantSlug =
-    response.tenant_slug ??
     response.tenant?.slug ??
+    response.tenant_slug ??
     (typeof session?.tenant_slug === 'string' ? session.tenant_slug : null) ??
     null;
 
@@ -334,7 +335,9 @@ const normalizeWorkspaceConfig = (
   const workspace: DemoWorkspaceConfig = response.workspace ?? {};
   const quickReplies = workspace.quick_replies ?? response.quick_replies ?? [];
   const valueCards = workspace.value_cards ?? response.value_cards ?? [];
-  const catalogResources = workspace.catalog_resources ?? (response as any).catalog_resources ?? [];
+  const catalogResources = normalizeDemoResourceUrlsDeep(
+    workspace.catalog_resources ?? (response as any).catalog_resources ?? [],
+  );
   const welcomeMessage = workspace.welcome_message ?? response.welcome_message ?? null;
   const rubroSelector = workspace.rubro_selector ?? null;
   const defaultMenu = workspace.default_menu ?? (response as any).default_menu ?? null;
@@ -360,7 +363,7 @@ const normalizeWorkspaceConfig = (
         readShortChatSessionId(context.chatSessionId) ??
         readShortChatSessionId(response.chat_session_id) ??
         readShortChatSessionId(response.session_id),
-      tenantSlug: context.tenantSlug ?? response.tenant_slug ?? response.tenant?.slug ?? null,
+      tenantSlug: context.tenantSlug ?? response.tenant?.slug ?? response.tenant_slug ?? null,
     },
   );
   const firstVisit = workspace.first_visit ?? experienceBlueprint?.first_visit ?? null;
@@ -426,11 +429,11 @@ const normalizeWorkspaceConfig = (
     animation_tokens: animationTokens,
     empty_states: emptyStates,
     education,
-    rubro_tools: workspace.rubro_tools ?? null,
-    business_tools: workspace.business_tools ?? null,
-    operational_tools: workspace.operational_tools ?? null,
-    tools: workspace.tools ?? null,
-    toolkit: workspace.toolkit ?? null,
+    rubro_tools: normalizeDemoResourceUrlsDeep(workspace.rubro_tools ?? null),
+    business_tools: normalizeDemoResourceUrlsDeep(workspace.business_tools ?? null),
+    operational_tools: normalizeDemoResourceUrlsDeep(workspace.operational_tools ?? null),
+    tools: normalizeDemoResourceUrlsDeep(workspace.tools ?? null),
+    toolkit: normalizeDemoResourceUrlsDeep(workspace.toolkit ?? null),
     chat_bootstrap: chatBootstrap,
     chat_seed: workspace.chat_seed ?? response.chat_seed ?? null,
   };
@@ -519,7 +522,9 @@ const normalizeChatBootstrap = (
   if (tenantSlug) {
     headers['X-Tenant-Slug'] ||= tenantSlug;
     if (payload && !payload.tenant_slug) payload.tenant_slug = tenantSlug;
+    if (payload && !payload.tenant) payload.tenant = tenantSlug;
     if (query && !query.tenant_slug) query.tenant_slug = tenantSlug;
+    if (query && !query.tenant) query.tenant = tenantSlug;
   }
 
   return {

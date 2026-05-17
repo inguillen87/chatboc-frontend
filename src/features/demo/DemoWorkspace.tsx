@@ -103,7 +103,6 @@ const DemoRubroToolsPanel = ({
       <div className="grid gap-2 sm:grid-cols-2">
         {tools.map((tool) => {
           const Icon = getToolIcon(tool.kind);
-          const isExternal = Boolean(tool.actionHref && /^https?:\/\//i.test(tool.actionHref));
 
           return (
             <article key={tool.id} className="rounded-xl border bg-card/70 p-3">
@@ -136,8 +135,9 @@ const DemoRubroToolsPanel = ({
                   {tool.actionHref && tool.actionLabel ? (
                     <a
                       href={tool.actionHref}
-                      target={isExternal ? '_blank' : undefined}
-                      rel={isExternal ? 'noreferrer' : undefined}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      referrerPolicy="no-referrer"
                       className="mt-3 inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus:ring-2 focus:ring-primary/40"
                     >
                       {tool.actionLabel}

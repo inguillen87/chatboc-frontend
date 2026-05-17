@@ -11,6 +11,7 @@ import { motion } from 'framer-motion';
 import { openExternalLink } from '@/utils/openExternalLink';
 import { useTenant } from '@/context/TenantContext';
 import { buildTenantAwareUrl } from '@/utils/tenantUrls';
+import { isDemoCatalogResourceUrl, normalizeDemoResourceUrl } from '@/utils/demoResourceUrls';
 
 interface CategorizedButtonsProps {
   categorias: Categoria[];
@@ -65,7 +66,13 @@ const CategorizedButtons: React.FC<CategorizedButtonsProps> = ({
   const { currentSlug } = useTenant();
 
   const resolveUrl = useMemo(
-    () => (url?: string) => (url ? buildTenantAwareUrl(url, currentSlug) : undefined),
+    () => (url?: string) => {
+      const normalized = normalizeDemoResourceUrl(url);
+      if (!normalized) return undefined;
+      return isDemoCatalogResourceUrl(normalized)
+        ? normalized
+        : buildTenantAwareUrl(normalized, currentSlug);
+    },
     [currentSlug],
   );
 
@@ -78,17 +85,36 @@ const CategorizedButtons: React.FC<CategorizedButtonsProps> = ({
     const loginActions = ["login", "loginpanel", "chatuserloginpanel"].map(normalize);
     const registerActions = ["register", "registerpanel", "chatuserregisterpanel"].map(normalize);
 
-    const action = boton.action || boton.accion_interna;
-    const normalizedAction = action ? normalize(action) : null;
+    const actionToUse = boton.action || boton.action_id;
+    const normalizedAction = actionToUse ? normalize(actionToUse) : null;
+    const accionInterna = boton.accion_interna;
+    const normalizedAccionInterna = accionInterna ? normalize(accionInterna) : null;
 
     if (normalizedAction && (loginActions.includes(normalizedAction) || registerActions.includes(normalizedAction))) {
         if (onInternalAction) onInternalAction(normalizedAction);
         return;
     }
 
-    if (action) {
-      onButtonClick({ text: boton.texto, action: action, payload: boton.payload, source: 'button' });
-      if (onInternalAction) onInternalAction(action);
+    if (normalizedAccionInterna && (loginActions.includes(normalizedAccionInterna) || registerActions.includes(normalizedAccionInterna))) {
+        if (onInternalAction) onInternalAction(normalizedAccionInterna);
+        return;
+    }
+
+    if (actionToUse) {
+      const actionId = boton.action_id || boton.action || undefined;
+      onButtonClick({
+        text: boton.texto,
+        action: actionToUse,
+        action_id: actionId,
+        payload: boton.payload,
+        source: 'button',
+      });
+      return;
+    }
+
+    if (accionInterna) {
+      onButtonClick({ text: boton.texto, action: accionInterna, payload: boton.payload, source: 'button' });
+      if (onInternalAction) onInternalAction(accionInterna);
       return;
     }
 

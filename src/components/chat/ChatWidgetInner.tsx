@@ -33,6 +33,7 @@ import {
   getChatbocBotAvatar,
 } from "@/utils/brandAssets";
 import { createDemoSession } from "@/features/demo/demoApi";
+import { clearDemoRuntimeStorage } from "@/features/demo/demoStorage";
 import getOrCreateChatSessionId, { persistChatSessionId, resetChatSessionId } from "@/utils/chatSessionId";
 import { isPublicPlatformSurfacePath } from "@/utils/widgetTenantResolution";
 import {
@@ -47,6 +48,12 @@ import type {
 } from "@/types/widgetCommerce";
 import type { ChatWidgetUiHints } from "@/types/chat";
 import { isBackofficeRole } from "@/utils/roles";
+import {
+  clearCachedWidgetToken,
+  clearWidgetRuntimeCacheForTenantSwitch,
+  normalizeWidgetTenantScopeSlug,
+  resolveWidgetTokenForTenant,
+} from "@/utils/widgetTokenScope";
 
 // Use constants from new file
 import { TENANT_PLACEHOLDER_SLUGS } from "@/constants/tenant";
@@ -354,6 +361,25 @@ function sanitizeTenantSlug(slug?: string | null) {
     return null;
   }
 }
+
+const readResponseTenantSlug = (value: unknown): string | null => {
+  if (!isPlainRecord(value)) return null;
+  const tenant = isPlainRecord(value.tenant) ? value.tenant : null;
+  const session = isPlainRecord(value.session) ? value.session : null;
+  return readFirstString(
+    tenant?.slug,
+    tenant?.tenant_slug,
+    value.tenant_slug,
+    session?.tenant_slug,
+    session?.tenant,
+  ) || null;
+};
+
+const responseMatchesTenant = (value: unknown, activeTenantSlug?: string | null) => {
+  const responseTenant = normalizeWidgetTenantScopeSlug(readResponseTenantSlug(value));
+  const activeTenant = normalizeWidgetTenantScopeSlug(activeTenantSlug);
+  return !responseTenant || !activeTenant || responseTenant === activeTenant;
+};
 
 function readTenantFromScripts(): string | null {
   if (typeof document === "undefined") return null;
@@ -1760,9 +1786,14 @@ function ChatWidgetInner({
       entityInfo?.tenant?.slug === "chatboc-platform";
     setPlatformSelectionLoadingId(optionId);
     setPlatformSelectionError(null);
+    setWidgetCommerceSession(null);
+    setWidgetCommerceHistory(null);
+    setWidgetCommerceCart(null);
+    clearWidgetRuntimeCacheForTenantSwitch();
+    clearDemoRuntimeStorage();
     try {
       const label = readFirstString(option.label, option.title, option.name, option.sector, sector);
-      const chatSessionIdForDemo = isRubroSelectorStep ? getOrCreateChatSessionId() : resetChatSessionId();
+      const chatSessionIdForDemo = resetChatSessionId();
       const sessionPayload = isPlatformSectorSelector || isRubroSelectorStep
         ? {
             surface: "widget",
@@ -1823,7 +1854,7 @@ function ChatWidgetInner({
         return;
       }
       const demoTenantSlug =
-        session.session?.tenant_slug || session.tenant_slug || session.tenant?.slug || (!isPlatformSectorSelector ? tenantSlug : null) || null;
+        session.tenant?.slug || session.tenant_slug || session.session?.tenant_slug || (!isPlatformSectorSelector ? tenantSlug : null) || null;
       const demoChatSessionId =
         session.session?.chat_session_id || session.chat_session_id || workspace.chat_bootstrap?.session?.chat_session_id || null;
       if (demoChatSessionId) {
@@ -2486,9 +2517,7 @@ function ChatWidgetInner({
   useEffect(() => {
     let isActive = true;
     const tenantSlug = sanitizeTenantSlug(chatTenantSlug);
-    const widgetToken = typeof resolvedOwnerToken === "string" && resolvedOwnerToken.trim()
-      ? resolvedOwnerToken.trim()
-      : null;
+    const widgetToken = resolveWidgetTokenForTenant(resolvedOwnerToken, tenantSlug);
     const isPlatformTenant = tenantSlug === "chatboc-platform";
     const isDemoSession = entityInfo?.onboarding?.mode === "demo_session";
 
@@ -2506,14 +2535,27 @@ function ChatWidgetInner({
       anonId: getOrCreateAnonId(),
     };
 
-    getWidgetCommerceSession(request)
+    const loadCommerceSession = (activeRequest: typeof request, retried = false): Promise<void> =>
+      getWidgetCommerceSession(activeRequest)
       .then((session) => {
         if (!isActive) return;
+        if (!responseMatchesTenant(session, tenantSlug)) {
+          if (!retried && activeRequest.widgetToken) {
+            clearCachedWidgetToken();
+            return loadCommerceSession({ ...activeRequest, widgetToken: null }, true);
+          }
+          setWidgetCommerceSession(null);
+          setWidgetCommerceHistory(null);
+          setWidgetCommerceCart(null);
+          return;
+        }
         if (session?.session?.chat_session_id) {
           persistChatSessionId(session.session.chat_session_id);
         }
         setWidgetCommerceSession(session);
-      })
+      });
+
+    loadCommerceSession(request)
       .catch(() => {
         if (!isActive) return;
         setWidgetCommerceSession(null);
@@ -2541,30 +2583,40 @@ function ChatWidgetInner({
       widgetCommerceSession?.history?.endpoint,
     );
     const tenantSlug = sanitizeTenantSlug(commerceTenantSlug);
-    const widgetToken = typeof resolvedOwnerToken === "string" && resolvedOwnerToken.trim()
-      ? resolvedOwnerToken.trim()
-      : null;
+    const widgetToken = resolveWidgetTokenForTenant(resolvedOwnerToken, tenantSlug);
 
     if (!historyEndpoint && !tenantSlug && !widgetToken) {
       setWidgetCommerceHistory(null);
       return;
     }
 
-    getWidgetTenantHistory(historyEndpoint || null, {
+    const historyRequest = {
       tenantSlug,
       widgetToken,
       chatSessionId: getOrCreateChatSessionId(),
       anonId: getOrCreateAnonId(),
       widgetSessionToken: widgetCommerceSession?.session?.widget_session_token || null,
-    })
+    };
+    const loadTenantHistory = (activeRequest: typeof historyRequest, retried = false): Promise<void> =>
+      getWidgetTenantHistory(historyEndpoint || null, activeRequest)
       .then((history) => {
         if (isActive) {
+          if (!responseMatchesTenant(history, tenantSlug)) {
+            if (!retried && activeRequest.widgetToken) {
+              clearCachedWidgetToken();
+              return loadTenantHistory({ ...activeRequest, widgetToken: null }, true);
+            }
+            setWidgetCommerceHistory(null);
+            return;
+          }
           if (history?.session?.chat_session_id) {
             persistChatSessionId(history.session.chat_session_id);
           }
           setWidgetCommerceHistory(history);
         }
-      })
+      });
+
+    loadTenantHistory(historyRequest)
       .catch(() => {
         if (isActive) setWidgetCommerceHistory(null);
       });
@@ -2598,30 +2650,40 @@ function ChatWidgetInner({
       widgetCommerceSession?.cart?.endpoint,
     );
     const tenantSlug = sanitizeTenantSlug(commerceTenantSlug);
-    const widgetToken = typeof resolvedOwnerToken === "string" && resolvedOwnerToken.trim()
-      ? resolvedOwnerToken.trim()
-      : null;
+    const widgetToken = resolveWidgetTokenForTenant(resolvedOwnerToken, tenantSlug);
 
     if (!cartEndpoint && !tenantSlug && !widgetToken) {
       setWidgetCommerceCart(null);
       return;
     }
 
-    getWidgetCartSnapshot(cartEndpoint || null, {
+    const cartRequest = {
       tenantSlug,
       widgetToken,
       chatSessionId: getOrCreateChatSessionId(),
       anonId: getOrCreateAnonId(),
       widgetSessionToken: widgetCommerceSession?.session?.widget_session_token || null,
-    })
+    };
+    const loadCartSnapshot = (activeRequest: typeof cartRequest, retried = false): Promise<void> =>
+      getWidgetCartSnapshot(cartEndpoint || null, activeRequest)
       .then((cart) => {
         if (isActive) {
+          if (!responseMatchesTenant(cart, tenantSlug)) {
+            if (!retried && activeRequest.widgetToken) {
+              clearCachedWidgetToken();
+              return loadCartSnapshot({ ...activeRequest, widgetToken: null }, true);
+            }
+            setWidgetCommerceCart(null);
+            return;
+          }
           if (cart?.session?.chat_session_id) {
             persistChatSessionId(cart.session.chat_session_id);
           }
           setWidgetCommerceCart(cart);
         }
-      })
+      });
+
+    loadCartSnapshot(cartRequest)
       .catch(() => {
         if (isActive) setWidgetCommerceCart(null);
       });

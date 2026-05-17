@@ -1,4 +1,5 @@
 import type { DemoRubroTool, DemoWorkspaceConfig } from './demoTypes';
+import { normalizeDemoResourceUrl } from '@/utils/demoResourceUrls';
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -85,15 +86,15 @@ const firstItemRecord = (tool: UnknownRecord) => {
 
 const buildActionHref = (tool: UnknownRecord) => {
   const explicitUrl = readString(tool, ['url', 'href', 'action_url', 'deeplink', 'wa_deeplink', 'maps_url', 'google_maps_url']);
-  if (explicitUrl) return explicitUrl;
+  if (explicitUrl) return normalizeDemoResourceUrl(explicitUrl);
 
   const location = asRecord(tool.location);
   const locationUrl = readString(location, ['maps_url', 'google_maps_url', 'map_url', 'url', 'href']);
-  if (locationUrl) return locationUrl;
+  if (locationUrl) return normalizeDemoResourceUrl(locationUrl);
 
   const firstItem = firstItemRecord(tool);
   const firstItemUrl = readString(firstItem, ['url', 'href', 'action_url', 'maps_url', 'google_maps_url']);
-  if (firstItemUrl) return firstItemUrl;
+  if (firstItemUrl) return normalizeDemoResourceUrl(firstItemUrl);
 
   return undefined;
 };

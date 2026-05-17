@@ -273,8 +273,8 @@ const normalizePublicNavigation = (
   return {
     contract_version: coerceString(input.contract_version) ?? null,
     tenant_slug:
-      coerceString(input.tenant_slug) ??
       (isRecord(input.tenant) ? coerceString(input.tenant.slug) : undefined) ??
+      coerceString(input.tenant_slug) ??
       fallbackSlug,
     items: rawItems
       .map((item) => normalizePublicNavigationItem(item))

@@ -5,6 +5,7 @@ import { Boton, SendPayload } from '@/types/chat';
 import { openExternalLink } from '@/utils/openExternalLink';
 import { useTenant } from '@/context/TenantContext';
 import { buildTenantAwareUrl } from '@/utils/tenantUrls';
+import { isDemoCatalogResourceUrl, normalizeDemoResourceUrl } from '@/utils/demoResourceUrls';
 import { useIsMobile } from '@/hooks/use-mobile';
 
 interface ChatButtonsProps {
@@ -29,6 +30,7 @@ const endpointPathname = (endpoint?: string | null) => {
 };
 
 const isApiNavigationEndpoint = (endpoint?: string | null) => {
+  if (isDemoCatalogResourceUrl(endpoint)) return false;
   const pathname = endpointPathname(endpoint);
   return pathname.startsWith("/api/") || /^\/v\d+\//.test(pathname);
 };
@@ -47,7 +49,13 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
   const [showAll, setShowAll] = useState(false);
 
   const resolveUrl = useMemo(
-    () => (url?: string) => (url ? buildTenantAwareUrl(url, currentSlug) : undefined),
+    () => (url?: string) => {
+      const normalized = normalizeDemoResourceUrl(url);
+      if (!normalized) return undefined;
+      return isDemoCatalogResourceUrl(normalized)
+        ? normalized
+        : buildTenantAwareUrl(normalized, currentSlug);
+    },
     [currentSlug],
   );
 
@@ -119,16 +127,8 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
       return;
     }
 
-    const isBackendOnlyAction = (actionStr: string | null) => {
-      if (!actionStr) return false;
-      const str = actionStr.toLowerCase();
-      return str.startsWith("demo_segment:") ||
-        str.startsWith("demo_select_rubro:") ||
-        str.startsWith("demo_menu:");
-    };
-
     if (actionToUse) {
-      const actionId = boton.action_id || undefined;
+      const actionId = boton.action_id || boton.action || boton.accion_interna || undefined;
       onButtonClick({
         text: boton.texto,
         action: actionToUse,
@@ -136,17 +136,12 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
         payload: boton.payload,
         source: 'button',
       });
-      if (!isBackendOnlyAction(actionToUse)) {
-        onInternalAction?.(actionToUse);
-      }
       return;
     }
 
     if (accionInterna) {
       onButtonClick({ text: boton.texto, action: accionInterna, source: 'button' });
-      if (!isBackendOnlyAction(accionInterna)) {
-        onInternalAction?.(accionInterna);
-      }
+      onInternalAction?.(accionInterna);
       return;
     }
 

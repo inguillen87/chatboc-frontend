@@ -23,6 +23,10 @@ import { normalizeEntityToken } from '@/utils/entityToken';
 import { TENANT_PLACEHOLDER_SLUGS, TENANT_ROUTE_PREFIXES } from '@/constants/tenant';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { useTenantStore } from '@/stores';
+import {
+  persistWidgetTokenScope,
+  resolveWidgetTokenForTenant,
+} from '@/utils/widgetTokenScope';
 
 const LOCAL_PLACEHOLDER_SLUGS = new Set([...TENANT_PLACEHOLDER_SLUGS, 'e']);
 
@@ -232,17 +236,24 @@ const resolveTenantBootstrap = (
   );
 
   if (slugFromUrl || widgetTokenFromQuery) {
-    return { slug: sanitizeTenantSlug(slugFromUrl), widgetToken: widgetTokenFromQuery };
+    const slug = sanitizeTenantSlug(slugFromUrl);
+    return { slug, widgetToken: resolveWidgetTokenForTenant(widgetTokenFromQuery, slug) };
   }
 
   const fromConfig = readTenantFromConfig();
   if (fromConfig.slug || fromConfig.widgetToken) {
-    return fromConfig;
+    return {
+      slug: fromConfig.slug,
+      widgetToken: resolveWidgetTokenForTenant(fromConfig.widgetToken, fromConfig.slug),
+    };
   }
 
   const fromScripts = readTenantFromScripts();
   if (fromScripts.slug || fromScripts.widgetToken) {
-    return fromScripts;
+    return {
+      slug: fromScripts.slug,
+      widgetToken: resolveWidgetTokenForTenant(fromScripts.widgetToken, fromScripts.slug),
+    };
   }
 
   const storedSlug = sanitizeTenantSlug(safeLocalStorage.getItem('tenantSlug'));
@@ -295,6 +306,15 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
            setCurrentSlug(info.slug);
            currentSlugRef.current = info.slug;
            useTenantStore.getState().setTenant(info.slug, info);
+           if (token) {
+             const scopedToken = resolveWidgetTokenForTenant(token, info.slug);
+             if (scopedToken) {
+               persistWidgetTokenScope(scopedToken, info.slug);
+               setWidgetToken(scopedToken);
+             } else {
+               setWidgetToken(null);
+             }
+           }
         }
       }
 

@@ -476,7 +476,10 @@ const sanitizeBootstrapQuery = (bootstrap: ChatBootstrapConfig) => {
   delete query.session;
 
   const { tenantSlug } = getBootstrapSessionValues(bootstrap);
-  if (tenantSlug && !query.tenant_slug && !query.tenant) query.tenant_slug = tenantSlug;
+  if (tenantSlug) {
+    if (!query.tenant_slug) query.tenant_slug = tenantSlug;
+    if (!query.tenant) query.tenant = tenantSlug;
+  }
 
   return Object.keys(query).length ? query : undefined;
 };
@@ -515,7 +518,14 @@ const buildJsonPayload = (bootstrap: ChatBootstrapConfig, payload: ChatBootstrap
   const { chatSessionId, demoSessionId, tenantSlug } = getBootstrapSessionValues(bootstrap);
   if (demoSessionId && !basePayload.demo_session_id) basePayload.demo_session_id = demoSessionId;
   if (chatSessionId && !basePayload.chat_session_id) basePayload.chat_session_id = chatSessionId;
-  if (tenantSlug && !basePayload.tenant_slug && !basePayload.tenant) basePayload.tenant_slug = tenantSlug;
+  if (tenantSlug) {
+    if (!basePayload.tenant_slug) basePayload.tenant_slug = tenantSlug;
+    if (!basePayload.tenant) basePayload.tenant = tenantSlug;
+  } else if (typeof basePayload.tenant_slug === 'string' && !basePayload.tenant) {
+    basePayload.tenant = basePayload.tenant_slug;
+  } else if (typeof basePayload.tenant === 'string' && !basePayload.tenant_slug) {
+    basePayload.tenant_slug = basePayload.tenant;
+  }
   const text = payload.text?.trim() ?? '';
   basePayload.pregunta = text;
 
