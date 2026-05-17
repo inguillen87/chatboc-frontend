@@ -198,6 +198,40 @@ describe('analyticsService.getHub', () => {
     expect(apiFetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it('uses hub geo_layers even when legacy points are not present', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      sections: {
+        mapas: {
+          geo: {
+            geo_layers: {
+              contract_version: '2026.04-maplibre-v1',
+              source: {
+                type: 'FeatureCollection',
+                features: [
+                  {
+                    type: 'Feature',
+                    geometry: { type: 'Point', coordinates: [-58.38, -34.6] },
+                    properties: { weight: 8 },
+                  },
+                ],
+              },
+              categories: [{ categoria: 'seguridad', color: '#EF4444', event_count: 12 }],
+            },
+            segments_filters_applied: { canal: 'voice' },
+          },
+        },
+      },
+    });
+
+    const heatmap = await analyticsService.getHeatmap({ scope: 'municipio' });
+
+    expect(heatmap.points).toEqual([]);
+    expect(heatmap.geo_layers?.source?.features).toHaveLength(1);
+    expect(heatmap.geo_layers?.categories?.[0]?.color).toBe('#EF4444');
+    expect(heatmap.segments_filters_applied?.canal).toBe('voice');
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('preserves request_id and map_layers from heatmap payload', async () => {
     apiFetchMock
       .mockResolvedValueOnce({ sections: {} })

@@ -240,7 +240,7 @@ const RealtimeHubDashboard: React.FC<Props> = ({ data, loading }) => {
               <div className="flex flex-wrap gap-2 text-xs">
                 {geoCategories.slice(0, 10).map((item, idx) => (
                   <span key={`${item.categoria || 'cat'}_${idx}`} className="inline-flex items-center gap-1 rounded-full border px-2 py-1">
-                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color || '#94a3b8' }} />
+                    {item.color ? <span className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} /> : null}
                     {item.categoria || '—'} · {item.event_count ?? item.total_weight ?? 0}
                   </span>
                 ))}

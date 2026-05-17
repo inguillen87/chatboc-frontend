@@ -703,10 +703,23 @@ export const analyticsService = {
     const hubMap = hub?.sections?.mapas as Record<string, unknown> | undefined;
     const hubGeo = (hubMap?.geo as Record<string, unknown> | undefined) ?? hubMap;
     const hubPoints = (hubGeo?.points ?? hubGeo?.geo_points ?? hubGeo?.heatmap_points) as unknown;
-    if (Array.isArray(hubPoints)) {
+    const hubGeoLayers = (hubGeo as any)?.geo_layers;
+    const hubGeoLayerSource = hubGeoLayers && typeof hubGeoLayers === 'object'
+      ? (hubGeoLayers as Record<string, unknown>).source
+      : undefined;
+    const hubGeoLayerCategories = hubGeoLayers && typeof hubGeoLayers === 'object'
+      ? (hubGeoLayers as Record<string, unknown>).categories
+      : undefined;
+    const hasHubGeoLayerFeatures =
+      isRecord(hubGeoLayerSource) &&
+      hubGeoLayerSource.type === 'FeatureCollection' &&
+      Array.isArray(hubGeoLayerSource.features) &&
+      hubGeoLayerSource.features.length > 0;
+    const hasHubGeoLayerCategories = Array.isArray(hubGeoLayerCategories) && hubGeoLayerCategories.length > 0;
+    if (Array.isArray(hubPoints) || hasHubGeoLayerFeatures || hasHubGeoLayerCategories) {
       return buildResponse({
-        points: hubPoints,
-        geo_layers: (hubGeo as any)?.geo_layers,
+        ...(Array.isArray(hubPoints) ? { points: hubPoints } : {}),
+        geo_layers: hubGeoLayers,
         map_layers: (hubGeo as any)?.map_layers,
         segments: (hubGeo as any)?.segments,
         segments_filters_applied: (hubGeo as any)?.segments_filters_applied,
