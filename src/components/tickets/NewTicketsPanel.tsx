@@ -15,6 +15,8 @@ import { cn } from '@/lib/utils';
 import { AlertTriangle, CheckCircle2, Clock, Info, MessageSquare, PanelLeft, Radio } from 'lucide-react';
 import type { Ticket } from '@/types/tickets';
 import { normalizeTicketStatus } from '@/utils/ticketStatus';
+import { useTenant } from '@/context/TenantContext';
+import { backofficeService, type BackofficeInboxSummaryResponse } from '@/services/backofficeService';
 
 type MobileView = 'tickets' | 'chat' | 'details';
 type MobileTransitionDirection = -1 | 0 | 1;
@@ -124,6 +126,8 @@ const TicketOpsStat = ({
 const NewTicketsPanel: React.FC = () => {
   const isMobile = useIsMobile();
   const { loading, error, tickets, filteredTickets, selectedTicket } = useTickets();
+  const { currentSlug, tenant } = useTenant();
+  const [inboxSummary, setInboxSummary] = React.useState<BackofficeInboxSummaryResponse | null>(null);
 
   // Mobile-specific state
   const [mobileView, setMobileViewState] = React.useState<MobileView>('tickets');
@@ -161,6 +165,29 @@ const NewTicketsPanel: React.FC = () => {
   React.useEffect(() => {
     mobileViewRef.current = mobileView;
   }, [mobileView]);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    const tenantSlug = currentSlug || tenant?.slug || null;
+    if (!tenantSlug || tenantSlug === 'default') {
+      setInboxSummary(null);
+      return;
+    }
+
+    const scope = tenant?.tipo === 'municipio' || tenant?.tipo === 'colegio' ? tenant.tipo : 'pyme';
+    backofficeService
+      .getInboxSummary({ tenantSlug, scope })
+      .then((response) => {
+        if (!cancelled) setInboxSummary(response);
+      })
+      .catch(() => {
+        if (!cancelled) setInboxSummary(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentSlug, tenant?.slug, tenant?.tipo]);
 
   // Sync mobile view with ticket selection
   React.useEffect(() => {
@@ -305,10 +332,16 @@ const NewTicketsPanel: React.FC = () => {
     isMobile && 'h-[calc(100dvh-8rem)]',
   );
 
-  const openTickets = tickets.filter((ticket) => !isResolvedTicket(ticket)).length;
-  const unreadTickets = tickets.filter(hasUnreadTicket).length;
-  const riskTickets = tickets.filter(isRiskTicket).length;
-  const resolvedTickets = tickets.length - openTickets;
+  const localOpenTickets = tickets.filter((ticket) => !isResolvedTicket(ticket)).length;
+  const localUnreadTickets = tickets.filter(hasUnreadTicket).length;
+  const localRiskTickets = tickets.filter(isRiskTicket).length;
+  const localResolvedTickets = tickets.length - localOpenTickets;
+  const summary = inboxSummary?.summary;
+  const openTickets = typeof summary?.open === 'number' ? summary.open : localOpenTickets;
+  const unreadTickets = typeof summary?.unread === 'number' ? summary.unread : localUnreadTickets;
+  const riskTickets = typeof summary?.sla_risk === 'number' ? summary.sla_risk : localRiskTickets;
+  const resolvedTickets = typeof summary?.resolved === 'number' ? summary.resolved : localResolvedTickets;
+  const recommendedViews = Array.isArray(inboxSummary?.recommended_views) ? inboxSummary.recommended_views : [];
 
   return (
     <Card className={panelCardClass}>
@@ -327,8 +360,21 @@ const NewTicketsPanel: React.FC = () => {
               ) : null}
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
-              Priorizacion, conversacion y detalle en una sola vista. Los indicadores salen de los tickets cargados.
+              Priorizacion, conversacion y detalle en una sola vista.
+              {inboxSummary?.request_id ? ` Ref. ${inboxSummary.request_id}` : null}
             </p>
+            {recommendedViews.length ? (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {recommendedViews.slice(0, 3).map((view, index) => (
+                  <Badge key={view.id || `recommended_${index}`} variant="secondary" className="max-w-full rounded-full">
+                    <span className="truncate">
+                      {view.label}
+                      {view.description ? `: ${view.description}` : ''}
+                    </span>
+                  </Badge>
+                ))}
+              </div>
+            ) : null}
           </div>
           <div className="grid gap-2 sm:grid-cols-2 xl:w-[620px] xl:grid-cols-4">
             <TicketOpsStat label="Abiertos" value={openTickets} helper="Casos por resolver" tone="blue" icon={Clock} />
