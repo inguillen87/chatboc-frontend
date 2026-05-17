@@ -3255,6 +3255,26 @@ const ChatPanel = (props: ChatPanelProps) => {
   const visitorNameHint = visitorDisplayName
     ? null
     : "Para atenderte mejor, primero podes decirme tu nombre.";
+  const bootstrapPayload = chatBootstrap?.payload as Record<string, unknown> | undefined;
+  const bootstrapDemoMetadata = bootstrapPayload?.demo_metadata as Record<string, unknown> | undefined;
+  const bootstrapWorkspace = bootstrapPayload?.workspace as Record<string, unknown> | undefined;
+  const demoWorkspace = bootstrapDemoMetadata?.workspace as Record<string, unknown> | undefined;
+  const bootstrapExperienceBlueprint =
+    (bootstrapPayload?.experience_blueprint as Record<string, unknown> | undefined) ??
+    (bootstrapDemoMetadata?.experience_blueprint as Record<string, unknown> | undefined) ??
+    (demoWorkspace?.experience_blueprint as Record<string, unknown> | undefined);
+  const bootstrapVerticals = bootstrapPayload?.verticals as Record<string, unknown> | undefined;
+  const activeVertical = readFirstString(
+    bootstrapPayload?.active_vertical,
+    bootstrapPayload?.vertical,
+    bootstrapPayload?.rubro,
+    bootstrapPayload?.rubro_slug,
+    resolvedSelectedRubro,
+  );
+  const activeVerticalMenu =
+    activeVertical && bootstrapVerticals && typeof bootstrapVerticals === "object"
+      ? (bootstrapVerticals[activeVertical] as Record<string, unknown> | undefined)
+      : undefined;
   const defaultMenuButtons = useMemo(
     () =>
       mergeButtons(
@@ -3262,18 +3282,59 @@ const ChatPanel = (props: ChatPanelProps) => {
         quickMenu,
         chatBootstrap?.default_menu,
         chatBootstrap?.quick_menu,
-        chatBootstrap?.payload?.default_menu,
-        chatBootstrap?.payload?.quick_menu,
-        (chatBootstrap?.payload?.demo_metadata as Record<string, unknown> | undefined)?.default_menu,
+        bootstrapPayload?.primary_actions,
+        bootstrapPayload?.actions,
+        bootstrapPayload?.menu_actions,
+        bootstrapPayload?.default_menu,
+        bootstrapPayload?.quick_menu,
+        bootstrapDemoMetadata?.primary_actions,
+        bootstrapDemoMetadata?.actions,
+        bootstrapDemoMetadata?.default_menu,
+        bootstrapDemoMetadata?.quick_menu,
+        bootstrapWorkspace?.primary_actions,
+        bootstrapWorkspace?.actions,
+        bootstrapWorkspace?.default_menu,
+        bootstrapWorkspace?.quick_menu,
+        (bootstrapWorkspace?.government as Record<string, unknown> | undefined),
+        (bootstrapWorkspace?.gobierno as Record<string, unknown> | undefined),
+        (bootstrapWorkspace?.municipio as Record<string, unknown> | undefined),
+        (bootstrapWorkspace?.education as Record<string, unknown> | undefined),
+        (bootstrapWorkspace?.education_profile as Record<string, unknown> | undefined),
+        (bootstrapWorkspace?.pyme as Record<string, unknown> | undefined),
+        (bootstrapWorkspace?.business as Record<string, unknown> | undefined),
+        (bootstrapWorkspace?.commerce as Record<string, unknown> | undefined),
+        (bootstrapWorkspace?.operational_menu as Record<string, unknown> | undefined),
+        demoWorkspace?.primary_actions,
+        demoWorkspace?.actions,
+        demoWorkspace?.default_menu,
+        demoWorkspace?.quick_menu,
+        (demoWorkspace?.government as Record<string, unknown> | undefined),
+        (demoWorkspace?.gobierno as Record<string, unknown> | undefined),
+        (demoWorkspace?.municipio as Record<string, unknown> | undefined),
+        (demoWorkspace?.education as Record<string, unknown> | undefined),
+        (demoWorkspace?.education_profile as Record<string, unknown> | undefined),
+        (demoWorkspace?.pyme as Record<string, unknown> | undefined),
+        (demoWorkspace?.business as Record<string, unknown> | undefined),
+        (demoWorkspace?.commerce as Record<string, unknown> | undefined),
+        (demoWorkspace?.operational_menu as Record<string, unknown> | undefined),
+        activeVerticalMenu,
+        effectiveConversionCtas,
+        experienceBlueprint?.conversion_ctas,
+        bootstrapExperienceBlueprint?.conversion_ctas,
       ),
     [
       defaultMenu,
       quickMenu,
       chatBootstrap?.default_menu,
       chatBootstrap?.quick_menu,
-      chatBootstrap?.payload?.default_menu,
-      chatBootstrap?.payload?.quick_menu,
-      chatBootstrap?.payload?.demo_metadata,
+      bootstrapPayload,
+      bootstrapDemoMetadata,
+      bootstrapWorkspace,
+      demoWorkspace,
+      activeVerticalMenu,
+      effectiveConversionCtas,
+      experienceBlueprint?.conversion_ctas,
+      bootstrapExperienceBlueprint,
     ],
   );
   const visibleDefaultMenuButtons = useMemo(
@@ -4137,6 +4198,38 @@ const ChatPanel = (props: ChatPanelProps) => {
             collapseExtraQuickReplies={collapseExtraQuickReplies}
           />
         ))}
+            {visibleDefaultMenuButtons.length && !activeTrialLimitNotice ? (
+              <div className="flex justify-center">
+                <div className="mb-1 flex max-w-[340px] flex-wrap justify-center gap-1.5 rounded-xl border border-border/70 bg-background/80 px-2.5 py-2 shadow-sm sm:gap-2 dark:bg-slate-950/75">
+                  <p className="basis-full text-center text-[11px] font-medium text-muted-foreground dark:text-slate-300">
+                    {menuContextLabel}
+                  </p>
+                  {visibleDefaultMenuButtons.map((item, index) => (
+                    <Button
+                      key={`${item.texto || item.action || item.action_id || "menu"}-persistent-${index}`}
+                      size="sm"
+                      variant="outline"
+                      className="h-auto whitespace-normal rounded-[8px] px-3 py-2 text-xs"
+                      onClick={() =>
+                        handleSend({
+                          text: item.texto,
+                          action:
+                            item.action ||
+                            item.action_id ||
+                            item.accion_interna ||
+                            undefined,
+                          action_id: item.action_id || undefined,
+                          payload: item.payload,
+                          source: "button",
+                        })
+                      }
+                    >
+                      {item.texto}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
             {rubroToolItems.length ? (
               <div className="flex justify-center">
                 <RubroToolTray tools={rubroToolItems} onToolAction={handleRubroToolAction} />

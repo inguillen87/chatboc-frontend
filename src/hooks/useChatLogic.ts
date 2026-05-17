@@ -660,6 +660,7 @@ export function useChatLogic({
     confirmationCard,
     botones,
     categorias,
+    interactiveSections,
   }: {
     messageIdCandidate: unknown;
     text: string | undefined;
@@ -678,6 +679,7 @@ export function useChatLogic({
     confirmationCard?: Message["confirmationCard"];
     botones: any[];
     categorias: Categoria[];
+    interactiveSections?: Message["menu_sections"];
   }) => {
     if (
       typeof messageIdCandidate === "string" ||
@@ -730,6 +732,7 @@ export function useChatLogic({
       chatBubbleStyle || "",
       JSON.stringify(serializeButtons(botones)),
       JSON.stringify(serializeCategories(categorias)),
+      JSON.stringify(interactiveSections || []),
     ].join("|");
   };
 
@@ -1078,13 +1081,25 @@ export function useChatLogic({
         } as never;
       };
 
+      const operationalFieldsSource = [
+        ["ticket_id", record.ticket_id ?? record.ticketId],
+        ["chat_id", record.chat_id ?? record.chatId],
+        ["request_id", record.request_id ?? record.requestId],
+        ["status", record.status ?? record.estado],
+        ["case_id", record.case_id ?? record.caseId],
+      ]
+        .filter(
+          ([, value]) => typeof value === "string" || typeof value === "number",
+        )
+        .map(([label, value]) => ({ label, value }));
+
       const fieldsSource = Array.isArray(record.fields)
         ? record.fields
         : Array.isArray(record.details)
           ? record.details
           : Array.isArray(record.summary_fields)
             ? record.summary_fields
-            : [];
+            : operationalFieldsSource;
       const itemsSource = Array.isArray(record.items)
         ? record.items
         : Array.isArray(record.preview_items)
@@ -1181,6 +1196,7 @@ export function useChatLogic({
           normalizedCard.summary_text ||
           normalizedCard.summary_voice ||
           normalizedCard.flow_type ||
+          normalizedCard.status ||
           normalizedCard.contact ||
           normalizedCard.location ||
           normalizedCard.category ||
@@ -1376,15 +1392,17 @@ export function useChatLogic({
       );
       const rawInteractiveSections =
         data.interactive_sections || data.metadata?.interactive_sections;
-      const interactiveSections =
-        normalizeMenuSectionsForMessage(
-          filterLegacyDemoSelectorSections(rawInteractiveSections),
-        );
       const rawInteractiveListSections =
         data.interactive_list?.sections ||
         data.interactiveList?.sections ||
         data.metadata?.interactive_list?.sections ||
         data.metadata?.interactiveList?.sections;
+      const interactiveSections =
+        normalizeMenuSectionsForMessage(
+          filterLegacyDemoSelectorSections(
+            rawInteractiveSections || rawInteractiveListSections,
+          ),
+        );
       const hasLegacyDemoSelectorMenu =
         isLegacyDemoSelectorMenu(rawInteractiveSections) ||
         isLegacyDemoSelectorMenu(rawInteractiveListSections);
@@ -1618,6 +1636,7 @@ export function useChatLogic({
         (structuredContent?.length ?? 0) > 0 ||
         (listItems?.length ?? 0) > 0 ||
         (posts?.length ?? 0) > 0 ||
+        interactiveSections.length > 0 ||
         !!mediaUrl ||
         !!audioUrlValue ||
         !!attachmentInfo ||
@@ -1733,6 +1752,7 @@ export function useChatLogic({
         confirmationCard,
         botones,
         categorias,
+        interactiveSections,
       });
 
       if (seenMessageFingerprintsRef.current.has(fingerprint)) {

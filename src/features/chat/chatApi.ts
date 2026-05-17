@@ -491,6 +491,12 @@ const isBackendRootChatEndpoint = (endpoint: string) => {
   return path === 'ask' || path.startsWith('ask/');
 };
 
+const normalizeChatBootstrapEndpoint = (endpoint: string) => {
+  const trimmed = endpoint.trim();
+  if (!isBackendRootChatEndpoint(trimmed)) return trimmed;
+  return `/${trimmed.replace(/^\/+/, '').replace(/^ask\b/i, 'api/ask')}`;
+};
+
 const resolveSameOriginChatBase = (endpoint: string) => {
   if (!isBackendRootChatEndpoint(endpoint)) return undefined;
   if (typeof window === 'undefined' || !window.location?.origin) return undefined;
@@ -756,14 +762,15 @@ export const sendChatBootstrapMessage = async (
   payload: ChatBootstrapMessagePayload,
   tenantSlug?: string | null,
 ): Promise<any> => {
-  const endpoint =
+  const rawEndpoint =
     payload.audioBlob && payload.audioEndpoint?.trim()
       ? payload.audioEndpoint.trim()
       : bootstrap.same_origin_endpoint?.trim() || bootstrap.endpoint?.trim();
 
-  if (!endpoint) {
+  if (!rawEndpoint) {
     throw new ApiError('El contrato de chat demo no incluye endpoint.', 400);
   }
+  const endpoint = normalizeChatBootstrapEndpoint(rawEndpoint);
 
   const requestEndpoint = async (target: string) =>
     apiFetch<unknown>(appendQuery(target, sanitizeBootstrapQuery(bootstrap)), {

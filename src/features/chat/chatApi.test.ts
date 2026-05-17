@@ -45,7 +45,7 @@ describe('sendChatBootstrapMessage', () => {
     apiFetchMock.mockResolvedValue({ respuesta_usuario: 'ok' });
   });
 
-  it('uses the same-origin backend root for /ask endpoints from chat_bootstrap', async () => {
+  it('normalizes backend root /ask endpoints to the public /api/ask alias', async () => {
     await sendChatBootstrapMessage(
       {
         contract_version: 'demo.chat_bootstrap.v1',
@@ -59,10 +59,10 @@ describe('sendChatBootstrapMessage', () => {
     );
 
     expect(apiFetchMock).toHaveBeenCalledWith(
-      '/ask/municipio?tenant_slug=municipio',
+      '/api/ask/municipio?tenant_slug=municipio&tenant=municipio',
       expect.objectContaining({
         method: 'POST',
-        baseUrlOverride: window.location.origin,
+        baseUrlOverride: undefined,
         omitTenant: true,
         omitChatSessionId: true,
         isWidgetRequest: true,
@@ -91,7 +91,7 @@ describe('sendChatBootstrapMessage', () => {
     );
 
     expect(apiFetchMock).toHaveBeenCalledWith(
-      '/api/ask/municipio?tenant_slug=municipio',
+      '/api/ask/municipio?tenant_slug=municipio&tenant=municipio',
       expect.objectContaining({
         method: 'POST',
         baseUrlOverride: undefined,
@@ -161,7 +161,7 @@ describe('sendChatBootstrapMessage', () => {
     );
 
     expect(apiFetchMock).toHaveBeenCalledWith(
-      '/api/ask/municipio?tenant_slug=municipio',
+      '/api/ask/municipio?tenant_slug=municipio&tenant=municipio',
       expect.objectContaining({
         method: 'POST',
         baseUrlOverride: undefined,
@@ -307,7 +307,7 @@ describe('sendChatBootstrapMessage', () => {
     ).rejects.toThrow('missing');
 
     expect(apiFetchMock).toHaveBeenCalledTimes(1);
-    expect(apiFetchMock.mock.calls[0][0]).toBe('/api/ask/municipio?tenant_slug=municipio');
+    expect(apiFetchMock.mock.calls[0][0]).toBe('/api/ask/municipio?tenant_slug=municipio&tenant=municipio');
   });
 });
 

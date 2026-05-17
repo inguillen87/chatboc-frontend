@@ -164,19 +164,36 @@ const pickMenuSource = (...sources: unknown[]) => {
   return null;
 };
 
-const isEducationWorkspace = (workspace: any, sector?: string | null) =>
-  sector === "educacion" ||
-  workspace?.experience_blueprint?.experience_type === "education" ||
-  workspace?.education_profile?.is_education === true ||
-  workspace?.education?.education_profile?.is_education === true ||
-  workspace?.education?.profile?.is_education === true;
-
 const mergeActionMenus = (...sources: unknown[]) => {
   const seen = new Set<string>();
   const items: unknown[] = [];
 
   sources.forEach((source) => {
-    const list = Array.isArray(source) ? source : [];
+    const list = Array.isArray(source)
+      ? source
+      : isPlainRecord(source)
+        ? (
+            Array.isArray(source.items)
+              ? source.items
+              : Array.isArray(source.options)
+                ? source.options
+                : Array.isArray(source.buttons)
+                  ? source.buttons
+                  : Array.isArray(source.botones)
+                    ? source.botones
+                    : Array.isArray(source.actions)
+                      ? source.actions
+                      : Array.isArray(source.primary_actions)
+                        ? source.primary_actions
+                        : Array.isArray(source.quick_menu)
+                          ? source.quick_menu
+                          : Array.isArray(source.quick_replies)
+                            ? source.quick_replies
+                            : Array.isArray(source.starter_messages)
+                              ? source.starter_messages
+                              : []
+          )
+        : [];
     list.forEach((item) => {
       if (!isPlainRecord(item)) return;
       const key = readFirstString(item.action_id, item.action, item.intent, item.id, item.key, item.label, item.title);
@@ -189,8 +206,51 @@ const mergeActionMenus = (...sources: unknown[]) => {
   return items;
 };
 
-const readEducationQuickMenu = (workspace: any) => {
+const readWorkspaceActionMenu = (workspace: any, sector?: string | null, rubro?: string | null) => {
+  if (!workspace || typeof workspace !== "object") return [];
+
+  const normalizedSector = readFirstString(sector, workspace?.sector, workspace?.demo_sector).toLowerCase();
+  const normalizedRubro = readFirstString(rubro, workspace?.rubro, workspace?.rubro_slug, workspace?.rubro_clave).toLowerCase();
+  const activeVertical = readFirstString(
+    workspace?.active_vertical,
+    workspace?.vertical,
+    workspace?.experience_blueprint?.active_vertical,
+    normalizedSector,
+    normalizedRubro,
+  );
+  const verticals = isPlainRecord(workspace?.verticals) ? workspace.verticals : {};
+  const activeVerticalConfig =
+    (activeVertical && isPlainRecord(verticals[activeVertical]) ? verticals[activeVertical] : null) ||
+    (normalizedRubro && isPlainRecord(verticals[normalizedRubro]) ? verticals[normalizedRubro] : null) ||
+    (normalizedSector && isPlainRecord(verticals[normalizedSector]) ? verticals[normalizedSector] : null);
+
   return mergeActionMenus(
+    workspace?.primary_actions,
+    workspace?.quick_menu,
+    workspace?.default_menu,
+    workspace?.quick_replies,
+    workspace?.chat_bootstrap?.primary_actions,
+    workspace?.chat_bootstrap?.quick_menu,
+    workspace?.chat_bootstrap?.default_menu,
+    workspace?.chat_bootstrap?.payload?.primary_actions,
+    workspace?.chat_bootstrap?.payload?.quick_menu,
+    workspace?.chat_bootstrap?.payload?.default_menu,
+    activeVerticalConfig,
+    (activeVerticalConfig as any)?.actions,
+    (activeVerticalConfig as any)?.primary_actions,
+    (activeVerticalConfig as any)?.quick_menu,
+    workspace?.government,
+    workspace?.government?.primary_actions,
+    workspace?.government?.quick_menu,
+    workspace?.government?.actions,
+    workspace?.gobierno,
+    workspace?.gobierno?.primary_actions,
+    workspace?.gobierno?.quick_menu,
+    workspace?.gobierno?.actions,
+    workspace?.municipio,
+    workspace?.municipio?.primary_actions,
+    workspace?.municipio?.quick_menu,
+    workspace?.municipio?.actions,
     workspace?.education?.primary_actions,
     workspace?.education?.quick_menu,
     workspace?.education_profile?.primary_actions,
@@ -198,6 +258,23 @@ const readEducationQuickMenu = (workspace: any) => {
     workspace?.education?.whatsapp_playbook?.primary_actions,
     workspace?.education?.whatsapp_playbook?.quick_menu,
     workspace?.education?.whatsapp_playbook?.actions,
+    workspace?.pyme,
+    workspace?.pyme?.primary_actions,
+    workspace?.pyme?.quick_menu,
+    workspace?.pyme?.actions,
+    workspace?.business,
+    workspace?.business?.primary_actions,
+    workspace?.business?.quick_menu,
+    workspace?.business?.actions,
+    workspace?.commerce,
+    workspace?.commerce?.primary_actions,
+    workspace?.commerce?.quick_menu,
+    workspace?.commerce?.actions,
+    workspace?.operational_menu,
+    workspace?.operational_menu?.primary_actions,
+    workspace?.operational_menu?.quick_menu,
+    workspace?.operational_menu?.actions,
+    workspace?.conversion_ctas?.actions,
     workspace?.experience_blueprint?.conversion_ctas?.actions,
   );
 };
@@ -1872,25 +1949,24 @@ function ChatWidgetInner({
         sector === "gobierno"
           ? "municipio"
           : "pyme";
-      const educationWorkspace = isEducationWorkspace(workspace, sector);
-      const educationQuickMenu = readEducationQuickMenu(workspace);
+      const workspaceActionMenu = readWorkspaceActionMenu(workspace, sector, backendRubro || rubro);
       const primaryDefaultMenu = pickMenuSource(
-        educationWorkspace ? educationQuickMenu : null,
+        workspaceActionMenu,
         workspace.default_menu,
         workspace.chat_bootstrap?.default_menu,
         session.widget_onboarding?.default_menu,
         workspace.quick_menu,
         workspace.quick_replies,
       );
-      const primaryQuickMenu = educationWorkspace && educationQuickMenu.length
-        ? educationQuickMenu
+      const primaryQuickMenu = workspaceActionMenu.length
+        ? workspaceActionMenu
         : Array.isArray((workspace.default_menu as any)?.items)
           ? (workspace.default_menu as any).items
           : Array.isArray(workspace.quick_menu)
             ? workspace.quick_menu
             : Array.isArray(workspace.quick_replies)
               ? workspace.quick_replies
-              : educationQuickMenu;
+              : workspaceActionMenu;
       const nextInfo = {
         ...(entityInfo || {}),
         ...workspace,
@@ -2267,6 +2343,16 @@ function ChatWidgetInner({
                   publicConfig.widget?.experience_blueprint ||
                   publicConfig.widget?.builder_config?.experience_blueprint ||
                   null;
+                const publicConfigActionMenu = mergeActionMenus(
+                  readWorkspaceActionMenu(publicConfig, inferredTipoChat, publicConfig.rubro || publicConfig.rubro_slug),
+                  readWorkspaceActionMenu(publicConfig.builder_config, inferredTipoChat, publicConfig.rubro || publicConfig.rubro_slug),
+                  readWorkspaceActionMenu(publicConfig.widget, inferredTipoChat, publicConfig.rubro || publicConfig.rubro_slug),
+                  readWorkspaceActionMenu(publicConfig.widget?.builder_config, inferredTipoChat, publicConfig.rubro || publicConfig.rubro_slug),
+                  publicConfig.onboarding?.quick_menu,
+                  publicConfig.builder_config?.quick_menu,
+                  publicConfig.widget?.quick_menu,
+                  publicConfig.widget?.builder_config?.quick_menu,
+                );
                 const info = {
                     ...publicConfig,
                     // Priority Merge: Props > Backend Config
@@ -2277,21 +2363,7 @@ function ChatWidgetInner({
                     default_open: (typeof defaultOpen === 'boolean') ? defaultOpen : publicConfig.default_open,
                     slug: resolvedTenantSlug,
                     tipo_chat: inferredTipoChat,
-                    quick_menu: Array.isArray(publicConfig.quick_menu)
-                      ? publicConfig.quick_menu
-                      : Array.isArray(publicConfig.builder_config?.quick_menu)
-                        ? publicConfig.builder_config.quick_menu
-                        : Array.isArray(publicConfig.onboarding?.quick_menu)
-                          ? publicConfig.onboarding.quick_menu
-                          : Array.isArray(publicConfig.education?.quick_menu)
-                            ? publicConfig.education.quick_menu
-                            : Array.isArray(publicConfig.builder_config?.education?.quick_menu)
-                              ? publicConfig.builder_config.education.quick_menu
-                              : Array.isArray(publicConfig.widget?.education?.quick_menu)
-                                ? publicConfig.widget.education.quick_menu
-                                : Array.isArray(publicConfig.widget?.builder_config?.education?.quick_menu)
-                                  ? publicConfig.widget.builder_config.education.quick_menu
-                                  : [],
+                    quick_menu: publicConfigActionMenu,
                     education:
                       publicConfig.education ||
                       publicConfig.builder_config?.education ||
@@ -2425,6 +2497,13 @@ function ChatWidgetInner({
           return;
         }
         const platformTenant = publicConfig.tenant || {};
+        const platformActionMenu = mergeActionMenus(
+          readWorkspaceActionMenu(publicConfig, "pyme", publicConfig.rubro || publicConfig.rubro_slug),
+          readWorkspaceActionMenu(publicConfig.builder_config, "pyme", publicConfig.rubro || publicConfig.rubro_slug),
+          readWorkspaceActionMenu(publicConfig.widget, "pyme", publicConfig.rubro || publicConfig.rubro_slug),
+          readWorkspaceActionMenu(publicConfig.widget?.builder_config, "pyme", publicConfig.rubro || publicConfig.rubro_slug),
+          publicConfig.onboarding?.quick_menu,
+        );
         setEntityInfo({
           ...publicConfig,
           nombre_empresa: welcomeTitle || publicConfig.tenant_name || platformTenant.nombre || publicConfig.name || publicConfig.nombre || "Chatboc",
@@ -2434,11 +2513,7 @@ function ChatWidgetInner({
           default_open: (typeof defaultOpen === 'boolean') ? defaultOpen : publicConfig.default_open,
           slug: platformTenant.slug || publicConfig.slug || "chatboc-platform",
           tipo_chat: "pyme",
-          quick_menu: Array.isArray(publicConfig.quick_menu)
-            ? publicConfig.quick_menu
-            : Array.isArray(publicConfig.onboarding?.quick_menu)
-              ? publicConfig.onboarding.quick_menu
-              : [],
+          quick_menu: platformActionMenu,
           onboarding: publicConfig.onboarding || null,
           ui_hints: publicConfig.ui_hints || null,
           realtime: publicConfig.realtime || publicConfig.widget?.realtime || null,

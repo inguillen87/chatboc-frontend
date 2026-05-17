@@ -38,6 +38,11 @@ const extractArray = (source: any): any[] => {
   if (Array.isArray(source?.buttons)) return source.buttons;
   if (Array.isArray(source?.options)) return source.options;
   if (Array.isArray(source?.items)) return source.items;
+  if (Array.isArray(source?.actions)) return source.actions;
+  if (Array.isArray(source?.primary_actions)) return source.primary_actions;
+  if (Array.isArray(source?.quick_menu)) return source.quick_menu;
+  if (Array.isArray(source?.quick_replies)) return source.quick_replies;
+  if (Array.isArray(source?.starter_messages)) return source.starter_messages;
   return [];
 };
 
