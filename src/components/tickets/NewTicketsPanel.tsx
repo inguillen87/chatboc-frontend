@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 import type { ImperativePanelHandle } from 'react-resizable-panels';
 import { cn } from '@/lib/utils';
-import { AlertTriangle, CheckCircle2, Clock, Info, MessageSquare, PanelLeft, Radio } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock, Filter, Info, MessageSquare, PanelLeft, Radio, UserRound } from 'lucide-react';
 import type { Ticket } from '@/types/tickets';
 import { normalizeTicketStatus } from '@/utils/ticketStatus';
 import { useTenant } from '@/context/TenantContext';
@@ -93,12 +93,14 @@ const TicketOpsStat = ({
   helper,
   tone,
   icon: Icon,
+  onClick,
 }: {
   label: string;
   value: number;
   helper: string;
   tone: 'blue' | 'amber' | 'emerald' | 'violet';
   icon: React.ElementType;
+  onClick?: () => void;
 }) => {
   const toneClass = {
     blue: 'border-blue-500/20 bg-blue-500/10 text-blue-500',
@@ -107,8 +109,17 @@ const TicketOpsStat = ({
     violet: 'border-violet-500/20 bg-violet-500/10 text-violet-500',
   }[tone];
 
+  const Comp = onClick ? 'button' : 'div';
+
   return (
-    <div className="rounded-2xl border border-border/70 bg-background/75 p-3 shadow-sm">
+    <Comp
+      type={onClick ? 'button' : undefined}
+      onClick={onClick}
+      className={cn(
+        'rounded-2xl border border-border/70 bg-background/75 p-3 text-left shadow-sm',
+        onClick && 'transition hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50',
+      )}
+    >
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">{label}</p>
@@ -119,13 +130,14 @@ const TicketOpsStat = ({
         </span>
       </div>
       <p className="mt-2 text-xs leading-5 text-muted-foreground">{helper}</p>
-    </div>
+    </Comp>
   );
 };
 
 const NewTicketsPanel: React.FC = () => {
   const isMobile = useIsMobile();
   const { loading, error, tickets, filteredTickets, selectedTicket } = useTickets();
+  const { filters, setFilters } = useTickets();
   const { currentSlug, tenant } = useTenant();
   const [inboxSummary, setInboxSummary] = React.useState<BackofficeInboxSummaryResponse | null>(null);
 
@@ -273,6 +285,48 @@ const NewTicketsPanel: React.FC = () => {
       setActiveMobileView('chat');
     }
   }, [isMobile, setActiveMobileView]);
+
+  const unreadCount = React.useMemo(
+    () => tickets.filter((ticket) => hasUnreadTicket(ticket)).length,
+    [tickets],
+  );
+  const resolvedCount = React.useMemo(
+    () => tickets.filter((ticket) => isResolvedTicket(ticket)).length,
+    [tickets],
+  );
+  const riskCount = React.useMemo(
+    () => tickets.filter((ticket) => isRiskTicket(ticket)).length,
+    [tickets],
+  );
+  const unassignedCount = React.useMemo(
+    () => tickets.filter((ticket) => !ticket.assignedAgent && !ticket.assignedAgentId && !ticket.assigned_agent_id).length,
+    [tickets],
+  );
+  const backendSummary = inboxSummary?.summary;
+  const recommendedViews = Array.isArray(inboxSummary?.recommended_views) ? inboxSummary.recommended_views : [];
+
+  const applyQuickFilter = React.useCallback(
+    (nextFilters: Partial<typeof filters>) => {
+      setFilters((current) => ({
+        ...current,
+        ...nextFilters,
+      }));
+    },
+    [setFilters],
+  );
+
+  const resetOperationalFilters = React.useCallback(() => {
+    setFilters((current) => ({
+      ...current,
+      channel: 'all',
+      status: 'all',
+      area: 'all',
+      agent: 'all',
+      priority: 'all',
+      sla: 'all',
+      unread: 'all',
+    }));
+  }, [setFilters]);
 
   const mobileNavButtonClass = (
     value: 'tickets' | 'chat' | 'details',
