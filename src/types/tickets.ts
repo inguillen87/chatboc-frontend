@@ -249,6 +249,12 @@ export interface Ticket {
   priority_score?: number | null;
   priority_breakdown?: Record<string, unknown> | null;
   recommended_next_action?: string | null;
+  allowed_actions?: Array<string | Record<string, unknown>> | null;
+  actions?: Array<string | Record<string, unknown>> | null;
+  next_steps?: Array<string | Record<string, unknown>> | null;
+  detail_endpoint?: string | null;
+  admin_preview_endpoint?: string | null;
+  school_case?: Record<string, unknown> | null;
   realtime_state?: TicketRealtimeState | null;
   collaboration_state?: TicketCollaborationState | null;
 }

@@ -13,6 +13,11 @@ import {
   Copy,
   X,
   Maximize2,
+  AlertTriangle,
+  CheckCircle2,
+  ExternalLink,
+  ListChecks,
+  UserRound,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { motion } from 'framer-motion';
@@ -108,6 +113,65 @@ const pickFirstNumber = (...values: unknown[]): number | undefined => {
     }
   }
   return undefined;
+};
+
+type OperationalAction = {
+  id: string;
+  label: string;
+  description?: string;
+  href?: string;
+  disabled?: boolean;
+};
+
+const normalizeTextValue = (value: unknown): string => {
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  if (typeof value === 'string') return value.trim();
+  return '';
+};
+
+const formatCompactLabel = (value: unknown): string => normalizeTextValue(value).replace(/_/g, ' ');
+
+const normalizeOperationalActions = (...sources: unknown[]): OperationalAction[] => {
+  const seen = new Set<string>();
+  const actions: OperationalAction[] = [];
+
+  sources.forEach((source) => {
+    if (!Array.isArray(source)) return;
+
+    source.forEach((item, index) => {
+      let id = '';
+      let label = '';
+      let description = '';
+      let href = '';
+      let disabled = false;
+
+      if (typeof item === 'string') {
+        id = item.trim();
+        label = item.trim();
+      } else if (item && typeof item === 'object') {
+        const raw = item as Record<string, unknown>;
+        id = normalizeTextValue(raw.id || raw.action_id || raw.action || raw.intent || raw.key || raw.name) || `action_${index}`;
+        label = normalizeTextValue(raw.label || raw.title || raw.name || raw.action_label || raw.action || raw.intent || raw.id);
+        description = normalizeTextValue(raw.description || raw.help_text || raw.detail || raw.summary);
+        href = normalizeTextValue(raw.href || raw.url || raw.action_url || raw.external_url);
+        disabled = raw.enabled === false || raw.disabled === true;
+      }
+
+      if (!label) return;
+      const key = `${id || label}`.toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      actions.push({
+        id: id || label,
+        label,
+        description: description || undefined,
+        href: href || undefined,
+        disabled,
+      });
+    });
+  });
+
+  return actions;
 };
 
 const normalizeAttachment = (raw: any, fallbackIndex: number): Attachment | null => {
@@ -609,6 +673,30 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
 
   const formatDate = (dateString?: string) => fmtARWithOffset(dateString ?? '', -3);
   const channelLabel = React.useMemo(() => getTicketChannel(ticket), [ticket]);
+  const operationalActions = React.useMemo(
+    () => normalizeOperationalActions(ticket.allowed_actions, ticket.actions, ticket.next_steps),
+    [ticket.allowed_actions, ticket.actions, ticket.next_steps],
+  );
+  const priorityLabel = normalizeTextValue(ticket.priority);
+  const slaLabel = normalizeTextValue(ticket.sla_status);
+  const assignedAgentLabel = normalizeTextValue(
+    ticket.assignedAgent?.nombre_usuario ||
+      ticket.user?.nombre_usuario ||
+      ticket.assignedAgentId ||
+      ticket.assigned_agent_id ||
+      ticket.assigned_user_id,
+  );
+  const nextActionLabel = normalizeTextValue(ticket.recommended_next_action);
+  const hasOperationalSignal =
+    Boolean(nextActionLabel || priorityLabel || slaLabel || assignedAgentLabel || operationalActions.length);
+  const openActionHref = (href: string) => {
+    if (!href) return;
+    if (href.startsWith('/api/')) {
+      toast.info('Accion disponible como endpoint JSON. Se usa dentro del panel, no como pagina.');
+      return;
+    }
+    window.open(href, '_blank', 'noopener,noreferrer');
+  };
 
 
   return (
@@ -657,6 +745,86 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
       </header>
       <ScrollArea className="flex-1">
         <div className="space-y-4 p-4 pb-24 md:pb-6">
+          <Card className="border-primary/20 bg-background/90 shadow-sm">
+            <CardContent className="space-y-4 p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <ListChecks className="h-4 w-4 text-primary" />
+                    <p className="text-sm font-semibold">Que hacer ahora</p>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {nextActionLabel || 'Sin accion recomendada publicada para este caso.'}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {priorityLabel ? (
+                    <Badge variant="outline" className="gap-1">
+                      <AlertTriangle className="h-3 w-3" />
+                      {priorityLabel}
+                    </Badge>
+                  ) : null}
+                  {slaLabel ? (
+                    <Badge variant="outline">SLA: {slaLabel}</Badge>
+                  ) : null}
+                  {assignedAgentLabel ? (
+                    <Badge variant="secondary" className="gap-1">
+                      <UserRound className="h-3 w-3" />
+                      {assignedAgentLabel}
+                    </Badge>
+                  ) : null}
+                  {!hasOperationalSignal ? (
+                    <Badge variant="outline">Sin senales operativas publicadas</Badge>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="grid gap-2 sm:grid-cols-3">
+                <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Estado</p>
+                  <p className="mt-1 text-sm font-medium">{currentStatusLabel}</p>
+                </div>
+                <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Canal</p>
+                  <p className="mt-1 text-sm font-medium">{channelLabel}</p>
+                </div>
+                <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Creado</p>
+                  <p className="mt-1 text-sm font-medium">{formatDate(ticket.fecha)}</p>
+                </div>
+              </div>
+
+              {operationalActions.length ? (
+                <div className="space-y-2">
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Acciones permitidas</p>
+                  <div className="flex flex-wrap gap-2">
+                    {operationalActions.map((action) => {
+                      const canOpen = Boolean(action.href && !action.disabled);
+                      return (
+                        <Button
+                          key={action.id}
+                          type="button"
+                          variant={canOpen ? 'outline' : 'secondary'}
+                          size="sm"
+                          className="max-w-full gap-2"
+                          disabled={!canOpen}
+                          title={action.description}
+                          onClick={() => (action.href ? openActionHref(action.href) : undefined)}
+                        >
+                          <span className="truncate">{action.label}</span>
+                          {action.href ? <ExternalLink className="h-3 w-3 shrink-0" /> : <CheckCircle2 className="h-3 w-3 shrink-0" />}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-lg border border-dashed border-border/70 p-3 text-sm text-muted-foreground">
+                  Backend no publico acciones permitidas para este caso.
+                </div>
+              )}
+            </CardContent>
+          </Card>
           <TicketLogisticsSummary
             ticket={locationTicket || ticket}
             statusOverride={currentStatus}
@@ -781,7 +949,9 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
                     )}
                   </div>
                   <div className="flex items-start gap-3 rounded-lg border border-border/60 bg-background/70 p-3 shadow-sm">
-                    <FaWhatsapp className="mt-1 h-4 w-4 flex-shrink-0 text-green-500" />
+                    <span className="mt-1 flex h-4 w-4 flex-shrink-0 items-center justify-center text-green-500">
+                      <FaWhatsapp />
+                    </span>
                     <div className="min-w-0 flex-1 space-y-1">
                       <p className="text-xs uppercase tracking-wide text-muted-foreground">
                         Teléfono
@@ -888,7 +1058,7 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
                     <div className="flex flex-wrap items-center gap-2">
                       {ticket.priority !== null && ticket.priority !== undefined && ticket.priority !== "" ? (
                         <Badge variant="outline" className="capitalize">
-                          Prioridad {String(ticket.priority).replaceAll('_', ' ')}
+                          Prioridad {formatCompactLabel(ticket.priority)}
                         </Badge>
                       ) : null}
                       {ticket.priority_score !== null && ticket.priority_score !== undefined ? (
@@ -905,7 +1075,7 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
                               className="rounded-md border border-border/50 bg-muted/30 px-3 py-2"
                             >
                               <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                                {label.replaceAll('_', ' ')}
+                                {formatCompactLabel(label)}
                               </p>
                               <p className="text-sm font-medium text-foreground">{String(value)}</p>
                             </div>
