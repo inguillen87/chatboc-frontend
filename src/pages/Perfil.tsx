@@ -42,6 +42,7 @@ import {
   ClipboardList,
   LayoutDashboard,
   MapPinned,
+  Package,
   PieChart,
   Sparkles,
   UserCog,
@@ -91,7 +92,8 @@ import SmartPedidosWrapper from '@/pages/SmartPedidosWrapper';
 import InternalUsers from '@/pages/InternalUsers';
 import IncidentsMap from '@/pages/IncidentsMap';
 import BackofficeCommandCenter from '@/components/backoffice/BackofficeCommandCenter';
-import { getTicketStats, getHeatmapPoints, HeatmapDataset } from "@/services/statsService";
+import CatalogManagementPage from '@/pages/admin/CatalogManagementPage';
+import { getTicketStats, getHeatmapDataset, HeatmapDataset } from "@/services/statsService";
 import AnalyticsHeatmap from "@/components/analytics/Heatmap";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import MiniChatWidgetPreview from "@/components/ui/MiniChatWidgetPreview"; // Importar el nuevo componente
@@ -231,6 +233,7 @@ type ProfileTabValue =
   | "pedidos"
   | "estadisticas"
   | "analytics"
+  | "catalogo"
   | "usuarios"
   | "empleados"
   | "mapas";
@@ -441,7 +444,7 @@ export default function Perfil() {
   const [geocodingError, setGeocodingError] = useState<string | null>(null);
   const geocodeAbortRef = useRef<AbortController | null>(null);
   const [isMapLoading, setIsMapLoading] = useState(true);
-  const normalizedRole = normalizeRole(user?.rol);
+  const normalizedRole = String(normalizeRole(user?.rol));
   const isStaff = normalizedRole === 'admin' || normalizedRole === 'empleado';
   const canViewAnalytics =
     isStaff || user?.tipo_chat === 'pyme' || user?.tipo_chat === 'municipio';
@@ -871,7 +874,7 @@ export default function Perfil() {
 
       const [stats, heatmapDataset, categoryData] = await Promise.all([
         getTicketStats({ tipo }),
-        getHeatmapPoints({ tipo }),
+        getHeatmapDataset({ tipo }),
         apiFetch<{ categorias: { id: number; nombre: string }[] }>(
           '/municipal/categorias',
         ).catch((err) => {
@@ -1587,6 +1590,7 @@ export default function Perfil() {
     const normalized = moduleId.toLowerCase();
     if (normalized.includes('report') || normalized.includes('stat')) return BarChart3;
     if (normalized.includes('survey') || normalized.includes('vote')) return Vote;
+    if (normalized.includes('catalog') || normalized.includes('inventory') || normalized.includes('marketplace')) return Package;
     if (normalized.includes('people') || normalized.includes('user') || normalized.includes('team')) return Users;
     if (normalized.includes('map')) return MapPinned;
     if (normalized.includes('analytics') || normalized.includes('ai')) return Sparkles;
@@ -1598,7 +1602,7 @@ export default function Perfil() {
     if (!route) return {};
     const tabMatch = route.match(/[?&]tab=([^&]+)/);
     const tab = tabMatch?.[1] as ProfileTabValue | undefined;
-    if (tab && ['perfil', 'tickets', 'pedidos', 'estadisticas', 'analytics', 'usuarios', 'empleados', 'mapas'].includes(tab)) {
+    if (tab && ['perfil', 'tickets', 'pedidos', 'estadisticas', 'analytics', 'catalogo', 'usuarios', 'empleados', 'mapas'].includes(tab)) {
       return { tab };
     }
     return { path: route };
@@ -1675,6 +1679,14 @@ export default function Perfil() {
   ];
 
   const secondaryControlCards: ControlCenterCard[] = [
+    {
+      id: "catalog",
+      title: "Catalogo e inventario",
+      description: "Productos, recursos, stock, importaciones y calidad del catalogo publicados por backend.",
+      icon: Package,
+      actionLabel: "Abrir catalogo",
+      tab: "catalogo",
+    },
     {
       id: "ai-analytics",
       title: "Analitica avanzada e IA",
@@ -1803,12 +1815,13 @@ export default function Perfil() {
 
       <Tabs value={activeProfileTab} onValueChange={(value) => updateProfileTab(value as ProfileTabValue)} className="w-full max-w-7xl mx-auto">
         <div className="sticky top-0 z-30 -mx-2 border-y border-border/60 bg-background/95 px-2 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:rounded-xl sm:border">
-        <TabsList className={`grid h-auto w-full gap-1 ${canViewAnalytics ? "grid-cols-2 sm:grid-cols-4 xl:grid-cols-8" : "grid-cols-2 sm:grid-cols-4 xl:grid-cols-7"}`}>
+        <TabsList className={`grid h-auto w-full gap-1 ${canViewAnalytics ? "grid-cols-2 sm:grid-cols-4 xl:grid-cols-9" : "grid-cols-2 sm:grid-cols-4 xl:grid-cols-8"}`}>
           <TabsTrigger value="perfil">Inicio</TabsTrigger>
           <TabsTrigger value="tickets">{esMunicipio ? 'Reclamos' : 'Tickets'}</TabsTrigger>
           <TabsTrigger value="pedidos">{esMunicipio ? 'Gestión' : 'Ventas'}</TabsTrigger>
           <TabsTrigger value="estadisticas">Reportes</TabsTrigger>
           {canViewAnalytics && <TabsTrigger value="analytics">Analitica IA</TabsTrigger>}
+          <TabsTrigger value="catalogo">Catalogo</TabsTrigger>
           <TabsTrigger value="usuarios">Usuarios</TabsTrigger>
           {isStaff && <TabsTrigger value="empleados">Empleados</TabsTrigger>}
           {isStaff && <TabsTrigger value="mapas">Mapas</TabsTrigger>}
@@ -2677,6 +2690,9 @@ export default function Perfil() {
             <AnalyticsPage />
           </TabsContent>
         )}
+        <TabsContent value="catalogo">
+          <CatalogManagementPage tenantSlugOverride={derivedTenantSlug} embedded />
+        </TabsContent>
         <TabsContent value="pedidos">
           <SmartPedidosWrapper />
         </TabsContent>

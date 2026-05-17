@@ -759,7 +759,7 @@ const normalizeRubroToolTray = (
 
   return rawTools
     .filter((tool) => tool?.enabled === true)
-    .map((tool, index) => {
+    .map((tool, index): NormalizedRubroTool | null => {
       const record = asRecord(tool);
       const id = readFirstString(record.id, record.key, record.type, record.slug, `tool-${index}`);
       const label = readFirstString(record.label, record.title, record.name, record.text);
@@ -797,7 +797,9 @@ const normalizeRubroToolTray = (
         readLocationUrl(firstLocation) ||
         readResourceUrl(firstResource) ||
         readFirstString(contact.web, contact.website, contact.url);
-      const behavior = isDownloadableRubroTool(id, kind, label, url, firstResource) ? "external" : "chat";
+      const behavior: NormalizedRubroTool["behavior"] = isDownloadableRubroTool(id, kind, label, url, firstResource)
+        ? "external"
+        : "chat";
       const actionId = readFirstString(
         record.action_id,
         record.action,
