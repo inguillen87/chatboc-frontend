@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { AlertCircle, ChevronLeft, ChevronUp, ChevronDown, LogOut, Inbox, X, Ticket as TicketIcon } from 'lucide-react';
+import { AlertCircle, CheckCircle2, ChevronDown, ChevronLeft, ChevronUp, Clock, Inbox, LogOut, Search, ShoppingCart, Ticket as TicketIcon, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { fmtAR } from '@/utils/date';
@@ -42,6 +42,8 @@ const PEDIDO_ESTADOS_INFO: Record<string, { label: string; style: string }> = {
 };
 
 const ESTADOS_ORDEN_PRIORIDAD = ['nuevo', 'confirmed', 'paid', 'pending', 'shipped', 'delivered', 'cancelled'];
+const isFinalOrderStatus = (status: string) =>
+  ['delivered', 'cancelled', 'satisfecho', 'cancelado'].includes(status);
 
 // ---------- Componentes utilitarios ----------
 const SkeletonCard = () => (
@@ -141,10 +143,11 @@ const PedidoCategoryAccordion: FC<{
   isOpen: boolean;
   onToggle: () => void;
   onSelect: (p: Order) => void;
-  selectedPedidoId: number | null;
+  onStatusChange: (pedidoId: number | string, newStatus: string) => void;
+  selectedPedidoId: number | string | null;
   timezone: string;
   locale: string;
-}> = ({ estado, pedidos, isOpen, onToggle, onSelect, selectedPedidoId, timezone, locale }) => (
+}> = ({ estado, pedidos, isOpen, onToggle, onSelect, onStatusChange, selectedPedidoId, timezone, locale }) => (
   <motion.div layout className="bg-card border border-border rounded-xl shadow-md overflow-hidden" initial={{ borderRadius: 12 }}>
     <motion.header
       layout
@@ -193,7 +196,7 @@ const PedidoCategoryAccordion: FC<{
                       <PedidoDetail
                         pedido={pedido}
                         onClose={() => onSelect(pedido)}
-                        onStatusChange={(newStatus) => handleStatusChange(pedido.id, newStatus)}
+                        onStatusChange={(newStatus) => onStatusChange(pedido.id, newStatus)}
                         timezone={timezone}
                         locale={locale}
                       />
@@ -207,6 +210,33 @@ const PedidoCategoryAccordion: FC<{
       )}
     </AnimatePresence>
   </motion.div>
+);
+
+const PedidoMetricCard = ({
+  label,
+  value,
+  helper,
+  icon: Icon,
+}: {
+  label: string;
+  value: string | number;
+  helper: string;
+  icon: React.ElementType;
+}) => (
+  <Card className="border-border/70 bg-background/80 shadow-sm">
+    <CardContent className="p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">{label}</p>
+          <p className="mt-2 text-2xl font-bold tracking-tight">{value}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{helper}</p>
+        </div>
+        <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-primary/15 bg-primary/10 text-primary">
+          <Icon className="h-4 w-4" />
+        </span>
+      </div>
+    </CardContent>
+  </Card>
 );
 
 const PageHeader: FC<{ onLogout: () => void }> = ({ onLogout }) => {
@@ -268,6 +298,7 @@ export default function PedidosPage() {
   const [error, setError] = useState<string | null>(null);
   const [openCategories, setOpenCategories] = useState<Set<string>>(new Set());
   const [selectedPedidoId, setSelectedPedidoId] = useState<number | string | null>(null);
+  const [search, setSearch] = useState('');
 
   const handleLogout = () => {
     safeLocalStorage.clear();
@@ -291,7 +322,7 @@ export default function PedidosPage() {
           return acc;
         }, {});
         setCategorizedPedidos(categorized);
-        setOpenCategories(new Set(Object.keys(categorized).filter((e) => !['delivered', 'cancelled', 'satisfecho', 'cancelado'].includes(e))));
+        setOpenCategories(new Set(Object.keys(categorized).filter((e) => !isFinalOrderStatus(e))));
       } else {
         console.error('Error: La respuesta de la API de pedidos no es un array', data);
         setCategorizedPedidos({});
@@ -319,6 +350,41 @@ export default function PedidosPage() {
     const indexB = ESTADOS_ORDEN_PRIORIDAD.indexOf(b);
     return indexA - indexB;
   });
+
+  const allPedidos = React.useMemo(
+    () => Object.values(categorizedPedidos).flat(),
+    [categorizedPedidos],
+  );
+
+  const filteredCategories = React.useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return sortedCategories;
+
+    return sortedCategories
+      .map(([estado, pedidos]) => [
+        estado,
+        pedidos.filter((pedido) => {
+          const fields = [
+            pedido.id,
+            pedido.notes,
+            pedido.customerName,
+            pedido.customerEmail,
+            pedido.customerPhone,
+            (pedido as any).contact_name,
+            ...(pedido.items || []).flatMap((item) => [item.name, item.quantity]),
+          ];
+          return fields.some((field) => String(field ?? '').toLowerCase().includes(term));
+        }),
+      ] as [string, Order[]])
+      .filter(([, pedidos]) => pedidos.length > 0);
+  }, [search, sortedCategories]);
+
+  const activePedidosCount = allPedidos.filter((pedido) => !isFinalOrderStatus(pedido.status)).length;
+  const finalPedidosCount = allPedidos.length - activePedidosCount;
+  const totalRevenue = allPedidos.reduce((sum, pedido) => {
+    const total = Number(pedido.total);
+    return Number.isFinite(total) ? sum + total : sum;
+  }, 0);
 
   const toggleCategory = (estado: string) => {
     setOpenCategories((prev) => {
@@ -364,20 +430,45 @@ export default function PedidosPage() {
     <div className="flex flex-col min-h-screen bg-muted/40 dark:bg-gradient-to-tr dark:from-slate-950 dark:to-slate-900 text-foreground py-8 px-4 md:px-6 lg:px-8">
       <PageHeader onLogout={handleLogout} />
       <main className="w-full max-w-7xl mx-auto space-y-4">
+        <section className="rounded-[28px] border border-border/70 bg-card/85 p-4 shadow-sm md:p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <h2 className="text-2xl font-bold tracking-tight">Operacion de pedidos</h2>
+              <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+                Estados, detalle y seguimiento comercial en una vista simple para el equipo.
+              </p>
+            </div>
+            <div className="relative w-full lg:max-w-sm">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Buscar cliente, pedido o producto"
+                className="h-10 pl-9"
+              />
+            </div>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <PedidoMetricCard label="Pedidos" value={allPedidos.length.toLocaleString('es-AR')} helper="Total recibido" icon={ShoppingCart} />
+            <PedidoMetricCard label="Activos" value={activePedidosCount.toLocaleString('es-AR')} helper="Requieren seguimiento" icon={Clock} />
+            <PedidoMetricCard label="Finalizados" value={finalPedidosCount.toLocaleString('es-AR')} helper="Entregados o cerrados" icon={CheckCircle2} />
+            <PedidoMetricCard label="Total visible" value={`$${totalRevenue.toLocaleString('es-AR')}`} helper="Suma de pedidos con total" icon={Inbox} />
+          </div>
+        </section>
         {isLoading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {Array.from({ length: 6 }).map((_, index) => (
               <SkeletonCard key={index} />
             ))}
           </div>
-        ) : sortedCategories.length === 0 ? (
+        ) : filteredCategories.length === 0 ? (
           <div className="text-center text-muted-foreground text-lg mt-16">
             <Inbox className="w-20 h-20 mx-auto text-gray-400 mb-4" />
             <h3 className="text-2xl font-semibold text-foreground">No hay pedidos</h3>
             <p>Aún no se han registrado pedidos. Los nuevos pedidos aparecerán aquí.</p>
           </div>
         ) : (
-          sortedCategories.map(([estado, pedidos]) => (
+          filteredCategories.map(([estado, pedidos]) => (
             <PedidoCategoryAccordion
               key={estado}
               estado={estado}
@@ -385,6 +476,7 @@ export default function PedidosPage() {
               isOpen={openCategories.has(estado)}
               onToggle={() => toggleCategory(estado)}
               onSelect={handleSelectPedido}
+              onStatusChange={handleStatusChange}
               selectedPedidoId={selectedPedidoId}
               timezone={timezone}
               locale={locale}

@@ -8,10 +8,13 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useTickets } from '@/context/TicketContext';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 import type { ImperativePanelHandle } from 'react-resizable-panels';
 import { cn } from '@/lib/utils';
-import { PanelLeft, MessageSquare, Info } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock, Info, MessageSquare, PanelLeft, Radio } from 'lucide-react';
+import type { Ticket } from '@/types/tickets';
+import { normalizeTicketStatus } from '@/utils/ticketStatus';
 
 type MobileView = 'tickets' | 'chat' | 'details';
 type MobileTransitionDirection = -1 | 0 | 1;
@@ -56,9 +59,71 @@ const mobileViewTransition = {
   ease: 'easeInOut' as const,
 };
 
+const hasUnreadTicket = (ticket: Ticket) =>
+  Boolean(
+    ticket.hasUnreadMessages ||
+      ticket.collaboration_state?.has_unread ||
+      Number(ticket.collaboration_state?.unread_count || 0) > 0 ||
+      Number(ticket.collaboration_state?.unread_viewer_count || 0) > 0,
+  );
+
+const isResolvedTicket = (ticket: Ticket) => {
+  const status = normalizeTicketStatus(ticket.estado);
+  return status === 'resuelto' || status === 'cerrado';
+};
+
+const isRiskTicket = (ticket: Ticket) => {
+  const sla = String(ticket.sla_status || '').toLowerCase();
+  const priority = String(ticket.priority || '').toLowerCase();
+  return (
+    sla.includes('breach') ||
+    sla.includes('venc') ||
+    sla.includes('overdue') ||
+    priority.includes('alta') ||
+    priority.includes('urgent') ||
+    priority.includes('urgente')
+  );
+};
+
+const TicketOpsStat = ({
+  label,
+  value,
+  helper,
+  tone,
+  icon: Icon,
+}: {
+  label: string;
+  value: number;
+  helper: string;
+  tone: 'blue' | 'amber' | 'emerald' | 'violet';
+  icon: React.ElementType;
+}) => {
+  const toneClass = {
+    blue: 'border-blue-500/20 bg-blue-500/10 text-blue-500',
+    amber: 'border-amber-500/20 bg-amber-500/10 text-amber-500',
+    emerald: 'border-emerald-500/20 bg-emerald-500/10 text-emerald-500',
+    violet: 'border-violet-500/20 bg-violet-500/10 text-violet-500',
+  }[tone];
+
+  return (
+    <div className="rounded-2xl border border-border/70 bg-background/75 p-3 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">{label}</p>
+          <p className="mt-1 text-2xl font-bold tracking-tight text-foreground">{value.toLocaleString('es-AR')}</p>
+        </div>
+        <span className={cn('inline-flex h-9 w-9 items-center justify-center rounded-xl border', toneClass)}>
+          <Icon className="h-4 w-4" />
+        </span>
+      </div>
+      <p className="mt-2 text-xs leading-5 text-muted-foreground">{helper}</p>
+    </div>
+  );
+};
+
 const NewTicketsPanel: React.FC = () => {
   const isMobile = useIsMobile();
-  const { loading, error, selectedTicket } = useTickets();
+  const { loading, error, tickets, filteredTickets, selectedTicket } = useTickets();
 
   // Mobile-specific state
   const [mobileView, setMobileViewState] = React.useState<MobileView>('tickets');
@@ -240,8 +305,39 @@ const NewTicketsPanel: React.FC = () => {
     isMobile && 'h-[calc(100dvh-8rem)]',
   );
 
+  const openTickets = tickets.filter((ticket) => !isResolvedTicket(ticket)).length;
+  const unreadTickets = tickets.filter(hasUnreadTicket).length;
+  const riskTickets = tickets.filter(isRiskTicket).length;
+  const resolvedTickets = tickets.length - openTickets;
+
   return (
     <Card className={panelCardClass}>
+      <div className="border-b border-border/70 bg-gradient-to-r from-background/95 via-primary/5 to-background/95 px-3 py-3 sm:px-4">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-base font-semibold tracking-tight text-foreground">Mesa operativa</h2>
+              <Badge variant="outline" className="rounded-full">
+                {filteredTickets.length.toLocaleString('es-AR')} visibles
+              </Badge>
+              {selectedTicket ? (
+                <Badge variant="secondary" className="rounded-full">
+                  #{selectedTicket.nro_ticket || selectedTicket.id}
+                </Badge>
+              ) : null}
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Priorizacion, conversacion y detalle en una sola vista. Los indicadores salen de los tickets cargados.
+            </p>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2 xl:w-[620px] xl:grid-cols-4">
+            <TicketOpsStat label="Abiertos" value={openTickets} helper="Casos por resolver" tone="blue" icon={Clock} />
+            <TicketOpsStat label="Riesgo" value={riskTickets} helper="SLA o prioridad alta" tone="amber" icon={AlertTriangle} />
+            <TicketOpsStat label="No leidos" value={unreadTickets} helper="Requieren respuesta" tone="violet" icon={Radio} />
+            <TicketOpsStat label="Resueltos" value={resolvedTickets} helper="Cerrados/resueltos" tone="emerald" icon={CheckCircle2} />
+          </div>
+        </div>
+      </div>
       {isMobile ? (
         <div className="flex h-full min-h-0 flex-1 flex-col">
           <div className="border-b border-border/70 bg-card/80 px-3 py-2 shadow-sm">

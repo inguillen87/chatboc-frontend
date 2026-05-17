@@ -97,6 +97,10 @@ export interface RealtimeHubResponse {
       sections_sentiment?: string;
       sections_live_comments?: string;
       sections_hotspots_recommendations?: string;
+      sections_map?: string;
+      sections_segments?: string;
+      empty_map?: string;
+      applied_filters?: string;
       actions_refresh?: string;
       actions_auto_refresh_on?: string;
       actions_auto_refresh_off?: string;
@@ -113,6 +117,9 @@ export interface RealtimeHubResponse {
   top_events?: Array<{ event?: string; count?: number }>;
   sentiment?: Record<string, number>;
   geo_points?: Array<{ lat?: number; lng?: number; count?: number; channel?: string }>;
+  geo_layers?: AnalyticsHeatmapResponse['geo_layers'];
+  segments?: Record<string, Array<{ label?: string; count?: number }>>;
+  segments_filters_applied?: Record<string, unknown>;
   hotspots?: Array<{ label?: string; count?: number }>;
   recommendations?: string[];
   comments?: Array<{ channel?: string; text?: string; created_at?: string; sentiment?: string }>;

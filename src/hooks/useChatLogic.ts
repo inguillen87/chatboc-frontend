@@ -184,6 +184,48 @@ const URGENT_PATTERNS = [
   "prioridad",
 ];
 
+export type ChatTrialLimitNotice = {
+  code: string;
+  message: string;
+  requestId?: string | null;
+  leadCaptureEndpoint?: string | null;
+  trialUsage?: Record<string, unknown> | null;
+  upgrade?: Record<string, unknown> | null;
+};
+
+const CHAT_TRIAL_LIMIT_CODES = new Set([
+  "demo_message_limit_reached",
+  "anonymous_trial_limit_reached",
+]);
+
+const readChatTrialLimitNotice = (error: unknown): ChatTrialLimitNotice | null => {
+  if (!(error instanceof ApiError)) return null;
+  const body =
+    error.body && typeof error.body === "object" && !Array.isArray(error.body)
+      ? (error.body as Record<string, unknown>)
+      : {};
+  const code = pickFirstString(body.reason_code, body.error, body.code);
+  if (!CHAT_TRIAL_LIMIT_CODES.has(code)) return null;
+  const upgrade =
+    body.upgrade && typeof body.upgrade === "object" && !Array.isArray(body.upgrade)
+      ? (body.upgrade as Record<string, unknown>)
+      : null;
+  const trialUsage =
+    body.trial_usage && typeof body.trial_usage === "object" && !Array.isArray(body.trial_usage)
+      ? (body.trial_usage as Record<string, unknown>)
+      : null;
+  return {
+    code,
+    message:
+      pickFirstString(body.message, body.detail, body.description) ||
+      getErrorMessage(error, "La demo llego al limite disponible."),
+    requestId: error.requestId ?? pickFirstString(body.request_id) ?? null,
+    leadCaptureEndpoint: pickFirstString(upgrade?.lead_capture_endpoint) || null,
+    trialUsage,
+    upgrade,
+  };
+};
+
 interface UseChatLogicOptions {
   tipoChat: "pyme" | "municipio";
   entityToken?: string;
@@ -196,6 +238,7 @@ interface UseChatLogicOptions {
   socketUrlOverride?: string | null;
   chatBootstrap?: ChatBootstrapConfig | null;
   autoInitEnabled?: boolean;
+  onTrialLimit?: (notice: ChatTrialLimitNotice) => void;
 }
 
 export function useChatLogic({
@@ -210,6 +253,7 @@ export function useChatLogic({
   socketUrlOverride = null,
   chatBootstrap = null,
   autoInitEnabled = true,
+  onTrialLimit,
 	}: UseChatLogicOptions) {
   const entityToken = propToken || getIframeToken();
 
@@ -2911,6 +2955,29 @@ export function useChatLogic({
         if (error instanceof ApiError && error.status === 409) {
           resetChatSessionId();
         }
+        const trialLimitNotice = readChatTrialLimitNotice(error);
+        if (trialLimitNotice) {
+          onTrialLimit?.(trialLimitNotice);
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: generateClientMessageId(),
+              text: trialLimitNotice.message,
+              isBot: true,
+              timestamp: new Date(),
+              isError: false,
+              data: {
+                fuente: "demo_trial_limit",
+                reason_code: trialLimitNotice.code,
+                request_id: trialLimitNotice.requestId,
+                trial_usage: trialLimitNotice.trialUsage,
+                upgrade: trialLimitNotice.upgrade,
+              },
+            },
+          ]);
+          setIsTyping(false);
+          return;
+        }
         const errorMsg = getErrorMessage(
           error,
           "⚠️ Ocurrió un error inesperado.",
@@ -2944,6 +3011,7 @@ export function useChatLogic({
       liveChatAvailable,
       chatBootstrap,
       resolvePersistentPublicContext,
+      onTrialLimit,
     ],
   );
 

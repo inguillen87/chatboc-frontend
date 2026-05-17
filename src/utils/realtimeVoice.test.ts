@@ -196,5 +196,6 @@ describe("realtime voice contract helpers", () => {
     expect(getRealtimeTimelineLabel("confirmado:create_claim")).toBe("Registro confirmado");
     expect(getRealtimeTimelineLabel("rt_123456")).toBe("Escuchando");
     expect(getRealtimeTimelineLabel("video_fallback_voice")).toBe("Cambiando a llamada");
+    expect(getRealtimeTimelineLabel("realtime_trial_limit_reached")).toBe("Limite de demo alcanzado");
   });
 });

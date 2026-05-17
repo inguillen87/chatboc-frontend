@@ -26,6 +26,17 @@ export interface RealtimeVoiceFeatures {
   [key: string]: string | number | boolean | null | undefined;
 }
 
+export interface RealtimeTrialPolicy {
+  enabled?: boolean | null;
+  max_sessions?: number | null;
+  max_messages?: number | null;
+  max_seconds?: number | null;
+  channel?: string | null;
+  reset_window?: string | null;
+  lead_capture_endpoint?: string | null;
+  [key: string]: unknown;
+}
+
 export interface RealtimeVoiceToolContract {
   id?: string | null;
   name?: string | null;
@@ -49,6 +60,7 @@ export interface RealtimeVoiceChannelCapability {
   channel?: string | null;
   provider?: string | null;
   session_endpoint?: string | null;
+  trial_policy?: RealtimeTrialPolicy | null;
   capabilities?: RealtimeVoiceCapabilities | null;
   features?: RealtimeVoiceFeatures | null;
   [key: string]: unknown;
@@ -70,6 +82,7 @@ export interface RealtimeVoiceCapabilities {
   fallback_model?: string | null;
   voice?: string | null;
   active_vertical?: RealtimeVoiceVertical | null;
+  trial_policy?: RealtimeTrialPolicy | null;
   native_speech_to_speech?: boolean | null;
   avoid_external_stt_tts_loop?: boolean | null;
   transports?: RealtimeVoiceTransports | null;

@@ -7,6 +7,7 @@ import {
   Bell,
   CheckCircle2,
   DatabaseZap,
+  Gauge,
   Layers,
   MapPin,
   RefreshCw,
@@ -143,6 +144,20 @@ const getRefreshSeconds = (...values: Array<number | undefined>) => {
   const parsed = values.find((value) => typeof value === 'number' && Number.isFinite(value) && value > 0);
   if (!parsed) return undefined;
   return parsed;
+};
+
+type OperationsFocusCard = {
+  id: string;
+  title: string;
+  description: string;
+  icon: React.ComponentType<{ className?: string }>;
+  tone: 'default' | 'warning' | 'success';
+};
+
+const focusCardToneClass: Record<OperationsFocusCard['tone'], string> = {
+  default: 'border-primary/20 bg-primary/5 text-primary',
+  warning: 'border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-300',
+  success: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300',
 };
 
 type HeatmapFilterKey = 'categoria' | 'rango_edad' | 'genero' | 'canal' | 'source' | 'barrio' | 'estado' | 'distrito';
@@ -383,6 +398,29 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
   );
   const canRenderHeatmap = freshness?.summary?.can_render_heatmap;
   const canRenderDashboard = freshness?.summary?.can_render_dashboard;
+  const focusCards: OperationsFocusCard[] = [
+    {
+      id: 'health',
+      title: freshness?.status ? statusLabel(freshness.status) : 'datos cargados',
+      description: 'Estado general de las fuentes que alimentan el tablero.',
+      icon: Gauge,
+      tone: freshness?.status === 'fresh' || freshness?.status === 'ready' ? 'success' : 'default',
+    },
+    {
+      id: 'actions',
+      title: actions.length ? `${actions.length} acciones sugeridas` : 'sin acciones criticas',
+      description: actions.length ? 'Revisar primero el centro de acciones.' : 'No hay acciones urgentes publicadas.',
+      icon: CheckCircle2,
+      tone: actions.length ? 'warning' : 'success',
+    },
+    {
+      id: 'territory',
+      title: canRenderHeatmap === false ? 'mapa sin datos' : 'mapa disponible',
+      description: 'Zonas calientes y segmentos territoriales cuando backend publica puntos.',
+      icon: MapPin,
+      tone: canRenderHeatmap === false ? 'warning' : 'default',
+    },
+  ];
 
   if (dashboardQuery.isLoading && !data) {
     return <ViewState status="loading" description="Cargando actividad operativa." className={className} />;
@@ -445,6 +483,26 @@ export function OperationsDashboardPanel({ className }: OperationsDashboardPanel
       </div>
 
       {freshness ? <FreshnessBanner freshness={freshness} /> : null}
+
+      <div className="grid gap-3 lg:grid-cols-3">
+        {focusCards.map((card) => {
+          const Icon = card.icon;
+          return (
+            <div key={card.id} className="rounded-xl border border-border/70 bg-card p-4 shadow-sm">
+              <div className="flex items-start gap-3">
+                <span className={cn('inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border', focusCardToneClass[card.tone])}>
+                  <Icon className="h-5 w-5" />
+                </span>
+                <div>
+                  <p className="text-sm font-semibold uppercase tracking-[0.14em] text-muted-foreground">Prioridad</p>
+                  <p className="mt-1 text-lg font-semibold text-foreground">{card.title}</p>
+                  <p className="mt-1 text-sm leading-5 text-muted-foreground">{card.description}</p>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
 
       {canRenderDashboard === false ? (
         <ViewState
@@ -613,7 +671,14 @@ function KpiGrid({
   ];
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <details className="rounded-xl border border-border/70 bg-card p-4 shadow-sm">
+      <summary className="cursor-pointer text-sm font-semibold text-foreground">
+        Ver indicadores detallados
+      </summary>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Metricas completas para revision. El resumen superior indica las prioridades principales.
+      </p>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       {metrics.map((metric) => {
         const Icon = metric.icon;
         return (
@@ -630,7 +695,8 @@ function KpiGrid({
           </Card>
         );
       })}
-    </div>
+      </div>
+    </details>
   );
 }
 

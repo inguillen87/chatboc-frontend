@@ -2,7 +2,7 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Search, FileDown } from 'lucide-react';
+import { FileDown, RotateCcw, Search } from 'lucide-react';
 import { useDebounce } from '@/hooks/useDebounce';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import TicketListItem from './TicketListItem';
@@ -25,10 +25,19 @@ interface SidebarProps {
 }
 
 const ITEMS_PER_PAGE = 10;
+const defaultFilters = {
+  channel: 'all',
+  status: 'all',
+  area: 'all',
+  agent: 'all',
+  priority: 'all',
+  sla: 'all',
+  unread: 'all',
+};
 
 const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
   const { tenant } = useTenant();
-  const { tickets, ticketsByCategory, selectedTicket, selectTicket, filters, setFilters, filterOptions } = useTickets();
+  const { tickets, filteredTickets, ticketsByCategory, selectedTicket, selectTicket, filters, setFilters, filterOptions } = useTickets();
   const [searchTerm, setSearchTerm] = React.useState('');
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
   const [visibleCounts, setVisibleCounts] = React.useState<{ [key: string]: number }>({});
@@ -249,6 +258,21 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
     }));
   };
 
+  const hasActiveFilters =
+    Boolean(debouncedSearchTerm) ||
+    filters.channel !== 'all' ||
+    filters.status !== 'all' ||
+    filters.area !== 'all' ||
+    filters.agent !== 'all' ||
+    filters.priority !== 'all' ||
+    filters.sla !== 'all' ||
+    filters.unread !== 'all';
+
+  const resetFilters = () => {
+    setSearchTerm('');
+    setFilters(defaultFilters);
+  };
+
   return (
     <aside
       className={cn(
@@ -256,11 +280,16 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
         className,
       )}
     >
-      <div className="p-4 space-y-4">
+      <div className="space-y-4 border-b border-border/70 bg-background/80 p-4">
         <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold">
-            {tenant?.tipo === 'municipio' ? 'Reclamos' : 'Tickets'}
-          </h1>
+          <div>
+            <h1 className="text-xl font-bold tracking-tight">
+              {tenant?.tipo === 'municipio' ? 'Reclamos' : 'Tickets'}
+            </h1>
+            <p className="text-xs text-muted-foreground">
+              {filteredTickets.length.toLocaleString('es-AR')} de {tickets.length.toLocaleString('es-AR')} visibles
+            </p>
+          </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm">
@@ -362,8 +391,34 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
             ))}
           </select>
         </div>
+        {hasActiveFilters ? (
+          <div className="flex items-center justify-between rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-xs">
+            <span className="font-medium text-primary">Filtros activos</span>
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="inline-flex items-center gap-1 rounded-lg px-2 py-1 font-semibold text-primary transition hover:bg-primary/10"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              Limpiar
+            </button>
+          </div>
+        ) : null}
       </div>
       <ScrollArea className="flex-1 min-h-0">
+        {Object.keys(filteredTicketsByCategory).length === 0 ? (
+          <div className="mx-4 mt-4 rounded-2xl border border-dashed border-border bg-background/70 p-5 text-center">
+            <p className="text-sm font-semibold text-foreground">No hay casos para esta vista</p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              Ajusta busqueda o filtros para volver a ver conversaciones.
+            </p>
+            {hasActiveFilters ? (
+              <Button type="button" variant="outline" size="sm" className="mt-3" onClick={resetFilters}>
+                Limpiar filtros
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
         <Accordion
           type="multiple"
           className="w-full"

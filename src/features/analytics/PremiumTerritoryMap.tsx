@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
+import { useReducedMotion } from 'framer-motion';
 import { AlertTriangle, Eye, Layers, MapPin, ShieldCheck, TrendingUp } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
@@ -96,6 +97,8 @@ export function PremiumTerritoryHeatmap({
   demoProfile = 'general',
   className,
 }: PremiumTerritoryHeatmapProps) {
+  const svgId = useId().replace(/:/g, '');
+  const shouldReduceMotion = useReducedMotion();
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
   const [comparisonEnabled, setComparisonEnabled] = useState(false);
 
@@ -124,6 +127,7 @@ export function PremiumTerritoryHeatmap({
     .filter((metric) => metric.records > 0)
     .sort((a, b) => b.total - a.total)
     .slice(0, 4);
+  const animatedZones = topZones.slice(0, 3);
 
   const title = labelFor(labels, 'premium_heatmap_title', 'Inteligencia territorial');
   const description = labelFor(
@@ -194,26 +198,62 @@ export function PremiumTerritoryHeatmap({
       ) : null}
 
       <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="relative min-h-[430px] overflow-hidden rounded-xl border border-border bg-background">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(59,130,246,0.16),transparent_30%),radial-gradient(circle_at_78%_32%,rgba(20,184,166,0.14),transparent_34%),linear-gradient(135deg,rgba(15,23,42,0.04),rgba(15,23,42,0))]" />
+        <div
+          className="relative min-h-[450px] overflow-hidden rounded-xl border border-border bg-[linear-gradient(145deg,hsl(var(--background)),rgba(15,23,42,0.045))] shadow-[0_24px_80px_rgba(15,23,42,0.16)]"
+          style={{ perspective: '1200px' }}
+        >
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_16%,rgba(59,130,246,0.18),transparent_30%),radial-gradient(circle_at_78%_30%,rgba(20,184,166,0.16),transparent_34%),radial-gradient(circle_at_48%_86%,rgba(245,158,11,0.12),transparent_36%),linear-gradient(135deg,rgba(15,23,42,0.06),rgba(15,23,42,0))]" />
+          <div className="absolute inset-x-8 top-6 h-px bg-gradient-to-r from-transparent via-white/45 to-transparent opacity-70 dark:via-white/20" />
+          <div className="absolute -bottom-16 left-1/2 h-36 w-[72%] -translate-x-1/2 rounded-[999px] bg-slate-950/10 blur-3xl dark:bg-black/35" />
           <svg
             role="img"
             aria-label={title}
             viewBox="0 0 100 68"
-            className="relative z-10 h-[430px] w-full touch-pan-y select-none sm:h-[520px]"
+            className="relative z-10 h-[450px] w-full touch-pan-y select-none sm:h-[540px]"
             preserveAspectRatio="xMidYMid meet"
           >
             <defs>
-              <radialGradient id="territory-hotspot" cx="50%" cy="50%" r="50%">
+              <radialGradient id={`${svgId}-territory-hotspot`} cx="50%" cy="50%" r="50%">
                 <stop offset="0%" stopColor="rgba(96, 165, 250, 0.75)" />
                 <stop offset="48%" stopColor="rgba(45, 212, 191, 0.22)" />
                 <stop offset="100%" stopColor="rgba(45, 212, 191, 0)" />
               </radialGradient>
-              <pattern id="territory-grid" width="6" height="6" patternUnits="userSpaceOnUse">
+              <linearGradient id={`${svgId}-surface-shine`} x1="0" x2="1" y1="0" y2="1">
+                <stop offset="0%" stopColor="rgba(255,255,255,0.72)" />
+                <stop offset="42%" stopColor="rgba(255,255,255,0.08)" />
+                <stop offset="100%" stopColor="rgba(15,23,42,0.02)" />
+              </linearGradient>
+              <linearGradient id={`${svgId}-scan`} x1="0" x2="1" y1="0" y2="0">
+                <stop offset="0%" stopColor="rgba(255,255,255,0)" />
+                <stop offset="48%" stopColor="rgba(255,255,255,0.42)" />
+                <stop offset="100%" stopColor="rgba(255,255,255,0)" />
+              </linearGradient>
+              <filter id={`${svgId}-zone-shadow`} x="-20%" y="-20%" width="140%" height="150%">
+                <feDropShadow dx="0" dy="1.2" stdDeviation="1.2" floodColor="rgba(15,23,42,0.32)" />
+              </filter>
+              <filter id={`${svgId}-selected-glow`} x="-35%" y="-35%" width="170%" height="170%">
+                <feDropShadow dx="0" dy="0" stdDeviation="1.8" floodColor="rgba(255,255,255,0.7)" />
+                <feDropShadow dx="0" dy="1.6" stdDeviation="1.6" floodColor="rgba(15,23,42,0.28)" />
+              </filter>
+              <pattern id={`${svgId}-territory-grid`} width="6" height="6" patternUnits="userSpaceOnUse">
                 <path d="M 6 0 L 0 0 0 6" fill="none" stroke="rgba(148, 163, 184, 0.16)" strokeWidth="0.18" />
               </pattern>
             </defs>
-            <rect width="100" height="68" fill="url(#territory-grid)" />
+            <rect width="100" height="68" fill={`url(#${svgId}-territory-grid)`} />
+            <path
+              d="M8 59 C24 52 34 58 50 51 C66 44 72 50 94 41"
+              fill="none"
+              stroke="rgba(255,255,255,0.38)"
+              strokeWidth="0.28"
+              strokeDasharray="1.4 2.2"
+            />
+            <path
+              d="M6 15 C23 22 38 13 51 21 C65 30 77 20 95 28"
+              fill="none"
+              stroke="rgba(20,184,166,0.22)"
+              strokeWidth="0.24"
+              strokeDasharray="1 2"
+            />
             {aggregate.zones.map((metric) => {
               const [cx, cy] = territoryCentroid(metric.zone.polygon);
               if (!metric.records || metric.suppressed) return null;
@@ -224,21 +264,66 @@ export function PremiumTerritoryHeatmap({
                   cx={cx}
                   cy={cy}
                   r={radius}
-                  fill="url(#territory-hotspot)"
+                  fill={`url(#${svgId}-territory-hotspot)`}
                   opacity={comparisonEnabled ? 0.34 : 0.58}
-                />
+                >
+                  {!shouldReduceMotion ? (
+                    <animate attributeName="opacity" values="0.28;0.62;0.34" dur="4.8s" repeatCount="indefinite" />
+                  ) : null}
+                </circle>
               );
             })}
+            <g opacity="0.38">
+              {animatedZones.map((metric, index) => {
+                const [cx, cy] = territoryCentroid(metric.zone.polygon);
+                return (
+                  <g key={`${metric.zone.id}-activity`}>
+                    <circle cx={cx - 2.4} cy={cy - 2.2} r="0.42" fill="rgba(255,255,255,0.9)" />
+                    <circle cx={cx + 2.8} cy={cy + 1.6} r="0.34" fill="rgba(45,212,191,0.95)" />
+                    {!shouldReduceMotion ? (
+                      <circle cx={cx} cy={cy} r={2.8 + metric.intensity * 2.2} fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="0.18">
+                        <animate
+                          attributeName="r"
+                          values={`${2.6 + index};${5.8 + metric.intensity * 4};${2.6 + index}`}
+                          dur={`${5.2 + index * 0.7}s`}
+                          repeatCount="indefinite"
+                        />
+                        <animate attributeName="opacity" values="0.05;0.45;0.05" dur={`${5.2 + index * 0.7}s`} repeatCount="indefinite" />
+                      </circle>
+                    ) : null}
+                  </g>
+                );
+              })}
+            </g>
+            <g opacity="0.34" transform="translate(0 1.35)">
+              {aggregate.zones.map((metric) => (
+                <path
+                  key={`${metric.zone.id}-extrusion`}
+                  d={territoryPolygonToPath(metric.zone.polygon)}
+                  fill="rgba(15,23,42,0.34)"
+                  stroke="rgba(15,23,42,0.08)"
+                  strokeWidth="0.2"
+                />
+              ))}
+            </g>
             {aggregate.zones.map((metric) => {
               const selected = selectedZone.zone.id === metric.zone.id;
               const [cx, cy] = territoryCentroid(metric.zone.polygon);
               return (
-                <g key={metric.zone.id}>
+                <g
+                  key={metric.zone.id}
+                  style={{
+                    transform: selected ? 'translateY(-0.65px)' : undefined,
+                    transformOrigin: `${cx}px ${cy}px`,
+                    transition: shouldReduceMotion ? undefined : 'transform 220ms ease, filter 220ms ease',
+                  }}
+                >
                   <path
                     d={territoryPolygonToPath(metric.zone.polygon)}
                     fill={fillForIntensity(metric, selected)}
                     stroke={strokeForIntensity(metric, selected)}
                     strokeWidth={selected ? 0.72 : 0.38}
+                    filter={selected ? `url(#${svgId}-selected-glow)` : `url(#${svgId}-zone-shadow)`}
                     tabIndex={0}
                     role="button"
                     aria-label={`${metric.zone.label}: ${metric.suppressed ? 'muestra insuficiente' : `${formatNumber(metric.total)} eventos`}`}
@@ -255,6 +340,12 @@ export function PremiumTerritoryHeatmap({
                   >
                     <title>{metric.zone.label}</title>
                   </path>
+                  <path
+                    d={territoryPolygonToPath(metric.zone.polygon)}
+                    fill={`url(#${svgId}-surface-shine)`}
+                    opacity={selected ? 0.34 : 0.18}
+                    className="pointer-events-none"
+                  />
                   {metric.records ? (
                     <circle
                       cx={cx}
@@ -263,7 +354,11 @@ export function PremiumTerritoryHeatmap({
                       fill={metric.suppressed ? 'rgba(148, 163, 184, 0.95)' : 'rgba(255, 255, 255, 0.96)'}
                       stroke={strokeForIntensity(metric, selected)}
                       strokeWidth="0.35"
-                    />
+                    >
+                      {!shouldReduceMotion && selected ? (
+                        <animate attributeName="r" values="1.25;1.85;1.25" dur="1.8s" repeatCount="indefinite" />
+                      ) : null}
+                    </circle>
                   ) : null}
                   <text
                     x={cx}
@@ -276,6 +371,19 @@ export function PremiumTerritoryHeatmap({
                 </g>
               );
             })}
+            {!shouldReduceMotion ? (
+              <rect
+                x="-22"
+                y="0"
+                width="16"
+                height="68"
+                fill={`url(#${svgId}-scan)`}
+                opacity="0.22"
+                transform="skewX(-16)"
+              >
+                <animate attributeName="x" values="-24;112" dur="8.5s" repeatCount="indefinite" />
+              </rect>
+            ) : null}
           </svg>
 
           <div className="absolute bottom-3 left-3 right-3 z-20 flex flex-col gap-2 rounded-lg border border-border/80 bg-background/90 p-3 shadow-sm backdrop-blur sm:flex-row sm:items-center sm:justify-between">

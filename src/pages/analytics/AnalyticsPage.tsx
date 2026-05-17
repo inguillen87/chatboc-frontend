@@ -4,7 +4,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Loader2, AlertCircle } from 'lucide-react';
+import { AlertCircle, BarChart3, Brain, Gauge, Loader2, MapPinned, Vote } from 'lucide-react';
 import { useTenant } from '@/context/TenantContext';
 
 import { analyticsService, AnalyticsSummary, RealtimeHubResponse } from '@/services/analyticsService';
@@ -390,10 +390,51 @@ const AnalyticsPage = () => {
 
   return (
     <div className={`space-y-6 ${isEmbeddedInProfile ? 'p-0 bg-transparent min-h-0' : 'p-3 sm:p-6 bg-gray-50 dark:bg-slate-950 min-h-screen'}`}>
+      <section className="overflow-hidden rounded-2xl border border-border/70 bg-card p-4 shadow-sm sm:p-5">
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+          <div className="max-w-3xl space-y-3">
+            <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-primary">
+              <Brain className="h-3.5 w-3.5" />
+              Inteligencia operativa
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Reportes entendibles para decidir</h1>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground sm:text-base">
+                Primero estado, prioridades y mapas. La analitica avanzada queda para investigar segmentos, generar
+                resumen IA y exportar PDF/CSV.
+              </p>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              <Button type="button" variant="outline" className="justify-start gap-2" onClick={() => setActiveTab('overview')}>
+                <Gauge className="h-4 w-4" />
+                Estado general
+              </Button>
+              <Button type="button" variant="outline" className="justify-start gap-2" onClick={() => setActiveTab('operations')}>
+                <BarChart3 className="h-4 w-4" />
+                Operaciones
+              </Button>
+              <Button type="button" variant="outline" className="justify-start gap-2" onClick={() => setActiveTab('geo')}>
+                <MapPinned className="h-4 w-4" />
+                Mapas de calor
+              </Button>
+              <Button type="button" variant="outline" className="justify-start gap-2" onClick={() => navigate(hubEncuestasPath)}>
+                <Vote className="h-4 w-4" />
+                Encuestas
+              </Button>
+            </div>
+          </div>
+          <div className="grid gap-2 rounded-xl border border-border/70 bg-background/70 p-3 text-sm text-muted-foreground xl:max-w-sm">
+            <p className="font-semibold text-foreground">Como leer esta seccion</p>
+            <p><strong className="text-foreground">Estadisticas:</strong> tablero simple para administracion diaria.</p>
+            <p><strong className="text-foreground">Analitica IA:</strong> investigacion, segmentos, mapas, resumen ejecutivo y exportaciones.</p>
+          </div>
+        </div>
+      </section>
+
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div className="space-y-2">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Analytics & Insights</h1>
+            <h2 className="text-xl font-semibold tracking-tight">Filtros, IA y exportaciones</h2>
             <p className="text-muted-foreground">Métricas clave y comportamiento de tu audiencia en tiempo real.</p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -462,9 +503,12 @@ const AnalyticsPage = () => {
       ) : null}
 
 
-      <div className="rounded-lg border bg-card p-4">
-        <h2 className="mb-2 font-semibold">Diccionario de KPIs</h2>
-        <div className="grid gap-2 md:grid-cols-2">
+      <details className="rounded-lg border bg-card p-4">
+        <summary className="cursor-pointer font-semibold">Diccionario de KPIs</summary>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Ayuda para equipos avanzados. El tablero principal debe poder leerse sin abrir este bloque.
+        </p>
+        <div className="mt-3 grid gap-2 md:grid-cols-2">
           {KPI_DICTIONARY.map((item) => (
             <div key={item.key} className="rounded-md border border-border/60 p-2">
               <p className="text-sm font-medium">{item.label}</p>
@@ -472,7 +516,7 @@ const AnalyticsPage = () => {
             </div>
           ))}
         </div>
-      </div>
+      </details>
 
       <Tabs value={activeTab} className="w-full" onValueChange={(val) => { const tab = val as AnalyticsTab; setActiveTab(tab); if (tenantId) { fireAndForgetTrackEvent({ tenant_id: tenantId, event_name: 'tab_click', payload: { tab }, channel: 'web_widget', session_id: `sess_${Date.now()}` }); } }}>
         <div className="overflow-x-auto pb-1">

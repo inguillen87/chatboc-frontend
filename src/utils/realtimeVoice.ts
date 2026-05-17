@@ -225,6 +225,7 @@ export const getRealtimeTimelineLabel = (message?: string | null) => {
   if (normalized.startsWith("registrando:")) return "Registrando";
   if (normalized.startsWith("confirmado:")) return "Registro confirmado";
   if (normalized.startsWith("pendiente:")) return "Confirmacion pendiente";
+  if (normalized.includes("realtime_trial_limit_reached")) return "Limite de demo alcanzado";
   if (normalized.includes("comprobante")) return "Comprobante enviado";
   if (normalized.includes("voice_not_enabled")) return "Llamada no disponible";
   if (normalized.includes("video_unavailable") || normalized.includes("video_fallback")) {

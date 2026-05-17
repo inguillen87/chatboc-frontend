@@ -37,6 +37,16 @@ import {
   Wand2, // Icono para sugerencias
   Loader2, // Icono de carga
   Megaphone, // Icono para promociones
+  ArrowRight,
+  BarChart3,
+  ClipboardList,
+  LayoutDashboard,
+  MapPinned,
+  PieChart,
+  Sparkles,
+  UserCog,
+  Users,
+  Vote,
 } from "lucide-react";
 import { EventForm } from "@/components/admin/EventForm";
 import { PromotionForm, PromotionFormValues } from "@/components/admin/PromotionForm";
@@ -82,7 +92,7 @@ import InternalUsers from '@/pages/InternalUsers';
 import IncidentsMap from '@/pages/IncidentsMap';
 import { getTicketStats, getHeatmapPoints, HeatmapDataset } from "@/services/statsService";
 import AnalyticsHeatmap from "@/components/analytics/Heatmap";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import MiniChatWidgetPreview from "@/components/ui/MiniChatWidgetPreview"; // Importar el nuevo componente
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import { useUser } from "@/hooks/useUser";
@@ -214,8 +224,123 @@ const DIAS = [
 ];
 
 
+type ProfileTabValue =
+  | "perfil"
+  | "tickets"
+  | "pedidos"
+  | "estadisticas"
+  | "analytics"
+  | "usuarios"
+  | "empleados"
+  | "mapas";
+
+type ControlCenterCard = {
+  id: string;
+  title: string;
+  description: string;
+  icon: React.ComponentType<{ className?: string }>;
+  actionLabel: string;
+  tab?: ProfileTabValue;
+  path?: string;
+  enabled?: boolean;
+};
+
+type BackofficeNavigationModule = {
+  id?: string;
+  label?: string;
+  title?: string;
+  description?: string;
+  route?: string;
+  path?: string;
+  enabled?: boolean;
+  priority?: number;
+};
+
+type BackofficeNavigationResponse = {
+  contract_version?: string;
+  modules?: BackofficeNavigationModule[];
+  request_id?: string;
+};
+
+const ControlCenterCardButton = ({
+  item,
+  onOpen,
+}: {
+  item: ControlCenterCard;
+  onOpen: (item: ControlCenterCard) => void;
+}) => {
+  const Icon = item.icon;
+  const enabled = item.enabled !== false;
+
+  return (
+    <button
+      type="button"
+      disabled={!enabled}
+      onClick={() => onOpen(item)}
+      className={cn(
+        "group flex min-h-[148px] w-full flex-col justify-between rounded-xl border border-border/70 bg-card p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-primary/60 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-55",
+      )}
+    >
+      <div className="space-y-3">
+        <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary">
+          <Icon className="h-5 w-5" />
+        </span>
+        <div>
+          <p className="text-base font-semibold text-foreground">{item.title}</p>
+          <p className="mt-1 text-sm leading-5 text-muted-foreground">{item.description}</p>
+        </div>
+      </div>
+      <span className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-primary">
+        {enabled ? item.actionLabel : "No disponible"}
+        {enabled ? <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" /> : null}
+      </span>
+    </button>
+  );
+};
+
+const DataModeCard = ({
+  title,
+  description,
+  bullets,
+  actionLabel,
+  icon: Icon,
+  onClick,
+}: {
+  title: string;
+  description: string;
+  bullets: string[];
+  actionLabel: string;
+  icon: React.ComponentType<{ className?: string }>;
+  onClick: () => void;
+}) => (
+  <div className="flex flex-col rounded-xl border border-border/70 bg-background/70 p-4 shadow-sm">
+    <div className="flex items-start gap-3">
+      <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+        <Icon className="h-5 w-5" />
+      </span>
+      <div>
+        <p className="font-semibold text-foreground">{title}</p>
+        <p className="mt-1 text-sm leading-5 text-muted-foreground">{description}</p>
+      </div>
+    </div>
+    <ul className="mt-4 space-y-2 text-sm text-muted-foreground">
+      {bullets.map((bullet) => (
+        <li key={bullet} className="flex gap-2">
+          <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+          <span>{bullet}</span>
+        </li>
+      ))}
+    </ul>
+    <Button type="button" variant="outline" className="mt-4 justify-between" onClick={onClick}>
+      {actionLabel}
+      <ArrowRight className="h-4 w-4" />
+    </Button>
+  </div>
+);
+
 export default function Perfil() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user, refreshUser } = useUser(); // Usa refreshUser del hook
   const isPyme = user?.tipo_chat === "pyme";
   const parseCoordinate = (value: unknown): number | null => {
@@ -304,6 +429,8 @@ export default function Perfil() {
   const [activeEventTab, setActiveEventTab] = useState<
     "event" | "news" | "paste" | "promotion"
   >("event");
+  const requestedProfileTab = searchParams.get("tab") as ProfileTabValue | null;
+  const [activeProfileTab, setActiveProfileTab] = useState<ProfileTabValue>(requestedProfileTab || "perfil");
   const [isSubmittingPromotion, setIsSubmittingPromotion] = useState(false);
   const [hasSentPromotionToday, setHasSentPromotionToday] = useState(false);
   const [isManualLocation, setIsManualLocation] = useState(false);
@@ -318,6 +445,7 @@ export default function Perfil() {
   const canViewAnalytics =
     isStaff || user?.tipo_chat === 'pyme' || user?.tipo_chat === 'municipio';
   const esMunicipio = (user?.tipo_chat || perfil.rubro) === "municipio" || perfil.rubro === "municipios";
+  const [backofficeNavigation, setBackofficeNavigation] = useState<BackofficeNavigationResponse | null>(null);
 
   const {
     posts: municipalPosts,
@@ -402,6 +530,55 @@ export default function Perfil() {
         municipalPostsFilters.tipoPost,
     );
   const maptilerKey = import.meta.env.VITE_MAPTILER_KEY || "";
+
+  const updateProfileTab = useCallback(
+    (tab: ProfileTabValue) => {
+      setActiveProfileTab(tab);
+      const next = new URLSearchParams(searchParams.toString());
+      if (tab === "perfil") {
+        next.delete("tab");
+      } else {
+        next.set("tab", tab);
+      }
+      setSearchParams(next, { replace: true });
+    },
+    [searchParams, setSearchParams],
+  );
+
+  useEffect(() => {
+    if (requestedProfileTab && requestedProfileTab !== activeProfileTab) {
+      setActiveProfileTab(requestedProfileTab);
+    }
+  }, [activeProfileTab, requestedProfileTab]);
+
+  useEffect(() => {
+    if (!derivedTenantSlug) {
+      setBackofficeNavigation(null);
+      return;
+    }
+
+    let cancelled = false;
+    const loadBackofficeNavigation = async () => {
+      try {
+        const data = await apiFetch<BackofficeNavigationResponse>(
+          `/api/app/backoffice/navigation?tenant_slug=${encodeURIComponent(derivedTenantSlug)}`,
+        );
+        if (cancelled) return;
+        if (data?.contract_version === 'backoffice.navigation.v1' && Array.isArray(data.modules)) {
+          setBackofficeNavigation(data);
+          return;
+        }
+        setBackofficeNavigation(null);
+      } catch {
+        if (!cancelled) setBackofficeNavigation(null);
+      }
+    };
+
+    void loadBackofficeNavigation();
+    return () => {
+      cancelled = true;
+    };
+  }, [derivedTenantSlug]);
 
   useEffect(() => {
     const checkPromotionStatus = async () => {
@@ -1405,12 +1582,138 @@ export default function Perfil() {
       ? Math.min((perfil.preguntas_usadas / limitePlan) * 100, 100)
       : 0;
 
+  const resolveBackofficeModuleIcon = (moduleId: string) => {
+    const normalized = moduleId.toLowerCase();
+    if (normalized.includes('report') || normalized.includes('stat')) return BarChart3;
+    if (normalized.includes('survey') || normalized.includes('vote')) return Vote;
+    if (normalized.includes('people') || normalized.includes('user') || normalized.includes('team')) return Users;
+    if (normalized.includes('map')) return MapPinned;
+    if (normalized.includes('analytics') || normalized.includes('ai')) return Sparkles;
+    if (normalized.includes('order') || normalized.includes('ticket') || normalized.includes('operation')) return ClipboardList;
+    return LayoutDashboard;
+  };
+
+  const moduleRouteToTarget = (route?: string | null): Pick<ControlCenterCard, 'tab' | 'path'> => {
+    if (!route) return {};
+    const tabMatch = route.match(/[?&]tab=([^&]+)/);
+    const tab = tabMatch?.[1] as ProfileTabValue | undefined;
+    if (tab && ['perfil', 'tickets', 'pedidos', 'estadisticas', 'analytics', 'usuarios', 'empleados', 'mapas'].includes(tab)) {
+      return { tab };
+    }
+    return { path: route };
+  };
+
+  const backendControlCards = useMemo<ControlCenterCard[]>(() => {
+    const modules = backofficeNavigation?.modules;
+    if (!Array.isArray(modules) || modules.length === 0) return [];
+    return modules
+      .filter((module) => module.enabled !== false)
+      .slice()
+      .sort((a, b) => (a.priority ?? 999) - (b.priority ?? 999))
+      .map((module) => {
+        const id = module.id || module.label || module.route || 'module';
+        return {
+          id,
+          title: module.label || module.title || id,
+          description: module.description || 'Modulo publicado por backend.',
+          icon: resolveBackofficeModuleIcon(id),
+          actionLabel: 'Abrir',
+          enabled: module.enabled !== false,
+          ...moduleRouteToTarget(module.route || module.path),
+        };
+      });
+  }, [backofficeNavigation?.modules]);
+
+  const openControlCenterItem = (item: ControlCenterCard) => {
+    if (item.enabled === false) return;
+    if (item.tab) {
+      updateProfileTab(item.tab);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+    if (item.path) {
+      navigate(item.path);
+    }
+  };
+
+  const primaryControlCards: ControlCenterCard[] = [
+    {
+      id: "operations",
+      title: esMunicipio ? "Operar reclamos" : "Operar conversaciones",
+      description: esMunicipio
+        ? "Entrar a reclamos, estados, ubicaciones y seguimiento diario."
+        : "Ver tickets, pedidos, ventas y conversaciones que requieren accion.",
+      icon: ClipboardList,
+      actionLabel: "Abrir operacion",
+      tab: "tickets",
+    },
+    {
+      id: "reports",
+      title: "Reportes claros",
+      description: "Resumen operativo, mapas de calor, prioridades y datos listos para revisar.",
+      icon: BarChart3,
+      actionLabel: "Ver reportes",
+      tab: "estadisticas",
+    },
+    {
+      id: "surveys",
+      title: "Encuestas y sondeos",
+      description: "Gestionar participacion, votaciones, comentarios y resultados en vivo.",
+      icon: Vote,
+      actionLabel: "Abrir encuestas",
+      path: "/admin/encuestas",
+    },
+    {
+      id: "people",
+      title: "Personas y accesos",
+      description: "Usuarios, empleados, permisos y responsables del equipo.",
+      icon: Users,
+      actionLabel: "Gestionar personas",
+      tab: isStaff ? "empleados" : "usuarios",
+    },
+  ];
+
+  const secondaryControlCards: ControlCenterCard[] = [
+    {
+      id: "ai-analytics",
+      title: "Analitica avanzada e IA",
+      description: "Investigacion, segmentos, resumen ejecutivo y exportaciones para equipos avanzados.",
+      icon: Sparkles,
+      actionLabel: "Abrir analitica",
+      tab: "analytics",
+      enabled: canViewAnalytics,
+    },
+    {
+      id: "maps",
+      title: "Mapa operativo",
+      description: "Ver zonas calientes, puntos georreferenciados y capas territoriales disponibles.",
+      icon: MapPinned,
+      actionLabel: "Abrir mapas",
+      tab: isStaff ? "mapas" : "estadisticas",
+    },
+    {
+      id: "users",
+      title: "Usuarios finales",
+      description: "Consultar contactos, cuentas, actividad y datos de relacion con la organizacion.",
+      icon: UserCog,
+      actionLabel: "Ver usuarios",
+      tab: "usuarios",
+    },
+  ];
+  const controlCardsFromBackend = backendControlCards.length > 0;
+  const renderedPrimaryControlCards = controlCardsFromBackend
+    ? backendControlCards.slice(0, 4)
+    : primaryControlCards;
+  const renderedSecondaryControlCards = controlCardsFromBackend
+    ? backendControlCards.slice(4)
+    : secondaryControlCards;
+
   return (
-    <div className="flex flex-col min-h-screen bg-background dark:bg-gradient-to-tr dark:from-slate-950 dark:to-slate-900 text-foreground py-8 px-2 sm:px-4 md:px-6 lg:px-8">
-      <div className="w-full max-w-6xl mx-auto mb-6 relative px-2 pt-16 sm:pt-0">
+    <div className="flex min-h-screen flex-col bg-background px-2 py-6 text-foreground dark:bg-gradient-to-tr dark:from-slate-950 dark:to-slate-900 sm:px-4 md:px-6 lg:px-8">
+      <div className="mx-auto mb-5 w-full max-w-7xl px-2 pt-16 sm:pt-0">
         <Button
           variant="outline"
-          className="absolute right-2 top-2 h-10 px-5 text-sm rounded-lg border-destructive text-destructive hover:bg-destructive/10"
+          className="float-right h-10 rounded-lg border-destructive px-5 text-sm text-destructive hover:bg-destructive/10"
           onClick={() => {
             safeLocalStorage.clear();
             navigate("/login"); // Usa navigate para la redirección
@@ -1418,30 +1721,95 @@ export default function Perfil() {
         >
           <LogOut className="w-4 h-4 mr-2" /> Salir
         </Button>
-        <div className="flex flex-col items-center text-center gap-2">
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-primary leading-tight flex items-center gap-4">
-            <span className="inline-block align-middle">
-              <MunicipioIcon />
-            </span>
-            {perfil.nombre_empresa || "Panel de Empresa"}
-          </h1>
-          <span className="text-muted-foreground text-sm sm:text-base font-medium capitalize">
-            {perfil.rubro || "Rubro no especificado"}
-          </span>
+        <div className="clear-both rounded-2xl border border-border/70 bg-card/80 p-5 shadow-sm backdrop-blur sm:p-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-start gap-4">
+              <span className="mt-1 inline-block align-middle">
+                <MunicipioIcon />
+              </span>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Centro de control</p>
+                <h1 className="mt-1 text-2xl font-extrabold leading-tight text-foreground sm:text-3xl md:text-4xl">
+                  {perfil.nombre_empresa || "Panel de Empresa"}
+                </h1>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground sm:text-base">
+                  Operacion, personas, encuestas y reportes en un solo lugar. La configuracion queda disponible, pero
+                  el panel prioriza lo que el equipo necesita resolver hoy.
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2 lg:justify-end">
+              <Badge variant="secondary" className="capitalize">{perfil.rubro || "Rubro no especificado"}</Badge>
+              <Badge variant="outline">{plan === "full" ? "Plan Full" : plan === "pro" ? "Plan Pro" : "Plan activo"}</Badge>
+            </div>
+          </div>
         </div>
       </div>
 
-      <Tabs defaultValue="perfil" className="w-full max-w-6xl mx-auto">
-        <TabsList className={`grid w-full ${canViewAnalytics ? "grid-cols-6 sm:grid-cols-8" : "grid-cols-5 sm:grid-cols-7"}`}>
-          <TabsTrigger value="perfil">Perfil</TabsTrigger>
+      <section className="mx-auto mb-5 w-full max-w-7xl space-y-5 px-2">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {renderedPrimaryControlCards.map((item) => (
+            <ControlCenterCardButton key={item.id} item={item} onOpen={openControlCenterItem} />
+          ))}
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(360px,0.8fr)]">
+          <Card className="border-border/70 bg-card/80 shadow-sm">
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-2">
+                <LayoutDashboard className="h-5 w-5 text-primary" />
+                <CardTitle className="text-lg">Que mirar primero</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="grid gap-3 md:grid-cols-3">
+              {renderedSecondaryControlCards.map((item) => (
+                <ControlCenterCardButton key={item.id} item={item} onOpen={openControlCenterItem} />
+              ))}
+            </CardContent>
+          </Card>
+
+          <Card className="border-border/70 bg-card/80 shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <PieChart className="h-5 w-5 text-primary" />
+                Estadisticas vs analitica
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+              <DataModeCard
+                title="Estadisticas"
+                description="Vista diaria para equipos administrativos."
+                bullets={["Que paso", "Que esta pendiente", "Donde actuar ahora"]}
+                actionLabel="Ver tablero simple"
+                icon={BarChart3}
+                onClick={() => updateProfileTab("estadisticas")}
+              />
+              <DataModeCard
+                title="Analitica IA"
+                description="Capa avanzada para investigar y presentar."
+                bullets={["Resumen ejecutivo", "Segmentos y mapas", "Exportacion PDF/CSV"]}
+                actionLabel="Abrir investigacion"
+                icon={Sparkles}
+                onClick={() => updateProfileTab("analytics")}
+              />
+            </CardContent>
+          </Card>
+        </div>
+      </section>
+
+      <Tabs value={activeProfileTab} onValueChange={(value) => updateProfileTab(value as ProfileTabValue)} className="w-full max-w-7xl mx-auto">
+        <div className="sticky top-0 z-30 -mx-2 border-y border-border/60 bg-background/95 px-2 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:rounded-xl sm:border">
+        <TabsList className={`grid h-auto w-full gap-1 ${canViewAnalytics ? "grid-cols-2 sm:grid-cols-4 xl:grid-cols-8" : "grid-cols-2 sm:grid-cols-4 xl:grid-cols-7"}`}>
+          <TabsTrigger value="perfil">Inicio</TabsTrigger>
           <TabsTrigger value="tickets">{esMunicipio ? 'Reclamos' : 'Tickets'}</TabsTrigger>
           <TabsTrigger value="pedidos">{esMunicipio ? 'Gestión' : 'Ventas'}</TabsTrigger>
-          <TabsTrigger value="estadisticas">Estadísticas</TabsTrigger>
-          {canViewAnalytics && <TabsTrigger value="analytics">Analytics</TabsTrigger>}
+          <TabsTrigger value="estadisticas">Reportes</TabsTrigger>
+          {canViewAnalytics && <TabsTrigger value="analytics">Analitica IA</TabsTrigger>}
           <TabsTrigger value="usuarios">Usuarios</TabsTrigger>
           {isStaff && <TabsTrigger value="empleados">Empleados</TabsTrigger>}
           {isStaff && <TabsTrigger value="mapas">Mapas</TabsTrigger>}
         </TabsList>
+        </div>
         <TabsContent value="perfil">
           <div className="w-full mx-auto flex flex-col md:flex-row gap-6 md:gap-8 px-2 items-stretch mt-6">
             {/* Columna Izquierda: Datos de la Empresa y Mapa */}

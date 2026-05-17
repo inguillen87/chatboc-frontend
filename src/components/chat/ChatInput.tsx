@@ -28,6 +28,8 @@ export interface ChatInputHandle {
 interface Props {
   onSendMessage: (payload: SendPayload) => void;
   isTyping: boolean;
+  disabled?: boolean;
+  disabledReason?: string | null;
   inputRef?: React.RefObject<HTMLInputElement>;
   onTypingChange?: (typing: boolean) => void;
   onSystemMessage?: (text: string, type: 'error' | 'info') => void;
@@ -111,7 +113,7 @@ const mediaActionLabel = (
   fallback: string,
 ) => mediaCapabilities?.composer?.actions?.find((action) => action?.type === mode)?.label?.trim() || fallback;
 
-const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping, inputRef, onTypingChange, onSystemMessage, validateBeforeSend, channelCapabilities, mediaCapabilities, uiHints, guidedFlow, supportsMultimodalIntake = true }, ref) => {
+const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping, disabled = false, disabledReason = null, inputRef, onTypingChange, onSystemMessage, validateBeforeSend, channelCapabilities, mediaCapabilities, uiHints, guidedFlow, supportsMultimodalIntake = true }, ref) => {
   const [input, setInput] = useState("");
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const [isLocating, setIsLocating] = useState(false);
@@ -247,7 +249,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
   }, [draftStorageKey, input]);
 
   const handleSend = async () => {
-    if ((!input.trim() && !attachmentPreview) || isTyping) return;
+    if ((!input.trim() && !attachmentPreview) || isTyping || disabled) return;
 
     let attachmentData: AttachmentInfo | undefined = undefined;
     let legacyArchivoUrl: string | undefined;
@@ -428,7 +430,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
   };
 
   const handleShareLocation = async () => {
-    if (isTyping || isLocating) return;
+    if (isTyping || isLocating || disabled) return;
     setIsLocating(true);
     toast({ title: "Obteniendo ubicación...", description: "Por favor, acepta la solicitud de GPS.", duration: 2000 });
     try {
@@ -456,7 +458,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
   };
 
   const handleSendAudio = async (audioBlob: Blob) => {
-    if (isTyping) return;
+    if (isTyping || disabled) return;
     onSystemMessage?.('Enviando audio...', 'info');
 
     const filename = `audio-grabado-${Date.now()}.webm`;
@@ -597,6 +599,11 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
 
   return (
     <div className="chatboc-chat-composer w-full flex flex-col gap-1.5 px-1 py-1 sm:gap-2 sm:px-2 sm:py-2 bg-background">
+      {disabled && disabledReason ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900">
+          {disabledReason}
+        </div>
+      ) : null}
       {draftRecovered ? (
         <div className="rounded-xl border border-primary/30 bg-primary/10 px-3 py-2 text-xs text-primary">
           Recuperamos tu borrador anterior automáticamente.
@@ -700,7 +707,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
             aria-label="Escribir mensaje"
             aria-keyshortcuts="Enter"
             inputMode="text"
-            disabled={isTyping || isRecording}
+            disabled={disabled || isTyping || isRecording}
           />
           </div>
         <div
@@ -737,7 +744,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
               <AdjuntarArchivo
                 ref={adjRef}
                 onFileSelected={handleFileSelected}
-                disabled={isRecording || !!attachmentPreview}
+                disabled={disabled || isRecording || !!attachmentPreview}
                 allowedFileTypes={allowedFileTypes}
               />
               </div>
@@ -745,7 +752,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
             {showLocationAction ? (
             <button
               onClick={handleShareLocation}
-              disabled={isTyping || isLocating || isRecording || !!attachmentPreview}
+              disabled={disabled || isTyping || isLocating || isRecording || !!attachmentPreview}
               className={`
                 flex h-9 w-9 items-center justify-center sm:h-10 sm:w-10
                 rounded-full p-2 sm:p-3
@@ -753,7 +760,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
                 focus:outline-none focus:ring-2 focus:ring-primary/60 focus:ring-offset-1 focus:ring-offset-background
                 active:scale-95
                 border border-border/60 bg-background text-secondary-foreground hover:-translate-y-0.5 hover:bg-secondary/80 hover:shadow-lg
-                ${isTyping || isLocating || !!attachmentPreview ? "opacity-50 cursor-not-allowed" : ""}
+                ${disabled || isTyping || isLocating || !!attachmentPreview ? "opacity-50 cursor-not-allowed" : ""}
               `}
               aria-label={locationLabel}
               title={locationLabel}
@@ -778,7 +785,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
                   }
                 }
               }}
-              disabled={isTyping || isLocating || !!attachmentPreview}
+              disabled={disabled || isTyping || isLocating || !!attachmentPreview}
               className={`
                 flex h-9 w-9 items-center justify-center sm:h-10 sm:w-10
                 rounded-full p-2 sm:p-3
@@ -786,7 +793,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
                 focus:outline-none focus:ring-2 focus:ring-primary/60 focus:ring-offset-1 focus:ring-offset-background
                 active:scale-95
                 border border-border/60 bg-background text-secondary-foreground hover:-translate-y-0.5 hover:bg-secondary/80 hover:shadow-lg
-                ${isTyping || isLocating || !!attachmentPreview ? "opacity-50 cursor-not-allowed" : ""}
+                ${disabled || isTyping || isLocating || !!attachmentPreview ? "opacity-50 cursor-not-allowed" : ""}
                 ${isRecording ? "text-destructive bg-destructive/20 hover:bg-destructive/30" : ""}
               `}
               aria-label={isRecording ? "Detener grabación" : audioLabel}
@@ -799,7 +806,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
             {showEmojiAction ? (
             <button
               onClick={() => setShowEmojis((v) => !v)}
-              disabled={isTyping || isLocating || !!attachmentPreview}
+              disabled={disabled || isTyping || isLocating || !!attachmentPreview}
               className={`
                 flex h-9 w-9 items-center justify-center sm:h-10 sm:w-10
                 rounded-full p-2 sm:p-3
@@ -807,7 +814,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
                 focus:outline-none focus:ring-2 focus:ring-primary/60 focus:ring-offset-1 focus:ring-offset-background
                 active:scale-95
                 border border-border/60 bg-background text-secondary-foreground hover:-translate-y-0.5 hover:bg-secondary/80 hover:shadow-lg
-                ${isTyping || isLocating || !!attachmentPreview ? "opacity-50 cursor-not-allowed" : ""}
+                ${disabled || isTyping || isLocating || !!attachmentPreview ? "opacity-50 cursor-not-allowed" : ""}
               `}
               aria-label="Mostrar emojis"
               type="button"
@@ -828,7 +835,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
               disabled:opacity-50 disabled:cursor-not-allowed
             `}
             onClick={handleSend}
-            disabled={(!input.trim() && !attachmentPreview) || isTyping || isRecording}
+            disabled={disabled || (!input.trim() && !attachmentPreview) || isTyping || isRecording}
             aria-label="Enviar mensaje"
             type="button"
           >

@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
 import useRequireRole from "@/hooks/useRequireRole";
 import type { Role } from "@/utils/roles";
+import { Mail, Phone, Search, Users } from "lucide-react";
 
 type RawUsuario = Record<string, any>;
 
@@ -212,19 +213,36 @@ export default function UsuariosPage() {
       .slice(0, 4);
   }, [usuarios]);
 
+  const emailCount = React.useMemo(
+    () => usuarios.filter((u) => u.email && u.email !== 'Sin email').length,
+    [usuarios],
+  );
+
+  const contactCoverage = usuarios.length ? Math.round((phoneCount / usuarios.length) * 100) : 0;
+
   if (loading) return <div className="p-8">Cargando...</div>;
   if (error) return <div className="p-8 text-destructive">{error}</div>;
 
   return (
-    <div className="p-4 md:p-6 flex flex-col gap-4 max-w-5xl mx-auto">
-      <header className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Usuarios Registrados</h1>
-        <Button variant="outline" onClick={() => navigate("/perfil")}>Volver</Button>
+    <div className="mx-auto flex max-w-7xl flex-col gap-4 p-4 md:p-6">
+      <header className="rounded-[28px] border border-border/70 bg-gradient-to-br from-background via-primary/5 to-sky-500/10 p-5 shadow-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h1 className="text-3xl font-black tracking-tight">Usuarios y contactos</h1>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
+              Base operativa para atencion, segmentacion y seguimiento. Los datos se muestran tal como los publica el backend.
+            </p>
+          </div>
+          <Button variant="outline" onClick={() => navigate("/perfil")}>Volver</Button>
+        </div>
       </header>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold text-muted-foreground">Total</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+              <Users className="h-4 w-4" />
+              Total
+            </CardTitle>
           </CardHeader>
           <CardContent className="text-3xl font-bold">{usuarios.length}</CardContent>
         </Card>
@@ -241,6 +259,29 @@ export default function UsuariosPage() {
           <CardContent className="text-3xl font-bold">{marketingCount}</CardContent>
         </Card>
       </div>
+      <div className="grid gap-3 md:grid-cols-3">
+        <div className="rounded-2xl border border-border/70 bg-card p-3 text-sm">
+          <div className="flex items-center gap-2 font-semibold">
+            <Phone className="h-4 w-4 text-primary" />
+            Cobertura de telefono
+          </div>
+          <p className="mt-1 text-2xl font-bold">{contactCoverage}%</p>
+          <p className="text-xs text-muted-foreground">Contactos con telefono publicado.</p>
+        </div>
+        <div className="rounded-2xl border border-border/70 bg-card p-3 text-sm">
+          <div className="flex items-center gap-2 font-semibold">
+            <Mail className="h-4 w-4 text-primary" />
+            Emails utilizables
+          </div>
+          <p className="mt-1 text-2xl font-bold">{emailCount.toLocaleString('es-AR')}</p>
+          <p className="text-xs text-muted-foreground">Contactos con email publicado.</p>
+        </div>
+        <div className="rounded-2xl border border-border/70 bg-card p-3 text-sm">
+          <div className="font-semibold">Marketing</div>
+          <p className="mt-1 text-2xl font-bold">{marketingCount.toLocaleString('es-AR')}</p>
+          <p className="text-xs text-muted-foreground">Opt-in disponible para campanas.</p>
+        </div>
+      </div>
       {channelStats.length > 0 && (
         <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
           {channelStats.map((c) => (
@@ -251,13 +292,16 @@ export default function UsuariosPage() {
           ))}
         </div>
       )}
-      <div className="flex items-center gap-4">
-        <Input
-          placeholder="Buscar nombre o email"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="max-w-xs"
-        />
+      <div className="flex flex-col gap-3 rounded-2xl border border-border/70 bg-card p-3 shadow-sm md:flex-row md:items-center md:justify-between">
+        <div className="relative w-full md:max-w-md">
+          <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar nombre o email"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="h-10 pl-9"
+          />
+        </div>
         <label className="flex items-center gap-2 text-sm">
           <Checkbox checked={marketingOnly} onCheckedChange={(v) => setMarketingOnly(Boolean(v))} />
           Solo con marketing
@@ -266,9 +310,10 @@ export default function UsuariosPage() {
       {usuarios.length === 0 ? (
         <p>No hay usuarios registrados.</p>
       ) : (
-        <Card>
+        <Card className="overflow-hidden">
           <CardContent>
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-[980px] text-sm">
               <thead>
                 <tr className="text-left font-semibold">
                   <th className="p-2 cursor-pointer" onClick={() => requestSort('nombre')}>
@@ -316,6 +361,7 @@ export default function UsuariosPage() {
                 ))}
               </tbody>
             </table>
+            </div>
             <div className="mt-4 flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
               <span>
                 Mostrando {(page - 1) * pageSize + 1}–

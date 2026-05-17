@@ -94,6 +94,11 @@ const buildDemographicData = (items: SurveyDemographicBreakdownItem[]) =>
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
+const isFeatureCollection = (value: unknown): value is { type: 'FeatureCollection'; features: unknown[] } => {
+  if (!isRecord(value)) return false;
+  return value.type === 'FeatureCollection' && Array.isArray(value.features);
+};
+
 const getNestedValue = (value: unknown, path: string[]): unknown => {
   let current: unknown = value;
   for (const segment of path) {
@@ -384,6 +389,27 @@ const normalizeHeatmapPoints = (points?: SurveyHeatmapPoint[] | unknown): Survey
     })
     .filter((point): point is SurveyHeatmapPoint => Boolean(point));
 
+const extractCategoryLayerPoints = (categoryLayers: Record<string, unknown> | null): SurveyHeatmapPoint[] => {
+  const categories = getArray<Record<string, unknown>>(categoryLayers?.categories);
+  return categories.flatMap((category) => {
+    const categoria = toNonEmptyString(category.categoria ?? category.category ?? category.label) ?? undefined;
+    return getArray<Record<string, unknown>>(category.points)
+      .map((point) => {
+        const lat = toFiniteNumber(point.lat);
+        const lng = toFiniteNumber(point.lng);
+        if (lat === null || lng === null) return null;
+        return {
+          lat,
+          lng,
+          respuestas: toFiniteNumber(point.weight ?? point.total_weight ?? point.count) ?? 1,
+          categoria,
+          canal: toNonEmptyString(point.canal ?? point.channel) ?? undefined,
+        };
+      })
+      .filter((point): point is SurveyHeatmapPoint => Boolean(point));
+  });
+};
+
 type ChannelBreakdownItem = { canal: string; respuestas: number };
 
 const extractChannelItem = (value: unknown, fallbackCanal?: string | null): ChannelBreakdownItem | null => {
@@ -500,6 +526,25 @@ export const SurveyAnalytics = ({
     () => (heatmapMeta && typeof heatmapMeta === 'object' ? (heatmapMeta as Record<string, unknown>) : null),
     [heatmapMeta],
   );
+  const categoryLayersRecord = useMemo(() => {
+    const direct = heatmapMetaRecord?.category_layers;
+    if (isRecord(direct)) return direct;
+    const nestedMetadata = heatmapMetaRecord?.metadata;
+    if (isRecord(nestedMetadata) && isRecord(nestedMetadata.category_layers)) return nestedMetadata.category_layers;
+    return null;
+  }, [heatmapMetaRecord]);
+  const categoryLayerCategories = useMemo(
+    () => getArray<Record<string, unknown>>(categoryLayersRecord?.categories),
+    [categoryLayersRecord],
+  );
+  const categoryLayerSource = useMemo(
+    () => (isFeatureCollection(categoryLayersRecord?.source) ? categoryLayersRecord.source : null),
+    [categoryLayersRecord],
+  );
+  const categoryLayerPoints = useMemo(
+    () => extractCategoryLayerPoints(categoryLayersRecord),
+    [categoryLayersRecord],
+  );
   const mapMetaRecord = useMemo(() => {
     const mapValue = heatmapMetaRecord?.map;
     return mapValue && typeof mapValue === 'object' ? (mapValue as Record<string, unknown>) : null;
@@ -533,14 +578,26 @@ export const SurveyAnalytics = ({
   );
 
   const categoryColorMap = useMemo(() => {
+    const backendPairs = categoryLayerCategories
+      .map((category, index) => {
+        const name = toNonEmptyString(category.categoria ?? category.category ?? category.label);
+        const color = toNonEmptyString(category.color) ?? colorFromCategory(name ?? '', index);
+        return name ? ([name, color] as const) : null;
+      })
+      .filter((pair): pair is readonly [string, string] => Boolean(pair));
+    const map = new Map<string, string>(backendPairs);
     const categories = Array.from(new Set(aggregatedHeatmapPoints.map((point) => point.categoria).filter(Boolean) as string[]));
-    return new Map(categories.map((category, index) => [category, colorFromCategory(category, index)]));
-  }, [aggregatedHeatmapPoints]);
+    categories.forEach((category, index) => {
+      if (!map.has(category)) map.set(category, colorFromCategory(category, index));
+    });
+    return map;
+  }, [aggregatedHeatmapPoints, categoryLayerCategories]);
 
   const heatmapData = useMemo(() => {
     if (usingSyntheticPoints) return [];
-    const allZero = aggregatedHeatmapPoints.length > 0 && aggregatedHeatmapPoints.every((point) => point.respuestas <= 0);
-    return aggregatedHeatmapPoints.map((point) => ({
+    const sourcePoints = aggregatedHeatmapPoints.length ? aggregatedHeatmapPoints : categoryLayerPoints;
+    const allZero = sourcePoints.length > 0 && sourcePoints.every((point) => point.respuestas <= 0);
+    return sourcePoints.map((point) => ({
       lat: point.lat,
       lng: point.lng,
       weight: allZero ? Math.max(1, point.respuestas || 0) : point.respuestas,
@@ -548,7 +605,7 @@ export const SurveyAnalytics = ({
       canal: point.canal,
       categoryColor: point.categoria ? categoryColorMap.get(point.categoria) : undefined,
     }));
-  }, [aggregatedHeatmapPoints, categoryColorMap, usingSyntheticPoints]);
+  }, [aggregatedHeatmapPoints, categoryColorMap, categoryLayerPoints, usingSyntheticPoints]);
   const { provider, setProvider } = useMapProvider();
   const hasGoogleKey = useMemo(() => ((import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? '').trim().length > 0), []);
   const providerIsConfigured = useCallback(
@@ -1122,7 +1179,7 @@ export const SurveyAnalytics = ({
               El mapa se oculta porque no hay ubicaciones reales disponibles.
             </div>
           ) : null}
-          {mapRenderReady && aggregatedHeatmapPoints.length ? (
+          {mapRenderReady && heatmapData.length ? (
             <div className="space-y-4">
               {categoryColorMap.size ? (
                 <div className="flex flex-wrap gap-2 text-xs">
@@ -1132,6 +1189,21 @@ export const SurveyAnalytics = ({
                       {category}
                     </span>
                   ))}
+                </div>
+              ) : null}
+              {categoryLayerCategories.length ? (
+                <div className="flex flex-wrap gap-2 text-xs">
+                  {categoryLayerCategories.slice(0, 8).map((category, index) => {
+                    const label = toNonEmptyString(category.categoria ?? category.category ?? category.label) ?? '—';
+                    const count = toFiniteNumber(category.event_count ?? category.total_weight ?? category.count) ?? 0;
+                    const color = toNonEmptyString(category.color) ?? categoryColorMap.get(label) ?? '#94a3b8';
+                    return (
+                      <span key={`${label}-${index}`} className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5">
+                        <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
+                        {label} · {count}
+                      </span>
+                    );
+                  })}
                 </div>
               ) : null}
               <MeasuredContainer className="h-[360px] min-w-0 overflow-hidden rounded-lg border border-border/60">
@@ -1144,6 +1216,20 @@ export const SurveyAnalytics = ({
                   provider={provider}
                   onProviderUnavailable={handleProviderUnavailable}
                   onBoundingBoxChange={handleBoundingBoxChange}
+                  geoLayerConfig={
+                    categoryLayersRecord
+                      ? {
+                          contract_version: toNonEmptyString(categoryLayersRecord.contract_version) ?? undefined,
+                          style_url: toNonEmptyString(categoryLayersRecord.style_url) ?? undefined,
+                          source: categoryLayerSource,
+                          source_options: isRecord(categoryLayersRecord.source_options) ? categoryLayersRecord.source_options : undefined,
+                          interactions: isRecord(categoryLayersRecord.interactions) ? categoryLayersRecord.interactions as any : undefined,
+                          layers: isRecord(categoryLayersRecord.layers) ? categoryLayersRecord.layers as any : undefined,
+                          telemetry: isRecord(categoryLayersRecord.telemetry) ? categoryLayersRecord.telemetry as any : undefined,
+                        }
+                      : undefined
+                  }
+                  mapStyleUrl={toNonEmptyString(categoryLayersRecord?.style_url) ?? undefined}
                 />
               </MeasuredContainer>
               <div className="overflow-x-auto">
@@ -1245,6 +1331,20 @@ export const SurveyAnalytics = ({
                 provider={provider}
                 onProviderUnavailable={handleProviderUnavailable}
                 onBoundingBoxChange={handleBoundingBoxChange}
+                geoLayerConfig={
+                  categoryLayersRecord
+                    ? {
+                        contract_version: toNonEmptyString(categoryLayersRecord.contract_version) ?? undefined,
+                        style_url: toNonEmptyString(categoryLayersRecord.style_url) ?? undefined,
+                        source: categoryLayerSource,
+                        source_options: isRecord(categoryLayersRecord.source_options) ? categoryLayersRecord.source_options : undefined,
+                        interactions: isRecord(categoryLayersRecord.interactions) ? categoryLayersRecord.interactions as any : undefined,
+                        layers: isRecord(categoryLayersRecord.layers) ? categoryLayersRecord.layers as any : undefined,
+                        telemetry: isRecord(categoryLayersRecord.telemetry) ? categoryLayersRecord.telemetry as any : undefined,
+                      }
+                    : undefined
+                }
+                mapStyleUrl={toNonEmptyString(categoryLayersRecord?.style_url) ?? undefined}
               />
             </MeasuredContainer>
           ) : heatmapData.length ? (

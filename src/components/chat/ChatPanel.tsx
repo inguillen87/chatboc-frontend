@@ -15,7 +15,7 @@ import UserTypingIndicator from "./UserTypingIndicator";
 import ChatInput, { ChatInputHandle } from "./ChatInput";
 import RealtimeAvatarStage from "./RealtimeAvatarStage";
 import ScrollToBottomButton from "@/components/ui/ScrollToBottomButton";
-import { useChatLogic } from "@/hooks/useChatLogic";
+import { useChatLogic, type ChatTrialLimitNotice } from "@/hooks/useChatLogic";
 import PersonalDataForm from "./PersonalDataForm";
 import { Rubro } from "@/types/rubro";
 import {
@@ -45,7 +45,7 @@ import RubroSelector from "./RubroSelector";
 import { CHATBOC_ORBIT_AVATAR } from "@/utils/brandAssets";
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import TicketMap from "@/components/TicketMap";
-import { apiFetch, getErrorMessage } from "@/utils/api";
+import { ApiError, apiFetch, getErrorMessage } from "@/utils/api";
 import { getRubrosHierarchy } from "@/api/rubros";
 import { useUser } from "@/hooks/useUser";
 import { useBusinessHours } from "@/hooks/useBusinessHours";
@@ -151,6 +151,16 @@ type CompactFooterAction = {
   badge?: number;
   active?: boolean;
   tone?: "default" | "primary";
+};
+
+type RealtimeTrialLimitNotice = {
+  channel: "voice" | "video";
+  code: string;
+  message: string;
+  requestId?: string | null;
+  leadCaptureEndpoint?: string | null;
+  trialUsage?: Record<string, unknown> | null;
+  upgrade?: Record<string, unknown> | null;
 };
 
 const readFirstString = (...values: unknown[]) => {
@@ -371,6 +381,32 @@ const readRealtimeDetailLines = (details?: Record<string, unknown>) => {
   ];
 
   return lines.filter(([, value]) => value).slice(0, 5);
+};
+
+const REALTIME_TRIAL_LIMIT_CODE = "realtime_trial_limit_reached";
+
+const readRealtimeTrialLimitNotice = (
+  error: unknown,
+  channel: "voice" | "video",
+  fallbackMessage: string,
+): RealtimeTrialLimitNotice | null => {
+  if (!(error instanceof ApiError)) return null;
+  const body = asRecord(error.body);
+  const code = readFirstString(body.reason_code, body.error, body.code);
+  if (code !== REALTIME_TRIAL_LIMIT_CODE) return null;
+  const upgrade = asRecord(body.upgrade);
+  const trialUsage = asRecord(body.trial_usage);
+  return {
+    channel,
+    code,
+    message:
+      readFirstString(body.message, body.detail, body.description) ||
+      fallbackMessage,
+    requestId: error.requestId ?? readFirstString(body.request_id) ?? null,
+    leadCaptureEndpoint: readFirstString(upgrade.lead_capture_endpoint) || null,
+    trialUsage: Object.keys(trialUsage).length ? trialUsage : null,
+    upgrade: Object.keys(upgrade).length ? upgrade : null,
+  };
 };
 
 const endpointPathname = (endpoint?: string | null) => {
@@ -1074,6 +1110,8 @@ const ChatPanel = (props: ChatPanelProps) => {
     !isPlatformOnboarding &&
       (resolvedSelectedRubro || isBoundTenantContext || tipoChat === "municipio"),
   );
+  const [chatTrialLimitNotice, setChatTrialLimitNotice] =
+    useState<ChatTrialLimitNotice | null>(null);
   const {
     messages,
     isTyping,
@@ -1099,6 +1137,7 @@ const ChatPanel = (props: ChatPanelProps) => {
     socketUrlOverride: backendSocketUrl,
     chatBootstrap,
     autoInitEnabled,
+    onTrialLimit: setChatTrialLimitNotice,
   });
   const visibleMessages = useMemo(
     () =>
@@ -1994,16 +2033,22 @@ const ChatPanel = (props: ChatPanelProps) => {
   const videoCallConfig = supportChannels?.video_call;
   const effectiveRealtimeVoice =
     realtimeVoice || voiceCallConfig?.capabilities || null;
-  const realtimeVoiceEnabled = isRealtimeVoiceRenderable(
+  const [realtimeTrialLimits, setRealtimeTrialLimits] = useState<{
+    voice: RealtimeTrialLimitNotice | null;
+    video: RealtimeTrialLimitNotice | null;
+  }>({ voice: null, video: null });
+  const baseRealtimeVoiceEnabled = isRealtimeVoiceRenderable(
     effectiveRealtimeVoice,
     voiceCallConfig,
     { voiceEnabled: realtimeConfig?.voiceEnabled },
   );
-  const realtimeVideoEnabled = isRealtimeVideoRenderable(
+  const baseRealtimeVideoEnabled = isRealtimeVideoRenderable(
     effectiveRealtimeVoice,
     videoCallConfig,
     realtimeConfig,
   );
+  const realtimeVoiceEnabled = baseRealtimeVoiceEnabled && !realtimeTrialLimits.voice;
+  const realtimeVideoEnabled = baseRealtimeVideoEnabled && !realtimeTrialLimits.video;
   const [channelMode, setChannelMode] = useState<"chat" | "voice" | "video">(
     "chat",
   );
@@ -2225,6 +2270,7 @@ const ChatPanel = (props: ChatPanelProps) => {
           body: JSON.stringify({
             tenant_slug: tenantSlug,
             widget_token: propEntityToken || undefined,
+            anon_id: getOrCreateAnonId() || undefined,
             channel: requestedMode,
             model: requestedModel,
             fallback_model:
@@ -2319,6 +2365,31 @@ const ChatPanel = (props: ChatPanelProps) => {
         await requestRealtimeSession(mode);
       } catch (error) {
         let errorInfo = readRealtimeErrorInfo(error);
+        const trialLimitNotice = readRealtimeTrialLimitNotice(
+          error,
+          mode,
+          errorInfo.message,
+        );
+        if (trialLimitNotice) {
+          setRealtimeTrialLimits((prev) => ({
+            ...prev,
+            [trialLimitNotice.channel]: trialLimitNotice,
+          }));
+          setSessionState("ended");
+          setChannelMode("chat");
+          setRealtimeSessionCapabilities(null);
+          setRealtimeAvatarMeta(null);
+          setRealtimeErrorCode(trialLimitNotice.code);
+          pushRealtimeTimeline(trialLimitNotice.code, "warning", {
+            ...(trialLimitNotice.trialUsage ?? {}),
+            request_id: trialLimitNotice.requestId ?? undefined,
+          });
+          emitRealtimeAnalytics("realtime_session_failed", mode, {
+            error: trialLimitNotice.code,
+            trial_limit: true,
+          });
+          return;
+        }
         const shouldFallbackToVoice =
           mode === "video" &&
           realtimeVoiceEnabled &&
@@ -3023,6 +3094,23 @@ const ChatPanel = (props: ChatPanelProps) => {
   const forceDemoComposerTools =
     typeof window !== "undefined" && window.location.pathname.startsWith("/demo");
   const effectiveLeadCapture = leadCapture ?? experienceBlueprint?.lead_capture ?? null;
+  const activeTrialLimitNotice =
+    chatTrialLimitNotice || realtimeTrialLimits.video || realtimeTrialLimits.voice;
+  const trialLimitLeadEndpoint =
+    activeTrialLimitNotice?.leadCaptureEndpoint ||
+    effectiveLeadCapture?.endpoint ||
+    "/api/public/lead-capture";
+  const trialLimitUsageLabel = activeTrialLimitNotice?.trialUsage
+    ? (() => {
+        const usage = activeTrialLimitNotice.trialUsage;
+        const channel = readFirstString(usage.channel);
+        const remaining =
+          typeof usage.remaining === "number" || typeof usage.remaining === "string"
+            ? String(usage.remaining)
+            : "";
+        return [channel, remaining ? `restantes: ${remaining}` : ""].filter(Boolean).join(" · ");
+      })()
+    : "";
   const effectiveMediaCapabilities = mediaCapabilities ?? experienceBlueprint?.media_capabilities ?? null;
   const effectiveConversionCtas = conversionCtas ?? experienceBlueprint?.conversion_ctas ?? null;
   const effectiveAnimationTokens = animationTokens ?? experienceBlueprint?.animation_tokens ?? null;
@@ -4236,6 +4324,59 @@ const ChatPanel = (props: ChatPanelProps) => {
           </div>
         ) : null}
 
+        {activeTrialLimitNotice ? (
+          <div className="mb-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+            <div className="font-semibold">
+              {readFirstString(
+                activeTrialLimitNotice.upgrade?.title,
+                "Ya viste la demo real. Sigamos con una prueba guiada.",
+              )}
+            </div>
+            <p className="mt-1 text-xs text-amber-900/85">
+              {activeTrialLimitNotice.message}
+              {trialLimitUsageLabel ? ` · ${trialLimitUsageLabel}` : ""}
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {trialLimitLeadEndpoint ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() =>
+                    void handleConversionCta({
+                      id: "trial_limit_lead_capture",
+                      label: readFirstString(
+                        activeTrialLimitNotice.upgrade?.cta_label,
+                        activeTrialLimitNotice.upgrade?.label,
+                        effectiveLeadCapture?.title,
+                        "Dejar datos",
+                      ),
+                      intent: "lead_capture",
+                      endpoint: trialLimitLeadEndpoint,
+                      style: "primary",
+                      payload: {
+                        reason_code: activeTrialLimitNotice.code,
+                        source: "trial_limit",
+                      },
+                    })
+                  }
+                >
+                  {readFirstString(
+                    activeTrialLimitNotice.upgrade?.cta_label,
+                    activeTrialLimitNotice.upgrade?.label,
+                    effectiveLeadCapture?.title,
+                    "Dejar datos",
+                  )}
+                </Button>
+              ) : null}
+              {activeTrialLimitNotice.requestId ? (
+                <span className="inline-flex items-center rounded-md border border-amber-200 bg-white/60 px-2 text-[11px] text-amber-900">
+                  request_id: {activeTrialLimitNotice.requestId}
+                </span>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+
         {contexto.estado_conversacion === "recolectando_datos_personales" ? (
           <PersonalDataForm
             onSubmit={handlePersonalDataSubmit}
@@ -4246,6 +4387,8 @@ const ChatPanel = (props: ChatPanelProps) => {
             ref={chatInputHandleRef}
             onSendMessage={handleSend}
             isTyping={isTyping}
+            disabled={Boolean(chatTrialLimitNotice)}
+            disabledReason={chatTrialLimitNotice ? "La demo llego al limite disponible." : null}
             inputRef={chatInputTextRef}
             onTypingChange={setUserTyping}
             onSystemMessage={addSystemMessage}
