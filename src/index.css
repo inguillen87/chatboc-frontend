@@ -2172,29 +2172,24 @@ html {
   flex-direction: row-reverse;
   align-items: flex-end;
   justify-content: flex-end;
-  gap: 0.7rem;
+  gap: 0.95rem;
   perspective: 760px;
   transform-style: preserve-3d;
 }
 
 .chatboc-scroll-guide__avatar-button {
   position: relative;
-  width: 88px;
-  height: 112px;
+  width: 122px;
+  height: 142px;
   flex: 0 0 auto;
   border: 0;
-  border-radius: 999px 999px 30px 30px;
+  border-radius: 999px;
   background:
-    radial-gradient(circle at 42% 13%, rgba(255, 255, 255, 0.96), transparent 18%),
-    radial-gradient(circle at 55% 18%, rgba(177, 240, 255, 0.96), transparent 30%),
-    radial-gradient(circle at 50% 70%, rgba(37, 99, 235, 0.32), transparent 58%),
-    linear-gradient(150deg, rgba(255, 255, 255, 0.3), rgba(34, 211, 238, 0.08) 46%, rgba(37, 99, 235, 0.2));
+    radial-gradient(ellipse at 50% 58%, rgba(56, 189, 248, 0.24), transparent 55%),
+    radial-gradient(circle at 50% 32%, rgba(186, 230, 253, 0.18), transparent 42%);
   box-shadow:
-    0 34px 78px rgba(37, 99, 235, 0.34),
-    0 18px 34px rgba(15, 23, 42, 0.16),
-    0 0 0 1px rgba(125, 211, 252, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.58),
-    inset 0 -18px 30px rgba(30, 64, 175, 0.12);
+    0 34px 76px rgba(37, 99, 235, 0.3),
+    0 18px 34px rgba(15, 23, 42, 0.12);
   cursor: pointer;
   isolation: isolate;
   overflow: visible;
@@ -2217,25 +2212,25 @@ html {
 }
 
 .chatboc-scroll-guide__avatar-button::before {
-  inset: -16px -18px -1px;
-  border-radius: inherit;
+  inset: 10px 9px 2px;
+  border-radius: 34% 34% 26% 26% / 30% 30% 20% 20%;
   background:
-    radial-gradient(circle at 48% 15%, rgba(147, 197, 253, 0.46), transparent 34%),
-    radial-gradient(circle at 54% 74%, rgba(45, 212, 191, 0.34), transparent 42%),
-    radial-gradient(circle at 50% 50%, rgba(59, 130, 246, 0.2), transparent 64%);
-  filter: blur(13px);
-  opacity: 0.96;
+    radial-gradient(circle at 50% 18%, rgba(226, 246, 255, 0.5), transparent 26%),
+    radial-gradient(circle at 50% 61%, rgba(37, 99, 235, 0.32), transparent 52%),
+    linear-gradient(180deg, rgba(125, 211, 252, 0.16), rgba(20, 184, 166, 0.08));
+  filter: blur(18px);
+  opacity: 0.78;
   transform: translateZ(-18px);
   animation: chatboc-guide-depth-pulse 2.6s ease-in-out infinite;
 }
 
 .chatboc-scroll-guide__avatar-button::after {
   left: 50%;
-  bottom: -6px;
-  width: 72px;
-  height: 16px;
+  bottom: 2px;
+  width: 92px;
+  height: 18px;
   border-radius: 999px;
-  background: radial-gradient(ellipse, rgba(14, 165, 233, 0.26), rgba(15, 23, 42, 0.1) 64%, transparent 72%);
+  background: radial-gradient(ellipse, rgba(14, 165, 233, 0.28), rgba(15, 23, 42, 0.16) 62%, transparent 74%);
   transform: translateX(-50%) translateZ(-24px);
   animation: chatboc-guide-shadow-step 1.18s ease-in-out infinite;
 }
@@ -2248,15 +2243,15 @@ html {
 .chatboc-scroll-guide__avatar {
   position: relative;
   z-index: 4;
-  width: 120%;
-  height: 120%;
-  margin-left: -10%;
-  margin-top: -12%;
+  width: 154%;
+  height: 154%;
+  margin-left: -27%;
+  margin-top: -28%;
   object-fit: contain;
   filter:
-    drop-shadow(0 24px 26px rgba(15, 23, 42, 0.24))
-    drop-shadow(0 0 21px rgba(125, 211, 252, 0.44))
-    drop-shadow(-5px -7px 12px rgba(255, 255, 255, 0.42));
+    drop-shadow(0 30px 25px rgba(15, 23, 42, 0.28))
+    drop-shadow(0 0 20px rgba(125, 211, 252, 0.46))
+    drop-shadow(-4px -6px 10px rgba(255, 255, 255, 0.36));
   transform-style: preserve-3d;
   animation: chatboc-guide-avatar-sway 1.18s ease-in-out infinite;
 }
@@ -2271,38 +2266,38 @@ html {
 
 .chatboc-scroll-guide__back-glow {
   z-index: 0;
-  inset: -20px -24px -8px;
+  inset: -9px -7px 5px;
   border-radius: inherit;
   background:
-    radial-gradient(circle at 50% 20%, rgba(186, 230, 253, 0.64), transparent 28%),
-    radial-gradient(circle at 48% 70%, rgba(20, 184, 166, 0.38), transparent 44%);
-  filter: blur(18px);
+    radial-gradient(circle at 50% 20%, rgba(186, 230, 253, 0.42), transparent 28%),
+    radial-gradient(circle at 48% 70%, rgba(20, 184, 166, 0.28), transparent 44%);
+  filter: blur(20px);
   transform: translateZ(-36px);
   animation: chatboc-guide-glow-breathe 2.8s ease-in-out infinite;
 }
 
 .chatboc-scroll-guide__rim-light {
   z-index: 1;
-  inset: 3px;
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  border-radius: inherit;
+  inset: 22px 22px 9px;
+  border: 0;
+  border-radius: 36px;
   box-shadow:
-    inset 8px 9px 18px rgba(255, 255, 255, 0.24),
-    inset -10px -14px 20px rgba(37, 99, 235, 0.16),
-    0 0 18px rgba(125, 211, 252, 0.28);
+    inset 8px 9px 18px rgba(255, 255, 255, 0.1),
+    inset -10px -14px 20px rgba(37, 99, 235, 0.08);
+  opacity: 0.42;
   transform: translateZ(12px);
 }
 
 .chatboc-scroll-guide__shine {
   z-index: 6;
-  top: 8px;
-  left: 7px;
-  width: 34px;
-  height: 78px;
+  top: 14px;
+  left: 18px;
+  width: 24px;
+  height: 74px;
   border-radius: 999px;
-  background: linear-gradient(102deg, transparent 8%, rgba(255, 255, 255, 0.5) 44%, transparent 72%);
+  background: linear-gradient(102deg, transparent 8%, rgba(255, 255, 255, 0.28) 44%, transparent 72%);
   filter: blur(0.4px);
-  opacity: 0.64;
+  opacity: 0.34;
   transform: translateZ(42px) rotate(13deg);
   animation: chatboc-guide-shine 3.6s ease-in-out infinite;
 }
@@ -2319,13 +2314,13 @@ html {
 }
 
 .chatboc-scroll-guide__spark--one {
-  top: 12px;
-  right: 5px;
+  top: 24px;
+  right: 17px;
 }
 
 .chatboc-scroll-guide__spark--two {
-  right: 2px;
-  bottom: 34px;
+  right: 14px;
+  bottom: 48px;
   width: 6px;
   height: 6px;
   animation-delay: 1.18s;
@@ -2334,8 +2329,8 @@ html {
 .chatboc-scroll-guide__wink {
   position: absolute;
   z-index: 7;
-  top: 36px;
-  left: 43px;
+  top: 45px;
+  left: 57px;
   width: 12px;
   height: 4px;
   border-radius: 999px;
@@ -2355,7 +2350,7 @@ html {
   left: 17px;
   right: 17px;
   bottom: -1px;
-  display: flex;
+  display: none;
   justify-content: space-between;
   pointer-events: none;
   transform: translateZ(28px);
@@ -2491,25 +2486,25 @@ body.chatboc-widget-open .chatboc-scroll-guide {
 
 @keyframes chatboc-guide-walk {
   0%, 100% {
-    transform: translate3d(-2px, 0, 0) rotate(-1.1deg) scale3d(1.01, 0.99, 1);
+    transform: translate3d(-3px, 0, 0) rotate(-1.2deg) scale3d(1.01, 0.99, 1);
   }
   28% {
-    transform: translate3d(2px, -6px, 0) rotate(1deg) scale3d(0.99, 1.02, 1);
+    transform: translate3d(2px, -7px, 0) rotate(0.9deg) scale3d(0.99, 1.02, 1);
   }
   56% {
-    transform: translate3d(4px, 0, 0) rotate(1.4deg) scale3d(1.015, 0.985, 1);
+    transform: translate3d(5px, 0, 0) rotate(1.2deg) scale3d(1.015, 0.985, 1);
   }
   78% {
-    transform: translate3d(0, -4px, 0) rotate(-0.4deg) scale3d(0.995, 1.015, 1);
+    transform: translate3d(0, -5px, 0) rotate(-0.5deg) scale3d(0.995, 1.015, 1);
   }
 }
 
 @keyframes chatboc-guide-avatar-sway {
   0%, 100% {
-    transform: translateZ(34px) rotate(-1.8deg) translateY(1px);
+    transform: translateZ(42px) rotate(-1.1deg) translateY(1px);
   }
   50% {
-    transform: translateZ(38px) rotate(2.1deg) translateY(-2px);
+    transform: translateZ(48px) rotate(1.35deg) translateY(-3px);
   }
 }
 
