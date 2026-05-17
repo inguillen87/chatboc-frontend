@@ -7,6 +7,7 @@ import { FaWhatsapp } from 'react-icons/fa';
 import { useDateSettings } from '@/hooks/useDateSettings';
 import { formatTicketStatusLabel, normalizeTicketStatus } from '@/utils/ticketStatus';
 import { shiftDateByHours } from '@/utils/date';
+import { AlertTriangle, UserRound } from 'lucide-react';
 
 interface TicketListItemProps {
   ticket: Ticket;
@@ -18,6 +19,21 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
 const getInitials = (name: string) => {
     return name ? name.split(' ').map(n => n[0]).join('').toUpperCase() : '??';
   };
+  const normalizeText = (value: unknown): string => {
+    if (value === null || value === undefined) return '';
+    return String(value).trim();
+  };
+  const priorityLabel = normalizeText(ticket.priority);
+  const slaLabel = normalizeText(ticket.sla_status);
+  const assignedLabel = normalizeText(
+    ticket.assignedAgent?.nombre_usuario ||
+      ticket.user?.nombre_usuario ||
+      ticket.assignedAgentId ||
+      ticket.assigned_agent_id,
+  );
+  const nextAction = normalizeText(ticket.recommended_next_action);
+  const priorityTone = priorityLabel.toLowerCase();
+  const slaTone = slaLabel.toLowerCase();
   const unreadViewers = Number(ticket.collaboration_state?.unread_viewer_count || 0);
   const activeViewers = Number(ticket.collaboration_state?.active_viewers_count || 0);
   const hasUnread = ticket.hasUnreadMessages || unreadViewers > 0;
@@ -89,7 +105,47 @@ const getInitials = (name: string) => {
         </div>
       </div>
       <p className="font-semibold text-sm ml-13 mb-2">{subject}</p>
+      {(priorityLabel || slaLabel || assignedLabel) && (
+        <div className="mb-2 ml-13 flex flex-wrap gap-1.5">
+          {priorityLabel ? (
+            <Badge
+              variant="outline"
+              className={cn(
+                'gap-1 text-[10px]',
+                (priorityTone.includes('alta') || priorityTone.includes('urgent')) &&
+                  'border-amber-400/70 bg-amber-500/10 text-amber-700 dark:text-amber-200',
+              )}
+            >
+              <AlertTriangle className="h-3 w-3" />
+              {priorityLabel}
+            </Badge>
+          ) : null}
+          {slaLabel ? (
+            <Badge
+              variant="outline"
+              className={cn(
+                'text-[10px]',
+                (slaTone.includes('venc') || slaTone.includes('breach') || slaTone.includes('overdue')) &&
+                  'border-red-400/70 bg-red-500/10 text-red-700 dark:text-red-200',
+              )}
+            >
+              SLA: {slaLabel}
+            </Badge>
+          ) : null}
+          {assignedLabel ? (
+            <Badge variant="secondary" className="gap-1 text-[10px]">
+              <UserRound className="h-3 w-3" />
+              {assignedLabel}
+            </Badge>
+          ) : null}
+        </div>
+      )}
       <p className="text-sm text-muted-foreground truncate ml-13">{ticket.lastMessage || '...'}</p>
+      {nextAction ? (
+        <p className="mt-2 ml-13 rounded-md border border-primary/20 bg-primary/5 px-2 py-1 text-xs text-primary">
+          {nextAction}
+        </p>
+      ) : null}
     </div>
   );
 };

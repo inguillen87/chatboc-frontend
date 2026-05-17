@@ -218,6 +218,8 @@ export interface Ticket {
 
   assignedAgentId?: string | number;
   assigned_agent_id?: string | number;
+  assigned_user_id?: string | number;
+  asigned_user_id?: string | number;
 
   // For backwards compatibility and flexibility
   user?: User;

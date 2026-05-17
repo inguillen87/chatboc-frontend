@@ -511,7 +511,9 @@ export const TicketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     const statuses = workflowStatuses.length > 0
       ? workflowStatuses
       : discoveredStatuses.map((status) => ({ value: status, label: status }));
-    const areas = Array.from(new Set(tickets.map((ticket) => resolveAreaLabel(ticket).trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+    const areas = Array.from(
+      new Set(tickets.map((ticket) => resolveAreaLabel(ticket).trim()).filter(Boolean) as string[]),
+    ).sort((a, b) => a.localeCompare(b));
     const priorities = Array.from(new Set(tickets.map((ticket) => normalizeFilterValue(ticket.priority)).filter(Boolean))).sort();
     const slaStatuses = Array.from(new Set(tickets.map((ticket) => resolveSlaFilterValue(ticket)).filter(Boolean))).sort();
 
@@ -550,7 +552,22 @@ export const TicketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       if (filters.channel !== 'all' && normalizeFilterValue(ticket.channel) !== filters.channel) return false;
       if (filters.status !== 'all' && normalizeFilterValue(ticket.estado) !== filters.status) return false;
       if (filters.priority !== 'all' && normalizeFilterValue(ticket.priority) !== filters.priority) return false;
-      if (filters.sla !== 'all' && resolveSlaFilterValue(ticket) !== filters.sla) return false;
+      if (filters.sla !== 'all') {
+        const slaValue = resolveSlaFilterValue(ticket);
+        if (filters.sla === 'risk') {
+          const priority = normalizeFilterValue(ticket.priority);
+          const isRisk =
+            slaValue.includes('breach') ||
+            slaValue.includes('venc') ||
+            slaValue.includes('overdue') ||
+            priority.includes('alta') ||
+            priority.includes('urgent') ||
+            priority.includes('urgente');
+          if (!isRisk) return false;
+        } else if (slaValue !== filters.sla) {
+          return false;
+        }
+      }
       if (filters.area !== 'all' && resolveAreaLabel(ticket) !== filters.area) return false;
       if (filters.agent !== 'all' && resolveAgentFilterId(ticket) !== filters.agent) return false;
       if (filters.unread === 'unread' && !hasUnreadState(ticket)) return false;

@@ -9,6 +9,7 @@ import { useTickets } from '@/context/TicketContext';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 import type { ImperativePanelHandle } from 'react-resizable-panels';
 import { cn } from '@/lib/utils';
@@ -71,7 +72,7 @@ const hasUnreadTicket = (ticket: Ticket) =>
 
 const isResolvedTicket = (ticket: Ticket) => {
   const status = normalizeTicketStatus(ticket.estado);
-  return status === 'resuelto' || status === 'cerrado';
+  return status === 'resuelto' || String(ticket.estado).toLowerCase() === 'cerrado';
 };
 
 const isRiskTicket = (ticket: Ticket) => {
@@ -286,25 +287,6 @@ const NewTicketsPanel: React.FC = () => {
     }
   }, [isMobile, setActiveMobileView]);
 
-  const unreadCount = React.useMemo(
-    () => tickets.filter((ticket) => hasUnreadTicket(ticket)).length,
-    [tickets],
-  );
-  const resolvedCount = React.useMemo(
-    () => tickets.filter((ticket) => isResolvedTicket(ticket)).length,
-    [tickets],
-  );
-  const riskCount = React.useMemo(
-    () => tickets.filter((ticket) => isRiskTicket(ticket)).length,
-    [tickets],
-  );
-  const unassignedCount = React.useMemo(
-    () => tickets.filter((ticket) => !ticket.assignedAgent && !ticket.assignedAgentId && !ticket.assigned_agent_id).length,
-    [tickets],
-  );
-  const backendSummary = inboxSummary?.summary;
-  const recommendedViews = Array.isArray(inboxSummary?.recommended_views) ? inboxSummary.recommended_views : [];
-
   const applyQuickFilter = React.useCallback(
     (nextFilters: Partial<typeof filters>) => {
       setFilters((current) => ({
@@ -313,6 +295,33 @@ const NewTicketsPanel: React.FC = () => {
       }));
     },
     [setFilters],
+  );
+
+  const applyRecommendedView = React.useCallback(
+    (query?: Record<string, unknown>) => {
+      if (!query) return;
+      const nextFilters: Partial<typeof filters> = {};
+      const channel = query.channel ?? query.canal;
+      const status = query.status ?? query.estado;
+      const area = query.area ?? query.category ?? query.categoria;
+      const agent = query.agent ?? query.assignee ?? query.assigned_agent;
+      const priority = query.priority ?? query.prioridad;
+      const sla = query.sla ?? query.sla_status;
+      const unread = query.unread ?? query.no_leidos;
+
+      if (channel !== undefined) nextFilters.channel = String(channel);
+      if (status !== undefined) nextFilters.status = String(status);
+      if (area !== undefined) nextFilters.area = String(area);
+      if (agent !== undefined) nextFilters.agent = String(agent);
+      if (priority !== undefined) nextFilters.priority = String(priority);
+      if (sla !== undefined) nextFilters.sla = String(sla);
+      if (unread !== undefined) nextFilters.unread = unread === true || unread === 'true' ? 'unread' : String(unread);
+
+      if (Object.keys(nextFilters).length > 0) {
+        applyQuickFilter(nextFilters);
+      }
+    },
+    [applyQuickFilter],
   );
 
   const resetOperationalFilters = React.useCallback(() => {
@@ -420,22 +429,76 @@ const NewTicketsPanel: React.FC = () => {
             {recommendedViews.length ? (
               <div className="mt-2 flex flex-wrap gap-2">
                 {recommendedViews.slice(0, 3).map((view, index) => (
-                  <Badge key={view.id || `recommended_${index}`} variant="secondary" className="max-w-full rounded-full">
-                    <span className="truncate">
-                      {view.label}
-                      {view.description ? `: ${view.description}` : ''}
-                    </span>
-                  </Badge>
+                  <button
+                    key={view.id || `recommended_${index}`}
+                    type="button"
+                    onClick={() => applyRecommendedView(view.query)}
+                    className="inline-flex max-w-full rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                  >
+                    <Badge variant="secondary" className="max-w-full rounded-full">
+                      <span className="truncate">
+                        {view.label}
+                        {view.description ? `: ${view.description}` : ''}
+                      </span>
+                    </Badge>
+                  </button>
                 ))}
               </div>
             ) : null}
           </div>
           <div className="grid gap-2 sm:grid-cols-2 xl:w-[620px] xl:grid-cols-4">
-            <TicketOpsStat label="Abiertos" value={openTickets} helper="Casos por resolver" tone="blue" icon={Clock} />
-            <TicketOpsStat label="Riesgo" value={riskTickets} helper="SLA o prioridad alta" tone="amber" icon={AlertTriangle} />
-            <TicketOpsStat label="No leidos" value={unreadTickets} helper="Requieren respuesta" tone="violet" icon={Radio} />
-            <TicketOpsStat label="Resueltos" value={resolvedTickets} helper="Cerrados/resueltos" tone="emerald" icon={CheckCircle2} />
+            <TicketOpsStat
+              label="Abiertos"
+              value={openTickets}
+              helper="Casos por resolver"
+              tone="blue"
+              icon={Clock}
+              onClick={() => applyQuickFilter({ status: 'all', unread: 'all', sla: 'all' })}
+            />
+            <TicketOpsStat
+              label="Riesgo"
+              value={riskTickets}
+              helper="SLA o prioridad alta"
+              tone="amber"
+              icon={AlertTriangle}
+              onClick={() => applyQuickFilter({ sla: 'risk', priority: 'all' })}
+            />
+            <TicketOpsStat
+              label="No leidos"
+              value={unreadTickets}
+              helper="Requieren respuesta"
+              tone="violet"
+              icon={Radio}
+              onClick={() => applyQuickFilter({ unread: 'unread' })}
+            />
+            <TicketOpsStat
+              label="Resueltos"
+              value={resolvedTickets}
+              helper="Cerrados/resueltos"
+              tone="emerald"
+              icon={CheckCircle2}
+              onClick={() => applyQuickFilter({ status: 'resuelto' })}
+            />
           </div>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <Badge variant="outline" className="gap-1 rounded-full">
+            <Filter className="h-3 w-3" />
+            Filtros activos
+          </Badge>
+          <Badge variant={filters.unread !== 'all' ? 'secondary' : 'outline'}>Lectura: {filters.unread}</Badge>
+          <Badge variant={filters.status !== 'all' ? 'secondary' : 'outline'}>Estado: {filters.status}</Badge>
+          <Badge variant={filters.sla !== 'all' ? 'secondary' : 'outline'}>SLA: {filters.sla}</Badge>
+          <Badge variant={filters.priority !== 'all' ? 'secondary' : 'outline'}>Prioridad: {filters.priority}</Badge>
+          <Button type="button" variant="ghost" size="sm" onClick={resetOperationalFilters}>
+            Limpiar
+          </Button>
+          {typeof summary?.unassigned === 'number' ? (
+            <Badge variant={summary.unassigned > 0 ? 'secondary' : 'outline'} className="gap-1">
+              <UserRound className="h-3 w-3" />
+              Sin responsable: {summary.unassigned}
+            </Badge>
+          ) : null}
         </div>
       </div>
       {isMobile ? (
