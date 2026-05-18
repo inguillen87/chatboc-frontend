@@ -29,6 +29,7 @@ interface CartSummaryProps {
   recommendations?: MarketRecommendation[] | null;
   checkoutPreview?: MarketCheckoutPreview | null;
   checkoutOptions?: MarketCheckoutOptions | null;
+  checkoutBlockedReason?: string | null;
   rewardsProfile?: MarketRewardsProfile | null;
   rewardsLoading?: boolean;
   redeemingRewardId?: string | null;
@@ -51,6 +52,7 @@ export default function CartSummary({
   recommendations,
   checkoutPreview,
   checkoutOptions,
+  checkoutBlockedReason,
   rewardsProfile,
   rewardsLoading,
   redeemingRewardId,
@@ -311,7 +313,12 @@ export default function CartSummary({
             Vaciar carrito
           </Button>
         ) : null}
-        <Button className="w-full" size="lg" onClick={onCheckout} disabled={!items.length || isSubmitting}>
+        {checkoutBlockedReason ? (
+          <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            {checkoutBlockedReason}
+          </p>
+        ) : null}
+        <Button className="w-full" size="lg" onClick={onCheckout} disabled={!items.length || isSubmitting || Boolean(checkoutBlockedReason)}>
           {isSubmitting ? 'Procesando...' : 'Finalizar pedido'}
         </Button>
         <p className="text-center text-xs text-muted-foreground">

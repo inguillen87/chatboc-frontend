@@ -2,8 +2,40 @@ import { MarketCartItem, MarketCartResponse } from '@/types/market';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
 const STORAGE_KEY_PREFIX = 'chatboc_market_cart_';
+const CONTACT_STORAGE_KEY_PREFIX = 'chatboc_market_contact_';
 
 const getStorageKey = (tenantSlug: string) => `${STORAGE_KEY_PREFIX}${tenantSlug}`;
+const getContactStorageKey = (tenantSlug: string) => `${CONTACT_STORAGE_KEY_PREFIX}${tenantSlug}`;
+
+export interface StoredMarketContact {
+  name?: string;
+  phone?: string;
+}
+
+export const loadMarketContact = (tenantSlug: string): StoredMarketContact => {
+  try {
+    const raw = safeLocalStorage.getItem(getContactStorageKey(tenantSlug));
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return {};
+    const record = parsed as Record<string, unknown>;
+    return {
+      name: typeof record.name === 'string' ? record.name : undefined,
+      phone: typeof record.phone === 'string' ? record.phone : undefined,
+    };
+  } catch (error) {
+    console.warn('Failed to read market contact', error);
+    return {};
+  }
+};
+
+export const saveMarketContact = (tenantSlug: string, contact: StoredMarketContact) => {
+  try {
+    safeLocalStorage.setItem(getContactStorageKey(tenantSlug), JSON.stringify(contact));
+  } catch (error) {
+    console.warn('Failed to save market contact', error);
+  }
+};
 
 export const readStoredCart = (tenantSlug: string): MarketCartResponse => {
   try {

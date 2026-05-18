@@ -89,4 +89,17 @@ describe('checkoutMachine', () => {
     expect(success.status).toBe('success');
     expect(success.orderId).toBe('002');
   });
+
+  it('does not expose payment url when backend did not validate stock or amount', () => {
+    const unsafe = resolveCheckoutOutcome({
+      status: 'pending',
+      init_point: 'https://mercadopago.example.com/pay',
+      order_id: '003',
+      amount_validated: false,
+      stock_status: 'stock_unknown',
+    });
+
+    expect(unsafe.status).toBe('awaiting_payment');
+    expect(unsafe.paymentUrl).toBeNull();
+  });
 });

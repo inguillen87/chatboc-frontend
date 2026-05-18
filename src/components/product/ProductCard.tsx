@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { formatCurrency } from '@/utils/currency';
+import { getMarketCommercialValidation } from '@/utils/marketValidation';
 import { ShoppingCart, ExternalLink, Package } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -29,6 +30,11 @@ export interface ProductDetails {
   badge?: string | null;
   badge_variant?: 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning';
   stock_disponible?: number | null;
+  stock_quantity?: number | null;
+  stock_status?: string | null;
+  available_to_sell?: boolean | null;
+  amount_validated?: boolean | null;
+  inventory?: Record<string, unknown> | null;
   unidad_medida?: string | null;
   sku?: string | null;
   marca?: string | null;
@@ -102,6 +108,8 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
     : null;
 
   const hasStock = typeof stock_disponible === 'number' && stock_disponible > 0;
+  const validation = getMarketCommercialValidation(product, product.source_payload, product.inventory);
+  const canAddToCart = validation.canStartCheckout && product.disponible !== false && stock_disponible !== 0;
   const stockText = typeof stock_disponible === 'number'
     ? `${stock_disponible} ${unidad_medida || 'disponible(s)'}`
     : (stock_disponible === null || stock_disponible === undefined) ? null : 'No disponible';
@@ -143,7 +151,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
     setTimeout(() => setAddedFeedback(false), 900);
   };
 
-  const isExternalCheckout = (checkout_type === 'mercadolibre' || checkout_type === 'tiendanube') && external_url;
+  const isExternalCheckout = (checkout_type === 'mercadolibre' || checkout_type === 'tiendanube') && external_url && canAddToCart;
 
   return (
     <Card className="relative flex flex-col justify-between w-full max-w-sm bg-card rounded-lg shadow-md hover:shadow-xl transition-shadow duration-300 overflow-hidden">
@@ -305,7 +313,8 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
             <MotionButton
               size="sm"
               onClick={handleAddToCartClick}
-              disabled={stock_disponible === 0}
+              disabled={!canAddToCart}
+              title={!canAddToCart && validation.reason ? validation.reason : undefined}
               className="flex-1"
               whileTap={{ scale: 0.96 }}
               whileHover={{ scale: 1.01 }}
@@ -318,10 +327,13 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
                   ? `Canjear${pointsValue ? ` (${pointsValue} pts)` : ''}`
                   : mode === 'case'
                     ? 'Agregar cajas'
-                    : 'Agregar'}
+                    : canAddToCart ? 'Agregar' : 'Consultar'}
             </MotionButton>
           </div>
         )}
+        {!canAddToCart && validation.reason ? (
+          <p className="text-xs text-muted-foreground">{validation.reason}</p>
+        ) : null}
       </CardFooter>
     </Card>
   );

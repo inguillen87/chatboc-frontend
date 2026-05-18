@@ -1,4 +1,5 @@
 import React, { useMemo } from "react";
+import { AlertTriangle } from "lucide-react";
 import {
   Boton,
   ConfirmationCardData,
@@ -30,6 +31,51 @@ const getDisplayValue = (value: unknown): string | number | null => {
   if (typeof value === "string") {
     const trimmed = value.trim();
     return trimmed.length > 0 ? trimmed : null;
+  }
+  return null;
+};
+
+const readRawString = (record: Record<string, unknown> | undefined, ...keys: string[]) => {
+  if (!record) return "";
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+    if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  }
+  return "";
+};
+
+const readRawBoolean = (record: Record<string, unknown> | undefined, ...keys: string[]) => {
+  if (!record) return undefined;
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "boolean") return value;
+    if (typeof value === "string") {
+      const normalized = value.trim().toLowerCase();
+      if (["true", "1", "yes", "si", "sí"].includes(normalized)) return true;
+      if (["false", "0", "no"].includes(normalized)) return false;
+    }
+  }
+  return undefined;
+};
+
+const getCommercialValidationNotice = (card: ConfirmationCardData) => {
+  const raw = card.raw;
+  const stockStatus = readRawString(raw, "stock_status", "stockStatus").toLowerCase();
+  const amountValidated = readRawBoolean(raw, "amount_validated", "amountValidated");
+  const availableToSell = readRawBoolean(raw, "available_to_sell", "availableToSell", "disponible");
+
+  if (amountValidated === false) {
+    return "Monto a validar por backend";
+  }
+  if (stockStatus === "stock_unknown") {
+    return "Stock a confirmar";
+  }
+  if (stockStatus === "out_of_stock") {
+    return "Sin stock confirmado";
+  }
+  if (availableToSell === false) {
+    return "No disponible para venta confirmada";
   }
   return null;
 };
@@ -93,11 +139,18 @@ const ConfirmationCard: React.FC<ConfirmationCardProps> = ({
         .filter((channel): channel is string => Boolean(channel)),
     [card.preferred_handoff_channels],
   );
+  const validationNotice = getCommercialValidationNotice(card);
 
   return (
     <Card className="border-primary/15 bg-gradient-to-br from-background to-primary/[0.04] shadow-sm">
       <CardContent className="space-y-4 p-4">
         <div className="space-y-2">
+          {validationNotice ? (
+            <div className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-800">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              {validationNotice}
+            </div>
+          ) : null}
           {card.flow_type ? (
             <Badge variant="secondary" className="capitalize">
               {normalizeLabel(card.flow_type)}

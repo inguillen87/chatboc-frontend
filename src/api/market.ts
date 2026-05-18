@@ -126,7 +126,12 @@ const normalizeMarketProduct = (input: unknown): MarketProduct => {
     imageAlt: getProductImageAlt(record, name),
     category: asStringOrNull(getFirst(record, ['category', 'categoria'])),
     unit: asStringOrNull(getFirst(record, ['unit', 'unidad'])) ?? 'u',
-    quantity: asNumberOrNull(getFirst(record, ['quantity', 'stock', 'stock_disponible', 'cantidad'])),
+    quantity: asNumberOrNull(getFirst(record, ['quantity', 'stock_quantity', 'stock', 'stock_disponible', 'cantidad'])),
+    stock_quantity: asNumberOrNull(getFirst(record, ['stock_quantity', 'stock', 'stock_disponible', 'cantidad'])),
+    stock_status: asStringOrNull(getFirst(record, ['stock_status', 'stockStatus', 'availability_status'])),
+    available_to_sell: asBooleanOrNull(getFirst(record, ['available_to_sell', 'availableToSell'])),
+    amount_validated: asBooleanOrNull(getFirst(record, ['amount_validated', 'amountValidated'])),
+    inventory: asRecordOrNull(record.inventory),
     sku: asStringOrNull(getFirst(record, ['sku', 'codigo'])),
     brand: asStringOrNull(getFirst(record, ['brand', 'marca'])),
     promoInfo: asStringOrNull(getFirst(record, ['promoInfo', 'promo_info', 'promocion_activa'])),
@@ -136,6 +141,7 @@ const normalizeMarketProduct = (input: unknown): MarketProduct => {
     checkout_type: asStringOrNull(getFirst(record, ['checkout_type'])) as MarketProduct['checkout_type'],
     external_url: asStringOrNull(getFirst(record, ['external_url', 'externalUrl'])),
     rating: asNumberOrNull(getFirst(record, ['rating'])),
+    ratingCount: asNumberOrNull(getFirst(record, ['ratingCount', 'rating_count', 'reviews_count'])),
     tags: asArrayOfStringsOrNull(getFirst(record, ['tags', 'etiquetas'])),
   };
 };
@@ -226,6 +232,9 @@ const normalizeMarketCheckoutPreview = (input: unknown): MarketCheckoutPreview |
     next_step_label: asStringOrNull(getFirst(record, ['next_step_label', 'nextStepLabel', 'message', 'action_hint'])),
     total_monetary: asNumberOrNull(getFirst(record, ['total_monetary', 'totalAmount', 'total_amount', 'total'])),
     total_points: asNumberOrNull(getFirst(record, ['total_points', 'totalPoints'])),
+    amount_validated: asBooleanOrNull(getFirst(record, ['amount_validated', 'amountValidated'])),
+    stock_status: asStringOrNull(getFirst(record, ['stock_status', 'stockStatus'])),
+    available_to_sell: asBooleanOrNull(getFirst(record, ['available_to_sell', 'availableToSell'])),
     payment_required: asBooleanOrNull(getFirst(record, ['payment_required', 'paymentRequired'])),
     payment_ready: asBooleanOrNull(getFirst(record, ['payment_ready', 'paymentReady'])),
     contact_ready: asBooleanOrNull(getFirst(record, ['contact_ready', 'contactReady'])),
@@ -290,6 +299,17 @@ const normalizeCheckoutStartResponse = (input: unknown): CheckoutStartResponse =
     estado: asStringOrNull(record.estado),
     tipo: asStringOrNull(record.tipo),
     message: asStringOrNull(getFirst(record, ['message', 'detail', 'next_step_label'])),
+    amount_validated:
+      asBooleanOrNull(getFirst(record, ['amount_validated', 'amountValidated'])) ??
+      asBooleanOrNull(getFirst(order, ['amount_validated', 'amountValidated'])),
+    stock_status:
+      asStringOrNull(getFirst(record, ['stock_status', 'stockStatus'])) ??
+      asStringOrNull(getFirst(order, ['stock_status', 'stockStatus'])),
+    available_to_sell:
+      asBooleanOrNull(getFirst(record, ['available_to_sell', 'availableToSell'])) ??
+      asBooleanOrNull(getFirst(order, ['available_to_sell', 'availableToSell'])),
+    inventory_policy: asRecordOrNull(getFirst(record, ['inventory_policy', 'inventoryPolicy'])),
+    order,
     checkout_options: normalizeMarketCheckoutOptions(getFirst(record, ['checkout_options', 'checkoutOptions'])),
     customer_profile: asRecordOrNull(record.customer_profile) as CheckoutStartResponse['customer_profile'],
     commercial_state: asRecordOrNull(record.commercial_state) as CheckoutStartResponse['commercial_state'],
@@ -409,6 +429,10 @@ const normalizeMarketCartResponse = (input: MarketCartResponse | null | undefine
     checkout_options: normalizeMarketCheckoutOptions(checkoutOptionsRaw),
     checkout_preview: normalizeMarketCheckoutPreview(checkoutPreviewRaw),
     mercadopago_ready: asBooleanOrNull(payload.mercadopago_ready),
+    amount_validated: asBooleanOrNull(payload.amount_validated),
+    stock_status: asStringOrNull(payload.stock_status),
+    available_to_sell: asBooleanOrNull(payload.available_to_sell),
+    inventory_policy: asRecordOrNull(payload.inventory_policy),
   };
 };
 

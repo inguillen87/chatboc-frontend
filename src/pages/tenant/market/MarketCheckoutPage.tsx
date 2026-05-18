@@ -13,6 +13,7 @@ import { buildTenantPath } from '@/utils/tenantPaths';
 import CommercialStateCard from '@/components/market/CommercialStateCard';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { trackFrontendEvent } from '@/utils/frontendTelemetry';
+import { getMarketCommercialValidation } from '@/utils/marketValidation';
 import {
   checkoutReducer,
   createInitialCheckoutState,
@@ -69,6 +70,12 @@ function CheckoutContent({ tenantSlug }: { tenantSlug: string }) {
       return;
     }
 
+    const currentValidation = getMarketCommercialValidation(checkoutPreview, ...items);
+    if (!currentValidation.canStartCheckout && currentValidation.reason) {
+      moveToState('error', { error: currentValidation.reason });
+      return;
+    }
+
     const checkoutPayload = {
       items: items.map((item) => ({ id: item.id, quantity: item.quantity })),
       customer: {
@@ -86,6 +93,11 @@ function CheckoutContent({ tenantSlug }: { tenantSlug: string }) {
             preview.checkout_options?.gateway_hint ??
             'El checkout todavia no esta listo para recibir pagos.',
         });
+        return;
+      }
+      const previewValidation = getMarketCommercialValidation(preview, checkoutPreview, ...items);
+      if (!previewValidation.canStartCheckout && previewValidation.reason) {
+        moveToState('error', { error: previewValidation.reason });
         return;
       }
     } catch (err) {
@@ -141,6 +153,11 @@ function CheckoutContent({ tenantSlug }: { tenantSlug: string }) {
   }, [checkoutState.contact.name, checkoutState.contact.phone, customerProfile?.name, customerProfile?.phone]);
 
   const isBusy = checkoutState.status === 'validating' || checkoutState.status === 'creating_order';
+  const cartValidation = useMemo(
+    () => getMarketCommercialValidation(checkoutPreview, ...items),
+    [checkoutPreview, items],
+  );
+  const checkoutBlockedReason = cartValidation.canStartCheckout ? null : cartValidation.reason;
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-8">
@@ -258,9 +275,12 @@ function CheckoutContent({ tenantSlug }: { tenantSlug: string }) {
                 <span>{totalPoints}</span>
               </div>
             ) : null}
-            <Button className="w-full" onClick={handleCheckout} disabled={isBusy || items.length === 0}>
+            <Button className="w-full" onClick={handleCheckout} disabled={isBusy || items.length === 0 || Boolean(checkoutBlockedReason)}>
               {isBusy ? 'Procesando checkout…' : 'Iniciar checkout'}
             </Button>
+            {checkoutBlockedReason ? (
+              <p className="text-xs text-muted-foreground">{checkoutBlockedReason}</p>
+            ) : null}
           </CardFooter>
         </Card>
       </div>

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { MarketProduct } from '@/types/market';
 import { formatCurrency } from '@/utils/currency';
+import { getMarketCommercialValidation } from '@/utils/marketValidation';
 import { ExternalLink, Share2, ShoppingBag, Sparkles, Star } from 'lucide-react';
 
 interface ProductCardProps {
@@ -21,6 +22,8 @@ export default function ProductCard({ product, onAdd, isAdding }: ProductCardPro
   const currency = (product.currency ?? 'ARS').toUpperCase();
   const displayPrice = product.priceText ?? formatPrice(product.price, currency);
   const hasRating = typeof product.rating === 'number' && typeof product.ratingCount === 'number';
+  const validation = getMarketCommercialValidation(product, product.inventory);
+  const canAddToCart = validation.canStartCheckout && product.disponible !== false;
 
   return (
     <Card className="flex h-full flex-col overflow-hidden shadow-sm transition hover:-translate-y-1 hover:shadow-xl">
@@ -47,9 +50,7 @@ export default function ProductCard({ product, onAdd, isAdding }: ProductCardPro
         <div className="flex aspect-[4/3] w-full items-center justify-center bg-muted text-muted-foreground">
           <div className="text-center">
             <ShoppingBag className="mx-auto h-8 w-8" />
-            {product.imageStatus === 'missing' ? (
-              <p className="mt-2 text-xs">Imagen pendiente</p>
-            ) : null}
+            {product.imageStatus === 'missing' ? <p className="mt-2 text-xs">Imagen pendiente</p> : null}
           </div>
         </div>
       )}
@@ -104,9 +105,9 @@ export default function ProductCard({ product, onAdd, isAdding }: ProductCardPro
 
       <CardFooter className="mt-auto flex flex-col gap-2 border-t bg-card/50 p-4">
         <div className="grid w-full grid-cols-2 gap-2">
-          {product.checkout_type === 'mercadolibre' && product.external_url ? (
+          {product.checkout_type === 'mercadolibre' && product.external_url && canAddToCart ? (
             <Button
-              className="w-full bg-[#FFE600] hover:bg-[#FDD835] text-[#2D3277] font-semibold transition-all hover:scale-105 hover:shadow-md"
+              className="w-full bg-[#FFE600] font-semibold text-[#2D3277] transition-all hover:scale-105 hover:bg-[#FDD835] hover:shadow-md"
               asChild
             >
               <a href={product.external_url} target="_blank" rel="noopener noreferrer">
@@ -114,9 +115,9 @@ export default function ProductCard({ product, onAdd, isAdding }: ProductCardPro
                 <ExternalLink className="ml-2 h-4 w-4" />
               </a>
             </Button>
-          ) : product.checkout_type === 'tiendanube' && product.external_url ? (
+          ) : product.checkout_type === 'tiendanube' && product.external_url && canAddToCart ? (
             <Button
-              className="w-full bg-[#2D3277] hover:bg-[#1E2150] text-white font-semibold transition-all hover:scale-105 hover:shadow-md"
+              className="w-full bg-[#2D3277] font-semibold text-white transition-all hover:scale-105 hover:bg-[#1E2150] hover:shadow-md"
               asChild
             >
               <a href={product.external_url} target="_blank" rel="noopener noreferrer">
@@ -128,10 +129,11 @@ export default function ProductCard({ product, onAdd, isAdding }: ProductCardPro
             <Button
               className="w-full"
               onClick={() => onAdd(product.id)}
-              disabled={isAdding}
+              disabled={isAdding || !canAddToCart}
+              title={!canAddToCart && validation.reason ? validation.reason : undefined}
             >
               <ShoppingBag className="mr-2 h-4 w-4" />
-              {isAdding ? 'Agregando…' : 'Agregar'}
+              {isAdding ? 'Agregando...' : canAddToCart ? 'Agregar' : 'Consultar'}
             </Button>
           )}
           <Button
@@ -155,9 +157,12 @@ export default function ProductCard({ product, onAdd, isAdding }: ProductCardPro
         {product.publicUrl ? (
           <Button asChild variant="ghost" className="h-9 justify-start px-2 text-xs text-muted-foreground">
             <a href={product.publicUrl} target="_blank" rel="noreferrer">
-              <ExternalLink className="mr-2 h-3.5 w-3.5" /> Ver detalle público
+              <ExternalLink className="mr-2 h-3.5 w-3.5" /> Ver detalle publico
             </a>
           </Button>
+        ) : null}
+        {!canAddToCart && validation.reason ? (
+          <p className="text-xs text-muted-foreground">{validation.reason}</p>
         ) : null}
       </CardFooter>
     </Card>

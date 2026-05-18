@@ -32,6 +32,7 @@ import { formatCurrency } from '@/utils/currency';
 import { getValidStoredToken } from '@/utils/authTokens';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ApiError, getErrorMessage } from '@/utils/api';
+import { getMarketCommercialValidation } from '@/utils/marketValidation';
 
 type ContactInfo = {
   name?: string;
@@ -203,6 +204,10 @@ export default function MarketCartPage() {
             'El checkout todavia no esta listo para recibir pagos.',
         );
       }
+      const previewValidation = getMarketCommercialValidation(preview, cartQuery.data);
+      if (!previewValidation.canStartCheckout && previewValidation.reason) {
+        throw new Error(previewValidation.reason);
+      }
       return startMarketCheckout(tenantSlug, checkoutPayload);
     },
     onSuccess: (response, variables) => {
@@ -211,8 +216,11 @@ export default function MarketCartPage() {
       const resolvedMarketOrderId = response?.market_order_id ?? response?.orderId ?? response?.order_id;
       const resolvedPreference = response?.preference_id ?? response?.preferenceId;
       const resolvedStage = response?.commercial_state?.stage ?? response?.estado ?? response?.status;
-      const resolvedPaymentUrl = response?.checkoutUrl ?? response?.init_point ?? null;
-      const confirmationParts = [response?.message ?? 'Pedido registrado correctamente.'];
+      const responseValidation = getMarketCommercialValidation(response, response?.order, response?.inventory_policy);
+      const resolvedPaymentUrl = responseValidation.canStartCheckout ? response?.checkoutUrl ?? response?.init_point ?? null : null;
+      const confirmationParts = [
+        response?.message ?? responseValidation.reason ?? 'Solicitud registrada para validacion.',
+      ];
       if (resolvedMarketOrderId) confirmationParts.push(`Orden operacional #${resolvedMarketOrderId}.`);
       if (resolvedStage) confirmationParts.push(`Estado: ${resolvedStage}.`);
       if (resolvedPreference) confirmationParts.push(`Referencia de pago: ${resolvedPreference}.`);
@@ -310,6 +318,14 @@ export default function MarketCartPage() {
       return;
     }
 
+    if (checkoutBlockedReason) {
+      toast({
+        title: 'Checkout pendiente de validacion',
+        description: checkoutBlockedReason,
+      });
+      return;
+    }
+
     if (requiresContactOrAuth && !hasSession && !contactReady) {
       setShowContactDialog(true);
       return;
@@ -347,6 +363,11 @@ export default function MarketCartPage() {
   const cartRecommendations = cartQuery.data?.recommendations ?? null;
   const cartCheckoutPreview = cartQuery.data?.checkout_preview ?? null;
   const cartCheckoutOptions = cartQuery.data?.checkout_options ?? null;
+  const cartValidation = useMemo(
+    () => getMarketCommercialValidation(cartQuery.data, cartCheckoutPreview, ...cartItems),
+    [cartItems, cartCheckoutPreview, cartQuery.data],
+  );
+  const checkoutBlockedReason = cartValidation.canStartCheckout ? null : cartValidation.reason;
 
   const {
     averageRating,
@@ -798,6 +819,7 @@ export default function MarketCartPage() {
               recommendations={cartRecommendations}
               checkoutPreview={cartCheckoutPreview}
               checkoutOptions={cartCheckoutOptions}
+              checkoutBlockedReason={checkoutBlockedReason}
               rewardsProfile={rewardsQuery.data ?? null}
               rewardsLoading={rewardsQuery.isLoading}
               redeemingRewardId={redeemMutation.variables ?? null}
@@ -913,7 +935,7 @@ export default function MarketCartPage() {
               setShowMobileCart(false);
               handleCheckout();
             }}
-            disabled={!cartItems.length || checkoutMutation.isPending}
+            disabled={!cartItems.length || checkoutMutation.isPending || Boolean(checkoutBlockedReason)}
           >
             {checkoutMutation.isPending ? 'Procesando...' : 'Finalizar pedido'}
           </Button>

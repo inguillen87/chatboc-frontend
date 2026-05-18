@@ -23,6 +23,11 @@ export interface MarketProduct {
   category: string | null;
   unit: string | null;
   quantity: number | null; // Available stock
+  stock_quantity?: number | null;
+  stock_status?: string | null;
+  available_to_sell?: boolean | null;
+  amount_validated?: boolean | null;
+  inventory?: Record<string, unknown> | null;
   sku: string | null;
   brand: string | null;
   promoInfo: string | null;
@@ -33,6 +38,7 @@ export interface MarketProduct {
   checkout_type?: 'mercadolibre' | 'tiendanube' | 'chatboc' | null;
   external_url?: string | null;
   rating?: number | null;
+  ratingCount?: number | null;
   tags?: string[] | null;
 }
 
@@ -88,6 +94,9 @@ export interface MarketCheckoutPreview {
   next_step_label?: string | null;
   total_monetary?: number | null;
   total_points?: number | null;
+  amount_validated?: boolean | null;
+  stock_status?: string | null;
+  available_to_sell?: boolean | null;
   payment_required?: boolean | null;
   payment_ready?: boolean | null;
   contact_ready?: boolean | null;
@@ -203,6 +212,10 @@ export interface MarketCartResponse {
   checkout_preview?: MarketCheckoutPreview | null;
   checkout_options?: MarketCheckoutOptions | null;
   mercadopago_ready?: boolean | null;
+  amount_validated?: boolean | null;
+  stock_status?: string | null;
+  available_to_sell?: boolean | null;
+  inventory_policy?: Record<string, unknown> | null;
 }
 
 export interface MarketCatalogSection {
@@ -257,6 +270,11 @@ export interface CheckoutStartResponse {
   estado?: string | null;
   tipo?: string | null;
   message?: string;
+  amount_validated?: boolean | null;
+  stock_status?: string | null;
+  available_to_sell?: boolean | null;
+  inventory_policy?: Record<string, unknown> | null;
+  order?: Record<string, unknown> | null;
   checkout_options?: MarketCheckoutOptions | null;
   customer_profile?: MarketCustomerProfile | null;
   commercial_state?: MarketCommercialState | null;
