@@ -835,6 +835,19 @@ export const adminUpdateSurvey = async (
   return normalizeSurveyPreguntas(survey);
 };
 
+export const adminDuplicateSurvey = async (
+  id: number,
+  payload?: { titulo?: string; slug?: string },
+  options?: ApiFetchOptions,
+): Promise<SurveyAdmin> => {
+  const survey = await callAdminSurveyEndpoint<unknown>(`${id}/duplicar`, {
+    method: 'POST',
+    body: payload ?? {},
+    ...options,
+  });
+  return normalizeSurveyPreguntas(unwrapSurveyEnvelope<SurveyAdmin>(survey));
+};
+
 export const adminDeleteSurvey = (id: number, options?: ApiFetchOptions): Promise<void> =>
   callAdminSurveyEndpoint(`${id}`, {
     method: 'DELETE',

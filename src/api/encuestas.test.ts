@@ -15,7 +15,14 @@ vi.mock('@/utils/api', () => ({
   },
 }));
 
-import { adminPublishSurvey, getHeatmap, getPublicSurvey, listPublicSurveys, postPublicResponse } from '@/api/encuestas';
+import {
+  adminDuplicateSurvey,
+  adminPublishSurvey,
+  getHeatmap,
+  getPublicSurvey,
+  listPublicSurveys,
+  postPublicResponse,
+} from '@/api/encuestas';
 import { ApiError } from '@/utils/api';
 
 describe('getHeatmap', () => {
@@ -140,8 +147,41 @@ describe('adminPublishSurvey', () => {
     expect(survey.slug_publico).toBe('luis-petri-votacion-prioridades-junin-8887');
     expect(survey.url_publica).toBe('https://www.chatboc.ar/e/luis-petri-votacion-prioridades-junin-8887');
     expect(apiFetchMock).toHaveBeenCalledWith(
-      '/admin/encuestas/627/publicar',
+      '/api/admin/encuestas/627/publicar',
       expect.objectContaining({ method: 'POST' }),
+    );
+  });
+});
+
+describe('adminDuplicateSurvey', () => {
+  beforeEach(() => {
+    apiFetchMock.mockReset();
+  });
+
+  it('unwraps duplicate responses into the editable survey copy', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      ok: true,
+      source_id: 627,
+      encuesta: {
+        id: 628,
+        slug: 'luis-petri-votacion-prioridades-junin-8887-nueva-version',
+        estado: 'borrador',
+        titulo: 'Votacion nueva version',
+        tipo: 'votacion',
+        inicio_at: '2026-01-01',
+        fin_at: '2026-12-31',
+        politica_unicidad: 'libre',
+        preguntas: [],
+      },
+    });
+
+    const survey = await adminDuplicateSurvey(627);
+
+    expect(survey.id).toBe(628);
+    expect(survey.estado).toBe('borrador');
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      '/api/admin/encuestas/627/duplicar',
+      expect.objectContaining({ method: 'POST', body: {} }),
     );
   });
 });

@@ -25,6 +25,7 @@ interface SurveyEditorProps {
   onPublish?: () => Promise<void>;
   isSaving?: boolean;
   isPublishing?: boolean;
+  structureLocked?: boolean;
 }
 
 interface LocalOption {
@@ -200,6 +201,7 @@ export const SurveyEditor = ({
   onPublish,
   isSaving,
   isPublishing,
+  structureLocked = false,
 }: SurveyEditorProps) => {
   const [formValues, setFormValues] = useState<SurveyDraftPayload>(() => buildInitialDraft(survey, initialDraft));
   const [questions, setQuestions] = useState<LocalQuestion[]>(() => buildInitialQuestions(survey, initialDraft));
@@ -347,22 +349,12 @@ export const SurveyEditor = ({
       toast({ title: 'Agregá al menos una pregunta', variant: 'destructive' });
       return;
     }
-    try {
-      await onSave(preparedPayload);
-      toast({ title: 'Encuesta guardada', description: 'Los cambios se guardaron correctamente.' });
-    } catch (error) {
-      toast({ title: 'Error al guardar', description: String((error as Error)?.message ?? error), variant: 'destructive' });
-    }
+    await onSave(preparedPayload);
   };
 
   const handlePublish = async () => {
     if (!onPublish) return;
-    try {
-      await onPublish();
-      toast({ title: 'Encuesta publicada', description: 'Compartí el enlace y el código QR con tu comunidad.' });
-    } catch (error) {
-      toast({ title: 'No se pudo publicar', description: String((error as Error)?.message ?? error), variant: 'destructive' });
-    }
+    await onPublish();
   };
 
   const publicUrl = useMemo(
@@ -374,6 +366,12 @@ export const SurveyEditor = ({
 
   return (
     <div className="space-y-6">
+      {structureLocked && (
+        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-100">
+          Esta encuesta ya esta publicada. Podes corregir textos, fechas y configuracion, pero para agregar o quitar
+          preguntas/opciones tenes que crear una nueva version editable.
+        </div>
+      )}
       <Card className={`transition-colors border-l-4 ${formValues.tipo === 'votacion' ? 'border-l-blue-500 bg-blue-50/10' : 'border-l-primary bg-primary/5'}`}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -598,6 +596,7 @@ export const SurveyEditor = ({
                         <Label>Tipo de pregunta</Label>
                         <Select
                           value={question.tipo}
+                          disabled={structureLocked}
                           onValueChange={(value: PreguntaTipo) => {
                             handleQuestionChange(question.localId, {
                               tipo: value,
@@ -686,6 +685,7 @@ export const SurveyEditor = ({
                               <Button
                                 variant="ghost"
                                 size="icon"
+                                disabled={structureLocked}
                                 onClick={() => handleRemoveOption(question.localId, option.localId)}
                               >
                                 <Trash2 className="h-4 w-4" />
@@ -697,6 +697,7 @@ export const SurveyEditor = ({
                             variant="outline"
                             size="sm"
                             className="inline-flex items-center gap-2 self-start"
+                            disabled={structureLocked}
                             onClick={() => handleAddOption(question.localId)}
                           >
                             <Plus className="h-4 w-4" /> Agregar opción
@@ -709,6 +710,7 @@ export const SurveyEditor = ({
                     type="button"
                     variant="ghost"
                     size="icon"
+                    disabled={structureLocked}
                     onClick={() => handleRemoveQuestion(question.localId)}
                     className="text-muted-foreground hover:text-destructive"
                   >
@@ -718,7 +720,7 @@ export const SurveyEditor = ({
               </Reorder.Item>
             ))}
           </Reorder.Group>
-          <Button type="button" variant="outline" onClick={handleAddQuestion} className="inline-flex items-center gap-2">
+          <Button type="button" variant="outline" onClick={handleAddQuestion} disabled={structureLocked} className="inline-flex items-center gap-2">
             <Plus className="h-4 w-4" /> Agregar pregunta
           </Button>
         </CardContent>

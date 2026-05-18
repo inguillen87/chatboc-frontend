@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import {
   adminCreateSurvey,
   adminDeleteSurvey,
+  adminDuplicateSurvey,
   adminGetSurvey,
   adminListSurveys,
   adminPublishSurvey,
@@ -30,6 +31,7 @@ interface UseSurveyAdminResult {
   listError: string | null;
   saveSurvey: (payload: SurveyDraftPayload) => Promise<SurveyAdmin>;
   createSurvey: (payload: SurveyDraftPayload) => Promise<SurveyAdmin>;
+  duplicateSurvey: (id?: number, payload?: { titulo?: string; slug?: string }) => Promise<SurveyAdmin>;
   publishSurvey: (id?: number) => Promise<SurveyAdmin>;
   seedSurvey: (
     id: number,
@@ -38,6 +40,7 @@ interface UseSurveyAdminResult {
   deleteSurvey: (id: number) => Promise<void>;
   isSaving: boolean;
   isPublishing: boolean;
+  isDuplicating: boolean;
   isSeeding: boolean;
   isDeleting: boolean;
   refetchSurvey: () => Promise<SurveyAdmin | undefined>;
@@ -94,11 +97,26 @@ export function useSurveyAdmin(options: UseSurveyAdminOptions = {}): UseSurveyAd
     },
   });
 
+  const duplicateMutation = useMutation({
+    mutationFn: async (payload?: { id?: number; titulo?: string; slug?: string }) => {
+      const targetId = typeof payload?.id === 'number' ? payload.id : normalizedId;
+      if (targetId === null) throw new Error('No survey id provided');
+      const duplicated = await adminDuplicateSurvey(
+        targetId,
+        { titulo: payload?.titulo, slug: payload?.slug },
+        adminRequestOptions,
+      );
+      await queryClient.invalidateQueries({ queryKey: ['surveys', 'admin-list'] });
+      return duplicated;
+    },
+  });
+
   const publishMutation = useMutation({
     mutationFn: async (payload?: { id?: number }) => {
       const targetId = typeof payload?.id === 'number' ? payload.id : normalizedId;
       if (targetId === null) throw new Error('No survey id provided');
       const published = await adminPublishSurvey(targetId, adminRequestOptions);
+      queryClient.setQueryData(queryKeys.surveys.admin(targetId), published);
       await queryClient.invalidateQueries({ queryKey: queryKeys.surveys.admin(targetId) });
       await queryClient.invalidateQueries({ queryKey: ['surveys', 'admin-list'] });
       return published;
@@ -137,11 +155,14 @@ export function useSurveyAdmin(options: UseSurveyAdminOptions = {}): UseSurveyAd
     listError: listQuery.error ? getErrorMessage(listQuery.error) : null,
     saveSurvey: async (payload: SurveyDraftPayload) => saveMutation.mutateAsync(payload),
     createSurvey: async (payload: SurveyDraftPayload) => createMutation.mutateAsync(payload),
+    duplicateSurvey: async (id?: number, payload?: { titulo?: string; slug?: string }) =>
+      duplicateMutation.mutateAsync({ id, ...payload }),
     publishSurvey: async (id?: number) => publishMutation.mutateAsync({ id }),
     seedSurvey: async (id: number, payload) => seedMutation.mutateAsync({ id, payload }),
     deleteSurvey: async (id: number) => deleteMutation.mutateAsync(id),
     isSaving: saveMutation.isPending || createMutation.isPending,
     isPublishing: publishMutation.isPending,
+    isDuplicating: duplicateMutation.isPending,
     isSeeding: seedMutation.isPending,
     isDeleting: deleteMutation.isPending,
     refetchSurvey: async () => {

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 
@@ -8,6 +8,14 @@ import { Button } from '@/components/ui/button';
 import { useSurveyAdmin } from '@/hooks/useSurveyAdmin';
 import type { SurveyDraftPayload } from '@/types/encuestas';
 import { toast } from '@/components/ui/use-toast';
+import { ApiError, getErrorMessage } from '@/utils/api';
+
+const isStructureLockedError = (error: unknown) =>
+  error instanceof ApiError &&
+  error.status === 409 &&
+  typeof error.body === 'object' &&
+  error.body !== null &&
+  (error.body as Record<string, unknown>).reason_code === 'survey_structure_locked';
 
 const SurveyDetailPage = () => {
   const params = useParams();
@@ -18,20 +26,28 @@ const SurveyDetailPage = () => {
     isLoadingSurvey,
     surveyError,
     saveSurvey,
+    duplicateSurvey,
     publishSurvey,
     seedSurvey,
     isSaving,
     isPublishing,
+    isDuplicating,
     refetchSurvey,
   } = useSurveyAdmin({ id: surveyId ?? undefined });
+  const [lockedEditMessage, setLockedEditMessage] = useState<string | null>(null);
 
   const handleSave = async (payload: SurveyDraftPayload) => {
     try {
       await saveSurvey(payload);
+      setLockedEditMessage(null);
       toast({ title: 'Encuesta actualizada', description: 'Los cambios se guardaron correctamente.' });
       await refetchSurvey();
     } catch (error) {
-      toast({ title: 'Error al guardar', description: String((error as Error)?.message ?? error), variant: 'destructive' });
+      const description = getErrorMessage(error, 'No pudimos guardar la encuesta.');
+      if (isStructureLockedError(error)) {
+        setLockedEditMessage(description);
+      }
+      toast({ title: 'Error al guardar', description, variant: 'destructive' });
     }
   };
 
@@ -42,6 +58,21 @@ const SurveyDetailPage = () => {
       await refetchSurvey();
     } catch (error) {
       toast({ title: 'No se pudo publicar', description: String((error as Error)?.message ?? error), variant: 'destructive' });
+      throw error;
+    }
+  };
+
+  const handleDuplicate = async () => {
+    if (!surveyId || !survey) return;
+    try {
+      const duplicated = await duplicateSurvey(surveyId);
+      toast({
+        title: 'Nueva version creada',
+        description: 'Abrimos una copia editable para cambiar preguntas sin romper respuestas historicas.',
+      });
+      navigate(`/admin/encuestas/${duplicated.id}`);
+    } catch (error) {
+      toast({ title: 'No pudimos crear la nueva version', description: getErrorMessage(error), variant: 'destructive' });
     }
   };
 
@@ -71,6 +102,11 @@ const SurveyDetailPage = () => {
     return <p className="text-sm text-destructive">{surveyError || 'No encontramos esta encuesta.'}</p>;
   }
 
+  const structureLocked = survey.estado === 'publicada';
+  const lockMessage =
+    lockedEditMessage ||
+    'Podes corregir textos, fechas y configuracion. Para cambiar preguntas u opciones, crea una nueva version editable.';
+
   return (
     <div className="space-y-6">
       <Card>
@@ -84,12 +120,29 @@ const SurveyDetailPage = () => {
           </Button>
         </CardHeader>
         <CardContent>
+          {structureLocked || lockedEditMessage ? (
+            <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm">
+              <p className="font-semibold text-amber-100">Esta encuesta ya tiene respuestas y su estructura esta bloqueada.</p>
+              <p className="mt-1 text-amber-100/80">{lockMessage}</p>
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                className="mt-3"
+                onClick={handleDuplicate}
+                disabled={isDuplicating}
+              >
+                {isDuplicating ? 'Creando version...' : 'Crear nueva version editable'}
+              </Button>
+            </div>
+          ) : null}
           <SurveyEditor
             survey={survey}
             onSave={handleSave}
             onPublish={handlePublish}
             isSaving={isSaving}
             isPublishing={isPublishing}
+            structureLocked={structureLocked}
           />
         </CardContent>
       </Card>
