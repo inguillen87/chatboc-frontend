@@ -17,7 +17,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import type { SurveyAdmin } from '@/types/encuestas';
-import { getAbsolutePublicSurveyUrl } from '@/utils/publicSurveyUrl';
+import { getPublicSurveyUrlFromRecord } from '@/utils/publicSurveyUrl';
 import { getAutoSeedCantidad } from '@/utils/surveyDemoPriority';
 
 interface SurveyCardProps {
@@ -58,7 +58,7 @@ export const SurveyCard = ({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   const autoSeedCantidad = getAutoSeedCantidad(survey);
-  const publicUrl = survey.slug ? getAbsolutePublicSurveyUrl(survey.slug) : null;
+  const publicUrl = getPublicSurveyUrlFromRecord(survey);
 
   const seedLabels =
     (survey.recursos as Record<string, unknown> | undefined)?.seed_ui as

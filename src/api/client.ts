@@ -434,12 +434,12 @@ export const apiClient = {
 
   getPublicTicketStatus: async (code: string, pin: string, tenantSlug?: string) => {
     const query = new URLSearchParams({ code, pin }).toString();
-    const response = await apiFetch<unknown>(`/tickets/public/status?${query}`, { tenantSlug });
+    const response = await apiFetch<unknown>(`/api/tickets/public/status?${query}`, { tenantSlug });
     return normalizePublicTicketStatus(response);
   },
 
   getTicketWorkflowMetadata: async (tenantSlug?: string) => {
-    const response = await apiFetch<unknown>('/tickets/workflow/metadata', { tenantSlug });
+    const response = await apiFetch<unknown>('/api/tickets/workflow/metadata', { tenantSlug });
     return normalizeTicketWorkflowMetadata(response);
   },
 

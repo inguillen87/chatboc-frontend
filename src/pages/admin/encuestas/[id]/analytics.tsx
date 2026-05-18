@@ -18,7 +18,7 @@ import { useAnchor } from '@/hooks/useAnchor';
 import { useSurveyResponses } from '@/hooks/useSurveyResponses';
 import { useSurveySeedResponses } from '@/hooks/useSurveySeedResponses';
 import { toast } from '@/components/ui/use-toast';
-import { getAbsolutePublicSurveyUrl, getPublicSurveyQrUrl } from '@/utils/publicSurveyUrl';
+import { getPublicSurveyQrUrlFromRecord, getPublicSurveyUrlFromRecord } from '@/utils/publicSurveyUrl';
 import { getSurveyAlerts, getSurveyAnomalies, getSurveyBrief, getSurveyForecast, getSurveySegmentsCompare, getSurveySegmentsSuggestions } from '@/api/encuestas';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
@@ -355,10 +355,10 @@ export default function SurveyAnalyticsPage() {
   const effectiveTenantSlug = effectiveSurvey?.tenant_slug;
 
   const publicUrl = useMemo(
-    () => (effectiveSurvey?.slug ? getAbsolutePublicSurveyUrl(effectiveSurvey.slug) : null),
-    [effectiveSurvey?.slug],
+    () => getPublicSurveyUrlFromRecord(effectiveSurvey),
+    [effectiveSurvey],
   );
-  const qrUrl = effectiveSurvey?.slug ? getPublicSurveyQrUrl(effectiveSurvey.slug, { size: 512 }) : null;
+  const qrUrl = getPublicSurveyQrUrlFromRecord(effectiveSurvey, { size: 512 }) || null;
   const rangeLabel = useMemo(() => {
     const start = formatDateLabel(effectiveSurvey?.inicio_at);
     const end = formatDateLabel(effectiveSurvey?.fin_at);
@@ -673,7 +673,7 @@ export default function SurveyAnalyticsPage() {
         value: String(effectiveAlerts.length),
         subtitle: asSafeText(enterpriseUiConfig?.alerts_title) || 'Eventos críticos detectados por reglas',
         icon: <AlertTriangle className="h-4 w-4" />,
-        tone: (effectiveAlerts.length > 0 ? 'warning' : 'success') as const,
+        tone: effectiveAlerts.length > 0 ? 'warning' : 'success',
       },
       {
         id: 'confidence',

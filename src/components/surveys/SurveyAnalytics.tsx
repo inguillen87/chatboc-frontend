@@ -398,13 +398,19 @@ const extractCategoryLayerPoints = (categoryLayers: Record<string, unknown> | nu
         const lat = toFiniteNumber(point.lat);
         const lng = toFiniteNumber(point.lng);
         if (lat === null || lng === null) return null;
-        return {
+        const normalizedPoint: SurveyHeatmapPoint = {
           lat,
           lng,
           respuestas: toFiniteNumber(point.weight ?? point.total_weight ?? point.count) ?? 1,
-          categoria,
-          canal: toNonEmptyString(point.canal ?? point.channel) ?? undefined,
         };
+        if (categoria) {
+          normalizedPoint.categoria = categoria;
+        }
+        const canal = toNonEmptyString(point.canal ?? point.channel);
+        if (canal) {
+          normalizedPoint.canal = canal;
+        }
+        return normalizedPoint;
       })
       .filter((point): point is SurveyHeatmapPoint => Boolean(point));
   });

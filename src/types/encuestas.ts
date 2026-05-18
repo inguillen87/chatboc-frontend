@@ -127,6 +127,13 @@ export interface SurveyLivePublicResultsPayload {
 export interface SurveyPublic {
   id?: number;
   slug: string;
+  slug_publico?: string;
+  canonical_slug?: string;
+  requested_slug?: string;
+  slug_alias_used?: boolean;
+  url_publica?: string;
+  share_url?: string;
+  public_api_endpoint?: string;
   titulo: string;
   descripcion?: string;
   tipo: SurveyTipo;

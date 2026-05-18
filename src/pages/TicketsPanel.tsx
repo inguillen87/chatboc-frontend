@@ -72,8 +72,12 @@ const TicketsIdentityCoverageAlert = () => {
   );
 };
 
-const TicketsPanelPage = () => {
-  useRequireRole(['admin', 'empleado', 'super_admin'] as Role[]);
+interface TicketsPanelPageProps {
+  tenantSlugOverride?: string | null;
+}
+
+const TicketsPanelPage = ({ tenantSlugOverride }: TicketsPanelPageProps) => {
+  useRequireRole(['tenant_admin', 'employee', 'superadmin'] as Role[]);
 
   return (
     <div className="flex min-h-[100dvh] flex-col bg-background px-2 pb-4 pt-16 text-foreground dark:bg-gradient-to-tr dark:from-slate-950 dark:to-slate-900 sm:px-4 sm:pb-6 sm:pt-6 md:px-5 lg:px-6 2xl:px-5">
@@ -91,7 +95,7 @@ const TicketsPanelPage = () => {
             description="Recarga la pagina o vuelve a la seccion principal del panel."
             onRetry={() => window.location.reload()}
           >
-            <TicketProvider>
+            <TicketProvider tenantSlugOverride={tenantSlugOverride}>
               <NewTicketsPanel />
             </TicketProvider>
           </SectionErrorBoundary>

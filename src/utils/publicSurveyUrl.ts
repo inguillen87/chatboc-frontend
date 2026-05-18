@@ -8,10 +8,53 @@ interface PublicSurveyAssetOptions extends PublicSurveyUrlOptions {
   size?: number;
 }
 
+interface PublicSurveyLike {
+  slug?: unknown;
+  slug_publico?: unknown;
+  canonical_slug?: unknown;
+  public_slug?: unknown;
+  url_publica?: unknown;
+  share_url?: unknown;
+  public_url?: unknown;
+}
+
 const normalizeSlug = (value: string): string => {
   if (!value) return '';
   return value.trim().replace(/^\/+/, '');
 };
+
+const readNonEmptyString = (value: unknown): string => {
+  return typeof value === 'string' && value.trim() ? value.trim() : '';
+};
+
+export const getPublicSurveyCanonicalSlug = (survey?: PublicSurveyLike | null): string => {
+  if (!survey) return '';
+
+  return (
+    readNonEmptyString(survey.slug_publico) ||
+    readNonEmptyString(survey.canonical_slug) ||
+    readNonEmptyString(survey.public_slug) ||
+    readNonEmptyString(survey.slug)
+  );
+};
+
+export const getPublicSurveyUrlFromRecord = (survey?: PublicSurveyLike | null): string => {
+  if (!survey) return '';
+
+  const providedUrl =
+    readNonEmptyString(survey.url_publica) ||
+    readNonEmptyString(survey.share_url) ||
+    readNonEmptyString(survey.public_url);
+
+  if (providedUrl) return providedUrl;
+
+  return getAbsolutePublicSurveyUrl(getPublicSurveyCanonicalSlug(survey));
+};
+
+export const getPublicSurveyQrUrlFromRecord = (
+  survey?: PublicSurveyLike | null,
+  options: PublicSurveyAssetOptions = {},
+): string => getPublicSurveyQrUrl(getPublicSurveyCanonicalSlug(survey), options);
 
 const extractOrigin = (value?: string): string => {
   if (typeof value !== 'string') return '';

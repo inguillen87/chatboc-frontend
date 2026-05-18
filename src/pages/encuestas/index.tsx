@@ -14,7 +14,13 @@ import { toast } from '@/components/ui/use-toast';
 import { getErrorMessage } from '@/utils/api';
 import type { PublicSurveyListResult } from '@/api/encuestas';
 import type { SurveyPublic, SurveyTipo } from '@/types/encuestas';
-import { getPublicSurveyQrPageUrl, getPublicSurveyQrUrl, getPublicSurveyUrl } from '@/utils/publicSurveyUrl';
+import {
+  getPublicSurveyCanonicalSlug,
+  getPublicSurveyQrPageUrl,
+  getPublicSurveyQrUrlFromRecord,
+  getPublicSurveyUrl,
+  getPublicSurveyUrlFromRecord,
+} from '@/utils/publicSurveyUrl';
 import { SurveyQrPreview } from '@/components/surveys/SurveyQrPreview';
 import { usePageMetadata } from '@/hooks/usePageMetadata';
 import {
@@ -31,6 +37,7 @@ const TIPO_LABELS: Record<SurveyTipo, string> = {
   opinion: 'Opinión',
   votacion: 'Votación',
   sondeo: 'Sondeo',
+  planificacion: 'PlanificaciÃ³n',
 };
 
 const formatDate = (value?: string | null) => {
@@ -367,12 +374,13 @@ const SurveysPublicIndex = () => {
           const fin = formatDate(survey.fin_at);
           const rango = inicio && fin ? `${inicio} – ${fin}` : inicio || fin || null;
 
-          const participationPath = getPublicSurveyUrl(survey.slug, { absolute: false }) || '#';
-          const participationUrl = getPublicSurveyUrl(survey.slug) || '';
-          const qrUrl = getPublicSurveyQrUrl(survey.slug, { size: 512 });
+          const canonicalSlug = getPublicSurveyCanonicalSlug(survey);
+          const participationPath = getPublicSurveyUrl(canonicalSlug, { absolute: false }) || '#';
+          const participationUrl = getPublicSurveyUrlFromRecord(survey) || '';
+          const qrUrl = getPublicSurveyQrUrlFromRecord(survey, { size: 512 });
           const widgetUrl = participationUrl ? buildWidgetUrlWithChannel(participationUrl) : '';
-          const qrPagePath = getPublicSurveyQrPageUrl(survey.slug, { absolute: false }) || '#';
-          const qrPageUrl = getPublicSurveyQrPageUrl(survey.slug);
+          const qrPagePath = getPublicSurveyQrPageUrl(canonicalSlug, { absolute: false }) || '#';
+          const qrPageUrl = getPublicSurveyQrPageUrl(canonicalSlug);
           const whatsappShareMessage = participationUrl
             ? buildSurveyShareMessage(
                 survey,

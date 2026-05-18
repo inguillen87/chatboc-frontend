@@ -15,7 +15,7 @@ vi.mock('@/utils/api', () => ({
   },
 }));
 
-import { getHeatmap, getPublicSurvey, listPublicSurveys, postPublicResponse } from '@/api/encuestas';
+import { adminPublishSurvey, getHeatmap, getPublicSurvey, listPublicSurveys, postPublicResponse } from '@/api/encuestas';
 import { ApiError } from '@/utils/api';
 
 describe('getHeatmap', () => {
@@ -76,6 +76,72 @@ describe('getPublicSurvey', () => {
     expect(apiFetchMock).toHaveBeenCalledWith(
       '/api/public/encuestas/v1/movilidad-y-transporte-junin',
       expect.any(Object),
+    );
+  });
+
+  it('accepts raw encuestas.public.v1 payload without wrapper', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      contract_version: 'encuestas.public.v1',
+      slug: 'luis-petri-votacion-prioridades-junin-8887',
+      slug_publico: 'luis-petri-votacion-prioridades-junin-8887-1c5aa4',
+      canonical_slug: 'luis-petri-votacion-prioridades-junin-8887-1c5aa4',
+      titulo: 'Votacion',
+      tipo: 'votacion',
+      inicio_at: '2026-01-01',
+      fin_at: '2026-12-31',
+      politica_unicidad: 'libre',
+      preguntas: [
+        {
+          id: 1,
+          orden: 1,
+          tipo: 'single_choice',
+          texto: 'Prioridad',
+          obligatoria: true,
+          opciones: [],
+        },
+      ],
+    });
+
+    const survey = await getPublicSurvey('luis-petri-votacion-prioridades-junin-8887');
+
+    expect(survey.slug).toBe('luis-petri-votacion-prioridades-junin-8887');
+    expect(survey.slug_publico).toBe('luis-petri-votacion-prioridades-junin-8887-1c5aa4');
+    expect(survey.preguntas[0].tipo).toBe('opcion_unica');
+  });
+});
+
+describe('adminPublishSurvey', () => {
+  beforeEach(() => {
+    apiFetchMock.mockReset();
+  });
+
+  it('unwraps publish responses and keeps canonical share fields', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      ok: true,
+      slug_publico: 'luis-petri-votacion-prioridades-junin-8887',
+      url_publica: 'https://www.chatboc.ar/e/luis-petri-votacion-prioridades-junin-8887',
+      encuesta: {
+        id: 627,
+        slug: 'luis-petri-votacion-prioridades-junin-8887',
+        estado: 'publicada',
+        titulo: 'Votacion',
+        tipo: 'votacion',
+        inicio_at: '2026-01-01',
+        fin_at: '2026-12-31',
+        politica_unicidad: 'libre',
+        preguntas: [],
+      },
+    });
+
+    const survey = await adminPublishSurvey(627);
+
+    expect(survey.id).toBe(627);
+    expect(survey.estado).toBe('publicada');
+    expect(survey.slug_publico).toBe('luis-petri-votacion-prioridades-junin-8887');
+    expect(survey.url_publica).toBe('https://www.chatboc.ar/e/luis-petri-votacion-prioridades-junin-8887');
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      '/admin/encuestas/627/publicar',
+      expect.objectContaining({ method: 'POST' }),
     );
   });
 });

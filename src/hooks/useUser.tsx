@@ -7,6 +7,7 @@ import { getIframeToken } from '@/utils/config';
 import { getStoredEntityToken, normalizeEntityToken, persistEntityToken } from '@/utils/entityToken';
 import { getValidStoredToken } from '@/utils/authTokens';
 import { TENANT_ROUTE_PREFIXES } from '@/utils/tenantPaths';
+import { TENANT_PLACEHOLDER_SLUGS } from '@/constants/tenant';
 
 interface UserData {
   id?: number;
@@ -56,7 +57,7 @@ const shouldLogUserWarnings = () => {
   return Boolean(metaEnv?.DEV || metaEnv?.MODE === 'development');
 };
 
-const PLACEHOLDER_SLUGS = new Set(['iframe', 'embed', 'widget', 'e', 'chatboc-platform']);
+const PLACEHOLDER_SLUGS = TENANT_PLACEHOLDER_SLUGS;
 
 const sanitizeTenantSlug = (slug?: string | null) => {
   if (!slug || typeof slug !== 'string') return null;
@@ -159,6 +160,10 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
           ? data.tenantSlug
           : typeof data.tenant_slug === 'string'
             ? data.tenant_slug
+            : typeof data.tenant?.slug === 'string'
+              ? data.tenant.slug
+              : typeof data.tenant?.tenant_slug === 'string'
+                ? data.tenant.tenant_slug
             : undefined;
       const derivedTenantSlug =
         normalizedTenantSlug ||
@@ -231,7 +236,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (resolvedTenantSlug) {
         safeLocalStorage.setItem('tenantSlug', resolvedTenantSlug);
       }
-      setUser(updated);
+      setUser(updated as any);
     } catch (e) {
       const status = e instanceof ApiError ? e.status : (e as any)?.status;
 

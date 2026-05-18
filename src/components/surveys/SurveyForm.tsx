@@ -658,8 +658,8 @@ export const SurveyForm = ({
           return acc;
         }
 
-        const selectedIds = Array.isArray(answer.opcionIds)
-          ? Array.from(new Set(answer.opcionIds.filter((id) => typeof id === 'number')))
+        const selectedIds: number[] = Array.isArray(answer.opcionIds)
+          ? Array.from(new Set(answer.opcionIds.filter((id): id is number => typeof id === 'number')))
           : [];
 
         if (!selectedIds.length) {

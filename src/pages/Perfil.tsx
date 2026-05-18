@@ -823,9 +823,27 @@ export default function Perfil() {
         data.tenant?.plan ||
         data.tenant_plan ||
         "gratis";
+      const resolvedProfileTenantSlug =
+        data.tenant_slug ||
+        data.tenantSlug ||
+        data.tenant?.slug ||
+        data.tenant?.tenant_slug ||
+        data.endpoint ||
+        null;
+
+      if (resolvedProfileTenantSlug) {
+        safeLocalStorage.setItem("tenantSlug", resolvedProfileTenantSlug);
+      }
 
       setPerfil((prev) => ({
         ...prev,
+        tenant_slug: resolvedProfileTenantSlug || (prev as any).tenant_slug,
+        slug:
+          data.slug ||
+          data.tenant?.slug ||
+          data.tenant_slug ||
+          data.tenantSlug ||
+          (prev as any).slug,
         nombre_empresa: data.nombre_empresa || "",
         telefono: data.telefono || "",
         direccion,
@@ -1760,6 +1778,7 @@ export default function Perfil() {
         </div>
       </div>
 
+      {activeProfileTab === "perfil" && (
       <section className="mx-auto mb-5 w-full max-w-7xl space-y-5 px-2">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           {renderedPrimaryControlCards.map((item) => (
@@ -1812,6 +1831,7 @@ export default function Perfil() {
 
         <BackofficeCommandCenter tenantSlug={derivedTenantSlug} scope={backofficeScope} />
       </section>
+      )}
 
       <Tabs value={activeProfileTab} onValueChange={(value) => updateProfileTab(value as ProfileTabValue)} className="w-full max-w-7xl mx-auto">
         <div className="sticky top-0 z-30 -mx-2 border-y border-border/60 bg-background/95 px-2 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:rounded-xl sm:border">
@@ -1828,6 +1848,36 @@ export default function Perfil() {
         </TabsList>
         </div>
         <TabsContent value="perfil">
+          <div className="mt-6 grid gap-4 px-2 md:grid-cols-3">
+            <DataModeCard
+              title={esMunicipio ? "Reclamos" : "Tickets"}
+              description="Entradas operativas, responsables y estados."
+              bullets={["Pendientes", "Asignacion", "Seguimiento"]}
+              actionLabel={esMunicipio ? "Abrir reclamos" : "Abrir tickets"}
+              icon={ClipboardList}
+              onClick={() => updateProfileTab("tickets")}
+            />
+            <DataModeCard
+              title="Reportes"
+              description="Metricas, mapas de calor y actividad reciente."
+              bullets={["Mapa", "Categorias", "Tendencias"]}
+              actionLabel="Abrir reportes"
+              icon={BarChart3}
+              onClick={() => updateProfileTab("estadisticas")}
+            />
+            <DataModeCard
+              title="Usuarios y equipo"
+              description="Contactos, empleados, permisos y campanas."
+              bullets={["CRM", "Empleados", "Cobertura"]}
+              actionLabel="Abrir usuarios"
+              icon={Users}
+              onClick={() => updateProfileTab("usuarios")}
+            />
+          </div>
+          <details className="mt-6 rounded-xl border border-border/70 bg-card/80 p-4 shadow-sm">
+            <summary className="cursor-pointer text-base font-semibold text-foreground">
+              Configuracion avanzada del perfil
+            </summary>
           <div className="w-full mx-auto flex flex-col md:flex-row gap-6 md:gap-8 px-2 items-stretch mt-6">
             {/* Columna Izquierda: Datos de la Empresa y Mapa */}
             <div className="md:w-2/3 flex flex-col gap-6 md:gap-8">
@@ -2678,9 +2728,10 @@ export default function Perfil() {
               </Card>
             </div>
           </div>
+          </details>
         </TabsContent>
         <TabsContent value="tickets">
-          <TicketsPanel />
+          <TicketsPanel tenantSlugOverride={derivedTenantSlug} />
         </TabsContent>
         <TabsContent value="estadisticas">
           <EstadisticasPage />

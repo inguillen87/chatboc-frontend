@@ -89,12 +89,11 @@ const isDevEnvironment = () => {
 };
 
 const ADMIN_SURVEY_BASE_PATHS = [
+  '/api/admin/encuestas',
   '/admin/encuestas',
   '/municipal/encuestas',
   '/admin/surveys',
   '/municipal/surveys/admin',
-  // Fallback to explicit tenant paths if generic ones fail
-  '/api/admin/encuestas',
 ] as const;
 
 const joinAdminPath = (base: string, suffix?: string) => {
@@ -125,6 +124,10 @@ const shouldRetryAdminRequest = (error: unknown) => {
     }
 
     if (error.status >= 500) {
+      return true;
+    }
+
+    if (error.status === 200 && error.message.toLowerCase().includes('respuesta inesperada')) {
       return true;
     }
 
@@ -178,6 +181,25 @@ const serializeUnknown = (value: unknown) => {
     console.warn('[encuestas] No se pudo serializar la respuesta inesperada', error);
     return '';
   }
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value && typeof value === 'object' && !Array.isArray(value));
+
+const unwrapSurveyEnvelope = <T>(payload: unknown): T => {
+  if (!isRecord(payload)) {
+    return payload as T;
+  }
+
+  const nestedSurvey = payload.encuesta;
+  if (isRecord(nestedSurvey)) {
+    return {
+      ...payload,
+      ...nestedSurvey,
+    } as T;
+  }
+
+  return payload as T;
 };
 
 const normalizePreguntaTipo = (value: unknown): PreguntaTipo => {
@@ -324,11 +346,7 @@ export const getPublicSurvey = async (slug: string, tenantSlug?: string): Promis
   }
 
   if ((response as Record<string, unknown>).contract_version === 'encuestas.public.v1') {
-    const survey = (response as Record<string, unknown>).encuesta;
-    if (!survey || typeof survey !== 'object' || Array.isArray(survey)) {
-      throw new Error('El servidor devolvió un payload inválido para el contrato encuestas.public.v1.');
-    }
-    return normalizeSurveyPreguntas(survey as SurveyPublic);
+    return normalizeSurveyPreguntas(unwrapSurveyEnvelope<SurveyPublic>(response));
   }
 
   if ((response as Record<string, unknown>).contract_version === 'public.survey_resolution.v1') {
@@ -829,11 +847,11 @@ export const adminGetSurvey = async (id: number, options?: ApiFetchOptions): Pro
 };
 
 export const adminPublishSurvey = async (id: number, options?: ApiFetchOptions): Promise<SurveyAdmin> => {
-  const survey = await callAdminSurveyEndpoint<SurveyAdmin>(`${id}/publicar`, {
+  const survey = await callAdminSurveyEndpoint<unknown>(`${id}/publicar`, {
     method: 'POST',
     ...options,
   });
-  return normalizeSurveyPreguntas(survey);
+  return normalizeSurveyPreguntas(unwrapSurveyEnvelope<SurveyAdmin>(survey));
 };
 
 export const adminSeedSurvey = async (

@@ -7,16 +7,14 @@ import { Button } from '@/components/ui/button';
 import { useSurveyAdmin } from '@/hooks/useSurveyAdmin';
 import type { SurveyAdmin } from '@/types/encuestas';
 import { toast } from '@/components/ui/use-toast';
-import { getAbsolutePublicSurveyUrl } from '@/utils/publicSurveyUrl';
+import { getPublicSurveyUrlFromRecord } from '@/utils/publicSurveyUrl';
 import SectionErrorBoundary from '@/components/errors/SectionErrorBoundary';
 import { prioritizeMendozaDemoSurveys } from '@/utils/surveyDemoPriority';
-import { useTenant } from '@/context/TenantContext';
 
 const AdminSurveysIndex = () => {
   const navigate = useNavigate();
   const { surveys, isLoadingList, listError, publishSurvey, deleteSurvey, seedSurvey, isPublishing, isDeleting, isSeeding, refetchList } =
     useSurveyAdmin();
-  const { currentSlug } = useTenant();
   const [publishingId, setPublishingId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [seedingId, setSeedingId] = useState<number | null>(null);
@@ -35,7 +33,7 @@ const AdminSurveysIndex = () => {
   };
 
   const handleCopyLink = async (survey: SurveyAdmin) => {
-    const publicUrl = getAbsolutePublicSurveyUrl(survey.slug);
+    const publicUrl = getPublicSurveyUrlFromRecord(survey);
     if (!publicUrl) {
       toast({
         title: 'No se pudo generar el enlace público',
@@ -90,7 +88,7 @@ const AdminSurveysIndex = () => {
     }
   };
 
-  const items = useMemo(() => prioritizeMendozaDemoSurveys(surveys?.data ?? [], currentSlug), [surveys?.data, currentSlug]);
+  const items = useMemo(() => prioritizeMendozaDemoSurveys(surveys?.data ?? []), [surveys?.data]);
 
   return (
     <SectionErrorBoundary

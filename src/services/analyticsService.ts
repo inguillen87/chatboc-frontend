@@ -590,7 +590,7 @@ export const getAnalyticsEventSchema = async (
 ): Promise<AnalyticsEventSchemaV1> => {
   const query = tenantId !== undefined ? `?tenant_id=${tenantId}` : '';
   try {
-    const raw = await apiFetch<unknown>(`/analytics/event/schema${query}`, { tenantSlug });
+    const raw = await apiFetch<unknown>(`/api/analytics/event/schema${query}`, { tenantSlug });
     const parsed = parseAnalyticsEventSchemaV1(raw);
     if (!parsed) {
       throw new ApiError('Respuesta inválida de analytics event schema v1.', 502, raw);
@@ -600,7 +600,7 @@ export const getAnalyticsEventSchema = async (
     if (!(error instanceof ApiError) || (error.status !== 404 && error.status !== 405)) {
       throw error;
     }
-    const raw = await apiFetch<unknown>(`/api/analytics/event/schema${query}`, { tenantSlug });
+    const raw = await apiFetch<unknown>(`/analytics/event/schema${query}`, { tenantSlug });
     const parsed = parseAnalyticsEventSchemaV1(raw);
     if (!parsed) {
       throw new ApiError('Respuesta inválida de analytics event schema v1.', 502, raw);
@@ -614,7 +614,7 @@ export const postAnalyticsEvent = async (
   tenantSlug?: string,
 ): Promise<AnalyticsEventIngestAckV1> => {
   try {
-    const raw = await apiFetch<unknown>('/analytics/event', {
+    const raw = await apiFetch<unknown>('/api/analytics/event', {
       method: 'POST',
       body: payload,
       tenantSlug,
@@ -628,7 +628,7 @@ export const postAnalyticsEvent = async (
     if (!(error instanceof ApiError) || (error.status !== 404 && error.status !== 405)) {
       throw error;
     }
-    const raw = await apiFetch<unknown>('/api/analytics/event', {
+    const raw = await apiFetch<unknown>('/analytics/event', {
       method: 'POST',
       body: payload,
       tenantSlug,

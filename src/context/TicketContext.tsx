@@ -254,7 +254,10 @@ const normalizeAssignedAgent = (ticket: any): User | undefined => {
   return undefined;
 };
 
-export const TicketProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?: string | null }> = ({
+  children,
+  tenantSlugOverride,
+}) => {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [loading, setLoading] = useState(true);
@@ -359,7 +362,17 @@ export const TicketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   );
 
   const fetchTickets = useCallback(async () => {
-    const tenantSlug = resolveTenantSlug(user?.tenantSlug);
+    const tenantSlug = resolveTenantSlug(tenantSlugOverride ?? user?.tenantSlug ?? currentSlug);
+
+    if (!tenantSlug) {
+      setError(null);
+      setTickets([]);
+      setSelectedTicket(null);
+      setLoading(false);
+      return;
+    }
+
+    setError(null);
 
     try {
       const apiResponse = await getTickets(tenantSlug);
@@ -391,6 +404,7 @@ export const TicketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         console.warn("La respuesta de la API no contiene un array de tickets:", apiResponse);
         setTickets([]);
       }
+      setError(null);
     } catch (err) {
       console.error('Error fetching tickets:', err);
       if (err instanceof ApiError) {
@@ -406,7 +420,7 @@ export const TicketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     } finally {
       setLoading(false);
     }
-  }, [filterTicketsForUser, user?.tenantSlug]);
+  }, [currentSlug, filterTicketsForUser, tenantSlugOverride, user?.tenantSlug]);
 
   useEffect(() => {
     setLoading(true);

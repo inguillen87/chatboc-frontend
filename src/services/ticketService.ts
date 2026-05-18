@@ -20,6 +20,11 @@ const generateRandomAvatar = (seed: string) => {
     return `https://i.pravatar.cc/150?u=${seed}`;
 }
 
+const ticketApiPath = (path: string): string => {
+    const normalized = path.startsWith('/') ? path : `/${path}`;
+    return normalized.startsWith('/api/') ? normalized : `/api${normalized}`;
+};
+
 const normalizeRealtimeViewer = (raw: any): TicketRealtimeViewer | null => {
     if (!raw || typeof raw !== 'object') return null;
 
@@ -278,7 +283,7 @@ export const getTickets = async (
   tenantSlug?: string | null,
 ): Promise<{ tickets: Ticket[] }> => {
   try {
-    const response = await apiFetch<{ tickets: Ticket[] }>('/tickets', {
+      const response = await apiFetch<{ tickets: Ticket[] }>(ticketApiPath('/tickets'), {
       tenantSlug,
       omitTenant: false,
       // Algunos despliegues requieren el tenant para filtrar los tickets
@@ -331,7 +336,7 @@ export const getTicketById = async (id: string): Promise<Ticket> => {
     try {
         const response = await apiFetch<
             Ticket & { historial?: TicketHistoryEvent[]; mensajes?: Message[] }
-        >(`/tickets/municipio/${id}`);
+        >(ticketApiPath(`/tickets/municipio/${id}`));
         const history = (response as any).history || response.historial || [];
         let messages = (response as any).mensajes || (response as any).messages || [];
         if (!messages.length) {
@@ -365,9 +370,9 @@ export const getTicketByNumber = async (
     const clean = raw.replace(/[^\d]/g, '');
     const pinParam = `?pin=${encodeURIComponent(pin)}`;
     const endpoints = [
-        `/tickets/municipio/por_numero/${encodeURIComponent(raw)}${pinParam}`,
-        `/tickets/municipio/por_numero/${encodeURIComponent(clean)}${pinParam}`,
-        `/tickets/municipio/${encodeURIComponent(clean)}${pinParam}`,
+        ticketApiPath(`/tickets/municipio/por_numero/${encodeURIComponent(raw)}${pinParam}`),
+        ticketApiPath(`/tickets/municipio/por_numero/${encodeURIComponent(clean)}${pinParam}`),
+        ticketApiPath(`/tickets/municipio/${encodeURIComponent(clean)}${pinParam}`),
     ];
     let lastError: unknown;
     for (const url of endpoints) {
@@ -647,7 +652,7 @@ export const requestTicketHistoryEmail = async ({
 
     try {
         const { pin, ...notificationOptions } = options || {};
-        const baseUrl = `/tickets/${tipo}/${ticketId}/send-history`;
+        const baseUrl = ticketApiPath(`/tickets/${tipo}/${ticketId}/send-history`);
         const endpoint = pin
             ? `${baseUrl}?pin=${encodeURIComponent(pin)}`
             : baseUrl;
@@ -692,7 +697,7 @@ export const updateTicketStatus = async (
     estado: TicketStatus
 ): Promise<void> => {
     try {
-        await apiFetch(`/tickets/${tipo}/${ticketId}/estado`, {
+        await apiFetch(ticketApiPath(`/tickets/${tipo}/${ticketId}/estado`), {
             method: 'PUT',
             body: { estado },
         });
@@ -715,9 +720,9 @@ export const assignTicketToAgent = async (
     };
 
     const endpoints = [
-        `/tickets/${tipo}/${ticketId}/assign`,
-        `/tickets/${tipo}/${ticketId}/asignar`,
-        `/tickets/${tipo}/${ticketId}/asignacion`,
+        ticketApiPath(`/tickets/${tipo}/${ticketId}/assign`),
+        ticketApiPath(`/tickets/${tipo}/${ticketId}/asignar`),
+        ticketApiPath(`/tickets/${tipo}/${ticketId}/asignacion`),
     ];
 
     let lastError: unknown;
@@ -755,8 +760,8 @@ export const getTicketMessages = async (
   try {
     const endpointBase =
       tipo === 'municipio'
-        ? `/tickets/chat/${ticketId}/mensajes`
-        : `/tickets/chat/pyme/${ticketId}/mensajes`;
+        ? ticketApiPath(`/tickets/chat/${ticketId}/mensajes`)
+        : ticketApiPath(`/tickets/chat/pyme/${ticketId}/mensajes`);
     const publicAccess = opts?.public ? resolvePublicTicketAccess(opts.pin) : null;
     const endpoint = publicAccess?.query
       ? `${endpointBase}?${publicAccess.query}`
@@ -839,7 +844,7 @@ export const getTicketTimeline = async (
   opts?: { public?: boolean; pin?: string }
 ): Promise<{ estado_chat: string; history: TicketHistoryEvent[]; messages: Message[]; unified_conversation_stream: UnifiedConversationStreamItem[] }> => {
   try {
-    const endpointBase = `/tickets/${tipo}/${ticketId}/timeline`;
+    const endpointBase = ticketApiPath(`/tickets/${tipo}/${ticketId}/timeline`);
     const publicAccess = opts?.public ? resolvePublicTicketAccess(opts.pin) : null;
     const endpoint = publicAccess?.query
       ? `${endpointBase}?${publicAccess.query}`
@@ -927,7 +932,7 @@ export const updateTicketPresence = async (
     presenceStatus: 'active' | 'idle' | 'inactive',
     opts?: { public?: boolean; pin?: string }
 ): Promise<TicketRealtimeState | null> => {
-    const endpointBase = `/tickets/${tipo}/${ticketId}/presence`;
+    const endpointBase = ticketApiPath(`/tickets/${tipo}/${ticketId}/presence`);
     const publicAccess = opts?.public ? resolvePublicTicketAccess(opts.pin) : null;
     const endpoint = publicAccess?.query
         ? `${endpointBase}?${publicAccess.query}`
@@ -949,7 +954,7 @@ export const updateTicketReadState = async (
     lastReadCommentId: string | number,
     opts?: { public?: boolean; pin?: string }
 ): Promise<TicketRealtimeState | null> => {
-    const endpointBase = `/tickets/${tipo}/${ticketId}/read-state`;
+    const endpointBase = ticketApiPath(`/tickets/${tipo}/${ticketId}/read-state`);
     const publicAccess = opts?.public ? resolvePublicTicketAccess(opts.pin) : null;
     const endpoint = publicAccess?.query
         ? `${endpointBase}?${publicAccess.query}`
@@ -1013,9 +1018,9 @@ export const sendMessage = async (
 
         const baseEndpoint = opts?.public
             ? (tipo === 'municipio'
-                ? `/tickets/chat/${ticketId}/responder_ciudadano`
-                : `/tickets/chat/pyme/${ticketId}/responder_ciudadano`)
-            : `/tickets/${tipo}/${ticketId}/responder`;
+                ? ticketApiPath(`/tickets/chat/${ticketId}/responder_ciudadano`)
+                : ticketApiPath(`/tickets/chat/pyme/${ticketId}/responder_ciudadano`))
+            : ticketApiPath(`/tickets/${tipo}/${ticketId}/responder`);
         const publicAccess = opts?.public ? resolvePublicTicketAccess(opts.pin) : null;
         const endpoint = publicAccess?.query
             ? `${baseEndpoint}?${publicAccess.query}`

@@ -4,12 +4,16 @@ import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
 import useRequireRole from "@/hooks/useRequireRole";
 import type { Role } from "@/utils/roles";
-import { Mail, Phone, Search, Users } from "lucide-react";
+import { toast } from "@/components/ui/use-toast";
+import { getTenant } from "@/utils/tenant";
+import { useUser } from "@/hooks/useUser";
+import { CalendarClock, CheckCircle, Mail, MessageSquare, Phone, Search, Send, ShieldCheck, Users } from "lucide-react";
 
 type RawUsuario = Record<string, any>;
 
@@ -24,6 +28,21 @@ interface Usuario {
   createdAt?: string | null;
   lastSeen?: string | null;
   marketing?: boolean;
+}
+
+interface CampaignResult {
+  campaign_id?: string;
+  mode?: string;
+  channel?: string;
+  totals?: {
+    requested?: number;
+    resolved?: number;
+    eligible?: number;
+    excluded_optout?: number;
+    excluded_frequency?: number;
+    excluded_without_channel?: number;
+  };
+  request_id?: string;
 }
 
 const phoneCandidates = [
@@ -102,8 +121,9 @@ const normalizeUsuario = (raw: RawUsuario, index: number): Usuario => {
 };
 
 export default function UsuariosPage() {
-  useRequireRole(['admin', 'empleado', 'super_admin'] as Role[]);
+  useRequireRole(['tenant_admin', 'employee', 'superadmin'] as Role[]);
   const navigate = useNavigate();
+  const { user } = useUser();
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -111,7 +131,24 @@ export default function UsuariosPage() {
   const [marketingOnly, setMarketingOnly] = useState(false);
   const [sortConfig, setSortConfig] = useState<{ key: keyof Usuario; direction: 'asc' | 'desc' } | null>(null);
   const [page, setPage] = useState(1);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [campaignChannel, setCampaignChannel] = useState<'whatsapp' | 'email'>('whatsapp');
+  const [campaignMessage, setCampaignMessage] = useState('Hola, tenemos una novedad importante para compartirte.');
+  const [campaignLink, setCampaignLink] = useState('');
+  const [campaignSending, setCampaignSending] = useState(false);
+  const [campaignResult, setCampaignResult] = useState<CampaignResult | null>(null);
   const pageSize = 25;
+
+  const tenantSlug = React.useMemo(
+    () =>
+      getTenant({
+        userTenant:
+          user?.tenantSlug ||
+          (user as any)?.tenant_slug ||
+          safeLocalStorage.getItem('tenantSlug'),
+      }),
+    [user],
+  );
 
   const sortedUsuarios = React.useMemo(() => {
     let sortableItems = [...usuarios];
@@ -137,6 +174,18 @@ export default function UsuariosPage() {
     const start = (page - 1) * pageSize;
     return sortedUsuarios.slice(start, start + pageSize);
   }, [sortedUsuarios, page]);
+
+  const selectedUsuarios = React.useMemo(
+    () => usuarios.filter((usuario) => selectedIds.has(String(usuario.id))),
+    [selectedIds, usuarios],
+  );
+
+  const pageIds = React.useMemo(
+    () => paginatedUsuarios.map((usuario) => String(usuario.id)),
+    [paginatedUsuarios],
+  );
+
+  const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds.has(id));
 
   const totalPages = Math.max(1, Math.ceil(sortedUsuarios.length / pageSize));
 
@@ -177,6 +226,97 @@ export default function UsuariosPage() {
   useEffect(() => {
     setPage(1);
   }, [sortedUsuarios.length]);
+
+  useEffect(() => {
+    setSelectedIds((prev) => {
+      const validIds = new Set(usuarios.map((usuario) => String(usuario.id)));
+      const next = new Set([...prev].filter((id) => validIds.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [usuarios]);
+
+  const toggleSelected = (id: number | string) => {
+    const key = String(id);
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  };
+
+  const togglePageSelected = () => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allPageSelected) {
+        pageIds.forEach((id) => next.delete(id));
+      } else {
+        pageIds.forEach((id) => next.add(id));
+      }
+      return next;
+    });
+  };
+
+  const selectMarketingContacts = () => {
+    setSelectedIds(
+      new Set(
+        usuarios
+          .filter((usuario) => usuario.marketing && (campaignChannel === 'email' ? usuario.email !== 'Sin email' : Boolean(usuario.telefono)))
+          .map((usuario) => String(usuario.id)),
+      ),
+    );
+  };
+
+  const sendCampaign = async (dryRun: boolean) => {
+    if (selectedUsuarios.length === 0) {
+      toast({ variant: 'destructive', title: 'Selecciona contactos', description: 'Elegí al menos un usuario para la campaña.' });
+      return;
+    }
+    const message = campaignMessage.trim();
+    if (!message) {
+      toast({ variant: 'destructive', title: 'Mensaje vacío', description: 'Escribí el texto que se va a enviar.' });
+      return;
+    }
+
+    const body = {
+      user_ids: selectedUsuarios.map((usuario) => usuario.id),
+      channel: campaignChannel,
+      message: campaignLink.trim() ? `${message}\n${campaignLink.trim()}` : message,
+      dry_run: dryRun,
+      min_interval_hours: 24,
+      max_per_week: 2,
+      source: 'usuarios_page',
+    };
+
+    const endpoint = tenantSlug
+      ? `/api/admin/tenants/${encodeURIComponent(tenantSlug)}/campaigns/send`
+      : '/api/crm/campaigns/send';
+
+    setCampaignSending(true);
+    setCampaignResult(null);
+    try {
+      const result = await apiFetch<CampaignResult>(endpoint, {
+        method: 'POST',
+        body,
+      });
+      setCampaignResult(result);
+      toast({
+        title: dryRun ? 'Audiencia validada' : 'Campaña registrada',
+        description: `${result.totals?.eligible ?? 0} contactos elegibles. ${result.totals?.excluded_frequency ?? 0} bloqueados por 24h.`,
+      });
+    } catch (e) {
+      toast({
+        variant: 'destructive',
+        title: 'No se pudo preparar la campaña',
+        description: getErrorMessage(e, 'Revisá permisos, tenant y contactos seleccionados.'),
+      });
+    } finally {
+      setCampaignSending(false);
+    }
+  };
 
   const formatDate = (value?: string | null) => {
     if (!value) return "-";
@@ -230,7 +370,7 @@ export default function UsuariosPage() {
           <div>
             <h1 className="text-3xl font-black tracking-tight">Usuarios y contactos</h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-              Base operativa para atencion, segmentacion y seguimiento. Los datos se muestran tal como los publica el backend.
+              CRM operativo para segmentar, revisar consentimiento y preparar campanas trazables sin inventar datos locales.
             </p>
           </div>
           <Button variant="outline" onClick={() => navigate("/perfil")}>Volver</Button>
@@ -307,6 +447,106 @@ export default function UsuariosPage() {
           Solo con marketing
         </label>
       </div>
+      <Card className="border-primary/20 bg-card/95 shadow-sm">
+        <CardHeader className="pb-3">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Send className="h-5 w-5 text-primary" />
+                Campana 24h
+              </CardTitle>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Valida audiencia, opt-in y frecuencia en backend. WhatsApp/email quedan registrados como interacciones.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="secondary" className="gap-1">
+                <ShieldCheck className="h-3.5 w-3.5" />
+                24h por contacto
+              </Badge>
+              <Badge variant="outline">{selectedUsuarios.length} seleccionados</Badge>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_280px]">
+          <div className="space-y-3">
+            <Textarea
+              value={campaignMessage}
+              onChange={(event) => setCampaignMessage(event.target.value)}
+              rows={3}
+              placeholder="Mensaje breve para WhatsApp o email"
+            />
+            <Input
+              value={campaignLink}
+              onChange={(event) => setCampaignLink(event.target.value)}
+              placeholder="Link opcional: encuesta, flyer, promocion o comunicado"
+            />
+            {campaignResult && (
+              <div className="grid gap-2 rounded-xl border border-border/70 bg-background/60 p-3 text-sm sm:grid-cols-3">
+                <div>
+                  <p className="text-xs text-muted-foreground">Elegibles</p>
+                  <p className="text-xl font-bold">{campaignResult.totals?.eligible ?? 0}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Bloqueados 24h/semana</p>
+                  <p className="text-xl font-bold">{campaignResult.totals?.excluded_frequency ?? 0}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Sin canal u opt-out</p>
+                  <p className="text-xl font-bold">
+                    {(campaignResult.totals?.excluded_without_channel ?? 0) + (campaignResult.totals?.excluded_optout ?? 0)}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="flex flex-col gap-2 rounded-xl border border-border/70 bg-background/60 p-3">
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                type="button"
+                variant={campaignChannel === 'whatsapp' ? 'default' : 'outline'}
+                onClick={() => setCampaignChannel('whatsapp')}
+                className="gap-2"
+              >
+                <MessageSquare className="h-4 w-4" />
+                WhatsApp
+              </Button>
+              <Button
+                type="button"
+                variant={campaignChannel === 'email' ? 'default' : 'outline'}
+                onClick={() => setCampaignChannel('email')}
+                className="gap-2"
+              >
+                <Mail className="h-4 w-4" />
+                Email
+              </Button>
+            </div>
+            <Button type="button" variant="outline" onClick={selectMarketingContacts} className="justify-start gap-2">
+              <CheckCircle className="h-4 w-4" />
+              Seleccionar opt-in
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={campaignSending}
+              onClick={() => sendCampaign(true)}
+              className="justify-start gap-2"
+            >
+              <CalendarClock className="h-4 w-4" />
+              Validar audiencia
+            </Button>
+            <Button
+              type="button"
+              disabled={campaignSending}
+              onClick={() => sendCampaign(false)}
+              className="justify-start gap-2"
+            >
+              <Send className="h-4 w-4" />
+              Registrar envio
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
       {usuarios.length === 0 ? (
         <p>No hay usuarios registrados.</p>
       ) : (
@@ -316,6 +556,13 @@ export default function UsuariosPage() {
             <table className="w-full min-w-[980px] text-sm">
               <thead>
                 <tr className="text-left font-semibold">
+                  <th className="w-10 p-2">
+                    <Checkbox
+                      checked={allPageSelected}
+                      aria-label="Seleccionar pagina"
+                      onCheckedChange={togglePageSelected}
+                    />
+                  </th>
                   <th className="p-2 cursor-pointer" onClick={() => requestSort('nombre')}>
                     Nombre {sortConfig?.key === 'nombre' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}
                   </th>
@@ -336,6 +583,13 @@ export default function UsuariosPage() {
               <tbody>
                 {paginatedUsuarios.map(u => (
                   <tr key={u.id} className="border-t">
+                    <td className="p-2">
+                      <Checkbox
+                        checked={selectedIds.has(String(u.id))}
+                        aria-label={`Seleccionar ${u.nombre}`}
+                        onCheckedChange={() => toggleSelected(u.id)}
+                      />
+                    </td>
                     <td className="p-2">{u.nombre}</td>
                     <td className="p-2">{u.email}</td>
                     <td className="p-2">{u.telefono || '-'}</td>

@@ -92,8 +92,8 @@ describe('analyticsService fetch helpers', () => {
     const result = await getAnalyticsEventSchema(42, 'tenant-a');
 
     expect(result.contract_version).toBe('analytics.event_schema.v1');
-    expect(apiFetchMock).toHaveBeenNthCalledWith(1, '/analytics/event/schema?tenant_id=42', { tenantSlug: 'tenant-a' });
-    expect(apiFetchMock).toHaveBeenNthCalledWith(2, '/api/analytics/event/schema?tenant_id=42', { tenantSlug: 'tenant-a' });
+    expect(apiFetchMock).toHaveBeenNthCalledWith(1, '/api/analytics/event/schema?tenant_id=42', { tenantSlug: 'tenant-a' });
+    expect(apiFetchMock).toHaveBeenNthCalledWith(2, '/analytics/event/schema?tenant_id=42', { tenantSlug: 'tenant-a' });
   });
 
   it('posts analytics event and validates ingest ack contract', async () => {
@@ -109,7 +109,7 @@ describe('analyticsService fetch helpers', () => {
     const result = await postAnalyticsEvent({ event_name: 'ticket_created' }, 'tenant-a');
 
     expect(result.contract_version).toBe('analytics.event_ingest.v1');
-    expect(apiFetchMock).toHaveBeenCalledWith('/analytics/event', {
+    expect(apiFetchMock).toHaveBeenCalledWith('/api/analytics/event', {
       method: 'POST',
       body: { event_name: 'ticket_created' },
       tenantSlug: 'tenant-a',

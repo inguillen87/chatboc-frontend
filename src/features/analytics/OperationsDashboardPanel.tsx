@@ -89,6 +89,22 @@ const itemValue = (item: OperationsBucketItem) =>
 const itemLabel = (item: OperationsBucketItem) =>
   asString(item.label) ?? asString(item.title) ?? asString(item.key) ?? asString(item.id) ?? '--';
 
+const bucketItemKey = (item: OperationsBucketItem, index: number) =>
+  [
+    asString(item.id),
+    asString(item.key),
+    asString(item.label),
+    asString(item.title),
+    asString((item as Record<string, unknown>).categoria),
+    asString((item as Record<string, unknown>).category),
+    asString((item as Record<string, unknown>).coordinates),
+    asString((item as Record<string, unknown>).lat),
+    asString((item as Record<string, unknown>).lng),
+    String(index),
+  ]
+    .filter(Boolean)
+    .join(':');
+
 const hasItems = (items?: OperationsBucketItem[]) => Array.isArray(items) && items.length > 0;
 
 const mergeByIdentity = <T extends { id?: string; title?: string; reason_code?: string }>(items: T[]) => {
@@ -1484,7 +1500,7 @@ function BreakdownCard({ title, items }: { title: string; items: OperationsBucke
       </CardHeader>
       <CardContent className="space-y-3">
         {items.slice(0, 8).map((item, index) => (
-          <BreakdownRow key={item.id || item.key || item.label || index} item={item} />
+          <BreakdownRow key={bucketItemKey(item, index)} item={item} />
         ))}
       </CardContent>
     </Card>

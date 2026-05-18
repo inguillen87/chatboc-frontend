@@ -3,7 +3,6 @@ import { apiFetch, ApiError, getErrorMessage, resolveTenantSlug } from '@/utils/
 import {
   getEmployeeCoverageV2,
   getEmployeeRoutingV2,
-  patchEmployeeRoutingScopeV2,
   type CoverageBucket,
   type EmployeeCoverageV2,
   type EmployeeRoutingV2,
@@ -20,16 +19,23 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import {
   AlertTriangle,
+  BarChart3,
+  ClipboardList,
   KeyRound,
   Layers3,
   MapPinned,
   PencilLine,
+  Search,
+  Settings,
+  ShieldCheck,
   Sparkles,
+  Store,
+  UserCog,
   UserPlus,
   Users2,
 } from 'lucide-react';
 
-const EMPLOYEES_API_BASE = '/api/empleados';
+const EMPLOYEES_API_BASE = '/api/admin/employees';
 
 type CategoryId = string;
 type AnyRecord = Record<string, unknown>;
@@ -66,6 +72,80 @@ interface EmployeesResponse {
   categories?: unknown[];
   items?: unknown[];
 }
+
+const DEFAULT_ROLE_OPTIONS = ['empleado', 'operador', 'supervisor', 'analista', 'manager'];
+
+const PERMISSION_GROUPS = [
+  {
+    id: 'tickets',
+    label: 'Tickets y atencion',
+    icon: ClipboardList,
+    items: [
+      { value: 'tickets_read', label: 'Ver tickets' },
+      { value: 'tickets_update', label: 'Responder y cambiar estado' },
+      { value: 'tickets_assign', label: 'Asignar responsables' },
+      { value: 'live_chat', label: 'Atender chat en vivo' },
+    ],
+  },
+  {
+    id: 'analytics',
+    label: 'Reportes y encuestas',
+    icon: BarChart3,
+    items: [
+      { value: 'analytics_read', label: 'Ver estadisticas' },
+      { value: 'surveys_read', label: 'Ver encuestas' },
+      { value: 'surveys_write', label: 'Crear y publicar encuestas' },
+    ],
+  },
+  {
+    id: 'commerce',
+    label: 'Catalogo y pedidos',
+    icon: Store,
+    items: [
+      { value: 'orders_read', label: 'Ver pedidos' },
+      { value: 'orders_update', label: 'Gestionar pedidos' },
+      { value: 'catalog_read', label: 'Ver catalogo' },
+      { value: 'catalog_write', label: 'Editar catalogo e inventario' },
+    ],
+  },
+  {
+    id: 'admin',
+    label: 'Equipo y configuracion',
+    icon: Settings,
+    items: [
+      { value: 'employees_read', label: 'Ver empleados' },
+      { value: 'employees_write', label: 'Crear y editar empleados' },
+      { value: 'settings_read', label: 'Ver configuracion' },
+    ],
+  },
+];
+
+const ROLE_TEMPLATES = [
+  {
+    id: 'frontdesk',
+    label: 'Mesa de entrada',
+    roles: ['empleado'],
+    permisos: ['tickets_read', 'tickets_update', 'live_chat'],
+  },
+  {
+    id: 'supervisor',
+    label: 'Supervisor operativo',
+    roles: ['supervisor'],
+    permisos: ['tickets_read', 'tickets_update', 'tickets_assign', 'analytics_read'],
+  },
+  {
+    id: 'commerce',
+    label: 'Catalogo y pedidos',
+    roles: ['operador'],
+    permisos: ['orders_read', 'orders_update', 'catalog_read', 'catalog_write'],
+  },
+  {
+    id: 'surveys',
+    label: 'Encuestas y reportes',
+    roles: ['analista'],
+    permisos: ['surveys_read', 'surveys_write', 'analytics_read'],
+  },
+];
 
 const isValidEmail = (value: string) => /.+@.+\..+/.test(value.trim());
 
@@ -225,6 +305,9 @@ const selectedCategorySlugs = (ids: CategoryId[], categories: Category[]) =>
 
 const bucketsToValues = (items: CoverageBucket[]) => unique(items.map((item) => item.id || item.label));
 
+const mergeOptionValues = (...groups: string[][]) =>
+  unique(groups.flat()).map((value) => ({ value, label: value }));
+
 const dimensionValues = (routing: EmployeeRoutingV2 | null, keys: string[]) => {
   const dimensions = routing?.dimensions ?? {};
   return unique(keys.flatMap((key) => normalizeStringList(dimensions[key])));
@@ -265,7 +348,6 @@ const TeamStatCard = ({
 }) => (
   <Card className="overflow-hidden border-border/60 bg-background/80 shadow-sm">
     <CardContent className="relative p-4">
-      <div className="absolute -right-6 top-1 h-20 w-20 rounded-full bg-primary/5 blur-2xl" />
       <div className="relative">
         <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/15">
           <Icon className="h-4 w-4" />
@@ -349,6 +431,116 @@ const OptionGroup = ({
   </div>
 );
 
+const SearchableOptionGroup = ({
+  label,
+  options,
+  selected,
+  onToggle,
+  empty,
+}: {
+  label: string;
+  options: Array<{ value: string; label: string }>;
+  selected: string[];
+  onToggle: (value: string) => void;
+  empty: string;
+}) => {
+  const [query, setQuery] = useState('');
+  const filtered = useMemo(() => {
+    const term = query.trim().toLowerCase();
+    if (!term) return options;
+    return options.filter((option) => `${option.label} ${option.value}`.toLowerCase().includes(term));
+  }, [options, query]);
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-3">
+        <label className="text-sm font-medium">{label}</label>
+        <span className="text-xs text-muted-foreground">{selected.length} seleccionadas</span>
+      </div>
+      <div className="rounded-lg border border-border/70 bg-background">
+        <div className="flex items-center gap-2 border-b border-border/60 px-3 py-2">
+          <Search className="h-4 w-4 text-muted-foreground" />
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Buscar categoria"
+            className="h-8 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+          />
+        </div>
+        <div className="max-h-48 overflow-y-auto p-2">
+          {filtered.map((option) => {
+            const active = selected.includes(option.value);
+            return (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => onToggle(option.value)}
+                className={`mb-1 flex w-full items-center justify-between rounded-md border px-3 py-2 text-left text-sm transition ${
+                  active
+                    ? 'border-primary bg-primary/10 text-primary'
+                    : 'border-transparent bg-muted/20 text-foreground hover:border-border'
+                }`}
+              >
+                <span className="truncate pr-3">{option.label}</span>
+                {active ? <ShieldCheck className="h-4 w-4 shrink-0" /> : null}
+              </button>
+            );
+          })}
+          {!filtered.length ? <p className="px-2 py-3 text-sm text-muted-foreground">{empty}</p> : null}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const PermissionGroupSelector = ({
+  selected,
+  onToggle,
+}: {
+  selected: string[];
+  onToggle: (value: string) => void;
+}) => (
+  <div className="space-y-3">
+    <div className="flex items-center justify-between gap-3">
+      <label className="text-sm font-medium">Secciones y permisos</label>
+      <span className="text-xs text-muted-foreground">{selected.length} permisos activos</span>
+    </div>
+    <div className="grid gap-3 lg:grid-cols-2">
+      {PERMISSION_GROUPS.map((group) => {
+        const Icon = group.icon;
+        return (
+          <div key={group.id} className="rounded-lg border border-border/70 bg-background p-3">
+            <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
+              <Icon className="h-4 w-4 text-primary" />
+              {group.label}
+            </div>
+            <div className="space-y-2">
+              {group.items.map((item) => {
+                const active = selected.includes(item.value);
+                return (
+                  <button
+                    key={item.value}
+                    type="button"
+                    onClick={() => onToggle(item.value)}
+                    className={`flex w-full items-center justify-between rounded-md border px-3 py-2 text-left text-xs font-medium transition ${
+                      active
+                        ? 'border-primary bg-primary text-primary-foreground'
+                        : 'border-border bg-muted/20 hover:border-primary/50'
+                    }`}
+                  >
+                    <span>{item.label}</span>
+                    {active ? <ShieldCheck className="h-3.5 w-3.5" /> : null}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  </div>
+);
+
 const ScopeBadges = ({ employee }: { employee: InternalUser }) => {
   const scope = employee.scope ?? normalizeScope(null);
   const entries = [
@@ -379,6 +571,7 @@ export default function InternalUsers() {
   const [coverage, setCoverage] = useState<EmployeeCoverageV2 | null>(null);
   const [routing, setRouting] = useState<EmployeeRoutingV2 | null>(null);
   const [lastCreatedEmployee, setLastCreatedEmployee] = useState<InternalUser | null>(null);
+  const [employeeSearch, setEmployeeSearch] = useState('');
 
   const [nombre, setNombre] = useState('');
   const [email, setEmail] = useState('');
@@ -413,7 +606,9 @@ export default function InternalUsers() {
 
       let cats = normalizeCategoryList(employeesData);
       if (cats.length === 0) {
-        const categoriesData = await apiFetch<unknown>(`${EMPLOYEES_API_BASE}/categorias`, { tenantSlug }).catch(() => null);
+        const categoriesData = await apiFetch<unknown>(`/api/admin/tenants/${encodeURIComponent(tenantSlug)}/ticket-categories`, {
+          tenantSlug,
+        }).catch(() => null);
         cats = normalizeCategoryList(categoriesData);
       }
 
@@ -449,7 +644,7 @@ export default function InternalUsers() {
 
   const roleOptions = useMemo(() => {
     const backendRoles = unique(employees.flatMap((employee) => [...(employee.roles ?? []), employee.rol ?? '']));
-    return unique(['empleado', ...backendRoles]).map((role) => ({ value: role, label: role }));
+    return mergeOptionValues(DEFAULT_ROLE_OPTIONS, backendRoles);
   }, [employees]);
 
   const zoneOptions = useMemo(() => {
@@ -470,15 +665,6 @@ export default function InternalUsers() {
     return values.map((value) => ({ value, label: value }));
   }, [coverage?.channels, employees, routing]);
 
-  const permisoOptions = useMemo(() => {
-    const values = unique([
-      ...dimensionValues(routing, ['permisos', 'permissions']),
-      ...bucketsToValues(coverage?.permisos ?? []),
-      ...employeeScopeValues(employees, 'permisos'),
-    ]);
-    return values.map((value) => ({ value, label: value }));
-  }, [coverage?.permisos, employees, routing]);
-
   const categoryOptions = useMemo(
     () => categories.map((cat) => ({ value: cat.id, label: cat.nombre })),
     [categories],
@@ -497,6 +683,26 @@ export default function InternalUsers() {
     });
     return map;
   }, [routing?.employees]);
+  const filteredEmployees = useMemo(() => {
+    const term = employeeSearch.trim().toLowerCase();
+    if (!term) return employees;
+    return employees.filter((employee) => {
+      const scope = employee.scope ?? normalizeScope(null);
+      return [
+        employee.nombre,
+        employee.email,
+        employee.rol ?? '',
+        ...(employee.roles ?? []),
+        ...scope.categorias,
+        ...scope.zonas,
+        ...scope.channels,
+        ...scope.permisos,
+      ]
+        .join(' ')
+        .toLowerCase()
+        .includes(term);
+    });
+  }, [employeeSearch, employees]);
   const unassignedCount = routing?.queues.unassigned_count ?? 0;
 
   const resetCreateForm = () => {
@@ -508,6 +714,16 @@ export default function InternalUsers() {
     setSelectedZonas([]);
     setSelectedChannels([]);
     setSelectedPermisos([]);
+  };
+
+  const applyCreateTemplate = (template: (typeof ROLE_TEMPLATES)[number]) => {
+    setRoles(template.roles);
+    setSelectedPermisos(unique([...selectedPermisos, ...template.permisos]));
+  };
+
+  const applyEditTemplate = (template: (typeof ROLE_TEMPLATES)[number]) => {
+    setEditRoles(template.roles);
+    setEditPermisos(unique([...editPermisos, ...template.permisos]));
   };
 
   const handleCreate = async (event: React.FormEvent) => {
@@ -612,7 +828,6 @@ export default function InternalUsers() {
         tenantSlug,
         body: payload,
       });
-      await patchEmployeeRoutingScopeV2(editingUser.id, scope, tenantSlug);
 
       toast.success('Empleado actualizado.');
       setEditingUser(null);
@@ -628,18 +843,16 @@ export default function InternalUsers() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 px-4 pb-8">
-      <div className="relative overflow-hidden rounded-[28px] border border-border/60 bg-gradient-to-br from-background via-primary/5 to-sky-500/10 p-6 shadow-sm">
-        <div className="absolute -right-10 top-0 h-40 w-40 rounded-full bg-primary/10 blur-3xl" />
-        <div className="absolute bottom-0 left-0 h-32 w-32 rounded-full bg-sky-500/10 blur-3xl" />
-        <div className="relative space-y-5">
+      <div className="rounded-lg border border-border/60 bg-card p-6 shadow-sm">
+        <div className="space-y-5">
           <Badge variant="outline" className="w-fit border-primary/20 bg-background/80 px-3 py-1 text-primary">
-            <Sparkles className="mr-2 h-3.5 w-3.5" />
-            Team control center
+            <UserCog className="mr-2 h-3.5 w-3.5" />
+            CRM de empleados
           </Badge>
           <div>
-            <h2 className="text-3xl font-black tracking-tight text-foreground">Gestion de empleados</h2>
+            <h2 className="text-3xl font-black tracking-tight text-foreground">Equipo, accesos y cobertura</h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-              Crea equipo operativo y limita su alcance por categorias, zonas, channels y permisos publicados por backend.
+              Crea usuarios internos, asigna contrasena temporal, roles, categorias de atencion, zonas, canales y permisos por seccion del sistema.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -660,7 +873,7 @@ export default function InternalUsers() {
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
         <Card className="overflow-hidden border-border/60 bg-background/85 shadow-sm">
-          <CardHeader className="border-b border-border/50 bg-gradient-to-r from-emerald-500/5 via-primary/5 to-transparent">
+          <CardHeader className="border-b border-border/50">
             <CardTitle>Cobertura operativa</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4 pt-6 md:grid-cols-3">
@@ -741,7 +954,22 @@ export default function InternalUsers() {
                 onToggle={(value) => toggleValue(value, roles, setRoles, { keepOne: true })}
                 empty="Backend no publico roles adicionales."
               />
-              <OptionGroup
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Plantillas rapidas</p>
+                <div className="flex flex-wrap gap-2">
+                  {ROLE_TEMPLATES.map((template) => (
+                    <button
+                      key={template.id}
+                      type="button"
+                      onClick={() => applyCreateTemplate(template)}
+                      className="rounded-md border border-border bg-muted/20 px-3 py-2 text-xs font-semibold transition hover:border-primary/60"
+                    >
+                      {template.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <SearchableOptionGroup
                 label="Categorias de tickets"
                 options={categoryOptions}
                 selected={categoriaIds}
@@ -763,14 +991,11 @@ export default function InternalUsers() {
                   onToggle={(value) => toggleValue(value, selectedChannels, setSelectedChannels)}
                   empty="Sin channels publicados."
                 />
-                <OptionGroup
-                  label="Permisos"
-                  options={permisoOptions}
-                  selected={selectedPermisos}
-                  onToggle={(value) => toggleValue(value, selectedPermisos, setSelectedPermisos)}
-                  empty="Sin permisos publicados."
-                />
               </div>
+              <PermissionGroupSelector
+                selected={selectedPermisos}
+                onToggle={(value) => toggleValue(value, selectedPermisos, setSelectedPermisos)}
+              />
 
               <Button type="submit" className="w-full gap-2 rounded-xl sm:w-auto">
                 <UserPlus className="h-4 w-4" />
@@ -803,12 +1028,27 @@ export default function InternalUsers() {
             </div>
 
             <OptionGroup label="Roles" options={roleOptions} selected={editRoles} keepOne onToggle={(value) => toggleValue(value, editRoles, setEditRoles, { keepOne: true })} empty="Backend no publico roles adicionales." />
-            <OptionGroup label="Categorias" options={categoryOptions} selected={editCategoriaIds} onToggle={(value) => toggleValue(value, editCategoriaIds, setEditCategoriaIds)} empty="Sin categorias publicadas." />
-            <div className="grid gap-4 lg:grid-cols-3">
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Plantillas rapidas</p>
+              <div className="flex flex-wrap gap-2">
+                {ROLE_TEMPLATES.map((template) => (
+                  <button
+                    key={template.id}
+                    type="button"
+                    onClick={() => applyEditTemplate(template)}
+                    className="rounded-md border border-border bg-muted/20 px-3 py-2 text-xs font-semibold transition hover:border-primary/60"
+                  >
+                    {template.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <SearchableOptionGroup label="Categorias" options={categoryOptions} selected={editCategoriaIds} onToggle={(value) => toggleValue(value, editCategoriaIds, setEditCategoriaIds)} empty="Sin categorias publicadas." />
+            <div className="grid gap-4 lg:grid-cols-2">
               <OptionGroup label="Zonas" options={zoneOptions} selected={editZonas} onToggle={(value) => toggleValue(value, editZonas, setEditZonas)} empty="Sin zonas publicadas." />
               <OptionGroup label="Channels" options={channelOptions} selected={editChannels} onToggle={(value) => toggleValue(value, editChannels, setEditChannels)} empty="Sin channels publicados." />
-              <OptionGroup label="Permisos" options={permisoOptions} selected={editPermisos} onToggle={(value) => toggleValue(value, editPermisos, setEditPermisos)} empty="Sin permisos publicados." />
             </div>
+            <PermissionGroupSelector selected={editPermisos} onToggle={(value) => toggleValue(value, editPermisos, setEditPermisos)} />
             <Button type="submit" className="w-full gap-2 rounded-xl sm:w-auto">
               <Sparkles className="h-4 w-4" />
               Actualizar alcance
@@ -818,9 +1058,20 @@ export default function InternalUsers() {
       ) : null}
 
       <div className="overflow-hidden rounded-[28px] border border-border/60 bg-card shadow-sm">
-        <div className="border-b border-border/50 bg-gradient-to-r from-primary/5 via-sky-500/5 to-violet-500/5 px-5 py-4">
-          <h3 className="text-base font-semibold tracking-tight text-foreground">Directorio interno</h3>
-          <p className="mt-1 text-sm text-muted-foreground">Roles, alcance operativo y carga abierta por empleado.</p>
+        <div className="flex flex-col gap-3 border-b border-border/50 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h3 className="text-base font-semibold tracking-tight text-foreground">Directorio interno</h3>
+            <p className="mt-1 text-sm text-muted-foreground">Roles, alcance operativo y carga abierta por empleado.</p>
+          </div>
+          <div className="flex h-10 min-w-0 items-center gap-2 rounded-md border border-border bg-background px-3 lg:w-80">
+            <Search className="h-4 w-4 text-muted-foreground" />
+            <input
+              value={employeeSearch}
+              onChange={(event) => setEmployeeSearch(event.target.value)}
+              placeholder="Buscar empleado, categoria o permiso"
+              className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+            />
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[860px] text-left text-sm">
@@ -835,7 +1086,7 @@ export default function InternalUsers() {
               </tr>
             </thead>
             <tbody>
-              {employees.map((employee) => {
+              {filteredEmployees.map((employee) => {
                 const workload =
                   routingEmployeesById.get(String(employee.id)) ??
                   routingEmployeesById.get(employee.email.toLowerCase());
@@ -866,9 +1117,11 @@ export default function InternalUsers() {
                   </tr>
                 );
               })}
-              {employees.length === 0 ? (
+              {filteredEmployees.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="p-4 text-center text-muted-foreground">No hay empleados registrados.</td>
+                  <td colSpan={6} className="p-4 text-center text-muted-foreground">
+                    {employees.length === 0 ? 'No hay empleados registrados.' : 'No hay empleados para ese filtro.'}
+                  </td>
                 </tr>
               ) : null}
             </tbody>

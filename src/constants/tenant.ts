@@ -1,6 +1,7 @@
 export const TENANT_ROUTE_PREFIXES = ['m', 'market', 't', 'tenant', 'municipio', 'pyme'] as const;
 
 export const TENANT_PLACEHOLDER_SLUGS = new Set([
+  'e',
   'iframe',
   'embed',
   'widget',
@@ -30,6 +31,8 @@ export const TENANT_PLACEHOLDER_SLUGS = new Set([
   'chat',
   'chatpos',
   'chatcrm',
+  'crm',
+  'clientes',
   'admin',
   'dashboard',
   'analytics',
