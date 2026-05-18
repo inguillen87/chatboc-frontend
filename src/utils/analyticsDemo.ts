@@ -55,7 +55,7 @@ function buildHeatmap(): DashboardData['heatmap'] {
     breakdown: cell.breakdown,
   }));
 
-  return { cells, hotspots, chronic: [] };
+  return { points: [], cells, hotspots, chronic: [] };
 }
 
 function buildPoints(): DashboardData['points'] {

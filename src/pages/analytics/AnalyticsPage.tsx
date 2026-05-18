@@ -75,6 +75,9 @@ const AnalyticsPage = () => {
   const [channelFilter, setChannelFilter] = useState(searchParams.get('canal') || '');
   const [categoryFilter, setCategoryFilter] = useState(searchParams.get('categoria') || '');
   const [zoneFilter, setZoneFilter] = useState(searchParams.get('distrito') || '');
+  const [genderFilter, setGenderFilter] = useState(searchParams.get('genero') || searchParams.get('sexo') || '');
+  const [ageRangeFilter, setAgeRangeFilter] = useState(searchParams.get('rango_edad') || '');
+  const [sourceFilter, setSourceFilter] = useState(searchParams.get('source') || searchParams.get('fuente') || '');
   const [scope, setScope] = useState(() => resolveDefaultScope(tenant?.tipo));
   const [executiveSummary, setExecutiveSummary] = useState<string>('');
   const [loadingSummary, setLoadingSummary] = useState(false);
@@ -144,13 +147,16 @@ const AnalyticsPage = () => {
     if (channelFilter.trim()) next.set('canal', channelFilter.trim()); else next.delete('canal');
     if (categoryFilter.trim()) next.set('categoria', categoryFilter.trim()); else next.delete('categoria');
     if (zoneFilter.trim()) next.set('distrito', zoneFilter.trim()); else next.delete('distrito');
+    if (genderFilter.trim()) next.set('genero', genderFilter.trim()); else next.delete('genero');
+    if (ageRangeFilter.trim()) next.set('rango_edad', ageRangeFilter.trim()); else next.delete('rango_edad');
+    if (sourceFilter.trim()) next.set('source', sourceFilter.trim()); else next.delete('source');
     next.set('scope', scope);
     const serializedCurrent = searchParams.toString();
     const serializedNext = next.toString();
     if (serializedCurrent !== serializedNext) {
       navigate({ search: `?${serializedNext}` }, { replace: true });
     }
-  }, [timeRange, channelFilter, categoryFilter, zoneFilter, scope, searchParams, navigate]);
+  }, [timeRange, channelFilter, categoryFilter, zoneFilter, genderFilter, ageRangeFilter, sourceFilter, scope, searchParams, navigate]);
 
   useEffect(() => {
     setScope((prevScope) => {
@@ -182,6 +188,9 @@ const AnalyticsPage = () => {
         canal: channelFilter || undefined,
         categoria: categoryFilter || undefined,
         distrito: zoneFilter || undefined,
+        genero: genderFilter || undefined,
+        rango_edad: ageRangeFilter || undefined,
+        source: sourceFilter || undefined,
       };
       let result: AnalyticsSummary;
 
@@ -219,7 +228,7 @@ const AnalyticsPage = () => {
       }
     } catch (err: any) {
       console.error(err);
-      const friendlyMessage = err instanceof ApiError ? getEnterpriseErrorMessage(err) : 'No se pudo cargar el dashboard.';
+      const friendlyMessage = err instanceof ApiError ? getEnterpriseErrorMessage(err.status, 'load_analytics') : 'No se pudo cargar el dashboard.';
       setError(friendlyMessage || 'No se pudo cargar el dashboard.');
     } finally {
       setLoading(false);
@@ -230,7 +239,7 @@ const AnalyticsPage = () => {
     if (tenantId || currentSlug) {
         fetchData();
     }
-  }, [tenantId, currentSlug, dateRange, activeTab, scope, channelFilter, categoryFilter, zoneFilter]);
+  }, [tenantId, currentSlug, dateRange, activeTab, scope, channelFilter, categoryFilter, zoneFilter, genderFilter, ageRangeFilter, sourceFilter]);
 
   const normalizeLeadInteractions = (response: LeadInteractionsResponse | null | undefined) => {
     if (!response) return [] as LeadInteractionItem[];
@@ -326,7 +335,19 @@ const AnalyticsPage = () => {
 
   const handleExport = async (format: 'csv' | 'pdf') => {
     if (!tenantId) return;
-    const filters = { tenant_id: tenantId, scope, from: dateRange.from, to: dateRange.to, canal: channelFilter || undefined, categoria: categoryFilter || undefined, distrito: zoneFilter || undefined };
+    const filters = {
+      tenant_id: tenantId,
+      tenantSlug: currentSlug || undefined,
+      scope,
+      from: dateRange.from,
+      to: dateRange.to,
+      canal: channelFilter || undefined,
+      categoria: categoryFilter || undefined,
+      distrito: zoneFilter || undefined,
+      genero: genderFilter || undefined,
+      rango_edad: ageRangeFilter || undefined,
+      source: sourceFilter || undefined,
+    };
     const url = format === 'csv' ? analyticsService.exportCsvUrl(filters) : analyticsService.exportPdfUrl(filters);
     openExportAndTrack(url, async () => {
       fireAndForgetTrackEvent({
@@ -352,12 +373,20 @@ const AnalyticsPage = () => {
           from: dateRange.from,
           to: dateRange.to,
           strict_no_data_message: true,
+          canal: channelFilter || undefined,
+          categoria: categoryFilter || undefined,
+          distrito: zoneFilter || undefined,
+          genero: genderFilter || undefined,
+          rango_edad: ageRangeFilter || undefined,
+          source: sourceFilter || undefined,
         },
         currentSlug || undefined,
       );
       const summaryText = response?.summary || response?.text || '';
       setExecutiveSummary(summaryText);
-      if (!summaryText) {
+      if (response?.reason_code === 'no_operational_data_in_period') {
+        setSummaryError('No hay datos operativos para este periodo.');
+      } else if (!summaryText) {
         setSummaryError('No hay datos suficientes para generar el resumen en este período.');
       }
     } catch (err) {
@@ -484,6 +513,24 @@ const AnalyticsPage = () => {
             placeholder="Zona"
             className="w-full sm:w-[150px]"
           />
+          <Input
+            value={genderFilter}
+            onChange={(e) => setGenderFilter(e.target.value)}
+            placeholder="Genero"
+            className="w-full sm:w-[150px]"
+          />
+          <Input
+            value={ageRangeFilter}
+            onChange={(e) => setAgeRangeFilter(e.target.value)}
+            placeholder="Rango edad"
+            className="w-full sm:w-[150px]"
+          />
+          <Input
+            value={sourceFilter}
+            onChange={(e) => setSourceFilter(e.target.value)}
+            placeholder="Fuente"
+            className="w-full sm:w-[150px]"
+          />
           <Button variant="outline" onClick={() => handleExport('csv')}>Export CSV</Button>
           <Button variant="outline" onClick={() => handleExport('pdf')}>Export PDF</Button>
           <Button variant="default" onClick={handleGenerateExecutiveSummary} disabled={loadingSummary}>
@@ -544,7 +591,20 @@ const AnalyticsPage = () => {
           </TabsContent>
 
           <TabsContent value="geo">
-            {activeTab === 'geo' ? <HeatmapDashboard tenantId={tenantId} dateRange={dateRange} /> : null}
+            {activeTab === 'geo' ? (
+              <HeatmapDashboard
+                tenantId={tenantId}
+                dateRange={dateRange}
+                filters={{
+                  canal: channelFilter || undefined,
+                  categoria: categoryFilter || undefined,
+                  distrito: zoneFilter || undefined,
+                  genero: genderFilter || undefined,
+                  rango_edad: ageRangeFilter || undefined,
+                  source: sourceFilter || undefined,
+                }}
+              />
+            ) : null}
           </TabsContent>
 
           <TabsContent value="operations">

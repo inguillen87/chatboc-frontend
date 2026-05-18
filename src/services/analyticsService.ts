@@ -11,25 +11,122 @@ const SAME_ORIGIN_API_BASE = SAME_ORIGIN_PROXY_BASE || '/api';
 
 export interface AnalyticsFilters {
   tenant_id?: number;
+  tenantId?: number | string;
   from?: string;
   to?: string;
-  context?: 'overview' | 'municipio' | 'pyme';
+  context?: AnalyticsContext;
   scope?: string;
   channel?: string;
   tz?: string;
-  categoria?: string;
+  categoria?: string | string[];
   categorias?: string | string[];
   category?: string;
   categories?: string | string[];
   sexo?: string;
-  genero?: string;
-  rango_edad?: string;
+  genero?: string | string[];
+  gender?: string;
+  edad?: string;
+  age?: string;
+  rango_edad?: string | string[];
+  age_range?: string;
   barrio?: string;
   distrito?: string;
-  canal?: string;
+  source?: string;
+  fuente?: string;
+  canal?: string | string[];
+  estado?: string | string[];
+  agente?: string | string[];
+  zona?: string | string[];
+  etiquetas?: string | string[];
+  metric?: string;
+  group?: string | null;
+  dimension?: string;
+  subject?: string;
+  search?: string | null;
   geo_limit?: number;
-  bbox?: string;
+  bbox?: string | [number, number, number, number];
   tenantSlug?: string;
+}
+
+export type AnalyticsContext = 'overview' | 'municipio' | 'pyme' | 'operaciones' | 'operations';
+
+export interface FilterCatalogResponse {
+  tenants?: string[];
+  canal?: string[];
+  canales?: string[];
+  categoria?: string[];
+  categorias?: string[];
+  estado?: string[];
+  estados?: string[];
+  agente?: string[];
+  agentes?: string[];
+  zona?: string[];
+  zonas?: string[];
+  etiquetas?: string[];
+  [key: string]: unknown;
+}
+
+export interface SummaryResponse {
+  kpis?: Record<string, unknown>;
+  totals?: Record<string, unknown>;
+  items?: unknown[];
+  generatedAt?: string;
+  tenantId?: string | number;
+  sla?: Record<string, unknown>;
+  efficiency?: Record<string, unknown>;
+  volume?: {
+    perDay?: unknown[];
+    byChannel?: unknown[];
+    byCategory?: unknown[];
+    byZone?: unknown[];
+    [key: string]: unknown;
+  };
+  quality?: {
+    byType?: unknown[];
+    byAgent?: unknown[];
+    [key: string]: unknown;
+  };
+  pyme?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export interface TimeseriesResponse {
+  items?: Array<{ date?: string; value?: number; breakdown?: Record<string, number>; [key: string]: unknown }>;
+  series?: Array<{ date?: string; value?: number; breakdown?: Record<string, number>; [key: string]: unknown }>;
+  [key: string]: unknown;
+}
+
+export interface BreakdownResponse {
+  items?: Array<{ label?: string; value?: number; count?: number; [key: string]: unknown }>;
+  summary?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export type HeatmapResponse = AnalyticsHeatmapResponse;
+export type PointsResponse = AnalyticsGeoPointsResponse;
+
+export interface TopResponse {
+  items?: Array<{ label?: string; value?: number; count?: number; [key: string]: unknown }>;
+  top?: Array<{ label?: string; value?: number; count?: number; [key: string]: unknown }>;
+  [key: string]: unknown;
+}
+
+export interface OperationsResponse {
+  items?: unknown[];
+  summary?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export interface CohortsResponse {
+  items?: unknown[];
+  cohorts?: unknown[];
+  [key: string]: unknown;
+}
+
+export interface TemplatesResponse {
+  items?: unknown[];
+  templates?: unknown[];
+  [key: string]: unknown;
 }
 
 export interface AnalyticsSummary {
@@ -172,9 +269,122 @@ export interface AnalyticsGeoLayerCategory {
   points?: Array<{ lat?: number; lng?: number; weight?: number }>;
 }
 
+export interface AnalyticsHeatmapPoint {
+  id?: string | number;
+  cellId?: string | number;
+  lat?: number;
+  lng?: number;
+  lon?: number;
+  weight?: number;
+  categoria?: string;
+  canal?: string;
+  severidad?: string;
+  estado?: string;
+  sexo?: string;
+  genero?: string;
+  rango_edad?: string;
+  barrio?: string;
+  distrito?: string;
+  source?: string;
+  fuente?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface AnalyticsHeatmapCell {
+  id?: string | number;
+  cellId?: string | number;
+  key?: string;
+  label?: string;
+  lat?: number;
+  lng?: number;
+  centroid_lat?: number;
+  centroid_lon?: number;
+  weight?: number;
+  count?: number;
+  breakdown?: Record<string, number>;
+  categoria?: string;
+  category?: string;
+  [key: string]: unknown;
+}
+
+export interface HeatmapMetadataItem {
+  label: string;
+  count?: number;
+  percentage?: number;
+}
+
+export interface AnalyticsHeatmapMetadata {
+  totals?: {
+    geocoded?: number;
+    missing?: number;
+    coverage?: number;
+    tickets?: number;
+    [key: string]: unknown;
+  };
+  intensity?: {
+    averageWeight?: number;
+    totalWeight?: number;
+    [key: string]: unknown;
+  };
+  categories?: HeatmapMetadataItem[];
+  severity?: HeatmapMetadataItem[];
+  status?: HeatmapMetadataItem[];
+  recency?: HeatmapMetadataItem[];
+  serviceLevels?: {
+    responseMinutes?: {
+      average?: number;
+      p90?: number;
+      [key: string]: unknown;
+    };
+    resolutionMinutes?: {
+      average?: number;
+      p90?: number;
+      [key: string]: unknown;
+    };
+    [key: string]: unknown;
+  };
+  byCategory?: HeatmapMetadataItem[];
+  byChannel?: HeatmapMetadataItem[];
+  byStatus?: HeatmapMetadataItem[];
+  [key: string]: unknown;
+}
+
+export interface AnalyticsHeatmapCandidate {
+  id?: string | number;
+  ticket_id?: string | number;
+  chat_id?: string;
+  address?: string;
+  direccion?: string;
+  label?: string;
+  categoria?: string;
+  category?: string;
+  status?: string;
+  estado?: string;
+  [key: string]: unknown;
+}
+
+export interface AnalyticsHeatmapLocationQuality {
+  total?: number;
+  with_coordinates?: number;
+  without_coordinates?: number;
+  coverage_pct?: number;
+  [key: string]: unknown;
+}
+
 export interface AnalyticsHeatmapResponse {
+  contract_version?: string;
   request_id?: string;
-  points: Array<{ lat?: number; lng?: number; weight?: number; categoria?: string; canal?: string; severidad?: string; estado?: string }>;
+  points: AnalyticsHeatmapPoint[];
+  cells?: AnalyticsHeatmapCell[];
+  hotspots?: AnalyticsHeatmapCell[];
+  category_layers?: AnalyticsHeatmapCell[];
+  location_quality?: AnalyticsHeatmapLocationQuality;
+  metadata?: AnalyticsHeatmapMetadata;
+  chronic?: unknown;
+  geocoding?: {
+    candidates?: AnalyticsHeatmapCandidate[];
+    [key: string]: unknown;
+  };
   map_layers?: Record<string, unknown>;
   ui?: {
     labels?: {
@@ -187,8 +397,14 @@ export interface AnalyticsHeatmapResponse {
       filter_severidad?: string;
       filter_estado?: string;
       filter_canal?: string;
+      filter_genero?: string;
+      filter_rango_edad?: string;
+      filter_barrio?: string;
+      filter_distrito?: string;
+      filter_source?: string;
       filter_all?: string;
       layers?: string;
+      geocoding_queue?: string;
     };
     layer_labels?: Record<string, string>;
   };
@@ -211,11 +427,13 @@ export interface AnalyticsHeatmapResponse {
   };
   segments?: Record<string, Array<{ label?: string; count?: number }>>;
   segments_filters_applied?: Record<string, unknown>;
+  applied_filters?: Record<string, unknown>;
+  filters_applied?: Record<string, unknown>;
 }
 
 export interface AnalyticsGeoPointsResponse {
   request_id?: string;
-  points: Array<{ lat?: number; lng?: number; weight?: number; categoria?: string; canal?: string; severidad?: string; estado?: string }>;
+  points: AnalyticsHeatmapPoint[];
   map_layers?: Record<string, unknown>;
 }
 
@@ -423,39 +641,93 @@ export const postAnalyticsEvent = async (
   }
 };
 
+const extractCoordinatePair = (point: Record<string, unknown>): { lat: number; lng: number } | null => {
+  const directLat = asFiniteNumber(point.lat ?? point.latitude ?? point.geo_lat);
+  const directLng = asFiniteNumber(point.lng ?? point.lon ?? point.longitude ?? point.geo_lng);
+  if (directLat !== undefined && directLng !== undefined) {
+    return { lat: directLat, lng: directLng };
+  }
+
+  const nestedCandidates = [point.geo, point.location, point.ubicacion, point.coordinates];
+  for (const candidate of nestedCandidates) {
+    if (isRecord(candidate)) {
+      const lat = asFiniteNumber(candidate.lat ?? candidate.latitude ?? candidate.geo_lat);
+      const lng = asFiniteNumber(candidate.lng ?? candidate.lon ?? candidate.longitude ?? candidate.geo_lng);
+      if (lat !== undefined && lng !== undefined) return { lat, lng };
+    }
+
+    if (Array.isArray(candidate) && candidate.length >= 2) {
+      const first = asFiniteNumber(candidate[0]);
+      const second = asFiniteNumber(candidate[1]);
+      if (first !== undefined && second !== undefined) {
+        return { lat: second, lng: first };
+      }
+    }
+  }
+
+  const geometry = point.geometry;
+  if (isRecord(geometry) && Array.isArray(geometry.coordinates) && geometry.coordinates.length >= 2) {
+    const lng = asFiniteNumber(geometry.coordinates[0]);
+    const lat = asFiniteNumber(geometry.coordinates[1]);
+    if (lat !== undefined && lng !== undefined) return { lat, lng };
+  }
+
+  return null;
+};
+
+const pickString = (...values: unknown[]): string | undefined => {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim().length > 0) return value.trim();
+    if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  }
+  return undefined;
+};
+
 const normalizeHeatPoint = (
   point: unknown,
   categoryFallback?: string,
-): { lat?: number; lng?: number; weight?: number; categoria?: string; canal?: string; severidad?: string; estado?: string } | null => {
+): AnalyticsHeatmapPoint | null => {
   if (!isRecord(point)) return null;
-  const latCandidate = point.lat ?? point.latitude;
-  const lngCandidate = point.lng ?? point.lon ?? point.longitude;
-  const lat = typeof latCandidate === 'number' ? latCandidate : Number(latCandidate);
-  const lng = typeof lngCandidate === 'number' ? lngCandidate : Number(lngCandidate);
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  const coordinates = extractCoordinatePair(point);
+  if (!coordinates) return null;
+  const metadata = isRecord(point.metadata) ? point.metadata : {};
+  const ticket = isRecord(point.ticket) ? point.ticket : {};
+  const contact = isRecord(point.contact) ? point.contact : {};
 
   const weightCandidate = point.weight ?? point.count ?? point.intensity;
   const weightValue = typeof weightCandidate === 'number' ? weightCandidate : Number(weightCandidate);
   const weight = Number.isFinite(weightValue) ? weightValue : undefined;
-  const categoriaRaw = point.categoria ?? point.category ?? point.tipo ?? categoryFallback;
-  const canalRaw = point.canal ?? point.channel;
-  const severidadRaw = point.severidad ?? point.severity ?? point.priority;
-  const estadoRaw = point.estado ?? point.status ?? point.state;
+  const categoriaRaw = pickString(point.categoria, point.category, point.tipo, point.ticket_type, ticket.categoria, metadata.categoria, metadata.category, categoryFallback);
+  const canalRaw = pickString(point.canal, point.channel, ticket.canal, metadata.canal, metadata.channel);
+  const severidadRaw = pickString(point.severidad, point.severity, point.priority, ticket.severidad, metadata.severity);
+  const estadoRaw = pickString(point.estado, point.status, point.state, ticket.estado, metadata.status);
+  const sexoRaw = pickString(point.sexo, point.genero, point.gender, contact.sexo, contact.genero, metadata.sexo, metadata.gender);
+  const generoRaw = pickString(point.genero, point.gender, point.sexo, contact.genero, contact.gender, metadata.genero, metadata.gender);
+  const rangoEdadRaw = pickString(point.rango_edad, point.age_range, point.ageRange, point.edad, point.age, contact.rango_edad, metadata.rango_edad, metadata.age_range);
+  const barrioRaw = pickString(point.barrio, point.neighborhood, contact.barrio, contact.neighborhood, metadata.barrio, metadata.neighborhood);
+  const distritoRaw = pickString(point.distrito, point.district, point.zone, point.zona, metadata.distrito, metadata.district, metadata.zone);
+  const sourceRaw = pickString(point.source, point.fuente, point.origin, ticket.source, metadata.source, metadata.fuente);
 
   return {
-    lat,
-    lng,
+    lat: coordinates.lat,
+    lng: coordinates.lng,
     ...(weight !== undefined ? { weight } : {}),
-    ...(typeof categoriaRaw === 'string' && categoriaRaw.trim().length > 0 ? { categoria: categoriaRaw.trim() } : {}),
-    ...(typeof canalRaw === 'string' && canalRaw.trim().length > 0 ? { canal: canalRaw.trim() } : {}),
-    ...(typeof severidadRaw === 'string' && severidadRaw.trim().length > 0 ? { severidad: severidadRaw.trim() } : {}),
-    ...(typeof estadoRaw === 'string' && estadoRaw.trim().length > 0 ? { estado: estadoRaw.trim() } : {}),
+    ...(categoriaRaw ? { categoria: categoriaRaw } : {}),
+    ...(canalRaw ? { canal: canalRaw } : {}),
+    ...(severidadRaw ? { severidad: severidadRaw } : {}),
+    ...(estadoRaw ? { estado: estadoRaw } : {}),
+    ...(sexoRaw ? { sexo: sexoRaw } : {}),
+    ...(generoRaw ? { genero: generoRaw } : {}),
+    ...(rangoEdadRaw ? { rango_edad: rangoEdadRaw } : {}),
+    ...(barrioRaw ? { barrio: barrioRaw } : {}),
+    ...(distritoRaw ? { distrito: distritoRaw } : {}),
+    ...(sourceRaw ? { source: sourceRaw, fuente: sourceRaw } : {}),
   };
 };
 
-const collectHeatmapPoints = (raw: unknown): Array<{ lat?: number; lng?: number; weight?: number; categoria?: string; canal?: string; severidad?: string; estado?: string }> => {
+const collectHeatmapPoints = (raw: unknown): AnalyticsHeatmapPoint[] => {
   const visited = new Set<unknown>();
-  const points: Array<{ lat?: number; lng?: number; weight?: number; categoria?: string; canal?: string; severidad?: string; estado?: string }> = [];
+  const points: AnalyticsHeatmapPoint[] = [];
 
   const visit = (candidate: unknown, categoryFallback?: string) => {
     if (!candidate || visited.has(candidate)) return;
@@ -555,7 +827,12 @@ const buildQuery = (filters: AnalyticsFilters) => {
     if (normalized) params.append(key, normalized);
   };
 
-  if (filters.tenant_id) params.append('tenant_id', String(filters.tenant_id));
+  const tenantId = filters.tenant_id ?? filters.tenantId;
+  if (tenantId) params.append('tenant_id', String(tenantId));
+  if (filters.tenantSlug) {
+    params.append('tenant_slug', filters.tenantSlug);
+    params.append('tenant', filters.tenantSlug);
+  }
   if (filters.from) params.append('from', filters.from);
   if (filters.to) params.append('to', filters.to);
   if (filters.scope) params.append('scope', filters.scope);
@@ -567,17 +844,34 @@ const buildQuery = (filters: AnalyticsFilters) => {
   if (!filters.category && filters.categoria) appendValue('categoria', filters.categoria);
   if (!filters.categories && filters.categorias) appendValue('categorias', filters.categorias);
   appendValue('sexo', filters.sexo);
-  appendValue('genero', filters.genero);
-  appendValue('rango_edad', filters.rango_edad);
+  appendValue('genero', filters.genero || filters.gender);
+  appendValue('gender', filters.gender);
+  appendValue('edad', filters.edad || filters.age);
+  appendValue('age', filters.age);
+  appendValue('rango_edad', filters.rango_edad || filters.age_range);
+  appendValue('age_range', filters.age_range);
   appendValue('barrio', filters.barrio);
   appendValue('distrito', filters.distrito);
+  appendValue('estado', filters.estado);
+  appendValue('agente', filters.agente);
+  appendValue('zona', filters.zona);
+  appendValue('etiquetas', filters.etiquetas);
+  appendValue('source', filters.source || filters.fuente);
+  appendValue('fuente', filters.fuente);
   appendValue('canal', filters.canal || filters.channel);
   if (typeof filters.geo_limit === 'number' && Number.isFinite(filters.geo_limit) && filters.geo_limit > 0) {
     params.append('geo_limit', String(Math.round(filters.geo_limit)));
   }
   if (typeof filters.bbox === 'string' && filters.bbox.trim().length > 0) {
     params.append('bbox', filters.bbox.trim());
+  } else if (Array.isArray(filters.bbox) && filters.bbox.length === 4) {
+    params.append('bbox', filters.bbox.join(','));
   }
+  appendValue('metric', filters.metric);
+  appendValue('group', filters.group || undefined);
+  appendValue('dimension', filters.dimension);
+  appendValue('subject', filters.subject);
+  appendValue('search', filters.search || undefined);
   return params.toString();
 };
 
@@ -676,6 +970,9 @@ export const analyticsService = {
   },
 
   getHeatmap: async (filters: AnalyticsFilters, hubOverride?: AnalyticsHubResponse | null): Promise<AnalyticsHeatmapResponse> => {
+    const normalizeList = <T extends Record<string, unknown>>(value: unknown): T[] =>
+      Array.isArray(value) ? value.filter(isRecord).map((item) => item as T) : [];
+
     const buildResponse = (raw: any): AnalyticsHeatmapResponse => {
       const geoLayers = raw?.geo_layers && typeof raw.geo_layers === 'object' ? raw.geo_layers : undefined;
       const mapLayers = raw?.map_layers && typeof raw.map_layers === 'object' ? raw.map_layers : undefined;
@@ -683,23 +980,65 @@ export const analyticsService = {
         typeof raw?.request_id === 'string' && raw.request_id.trim().length > 0
           ? raw.request_id.trim()
           : undefined;
+      const contractVersion =
+        typeof raw?.contract_version === 'string' && raw.contract_version.trim().length > 0
+          ? raw.contract_version.trim()
+          : undefined;
       const points = collectHeatmapPoints(raw);
       const segments = raw?.segments && typeof raw.segments === 'object' ? raw.segments : undefined;
       const segmentsFiltersApplied =
         raw?.segments_filters_applied && typeof raw.segments_filters_applied === 'object'
           ? raw.segments_filters_applied
+          : raw?.filters_applied && typeof raw.filters_applied === 'object'
+            ? raw.filters_applied
+            : raw?.applied_filters && typeof raw.applied_filters === 'object'
+              ? raw.applied_filters
+              : undefined;
+      const geocoding =
+        raw?.geocoding && typeof raw.geocoding === 'object'
+          ? {
+              ...raw.geocoding,
+              candidates: normalizeList<AnalyticsHeatmapCandidate>((raw.geocoding as Record<string, unknown>).candidates),
+            }
           : undefined;
       return {
+        ...(contractVersion ? { contract_version: contractVersion } : {}),
         ...(requestId ? { request_id: requestId } : {}),
         points: Array.isArray(points) ? points : [],
+        cells: normalizeList<AnalyticsHeatmapCell>(raw?.cells),
+        hotspots: normalizeList<AnalyticsHeatmapCell>(raw?.hotspots),
+        category_layers: normalizeList<AnalyticsHeatmapCell>(raw?.category_layers),
+        ...(raw?.location_quality && typeof raw.location_quality === 'object' ? { location_quality: raw.location_quality } : {}),
+        ...(geocoding ? { geocoding } : {}),
         ...(mapLayers ? { map_layers: mapLayers } : {}),
         ...(geoLayers ? { geo_layers: geoLayers } : {}),
         ...(segments ? { segments } : {}),
         ...(segmentsFiltersApplied ? { segments_filters_applied: segmentsFiltersApplied } : {}),
+        ...(raw?.applied_filters && typeof raw.applied_filters === 'object' ? { applied_filters: raw.applied_filters } : {}),
+        ...(raw?.filters_applied && typeof raw.filters_applied === 'object' ? { filters_applied: raw.filters_applied } : {}),
+        ...(raw?.ui && typeof raw.ui === 'object' ? { ui: raw.ui } : {}),
       };
     };
 
-    const hub = hubOverride ?? await analyticsService.getHub(filters).catch((): AnalyticsHubResponse | null => null);
+    const query = buildQuery({ ...filters, scope: filters.scope ?? filters.context ?? 'municipio' });
+    let operationsEndpointHubCandidate: AnalyticsHubResponse | null = null;
+    try {
+      const response = await apiFetch<any>(`/api/v2/analytics/operations/heatmap?${query}`, {
+        tenantSlug: filters.tenantSlug,
+        headers: buildAnalyticsHeaders(),
+      });
+      if (response?.sections && typeof response.sections === 'object') {
+        operationsEndpointHubCandidate = response as AnalyticsHubResponse;
+      } else {
+        return buildResponse(response || {});
+      }
+    } catch (error) {
+      if (!(error instanceof ApiError) || ![404, 405, 501].includes(error.status)) {
+        throw error;
+      }
+    }
+
+    const hub = operationsEndpointHubCandidate ?? hubOverride ?? await analyticsService.getHub(filters).catch((): AnalyticsHubResponse | null => null);
     const hubMap = hub?.sections?.mapas as Record<string, unknown> | undefined;
     const hubGeo = (hubMap?.geo as Record<string, unknown> | undefined) ?? hubMap;
     const hubPoints = (hubGeo?.points ?? hubGeo?.geo_points ?? hubGeo?.heatmap_points) as unknown;
@@ -727,7 +1066,6 @@ export const analyticsService = {
       });
     }
 
-    const query = buildQuery({ ...filters, scope: filters.scope ?? filters.context ?? 'municipio' });
     const response = await apiFetch<any>(`/admin/analytics/heatmap?${query}`, {
       tenantSlug: filters.tenantSlug,
       headers: buildAnalyticsHeaders(),
@@ -808,7 +1146,68 @@ export const analyticsService = {
   },
 
   exportCsvUrl: (filters: AnalyticsFilters) => `/admin/analytics/export.csv?${buildQuery(filters)}`,
-  exportPdfUrl: (filters: AnalyticsFilters) => `/admin/analytics/export.pdf?${buildQuery(filters)}`,
+  exportPdfUrl: (filters: AnalyticsFilters) => `/api/v2/analytics/operations/export.pdf?${buildQuery(filters)}`,
+
+  summary: async (filters: AnalyticsFilters): Promise<SummaryResponse> => {
+    const query = buildQuery(filters);
+    return apiFetch<SummaryResponse>(`/api/v2/analytics/summary${query ? `?${query}` : ''}`, {
+      tenantSlug: filters.tenantSlug,
+      headers: buildAnalyticsHeaders(),
+    });
+  },
+
+  timeseries: async (filters: AnalyticsFilters): Promise<TimeseriesResponse> => {
+    const query = buildQuery(filters);
+    return apiFetch<TimeseriesResponse>(`/api/v2/analytics/timeseries${query ? `?${query}` : ''}`, {
+      tenantSlug: filters.tenantSlug,
+      headers: buildAnalyticsHeaders(),
+    });
+  },
+
+  breakdown: async (filters: AnalyticsFilters): Promise<BreakdownResponse> => {
+    const query = buildQuery(filters);
+    return apiFetch<BreakdownResponse>(`/api/v2/analytics/breakdown${query ? `?${query}` : ''}`, {
+      tenantSlug: filters.tenantSlug,
+      headers: buildAnalyticsHeaders(),
+    });
+  },
+
+  heatmap: async (filters: AnalyticsFilters): Promise<HeatmapResponse> => analyticsService.getHeatmap(filters),
+
+  points: async (filters: AnalyticsFilters): Promise<PointsResponse> =>
+    analyticsService.getGeoPoints({ ...filters, limit: filters.geo_limit }),
+
+  top: async (filters: AnalyticsFilters): Promise<TopResponse> => {
+    const query = buildQuery(filters);
+    return apiFetch<TopResponse>(`/api/v2/analytics/top${query ? `?${query}` : ''}`, {
+      tenantSlug: filters.tenantSlug,
+      headers: buildAnalyticsHeaders(),
+    });
+  },
+
+  operations: async (filters: AnalyticsFilters): Promise<OperationsResponse> => {
+    const query = buildQuery(filters);
+    return apiFetch<OperationsResponse>(`/api/v2/analytics/operations/dashboard${query ? `?${query}` : ''}`, {
+      tenantSlug: filters.tenantSlug,
+      headers: buildAnalyticsHeaders(),
+    });
+  },
+
+  cohorts: async (filters: AnalyticsFilters): Promise<CohortsResponse> => {
+    const query = buildQuery(filters);
+    return apiFetch<CohortsResponse>(`/api/v2/analytics/cohorts${query ? `?${query}` : ''}`, {
+      tenantSlug: filters.tenantSlug,
+      headers: buildAnalyticsHeaders(),
+    });
+  },
+
+  templates: async (filters: AnalyticsFilters): Promise<TemplatesResponse> => {
+    const query = buildQuery(filters);
+    return apiFetch<TemplatesResponse>(`/api/v2/analytics/templates${query ? `?${query}` : ''}`, {
+      tenantSlug: filters.tenantSlug,
+      headers: buildAnalyticsHeaders(),
+    });
+  },
 
   getRealtimeHub: async (params: { tenant_id: number; scope?: string; window_minutes?: number; tenantSlug?: string }) => {
     const query = new URLSearchParams();

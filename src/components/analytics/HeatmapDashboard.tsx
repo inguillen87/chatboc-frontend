@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useTenant } from '@/context/TenantContext';
-import { analyticsService, type AnalyticsHeatmapResponse } from '@/services/analyticsService';
+import { analyticsService, type AnalyticsHeatmapPoint, type AnalyticsHeatmapResponse } from '@/services/analyticsService';
 import { Loader2 } from 'lucide-react';
 // Assuming MapLibreMap component exists as per prompt trace
 // If not, a placeholder or simple div will be used to avoid breaking
@@ -10,17 +10,64 @@ import MapLibreMap from '@/components/MapLibreMap';
 interface Props {
   tenantId: number;
   dateRange: { from: string; to: string };
+  filters?: {
+    canal?: string;
+    categoria?: string;
+    distrito?: string;
+    genero?: string;
+    rango_edad?: string;
+    source?: string;
+  };
 }
 
-const HeatmapDashboard: React.FC<Props> = ({ tenantId, dateRange }) => {
+const buildOptions = (points: AnalyticsHeatmapPoint[], getter: (point: AnalyticsHeatmapPoint) => unknown) =>
+  Array.from(
+    new Set(
+      points
+        .map((point) => {
+          const value = getter(point);
+          return typeof value === 'string' || typeof value === 'number' ? String(value).trim() : '';
+        })
+        .filter(Boolean),
+    ),
+  );
+
+const buildSegmentOptions = (items: unknown) =>
+  Array.from(
+    new Set(
+      (Array.isArray(items) ? items : [])
+        .map((item) => {
+          if (!item || typeof item !== 'object') return '';
+          const record = item as Record<string, unknown>;
+          const value = record.key ?? record.value ?? record.label;
+          return typeof value === 'string' || typeof value === 'number' ? String(value).trim() : '';
+        })
+        .filter(Boolean),
+    ),
+  );
+
+const HeatmapDashboard: React.FC<Props> = ({ tenantId, dateRange, filters }) => {
   const { currentSlug } = useTenant();
   const [heatmapResponse, setHeatmapResponse] = useState<AnalyticsHeatmapResponse>({ points: [] });
   const [loading, setLoading] = useState(true);
   const [layerMode, setLayerMode] = useState<string>('heatmap');
-  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [categoryFilter, setCategoryFilter] = useState<string>(filters?.categoria || 'all');
   const [severityFilter, setSeverityFilter] = useState<string>('all');
   const [stateFilter, setStateFilter] = useState<string>('all');
-  const [channelFilter, setChannelFilter] = useState<string>('all');
+  const [channelFilter, setChannelFilter] = useState<string>(filters?.canal || 'all');
+  const [genderFilter, setGenderFilter] = useState<string>(filters?.genero || 'all');
+  const [ageRangeFilter, setAgeRangeFilter] = useState<string>(filters?.rango_edad || 'all');
+  const [districtFilter, setDistrictFilter] = useState<string>(filters?.distrito || 'all');
+  const [sourceFilter, setSourceFilter] = useState<string>(filters?.source || 'all');
+
+  useEffect(() => {
+    setCategoryFilter(filters?.categoria || 'all');
+    setChannelFilter(filters?.canal || 'all');
+    setGenderFilter(filters?.genero || 'all');
+    setAgeRangeFilter(filters?.rango_edad || 'all');
+    setDistrictFilter(filters?.distrito || 'all');
+    setSourceFilter(filters?.source || 'all');
+  }, [filters?.canal, filters?.categoria, filters?.distrito, filters?.genero, filters?.rango_edad, filters?.source]);
 
   useEffect(() => {
     const loadHeatmap = async () => {
@@ -30,7 +77,13 @@ const HeatmapDashboard: React.FC<Props> = ({ tenantId, dateRange }) => {
           tenant_id: tenantId,
           tenantSlug: currentSlug || undefined,
           from: dateRange.from,
-          to: dateRange.to
+          to: dateRange.to,
+          canal: channelFilter === 'all' ? undefined : channelFilter,
+          categoria: categoryFilter === 'all' ? undefined : categoryFilter,
+          distrito: districtFilter === 'all' ? undefined : districtFilter,
+          genero: genderFilter === 'all' ? undefined : genderFilter,
+          rango_edad: ageRangeFilter === 'all' ? undefined : ageRangeFilter,
+          source: sourceFilter === 'all' ? undefined : sourceFilter,
         });
         setHeatmapResponse(data || { points: [] });
       } catch (e) {
@@ -40,10 +93,11 @@ const HeatmapDashboard: React.FC<Props> = ({ tenantId, dateRange }) => {
       }
     };
     if (tenantId) loadHeatmap();
-  }, [tenantId, dateRange, currentSlug]);
+  }, [tenantId, dateRange, currentSlug, channelFilter, categoryFilter, districtFilter, genderFilter, ageRangeFilter, sourceFilter]);
 
 
   const points = useMemo(() => (Array.isArray(heatmapResponse?.points) ? heatmapResponse.points : []), [heatmapResponse]);
+  const segments = useMemo(() => heatmapResponse?.segments || {}, [heatmapResponse]);
   const availableLayers = useMemo(() => {
     const layers = heatmapResponse?.geo_layers?.layers;
     if (!layers || typeof layers !== 'object') return [] as string[];
@@ -51,50 +105,29 @@ const HeatmapDashboard: React.FC<Props> = ({ tenantId, dateRange }) => {
       .filter(([, config]) => Boolean(config && typeof config === 'object'))
       .map(([key]) => key);
   }, [heatmapResponse]);
-  const categoryOptions = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          points
-            .map((point) => (typeof point.categoria === 'string' ? point.categoria.trim() : ''))
-            .filter(Boolean),
-        ),
-      ),
-    [points],
-  );
-  const severityOptions = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          points
-            .map((point) => (typeof point.severidad === 'string' ? point.severidad.trim() : ''))
-            .filter(Boolean),
-        ),
-      ),
-    [points],
-  );
-  const stateOptions = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          points
-            .map((point) => (typeof point.estado === 'string' ? point.estado.trim() : ''))
-            .filter(Boolean),
-        ),
-      ),
-    [points],
-  );
-  const channelOptions = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          points
-            .map((point) => (typeof point.canal === 'string' ? point.canal.trim() : ''))
-            .filter(Boolean),
-        ),
-      ),
-    [points],
-  );
+  const categoryOptions = useMemo(() => Array.from(new Set([
+    ...buildSegmentOptions((segments as any).categoria || (segments as any).category || (segments as any).categories),
+    ...buildOptions(points, (point) => point.categoria),
+  ])), [points, segments]);
+  const severityOptions = useMemo(() => buildOptions(points, (point) => point.severidad), [points]);
+  const stateOptions = useMemo(() => buildOptions(points, (point) => point.estado), [points]);
+  const channelOptions = useMemo(() => Array.from(new Set([
+    ...buildSegmentOptions((segments as any).canal || (segments as any).channel),
+    ...buildOptions(points, (point) => point.canal),
+  ])), [points, segments]);
+  const genderOptions = useMemo(() => Array.from(new Set([
+    ...buildSegmentOptions((segments as any).genero || (segments as any).gender || (segments as any).sexo),
+    ...buildOptions(points, (point) => point.genero || point.sexo),
+  ])), [points, segments]);
+  const ageRangeOptions = useMemo(() => Array.from(new Set([
+    ...buildSegmentOptions((segments as any).rango_edad || (segments as any).age_range || (segments as any).age_ranges),
+    ...buildOptions(points, (point) => point.rango_edad),
+  ])), [points, segments]);
+  const districtOptions = useMemo(() => buildOptions(points, (point) => point.distrito), [points]);
+  const sourceFilterOptions = useMemo(() => Array.from(new Set([
+    ...buildSegmentOptions((segments as any).source || (segments as any).fuente),
+    ...buildOptions(points, (point) => point.source || point.fuente),
+  ])), [points, segments]);
   const filteredPoints = useMemo(
     () =>
       points.filter((point) => {
@@ -102,11 +135,32 @@ const HeatmapDashboard: React.FC<Props> = ({ tenantId, dateRange }) => {
         const severityMatch = severityFilter === 'all' || point.severidad === severityFilter;
         const stateMatch = stateFilter === 'all' || point.estado === stateFilter;
         const channelMatch = channelFilter === 'all' || point.canal === channelFilter;
-        return categoryMatch && severityMatch && stateMatch && channelMatch;
+        const pointGender = point.genero || point.sexo;
+        const genderMatch = genderFilter === 'all' || pointGender === genderFilter;
+        const ageMatch = ageRangeFilter === 'all' || point.rango_edad === ageRangeFilter;
+        const districtMatch = districtFilter === 'all' || point.distrito === districtFilter;
+        const pointSource = point.source || point.fuente;
+        const sourceMatch = sourceFilter === 'all' || pointSource === sourceFilter;
+        return categoryMatch && severityMatch && stateMatch && channelMatch && genderMatch && ageMatch && districtMatch && sourceMatch;
       }),
-    [points, categoryFilter, severityFilter, stateFilter, channelFilter],
+    [points, categoryFilter, severityFilter, stateFilter, channelFilter, genderFilter, ageRangeFilter, districtFilter, sourceFilter],
   );
-  const geoCategories = useMemo(() => (Array.isArray(heatmapResponse?.geo_layers?.categories) ? heatmapResponse.geo_layers.categories : []), [heatmapResponse]);
+  const geoCategories = useMemo(
+    () =>
+      Array.isArray(heatmapResponse?.category_layers)
+        ? heatmapResponse.category_layers
+        : Array.isArray(heatmapResponse?.geo_layers?.categories)
+          ? heatmapResponse.geo_layers.categories
+          : [],
+    [heatmapResponse],
+  );
+  const cells = useMemo(() => (Array.isArray(heatmapResponse?.cells) ? heatmapResponse.cells : []), [heatmapResponse]);
+  const hotspots = useMemo(() => (Array.isArray(heatmapResponse?.hotspots) ? heatmapResponse.hotspots : []), [heatmapResponse]);
+  const locationQuality = useMemo(() => heatmapResponse?.location_quality, [heatmapResponse]);
+  const geocodingCandidates = useMemo(
+    () => (Array.isArray(heatmapResponse?.geocoding?.candidates) ? heatmapResponse.geocoding.candidates : []),
+    [heatmapResponse],
+  );
   const tileUrl = useMemo(() => {
     const url = heatmapResponse?.geo_layers?.tiles?.url;
     return typeof url === 'string' && url.trim() ? url.trim() : undefined;
@@ -160,14 +214,18 @@ const HeatmapDashboard: React.FC<Props> = ({ tenantId, dateRange }) => {
     setLayerMode(availableLayers[0]);
   }, [availableLayers, layerMode]);
   const segmentGroups = useMemo(() => {
-    const segments = heatmapResponse?.segments;
     const order: Array<{ key: string; label: string }> = [
       { key: 'categoria', label: 'Categorías' },
+      { key: 'category', label: 'Categorias' },
       { key: 'sexo', label: 'Sexo' },
+      { key: 'genero', label: 'Genero' },
+      { key: 'gender', label: 'Genero' },
       { key: 'rango_edad', label: 'Rango edad' },
+      { key: 'age_range', label: 'Rango edad' },
       { key: 'barrio', label: 'Barrio' },
       { key: 'distrito', label: 'Distrito' },
       { key: 'canal', label: 'Canal' },
+      { key: 'source', label: 'Fuente' },
     ];
 
     return order
@@ -177,9 +235,9 @@ const HeatmapDashboard: React.FC<Props> = ({ tenantId, dateRange }) => {
         items: Array.isArray(segments?.[key]) ? segments[key] : [],
       }))
       .filter((group) => group.items.length > 0);
-  }, [heatmapResponse]);
+  }, [segments]);
   const appliedFilters = useMemo(() => {
-    const filters = heatmapResponse?.segments_filters_applied;
+    const filters = heatmapResponse?.segments_filters_applied || heatmapResponse?.filters_applied || heatmapResponse?.applied_filters;
     if (!filters || typeof filters !== 'object') return [];
     return Object.entries(filters)
       .filter(([, value]) => value !== null && value !== undefined && value !== '')
@@ -197,7 +255,7 @@ const HeatmapDashboard: React.FC<Props> = ({ tenantId, dateRange }) => {
       <CardContent className="p-3 sm:p-4 space-y-3">
         {(geoCategories.length || segmentGroups.length || appliedFilters.length) ? (
           <div className="space-y-2">
-            {(availableLayers.length || categoryOptions.length || severityOptions.length || stateOptions.length || channelOptions.length) ? (
+            {(availableLayers.length || categoryOptions.length || severityOptions.length || stateOptions.length || channelOptions.length || genderOptions.length || ageRangeOptions.length || districtOptions.length || sourceFilterOptions.length) ? (
               <div className="rounded-md border p-2 text-xs space-y-2">
                 {availableLayers.length ? (
                   <div className="space-y-1">
@@ -241,6 +299,30 @@ const HeatmapDashboard: React.FC<Props> = ({ tenantId, dateRange }) => {
                       {channelOptions.map((item) => <option key={item} value={item}>{item}</option>)}
                     </select>
                   ) : null}
+                  {genderOptions.length ? (
+                    <select value={genderFilter} onChange={(event) => setGenderFilter(event.target.value)} className="rounded border px-2 py-1 bg-background">
+                      <option value="all">{uiLabels.filter_all || uiLabels.filter_genero || 'genero'}</option>
+                      {genderOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+                    </select>
+                  ) : null}
+                  {ageRangeOptions.length ? (
+                    <select value={ageRangeFilter} onChange={(event) => setAgeRangeFilter(event.target.value)} className="rounded border px-2 py-1 bg-background">
+                      <option value="all">{uiLabels.filter_all || uiLabels.filter_rango_edad || 'rango_edad'}</option>
+                      {ageRangeOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+                    </select>
+                  ) : null}
+                  {districtOptions.length ? (
+                    <select value={districtFilter} onChange={(event) => setDistrictFilter(event.target.value)} className="rounded border px-2 py-1 bg-background">
+                      <option value="all">{uiLabels.filter_all || uiLabels.filter_distrito || 'distrito'}</option>
+                      {districtOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+                    </select>
+                  ) : null}
+                  {sourceFilterOptions.length ? (
+                    <select value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)} className="rounded border px-2 py-1 bg-background">
+                      <option value="all">{uiLabels.filter_all || uiLabels.filter_source || 'source'}</option>
+                      {sourceFilterOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+                    </select>
+                  ) : null}
                 </div>
               </div>
             ) : null}
@@ -268,6 +350,57 @@ const HeatmapDashboard: React.FC<Props> = ({ tenantId, dateRange }) => {
               <div className="rounded-md border p-2 text-xs">
                 <p className="mb-1 text-muted-foreground">{uiLabels.applied_filters || 'Filtros aplicados'}</p>
                 <p>{appliedFilters.join(' · ')}</p>
+              </div>
+            ) : null}
+            {locationQuality ? (
+              <div className="grid gap-2 sm:grid-cols-3 text-xs">
+                {typeof locationQuality.with_coordinates !== 'undefined' ? (
+                  <div className="rounded-md border p-2">
+                    <p className="text-muted-foreground">Con coordenadas</p>
+                    <p className="font-medium">{String(locationQuality.with_coordinates)}</p>
+                  </div>
+                ) : null}
+                {typeof locationQuality.without_coordinates !== 'undefined' ? (
+                  <div className="rounded-md border p-2">
+                    <p className="text-muted-foreground">Sin coordenadas</p>
+                    <p className="font-medium">{String(locationQuality.without_coordinates)}</p>
+                  </div>
+                ) : null}
+                {typeof locationQuality.coverage_pct !== 'undefined' ? (
+                  <div className="rounded-md border p-2">
+                    <p className="text-muted-foreground">Cobertura</p>
+                    <p className="font-medium">{String(locationQuality.coverage_pct)}%</p>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+            {(cells.length || hotspots.length) ? (
+              <div className="grid gap-2 sm:grid-cols-2 text-xs">
+                {hotspots.length ? (
+                  <div className="rounded-md border p-2">
+                    <p className="mb-1 text-muted-foreground">Hotspots</p>
+                    <p>{hotspots.slice(0, 4).map((item: any) => `${item.label || item.key || item.id || '-'} (${item.count ?? item.weight ?? 0})`).join(' | ')}</p>
+                  </div>
+                ) : null}
+                {cells.length ? (
+                  <div className="rounded-md border p-2">
+                    <p className="mb-1 text-muted-foreground">Celdas</p>
+                    <p>{cells.slice(0, 4).map((item: any) => `${item.label || item.key || item.id || '-'} (${item.count ?? item.weight ?? 0})`).join(' | ')}</p>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+            {geocodingCandidates.length ? (
+              <div className="rounded-md border border-amber-300/60 bg-amber-50 p-2 text-xs text-amber-950 dark:bg-amber-950/20 dark:text-amber-100">
+                <p className="mb-1 font-medium">{uiLabels.geocoding_queue || 'Pendiente geocodificar'}</p>
+                <div className="space-y-1">
+                  {geocodingCandidates.slice(0, 5).map((item, index) => (
+                    <p key={String(item.ticket_id || item.id || index)}>
+                      {item.ticket_id || item.id ? `#${item.ticket_id || item.id} ` : ''}
+                      {item.address || item.direccion || item.label || '-'}
+                    </p>
+                  ))}
+                </div>
               </div>
             ) : null}
             {legend ? (

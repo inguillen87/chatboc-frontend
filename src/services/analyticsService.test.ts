@@ -134,6 +134,96 @@ describe('analyticsService.getHub', () => {
     expect(heatmapUrl).toContain('categorias=pedidos');
   });
 
+  it('uses operations heatmap v2 and preserves cells, hotspots, segments and geocoding candidates', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      contract_version: 'operations.heatmap.v1',
+      request_id: 'req-ops-heatmap',
+      points: [
+        {
+          lat: '-34.6',
+          lng: '-58.38',
+          weight: '2',
+          categoria: 'seguridad',
+          genero: 'femenino',
+          rango_edad: '25-34',
+          source: 'tickets',
+        },
+        {
+          direccion: 'Calle sin coordenadas',
+          categoria: 'seguridad',
+        },
+      ],
+      cells: [{ key: 'cell-1', count: 3 }],
+      hotspots: [{ key: 'hot-1', weight: 8 }],
+      category_layers: [{ key: 'seguridad', label: 'Seguridad', count: 3 }],
+      segments: {
+        genero: [{ key: 'femenino', label: 'Femenino', count: 1 }],
+        source: [{ key: 'tickets', label: 'Tickets', count: 1 }],
+      },
+      location_quality: {
+        with_coordinates: 1,
+        without_coordinates: 1,
+        coverage_pct: 50,
+      },
+      geocoding: {
+        candidates: [{ ticket_id: 99, direccion: 'Calle sin coordenadas' }],
+      },
+    });
+
+    const heatmap = await analyticsService.getHeatmap({
+      scope: 'municipio',
+      tenantSlug: 'junin',
+      genero: 'femenino',
+      source: 'tickets',
+      rango_edad: '25-34',
+    });
+
+    const [url, options] = apiFetchMock.mock.calls[0];
+    expect(url as string).toContain('/api/v2/analytics/operations/heatmap?');
+    expect(url as string).toContain('tenant_slug=junin');
+    expect(url as string).toContain('genero=femenino');
+    expect(url as string).toContain('source=tickets');
+    expect(options).toMatchObject({ tenantSlug: 'junin' });
+    expect(heatmap.contract_version).toBe('operations.heatmap.v1');
+    expect(heatmap.points).toEqual([
+      {
+        lat: -34.6,
+        lng: -58.38,
+        weight: 2,
+        categoria: 'seguridad',
+        sexo: 'femenino',
+        genero: 'femenino',
+        rango_edad: '25-34',
+        source: 'tickets',
+        fuente: 'tickets',
+      },
+    ]);
+    expect(heatmap.cells?.[0]).toMatchObject({ key: 'cell-1', count: 3 });
+    expect(heatmap.hotspots?.[0]).toMatchObject({ key: 'hot-1', weight: 8 });
+    expect(heatmap.category_layers?.[0]).toMatchObject({ key: 'seguridad' });
+    expect(heatmap.location_quality?.coverage_pct).toBe(50);
+    expect(heatmap.geocoding?.candidates?.[0]).toMatchObject({ ticket_id: 99 });
+  });
+
+  it('builds operations PDF export URL with tenant slug and segment filters', () => {
+    const url = analyticsService.exportPdfUrl({
+      tenant_id: 7,
+      tenantSlug: 'junin',
+      categoria: 'seguridad',
+      genero: 'femenino',
+      rango_edad: '25-34',
+      source: 'tickets',
+    });
+
+    expect(url).toContain('/api/v2/analytics/operations/export.pdf?');
+    expect(url).toContain('tenant_slug=junin');
+    expect(url).toContain('tenant=junin');
+    expect(url).toContain('categoria=seguridad');
+    expect(url).toContain('genero=femenino');
+    expect(url).toContain('rango_edad=25-34');
+    expect(url).toContain('source=tickets');
+  });
+
   it('supports canonical category/categories query params for geo filters', async () => {
     apiFetchMock
       .mockResolvedValueOnce({ sections: {} })
@@ -315,6 +405,54 @@ describe('analyticsService.getHub', () => {
       severidad: 'media',
       estado: 'pendiente',
     });
+  });
+
+  it('normalizes ticket coordinates and demographic aliases from backend payloads', async () => {
+    apiFetchMock
+      .mockResolvedValueOnce({ sections: {} })
+      .mockResolvedValueOnce({
+        points: [
+          {
+            geo: { lat: '-34.60', lng: '-58.38' },
+            metadata: { category: 'turnos', gender: 'femenino', age_range: '25-34', district: 'centro' },
+            contact: { barrio: 'microcentro' },
+            channel: 'whatsapp',
+            status: 'abierto',
+          },
+          {
+            geometry: { type: 'Point', coordinates: [-58.41, -34.62] },
+            ticket: { categoria: 'reclamos', estado: 'pendiente' },
+            genero: 'masculino',
+            rango_edad: '35-44',
+          },
+        ],
+      });
+
+    const heatmap = await analyticsService.getHeatmap({ scope: 'municipio' });
+
+    expect(heatmap.points).toEqual([
+      {
+        lat: -34.6,
+        lng: -58.38,
+        categoria: 'turnos',
+        canal: 'whatsapp',
+        estado: 'abierto',
+        sexo: 'femenino',
+        genero: 'femenino',
+        rango_edad: '25-34',
+        barrio: 'microcentro',
+        distrito: 'centro',
+      },
+      {
+        lat: -34.62,
+        lng: -58.41,
+        categoria: 'reclamos',
+        estado: 'pendiente',
+        sexo: 'masculino',
+        genero: 'masculino',
+        rango_edad: '35-44',
+      },
+    ]);
   });
 
   it('rejects invalid limit values for geo points endpoint before issuing request', async () => {

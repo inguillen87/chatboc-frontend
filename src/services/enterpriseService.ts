@@ -1265,19 +1265,65 @@ export const enterpriseService = {
   getExecutiveSummary: async (
     filters: {
       since_days?: number;
+      tenant_id?: number | string;
       tenant_slug?: string;
+      scope?: string;
+      from?: string;
+      to?: string;
       include_heatmap?: boolean;
       include_realtime?: boolean;
+      strict_no_data_message?: boolean;
+      canal?: string;
+      categoria?: string;
+      distrito?: string;
+      genero?: string;
+      rango_edad?: string;
+      source?: string;
+      edad?: string;
     } = {},
     tenantSlug?: string,
   ) => {
     const query = buildQueryString(filters);
-    const response = await apiFetchWithFallback<unknown>(
-      `/api/v2/superadmin/executive-summary${query ? `?${query}` : ""}`,
-      `/api/v2/super-admin/executive-summary${query ? `?${query}` : ""}`,
-      { tenantSlug },
-    );
-    return normalizeSuperadminExecutiveSummaryV2(response) as {
+    let response: unknown;
+    try {
+      response = await apiFetch<unknown>(
+        `/api/v2/analytics/operations/executive-summary${query ? `?${query}` : ""}`,
+        { tenantSlug },
+      );
+    } catch (error) {
+      if (!isEndpointMissing(error)) throw error;
+      response = await apiFetchWithFallback<unknown>(
+        `/api/v2/superadmin/executive-summary${query ? `?${query}` : ""}`,
+        `/api/v2/super-admin/executive-summary${query ? `?${query}` : ""}`,
+        { tenantSlug },
+      );
+    }
+
+    const record = response && typeof response === "object" ? (response as Record<string, any>) : {};
+    const aiSummary =
+      typeof record?.ai?.summary === "string" && record.ai.summary.trim()
+        ? record.ai.summary.trim()
+        : undefined;
+    const normalized = normalizeSuperadminExecutiveSummaryV2(response) as Record<string, any>;
+    return {
+      ...normalized,
+      ...(aiSummary ? { summary: aiSummary, text: aiSummary } : {}),
+      reason_code: record.reason_code,
+      contract_version: record.contract_version,
+      ai: record.ai,
+      model_policy: record.model_policy,
+    } as {
+      contract_version?: string;
+      reason_code?: string;
+      summary?: string;
+      text?: string;
+      ai?: {
+        summary?: string;
+        opportunities?: any[];
+        threats?: any[];
+        tone?: string;
+      };
+      model_policy?: Record<string, unknown>;
       strategic_overview?: any;
       tenant_health?: { items?: any[] } | any[];
       realtime?: any;

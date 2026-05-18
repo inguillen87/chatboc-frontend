@@ -26,6 +26,18 @@ interface MapWidgetProps {
 
 type Mode = 'heatmap' | 'puntos';
 
+const safeNumber = (value: unknown): number => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+};
+
+const safeMetadataItems = (items: unknown): HeatmapMetadataItem[] =>
+  Array.isArray(items) ? (items as HeatmapMetadataItem[]) : [];
+
 export function MapWidget({
   title,
   description,
@@ -66,7 +78,7 @@ export function MapWidget({
 
   const dataset = useMemo(() => {
     if (!heatmap) return [];
-    const base = heatmap.cells.map((cell) => ({
+    const base = (heatmap.cells ?? []).map((cell) => ({
       id: cell.cellId,
       lat: cell.centroid_lat,
       lng: cell.centroid_lon,
@@ -89,7 +101,7 @@ export function MapWidget({
 
   const csv = useMemo(() => {
     if (!heatmap) return [];
-    return heatmap.cells.map((cell) => ({
+    return (heatmap.cells ?? []).map((cell) => ({
       cell: cell.cellId,
       total: cell.count,
       weight: cell.weight,
@@ -101,6 +113,11 @@ export function MapWidget({
 
   const hotspots = heatmap?.hotspots ?? [];
   const metadata = heatmap?.metadata;
+  const metadataTotals = metadata?.totals ?? {};
+  const metadataIntensity = metadata?.intensity ?? {};
+  const serviceLevels = metadata?.serviceLevels ?? {};
+  const responseMinutes = serviceLevels.responseMinutes ?? {};
+  const resolutionMinutes = serviceLevels.resolutionMinutes ?? {};
   const hasDataset = dataset.length > 0;
 
   const formatPercent = (value: number) => `${value.toFixed(2)}%`;
@@ -115,8 +132,8 @@ export function MapWidget({
             <li key={item.label} className="flex items-center justify-between gap-2">
               <span className="truncate text-foreground">{item.label}</span>
               <span className="flex items-center gap-2 font-mono text-muted-foreground">
-                <span>{item.count.toLocaleString('es-AR')}</span>
-                <span>{formatPercent(item.percentage)}</span>
+                <span>{safeNumber(item.count).toLocaleString('es-AR')}</span>
+                <span>{formatPercent(safeNumber(item.percentage))}</span>
               </span>
             </li>
             ))}
@@ -197,8 +214,8 @@ export function MapWidget({
           {hotspots.slice(0, 5).map((hotspot) => (
             <Badge key={hotspot.cellId} variant="secondary" className="gap-1">
               {hotspot.cellId}
-              <span className="font-semibold">{hotspot.count}</span>
-              <span className="text-[11px] text-muted-foreground">{hotspot.weight.toFixed(2)}</span>
+              <span className="font-semibold">{safeNumber(hotspot.count)}</span>
+              <span className="text-[11px] text-muted-foreground">{safeNumber(hotspot.weight).toFixed(2)}</span>
             </Badge>
           ))}
           {hotspots.length === 0 ? <span>Sin datos destacados</span> : null}
@@ -214,38 +231,38 @@ export function MapWidget({
               <div className="rounded-md bg-muted/40 p-3">
                 <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Tickets geocodificados</p>
                 <p className="text-lg font-semibold text-foreground">
-                  {metadata.totals.geocoded.toLocaleString('es-AR')}
+                  {safeNumber(metadataTotals.geocoded).toLocaleString('es-AR')}
                 </p>
                 <p className="text-[11px] text-muted-foreground">
-                  Faltantes: {metadata.totals.missing.toLocaleString('es-AR')}
+                  Faltantes: {safeNumber(metadataTotals.missing).toLocaleString('es-AR')}
                 </p>
               </div>
               <div className="rounded-md bg-muted/40 p-3">
                 <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Cobertura de ubicación</p>
                 <p className="text-lg font-semibold text-foreground">
-                  {formatPercent(metadata.totals.coverage)}
+                  {formatPercent(safeNumber(metadataTotals.coverage))}
                 </p>
                 <p className="text-[11px] text-muted-foreground">
-                  Total considerado: {metadata.totals.tickets.toLocaleString('es-AR')}
+                  Total considerado: {safeNumber(metadataTotals.tickets).toLocaleString('es-AR')}
                 </p>
               </div>
               <div className="rounded-md bg-muted/40 p-3">
                 <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Intensidad promedio</p>
                 <p className="text-lg font-semibold text-foreground">
-                  {metadata.intensity.averageWeight.toFixed(2)}
+                  {safeNumber(metadataIntensity.averageWeight).toFixed(2)}
                 </p>
                 <p className="text-[11px] text-muted-foreground">
-                  Peso total: {metadata.intensity.totalWeight.toFixed(2)}
+                  Peso total: {safeNumber(metadataIntensity.totalWeight).toFixed(2)}
                 </p>
               </div>
             </div>
             <div className="grid gap-3 md:grid-cols-3">
-              {renderMetadataList('Categorías principales', metadata.categories)}
-              {renderMetadataList('Severidad', metadata.severity)}
-              {renderMetadataList('Estado', metadata.status)}
+              {renderMetadataList('Categorías principales', safeMetadataItems(metadata.categories))}
+              {renderMetadataList('Severidad', safeMetadataItems(metadata.severity))}
+              {renderMetadataList('Estado', safeMetadataItems(metadata.status))}
             </div>
             <div className="grid gap-3 md:grid-cols-2">
-              {renderMetadataList('Recencia', metadata.recency)}
+              {renderMetadataList('Recencia', safeMetadataItems(metadata.recency))}
               <div className="space-y-2 rounded-md border border-border/60 p-3 text-xs">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                   SLA por minutos
@@ -254,19 +271,19 @@ export function MapWidget({
                   <div>
                     <p className="text-[11px] text-muted-foreground">1ª respuesta</p>
                     <p className="font-mono text-sm text-foreground">
-                      {metadata.serviceLevels.responseMinutes.average.toFixed(2)}
+                      {safeNumber(responseMinutes.average).toFixed(2)}
                     </p>
                     <p className="text-[11px] text-muted-foreground">
-                      p90 {metadata.serviceLevels.responseMinutes.p90.toFixed(2)}
+                      p90 {safeNumber(responseMinutes.p90).toFixed(2)}
                     </p>
                   </div>
                   <div>
                     <p className="text-[11px] text-muted-foreground">Resolución</p>
                     <p className="font-mono text-sm text-foreground">
-                      {metadata.serviceLevels.resolutionMinutes.average.toFixed(2)}
+                      {safeNumber(resolutionMinutes.average).toFixed(2)}
                     </p>
                     <p className="text-[11px] text-muted-foreground">
-                      p90 {metadata.serviceLevels.resolutionMinutes.p90.toFixed(2)}
+                      p90 {safeNumber(resolutionMinutes.p90).toFixed(2)}
                     </p>
                   </div>
                 </div>

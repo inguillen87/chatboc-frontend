@@ -1,9 +1,9 @@
-import React from 'react';
+import React, { type ComponentType, type ErrorInfo, type ReactNode } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 
 interface SectionErrorBoundaryProps {
-  children: React.ReactNode;
+  children: ReactNode;
   title?: string;
   description?: string;
   onRetry?: () => void;
@@ -13,7 +13,7 @@ interface SectionErrorBoundaryState {
   hasError: boolean;
 }
 
-export class SectionErrorBoundary extends React.Component<
+class SectionErrorBoundaryImpl extends (React.Component as any)<
   SectionErrorBoundaryProps,
   SectionErrorBoundaryState
 > {
@@ -26,7 +26,7 @@ export class SectionErrorBoundary extends React.Component<
     return { hasError: true };
   }
 
-  componentDidCatch(error: Error, info: React.ErrorInfo) {
+  componentDidCatch(error: Error, info: ErrorInfo) {
     console.error('SectionErrorBoundary captured an error', error, info);
   }
 
@@ -68,5 +68,8 @@ export class SectionErrorBoundary extends React.Component<
     return this.props.children;
   }
 }
+
+export const SectionErrorBoundary =
+  SectionErrorBoundaryImpl as unknown as ComponentType<SectionErrorBoundaryProps>;
 
 export default SectionErrorBoundary;

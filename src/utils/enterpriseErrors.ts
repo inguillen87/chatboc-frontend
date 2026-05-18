@@ -3,7 +3,8 @@ export type EnterpriseErrorContext =
   | 'save_bot_settings'
   | 'load_recommendations'
   | 'upload_order_draft'
-  | 'executive_summary';
+  | 'executive_summary'
+  | 'load_analytics';
 
 const DEFAULT_MESSAGES: Record<EnterpriseErrorContext, string> = {
   load_bot_settings: 'No se pudo cargar la configuración.',
@@ -11,6 +12,7 @@ const DEFAULT_MESSAGES: Record<EnterpriseErrorContext, string> = {
   load_recommendations: 'No se pudieron cargar recomendaciones.',
   upload_order_draft: 'No se pudo procesar el documento.',
   executive_summary: 'No se pudo generar el resumen ejecutivo.',
+  load_analytics: 'No se pudo cargar el dashboard.',
 };
 
 export const getEnterpriseErrorMessage = (status: number | undefined, context: EnterpriseErrorContext) => {

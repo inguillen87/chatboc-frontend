@@ -189,7 +189,9 @@ const RealtimeHubDashboard: React.FC<Props> = ({ data, loading }) => {
             {Object.keys(sentiment).length ? Object.entries(sentiment).map(([key, value]) => (
               <div key={key} className="flex items-center justify-between rounded border px-2 py-1">
                 <span>{key}</span>
-                <span className="font-medium">{value}</span>
+                <span className="font-medium">
+                  {typeof value === 'number' || typeof value === 'string' ? value : JSON.stringify(value)}
+                </span>
               </div>
             )) : <p className="text-muted-foreground">{labels.empty || '—'}</p>}
           </CardContent>
