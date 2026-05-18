@@ -92,6 +92,7 @@ const LOCAL_PLACEHOLDER_SLUGS = new Set([
   'chat',
   'chatpos',
   'chatcrm',
+  'crm',
   'admin',
   'dashboard',
   'analytics',

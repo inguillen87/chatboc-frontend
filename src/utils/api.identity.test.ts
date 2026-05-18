@@ -48,6 +48,14 @@ describe('resolveTenantSlug persistence control', () => {
     expect(resolved).toBe('municipio');
     expect(safeLocalStorage.getItem('tenantSlug')).toBe('colegio-pago');
   });
+
+  it('does not treat the CRM API namespace as a tenant slug', () => {
+    safeLocalStorage.setItem('tenantSlug', 'junin-1');
+
+    const resolved = resolveTenantSlug(null, '/api/crm/clientes');
+
+    expect(resolved).toBe('junin-1');
+  });
 });
 
 describe('resolveOmnichannelConversationId', () => {

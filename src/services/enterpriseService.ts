@@ -999,7 +999,7 @@ export const enterpriseService = {
       typeof payload.event_endpoint_preferred === "string" &&
       payload.event_endpoint_preferred.trim()
         ? payload.event_endpoint_preferred.trim()
-        : "/analytics/event";
+        : "/api/analytics/event";
 
     return apiFetch(preferredEndpoint, {
       method: "POST",

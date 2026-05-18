@@ -425,6 +425,7 @@ export default function Perfil() {
   const [resultadoCatalogo, setResultadoCatalogo] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [mensaje, setMensaje] = useState<string | null>(null); // Mensaje de éxito
   const [error, setError] = useState<string | null>(null); // Mensaje de error
+  const [profileReady, setProfileReady] = useState(false);
   const [loadingGuardar, setLoadingGuardar] = useState(false);
   const [loadingCatalogo, setLoadingCatalogo] = useState(false);
   const [horariosOpen, setHorariosOpen] = useState(false);
@@ -445,7 +446,7 @@ export default function Perfil() {
   const geocodeAbortRef = useRef<AbortController | null>(null);
   const [isMapLoading, setIsMapLoading] = useState(true);
   const normalizedRole = String(normalizeRole(user?.rol));
-  const isStaff = normalizedRole === 'admin' || normalizedRole === 'empleado';
+  const isStaff = ['superadmin', 'tenant_admin', 'employee'].includes(normalizedRole);
   const canViewAnalytics =
     isStaff || user?.tipo_chat === 'pyme' || user?.tipo_chat === 'municipio';
   const esMunicipio = (user?.tipo_chat || perfil.rubro) === "municipio" || perfil.rubro === "municipios";
@@ -882,6 +883,7 @@ export default function Perfil() {
       setError(getErrorMessage(err, "Error al cargar el perfil."));
     } finally {
       setLoadingGuardar(false);
+      setProfileReady(true);
     }
   }, [navigate, refreshUser]); // Añadir navigate y refreshUser a las dependencias
 
@@ -1739,6 +1741,21 @@ export default function Perfil() {
     ? backendControlCards.slice(4)
     : secondaryControlCards;
   const backofficeScope = esMunicipio ? 'municipio' : user?.tipo_chat || perfil.rubro || 'pyme';
+
+  if (!profileReady) {
+    return (
+      <div className="flex min-h-screen flex-col bg-background px-2 py-6 text-foreground dark:bg-gradient-to-tr dark:from-slate-950 dark:to-slate-900 sm:px-4 md:px-6 lg:px-8">
+        <section className="mx-auto mt-24 flex w-full max-w-3xl flex-col items-center justify-center rounded-2xl border border-border/70 bg-card/80 p-8 text-center shadow-sm">
+          <Loader2 className="mb-4 h-7 w-7 animate-spin text-primary" />
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Centro de control</p>
+          <h1 className="mt-2 text-2xl font-extrabold text-foreground">Sincronizando panel operativo</h1>
+          <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
+            Cargando perfil, rubro y permisos antes de mostrar reclamos, reportes y equipo.
+          </p>
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen flex-col bg-background px-2 py-6 text-foreground dark:bg-gradient-to-tr dark:from-slate-950 dark:to-slate-900 sm:px-4 md:px-6 lg:px-8">

@@ -922,7 +922,11 @@ const extractHubSectionSummary = (hub: AnalyticsHubResponse | null | undefined, 
 
 export const analyticsService = {
   getHub: async (filters: AnalyticsFilters): Promise<AnalyticsHubResponse | null> => {
-    const query = buildQuery({ ...filters, scope: filters.scope ?? filters.context ?? 'municipio' });
+    const geoQueryFilters: Record<string, unknown> = { ...filters };
+    delete geoQueryFilters.tenantSlug;
+    delete geoQueryFilters.tenant;
+    delete geoQueryFilters.limit;
+    const query = buildQuery({ ...geoQueryFilters, scope: filters.scope ?? filters.context ?? 'municipio' });
     const cacheKey = getHubCacheKey(filters);
     const cached = hubCache.get(cacheKey);
     let responseEtag = cached?.etag;
@@ -1020,7 +1024,11 @@ export const analyticsService = {
       };
     };
 
-    const query = buildQuery({ ...filters, scope: filters.scope ?? filters.context ?? 'municipio' });
+    const queryFilters: Record<string, unknown> = { ...filters };
+    delete queryFilters.tenantSlug;
+    delete queryFilters.tenant;
+    delete queryFilters.limit;
+    const query = buildQuery({ ...queryFilters, scope: filters.scope ?? filters.context ?? 'municipio' });
     let operationsEndpointHubCandidate: AnalyticsHubResponse | null = null;
     try {
       const response = await apiFetch<any>(`/api/v2/analytics/operations/heatmap?${query}`, {
@@ -1113,7 +1121,11 @@ export const analyticsService = {
       });
     }
 
-    const query = buildQuery({ ...filters, scope: filters.scope ?? filters.context ?? 'municipio' });
+    const pointsQueryFilters: Record<string, unknown> = { ...filters };
+    delete pointsQueryFilters.tenantSlug;
+    delete pointsQueryFilters.tenant;
+    delete pointsQueryFilters.limit;
+    const query = buildQuery({ ...pointsQueryFilters, scope: filters.scope ?? filters.context ?? 'municipio' });
     const limitSuffix = filters.limit !== undefined ? `${query ? '&' : ''}limit=${filters.limit}` : '';
     const queryWithLimit = `${query}${limitSuffix}`;
     const endpoint = `/analytics/geo/points${queryWithLimit ? `?${queryWithLimit}` : ''}`;

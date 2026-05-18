@@ -33,7 +33,7 @@ const AccessRoute: React.FC<AccessRouteProps> = ({
       setProfileSyncGrace(false);
       return;
     }
-    const timer = window.setTimeout(() => setProfileSyncGrace(false), 1400);
+    const timer = window.setTimeout(() => setProfileSyncGrace(false), 8000);
     return () => window.clearTimeout(timer);
   }, [hasToken, user]);
 

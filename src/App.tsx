@@ -89,7 +89,11 @@ function AppRoutes() {
     '/chat',
     "/tracking",
     "/integracion",
-    "/admin"
+    "/admin",
+    "/perfil",
+    "/empleados",
+    "/usuarios",
+    "/superadmin"
   ];
 
   // Detecta rutas de integración como segmento, incluso con prefijos de tenant (ej: /t/slug/integracion)
