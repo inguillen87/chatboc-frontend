@@ -14,7 +14,7 @@ import { toast } from "@/components/ui/use-toast";
 import { getTenant } from "@/utils/tenant";
 import { useUser } from "@/hooks/useUser";
 import { useSocket } from "@/context/SocketContext";
-import { Activity, AlertTriangle, CalendarClock, CheckCircle, Clock3, Copy, ExternalLink, Flame, History, ListChecks, Mail, MessageSquare, Phone, RefreshCw, Search, Send, ShieldCheck, Tags, Target, UserRound, Users } from "lucide-react";
+import { Activity, AlertTriangle, Bell, CalendarClock, CheckCircle, Clock3, Copy, ExternalLink, Flame, History, ListChecks, Mail, MessageSquare, Phone, RefreshCw, Search, Send, ShieldCheck, Tags, Target, UserRound, Users } from "lucide-react";
 
 type RawUsuario = Record<string, any>;
 
@@ -91,6 +91,21 @@ interface CampaignLedgerItem {
     email?: string | null;
     service_window_until?: string | null;
   } | null;
+}
+
+interface NotificationCenterItem {
+  id: number | string;
+  channel?: string | null;
+  recipient?: string | null;
+  subject?: string | null;
+  body_preview?: string | null;
+  status?: string | null;
+  attempt_count?: number | null;
+  next_retry_at?: string | null;
+  sent_at?: string | null;
+  last_error?: string | null;
+  metadata?: Record<string, any>;
+  created_at?: string | null;
 }
 
 const phoneCandidates = [
@@ -312,8 +327,11 @@ export default function UsuariosPage() {
   const [campaignResult, setCampaignResult] = useState<CampaignResult | null>(null);
   const [campaignHistory, setCampaignHistory] = useState<CampaignHistoryItem[]>([]);
   const [campaignLedger, setCampaignLedger] = useState<CampaignLedgerItem[]>([]);
+  const [notificationCenter, setNotificationCenter] = useState<NotificationCenterItem[]>([]);
+  const [notificationCounts, setNotificationCounts] = useState<Record<string, number>>({});
   const [campaignActivityLoading, setCampaignActivityLoading] = useState(false);
   const [lastLiveUpdate, setLastLiveUpdate] = useState<string | null>(null);
+  const [realtimeEvents, setRealtimeEvents] = useState(0);
   const pageSize = 25;
 
   const tenantSlug = React.useMemo(
@@ -405,12 +423,15 @@ export default function UsuariosPage() {
     setCampaignActivityLoading(true);
     try {
       const encoded = encodeURIComponent(tenantSlug);
-      const [historyResponse, ledgerResponse] = await Promise.all([
+      const [historyResponse, ledgerResponse, notificationResponse] = await Promise.all([
         apiFetch<{ items?: CampaignHistoryItem[] }>(`/api/admin/tenants/${encoded}/campaigns/history?limit=6&days=30`),
         apiFetch<{ items?: CampaignLedgerItem[] }>(`/api/admin/tenants/${encoded}/campaigns/ledger?limit=10&days=30`),
+        apiFetch<{ items?: NotificationCenterItem[]; counts?: Record<string, number> }>(`/api/admin/tenants/${encoded}/notifications/center?limit=8`),
       ]);
       setCampaignHistory(Array.isArray(historyResponse?.items) ? historyResponse.items : []);
       setCampaignLedger(Array.isArray(ledgerResponse?.items) ? ledgerResponse.items : []);
+      setNotificationCenter(Array.isArray(notificationResponse?.items) ? notificationResponse.items : []);
+      setNotificationCounts(notificationResponse?.counts || {});
     } catch (activityError) {
       console.warn("No se pudo cargar actividad de campanas CRM", activityError);
     } finally {
@@ -454,13 +475,35 @@ export default function UsuariosPage() {
       setLastLiveUpdate(new Date().toISOString());
     };
 
+    const refreshActivityFromRealtime = (payload: any) => {
+      const payloadSlug =
+        payload?.tenant_slug ||
+        payload?.tenant ||
+        payload?.payload?.tenant_slug ||
+        payload?.notification?.tenant_slug;
+      if (payloadSlug && tenantSlug && payloadSlug !== tenantSlug) return;
+      setRealtimeEvents((prev) => prev + 1);
+      setLastLiveUpdate(new Date().toISOString());
+      void fetchCampaignActivity();
+    };
+
     socket.on("crm.contact.updated", upsertFromRealtime);
     socket.on("crm_contact_updated", upsertFromRealtime);
+    socket.on("crm.notification.updated", refreshActivityFromRealtime);
+    socket.on("crm_notification_updated", refreshActivityFromRealtime);
+    socket.on("notification.updated", refreshActivityFromRealtime);
+    socket.on("notification.sent", refreshActivityFromRealtime);
+    socket.on("notification.failed", refreshActivityFromRealtime);
     return () => {
       socket.off("crm.contact.updated", upsertFromRealtime);
       socket.off("crm_contact_updated", upsertFromRealtime);
+      socket.off("crm.notification.updated", refreshActivityFromRealtime);
+      socket.off("crm_notification_updated", refreshActivityFromRealtime);
+      socket.off("notification.updated", refreshActivityFromRealtime);
+      socket.off("notification.sent", refreshActivityFromRealtime);
+      socket.off("notification.failed", refreshActivityFromRealtime);
     };
-  }, [socket, usuarios.length]);
+  }, [fetchCampaignActivity, socket, tenantSlug, usuarios.length]);
 
   useEffect(() => {
     setPage(1);
@@ -598,6 +641,26 @@ export default function UsuariosPage() {
     if (status === "blocked") return "border-amber-500/40 bg-amber-500/10 text-amber-100";
     if (status === "scheduled") return "border-sky-500/40 bg-sky-500/10 text-sky-100";
     return "border-emerald-500/40 bg-emerald-500/10 text-emerald-100";
+  };
+
+  const notificationStatusLabel = (value?: string | null) => {
+    const raw = (value || "pending").toLowerCase();
+    const labels: Record<string, string> = {
+      sent: "Enviada",
+      delivered: "Entregada",
+      failed: "Fallida",
+      pending: "Pendiente",
+      queued: "En cola",
+      retrying: "Reintentando",
+    };
+    return labels[raw] || raw.replace(/[_-]+/g, " ");
+  };
+
+  const notificationTone = (item: NotificationCenterItem) => {
+    const status = (item.status || "").toLowerCase();
+    if (status === "failed") return "border-red-500/40 bg-red-500/10 text-red-100";
+    if (status === "sent" || status === "delivered") return "border-emerald-500/40 bg-emerald-500/10 text-emerald-100";
+    return "border-sky-500/40 bg-sky-500/10 text-sky-100";
   };
 
   const marketingCount = React.useMemo(
@@ -878,6 +941,65 @@ export default function UsuariosPage() {
               Registrar envio
             </Button>
           </div>
+        </CardContent>
+      </Card>
+      <Card className="border-border/70 bg-card/95 shadow-sm">
+        <CardHeader className="pb-3">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Bell className="h-5 w-5 text-primary" />
+                Centro realtime
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Senales de campanas, notificaciones y reintentos del tenant sin refrescar la pagina.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Badge variant={isConnected ? "default" : "outline"}>
+                {isConnected ? "Socket conectado" : "Polling activo"}
+              </Badge>
+              <Badge variant="secondary">{realtimeEvents} eventos live</Badge>
+              {Object.entries(notificationCounts).slice(0, 3).map(([status, count]) => (
+                <Badge key={status} variant="outline">
+                  {notificationStatusLabel(status)}: {count}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {notificationCenter.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-border/70 bg-background/60 p-4 text-sm text-muted-foreground">
+              Sin notificaciones operativas recientes. Cuando haya envios, errores o reintentos van a aparecer aca.
+            </div>
+          ) : (
+            <div className="grid gap-2 md:grid-cols-2">
+              {notificationCenter.map((item) => (
+                <div key={item.id} className={`rounded-xl border p-3 text-sm ${notificationTone(item)}`}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant="outline" className="bg-background/60">
+                          {item.channel || "canal"}
+                        </Badge>
+                        <span className="font-semibold">{notificationStatusLabel(item.status)}</span>
+                      </div>
+                      <p className="mt-1 truncate text-xs text-muted-foreground">
+                        {item.recipient || item.subject || "Destino sin publicar"}
+                      </p>
+                    </div>
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {formatDate(item.created_at)}
+                    </span>
+                  </div>
+                  <p className="mt-2 line-clamp-2 text-xs">
+                    {item.last_error || item.body_preview || "Evento registrado por backend."}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
       <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.85fr)]">

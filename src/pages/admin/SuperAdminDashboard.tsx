@@ -23,7 +23,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Sparkles, Activity, Shield, Building2, ArrowUpRight, Flame, MessageSquare, Target } from "lucide-react";
+import { Plus, Sparkles, Activity, Shield, Building2, ArrowUpRight, Bell, Flame, MessageSquare, Target } from "lucide-react";
 import { toast } from "sonner";
 import { Tenant } from "@/types/superAdmin";
 import { WhatsappNumberInventoryItem } from "@/types/whatsapp";
@@ -32,6 +32,7 @@ import { TenantModal } from "@/components/admin/TenantModal";
 import { WhatsappInventoryPanel } from "@/components/admin/WhatsappInventoryPanel";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { buildTenantPath } from "@/utils/tenantPaths";
+import { useSocket } from "@/context/SocketContext";
 import SuperadminLeadsPipeline from "@/components/admin/SuperadminLeadsPipeline";
 import ProductionSmokeReport from "@/components/admin/ProductionSmokeReport";
 import { enterpriseService } from "@/services/enterpriseService";
@@ -92,6 +93,7 @@ interface SuperadminCrmLead {
 export default function SuperAdminDashboard() {
   useRequireRole(["super_admin"]);
   const navigate = useNavigate();
+  const { socket, isConnected } = useSocket();
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -112,6 +114,8 @@ export default function SuperAdminDashboard() {
   const [crmLeads, setCrmLeads] = useState<SuperadminCrmLead[]>([]);
   const [crmLeadsSummary, setCrmLeadsSummary] = useState<Record<string, number>>({});
   const [crmLeadsLoading, setCrmLeadsLoading] = useState(true);
+  const [crmRealtimeEvents, setCrmRealtimeEvents] = useState(0);
+  const [crmRealtimeAt, setCrmRealtimeAt] = useState<string | null>(null);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -160,6 +164,21 @@ export default function SuperAdminDashboard() {
     }
   };
 
+  const fetchCrmLeads = React.useCallback(async (options: { silent?: boolean } = {}) => {
+    if (!options.silent) setCrmLeadsLoading(true);
+    try {
+      const response = await apiFetch<{ items?: SuperadminCrmLead[]; summary?: Record<string, number> }>("/api/admin/crm/leads?limit=8");
+      setCrmLeads(Array.isArray(response?.items) ? response.items : []);
+      setCrmLeadsSummary(response?.summary || {});
+    } catch (crmError) {
+      console.warn("No se pudo cargar CRM comercial superadmin", crmError);
+      setCrmLeads([]);
+      setCrmLeadsSummary({});
+    } finally {
+      if (!options.silent) setCrmLeadsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchTenants();
     fetchWhatsappNumbers();
@@ -188,19 +207,35 @@ export default function SuperAdminDashboard() {
         setTenantHealth(Array.isArray((healthResponse as any)?.items) ? (healthResponse as any).items : []);
       })
       .finally(() => setExecutiveLoading(false));
-    setCrmLeadsLoading(true);
-    apiFetch<{ items?: SuperadminCrmLead[]; summary?: Record<string, number> }>("/api/admin/crm/leads?limit=8")
-      .then((response) => {
-        setCrmLeads(Array.isArray(response?.items) ? response.items : []);
-        setCrmLeadsSummary(response?.summary || {});
-      })
-      .catch((crmError) => {
-        console.warn("No se pudo cargar CRM comercial superadmin", crmError);
-        setCrmLeads([]);
-        setCrmLeadsSummary({});
-      })
-      .finally(() => setCrmLeadsLoading(false));
-  }, []);
+    void fetchCrmLeads();
+  }, [fetchCrmLeads]);
+
+  useEffect(() => {
+    if (!socket) return;
+
+    const refreshGlobalCrm = () => {
+      setCrmRealtimeEvents((prev) => prev + 1);
+      setCrmRealtimeAt(new Date().toISOString());
+      void fetchCrmLeads({ silent: true });
+    };
+
+    socket.on("crm.contact.updated", refreshGlobalCrm);
+    socket.on("crm_contact_updated", refreshGlobalCrm);
+    socket.on("crm.notification.updated", refreshGlobalCrm);
+    socket.on("crm_notification_updated", refreshGlobalCrm);
+    socket.on("notification.updated", refreshGlobalCrm);
+    socket.on("notification.sent", refreshGlobalCrm);
+    socket.on("notification.failed", refreshGlobalCrm);
+    return () => {
+      socket.off("crm.contact.updated", refreshGlobalCrm);
+      socket.off("crm_contact_updated", refreshGlobalCrm);
+      socket.off("crm.notification.updated", refreshGlobalCrm);
+      socket.off("crm_notification_updated", refreshGlobalCrm);
+      socket.off("notification.updated", refreshGlobalCrm);
+      socket.off("notification.sent", refreshGlobalCrm);
+      socket.off("notification.failed", refreshGlobalCrm);
+    };
+  }, [fetchCrmLeads, socket]);
 
   useEffect(() => {
     const fallbackSlug = selectedProfileSlug || tenants[0]?.slug || "";
@@ -471,6 +506,14 @@ export default function SuperAdminDashboard() {
               </CardDescription>
             </div>
             <div className="flex flex-wrap gap-2">
+              <Badge variant={isConnected ? "default" : "outline"} className="gap-1">
+                <Bell className="h-3.5 w-3.5" />
+                {isConnected ? "Realtime CRM" : "Polling CRM"}
+              </Badge>
+              <Badge variant="secondary">{crmRealtimeEvents} eventos live</Badge>
+              {crmRealtimeAt && (
+                <Badge variant="outline">Ultima senal {formatDateTime(crmRealtimeAt)}</Badge>
+              )}
               <Badge variant="outline" className="border-red-500/30 bg-red-500/10 text-red-600">
                 <Flame className="mr-1 h-3.5 w-3.5" />
                 {crmHotCount} hot
