@@ -68,6 +68,7 @@ import { es } from "date-fns/locale";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import getOrCreateAnonId from "@/utils/anonIdGenerator";
 import { trackFrontendEvent } from "@/utils/frontendTelemetry";
+import { normalizeTicketLocation } from "@/utils/location";
 
 const STATUS_CONFIG: Record<
   string,
@@ -865,12 +866,21 @@ export default function TicketLookup() {
   const isResolved =
     currentStatusKey === "resuelto" || currentStatusKey === "cerrado";
 
+  const ticketLocation = useMemo(
+    () => (ticket ? normalizeTicketLocation(ticket) : null),
+    [ticket],
+  );
+  const ticketAddress = ticketLocation?.direccion || ticket?.direccion || "";
   const ticketLat = pickCoordinate(
+    ticketLocation?.latitud,
+    ticketLocation?.lat_destino,
     ticket?.latitud,
     ticket?.lat_destino,
     ticket?.lat_actual,
   );
   const ticketLng = pickCoordinate(
+    ticketLocation?.longitud,
+    ticketLocation?.lon_destino,
     ticket?.longitud,
     ticket?.lon_destino,
     ticket?.lon_actual,
@@ -889,14 +899,16 @@ export default function TicketLookup() {
   const hasStoreCoordinates =
     municipalityLat !== null && municipalityLng !== null;
   const hasAnyCoordinates = hasCoordinates || hasStoreCoordinates;
-  const hasLocationData = hasAnyCoordinates || Boolean(ticket?.direccion);
-  const mapLink = hasCoordinates
+  const hasLocationData = hasAnyCoordinates || Boolean(ticketAddress);
+  const mapLink = ticketLocation?.map_search_url || (hasCoordinates
     ? `https://www.google.com/maps/search/?api=1&query=${ticketLat},${ticketLng}`
-    : ticket?.direccion
-      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ticket.direccion)}`
-      : null;
-  const mapEmbedUrl = ticket?.direccion
-    ? `https://www.google.com/maps?q=${encodeURIComponent(ticket.direccion)}&output=embed`
+    : ticketAddress
+      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ticketAddress)}`
+      : null);
+  const mapEmbedUrl = hasCoordinates
+    ? `https://www.google.com/maps?q=${ticketLat},${ticketLng}&z=15&output=embed`
+    : ticketAddress
+      ? `https://www.google.com/maps?q=${encodeURIComponent(ticketAddress)}&output=embed`
     : null;
 
   const mapStoreLocation = hasStoreCoordinates
@@ -910,7 +922,7 @@ export default function TicketLookup() {
     ? {
         lat: ticketLat,
         lng: ticketLng,
-        name: ticket?.direccion || "Ubicación reportada",
+        name: ticketAddress || "Ubicación reportada",
       }
     : undefined;
 
@@ -1848,7 +1860,7 @@ export default function TicketLookup() {
                     <InfoMetric
                       icon={MapPin}
                       label="Dirección"
-                      value={ticket.direccion || "No especificada"}
+                      value={ticketAddress || "No especificada"}
                     />
                     {hasCoordinates ? (
                       <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300">

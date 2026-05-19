@@ -175,6 +175,7 @@ export interface Ticket {
   categoria_secundaria?: string;
   categoria_simple?: string;
   direccion?: string;
+  direccion_exacta_aproximada?: string;
   distrito?: string;
   esquinas_cercanas?: string;
   latitud?: number;
@@ -190,6 +191,27 @@ export interface Ticket {
   municipio_longitud?: number;
   origen_latitud?: number;
   origen_longitud?: number;
+  coordinates?: { lat?: number; lng?: number } | [number, number];
+  location?: {
+    address?: string;
+    direccion?: string;
+    lat?: number;
+    lng?: number;
+    latitude?: number;
+    longitude?: number;
+    map_search_url?: string;
+  };
+  ubicacion_geografica?: {
+    direccion?: string;
+    address?: string;
+    latitud?: number;
+    longitud?: number;
+    lat?: number;
+    lng?: number;
+    map_search_url?: string;
+  };
+  map_search_url?: string;
+  has_location?: boolean;
   tiempo_estimado?: string;
   avatarUrl?: string;
   history?: TicketHistoryEvent[];

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiClient } from "@/api/client";
+import { apiFetch } from "@/utils/api";
 import { getSuperadminCommandCenterV2, getSuperadminExecutiveSummaryV2, getTenantHealthV2 } from "@/api/v2/saas";
 import useRequireRole from "@/hooks/useRequireRole";
 import { Button } from "@/components/ui/button";
@@ -22,7 +23,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Sparkles, Activity, Shield, Building2, ArrowUpRight } from "lucide-react";
+import { Plus, Sparkles, Activity, Shield, Building2, ArrowUpRight, Flame, MessageSquare, Target } from "lucide-react";
 import { toast } from "sonner";
 import { Tenant } from "@/types/superAdmin";
 import { WhatsappNumberInventoryItem } from "@/types/whatsapp";
@@ -69,6 +70,25 @@ const SuperAdminStatCard = ({
   );
 };
 
+interface SuperadminCrmLead {
+  contact_id?: string;
+  name?: string;
+  telefono?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  summary?: string | null;
+  motivo?: string | null;
+  lead_temperature?: string | null;
+  lead_score?: number | null;
+  conversation_status?: string | null;
+  last_seen?: string | null;
+  tenant?: {
+    slug?: string;
+    nombre?: string;
+    tipo?: string | null;
+  };
+}
+
 export default function SuperAdminDashboard() {
   useRequireRole(["super_admin"]);
   const navigate = useNavigate();
@@ -89,6 +109,9 @@ export default function SuperAdminDashboard() {
   const [profileError, setProfileError] = useState<string | null>(null);
   const [selectedProfileSlug, setSelectedProfileSlug] = useState("");
   const [tenantProfile360, setTenantProfile360] = useState<any | null>(null);
+  const [crmLeads, setCrmLeads] = useState<SuperadminCrmLead[]>([]);
+  const [crmLeadsSummary, setCrmLeadsSummary] = useState<Record<string, number>>({});
+  const [crmLeadsLoading, setCrmLeadsLoading] = useState(true);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -165,6 +188,18 @@ export default function SuperAdminDashboard() {
         setTenantHealth(Array.isArray((healthResponse as any)?.items) ? (healthResponse as any).items : []);
       })
       .finally(() => setExecutiveLoading(false));
+    setCrmLeadsLoading(true);
+    apiFetch<{ items?: SuperadminCrmLead[]; summary?: Record<string, number> }>("/api/admin/crm/leads?limit=8")
+      .then((response) => {
+        setCrmLeads(Array.isArray(response?.items) ? response.items : []);
+        setCrmLeadsSummary(response?.summary || {});
+      })
+      .catch((crmError) => {
+        console.warn("No se pudo cargar CRM comercial superadmin", crmError);
+        setCrmLeads([]);
+        setCrmLeadsSummary({});
+      })
+      .finally(() => setCrmLeadsLoading(false));
   }, []);
 
   useEffect(() => {
@@ -294,6 +329,21 @@ export default function SuperAdminDashboard() {
     : Array.isArray(tenantProfile360?.meta?.alerts)
       ? tenantProfile360.meta.alerts
       : [];
+  const crmHotCount = crmLeadsSummary.hot ?? crmLeads.filter((lead) => lead.lead_temperature === "hot").length;
+  const crmWarmCount = crmLeadsSummary.warm ?? crmLeads.filter((lead) => lead.lead_temperature === "warm").length;
+  const crmColdCount = crmLeadsSummary.cold ?? crmLeads.filter((lead) => !lead.lead_temperature || lead.lead_temperature === "cold").length;
+  const formatLeadTemperature = (value?: string | null) => {
+    const raw = (value || "cold").toLowerCase();
+    if (raw === "hot") return { label: "Hot", className: "border-red-500/30 bg-red-500/10 text-red-600" };
+    if (raw === "warm") return { label: "Warm", className: "border-amber-500/30 bg-amber-500/10 text-amber-600" };
+    return { label: "Frio", className: "border-sky-500/30 bg-sky-500/10 text-sky-600" };
+  };
+  const formatDateTime = (value?: string | null) => {
+    if (!value) return "Sin fecha";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "Sin fecha";
+    return date.toLocaleString("es-AR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  };
   const formatPercent = (value: unknown) =>
     typeof value === "number" ? `${Math.round((value > 1 ? value / 100 : value) * 100)}%` : "—";
   const formatHealthClass = (score?: number) =>
@@ -407,6 +457,99 @@ export default function SuperAdminDashboard() {
           </div>
         </div>
       </div>
+
+      <Card className="overflow-hidden border-muted/60 bg-background/85 shadow-sm backdrop-blur">
+        <CardHeader className="border-b border-border/50 bg-gradient-to-r from-red-500/5 via-amber-500/5 to-transparent">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Target className="h-5 w-5 text-primary" />
+                CRM comercial multi-tenant
+              </CardTitle>
+              <CardDescription>
+                Bandeja superadmin de leads capturados desde WhatsApp, widget y formularios, ordenada por temperatura y recencia.
+              </CardDescription>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="outline" className="border-red-500/30 bg-red-500/10 text-red-600">
+                <Flame className="mr-1 h-3.5 w-3.5" />
+                {crmHotCount} hot
+              </Badge>
+              <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 text-amber-600">
+                {crmWarmCount} warm
+              </Badge>
+              <Badge variant="outline" className="border-sky-500/30 bg-sky-500/10 text-sky-600">
+                {crmColdCount} frio
+              </Badge>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {crmLeadsLoading ? (
+            <div className="rounded-2xl border border-border/60 bg-background/70 p-4 text-sm text-muted-foreground">
+              Cargando leads comerciales...
+            </div>
+          ) : crmLeads.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-border/60 bg-background/70 p-4 text-sm text-muted-foreground">
+              Todavia no hay leads con actividad CRM consolidada.
+            </div>
+          ) : (
+            <div className="grid gap-3 lg:grid-cols-2">
+              {crmLeads.map((lead) => {
+                const temp = formatLeadTemperature(lead.lead_temperature);
+                const tenantSlug = lead.tenant?.slug || "";
+                const contactLabel = lead.name || lead.phone || lead.telefono || lead.email || "Contacto sin nombre";
+                return (
+                  <article
+                    key={lead.contact_id || `${tenantSlug}-${contactLabel}`}
+                    className="rounded-2xl border border-border/60 bg-background/70 p-4 shadow-sm"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="truncate text-base font-semibold">{contactLabel}</h3>
+                          <Badge variant="outline" className={temp.className}>
+                            {temp.label}
+                          </Badge>
+                        </div>
+                        <p className="mt-1 truncate text-xs text-muted-foreground">
+                          {lead.phone || lead.telefono || lead.email || "Sin canal publicado"}
+                        </p>
+                      </div>
+                      <Badge variant="secondary">{lead.lead_score ?? 0} pts</Badge>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                      <Badge variant="outline" className="gap-1">
+                        <Building2 className="h-3.5 w-3.5" />
+                        {lead.tenant?.nombre || tenantSlug || "tenant"}
+                      </Badge>
+                      <Badge variant="outline" className="gap-1">
+                        <MessageSquare className="h-3.5 w-3.5" />
+                        {formatDateTime(lead.last_seen)}
+                      </Badge>
+                    </div>
+                    <p className="mt-3 line-clamp-2 text-sm text-muted-foreground">
+                      {lead.summary || lead.motivo || "Sin resumen automatico todavia."}
+                    </p>
+                    <div className="mt-3 flex justify-end">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={!tenantSlug}
+                        onClick={() => tenantSlug && setSelectedProfileSlug(tenantSlug)}
+                      >
+                        Abrir tenant
+                        <ArrowUpRight className="ml-2 h-4 w-4" />
+                      </Button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Card className="overflow-hidden border-muted/60 bg-background/85 shadow-sm backdrop-blur">
         <CardHeader className="border-b border-border/50 bg-gradient-to-r from-violet-500/5 via-primary/5 to-transparent">

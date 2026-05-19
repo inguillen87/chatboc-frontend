@@ -7,6 +7,7 @@ import { Order } from '@/types/unified';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertCircle, CheckCircle2, ChevronDown, ChevronLeft, ChevronUp, Clock, Inbox, LogOut, Search, ShoppingCart, Ticket as TicketIcon, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';

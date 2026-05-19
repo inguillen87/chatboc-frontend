@@ -124,28 +124,81 @@ const ROLE_TEMPLATES = [
   {
     id: 'frontdesk',
     label: 'Mesa de entrada',
+    description: 'Lee, responde y carga casos nuevos.',
     roles: ['empleado'],
     permisos: ['tickets_read', 'tickets_update', 'live_chat'],
+    channels: ['whatsapp', 'web_demo_widget'],
   },
   {
     id: 'supervisor',
     label: 'Supervisor operativo',
+    description: 'Asigna responsables y mira reportes.',
     roles: ['supervisor'],
     permisos: ['tickets_read', 'tickets_update', 'tickets_assign', 'analytics_read'],
+    channels: ['whatsapp', 'web_demo_widget'],
   },
   {
     id: 'commerce',
     label: 'Catalogo y pedidos',
+    description: 'Gestiona pedidos, stock y catalogo.',
     roles: ['operador'],
     permisos: ['orders_read', 'orders_update', 'catalog_read', 'catalog_write'],
+    channels: ['web_demo_widget', 'whatsapp'],
   },
   {
     id: 'surveys',
     label: 'Encuestas y reportes',
+    description: 'Crea encuestas y consulta resultados.',
     roles: ['analista'],
     permisos: ['surveys_read', 'surveys_write', 'analytics_read'],
+    channels: ['whatsapp', 'web_demo_widget'],
   },
 ];
+
+const COMMON_SINGLE_WORD_CATEGORIES = new Set([
+  'alumbrado',
+  'arbolado',
+  'bacheo',
+  'cloacas',
+  'incendio',
+  'limpieza',
+  'luminaria',
+  'luminarias',
+  'otros',
+  'sugerencia',
+  'general',
+]);
+
+const normalizeLabelKey = (value: unknown) =>
+  String(value ?? '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+const isSuspiciousCategoryLabel = (value: unknown) => {
+  const key = normalizeLabelKey(value);
+  if (!key) return true;
+  if (key.length > 80 || key.includes('@') || key.includes('http://') || key.includes('https://')) return true;
+  if (/^(hola|quiero|quisiera|necesito|codigo|17049)\b/.test(key)) return true;
+  if (/\d/.test(key) && key.split(/\s+/).length > 3) return true;
+  return (
+    key.split(/\s+/).length === 1 &&
+    !COMMON_SINGLE_WORD_CATEGORIES.has(key) &&
+    /(ito|ita|cito|cita)$/.test(key)
+  );
+};
+
+const isNoisyZoneLabel = (value: unknown) => {
+  const text = String(value ?? '').trim();
+  const key = normalizeLabelKey(text);
+  if (!key || key.length > 48) return true;
+  if (key.length <= 2 || ['arg', 'mza', 'postal'].includes(key)) return true;
+  if (key.includes('@') || key.includes('http://') || key.includes('https://')) return true;
+  if (/\d/.test(key) && key.split(/\s+/).length === 1) return true;
+  if (/\d/.test(key) && (key.includes(',') || /\b(av|calle|ruta|don|plaza)\b/.test(key))) return true;
+  return false;
+};
 
 const isValidEmail = (value: string) => /.+@.+\..+/.test(value.trim());
 
@@ -231,7 +284,7 @@ const normalizeCategoryList = (value: unknown): Category[] => {
       : [];
   return (Array.isArray(source) ? source : [])
     .map(normalizeCategory)
-    .filter((item): item is Category => Boolean(item));
+    .filter((item): item is Category => Boolean(item) && !isSuspiciousCategoryLabel(item.nombre));
 };
 
 const coverageBucketToCategory = (bucket: CoverageBucket): Category => ({
@@ -243,6 +296,7 @@ const coverageBucketToCategory = (bucket: CoverageBucket): Category => ({
 const mergeCategories = (...groups: Category[][]): Category[] => {
   const map = new Map<string, Category>();
   groups.flat().forEach((category) => {
+    if (isSuspiciousCategoryLabel(category.nombre)) return;
     const key = (category.slug || category.id || category.nombre).toLowerCase();
     if (!map.has(key)) map.set(key, category);
   });
@@ -652,7 +706,7 @@ export default function InternalUsers() {
       ...dimensionValues(routing, ['zonas', 'zones']),
       ...bucketsToValues(coverage?.zones ?? []),
       ...employeeScopeValues(employees, 'zonas'),
-    ]);
+    ]).filter((value) => !isNoisyZoneLabel(value));
     return values.map((value) => ({ value, label: value }));
   }, [coverage?.zones, employees, routing]);
 
@@ -719,11 +773,17 @@ export default function InternalUsers() {
   const applyCreateTemplate = (template: (typeof ROLE_TEMPLATES)[number]) => {
     setRoles(template.roles);
     setSelectedPermisos(unique([...selectedPermisos, ...template.permisos]));
+    const availableChannels = new Set(channelOptions.map((item) => item.value));
+    const templateChannels = template.channels.filter((item) => !availableChannels.size || availableChannels.has(item));
+    if (templateChannels.length) setSelectedChannels(unique([...selectedChannels, ...templateChannels]));
   };
 
   const applyEditTemplate = (template: (typeof ROLE_TEMPLATES)[number]) => {
     setEditRoles(template.roles);
     setEditPermisos(unique([...editPermisos, ...template.permisos]));
+    const availableChannels = new Set(channelOptions.map((item) => item.value));
+    const templateChannels = template.channels.filter((item) => !availableChannels.size || availableChannels.has(item));
+    if (templateChannels.length) setEditChannels(unique([...editChannels, ...templateChannels]));
   };
 
   const handleCreate = async (event: React.FormEvent) => {
@@ -847,12 +907,12 @@ export default function InternalUsers() {
         <div className="space-y-5">
           <Badge variant="outline" className="w-fit border-primary/20 bg-background/80 px-3 py-1 text-primary">
             <UserCog className="mr-2 h-3.5 w-3.5" />
-            CRM de empleados
+            Equipo interno
           </Badge>
           <div>
-            <h2 className="text-3xl font-black tracking-tight text-foreground">Equipo, accesos y cobertura</h2>
+            <h2 className="text-3xl font-black tracking-tight text-foreground">Empleados, roles y permisos</h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-              Crea usuarios internos, asigna contrasena temporal, roles, categorias de atencion, zonas, canales y permisos por seccion del sistema.
+              Crea usuarios internos y define que puede ver, que reclamos atiende y desde que canales trabaja. La configuracion operativa queda en avanzado.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -865,46 +925,63 @@ export default function InternalUsers() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <TeamStatCard label="Equipo" value={employees.length.toLocaleString('es-AR')} helper="Usuarios internos activos" icon={Users2} />
-        <TeamStatCard label="Categorias" value={categories.length.toLocaleString('es-AR')} helper="Selector backend-first para alcance" icon={Layers3} />
-        <TeamStatCard label="Zonas" value={coverageZones.length.toLocaleString('es-AR')} helper="Cobertura geografica publicada" icon={MapPinned} />
-        <TeamStatCard label="Channels" value={coverageChannels.length.toLocaleString('es-AR')} helper="Canales operativos publicados" icon={KeyRound} />
+        <TeamStatCard label="Empleados" value={employees.length.toLocaleString('es-AR')} helper="Usuarios internos activos" icon={Users2} />
+        <TeamStatCard label="Roles" value={roleOptions.length.toLocaleString('es-AR')} helper="Perfiles disponibles" icon={KeyRound} />
+        <TeamStatCard label="Categorias" value={categories.length.toLocaleString('es-AR')} helper="Tipos de reclamo asignables" icon={Layers3} />
+        <TeamStatCard label="Sin asignar" value={unassignedCount.toLocaleString('es-AR')} helper="Tickets abiertos sin responsable" icon={MapPinned} />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
-        <Card className="overflow-hidden border-border/60 bg-background/85 shadow-sm">
-          <CardHeader className="border-b border-border/50">
-            <CardTitle>Cobertura operativa</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4 pt-6 md:grid-cols-3">
-            <CoverageColumn title="Categorias" items={coverageCategories} emptyLabel="categoria" />
-            <CoverageColumn title="Zonas" items={coverageZones} emptyLabel="zona" />
-            <CoverageColumn title="Channels" items={coverageChannels} emptyLabel="channel" />
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/60 shadow-sm">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
+      <Accordion type="single" collapsible className="w-full">
+        <AccordionItem value="coverage">
+          <AccordionTrigger className="rounded-2xl border border-border/60 bg-card px-4 py-3 text-left hover:no-underline">
+            <span className="flex items-center gap-2">
               <AlertTriangle className="h-4 w-4 text-amber-500" />
-              Categorias sin responsable
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {uncoveredCategories.length ? (
-              <div className="flex flex-wrap gap-2">
-                {uncoveredCategories.map((item) => (
-                  <Badge key={item.id || item.label} variant="outline" className="rounded-full px-3 py-1">
-                    {item.label || item.id}
-                  </Badge>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">No hay categorias sin responsable publicadas por backend.</p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+              Diagnostico avanzado de cobertura
+              {uncoveredCategories.length ? (
+                <Badge variant="outline" className="ml-2 rounded-full">
+                  {uncoveredCategories.length} sin responsable
+                </Badge>
+              ) : null}
+            </span>
+          </AccordionTrigger>
+          <AccordionContent className="pt-4">
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+              <Card className="overflow-hidden border-border/60 bg-background/85 shadow-sm">
+                <CardHeader className="border-b border-border/50">
+                  <CardTitle>Cobertura operativa</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4 pt-6 md:grid-cols-3">
+                  <CoverageColumn title="Categorias" items={coverageCategories} emptyLabel="categoria" />
+                  <CoverageColumn title="Zonas" items={coverageZones} emptyLabel="zona" />
+                  <CoverageColumn title="Canales" items={coverageChannels} emptyLabel="canal" />
+                </CardContent>
+              </Card>
+
+              <Card className="border-border/60 shadow-sm">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <AlertTriangle className="h-4 w-4 text-amber-500" />
+                    Categorias sin responsable
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {uncoveredCategories.length ? (
+                    <div className="flex flex-wrap gap-2">
+                      {uncoveredCategories.map((item) => (
+                        <Badge key={item.id || item.label} variant="outline" className="rounded-full px-3 py-1">
+                          {item.label || item.id}
+                        </Badge>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No hay categorias sin responsable publicadas por backend.</p>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
 
       {lastCreatedEmployee ? (
         <Card className="border-border/60 shadow-sm">
@@ -931,71 +1008,106 @@ export default function InternalUsers() {
           </AccordionTrigger>
           <AccordionContent>
             <form onSubmit={handleCreate} className="space-y-5 rounded-2xl border border-border/60 bg-card p-4 shadow-sm">
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Nombre</label>
-                  <Input value={nombre} onChange={(event) => setNombre(event.target.value)} placeholder="Mesa de entrada" required />
+              <section className="space-y-3">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">1. Datos de acceso</p>
+                  <p className="text-xs text-muted-foreground">El empleado entra con este email y cambia la contrasena despues.</p>
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Email</label>
-                  <Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="equipo@tenant.gob.ar" required />
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Nombre visible</label>
+                    <Input value={nombre} onChange={(event) => setNombre(event.target.value)} placeholder="Juan Perez" required />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Email de acceso</label>
+                    <Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="juan@tenant.gob.ar" required />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Contrasena temporal</label>
+                    <Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Contrasena temporal</label>
-                  <Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required />
-                </div>
-              </div>
+              </section>
 
-              <OptionGroup
-                label="Roles"
-                options={roleOptions}
-                selected={roles}
-                keepOne
-                onToggle={(value) => toggleValue(value, roles, setRoles, { keepOne: true })}
-                empty="Backend no publico roles adicionales."
-              />
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Plantillas rapidas</p>
-                <div className="flex flex-wrap gap-2">
-                  {ROLE_TEMPLATES.map((template) => (
-                    <button
-                      key={template.id}
-                      type="button"
-                      onClick={() => applyCreateTemplate(template)}
-                      className="rounded-md border border-border bg-muted/20 px-3 py-2 text-xs font-semibold transition hover:border-primary/60"
-                    >
-                      {template.label}
-                    </button>
-                  ))}
+              <section className="space-y-3">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">2. Perfil de trabajo</p>
+                  <p className="text-xs text-muted-foreground">Elegi una plantilla y despues ajusta lo necesario.</p>
                 </div>
-              </div>
-              <SearchableOptionGroup
-                label="Categorias de tickets"
-                options={categoryOptions}
-                selected={categoriaIds}
-                onToggle={(value) => toggleValue(value, categoriaIds, setCategoriaIds)}
-                empty="No hay categorias publicadas por backend. Se consulta employee-coverage antes de ocultar este selector."
-              />
-              <div className="grid gap-4 lg:grid-cols-3">
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  {ROLE_TEMPLATES.map((template) => {
+                    const active = template.roles.some((role) => roles.includes(role));
+                    return (
+                      <button
+                        key={template.id}
+                        type="button"
+                        onClick={() => applyCreateTemplate(template)}
+                        className={`rounded-xl border p-3 text-left transition ${
+                          active
+                            ? 'border-primary bg-primary/10 text-primary'
+                            : 'border-border bg-background hover:border-primary/50'
+                        }`}
+                      >
+                        <span className="block text-sm font-semibold">{template.label}</span>
+                        <span className="mt-1 block text-xs leading-5 text-muted-foreground">{template.description}</span>
+                      </button>
+                    );
+                  })}
+                </div>
                 <OptionGroup
-                  label="Zonas"
-                  options={zoneOptions}
-                  selected={selectedZonas}
-                  onToggle={(value) => toggleValue(value, selectedZonas, setSelectedZonas)}
-                  empty="Sin zonas publicadas."
+                  label="Rol del usuario"
+                  options={roleOptions}
+                  selected={roles}
+                  keepOne
+                  onToggle={(value) => toggleValue(value, roles, setRoles, { keepOne: true })}
+                  empty="Backend no publico roles adicionales."
                 />
-                <OptionGroup
-                  label="Channels"
-                  options={channelOptions}
-                  selected={selectedChannels}
-                  onToggle={(value) => toggleValue(value, selectedChannels, setSelectedChannels)}
-                  empty="Sin channels publicados."
+              </section>
+
+              <section className="space-y-3">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">3. Alcance operativo</p>
+                  <p className="text-xs text-muted-foreground">Selecciona solo las categorias reales que va a atender. No se crean categorias desde aca.</p>
+                </div>
+                <SearchableOptionGroup
+                  label="Que reclamos atiende"
+                  options={categoryOptions}
+                  selected={categoriaIds}
+                  onToggle={(value) => toggleValue(value, categoriaIds, setCategoriaIds)}
+                  empty="No hay categorias operativas publicadas para este tenant."
                 />
-              </div>
-              <PermissionGroupSelector
-                selected={selectedPermisos}
-                onToggle={(value) => toggleValue(value, selectedPermisos, setSelectedPermisos)}
-              />
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <OptionGroup
+                    label="Canales"
+                    options={channelOptions}
+                    selected={selectedChannels}
+                    onToggle={(value) => toggleValue(value, selectedChannels, setSelectedChannels)}
+                    empty="Sin canales publicados."
+                  />
+                  <OptionGroup
+                    label="Zonas operativas"
+                    options={zoneOptions}
+                    selected={selectedZonas}
+                    onToggle={(value) => toggleValue(value, selectedZonas, setSelectedZonas)}
+                    empty="Sin zonas configuradas."
+                  />
+                </div>
+              </section>
+
+              <Accordion type="single" collapsible>
+                <AccordionItem value="permissions">
+                  <AccordionTrigger className="rounded-xl border border-border/60 bg-background px-4 py-3 text-sm hover:no-underline">
+                    Ajustar permisos finos
+                    <Badge variant="outline" className="ml-2 rounded-full">{selectedPermisos.length} activos</Badge>
+                  </AccordionTrigger>
+                  <AccordionContent className="pt-4">
+                    <PermissionGroupSelector
+                      selected={selectedPermisos}
+                      onToggle={(value) => toggleValue(value, selectedPermisos, setSelectedPermisos)}
+                    />
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
 
               <Button type="submit" className="w-full gap-2 rounded-xl sm:w-auto">
                 <UserPlus className="h-4 w-4" />
@@ -1016,43 +1128,90 @@ export default function InternalUsers() {
             <Button variant="ghost" onClick={cancelEdit} className="w-full sm:w-auto">Cancelar</Button>
           </div>
           <form onSubmit={handleUpdate} className="space-y-5">
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Nombre</label>
-                <Input value={editNombre} onChange={(event) => setEditNombre(event.target.value)} required />
+            <section className="space-y-3">
+              <div>
+                <p className="text-sm font-semibold text-foreground">1. Datos de acceso</p>
+                <p className="text-xs text-muted-foreground">Actualiza el nombre visible o cambia la contrasena temporal.</p>
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Nueva contrasena</label>
-                <Input type="password" value={editPassword} onChange={(event) => setEditPassword(event.target.value)} placeholder="Dejar vacio para no cambiar" />
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Nombre visible</label>
+                  <Input value={editNombre} onChange={(event) => setEditNombre(event.target.value)} required />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Nueva contrasena</label>
+                  <Input type="password" value={editPassword} onChange={(event) => setEditPassword(event.target.value)} placeholder="Dejar vacio para no cambiar" />
+                </div>
               </div>
-            </div>
+            </section>
 
-            <OptionGroup label="Roles" options={roleOptions} selected={editRoles} keepOne onToggle={(value) => toggleValue(value, editRoles, setEditRoles, { keepOne: true })} empty="Backend no publico roles adicionales." />
-            <div className="space-y-2">
-              <p className="text-sm font-medium">Plantillas rapidas</p>
-              <div className="flex flex-wrap gap-2">
-                {ROLE_TEMPLATES.map((template) => (
-                  <button
-                    key={template.id}
-                    type="button"
-                    onClick={() => applyEditTemplate(template)}
-                    className="rounded-md border border-border bg-muted/20 px-3 py-2 text-xs font-semibold transition hover:border-primary/60"
-                  >
-                    {template.label}
-                  </button>
-                ))}
+            <section className="space-y-3">
+              <div>
+                <p className="text-sm font-semibold text-foreground">2. Perfil de trabajo</p>
+                <p className="text-xs text-muted-foreground">Usa una plantilla para no tocar permisos uno por uno.</p>
               </div>
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                {ROLE_TEMPLATES.map((template) => {
+                  const active = template.roles.some((role) => editRoles.includes(role));
+                  return (
+                    <button
+                      key={template.id}
+                      type="button"
+                      onClick={() => applyEditTemplate(template)}
+                      className={`rounded-xl border p-3 text-left transition ${
+                        active
+                          ? 'border-primary bg-primary/10 text-primary'
+                          : 'border-border bg-background hover:border-primary/50'
+                      }`}
+                    >
+                      <span className="block text-sm font-semibold">{template.label}</span>
+                      <span className="mt-1 block text-xs leading-5 text-muted-foreground">{template.description}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <OptionGroup label="Rol del usuario" options={roleOptions} selected={editRoles} keepOne onToggle={(value) => toggleValue(value, editRoles, setEditRoles, { keepOne: true })} empty="Backend no publico roles adicionales." />
+            </section>
+
+            <section className="space-y-3">
+              <div>
+                <p className="text-sm font-semibold text-foreground">3. Alcance operativo</p>
+                <p className="text-xs text-muted-foreground">Asigna solo lo que este empleado debe atender.</p>
+              </div>
+              <SearchableOptionGroup
+                label="Que reclamos atiende"
+                options={categoryOptions}
+                selected={editCategoriaIds}
+                onToggle={(value) => toggleValue(value, editCategoriaIds, setEditCategoriaIds)}
+                empty="Sin categorias operativas publicadas."
+              />
+              <div className="grid gap-4 lg:grid-cols-2">
+                <OptionGroup label="Canales" options={channelOptions} selected={editChannels} onToggle={(value) => toggleValue(value, editChannels, setEditChannels)} empty="Sin canales publicados." />
+                <OptionGroup label="Zonas operativas" options={zoneOptions} selected={editZonas} onToggle={(value) => toggleValue(value, editZonas, setEditZonas)} empty="Sin zonas configuradas." />
+              </div>
+            </section>
+
+            <Accordion type="single" collapsible>
+              <AccordionItem value="edit-permissions">
+                <AccordionTrigger className="rounded-xl border border-border/60 bg-background px-4 py-3 text-sm hover:no-underline">
+                  Ajustar permisos finos
+                  <Badge variant="outline" className="ml-2 rounded-full">{editPermisos.length} activos</Badge>
+                </AccordionTrigger>
+                <AccordionContent className="pt-4">
+                  <PermissionGroupSelector selected={editPermisos} onToggle={(value) => toggleValue(value, editPermisos, setEditPermisos)} />
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button type="submit" className="w-full gap-2 rounded-xl sm:w-auto">
+                <Sparkles className="h-4 w-4" />
+                Guardar cambios
+              </Button>
+              <Button type="button" variant="outline" onClick={cancelEdit} className="w-full rounded-xl sm:w-auto">
+                Cancelar
+              </Button>
             </div>
-            <SearchableOptionGroup label="Categorias" options={categoryOptions} selected={editCategoriaIds} onToggle={(value) => toggleValue(value, editCategoriaIds, setEditCategoriaIds)} empty="Sin categorias publicadas." />
-            <div className="grid gap-4 lg:grid-cols-2">
-              <OptionGroup label="Zonas" options={zoneOptions} selected={editZonas} onToggle={(value) => toggleValue(value, editZonas, setEditZonas)} empty="Sin zonas publicadas." />
-              <OptionGroup label="Channels" options={channelOptions} selected={editChannels} onToggle={(value) => toggleValue(value, editChannels, setEditChannels)} empty="Sin channels publicados." />
-            </div>
-            <PermissionGroupSelector selected={editPermisos} onToggle={(value) => toggleValue(value, editPermisos, setEditPermisos)} />
-            <Button type="submit" className="w-full gap-2 rounded-xl sm:w-auto">
-              <Sparkles className="h-4 w-4" />
-              Actualizar alcance
-            </Button>
           </form>
         </div>
       ) : null}
@@ -1129,7 +1288,19 @@ export default function InternalUsers() {
         </div>
       </div>
 
-      <EmployeeRoutingMatrix tenantSlug={tenantSlug} />
+      <Accordion type="single" collapsible className="w-full">
+        <AccordionItem value="routing-matrix">
+          <AccordionTrigger className="rounded-2xl border border-border/60 bg-card px-4 py-3 text-left hover:no-underline">
+            <span className="flex items-center gap-2">
+              <Settings className="h-4 w-4 text-primary" />
+              Matriz tecnica de ruteo
+            </span>
+          </AccordionTrigger>
+          <AccordionContent className="pt-4">
+            <EmployeeRoutingMatrix tenantSlug={tenantSlug} />
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
     </div>
   );
 }

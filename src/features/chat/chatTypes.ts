@@ -21,7 +21,9 @@ export interface ChatUiMessage {
 export interface QuickReplyItem {
   id: string;
   label: string;
-  payload?: string;
+  payload?: string | Record<string, unknown> | null;
+  intent?: string | null;
+  action_id?: string | null;
 }
 
 export interface ChatBootstrapConfig {

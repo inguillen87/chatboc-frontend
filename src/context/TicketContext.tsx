@@ -29,6 +29,12 @@ interface TicketFilterOptions {
   unreadModes: Array<{ value: string; label: string }>;
 }
 
+interface TicketRealtimeActivity {
+  pending: number;
+  lastLabel: string | null;
+  lastAt: string | null;
+}
+
 const DEFAULT_TICKET_FILTERS: TicketInboxFilters = {
   channel: 'all',
   status: 'all',
@@ -51,6 +57,9 @@ interface TicketContextType {
   setFilters: React.Dispatch<React.SetStateAction<TicketInboxFilters>>;
   filterOptions: TicketFilterOptions;
   filteredTickets: Ticket[];
+  refreshTickets: () => Promise<void>;
+  realtimeActivity: TicketRealtimeActivity;
+  clearRealtimeActivity: () => void;
 }
 
 const TicketContext = createContext<TicketContextType | undefined>(undefined);
@@ -254,6 +263,20 @@ const normalizeAssignedAgent = (ticket: any): User | undefined => {
   return undefined;
 };
 
+const normalizeTicketForInbox = (ticket: Ticket): Ticket => {
+  const assignedAgent = normalizeAssignedAgent(ticket);
+  return {
+    ...ticket,
+    categoria: mapToKnownCategory(ticket.categoria, ticket.categories),
+    assignedAgent,
+    assignedAgentId:
+      ticket.assignedAgentId ||
+      ticket.assigned_agent_id ||
+      ticket.assigned_user_id ||
+      (assignedAgent ? assignedAgent.id : undefined),
+  } as Ticket;
+};
+
 export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?: string | null }> = ({
   children,
   tenantSlugOverride,
@@ -264,8 +287,29 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState<TicketInboxFilters>(DEFAULT_TICKET_FILTERS);
   const [workflowStatuses, setWorkflowStatuses] = useState<Array<{ value: string; label: string }>>([]);
+  const [realtimeActivity, setRealtimeActivity] = useState<TicketRealtimeActivity>({
+    pending: 0,
+    lastLabel: null,
+    lastAt: null,
+  });
   const { user } = useUser();
   const { currentSlug } = useTenant();
+
+  const bumpRealtimeActivity = useCallback((label: string) => {
+    setRealtimeActivity((current) => ({
+      pending: current.pending + 1,
+      lastLabel: label,
+      lastAt: new Date().toISOString(),
+    }));
+  }, []);
+
+  const clearRealtimeActivity = useCallback(() => {
+    setRealtimeActivity({
+      pending: 0,
+      lastLabel: null,
+      lastAt: null,
+    });
+  }, []);
 
   const filterTicketsForUser = useCallback(
     (list: Ticket[]): Ticket[] => {
@@ -379,24 +423,13 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
       const fetchedTickets = (apiResponse as any)?.tickets;
 
       if (Array.isArray(fetchedTickets)) {
-        const normalizedTickets = fetchedTickets.map((t: Ticket) => {
-          const assignedAgent = normalizeAssignedAgent(t);
-          return {
-            ...t,
-            categoria: mapToKnownCategory(t.categoria, t.categories),
-            assignedAgent,
-            assignedAgentId:
-              t.assignedAgentId ||
-              t.assigned_agent_id ||
-              t.assigned_user_id ||
-              (assignedAgent ? assignedAgent.id : undefined),
-          } as Ticket;
-        });
+        const normalizedTickets = fetchedTickets.map(normalizeTicketForInbox);
         const filteredTickets = filterTicketsForUser(normalizedTickets);
         setTickets(filteredTickets);
         setSelectedTicket((prev) => {
-          if (prev && filteredTickets.some((ticket) => ticket.id === prev.id)) {
-            return prev;
+          if (prev) {
+            const refreshed = filteredTickets.find((ticket) => ticket.id === prev.id);
+            if (refreshed) return refreshed;
           }
           return filteredTickets[0] || null;
         });
@@ -477,6 +510,36 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
     }
   }, [selectedTicket]);
 
+  const upsertTicket = useCallback((rawTicket: Ticket): boolean => {
+    const normalizedTicket = normalizeTicketForInbox(rawTicket);
+    const filtered = filterTicketsForUser([normalizedTicket]);
+    if (!filtered.length) return false;
+
+    setTickets((prevTickets) => {
+      const nextTicket = filtered[0];
+      const existingIndex = prevTickets.findIndex((ticket) => ticket.id === nextTicket.id);
+      if (existingIndex === -1) {
+        return [nextTicket, ...prevTickets];
+      }
+      const nextTickets = [...prevTickets];
+      nextTickets[existingIndex] = {
+        ...nextTickets[existingIndex],
+        ...nextTicket,
+      };
+      return nextTickets;
+    });
+
+    setSelectedTicket((prev) => {
+      if (!prev || prev.id !== normalizedTicket.id) return prev;
+      return {
+        ...prev,
+        ...normalizedTicket,
+      };
+    });
+
+    return true;
+  }, [filterTicketsForUser]);
+
   useTicketUpdates({
     onNewTicket: (data) => {
       // Optimistic addition if we have enough data, otherwise fetch
@@ -489,10 +552,8 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
             priority: data.ticket.priority || 'medium',
         } as Ticket;
 
-        // Check if filter allows it
-        const filtered = filterTicketsForUser([newTicket]);
-        if (filtered.length > 0) {
-            setTickets(prev => [filtered[0], ...prev]);
+        if (upsertTicket(newTicket)) {
+            bumpRealtimeActivity(`Nuevo reclamo #${newTicket.nro_ticket || newTicket.id}`);
             return;
         }
       }
@@ -500,12 +561,18 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
     },
     onNewComment: (data) => {
       // Si la data incluye cambios de estado u otros campos del ticket, actualizarlos
+      const ticketPayload = data?.ticket && typeof data.ticket === 'object' ? data.ticket : null;
+      if (ticketPayload) {
+        upsertTicket(ticketPayload as Ticket);
+      }
+
       if (data && data.ticket_id) {
           const updates: Partial<Ticket> = {};
           if (data.estado) updates.estado = data.estado;
           if (Object.keys(updates).length > 0) {
             updateTicket(data.ticket_id, updates);
           }
+          bumpRealtimeActivity(`Nueva actividad en #${data.nro_ticket || data.ticket_id}`);
       }
     },
     onUnreadChanged: (data) => {
@@ -515,6 +582,9 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
         collaboration_state: normalized.collaboration_state,
         hasUnreadMessages: normalized.hasUnreadMessages,
       });
+      if (normalized.hasUnreadMessages) {
+        bumpRealtimeActivity(`Mensajes sin leer en #${normalized.ticketId}`);
+      }
     },
   });
 
@@ -604,6 +674,9 @@ export const TicketProvider: React.FC<{ children: ReactNode; tenantSlugOverride?
     setFilters,
     filterOptions,
     filteredTickets,
+    refreshTickets: fetchTickets,
+    realtimeActivity,
+    clearRealtimeActivity,
   };
 
   return <TicketContext.Provider value={value}>{children}</TicketContext.Provider>;

@@ -10,10 +10,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
-import type { ImperativePanelHandle } from 'react-resizable-panels';
 import { cn } from '@/lib/utils';
-import { AlertTriangle, CheckCircle2, Clock, Filter, Info, MessageSquare, PanelLeft, Radio, UserRound } from 'lucide-react';
+import { AlertTriangle, Bell, CheckCircle2, Clock, Filter, Info, MessageSquare, PanelLeft, Radio, RefreshCw, UserRound } from 'lucide-react';
 import type { Ticket } from '@/types/tickets';
 import { normalizeTicketStatus } from '@/utils/ticketStatus';
 import { useTenant } from '@/context/TenantContext';
@@ -137,8 +135,18 @@ const TicketOpsStat = ({
 
 const NewTicketsPanel: React.FC = () => {
   const isMobile = useIsMobile();
-  const { loading, error, tickets, filteredTickets, selectedTicket } = useTickets();
-  const { filters, setFilters } = useTickets();
+  const {
+    loading,
+    error,
+    tickets,
+    filteredTickets,
+    selectedTicket,
+    filters,
+    setFilters,
+    refreshTickets,
+    realtimeActivity,
+    clearRealtimeActivity,
+  } = useTickets();
   const { currentSlug, tenant } = useTenant();
   const [inboxSummary, setInboxSummary] = React.useState<BackofficeInboxSummaryResponse | null>(null);
 
@@ -167,13 +175,7 @@ const NewTicketsPanel: React.FC = () => {
   const [isDetailsVisible, setIsDetailsVisible] = React.useState(!isMobile);
   const [desktopView, setDesktopView] = React.useState<'chat' | 'details'>('chat');
 
-  const sidebarPanelRef = React.useRef<ImperativePanelHandle | null>(null);
-  const detailsPanelRef = React.useRef<ImperativePanelHandle | null>(null);
-  const lastSidebarSize = React.useRef<number | null>(null);
-  const lastDetailsSize = React.useRef<number | null>(null);
   const lastMobileTicketId = React.useRef<string | number | null>(null);
-  const DETAILS_PANEL_MAX_SIZE = 72;
-  const SIDEBAR_PANEL_MAX_SIZE = 40;
 
   React.useEffect(() => {
     mobileViewRef.current = mobileView;
@@ -226,60 +228,6 @@ const NewTicketsPanel: React.FC = () => {
       setActiveMobileView('chat');
     }
   }, [selectedTicket, isMobile, setActiveMobileView]);
-
-  // Effect for sidebar panel
-  React.useEffect(() => {
-    if (isMobile) return;
-
-    const panel = sidebarPanelRef.current;
-    if (!panel) return;
-
-    if (lastSidebarSize.current === null) {
-      const currentSize = panel.getSize();
-      if (currentSize > 0) {
-        lastSidebarSize.current = Math.min(currentSize, SIDEBAR_PANEL_MAX_SIZE);
-      }
-    }
-
-    if (isSidebarVisible) {
-      if (panel.isCollapsed()) {
-        const sizeToApply = lastSidebarSize.current ?? undefined;
-        panel.expand(sizeToApply);
-      }
-    } else {
-      if (!panel.isCollapsed()) {
-        lastSidebarSize.current = Math.min(panel.getSize(), SIDEBAR_PANEL_MAX_SIZE);
-        panel.collapse();
-      }
-    }
-  }, [isSidebarVisible, isMobile]);
-
-  // Effect for details panel
-  React.useEffect(() => {
-    if (isMobile) return;
-
-    const panel = detailsPanelRef.current;
-    if (!panel) return;
-
-    if (lastDetailsSize.current === null) {
-      const currentSize = panel.getSize();
-      if (currentSize > 0) {
-        lastDetailsSize.current = Math.min(currentSize, DETAILS_PANEL_MAX_SIZE);
-      }
-    }
-
-    if (isDetailsVisible) {
-      if (panel.isCollapsed()) {
-        const sizeToApply = lastDetailsSize.current ?? undefined;
-        panel.expand(sizeToApply);
-      }
-    } else {
-      if (!panel.isCollapsed()) {
-        lastDetailsSize.current = Math.min(panel.getSize(), DETAILS_PANEL_MAX_SIZE);
-        panel.collapse();
-      }
-    }
-  }, [isDetailsVisible, isMobile]);
 
   const handleMobileTicketSelection = React.useCallback(() => {
     if (isMobile) {
@@ -405,6 +353,13 @@ const NewTicketsPanel: React.FC = () => {
   const riskTickets = typeof summary?.sla_risk === 'number' ? summary.sla_risk : localRiskTickets;
   const resolvedTickets = typeof summary?.resolved === 'number' ? summary.resolved : localResolvedTickets;
   const recommendedViews = Array.isArray(inboxSummary?.recommended_views) ? inboxSummary.recommended_views : [];
+  const desktopGridTemplate = isSidebarVisible && isDetailsVisible
+    ? 'minmax(300px, 360px) minmax(420px, 1fr) minmax(360px, 440px)'
+    : isSidebarVisible
+      ? 'minmax(300px, 380px) minmax(520px, 1fr)'
+      : isDetailsVisible
+        ? 'minmax(520px, 1fr) minmax(360px, 460px)'
+        : 'minmax(0, 1fr)';
 
   return (
     <Card className={panelCardClass}>
@@ -499,6 +454,32 @@ const NewTicketsPanel: React.FC = () => {
               Sin responsable: {summary.unassigned}
             </Badge>
           ) : null}
+          <Button
+            type="button"
+            variant={realtimeActivity.pending > 0 ? 'default' : 'outline'}
+            size="sm"
+            className="gap-2 rounded-full"
+            onClick={() => {
+              clearRealtimeActivity();
+              void refreshTickets();
+            }}
+            title={realtimeActivity.lastLabel || 'Actualizar mesa'}
+          >
+            <Bell className="h-4 w-4" />
+            {realtimeActivity.pending > 0
+              ? `${realtimeActivity.pending} novedades`
+              : 'Realtime listo'}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-2 rounded-full"
+            onClick={() => void refreshTickets()}
+          >
+            <RefreshCw className="h-4 w-4" />
+            Actualizar
+          </Button>
         </div>
       </div>
       {isMobile ? (
@@ -599,25 +580,17 @@ const NewTicketsPanel: React.FC = () => {
           </div>
         </div>
       ) : (
-        <ResizablePanelGroup direction="horizontal" className="flex h-full w-full overflow-hidden">
+        <div
+          className="grid h-full min-h-0 w-full flex-1 overflow-hidden"
+          style={{ gridTemplateColumns: desktopGridTemplate }}
+        >
           {isSidebarVisible && (
-            <ResizablePanel
-              ref={sidebarPanelRef}
-              order={1}
-              defaultSize={25}
-              minSize={20}
-              maxSize={SIDEBAR_PANEL_MAX_SIZE}
-              collapsible
-              collapsedSize={0}
-              onCollapse={() => setIsSidebarVisible(false)}
-              className="min-w-[300px]"
-            >
+            <div className="min-h-0 border-r border-border/70">
               <Sidebar className="h-full w-full shrink-0" />
-            </ResizablePanel>
+            </div>
           )}
-          {isSidebarVisible && <ResizableHandle withHandle className="w-2 bg-border/60 transition-colors hover:bg-primary/50" />}
 
-          <ResizablePanel order={2} defaultSize={45} minSize={30}>
+          <div className="min-h-0 min-w-0">
             <ConversationPanel
               isMobile={false}
               isSidebarVisible={isSidebarVisible}
@@ -629,27 +602,14 @@ const NewTicketsPanel: React.FC = () => {
               desktopView={desktopView}
               setDesktopView={setDesktopView}
             />
-          </ResizablePanel>
+          </div>
 
           {isDetailsVisible && (
-            <>
-              <ResizableHandle withHandle className="w-2 bg-border/60 transition-colors hover:bg-primary/50" />
-              <ResizablePanel
-                ref={detailsPanelRef}
-                order={3}
-                defaultSize={30}
-                minSize={25}
-                maxSize={DETAILS_PANEL_MAX_SIZE}
-                collapsible
-                collapsedSize={0}
-                onCollapse={() => setIsDetailsVisible(false)}
-                className="min-w-[360px]"
-              >
-                <DetailsPanel className="h-full w-full" />
-              </ResizablePanel>
-            </>
+            <div className="min-h-0 min-w-0 border-l border-border/70">
+              <DetailsPanel className="h-full w-full" />
+            </div>
           )}
-        </ResizablePanelGroup>
+        </div>
       )}
       <Toaster richColors />
     </Card>

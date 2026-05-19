@@ -15,6 +15,7 @@ import {
 } from '@/types/tickets';
 import { AttachmentInfo } from '@/types/chat';
 import getOrCreateAnonId from '@/utils/anonIdGenerator';
+import { normalizeTicketLocation } from '@/utils/location';
 
 const generateRandomAvatar = (seed: string) => {
     return `https://i.pravatar.cc/150?u=${seed}`;
@@ -23,6 +24,14 @@ const generateRandomAvatar = (seed: string) => {
 const ticketApiPath = (path: string): string => {
     const normalized = path.startsWith('/') ? path : `/${path}`;
     return normalized.startsWith('/api/') ? normalized : `/api${normalized}`;
+};
+
+const normalizeTicketPayload = <T extends Ticket>(ticket: T): T => {
+    const location = normalizeTicketLocation(ticket);
+    return {
+        ...ticket,
+        ...location,
+    };
 };
 
 const normalizeRealtimeViewer = (raw: any): TicketRealtimeViewer | null => {
@@ -283,7 +292,12 @@ export const getTickets = async (
   tenantSlug?: string | null,
 ): Promise<{ tickets: Ticket[] }> => {
   try {
-      const response = await apiFetch<{ tickets: Ticket[] }>(ticketApiPath('/tickets'), {
+      const params = new URLSearchParams({
+        page: '1',
+        per_page: '50',
+        include: 'compact',
+      });
+      const response = await apiFetch<{ tickets: Ticket[] }>(ticketApiPath(`/tickets?${params.toString()}`), {
       tenantSlug,
       omitTenant: false,
       // Algunos despliegues requieren el tenant para filtrar los tickets
@@ -291,7 +305,8 @@ export const getTickets = async (
     });
     const tickets = response.tickets || [];
 
-    const ticketsWithAvatars = tickets.map(ticket => {
+    const ticketsWithAvatars = tickets.map(rawTicket => {
+      const ticket = normalizeTicketPayload(rawTicket);
       const collaborationState = normalizeCollaborationState((ticket as any).collaboration_state);
       return {
         ...ticket,
@@ -315,21 +330,39 @@ export const getTickets = async (
 export const getAssignableAgents = async (
     tipo: 'municipio' | 'pyme',
 ): Promise<AssignableAgent[]> => {
-    const endpoint = tipo === 'municipio' ? '/municipal/usuarios' : '/pyme/usuarios';
+    const endpoints =
+        tipo === 'municipio'
+            ? ['/admin/employees', '/empleados', '/municipal/usuarios']
+            : ['/admin/employees', '/empleados', '/pyme/usuarios'];
 
-    try {
+    let lastError: unknown;
+
+    for (const endpoint of endpoints) {
+      try {
         const response = await apiFetch<any>(endpoint);
         const collection: any[] = Array.isArray(response)
             ? response
-            : response?.usuarios || response?.users || response?.data || [];
+            : response?.empleados ||
+              response?.employees ||
+              response?.usuarios ||
+              response?.users ||
+              response?.data ||
+              [];
 
         return collection
             .map(normalizeAssignableAgent)
             .filter((agent): agent is AssignableAgent => Boolean(agent));
-    } catch (error) {
-        console.error('Error fetching assignable agents:', error);
-        throw error;
+      } catch (error) {
+        lastError = error;
+        const apiErr = error as ApiError;
+        if (apiErr?.status && ![404, 405].includes(apiErr.status)) {
+          break;
+        }
+      }
     }
+
+    console.warn('No se pudieron cargar agentes asignables; se muestra lista vacia.', lastError);
+    return [];
 };
 
 export const getTicketById = async (id: string): Promise<Ticket> => {
@@ -346,12 +379,13 @@ export const getTicketById = async (id: string): Promise<Ticket> => {
                 console.error(`Error fetching messages for ticket ${id}:`, err);
             }
         }
+        const normalizedResponse = normalizeTicketPayload(response);
         return {
-            ...response,
+            ...normalizedResponse,
             history,
             messages,
-            collaboration_state: normalizeCollaborationState((response as any).collaboration_state),
-            avatarUrl: response.avatarUrl || generateRandomAvatar(response.email || response.id.toString())
+            collaboration_state: normalizeCollaborationState((normalizedResponse as any).collaboration_state),
+            avatarUrl: normalizedResponse.avatarUrl || generateRandomAvatar(normalizedResponse.email || normalizedResponse.id.toString())
         };
     } catch (error) {
         console.error(`Error fetching ticket ${id}:`, error);
@@ -397,19 +431,20 @@ export const getTicketByNumber = async (
                     console.error(`Error fetching messages for ticket ${response.id}:`, err);
                 }
             }
+            const normalizedResponse = normalizeTicketPayload(response);
             return {
-                ...response,
+                ...normalizedResponse,
                 history,
                 messages,
-                realtime_state: normalizeRealtimeState((response as any).realtime_state),
-                collaboration_state: normalizeCollaborationState((response as any).collaboration_state),
+                realtime_state: normalizeRealtimeState((normalizedResponse as any).realtime_state),
+                collaboration_state: normalizeCollaborationState((normalizedResponse as any).collaboration_state),
                 hasUnreadMessages:
-                    Boolean((response as any).hasUnreadMessages) ||
-                    Boolean(normalizeCollaborationState((response as any).collaboration_state)?.has_unread) ||
-                    Number(normalizeCollaborationState((response as any).collaboration_state)?.unread_viewer_count || 0) > 0,
+                    Boolean((normalizedResponse as any).hasUnreadMessages) ||
+                    Boolean(normalizeCollaborationState((normalizedResponse as any).collaboration_state)?.has_unread) ||
+                    Number(normalizeCollaborationState((normalizedResponse as any).collaboration_state)?.unread_viewer_count || 0) > 0,
                 avatarUrl:
-                    response.avatarUrl ||
-                    generateRandomAvatar(response.email || response.id.toString()),
+                    normalizedResponse.avatarUrl ||
+                    generateRandomAvatar(normalizedResponse.email || normalizedResponse.id.toString()),
             };
         } catch (err) {
             const apiErr = err as ApiError;
@@ -483,14 +518,7 @@ export const formatTicketHistoryDeliveryErrorMessage = (
     return detail ? `${prefix} Detalle: ${detail}` : prefix;
 };
 
-const shouldBubbleTicketHistoryError = (error: unknown): boolean => {
-    if (error instanceof ApiError) {
-        if (error.status === 401 || error.status === 403) {
-            return true;
-        }
-    }
-    return false;
-};
+const shouldBubbleTicketHistoryError = (_error: unknown): boolean => false;
 
 const buildTicketHistoryDeliveryError = (
     error: unknown,
@@ -658,7 +686,7 @@ export const requestTicketHistoryEmail = async ({
             : baseUrl;
         const baseFetchOptions = pin
             ? { skipAuth: true, sendAnonId: true, sendEntityToken: true }
-            : { sendAnonId: true };
+            : {};
 
         await apiFetch(endpoint, {
             method: 'POST',

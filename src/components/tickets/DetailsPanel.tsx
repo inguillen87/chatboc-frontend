@@ -52,7 +52,7 @@ import { fmtARWithOffset } from '@/utils/date';
 import { getSpecializedContact, SpecializedContact } from '@/utils/contacts';
 import { deriveAttachmentInfo } from '@/utils/attachment';
 import { formatTicketStatusLabel, normalizeTicketStatus } from '@/utils/ticketStatus';
-import { pickFirstCoordinate } from '@/utils/location';
+import { normalizeTicketLocation, pickFirstCoordinate } from '@/utils/location';
 import { ApiError } from '@/utils/api';
 
 const sanitizeMediaUrl = (value?: string | null): string | undefined => {
@@ -410,19 +410,18 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
       return null;
     }
 
+    const normalizedLocation = normalizeTicketLocation(ticket);
     const normalizedAddress =
+      normalizedLocation.direccion ||
       (typeof ticket.direccion === 'string' ? ticket.direccion.trim() : '') ||
       (typeof ticket.informacion_personal_vecino?.direccion === 'string'
         ? ticket.informacion_personal_vecino.direccion.trim()
         : '');
 
-    if (!normalizedAddress || normalizedAddress === ticket.direccion) {
-      return ticket;
-    }
-
     return {
       ...ticket,
-      direccion: normalizedAddress,
+      ...normalizedLocation,
+      direccion: normalizedAddress || ticket.direccion,
     };
   }, [ticket]);
 
@@ -582,19 +581,20 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
   const openGoogleMaps = () => {
     if (!ticket) return;
 
-    const destLat = pickFirstCoordinate(ticket.lat_destino, ticket.latitud);
-    const destLon = pickFirstCoordinate(ticket.lon_destino, ticket.longitud);
+    const mapSource = locationTicket ?? ticket;
+    const destLat = pickFirstCoordinate(mapSource.lat_destino, mapSource.latitud);
+    const destLon = pickFirstCoordinate(mapSource.lon_destino, mapSource.longitud);
     const originLat = pickFirstCoordinate(
-      ticket.lat_actual,
-      ticket.lat_origen,
-      ticket.origen_latitud,
-      ticket.municipio_latitud,
+      mapSource.lat_actual,
+      mapSource.lat_origen,
+      mapSource.origen_latitud,
+      mapSource.municipio_latitud,
     );
     const originLon = pickFirstCoordinate(
-      ticket.lon_actual,
-      ticket.lon_origen,
-      ticket.origen_longitud,
-      ticket.municipio_longitud,
+      mapSource.lon_actual,
+      mapSource.lon_origen,
+      mapSource.origen_longitud,
+      mapSource.municipio_longitud,
     );
 
     if (typeof destLat === 'number' && typeof destLon === 'number') {

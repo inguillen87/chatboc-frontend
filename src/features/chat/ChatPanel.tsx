@@ -71,6 +71,15 @@ type LeadFieldErrors = Record<string, string>;
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 
+const readNestedRecord = (source: Record<string, unknown>, keys: string[]): Record<string, unknown> | null => {
+  let current: unknown = source;
+  for (const key of keys) {
+    if (!isRecord(current)) return null;
+    current = current[key];
+  }
+  return isRecord(current) ? current : null;
+};
+
 const normalizeLeadValue = (value: unknown) =>
   typeof value === 'string' ? value.trim() : value === null || value === undefined ? '' : String(value).trim();
 
@@ -300,27 +309,42 @@ const normalizeQuickMenu = (quickMenu: unknown): QuickReplyItem[] => {
       const label =
         typeof source.label === 'string'
           ? source.label.trim()
+          : typeof source.texto === 'string'
+            ? source.texto.trim()
           : typeof source.title === 'string'
             ? source.title.trim()
             : typeof source.text === 'string'
               ? source.text.trim()
               : '';
       if (!label) return null;
-      const payload =
-        typeof source.payload === 'string'
+      const actionId = readFirstString(source.action_id, source.intent, source.action, source.id, source.key);
+      const payload = isRecord(source.payload)
+        ? source.payload
+        : typeof source.payload === 'string'
           ? source.payload
-          : typeof source.action === 'string'
-            ? source.action
-            : typeof source.intent === 'string'
-              ? source.intent
-              : label;
+          : label;
       return {
         id: String(source.id || source.key || `quick-menu-${index}`),
         label,
         payload,
+        intent: readFirstString(source.intent) ?? actionId ?? null,
+        action_id: actionId ?? null,
       };
     })
     .filter(Boolean) as QuickReplyItem[];
+};
+
+const extractRuntimeQuickReplies = (response: unknown): QuickReplyItem[] => {
+  if (!isRecord(response)) return [];
+  const source =
+    Array.isArray(response.botones) ? response.botones :
+      Array.isArray(response.buttons) ? response.buttons :
+        Array.isArray(response.quick_replies) ? response.quick_replies :
+          Array.isArray(response.options_list) ? response.options_list :
+            Array.isArray(readNestedRecord(response, ['data'])?.buttons) ? readNestedRecord(response, ['data'])?.buttons :
+              [];
+  if (!Array.isArray(source)) return [];
+  return normalizeQuickMenu(source);
 };
 
 const normalizeActionMenuAsCtas = (quickMenu: unknown): ChatConversionCtaAction[] => {
@@ -488,6 +512,7 @@ function StandaloneChatPanel({
   const [composerDraft, setComposerDraft] = useState<string | null>(null);
   const [composerIntent, setComposerIntent] = useState<string | null>(null);
   const [composerPayload, setComposerPayload] = useState<Record<string, unknown> | null>(null);
+  const [runtimeReplies, setRuntimeReplies] = useState<QuickReplyItem[]>([]);
   const [activeLead, setActiveLead] = useState<ChatLeadCaptureConfig | null>(null);
   const [activeLeadMeta, setActiveLeadMeta] = useState<Record<string, unknown>>({});
   const [leadValues, setLeadValues] = useState<Record<string, string>>({});
@@ -551,6 +576,7 @@ function StandaloneChatPanel({
     },
     [quickMenu, quickReplies, resolvedContext.quickReplies],
   );
+  const displayedReplies = runtimeReplies.length ? runtimeReplies : replies;
 
   const leadEnabled = resolvedLeadCapture?.enabled !== false;
   const leadTriggers = useMemo(
@@ -713,6 +739,7 @@ function StandaloneChatPanel({
       ...prev,
       { id: `u-${Date.now()}`, role: 'user', text: userText, timestamp: new Date().toISOString() },
     ]);
+    setRuntimeReplies([]);
 
     if (isHumanRequest(text) || payload.intent === 'derivar_humano') {
       setRuntimeHandoffState('requested_by_user');
@@ -742,6 +769,7 @@ function StandaloneChatPanel({
             setLeadResult(runtimeLeadResult);
           }
           onRuntimeResult?.(response, runtimeLeadResult);
+          setRuntimeReplies(extractRuntimeQuickReplies(response));
           if (!replyText) return;
           setMessages((prev) => [
             ...prev,
@@ -785,6 +813,15 @@ function StandaloneChatPanel({
         intent: action.intent ?? undefined,
         cta_id: action.id,
         payload: action.payload ?? undefined,
+      });
+      return;
+    }
+    if (action.intent) {
+      appendUserMessage({
+        text: action.label,
+        intent: action.intent,
+        action_id: action.intent,
+        payload: action.payload ?? null,
       });
       return;
     }
@@ -862,7 +899,25 @@ function StandaloneChatPanel({
           })}
         </div>
       ) : null}
-      <QuickReplies items={replies} onSelect={(item) => appendUserMessage(item.payload || item.label)} />
+      <QuickReplies
+        items={displayedReplies}
+        onSelect={(item) => {
+          const actionId =
+            item.action_id ??
+            item.intent ??
+            (typeof item.payload === 'string' && item.payload !== item.label ? item.payload : null);
+          appendUserMessage(
+            actionId
+              ? {
+                  text: item.label,
+                  intent: item.intent ?? actionId,
+                  action_id: actionId,
+                  payload: isRecord(item.payload) ? item.payload : null,
+                }
+              : (typeof item.payload === 'string' && item.payload.trim() ? item.payload : item.label),
+          );
+        }}
+      />
       {visibleCtas.length ? (
         <div className="flex flex-wrap gap-2" aria-label="Acciones sugeridas">
           {visibleCtas.map((action) => (

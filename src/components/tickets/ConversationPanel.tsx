@@ -121,6 +121,188 @@ const adaptTicketMessageToChatMessage = (msg: TicketMessage, ticket: Ticket): Ch
   };
 };
 
+const normalizeMessageFingerprint = (msg: ChatMessageData): string => {
+  const text =
+    typeof msg.text === 'string'
+      ? msg.text.replace(/\s+/g, ' ').trim().toLowerCase()
+      : '';
+  return `${msg.isBot ? 'agent' : 'user'}:${text}`;
+};
+
+const normalizeMessageTimestamp = (msg: ChatMessageData): number => {
+  const timestamp =
+    msg.timestamp instanceof Date
+      ? msg.timestamp
+      : new Date(msg.timestamp || Date.now());
+  return Number.isNaN(timestamp.getTime()) ? Date.now() : timestamp.getTime();
+};
+
+const dedupeChatMessages = (items: ChatMessageData[]): ChatMessageData[] => {
+  const seenIds = new Set<string>();
+  const accepted: ChatMessageData[] = [];
+
+  for (const item of items) {
+    const id = item.id !== undefined && item.id !== null ? String(item.id) : '';
+    if (id && seenIds.has(id)) {
+      continue;
+    }
+
+    const fingerprint = normalizeMessageFingerprint(item);
+    const isNearDuplicate = Boolean(fingerprint) && accepted.some((candidate) => {
+      if (normalizeMessageFingerprint(candidate) !== fingerprint) {
+        return false;
+      }
+      return Math.abs(normalizeMessageTimestamp(candidate) - normalizeMessageTimestamp(item)) <= 90_000;
+    });
+
+    if (isNearDuplicate) {
+      continue;
+    }
+
+    if (id) seenIds.add(id);
+    accepted.push(item);
+  }
+
+  return accepted;
+};
+
+type TicketAttachment = NonNullable<TicketMessage['attachments']>[number];
+
+const normalizeAttachmentFromPayload = (raw: any): TicketAttachment | null => {
+  if (!raw || typeof raw !== 'object') return null;
+
+  const url =
+    raw.url ||
+    raw.archivo_url ||
+    raw.file_url ||
+    raw.media_url ||
+    raw.download_url ||
+    raw.public_url ||
+    raw.thumbnail_url;
+  const filename =
+    raw.filename ||
+    raw.name ||
+    raw.nombre ||
+    raw.original_filename ||
+    raw.file_name ||
+    'archivo';
+
+  if (!url && !filename) return null;
+
+  return {
+    id: raw.id ?? raw.archivo_id ?? raw.attachment_id ?? url ?? filename,
+    filename,
+    url: url ? ensureAbsoluteUrl(String(url)) : '',
+    mime_type: raw.mime_type || raw.mimeType || raw.content_type || raw.type,
+    mimeType: raw.mimeType || raw.mime_type || raw.content_type || raw.type,
+    size: raw.size,
+    thumbUrl: raw.thumbUrl || raw.thumb_url || raw.thumbnail_url || raw.thumbnailUrl,
+    thumb_url: raw.thumb_url || raw.thumbUrl || raw.thumbnail_url || raw.thumbnailUrl,
+    thumbnail_url: raw.thumbnail_url || raw.thumb_url || raw.thumbUrl || raw.thumbnailUrl,
+    thumbnailUrl: raw.thumbnailUrl || raw.thumbnail_url || raw.thumb_url || raw.thumbUrl,
+  };
+};
+
+const collectAttachmentsFromPayload = (raw: any): TicketMessage['attachments'] => {
+  if (!raw || typeof raw !== 'object') return [];
+  const sources = [
+    raw.attachments,
+    raw.archivos_adjuntos,
+    raw.adjuntos,
+    raw.archivo_adjunto,
+    raw.attachment,
+  ];
+
+  return sources.flatMap((source) => {
+    if (!source) return [];
+    const values = Array.isArray(source) ? source : [source];
+    return values
+      .map(normalizeAttachmentFromPayload)
+      .filter((attachment): attachment is TicketAttachment => Boolean(attachment));
+  });
+};
+
+const normalizeTicketMessageFromPayload = (raw: any): TicketMessage | null => {
+  if (!raw || typeof raw !== 'object') return null;
+
+  const source =
+    raw.comment ||
+    raw.comentario_obj ||
+    raw.mensaje_obj ||
+    raw.message ||
+    raw.mensaje ||
+    raw.payload ||
+    raw;
+  const content =
+    source.comentario ??
+    source.mensaje ??
+    source.text ??
+    source.content ??
+    source.body ??
+    '';
+  const attachments = collectAttachmentsFromPayload(source);
+
+  if (!String(content || '').trim() && attachments.length === 0) {
+    return null;
+  }
+
+  const id =
+    source.id ??
+    source.comment_id ??
+    source.comentario_id ??
+    source.message_id ??
+    source.sid ??
+    `${source.fecha || source.timestamp || source.created_at || Date.now()}:${content}`;
+  const isAdmin =
+    source.es_admin === true ||
+    source.esAdmin === true ||
+    source.is_admin === true ||
+    source.isAdmin === true ||
+    source.actor === 'agent' ||
+    source.author === 'agent' ||
+    source.author_type === 'agent';
+
+  return {
+    id,
+    content: String(content || ''),
+    timestamp: source.fecha || source.timestamp || source.created_at || new Date().toISOString(),
+    author: isAdmin ? 'agent' : 'user',
+    attachments,
+  };
+};
+
+const extractResponseTicketMessages = (response: any): TicketMessage[] => {
+  if (!response || typeof response !== 'object') return [];
+
+  const candidates: any[] = [
+    response.comment,
+    response.comentario,
+    response.message,
+    response.mensaje,
+  ];
+
+  for (const key of ['comments', 'comentarios', 'messages', 'mensajes']) {
+    const value = response[key];
+    if (Array.isArray(value)) {
+      candidates.push(...value);
+    }
+  }
+
+  const ticketPayload = response.ticket && typeof response.ticket === 'object' ? response.ticket : null;
+  if (ticketPayload) {
+    for (const key of ['comments', 'comentarios', 'messages', 'mensajes']) {
+      const value = ticketPayload[key];
+      if (Array.isArray(value)) {
+        candidates.push(...value);
+      }
+    }
+  }
+
+  return candidates
+    .map(normalizeTicketMessageFromPayload)
+    .filter((msg): msg is TicketMessage => Boolean(msg));
+};
+
 
 interface ConversationPanelProps {
   isMobile: boolean;
@@ -226,6 +408,16 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     return formatRelativeTime(value);
   }, [lastMessage]);
   const isResponsePending = lastMessage ? !lastMessage.isBot : false;
+  const notifyDeliveryIssue = useCallback(
+    (result: TicketHistoryDeliveryResult, contextMessage: string) => {
+      if (isTicketHistoryDeliveryErrorResult(result)) {
+        toast.warning(
+          formatTicketHistoryDeliveryErrorMessage(result, contextMessage),
+        );
+      }
+    },
+    [],
+  );
 
   const activeChannel = selectedTicket?.channel || 'other';
   const composerPlaceholder = listening
@@ -267,7 +459,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         }
         setTimelinePartial(false);
         if (Array.isArray(timeline.messages) && timeline.messages.length > 0) {
-          setMessages(timeline.messages.map((msg) => adaptTicketMessageToChatMessage(msg, selectedTicket)));
+          setMessages(dedupeChatMessages(timeline.messages.map((msg) => adaptTicketMessageToChatMessage(msg, selectedTicket))));
           setIsLoading(false);
           return;
         }
@@ -278,14 +470,14 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
       }
 
       if (selectedTicket.messages) {
-        setMessages(selectedTicket.messages.map(msg => adaptTicketMessageToChatMessage(msg, selectedTicket)));
+        setMessages(dedupeChatMessages(selectedTicket.messages.map(msg => adaptTicketMessageToChatMessage(msg, selectedTicket))));
         setIsLoading(false);
         return;
       }
 
       try {
         const fetchedMessages = await getTicketMessages(selectedTicket.id, selectedTicket.tipo);
-        setMessages(fetchedMessages.map(msg => adaptTicketMessageToChatMessage(msg, selectedTicket)));
+        setMessages(dedupeChatMessages(fetchedMessages.map(msg => adaptTicketMessageToChatMessage(msg, selectedTicket))));
       } catch (error) {
         toast.error('No se pudo cargar el historial de mensajes.');
         setMessages([]);
@@ -309,17 +501,17 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     socket.emit('join', { room: `ticket-${selectedTicket.tipo}-${selectedTicket.id}` });
 
     const handleNewComment = (data: any) => {
-       // Check if the comment belongs to the current ticket
-       if (data.ticket_id === selectedTicket.id && data.comment) {
-           const newMsg = data.comment;
+       const payload = data?.payload && typeof data.payload === 'object' ? data.payload : data;
+       const incomingTicketId =
+         payload?.ticket_id ??
+         payload?.ticketId ??
+         payload?.ticket?.id ??
+         payload?.comment?.ticket_id ??
+         payload?.message?.ticket_id;
+       if (Number(incomingTicketId) === Number(selectedTicket.id)) {
 
-           const ticketMessage: TicketMessage = {
-               id: newMsg.id,
-               content: newMsg.comentario || newMsg.mensaje || newMsg.text,
-               timestamp: newMsg.fecha || new Date().toISOString(),
-               author: (newMsg.es_admin || newMsg.esAdmin || newMsg.isAdmin) ? 'agent' : 'user',
-               attachments: newMsg.attachments || newMsg.archivos_adjuntos || newMsg.archivo_adjunto ? [newMsg.archivo_adjunto] : [],
-           };
+           const ticketMessage = normalizeTicketMessageFromPayload(payload);
+           if (!ticketMessage) return;
 
            setMessages(prevMessages => {
                // Evitar duplicados si el mensaje ya existe (por optimismo o retransmisión)
@@ -328,15 +520,21 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
                }
                // Si hay un mensaje optimista pendiente (id temporal grande), podríamos reemplazarlo aquí
                // pero simple deduplicación es un buen comienzo.
-               return [...prevMessages, adaptTicketMessageToChatMessage(ticketMessage, selectedTicket)];
+               return dedupeChatMessages([...prevMessages, adaptTicketMessageToChatMessage(ticketMessage, selectedTicket)]);
            });
        }
     };
 
     safeOn(socket, 'new_comment', handleNewComment);
+    safeOn(socket, 'new_chat_message', handleNewComment);
+    safeOn(socket, 'conversation.message.created', handleNewComment);
+    safeOn(socket, 'legacy.new_chat_message', handleNewComment);
 
     return () => {
         socket.off('new_comment', handleNewComment);
+        socket.off('new_chat_message', handleNewComment);
+        socket.off('conversation.message.created', handleNewComment);
+        socket.off('legacy.new_chat_message', handleNewComment);
         socket.emit('leave', { room: `ticket-${selectedTicket.tipo}-${selectedTicket.id}` });
     };
   }, [socket, selectedTicket]);
@@ -349,11 +547,8 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
       try {
         const polledMessages = await getTicketMessages(selectedTicket.id, selectedTicket.tipo);
         setMessages((prev) => {
-          const known = new Set(prev.map((item) => String(item.id)));
-          const incoming = polledMessages
-            .filter((item) => !known.has(String(item.id)))
-            .map((item) => adaptTicketMessageToChatMessage(item, selectedTicket));
-          return incoming.length > 0 ? [...prev, ...incoming] : prev;
+          const incoming = polledMessages.map((item) => adaptTicketMessageToChatMessage(item, selectedTicket));
+          return dedupeChatMessages([...prev, ...incoming]);
         });
       } catch (pollError) {
         console.warn('Fallback polling de conversación falló', pollError);
@@ -424,7 +619,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     setAttachmentPreview(null); // Clear input immediately
 
     try {
-      await sendMessage(
+      const response = await sendMessage(
         selectedTicket.id,
         selectedTicket.tipo,
         text,
@@ -433,6 +628,24 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
           ? [{ type: 'reply', reply: { id: payload.action, title: payload.action } }]
           : undefined,
       );
+      const responseMessages = extractResponseTicketMessages(response)
+        .map((msg) => adaptTicketMessageToChatMessage(msg, selectedTicket));
+      setMessages((prev) => {
+        const withoutOptimistic = prev.filter((item) => item.id !== optimisticMessage.id);
+        if (responseMessages.length > 0) {
+          return dedupeChatMessages([...withoutOptimistic, ...responseMessages]);
+        }
+        return dedupeChatMessages([
+          ...withoutOptimistic,
+          {
+            ...optimisticMessage,
+            id: `sent-${selectedTicket.tipo}-${selectedTicket.id}-${Date.now()}`,
+            attachmentInfo: optimisticMessage.attachmentInfo
+              ? { ...optimisticMessage.attachmentInfo, isUploading: false }
+              : undefined,
+          },
+        ]);
+      });
       requestTicketHistoryEmail({
         tipo: selectedTicket.tipo,
         ticketId: selectedTicket.id,
@@ -450,7 +663,6 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         .catch((error) => {
           console.error('Error triggering ticket update email after message:', error);
         });
-      // Message will be updated via Pusher with the real ID
     } catch (error) {
       toast.error("No se pudo enviar el mensaje.");
       setMessages(prev => prev.filter(m => m.id !== optimisticMessage.id)); // Rollback on error
@@ -463,6 +675,12 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     handleSendMessage(payload);
   };
 
+  useEffect(() => {
+    if (isDetailsVisible && desktopView === 'details' && setDesktopView) {
+      setDesktopView('chat');
+    }
+  }, [desktopView, isDetailsVisible, setDesktopView]);
+
   if (!selectedTicket) {
     return (
       <div className="flex h-full flex-col items-center justify-center bg-muted/20 p-4 text-center">
@@ -472,17 +690,6 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
       </div>
     );
   }
-
-  const notifyDeliveryIssue = useCallback(
-    (result: TicketHistoryDeliveryResult, contextMessage: string) => {
-      if (isTicketHistoryDeliveryErrorResult(result)) {
-        toast.warning(
-          formatTicketHistoryDeliveryErrorMessage(result, contextMessage),
-        );
-      }
-    },
-    [],
-  );
 
   const handleSelectPredefinedMessage = (predefinedMessage: string) => {
     setMessage(prev => prev ? `${prev}\n${predefinedMessage}` : predefinedMessage);
@@ -518,12 +725,6 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
       toast.error('No se pudo actualizar el estado.');
     }
   };
-
-  useEffect(() => {
-    if (isDetailsVisible && desktopView === 'details' && setDesktopView) {
-      setDesktopView('chat');
-    }
-  }, [desktopView, isDetailsVisible, setDesktopView]);
 
   return (
     <motion.div

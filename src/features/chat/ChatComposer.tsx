@@ -11,6 +11,7 @@ import { uploadChatAttachment } from './uploadChatAttachment';
 export interface ChatComposerPayload {
   text: string;
   intent?: string | null;
+  action_id?: string | null;
   payload?: Record<string, unknown> | null;
   attachmentInfo?: unknown;
   location?: { lat: number; lng?: number; lon?: number; address?: string | null; accuracy?: number | null };
