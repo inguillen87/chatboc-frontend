@@ -119,7 +119,7 @@ const SurveysPublicIndex = () => {
   }, [surveys]);
 
   const activeSurveys = useMemo(() => sortAndFilterActiveSurveys(surveys), [surveys]);
-  const latestSurveys = useMemo(() => activeSurveys.slice(0, 10), [activeSurveys]);
+  const latestSurveys = useMemo(() => activeSurveys.slice(0, 5), [activeSurveys]);
 
   const primarySurvey = latestSurveys[0];
   const widgetAssets = useMemo(() => getSurveyChannelAssets(primarySurvey, 'widget_chat'), [primarySurvey]);
@@ -131,7 +131,7 @@ const SurveysPublicIndex = () => {
 
   const digestHeaderTitle = whatsappAssets.title ?? widgetAssets.title ?? 'Participación Ciudadana';
   const digestHeaderDescription =
-    whatsappAssets.description ?? widgetAssets.description ?? 'Últimas encuestas disponibles (máximo 10).';
+    whatsappAssets.description ?? widgetAssets.description ?? 'Ultimas encuestas disponibles (maximo 5).';
 
   const aggregatedDigest = useMemo(
     () =>
@@ -352,7 +352,7 @@ const SurveysPublicIndex = () => {
             <div className="space-y-1">
               <p className="text-sm font-medium text-foreground">Compartir las últimas encuestas</p>
               <p className="text-xs text-muted-foreground">
-                Generá un mensaje compacto con hasta 10 encuestas recientes listo para enviar por WhatsApp.
+                Genera un mensaje compacto con hasta 5 encuestas recientes listo para enviar por WhatsApp.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">

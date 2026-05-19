@@ -74,6 +74,14 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const normalizeLeadValue = (value: unknown) =>
   typeof value === 'string' ? value.trim() : value === null || value === undefined ? '' : String(value).trim();
 
+const readFirstString = (...values: unknown[]) => {
+  for (const value of values) {
+    const normalized = normalizeLeadValue(value);
+    if (normalized) return normalized;
+  }
+  return '';
+};
+
 const readShortChatSessionId = (value: unknown): string | null => {
   const trimmed = typeof value === 'string' ? value.trim() : '';
   if (!trimmed) return null;
@@ -315,6 +323,32 @@ const normalizeQuickMenu = (quickMenu: unknown): QuickReplyItem[] => {
     .filter(Boolean) as QuickReplyItem[];
 };
 
+const normalizeActionMenuAsCtas = (quickMenu: unknown): ChatConversionCtaAction[] => {
+  if (!Array.isArray(quickMenu)) return [];
+  const seen = new Set<string>();
+  const actions: ChatConversionCtaAction[] = [];
+
+  quickMenu.forEach((item, index) => {
+    if (!isRecord(item) || item.enabled === false) return;
+    const label = readFirstString(item.label, item.texto, item.title, item.cta_label, item.text);
+    if (!label) return;
+    const intent = readFirstString(item.action_id, item.intent, item.action, item.key, item.id);
+    const id = intent || readFirstString(item.id, item.key) || `quick-menu-action-${index}`;
+    const dedupeKey = (intent || id || label).toLowerCase();
+    if (seen.has(dedupeKey)) return;
+    seen.add(dedupeKey);
+    actions.push({
+      id,
+      label,
+      intent: intent || null,
+      style: item.style === 'primary' || item.style === 'accent' ? String(item.style) : item.primary === true ? 'primary' : 'outline',
+      payload: isRecord(item.payload) ? item.payload : null,
+    });
+  });
+
+  return actions;
+};
+
 const normalizeExperienceBlocks = (items: unknown): ChatExperienceBlock[] => {
   if (!Array.isArray(items)) return [];
   return items
@@ -527,10 +561,23 @@ function StandaloneChatPanel({
     [resolvedLeadCapture?.trigger_intents],
   );
   const visibleCtas = useMemo(() => {
-    const actions = resolvedConversionCtas?.actions ?? [];
-    const maxVisible = Number(resolvedConversionCtas?.rules?.max_visible ?? 3);
+    const menuActions = normalizeActionMenuAsCtas(quickMenu);
+    const conversionActions = resolvedConversionCtas?.actions ?? [];
+    const seen = new Set(menuActions.map((action) => (action.intent || action.id || action.label).toLowerCase()));
+    const actions = menuActions.length
+      ? [
+          ...menuActions,
+          ...conversionActions.filter((action) => {
+            const key = (action.intent || action.id || action.label).toLowerCase();
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          }),
+        ]
+      : conversionActions;
+    const maxVisible = menuActions.length ? 5 : Number(resolvedConversionCtas?.rules?.max_visible ?? 3);
     return actions.slice(0, Number.isFinite(maxVisible) && maxVisible > 0 ? maxVisible : 3);
-  }, [resolvedConversionCtas?.actions, resolvedConversionCtas?.rules?.max_visible]);
+  }, [quickMenu, resolvedConversionCtas?.actions, resolvedConversionCtas?.rules?.max_visible]);
 
   const shouldTriggerLead = (candidate: {
     text?: string;

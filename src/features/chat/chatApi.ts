@@ -536,7 +536,11 @@ const buildJsonPayload = (bootstrap: ChatBootstrapConfig, payload: ChatBootstrap
   basePayload.pregunta = text;
 
   if (payload.intent) basePayload.intent = payload.intent;
-  if (payload.action_id) basePayload.action_id = payload.action_id;
+  if (payload.action_id) {
+    basePayload.action_id = payload.action_id;
+  } else if (payload.intent && !basePayload.action_id) {
+    basePayload.action_id = payload.intent;
+  }
   if (payload.payload) basePayload.payload = payload.payload;
   if (payload.attachmentInfo) basePayload.attachmentInfo = payload.attachmentInfo;
   if (payload.location) {

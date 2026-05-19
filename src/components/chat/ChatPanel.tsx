@@ -3340,9 +3340,34 @@ const ChatPanel = (props: ChatPanelProps) => {
       bootstrapExperienceBlueprint,
     ],
   );
+  const defaultMenuMaxVisible = useMemo(() => {
+    const declared = readFirstNumber(
+      (defaultMenu as Record<string, unknown> | undefined)?.max_visible_items,
+      (defaultMenu as Record<string, unknown> | undefined)?.maxVisibleItems,
+      (quickMenu as Record<string, unknown> | undefined)?.max_visible_items,
+      (quickMenu as Record<string, unknown> | undefined)?.maxVisibleItems,
+      (chatBootstrap?.default_menu as Record<string, unknown> | undefined)?.max_visible_items,
+      (chatBootstrap?.default_menu as Record<string, unknown> | undefined)?.maxVisibleItems,
+      (bootstrapPayload?.default_menu as Record<string, unknown> | undefined)?.max_visible_items,
+      (bootstrapPayload?.default_menu as Record<string, unknown> | undefined)?.maxVisibleItems,
+      (bootstrapDemoMetadata?.default_menu as Record<string, unknown> | undefined)?.max_visible_items,
+      (bootstrapDemoMetadata?.default_menu as Record<string, unknown> | undefined)?.maxVisibleItems,
+      (demoWorkspace?.default_menu as Record<string, unknown> | undefined)?.max_visible_items,
+      (demoWorkspace?.default_menu as Record<string, unknown> | undefined)?.maxVisibleItems,
+    );
+    if (!declared) return 5;
+    return Math.min(5, Math.max(3, Math.round(declared)));
+  }, [
+    bootstrapDemoMetadata?.default_menu,
+    bootstrapPayload?.default_menu,
+    chatBootstrap?.default_menu,
+    defaultMenu,
+    demoWorkspace?.default_menu,
+    quickMenu,
+  ]);
   const visibleDefaultMenuButtons = useMemo(
-    () => defaultMenuButtons.slice(0, 3),
-    [defaultMenuButtons],
+    () => defaultMenuButtons.slice(0, defaultMenuMaxVisible),
+    [defaultMenuButtons, defaultMenuMaxVisible],
   );
   const sendDefaultMenuButton = useCallback(
     (item: (typeof defaultMenuButtons)[number], placement: "empty" | "persistent") => {

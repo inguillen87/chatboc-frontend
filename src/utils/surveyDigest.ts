@@ -231,7 +231,7 @@ const formatShareUrls = ({
   }
   if (participationUrl) {
     const shareLink = `https://wa.me/?text=${encodeURIComponent(participationUrl)}`;
-    lines.push(`• Compartir con un mensaje listo para WhatsApp: ${shareLink}`);
+    lines.push(`• Compartir directo por WhatsApp: ${shareLink}`);
   }
   return lines;
 };
@@ -304,7 +304,7 @@ export const sortAndFilterActiveSurveys = (surveys: SurveyPublic[]): SurveyPubli
 
 export const buildSurveyDigestMessage = ({
   surveys,
-  limit = 10,
+  limit = 5,
   channel = 'whatsapp',
   headerTitle,
   headerDescription,
@@ -324,7 +324,7 @@ export const buildSurveyDigestMessage = ({
   const resolvedHeaderDescription =
     headerDescription ??
     channelAssets.description ??
-    'Últimas encuestas disponibles (máximo 10).';
+    'Ultimas encuestas disponibles (maximo 5).';
 
   const lines: string[] = [];
   lines.push(`*${resolvedHeaderTitle}*`);
