@@ -720,7 +720,12 @@ export default function InternalUsers() {
   }, [coverage?.channels, employees, routing]);
 
   const categoryOptions = useMemo(
-    () => categories.map((cat) => ({ value: cat.id, label: cat.nombre })),
+    () =>
+      categories
+        .filter((cat) => !isSuspiciousCategoryLabel(cat.nombre))
+        .slice()
+        .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
+        .map((cat) => ({ value: cat.id, label: cat.nombre })),
     [categories],
   );
 

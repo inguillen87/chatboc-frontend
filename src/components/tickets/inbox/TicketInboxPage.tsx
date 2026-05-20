@@ -5,7 +5,6 @@ import { RefreshCw } from 'lucide-react';
 import { getOmnichannelInboxV2, type OmnichannelInboxItem } from '@/api/v2/saas';
 import { ViewState } from '@/components/app-shell/ViewState';
 import { Button } from '@/components/ui/button';
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { useTenant } from '@/context/TenantContext';
 import { getTickets } from '@/services/ticketService';
 import { ApiError, getErrorMessage } from '@/utils/api';
@@ -41,6 +40,7 @@ const mapLegacyTicketsToInboxItems = async (tenantSlug?: string | null): Promise
       actions: [],
       allowed_actions: [],
       next_steps: [],
+      agent_copilot_suggestions: [],
       raw: ticket,
     };
   });
@@ -124,32 +124,25 @@ export const TicketInboxPage: React.FC<TicketInboxPageProps> = ({
   }
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] w-full bg-background">
-      <ResizablePanelGroup direction="horizontal">
-        <ResizablePanel
-          defaultSize={30}
-          minSize={25}
-          maxSize={40}
-          className="min-w-[300px]"
-        >
+    <div className="h-[calc(100vh-4rem)] w-full overflow-hidden bg-background">
+      <div className="grid h-full min-h-0 grid-cols-1 lg:grid-cols-[minmax(320px,380px)_minmax(0,1fr)]">
+        <aside className="min-h-0 border-b border-border/60 lg:border-b-0 lg:border-r">
           <TicketListPane
             tickets={filteredTickets}
             selectedTicketId={selectedTicketId}
             onSelect={setSelectedTicketId}
           />
-        </ResizablePanel>
+        </aside>
 
-        <ResizableHandle withHandle />
-
-        <ResizablePanel defaultSize={70}>
+        <main className="min-h-0">
           <TicketConversationPane
             ticket={selectedTicket}
             ticketId={selectedTicketId}
             tenantSlug={currentSlug}
             onActionComplete={() => void inboxQuery.refetch()}
           />
-        </ResizablePanel>
-      </ResizablePanelGroup>
+        </main>
+      </div>
     </div>
   );
 };

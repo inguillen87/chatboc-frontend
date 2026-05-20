@@ -355,7 +355,7 @@ export const getAssignableAgents = async (
       } catch (error) {
         lastError = error;
         const apiErr = error as ApiError;
-        if (apiErr?.status && ![404, 405].includes(apiErr.status)) {
+        if (apiErr?.status && [401, 403].includes(apiErr.status)) {
           break;
         }
       }
@@ -765,7 +765,7 @@ export const assignTicketToAgent = async (
         } catch (err: any) {
             lastError = err;
             const apiErr = err as ApiError;
-            if (apiErr?.status && ![404, 405].includes(apiErr.status)) {
+            if (apiErr?.status && [400, 401, 403, 422].includes(apiErr.status)) {
                 throw err;
             }
         }
