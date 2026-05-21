@@ -29,6 +29,39 @@ import { safeSessionStorage } from '@/utils/safeLocalStorage';
 
 const LIVE_FILTERS_STORAGE_KEY = 'survey-live-filters-v1';
 
+const appendDemoVoteToLiveResults = (
+  source: SurveyLiveResults | undefined,
+  payload: PublicResponsePayload,
+): SurveyLiveResults | undefined => {
+  if (!source?.preguntas || !Array.isArray(payload.respuestas)) return source;
+
+  const preguntas = { ...source.preguntas };
+  let changed = false;
+
+  for (const respuesta of payload.respuestas) {
+    const key = String(respuesta.pregunta_id);
+    const questionStats = preguntas[key];
+    if (!questionStats?.opciones?.length || !respuesta.opcion_ids?.length) continue;
+
+    const selectedIds = new Set(respuesta.opcion_ids);
+    preguntas[key] = {
+      ...questionStats,
+      opciones: questionStats.opciones.map((option) =>
+        selectedIds.has(option.id) ? { ...option, votos: option.votos + 1 } : option,
+      ),
+    };
+    changed = true;
+  }
+
+  if (!changed) return source;
+
+  return {
+    ...source,
+    total_respuestas: (Number(source.total_respuestas) || 0) + 1,
+    preguntas,
+  };
+};
+
 const parseLiveRequestParams = (): SurveyLiveRequestParams => {
   const raw = safeSessionStorage.getItem(LIVE_FILTERS_STORAGE_KEY);
   if (!raw) return { include_heatmap: 1, window_minutes: 60, max_points: 800, max_cells: 120 };
@@ -81,13 +114,22 @@ const PublicSurveyPage = () => {
   const [liveComments, setLiveComments] = useState<SurveyComment[]>([]);
   const [liveRequestParams, setLiveRequestParams] = useState<SurveyLiveRequestParams>(() => parseLiveRequestParams());
   const [showLoadingSkeleton, setShowLoadingSkeleton] = useState(true);
+  const surveyResources = survey?.recursos as Record<string, unknown> | undefined;
+  const isDemoParticipationSurvey = Boolean(
+    surveyResources?.demoMode ||
+      surveyResources?.demo_mode ||
+      searchParams.get('demo_participation') === '1',
+  );
+  const shouldRevealLiveResults = Boolean(
+    survey?.mostrar_resultados_envivo && (!isDemoParticipationSurvey || submitted),
+  );
   const {
     liveResults: liveDashboard,
     isFetching: isFetchingLiveDashboard,
     error: liveDashboardError,
     consecutiveErrors: liveDashboardConsecutiveErrors,
   } = useSurveyLiveResults(
-    survey?.mostrar_resultados_envivo ? slug : undefined,
+    shouldRevealLiveResults ? slug : undefined,
     tenantSlug,
     liveRequestParams,
   );
@@ -168,17 +210,29 @@ const PublicSurveyPage = () => {
 
   // Sync initial live results from survey data
   useEffect(() => {
-    if (survey?.resultados_envivo) {
-        setLiveResults(survey.resultados_envivo);
+    if (!shouldRevealLiveResults) {
+      setLiveResults(undefined);
+      return;
     }
-  }, [survey?.resultados_envivo]);
+    if (survey?.resultados_envivo) {
+      setLiveResults(
+        isDemoParticipationSurvey && submitted && lastSubmission
+          ? appendDemoVoteToLiveResults(survey.resultados_envivo, lastSubmission)
+          : survey.resultados_envivo,
+      );
+    }
+  }, [isDemoParticipationSurvey, lastSubmission, shouldRevealLiveResults, submitted, survey?.resultados_envivo]);
 
   // Handle Socket.IO connection
   useSurveySocket({
       slug: slug || '',
-      enabled: Boolean(survey?.mostrar_resultados_envivo || survey?.permitir_comentarios),
+      enabled: Boolean(shouldRevealLiveResults || survey?.permitir_comentarios),
       onUpdate: (data) => {
-          setLiveResults(data);
+          setLiveResults(
+            isDemoParticipationSurvey && submitted && lastSubmission
+              ? appendDemoVoteToLiveResults(data, lastSubmission)
+              : data,
+          );
       },
       onComment: (comment) => {
           setLiveComments((prev) => [comment, ...prev]);
@@ -190,7 +244,7 @@ const PublicSurveyPage = () => {
     description:
       survey?.descripcion ??
       'Respondé la encuesta y ayudá a tomar decisiones basadas en la voz de la comunidad.',
-    image: '/images/og-encuestas.svg',
+    image: '/images/og-chatboc.png',
   });
 
   const metadata = useMemo(() => {
@@ -230,6 +284,13 @@ const PublicSurveyPage = () => {
         await submit(finalPayload);
         setLastSubmission(finalPayload);
         setSubmitted(true);
+        if (survey?.resultados_envivo) {
+          setLiveResults(
+            isDemoParticipationSurvey
+              ? appendDemoVoteToLiveResults(survey.resultados_envivo, finalPayload)
+              : survey.resultados_envivo,
+          );
+        }
         if (survey) {
           trackSurveySubmission({ survey, payload: finalPayload });
         }
@@ -257,7 +318,7 @@ const PublicSurveyPage = () => {
         });
       }
     },
-    [metadata, submit, survey, submitError],
+    [isDemoParticipationSurvey, metadata, submit, survey, submitError],
   );
 
   const handleReset = useCallback(() => {
@@ -275,11 +336,12 @@ const PublicSurveyPage = () => {
 
   const totalVotes = useMemo(() => {
     if (!survey) return null;
-    if (survey?.resultados_envivo?.total_respuestas) {
-      return survey.resultados_envivo.total_respuestas;
-    }
+    if (isDemoParticipationSurvey && !submitted) return null;
     if (typeof liveResults?.total_respuestas === 'number') {
       return liveResults.total_respuestas;
+    }
+    if (survey?.resultados_envivo?.total_respuestas) {
+      return survey.resultados_envivo.total_respuestas;
     }
     if (survey?.resultados_envivo?.preguntas) {
       const question = Object.values(survey.resultados_envivo.preguntas)[0];
@@ -288,13 +350,15 @@ const PublicSurveyPage = () => {
       }
     }
     return null;
-  }, [survey, liveResults]);
+  }, [isDemoParticipationSurvey, liveResults, submitted, survey]);
 
   useEffect(() => {
     if (typeof totalVotes === 'number') {
       setLivePollTotalVotes(totalVotes);
+    } else if (isDemoParticipationSurvey && !submitted) {
+      setLivePollTotalVotes(null);
     }
-  }, [totalVotes]);
+  }, [isDemoParticipationSurvey, submitted, totalVotes]);
 
   const pollSubtitle = useMemo(() => {
     if (!survey?.descripcion) return null;
@@ -498,11 +562,18 @@ const PublicSurveyPage = () => {
                   {textOr(votacionMessages?.puntos_label, 'Puntos obtenidos:')} {survey.puntos_recompensa}
                 </p>
               ) : null}
-              <p className="text-muted-foreground">{textOr(votacionMessages?.detalle_gracias, 'Tu respuesta quedó registrada correctamente.')}</p>
+              <p className="text-muted-foreground">
+                {isDemoParticipationSurvey
+                  ? textOr(
+                      votacionMessages?.detalle_gracias_demo,
+                      'Tu voto se sumo a la simulacion: ahora ves 100 respuestas demo mas tu participacion.',
+                    )
+                  : textOr(votacionMessages?.detalle_gracias, 'Tu respuesta quedó registrada correctamente.')}
+              </p>
             </div>
 
             {/* Show Results Here if enabled */}
-            {survey.mostrar_resultados_envivo && (
+            {shouldRevealLiveResults && (
               <div className="w-full max-w-xl text-left border rounded-xl p-6 bg-accent/10">
                 <h3 className="mb-4 font-semibold text-lg">{textOr(votacionUi?.resultados_titulo, 'Resultados en vivo')}</h3>
                 <SurveyForm
@@ -600,7 +671,7 @@ const PublicSurveyPage = () => {
                     <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
                     {textOr(votacionUi?.badge_en_vivo, 'En vivo')}
                   </span>
-                  {survey?.recursos?.demoMode ? (
+                  {isDemoParticipationSurvey ? (
                     <span className="inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-600">
                       {textOr(votacionUi?.badge_demo, 'Demo')}
                     </span>
@@ -619,7 +690,9 @@ const PublicSurveyPage = () => {
                   <Users className="h-5 w-5 text-primary" />
                   <div>
                     <p className="text-xs uppercase text-muted-foreground">{textOr(votacionUi?.stat_total_label, 'Total de respuestas')}</p>
-                    <p className="text-lg font-semibold">{livePollTotalVotes ?? '—'}</p>
+                    <p className="text-lg font-semibold">
+                      {livePollTotalVotes ?? (isDemoParticipationSurvey ? 'Tras votar' : '—')}
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-background/70 px-4 py-3 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
@@ -646,7 +719,14 @@ const PublicSurveyPage = () => {
                 </div>
               )}
 
-              {survey.mostrar_resultados_envivo && liveDashboard ? (
+              {isDemoParticipationSurvey && !submitted ? (
+                <div className="rounded-2xl border border-primary/25 bg-primary/10 p-4 text-sm text-foreground shadow-sm">
+                  Vota primero para desbloquear los resultados. Despues vas a ver la base demo de 100 respuestas
+                  sinteticas mas tu participacion en vivo.
+                </div>
+              ) : null}
+
+              {shouldRevealLiveResults && liveDashboard ? (
                 <div className="space-y-4 rounded-2xl border border-border/60 bg-background/80 p-4 shadow-sm sm:p-5">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex flex-wrap items-center gap-2">
@@ -672,7 +752,7 @@ const PublicSurveyPage = () => {
                     </div>
                   ) : null}
 
-                  {survey.mostrar_resultados_envivo ? (
+                  {shouldRevealLiveResults ? (
                     <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
                       <select
                         className="rounded-md border bg-background px-2 py-1.5 text-xs"
@@ -814,7 +894,7 @@ const PublicSurveyPage = () => {
                       : textOr(votacionUi?.boton_enviar, 'Enviar respuesta')
                   }
                   liveResults={liveResults}
-                  showLiveResults={Boolean(survey.mostrar_resultados_envivo)}
+                  showLiveResults={shouldRevealLiveResults}
                 />
               </div>
             </CardContent>
