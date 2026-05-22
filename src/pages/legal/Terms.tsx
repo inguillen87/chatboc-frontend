@@ -1,76 +1,104 @@
-import React from "react";
+const updatedAt = "22 de mayo de 2026";
 
 export default function TermsPage() {
   return (
-    <main className="min-h-screen flex flex-col bg-white text-gray-900 dark:bg-gray-900 dark:text-white transition-colors">
-      <section className="flex-1 flex items-center justify-center px-4">
-        <div className="w-full max-w-2xl mx-auto px-4 sm:px-8 py-8 sm:py-12 bg-gray-100 dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 mt-10 mb-10">
-          <h1 className="text-2xl sm:text-3xl font-bold mb-6 text-blue-600 dark:text-blue-400">
-            Términos y Condiciones de Uso
-          </h1>
-          <p className="mb-4 text-gray-700 dark:text-gray-300">
-            Al registrarte y utilizar <b>Chatboc</b> aceptás estos términos y condiciones, que regulan el uso de nuestros servicios de agente IA, CRM y sistema POS.
-          </p>
-          
-          <h2 className="text-lg font-semibold mb-2 text-primary">Uso del servicio</h2>
-          <ul className="list-disc ml-6 mb-4 text-gray-700 dark:text-gray-300">
-            <li>El acceso a Chatboc requiere registro de usuario y aceptación de estos términos.</li>
-            <li>No se permite el uso para actividades ilícitas, fraudulentas o que afecten a terceros.</li>
-            <li>La contratación de planes pagos incluye límites y condiciones detallados en la sección <a href="/#precios" className="underline text-blue-400">Precios</a>.</li>
-            <li>Las llamadas a la API y funcionalidades avanzadas están sujetas a los límites de uso establecidos en cada plan.</li>
-          </ul>
-          
-          <h2 className="text-lg font-semibold mb-2 text-primary">Propiedad intelectual</h2>
-          <ul className="list-disc ml-6 mb-4 text-gray-700 dark:text-gray-300">
-            <li>El software, contenidos y diseños de Chatboc son propiedad exclusiva de sus creadores.</li>
-            <li>No se permite copiar, modificar ni distribuir la plataforma sin autorización expresa.</li>
-            <li>El usuario es responsable del contenido que cargue en la plataforma (catálogos, datos, respuestas, etc.).</li>
-          </ul>
-          
-          <h2 className="text-lg font-semibold mb-2 text-primary">Responsabilidad y uso aceptable</h2>
-          <ul className="list-disc ml-6 mb-4 text-gray-700 dark:text-gray-300">
-            <li>Chatboc no se responsabiliza por el uso indebido, daños indirectos o pérdida de datos causada por el usuario.</li>
-            <li>El servicio puede suspenderse temporalmente por mantenimiento, actualizaciones o fuerza mayor.</li>
-            <li>Nos reservamos el derecho de bloquear o cancelar cuentas que incumplan estos términos.</li>
-          </ul>
+    <main className="min-h-screen bg-background text-foreground">
+      <section className="mx-auto w-full max-w-4xl px-5 py-12 sm:px-8">
+        <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-primary">Chatboc.ar</p>
+        <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Terminos y condiciones</h1>
+        <p className="mt-4 max-w-3xl text-base leading-7 text-muted-foreground">
+          Estos terminos regulan el uso de Chatboc.ar, una plataforma SaaS para atencion conversacional,
+          CRM, tickets, turnos, pedidos, encuestas, automatizaciones, integraciones y agentes de IA para
+          empresas, municipios, instituciones educativas y otros clientes.
+        </p>
+        <p className="mt-3 text-sm text-muted-foreground">Ultima actualizacion: {updatedAt}</p>
 
-          <h2 className="text-lg font-semibold mb-2 text-primary">Datos y privacidad</h2>
-          <ul className="list-disc ml-6 mb-4 text-gray-700 dark:text-gray-300">
-            <li>El tratamiento de tus datos se detalla en nuestra <a href="/legal/privacy" className="underline text-blue-400">Política de Privacidad</a>.</li>
-            <li>Puedes solicitar la baja de tu cuenta o el acceso/corrección/eliminación de tus datos en cualquier momento.</li>
-          </ul>
-          
-          <h2 className="text-lg font-semibold mb-2 text-primary">Modificaciones y contacto</h2>
-          <ul className="list-disc ml-6 mb-4 text-gray-700 dark:text-gray-300">
-            <li>Podemos actualizar estos términos para mejorar el servicio. Te avisaremos en caso de cambios importantes.</li>
-            <li>Si tenés dudas o consultas, escribinos a <a href="mailto:info@chatboc.ar" className="underline text-blue-400">info@chatboc.ar</a>.</li>
-          </ul>
-          
-          <div className="mt-8 flex flex-wrap gap-4">
-            <a
-              href="/legal/privacy"
-              className="text-blue-600 dark:text-blue-400 underline hover:text-blue-800 dark:hover:text-blue-300 transition"
-            >
-              Política de Privacidad
-            </a>
-            <a
-              href="/legal/cookies"
-              className="text-blue-600 dark:text-blue-400 underline hover:text-blue-800 dark:hover:text-blue-300 transition"
-            >
-              Política de Cookies
-            </a>
-            <a
-              href="/"
-              className="text-gray-500 dark:text-gray-400 underline hover:text-gray-900 dark:hover:text-white transition"
-            >
-              Volver al inicio
-            </a>
-          </div>
+        <div className="mt-10 space-y-8 text-sm leading-7 sm:text-base">
+          <section>
+            <h2 className="text-xl font-semibold">Uso aceptable</h2>
+            <p className="mt-3 text-muted-foreground">
+              El usuario se compromete a usar Chatboc.ar de forma legal, responsable y compatible con las
+              politicas de las plataformas conectadas, incluyendo Meta, WhatsApp Business, Twilio y otros
+              proveedores. No se permite enviar spam, suplantar identidad, vulnerar derechos de terceros,
+              procesar datos sin autorizacion o usar la plataforma para actividades ilicitas.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold">Cuentas, tenants e integraciones</h2>
+            <p className="mt-3 text-muted-foreground">
+              Cada organizacion es responsable de la informacion que carga, de sus operadores, de las
+              credenciales que conecta y de obtener los consentimientos necesarios para comunicarse con sus
+              usuarios, vecinos, clientes, alumnos o familias.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold">Mensajeria y canales externos</h2>
+            <p className="mt-3 text-muted-foreground">
+              Las comunicaciones por WhatsApp, email, voz u otros canales pueden depender de servicios de
+              terceros. El cliente debe respetar opt-in, ventanas de atencion, plantillas aprobadas, limites
+              de envio y politicas aplicables a cada canal.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold">Disponibilidad y cambios</h2>
+            <p className="mt-3 text-muted-foreground">
+              Trabajamos para mantener la plataforma disponible y segura, pero pueden existir interrupciones
+              por mantenimiento, cambios de proveedores, errores, fuerza mayor o actualizaciones. Podemos
+              modificar funciones, planes o condiciones avisando cuando corresponda.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold">Propiedad intelectual</h2>
+            <p className="mt-3 text-muted-foreground">
+              Chatboc.ar, su software, marca, interfaces, documentacion y activos son propiedad de sus
+              titulares. El cliente conserva la titularidad sobre sus datos y contenidos, otorgando a
+              Chatboc.ar los permisos necesarios para operar el servicio contratado.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold">Privacidad y datos</h2>
+            <p className="mt-3 text-muted-foreground">
+              El tratamiento de datos personales se describe en la{" "}
+              <a className="text-primary underline underline-offset-4" href="/privacidad">
+                Politica de privacidad
+              </a>
+              . Las solicitudes de eliminacion pueden iniciarse desde{" "}
+              <a className="text-primary underline underline-offset-4" href="/eliminacion-datos">
+                Eliminacion de datos
+              </a>
+              .
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold">Contacto</h2>
+            <p className="mt-3 text-muted-foreground">
+              Para consultas comerciales, soporte, privacidad o terminos, escribinos a{" "}
+              <a className="text-primary underline underline-offset-4" href="mailto:info@chatboc.ar">
+                info@chatboc.ar
+              </a>
+              .
+            </p>
+          </section>
         </div>
+
+        <nav className="mt-12 flex flex-wrap gap-4 text-sm">
+          <a className="text-primary underline underline-offset-4" href="/privacidad">
+            Politica de privacidad
+          </a>
+          <a className="text-primary underline underline-offset-4" href="/eliminacion-datos">
+            Eliminacion de datos
+          </a>
+          <a className="text-muted-foreground underline underline-offset-4" href="/">
+            Volver al inicio
+          </a>
+        </nav>
       </section>
-      <footer className="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 text-gray-500 dark:text-gray-400 text-xs sm:text-sm text-center py-6 transition-colors">
-        © 2025 Chatboc · Todos los derechos reservados.
-      </footer>
     </main>
   );
 }

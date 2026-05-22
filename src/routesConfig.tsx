@@ -23,6 +23,7 @@ import Faqs from '@/pages/Faqs';
 import Privacy from '@/pages/legal/Privacy';
 import Terms from '@/pages/legal/Terms';
 import Cookies from '@/pages/legal/Cookies';
+import DataDeletion from '@/pages/legal/DataDeletion';
 import TicketsPanel from '@/pages/TicketsPanel';
 import { TicketInboxPage } from '@/components/tickets/inbox';
 import PedidosPage from '@/pages/pyme/pedidos/PedidosPage';
@@ -461,6 +462,10 @@ const routes: RouteConfig[] = [
   { path: '/legal/privacy', element: <Privacy /> },
   { path: '/legal/terms', element: <Terms /> },
   { path: '/legal/cookies', element: <Cookies /> },
+  { path: '/legal/data-deletion', element: <DataDeletion /> },
+  { path: '/privacidad', element: <Privacy /> },
+  { path: '/terminos', element: <Terms /> },
+  { path: '/eliminacion-datos', element: <DataDeletion /> },
   {
     path: '/tickets',
     element: <TicketsPanel />,

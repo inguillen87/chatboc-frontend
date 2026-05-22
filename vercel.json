@@ -69,6 +69,9 @@
     },
     { "source": "/iframe", "destination": "/iframe.html" },
     { "source": "/iframe/(.*)", "destination": "/iframe.html" },
+    { "source": "/privacidad", "destination": "/privacidad/index.html" },
+    { "source": "/terminos", "destination": "/terminos/index.html" },
+    { "source": "/eliminacion-datos", "destination": "/eliminacion-datos/index.html" },
     { "source": "/(.*)", "destination": "/" }
   ]
 }
