@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { useScrollToSection } from "@/hooks/useScrollToSection";
 
-const afipDataFiscalHref = "http://qr.afip.gob.ar/?qr=hNBOkNhlJyhWrlnUph25jQ,,";
+const afipDataFiscalHref = "https://qr.afip.gob.ar/?qr=hNBOkNhlJyhWrlnUph25jQ,,";
 const afipDataFiscalImage = "https://www.afip.gob.ar/images/f960/DATAWEB.jpg";
 const mipymeCertificateHref = "/certificados/certificado-mipyme-intellitech.pdf";
 
