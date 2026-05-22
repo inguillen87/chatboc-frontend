@@ -71,7 +71,16 @@ export const tenantService = {
 
   completeWhatsappEmbeddedSignup: async (
     slug: string,
-    payload: { waba_id?: string | null; phone_number_id?: string | null; session_id?: string | null },
+    payload: {
+      waba_id?: string | null;
+      phone_number_id?: string | null;
+      session_id?: string | null;
+      code?: string | null;
+      auth_code?: string | null;
+      authorization_code?: string | null;
+      event?: string | null;
+      business_id?: string | null;
+    },
   ): Promise<any> => {
     return apiFetch<any>(`/api/v2/tenants/${encodeURIComponent(slug)}/whatsapp/tech-provider/embedded-signup`, {
       method: "POST",

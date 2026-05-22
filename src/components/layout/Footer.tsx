@@ -1,18 +1,32 @@
 // src/components/Footer.tsx
 
-import React from "react";
-import { Link } from "react-router-dom";
-import { Facebook, Twitter, Instagram, Linkedin, Mail, MessageCircle, Copy, Download, ExternalLink, ShieldCheck } from "lucide-react";
-import { useScrollToSection } from "@/hooks/useScrollToSection";
 import { useState } from "react";
+import { Link } from "react-router-dom";
+import {
+  Copy,
+  Download,
+  ExternalLink,
+  Facebook,
+  FileCheck2,
+  Instagram,
+  Linkedin,
+  Mail,
+  MessageCircle,
+  QrCode,
+  ShieldCheck,
+  Twitter,
+} from "lucide-react";
+import { useScrollToSection } from "@/hooks/useScrollToSection";
 
-const afipDataFiscalHref = "https://qr.afip.gob.ar/?qr=hNBOkNhlJyhWrlnUph25jQ,,";
+const afipDataFiscalHref = "http://qr.afip.gob.ar/?qr=hNBOkNhlJyhWrlnUph25jQ,,";
+const afipDataFiscalImage = "https://www.afip.gob.ar/images/f960/DATAWEB.jpg";
 const mipymeCertificateHref = "/certificados/certificado-mipyme-intellitech.pdf";
 
 const Footer = () => {
   const scrollToSection = useScrollToSection();
   const [copied, setCopied] = useState(false);
   const email = "info@chatboc.ar";
+  const year = new Date().getFullYear();
 
   const handleCopyEmail = () => {
     navigator.clipboard.writeText(email);
@@ -21,72 +35,69 @@ const Footer = () => {
   };
 
   return (
-    <footer className="bg-muted text-muted-foreground py-8">
+    <footer className="bg-muted py-8 text-muted-foreground">
       <div className="container mx-auto px-4">
-        <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4 mb-8 text-center sm:text-left">
-          {/* Marca y redes */}
+        <div className="mb-8 grid gap-8 text-center sm:grid-cols-2 sm:text-left lg:grid-cols-4">
           <div className="flex flex-col items-center sm:items-start">
-            <h3 className="text-xl font-bold mb-3 text-foreground">Chatboc</h3>
-            <p className="text-muted-foreground mb-4 max-w-xs">
+            <h3 className="mb-3 text-xl font-bold text-foreground">Chatboc</h3>
+            <p className="mb-4 max-w-xs text-muted-foreground">
               Tu experto virtual para atender, vender y ordenar conversaciones en cada canal conectado.
             </p>
             <div className="flex space-x-4">
-              <a href="https://www.facebook.com/chatboc" target="_blank" rel="noopener noreferrer" aria-label="Facebook" className="text-muted-foreground hover:text-primary transition-colors">
+              <a href="https://www.facebook.com/chatboc" target="_blank" rel="noopener noreferrer" aria-label="Facebook" className="text-muted-foreground transition-colors hover:text-primary">
                 <Facebook className="h-5 w-5" />
               </a>
-              <a href="https://www.twitter.com/chatboc.ar" target="_blank" rel="noopener noreferrer" aria-label="Twitter" className="text-muted-foreground hover:text-primary transition-colors">
+              <a href="https://www.twitter.com/chatboc.ar" target="_blank" rel="noopener noreferrer" aria-label="Twitter" className="text-muted-foreground transition-colors hover:text-primary">
                 <Twitter className="h-5 w-5" />
               </a>
-              <a href="https://www.instagram.com/chatboc.ar" target="_blank" rel="noopener noreferrer" aria-label="Instagram" className="text-muted-foreground hover:text-primary transition-colors">
+              <a href="https://www.instagram.com/chatboc.ar" target="_blank" rel="noopener noreferrer" aria-label="Instagram" className="text-muted-foreground transition-colors hover:text-primary">
                 <Instagram className="h-5 w-5" />
               </a>
-              <a href="https://www.linkedin.com/company/chatboc" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn" className="text-muted-foreground hover:text-primary transition-colors">
+              <a href="https://www.linkedin.com/company/chatboc" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn" className="text-muted-foreground transition-colors hover:text-primary">
                 <Linkedin className="h-5 w-5" />
               </a>
             </div>
           </div>
 
-          {/* Producto */}
           <div className="flex flex-col items-center sm:items-start">
-            <h3 className="text-lg font-semibold mb-3 text-foreground">Producto</h3>
+            <h3 className="mb-3 text-lg font-semibold text-foreground">Producto</h3>
             <ul className="space-y-2">
               <li>
                 <button
                   type="button"
-                  className="text-muted-foreground hover:text-primary transition-colors bg-transparent border-none p-0 m-0 cursor-pointer"
+                  className="m-0 cursor-pointer border-none bg-transparent p-0 text-muted-foreground transition-colors hover:text-primary"
                   onClick={() => scrollToSection("solution")}
                 >
-                  Qué hace
+                  Que hace
                 </button>
               </li>
               <li>
                 <button
                   type="button"
-                  className="text-muted-foreground hover:text-primary transition-colors bg-transparent border-none p-0 m-0 cursor-pointer"
+                  className="m-0 cursor-pointer border-none bg-transparent p-0 text-muted-foreground transition-colors hover:text-primary"
                   onClick={() => scrollToSection("pricing")}
                 >
                   Planes
                 </button>
               </li>
               <li>
-                <Link to="/demo" className="text-muted-foreground hover:text-primary transition-colors">
+                <Link to="/demo" className="text-muted-foreground transition-colors hover:text-primary">
                   Probar demo
                 </Link>
               </li>
             </ul>
           </div>
 
-          {/* Recursos */}
           <div className="flex flex-col items-center sm:items-start">
-            <h3 className="text-lg font-semibold mb-3 text-foreground">Recursos</h3>
+            <h3 className="mb-3 text-lg font-semibold text-foreground">Recursos</h3>
             <ul className="space-y-2">
               <li>
-                <Link to="/faqs" className="text-muted-foreground hover:text-primary transition-colors">
+                <Link to="/faqs" className="text-muted-foreground transition-colors hover:text-primary">
                   Centro de ayuda (FAQs)
                 </Link>
               </li>
               <li>
-                <Link to="/documentacion" className="text-muted-foreground hover:text-primary transition-colors">
+                <Link to="/documentacion" className="text-muted-foreground transition-colors hover:text-primary">
                   Guia de uso
                 </Link>
               </li>
@@ -96,7 +107,7 @@ const Footer = () => {
                   href="https://wa.me/5492613168608"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-muted-foreground hover:text-primary transition-colors underline underline-offset-2"
+                  className="text-muted-foreground underline underline-offset-2 transition-colors hover:text-primary"
                   title="Chatear por WhatsApp"
                 >
                   WhatsApp
@@ -106,44 +117,39 @@ const Footer = () => {
                 <Mail className="h-4 w-4 text-primary" />
                 <a
                   href={`mailto:${email}`}
-                  className="text-muted-foreground hover:text-primary transition-colors underline underline-offset-2"
+                  className="text-muted-foreground underline underline-offset-2 transition-colors hover:text-primary"
                   title="Enviar correo"
                 >
                   {email}
                 </a>
-                <button
-                  className="ml-1"
-                  title="Copiar mail"
-                  onClick={handleCopyEmail}
-                >
+                <button type="button" className="ml-1" title="Copiar mail" aria-label="Copiar mail" onClick={handleCopyEmail}>
                   <Copy className={`h-4 w-4 ${copied ? "text-primary" : "text-muted-foreground"} transition-colors`} />
                 </button>
-                {copied && <span className="text-primary ml-1 text-xs">¡Copiado!</span>}
+                {copied ? <span className="ml-1 text-xs text-primary">Copiado</span> : null}
               </li>
             </ul>
           </div>
 
-          {/* Legal */}
           <div className="flex flex-col items-center sm:items-start">
-            <h3 className="text-lg font-semibold mb-3 text-foreground">Legal</h3>
+            <h3 className="mb-3 text-lg font-semibold text-foreground">Legal</h3>
             <ul className="space-y-2">
               <li>
-                <Link to="/privacidad" className="text-muted-foreground hover:text-primary transition-colors">
-                  Política de privacidad
+                <Link to="/privacidad" className="text-muted-foreground transition-colors hover:text-primary">
+                  Politica de privacidad
                 </Link>
               </li>
               <li>
-                <Link to="/terminos" className="text-muted-foreground hover:text-primary transition-colors">
-                  Términos y condiciones
+                <Link to="/terminos" className="text-muted-foreground transition-colors hover:text-primary">
+                  Terminos y condiciones
                 </Link>
               </li>
               <li>
-                <Link to="/legal/cookies" className="text-muted-foreground hover:text-primary transition-colors">
-                  Política de cookies
+                <Link to="/legal/cookies" className="text-muted-foreground transition-colors hover:text-primary">
+                  Politica de cookies
                 </Link>
               </li>
               <li>
-                <Link to="/eliminacion-datos" className="text-muted-foreground hover:text-primary transition-colors">
+                <Link to="/eliminacion-datos" className="text-muted-foreground transition-colors hover:text-primary">
                   Eliminacion de datos
                 </Link>
               </li>
@@ -151,51 +157,84 @@ const Footer = () => {
           </div>
         </div>
 
-        <div className="mb-7 grid gap-3 rounded-2xl border border-border bg-background/70 p-3 shadow-sm sm:grid-cols-2 sm:p-4">
-          <a
-            href={afipDataFiscalHref}
-            target="_F960AFIPInfo"
-            rel="noopener noreferrer"
-            className="group rounded-xl border border-border bg-card p-4 text-left transition hover:-translate-y-0.5 hover:border-primary/60"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-primary">Data fiscal</p>
-                <p className="mt-1 text-sm font-bold text-foreground">Inscripcion digital AFIP</p>
-                <p className="mt-1 text-xs leading-5 text-muted-foreground">Acceso publico a informacion fiscal de la empresa.</p>
-              </div>
-              <ExternalLink className="mt-1 h-4 w-4 text-muted-foreground transition group-hover:text-primary" />
+        <section aria-label="Credenciales institucionales" className="mb-7 rounded-2xl border border-border bg-background/80 p-3 shadow-sm sm:p-4">
+          <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.22em] text-primary">Credenciales institucionales</p>
+              <h3 className="text-base font-bold text-foreground">Validaciones publicas de Chatboc</h3>
             </div>
-            <span className="mt-4 inline-flex rounded-lg border border-border bg-white p-2 shadow-sm">
-              <img src="https://www.afip.gob.ar/images/f960/DATAWEB.jpg" alt="Formulario 960 Data Fiscal AFIP" className="h-10 w-auto" />
-            </span>
-          </a>
+            <p className="max-w-xl text-xs leading-5 text-muted-foreground">
+              Accesos oficiales para revisar informacion fiscal y descargar el certificado MiPyME.
+            </p>
+          </div>
 
-          <a
-            href={mipymeCertificateHref}
-            download
-            className="group rounded-xl border border-emerald-500/25 bg-emerald-500/10 p-4 text-left transition hover:-translate-y-0.5 hover:border-emerald-500/60"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-300">Certificado MiPyME</p>
-                <p className="mt-1 text-sm font-bold text-foreground">Respaldo institucional SEPyME</p>
-                <p className="mt-1 text-xs leading-5 text-muted-foreground">Documento oficial descargable para clientes, partners y validacion comercial.</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <a
+              href={afipDataFiscalHref}
+              target="_F960AFIPInfo"
+              rel="noopener noreferrer"
+              className="group rounded-xl border border-border bg-card p-4 text-left transition hover:-translate-y-0.5 hover:border-primary/60 hover:shadow-md"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-primary">Data fiscal</p>
+                  <p className="mt-1 text-sm font-bold text-foreground">Formulario F960/D</p>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                    Banner de acceso a informacion publica fiscal.
+                  </p>
+                </div>
+                <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
+                  <QrCode className="h-4 w-4" />
+                </span>
               </div>
-              <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-background text-emerald-600 shadow-sm dark:text-emerald-300">
-                <ShieldCheck className="h-4 w-4" />
+              <span className="mt-4 inline-flex rounded-lg border border-border bg-white p-2 shadow-sm">
+                <img src={afipDataFiscalImage} alt="Formulario 960 Data Fiscal AFIP" className="h-10 w-auto" />
               </span>
-            </div>
-            <span className="mt-4 inline-flex items-center gap-2 rounded-lg bg-foreground px-3 py-2 text-xs font-bold text-background transition group-hover:bg-emerald-600 group-hover:text-white">
-              <Download className="h-4 w-4" />
-              Descargar certificado
-            </span>
-          </a>
-        </div>
+              <span className="mt-3 flex items-center gap-2 text-xs font-semibold text-primary">
+                Abrir constancia AFIP
+                <ExternalLink className="h-3.5 w-3.5" />
+              </span>
+            </a>
 
-        <div className="border-t border-border pt-5 mt-2">
+            <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 p-4 text-left transition hover:-translate-y-0.5 hover:border-emerald-500/60 hover:shadow-md">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-300">Certificado MiPyME</p>
+                  <p className="mt-1 text-sm font-bold text-foreground">Respaldo institucional SEPyME</p>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                    Documento oficial disponible para clientes, partners y validacion comercial.
+                  </p>
+                </div>
+                <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-background text-emerald-600 shadow-sm dark:text-emerald-300">
+                  <ShieldCheck className="h-4 w-4" />
+                </span>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <a
+                  href={mipymeCertificateHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-xs font-bold text-foreground transition hover:border-emerald-500/60 hover:text-emerald-700 dark:hover:text-emerald-300"
+                >
+                  <FileCheck2 className="h-4 w-4" />
+                  Ver PDF
+                </a>
+                <a
+                  href={mipymeCertificateHref}
+                  download
+                  className="inline-flex items-center gap-2 rounded-lg bg-foreground px-3 py-2 text-xs font-bold text-background transition hover:bg-emerald-600 hover:text-white"
+                >
+                  <Download className="h-4 w-4" />
+                  Descargar certificado
+                </a>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div className="mt-2 border-t border-border pt-5">
           <p className="text-center text-sm text-muted-foreground/80">
-            © 2025 Chatboc · Todos los derechos reservados.
+            (c) {year} Chatboc - Todos los derechos reservados.
           </p>
         </div>
       </div>

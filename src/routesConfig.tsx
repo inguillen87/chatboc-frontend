@@ -18,6 +18,7 @@ import Checkout from '@/pages/Checkout';
 import ChatPosPage from '@/pages/ChatPosPage';
 import ChatCRMPage from '@/pages/ChatCRMPage';
 import Integracion from '@/pages/Integracion';
+import WhatsappEmbeddedSignupPage from '@/pages/WhatsappEmbeddedSignupPage';
 import Documentacion from '@/pages/Documentacion';
 import Faqs from '@/pages/Faqs';
 import Privacy from '@/pages/legal/Privacy';
@@ -451,6 +452,7 @@ const routes: RouteConfig[] = [
   { path: '/chatpos', element: <ChatPosPage /> },
   { path: '/chatcrm', element: <ChatCRMPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
   { path: '/opinar', element: <OpinarArPage /> },
+  { path: '/integracion/whatsapp/connect', element: <WhatsappEmbeddedSignupPage /> },
   { path: '/integracion', element: <Integracion />, roles: ['tenant_admin'] },
   { path: '/documentacion', element: <Documentacion /> },
   { path: '/faqs', element: <Faqs /> },
