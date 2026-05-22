@@ -30,6 +30,7 @@ import OrderDispatchSettings from '@/components/admin/OrderDispatchSettings';
 import CatalogUploadWizard from '@/components/admin/catalog/CatalogUploadWizard';
 import CatalogSpreadsheetEditor from '@/components/admin/catalog/CatalogSpreadsheetEditor';
 import ChannelPreview from '@/components/integrations/ChannelPreview';
+import WhatsappTechProviderOnboarding from '@/components/integrations/WhatsappTechProviderOnboarding';
 import {
   Dialog,
   DialogContent,
@@ -1541,6 +1542,8 @@ const IntegracionesPage = () => {
                             <CardContent className="space-y-6">
                                 {selectedChannel === 'whatsapp' ? (
                                     <div className="space-y-6">
+                                        <WhatsappTechProviderOnboarding tenantSlug={currentSlug} />
+                                        <Separator />
                                         {renderWhatsappSandboxPanel()}
                                         <Separator />
                                         <div className="rounded-xl border bg-muted/30 p-4">

@@ -168,7 +168,6 @@ const Navbar: React.FC = () => {
       label: "Super Admin",
       icon: Database,
       roles: ["super_admin", "superadmin"],
-      requiredAnyCapabilities: ["superadmin.access", "platform.admin", "tenants.manage"],
     });
 
     links.push({ to: buildTenantPath("/", currentSlug), label: "Ver sitio publico", icon: Layout });

@@ -93,6 +93,7 @@ function AppRoutes() {
     "/perfil",
     "/empleados",
     "/usuarios",
+    "/403",
     "/superadmin"
   ];
 

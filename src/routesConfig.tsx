@@ -557,7 +557,6 @@ const routes: RouteConfig[] = [
     path: '/superadmin',
     element: <SuperAdminDashboard />,
     roles: ['superadmin'],
-    requiredCapabilities: ['settings.tenant.write'],
   },
   { path: '/admin/tenants', element: <SuperAdminDashboard />, roles: ['superadmin'] },
   {

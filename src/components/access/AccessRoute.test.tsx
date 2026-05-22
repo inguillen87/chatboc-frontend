@@ -111,6 +111,32 @@ describe('AccessRoute', () => {
     expect(screen.getByText('tickets-role-alias-ok')).toBeInTheDocument();
   });
 
+  it('allows Super Admin by role without requiring backend capabilities', () => {
+    useUserMock.mockReturnValue({ user: { rol: 'super_admin' }, loading: false });
+    useCapabilitiesMock.mockReturnValue({
+      hasAllCapabilities: () => false,
+      hasAnyCapability: () => false,
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/superadmin']}>
+        <Routes>
+          <Route
+            path="/superadmin"
+            element={
+              <AccessRoute roles={['superadmin']}>
+                <div>superadmin-ok</div>
+              </AccessRoute>
+            }
+          />
+          <Route path="/403" element={<DeniedProbe />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText('superadmin-ok')).toBeInTheDocument();
+  });
+
   it('allows render when the user has at least one capability from requiredCapabilities', () => {
     useCapabilitiesMock.mockReturnValue({
       hasAllCapabilities: () => false,

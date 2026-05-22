@@ -69,6 +69,14 @@ export const tenantService = {
     });
   },
 
+  provisionWhatsappVoiceApp: async (slug: string, payload: Record<string, unknown> = {}): Promise<any> => {
+    return apiFetch<any>(`/api/v2/tenants/${encodeURIComponent(slug)}/whatsapp/tech-provider/voice-app`, {
+      method: "POST",
+      body: payload,
+      tenantSlug: slug,
+    });
+  },
+
   completeWhatsappEmbeddedSignup: async (
     slug: string,
     payload: {
@@ -85,6 +93,21 @@ export const tenantService = {
     return apiFetch<any>(`/api/v2/tenants/${encodeURIComponent(slug)}/whatsapp/tech-provider/embedded-signup`, {
       method: "POST",
       body: payload,
+      tenantSlug: slug,
+    });
+  },
+
+  registerWhatsappSender: async (slug: string, payload: Record<string, unknown> = {}): Promise<any> => {
+    return apiFetch<any>(`/api/v2/tenants/${encodeURIComponent(slug)}/whatsapp/tech-provider/register-sender`, {
+      method: "POST",
+      body: payload,
+      tenantSlug: slug,
+    });
+  },
+
+  refreshWhatsappSenderStatus: async (slug: string): Promise<any> => {
+    return apiFetch<any>(`/api/v2/tenants/${encodeURIComponent(slug)}/whatsapp/tech-provider/sender-status`, {
+      method: "POST",
       tenantSlug: slug,
     });
   },
