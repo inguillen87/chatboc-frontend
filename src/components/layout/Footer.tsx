@@ -2,9 +2,12 @@
 
 import React from "react";
 import { Link } from "react-router-dom";
-import { Facebook, Twitter, Instagram, Linkedin, Mail, MessageCircle, Copy } from "lucide-react";
+import { Facebook, Twitter, Instagram, Linkedin, Mail, MessageCircle, Copy, Download, ExternalLink, ShieldCheck } from "lucide-react";
 import { useScrollToSection } from "@/hooks/useScrollToSection";
 import { useState } from "react";
+
+const afipDataFiscalHref = "https://qr.afip.gob.ar/?qr=hNBOkNhlJyhWrlnUph25jQ,,";
+const mipymeCertificateHref = "/certificados/certificado-mipyme-intellitech.pdf";
 
 const Footer = () => {
   const scrollToSection = useScrollToSection();
@@ -144,23 +147,50 @@ const Footer = () => {
                   Eliminacion de datos
                 </Link>
               </li>
-              <li className="mt-3">
-                <a
-                  href="https://qr.afip.gob.ar/?qr=hNBOkNhlJyhWrlnUph25jQ,,"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title="Datos fiscales - AFIP"
-                  className="inline-block"
-                >
-                  <img
-                    src="https://www.afip.gob.ar/images/f960/DATAWEB.jpg"
-                    alt="Formulario 960 AFIP"
-                    className="w-20"
-                  />
-                </a>
-              </li>
             </ul>
           </div>
+        </div>
+
+        <div className="mb-7 grid gap-3 rounded-2xl border border-border bg-background/70 p-3 shadow-sm sm:grid-cols-2 sm:p-4">
+          <a
+            href={afipDataFiscalHref}
+            target="_F960AFIPInfo"
+            rel="noopener noreferrer"
+            className="group rounded-xl border border-border bg-card p-4 text-left transition hover:-translate-y-0.5 hover:border-primary/60"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-primary">Data fiscal</p>
+                <p className="mt-1 text-sm font-bold text-foreground">Inscripcion digital AFIP</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">Acceso publico a informacion fiscal de la empresa.</p>
+              </div>
+              <ExternalLink className="mt-1 h-4 w-4 text-muted-foreground transition group-hover:text-primary" />
+            </div>
+            <span className="mt-4 inline-flex rounded-lg border border-border bg-white p-2 shadow-sm">
+              <img src="https://www.afip.gob.ar/images/f960/DATAWEB.jpg" alt="Formulario 960 Data Fiscal AFIP" className="h-10 w-auto" />
+            </span>
+          </a>
+
+          <a
+            href={mipymeCertificateHref}
+            download
+            className="group rounded-xl border border-emerald-500/25 bg-emerald-500/10 p-4 text-left transition hover:-translate-y-0.5 hover:border-emerald-500/60"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-300">Certificado MiPyME</p>
+                <p className="mt-1 text-sm font-bold text-foreground">Respaldo institucional SEPyME</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">Documento oficial descargable para clientes, partners y validacion comercial.</p>
+              </div>
+              <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-background text-emerald-600 shadow-sm dark:text-emerald-300">
+                <ShieldCheck className="h-4 w-4" />
+              </span>
+            </div>
+            <span className="mt-4 inline-flex items-center gap-2 rounded-lg bg-foreground px-3 py-2 text-xs font-bold text-background transition group-hover:bg-emerald-600 group-hover:text-white">
+              <Download className="h-4 w-4" />
+              Descargar certificado
+            </span>
+          </a>
         </div>
 
         <div className="border-t border-border pt-5 mt-2">
