@@ -174,50 +174,115 @@ const SuperadminLeadsPipeline: React.FC = () => {
 
   const fetchPipeline = async () => {
     setLoading(true);
-    try {
-      const payload = await enterpriseService.getLeadsPipeline({
+    const failedSections: string[] = [];
+    const [
+      pipelineResult,
+      interactionsResult,
+      qualityResult,
+      strategicResult,
+      heatmapResult,
+      realtimeResult,
+      surveysResult,
+      healthResult,
+    ] = await Promise.allSettled([
+      enterpriseService.getLeadsPipeline({
         tenant_slug: tenantSlug || undefined,
         since_days: sinceDays,
-      });
-      setData(payload || {});
-      const interactionsPayload = await enterpriseService.getLeadInteractions({
+      }),
+      enterpriseService.getLeadInteractions({
         tenant_slug: tenantSlug || undefined,
         limit: 20,
         since_days: sinceDays,
-      });
-      setInteractions(
-        interactionsPayload?.items || interactionsPayload?.interactions || [],
-      );
-      const quality = await enterpriseService.getCatalogQuality({
+      }),
+      enterpriseService.getCatalogQuality({
         tenant_slug: tenantSlug || undefined,
         limit: 100,
-      });
-      setCatalogQuality(quality?.items || []);
-      const strategic = await enterpriseService.getStrategicOverview({
+      }),
+      enterpriseService.getStrategicOverview({
         since_days: sinceDays,
-      });
-      setStrategicOverview(strategic || null);
-      const heatmap =
-        await enterpriseService.getStrategicHeatmapCategoriesZones({
-          since_days: sinceDays,
-        });
-      setHeatmapData(heatmap || null);
-      const realtime = await enterpriseService.getRealtimeAiOverview({
+      }),
+      enterpriseService.getStrategicHeatmapCategoriesZones({
+        since_days: sinceDays,
+      }),
+      enterpriseService.getRealtimeAiOverview({
         minutes: 60,
-      });
-      setRealtimeAi(realtime || null);
-      const surveys = await enterpriseService.getGlobalEncuestasOverview();
-      setGlobalEncuestas(surveys?.items || []);
-      const health = await enterpriseService.getTenantHealth({
+      }),
+      enterpriseService.getGlobalEncuestasOverview(),
+      enterpriseService.getTenantHealth({
         since_days: sinceDays,
-      });
-      setTenantHealth(health?.items || []);
-    } catch (error) {
-      console.error(error);
-      toast.error("No se pudo cargar el panel de leads.");
-    } finally {
-      setLoading(false);
+      }),
+    ]);
+
+    if (pipelineResult.status === "fulfilled") {
+      setData(pipelineResult.value || {});
+    } else {
+      console.error("No se pudo cargar pipeline comercial", pipelineResult.reason);
+      setData({});
+      failedSections.push("pipeline");
     }
+
+    if (interactionsResult.status === "fulfilled") {
+      setInteractions(
+        interactionsResult.value?.items || interactionsResult.value?.interactions || [],
+      );
+    } else {
+      console.error("No se pudieron cargar interacciones de leads", interactionsResult.reason);
+      setInteractions([]);
+      failedSections.push("interacciones");
+    }
+
+    if (qualityResult.status === "fulfilled") {
+      setCatalogQuality(qualityResult.value?.items || []);
+    } else {
+      console.error("No se pudo cargar calidad de catalogo", qualityResult.reason);
+      setCatalogQuality([]);
+      failedSections.push("catalogo");
+    }
+
+    if (strategicResult.status === "fulfilled") {
+      setStrategicOverview(strategicResult.value || null);
+    } else {
+      console.error("No se pudo cargar overview estrategico", strategicResult.reason);
+      setStrategicOverview(null);
+      failedSections.push("estrategia");
+    }
+
+    if (heatmapResult.status === "fulfilled") {
+      setHeatmapData(heatmapResult.value || null);
+    } else {
+      console.error("No se pudo cargar heatmap estrategico", heatmapResult.reason);
+      setHeatmapData(null);
+      failedSections.push("heatmap");
+    }
+
+    if (realtimeResult.status === "fulfilled") {
+      setRealtimeAi(realtimeResult.value || null);
+    } else {
+      console.error("No se pudo cargar realtime AI", realtimeResult.reason);
+      setRealtimeAi(null);
+      failedSections.push("realtime");
+    }
+
+    if (surveysResult.status === "fulfilled") {
+      setGlobalEncuestas(surveysResult.value?.items || []);
+    } else {
+      console.error("No se pudo cargar encuestas globales", surveysResult.reason);
+      setGlobalEncuestas([]);
+      failedSections.push("encuestas");
+    }
+
+    if (healthResult.status === "fulfilled") {
+      setTenantHealth(healthResult.value?.items || []);
+    } else {
+      console.error("No se pudo cargar tenant health", healthResult.reason);
+      setTenantHealth([]);
+      failedSections.push("health");
+    }
+
+    if (failedSections.length) {
+      toast.error(`No se cargaron ${failedSections.slice(0, 3).join(", ")}${failedSections.length > 3 ? "..." : ""}.`);
+    }
+    setLoading(false);
   };
 
   useEffect(() => {

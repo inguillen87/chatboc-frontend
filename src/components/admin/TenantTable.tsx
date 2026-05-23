@@ -13,6 +13,12 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Edit, LogIn, MoreVertical, Power, PowerOff, UserPlus, KeyRound, MessageSquare, Trash2 } from 'lucide-react';
 import { Tenant } from '@/types/superAdmin';
 
+const TENANT_TYPE_LABELS: Record<string, string> = {
+  municipio: 'Municipio',
+  colegio: 'Colegio',
+  pyme: 'Pyme',
+};
+
 interface TenantTableProps {
   tenants: Tenant[];
   loading: boolean;
@@ -32,7 +38,7 @@ export function TenantTable({ tenants, loading, onEdit, onImpersonate, onToggleS
   }
 
   return (
-    <div className="border rounded-md">
+    <div className="overflow-x-auto rounded-md border">
       <Table>
         <TableHeader>
           <TableRow>
@@ -53,7 +59,7 @@ export function TenantTable({ tenants, loading, onEdit, onImpersonate, onToggleS
               <TableCell className="font-mono text-xs">{tenant.slug}</TableCell>
               <TableCell className="font-medium">{tenant.nombre}</TableCell>
               <TableCell>
-                <Badge variant="outline" className="capitalize">{tenant.tipo}</Badge>
+                <Badge variant="outline">{TENANT_TYPE_LABELS[tenant.tipo] || tenant.tipo || 'Tenant'}</Badge>
               </TableCell>
               <TableCell>
                 <Badge variant="secondary" className="capitalize">{tenant.plan}</Badge>
@@ -93,7 +99,7 @@ export function TenantTable({ tenants, loading, onEdit, onImpersonate, onToggleS
                       </DropdownMenuItem>
                       <DropdownMenuItem onSelect={() => onEdit(tenant, "users")} disabled={Boolean(tenant.owner_email)}>
                         <UserPlus className="mr-2 h-4 w-4" />
-                        Crear admin
+                        Crear admin tenant
                       </DropdownMenuItem>
                       <DropdownMenuItem onSelect={() => onEdit(tenant, "users")}>
                         <KeyRound className="mr-2 h-4 w-4" />

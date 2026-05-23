@@ -2,7 +2,7 @@ export interface Tenant {
   id: number;
   slug: string;
   nombre: string;
-  tipo: 'pyme' | 'municipio';
+  tipo: 'pyme' | 'municipio' | 'colegio';
   plan: string;
   status: 'active' | 'inactive';
   is_active: boolean;
@@ -14,8 +14,8 @@ export interface Tenant {
 export interface CreateTenantDTO {
   slug: string;
   nombre: string;
-  tipo: 'pyme' | 'municipio';
-  email_admin: string;
+  tipo: 'pyme' | 'municipio' | 'colegio';
+  email_admin?: string;
   plan?: string;
 }
 

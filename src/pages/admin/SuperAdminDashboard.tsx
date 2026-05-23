@@ -946,7 +946,7 @@ export default function SuperAdminDashboard() {
               <CardHeader>
                 <CardTitle>Tenants ({total})</CardTitle>
                 <CardDescription>
-                  Listado completo de municipios y pymes registrados en la plataforma.
+                  Listado completo de municipios, colegios y pymes registrados en la plataforma.
                 </CardDescription>
               </CardHeader>
               <CardContent>

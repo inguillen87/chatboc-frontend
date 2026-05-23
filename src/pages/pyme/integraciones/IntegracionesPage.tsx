@@ -903,6 +903,11 @@ const IntegracionesPage = () => {
         window.open(remoteDeeplink, "_blank", "noopener,noreferrer");
       }
     } catch (error: any) {
+      console.error("No se pudo preparar sandbox WhatsApp", error);
+      setSandboxResult(null);
+      const requestId = error instanceof ApiError && error.requestId ? ` Req: ${error.requestId}` : "";
+      toast.error(`No se pudo preparar la prueba desde backend.${requestId}`);
+      return;
       const status = error instanceof ApiError ? error.status : Number(error?.status || 0);
         setSandboxResult({
           mode: "local",
@@ -947,7 +952,7 @@ const IntegracionesPage = () => {
             <div className="space-y-2">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="secondary" className="gap-1">
-                  <ShieldCheck className="h-3.5 w-3.5" /> Modo prueba: copiar o abrir link
+                  <ShieldCheck className="h-3.5 w-3.5" /> Prueba controlada
                 </Badge>
                 <Badge variant="secondary" className="gap-1">
                   <Bot className="h-3.5 w-3.5" /> Menu publicado
@@ -960,8 +965,11 @@ const IntegracionesPage = () => {
               </div>
               <div>
                 <h3 className="text-xl font-semibold tracking-tight">Probar WhatsApp antes de salir a producción</h3>
-              <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+              {/*
                   Prepará una prueba guiada con número, frase de unión y brief del rubro. El usuario abre WhatsApp desde un enlace o copia las instrucciones; no se promete envío automático desde el backend.
+              */}
+                <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+                  Prepara una prueba guiada con numero, frase de union, brief del rubro y menu publicado. El backend debe registrar la sesion antes de mostrar el enlace de grabacion.
                 </p>
               </div>
             </div>
@@ -1119,7 +1127,7 @@ const IntegracionesPage = () => {
           {sandboxResult && (
             <Alert className="mt-4">
               <CheckCircle2 className="h-4 w-4" />
-              <AlertTitle>{sandboxResult.mode === "remote" ? "Prueba lista" : "Prueba manual lista"}</AlertTitle>
+              <AlertTitle>{sandboxResult.mode === "remote" ? "Prueba lista" : "Prueba registrada"}</AlertTitle>
               <AlertDescription>
                 {sandboxResult.message}
                 {sandboxResult.requestId ? ` Req: ${sandboxResult.requestId}` : ""}

@@ -5,6 +5,7 @@ import * as z from 'zod';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -31,15 +32,18 @@ import { Switch } from '@/components/ui/switch';
 import { Tenant } from '@/types/superAdmin';
 import { apiClient } from '@/api/client';
 import { toast } from 'sonner';
-import { Loader2 } from 'lucide-react';
+import { Building2, GraduationCap, Loader2, MessageCircle, ShieldCheck, Store } from 'lucide-react';
 
 const createSchema = z.object({
   nombre: z.string().min(2, 'El nombre es requerido'),
   slug: z.string().min(3, 'El slug debe tener al menos 3 caracteres')
     .regex(/^[a-z0-9-]+$/, 'Solo letras minúsculas, números y guiones'),
-  tipo: z.enum(['municipio', 'pyme']),
+  tipo: z.enum(['municipio', 'pyme', 'colegio']),
   plan: z.enum(['free', 'pro', 'full', 'enterprise']),
-  email_admin: z.string().email('Email inválido'),
+  email_admin: z.union([
+    z.string().trim().email('Email inválido'),
+    z.literal(''),
+  ]).optional(),
 });
 
 const updateSchema = z.object({
@@ -185,9 +189,14 @@ export function TenantModal({ isOpen, onClose, onSuccess, tenantToEdit, initialT
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent className="sm:max-w-[720px]">
         <DialogHeader>
           <DialogTitle>{isEditing ? `Editar: ${tenantToEdit.nombre}` : 'Nuevo Tenant'}</DialogTitle>
+          <DialogDescription>
+            {isEditing
+              ? 'Administra plan, usuarios y canal WhatsApp del tenant.'
+              : 'Crea una organizacion lista para operar con widget, CRM, permisos y onboarding WhatsApp.'}
+          </DialogDescription>
         </DialogHeader>
 
         {isEditing ? (
@@ -296,6 +305,17 @@ export function TenantModal({ isOpen, onClose, onSuccess, tenantToEdit, initialT
 
                 {/* TAB 3: INTEGRACIONES */}
                 <TabsContent value="integrations" className="space-y-4 py-4">
+                    <div className="rounded-xl border bg-muted/20 p-3">
+                        <div className="flex items-start gap-2">
+                            <MessageCircle className="mt-0.5 h-4 w-4 text-primary" />
+                            <div>
+                                <p className="text-sm font-medium">Sender dedicado por tenant</p>
+                                <p className="text-xs text-muted-foreground">
+                                    El numero queda asociado al tenant para que webhooks, menus y CRM no se mezclen entre rubros.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
                     <Form {...whatsappForm}>
                         <form onSubmit={whatsappForm.handleSubmit(onSubmitWhatsapp)} className="space-y-4">
                             <FormField
@@ -323,6 +343,29 @@ export function TenantModal({ isOpen, onClose, onSuccess, tenantToEdit, initialT
             // CREATE MODE (Single Form)
             <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmitGeneral)} className="space-y-4">
+                    <div className="grid gap-3 rounded-xl border bg-muted/20 p-3 sm:grid-cols-3">
+                      <div className="flex items-start gap-2">
+                        <Building2 className="mt-0.5 h-4 w-4 text-primary" />
+                        <div>
+                          <p className="text-sm font-medium">Municipio</p>
+                          <p className="text-xs text-muted-foreground">Reclamos, turnos, mapa y encuestas.</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <GraduationCap className="mt-0.5 h-4 w-4 text-primary" />
+                        <div>
+                          <p className="text-sm font-medium">Colegio</p>
+                          <p className="text-xs text-muted-foreground">Familias, certificados y comunicados.</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <Store className="mt-0.5 h-4 w-4 text-primary" />
+                        <div>
+                          <p className="text-sm font-medium">Pyme</p>
+                          <p className="text-xs text-muted-foreground">Pedidos, catalogo y leads comerciales.</p>
+                        </div>
+                      </div>
+                    </div>
                     <FormField
                     control={form.control}
                     name="nombre"
@@ -357,6 +400,7 @@ export function TenantModal({ isOpen, onClose, onSuccess, tenantToEdit, initialT
                                 <SelectContent>
                                 <SelectItem value="pyme">Pyme</SelectItem>
                                 <SelectItem value="municipio">Municipio</SelectItem>
+                                <SelectItem value="colegio">Colegio</SelectItem>
                                 </SelectContent>
                             </Select>
                             <FormMessage />
@@ -390,7 +434,10 @@ export function TenantModal({ isOpen, onClose, onSuccess, tenantToEdit, initialT
                             render={({ field }) => (
                             <FormItem>
                                 <FormLabel>Email Admin</FormLabel>
-                                <FormControl><Input type="email" placeholder="admin@cliente.com" {...field} /></FormControl>
+                                <FormControl><Input type="email" placeholder="admin@cliente.com (opcional)" {...field} /></FormControl>
+                                <p className="text-xs text-muted-foreground">
+                                  Si lo dejas vacio, Chatboc crea un admin interno del tenant y despues podes invitar usuarios reales.
+                                </p>
                                 <FormMessage />
                             </FormItem>
                             )}
@@ -400,6 +447,7 @@ export function TenantModal({ isOpen, onClose, onSuccess, tenantToEdit, initialT
                         <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
                         <Button type="submit" disabled={loading}>
                             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            {!loading && <ShieldCheck className="mr-2 h-4 w-4" />}
                             Crear Tenant
                         </Button>
                     </DialogFooter>
