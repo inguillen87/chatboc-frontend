@@ -37,6 +37,10 @@ const PUBLIC_SURVEY_API_BASE =
     : undefined;
 
 const PUBLIC_CHAT_CONTEXT_STORAGE_KEY = 'chatboc_public_chat_context';
+const PUBLIC_RESPONSE_CONTRACTS = new Set([
+  'encuestas.public_response.v1',
+  'demo.survey_response_ack.v1',
+]);
 
 const buildQueryString = (params?: QueryParams) => {
   if (!params) return '';
@@ -604,7 +608,7 @@ export const postPublicResponse = (
       typeof (response as Record<string, unknown>)?.contract_version === 'string'
         ? String((response as Record<string, unknown>).contract_version)
         : undefined;
-    if (!ENABLE_PUBLIC_SURVEY_LEGACY_FALLBACK && contractVersion !== 'encuestas.public_response.v1') {
+    if (!ENABLE_PUBLIC_SURVEY_LEGACY_FALLBACK && (!contractVersion || !PUBLIC_RESPONSE_CONTRACTS.has(contractVersion))) {
       throw new Error('No pudimos confirmar la respuesta de la encuesta en este momento.');
     }
 

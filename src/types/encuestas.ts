@@ -1,8 +1,9 @@
 export type SurveyTipo = 'opinion' | 'votacion' | 'sondeo' | 'planificacion';
 export type PreguntaTipo = 'opcion_unica' | 'multiple' | 'abierta' | 'rating_emoji';
+export type SurveyOptionId = number | string;
 
 export interface SurveyPreguntaOpcion {
-  id: number;
+  id: SurveyOptionId;
   orden: number;
   texto: string;
   valor?: string;
@@ -37,7 +38,7 @@ export interface SurveyChannelAsset {
 }
 
 export interface SurveyLiveOptionResult {
-  id: number;
+  id: SurveyOptionId;
   texto: string;
   votos: number;
 }
@@ -222,7 +223,7 @@ export interface PublicResponsePayload {
   phone?: string | null;
   respuestas: Array<{
     pregunta_id: number;
-    opcion_ids?: number[];
+    opcion_ids?: SurveyOptionId[];
     texto_libre?: string | null;
   }>;
   utm_source?: string;
@@ -259,7 +260,7 @@ export interface SurveyDraftPayload {
     min_selecciones?: number | null;
     max_selecciones?: number | null;
     opciones?: Array<{
-      id?: number;
+      id?: SurveyOptionId;
       orden: number;
       texto: string;
       valor?: string;
@@ -282,7 +283,7 @@ export interface SurveyListResponse {
 }
 
 export interface SurveySummaryOptionBreakdown {
-  opcion_id: number;
+  opcion_id: SurveyOptionId;
   texto: string;
   respuestas: number;
   porcentaje: number;

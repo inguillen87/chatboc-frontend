@@ -79,7 +79,7 @@ interface TrackSurveyAnswerSelectedParams {
   tenant?: string | null;
   questionId?: number | null;
   questionType?: string | null;
-  optionId?: number | null;
+  optionId?: number | string | null;
   selectionCount?: number | null;
 }
 

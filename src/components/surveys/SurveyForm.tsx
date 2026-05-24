@@ -24,6 +24,7 @@ import {
   type SurveyPublic,
   type SurveyPregunta,
   type SurveyLiveResults,
+  type SurveyOptionId,
 } from '@/types/encuestas';
 import { requestLocation, type PositionCoords } from '@/utils/geolocation';
 import {
@@ -62,9 +63,42 @@ interface SurveyFormProps {
 }
 
 interface AnswerState {
-  opcionIds: number[];
+  opcionIds: SurveyOptionId[];
   texto?: string;
 }
+
+const normalizeOptionId = (value: SurveyOptionId): SurveyOptionId => {
+  if (typeof value === 'number') {
+    return value;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return '';
+  }
+  const numeric = Number(trimmed);
+  return Number.isInteger(numeric) && String(numeric) === trimmed ? numeric : trimmed;
+};
+
+const optionIdsEqual = (left: SurveyOptionId, right: SurveyOptionId): boolean =>
+  String(left) === String(right);
+
+const uniqueOptionIds = (ids: SurveyOptionId[]): SurveyOptionId[] => {
+  const seen = new Set<string>();
+  const unique: SurveyOptionId[] = [];
+  for (const id of ids) {
+    const normalized = normalizeOptionId(id);
+    if (normalized === '') {
+      continue;
+    }
+    const key = String(normalized);
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    unique.push(normalized);
+  }
+  return unique;
+};
 
 export const SurveyForm = ({
   survey,
@@ -473,11 +507,10 @@ export const SurveyForm = ({
   };
 
   const handleRadioChange = (pregunta: SurveyPregunta, value: string) => {
-    const optionId = Number(value);
-    const normalizedOptionId = Number.isNaN(optionId) ? null : optionId;
+    const normalizedOptionId = normalizeOptionId(value);
     setAnswers((prev) => ({
       ...prev,
-      [pregunta.id]: { ...prev[pregunta.id], opcionIds: normalizedOptionId === null ? [] : [normalizedOptionId] },
+      [pregunta.id]: { ...prev[pregunta.id], opcionIds: normalizedOptionId === '' ? [] : [normalizedOptionId] },
     }));
     trackSurveyAnswerSelected({
       slug: survey.slug ?? null,
@@ -485,24 +518,25 @@ export const SurveyForm = ({
       tenant: analyticsTenant,
       questionId: pregunta.id,
       questionType: pregunta.tipo,
-      optionId: normalizedOptionId,
-      selectionCount: normalizedOptionId === null ? 0 : 1,
+      optionId: normalizedOptionId === '' ? null : normalizedOptionId,
+      selectionCount: normalizedOptionId === '' ? 0 : 1,
     });
   };
 
-  const handleCheckboxToggle = (pregunta: SurveyPregunta, optionId: number, checked: boolean) => {
+  const handleCheckboxToggle = (pregunta: SurveyPregunta, optionId: SurveyOptionId, checked: boolean) => {
     setAnswers((prev) => {
       const current = prev[pregunta.id] ?? { opcionIds: [] };
+      const normalizedOptionId = normalizeOptionId(optionId);
       const nextIds = checked
-        ? Array.from(new Set([...(current.opcionIds ?? []), optionId]))
-        : (current.opcionIds ?? []).filter((id) => id !== optionId);
+        ? uniqueOptionIds([...(current.opcionIds ?? []), normalizedOptionId])
+        : (current.opcionIds ?? []).filter((id) => !optionIdsEqual(id, normalizedOptionId));
       trackSurveyAnswerSelected({
         slug: survey.slug ?? null,
         host: analyticsHost,
         tenant: analyticsTenant,
         questionId: pregunta.id,
         questionType: pregunta.tipo,
-        optionId,
+        optionId: normalizedOptionId,
         selectionCount: nextIds.length,
       });
       return { ...prev, [pregunta.id]: { ...current, opcionIds: nextIds } };
@@ -658,8 +692,8 @@ export const SurveyForm = ({
           return acc;
         }
 
-        const selectedIds: number[] = Array.isArray(answer.opcionIds)
-          ? Array.from(new Set(answer.opcionIds.filter((id): id is number => typeof id === 'number')))
+        const selectedIds = Array.isArray(answer.opcionIds)
+          ? uniqueOptionIds(answer.opcionIds)
           : [];
 
         if (!selectedIds.length) {
@@ -1048,7 +1082,7 @@ export const SurveyForm = ({
                 {pregunta.opciones?.map((opcion) => {
                   // Live results calculation
                   const questionStats = showLiveResults && liveResults?.preguntas?.[String(pregunta.id)];
-                  const optionStats = questionStats?.opciones?.find((opt) => opt.id === opcion.id);
+                  const optionStats = questionStats?.opciones?.find((opt) => optionIdsEqual(opt.id, opcion.id));
                   const totalVotes = questionStats?.opciones?.reduce((acc, curr) => acc + curr.votos, 0) || 0;
                   const percent = totalVotes > 0 && optionStats ? Math.round((optionStats.votos / totalVotes) * 100) : 0;
 
@@ -1111,10 +1145,11 @@ export const SurveyForm = ({
             {pregunta.tipo === 'multiple' && (
               <div className="flex flex-col gap-2">
                 {pregunta.opciones?.map((opcion) => {
-                  const checked = answers[pregunta.id]?.opcionIds?.includes(opcion.id) ?? false;
+                  const checked =
+                    answers[pregunta.id]?.opcionIds?.some((id) => optionIdsEqual(id, opcion.id)) ?? false;
                   // Live results calculation
                   const questionStats = showLiveResults && liveResults?.preguntas?.[String(pregunta.id)];
-                  const optionStats = questionStats?.opciones?.find((opt) => opt.id === opcion.id);
+                  const optionStats = questionStats?.opciones?.find((opt) => optionIdsEqual(opt.id, opcion.id));
                   const totalVotes = questionStats?.opciones?.reduce((acc, curr) => acc + curr.votos, 0) || 0;
                   const percent = totalVotes > 0 && optionStats ? Math.round((optionStats.votos / totalVotes) * 100) : 0;
 

@@ -287,4 +287,21 @@ describe('postPublicResponse', () => {
 
     expect(response.contract_version).toBe('encuestas.public_response.v1');
   });
+
+  it('accepts explicit demo survey response contract', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      contract_version: 'demo.survey_response_ack.v1',
+      ok: true,
+      accepted: true,
+      respuesta_id: 'demo_resp_1',
+    });
+
+    const response = await postPublicResponse(
+      'demo-empresas-chatboc-demo-promo-semana',
+      { respuestas: [{ pregunta_id: 101, opcion_ids: ['q_14900184516_op_1'] }] },
+      'chatboc-demo',
+    );
+
+    expect(response.contract_version).toBe('demo.survey_response_ack.v1');
+  });
 });

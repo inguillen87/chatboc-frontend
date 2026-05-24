@@ -43,11 +43,11 @@ const appendDemoVoteToLiveResults = (
     const questionStats = preguntas[key];
     if (!questionStats?.opciones?.length || !respuesta.opcion_ids?.length) continue;
 
-    const selectedIds = new Set(respuesta.opcion_ids);
+    const selectedIds = new Set(respuesta.opcion_ids.map((id) => String(id)));
     preguntas[key] = {
       ...questionStats,
       opciones: questionStats.opciones.map((option) =>
-        selectedIds.has(option.id) ? { ...option, votos: option.votos + 1 } : option,
+        selectedIds.has(String(option.id)) ? { ...option, votos: option.votos + 1 } : option,
       ),
     };
     changed = true;
