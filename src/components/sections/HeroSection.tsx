@@ -961,7 +961,7 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
               </div>
             )}
 
-            <MetaAppReviewApproval className="mt-8" variant="hero" />
+            <MetaAppReviewApproval className="mt-5" variant="hero" />
 
             {proofItems.length > 0 && (
               <div className="chatboc-hero-proof mt-8 grid gap-3 sm:grid-cols-3">
