@@ -43,6 +43,7 @@ import {
 } from "lucide-react";
 import { TenantConfigBundle } from "@/types/TenantConfig";
 import { WhatsappNumberInventoryItem } from "@/types/whatsapp";
+import MetaAppReviewApproval from "@/components/brand/MetaAppReviewApproval";
 import { tenantService } from "@/services/tenantService";
 import MenuBuilder from "@/components/tenant/MenuBuilder";
 import IntegracionesPage from "@/pages/pyme/integraciones/IntegracionesPage"; // Import new professional integrations page
@@ -428,6 +429,8 @@ const Integracion = () => {
                 <CardDescription>Gestiona el número asignado a tu cuenta.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
+                <MetaAppReviewApproval />
+
                 <WhatsappTechProviderOnboarding tenantSlug={tenantSlug} />
 
                 <Separator />
