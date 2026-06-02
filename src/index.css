@@ -2158,7 +2158,7 @@ html {
   position: fixed;
   z-index: 44;
   top: var(--chatboc-guide-top, 150px);
-  right: max(1rem, calc((100vw - 1480px) / 2 + 1rem));
+  right: clamp(1rem, 1.6vw, 2rem);
   width: min(316px, calc(100vw - 1.5rem));
   transform: translateY(-50%);
   pointer-events: none;

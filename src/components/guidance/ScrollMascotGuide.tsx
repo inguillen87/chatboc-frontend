@@ -236,8 +236,11 @@ export default function ScrollMascotGuide() {
         document.documentElement.scrollHeight - window.innerHeight
       );
       const scrollProgress = Math.min(1, Math.max(0, window.scrollY / maxScroll));
-      const minTop = 176;
-      const maxTop = Math.max(minTop, window.innerHeight - 230);
+      const minTop = Math.min(
+        Math.max(250, window.innerHeight * 0.34),
+        window.innerHeight - 210
+      );
+      const maxTop = Math.max(minTop, window.innerHeight - 190);
       setGuideTop(Math.round(minTop + (maxTop - minTop) * scrollProgress));
 
       const anchorY = window.innerHeight * 0.38;
