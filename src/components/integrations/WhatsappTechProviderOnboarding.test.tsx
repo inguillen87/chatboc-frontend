@@ -84,7 +84,7 @@ describe("WhatsappTechProviderOnboarding", () => {
     expect(screen.getByText("987654321")).toBeInTheDocument();
     expect(screen.getByText("whatsapp:+18564858589")).toBeInTheDocument();
     expect(screen.getByText("XESENDER123")).toBeInTheDocument();
-    expect(screen.getByText("online")).toBeInTheDocument();
+    expect(screen.getAllByText("online").length).toBeGreaterThan(0);
     expect(screen.getAllByText("ready").length).toBeGreaterThan(0);
     expect(screen.getByText(/Registrar sender productivo con Twilio Senders API/i)).toBeInTheDocument();
     expect(screen.getByText("El cliente debe autorizar su WABA desde Meta.")).toBeInTheDocument();

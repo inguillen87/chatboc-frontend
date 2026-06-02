@@ -42,6 +42,34 @@ import {
 import IntegrationPreviewDialog from './IntegrationPreviewDialog';
 import { cn } from '@/lib/utils';
 
+const CHANNEL_GUIDANCE: Record<string, { title: string; detail: string; outcome: string }> = {
+  whatsapp: {
+    title: "WhatsApp Business",
+    detail: "Autorización oficial con Meta, sender productivo, menú y pruebas antes de operar.",
+    outcome: "Atención, ventas y casos trazables desde WhatsApp.",
+  },
+  telegram: {
+    title: "Telegram",
+    detail: "Canal complementario para avisos, soporte y comunidades.",
+    outcome: "Notificaciones y respuestas por chat.",
+  },
+  mercadolibre: {
+    title: "MercadoLibre",
+    detail: "Sincroniza catálogo, consultas y pedidos para responder desde un solo lugar.",
+    outcome: "Ventas y stock con seguimiento centralizado.",
+  },
+  tiendanube: {
+    title: "Tiendanube",
+    detail: "Conecta ecommerce, carrito y catálogo para cerrar pedidos con contexto.",
+    outcome: "Pedidos online preparados para despacho.",
+  },
+  email: {
+    title: "Email",
+    detail: "Respaldo operativo para notificaciones, comprobantes y alertas internas.",
+    outcome: "Confirmaciones y reportes por correo.",
+  },
+};
+
 const INTEGRATION_LOGOS: Record<string, string> = {
   mercadolibre: "https://http2.mlstatic.com/frontend-assets/ml-web-navigation/ui-navigation/5.21.22/mercadolibre/logo__large_plus.png",
   tiendanube: "https://d26lpennugtm8s.cloudfront.net/assets/common/img/logos/header/logo_tiendanube_header.svg",
@@ -907,22 +935,6 @@ const IntegracionesPage = () => {
       setSandboxResult(null);
       const requestId = error instanceof ApiError && error.requestId ? ` Req: ${error.requestId}` : "";
       toast.error(`No se pudo preparar la prueba desde backend.${requestId}`);
-      return;
-      const status = error instanceof ApiError ? error.status : Number(error?.status || 0);
-        setSandboxResult({
-          mode: "local",
-          message:
-            status === 404 || status === 405 || status === 501
-              ? "La prueba quedó lista para abrir manualmente con los datos cargados mientras se actualiza el servicio."
-              : "No se pudo confirmar la preparación. Podés abrir WhatsApp con este enlace si el contrato publicó número o completaste el teléfono de prueba.",
-          deeplink,
-          requestId: error instanceof ApiError ? error.requestId : null,
-        });
-      if (status === 404 || status === 405 || status === 501) {
-        toast.info("Prueba lista para abrir manualmente.");
-      } else {
-        toast.error("No se pudo preparar el sandbox.");
-      }
     } finally {
       setSandboxLoading(false);
     }
@@ -969,7 +981,7 @@ const IntegracionesPage = () => {
                   Prepará una prueba guiada con número, frase de unión y brief del rubro. El usuario abre WhatsApp desde un enlace o copia las instrucciones; no se promete envío automático desde el backend.
               */}
                 <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-                  Prepara una prueba guiada con numero, frase de union, brief del rubro y menu publicado. El backend debe registrar la sesion antes de mostrar el enlace de grabacion.
+                  Prepara una prueba guiada con número, frase de unión, brief del rubro y menú publicado. El backend debe registrar la sesión antes de mostrar el enlace de grabación.
                 </p>
               </div>
             </div>
@@ -1156,14 +1168,54 @@ const IntegracionesPage = () => {
   const copyLabel = catalogData?.links?.share_copy_label ?? 'Copiar link';
   const whatsappLabel = catalogData?.links?.share_whatsapp_label ?? 'WhatsApp';
   const shareLabel = catalogData?.links?.share_label ?? 'Compartir catálogo';
+  const selectedChannelConfig = CHANNELS.find((channel) => channel.id === selectedChannel) ?? CHANNELS[0];
+  const selectedChannelStatus = getIntegrationStatus(selectedChannel);
+  const selectedChannelGuidance = CHANNEL_GUIDANCE[selectedChannel] ?? CHANNEL_GUIDANCE.whatsapp;
+  const connectedChannels = CHANNELS.filter((channel) => getIntegrationStatus(channel.id).connected).length;
+  const whatsappStatus = getIntegrationStatus("whatsapp");
+  const readinessLabel = loading
+    ? "Cargando canales"
+    : connectedChannels > 0
+      ? `${connectedChannels} de ${CHANNELS.length} canales conectados`
+      : "Pendiente de autorizacion";
 
   return (
     <div className="container mx-auto p-4 md:p-6 max-w-7xl space-y-10">
-      <div className="space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight">Integraciones y Canales</h1>
-        <p className="text-muted-foreground">
-          Gestioná tus canales de venta, personalizá tu chat y configurá notificaciones.
-        </p>
+      <div className="rounded-3xl border bg-gradient-to-br from-primary/10 via-background to-emerald-500/10 p-5 shadow-sm md:p-6">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+          <div className="max-w-3xl space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="secondary" className="gap-1 rounded-full">
+                <ShieldCheck className="h-3.5 w-3.5" /> Profile management
+              </Badge>
+              <Badge variant="secondary" className="gap-1 rounded-full">
+                <Sparkles className="h-3.5 w-3.5" /> Meta Tech Provider
+              </Badge>
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">Integraciones y canales</h1>
+              <p className="mt-2 max-w-2xl text-sm text-muted-foreground md:text-base">
+                Autoriza WhatsApp Business, prueba recorridos reales, publica el widget y deja cada canal listo para operar sin exponer consolas externas al cliente.
+              </p>
+            </div>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[460px]">
+            <div className="rounded-2xl border bg-background/75 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Estado</p>
+              <p className="mt-2 text-sm font-semibold text-foreground">{readinessLabel}</p>
+            </div>
+            <div className="rounded-2xl border bg-background/75 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">WhatsApp</p>
+              <p className="mt-2 text-sm font-semibold text-foreground">
+                {whatsappStatus.connected ? "Operativo" : "Requiere autorizacion"}
+              </p>
+            </div>
+            <div className="rounded-2xl border bg-background/75 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Canal activo</p>
+              <p className="mt-2 text-sm font-semibold text-foreground">{selectedChannelConfig.label}</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {currentSlug && (
@@ -1477,32 +1529,60 @@ const IntegracionesPage = () => {
 
                     {/* Left: Settings Panel */}
                     <div className="space-y-6">
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="text-lg">Canales Disponibles</CardTitle>
+                        <Card className="overflow-hidden">
+                            <CardHeader className="pb-3">
+                                <div className="flex items-center justify-between gap-3">
+                                    <div className="space-y-1">
+                                        <CardTitle className="text-lg">Canales disponibles</CardTitle>
+                                        <CardDescription>Autoriza, prueba y publica cada canal desde el perfil del tenant.</CardDescription>
+                                    </div>
+                                    <Badge variant="outline" className="shrink-0">
+                                        {connectedChannels}/{CHANNELS.length}
+                                    </Badge>
+                                </div>
                             </CardHeader>
-                            <CardContent className="flex flex-col space-y-2">
+                            <CardContent className="flex flex-col gap-2">
                                 {CHANNELS.map((channel) => {
                                     const status = getIntegrationStatus(channel.id);
                                     const Icon = channel.icon;
+                                    const guidance = CHANNEL_GUIDANCE[channel.id] ?? CHANNEL_GUIDANCE.whatsapp;
                                     return (
                                         <button
                                             key={channel.id}
                                             onClick={() => setSelectedChannel(channel.id)}
                                             className={cn(
-                                                "flex items-center justify-between w-full px-3 py-2.5 rounded-lg text-sm font-medium transition-all border",
+                                                "flex w-full items-start justify-between gap-3 rounded-xl border px-3 py-3 text-sm transition-all",
                                                 selectedChannel === channel.id
-                                                    ? "bg-primary/10 text-foreground border-primary/40 shadow-sm"
-                                                    : "border-transparent hover:border-border hover:bg-muted/60 text-muted-foreground hover:text-foreground"
+                                                    ? "border-primary/40 bg-primary/10 text-foreground shadow-sm"
+                                                    : "border-transparent text-muted-foreground hover:border-border hover:bg-muted/60 hover:text-foreground"
                                             )}
                                         >
-                                            <div className="flex items-center gap-3">
-                                                <Icon className="h-4 w-4" />
-                                                {channel.label}
+                                            <div className="flex min-w-0 items-start gap-3">
+                                                <span className={cn(
+                                                    "mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border bg-background",
+                                                    selectedChannel === channel.id && "border-primary/40 bg-primary/10 text-primary"
+                                                )}>
+                                                    <Icon className="h-4 w-4" />
+                                                </span>
+                                                <div className="min-w-0 text-left">
+                                                    <div className="flex flex-wrap items-center gap-2 font-semibold">
+                                                        <span>{channel.label}</span>
+                                                        <span className={cn(
+                                                            "rounded-full px-2 py-0.5 text-[11px]",
+                                                            status.connected
+                                                                ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-300"
+                                                                : "bg-muted text-muted-foreground"
+                                                        )}>
+                                                            {status.connected ? "Operativo" : "Pendiente"}
+                                                        </span>
+                                                    </div>
+                                                    <p className="mt-1 text-xs leading-5 text-muted-foreground">{guidance.outcome}</p>
+                                                </div>
                                             </div>
-                                            {status.connected && (
-                                                <span className="flex h-2 w-2 rounded-full bg-green-500 ring-2 ring-background" />
-                                            )}
+                                            <ArrowRight className={cn(
+                                                "mt-2 h-4 w-4 shrink-0 transition-transform",
+                                                selectedChannel === channel.id && "translate-x-0.5 text-primary"
+                                            )} />
                                         </button>
                                     )
                                 })}
@@ -1523,24 +1603,24 @@ const IntegracionesPage = () => {
                             </CardContent>
                         </Card>
 
-                        <Card className="min-h-[520px]">
+                        <Card className="min-h-[520px] overflow-hidden">
                             <CardHeader>
                                 <div className="flex items-center justify-between gap-4">
                                     <div className="flex items-center gap-4">
                                         <img
                                             src={INTEGRATION_LOGOS[selectedChannel]}
-                                            alt={selectedChannel}
+                                            alt={selectedChannelConfig.label}
                                             className="h-10 w-10 object-contain"
                                             onError={(e) => { e.currentTarget.style.display='none'; }}
                                         />
                                         <div>
-                                            <CardTitle className="capitalize">{CHANNELS.find(c => c.id === selectedChannel)?.label}</CardTitle>
+                                            <CardTitle>{selectedChannelGuidance.title}</CardTitle>
                                             <CardDescription>
-                                                {getIntegrationStatus(selectedChannel).connected ? 'Conectado y operativo' : 'No conectado'}
+                                                {selectedChannelStatus.connected ? selectedChannelGuidance.outcome : selectedChannelGuidance.detail}
                                             </CardDescription>
                                         </div>
                                     </div>
-                                    {getIntegrationStatus(selectedChannel).connected ? (
+                                    {selectedChannelStatus.connected ? (
                                         <Badge className="bg-green-600">Activo</Badge>
                                     ) : (
                                         <Badge variant="secondary">Inactivo</Badge>
@@ -1548,6 +1628,23 @@ const IntegracionesPage = () => {
                                 </div>
                             </CardHeader>
                             <CardContent className="space-y-6">
+                                <div className="rounded-2xl border bg-muted/30 p-4">
+                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                        <div>
+                                            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Siguiente paso</p>
+                                            <p className="mt-1 text-sm text-foreground">
+                                                {selectedChannel === "whatsapp"
+                                                    ? "Completar autorizacion Meta, sender, prueba de mensaje y rutas de webhook."
+                                                    : selectedChannelStatus.connected
+                                                      ? "Revisar sincronizacion, permisos y reglas operativas del canal."
+                                                      : "Conectar credenciales y validar una prueba real antes de publicarlo."}
+                                            </p>
+                                        </div>
+                                        <Badge variant="outline" className="w-fit">
+                                            {selectedChannelStatus.connected ? "Listo para operar" : "Requiere configuracion"}
+                                        </Badge>
+                                    </div>
+                                </div>
                                 {selectedChannel === 'whatsapp' ? (
                                     <div className="space-y-6">
                                         <WhatsappTechProviderOnboarding tenantSlug={currentSlug} />
