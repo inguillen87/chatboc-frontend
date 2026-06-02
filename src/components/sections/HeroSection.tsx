@@ -25,7 +25,6 @@ import { useNavigate } from "react-router-dom";
 
 import type { LandingExperience, LandingRecord } from "@/api/landingExperience";
 import { cleanLandingCopy } from "@/utils/landingCopy";
-import { getChatbocBotAvatar } from "@/utils/brandAssets";
 
 type AnyRecord = Record<string, any>;
 
@@ -895,7 +894,6 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
   const accentStyle = {
     ["--chatboc-hero-accent" as string]: readText(colors, ["primary", "accent"], ""),
   } as React.CSSProperties;
-  const mascotAvatar = getChatbocBotAvatar(false);
   const showHeroPreview =
     Boolean(activeFlow?.message && activeFlow?.response && (activeAction || activeFlow.resultTraceable));
   const headlineWords = headline.split(/\s+/).filter(Boolean);
@@ -912,14 +910,11 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
   };
 
   return (
-    <section className="chatboc-hero-grid relative overflow-visible pt-16 pb-12 text-foreground md:pt-16 md:pb-16" style={accentStyle}>
-      <img
-        src={mascotAvatar}
-        alt=""
-        aria-hidden="true"
-        className="pointer-events-none absolute right-[max(1.25rem,calc((100vw-1480px)/2+1.25rem))] top-28 z-0 hidden h-24 w-24 select-none object-contain opacity-95 drop-shadow-[0_18px_44px_rgba(8,102,255,0.26)] lg:block xl:h-28 xl:w-28"
-        loading="eager"
-      />
+    <section
+      className="chatboc-hero-grid relative overflow-visible pt-16 pb-12 text-foreground md:pt-16 md:pb-16"
+      style={accentStyle}
+      data-chatboc-hero
+    >
       <div className="container mx-auto px-4 2xl:max-w-[1480px]">
         <div className={`chatboc-hero-layout grid items-center gap-8 lg:gap-12 xl:gap-16 ${showHeroPreview ? "lg:grid-cols-[minmax(0,0.84fr)_minmax(30rem,1.16fr)] xl:grid-cols-[minmax(0,0.78fr)_minmax(34rem,1.22fr)]" : ""}`}>
           <div className="min-w-0 max-w-3xl">

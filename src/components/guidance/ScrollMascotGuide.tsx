@@ -34,6 +34,8 @@ const GUIDE_HEADING_SELECTOR = [
 const GUIDE_SECTION_SELECTOR =
   "[data-guide-section], section, article, [role='region'], .container";
 
+const HERO_SECTION_SELECTOR = "[data-chatboc-hero]";
+
 const PUBLIC_GUIDE_EXACT_PATHS = new Set([
   "/",
   "/demo",
@@ -143,12 +145,48 @@ export default function ScrollMascotGuide() {
     if (typeof sessionStorage === "undefined") return false;
     return sessionStorage.getItem(SESSION_DISMISSED_KEY) === "1";
   });
+  const [isPastHero, setIsPastHero] = React.useState(false);
 
   const routeAllowsGuide = shouldShowGuideForPath(location.pathname);
 
   React.useEffect(() => {
     setDismissed(sessionStorage.getItem(SESSION_DISMISSED_KEY) === "1");
   }, [location.pathname]);
+
+  React.useEffect(() => {
+    if (!routeAllowsGuide || dismissed) {
+      setIsPastHero(false);
+      setExpanded(false);
+      return;
+    }
+
+    let animationFrame = 0;
+
+    const updateVisibility = () => {
+      window.cancelAnimationFrame(animationFrame);
+      animationFrame = window.requestAnimationFrame(() => {
+        const hero = document.querySelector<HTMLElement>(HERO_SECTION_SELECTOR);
+        const isVisible = hero
+          ? hero.getBoundingClientRect().bottom < window.innerHeight * 0.22
+          : window.scrollY > Math.max(560, window.innerHeight * 0.86);
+
+        setIsPastHero(isVisible);
+        if (!isVisible) {
+          setExpanded(false);
+        }
+      });
+    };
+
+    updateVisibility();
+    window.addEventListener("scroll", updateVisibility, { passive: true });
+    window.addEventListener("resize", updateVisibility);
+
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      window.removeEventListener("scroll", updateVisibility);
+      window.removeEventListener("resize", updateVisibility);
+    };
+  }, [dismissed, location.pathname, routeAllowsGuide]);
 
   React.useEffect(() => {
     if (!routeAllowsGuide || dismissed) {
@@ -245,19 +283,19 @@ export default function ScrollMascotGuide() {
   }, [activeIndex, sections]);
 
   React.useEffect(() => {
-    if (!sections.length) return;
+    if (!sections.length || !isPastHero) return;
 
     const isMobileViewport = window.matchMedia("(max-width: 768px)").matches;
-    setExpanded(!isMobileViewport && window.scrollY > 160);
+    setExpanded(!isMobileViewport);
     setIsWinking(true);
     const winkTimer = window.setTimeout(() => setIsWinking(false), 720);
 
     return () => {
       window.clearTimeout(winkTimer);
     };
-  }, [activeIndex, sections.length]);
+  }, [activeIndex, isPastHero, sections.length]);
 
-  if (!routeAllowsGuide || dismissed || sections.length < 1) return null;
+  if (!routeAllowsGuide || dismissed || sections.length < 1 || !isPastHero) return null;
 
   const current = sections[Math.min(activeIndex, sections.length - 1)];
   const rootClassName = [
