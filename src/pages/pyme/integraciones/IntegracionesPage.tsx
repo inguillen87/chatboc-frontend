@@ -915,7 +915,7 @@ const IntegracionesPage = () => {
       }
       setSandboxResult({
         mode: "remote",
-        message: "Prueba lista: el backend registro la sesion sandbox y devolvio enlace, texto copiable y preview sin enviar mensajes reales.",
+        message: "Prueba lista: el backend registró la sesión sandbox y devolvió enlace, texto copiable y preview sin enviar mensajes reales.",
         deeplink: remoteDeeplink,
         copyText: testResult.copyText,
         previewText: testResult.previewText,
@@ -1173,11 +1173,18 @@ const IntegracionesPage = () => {
   const selectedChannelGuidance = CHANNEL_GUIDANCE[selectedChannel] ?? CHANNEL_GUIDANCE.whatsapp;
   const connectedChannels = CHANNELS.filter((channel) => getIntegrationStatus(channel.id).connected).length;
   const whatsappStatus = getIntegrationStatus("whatsapp");
+  const activationPath = [
+    { label: "Autorizar con Meta", done: whatsappStatus.connected },
+    { label: "Registrar sender", done: whatsappStatus.connected },
+    { label: "Probar mensajes", done: whatsappStatus.connected },
+    { label: "Publicar canal", done: whatsappStatus.connected },
+  ];
+
   const readinessLabel = loading
     ? "Cargando canales"
     : connectedChannels > 0
       ? `${connectedChannels} de ${CHANNELS.length} canales conectados`
-      : "Pendiente de autorizacion";
+      : "Pendiente de autorización";
 
   return (
     <div className="container mx-auto p-4 md:p-6 max-w-7xl space-y-10">
@@ -1207,7 +1214,7 @@ const IntegracionesPage = () => {
             <div className="rounded-2xl border bg-background/75 p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">WhatsApp</p>
               <p className="mt-2 text-sm font-semibold text-foreground">
-                {whatsappStatus.connected ? "Operativo" : "Requiere autorizacion"}
+                {whatsappStatus.connected ? "Operativo" : "Requiere autorización"}
               </p>
             </div>
             <div className="rounded-2xl border bg-background/75 p-4">
@@ -1215,6 +1222,23 @@ const IntegracionesPage = () => {
               <p className="mt-2 text-sm font-semibold text-foreground">{selectedChannelConfig.label}</p>
             </div>
           </div>
+        </div>
+        <div className="mt-5 grid gap-2 md:grid-cols-4">
+          {activationPath.map((step, index) => (
+            <div key={step.label} className="flex items-center gap-2 rounded-2xl border bg-background/70 px-3 py-2">
+              <span
+                className={cn(
+                  "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[11px] font-semibold",
+                  step.done
+                    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700"
+                    : "border-primary/30 bg-primary/10 text-primary"
+                )}
+              >
+                {step.done ? <CheckCircle2 className="h-3.5 w-3.5" /> : index + 1}
+              </span>
+              <span className="text-xs font-medium text-foreground">{step.label}</span>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -1475,9 +1499,9 @@ const IntegracionesPage = () => {
                 <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
                     <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto sm:max-w-[800px]">
                         <DialogHeader className="sr-only">
-                            <DialogTitle>{catalogData?.links?.upload_section_title || "Importar catalogo"}</DialogTitle>
+                            <DialogTitle>{catalogData?.links?.upload_section_title || "Importar catálogo"}</DialogTitle>
                             <DialogDescription>
-                                {catalogData?.links?.upload_section_description || "Sube un archivo para importar o actualizar el catalogo."}
+                                {catalogData?.links?.upload_section_description || "Sube un archivo para importar o actualizar el catálogo."}
                             </DialogDescription>
                         </DialogHeader>
                         <CatalogUploadWizard
@@ -1492,9 +1516,9 @@ const IntegracionesPage = () => {
                 <Dialog open={editorOpen} onOpenChange={setEditorOpen}>
                   <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader className={catalogData?.links?.editor_title || catalogData?.links?.editor_description ? "" : "sr-only"}>
-                      <DialogTitle>{catalogData?.links?.editor_title || "Editor de catalogo"}</DialogTitle>
+                      <DialogTitle>{catalogData?.links?.editor_title || "Editor de catálogo"}</DialogTitle>
                       <DialogDescription>
-                        {catalogData?.links?.editor_description || "Edita las filas y columnas del catalogo del tenant."}
+                        {catalogData?.links?.editor_description || "Edita las filas y columnas del catálogo del tenant."}
                       </DialogDescription>
                     </DialogHeader>
                     <CatalogSpreadsheetEditor
@@ -1634,14 +1658,14 @@ const IntegracionesPage = () => {
                                             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Siguiente paso</p>
                                             <p className="mt-1 text-sm text-foreground">
                                                 {selectedChannel === "whatsapp"
-                                                    ? "Completar autorizacion Meta, sender, prueba de mensaje y rutas de webhook."
+                                                    ? "Completar autorización Meta, sender, prueba de mensaje y rutas de webhook."
                                                     : selectedChannelStatus.connected
-                                                      ? "Revisar sincronizacion, permisos y reglas operativas del canal."
+                                                      ? "Revisar sincronización, permisos y reglas operativas del canal."
                                                       : "Conectar credenciales y validar una prueba real antes de publicarlo."}
                                             </p>
                                         </div>
                                         <Badge variant="outline" className="w-fit">
-                                            {selectedChannelStatus.connected ? "Listo para operar" : "Requiere configuracion"}
+                                            {selectedChannelStatus.connected ? "Listo para operar" : "Requiere configuración"}
                                         </Badge>
                                     </div>
                                 </div>
@@ -1802,7 +1826,7 @@ const IntegracionesPage = () => {
       <Dialog open={mappingOpen} onOpenChange={setMappingOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto sm:max-w-[800px]">
           <DialogHeader className="sr-only">
-            <DialogTitle>Previsualizacion de sincronizacion</DialogTitle>
+            <DialogTitle>Previsualización de sincronización</DialogTitle>
             <DialogDescription>Revisa el mapeo de campos antes de sincronizar el canal.</DialogDescription>
           </DialogHeader>
           <IntegrationPreviewDialog

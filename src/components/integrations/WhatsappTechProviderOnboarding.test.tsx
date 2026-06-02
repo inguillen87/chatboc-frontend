@@ -79,7 +79,7 @@ describe("WhatsappTechProviderOnboarding", () => {
     render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" />);
 
     expect(await screen.findByText("WhatsApp productivo")).toBeInTheDocument();
-    expect(screen.getByText("Activacion guiada por Chatboc")).toBeInTheDocument();
+    expect(screen.getByText("Activación guiada por Chatboc")).toBeInTheDocument();
     expect(screen.getByText("123456789")).toBeInTheDocument();
     expect(screen.getByText("987654321")).toBeInTheDocument();
     expect(screen.getByText("whatsapp:+18564858589")).toBeInTheDocument();
@@ -95,7 +95,7 @@ describe("WhatsappTechProviderOnboarding", () => {
   it("updates the visible contract after preparing activation", async () => {
     render(<WhatsappTechProviderOnboarding tenantSlug="junin-1" />);
 
-    fireEvent.click(await screen.findByRole("button", { name: /preparar activacion/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /preparar activación/i }));
 
     await waitFor(() => {
       expect(mockedTenantService.provisionWhatsappTechProvider).toHaveBeenCalledWith("junin-1", {
