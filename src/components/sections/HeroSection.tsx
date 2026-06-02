@@ -1215,13 +1215,13 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
           </div>
           )}
         </div>
-        <div className="mx-auto mt-9 flex w-full max-w-6xl items-center gap-4 md:mt-12" aria-label="Chatboc.ar Meta Tech Provider">
-          <span className="h-px min-w-5 flex-1 bg-gradient-to-r from-transparent via-[#0866ff]/45 to-border/70" aria-hidden="true" />
-          <div className="relative flex max-w-full shrink-0 flex-wrap items-center justify-center gap-x-4 gap-y-2 overflow-hidden rounded-2xl border border-[#0866ff]/35 bg-[#061225]/85 px-4 py-3 text-center text-white shadow-[0_0_34px_rgba(8,102,255,0.22)] backdrop-blur md:rounded-full md:px-5">
-            <span className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-sky-300/70 to-transparent" aria-hidden="true" />
-            <span className="inline-flex items-center gap-3">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-[#0866ff] shadow-[0_0_22px_rgba(8,102,255,0.45)] ring-1 ring-white/35">
-                <svg className="h-5 w-8" viewBox="0 0 72 44" fill="none" aria-hidden="true">
+        <div className="mx-auto mt-8 flex w-full max-w-6xl items-center gap-3 md:mt-11" aria-label="Chatboc.ar Meta Tech Provider">
+          <span className="hidden h-px min-w-4 flex-1 bg-gradient-to-r from-transparent via-[#0866ff]/45 to-border/60 sm:block" aria-hidden="true" />
+          <div className="relative flex w-full max-w-5xl shrink-0 flex-col items-center justify-center gap-1.5 overflow-hidden rounded-[24px] border border-[#0866ff]/30 bg-white/92 px-2.5 py-2 text-center text-slate-950 shadow-[0_0_30px_rgba(8,102,255,0.18)] backdrop-blur dark:bg-[#061225]/86 dark:text-white sm:w-auto sm:flex-row sm:gap-x-4 sm:gap-y-2 sm:rounded-full sm:px-4 lg:px-5">
+            <span className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-[#0866ff]/70 to-transparent" aria-hidden="true" />
+            <span className="flex min-w-0 flex-wrap items-center justify-center gap-x-2 gap-y-1 sm:gap-x-3 sm:gap-y-1.5">
+              <span className="inline-flex min-w-0 items-center gap-2 sm:gap-2.5">
+                <svg className="h-4 w-8 shrink-0 text-[#0866ff] dark:text-[#5aa2ff] sm:h-5 sm:w-9" viewBox="0 0 72 44" fill="none" aria-hidden="true">
                   <path
                     d="M8.5 32.2C10.6 19.8 15.8 10 24 10c5.8 0 10 5 16.2 15.9C46.5 15 50.8 10 56 10c8.2 0 13.4 9.8 15.5 22.2 1.5 9-9.3 11.2-15.1 3.1-4.8-6.8-8.8-15.7-16.2-15.7s-11.4 8.9-16.2 15.7C17.8 43.4 7 41.2 8.5 32.2Z"
                     stroke="currentColor"
@@ -1230,39 +1230,38 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
                     strokeLinejoin="round"
                   />
                 </svg>
-              </span>
-              <span className="min-w-0 text-left leading-tight">
-                <span className="block text-[10px] font-black uppercase tracking-[0.2em] text-sky-200">
-                  Meta
-                </span>
-                <span className="block whitespace-nowrap text-base font-black tracking-normal sm:text-lg">
-                  Tech Provider
+                <span className="whitespace-nowrap text-xs font-black tracking-normal sm:text-base">
+                  <span className="text-[#0866ff] dark:text-[#5aa2ff]">Meta</span> Tech Provider
                 </span>
               </span>
+              <span className="hidden h-6 w-px bg-slate-950/12 dark:bg-white/15 sm:inline-block" aria-hidden="true" />
+              <span className="inline-flex min-w-0 items-center gap-1 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-extrabold text-emerald-700 dark:text-emerald-200 sm:gap-1.5 sm:px-2.5 sm:py-1 sm:text-xs">
+                <CheckCircle2 className="h-3 w-3 shrink-0 sm:h-3.5 sm:w-3.5" aria-hidden="true" />
+                <span className="whitespace-nowrap">
+                  Chatboc.ar verificado<span className="hidden sm:inline"> por Meta</span>
+                </span>
+              </span>
             </span>
-            <span className="hidden h-8 w-px bg-white/15 sm:inline-block" aria-hidden="true" />
-            <span className="inline-flex min-w-0 items-center gap-2 rounded-full bg-white/8 px-3 py-1.5 text-sm font-extrabold text-white ring-1 ring-white/10">
-              <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-300" aria-hidden="true" />
-              <span className="truncate">Chatboc.ar IA verificado por Meta</span>
-            </span>
-            <span className="hidden h-8 w-px bg-white/15 lg:inline-block" aria-hidden="true" />
-            <span className="inline-flex items-center gap-2 text-sm font-bold text-sky-100">
-              <svg className="h-4 w-7 shrink-0 text-[#2f8cff]" viewBox="0 0 72 44" fill="none" aria-hidden="true">
-                <path
-                  d="M8.5 32.2C10.6 19.8 15.8 10 24 10c5.8 0 10 5 16.2 15.9C46.5 15 50.8 10 56 10c8.2 0 13.4 9.8 15.5 22.2 1.5 9-9.3 11.2-15.1 3.1-4.8-6.8-8.8-15.7-16.2-15.7s-11.4 8.9-16.2 15.7C17.8 43.4 7 41.2 8.5 32.2Z"
-                  stroke="currentColor"
-                  strokeWidth="5.2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-              <span className="whitespace-nowrap">Meta Business Partners</span>
-            </span>
-            <span className="whitespace-nowrap rounded-full border border-emerald-300/30 bg-emerald-400/10 px-3 py-1 text-xs font-black uppercase tracking-[0.12em] text-emerald-200">
-              WhatsApp Business Platform
+            <span className="hidden h-6 w-px bg-slate-950/12 dark:bg-white/15 lg:inline-block" aria-hidden="true" />
+            <span className="flex min-w-0 flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[10px] font-bold text-slate-700 dark:text-sky-100 sm:gap-x-3 sm:gap-y-1.5 sm:text-xs">
+              <span className="inline-flex items-center gap-1 sm:gap-1.5">
+                <svg className="h-3.5 w-6 shrink-0 text-[#0866ff] dark:text-[#5aa2ff] sm:h-4 sm:w-7" viewBox="0 0 72 44" fill="none" aria-hidden="true">
+                  <path
+                    d="M8.5 32.2C10.6 19.8 15.8 10 24 10c5.8 0 10 5 16.2 15.9C46.5 15 50.8 10 56 10c8.2 0 13.4 9.8 15.5 22.2 1.5 9-9.3 11.2-15.1 3.1-4.8-6.8-8.8-15.7-16.2-15.7s-11.4 8.9-16.2 15.7C17.8 43.4 7 41.2 8.5 32.2Z"
+                    stroke="currentColor"
+                    strokeWidth="5.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                <span className="whitespace-nowrap">Meta Business Partners</span>
+              </span>
+              <span className="whitespace-nowrap rounded-full border border-[#25d366]/30 bg-[#25d366]/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.06em] text-emerald-700 dark:text-emerald-200 sm:px-2.5 sm:text-[11px]">
+                WhatsApp Business Platform
+              </span>
             </span>
           </div>
-          <span className="h-px min-w-5 flex-1 bg-gradient-to-r from-border/70 via-[#0866ff]/45 to-transparent" aria-hidden="true" />
+          <span className="hidden h-px min-w-4 flex-1 bg-gradient-to-r from-border/60 via-[#0866ff]/45 to-transparent sm:block" aria-hidden="true" />
         </div>
       </div>
     </section>
