@@ -20,20 +20,25 @@ const MetaAppReviewApproval = ({
     <aside
       aria-label="Proveedor tecnologico verificado por Meta"
       className={cn(
-        "inline-flex max-w-full items-center gap-2 rounded-full border border-[#0866ff]/25 bg-background/75 px-3 py-2 text-sm text-foreground shadow-sm backdrop-blur",
-        isHero ? "w-fit" : "w-full justify-between",
+        "inline-flex max-w-full items-center gap-3 rounded-[14px] border border-[#0866ff]/35 bg-[linear-gradient(90deg,rgba(8,102,255,0.16),rgba(37,211,102,0.10),rgba(255,255,255,0.78))] px-4 py-3 text-left text-foreground shadow-[0_18px_44px_rgba(8,102,255,0.16)] backdrop-blur dark:bg-[linear-gradient(90deg,rgba(8,102,255,0.18),rgba(37,211,102,0.10),rgba(8,102,255,0.08))]",
+        isHero ? "w-full max-w-[680px]" : "w-full justify-between",
         className,
       )}
     >
-      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#0866ff]/10 text-[#0866ff] ring-1 ring-[#0866ff]/20">
-        <BadgeCheck className="h-4 w-4" aria-hidden="true" />
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-[#0866ff]/15 text-[#0866ff] ring-1 ring-[#0866ff]/35 dark:text-[#69a8ff]">
+        <BadgeCheck className="h-5 w-5" aria-hidden="true" />
       </span>
-      <span className="min-w-0 truncate font-semibold">
-        Chatboc.ar verificado por Meta como proveedor de tecnologia
-      </span>
-      <span className="hidden shrink-0 items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-1 text-xs font-bold text-emerald-600 dark:text-emerald-300 sm:inline-flex">
-        <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
-        WhatsApp Business Platform
+      <span className="min-w-0 flex-1">
+        <span className="block text-[10px] font-black uppercase tracking-[0.16em] text-[#0866ff] dark:text-sky-200">
+          Hito oficial Meta
+        </span>
+        <span className="block text-base font-black leading-tight text-foreground sm:text-lg">
+          Chatboc.ar verificado por Meta
+        </span>
+        <span className="mt-1 flex items-center gap-1.5 text-xs font-bold leading-snug text-emerald-700 dark:text-emerald-300 sm:text-sm">
+          <ShieldCheck className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          Proveedor de tecnologia para WhatsApp Business Platform
+        </span>
       </span>
     </aside>
   );

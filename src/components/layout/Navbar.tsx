@@ -81,7 +81,8 @@ const readLandingNavItems = (navigation: unknown) => {
       const id = target.replace(/^\/?#/, "").replace(/^\/+/, "");
       return { id, label };
     })
-    .filter(Boolean) as typeof landingNavItems;
+    .filter((item): item is (typeof landingNavItems)[number] => Boolean(item))
+    .filter((item) => item.id.toLowerCase() !== "opinar" && item.label.toLowerCase() !== "opinar");
 
   return items.length ? items : landingNavItems;
 };
@@ -293,9 +294,6 @@ const Navbar: React.FC = () => {
                 {item.label}
               </button>
             ))}
-            <RouterLink to="/opinar" className={navButtonClass}>
-              Opinar
-            </RouterLink>
           </nav>
         ) : null}
 
@@ -406,12 +404,6 @@ const Navbar: React.FC = () => {
                   </button>
                 ))
               : null}
-            {isLanding ? (
-              <RouterLink to="/opinar" onClick={() => setMenuOpen(false)} className={mobileItemClass}>
-                Opinar
-              </RouterLink>
-            ) : null}
-
             <RouterLink to={cartPath} onClick={() => setMenuOpen(false)} className={`${mobileItemClass} flex items-center gap-2`}>
               <ShoppingCart className="h-4 w-4" />
               Carrito

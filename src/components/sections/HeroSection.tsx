@@ -912,7 +912,35 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
 
   return (
     <section className="chatboc-hero-grid overflow-visible pt-16 pb-12 text-foreground md:pt-16 md:pb-16" style={accentStyle}>
-      <div className="container mx-auto px-4 2xl:max-w-[1480px]">
+      <div className="container relative mx-auto px-4 2xl:max-w-[1480px]">
+        <div className="pointer-events-none absolute right-4 top-6 z-30 hidden max-w-[340px] rounded-[14px] border border-[#0866ff]/35 bg-[#061326]/95 p-4 text-left text-white shadow-[0_24px_70px_rgba(8,102,255,0.28)] backdrop-blur-xl after:absolute after:-right-2 after:top-11 after:h-4 after:w-4 after:rotate-45 after:border-r after:border-t after:border-[#0866ff]/35 after:bg-[#061326]/95 xl:block">
+          <span className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-[#0866ff]/20 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-sky-200">
+            <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
+            Nueva noticia
+          </span>
+          <strong className="block text-lg font-black leading-tight">
+            Chatboc.ar IA verificado por Meta
+          </strong>
+          <span className="mt-1.5 block text-sm font-semibold leading-snug text-slate-300">
+            Proveedor de tecnologia para WhatsApp Business Platform.
+          </span>
+        </div>
+        <div className="mb-6 flex max-w-full items-center gap-3 rounded-[14px] border border-[#0866ff]/30 bg-[linear-gradient(90deg,rgba(8,102,255,0.14),rgba(37,211,102,0.10),rgba(255,255,255,0.72))] px-4 py-3 text-left shadow-[0_16px_40px_rgba(8,102,255,0.14)] backdrop-blur xl:hidden">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-[#0866ff]/15 text-[#0866ff] ring-1 ring-[#0866ff]/30">
+            <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-[10px] font-black uppercase tracking-[0.16em] text-[#0866ff]">
+              Nueva noticia
+            </span>
+            <span className="block text-sm font-black leading-tight text-foreground">
+              Chatboc.ar IA verificado por Meta
+            </span>
+            <span className="mt-0.5 block text-xs font-bold leading-snug text-emerald-700 dark:text-emerald-300">
+              Proveedor de tecnologia para WhatsApp Business Platform
+            </span>
+          </span>
+        </div>
         <div className={`chatboc-hero-layout grid items-center gap-8 lg:gap-12 xl:gap-16 ${showHeroPreview ? "lg:grid-cols-[minmax(0,0.84fr)_minmax(30rem,1.16fr)] xl:grid-cols-[minmax(0,0.78fr)_minmax(34rem,1.22fr)]" : ""}`}>
           <div className="min-w-0 max-w-3xl">
             {eyebrow && (
@@ -961,7 +989,7 @@ const HeroSection = ({ experience }: HeroSectionProps) => {
               </div>
             )}
 
-            <MetaAppReviewApproval className="mt-5" variant="hero" />
+            <MetaAppReviewApproval className="mt-6" variant="hero" />
 
             {proofItems.length > 0 && (
               <div className="chatboc-hero-proof mt-8 grid gap-3 sm:grid-cols-3">
