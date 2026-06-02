@@ -160,7 +160,6 @@ function AppRoutes() {
         <Route path="*" element={<NotFound />} />
       </Routes>
 
-
       {/* Monta el widget global SOLO si no estás en demo/integracion/login/register/iframe */}
       {!ocultarWidgetGlobalEnApp && (
         <ChatWidget mode="standalone" defaultOpen={false} />
