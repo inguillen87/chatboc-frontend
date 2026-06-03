@@ -76,6 +76,7 @@ export async function parseCatalogFile(
 
     } else if (fileType === 'xlsx' || fileType === 'xls') {
       const arrayBuffer = await file.arrayBuffer();
+      const XLSX = await import('xlsx');
       const workbook = XLSX.read(arrayBuffer, { type: 'array' });
       const sheetName = fileSettings.sheetName || workbook.SheetNames[0];
       if (!workbook.SheetNames.includes(sheetName)) {

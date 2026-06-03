@@ -324,6 +324,7 @@ const CatalogMappingPage: React.FC = () => {
 
       } else if (fileType === 'xlsx' || fileType === 'xls') {
         const arrayBuffer = await currentFile.arrayBuffer();
+        const XLSX = await import('xlsx');
         const workbook = XLSX.read(arrayBuffer, { type: 'array' });
 
         const sheetNames = workbook.SheetNames;

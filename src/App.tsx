@@ -38,6 +38,11 @@ const queryClient = new QueryClient({
     },
   },
 });
+const RouteLoadingFallback = () => (
+  <div className="flex min-h-[45vh] items-center justify-center bg-background text-sm text-muted-foreground">
+    Cargando modulo...
+  </div>
+);
 function AppRoutes() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -116,7 +121,8 @@ function AppRoutes() {
 
   return (
     <TokenRedirectWrapper>
-      <Routes>
+      <React.Suspense fallback={<RouteLoadingFallback />}>
+        <Routes>
         <Route element={<Layout />}>
           {layoutRoutes.map(({ path, element, roles, requiredCapabilities }) => (
             <Route
@@ -159,7 +165,8 @@ function AppRoutes() {
           />
         ))}
         <Route path="*" element={<NotFound />} />
-      </Routes>
+        </Routes>
+      </React.Suspense>
 
       {/* Monta el widget global SOLO si no estás en demo/integracion/login/register/iframe */}
       {!ocultarWidgetGlobalEnApp && (
