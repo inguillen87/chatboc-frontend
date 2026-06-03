@@ -6,8 +6,12 @@ import {
   AddToCartPayload,
   CheckoutStartResponse,
   CheckoutStartPayload,
+  MarketCheckoutExperience,
+  MarketCheckoutExperiencePolicy,
+  MarketCheckoutExperienceStep,
   MarketCheckoutOptions,
   MarketCheckoutPreview,
+  MarketIntegrationAccess,
   MarketNextStep,
   MarketPaymentCheckoutStatus,
   MarketPaymentStatusResponse,
@@ -182,17 +186,133 @@ const normalizeCheckoutUrls = (value: unknown): Record<string, string | null> | 
 const normalizeCapabilities = (value: unknown): Record<string, unknown> | unknown[] | null =>
   Array.isArray(value) ? value : asRecordOrNull(value);
 
+const normalizeStringArray = (value: unknown): string[] | null => {
+  const strings = asArrayOfStringsOrNull(value);
+  return strings && strings.length ? strings : null;
+};
+
+const normalizeIntegrationAccess = (value: unknown): MarketIntegrationAccess | null => {
+  const record = asRecordOrNull(value);
+  if (!record) return null;
+  const normalized: MarketIntegrationAccess = {
+    ...record,
+    enabled: asBooleanOrNull(getFirst(record, ['enabled', 'allowed', 'active'])),
+    reason_code: asStringOrNull(getFirst(record, ['reason_code', 'reasonCode'])),
+    required_plan: asStringOrNull(getFirst(record, ['required_plan', 'requiredPlan'])),
+    current_plan: asStringOrNull(getFirst(record, ['current_plan', 'currentPlan'])),
+    upgrade_url: asStringOrNull(getFirst(record, ['upgrade_url', 'upgradeUrl'])),
+  };
+  return normalized;
+};
+
+const normalizeCheckoutPolicy = (value: unknown): MarketCheckoutExperiencePolicy | null => {
+  const record = asRecordOrNull(value);
+  if (!record) return null;
+  return {
+    ...record,
+    payment_capture: asStringOrNull(getFirst(record, ['payment_capture', 'paymentCapture'])),
+    card_data_in_chat: asBooleanOrNull(getFirst(record, ['card_data_in_chat', 'cardDataInChat'])),
+    client_return_trusted: asBooleanOrNull(getFirst(record, ['client_return_trusted', 'clientReturnTrusted'])),
+    confirmation_source: asStringOrNull(getFirst(record, ['confirmation_source', 'confirmationSource'])),
+    webhook_required_for_paid_state: asBooleanOrNull(getFirst(record, ['webhook_required_for_paid_state', 'webhookRequiredForPaidState'])),
+    whatsapp_window_policy: asStringOrNull(getFirst(record, ['whatsapp_window_policy', 'whatsappWindowPolicy'])),
+  };
+};
+
+const normalizeCheckoutSteps = (value: unknown): MarketCheckoutExperienceStep[] | null => {
+  if (!Array.isArray(value)) return null;
+  const steps = value
+    .map((item): MarketCheckoutExperienceStep | null => {
+      const record = asRecordOrNull(item);
+      if (!record) return null;
+      const id = asStringOrNull(getFirst(record, ['id', 'key', 'action']));
+      const label = asStringOrNull(getFirst(record, ['label', 'title', 'name']));
+      const description = asStringOrNull(getFirst(record, ['description', 'detail', 'message']));
+      if (!id && !label && !description) return null;
+      return { ...record, id, label, description };
+    })
+    .filter((item): item is MarketCheckoutExperienceStep => Boolean(item));
+  return steps.length ? steps : [];
+};
+
+const normalizeCheckoutExperience = (input: unknown): MarketCheckoutExperience | null => {
+  const record = asRecordOrNull(input);
+  if (!record) return null;
+  const gateway = asRecordOrNull(record.gateway);
+  const copy = asRecordOrNull(record.copy);
+  const normalized: MarketCheckoutExperience = {
+    contract_version: asStringOrNull(record.contract_version),
+    active_entrypoint: asStringOrNull(getFirst(record, ['active_entrypoint', 'activeEntrypoint'])),
+    supported_entrypoints: normalizeStringArray(getFirst(record, ['supported_entrypoints', 'supportedEntrypoints'])),
+    mode: asStringOrNull(record.mode),
+    ready: asBooleanOrNull(record.ready),
+    reason_code: asStringOrNull(getFirst(record, ['reason_code', 'reasonCode'])),
+    integration_access: normalizeIntegrationAccess(getFirst(record, ['integration_access', 'integrationAccess'])),
+    copy: copy
+      ? {
+          ...copy,
+          title: asStringOrNull(copy.title),
+          short: asStringOrNull(copy.short),
+          customer_ready: asStringOrNull(getFirst(copy, ['customer_ready', 'customerReady'])),
+          customer_pending_gateway: asStringOrNull(getFirst(copy, ['customer_pending_gateway', 'customerPendingGateway'])),
+          customer_locked: asStringOrNull(getFirst(copy, ['customer_locked', 'customerLocked'])),
+        }
+      : null,
+    policy: normalizeCheckoutPolicy(record.policy),
+    steps: normalizeCheckoutSteps(record.steps),
+    endpoints: normalizeCheckoutUrls(record.endpoints),
+    gateway: gateway
+      ? {
+          ...gateway,
+          name: asStringOrNull(gateway.name),
+          configured: asBooleanOrNull(gateway.configured),
+          provider_label: asStringOrNull(getFirst(gateway, ['provider_label', 'providerLabel'])),
+        }
+      : null,
+  };
+
+  const hasSignal = Object.values(normalized).some((value) =>
+    Array.isArray(value)
+      ? value.length > 0
+      : value !== null && value !== undefined,
+  );
+
+  return hasSignal ? normalized : null;
+};
+
 const normalizeMarketCheckoutOptions = (input: unknown): MarketCheckoutOptions | null => {
   const record = asRecordOrNull(input);
   if (!record) return null;
+  const checkoutExperience =
+    normalizeCheckoutExperience(getFirst(record, ['checkout_experience', 'checkoutExperience'])) ??
+    (asStringOrNull(record.contract_version)?.includes('checkout_experience') ? normalizeCheckoutExperience(record) : null);
+  const gateway = asRecordOrNull(getFirst(record, ['gateway_config', 'gatewayConfig', 'gateway_detail', 'gatewayDetail']));
   const options: MarketCheckoutOptions = {
+    contract_version: asStringOrNull(record.contract_version),
+    ready: asBooleanOrNull(record.ready) ?? checkoutExperience?.ready ?? null,
+    reason_code: asStringOrNull(getFirst(record, ['reason_code', 'reasonCode'])) ?? checkoutExperience?.reason_code ?? null,
     payment_required: asBooleanOrNull(getFirst(record, ['payment_required', 'paymentRequired'])),
     requires_contact_or_auth: asBooleanOrNull(getFirst(record, ['requires_contact_or_auth', 'requiresContactOrAuth'])),
-    gateway: asStringOrNull(getFirst(record, ['gateway', 'payment_gateway'])),
-    gateway_hint: asStringOrNull(getFirst(record, ['gateway_hint', 'gatewayHint'])),
+    gateway: asStringOrNull(getFirst(record, ['gateway', 'payment_gateway'])) ?? checkoutExperience?.gateway?.name ?? null,
+    gateway_hint:
+      asStringOrNull(getFirst(record, ['gateway_hint', 'gatewayHint'])) ??
+      checkoutExperience?.gateway?.provider_label ??
+      checkoutExperience?.gateway?.name ??
+      null,
+    gateway_configured:
+      asBooleanOrNull(getFirst(record, ['gateway_configured', 'gatewayConfigured'])) ??
+      asBooleanOrNull(gateway?.configured) ??
+      checkoutExperience?.gateway?.configured ??
+      null,
     checkout_urls: normalizeCheckoutUrls(getFirst(record, ['checkout_urls', 'checkoutUrls'])),
     missing: asArrayOfStringsOrNull(record.missing),
     capabilities: normalizeCapabilities(record.capabilities),
+    integration_access:
+      normalizeIntegrationAccess(getFirst(record, ['integration_access', 'integrationAccess'])) ??
+      checkoutExperience?.integration_access ??
+      null,
+    policy: normalizeCheckoutPolicy(record.policy) ?? checkoutExperience?.policy ?? null,
+    checkout_experience: checkoutExperience,
   };
 
   const hasSignal = Object.values(options).some((value) =>
@@ -227,6 +347,7 @@ const normalizeMarketCheckoutPreview = (input: unknown): MarketCheckoutPreview |
   const record = asRecordOrNull(source);
   if (!record) return null;
   const optionsSource = getFirst(record, ['checkout_options', 'checkoutOptions']);
+  const checkoutExperience = normalizeCheckoutExperience(getFirst(record, ['checkout_experience', 'checkoutExperience']));
   const preview: MarketCheckoutPreview = {
     state: asStringOrNull(getFirst(record, ['state', 'status', 'estado'])),
     next_step_label: asStringOrNull(getFirst(record, ['next_step_label', 'nextStepLabel', 'message', 'action_hint'])),
@@ -238,7 +359,8 @@ const normalizeMarketCheckoutPreview = (input: unknown): MarketCheckoutPreview |
     payment_required: asBooleanOrNull(getFirst(record, ['payment_required', 'paymentRequired'])),
     payment_ready: asBooleanOrNull(getFirst(record, ['payment_ready', 'paymentReady'])),
     contact_ready: asBooleanOrNull(getFirst(record, ['contact_ready', 'contactReady'])),
-    checkout_options: normalizeMarketCheckoutOptions(optionsSource ?? record),
+    checkout_options: normalizeMarketCheckoutOptions(optionsSource ?? checkoutExperience ?? record),
+    checkout_experience: checkoutExperience ?? normalizeMarketCheckoutOptions(optionsSource)?.checkout_experience ?? null,
     next_steps: normalizeMarketNextSteps(getFirst(record, ['next_steps', 'nextSteps'])),
   };
 
@@ -265,6 +387,10 @@ const normalizePaymentCheckoutStatus = (input: unknown): MarketPaymentCheckoutSt
     capabilities: normalizeCapabilities(record.capabilities),
     checkout_urls: normalizeCheckoutUrls(getFirst(record, ['checkout_urls', 'checkoutUrls'])),
     checkout_options: normalizeMarketCheckoutOptions(getFirst(record, ['checkout_options', 'checkoutOptions']) ?? record),
+    checkout_experience:
+      normalizeCheckoutExperience(getFirst(record, ['checkout_experience', 'checkoutExperience'])) ??
+      normalizeMarketCheckoutOptions(getFirst(record, ['checkout_options', 'checkoutOptions']) ?? record)?.checkout_experience ??
+      null,
     raw: input,
   };
 };
@@ -311,6 +437,10 @@ const normalizeCheckoutStartResponse = (input: unknown): CheckoutStartResponse =
     inventory_policy: asRecordOrNull(getFirst(record, ['inventory_policy', 'inventoryPolicy'])),
     order,
     checkout_options: normalizeMarketCheckoutOptions(getFirst(record, ['checkout_options', 'checkoutOptions'])),
+    checkout_experience:
+      normalizeCheckoutExperience(getFirst(record, ['checkout_experience', 'checkoutExperience'])) ??
+      normalizeMarketCheckoutOptions(getFirst(record, ['checkout_options', 'checkoutOptions']))?.checkout_experience ??
+      null,
     customer_profile: asRecordOrNull(record.customer_profile) as CheckoutStartResponse['customer_profile'],
     commercial_state: asRecordOrNull(record.commercial_state) as CheckoutStartResponse['commercial_state'],
     tracking: asRecordOrNull(record.tracking) as CheckoutStartResponse['tracking'],
@@ -405,6 +535,7 @@ const normalizeMarketCartResponse = (input: MarketCartResponse | null | undefine
   const portalLinksRaw = asRecordOrNull(continuityRaw?.portal_links);
   const checkoutOptionsRaw = asRecordOrNull(payload.checkout_options);
   const checkoutPreviewRaw = asRecordOrNull(payload.checkout_preview);
+  const checkoutExperienceRaw = asRecordOrNull(getFirst(payload, ['checkout_experience', 'checkoutExperience']));
 
   return {
     ...payload,
@@ -426,8 +557,12 @@ const normalizeMarketCartResponse = (input: MarketCartResponse | null | undefine
             : null,
         }
       : null,
-    checkout_options: normalizeMarketCheckoutOptions(checkoutOptionsRaw),
+    checkout_options: normalizeMarketCheckoutOptions(checkoutOptionsRaw ?? checkoutExperienceRaw),
     checkout_preview: normalizeMarketCheckoutPreview(checkoutPreviewRaw),
+    checkout_experience:
+      normalizeCheckoutExperience(checkoutExperienceRaw) ??
+      normalizeMarketCheckoutOptions(checkoutOptionsRaw)?.checkout_experience ??
+      null,
     mercadopago_ready: asBooleanOrNull(payload.mercadopago_ready),
     amount_validated: asBooleanOrNull(payload.amount_validated),
     stock_status: asStringOrNull(payload.stock_status),

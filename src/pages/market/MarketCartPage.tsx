@@ -198,13 +198,16 @@ export default function MarketCartPage() {
       };
       const preview = await previewPaymentCheckout(tenantSlug, checkoutPayload);
       if (preview?.payment_required && preview.payment_ready === false) {
+        const previewExperience = preview.checkout_experience ?? preview.checkout_options?.checkout_experience ?? null;
         throw new Error(
-          preview.next_step_label ??
+          previewExperience?.copy?.customer_pending_gateway ??
+            previewExperience?.copy?.customer_locked ??
+            preview.next_step_label ??
             preview.checkout_options?.gateway_hint ??
             'El checkout todavia no esta listo para recibir pagos.',
         );
       }
-      const previewValidation = getMarketCommercialValidation(preview, cartQuery.data);
+      const previewValidation = getMarketCommercialValidation(preview, cartQuery.data, cartQuery.data?.checkout_options);
       if (!previewValidation.canStartCheckout && previewValidation.reason) {
         throw new Error(previewValidation.reason);
       }
@@ -364,8 +367,8 @@ export default function MarketCartPage() {
   const cartCheckoutPreview = cartQuery.data?.checkout_preview ?? null;
   const cartCheckoutOptions = cartQuery.data?.checkout_options ?? null;
   const cartValidation = useMemo(
-    () => getMarketCommercialValidation(cartQuery.data, cartCheckoutPreview, ...cartItems),
-    [cartItems, cartCheckoutPreview, cartQuery.data],
+    () => getMarketCommercialValidation(cartQuery.data, cartCheckoutOptions, cartCheckoutPreview, ...cartItems),
+    [cartCheckoutOptions, cartCheckoutPreview, cartItems, cartQuery.data],
   );
   const checkoutBlockedReason = cartValidation.canStartCheckout ? null : cartValidation.reason;
 

@@ -12,6 +12,7 @@ import {
   getCommercialToneClassName,
   normalizeChannelLabel,
 } from '@/utils/orderCommercial';
+import SecureCheckoutNotice from './SecureCheckoutNotice';
 
 interface CartSummaryProps {
   items: MarketCartItem[];
@@ -297,6 +298,15 @@ export default function CartSummary({
             </div>
           </div>
         ) : null}
+
+        {(checkoutOptions || checkoutPreview || checkoutBlockedReason) ? (
+          <SecureCheckoutNotice
+            checkoutOptions={checkoutOptions}
+            checkoutPreview={checkoutPreview}
+            blockedReason={checkoutBlockedReason}
+            compact
+          />
+        ) : null}
       </CardContent>
 
       <Separator />
@@ -313,16 +323,11 @@ export default function CartSummary({
             Vaciar carrito
           </Button>
         ) : null}
-        {checkoutBlockedReason ? (
-          <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-            {checkoutBlockedReason}
-          </p>
-        ) : null}
         <Button className="w-full" size="lg" onClick={onCheckout} disabled={!items.length || isSubmitting || Boolean(checkoutBlockedReason)}>
           {isSubmitting ? 'Procesando...' : 'Finalizar pedido'}
         </Button>
         <p className="text-center text-xs text-muted-foreground">
-          Confirma tu pedido y coordinaremos el detalle con el comercio.
+          El pedido se confirma con validacion del backend y seguimiento del comercio.
         </p>
       </CardFooter>
     </Card>

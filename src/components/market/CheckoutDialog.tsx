@@ -10,6 +10,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { ShieldCheck } from 'lucide-react';
 
 interface CheckoutDialogProps {
   open: boolean;
@@ -77,6 +78,13 @@ export default function CheckoutDialog({
               onChange={(event) => setPhone(event.target.value)}
               required
             />
+          </div>
+
+          <div className="flex gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm text-emerald-900">
+            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
+            <p>
+              Si el comercio cobra online, el pago se abre en un checkout seguro. No pedimos datos de tarjeta en el chat.
+            </p>
           </div>
 
           <DialogFooter>

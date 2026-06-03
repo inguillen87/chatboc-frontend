@@ -89,6 +89,59 @@ export interface MarketRecommendation {
   href?: string | null;
 }
 
+export interface MarketIntegrationAccess {
+  enabled?: boolean | null;
+  reason_code?: string | null;
+  required_plan?: string | null;
+  current_plan?: string | null;
+  upgrade_url?: string | null;
+  [key: string]: unknown;
+}
+
+export interface MarketCheckoutExperiencePolicy {
+  payment_capture?: string | null;
+  card_data_in_chat?: boolean | null;
+  client_return_trusted?: boolean | null;
+  confirmation_source?: string | null;
+  webhook_required_for_paid_state?: boolean | null;
+  whatsapp_window_policy?: string | null;
+  [key: string]: unknown;
+}
+
+export interface MarketCheckoutExperienceStep {
+  id?: string | null;
+  label?: string | null;
+  description?: string | null;
+  [key: string]: unknown;
+}
+
+export interface MarketCheckoutExperience {
+  contract_version?: string | null;
+  active_entrypoint?: string | null;
+  supported_entrypoints?: string[] | null;
+  mode?: string | null;
+  ready?: boolean | null;
+  reason_code?: string | null;
+  integration_access?: MarketIntegrationAccess | null;
+  copy?: {
+    title?: string | null;
+    short?: string | null;
+    customer_ready?: string | null;
+    customer_pending_gateway?: string | null;
+    customer_locked?: string | null;
+    [key: string]: unknown;
+  } | null;
+  policy?: MarketCheckoutExperiencePolicy | null;
+  steps?: MarketCheckoutExperienceStep[] | null;
+  endpoints?: Record<string, string | null> | null;
+  gateway?: {
+    name?: string | null;
+    configured?: boolean | null;
+    provider_label?: string | null;
+    [key: string]: unknown;
+  } | null;
+}
+
 export interface MarketCheckoutPreview {
   state?: string | null;
   next_step_label?: string | null;
@@ -101,17 +154,25 @@ export interface MarketCheckoutPreview {
   payment_ready?: boolean | null;
   contact_ready?: boolean | null;
   checkout_options?: MarketCheckoutOptions | null;
+  checkout_experience?: MarketCheckoutExperience | null;
   next_steps?: MarketNextStep[] | null;
 }
 
 export interface MarketCheckoutOptions {
+  contract_version?: string | null;
+  ready?: boolean | null;
+  reason_code?: string | null;
   payment_required?: boolean | null;
   requires_contact_or_auth?: boolean | null;
   gateway?: string | null;
   gateway_hint?: string | null;
+  gateway_configured?: boolean | null;
   checkout_urls?: Record<string, string | null> | null;
   missing?: string[] | null;
   capabilities?: Record<string, unknown> | unknown[] | null;
+  integration_access?: MarketIntegrationAccess | null;
+  policy?: MarketCheckoutExperiencePolicy | null;
+  checkout_experience?: MarketCheckoutExperience | null;
 }
 
 export interface MarketSupportChannel {
@@ -142,6 +203,7 @@ export interface MarketPaymentCheckoutStatus {
   capabilities?: Record<string, unknown> | unknown[] | null;
   checkout_urls?: Record<string, string | null> | null;
   checkout_options?: MarketCheckoutOptions | null;
+  checkout_experience?: MarketCheckoutExperience | null;
   raw?: unknown;
 }
 
@@ -211,6 +273,7 @@ export interface MarketCartResponse {
   recommendations?: MarketRecommendation[] | null;
   checkout_preview?: MarketCheckoutPreview | null;
   checkout_options?: MarketCheckoutOptions | null;
+  checkout_experience?: MarketCheckoutExperience | null;
   mercadopago_ready?: boolean | null;
   amount_validated?: boolean | null;
   stock_status?: string | null;
@@ -276,6 +339,7 @@ export interface CheckoutStartResponse {
   inventory_policy?: Record<string, unknown> | null;
   order?: Record<string, unknown> | null;
   checkout_options?: MarketCheckoutOptions | null;
+  checkout_experience?: MarketCheckoutExperience | null;
   customer_profile?: MarketCustomerProfile | null;
   commercial_state?: MarketCommercialState | null;
   tracking?: MarketTrackingInfo | null;

@@ -14,6 +14,7 @@ import CommercialStateCard from '@/components/market/CommercialStateCard';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { trackFrontendEvent } from '@/utils/frontendTelemetry';
 import { getMarketCommercialValidation } from '@/utils/marketValidation';
+import SecureCheckoutNotice from '@/components/market/SecureCheckoutNotice';
 import {
   checkoutReducer,
   createInitialCheckoutState,
@@ -70,7 +71,7 @@ function CheckoutContent({ tenantSlug }: { tenantSlug: string }) {
       return;
     }
 
-    const currentValidation = getMarketCommercialValidation(checkoutPreview, ...items);
+    const currentValidation = getMarketCommercialValidation(checkoutOptions, checkoutPreview, ...items);
     if (!currentValidation.canStartCheckout && currentValidation.reason) {
       moveToState('error', { error: currentValidation.reason });
       return;
@@ -87,15 +88,18 @@ function CheckoutContent({ tenantSlug }: { tenantSlug: string }) {
     try {
       const preview = await previewPaymentCheckout(tenantSlug, checkoutPayload);
       if (preview?.payment_required && preview.payment_ready === false) {
+        const previewExperience = preview.checkout_experience ?? preview.checkout_options?.checkout_experience ?? null;
         moveToState('error', {
           error:
+            previewExperience?.copy?.customer_pending_gateway ??
+            previewExperience?.copy?.customer_locked ??
             preview.next_step_label ??
             preview.checkout_options?.gateway_hint ??
             'El checkout todavia no esta listo para recibir pagos.',
         });
         return;
       }
-      const previewValidation = getMarketCommercialValidation(preview, checkoutPreview, ...items);
+      const previewValidation = getMarketCommercialValidation(preview, checkoutOptions, checkoutPreview, ...items);
       if (!previewValidation.canStartCheckout && previewValidation.reason) {
         moveToState('error', { error: previewValidation.reason });
         return;
@@ -154,8 +158,8 @@ function CheckoutContent({ tenantSlug }: { tenantSlug: string }) {
 
   const isBusy = checkoutState.status === 'validating' || checkoutState.status === 'creating_order';
   const cartValidation = useMemo(
-    () => getMarketCommercialValidation(checkoutPreview, ...items),
-    [checkoutPreview, items],
+    () => getMarketCommercialValidation(checkoutOptions, checkoutPreview, ...items),
+    [checkoutOptions, checkoutPreview, items],
   );
   const checkoutBlockedReason = cartValidation.canStartCheckout ? null : cartValidation.reason;
 
@@ -275,12 +279,15 @@ function CheckoutContent({ tenantSlug }: { tenantSlug: string }) {
                 <span>{totalPoints}</span>
               </div>
             ) : null}
+            <SecureCheckoutNotice
+              checkoutOptions={checkoutOptions}
+              checkoutPreview={checkoutPreview}
+              blockedReason={checkoutBlockedReason}
+              compact
+            />
             <Button className="w-full" onClick={handleCheckout} disabled={isBusy || items.length === 0 || Boolean(checkoutBlockedReason)}>
               {isBusy ? 'Procesando checkout…' : 'Iniciar checkout'}
             </Button>
-            {checkoutBlockedReason ? (
-              <p className="text-xs text-muted-foreground">{checkoutBlockedReason}</p>
-            ) : null}
           </CardFooter>
         </Card>
       </div>
