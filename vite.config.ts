@@ -92,8 +92,19 @@ export default defineConfig(({ mode }) => {
         },
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
-          // Allow larger chunks like MapLibre (~3MB) to be precached
-          maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+          globIgnores: [
+            '**/assets/vendor-maplibre-*',
+            '**/assets/vendor-charts-*',
+            '**/assets/vendor-xlsx-*',
+            '**/assets/vendor-docx-*',
+            '**/assets/vendor-pdf-*',
+            '**/assets/vendor-canvas-export-*',
+            '**/assets/vendor-compression-*',
+            '**/assets/MapLibreMap-*',
+            '**/assets/TrackingMap-*',
+          ],
+          // Precache only the app shell. Heavy vendors stay runtime-loaded by route/tool.
+          maximumFileSizeToCacheInBytes: 1024 * 1024,
           runtimeCaching: [
             {
               urlPattern: ({ url }) => url.pathname.startsWith('/api/public/'),
@@ -242,18 +253,12 @@ export default defineConfig(({ mode }) => {
             if (id.includes('recharts') || id.includes('/d3-') || id.includes('chart.js') || id.includes('react-chartjs-2')) {
               return 'vendor-charts';
             }
-            if (
-              id.includes('html2canvas') ||
-              id.includes('jspdf') ||
-              id.includes('jspdf-autotable') ||
-              id.includes('xlsx') ||
-              id.includes('mammoth') ||
-              id.includes('jszip') ||
-              id.includes('canvg') ||
-              id.includes('fflate') ||
-              id.includes('pako')
-            ) {
-              return 'vendor-docs';
+            if (id.includes('xlsx')) return 'vendor-xlsx';
+            if (id.includes('mammoth')) return 'vendor-docx';
+            if (id.includes('jspdf') || id.includes('jspdf-autotable')) return 'vendor-pdf';
+            if (id.includes('html2canvas') || id.includes('canvg')) return 'vendor-canvas-export';
+            if (id.includes('jszip') || id.includes('fflate') || id.includes('pako')) {
+              return 'vendor-compression';
             }
             if (id.includes('@radix-ui') || id.includes('lucide-react') || id.includes('framer-motion')) {
               return 'vendor-ui';

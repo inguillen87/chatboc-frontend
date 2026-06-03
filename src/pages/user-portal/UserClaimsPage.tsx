@@ -26,10 +26,11 @@ import {
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import TrackingMap from '@/components/ui/TrackingMap';
 import { buildTenantPath } from '@/utils/tenantPaths';
 import { getOrCreateAnonId } from '@/utils/anonId';
 import getOrCreateChatSessionId from '@/utils/chatSessionId';
+
+const TrackingMap = React.lazy(() => import('@/components/ui/TrackingMap'));
 
 const STATUS_MAP: Record<string, string> = {
   open: 'Abierto',
@@ -177,15 +178,17 @@ const PublicClaimCard = ({
         <div className="space-y-5 p-4">
           {hasLocation ? (
             <div className="h-64 overflow-hidden rounded-xl border">
-              <TrackingMap
-                customerLocation={{
-                  lat: renderClaim.lat!,
-                  lng: renderClaim.lng!,
-                  name: renderClaim.address || title || renderClaim.nroTicket,
-                }}
-                showDriverMarker={false}
-                status={renderClaim.status || 'claim'}
-              />
+              <React.Suspense fallback={<div className="flex h-full items-center justify-center bg-muted/30 text-sm text-muted-foreground">Cargando mapa...</div>}>
+                <TrackingMap
+                  customerLocation={{
+                    lat: renderClaim.lat!,
+                    lng: renderClaim.lng!,
+                    name: renderClaim.address || title || renderClaim.nroTicket,
+                  }}
+                  showDriverMarker={false}
+                  status={renderClaim.status || 'claim'}
+                />
+              </React.Suspense>
             </div>
           ) : null}
 

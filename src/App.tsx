@@ -10,7 +10,6 @@ import { BrowserRouter, Routes, Route, useLocation, useNavigate } from "react-ro
 // Páginas principales
 import Layout from "./components/layout/Layout";
 import NotFound from "./pages/NotFound";
-import ChatWidget from "@/components/chat/ChatWidget";
 import ScrollMascotGuide from "@/components/guidance/ScrollMascotGuide";
 import routes from "./routesConfig";
 import AccessRoute from "@/components/access/AccessRoute";
@@ -28,6 +27,8 @@ import { toCanonicalTenantPath } from '@/utils/canonicalTenantRouting';
 import { AppShellStatusBar } from '@/components/app-shell/AppShellStatusBar';
 import { AppAccessibility } from '@/components/app-shell/AppAccessibility';
 import { PwaInstallPrompt } from '@/components/app-shell/PwaInstallPrompt';
+
+const ChatWidget = React.lazy(() => import("@/components/chat/ChatWidget"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -170,7 +171,9 @@ function AppRoutes() {
 
       {/* Monta el widget global SOLO si no estás en demo/integracion/login/register/iframe */}
       {!ocultarWidgetGlobalEnApp && (
-        <ChatWidget mode="standalone" defaultOpen={false} />
+        <React.Suspense fallback={null}>
+          <ChatWidget mode="standalone" defaultOpen={false} />
+        </React.Suspense>
       )}
       <ScrollMascotGuide />
     </TokenRedirectWrapper>

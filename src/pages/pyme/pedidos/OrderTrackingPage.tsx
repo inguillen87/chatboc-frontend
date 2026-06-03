@@ -19,9 +19,10 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Textarea } from '@/components/ui/textarea';
-import TrackingMap from '@/components/ui/TrackingMap';
 import Confetti from '@/components/ui/Confetti';
 import { hexToHsl, getContrastColorHsl } from '@/utils/color';
+
+const TrackingMap = React.lazy(() => import('@/components/ui/TrackingMap'));
 
 const STATUS_CONFIG = {
   pendiente: { label: 'Pendiente', color: 'bg-amber-100 text-amber-700 border-amber-200', icon: Clock, step: 1, description: 'Tu pedido ha sido recibido y está pendiente de confirmación.' },
@@ -422,13 +423,15 @@ export default function OrderTrackingPage() {
                 <Card className="border-0 shadow-md ring-1 ring-black/5 h-fit overflow-hidden">
                     {canRenderTrackingMap ? (
                       <div className="h-48 w-full bg-slate-100 relative">
-                          <TrackingMap
-                            status={order.estado}
-                            customerLocation={deliveryPoint}
-                            storeLocation={storePoint}
-                            driverLocation={driverPoint ?? undefined}
-                            showDriverMarker={Boolean(driverPoint)}
-                          />
+                          <React.Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-slate-500">Cargando mapa...</div>}>
+                            <TrackingMap
+                              status={order.estado}
+                              customerLocation={deliveryPoint}
+                              storeLocation={storePoint}
+                              driverLocation={driverPoint ?? undefined}
+                              showDriverMarker={Boolean(driverPoint)}
+                            />
+                          </React.Suspense>
                       </div>
                     ) : null}
                     <CardHeader className="pb-4 border-b border-gray-50">

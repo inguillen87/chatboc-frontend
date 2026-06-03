@@ -61,7 +61,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import TrackingMap from "@/components/ui/TrackingMap";
 import Confetti from "@/components/ui/Confetti";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -69,6 +68,8 @@ import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import getOrCreateAnonId from "@/utils/anonIdGenerator";
 import { trackFrontendEvent } from "@/utils/frontendTelemetry";
 import { normalizeTicketLocation } from "@/utils/location";
+
+const TrackingMap = React.lazy(() => import("@/components/ui/TrackingMap"));
 
 const STATUS_CONFIG: Record<
   string,
@@ -1815,11 +1816,13 @@ export default function TicketLookup() {
                   </div>
                   <div className="relative h-56 w-full bg-slate-100 dark:bg-slate-950">
                     {hasAnyCoordinates ? (
-                      <TrackingMap
-                        status={currentStatusKey}
-                        storeLocation={mapStoreLocation}
-                        customerLocation={mapCustomerLocation}
-                      />
+                      <React.Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-slate-500 dark:text-slate-400">Cargando mapa...</div>}>
+                        <TrackingMap
+                          status={currentStatusKey}
+                          storeLocation={mapStoreLocation}
+                          customerLocation={mapCustomerLocation}
+                        />
+                      </React.Suspense>
                     ) : mapEmbedUrl ? (
                       <iframe
                         title="Mapa de dirección reportada"

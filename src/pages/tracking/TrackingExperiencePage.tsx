@@ -18,10 +18,11 @@ import {
   type TrackingExperienceResponse,
   type TrackingKind,
 } from "@/api/trackingExperience";
-import TrackingMap from "@/components/ui/TrackingMap";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getErrorMessage } from "@/utils/api";
+
+const TrackingMap = React.lazy(() => import("@/components/ui/TrackingMap"));
 
 type AnyRecord = Record<string, any>;
 
@@ -320,13 +321,15 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
               </div>
 
               {canShowMap ? (
-                <TrackingMap
-                  className="h-[340px]"
-                  status={status.key}
-                  storeLocation={mapState.origin}
-                  customerLocation={mapState.destination}
-                  driverLocation={mapState.current || undefined}
-                />
+                <React.Suspense fallback={<div className="flex h-[340px] items-center justify-center rounded-[14px] bg-muted/30 text-sm text-muted-foreground">Cargando mapa...</div>}>
+                  <TrackingMap
+                    className="h-[340px]"
+                    status={status.key}
+                    storeLocation={mapState.origin}
+                    customerLocation={mapState.destination}
+                    driverLocation={mapState.current || undefined}
+                  />
+                </React.Suspense>
               ) : (
                 <div className="flex min-h-[240px] flex-col items-center justify-center rounded-[14px] border border-dashed border-border/70 bg-muted/30 p-6 text-center">
                   <ShieldCheck className="mb-3 h-8 w-8 text-primary" />

@@ -11,19 +11,22 @@ import { TenantProvider } from "@/context/TenantContext";
 import { DateSettingsProvider } from "@/hooks/useDateSettings";
 import { UserProvider } from "@/hooks/useUser";
 import { GOOGLE_CLIENT_ID } from "@/env";
-import UserDashboardPage from "@/pages/user-portal/UserDashboardPage";
-import UserCatalogPage from "@/pages/user-portal/UserCatalogPage";
-import UserOrdersPage from "@/pages/user-portal/UserOrdersPage";
-import UserClaimsPage from "@/pages/user-portal/UserClaimsPage";
-import UserNewsPage from "@/pages/user-portal/UserNewsPage";
-import UserEventsPage from "@/pages/user-portal/UserEventsPage";
-import UserBenefitsPage from "@/pages/user-portal/UserBenefitsPage";
-import UserSurveysPage from "@/pages/user-portal/UserSurveysPage";
-import UserAccountPage from "@/pages/user-portal/UserAccountPage";
-import { PortalLandingPage } from "@/pages/user-portal/PortalLandingPage";
-import TenantTicketFormPage from "@/pages/tenant/TenantTicketFormPage";
 import NotFound from "@/pages/NotFound";
 import { buildTenantPath } from "@/utils/tenantPaths";
+
+const UserDashboardPage = React.lazy(() => import("@/pages/user-portal/UserDashboardPage"));
+const UserCatalogPage = React.lazy(() => import("@/pages/user-portal/UserCatalogPage"));
+const UserOrdersPage = React.lazy(() => import("@/pages/user-portal/UserOrdersPage"));
+const UserClaimsPage = React.lazy(() => import("@/pages/user-portal/UserClaimsPage"));
+const UserNewsPage = React.lazy(() => import("@/pages/user-portal/UserNewsPage"));
+const UserEventsPage = React.lazy(() => import("@/pages/user-portal/UserEventsPage"));
+const UserBenefitsPage = React.lazy(() => import("@/pages/user-portal/UserBenefitsPage"));
+const UserSurveysPage = React.lazy(() => import("@/pages/user-portal/UserSurveysPage"));
+const UserAccountPage = React.lazy(() => import("@/pages/user-portal/UserAccountPage"));
+const PortalLandingPage = React.lazy(() =>
+  import("@/pages/user-portal/PortalLandingPage").then((module) => ({ default: module.PortalLandingPage })),
+);
+const TenantTicketFormPage = React.lazy(() => import("@/pages/tenant/TenantTicketFormPage"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -60,6 +63,12 @@ const guestPortalPaths = [
   "/municipio/reclamos/nuevo",
 ];
 
+const PortalLoadingFallback = () => (
+  <div className="flex min-h-[40vh] items-center justify-center bg-background text-sm text-muted-foreground">
+    Cargando portal...
+  </div>
+);
+
 function PortalTenantRedirect() {
   const params = useParams();
   const tenant = typeof params.tenant === "string" ? params.tenant.trim() : "";
@@ -71,48 +80,50 @@ function PortalRoutes() {
   return (
     <HashRouter>
       <TenantProvider>
-        <Routes>
-          <Route
-            path="/"
-            element={<Navigate to="/portal/dashboard" replace />}
-          />
-          <Route
-            element={
-              <UserPortalGuard allowGuestPaths={guestPortalPaths}>
-                <UserPortalLayout />
-              </UserPortalGuard>
-            }
-          >
-            <Route path="/portal/dashboard" element={<UserDashboardPage />} />
-            <Route path="/portal/:tenant" element={<PortalTenantRedirect />} />
-            <Route path="/portal/catalogo" element={<UserCatalogPage />} />
-            <Route path="/portal/pedidos" element={<UserOrdersPage />} />
-            <Route path="/portal/reclamos" element={<UserClaimsPage />} />
-            <Route path="/portal/noticias" element={<UserNewsPage />} />
-            <Route path="/portal/eventos" element={<UserEventsPage />} />
-            <Route path="/portal/beneficios" element={<UserBenefitsPage />} />
-            <Route path="/portal/encuestas" element={<UserSurveysPage />} />
-            <Route path="/portal/cuenta" element={<UserAccountPage />} />
-            <Route path="/t/:tenant/portal/dashboard" element={<UserDashboardPage />} />
-            <Route path="/t/:tenant/portal/catalogo" element={<UserCatalogPage />} />
-            <Route path="/t/:tenant/portal/pedidos" element={<UserOrdersPage />} />
-            <Route path="/t/:tenant/portal/reclamos" element={<UserClaimsPage />} />
-            <Route path="/t/:tenant/portal/noticias" element={<UserNewsPage />} />
-            <Route path="/t/:tenant/portal/eventos" element={<UserEventsPage />} />
-            <Route path="/t/:tenant/portal/beneficios" element={<UserBenefitsPage />} />
-            <Route path="/t/:tenant/portal/encuestas" element={<UserSurveysPage />} />
-            <Route path="/t/:tenant/portal/cuenta" element={<UserAccountPage />} />
-            <Route path="/noticias/eventos" element={<UserEventsPage />} />
-            <Route path="/noticias/encuestas" element={<UserSurveysPage />} />
+        <React.Suspense fallback={<PortalLoadingFallback />}>
+          <Routes>
             <Route
-              path="/municipio/reclamos/nuevo"
-              element={<TenantTicketFormPage />}
+              path="/"
+              element={<Navigate to="/portal/dashboard" replace />}
             />
-          </Route>
-                    <Route path="/:tenant/welcome" element={<PortalLandingPage />} />
-          <Route path="/welcome" element={<PortalLandingPage />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+            <Route
+              element={
+                <UserPortalGuard allowGuestPaths={guestPortalPaths}>
+                  <UserPortalLayout />
+                </UserPortalGuard>
+              }
+            >
+              <Route path="/portal/dashboard" element={<UserDashboardPage />} />
+              <Route path="/portal/:tenant" element={<PortalTenantRedirect />} />
+              <Route path="/portal/catalogo" element={<UserCatalogPage />} />
+              <Route path="/portal/pedidos" element={<UserOrdersPage />} />
+              <Route path="/portal/reclamos" element={<UserClaimsPage />} />
+              <Route path="/portal/noticias" element={<UserNewsPage />} />
+              <Route path="/portal/eventos" element={<UserEventsPage />} />
+              <Route path="/portal/beneficios" element={<UserBenefitsPage />} />
+              <Route path="/portal/encuestas" element={<UserSurveysPage />} />
+              <Route path="/portal/cuenta" element={<UserAccountPage />} />
+              <Route path="/t/:tenant/portal/dashboard" element={<UserDashboardPage />} />
+              <Route path="/t/:tenant/portal/catalogo" element={<UserCatalogPage />} />
+              <Route path="/t/:tenant/portal/pedidos" element={<UserOrdersPage />} />
+              <Route path="/t/:tenant/portal/reclamos" element={<UserClaimsPage />} />
+              <Route path="/t/:tenant/portal/noticias" element={<UserNewsPage />} />
+              <Route path="/t/:tenant/portal/eventos" element={<UserEventsPage />} />
+              <Route path="/t/:tenant/portal/beneficios" element={<UserBenefitsPage />} />
+              <Route path="/t/:tenant/portal/encuestas" element={<UserSurveysPage />} />
+              <Route path="/t/:tenant/portal/cuenta" element={<UserAccountPage />} />
+              <Route path="/noticias/eventos" element={<UserEventsPage />} />
+              <Route path="/noticias/encuestas" element={<UserSurveysPage />} />
+              <Route
+                path="/municipio/reclamos/nuevo"
+                element={<TenantTicketFormPage />}
+              />
+            </Route>
+            <Route path="/:tenant/welcome" element={<PortalLandingPage />} />
+            <Route path="/welcome" element={<PortalLandingPage />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </React.Suspense>
       </TenantProvider>
     </HashRouter>
   );
