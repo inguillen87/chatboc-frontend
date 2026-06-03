@@ -32,7 +32,7 @@ const getTicketData = (ticket: Ticket) => {
   return data;
 };
 
-const addPdfHeader = (doc: jsPDF, title: string) => {
+const addPdfHeader = (doc: any, title: string) => {
   // const logo = '... a base64 string ...'; // we will ask the user for this
   // doc.addImage(logo, 'PNG', 14, 12, 40, 15);
   doc.setFontSize(22);
@@ -43,7 +43,7 @@ const addPdfHeader = (doc: jsPDF, title: string) => {
   doc.line(14, 28, doc.internal.pageSize.width - 14, 28);
 };
 
-const addPdfFooter = (doc: jsPDF) => {
+const addPdfFooter = (doc: any) => {
     const pageCount = (doc as any).internal.getNumberOfPages();
     doc.setFontSize(10);
     doc.setTextColor(150);
@@ -241,7 +241,7 @@ const formatAverageHours = (value: number | null | undefined): string => {
     : value.toFixed(2);
 };
 
-const ensurePdfSpace = (doc: jsPDF, cursor: number, minHeight = 18): number => {
+const ensurePdfSpace = (doc: any, cursor: number, minHeight = 18): number => {
   const pageHeight = doc.internal.pageSize.height || 0;
   if (cursor + minHeight > pageHeight - 20) {
     doc.addPage();
