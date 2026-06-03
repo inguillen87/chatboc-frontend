@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import MapLibreMap from '@/components/MapLibreMap';
+import MapLibreMap from '@/components/LazyMapLibreMap';
 import TicketStatsCharts from '@/components/TicketStatsCharts';
 import { Button } from '@/components/ui/button';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';

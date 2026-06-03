@@ -105,10 +105,16 @@ describe('getMarketCommercialValidation', () => {
         amount_validated: true,
         stock_status: 'validated',
         available_to_sell: true,
+        payment_required: true,
         checkout_experience: {
           ready: true,
           gateway: {
             configured: true,
+          },
+          policy: {
+            card_data_in_chat: false,
+            confirmation_source: 'server_to_server_webhook',
+            webhook_required_for_paid_state: true,
           },
           integration_access: {
             enabled: true,
@@ -119,6 +125,48 @@ describe('getMarketCommercialValidation', () => {
       canStartCheckout: true,
       canConfirmPurchase: true,
       reason: null,
+    });
+  });
+
+  it('blocks unsafe payment contracts even when a stale payload says ready', () => {
+    expect(
+      getMarketCommercialValidation({
+        payment_required: true,
+        checkout_experience: {
+          ready: true,
+          gateway: { configured: true },
+          policy: {
+            card_data_in_chat: true,
+            confirmation_source: 'client_return',
+            webhook_required_for_paid_state: false,
+          },
+        },
+      }),
+    ).toMatchObject({
+      canStartCheckout: false,
+      canConfirmPurchase: false,
+      reason: 'Por seguridad, Chatboc no permite capturar datos de tarjeta dentro del chat.',
+    });
+  });
+
+  it('blocks payment contracts that trust client returns instead of provider webhooks', () => {
+    expect(
+      getMarketCommercialValidation({
+        payment_required: true,
+        checkout_experience: {
+          ready: true,
+          gateway: { configured: true },
+          policy: {
+            card_data_in_chat: false,
+            confirmation_source: 'client_return',
+            webhook_required_for_paid_state: true,
+          },
+        },
+      }),
+    ).toMatchObject({
+      canStartCheckout: false,
+      canConfirmPurchase: false,
+      reason: 'El pago debe confirmarse por webhook del proveedor antes de marcar la orden como pagada.',
     });
   });
 });

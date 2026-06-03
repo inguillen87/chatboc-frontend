@@ -149,6 +149,19 @@ export const getMarketCommercialValidation = (...sources: unknown[]): MarketComm
     (found, record) => found ?? asString(first(record, ['customer_pending_gateway', 'customerPendingGateway'])),
     null,
   );
+  const confirmationSource = records.reduce<string | null>(
+    (found, record) => found ?? asString(first(record, ['confirmation_source', 'confirmationSource'])),
+    null,
+  );
+  const cardDataInChat = records.reduce<boolean | null>(
+    (found, record) => found ?? asBoolean(first(record, ['card_data_in_chat', 'cardDataInChat'])),
+    null,
+  );
+  const webhookRequiredForPaidState = records.reduce<boolean | null>(
+    (found, record) =>
+      found ?? asBoolean(first(record, ['webhook_required_for_paid_state', 'webhookRequiredForPaidState'])),
+    null,
+  );
   const confirmOrders = records.reduce<unknown>(
     (found, record) => found ?? first(record, ['confirm_orders', 'confirmOrders']),
     undefined,
@@ -158,27 +171,47 @@ export const getMarketCommercialValidation = (...sources: unknown[]): MarketComm
   const unsafeStock = normalizedStock === 'stock_unknown' || normalizedStock === 'out_of_stock';
   const demoDisablesConfirm = confirmOrders === false;
   const normalizedReasonCode = reasonCode?.toLowerCase() ?? null;
-
   let reason: string | null = null;
-  if (demoDisablesConfirm) reason = 'Esta demo no confirma pedidos reales.';
-  if (amountValidated === false) reason = 'Monto a validar por backend.';
-  if (normalizedStock === 'stock_unknown') reason = 'Stock a confirmar por backend.';
-  if (normalizedStock === 'out_of_stock') reason = 'Sin stock confirmado.';
-  if (availableToSell === false) reason = 'No disponible para venta confirmada.';
+
+  const setReason = (nextReason: string) => {
+    reason = reason ?? nextReason;
+  };
+
+  if (integrationEnabled === false || normalizedReasonCode === 'plan_full_required') {
+    setReason(
+      customerLockedCopy ??
+        'Plan Full requerido para cobrar desde WhatsApp o widget.',
+    );
+  }
+  if (demoDisablesConfirm) setReason('Esta demo no confirma pedidos reales.');
+  if (amountValidated === false) setReason('Monto a validar por backend.');
+  if (normalizedStock === 'stock_unknown') setReason('Stock a confirmar por backend.');
+  if (normalizedStock === 'out_of_stock') setReason('Sin stock confirmado.');
+  if (availableToSell === false) setReason('No disponible para venta confirmada.');
   if (paymentRequired === true && (paymentReady === false || gatewayConfigured === false)) {
-    reason =
+    setReason(
       customerPendingGatewayCopy ??
-      'El proveedor de pago todavia no esta configurado para cobrar online.';
+        'El proveedor de pago todavia no esta configurado para cobrar online.',
+    );
+  }
+  if (paymentRequired === true && cardDataInChat === true) {
+    setReason('Por seguridad, Chatboc no permite capturar datos de tarjeta dentro del chat.');
+  }
+  if (
+    paymentRequired === true &&
+    confirmationSource !== null &&
+    confirmationSource !== 'server_to_server_webhook'
+  ) {
+    setReason('El pago debe confirmarse por webhook del proveedor antes de marcar la orden como pagada.');
+  }
+  if (paymentRequired === true && webhookRequiredForPaidState === false) {
+    setReason('El estado pagado requiere webhook server-to-server del proveedor.');
   }
   if (normalizedReasonCode === 'payment_gateway_not_configured') {
-    reason =
+    setReason(
       customerPendingGatewayCopy ??
-      'El proveedor de pago todavia no esta configurado para cobrar online.';
-  }
-  if (integrationEnabled === false || normalizedReasonCode === 'plan_full_required') {
-    reason =
-      customerLockedCopy ??
-      'Plan Full requerido para cobrar desde WhatsApp o widget.';
+        'El proveedor de pago todavia no esta configurado para cobrar online.',
+    );
   }
 
   return {

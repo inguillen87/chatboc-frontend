@@ -40,7 +40,7 @@ import { getTicketStats, TicketStatsResponse } from "@/services/statsService";
 import { enterpriseService } from "@/services/enterpriseService";
 import { useTenant } from "@/context/TenantContext";
 import { useParams } from "react-router-dom";
-import MapLibreMap from "@/components/MapLibreMap";
+import MapLibreMap from "@/components/LazyMapLibreMap";
 import { isRecord, pickCollection, pickText } from "@/utils/responseShape";
 
 // --- MOCK DATA & TYPES (as per backend spec) ---

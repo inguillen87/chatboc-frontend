@@ -5,7 +5,7 @@ import { analyticsService, type AnalyticsHeatmapPoint, type AnalyticsHeatmapResp
 import { Loader2 } from 'lucide-react';
 // Assuming MapLibreMap component exists as per prompt trace
 // If not, a placeholder or simple div will be used to avoid breaking
-import MapLibreMap from '@/components/MapLibreMap';
+import MapLibreMap from '@/components/LazyMapLibreMap';
 
 interface Props {
   tenantId: number;

@@ -112,7 +112,7 @@ import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
 import { TicketStatsResponse, HeatPoint } from "@/services/statsService";
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import MapLibreMap from "@/components/MapLibreMap";
+import MapLibreMap from "@/components/LazyMapLibreMap";
 import {
   CatalogVectorSyncStatus,
   fetchCatalogVectorSyncStatus,

@@ -52,7 +52,7 @@ const MAPLIBRE_EXTERNAL_CSS_URL = normalizeExternalMapLibreAsset(
   import.meta.env.VITE_MAPLIBRE_CSS_URL ?? import.meta.env.NEXT_PUBLIC_MAPLIBRE_CSS_URL,
 );
 
-type Props = {
+export type MapLibreMapProps = {
   center?: [number, number]; // [lon, lat]
   initialZoom?: number;
   onSelect?: (lat: number, lon: number, address?: string) => void;
@@ -324,7 +324,7 @@ export default function MapLibreMap({
   onBoundingBoxChange,
   onProviderUnavailable,
   disableClientClustering = false,
-}: Props) {
+}: MapLibreMapProps) {
   const [mapError, setMapError] = useState<string | null>(null);
   const [fallbackMessage, setFallbackMessage] = useState<string | null>(null);
   const [providerOverride, setProviderOverride] = useState<MapProvider | null>(null);

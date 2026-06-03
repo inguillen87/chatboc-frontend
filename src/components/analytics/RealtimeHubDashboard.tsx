@@ -4,7 +4,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import type { RealtimeHubResponse } from '@/services/analyticsService';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
-import MapLibreMap from '@/components/MapLibreMap';
+import MapLibreMap from '@/components/LazyMapLibreMap';
 import { MeasuredContainer } from '@/components/analytics/MeasuredContainer';
 
 interface Props {

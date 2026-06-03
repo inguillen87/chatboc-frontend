@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import MapLibreMap from '@/components/MapLibreMap';
+import MapLibreMap from '@/components/LazyMapLibreMap';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import type {

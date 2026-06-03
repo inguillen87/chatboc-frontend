@@ -203,11 +203,12 @@ const WidgetPreview: React.FC<WidgetPreviewProps> = ({
 
       {/* Preview Container */}
       <div className={cn(
-        "relative transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] border shadow-2xl overflow-hidden mx-auto",
+        "relative transition-all duration-500 border shadow-2xl overflow-hidden mx-auto",
         device === 'mobile'
             ? "w-[375px] h-[700px] rounded-[2.5rem] border-[8px] border-slate-900 bg-slate-950 ring-1 ring-white/10"
             : "w-full h-[600px] rounded-xl border-border bg-background"
-      )}>
+      )}
+      style={{ transitionTimingFunction: 'cubic-bezier(0.32,0.72,0,1)' }}>
         {/* Mobile Notch */}
         {device === 'mobile' && (
           <div className="absolute top-0 left-1/2 -translate-x-1/2 h-6 w-28 bg-slate-900 rounded-b-xl z-30 pointer-events-none" />

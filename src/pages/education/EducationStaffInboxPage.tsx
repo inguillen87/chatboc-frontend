@@ -1,7 +1,7 @@
 import React from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import MapLibreMap from '@/components/MapLibreMap';
+import MapLibreMap from '@/components/LazyMapLibreMap';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';

@@ -231,19 +231,35 @@ export default defineConfig(({ mode }) => {
           manualChunks(id) {
             if (!id.includes('node_modules')) return;
 
+            if (id.includes('react-dom') || id.includes('react/') || id.includes('scheduler')) {
+              return 'vendor-react';
+            }
+            if (id.includes('react-router') || id.includes('@remix-run/router')) {
+              return 'vendor-router';
+            }
             if (id.includes('maplibre-gl')) return 'vendor-maplibre';
-            if (id.includes('recharts') || id.includes('/d3-')) return 'vendor-charts';
-            if (id.includes('html2canvas')) return 'vendor-html2canvas';
+            if (id.includes('@react-google-maps/api')) return 'vendor-google-maps';
+            if (id.includes('recharts') || id.includes('/d3-') || id.includes('chart.js') || id.includes('react-chartjs-2')) {
+              return 'vendor-charts';
+            }
+            if (
+              id.includes('html2canvas') ||
+              id.includes('jspdf') ||
+              id.includes('jspdf-autotable') ||
+              id.includes('xlsx') ||
+              id.includes('mammoth') ||
+              id.includes('jszip') ||
+              id.includes('canvg') ||
+              id.includes('fflate') ||
+              id.includes('pako')
+            ) {
+              return 'vendor-docs';
+            }
+            if (id.includes('@radix-ui') || id.includes('lucide-react') || id.includes('framer-motion')) {
+              return 'vendor-ui';
+            }
 
-            const packagePath = id.split('node_modules/')[1];
-            if (!packagePath) return 'vendor-misc';
-
-            const [rawName, maybeScopePackage] = packagePath.split('/');
-            const packageName = rawName.startsWith('@') && maybeScopePackage
-              ? `${rawName}/${maybeScopePackage}`
-              : rawName;
-            const safePackageName = packageName.replace('@', '').replace('/', '-');
-            return `vendor-${safePackageName}`;
+            return;
           },
           // Use content hashes to avoid stale asset mixes (old chunks with new entries)
           // that can trigger runtime errors after deployments or SW updates.
