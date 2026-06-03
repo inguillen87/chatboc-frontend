@@ -1,11 +1,42 @@
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
-import * as XLSX from 'xlsx';
 import { Ticket, Message } from '@/types/tickets';
 import { getContactPhone } from '@/utils/ticket';
 import { fmtAR } from '@/utils/date';
 import { HeatPoint, TicketStatsResponse } from '@/services/statsService';
 
+type PdfTools = {
+  jsPDF: typeof import('jspdf').jsPDF;
+  autoTable: typeof import('jspdf-autotable').default;
+};
+
+let cachedPdfTools: Promise<PdfTools> | null = null;
+let activeAutoTable: PdfTools['autoTable'] | null = null;
+
+const loadPdfTools = async (): Promise<PdfTools> => {
+  cachedPdfTools ??= Promise.all([
+    import('jspdf'),
+    import('jspdf-autotable'),
+  ]).then(([pdfModule, tableModule]) => {
+    const tools = { jsPDF: pdfModule.jsPDF, autoTable: tableModule.default };
+    activeAutoTable = tools.autoTable;
+    return tools;
+  });
+
+  return cachedPdfTools;
+};
+
+const getAutoTable = (): PdfTools['autoTable'] => {
+  if (!activeAutoTable) {
+    throw new Error('PDF tools must be loaded before rendering export tables.');
+  }
+
+  return activeAutoTable;
+};
+
+let cachedXlsx: Promise<typeof import('xlsx')> | null = null;
+const loadXlsx = () => {
+  cachedXlsx ??= import('xlsx');
+  return cachedXlsx;
+};
 const formatDate = (dateString: string) => fmtAR(dateString);
 
 const getTicketData = (ticket: Ticket) => {
@@ -55,7 +86,7 @@ const addPdfFooter = (doc: any) => {
 }
 
 
-export const exportToPdf = (ticket: Ticket, messages: Message[]) => {
+export const exportToPdf = async (ticket: Ticket, messages: Message[]) => {
   if (!ticket) return;
   const doc = new jsPDF();
   const ticketData = getTicketData(ticket);
@@ -99,7 +130,7 @@ export const exportToPdf = (ticket: Ticket, messages: Message[]) => {
   doc.save(`ticket_${ticket.nro_ticket}.pdf`);
 };
 
-export const exportToXlsx = (ticket: Ticket, messages: Message[]) => {
+export const exportToXlsx = async (ticket: Ticket, messages: Message[]) => {
   if (!ticket) return;
   const ticketData = getTicketData(ticket);
   const ticketWorksheet = XLSX.utils.json_to_sheet(Object.entries(ticketData).map(([key, value]) => ({ Campo: key, Valor: value })));
@@ -120,7 +151,7 @@ export const exportToXlsx = (ticket: Ticket, messages: Message[]) => {
   XLSX.writeFile(workbook, `ticket_${ticket.nro_ticket}.xlsx`);
 };
 
-export const exportToExcel = (tickets: Ticket[]) => {
+export const exportToExcel = async (tickets: Ticket[]) => {
   const headerStyle = {
     font: { bold: true, color: { rgb: "FFFFFF" } },
     fill: { fgColor: { rgb: "4F81BD" } },
@@ -178,7 +209,7 @@ export const exportToExcel = (tickets: Ticket[]) => {
   XLSX.writeFile(workbook, 'tickets.xlsx');
 };
 
-export const exportAllToPdf = (tickets: Ticket[]) => {
+export const exportAllToPdf = async (tickets: Ticket[]) => {
   const doc = new jsPDF();
   addPdfHeader(doc, 'Resumen de Tickets');
 
@@ -251,7 +282,7 @@ const ensurePdfSpace = (doc: any, cursor: number, minHeight = 18): number => {
 };
 
 const addPdfSection = (
-  doc: jsPDF,
+  doc: any,
   cursor: number,
   title: string,
   head: string[],
@@ -326,7 +357,7 @@ export interface MunicipalAnalyticsExportOptions {
   categoryKey: string;
 }
 
-export const exportMunicipalAnalyticsPdf = (options: MunicipalAnalyticsExportOptions) => {
+export const exportMunicipalAnalyticsPdf = async (options: MunicipalAnalyticsExportOptions) => {
   if (!options) return;
   const doc = new jsPDF();
   addPdfHeader(doc, 'Analíticas Municipales');
@@ -464,7 +495,7 @@ export const exportMunicipalAnalyticsPdf = (options: MunicipalAnalyticsExportOpt
   doc.save('analiticas_municipales.pdf');
 };
 
-export const exportMunicipalAnalyticsExcel = (options: MunicipalAnalyticsExportOptions) => {
+export const exportMunicipalAnalyticsExcel = async (options: MunicipalAnalyticsExportOptions) => {
   if (!options) return;
   const workbook = XLSX.utils.book_new();
 
@@ -699,7 +730,7 @@ const flattenHeatmap = (rows: StatsHeatmapRow[] | undefined) => {
   return entries;
 };
 
-export const exportMunicipalStatsPdf = (options: MunicipalStatsExportOptions) => {
+export const exportMunicipalStatsPdf = async (options: MunicipalStatsExportOptions) => {
   if (!options) return;
   const { data } = options;
   const doc = new jsPDF();
@@ -883,7 +914,7 @@ export const exportMunicipalStatsPdf = (options: MunicipalStatsExportOptions) =>
   doc.save('estadisticas_municipales.pdf');
 };
 
-export const exportMunicipalStatsExcel = (options: MunicipalStatsExportOptions) => {
+export const exportMunicipalStatsExcel = async (options: MunicipalStatsExportOptions) => {
   if (!options) return;
   const { data } = options;
   const workbook = XLSX.utils.book_new();

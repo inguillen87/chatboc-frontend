@@ -1,4 +1,3 @@
-import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
 
 // src/utils/files.ts

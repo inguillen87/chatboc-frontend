@@ -1,8 +1,15 @@
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
-import * as XLSX from 'xlsx';
 import { AiReportResponse, SalesAnalyticsResponse, TicketStatsResponse, HeatPoint } from '@/services/statsService';
 
+const loadPdfTools = async () => {
+  const [pdfModule, tableModule] = await Promise.all([
+    import('jspdf'),
+    import('jspdf-autotable'),
+  ]);
+
+  return { jsPDF: pdfModule.jsPDF, autoTable: tableModule.default };
+};
+
+const loadXlsx = () => import('xlsx');
 interface ReportData {
   tenantName: string;
   segment: 'pyme' | 'municipio';
@@ -25,7 +32,7 @@ const COLORS = {
 
 const LOGO_TEXT = "CHATBOC INTELLIGENCE";
 
-export const generatePdfReport = (data: ReportData) => {
+export const generatePdfReport = async (data: ReportData) => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.width;
   const pageHeight = doc.internal.pageSize.height;
@@ -208,7 +215,7 @@ export const generatePdfReport = (data: ReportData) => {
   doc.save(`reporte_${data.segment}_${new Date().toISOString().split('T')[0]}.pdf`);
 };
 
-export const generateExcelReport = (data: ReportData) => {
+export const generateExcelReport = async (data: ReportData) => {
   const wb = XLSX.utils.book_new();
 
   // --- SHEET 1: RESUMEN ---

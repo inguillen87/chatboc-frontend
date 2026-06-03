@@ -10,7 +10,6 @@ import ColumnMappingRow from '@/components/admin/ColumnMappingRow'; // New compo
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import Papa from 'papaparse'; // For CSV parsing
-import * as XLSX from 'xlsx'; // For Excel parsing
 import { Badge } from '@/components/ui/badge';
 import { requestDocumentPreview } from '@/services/documentIntelligenceService';
 import { useUser } from '@/hooks/useUser';

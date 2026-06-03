@@ -108,7 +108,6 @@ import { apiFetch, getErrorMessage, ApiError } from "@/utils/api"; // Importa ap
 import { toLocalISOString } from "@/utils/fecha";
 import { fmtAR } from "@/utils/date";
 import { suggestMappings, SystemField, DEFAULT_SYSTEM_FIELDS } from "@/utils/columnMatcher";
-import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
 import { TicketStatsResponse, HeatPoint } from "@/services/statsService";
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -1483,6 +1482,7 @@ export default function Perfil() {
           setAnalysisSource(fileType);
         } else if (fileType === 'xlsx' || fileType === 'xls') {
           const arrayBuffer = await fileToParse.arrayBuffer();
+          const XLSX = await import('xlsx');
           const workbook = XLSX.read(arrayBuffer, { type: 'array' });
           const sheetName = workbook.SheetNames[0];
           const worksheet = workbook.Sheets[sheetName];
