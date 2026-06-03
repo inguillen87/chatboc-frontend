@@ -126,6 +126,7 @@ export interface RouteConfig {
   element: React.ReactElement;
   roles?: string[]; // Roles para admin/empleado de Chatboc
   requiredCapabilities?: string[]; // Capacidades dinámicas provistas por backend
+  requiredAllCapabilities?: string[]; // Capacidades obligatorias para integraciones/configuración sensible
   userPortal?: boolean; // Flag para rutas del portal de usuario final (cliente/vecino)
   allowGuest?: boolean; // Permite acceder sin sesión (modo demo)
 }
@@ -295,6 +296,7 @@ const canonicalTenantPortalRoutes: RouteConfig[] = userPortalRoutes.flatMap((rou
     allowGuest: route.allowGuest,
     roles: route.roles,
     requiredCapabilities: route.requiredCapabilities,
+    requiredAllCapabilities: route.requiredAllCapabilities,
   }),
 );
 
@@ -357,10 +359,26 @@ const routes: RouteConfig[] = [
   ...withTenantPrefixes('/:tenant/user/register', { element: <UserRegister /> }),
 
   // Integrations & Admin (Tenant Scoped)
-  ...withTenantPrefixes('/:tenant/integracion', { element: <IntegracionesPage />, roles: ['tenant_admin'] }),
-  ...withTenantPrefixes('/:tenant/catalog-mappings/new', { element: <CatalogMappingPage />, roles: ['tenant_admin', 'superadmin', 'catalog_manager'] }),
-  ...withTenantPrefixes('/:tenant/catalog-mappings/:mappingId', { element: <CatalogMappingPage />, roles: ['tenant_admin', 'superadmin', 'catalog_manager'] }),
-  ...withTenantPrefixes('/:tenant/admin/catalog', { element: <CatalogManagementPage />, roles: ['tenant_admin', 'superadmin', 'empleado'] }),
+  ...withTenantPrefixes('/:tenant/integracion', {
+    element: <IntegracionesPage />,
+    roles: ['tenant_admin', 'superadmin'],
+    requiredAllCapabilities: ['settings.tenant.write'],
+  }),
+  ...withTenantPrefixes('/:tenant/catalog-mappings/new', {
+    element: <CatalogMappingPage />,
+    roles: ['tenant_admin', 'superadmin', 'catalog_manager'],
+    requiredAllCapabilities: ['market.catalog.write'],
+  }),
+  ...withTenantPrefixes('/:tenant/catalog-mappings/:mappingId', {
+    element: <CatalogMappingPage />,
+    roles: ['tenant_admin', 'superadmin', 'catalog_manager'],
+    requiredAllCapabilities: ['market.catalog.write'],
+  }),
+  ...withTenantPrefixes('/:tenant/admin/catalog', {
+    element: <CatalogManagementPage />,
+    roles: ['tenant_admin', 'superadmin', 'empleado'],
+    requiredAllCapabilities: ['market.catalog.write'],
+  }),
 
 
   // --- EDUCATION FOUNDATION ROUTES ---
@@ -413,7 +431,12 @@ const routes: RouteConfig[] = [
   { path: '/tracking/claim/:code', element: <TrackingExperiencePage kind="claim" /> },
   { path: '/tracking/order/:code', element: <TrackingExperiencePage kind="order" /> },
   // Missing root integration route
-  { path: '/:tenant/integracion', element: <LegacyTenantAliasRedirect suffix="/integracion" />, roles: ['tenant_admin'] },
+  {
+    path: '/:tenant/integracion',
+    element: <LegacyTenantAliasRedirect suffix="/integracion" />,
+    roles: ['tenant_admin', 'superadmin'],
+    requiredAllCapabilities: ['settings.tenant.write'],
+  },
 
   // Generic Tenant Home (Dashboard/Landing) - Must be LAST among tenant routes to avoid swallowing others
   ...withTenantPrefixes('/:tenant', { element: <TenantHomeRoute /> }),
@@ -452,8 +475,18 @@ const routes: RouteConfig[] = [
   { path: '/chatpos', element: <ChatPosPage /> },
   { path: '/chatcrm', element: <ChatCRMPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
   { path: '/opinar', element: <OpinarArPage /> },
-  { path: '/integracion/whatsapp/connect', element: <WhatsappEmbeddedSignupPage /> },
-  { path: '/integracion', element: <Integracion />, roles: ['tenant_admin'] },
+  {
+    path: '/integracion/whatsapp/connect',
+    element: <WhatsappEmbeddedSignupPage />,
+    roles: ['tenant_admin', 'superadmin'],
+    requiredAllCapabilities: ['settings.tenant.write'],
+  },
+  {
+    path: '/integracion',
+    element: <Integracion />,
+    roles: ['tenant_admin', 'superadmin'],
+    requiredAllCapabilities: ['settings.tenant.write'],
+  },
   { path: '/documentacion', element: <Documentacion /> },
   { path: '/faqs', element: <Faqs /> },
   { path: '/productos', element: <ProductCatalog /> },
@@ -546,12 +579,37 @@ const routes: RouteConfig[] = [
   ...withTenantPrefixes('/:tenant/analytics', { element: <AnalyticsPage />, roles: ['tenant_admin', 'employee', 'superadmin', 'analytics_viewer'] }),
   { path: '/perfil/plantillas-respuesta', element: <GestionPlantillasPage />, roles: ['tenant_admin', 'employee', 'superadmin'] },
 
-  { path: '/admin/catalog', element: <CatalogManagementPage />, roles: ['tenant_admin', 'superadmin', 'empleado'] },
-  { path: '/catalog-mappings/new', element: <CatalogMappingPage />, roles: ['tenant_admin', 'superadmin'] },
-  { path: '/catalog-mappings/:mappingId', element: <CatalogMappingPage />, roles: ['tenant_admin', 'superadmin'] },
+  {
+    path: '/admin/catalog',
+    element: <CatalogManagementPage />,
+    roles: ['tenant_admin', 'superadmin', 'empleado'],
+    requiredAllCapabilities: ['market.catalog.write'],
+  },
+  {
+    path: '/catalog-mappings/new',
+    element: <CatalogMappingPage />,
+    roles: ['tenant_admin', 'superadmin'],
+    requiredAllCapabilities: ['market.catalog.write'],
+  },
+  {
+    path: '/catalog-mappings/:mappingId',
+    element: <CatalogMappingPage />,
+    roles: ['tenant_admin', 'superadmin'],
+    requiredAllCapabilities: ['market.catalog.write'],
+  },
   // Rutas para la gestión de mapeo de catálogos por PYME
-  { path: '/admin/pyme/:pymeId/catalog-mappings/new', element: <CatalogMappingPage />, roles: ['tenant_admin', 'superadmin'] },
-  { path: '/admin/pyme/:pymeId/catalog-mappings/:mappingId', element: <CatalogMappingPage />, roles: ['tenant_admin', 'superadmin'] },
+  {
+    path: '/admin/pyme/:pymeId/catalog-mappings/new',
+    element: <CatalogMappingPage />,
+    roles: ['tenant_admin', 'superadmin'],
+    requiredAllCapabilities: ['market.catalog.write'],
+  },
+  {
+    path: '/admin/pyme/:pymeId/catalog-mappings/:mappingId',
+    element: <CatalogMappingPage />,
+    roles: ['tenant_admin', 'superadmin'],
+    requiredAllCapabilities: ['market.catalog.write'],
+  },
 
   {
     path: '/superadmin',

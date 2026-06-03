@@ -16,12 +16,15 @@ const CapabilitiesContext = createContext<CapabilitiesContextValue>({
   hasAnyCapability: () => false,
 });
 
+const normalizeCapabilityToken = (value: unknown): string =>
+  typeof value === 'string' ? value.trim().toLowerCase() : '';
+
 const normalizeCapabilities = (raw: unknown): string[] => {
   if (!Array.isArray(raw)) return [];
 
-  return raw
-    .map((value) => (typeof value === 'string' ? value.trim() : ''))
-    .filter((value): value is string => Boolean(value));
+  return Array.from(
+    new Set(raw.map(normalizeCapabilityToken).filter((value): value is string => Boolean(value))),
+  );
 };
 
 export const CapabilitiesProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -40,9 +43,12 @@ export const CapabilitiesProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const value = useMemo<CapabilitiesContextValue>(
     () => ({
       capabilities,
-      hasCapability: (capability: string) => capabilities.includes(capability),
-      hasAllCapabilities: (required: string[]) => required.every((capability) => capabilities.includes(capability)),
-      hasAnyCapability: (required: string[]) => required.some((capability) => capabilities.includes(capability)),
+      hasCapability: (capability: string) => capabilities.includes(normalizeCapabilityToken(capability)),
+      hasAllCapabilities: (required: string[]) => {
+        const normalizedRequired = normalizeCapabilities(required);
+        return normalizedRequired.length > 0 && normalizedRequired.every((capability) => capabilities.includes(capability));
+      },
+      hasAnyCapability: (required: string[]) => normalizeCapabilities(required).some((capability) => capabilities.includes(capability)),
     }),
     [capabilities],
   );

@@ -41,8 +41,10 @@ const AccessRoute: React.FC<AccessRouteProps> = ({
     return <ViewState status="loading" title="Validando acceso" />;
   }
 
+  const role = normalizeRole(user?.rol);
+  const isSuperadmin = hasRequiredRole(user?.rol, ['superadmin']);
+
   if (roles && roles.length > 0) {
-    const role = normalizeRole(user?.rol);
     if (!hasRequiredRole(user?.rol, roles)) {
       return (
         <Navigate
@@ -57,6 +59,10 @@ const AccessRoute: React.FC<AccessRouteProps> = ({
         />
       );
     }
+  }
+
+  if (isSuperadmin) {
+    return children;
   }
 
   if (requiredAllCapabilities && requiredAllCapabilities.length > 0 && !hasAllCapabilities(requiredAllCapabilities)) {

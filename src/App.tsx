@@ -125,13 +125,19 @@ function AppRoutes() {
       <React.Suspense fallback={<RouteLoadingFallback />}>
         <Routes>
         <Route element={<Layout />}>
-          {layoutRoutes.map(({ path, element, roles, requiredCapabilities }) => (
+          {layoutRoutes.map(({ path, element, roles, requiredCapabilities, requiredAllCapabilities }) => (
             <Route
               key={path} // La key ya estaba correctamente aquí. No se requieren cambios.
               path={path}
               element={
-                roles || requiredCapabilities ? (
-                  <AccessRoute roles={roles} requiredCapabilities={requiredCapabilities}>{element}</AccessRoute>
+                roles?.length || requiredCapabilities?.length || requiredAllCapabilities?.length ? (
+                  <AccessRoute
+                    roles={roles}
+                    requiredCapabilities={requiredCapabilities}
+                    requiredAllCapabilities={requiredAllCapabilities}
+                  >
+                    {element}
+                  </AccessRoute>
                 ) : (
                   element
                 )
@@ -152,13 +158,19 @@ function AppRoutes() {
             ))}
           </Route>
         )}
-        {standaloneRoutes.map(({ path, element, roles, requiredCapabilities }) => (
+        {standaloneRoutes.map(({ path, element, roles, requiredCapabilities, requiredAllCapabilities }) => (
           <Route
             key={path}
             path={path}
             element={
-              roles || requiredCapabilities ? (
-                <AccessRoute roles={roles} requiredCapabilities={requiredCapabilities}>{element}</AccessRoute>
+              roles?.length || requiredCapabilities?.length || requiredAllCapabilities?.length ? (
+                <AccessRoute
+                  roles={roles}
+                  requiredCapabilities={requiredCapabilities}
+                  requiredAllCapabilities={requiredAllCapabilities}
+                >
+                  {element}
+                </AccessRoute>
               ) : (
                 element
               )
