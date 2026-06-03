@@ -4,6 +4,17 @@ import path from 'path';
 import { VitePWA } from 'vite-plugin-pwa';
 import { configDefaults } from 'vitest/config';
 
+const deferredModulePreloadPatterns = [
+  /(^|\/)assets\/vendor-(?:compression|pdf|charts|xlsx|docx|canvas-export|maplibre|google-maps)-/,
+  /(^|\/)assets\/widgetCommerce-/,
+  /(^|\/)assets\/ChatWidget-/,
+  /(^|\/)assets\/TrackingMap-/,
+  /(^|\/)assets\/MapLibreMap-/,
+];
+
+const shouldDeferModulePreload = (dependencyPath: string) =>
+  deferredModulePreloadPatterns.some((pattern) => pattern.test(dependencyPath));
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   const backendTarget = (env.VITE_BACKEND_URL || env.VITE_PROXY_TARGET || 'https://chatbot-backend-2e14.onrender.com').replace(/\/+$/, '');
@@ -102,6 +113,12 @@ export default defineConfig(({ mode }) => {
             '**/assets/vendor-compression-*',
             '**/assets/MapLibreMap-*',
             '**/assets/TrackingMap-*',
+            'logopro.png',
+            'chatboc_widget_white_outline.png',
+            'logo/chatboc_logo_original.png',
+            'images/chatpos*.png',
+            'images/chatcrm*.png',
+            'chatboc_frontend_pack/branding/chatboc/avatar/chatboc-orbit-reference.png',
           ],
           // Precache only the app shell. Heavy vendors stay runtime-loaded by route/tool.
           maximumFileSizeToCacheInBytes: 1024 * 1024,
@@ -232,6 +249,11 @@ export default defineConfig(({ mode }) => {
     },
     build: {
       chunkSizeWarningLimit: 1600,
+      modulePreload: {
+        resolveDependencies(_url, deps) {
+          return deps.filter((dep) => !shouldDeferModulePreload(dep));
+        },
+      },
       rollupOptions: {
         input: {
           main: path.resolve(__dirname, "index.html"),
