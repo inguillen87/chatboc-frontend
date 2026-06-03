@@ -36,9 +36,11 @@ export default function SecureCheckoutNotice({
   const isReady =
     experience?.ready ??
     checkoutOptions?.ready ??
-    checkoutOptions?.payment_ready ??
     checkoutPreview?.payment_ready ??
     false;
+  const blockers = experience?.blocking_reasons?.filter((item) => item.label || item.detail) ?? [];
+  const requiredActions =
+    experience?.operator_next_actions?.filter((item) => item.status === 'required' && item.label) ?? [];
 
   const message =
     blockedReason ??
@@ -72,6 +74,22 @@ export default function SecureCheckoutNotice({
             </Badge>
           </div>
           <p className={compact ? 'text-xs leading-relaxed' : 'text-sm leading-relaxed'}>{message}</p>
+          {!isReady && (blockers.length > 0 || requiredActions.length > 0) ? (
+            <div className="rounded-xl bg-background/70 px-3 py-2 text-xs leading-relaxed">
+              <p className="font-semibold">Para habilitar cobros online:</p>
+              <ul className="mt-1 space-y-1">
+                {(blockers.length ? blockers : requiredActions).slice(0, 3).map((item) => (
+                  <li key={String(item.id ?? item.label)} className="flex gap-2">
+                    <span aria-hidden="true">-</span>
+                    <span>
+                      <span className="font-medium">{item.label}</span>
+                      {'detail' in item && item.detail ? `: ${item.detail}` : ''}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
           <div className="flex flex-wrap gap-2 text-[11px] font-medium">
             <span className="inline-flex items-center gap-1 rounded-full bg-background/70 px-2 py-1">
               <Lock className="h-3 w-3" />

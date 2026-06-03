@@ -115,6 +115,21 @@ export interface MarketCheckoutExperienceStep {
   [key: string]: unknown;
 }
 
+export interface MarketCheckoutExperienceBlocker {
+  id?: string | null;
+  label?: string | null;
+  detail?: string | null;
+  owner?: string | null;
+  [key: string]: unknown;
+}
+
+export interface MarketCheckoutOperatorAction {
+  id?: string | null;
+  label?: string | null;
+  status?: string | null;
+  [key: string]: unknown;
+}
+
 export interface MarketCheckoutExperience {
   contract_version?: string | null;
   active_entrypoint?: string | null;
@@ -122,6 +137,8 @@ export interface MarketCheckoutExperience {
   mode?: string | null;
   ready?: boolean | null;
   reason_code?: string | null;
+  blocking_reasons?: MarketCheckoutExperienceBlocker[] | null;
+  operator_next_actions?: MarketCheckoutOperatorAction[] | null;
   integration_access?: MarketIntegrationAccess | null;
   copy?: {
     title?: string | null;

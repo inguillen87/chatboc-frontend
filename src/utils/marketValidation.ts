@@ -37,6 +37,29 @@ const asString = (value: unknown): string | null => {
   return normalized ? normalized : null;
 };
 
+const hasAnySignal = (record: Record<string, unknown>, keys: string[]) =>
+  keys.some((key) => record[key] !== undefined && record[key] !== null);
+
+const hasPaymentContractShape = (record: Record<string, unknown>) =>
+  hasAnySignal(record, [
+    'contract_version',
+    'payment_required',
+    'paymentRequired',
+    'payment_ready',
+    'paymentReady',
+    'gateway_configured',
+    'gatewayConfigured',
+    'gateway',
+    'gateway_config',
+    'gatewayConfig',
+    'payment_capture',
+    'paymentCapture',
+    'confirmation_source',
+    'confirmationSource',
+    'webhook_required_for_paid_state',
+    'webhookRequiredForPaidState',
+  ]);
+
 const nestedKeys = [
   'data',
   'order',
@@ -90,17 +113,30 @@ export const getMarketCommercialValidation = (...sources: unknown[]): MarketComm
     null,
   );
   const paymentReady = records.reduce<boolean | null>(
-    (found, record) => found ?? asBoolean(first(record, ['payment_ready', 'paymentReady', 'ready'])),
+    (found, record) => {
+      if (found !== null) return found;
+      const explicit = asBoolean(first(record, ['payment_ready', 'paymentReady']));
+      if (explicit !== null) return explicit;
+      return hasPaymentContractShape(record) ? asBoolean(record.ready) : null;
+    },
     null,
   );
   const gatewayConfigured = records.reduce<boolean | null>(
-    (found, record) => found ?? asBoolean(first(record, ['gateway_configured', 'gatewayConfigured', 'configured'])),
+    (found, record) => {
+      if (found !== null) return found;
+      const explicit = asBoolean(first(record, ['gateway_configured', 'gatewayConfigured']));
+      if (explicit !== null) return explicit;
+      return hasPaymentContractShape(record) ? asBoolean(record.configured) : null;
+    },
     null,
   );
-  const integrationEnabled = records.reduce<boolean | null>(
-    (found, record) => found ?? asBoolean(first(record, ['enabled', 'allowed'])),
-    null,
-  );
+  const integrationEnabled = records.reduce<boolean | null>((found, record) => {
+    if (found !== null) return found;
+    const hasIntegrationShape =
+      first(record, ['required_plan', 'requiredPlan', 'current_plan', 'currentPlan', 'feature', 'capability']) !==
+      undefined;
+    return hasIntegrationShape ? asBoolean(first(record, ['enabled', 'allowed'])) : null;
+  }, null);
   const reasonCode = records.reduce<string | null>(
     (found, record) => found ?? asString(first(record, ['reason_code', 'reasonCode'])),
     null,

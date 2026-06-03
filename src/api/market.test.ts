@@ -92,11 +92,53 @@ describe('market api continuity normalization', () => {
         payment_required: true,
         requires_contact_or_auth: true,
         gateway_hint: 'mercadopago',
+        checkout_experience: {
+          contract_version: 'commerce.conversational_checkout_experience.v1',
+          ready: false,
+          reason_code: 'payment_gateway_not_configured',
+          gateway: {
+            name: 'mercadopago',
+            configured: false,
+            provider_label: 'Mercado Pago',
+          },
+          policy: {
+            card_data_in_chat: false,
+            webhook_required_for_paid_state: true,
+          },
+          copy: {
+            customer_pending_gateway: 'Mercado Pago pendiente de configurar.',
+          },
+          integration_access: {
+            enabled: true,
+            required_plan: 'full',
+            current_plan: 'pro',
+          },
+          blocking_reasons: [
+            {
+              id: 'payment_gateway_not_configured',
+              label: 'Proveedor de pago pendiente',
+              detail: 'Configura Mercado Pago.',
+            },
+          ],
+          operator_next_actions: [
+            {
+              id: 'connect_gateway',
+              label: 'Conectar Mercado Pago',
+              status: 'required',
+            },
+          ],
+          steps: [{ key: 'open_checkout', title: 'Abrir checkout', status: 'pending' }],
+        },
       },
       checkout_preview: {
         payment_ready: false,
         contact_ready: true,
         next_step_label: 'Confirmar pedido',
+        checkout_experience: {
+          contract_version: 'commerce.conversational_checkout_experience.v1',
+          ready: false,
+          reason_code: 'payment_gateway_not_configured',
+        },
       },
     });
 
@@ -108,11 +150,49 @@ describe('market api continuity normalization', () => {
       requires_contact_or_auth: true,
       gateway_hint: 'mercadopago',
     });
+    expect(cart.checkout_options?.checkout_experience).toMatchObject({
+      contract_version: 'commerce.conversational_checkout_experience.v1',
+      ready: false,
+      reason_code: 'payment_gateway_not_configured',
+      gateway: {
+        name: 'mercadopago',
+        configured: false,
+        provider_label: 'Mercado Pago',
+      },
+      policy: {
+        card_data_in_chat: false,
+        webhook_required_for_paid_state: true,
+      },
+      integration_access: {
+        enabled: true,
+        required_plan: 'full',
+        current_plan: 'pro',
+      },
+      blocking_reasons: [
+        {
+          id: 'payment_gateway_not_configured',
+          label: 'Proveedor de pago pendiente',
+          detail: 'Configura Mercado Pago.',
+        },
+      ],
+      operator_next_actions: [
+        {
+          id: 'connect_gateway',
+          label: 'Conectar Mercado Pago',
+          status: 'required',
+        },
+      ],
+    });
+    expect(cart.checkout_options?.checkout_experience?.steps?.[0]).toMatchObject({
+      key: 'open_checkout',
+      title: 'Abrir checkout',
+    });
     expect(cart.checkout_preview).toMatchObject({
       payment_ready: false,
       contact_ready: true,
       next_step_label: 'Confirmar pedido',
     });
+    expect(cart.checkout_preview?.checkout_experience?.reason_code).toBe('payment_gateway_not_configured');
   });
 
   it('starts checkout with the payments v2 session contract first', async () => {

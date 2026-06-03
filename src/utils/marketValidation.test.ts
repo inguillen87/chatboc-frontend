@@ -52,4 +52,73 @@ describe('getMarketCommercialValidation', () => {
       reason: 'Esta demo no confirma pedidos reales.',
     });
   });
+
+  it('blocks checkout when the tenant plan does not allow payment integrations', () => {
+    expect(
+      getMarketCommercialValidation({
+        checkout_options: {
+          checkout_experience: {
+            ready: false,
+            reason_code: 'plan_full_required',
+            copy: {
+              customer_locked: 'Plan Full requerido para cobrar desde WhatsApp o widget.',
+            },
+            integration_access: {
+              enabled: false,
+            },
+          },
+        },
+      }),
+    ).toMatchObject({
+      canStartCheckout: false,
+      canConfirmPurchase: false,
+      reason: 'Plan Full requerido para cobrar desde WhatsApp o widget.',
+    });
+  });
+
+  it('blocks online checkout when the payment gateway is not configured', () => {
+    expect(
+      getMarketCommercialValidation({
+        payment_required: true,
+        checkout_experience: {
+          ready: false,
+          reason_code: 'payment_gateway_not_configured',
+          gateway: {
+            configured: false,
+            provider_label: 'Mercado Pago',
+          },
+          copy: {
+            customer_pending_gateway: 'Mercado Pago pendiente de configurar para cobrar online.',
+          },
+        },
+      }),
+    ).toMatchObject({
+      canStartCheckout: false,
+      canConfirmPurchase: false,
+      reason: 'Mercado Pago pendiente de configurar para cobrar online.',
+    });
+  });
+
+  it('allows checkout when stock, amount and payment contract are ready', () => {
+    expect(
+      getMarketCommercialValidation({
+        amount_validated: true,
+        stock_status: 'validated',
+        available_to_sell: true,
+        checkout_experience: {
+          ready: true,
+          gateway: {
+            configured: true,
+          },
+          integration_access: {
+            enabled: true,
+          },
+        },
+      }),
+    ).toMatchObject({
+      canStartCheckout: true,
+      canConfirmPurchase: true,
+      reason: null,
+    });
+  });
 });

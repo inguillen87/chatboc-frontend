@@ -6,6 +6,8 @@ import {
   AddToCartPayload,
   CheckoutStartResponse,
   CheckoutStartPayload,
+  MarketCheckoutExperienceBlocker,
+  MarketCheckoutOperatorAction,
   MarketCheckoutExperience,
   MarketCheckoutExperiencePolicy,
   MarketCheckoutExperienceStep,
@@ -235,6 +237,39 @@ const normalizeCheckoutSteps = (value: unknown): MarketCheckoutExperienceStep[] 
   return steps.length ? steps : [];
 };
 
+const normalizeCheckoutBlockers = (value: unknown): MarketCheckoutExperienceBlocker[] | null => {
+  if (!Array.isArray(value)) return null;
+  const blockers = value
+    .map((item): MarketCheckoutExperienceBlocker | null => {
+      const record = asRecordOrNull(item);
+      if (!record) return null;
+      const id = asStringOrNull(getFirst(record, ['id', 'key', 'reason_code', 'reasonCode']));
+      const label = asStringOrNull(getFirst(record, ['label', 'title', 'name']));
+      const detail = asStringOrNull(getFirst(record, ['detail', 'description', 'message']));
+      const owner = asStringOrNull(record.owner);
+      if (!id && !label && !detail) return null;
+      return { ...record, id, label, detail, owner };
+    })
+    .filter((item): item is MarketCheckoutExperienceBlocker => Boolean(item));
+  return blockers.length ? blockers : [];
+};
+
+const normalizeOperatorActions = (value: unknown): MarketCheckoutOperatorAction[] | null => {
+  if (!Array.isArray(value)) return null;
+  const actions = value
+    .map((item): MarketCheckoutOperatorAction | null => {
+      const record = asRecordOrNull(item);
+      if (!record) return null;
+      const id = asStringOrNull(getFirst(record, ['id', 'key', 'action']));
+      const label = asStringOrNull(getFirst(record, ['label', 'title', 'name']));
+      const status = asStringOrNull(record.status);
+      if (!id && !label && !status) return null;
+      return { ...record, id, label, status };
+    })
+    .filter((item): item is MarketCheckoutOperatorAction => Boolean(item));
+  return actions.length ? actions : [];
+};
+
 const normalizeCheckoutExperience = (input: unknown): MarketCheckoutExperience | null => {
   const record = asRecordOrNull(input);
   if (!record) return null;
@@ -247,6 +282,8 @@ const normalizeCheckoutExperience = (input: unknown): MarketCheckoutExperience |
     mode: asStringOrNull(record.mode),
     ready: asBooleanOrNull(record.ready),
     reason_code: asStringOrNull(getFirst(record, ['reason_code', 'reasonCode'])),
+    blocking_reasons: normalizeCheckoutBlockers(getFirst(record, ['blocking_reasons', 'blockingReasons'])),
+    operator_next_actions: normalizeOperatorActions(getFirst(record, ['operator_next_actions', 'operatorNextActions'])),
     integration_access: normalizeIntegrationAccess(getFirst(record, ['integration_access', 'integrationAccess'])),
     copy: copy
       ? {
