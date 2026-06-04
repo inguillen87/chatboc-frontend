@@ -67,6 +67,65 @@ const PRESETS = [
     { name: 'Warm', primary: '#f97316', accent: '#ea580c', bg: '#fff7ed', radius: 20, mode: 'light' },
 ];
 
+type WidgetAccessState = {
+  enabled?: boolean | null;
+  reason_code?: string | null;
+  lock_reason_code?: string | null;
+  required_plan?: string | null;
+  current_plan?: string | null;
+  upgrade_url?: string | null;
+  message?: string | null;
+  frontend_contract?: Record<string, unknown> | null;
+  upgrade?: Record<string, unknown> | null;
+  [key: string]: unknown;
+};
+
+const asPlainRecord = (value: unknown): Record<string, unknown> | null =>
+  value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+
+const readString = (record: Record<string, unknown> | null | undefined, keys: string[]): string | null => {
+  if (!record) return null;
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === 'string' && value.trim()) return value;
+  }
+  return null;
+};
+
+const readBoolean = (record: Record<string, unknown> | null | undefined, keys: string[]): boolean | null => {
+  if (!record) return null;
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === 'boolean') return value;
+  }
+  return null;
+};
+
+const normalizeWidgetAccessState = (payload: unknown): WidgetAccessState | null => {
+  const record = asPlainRecord(payload);
+  if (!record) return null;
+  const access = asPlainRecord(record.access) ?? asPlainRecord(record.integration_access) ?? asPlainRecord(record.integrationAccess) ?? record;
+  const frontendContract =
+    asPlainRecord(access.frontend_contract) ??
+    asPlainRecord(access.frontendContract) ??
+    asPlainRecord(record.frontend_contract) ??
+    asPlainRecord(record.frontendContract);
+  const upgrade = asPlainRecord(access.upgrade) ?? asPlainRecord(record.upgrade);
+  const enabled = readBoolean(access, ['enabled', 'allowed', 'active']);
+
+  return {
+    ...access,
+    enabled,
+    reason_code: readString(access, ['reason_code', 'reasonCode']) ?? readString(record, ['reason_code', 'reasonCode']),
+    lock_reason_code: readString(access, ['lock_reason_code', 'lockReasonCode']) ?? readString(record, ['lock_reason_code', 'lockReasonCode']),
+    required_plan: readString(access, ['required_plan', 'requiredPlan']),
+    current_plan: readString(access, ['current_plan', 'currentPlan']),
+    upgrade_url: readString(access, ['upgrade_url', 'upgradeUrl']) ?? readString(upgrade, ['upgrade_url', 'upgradeUrl', 'url']),
+    message: readString(record, ['message']) ?? readString(frontendContract, ['message']),
+    frontend_contract: frontendContract,
+    upgrade,
+  };
+};
 const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }) => {
   const { currentSlug } = useTenant();
   const [config, setConfig] = useState(initialConfig || DEFAULT_THEME);
@@ -84,6 +143,7 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
   const [publicEmbedAttributes, setPublicEmbedAttributes] = useState<Record<string, string>>({});
   const [publicWidgetInfo, setPublicWidgetInfo] = useState<{ token?: string; tenantSlug?: string; tipoChat?: string } | null>(null);
   const [showFullSnippet, setShowFullSnippet] = useState(false);
+  const [widgetAccess, setWidgetAccess] = useState<WidgetAccessState | null>(null);
 
   // Simulation States
   const [simulateLoading, setSimulateLoading] = useState(false);
@@ -172,6 +232,18 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
       return resolvedPublicEmbedSnippet || resolvedEmbedSnippet;
   }, [resolvedPublicEmbedSnippet, resolvedEmbedSnippet]);
 
+  const widgetFrontendContract = widgetAccess?.frontend_contract ?? null;
+  const widgetReasonCode = String(widgetAccess?.lock_reason_code ?? widgetAccess?.reason_code ?? '').toLowerCase();
+  const widgetEmbedLocked = Boolean(
+    widgetAccess?.enabled === false ||
+    widgetFrontendContract?.hide_embed_copy === true ||
+    widgetFrontendContract?.hide_widget_session === true ||
+    widgetReasonCode === 'plan_required' ||
+    widgetReasonCode === 'plan_full_required',
+  );
+  const widgetLockMessage = widgetAccess?.message || 'Plan Full requerido para publicar o embeber el widget en sitios externos.';
+  const widgetUpgradeUrl = widgetAccess?.upgrade_url || null;
+
 
   // Debounce logic
   const [debouncedConfig, setDebouncedConfig] = useState(config);
@@ -249,6 +321,7 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
       if (!currentSlug) return;
       try {
         const data = await apiClient.get<any>(`/api/public/tenants/${currentSlug}/widget-config`, { tenantSlug: currentSlug });
+        setWidgetAccess(normalizeWidgetAccessState(data));
         const builderConfig = data?.builder_config || data?.widget?.builder_config || {};
         const snippet = builderConfig?.embed_snippet || data?.embed_snippet || '';
         const token = data?.owner_token || data?.entity_token || data?.widget_token || data?.token;
@@ -260,6 +333,8 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
         setPublicWidgetInfo({ token, tenantSlug, tipoChat });
       } catch (error) {
         console.error("Failed to load public widget config", error);
+        const errorRecord = asPlainRecord(error);
+        setWidgetAccess(normalizeWidgetAccessState(errorRecord?.body ?? errorRecord?.response));
       }
     };
     loadPublicWidget();
@@ -726,6 +801,10 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
                 Guardar Borrador
             </Button>
              <Button className="flex-1 h-11 rounded-xl shadow-lg shadow-primary/20" onClick={async () => {
+                 if (widgetEmbedLocked) {
+                     toast.error(widgetLockMessage);
+                     return;
+                 }
                  await performSave(config, true);
                  if (!currentSlug) return;
                  try {
@@ -737,7 +816,7 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
                  } finally {
                      setSaving(false);
                  }
-             }} disabled={saving}>
+             }} disabled={saving || widgetEmbedLocked}>
                 {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Globe className="mr-2 h-4 w-4" />}
                 Publicar Widget
             </Button>
@@ -863,28 +942,59 @@ const ChatCustomizer: React.FC<ChatCustomizerProps> = ({ initialConfig, onSave }
                     <CardDescription>Copiá y pegá este script en el &lt;body&gt; de tu sitio web.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    <div className="rounded-2xl border border-border/40 bg-slate-950/95 text-slate-100 p-4 text-xs font-mono whitespace-pre-wrap shadow-inner ring-1 ring-white/5 max-h-48 overflow-auto">
-                        {showFullSnippet ? (resolvedPublicEmbedSnippet || resolvedEmbedSnippet) : shortEmbedSnippet}
-                    </div>
-                    <div className="flex justify-between items-center text-xs">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setShowFullSnippet((prev) => !prev)}
-                        >
-                          {showFullSnippet ? 'Ocultar todo' : 'Ver todo'}
-                        </Button>
-                        <Button
-                            variant="default"
-                            size="sm"
-                            onClick={() => {
-                                navigator.clipboard.writeText(resolvedPublicEmbedSnippet || resolvedEmbedSnippet);
-                                toast.success("Copiado al portapapeles");
-                            }}
-                        >
-                            Copiar Código
-                        </Button>
-                    </div>
+                    {widgetEmbedLocked ? (
+                        <div className="rounded-2xl border border-amber-300/40 bg-amber-500/10 p-4 text-sm shadow-sm">
+                            <div className="flex items-start gap-3">
+                                <span className="mt-0.5 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-amber-300/50 bg-amber-200/20 text-amber-700 dark:text-amber-300">
+                                    <Lock className="h-5 w-5" />
+                                </span>
+                                <div className="space-y-3">
+                                    <div>
+                                        <p className="font-semibold text-foreground">Integracion web bloqueada por plan</p>
+                                        <p className="mt-1 text-sm text-muted-foreground">{widgetLockMessage}</p>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2 text-xs">
+                                        <span className="rounded-full border border-border/60 bg-background/70 px-2 py-1">Plan actual: {widgetAccess?.current_plan || 'sin confirmar'}</span>
+                                        <span className="rounded-full border border-border/60 bg-background/70 px-2 py-1">Requerido: {widgetAccess?.required_plan || 'Full'}</span>
+                                    </div>
+                                    {widgetUpgradeUrl && (
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => window.open(widgetUpgradeUrl, '_blank', 'noopener,noreferrer')}
+                                        >
+                                            Ver planes <ExternalLink className="ml-2 h-3.5 w-3.5" />
+                                        </Button>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <>
+                            <div className="rounded-2xl border border-border/40 bg-slate-950/95 text-slate-100 p-4 text-xs font-mono whitespace-pre-wrap shadow-inner ring-1 ring-white/5 max-h-48 overflow-auto">
+                                {showFullSnippet ? (resolvedPublicEmbedSnippet || resolvedEmbedSnippet) : shortEmbedSnippet}
+                            </div>
+                            <div className="flex justify-between items-center text-xs">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setShowFullSnippet((prev) => !prev)}
+                                >
+                                  {showFullSnippet ? 'Ocultar todo' : 'Ver todo'}
+                                </Button>
+                                <Button
+                                    variant="default"
+                                    size="sm"
+                                    onClick={() => {
+                                        navigator.clipboard.writeText(resolvedPublicEmbedSnippet || resolvedEmbedSnippet);
+                                        toast.success("Copiado al portapapeles");
+                                    }}
+                                >
+                                    Copiar Código
+                                </Button>
+                            </div>
+                        </>
+                    )}
                 </CardContent>
             </Card>
         )}
