@@ -76,6 +76,14 @@ const nestedKeys = [
   'commerce',
   'integration_access',
   'integrationAccess',
+  'access',
+  'frontend_contract',
+  'frontendContract',
+  'upgrade',
+  'feature',
+  'error',
+  'plan',
+  'capability',
   'gateway',
   'policy',
   'copy',
@@ -134,11 +142,33 @@ export const getMarketCommercialValidation = (...sources: unknown[]): MarketComm
     if (found !== null) return found;
     const hasIntegrationShape =
       first(record, ['required_plan', 'requiredPlan', 'current_plan', 'currentPlan', 'feature', 'capability']) !==
-      undefined;
+        undefined ||
+      first(record, ['frontend_contract', 'frontendContract', 'lock_reason_code', 'lockReasonCode', 'action_hint', 'actionHint']) !==
+        undefined;
     return hasIntegrationShape ? asBoolean(first(record, ['enabled', 'allowed'])) : null;
   }, null);
   const reasonCode = records.reduce<string | null>(
     (found, record) => found ?? asString(first(record, ['reason_code', 'reasonCode'])),
+    null,
+  );
+  const lockReasonCode = records.reduce<string | null>(
+    (found, record) => found ?? asString(first(record, ['lock_reason_code', 'lockReasonCode'])),
+    null,
+  );
+  const errorCode = records.reduce<string | null>(
+    (found, record) => found ?? asString(first(record, ['error', 'code', 'error_code', 'errorCode'])),
+    null,
+  );
+  const renderAs = records.reduce<string | null>(
+    (found, record) => found ?? asString(first(record, ['render_as', 'renderAs'])),
+    null,
+  );
+  const actionHint = records.reduce<string | null>(
+    (found, record) => found ?? asString(first(record, ['action_hint', 'actionHint'])),
+    null,
+  );
+  const messageCopy = records.reduce<string | null>(
+    (found, record) => found ?? asString(first(record, ['message', 'detail'])),
     null,
   );
   const customerLockedCopy = records.reduce<string | null>(
@@ -171,16 +201,33 @@ export const getMarketCommercialValidation = (...sources: unknown[]): MarketComm
   const unsafeStock = normalizedStock === 'stock_unknown' || normalizedStock === 'out_of_stock';
   const demoDisablesConfirm = confirmOrders === false;
   const normalizedReasonCode = reasonCode?.toLowerCase() ?? null;
+  const normalizedLockReasonCode = lockReasonCode?.toLowerCase() ?? null;
+  const normalizedErrorCode = errorCode?.toLowerCase() ?? null;
+  const normalizedRenderAs = renderAs?.toLowerCase() ?? null;
+  const normalizedActionHint = actionHint?.toLowerCase() ?? null;
   let reason: string | null = null;
 
   const setReason = (nextReason: string) => {
     reason = reason ?? nextReason;
   };
 
-  if (integrationEnabled === false || normalizedReasonCode === 'plan_full_required') {
+  const planRequired =
+    integrationEnabled === false ||
+    normalizedReasonCode === 'plan_full_required' ||
+    normalizedReasonCode === 'plan_required' ||
+    normalizedLockReasonCode === 'plan_full_required' ||
+    normalizedLockReasonCode === 'plan_required' ||
+    normalizedErrorCode === 'plan_required' ||
+    normalizedRenderAs === 'payment_integration_locked' ||
+    normalizedRenderAs === 'integration_locked' ||
+    normalizedActionHint === 'upgrade_full_plan' ||
+    normalizedActionHint === 'upgrade_to_full';
+
+  if (planRequired) {
     setReason(
+      messageCopy ??
       customerLockedCopy ??
-        'Plan Full requerido para cobrar desde WhatsApp o widget.',
+        'Plan Full requerido para cobrar desde WhatsApp, widget o checkout publico.',
     );
   }
   if (demoDisablesConfirm) setReason('Esta demo no confirma pedidos reales.');

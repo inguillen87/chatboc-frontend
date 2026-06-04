@@ -219,6 +219,32 @@ describe('market api continuity normalization', () => {
     expect(checkout.checkoutUrl).toBe('https://checkout.example/pref_123');
   });
 
+  it('normalizes plan lock contracts from checkout-session responses', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      ok: false,
+      error: 'plan_required',
+      reason_code: 'plan_full_required',
+      action_hint: 'upgrade_full_plan',
+      message: 'Plan Full requerido para cobrar desde WhatsApp, widget o checkout publico.',
+      frontend_contract: {
+        render_as: 'payment_integration_locked',
+        show_upgrade_cta: true,
+      },
+      integration_access: {
+        enabled: false,
+        current_plan: 'pro',
+        required_plan: 'full',
+      },
+    });
+
+    const checkout = await startMarketCheckout('tenant', { items: [{ id: '1', quantity: 1 }] });
+
+    expect(checkout.ok).toBe(false);
+    expect(checkout.error).toBe('plan_required');
+    expect(checkout.frontend_contract?.render_as).toBe('payment_integration_locked');
+    expect(checkout.integration_access?.enabled).toBe(false);
+  });
+
   it('falls back from checkout-session to preference only when the v2 endpoint is unavailable', async () => {
     apiFetchMock
       .mockRejectedValueOnce(new ApiError('not found', 404))

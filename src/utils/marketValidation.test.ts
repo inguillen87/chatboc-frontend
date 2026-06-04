@@ -76,6 +76,25 @@ describe('getMarketCommercialValidation', () => {
     });
   });
 
+  it('blocks checkout when backend returns the shared plan_required frontend contract', () => {
+    expect(
+      getMarketCommercialValidation({
+        ok: false,
+        error: 'plan_required',
+        reason_code: 'plan_full_required',
+        action_hint: 'upgrade_full_plan',
+        message: 'Plan Full requerido para cobrar desde WhatsApp, widget o checkout publico.',
+        frontend_contract: {
+          render_as: 'payment_integration_locked',
+        },
+      }),
+    ).toMatchObject({
+      canStartCheckout: false,
+      canConfirmPurchase: false,
+      reason: 'Plan Full requerido para cobrar desde WhatsApp, widget o checkout publico.',
+    });
+  });
+
   it('blocks online checkout when the payment gateway is not configured', () => {
     expect(
       getMarketCommercialValidation({

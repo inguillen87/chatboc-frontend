@@ -92,9 +92,38 @@ export interface MarketRecommendation {
 export interface MarketIntegrationAccess {
   enabled?: boolean | null;
   reason_code?: string | null;
+  lock_reason_code?: string | null;
+  status?: string | null;
+  feature_id?: string | null;
   required_plan?: string | null;
   current_plan?: string | null;
   upgrade_url?: string | null;
+  upgrade?: MarketPlanUpgrade | null;
+  frontend_contract?: MarketFrontendContract | null;
+  [key: string]: unknown;
+}
+
+export interface MarketPlanUpgrade {
+  required_plan?: string | null;
+  current_plan?: string | null;
+  upgrade_url?: string | null;
+  cta_label?: string | null;
+  [key: string]: unknown;
+}
+
+export interface MarketFrontendContract {
+  render_as?: string | null;
+  mode?: string | null;
+  primary_action?: string | null;
+  action_hint?: string | null;
+  reason_code?: string | null;
+  lock_reason_code?: string | null;
+  message?: string | null;
+  title?: string | null;
+  hide_embed_copy?: boolean | null;
+  hide_widget_session?: boolean | null;
+  show_upgrade_cta?: boolean | null;
+  labels?: Record<string, unknown> | null;
   [key: string]: unknown;
 }
 
@@ -190,6 +219,8 @@ export interface MarketCheckoutOptions {
   integration_access?: MarketIntegrationAccess | null;
   policy?: MarketCheckoutExperiencePolicy | null;
   checkout_experience?: MarketCheckoutExperience | null;
+  frontend_contract?: MarketFrontendContract | null;
+  upgrade?: MarketPlanUpgrade | null;
 }
 
 export interface MarketSupportChannel {
@@ -336,6 +367,17 @@ export interface CheckoutStartPayload {
 }
 
 export interface CheckoutStartResponse {
+  ok?: boolean | null;
+  error?: string | Record<string, unknown> | null;
+  reason_code?: string | null;
+  lock_reason_code?: string | null;
+  action_hint?: string | null;
+  feature_id?: string | null;
+  feature?: Record<string, unknown> | null;
+  access?: MarketIntegrationAccess | null;
+  integration_access?: MarketIntegrationAccess | null;
+  upgrade?: MarketPlanUpgrade | null;
+  frontend_contract?: MarketFrontendContract | null;
   contract_version?: string | null;
   request_id?: string | null;
   checkoutUrl?: string;

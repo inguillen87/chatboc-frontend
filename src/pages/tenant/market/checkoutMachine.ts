@@ -50,6 +50,31 @@ export type CheckoutAction =
 
 const asString = (value: unknown): string => (typeof value === 'string' ? value : '');
 
+const lowerString = (value: unknown): string | null =>
+  typeof value === 'string' && value.trim() ? value.trim().toLowerCase() : null;
+
+const getErrorCode = (value: unknown): unknown => {
+  if (typeof value === 'string') return value;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  return record.code ?? record.error ?? record.reason_code ?? record.reasonCode;
+};
+
+const isPlanLockResponse = (response: CheckoutStartResponse): boolean => {
+  const candidates = [
+    getErrorCode(response.error),
+    response.reason_code,
+    response.lock_reason_code,
+    response.action_hint,
+    response.frontend_contract?.render_as,
+    response.checkout_options?.frontend_contract?.render_as,
+    response.integration_access?.frontend_contract?.render_as,
+    response.access?.frontend_contract?.render_as,
+  ].map(lowerString);
+
+  return candidates.some((code) => Boolean(code && ['plan_required', 'plan_full_required', 'upgrade_full_plan', 'upgrade_to_full', 'payment_integration_locked', 'integration_locked'].includes(code)));
+};
+
 export const hydrateCheckoutState = (raw: unknown): CheckoutState => {
   const base = createInitialCheckoutState();
   if (!raw || typeof raw !== 'object') return base;
@@ -116,6 +141,15 @@ export const resolveCheckoutOutcome = (response: CheckoutStartResponse) => {
   const paymentUrl = response?.checkoutUrl ?? response?.init_point ?? null;
   const normalizedStatus = String(response?.status ?? response?.estado ?? '').toLowerCase();
   const orderId = response?.market_order_id ?? response?.orderId ?? response?.order_id;
+
+  if (isPlanLockResponse(response)) {
+    return {
+      status: 'error' as const,
+      paymentUrl: null,
+      orderId: orderId ? String(orderId) : null,
+      message: response?.message ?? validation.reason ?? 'Plan Full requerido para cobrar desde WhatsApp, widget o checkout publico.',
+    };
+  }
 
   if (paymentUrl && validation.canStartCheckout) {
     return {

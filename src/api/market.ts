@@ -13,10 +13,12 @@ import {
   MarketCheckoutExperienceStep,
   MarketCheckoutOptions,
   MarketCheckoutPreview,
+  MarketFrontendContract,
   MarketIntegrationAccess,
   MarketNextStep,
   MarketPaymentCheckoutStatus,
   MarketPaymentStatusResponse,
+  MarketPlanUpgrade,
   MarketRewardRedeemResponse,
   MarketRewardRedemption,
   MarketRewardsProfile,
@@ -193,16 +195,55 @@ const normalizeStringArray = (value: unknown): string[] | null => {
   return strings && strings.length ? strings : null;
 };
 
+const normalizePlanUpgrade = (value: unknown): MarketPlanUpgrade | null => {
+  const record = asRecordOrNull(value);
+  if (!record) return null;
+  return {
+    ...record,
+    required_plan: asStringOrNull(getFirst(record, ['required_plan', 'requiredPlan'])),
+    current_plan: asStringOrNull(getFirst(record, ['current_plan', 'currentPlan'])),
+    upgrade_url: asStringOrNull(getFirst(record, ['upgrade_url', 'upgradeUrl', 'url'])),
+    cta_label: asStringOrNull(getFirst(record, ['cta_label', 'ctaLabel', 'label'])),
+  };
+};
+
+const normalizeFrontendContract = (value: unknown): MarketFrontendContract | null => {
+  const record = asRecordOrNull(value);
+  if (!record) return null;
+  return {
+    ...record,
+    render_as: asStringOrNull(getFirst(record, ['render_as', 'renderAs'])),
+    mode: asStringOrNull(record.mode),
+    primary_action: asStringOrNull(getFirst(record, ['primary_action', 'primaryAction'])),
+    action_hint: asStringOrNull(getFirst(record, ['action_hint', 'actionHint'])),
+    reason_code: asStringOrNull(getFirst(record, ['reason_code', 'reasonCode'])),
+    lock_reason_code: asStringOrNull(getFirst(record, ['lock_reason_code', 'lockReasonCode'])),
+    message: asStringOrNull(record.message),
+    title: asStringOrNull(record.title),
+    hide_embed_copy: asBooleanOrNull(getFirst(record, ['hide_embed_copy', 'hideEmbedCopy'])),
+    hide_widget_session: asBooleanOrNull(getFirst(record, ['hide_widget_session', 'hideWidgetSession'])),
+    show_upgrade_cta: asBooleanOrNull(getFirst(record, ['show_upgrade_cta', 'showUpgradeCta'])),
+    labels: asRecordOrNull(record.labels),
+  };
+};
+
 const normalizeIntegrationAccess = (value: unknown): MarketIntegrationAccess | null => {
   const record = asRecordOrNull(value);
   if (!record) return null;
+  const upgrade = normalizePlanUpgrade(getFirst(record, ['upgrade', 'plan_upgrade', 'planUpgrade']));
+  const frontendContract = normalizeFrontendContract(getFirst(record, ['frontend_contract', 'frontendContract']));
   const normalized: MarketIntegrationAccess = {
     ...record,
     enabled: asBooleanOrNull(getFirst(record, ['enabled', 'allowed', 'active'])),
     reason_code: asStringOrNull(getFirst(record, ['reason_code', 'reasonCode'])),
+    lock_reason_code: asStringOrNull(getFirst(record, ['lock_reason_code', 'lockReasonCode'])),
+    status: asStringOrNull(record.status),
+    feature_id: asStringOrNull(getFirst(record, ['feature_id', 'featureId'])),
     required_plan: asStringOrNull(getFirst(record, ['required_plan', 'requiredPlan'])),
     current_plan: asStringOrNull(getFirst(record, ['current_plan', 'currentPlan'])),
-    upgrade_url: asStringOrNull(getFirst(record, ['upgrade_url', 'upgradeUrl'])),
+    upgrade_url: asStringOrNull(getFirst(record, ['upgrade_url', 'upgradeUrl'])) ?? upgrade?.upgrade_url ?? null,
+    upgrade,
+    frontend_contract: frontendContract,
   };
   return normalized;
 };
@@ -350,6 +391,11 @@ const normalizeMarketCheckoutOptions = (input: unknown): MarketCheckoutOptions |
       null,
     policy: normalizeCheckoutPolicy(record.policy) ?? checkoutExperience?.policy ?? null,
     checkout_experience: checkoutExperience,
+    frontend_contract:
+      normalizeFrontendContract(getFirst(record, ['frontend_contract', 'frontendContract'])) ??
+      checkoutExperience?.integration_access?.frontend_contract ??
+      null,
+    upgrade: normalizePlanUpgrade(getFirst(record, ['upgrade', 'plan_upgrade', 'planUpgrade'])) ?? checkoutExperience?.integration_access?.upgrade ?? null,
   };
 
   const hasSignal = Object.values(options).some((value) =>
@@ -448,8 +494,19 @@ const normalizeCheckoutStartResponse = (input: unknown): CheckoutStartResponse =
     getFirst(order, ['id', 'order_id', 'market_order_id', 'pedido_id']);
 
   return {
+    ok: asBooleanOrNull(record.ok),
     contract_version: asStringOrNull(record.contract_version),
     request_id: asStringOrNull(record.request_id),
+    error: typeof record.error === 'string' ? record.error : asRecordOrNull(record.error),
+    reason_code: asStringOrNull(getFirst(record, ['reason_code', 'reasonCode'])),
+    lock_reason_code: asStringOrNull(getFirst(record, ['lock_reason_code', 'lockReasonCode'])),
+    action_hint: asStringOrNull(getFirst(record, ['action_hint', 'actionHint'])),
+    feature_id: asStringOrNull(getFirst(record, ['feature_id', 'featureId'])),
+    feature: asRecordOrNull(record.feature),
+    access: normalizeIntegrationAccess(record.access),
+    integration_access: normalizeIntegrationAccess(getFirst(record, ['integration_access', 'integrationAccess'])),
+    upgrade: normalizePlanUpgrade(getFirst(record, ['upgrade', 'plan_upgrade', 'planUpgrade'])),
+    frontend_contract: normalizeFrontendContract(getFirst(record, ['frontend_contract', 'frontendContract'])),
     checkoutUrl: checkoutUrl ?? undefined,
     preferenceId: preferenceId ?? undefined,
     orderId: typeof orderId === 'string' || typeof orderId === 'number' ? orderId : undefined,
