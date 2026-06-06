@@ -41,7 +41,6 @@ import {
   Hash,
   MessagesSquare,
   Sparkles,
-  Eye,
   CheckCheck,
 } from "lucide-react";
 import {
@@ -71,6 +70,8 @@ import { trackFrontendEvent } from "@/utils/frontendTelemetry";
 import { normalizeTicketLocation } from "@/utils/location";
 
 const TrackingMap = React.lazy(() => import("@/components/ui/TrackingMap"));
+const PUBLIC_TICKET_SIGNALING_ENABLED =
+  import.meta.env.VITE_PUBLIC_TICKET_SIGNALING_ENABLED === "true";
 
 const STATUS_CONFIG: Record<
   string,
@@ -86,7 +87,7 @@ const STATUS_CONFIG: Record<
   pendiente: {
     label: "Recibido",
     color: "bg-amber-100 text-amber-700 border-amber-200",
-    accent: "from-amber-500/15 via-amber-100/70 to-white",
+    accent: "from-blue-500/10 via-white to-amber-50",
     icon: Clock,
     step: 1,
     description: "Tu reclamo ha sido recibido y está pendiente de asignación.",
@@ -94,7 +95,7 @@ const STATUS_CONFIG: Record<
   abierto: {
     label: "Recibido",
     color: "bg-amber-100 text-amber-700 border-amber-200",
-    accent: "from-amber-500/15 via-amber-100/70 to-white",
+    accent: "from-blue-500/10 via-white to-amber-50",
     icon: Clock,
     step: 1,
     description: "Tu reclamo ha sido registrado en el sistema.",
@@ -193,7 +194,7 @@ const formatShortDate = (value?: string | null) => {
 };
 
 const formatLastSync = (value?: Date | null) => {
-  if (!value) return "Sin sincronizar";
+  if (!value) return "Actualizando estado";
   const seconds = Math.max(
     0,
     Math.round((Date.now() - value.getTime()) / 1000),
@@ -203,6 +204,30 @@ const formatLastSync = (value?: Date | null) => {
   const minutes = Math.round(seconds / 60);
   if (minutes < 60) return `Actualizado hace ${minutes} min`;
   return `Actualizado ${format(value, "d MMM · HH:mm", { locale: es })}`;
+};
+
+type TicketNumberFallbackFields = Ticket & {
+  ticket_number?: string | number | null;
+  numero_ticket?: string | number | null;
+  numero?: string | number | null;
+  ticket_id?: string | number | null;
+};
+
+const resolvePublicTicketNumber = (
+  ticket?: Ticket | null,
+  fallback?: string | number | null,
+) => {
+  if (!ticket) return fallback ? String(fallback).trim() : "";
+  const source = ticket as TicketNumberFallbackFields;
+  const candidate =
+    source.nro_ticket ||
+    source.ticket_number ||
+    source.numero_ticket ||
+    source.numero ||
+    fallback ||
+    source.ticket_id ||
+    source.id;
+  return candidate ? String(candidate).trim() : "";
 };
 
 const coerceNumber = (value: unknown): number | null => {
@@ -255,8 +280,72 @@ const InfoMetric = ({
   </div>
 );
 
-const formatOperationalLabel = (value: string) =>
-  value.replaceAll("_", " ").replace(/\b\w/g, (char) => char.toUpperCase());
+const normalizeOperationalKey = (value: string) =>
+  value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+
+const PUBLIC_OPERATIONAL_LABELS: Record<string, string> = {
+  age_hours: "Antigüedad",
+  inactivity_hours: "Sin novedades",
+  response_hours: "Tiempo de respuesta",
+  first_response_hours: "Primera respuesta",
+  sla_sin_asignar: "Plazo pendiente",
+  sin_asignar: "Pendiente de asignación",
+  on_track: "En plazo",
+  nearing_sla: "Por vencer",
+  por_vencer: "Por vencer",
+  breached: "Vencido",
+  warning: "En riesgo",
+  unread: "Pendiente de revisión",
+  status_change: "Cambio de estado",
+};
+
+const INTERNAL_OPERATIONAL_METRIC_KEYS = new Set([
+  "active_viewers_count",
+  "idle_viewers_count",
+  "idle_viewer_count",
+  "read_count",
+  "read_state",
+  "last_read_comment_id",
+  "latest_comment_id",
+  "unread_viewer_count",
+  "viewer_count",
+]);
+
+const INTERNAL_OPERATIONAL_BADGE_KEYS = new Set([
+  ...INTERNAL_OPERATIONAL_METRIC_KEYS,
+  "priority_breakdown",
+  "priority_score",
+  "recommended_next_action",
+]);
+
+const formatOperationalLabel = (value: string) => {
+  const key = normalizeOperationalKey(value);
+  if (PUBLIC_OPERATIONAL_LABELS[key]) {
+    return PUBLIC_OPERATIONAL_LABELS[key];
+  }
+  return value.replaceAll("_", " ").replace(/\b\w/g, (char) => char.toUpperCase());
+};
+
+const formatOperationalMetricValue = (key: string, value: string) => {
+  if (key.endsWith("_hours")) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return `${parsed.toFixed(parsed >= 10 ? 0 : 1)} h`;
+    }
+  }
+  return value;
+};
+
+type PublicOperationalMetric = {
+  key: string;
+  label: string;
+  value: string;
+};
 
 const normalizeOperationalBadges = (value: Ticket["operational_badges"]) => {
   if (!Array.isArray(value)) return [];
@@ -275,6 +364,21 @@ const normalizeOperationalBadges = (value: Ticket["operational_badges"]) => {
 };
 
 const normalizeOperationalMetrics = (value: Ticket["operational_metrics"]) => {
+  const normalizeMetric = (
+    label: string,
+    metricValue: string | number,
+  ): PublicOperationalMetric | null => {
+    const key = normalizeOperationalKey(label);
+    if (!key || INTERNAL_OPERATIONAL_METRIC_KEYS.has(key)) {
+      return null;
+    }
+    return {
+      key,
+      label: formatOperationalLabel(label),
+      value: formatOperationalMetricValue(key, String(metricValue)),
+    };
+  };
+
   if (Array.isArray(value)) {
     return value
       .map((item) => {
@@ -284,11 +388,9 @@ const normalizeOperationalMetrics = (value: Ticket["operational_metrics"]) => {
           typeof item.value === "string" || typeof item.value === "number"
             ? String(item.value)
             : null;
-        return label && metricValue ? { label, value: metricValue } : null;
+        return label && metricValue ? normalizeMetric(label, metricValue) : null;
       })
-      .filter((item): item is { label: string; value: string } =>
-        Boolean(item),
-      );
+      .filter((item): item is PublicOperationalMetric => Boolean(item));
   }
 
   if (value && typeof value === "object") {
@@ -300,31 +402,15 @@ const normalizeOperationalMetrics = (value: Ticket["operational_metrics"]) => {
           metricValue === ""
         )
           return null;
-        return {
-          label: formatOperationalLabel(label),
-          value: String(metricValue),
-        };
+        if (typeof metricValue !== "string" && typeof metricValue !== "number") {
+          return null;
+        }
+        return normalizeMetric(label, metricValue);
       })
-      .filter((item): item is { label: string; value: string } =>
-        Boolean(item),
-      );
+      .filter((item): item is PublicOperationalMetric => Boolean(item));
   }
 
   return [];
-};
-
-const normalizePriorityBreakdown = (value: Ticket["priority_breakdown"]) => {
-  if (!value || typeof value !== "object") return [] as Array<{ label: string; value: string }>;
-
-  return Object.entries(value)
-    .map(([label, rawValue]) => {
-      if (rawValue === null || rawValue === undefined || rawValue === "") return null;
-      return {
-        label: formatOperationalLabel(label),
-        value: String(rawValue),
-      };
-    })
-    .filter((item): item is { label: string; value: string } => Boolean(item));
 };
 
 const getUnifiedStreamAppearance = (item: UnifiedConversationStreamItem) => {
@@ -387,15 +473,15 @@ const TicketQuickActionCard = ({
     <div
       className={`group rounded-[24px] border p-4 shadow-sm transition-all duration-300 ${
         disabled
-          ? "cursor-not-allowed border-slate-200 bg-slate-50/80 opacity-70 dark:border-slate-800 dark:bg-slate-900/60"
-          : "border-slate-200 bg-white/85 hover:-translate-y-1 hover:shadow-lg dark:border-slate-800 dark:bg-slate-900/80"
+          ? "cursor-not-allowed border-slate-200 bg-slate-50/90 opacity-70"
+          : "border-white/80 bg-white/95 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-xl hover:shadow-blue-100/70"
       }`}
     >
-      <div className="mb-3 inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-700 transition-colors group-hover:bg-blue-50 group-hover:text-blue-600 dark:bg-slate-800 dark:text-slate-300 dark:group-hover:bg-blue-500/20 dark:group-hover:text-blue-300">
+      <div className="mb-3 inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 ring-1 ring-blue-100 transition-colors group-hover:bg-blue-600 group-hover:text-white group-hover:ring-blue-600">
         <Icon className="h-5 w-5" />
       </div>
-      <h3 className="text-sm font-semibold text-slate-950 dark:text-slate-100">{title}</h3>
-      <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">{description}</p>
+      <h3 className="text-sm font-semibold text-slate-950">{title}</h3>
+      <p className="mt-1 text-sm leading-6 text-slate-500">{description}</p>
     </div>
   );
 
@@ -557,7 +643,7 @@ export default function TicketLookup() {
         "ticket_public_access",
         JSON.stringify({
           ticketId: resolvedTicket.id,
-          ticketNumber: resolvedTicket.nro_ticket,
+          ticketNumber: resolvePublicTicketNumber(resolvedTicket),
           pin,
           consulta_pin: pin,
           anon_id: anonId || null,
@@ -700,7 +786,7 @@ export default function TicketLookup() {
         syncPublicAccess(normalizedTicket, pinVal);
         trackFrontendEvent("tracking_public_lookup_succeeded", {
           ticket_id: normalizedTicket.id,
-          ticket_number: normalizedTicket.nro_ticket,
+          ticket_number: resolvePublicTicketNumber(normalizedTicket, id),
           status: normalizedTicket.estado,
           access_source: publicAccessSource,
           tenant_slug: normalizedTicket.tenant_slug || undefined,
@@ -783,6 +869,8 @@ export default function TicketLookup() {
     return () => window.clearTimeout(focusTimer);
   }, [isSupportOpen, supportMode]);
 
+  const publicTicketNumber = resolvePublicTicketNumber(ticket, ticketId);
+
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputTicketId.trim() || !inputPin.trim()) return;
@@ -801,7 +889,7 @@ export default function TicketLookup() {
     const tenantSlug = ticket?.tenant_slug || "municipio";
     const chatContext = {
       ticketId: ticket?.id,
-      ticketNumber: ticket?.nro_ticket,
+      ticketNumber: publicTicketNumber,
       action: "ticket_live_or_offline_message",
       consulta_pin: currentPin,
       pin: currentPin,
@@ -812,8 +900,8 @@ export default function TicketLookup() {
       JSON.stringify({
         action: "ticket_public_tracking",
         payload: chatContext,
-        text: ticket?.nro_ticket
-          ? `Seguimiento de reclamo #${ticket.nro_ticket}`
+        text: publicTicketNumber
+          ? `Seguimiento de reclamo #${publicTicketNumber}`
           : undefined,
       }),
     );
@@ -824,7 +912,7 @@ export default function TicketLookup() {
       setLiveChatStatus(status);
       trackFrontendEvent("tracking_live_chat_status_checked", {
         ticket_id: ticket.id,
-        ticket_number: ticket.nro_ticket,
+        ticket_number: publicTicketNumber,
         tenant_slug: tenantSlug,
         live_chat_available: Boolean(status?.enabled && status?.available),
       });
@@ -880,7 +968,7 @@ export default function TicketLookup() {
       );
       trackFrontendEvent("tracking_public_message_sent", {
         ticket_id: ticket.id,
-        ticket_number: ticket.nro_ticket,
+        ticket_number: publicTicketNumber,
         message_length: message.trim().length,
       });
       toast.success("Tu mensaje fue enviado.");
@@ -892,11 +980,11 @@ export default function TicketLookup() {
     } finally {
       setSubmittingPublicMessage(false);
     }
-  }, [currentPin, loadConversationData, message, ticket]);
+  }, [currentPin, loadConversationData, message, publicTicketNumber, ticket]);
 
   const copyToClipboard = () => {
-    if (ticket) {
-      navigator.clipboard.writeText(ticket.nro_ticket);
+    if (ticket && publicTicketNumber) {
+      navigator.clipboard.writeText(publicTicketNumber);
       toast.success("Número de reclamo copiado");
     }
   };
@@ -1000,28 +1088,71 @@ export default function TicketLookup() {
           badge: event.status,
         }));
   const timelineCountLabel = `${activityStream.length} ${activityStream.length === 1 ? "evento" : "eventos"}`;
+  const ticketCreatedAt = ticket
+    ? (
+        ticket.fecha_creacion ||
+        ticket.fecha ||
+        (ticket as Ticket & { created_at?: string | null }).created_at ||
+        (ticket as Ticket & { timestamp?: string | null }).timestamp ||
+        ticket.history?.[0]?.date ||
+        timelineHistory[0]?.date ||
+        publicMessages[0]?.timestamp
+      )
+    : null;
   const activeViewers = realtimeState?.active_viewers || [];
   const readStates = realtimeState?.read_states || [];
   const latestReadState = readStates[0] || null;
-  const idleViewersCount = Number(realtimeState?.summary?.idle_count || 0);
   const collaborationState = ticket?.collaboration_state || null;
+  const unreadViewersCount = Number(collaborationState?.unread_viewer_count || 0);
+  const activeViewersCount = Number(collaborationState?.active_viewers_count || 0);
+  const unreadMessagesCount = Number(collaborationState?.unread_count || 0);
+  const hasTeamAttentionSignal =
+    activeViewers.length > 0 ||
+    activeViewersCount > 0 ||
+    Boolean(latestReadState?.read_at) ||
+    unreadMessagesCount > 0 ||
+    unreadViewersCount > 0;
+  const attentionStatusTitle =
+    activeViewers.length > 0 || activeViewersCount > 0
+      ? "El equipo está revisando este reclamo"
+      : latestReadState?.read_at
+        ? "El equipo ya vio la conversación"
+        : unreadMessagesCount > 0 || unreadViewersCount > 0
+          ? "Hay mensajes pendientes de revisión"
+          : "Mensajes asociados al reclamo";
+  const attentionStatusDetail =
+    activeViewers.length > 0 || activeViewersCount > 0
+      ? "Hay personal administrativo trabajando sobre esta gestión en el CRM municipal."
+      : latestReadState?.read_at
+        ? `Última lectura registrada: ${formatMessageDate(latestReadState.read_at)}.`
+        : unreadMessagesCount > 0 || unreadViewersCount > 0
+          ? "La mesa de ayuda recibió novedades y el área correspondiente puede responder desde el panel."
+          : "Cada comentario que envíes queda unido al ticket para que lo responda el área correspondiente.";
   const operationalBadges = normalizeOperationalBadges(
     ticket?.operational_badges,
   );
   const operationalMetrics = normalizeOperationalMetrics(
     ticket?.operational_metrics,
   );
+  const slaPublicLabel = ticket?.sla_status
+    ? formatOperationalLabel(ticket.sla_status)
+    : "";
+  const visibleOperationalBadges = Array.from(
+    new Set(
+      operationalBadges
+        .filter((badge) => {
+          const key = normalizeOperationalKey(badge);
+          return key && !INTERNAL_OPERATIONAL_BADGE_KEYS.has(key);
+        })
+        .map((badge) => formatOperationalLabel(badge)),
+    ),
+  ).filter((badge) => badge && badge !== slaPublicLabel);
   const priorityLabel =
     ticket?.priority !== null &&
     ticket?.priority !== undefined &&
     ticket?.priority !== ""
       ? String(ticket.priority)
       : null;
-  const priorityScoreLabel =
-    ticket?.priority_score !== null && ticket?.priority_score !== undefined
-      ? String(ticket.priority_score)
-      : null;
-  const priorityBreakdown = normalizePriorityBreakdown(ticket?.priority_breakdown);
 
   useEffect(() => {
     if (!ticket || isResolved || !currentPin) return;
@@ -1075,6 +1206,7 @@ export default function TicketLookup() {
   ]);
 
   useEffect(() => {
+    if (!PUBLIC_TICKET_SIGNALING_ENABLED) return;
     if (!ticket || !currentPin) return;
 
     let cancelled = false;
@@ -1129,6 +1261,7 @@ export default function TicketLookup() {
   }, [ticket, currentPin]);
 
   useEffect(() => {
+    if (!PUBLIC_TICKET_SIGNALING_ENABLED) return;
     if (!ticket || !currentPin || publicMessages.length === 0) return;
 
     const lastMessage = publicMessages[publicMessages.length - 1];
@@ -1325,7 +1458,7 @@ export default function TicketLookup() {
                   <div className="mb-4 flex flex-wrap items-center justify-center gap-2">
                     <div className="inline-flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm ring-1 ring-slate-200/80">
                       <Hash className="h-3.5 w-3.5" />
-                      {ticket.nro_ticket}
+                      {publicTicketNumber}
                     </div>
                     <div className="inline-flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm ring-1 ring-slate-200/80">
                       <RefreshCw
@@ -1345,7 +1478,7 @@ export default function TicketLookup() {
                     <InfoMetric
                       icon={Calendar}
                       label="Creado"
-                      value={formatShortDate(ticket.fecha_creacion)}
+                      value={formatShortDate(ticketCreatedAt)}
                     />
                     <InfoMetric
                       icon={MessagesSquare}
@@ -1354,7 +1487,7 @@ export default function TicketLookup() {
                     />
                     <InfoMetric
                       icon={Sparkles}
-                      label="Timeline"
+                      label="Actividad"
                       value={timelineCountLabel}
                     />
                     <InfoMetric
@@ -1394,11 +1527,8 @@ export default function TicketLookup() {
 
                   {ticket?.sla_status ||
                   priorityLabel ||
-                  operationalBadges.length > 0 ||
-                  operationalMetrics.length > 0 ||
-                  priorityScoreLabel ||
-                  priorityBreakdown.length > 0 ||
-                  ticket?.recommended_next_action ? (
+                  visibleOperationalBadges.length > 0 ||
+                  operationalMetrics.length > 0 ? (
                     <div className="mx-auto mt-6 max-w-4xl rounded-3xl border border-white/80 bg-white/75 p-4 shadow-sm backdrop-blur">
                       <div className="flex flex-wrap items-center justify-center gap-2">
                         {ticket?.sla_status ? (
@@ -1406,7 +1536,7 @@ export default function TicketLookup() {
                             variant="outline"
                             className={getSlaBadgeClassName(ticket.sla_status)}
                           >
-                            SLA {formatOperationalLabel(ticket.sla_status)}
+                            Plazo de respuesta: {slaPublicLabel}
                           </Badge>
                         ) : null}
                         {priorityLabel ? (
@@ -1414,16 +1544,16 @@ export default function TicketLookup() {
                             variant="outline"
                             className="border-violet-200 bg-violet-100 text-violet-700"
                           >
-                            Prioridad {formatOperationalLabel(priorityLabel)}
+                            Nivel de atención: {formatOperationalLabel(priorityLabel)}
                           </Badge>
                         ) : null}
-                        {operationalBadges.map((badge) => (
+                        {visibleOperationalBadges.map((badge) => (
                           <Badge
                             key={badge}
                             variant="outline"
                             className="border-slate-200 bg-slate-100 text-slate-700"
                           >
-                            {formatOperationalLabel(badge)}
+                            {badge}
                           </Badge>
                         ))}
                       </div>
@@ -1431,47 +1561,12 @@ export default function TicketLookup() {
                         <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                           {operationalMetrics.map((metric) => (
                             <InfoMetric
-                              key={`${metric.label}-${metric.value}`}
+                              key={`${metric.key}-${metric.value}`}
                               icon={Sparkles}
                               label={metric.label}
                               value={metric.value}
                             />
                           ))}
-                        </div>
-                      ) : null}
-                      {(priorityScoreLabel ||
-                        priorityBreakdown.length > 0 ||
-                        ticket?.recommended_next_action) ? (
-                        <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50/80 p-4 text-left">
-                          <div className="flex flex-wrap items-center gap-2">
-                            {priorityScoreLabel ? (
-                              <Badge variant="outline" className="border-indigo-200 bg-indigo-50 text-indigo-700">
-                                Score {priorityScoreLabel}
-                              </Badge>
-                            ) : null}
-                            {ticket?.recommended_next_action ? (
-                              <Badge variant="outline" className="border-cyan-200 bg-cyan-50 text-cyan-700">
-                                Próxima acción sugerida
-                              </Badge>
-                            ) : null}
-                          </div>
-                          {priorityBreakdown.length > 0 ? (
-                            <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                              {priorityBreakdown.map((item) => (
-                                <InfoMetric
-                                  key={`${item.label}-${item.value}`}
-                                  icon={Sparkles}
-                                  label={item.label}
-                                  value={item.value}
-                                />
-                              ))}
-                            </div>
-                          ) : null}
-                          {ticket?.recommended_next_action ? (
-                            <p className="mt-3 text-sm text-slate-600">
-                              {ticket.recommended_next_action}
-                            </p>
-                          ) : null}
                         </div>
                       ) : null}
                     </div>
@@ -1543,7 +1638,7 @@ export default function TicketLookup() {
                         onClick={copyToClipboard}
                         className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:-translate-y-0.5 hover:bg-slate-100"
                       >
-                        #{ticket.nro_ticket}
+                        #{publicTicketNumber}
                         <Copy className="h-3 w-3" />
                       </button>
                     </div>
@@ -1598,7 +1693,7 @@ export default function TicketLookup() {
                       <InfoMetric
                         icon={Calendar}
                         label="Alta"
-                        value={formatShortDate(ticket.fecha_creacion)}
+                        value={formatShortDate(ticketCreatedAt)}
                       />
                     </div>
 
@@ -1647,7 +1742,7 @@ export default function TicketLookup() {
                           Historial de Actividad
                         </CardTitle>
                         <CardDescription>
-                          Timeline unificada del reclamo.
+                          Movimientos y mensajes asociados al reclamo.
                         </CardDescription>
                       </div>
                       <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500">
@@ -1686,7 +1781,7 @@ export default function TicketLookup() {
                               </Badge>
                               {event.is_unread ? (
                                 <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
-                                  Unread
+                                  Pendiente de revisión
                                 </Badge>
                               ) : null}
                             </div>
@@ -1734,89 +1829,20 @@ export default function TicketLookup() {
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4 pt-6">
-                    {(activeViewers.length > 0 || latestReadState) && (
-                      <div className="grid gap-3 md:grid-cols-2">
-                        <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
-                          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                            <Eye className="h-3.5 w-3.5" />
-                            Presence
+                    {hasTeamAttentionSignal ? (
+                      <div className="rounded-3xl border border-blue-100 bg-gradient-to-br from-blue-50 via-white to-cyan-50 px-5 py-4 shadow-sm">
+                        <div className="flex items-start gap-3">
+                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-200">
+                            <CheckCheck className="h-5 w-5" />
                           </div>
-                          <p className="mt-2 text-sm font-semibold text-slate-900">
-                            {activeViewers.length > 0
-                              ? `${activeViewers.length} ${activeViewers.length === 1 ? "viewer activo" : "viewers activos"}`
-                              : "Sin viewers activos"}
-                          </p>
-                          <p className="mt-1 text-xs text-slate-500">
-                            {idleViewersCount > 0
-                              ? `${idleViewersCount} ${idleViewersCount === 1 ? "viewer idle" : "viewers idle"}`
-                              : "Sin viewers idle"}
-                          </p>
-                          {activeViewers.length > 0 ? (
-                            <div className="mt-1 space-y-1 text-xs text-slate-500">
-                              {activeViewers.map((viewer, index) => {
-                                const viewerName =
-                                  viewer.viewer_label ||
-                                  viewer.viewer_name ||
-                                  viewer.viewer_id ||
-                                  "viewer";
-                                const effectiveStatus =
-                                  viewer.effective_presence_status ||
-                                  viewer.presence_status ||
-                                  "active";
-                                return (
-                                  <p key={`presence-viewer-${viewer.session_id || viewer.viewer_id || index}`}>
-                                    {viewerName} · {effectiveStatus}
-                                  </p>
-                                );
-                              })}
-                            </div>
-                          ) : null}
-                        </div>
-                        <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
-                          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                            <CheckCheck className="h-3.5 w-3.5" />
-                            Read state
-                          </div>
-                          <p className="mt-2 text-sm font-semibold text-slate-900">
-                            {latestReadState?.viewer_label ||
-                              latestReadState?.viewer_name ||
-                              "Sincronizado"}
-                          </p>
-                          {(latestReadState?.effective_presence_status || latestReadState?.presence_status) ? (
-                            <p className="mt-1 text-xs text-slate-500">
-                              Presence efectiva: {latestReadState?.effective_presence_status || latestReadState?.presence_status}
+                          <div>
+                            <p className="text-sm font-semibold text-slate-950">
+                              {attentionStatusTitle}
                             </p>
-                          ) : null}
-                          <p className="mt-1 text-xs text-slate-500">
-                            {latestReadState?.read_at
-                              ? `Última lectura: ${formatMessageDate(latestReadState.read_at)}`
-                              : "La lectura del timeline se envía automáticamente."}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                    {collaborationState &&
-                    (Number(collaborationState.unread_viewer_count || 0) > 0 ||
-                      Number(collaborationState.active_viewers_count || 0) > 0) ? (
-                      <div className="grid gap-3 md:grid-cols-2">
-                        <div className="rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-3">
-                          <div className="text-xs font-semibold uppercase tracking-[0.14em] text-amber-700">
-                            Unread
+                            <p className="mt-1 text-sm leading-6 text-slate-600">
+                              {attentionStatusDetail}
+                            </p>
                           </div>
-                          <p className="mt-2 text-sm font-semibold text-amber-950">
-                            {Number(collaborationState.unread_viewer_count || 0)}{" "}
-                            {Number(collaborationState.unread_viewer_count || 0) === 1
-                              ? "viewer con unread"
-                              : "viewers con unread"}
-                          </p>
-                        </div>
-                        <div className="rounded-2xl border border-violet-200 bg-violet-50/80 px-4 py-3">
-                          <div className="text-xs font-semibold uppercase tracking-[0.14em] text-violet-700">
-                            Active viewers
-                          </div>
-                          <p className="mt-2 text-sm font-semibold text-violet-950">
-                            {Number(collaborationState.active_viewers_count || 0)} activos
-                          </p>
                         </div>
                       </div>
                     ) : null}
@@ -1946,7 +1972,7 @@ export default function TicketLookup() {
                           onClick={() =>
                             trackFrontendEvent("tracking_public_maps_opened", {
                               ticket_id: ticket.id,
-                              ticket_number: ticket.nro_ticket,
+                              ticket_number: publicTicketNumber,
                               has_coordinates: hasCoordinates,
                             })
                           }
@@ -2027,7 +2053,7 @@ export default function TicketLookup() {
                       <LookupSidebarMetric
                         icon={Hash}
                         label="Número"
-                        value={ticket.nro_ticket}
+                        value={publicTicketNumber}
                       />
                     </div>
                     <Button
@@ -2061,7 +2087,7 @@ export default function TicketLookup() {
                 {supportModeTitle}
               </DialogTitle>
               <DialogDescription className="text-left dark:text-slate-400">
-                Gestión <b>#{ticket?.nro_ticket}</b>. {supportModeDescription}
+                Gestión <b>#{publicTicketNumber}</b>. {supportModeDescription}
               </DialogDescription>
             </DialogHeader>
           </div>
@@ -2137,13 +2163,14 @@ export default function TicketLookup() {
       </Dialog>
 
       {ticket ? (
-        <div className="fixed inset-x-0 bottom-3 z-40 px-4 sm:hidden">
-          <div className="mx-auto grid max-w-md grid-cols-3 gap-2 rounded-2xl border border-white/80 bg-white/90 p-2 shadow-2xl backdrop-blur">
+        <div className="mx-auto w-full max-w-5xl px-4 pb-8 sm:hidden">
+          <div className="mx-auto grid max-w-md grid-cols-3 gap-2 rounded-2xl border border-white/80 bg-white/90 p-2 shadow-xl shadow-slate-200/70 backdrop-blur">
             <Button
               type="button"
               variant="outline"
               className="h-10 rounded-xl"
               onClick={copyToClipboard}
+              aria-label="Copiar número de reclamo"
             >
               <Copy className="h-4 w-4" />
             </Button>
@@ -2154,6 +2181,7 @@ export default function TicketLookup() {
                 setSupportMode("comment");
                 setIsSupportOpen(true);
               }}
+              aria-label="Agregar comentario al reclamo"
             >
               <MessageCircle className="h-4 w-4" />
             </Button>
@@ -2166,6 +2194,7 @@ export default function TicketLookup() {
                   performSearch(ticketId, currentPin);
                 }
               }}
+              aria-label="Actualizar estado del reclamo"
             >
               <RefreshCw className="h-4 w-4" />
             </Button>

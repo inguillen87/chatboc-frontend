@@ -1982,6 +1982,13 @@ html {
     top: calc(4.75rem + env(safe-area-inset-top));
     bottom: auto;
   }
+
+  .chatboc-a11y-dock.chatboc-a11y-dock--public-ticket {
+    left: auto;
+    right: calc(3.75rem + env(safe-area-inset-right));
+    top: calc(0.65rem + env(safe-area-inset-top));
+    bottom: auto;
+  }
 }
 
 @keyframes pulse-subtle {

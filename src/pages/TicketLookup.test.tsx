@@ -149,6 +149,141 @@ describe('TicketLookup request_id support surface', () => {
     expect(screen.queryByText(/todav[aí]a no hay mensajes públicos/i)).not.toBeInTheDocument();
   });
 
+  it('renders ticket operational state with public copy instead of internal CRM labels', async () => {
+    getTicketByNumberMock.mockResolvedValue({
+      id: 400,
+      tipo: 'municipio',
+      tenant_slug: 'junin',
+      nro_ticket: 'M-378430',
+      asunto: 'Arreglo de calle',
+      estado: 'pendiente',
+      fecha: '2026-06-06T03:03:47.626Z',
+      email: 'demo@example.com',
+      history: [],
+      messages: [
+        {
+          id: 334,
+          author: 'user',
+          content: 'hola que tal como va mi reclamo?',
+          timestamp: '2026-06-06T03:04:47.245Z',
+        },
+      ],
+      sla_status: 'nearing_sla',
+      operational_badges: ['sla_sin_asignar', 'sin_asignar', 'active_viewers_count'],
+      operational_metrics: [
+        { label: 'AGE HOURS', value: '5.57' },
+        { label: 'INACTIVITY HOURS', value: '2.25' },
+        { label: 'active_viewers_count', value: '2' },
+      ],
+      priority_score: 0.82,
+      priority_breakdown: { urgency: 'high' },
+      recommended_next_action: 'Asignar inspector interno',
+      collaboration_state: {
+        unread_count: 1,
+        unread_viewer_count: 1,
+        active_viewers_count: 1,
+      },
+      realtime_state: {
+        viewers: [],
+        active_viewers: [
+          {
+            viewer_id: 'agent-1',
+            viewer_label: 'Mesa de ayuda',
+            presence_status: 'active',
+            read_at: '2026-06-06T03:06:47.245Z',
+          },
+        ],
+        read_states: [
+          {
+            viewer_id: 'agent-1',
+            viewer_label: 'Mesa de ayuda',
+            read_at: '2026-06-06T03:06:47.245Z',
+          },
+        ],
+        summary: {
+          active_count: 1,
+          idle_count: 0,
+          read_count: 1,
+        },
+      },
+    });
+    getTicketTimelineMock.mockResolvedValue({
+      estado_chat: '',
+      history: [],
+      messages: [],
+      unified_conversation_stream: [
+        {
+          id: 'event-1',
+          timestamp: '2026-06-06T03:04:47.245Z',
+          actor_type: 'citizen',
+          preview_text: 'hola que tal como va mi reclamo?',
+          stream_type: 'message',
+          badge: 'unread',
+          is_unread: true,
+        },
+      ],
+    });
+    getTicketMessagesMock.mockResolvedValue({
+      messages: [],
+      realtimeState: null,
+    });
+
+    render(<TicketLookup />);
+
+    expect(await screen.findByText('Antigüedad')).toBeInTheDocument();
+    expect(screen.getByText('5.6 h')).toBeInTheDocument();
+    expect(screen.getByText('Sin novedades')).toBeInTheDocument();
+    expect(screen.getByText('2.3 h')).toBeInTheDocument();
+    expect(screen.getByText('Actividad')).toBeInTheDocument();
+    expect(screen.getByText(/Plazo de respuesta: Por vencer/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/Pendiente de asignaci[oó]n/i).length).toBeGreaterThan(0);
+    expect(await screen.findByText(/El equipo est[aá] revisando este reclamo/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/Pendiente de revisi[oó]n/i).length).toBeGreaterThan(0);
+
+    expect(screen.queryByText(/^Timeline$/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/SLA/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/AGE HOURS/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/INACTIVITY HOURS/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/active_viewers_count/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Presence/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Read state/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Unread$/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/viewer/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Score/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Asignar inspector interno/i)).not.toBeInTheDocument();
+  });
+
+  it('uses the route ticket number when the public ticket payload omits nro_ticket', async () => {
+    getTicketByNumberMock.mockResolvedValue({
+      id: 400,
+      tipo: 'municipio',
+      tenant_slug: 'junin',
+      asunto: 'Arreglo de calle',
+      estado: 'pendiente',
+      fecha: '2026-06-06T03:03:47.626Z',
+      history: [],
+      messages: [],
+    });
+    getTicketTimelineMock.mockResolvedValue({
+      estado_chat: '',
+      history: [],
+      messages: [],
+      unified_conversation_stream: [],
+    });
+    getTicketMessagesMock.mockResolvedValue({
+      messages: [],
+      realtimeState: null,
+    });
+
+    render(<TicketLookup />);
+
+    expect(await screen.findAllByText('REC-12345')).not.toHaveLength(0);
+
+    fireEvent.click(screen.getAllByRole('button', { name: /Agregar comentario/i })[0]);
+
+    expect(await screen.findByRole('dialog')).toHaveTextContent('Gestión #REC-12345');
+  });
+
   it('opens the ticket live channel and sends the public message with the secure PIN', async () => {
     getTicketByNumberMock.mockResolvedValue({
       id: 400,

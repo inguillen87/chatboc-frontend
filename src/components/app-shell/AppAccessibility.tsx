@@ -7,6 +7,7 @@ import AccessibilityToggle, {
 } from "@/components/chat/AccessibilityToggle";
 
 const DOCK_HIDDEN_SEGMENTS = new Set(["iframe", "integracion"]);
+const PUBLIC_TICKET_SEGMENTS = new Set(["chat", "ticket"]);
 
 function shouldHideDock(pathname: string) {
   return pathname
@@ -16,9 +17,18 @@ function shouldHideDock(pathname: string) {
     .some((segment) => DOCK_HIDDEN_SEGMENTS.has(segment));
 }
 
+function isPublicTicketRoute(pathname: string) {
+  return pathname
+    .toLowerCase()
+    .split("/")
+    .filter(Boolean)
+    .some((segment) => PUBLIC_TICKET_SEGMENTS.has(segment));
+}
+
 export function AppAccessibility() {
   const location = useLocation();
   const hideDock = shouldHideDock(location.pathname);
+  const publicTicketRoute = isPublicTicketRoute(location.pathname);
 
   useEffect(() => {
     applyAccessibilityPrefs(readAccessibilityPrefs());
@@ -31,7 +41,9 @@ export function AppAccessibility() {
       </a>
       {!hideDock ? (
         <div
-          className="chatboc-a11y-dock"
+          className={`chatboc-a11y-dock${
+            publicTicketRoute ? " chatboc-a11y-dock--public-ticket" : ""
+          }`}
           role="region"
           aria-label="Accesibilidad de la plataforma"
         >
