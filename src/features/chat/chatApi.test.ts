@@ -36,7 +36,20 @@ vi.mock('@/utils/api', () => {
   };
 });
 
-import { normalizeLeadCaptureResponse, sendChatBootstrapMessage, submitLeadCapture } from './chatApi';
+import {
+  extractChatBootstrapReplyText,
+  normalizeLeadCaptureResponse,
+  sendChatBootstrapMessage,
+  submitLeadCapture,
+} from './chatApi';
+
+describe('extractChatBootstrapReplyText', () => {
+  it('reads modern agent message fields before falling back to generic keys', () => {
+    expect(extractChatBootstrapReplyText({ message_body: 'Respuesta operativa' })).toBe('Respuesta operativa');
+    expect(extractChatBootstrapReplyText({ agent: { message_body: 'Respuesta del agente' } })).toBe('Respuesta del agente');
+    expect(extractChatBootstrapReplyText({ output: { assistant_message: 'Respuesta final' } })).toBe('Respuesta final');
+  });
+});
 
 describe('sendChatBootstrapMessage', () => {
   beforeEach(() => {

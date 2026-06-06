@@ -306,29 +306,36 @@ const normalizeQuickMenu = (quickMenu: unknown): QuickReplyItem[] => {
       }
       if (typeof item !== 'object') return null;
       const source = item as Record<string, unknown>;
-      const label =
-        typeof source.label === 'string'
-          ? source.label.trim()
-          : typeof source.texto === 'string'
-            ? source.texto.trim()
-          : typeof source.title === 'string'
-            ? source.title.trim()
-            : typeof source.text === 'string'
-              ? source.text.trim()
-              : '';
+      const label = readFirstString(
+        source.label,
+        source.texto,
+        source.title,
+        source.text,
+        source.name,
+        source.display_name,
+        source.cta_label,
+      );
       if (!label) return null;
-      const actionId = readFirstString(source.action_id, source.intent, source.action, source.id, source.key);
+      const actionId = readFirstString(
+        source.action_id,
+        source.intent,
+        source.action,
+        source.id,
+        source.key,
+        source.template_intent,
+        source.value,
+      );
       const payload = isRecord(source.payload)
         ? source.payload
         : typeof source.payload === 'string'
           ? source.payload
-          : label;
+          : actionId || label;
       return {
-        id: String(source.id || source.key || `quick-menu-${index}`),
+        id: readFirstString(source.id, source.key, source.action_id, source.intent) || `quick-menu-${index}`,
         label,
         payload,
-        intent: readFirstString(source.intent) ?? actionId ?? null,
-        action_id: actionId ?? null,
+        intent: readFirstString(source.intent, source.template_intent) || actionId || null,
+        action_id: actionId || null,
       };
     })
     .filter(Boolean) as QuickReplyItem[];
@@ -336,13 +343,27 @@ const normalizeQuickMenu = (quickMenu: unknown): QuickReplyItem[] => {
 
 const extractRuntimeQuickReplies = (response: unknown): QuickReplyItem[] => {
   if (!isRecord(response)) return [];
-  const source =
-    Array.isArray(response.botones) ? response.botones :
-      Array.isArray(response.buttons) ? response.buttons :
-        Array.isArray(response.quick_replies) ? response.quick_replies :
-          Array.isArray(response.options_list) ? response.options_list :
-            Array.isArray(readNestedRecord(response, ['data'])?.buttons) ? readNestedRecord(response, ['data'])?.buttons :
-              [];
+  const data = readNestedRecord(response, ['data']);
+  const agent = readNestedRecord(response, ['agent']);
+  const normalized = readNestedRecord(response, ['normalized']);
+  const source = [
+    response.botones,
+    response.buttons,
+    response.quick_replies,
+    response.options_list,
+    response.next_actions,
+    response.suggested_actions,
+    response.agent_actions,
+    response.actions,
+    data?.buttons,
+    data?.quick_replies,
+    data?.options,
+    data?.items,
+    data?.next_actions,
+    agent?.next_actions,
+    agent?.suggested_actions,
+    normalized?.next_actions,
+  ].find(Array.isArray) ?? [];
   if (!Array.isArray(source)) return [];
   return normalizeQuickMenu(source);
 };
@@ -403,6 +424,24 @@ const isTechnicalAssistantReply = (response: unknown, replyText?: string | null)
   }
 
   const normalized = String(replyText ?? '').trim().toLowerCase();
+  if (!normalized) return false;
+  if (normalized === 'undefined' || normalized === 'null' || normalized === '[object object]') return true;
+  if (
+    (normalized.startsWith('{') || normalized.startsWith('[')) &&
+    (
+      normalized.includes('"accion_backend"') ||
+      normalized.includes('"contract_version"') ||
+      normalized.includes('"message_body"') ||
+      normalized.includes('"datos_estructura"')
+    )
+  ) return true;
+  if (
+    normalized.includes('traceback') ||
+    normalized.includes('stack trace') ||
+    normalized.includes('sqlalchemy') ||
+    normalized.includes('typeerror:') ||
+    normalized.includes('keyerror:')
+  ) return true;
   return [
     'not found',
     'method not allowed',

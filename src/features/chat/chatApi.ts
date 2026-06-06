@@ -591,8 +591,12 @@ export const extractChatBootstrapReplyText = (response: unknown): string | null 
   if (!isRecord(response)) return null;
 
   const directKeys = [
+    'message_body',
     'respuesta_usuario',
     'respuesta',
+    'agent_message',
+    'assistant_message',
+    'output_text',
     'response',
     'answer',
     'message',
@@ -606,7 +610,7 @@ export const extractChatBootstrapReplyText = (response: unknown): string | null 
     if (typeof value === 'string' && value.trim()) return value.trim();
   }
 
-  for (const key of ['data', 'message', 'bot_message', 'assistant']) {
+  for (const key of ['data', 'message', 'bot_message', 'assistant', 'agent', 'output', 'result', 'payload']) {
     const nested = response[key];
     if (isRecord(nested)) {
       const nestedText = extractChatBootstrapReplyText(nested);
