@@ -499,7 +499,7 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
          <div className="text-center text-muted-foreground">
             <Info className="h-12 w-12 mx-auto mb-4" />
             <h3 className="font-semibold">Detalles del Ticket</h3>
-            <p className="text-sm">Selecciona un ticket para ver los detalles del cliente y del caso.</p>
+            <p className="text-sm">Seleccioná un ticket para ver los detalles del cliente y del caso.</p>
          </div>
        </aside>
     );

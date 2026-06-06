@@ -407,6 +407,20 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
 
     return formatRelativeTime(value);
   }, [lastMessage]);
+  const operationalTimelineItems = useMemo(
+    () =>
+      timelineItems.filter((item) => {
+        const streamType = String(item.stream_type || '').toLowerCase();
+        const source = String(item.source || '').toLowerCase();
+        return (
+          streamType !== 'message' &&
+          streamType !== 'comentario' &&
+          source !== 'chat_history' &&
+          source !== 'timeline_comment'
+        );
+      }),
+    [timelineItems],
+  );
   const isResponsePending = lastMessage ? !lastMessage.isBot : false;
   const notifyDeliveryIssue = useCallback(
     (result: TicketHistoryDeliveryResult, contextMessage: string) => {
@@ -686,7 +700,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
       <div className="flex h-full flex-col items-center justify-center bg-muted/20 p-4 text-center">
         <img src={CHATBOC_ORBIT_AVATAR} alt="Chatboc Logo" className="w-24 h-24 mb-4" />
         <h2 className="text-2xl font-bold text-foreground">Bienvenido al Panel de Tickets</h2>
-        <p className="text-lg text-muted-foreground">Selecciona un ticket de la lista para comenzar a trabajar.</p>
+        <p className="text-lg text-muted-foreground">Seleccioná un ticket de la lista para comenzar a trabajar.</p>
       </div>
     );
   }
@@ -805,16 +819,6 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
-          {showDetailsToggle && (
-            <Button
-              variant={isDetailsVisible ? 'secondary' : 'ghost'}
-              size="icon"
-              onClick={onToggleDetails}
-              aria-label={isDetailsVisible ? 'Ocultar detalles' : 'Mostrar detalles'}
-            >
-              <Info className="h-5 w-5" />
-            </Button>
-          )}
         </div>
       </header>
 
@@ -883,12 +887,17 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
                   Timeline parcial: se cargó conversación base y se reintentará actualizar eventos omnicanal.
                 </div>
               )}
-              {timelineItems.length > 0 && (
-                <div className="mb-4 space-y-2 rounded-xl border border-border/60 bg-background/80 p-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Timeline omnicanal</p>
+              {operationalTimelineItems.length > 0 && (
+                <div className="mb-4 space-y-2 rounded-lg border border-border/60 bg-background/80 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Actividad del reclamo</p>
+                    <Badge variant="outline" className="text-[11px]">
+                      {operationalTimelineItems.length} eventos
+                    </Badge>
+                  </div>
                   <div className="space-y-2">
-                    {timelineItems.slice(-8).map((item) => (
-                      <div key={item.id} className="rounded-lg border border-border/50 bg-muted/30 px-2 py-1">
+                    {operationalTimelineItems.slice(-5).map((item) => (
+                      <div key={item.id} className="rounded-md border border-border/50 bg-muted/30 px-2 py-1.5">
                         <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{item.source || item.stream_type || 'evento'}</p>
                         <p className="text-sm text-foreground">{item.preview_text}</p>
                       </div>

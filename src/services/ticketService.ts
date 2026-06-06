@@ -34,38 +34,137 @@ const normalizeTicketPayload = <T extends Ticket>(ticket: T): T => {
     };
 };
 
+const parseAdminFlag = (val: any): boolean => {
+    if (val === undefined || val === null) return false;
+    if (typeof val === 'boolean') return val;
+    if (typeof val === 'number') return val !== 0;
+    if (typeof val === 'string') {
+        const normalized = val.trim().toLowerCase();
+        if (['1', 'true', 't', 'yes', 'y', 'si', 's'].includes(normalized)) return true;
+        if (['0', 'false', 'f', 'no', 'n'].includes(normalized)) return false;
+        return Boolean(normalized);
+    }
+    return Boolean(val);
+};
+
+const normalizeTicketMessages = (rawMsgs: any[] | undefined | null): Message[] => {
+    if (!Array.isArray(rawMsgs)) return [];
+
+    return rawMsgs.map((m: any, idx: number) => {
+        const combinedAttachments: any[] = [];
+        for (const value of [
+            m.archivos_adjuntos,
+            m.attachments,
+            m.adjuntos,
+        ]) {
+            if (!value) {
+                continue;
+            }
+            if (Array.isArray(value)) {
+                combinedAttachments.push(...value);
+            } else {
+                combinedAttachments.push(value);
+            }
+        }
+        const normalizedAttachments =
+            combinedAttachments.length > 0 ? combinedAttachments : undefined;
+
+        return {
+            id: m.id ?? m.comentario_id ?? m.comment_id ?? idx,
+            author: parseAdminFlag(
+                m.es_admin ?? m.esAdmin ?? m.is_admin ?? m.isAdmin,
+            )
+                ? 'agent'
+                : 'user',
+            agentName: m.nombre_agente || m.agentName || m.autor_nombre || m.author_name,
+            content: m.content || m.texto || m.mensaje || m.comentario || '',
+            timestamp:
+                typeof m.timestamp === 'number'
+                    ? new Date(m.timestamp).toISOString()
+                    : m.timestamp || m.fecha || m.created_at || new Date().toISOString(),
+            attachments: normalizedAttachments,
+            archivos_adjuntos: normalizedAttachments,
+            botones: m.botones,
+            structuredContent: m.structuredContent,
+            ubicacion: m.ubicacion,
+            readAt: m.read_at ?? m.readAt ?? null,
+            lastReadBy: m.last_read_by ?? m.lastReadBy ?? null,
+        } as Message;
+    });
+};
+
+const getInlineTicketMessageSource = (ticket: any): any[] => {
+    if (!ticket || typeof ticket !== 'object') return [];
+    for (const key of ['mensajes', 'messages', 'comentarios', 'comments', 'historial_chat', 'chat_history']) {
+        const value = ticket[key];
+        if (Array.isArray(value) && value.length > 0) {
+            return value;
+        }
+    }
+    return [];
+};
+
 const normalizeRealtimeViewer = (raw: any): TicketRealtimeViewer | null => {
     if (!raw || typeof raw !== 'object') return null;
 
     return {
-        viewer_id: raw.viewer_id ?? raw.viewerId ?? raw.user_id ?? null,
-        viewer_label: raw.viewer_label ?? raw.viewerLabel ?? raw.viewer_name ?? raw.viewerName ?? null,
+        viewer_id: raw.viewer_id ?? raw.viewerId ?? raw.viewer_key ?? raw.viewerKey ?? raw.user_id ?? null,
+        viewer_label: raw.viewer_label ?? raw.viewerLabel ?? raw.viewer_name ?? raw.viewerName ?? raw.viewer_key ?? null,
         viewer_name: raw.viewer_name ?? raw.viewerName ?? raw.viewer_label ?? raw.viewerLabel ?? null,
-        session_id: raw.session_id ?? raw.sessionId ?? null,
+        session_id: raw.session_id ?? raw.sessionId ?? raw.active_session_id ?? raw.activeSessionId ?? null,
         presence_status: raw.presence_status ?? raw.presenceStatus ?? raw.status ?? null,
         effective_presence_status: raw.effective_presence_status ?? raw.effectivePresenceStatus ?? null,
         last_read_comment_id: raw.last_read_comment_id ?? raw.lastReadCommentId ?? null,
-        read_at: raw.read_at ?? raw.readAt ?? null,
-        updated_at: raw.updated_at ?? raw.updatedAt ?? null,
+        read_at: raw.read_at ?? raw.readAt ?? raw.last_read_at ?? raw.lastReadAt ?? null,
+        updated_at: raw.updated_at ?? raw.updatedAt ?? raw.last_presence_at ?? raw.lastPresenceAt ?? null,
         is_current_viewer: Boolean(raw.is_current_viewer ?? raw.isCurrentViewer ?? false),
+        unread_count:
+            typeof raw.unread_count === 'number'
+                ? raw.unread_count
+                : Number(raw.unread_count ?? raw.unreadCount ?? 0) || 0,
+        has_unread: Boolean(raw.has_unread ?? raw.hasUnread ?? false),
     };
 };
 
 const normalizeRealtimeState = (raw: any): TicketRealtimeState | null => {
     if (!raw || typeof raw !== 'object') return null;
 
-    const viewers = Array.isArray(raw.viewers)
+    const readState = raw.read_state && typeof raw.read_state === 'object'
+        ? raw.read_state
+        : raw.readState && typeof raw.readState === 'object'
+            ? raw.readState
+            : null;
+    const presence = raw.presence && typeof raw.presence === 'object'
+        ? raw.presence
+        : null;
+    const viewerSource = Array.isArray(raw.viewers)
         ? raw.viewers
+        : Array.isArray(readState?.viewers)
+            ? readState.viewers
+            : [];
+    const activeViewerSource = Array.isArray(raw.active_viewers)
+        ? raw.active_viewers
+        : Array.isArray(presence?.active_viewers)
+            ? presence.active_viewers
+            : [];
+    const readStateSource = Array.isArray(raw.read_states)
+        ? raw.read_states
+        : Array.isArray(readState?.viewers)
+            ? readState.viewers
+            : [];
+
+    const viewers = viewerSource.length
+        ? viewerSource
             .map(normalizeRealtimeViewer)
             .filter((viewer): viewer is TicketRealtimeViewer => Boolean(viewer))
         : [];
-    const active_viewers = Array.isArray(raw.active_viewers)
-        ? raw.active_viewers
+    const active_viewers = activeViewerSource.length
+        ? activeViewerSource
             .map(normalizeRealtimeViewer)
             .filter((viewer): viewer is TicketRealtimeViewer => Boolean(viewer))
         : viewers.filter((viewer) => viewer.presence_status === 'active');
-    const read_states = Array.isArray(raw.read_states)
-        ? raw.read_states
+    const read_states = readStateSource.length
+        ? readStateSource
             .map(normalizeRealtimeViewer)
             .filter((viewer): viewer is TicketRealtimeViewer => Boolean(viewer))
         : viewers.filter(
@@ -73,6 +172,11 @@ const normalizeRealtimeState = (raw: any): TicketRealtimeState | null => {
                 viewer.last_read_comment_id !== null &&
                 viewer.last_read_comment_id !== undefined,
         );
+    const currentLastReadCommentId =
+        raw.summary?.last_read_comment_id ??
+        raw.summary?.lastReadCommentId ??
+        read_states[0]?.last_read_comment_id ??
+        null;
 
     return {
         viewers,
@@ -81,16 +185,16 @@ const normalizeRealtimeState = (raw: any): TicketRealtimeState | null => {
         summary:
             raw.summary && typeof raw.summary === 'object'
                 ? {
-                      active_count: raw.summary.active_count ?? active_viewers.length,
+                      active_count: raw.summary.active_count ?? presence?.active_count ?? active_viewers.length,
                       idle_count: raw.summary.idle_count ?? raw.summary.idleCount ?? 0,
                       read_count: raw.summary.read_count ?? read_states.length,
-                      last_read_comment_id: raw.summary.last_read_comment_id ?? null,
+                      last_read_comment_id: currentLastReadCommentId,
                   }
                 : {
-                      active_count: active_viewers.length,
-                      idle_count: viewers.filter((viewer) => viewer.effective_presence_status === 'idle').length,
+                      active_count: presence?.active_count ?? active_viewers.length,
+                      idle_count: presence?.idle_count ?? viewers.filter((viewer) => viewer.effective_presence_status === 'idle').length,
                       read_count: read_states.length,
-                      last_read_comment_id: read_states[0]?.last_read_comment_id ?? null,
+                      last_read_comment_id: currentLastReadCommentId,
                   },
     };
 };
@@ -371,7 +475,7 @@ export const getTicketById = async (id: string): Promise<Ticket> => {
             Ticket & { historial?: TicketHistoryEvent[]; mensajes?: Message[] }
         >(ticketApiPath(`/tickets/municipio/${id}`));
         const history = (response as any).history || response.historial || [];
-        let messages = (response as any).mensajes || (response as any).messages || [];
+        let messages = normalizeTicketMessages(getInlineTicketMessageSource(response));
         if (!messages.length) {
             try {
                 messages = (await getTicketMessages(response.id, response.tipo)).messages;
@@ -420,7 +524,7 @@ export const getTicketByNumber = async (
                 pin,
             });
             const history = (response as any).history || response.historial || [];
-            let messages = (response as any).mensajes || (response as any).messages || [];
+            let messages = normalizeTicketMessages(getInlineTicketMessageSource(response));
             if (!messages.length) {
                 try {
                     messages = (await getTicketMessages(response.id, response.tipo, {
@@ -800,61 +904,7 @@ export const getTicketMessages = async (
     const response = await apiFetch<{ mensajes?: any[]; messages?: any[]; realtime_state?: any }>(endpoint, fetchOptions);
     const rawMsgs = response.mensajes || response.messages || [];
     const realtimeState = normalizeRealtimeState((response as any).realtime_state);
-
-    const parseAdminFlag = (val: any): boolean => {
-      if (val === undefined || val === null) return false;
-      if (typeof val === 'boolean') return val;
-      if (typeof val === 'number') return val !== 0;
-      if (typeof val === 'string') {
-        const normalized = val.trim().toLowerCase();
-        if (['1', 'true', 't', 'yes', 'y', 'si', 's'].includes(normalized)) return true;
-        if (['0', 'false', 'f', 'no', 'n'].includes(normalized)) return false;
-        return Boolean(normalized);
-      }
-      return Boolean(val);
-    };
-
-    const messages = rawMsgs.map((m: any, idx: number) => {
-      const combinedAttachments: any[] = [];
-      for (const value of [
-        m.archivos_adjuntos,
-        m.attachments,
-        m.adjuntos,
-      ]) {
-        if (!value) {
-          continue;
-        }
-        if (Array.isArray(value)) {
-          combinedAttachments.push(...value);
-        } else {
-          combinedAttachments.push(value);
-        }
-      }
-      const normalizedAttachments =
-        combinedAttachments.length > 0 ? combinedAttachments : undefined;
-
-      return {
-        id: m.id ?? idx,
-        author: parseAdminFlag(
-          m.es_admin ?? m.esAdmin ?? m.is_admin ?? m.isAdmin,
-        )
-          ? 'agent'
-          : 'user',
-        agentName: m.nombre_agente || m.agentName,
-        content: m.content || m.texto || m.mensaje || '',
-        timestamp:
-          typeof m.timestamp === 'number'
-            ? new Date(m.timestamp).toISOString()
-            : m.timestamp || m.fecha || new Date().toISOString(),
-        attachments: normalizedAttachments,
-        archivos_adjuntos: normalizedAttachments,
-        botones: m.botones,
-        structuredContent: m.structuredContent,
-        ubicacion: m.ubicacion,
-        readAt: m.read_at ?? m.readAt ?? null,
-        lastReadBy: m.last_read_by ?? m.lastReadBy ?? null,
-      };
-    });
+    const messages = normalizeTicketMessages(rawMsgs);
 
     const legacyCompatible = messages as TicketMessagesResult;
     legacyCompatible.messages = messages;
@@ -883,6 +933,7 @@ export const getTicketTimeline = async (
     const response = await apiFetch<TicketTimelineResponse>(endpoint, fetchOpts);
     const history: TicketHistoryEvent[] = [];
     const messages: Message[] = [];
+    const seenMessageKeys = new Set<string>();
     const parseAdminFlag = (val: any): boolean | null => {
       if (val === undefined || val === null) return null;
       if (typeof val === 'boolean') return val;
@@ -895,19 +946,59 @@ export const getTicketTimeline = async (
       }
       return Boolean(val);
     };
+    const normalizeTimelineMessage = (raw: any, idx: number, source: 'chat_history' | 'timeline'): Message | null => {
+      if (!raw || typeof raw !== 'object') return null;
+      const content =
+        raw.comentario ??
+        raw.texto ??
+        raw.mensaje ??
+        raw.content ??
+        '';
+      const normalizedContent = String(content || '').trim();
+      if (!normalizedContent) return null;
+      const timestamp = raw.fecha ?? raw.timestamp ?? raw.created_at ?? new Date().toISOString();
+      const id =
+        raw.id ??
+        raw.comment_id ??
+        raw.comentario_id ??
+        `${source}:${idx}:${timestamp}:${normalizedContent.slice(0, 64)}`;
+      const adminFlag = parseAdminFlag(raw.es_admin);
+      const isAgent = adminFlag ?? (
+        ['municipio', 'pyme', 'admin', 'agente', 'agent'].includes(String(raw.autor || raw.actor_type || '').toLowerCase()) ||
+        !!raw.user_id
+      );
+      return {
+        id,
+        author: isAgent ? 'agent' : 'user',
+        content: normalizedContent,
+        timestamp,
+      };
+    };
+    const appendMessage = (candidate: Message | null) => {
+      if (!candidate) return;
+      const key = candidate.id !== undefined && candidate.id !== null
+        ? `id:${candidate.id}`
+        : `fp:${candidate.author}:${candidate.timestamp}:${candidate.content.toLowerCase()}`;
+      if (seenMessageKeys.has(key)) return;
+      seenMessageKeys.add(key);
+      messages.push(candidate);
+    };
+
+    const historialChat = Array.isArray((response as any).historial_chat)
+      ? (response as any).historial_chat
+      : [];
+    const hasCanonicalChatHistory = historialChat.length > 0;
+    if (hasCanonicalChatHistory) {
+      historialChat.forEach((item: any, idx: number) => {
+        appendMessage(normalizeTimelineMessage(item, idx, 'chat_history'));
+      });
+    }
 
     response.timeline?.forEach((evt, idx) => {
       if (evt.tipo === 'comentario') {
-        const isAgent =
-          parseAdminFlag(evt.es_admin) ?? !!evt.user_id;
-        const content =
-          (evt as any).comentario ?? (evt as any).mensaje ?? evt.texto ?? '';
-        messages.push({
-          id: idx,
-          author: isAgent ? 'agent' : 'user',
-          content,
-          timestamp: evt.fecha,
-        });
+        if (!hasCanonicalChatHistory) {
+          appendMessage(normalizeTimelineMessage(evt, idx, 'timeline'));
+        }
       } else {
         history.push({
           status: evt.estado || (evt.tipo === 'ticket_creado' ? 'ticket_creado' : ''),

@@ -3,6 +3,8 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const getTicketByNumberMock = vi.fn();
+const getTicketTimelineMock = vi.fn();
+const getTicketMessagesMock = vi.fn();
 const trackFrontendEventMock = vi.fn();
 const toastSuccessMock = vi.fn();
 const toastErrorMock = vi.fn();
@@ -21,11 +23,11 @@ vi.mock('react-router-dom', async (importOriginal) => {
 
 vi.mock('@/services/ticketService', () => ({
   getTicketByNumber: (...args: unknown[]) => getTicketByNumberMock(...args),
-  getTicketTimeline: vi.fn(),
-  getTicketMessages: vi.fn(),
+  getTicketTimeline: (...args: unknown[]) => getTicketTimelineMock(...args),
+  getTicketMessages: (...args: unknown[]) => getTicketMessagesMock(...args),
   sendMessage: vi.fn(),
-  updateTicketPresence: vi.fn(),
-  updateTicketReadState: vi.fn(),
+  updateTicketPresence: vi.fn().mockResolvedValue(null),
+  updateTicketReadState: vi.fn().mockResolvedValue(null),
   getLiveChatScheduleStatus: vi.fn().mockResolvedValue({
     enabled: true,
     available: true,
@@ -62,6 +64,8 @@ beforeAll(async () => {
 describe('TicketLookup request_id support surface', () => {
   beforeEach(() => {
     getTicketByNumberMock.mockReset();
+    getTicketTimelineMock.mockReset();
+    getTicketMessagesMock.mockReset();
     trackFrontendEventMock.mockReset();
     toastSuccessMock.mockReset();
     toastErrorMock.mockReset();
@@ -98,5 +102,43 @@ describe('TicketLookup request_id support surface', () => {
       }),
     );
     expect(toastSuccessMock).toHaveBeenCalledWith('request_id copiado');
+  });
+
+  it('keeps initial public ticket messages when secondary conversation endpoints are empty', async () => {
+    getTicketByNumberMock.mockResolvedValue({
+      id: 400,
+      tipo: 'municipio',
+      nro_ticket: 'M-378430',
+      asunto: 'Arreglo de calle',
+      estado: 'en_proceso',
+      fecha: '2026-06-06T03:03:47.626Z',
+      email: 'demo@example.com',
+      history: [],
+      messages: [
+        {
+          id: 334,
+          author: 'user',
+          content: 'hola que tal como va mi reclamo? puedo hablar con alguien en vivo ?',
+          timestamp: '2026-06-06T03:04:47.245Z',
+        },
+      ],
+    });
+    getTicketTimelineMock.mockResolvedValue({
+      estado_chat: '',
+      history: [],
+      messages: [],
+      unified_conversation_stream: [],
+    });
+    getTicketMessagesMock.mockResolvedValue({
+      messages: [],
+      realtimeState: null,
+    });
+
+    render(<TicketLookup />);
+
+    expect(
+      await screen.findByText(/hola que tal como va mi reclamo/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/todav[aí]a no hay mensajes públicos/i)).not.toBeInTheDocument();
   });
 });

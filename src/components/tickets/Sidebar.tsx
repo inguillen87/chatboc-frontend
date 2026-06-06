@@ -410,7 +410,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
           <div className="mx-4 mt-4 rounded-2xl border border-dashed border-border bg-background/70 p-5 text-center">
             <p className="text-sm font-semibold text-foreground">No hay casos para esta vista</p>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              Ajusta busqueda o filtros para volver a ver conversaciones.
+              Ajustá búsqueda o filtros para volver a ver conversaciones.
             </p>
             {hasActiveFilters ? (
               <Button type="button" variant="outline" size="sm" className="mt-3" onClick={resetFilters}>

@@ -73,4 +73,105 @@ describe('ticketService realtime normalization', () => {
       idle_window_minutes: 5,
     });
   });
+
+  it('normalizes nested backend realtime state from ticket summaries', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      id: 78,
+      tipo: 'municipio',
+      nro_ticket: 'REC-78',
+      asunto: 'Reclamo',
+      estado: 'abierto',
+      fecha: '2026-03-21T10:00:00.000Z',
+      email: 'demo@example.com',
+      mensajes: [{ id: 335, mensaje: 'Hola', es_admin: 0, timestamp: '2026-03-21T10:01:00.000Z' }],
+      realtime_state: {
+        presence: {
+          active_count: 1,
+          idle_count: 0,
+          active_viewers: [
+            {
+              viewer_key: 'pin:900144',
+              viewer_role: 'public_pin',
+              presence_status: 'active',
+              effective_presence_status: 'active',
+              unread_count: 0,
+            },
+          ],
+        },
+        read_state: {
+          latest_comment_id: 335,
+          viewers: [
+            {
+              viewer_key: 'pin:900144',
+              viewer_role: 'public_pin',
+              last_read_comment_id: 335,
+              unread_count: 0,
+              has_unread: false,
+            },
+          ],
+        },
+      },
+    });
+
+    const ticket = await getTicketByNumber('REC-78', '900144');
+
+    expect(ticket.realtime_state?.active_viewers).toHaveLength(1);
+    expect(ticket.realtime_state?.active_viewers[0]).toMatchObject({
+      viewer_id: 'pin:900144',
+      unread_count: 0,
+      has_unread: false,
+    });
+    expect(ticket.realtime_state?.read_states[0]).toMatchObject({
+      last_read_comment_id: 335,
+    });
+    expect(ticket.realtime_state?.summary).toMatchObject({
+      active_count: 1,
+      idle_count: 0,
+      last_read_comment_id: 335,
+    });
+  });
+
+  it('uses public ticket comentarios as visible conversation messages', async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      id: 400,
+      tipo: 'municipio',
+      nro_ticket: 'M-378430',
+      asunto: 'Arreglo de calle',
+      estado: 'en_proceso',
+      fecha: '2026-06-06T03:03:47.626Z',
+      email: 'demo@example.com',
+      comentarios: [
+        {
+          id: 334,
+          texto: 'hola que tal como va mi reclamo? puedo hablar con alguien en vivo ?',
+          autor_nombre: 'Marcelo',
+          es_admin: false,
+          fecha: '2026-06-06T03:04:47.245Z',
+        },
+        {
+          id: 335,
+          comentario: 'como no hay mensajes si el vecino envio mensajes! ',
+          autor_nombre: 'Atención Junín',
+          es_admin: true,
+          fecha: '2026-06-06T03:11:29.168Z',
+        },
+      ],
+    });
+
+    const ticket = await getTicketByNumber('M-378430', '900144');
+
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+    expect(ticket.messages).toHaveLength(2);
+    expect(ticket.messages?.[0]).toMatchObject({
+      id: 334,
+      author: 'user',
+      content: 'hola que tal como va mi reclamo? puedo hablar con alguien en vivo ?',
+    });
+    expect(ticket.messages?.[1]).toMatchObject({
+      id: 335,
+      author: 'agent',
+      agentName: 'Atención Junín',
+      content: 'como no hay mensajes si el vecino envio mensajes! ',
+    });
+  });
 });

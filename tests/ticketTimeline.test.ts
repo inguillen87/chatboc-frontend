@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { getTicketTimeline } from '../src/services/ticketService';
 import { apiFetch } from '@/utils/api';
 
@@ -7,6 +7,10 @@ vi.mock('@/utils/api', () => ({
 }));
 
 describe('getTicketTimeline', () => {
+  beforeEach(() => {
+    vi.mocked(apiFetch).mockReset();
+  });
+
   it('identifies agent messages and extracts content', async () => {
     vi.mocked(apiFetch).mockResolvedValueOnce({
       estado_chat: 'abierto',
@@ -33,6 +37,38 @@ describe('getTicketTimeline', () => {
     expect(result.messages).toHaveLength(2);
     expect(result.messages[0]).toMatchObject({ author: 'user', content: 'Vecino' });
     expect(result.messages[1]).toMatchObject({ author: 'agent', content: 'Agente' });
+  });
+
+  it('prefers canonical chat history messages over timeline comments', async () => {
+    vi.mocked(apiFetch).mockResolvedValueOnce({
+      estado_chat: 'abierto',
+      historial_chat: [
+        {
+          id: 334,
+          fecha: '2026-06-06T03:04:47.245Z',
+          texto: 'hola que tal como va mi reclamo?',
+          autor: 'vecino',
+          es_admin: false,
+        },
+        {
+          id: 335,
+          fecha: '2026-06-06T03:11:29.168Z',
+          texto: 'Ya lo derivamos al area correspondiente',
+          autor: 'municipio',
+          es_admin: true,
+        },
+      ],
+      timeline: [
+        { tipo: 'comentario', fecha: '2026-06-06T03:04:47.245Z', texto: 'hola que tal como va mi reclamo?', es_admin: false },
+        { tipo: 'comentario', fecha: '2026-06-06T03:11:29.168Z', texto: 'Ya lo derivamos al area correspondiente', es_admin: true },
+      ],
+    } as any);
+
+    const result = await getTicketTimeline(400, 'municipio');
+
+    expect(result.messages).toHaveLength(2);
+    expect(result.messages[0]).toMatchObject({ id: 334, author: 'user' });
+    expect(result.messages[1]).toMatchObject({ id: 335, author: 'agent' });
   });
 
   it('normalizes unified conversation stream from backend when available', async () => {

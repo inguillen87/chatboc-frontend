@@ -113,6 +113,8 @@ export interface TicketRealtimeViewer {
   read_at?: string | null;
   updated_at?: string | null;
   is_current_viewer?: boolean;
+  unread_count?: number;
+  has_unread?: boolean;
 }
 
 export interface TicketRealtimeState {
@@ -157,6 +159,7 @@ export interface UnifiedConversationStreamItem {
 export interface TicketTimelineResponse {
   estado_chat: string;
   timeline: TicketTimelineEvent[];
+  historial_chat?: Array<Record<string, unknown>> | null;
   realtime_state?: TicketRealtimeState | null;
   unified_conversation_stream?: UnifiedConversationStreamItem[] | Array<Record<string, unknown>> | null;
 }

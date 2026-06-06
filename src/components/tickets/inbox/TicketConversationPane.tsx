@@ -172,7 +172,7 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
   if (!ticketId || !detailTicket) {
     return (
       <div className="flex h-full flex-col items-center justify-center bg-muted/10 text-muted-foreground">
-        <p>Selecciona una conversacion para ver el detalle omnicanal.</p>
+        <p>Seleccioná una conversación para ver el detalle omnicanal.</p>
       </div>
     );
   }
@@ -296,7 +296,7 @@ export const TicketConversationPane: React.FC<TicketConversationPaneProps> = ({
           <ViewState
             status="partial"
             title="Timeline pendiente"
-            description="Este item todavia no tiene timeline para esta conversacion."
+            description="Este ítem todavía no tiene timeline para esta conversación."
             className="min-h-[180px]"
           />
         )}

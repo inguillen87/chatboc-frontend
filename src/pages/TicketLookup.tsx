@@ -620,10 +620,15 @@ export default function TicketLookup() {
           : Array.isArray(messages)
             ? messages
             : [];
+        const initialMessages = Array.isArray(resolvedTicket.messages)
+          ? resolvedTicket.messages
+          : [];
         const fallbackMessages =
           messageCollection.length > 0
             ? messageCollection
-            : timeline.messages || [];
+            : timeline.messages?.length
+              ? timeline.messages
+              : initialMessages;
         const nextRealtimeState =
           (messages as any)?.realtimeState ||
           timeline.realtime_state ||
@@ -691,6 +696,7 @@ export default function TicketLookup() {
           messages: data.messages || [],
         };
         setTicket(normalizedTicket);
+        setPublicMessages(normalizedTicket.messages || []);
         syncPublicAccess(normalizedTicket, pinVal);
         trackFrontendEvent("tracking_public_lookup_succeeded", {
           ticket_id: normalizedTicket.id,

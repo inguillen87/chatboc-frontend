@@ -379,7 +379,7 @@ const NewTicketsPanel: React.FC = () => {
               ) : null}
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
-              Priorizacion, conversacion y detalle en una sola vista.
+              Priorización, conversación y detalle en una sola vista.
               {inboxSummary?.request_id ? ` Ref. ${inboxSummary.request_id}` : null}
             </p>
             {recommendedViews.length ? (
@@ -420,7 +420,7 @@ const NewTicketsPanel: React.FC = () => {
               onClick={() => applyQuickFilter({ sla: 'risk', priority: 'all' })}
             />
             <TicketOpsStat
-              label="No leidos"
+              label="No leídos"
               value={unreadTickets}
               helper="Requieren respuesta"
               tone="violet"
