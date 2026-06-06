@@ -951,11 +951,19 @@ export default function TicketLookup() {
     }
   }, [inputTicketId, supportRequestId, ticketId]);
 
+  const liveChatEnabled = Boolean(liveChatStatus?.enabled);
+  const liveChatAvailable = Boolean(liveChatStatus?.enabled && liveChatStatus?.available);
+  const liveChatScheduleLabel =
+    liveChatStatus?.description ||
+    (liveChatStatus?.start_time && liveChatStatus?.end_time
+      ? `${liveChatStatus.start_time} a ${liveChatStatus.end_time}`
+      : "Horario administrativo");
+
   const handleSendMessage = useCallback(async () => {
     if (!ticket || !currentPin || !message.trim()) return;
     setSubmittingPublicMessage(true);
     try {
-      await sendMessage(
+      const response = await sendMessage(
         ticket.id,
         ticket.tipo || "municipio",
         message.trim(),
@@ -970,8 +978,19 @@ export default function TicketLookup() {
         ticket_id: ticket.id,
         ticket_number: publicTicketNumber,
         message_length: message.trim().length,
+        support_mode: supportMode,
+        live_chat_mode: liveChatAvailable ? "live" : "offline",
       });
-      toast.success("Tu mensaje fue enviado.");
+      const responseMessage =
+        response &&
+        typeof response === "object" &&
+        typeof response.message === "string" &&
+        response.message.trim()
+          ? response.message.trim()
+          : liveChatAvailable
+            ? "Mensaje enviado al canal del reclamo."
+            : "Mensaje guardado en este reclamo.";
+      toast.success(responseMessage);
       setMessage("");
       await loadConversationData(ticket, currentPin, true);
       setIsSupportOpen(false);
@@ -980,7 +999,7 @@ export default function TicketLookup() {
     } finally {
       setSubmittingPublicMessage(false);
     }
-  }, [currentPin, loadConversationData, message, publicTicketNumber, ticket]);
+  }, [currentPin, liveChatAvailable, loadConversationData, message, publicTicketNumber, supportMode, ticket]);
 
   const copyToClipboard = () => {
     if (ticket && publicTicketNumber) {
@@ -1058,23 +1077,41 @@ export default function TicketLookup() {
     : undefined;
 
   const publicMessagesCountLabel = `${publicMessages.length} ${publicMessages.length === 1 ? "mensaje" : "mensajes"}`;
-  const liveChatEnabled = Boolean(liveChatStatus?.enabled);
-  const liveChatAvailable = Boolean(liveChatStatus?.enabled && liveChatStatus?.available);
-  const liveChatScheduleLabel =
-    liveChatStatus?.description ||
-    (liveChatStatus?.start_time && liveChatStatus?.end_time
-      ? `${liveChatStatus.start_time} a ${liveChatStatus.end_time}`
-      : "Horario administrativo");
   const supportModeTitle = supportMode === "live"
     ? liveChatAvailable
-      ? "Canal del reclamo"
-      : "Mensaje para la mesa de ayuda"
-    : "Mesa de Ayuda";
+      ? "Chat del reclamo"
+      : "Buzón del reclamo"
+    : "Comentario del reclamo";
   const supportModeDescription = supportMode === "live"
     ? liveChatAvailable
-      ? "La atención está disponible ahora. Tu mensaje entra directo al canal de este ticket."
-      : `Fuera del horario de atención (${liveChatScheduleLabel}). Tu mensaje queda asociado al reclamo para que el equipo lo responda desde el panel.`
-    : "Tu mensaje quedará asociado a este ticket público.";
+      ? "La mesa está en horario. Tu mensaje entra directo al canal público de este ticket."
+      : `Fuera del horario configurado (${liveChatScheduleLabel}). El mensaje queda guardado en este reclamo para respuesta administrativa.`
+    : "Agregá una observación pública sin salir del seguimiento.";
+  const supportStatusTitle = liveChatAvailable
+    ? "Atención en vivo disponible"
+    : liveChatEnabled
+      ? "Atención fuera de horario"
+      : "Seguimiento público";
+  const supportStatusBadge = liveChatAvailable
+    ? "En horario"
+    : liveChatEnabled
+      ? "Offline"
+      : "Sin horario";
+  const supportStatusDescription = liveChatAvailable
+    ? "El equipo puede responder desde el CRM y la conversación queda registrada en este ticket."
+    : liveChatEnabled
+      ? `Horario configurado: ${liveChatScheduleLabel}. Si enviás ahora, queda como mensaje offline del mismo reclamo.`
+      : "El municipio todavía no publicó un horario de chat; el mensaje se guarda como comentario público del reclamo.";
+  const supportPlaceholder = supportMode === "live"
+    ? liveChatAvailable
+      ? "Escribí tu mensaje para la mesa de atención de este reclamo..."
+      : "Dejá tu mensaje offline para este reclamo..."
+    : "Escribí una observación pública sobre este reclamo...";
+  const supportSubmitLabel = supportMode === "live"
+    ? liveChatAvailable
+      ? "Enviar al chat"
+      : "Guardar offline"
+    : "Guardar comentario";
   const activityStream =
     unifiedConversationStream.length > 0
       ? unifiedConversationStream
@@ -1985,22 +2022,23 @@ export default function TicketLookup() {
                   </CardContent>
                 </Card>
 
-                <Card className="overflow-hidden border-0 bg-slate-950 text-white shadow-xl shadow-slate-900/20 dark:bg-slate-900 dark:shadow-black/30">
+                <Card className="overflow-hidden border-0 bg-slate-950 text-white shadow-xl shadow-slate-900/20 ring-1 ring-white/10 dark:bg-slate-900 dark:shadow-black/30">
                   <CardContent className="relative p-6">
                     <div className="relative space-y-4">
                       <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 backdrop-blur-sm">
                         <MessageCircle className="h-6 w-6" />
                       </div>
                       <div>
-                        <h3 className="text-xl font-bold">
-                          ¿Necesitás ayuda con este reclamo?
-                        </h3>
+                        <Badge className="mb-3 border-white/20 bg-white/10 text-white hover:bg-white/10">
+                          {supportStatusBadge}
+                        </Badge>
+                        <h3 className="text-xl font-bold">Canal del reclamo</h3>
                         <p className="mt-2 text-sm leading-6 text-slate-200">
                           {liveChatAvailable
-                            ? "La mesa de atención está disponible ahora. Tu mensaje queda dentro de este reclamo."
+                            ? "La mesa de atención está disponible ahora. Abrí el chat sin salir de este seguimiento."
                             : liveChatEnabled
-                              ? `La mesa responde en horario (${liveChatScheduleLabel}). Fuera de horario, dejá el mensaje en este reclamo.`
-                              : "Dejá una observación en este mismo reclamo para que el equipo municipal la responda desde el panel."}
+                              ? `Horario: ${liveChatScheduleLabel}. Fuera de horario, dejá el mensaje guardado en este ticket.`
+                              : "Dejá una observación en este reclamo para que el equipo municipal la responda desde el panel."}
                         </p>
                       </div>
                       <div className="space-y-2">
@@ -2018,7 +2056,7 @@ export default function TicketLookup() {
                           className="h-11 w-full rounded-xl border-white/30 bg-white/10 text-white hover:bg-white/15 hover:text-white"
                           onClick={handleOpenChat}
                         >
-                          {liveChatAvailable ? "Abrir canal del reclamo" : "Dejar mensaje offline"}
+                          {liveChatAvailable ? "Abrir chat del reclamo" : "Dejar mensaje en el reclamo"}
                         </Button>
                       </div>
                     </div>
@@ -2101,7 +2139,7 @@ export default function TicketLookup() {
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="font-semibold text-slate-900 dark:text-slate-100">
-                      {liveChatAvailable ? "Canal activo del reclamo" : "Buzón del reclamo"}
+                      {supportStatusTitle}
                     </p>
                     <Badge
                       variant="outline"
@@ -2111,15 +2149,11 @@ export default function TicketLookup() {
                           : "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300"
                       }
                     >
-                      {liveChatAvailable ? "En horario" : "Fuera de horario"}
+                      {supportStatusBadge}
                     </Badge>
                   </div>
                   <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
-                    {liveChatAvailable
-                      ? "Escribí acá: el mensaje entra al historial público del ticket y queda visible para el equipo municipal en el CRM."
-                      : liveChatEnabled
-                        ? `Horario configurado: ${liveChatScheduleLabel}. Si enviás ahora, queda como mensaje offline del mismo reclamo.`
-                        : "El municipio no tiene horario de chat configurado; tu consulta queda asociada al reclamo para respuesta administrativa."}
+                    {supportStatusDescription}
                   </p>
                 </div>
               </div>
@@ -2129,15 +2163,11 @@ export default function TicketLookup() {
 
             <div className="space-y-3">
               <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                Dejar un comentario / observación
+                Mensaje para este reclamo
               </label>
               <Textarea
                 ref={messageBoxRef}
-                placeholder={
-                  supportMode === "live"
-                    ? "Escribí tu mensaje para este reclamo..."
-                    : "Escribí tu consulta aquí..."
-                }
+                placeholder={supportPlaceholder}
                 className="min-h-[120px] resize-none rounded-2xl border-slate-200 bg-slate-50/70 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-100"
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
@@ -2154,7 +2184,7 @@ export default function TicketLookup() {
                   {submittingPublicMessage ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : null}
-                  {supportMode === "live" ? "Enviar al reclamo" : "Enviar mensaje"}
+                  {supportSubmitLabel}
                 </Button>
               </div>
             </div>

@@ -311,16 +311,16 @@ describe('TicketLookup request_id support surface', () => {
     render(<TicketLookup />);
 
     const openButton = await screen.findByRole('button', {
-      name: /abrir canal del reclamo/i,
+      name: /abrir chat del reclamo/i,
     });
     fireEvent.click(openButton);
 
-    expect(await screen.findByText(/canal activo del reclamo/i)).toBeInTheDocument();
+    expect(await screen.findByText(/atención en vivo disponible/i)).toBeInTheDocument();
 
-    fireEvent.change(screen.getByPlaceholderText(/escrib[ií] tu mensaje para este reclamo/i), {
+    fireEvent.change(screen.getByPlaceholderText(/mesa de atención de este reclamo/i), {
       target: { value: 'Necesito hablar con alguien en vivo por este reclamo' },
     });
-    fireEvent.click(screen.getByRole('button', { name: /enviar al reclamo/i }));
+    fireEvent.click(screen.getByRole('button', { name: /enviar al chat/i }));
 
     await waitFor(() => {
       expect(sendMessageMock).toHaveBeenCalledWith(
@@ -334,7 +334,7 @@ describe('TicketLookup request_id support surface', () => {
     });
 
     expect(navigateMock).not.toHaveBeenCalledWith(expect.stringContaining('/demo'));
-    expect(toastSuccessMock).toHaveBeenCalledWith('Tu mensaje fue enviado.');
+    expect(toastSuccessMock).toHaveBeenCalledWith('Mensaje enviado al canal del reclamo.');
     expect(trackFrontendEventMock).toHaveBeenCalledWith(
       'tracking_live_chat_status_checked',
       expect.objectContaining({
@@ -343,5 +343,67 @@ describe('TicketLookup request_id support surface', () => {
         live_chat_available: true,
       }),
     );
+  });
+
+  it('keeps the citizen inside the ticket when live support is offline', async () => {
+    getLiveChatScheduleStatusMock.mockResolvedValue({
+      enabled: true,
+      available: false,
+      description: 'Lunes a viernes de 09:00 a 13:00',
+      socket_enabled: false,
+    });
+    sendMessageMock.mockResolvedValue({
+      contract_version: 'tickets.public_chat_reply.v1',
+      success: true,
+      message: 'Mensaje guardado en el reclamo.',
+      mode: 'offline',
+    });
+    getTicketByNumberMock.mockResolvedValue({
+      id: 401,
+      tipo: 'municipio',
+      tenant_slug: 'junin',
+      nro_ticket: 'M-378431',
+      asunto: 'Luminaria',
+      estado: 'nuevo',
+      fecha: '2026-06-06T03:03:47.626Z',
+      history: [],
+      messages: [],
+    });
+    getTicketTimelineMock.mockResolvedValue({
+      estado_chat: '',
+      history: [],
+      messages: [],
+      unified_conversation_stream: [],
+    });
+    getTicketMessagesMock.mockResolvedValue({
+      messages: [],
+      realtimeState: null,
+    });
+
+    render(<TicketLookup />);
+
+    const offlineButton = await screen.findByRole('button', {
+      name: /dejar mensaje en el reclamo/i,
+    });
+    fireEvent.click(offlineButton);
+
+    expect(await screen.findByText(/atención fuera de horario/i)).toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText(/mensaje offline para este reclamo/i), {
+      target: { value: 'Necesito dejar una aclaración para mañana' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /guardar offline/i }));
+
+    await waitFor(() => {
+      expect(sendMessageMock).toHaveBeenCalledWith(
+        401,
+        'municipio',
+        'Necesito dejar una aclaración para mañana',
+        undefined,
+        undefined,
+        { public: true, pin: '9999' },
+      );
+    });
+    expect(navigateMock).not.toHaveBeenCalledWith(expect.stringContaining('/demo'));
+    expect(toastSuccessMock).toHaveBeenCalledWith('Mensaje guardado en el reclamo.');
   });
 });
