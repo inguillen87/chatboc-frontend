@@ -339,7 +339,8 @@ const NewTicketsPanel: React.FC = () => {
   }
 
   const panelCardClass = cn(
-    'relative flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden rounded-3xl border border-border/70 bg-card/90 shadow-2xl backdrop-blur-md',
+    'relative flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden rounded-lg border border-border/70 bg-card/90 shadow-2xl backdrop-blur-md',
+    !isMobile && 'h-[calc(100dvh-9.5rem)] min-h-[640px] max-h-[900px]',
     isMobile && 'h-[calc(100dvh-8rem)]',
   );
 
@@ -585,12 +586,12 @@ const NewTicketsPanel: React.FC = () => {
           style={{ gridTemplateColumns: desktopGridTemplate }}
         >
           {isSidebarVisible && (
-            <div className="min-h-0 border-r border-border/70">
+            <div className="min-h-0 min-w-0 overflow-hidden border-r border-border/70">
               <Sidebar className="h-full w-full shrink-0" />
             </div>
           )}
 
-          <div className="min-h-0 min-w-0">
+          <div className="min-h-0 min-w-0 overflow-hidden">
             <ConversationPanel
               isMobile={false}
               isSidebarVisible={isSidebarVisible}
@@ -605,7 +606,7 @@ const NewTicketsPanel: React.FC = () => {
           </div>
 
           {isDetailsVisible && (
-            <div className="min-h-0 min-w-0 border-l border-border/70">
+            <div className="min-h-0 min-w-0 overflow-hidden border-l border-border/70">
               <DetailsPanel className="h-full w-full" />
             </div>
           )}

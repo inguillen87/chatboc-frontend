@@ -280,7 +280,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
         className,
       )}
     >
-      <div className="space-y-4 border-b border-border/70 bg-background/80 p-4">
+      <div className="shrink-0 space-y-4 border-b border-border/70 bg-background/80 p-4">
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-xl font-bold tracking-tight">
@@ -405,7 +405,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
           </div>
         ) : null}
       </div>
-      <ScrollArea className="flex-1 min-h-0">
+      <ScrollArea className="min-h-0 flex-1 overflow-hidden">
         {Object.keys(filteredTicketsByCategory).length === 0 ? (
           <div className="mx-4 mt-4 rounded-2xl border border-dashed border-border bg-background/70 p-5 text-center">
             <p className="text-sm font-semibold text-foreground">No hay casos para esta vista</p>

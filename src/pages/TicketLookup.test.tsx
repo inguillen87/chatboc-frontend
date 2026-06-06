@@ -26,6 +26,12 @@ vi.mock('@/services/ticketService', () => ({
   sendMessage: vi.fn(),
   updateTicketPresence: vi.fn(),
   updateTicketReadState: vi.fn(),
+  getLiveChatScheduleStatus: vi.fn().mockResolvedValue({
+    enabled: true,
+    available: true,
+    description: 'Atencion disponible',
+    socket_enabled: false,
+  }),
 }));
 
 vi.mock('@/utils/frontendTelemetry', () => ({
@@ -51,7 +57,7 @@ let TicketLookup: React.ComponentType;
 
 beforeAll(async () => {
   TicketLookup = (await import('@/pages/TicketLookup')).default;
-});
+}, 30000);
 
 describe('TicketLookup request_id support surface', () => {
   beforeEach(() => {

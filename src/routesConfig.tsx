@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Navigate, useParams } from 'react-router-dom';
+import { Navigate, useLocation, useParams } from 'react-router-dom';
 
 // ... (importaciones existentes) ...
 import { EDUCATION_FEATURE_FLAGS, FEATURE_ENCUESTAS } from '@/config/featureFlags';
@@ -162,6 +162,14 @@ const PortalTenantEntryRedirect = () => {
     return <Navigate to="/portal/dashboard" replace />;
   }
   return <Navigate to={buildTenantPath('/portal/dashboard', tenant)} replace />;
+};
+
+const TwilioTicketTemplateRedirect = () => {
+  const params = useParams();
+  const location = useLocation();
+  const ticketId = typeof params.ticketId === 'string' ? params.ticketId.trim() : '';
+  const suffix = `${ticketId}${location.search || ''}`;
+  return <Navigate to={`/chat/${suffix}`} replace />;
 };
 
 const resolvePreferredTenantForEducation = (): string | null => {
@@ -430,6 +438,7 @@ const routes: RouteConfig[] = [
   { path: '/pyme/pedidos/:nro_pedido', element: <OrderTrackingPage /> },
   { path: '/tracking/claim/:code', element: <TrackingExperiencePage kind="claim" /> },
   { path: '/tracking/order/:code', element: <TrackingExperiencePage kind="order" /> },
+  { path: '/t/chat/:ticketId', element: <TwilioTicketTemplateRedirect /> },
   // Missing root integration route
   {
     path: '/:tenant/integracion',

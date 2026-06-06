@@ -732,7 +732,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}
-        className="flex h-full min-w-0 flex-col bg-background"
+        className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-background"
     >
       <header className="p-3 border-b border-border flex items-center justify-between shrink-0 h-16">
         <div className="flex items-center space-x-3">
@@ -872,7 +872,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         </div>
       )}
 
-      <div className="flex-1 relative bg-muted/20">
+      <div className="relative min-h-0 flex-1 bg-muted/20">
         {desktopView === 'details' && !isMobile ? (
           <DetailsPanel />
         ) : (
@@ -933,7 +933,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         )}
       </div>
 
-      <footer className="p-2 border-t border-border shrink-0">
+      <footer className="shrink-0 border-t border-border bg-background/95 p-2">
         {attachmentPreview && (
           <div className="relative w-full p-2 bg-muted rounded-lg flex items-center gap-3 mb-2">
             {attachmentPreview.previewUrl ? (

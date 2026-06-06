@@ -933,6 +933,35 @@ export const getTicketTimeline = async (
   }
 };
 
+export interface LiveChatScheduleStatus {
+    contract_version?: string;
+    enabled?: boolean;
+    available?: boolean;
+    description?: string;
+    start_time?: string;
+    end_time?: string;
+    timezone?: string;
+    source?: string;
+    socket_enabled?: boolean;
+    fallback_mode?: string;
+}
+
+export const getLiveChatScheduleStatus = async (
+    tenantSlug?: string | null,
+): Promise<LiveChatScheduleStatus> => {
+    const query = new URLSearchParams();
+    const slug = typeof tenantSlug === 'string' ? tenantSlug.trim() : '';
+    if (slug) {
+        query.set('tenant_slug', slug);
+        query.set('tenant', slug);
+    }
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+    return apiFetch<LiveChatScheduleStatus>(`/api/live-chat/schedule${suffix}`, {
+        sendAnonId: true,
+        tenantSlug: slug || undefined,
+    });
+};
+
 export interface Button {
     type: 'reply';
     reply: {
