@@ -28,7 +28,6 @@ import {
   XCircle,
   Copy,
   MessageCircle,
-  ChevronRight,
   Search,
   FileText,
   AlertCircle,
@@ -492,6 +491,7 @@ export default function TicketLookup() {
   const [liveChatStatus, setLiveChatStatus] = useState<LiveChatScheduleStatus | null>(null);
   const presenceFailureCountRef = useRef(0);
   const presenceCircuitUntilRef = useRef(0);
+  const messageBoxRef = useRef<HTMLTextAreaElement | null>(null);
   const [message, setMessage] = useState("");
   const [primaryImageUrl, setPrimaryImageUrl] = useState<string | null>(null);
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
@@ -774,6 +774,14 @@ export default function TicketLookup() {
       cancelled = true;
     };
   }, [ticket?.id, ticket?.tenant_slug]);
+
+  useEffect(() => {
+    if (!isSupportOpen) return;
+    const focusTimer = window.setTimeout(() => {
+      messageBoxRef.current?.focus();
+    }, 120);
+    return () => window.clearTimeout(focusTimer);
+  }, [isSupportOpen, supportMode]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -2059,28 +2067,37 @@ export default function TicketLookup() {
           </div>
 
           <div className="grid gap-5 px-6 py-6">
-            <Button
-              variant="outline"
-              className="group h-auto justify-start gap-4 rounded-2xl border-slate-200 px-4 py-4 transition-all hover:border-blue-500/30 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800"
-              onClick={handleOpenChat}
-            >
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 transition-colors group-hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-300 dark:group-hover:bg-blue-900/60">
-                <MessageCircle className="h-5 w-5" />
-              </div>
-              <div className="text-left">
-                <div className="font-semibold text-slate-900 dark:text-slate-100">
-                  {liveChatAvailable ? "Canal en vivo del reclamo" : "Mensaje offline del reclamo"}
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-700 dark:bg-slate-800/60">
+              <div className="flex items-start gap-4">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-300">
+                  <MessageCircle className="h-5 w-5" />
                 </div>
-                <div className="text-xs text-slate-500 dark:text-slate-400">
-                  {liveChatAvailable
-                    ? "Atención disponible ahora"
-                    : liveChatEnabled
-                      ? `Horario: ${liveChatScheduleLabel}`
-                      : "El equipo responde desde el panel municipal"}
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-semibold text-slate-900 dark:text-slate-100">
+                      {liveChatAvailable ? "Canal activo del reclamo" : "Buzón del reclamo"}
+                    </p>
+                    <Badge
+                      variant="outline"
+                      className={
+                        liveChatAvailable
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300"
+                          : "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300"
+                      }
+                    >
+                      {liveChatAvailable ? "En horario" : "Fuera de horario"}
+                    </Badge>
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                    {liveChatAvailable
+                      ? "Escribí acá: el mensaje entra al historial público del ticket y queda visible para el equipo municipal en el CRM."
+                      : liveChatEnabled
+                        ? `Horario configurado: ${liveChatScheduleLabel}. Si enviás ahora, queda como mensaje offline del mismo reclamo.`
+                        : "El municipio no tiene horario de chat configurado; tu consulta queda asociada al reclamo para respuesta administrativa."}
+                  </p>
                 </div>
               </div>
-              <ChevronRight className="ml-auto h-4 w-4 text-slate-400 dark:text-slate-500" />
-            </Button>
+            </div>
 
             <Separator />
 
@@ -2089,7 +2106,12 @@ export default function TicketLookup() {
                 Dejar un comentario / observación
               </label>
               <Textarea
-                placeholder="Escribe tu consulta aquí..."
+                ref={messageBoxRef}
+                placeholder={
+                  supportMode === "live"
+                    ? "Escribí tu mensaje para este reclamo..."
+                    : "Escribí tu consulta aquí..."
+                }
                 className="min-h-[120px] resize-none rounded-2xl border-slate-200 bg-slate-50/70 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-100"
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
@@ -2106,7 +2128,7 @@ export default function TicketLookup() {
                   {submittingPublicMessage ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : null}
-                  Enviar Mensaje
+                  {supportMode === "live" ? "Enviar al reclamo" : "Enviar mensaje"}
                 </Button>
               </div>
             </div>
