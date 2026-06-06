@@ -81,7 +81,7 @@ const TicketsPanelPage = ({ tenantSlugOverride, embedded = false }: TicketsPanel
   useRequireRole(['tenant_admin', 'employee', 'superadmin'] as Role[]);
 
   const rootClassName = embedded
-    ? 'flex h-[calc(100dvh-10rem)] min-h-[560px] flex-col overflow-hidden bg-background text-foreground'
+    ? 'flex h-[calc(100dvh-25rem)] min-h-[460px] max-h-[720px] flex-col overflow-hidden bg-background text-foreground'
     : 'flex min-h-[100dvh] flex-col bg-background px-2 pb-4 pt-16 text-foreground dark:bg-gradient-to-tr dark:from-slate-950 dark:to-slate-900 sm:px-4 sm:pb-6 sm:pt-6 md:px-5 lg:px-6 2xl:px-5';
   const shellClassName = embedded
     ? 'relative flex h-full min-h-0 w-full flex-1 flex-col'
