@@ -74,22 +74,34 @@ const TicketsIdentityCoverageAlert = () => {
 
 interface TicketsPanelPageProps {
   tenantSlugOverride?: string | null;
+  embedded?: boolean;
 }
 
-const TicketsPanelPage = ({ tenantSlugOverride }: TicketsPanelPageProps) => {
+const TicketsPanelPage = ({ tenantSlugOverride, embedded = false }: TicketsPanelPageProps) => {
   useRequireRole(['tenant_admin', 'employee', 'superadmin'] as Role[]);
 
+  const rootClassName = embedded
+    ? 'flex h-[calc(100dvh-10rem)] min-h-[560px] flex-col overflow-hidden bg-background text-foreground'
+    : 'flex min-h-[100dvh] flex-col bg-background px-2 pb-4 pt-16 text-foreground dark:bg-gradient-to-tr dark:from-slate-950 dark:to-slate-900 sm:px-4 sm:pb-6 sm:pt-6 md:px-5 lg:px-6 2xl:px-5';
+  const shellClassName = embedded
+    ? 'relative flex h-full min-h-0 w-full flex-1 flex-col'
+    : 'relative mx-auto flex min-h-0 w-full max-w-[min(2400px,calc(100vw-2rem))] flex-1 flex-col';
+
   return (
-    <div className="flex min-h-[100dvh] flex-col bg-background px-2 pb-4 pt-16 text-foreground dark:bg-gradient-to-tr dark:from-slate-950 dark:to-slate-900 sm:px-4 sm:pb-6 sm:pt-6 md:px-5 lg:px-6 2xl:px-5">
-      <div className="relative mx-auto flex min-h-0 w-full max-w-[min(2400px,calc(100vw-2rem))] flex-1 flex-col">
-        <EnterprisePageHeader
-          badge="Mesa de atencion"
-          title="Reclamos y conversaciones"
-          description="Prioriza, asigna y responde cada caso desde un espacio de trabajo claro."
-        />
-        <EnterpriseTopNav />
+    <div className={rootClassName}>
+      <div className={shellClassName}>
+        {!embedded ? (
+          <>
+            <EnterprisePageHeader
+              badge="Mesa de atencion"
+              title="Reclamos y conversaciones"
+              description="Prioriza, asigna y responde cada caso desde un espacio de trabajo claro."
+            />
+            <EnterpriseTopNav />
+          </>
+        ) : null}
         <TicketsIdentityCoverageAlert />
-        <div className="relative flex min-h-0 w-full flex-1">
+        <div className="relative flex h-full min-h-0 w-full flex-1">
           <SectionErrorBoundary
             title="Ocurrio un problema al cargar reclamos"
             description="Recarga la pagina o vuelve a la seccion principal del panel."

@@ -83,4 +83,20 @@ describe('TicketsPanel request_id support surface', () => {
       }),
     );
   });
+
+  it('uses the compact shell when rendered inside the profile tab', async () => {
+    getIdentityCoverageMock.mockResolvedValueOnce({
+      contract_version: 'analytics.identity_coverage.v1',
+      request_id: 'req-ok',
+      alert_count: 0,
+      slo_status: 'ok',
+      alerts: [],
+    });
+
+    render(<TicketsPanelPage embedded tenantSlugOverride="municipio-demo" />);
+
+    expect(await screen.findByText('tickets-panel-body')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /reclamos y conversaciones/i })).not.toBeInTheDocument();
+    expect(screen.queryByText('top-nav')).not.toBeInTheDocument();
+  });
 });

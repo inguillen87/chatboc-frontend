@@ -43,6 +43,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
   const [visibleCounts, setVisibleCounts] = React.useState<{ [key: string]: number }>({});
   const [openCategories, setOpenCategories] = React.useState<string[]>([]);
   const [backendCategories, setBackendCategories] = React.useState<string[]>([]);
+  const [showEmptyCategories, setShowEmptyCategories] = React.useState(false);
   const previousOpenCategoriesRef = React.useRef<string[] | null>(null);
 
   React.useEffect(() => {
@@ -273,6 +274,12 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
     setFilters(defaultFilters);
   };
 
+  const categoryEntries = Object.entries(filteredTicketsByCategory);
+  const visibleCategoryEntries = categoryEntries.filter(
+    ([, categoryTickets]) => showEmptyCategories || categoryTickets.length > 0,
+  );
+  const emptyCategoryCount = categoryEntries.filter(([, categoryTickets]) => categoryTickets.length === 0).length;
+
   return (
     <aside
       className={cn(
@@ -406,7 +413,20 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
         ) : null}
       </div>
       <ScrollArea className="min-h-0 flex-1 overflow-hidden">
-        {Object.keys(filteredTicketsByCategory).length === 0 ? (
+        {emptyCategoryCount > 0 ? (
+          <div className="border-b border-border/60 px-4 py-2">
+            <button
+              type="button"
+              onClick={() => setShowEmptyCategories((current) => !current)}
+              className="inline-flex w-full items-center justify-center rounded-lg border border-border/70 bg-background/75 px-3 py-2 text-xs font-semibold text-muted-foreground transition hover:border-primary/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+            >
+              {showEmptyCategories
+                ? 'Ocultar rubros vacíos'
+                : `Mostrar ${emptyCategoryCount.toLocaleString('es-AR')} rubros vacíos`}
+            </button>
+          </div>
+        ) : null}
+        {visibleCategoryEntries.length === 0 ? (
           <div className="mx-4 mt-4 rounded-2xl border border-dashed border-border bg-background/70 p-5 text-center">
             <p className="text-sm font-semibold text-foreground">No hay casos para esta vista</p>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
@@ -425,24 +445,28 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
           value={openCategories}
           onValueChange={setOpenCategories}
         >
-          {Object.entries(filteredTicketsByCategory).map(([category, tickets]) => (
+          {visibleCategoryEntries.map(([category, tickets]) => (
             <AccordionItem value={category} key={category}>
               <AccordionTrigger className="px-4 font-semibold">
                 {category} ({tickets.length})
               </AccordionTrigger>
               <AccordionContent>
-                <div className="p-1 space-y-2">
-                  {tickets.slice(0, visibleCounts[category] || ITEMS_PER_PAGE).map((ticket) => (
-                    <TicketListItem
-                      key={ticket.id}
-                      ticket={ticket}
-                      isSelected={selectedTicket?.id === ticket.id}
-                      onClick={() => {
-                        selectTicket(ticket.id);
-                        onTicketSelected?.();
-                      }}
-                    />
-                  ))}
+                <div className="space-y-2 p-1">
+                  {tickets.length === 0 ? (
+                    <p className="px-3 py-2 text-xs text-muted-foreground">Sin casos abiertos en este rubro.</p>
+                  ) : (
+                    tickets.slice(0, visibleCounts[category] || ITEMS_PER_PAGE).map((ticket) => (
+                      <TicketListItem
+                        key={ticket.id}
+                        ticket={ticket}
+                        isSelected={selectedTicket?.id === ticket.id}
+                        onClick={() => {
+                          selectTicket(ticket.id);
+                          onTicketSelected?.();
+                        }}
+                      />
+                    ))
+                  )}
                   {(visibleCounts[category] || ITEMS_PER_PAGE) < tickets.length && (
                     <div className="p-2">
                       <Button

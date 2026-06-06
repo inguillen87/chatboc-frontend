@@ -5,6 +5,8 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 const getTicketByNumberMock = vi.fn();
 const getTicketTimelineMock = vi.fn();
 const getTicketMessagesMock = vi.fn();
+const getLiveChatScheduleStatusMock = vi.fn();
+const sendMessageMock = vi.fn();
 const trackFrontendEventMock = vi.fn();
 const toastSuccessMock = vi.fn();
 const toastErrorMock = vi.fn();
@@ -25,15 +27,10 @@ vi.mock('@/services/ticketService', () => ({
   getTicketByNumber: (...args: unknown[]) => getTicketByNumberMock(...args),
   getTicketTimeline: (...args: unknown[]) => getTicketTimelineMock(...args),
   getTicketMessages: (...args: unknown[]) => getTicketMessagesMock(...args),
-  sendMessage: vi.fn(),
+  sendMessage: (...args: unknown[]) => sendMessageMock(...args),
   updateTicketPresence: vi.fn().mockResolvedValue(null),
   updateTicketReadState: vi.fn().mockResolvedValue(null),
-  getLiveChatScheduleStatus: vi.fn().mockResolvedValue({
-    enabled: true,
-    available: true,
-    description: 'Atencion disponible',
-    socket_enabled: false,
-  }),
+  getLiveChatScheduleStatus: (...args: unknown[]) => getLiveChatScheduleStatusMock(...args),
 }));
 
 vi.mock('@/utils/frontendTelemetry', () => ({
@@ -66,10 +63,20 @@ describe('TicketLookup request_id support surface', () => {
     getTicketByNumberMock.mockReset();
     getTicketTimelineMock.mockReset();
     getTicketMessagesMock.mockReset();
+    getLiveChatScheduleStatusMock.mockReset();
+    sendMessageMock.mockReset();
     trackFrontendEventMock.mockReset();
     toastSuccessMock.mockReset();
     toastErrorMock.mockReset();
     navigateMock.mockReset();
+
+    getLiveChatScheduleStatusMock.mockResolvedValue({
+      enabled: true,
+      available: true,
+      description: 'Atencion disponible',
+      socket_enabled: false,
+    });
+    sendMessageMock.mockResolvedValue({ ok: true });
 
     vi.stubGlobal('navigator', {
       clipboard: {
@@ -140,5 +147,66 @@ describe('TicketLookup request_id support surface', () => {
       await screen.findByText(/hola que tal como va mi reclamo/i),
     ).toBeInTheDocument();
     expect(screen.queryByText(/todav[aí]a no hay mensajes públicos/i)).not.toBeInTheDocument();
+  });
+
+  it('opens the ticket live channel and sends the public message with the secure PIN', async () => {
+    getTicketByNumberMock.mockResolvedValue({
+      id: 400,
+      tipo: 'municipio',
+      tenant_slug: 'junin',
+      nro_ticket: 'M-378430',
+      asunto: 'Arreglo de calle',
+      estado: 'en_proceso',
+      fecha: '2026-06-06T03:03:47.626Z',
+      email: 'demo@example.com',
+      history: [],
+      messages: [],
+    });
+    getTicketTimelineMock.mockResolvedValue({
+      estado_chat: '',
+      history: [],
+      messages: [],
+      unified_conversation_stream: [],
+    });
+    getTicketMessagesMock.mockResolvedValue({
+      messages: [],
+      realtimeState: null,
+    });
+
+    render(<TicketLookup />);
+
+    const openButton = await screen.findByRole('button', {
+      name: /abrir canal del reclamo/i,
+    });
+    fireEvent.click(openButton);
+
+    expect(await screen.findByText(/canal activo del reclamo/i)).toBeInTheDocument();
+
+    fireEvent.change(screen.getByPlaceholderText(/escrib[ií] tu mensaje para este reclamo/i), {
+      target: { value: 'Necesito hablar con alguien en vivo por este reclamo' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /enviar al reclamo/i }));
+
+    await waitFor(() => {
+      expect(sendMessageMock).toHaveBeenCalledWith(
+        400,
+        'municipio',
+        'Necesito hablar con alguien en vivo por este reclamo',
+        undefined,
+        undefined,
+        { public: true, pin: '9999' },
+      );
+    });
+
+    expect(navigateMock).not.toHaveBeenCalledWith(expect.stringContaining('/demo'));
+    expect(toastSuccessMock).toHaveBeenCalledWith('Tu mensaje fue enviado.');
+    expect(trackFrontendEventMock).toHaveBeenCalledWith(
+      'tracking_live_chat_status_checked',
+      expect.objectContaining({
+        ticket_id: 400,
+        tenant_slug: 'junin',
+        live_chat_available: true,
+      }),
+    );
   });
 });

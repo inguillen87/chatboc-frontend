@@ -340,7 +340,6 @@ const NewTicketsPanel: React.FC = () => {
 
   const panelCardClass = cn(
     'relative flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden rounded-lg border border-border/70 bg-card/90 shadow-2xl backdrop-blur-md',
-    !isMobile && 'h-[calc(100dvh-9.5rem)] min-h-[640px] max-h-[900px]',
     isMobile && 'h-[calc(100dvh-8rem)]',
   );
 

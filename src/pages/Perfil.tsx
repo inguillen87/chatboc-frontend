@@ -2748,7 +2748,7 @@ export default function Perfil() {
           </details>
         </TabsContent>
         <TabsContent value="tickets">
-          <TicketsPanel tenantSlugOverride={derivedTenantSlug} />
+          <TicketsPanel tenantSlugOverride={derivedTenantSlug} embedded />
         </TabsContent>
         <TabsContent value="estadisticas">
           <EstadisticasPage />
