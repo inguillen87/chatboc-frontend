@@ -69,6 +69,27 @@ describe("normalizeWhatsappExperienceV2", () => {
           operational_approved: 18,
           operational_pending: 2,
         },
+        creation_manifest: {
+          contract_version: "twilio.content.creation_manifest.v1",
+          templates_total: 24,
+          actionable_total: 3,
+          by_twilio_type: {
+            "twilio/call-to-action": 8,
+            "twilio/quick-reply": 4,
+          },
+          items: [
+            {
+              id: "order_checkout",
+              friendly_name: "chatboc_order_checkout_v1",
+              create_request: {
+                friendly_name: "chatboc_order_checkout_v1",
+                types: {
+                  "twilio/text": { body: "Tu pedido {{1}} esta listo." },
+                },
+              },
+            },
+          ],
+        },
         next_actions: [
           {
             id: "gov_survey_invite",
@@ -134,6 +155,8 @@ describe("normalizeWhatsappExperienceV2", () => {
     expect((normalized.tracking.claims as any).experience_endpoint).toContain("/api/public/tracking/experience");
     expect((normalized.template_blueprint.registry_summary as any).operational_approved).toBe(18);
     expect((normalized.template_blueprint.next_actions as any)[0].id).toBe("gov_survey_invite");
+    expect((normalized.template_blueprint.creation_manifest as any).contract_version).toBe("twilio.content.creation_manifest.v1");
+    expect((normalized.template_blueprint.creation_manifest as any).items[0].id).toBe("order_checkout");
     expect((normalized.webview_blueprint.security as any).signed_session_required).toBe(true);
     expect((normalized.webview_blueprint.summary as any).flows_total).toBe(4);
     expect((normalized.webview_blueprint.flows as any)[0].id).toBe("claim_tracking_helpdesk");

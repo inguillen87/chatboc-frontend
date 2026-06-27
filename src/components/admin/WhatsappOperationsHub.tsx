@@ -721,7 +721,13 @@ const toneForQaStatus = (status: unknown): "ready" | "warning" | "danger" | "neu
   return "neutral";
 };
 
-const TemplateBlueprintPanel = ({ experience }: { experience: WhatsappExperienceV2 }) => {
+const TemplateBlueprintPanel = ({
+  experience,
+  tenantSlug,
+}: {
+  experience: WhatsappExperienceV2;
+  tenantSlug?: string | null;
+}) => {
   const blueprint = experience.template_blueprint;
   const summary = asRecord(blueprint.registry_summary);
   const nextActions = asArray(blueprint.next_actions).map(asRecord);
@@ -730,12 +736,62 @@ const TemplateBlueprintPanel = ({ experience }: { experience: WhatsappExperience
     ...asRecord(value),
   }));
   const metaStrategy = asRecord(blueprint.meta_business_strategy);
+  const creationManifest = asRecord(blueprint.creation_manifest);
+  const creationItems = asArray(creationManifest.items).map(asRecord);
+  const creationTypes = asRecord(creationManifest.by_twilio_type);
   const webview = experience.webview_blueprint;
   const webviewSecurity = asRecord(webview.security);
   const webviewSummary = asRecord(webview.summary);
   const webviewFlows = asArray(webview.flows).map(asRecord);
   const qaPlaybook = experience.qa_playbook;
   const qaScenarios = asArray(qaPlaybook.scenarios).map(asRecord);
+  const [syncingTemplateId, setSyncingTemplateId] = useState<string | null>(null);
+  const [syncResults, setSyncResults] = useState<Record<string, string>>({});
+
+  const handleTemplateSync = async (templateId: string, mode: "dry" | "execute" | "refresh") => {
+    if (!templateId) return;
+    setSyncingTemplateId(`${templateId}:${mode}`);
+    setSyncResults((current) => ({ ...current, [templateId]: "" }));
+    try {
+      const endpoint =
+        mode === "refresh"
+          ? "/api/admin/templates/twilio-content/refresh"
+          : "/api/admin/templates/twilio-content/sync";
+      const response = await apiFetch<unknown>(
+        appendTenantToEndpoint(endpoint, tenantSlug),
+        {
+          method: "POST",
+          tenantSlug: tenantSlug || undefined,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            template_id: templateId,
+            dry_run: mode === "dry",
+            submit_for_approval: true,
+          }),
+        },
+      );
+      const record = asRecord(response);
+      const registry = asRecord(record.registry);
+      const contentSid = readText(record.content_sid) || readText(registry.content_sid);
+      const approvalStatus = readText(record.approval_status) || readText(registry.status);
+      const message =
+        mode === "dry"
+          ? "Payload validado contra el manifiesto Twilio."
+          : mode === "refresh"
+            ? `Estado actualizado: ${approvalStatus || "sin estado"}${contentSid ? ` (${contentSid})` : ""}`
+            : contentSid
+              ? `ContentSid registrado: ${contentSid}`
+              : "Plantilla sincronizada.";
+      setSyncResults((current) => ({ ...current, [templateId]: message }));
+    } catch (err) {
+      setSyncResults((current) => ({
+        ...current,
+        [templateId]: getErrorMessage(err, "No se pudo sincronizar la plantilla."),
+      }));
+    } finally {
+      setSyncingTemplateId(null);
+    }
+  };
 
   if (!Object.keys(blueprint).length) return null;
 
@@ -790,6 +846,109 @@ const TemplateBlueprintPanel = ({ experience }: { experience: WhatsappExperience
                 </div>
               ))}
             </div>
+          </div>
+        ) : null}
+
+        {Object.keys(creationManifest).length ? (
+          <div className="rounded-2xl border border-border/60 bg-background/85 p-4">
+            <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-foreground">Manifiesto Twilio Content API</p>
+                <p className="text-xs text-muted-foreground">
+                  Payloads listos para crear, aprobar y registrar ContentSid sin depender de copiar textos a mano.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <StatusPill>{formatNumber(creationManifest.templates_total)} templates</StatusPill>
+                <StatusPill tone={asNumber(creationManifest.actionable_total) ? "warning" : "ready"}>
+                  {formatNumber(creationManifest.actionable_total)} accionables
+                </StatusPill>
+              </div>
+            </div>
+            {Object.keys(creationTypes).length ? (
+              <div className="mb-3 flex flex-wrap gap-2">
+                {Object.entries(creationTypes).map(([type, count]) => (
+                  <StatusPill key={type}>
+                    {type}: {formatNumber(count)}
+                  </StatusPill>
+                ))}
+              </div>
+            ) : null}
+            {creationItems.length ? (
+              <div className="grid gap-2 lg:grid-cols-2">
+                {creationItems.slice(0, 4).map((item, index) => {
+                  const createRequest = asRecord(item.create_request);
+                  const createTypes = asRecord(createRequest.types);
+                  const textType = asRecord(createTypes["twilio/text"]);
+                  const approvalRequest = asRecord(item.approval_request);
+                  const readiness = asRecord(item.readiness);
+                  const templateId = String(item.id || "");
+                  const dryKey = `${templateId}:dry`;
+                  const executeKey = `${templateId}:execute`;
+                  return (
+                    <div key={`${item.id || "manifest"}-${index}`} className="rounded-2xl border border-border/60 bg-muted/20 p-3">
+                      <div className="mb-2 flex flex-wrap items-center gap-2">
+                        <StatusPill tone={toneForSeverity(readiness.severity)}>{formatKey(String(readiness.state || "draft"))}</StatusPill>
+                        <StatusPill>{String(item.twilio_type || "twilio/text")}</StatusPill>
+                        {approvalRequest.category ? <StatusPill>{String(approvalRequest.category)}</StatusPill> : null}
+                      </div>
+                      <p className="text-sm font-semibold text-foreground">
+                        {String(item.friendly_name || createRequest.friendly_name || item.id || "template")}
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {String(item.id || "template")} · {formatKey(String(readiness.next_action || "create_template"))}
+                      </p>
+                      <p className="mt-2 line-clamp-2 font-mono text-[11px] text-muted-foreground">
+                        {String(textType.body || "body pendiente")}
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="rounded-xl"
+                          disabled={!templateId || Boolean(syncingTemplateId)}
+                          onClick={() => handleTemplateSync(templateId, "dry")}
+                        >
+                          {syncingTemplateId === dryKey ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+                          Validar payload
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="rounded-xl"
+                          disabled={!templateId || Boolean(syncingTemplateId)}
+                          onClick={() => handleTemplateSync(templateId, "execute")}
+                        >
+                          {syncingTemplateId === executeKey ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                          Crear en Twilio
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="rounded-xl"
+                          disabled={!templateId || Boolean(syncingTemplateId)}
+                          onClick={() => handleTemplateSync(templateId, "refresh")}
+                        >
+                          {syncingTemplateId === `${templateId}:refresh` ? (
+                            <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                          ) : (
+                            <RefreshCw className="mr-2 h-4 w-4" />
+                          )}
+                          Refrescar estado
+                        </Button>
+                      </div>
+                      {syncResults[templateId] ? (
+                        <p className="mt-2 rounded-xl border border-border/60 bg-background/80 px-3 py-2 text-xs text-muted-foreground">
+                          {syncResults[templateId]}
+                        </p>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
           </div>
         ) : null}
 
@@ -1367,7 +1526,7 @@ export default function WhatsappOperationsHub({
       <EnterpriseRules experience={experience} />
       <ConversationCapabilities experience={experience} />
       <ContentModules experience={experience} />
-      <TemplateBlueprintPanel experience={experience} />
+      <TemplateBlueprintPanel experience={experience} tenantSlug={tenantSlug} />
       <TrackingContract experience={experience} tenantSlug={tenantSlug} />
     </section>
   );
