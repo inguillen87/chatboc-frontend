@@ -4,6 +4,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 import { AlertCircle, BarChart3, Brain, Gauge, Loader2, MapPinned, Vote } from 'lucide-react';
 import { useTenant } from '@/context/TenantContext';
 
@@ -57,6 +58,35 @@ const KPI_DICTIONARY: Array<{ key: string; label: string; definition: string }> 
   { key: 'nps', label: 'NPS', definition: 'Lealtad percibida medida por recomendación del servicio.' },
 ];
 
+function readPolicyText(policy: Record<string, unknown> | null, key: string, fallback = '--') {
+  const value = policy?.[key];
+  return typeof value === 'string' && value.trim() ? value.trim() : fallback;
+}
+
+function readPolicyOrder(policy: Record<string, unknown> | null) {
+  const order = policy?.provider_order;
+  if (!Array.isArray(order)) return '';
+  return order.map((item) => String(item || '').trim()).filter(Boolean).join(' -> ');
+}
+
+function ModelPolicyBadges({ policy }: { policy: Record<string, unknown> | null }) {
+  if (!policy) return null;
+
+  const primaryProvider = readPolicyText(policy, 'primary_provider');
+  const providerOrder = readPolicyOrder(policy);
+  const openSourceReady = policy.open_source_ready === true;
+  const backofficeOptimized = policy.backoffice_optimized === true;
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-xs">
+      <Badge variant="secondary">IA: {primaryProvider}</Badge>
+      {openSourceReady ? <Badge variant="outline">open-source listo</Badge> : null}
+      {backofficeOptimized ? <Badge variant="outline">backoffice</Badge> : null}
+      {providerOrder ? <span className="text-muted-foreground">{providerOrder}</span> : null}
+    </div>
+  );
+}
+
 
 const AnalyticsPage = () => {
   const [searchParams] = useSearchParams();
@@ -80,6 +110,7 @@ const AnalyticsPage = () => {
   const [sourceFilter, setSourceFilter] = useState(searchParams.get('source') || searchParams.get('fuente') || '');
   const [scope, setScope] = useState(() => resolveDefaultScope(tenant?.tipo));
   const [executiveSummary, setExecutiveSummary] = useState<string>('');
+  const [executiveModelPolicy, setExecutiveModelPolicy] = useState<Record<string, unknown> | null>(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
   const [leadInteractions, setLeadInteractions] = useState<LeadInteractionItem[]>([]);
@@ -384,6 +415,7 @@ const AnalyticsPage = () => {
       );
       const summaryText = response?.summary || response?.text || '';
       setExecutiveSummary(summaryText);
+      setExecutiveModelPolicy(response?.model_policy && typeof response.model_policy === 'object' ? response.model_policy : null);
       if (response?.reason_code === 'no_operational_data_in_period') {
         setSummaryError('No hay datos operativos para este periodo.');
       } else if (!summaryText) {
@@ -392,6 +424,7 @@ const AnalyticsPage = () => {
     } catch (err) {
       console.error(err);
       setExecutiveSummary('');
+      setExecutiveModelPolicy(null);
       const status = err instanceof ApiError ? err.status : undefined;
       setSummaryError(getEnterpriseErrorMessage(status, 'executive_summary'));
     } finally {
@@ -544,7 +577,13 @@ const AnalyticsPage = () => {
 
       {executiveSummary ? (
         <div className="rounded-lg border bg-card p-4">
-          <h2 className="font-semibold mb-2">Resumen ejecutivo</h2>
+          <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 className="font-semibold">Resumen ejecutivo</h2>
+              <p className="text-xs text-muted-foreground">Generado con politica de IA operativa para analitica.</p>
+            </div>
+            <ModelPolicyBadges policy={executiveModelPolicy} />
+          </div>
           <p className="text-sm text-muted-foreground whitespace-pre-wrap">{executiveSummary}</p>
         </div>
       ) : null}

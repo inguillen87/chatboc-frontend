@@ -1210,6 +1210,7 @@ const ChatPanel = (props: ChatPanelProps) => {
     handleSend,
     activeTicketId,
     liveChatTicketId,
+    liveChatSocketRoom,
     isLiveChatActive,
     setMessages,
     setContexto,
@@ -1960,7 +1961,7 @@ const ChatPanel = (props: ChatPanelProps) => {
         }
       };
 
-      const room = `ticket_${tipoChat}_${liveChatTicketId}`;
+      const room = liveChatSocketRoom || `ticket_${tipoChat}_${liveChatTicketId}`;
       let hasJoinedRealtimeRoom = false;
       const joinLiveChatRoom = () => {
         socket.emit("join", { room });
@@ -2061,6 +2062,7 @@ const ChatPanel = (props: ChatPanelProps) => {
     addSystemMessage,
     isLiveChatActive,
     liveChatTicketId,
+    liveChatSocketRoom,
     tipoChat,
     setMessages,
     tenantSlug,

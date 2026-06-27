@@ -508,11 +508,16 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   useEffect(() => {
     if (!socket || !selectedTicket) return;
 
+    const ticketRoom =
+      typeof selectedTicket.socket_room === 'string' && selectedTicket.socket_room.trim()
+        ? selectedTicket.socket_room.trim()
+        : `ticket-${selectedTicket.tipo}-${selectedTicket.id}`;
+
     // Join the ticket-specific room if the backend requires it
     // Based on user feedback: "Socket join por tenant/ticket"
     // We emit an event to join the room. The event name is hypothetical or generic 'join'.
     // If the backend handles 'subscribe_ticket_updates' globally for the tenant, this might be redundant but safe.
-    socket.emit('join', { room: `ticket-${selectedTicket.tipo}-${selectedTicket.id}` });
+    socket.emit('join', { room: ticketRoom });
 
     const handleNewComment = (data: any) => {
        const payload = data?.payload && typeof data.payload === 'object' ? data.payload : data;
@@ -549,7 +554,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         socket.off('new_chat_message', handleNewComment);
         socket.off('conversation.message.created', handleNewComment);
         socket.off('legacy.new_chat_message', handleNewComment);
-        socket.emit('leave', { room: `ticket-${selectedTicket.tipo}-${selectedTicket.id}` });
+        socket.emit('leave', { room: ticketRoom });
     };
   }, [socket, selectedTicket]);
 

@@ -183,6 +183,66 @@ export const respondPublicSurveyV2 = (
   publicApi.post<{
     ok?: boolean;
     response_id?: string | number;
+    respuesta_id?: string | number;
     request_id?: string;
     contract_version?: string;
+    live_results_url?: string;
+    ui_actions?: Array<{ id?: string; label?: string; href?: string }>;
   }>(`/api/v2/public/surveys/${encodeURIComponent(publicToken)}/respond`, payload, { tenantSlug });
+
+export interface SurveyLiveResultsV2 {
+  contract_version?: string;
+  request_id?: string;
+  encuesta_id?: number;
+  slug?: string;
+  slug_publico?: string;
+  total_respuestas?: number;
+  preguntas?: Array<{
+    id?: number | string;
+    titulo?: string;
+    tipo?: string;
+    total_votos?: number;
+    is_multi?: boolean;
+    opciones?: Array<{
+      id?: number | string;
+      label?: string;
+      value?: number;
+      votos?: number;
+      porcentaje?: number;
+    }>;
+  }>;
+  timeline_minute?: Array<{ timestamp?: string; total?: number }>;
+  momentum?: {
+    window_minutes?: number;
+    last_window?: number;
+    previous_window?: number;
+    trend?: string;
+    delta?: number;
+  };
+  kpis?: Record<string, unknown>;
+  heatmap?: {
+    enabled?: boolean;
+    points?: unknown[];
+    cells?: unknown[];
+    metadata?: Record<string, unknown>;
+  };
+  ai_summary?: string;
+  ai_insights?: string[];
+  render_contract?: {
+    preferred_visualization?: string;
+    supports?: string[];
+    polling_interval_ms?: number;
+    empty_state?: string;
+  };
+  updated_at?: string;
+}
+
+export const getPublicSurveyLiveResultsV2 = (
+  publicToken: string,
+  tenantSlug?: string | null,
+  params?: { include_heatmap?: boolean; max_points?: number; max_cells?: number; window_minutes?: number },
+) =>
+  publicApi.get<SurveyLiveResultsV2>(
+    `/api/v2/public/surveys/${encodeURIComponent(publicToken)}/live-results${buildQueryString(params)}`,
+    { tenantSlug },
+  );

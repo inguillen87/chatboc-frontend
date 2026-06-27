@@ -282,4 +282,5 @@ export interface Ticket {
   school_case?: Record<string, unknown> | null;
   realtime_state?: TicketRealtimeState | null;
   collaboration_state?: TicketCollaborationState | null;
+  socket_room?: string | null;
 }

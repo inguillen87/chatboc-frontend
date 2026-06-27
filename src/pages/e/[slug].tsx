@@ -4,6 +4,7 @@ import { ArrowDownRight, ArrowUpRight, Download, Loader2, MessageSquareText, Ref
 
 import { SurveyForm } from '@/components/surveys/SurveyForm';
 import { SurveyErrorState } from '@/components/surveys/SurveyErrorState';
+import { SurveyLiveHeatmapPreview } from '@/components/surveys/SurveyLiveHeatmapPreview';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -843,11 +844,11 @@ const PublicSurveyPage = () => {
                   {liveQuestions.length > 0 ? (
                     <div className="grid gap-3 lg:grid-cols-2">
                       {liveQuestions.map((question, qIndex) => (
-                        <div key={`${question.id ?? qIndex}`} className="rounded-xl border border-border/60 bg-background/70 p-3">
+                        <div key={`${question.id ?? 'question'}-${qIndex}`} className="rounded-xl border border-border/60 bg-background/70 p-3">
                           <p className="mb-2 text-sm font-medium">{toDisplayText(question.texto)}</p>
                           <div className="space-y-2">
                             {(question.opciones ?? []).map((option, optionIndex) => (
-                              <div key={`${option.value ?? optionIndex}`} className="space-y-1">
+                              <div key={`${question.id ?? qIndex}-${option.value ?? 'option'}-${optionIndex}`} className="space-y-1">
                                 <div className="flex items-center justify-between text-xs">
                                   <span>{toDisplayText(option.value)}</span>
                                   <span>{option.porcentaje ?? 0}%</span>
@@ -863,10 +864,12 @@ const PublicSurveyPage = () => {
                     </div>
                   ) : null}
 
-                  {liveHeatmap && ((liveHeatmap.points?.length ?? 0) > 0 || (liveHeatmap.cells?.length ?? 0) > 0) ? (
-                    <div className="rounded-lg border border-border/60 p-3 text-xs text-muted-foreground">
-                      {textOr(liveResultsUi?.heatmap_points_label, 'Puntos')}: {liveHeatmap.points?.length ?? 0} · {textOr(liveResultsUi?.heatmap_cells_label, 'Celdas')}: {liveHeatmap.cells?.length ?? 0}
-                    </div>
+                  {Number(liveRequestParams.include_heatmap ?? 1) !== 0 ? (
+                    <SurveyLiveHeatmapPreview
+                      heatmap={liveHeatmap}
+                      pointsLabel={textOr(liveResultsUi?.heatmap_points_label, 'Puntos')}
+                      cellsLabel={textOr(liveResultsUi?.heatmap_cells_label, 'Celdas')}
+                    />
                   ) : null}
 
                   {liveDashboard.ai_summary ? (

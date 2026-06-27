@@ -10,7 +10,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useTenant } from '@/context/TenantContext';
 import { ApiError } from '@/utils/api';
-import { enterpriseService, type AiProviderStatusResponse, type BotSettingsPayload } from '@/services/enterpriseService';
+import {
+  enterpriseService,
+  type AiProviderStatusProvider,
+  type AiProviderStatusResponse,
+  type BotSettingsPayload,
+} from '@/services/enterpriseService';
 import { getEnterpriseErrorMessage } from '@/utils/enterpriseErrors';
 import { hasBotSettingsErrors, sanitizeBotSettingsPayload, validateBotSettings } from '@/utils/botSettings';
 
@@ -49,10 +54,10 @@ const statusCopy: Record<string, { label: string; badgeClass: string; panelClass
   },
 };
 
-const providerIsActive = (provider: NonNullable<AiProviderStatusResponse['providers']>[string]) =>
+const providerIsActive = (provider: AiProviderStatusProvider) =>
   Boolean(provider.chat_default || provider.configured || provider.enabled || provider.installed || provider.provider_order_enabled);
 
-const formatProviderDetail = (key: string, provider: NonNullable<AiProviderStatusResponse['providers']>[string]) => {
+const formatProviderDetail = (key: string, provider: AiProviderStatusProvider) => {
   if (key === 'huggingface') {
     const features = [
       provider.zero_shot_enabled ? 'clasificacion' : null,
@@ -156,7 +161,9 @@ const BotSettingsEnterprise = () => {
   const isValid = useMemo(() => !hasBotSettingsErrors(validation), [validation]);
   const readinessStatus = aiStatus?.readiness?.status || 'blocked';
   const readinessVisual = statusCopy[readinessStatus] || statusCopy.blocked;
-  const providers = aiStatus?.providers ? Object.entries(aiStatus.providers) : [];
+  const providers = (aiStatus?.providers
+    ? Object.entries(aiStatus.providers)
+    : []) as Array<[string, AiProviderStatusProvider]>;
   const activeProviders = providers.filter(([, provider]) => providerIsActive(provider));
   const warnings = aiStatus?.readiness?.warnings || [];
 

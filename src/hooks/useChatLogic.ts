@@ -291,6 +291,7 @@ export function useChatLogic({
   );
   const [activeTicketId, setActiveTicketId] = useState<number | null>(null);
   const [liveChatTicketId, setLiveChatTicketId] = useState<number | null>(null);
+  const [liveChatSocketRoom, setLiveChatSocketRoom] = useState<string | null>(null);
   const [liveChatStatus, setLiveChatStatus] = useState<string | null>(null);
   const [currentClaimIdempotencyKey, setCurrentClaimIdempotencyKey] = useState<
     string | null
@@ -465,6 +466,7 @@ export function useChatLogic({
         setMessages([]);
         setActiveTicketId(null);
         setLiveChatTicketId(null);
+        setLiveChatSocketRoom(null);
         setLiveChatStatus(null);
         seenMessageFingerprintsRef.current.clear();
       }
@@ -1739,8 +1741,31 @@ export function useChatLogic({
         data.live_chat ||
         data.liveChat ||
         data.metadata?.live_chat ||
-        data.metadata?.liveChat,
+        data.metadata?.liveChat ||
+        (dataPayload as any)?.live_chat ||
+        (dataPayload as any)?.liveChat,
       );
+      const liveChatMeta =
+        data.live_chat ||
+        data.liveChat ||
+        data.metadata?.live_chat ||
+        data.metadata?.liveChat ||
+        (dataPayload as any)?.live_chat ||
+        (dataPayload as any)?.liveChat ||
+        null;
+      const socketRoomCandidate = pickFirstString(
+        data.socket_room,
+        data.socketRoom,
+        data.metadata?.socket_room,
+        data.metadata?.socketRoom,
+        (dataPayload as any)?.socket_room,
+        (dataPayload as any)?.socketRoom,
+        liveChatMeta?.socket_room,
+        liveChatMeta?.socketRoom,
+      );
+      if (socketRoomCandidate) {
+        setLiveChatSocketRoom(socketRoomCandidate);
+      }
       let ticketId: number | undefined;
       if (
         typeof ticketCandidate === "number" &&
@@ -3177,6 +3202,7 @@ export function useChatLogic({
     handleSend,
     activeTicketId,
     liveChatTicketId,
+    liveChatSocketRoom,
     liveChatStatus,
     isLiveChatActive,
     setMessages,
