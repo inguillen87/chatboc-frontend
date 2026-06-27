@@ -1213,6 +1213,8 @@ function OperationsHeatmapPanel({
 
   const quality = heatmap?.quality;
   const realtime = heatmap?.realtime;
+  const mapExperience = heatmap?.map_experience;
+  const geocoding = heatmap?.geocoding;
   const qualityState = asString(quality?.state) ?? asString(heatmap?.summary?.quality_state);
   const qualityLabel =
     asString(quality?.label) ??
@@ -1259,6 +1261,12 @@ function OperationsHeatmapPanel({
       icon: Activity,
     },
   ];
+  const mapEngines = mapExperience?.map_engines ?? [];
+  const layerGroups = mapExperience?.layer_groups ?? [];
+  const preferredVisualization = asString(mapExperience?.preferred_visualization)?.replace(/_/g, ' ');
+  const geocodingCandidates = (geocoding?.candidates ?? []).slice(0, 3);
+  const geocodingStatus = asString(geocoding?.status);
+  const geocodingAction = geocoding?.recommended_action;
 
   const renderState = heatmap?.render_contract?.state;
   const isFreshnessBlocked = canRenderHeatmap === false;
@@ -1337,6 +1345,102 @@ function OperationsHeatmapPanel({
                 </div>
               );
             })}
+          </div>
+        ) : null}
+        {mapExperience || geocoding ? (
+          <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_380px]">
+            <div className="rounded-xl border bg-[linear-gradient(135deg,hsl(var(--background)),hsl(var(--muted)/0.42))] p-4 shadow-sm">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+                    {uiLabels.map_stack || 'Stack de inteligencia territorial'}
+                  </p>
+                  <h3 className="mt-1 text-lg font-semibold tracking-normal">
+                    {preferredVisualization || 'Mapa operativo interactivo'}
+                  </h3>
+                  <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+                    {uiLabels.map_stack_description ||
+                      'Capas listas para operar con calor territorial, riesgo IA, actividad de WhatsApp, encuestas y geocodificacion.'}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {mapEngines.map((engine) => (
+                    <Badge key={engine} variant="secondary" className="capitalize">
+                      {engine}
+                    </Badge>
+                  ))}
+                  {mapExperience?.supports_reduced_motion ? (
+                    <Badge variant="outline">{uiLabels.reduced_motion || 'motion seguro'}</Badge>
+                  ) : null}
+                </div>
+              </div>
+              {layerGroups.length ? (
+                <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                  {layerGroups.slice(0, 6).map((layer) => (
+                    <div key={layer} className="rounded-lg border bg-background/70 px-3 py-2">
+                      <p className="text-sm font-medium capitalize">{layer.replace(/_/g, ' ')}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {layer.includes('ai')
+                          ? 'priorizacion y riesgo'
+                          : layer.includes('whatsapp')
+                            ? 'actividad conversacional'
+                            : layer.includes('survey')
+                              ? 'participacion y voto'
+                              : 'capa territorial'}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+            <div className="rounded-xl border bg-background p-4 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                    {uiLabels.geocoding_queue || 'Cola de ubicaciones'}
+                  </p>
+                  <h3 className="mt-1 text-lg font-semibold">
+                    {formatNumber(geocoding?.candidate_count)} pendientes
+                  </h3>
+                </div>
+                {geocodingStatus ? <Badge variant={statusVariant(geocodingStatus)}>{statusLabel(geocodingStatus)}</Badge> : null}
+              </div>
+              <p className="mt-2 text-sm text-muted-foreground">
+                {geocodingCandidates.length
+                  ? 'Direcciones con texto util pero sin coordenadas. Resolverlas mejora mapa, SLA y asignacion de cuadrillas.'
+                  : 'No hay direcciones pendientes para geocodificar en los filtros actuales.'}
+              </p>
+              {geocodingCandidates.length ? (
+                <div className="mt-3 space-y-2">
+                  {geocodingCandidates.map((candidate, index) => {
+                    const key = String(candidate.record_id ?? candidate.ticket_id ?? candidate.address ?? index);
+                    return (
+                      <div key={key} className="rounded-lg border bg-muted/20 p-3">
+                        <p className="line-clamp-1 text-sm font-medium">
+                          {candidate.address || candidate.label || 'Direccion pendiente'}
+                        </p>
+                        <div className="mt-2 flex flex-wrap gap-1 text-xs text-muted-foreground">
+                          {candidate.category ? <Badge variant="outline">{candidate.category}</Badge> : null}
+                          {candidate.source ? <Badge variant="outline">{candidate.source}</Badge> : null}
+                          {candidate.reason_code ? <span>{candidate.reason_code.replace(/_/g, ' ')}</span> : null}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : null}
+              {geocodingAction ? (
+                <div className="mt-3 rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
+                  <p className="font-medium text-foreground">
+                    {asString(geocodingAction.title) ?? asString(geocodingAction.label) ?? 'Accion disponible'}
+                  </p>
+                  <p className="mt-1">
+                    {asString(geocodingAction.method) ?? 'PATCH'}{' '}
+                    {asString(geocodingAction.endpoint) ?? asString(geocodingAction.endpoint_template) ?? 'endpoint pendiente'}
+                  </p>
+                </div>
+              ) : null}
+            </div>
           </div>
         ) : null}
         {layers.length ? (

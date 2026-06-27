@@ -56,17 +56,23 @@ export async function sendTrackingSupportMessage({
   endpoint,
   pin,
   message,
+  code,
 }: {
   endpoint: string;
   pin?: string | null;
   message: string;
+  code?: string | null;
 }): Promise<TrackingRecord> {
   const params = new URLSearchParams();
   if (pin) params.set("pin", pin);
   const suffix = params.toString() ? `?${params.toString()}` : "";
+  const normalizedCode = (code || "").replace(/^(M|S)-/i, "");
+  const isLegacyClaimEndpoint = endpoint.includes("/tracking/api/send-claim-message");
   return apiFetch<TrackingRecord>(`${endpoint}${suffix}`, {
     method: "POST",
-    body: { comentario: message },
+    body: isLegacyClaimEndpoint
+      ? { nro_ticket: normalizedCode, mensaje: message, comentario: message }
+      : { comentario: message, mensaje: message, texto: message },
     skipAuth: true,
     omitCredentials: true,
     isWidgetRequest: true,

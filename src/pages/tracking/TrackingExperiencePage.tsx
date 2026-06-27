@@ -81,7 +81,10 @@ const normalizeMilestones = (payload: TrackingExperienceResponse | null, kind: T
       ? ["recibido", "validando", "asignado", "en_proceso", "resuelto", "cerrado"]
       : ["recibido", "confirmado", "pendiente_pago", "pagado", "preparando", "en_camino", "entregado"];
 
-  const raw = asArray(payload?.milestones);
+  const statusRecord = isRecord(payload?.status) ? payload.status : null;
+  const raw = asArray(payload?.milestones).length
+    ? asArray(payload?.milestones)
+    : asArray(statusRecord?.milestones);
   const items = raw
     .map((item) => {
       if (typeof item === "string") return { key: item, label: item.replace(/_/g, " ") };
@@ -165,6 +168,7 @@ const readLatLng = (value: unknown): { lat: number; lng: number; name?: string }
 
 const normalizeMapLocations = (payload: TrackingExperienceResponse | null) => {
   const map = isRecord(payload?.map) ? payload.map : {};
+  const location = isRecord(payload?.location) ? payload.location : {};
   const points = asArray(first(map, ["points", "markers", "locations"]));
   const byRole = (role: string) => {
     const match = points.find((point) => isRecord(point) && String(first(point, ["role", "type", "kind"]) || "").toLowerCase() === role);
@@ -174,8 +178,15 @@ const normalizeMapLocations = (payload: TrackingExperienceResponse | null) => {
   return {
     canRender: first(map, ["can_render", "enabled"]) !== false,
     origin: readLatLng(first(map, ["origin", "store", "start"])) || byRole("origin"),
-    destination: readLatLng(first(map, ["destination", "claim_location", "customer", "end"])) || byRole("destination"),
-    current: readLatLng(first(map, ["current", "current_status", "driver"])) || byRole("current"),
+    destination:
+      readLatLng(first(map, ["destination", "claim_location", "customer", "end"])) ||
+      byRole("destination") ||
+      readLatLng(first(map, ["center"])) ||
+      readLatLng(location),
+    current:
+      readLatLng(first(map, ["current", "current_status", "driver"])) ||
+      byRole("current") ||
+      readLatLng(first(map, ["center"])),
     fallback: readText(map, ["fallback_when_no_coordinates"], "timeline_only"),
   };
 };
@@ -206,7 +217,8 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
     milestones.findIndex((item) => item.key.toLowerCase() === status.key.toLowerCase()),
   );
   const progress = milestones.length > 1 ? Math.round((currentIndex / (milestones.length - 1)) * 100) : 0;
-  const requiresPin = kind === "claim" && !pin.trim();
+  const requiresPinForLoad = kind === "claim" && !payload && !pin.trim();
+  const requiresPinForSupport = kind === "claim" && support.requiresPin && !pin.trim();
 
   const requestId = readText(payload, ["request_id"]);
   const canShowMap = Boolean(
@@ -216,7 +228,7 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
 
   const load = async () => {
     if (!code) return;
-    if (requiresPin) {
+    if (requiresPinForLoad) {
       setError("Ingresa el PIN para consultar el estado del reclamo.");
       return;
     }
@@ -254,6 +266,7 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
         endpoint: support.endpoint,
         pin: pin.trim(),
         message,
+        code,
       });
       setSupportMessage("");
       setSupportNotice(
@@ -270,7 +283,7 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
   };
 
   React.useEffect(() => {
-    if (!code || requiresPin) return;
+    if (!code || requiresPinForLoad) return;
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code, kind]);
@@ -504,7 +517,7 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
                     </p>
                     <Button
                       onClick={handleSendSupportMessage}
-                      disabled={supportSending || !supportMessage.trim() || !support.endpoint || !pin.trim()}
+                      disabled={supportSending || !supportMessage.trim() || !support.endpoint || requiresPinForSupport}
                       className="h-10 rounded-[8px] font-semibold"
                     >
                       {supportSending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}

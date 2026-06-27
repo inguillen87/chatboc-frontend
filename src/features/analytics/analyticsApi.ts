@@ -471,6 +471,61 @@ const normalizeHeatmapRealtime = (value: unknown): OperationsHeatmapV1['realtime
   };
 };
 
+const normalizeHeatmapMapExperience = (value: unknown): OperationsHeatmapV1['map_experience'] => {
+  if (!isRecord(value)) return undefined;
+  const normalizeStringList = (raw: unknown) =>
+    Array.isArray(raw)
+      ? raw.map((item) => asString(item)).filter((item): item is string => Boolean(item))
+      : undefined;
+
+  return {
+    ...value,
+    contract_version: asString(value.contract_version),
+    preferred_visualization: asString(value.preferred_visualization),
+    map_engines: normalizeStringList(value.map_engines),
+    layer_groups: normalizeStringList(value.layer_groups),
+    empty_state_behavior: asString(value.empty_state_behavior),
+    supports_reduced_motion: asBoolean(value.supports_reduced_motion),
+  };
+};
+
+const normalizeHeatmapGeocoding = (value: unknown): OperationsHeatmapV1['geocoding'] => {
+  if (!isRecord(value)) return undefined;
+  type GeocodingCandidate = NonNullable<NonNullable<OperationsHeatmapV1['geocoding']>['candidates']>[number];
+  const candidates = Array.isArray(value.candidates)
+    ? value.candidates.reduce<GeocodingCandidate[]>((acc, candidate) => {
+        if (!isRecord(candidate)) return acc;
+        acc.push({
+          ...candidate,
+          record_id:
+            typeof candidate.record_id === 'string' || typeof candidate.record_id === 'number'
+              ? candidate.record_id
+              : undefined,
+          ticket_id:
+            typeof candidate.ticket_id === 'string' || typeof candidate.ticket_id === 'number'
+              ? candidate.ticket_id
+              : undefined,
+          address: asString(candidate.address ?? candidate.direccion),
+          label: asString(candidate.label ?? candidate.title ?? candidate.name),
+          category: asString(candidate.category ?? candidate.categoria),
+          source: asString(candidate.source ?? candidate.origen),
+          reason_code: asString(candidate.reason_code),
+        });
+        return acc;
+      }, [])
+    : undefined;
+
+  return {
+    ...value,
+    contract_version: asString(value.contract_version),
+    status: asString(value.status),
+    reason_code: asString(value.reason_code),
+    candidate_count: asNumber(value.candidate_count),
+    candidates,
+    recommended_action: normalizeActionObject(value.recommended_action),
+  };
+};
+
 const normalizeHeatmap = (response: unknown): OperationsHeatmapV1 => {
   const record = pickRecord(response) ?? {};
   const renderContract = pickRecord(record.render_contract);
@@ -507,6 +562,8 @@ const normalizeHeatmap = (response: unknown): OperationsHeatmapV1 => {
     quality: normalizeHeatmapQuality(record.quality),
     realtime: normalizeHeatmapRealtime(record.realtime),
     legend: pickRecord(record.legend),
+    map_experience: normalizeHeatmapMapExperience(record.map_experience),
+    geocoding: normalizeHeatmapGeocoding(record.geocoding ?? record.geocoding_queue),
     facets,
     segments,
     applied_filters: appliedFilters,

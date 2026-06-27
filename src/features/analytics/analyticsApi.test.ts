@@ -75,6 +75,34 @@ describe('operations heatmap v2 contract', () => {
       legend: {
         mode: 'category_source_quality',
       },
+      map_experience: {
+        contract_version: 'operations.map_experience.v1',
+        preferred_visualization: 'interactive_globe_heatmap',
+        map_engines: ['maplibre', 'deckgl', 44, 'google'],
+        layer_groups: ['base_heatmap', 'ai_risk_layers', 'whatsapp_activity', null],
+        empty_state_behavior: 'show_geocoding_queue_and_ai_summary',
+        supports_reduced_motion: 'true',
+      },
+      geocoding: {
+        contract_version: 'operations.heatmap.geocoding_queue.v1',
+        status: 'pending',
+        reason_code: 'address_without_coordinates',
+        candidate_count: '1',
+        candidates: [
+          {
+            record_id: 42,
+            direccion: 'Av. San Martin 123, Junin',
+            categoria: 'limpieza',
+            origen: 'ticket',
+            reason_code: 'address_without_coordinates',
+          },
+        ],
+        recommended_action: {
+          label: 'Geocodificar direcciones pendientes',
+          method: 'PATCH',
+          endpoint_template: '/api/tickets/{record_id}/ubicacion',
+        },
+      },
       points: [
         {
           id: 10,
@@ -154,6 +182,28 @@ describe('operations heatmap v2 contract', () => {
       latest_event_at: '2026-06-27T10:00:00Z',
     });
     expect(response.legend?.mode).toBe('category_source_quality');
+    expect(response.map_experience).toMatchObject({
+      contract_version: 'operations.map_experience.v1',
+      preferred_visualization: 'interactive_globe_heatmap',
+      map_engines: ['maplibre', 'deckgl', 'google'],
+      layer_groups: ['base_heatmap', 'ai_risk_layers', 'whatsapp_activity'],
+      supports_reduced_motion: true,
+    });
+    expect(response.geocoding).toMatchObject({
+      contract_version: 'operations.heatmap.geocoding_queue.v1',
+      status: 'pending',
+      candidate_count: 1,
+      recommended_action: {
+        title: 'Geocodificar direcciones pendientes',
+        method: 'PATCH',
+      },
+    });
+    expect(response.geocoding?.candidates?.[0]).toMatchObject({
+      record_id: 42,
+      address: 'Av. San Martin 123, Junin',
+      category: 'limpieza',
+      source: 'ticket',
+    });
   });
 
   it('reads the backend map config contract for operational maps', async () => {

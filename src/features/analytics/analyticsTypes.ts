@@ -228,6 +228,33 @@ export interface OperationsHeatmapV1 {
     [key: string]: unknown;
   };
   legend?: Record<string, unknown>;
+  map_experience?: {
+    contract_version?: string;
+    preferred_visualization?: string;
+    map_engines?: string[];
+    layer_groups?: string[];
+    empty_state_behavior?: string;
+    supports_reduced_motion?: boolean;
+    [key: string]: unknown;
+  };
+  geocoding?: {
+    contract_version?: string;
+    status?: string;
+    reason_code?: string;
+    candidate_count?: number;
+    candidates?: Array<{
+      record_id?: string | number;
+      ticket_id?: string | number;
+      address?: string;
+      label?: string;
+      category?: string;
+      source?: string;
+      reason_code?: string;
+      [key: string]: unknown;
+    }>;
+    recommended_action?: OperationsActionItem;
+    [key: string]: unknown;
+  };
   segments?: Record<string, OperationsBucketItem[]>;
   applied_filters?: Record<string, unknown>;
   filters_applied?: Record<string, unknown>;
