@@ -21,3 +21,11 @@ const resolveGoogleClientId = (): { value: string; fromFallback: boolean } => {
 const { value: resolvedGoogleClientId } = resolveGoogleClientId();
 
 export const GOOGLE_CLIENT_ID = resolvedGoogleClientId;
+
+export const CLERK_PUBLISHABLE_KEY =
+  (import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || '').trim() ||
+  readRuntimeEnv('VITE_CLERK_PUBLISHABLE_KEY') ||
+  readRuntimeEnv('NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY') ||
+  '';
+
+export const CLERK_AUTH_ENABLED = Boolean(CLERK_PUBLISHABLE_KEY);

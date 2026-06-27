@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { GoogleOAuthProvider } from "@react-oauth/google";
+import { ClerkProvider } from "@clerk/clerk-react";
 import { BrowserRouter, Routes, Route, useLocation, useNavigate } from "react-router-dom";
 
 // Páginas principales
@@ -19,7 +20,7 @@ import { UserProvider } from "./hooks/useUser";
 import { RealtimeAlertsProvider } from "@/context/RealtimeAlertsContext";
 import { TenantProvider } from "./context/TenantContext";
 import { SocketProvider } from "@/context/SocketContext";
-import { GOOGLE_CLIENT_ID } from './env';
+import { CLERK_AUTH_ENABLED, CLERK_PUBLISHABLE_KEY, GOOGLE_CLIENT_ID } from './env';
 import UserPortalLayout from "@/components/user-portal/layout/UserPortalLayout";
 import TokenRedirectWrapper from "@/components/TokenRedirectWrapper";
 import { CapabilitiesProvider } from '@/context/CapabilitiesContext';
@@ -27,6 +28,7 @@ import { toCanonicalTenantPath } from '@/utils/canonicalTenantRouting';
 import { AppShellStatusBar } from '@/components/app-shell/AppShellStatusBar';
 import { AppAccessibility } from '@/components/app-shell/AppAccessibility';
 import { PwaInstallPrompt } from '@/components/app-shell/PwaInstallPrompt';
+import ClerkAuthBridge from '@/components/auth/ClerkAuthBridge';
 
 const ChatWidget = React.lazy(() => import("@/components/chat/ChatWidget"));
 
@@ -209,6 +211,7 @@ const App = () => {
                 <TenantProvider>
                   <CapabilitiesProvider>
                     <RealtimeAlertsProvider>
+                      {CLERK_AUTH_ENABLED && <ClerkAuthBridge />}
                       <AppShellStatusBar />
                       <AppAccessibility />
                       <AppRoutes />
@@ -224,13 +227,19 @@ const App = () => {
     </QueryClientProvider>
   );
 
+  const appWithClerk = CLERK_AUTH_ENABLED ? (
+    <ClerkProvider publishableKey={CLERK_PUBLISHABLE_KEY}>
+      {appTree}
+    </ClerkProvider>
+  ) : appTree;
+
   if (!GOOGLE_CLIENT_ID) {
-    return appTree;
+    return appWithClerk;
   }
 
   return (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-      {appTree}
+      {appWithClerk}
     </GoogleOAuthProvider>
   );
 };

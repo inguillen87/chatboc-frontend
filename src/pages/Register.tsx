@@ -9,6 +9,7 @@ import GoogleLoginButton from '@/components/auth/GoogleLoginButton';
 import { isPasskeySupported, registerPasskey } from '@/services/passkeys';
 import { useTenant } from '@/context/TenantContext';
 import { buildTenantPath } from '@/utils/tenantPaths';
+import ClerkAuthButtons from '@/components/auth/ClerkAuthButtons';
 
 interface Rubro { id: number; nombre: string; }
 interface RegisterResponse {
@@ -177,6 +178,7 @@ const Register = () => {
             {isLoading ? "Registrando..." : "Registrarse"}
           </Button>
           <div className="space-y-2">
+            <ClerkAuthButtons mode="register" />
             {isPasskeyAvailable && (
               <Button
                 type="button"

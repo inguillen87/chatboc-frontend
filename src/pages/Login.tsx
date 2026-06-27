@@ -25,6 +25,7 @@ import { useDateSettings } from "@/hooks/useDateSettings";
 import { LOCALE_OPTIONS } from "@/utils/localeOptions";
 import { getFranchisePartnerConfig } from "@/utils/franchisePartnerConfig";
 import { trackFrontendEvent } from "@/utils/frontendTelemetry";
+import ClerkAuthButtons from "@/components/auth/ClerkAuthButtons";
 
 
 const isDevEnvironment = () => {
@@ -699,6 +700,7 @@ const Login = () => {
             {isLoading ? "Ingresando..." : "Iniciar Sesión"}
           </Button>
           <div className="space-y-2">
+            <ClerkAuthButtons mode="login" className="pt-1" />
             {isPasskeyAvailable && (
               <Button
                 type="button"

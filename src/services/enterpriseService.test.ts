@@ -108,6 +108,14 @@ describe('enterpriseService demo endpoints', () => {
     });
   });
 
+  it('requests AI provider status without tenant scope and optional smoke check', async () => {
+    await enterpriseService.getAiProviderStatus({ smoke: true });
+
+    expect(apiFetchMock).toHaveBeenCalledWith('/admin/ai/provider-status?smoke=1', {
+      omitTenant: true,
+    });
+  });
+
   it('normalizes collaboration metrics in tenant dashboard bundle', async () => {
     apiFetchMock.mockResolvedValueOnce({
       summary: { active_viewers: '3', unread_viewers: 2 },

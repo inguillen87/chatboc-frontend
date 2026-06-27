@@ -23,6 +23,7 @@
     "tools:ngrok:version": "npx --yes ngrok --version"
   },
   "dependencies": {
+    "@clerk/clerk-react": "^5.61.8",
     "@headlessui/react": "^1.7.18",
     "@heroicons/react": "^2.1.1",
     "@hookform/resolvers": "^5.1.1",

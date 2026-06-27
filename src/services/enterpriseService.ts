@@ -116,6 +116,58 @@ export interface DemoFrontendContract {
 
 export const SUPPORTED_DEMO_FRONTEND_CONTRACT_VERSION = "1";
 
+export interface AiProviderStatusProvider {
+  configured?: boolean;
+  enabled?: boolean;
+  installed?: boolean;
+  chat_default?: boolean;
+  provider_order_enabled?: boolean;
+  chat_model?: string;
+  base_url?: string;
+  mode?: string;
+  provider?: string;
+  zero_shot_enabled?: boolean;
+  zero_shot_model?: string;
+  embeddings_enabled?: boolean;
+  embedding_model?: string;
+  vision_enabled?: boolean;
+  recommended_uses?: string[];
+  required_env?: string[];
+  optional_env?: string[];
+  [key: string]: unknown;
+}
+
+export interface AiProviderSmokeResult {
+  provider?: string;
+  ok?: boolean;
+  mode?: string;
+  task?: string;
+  reason_code?: string;
+  error_type?: string;
+  top_label?: string;
+  top_score?: number;
+}
+
+export interface AiProviderStatusResponse {
+  contract_version?: string;
+  generated_at?: string;
+  secret_values_exposed?: boolean;
+  llm_provider_order?: string[];
+  readiness?: {
+    chat_ready?: boolean;
+    specialized_ai_ready?: boolean;
+    status?: "ready" | "warning" | "blocked" | string;
+    warnings?: string[];
+  };
+  providers?: Record<string, AiProviderStatusProvider>;
+  smoke?: {
+    requested?: boolean;
+    live_requested?: boolean;
+    live_enabled?: boolean;
+    results?: AiProviderSmokeResult[];
+  };
+}
+
 const toDemoModeDisabledError = (error: unknown): DemoModeDisabledError | null => {
   if (!(error instanceof ApiError) || error.status !== 404) return null;
   const body = error.body as DemoUnavailableContract | undefined;
@@ -1396,6 +1448,19 @@ export const enterpriseService = {
       body: payload,
       tenantSlug,
     });
+  },
+
+  getAiProviderStatus: async (
+    options?: { smoke?: boolean; live?: boolean },
+  ): Promise<AiProviderStatusResponse> => {
+    const params = new URLSearchParams();
+    if (options?.smoke) params.set("smoke", "1");
+    if (options?.live) params.set("live", "1");
+    const query = params.toString();
+    return apiFetch<AiProviderStatusResponse>(
+      `/admin/ai/provider-status${query ? `?${query}` : ""}`,
+      { omitTenant: true },
+    );
   },
 
   getFranchiseProfile: async (tenantSlug: string) => {
