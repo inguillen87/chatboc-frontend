@@ -33,7 +33,19 @@ const warningLabels: Record<string, string> = {
   ollama_in_provider_order_but_disabled: 'Ollama esta en el orden de proveedores pero sigue deshabilitado.',
   huggingface_enabled_but_missing_token: 'Hugging Face esta habilitado pero falta el token.',
   huggingface_embeddings_enabled_but_missing_token: 'Embeddings de Hugging Face activos sin token.',
+  huggingface_quota_or_payment_required: 'Hugging Face no tiene creditos/cuota disponible; el backend usa fallback local.',
+  huggingface_rate_limited: 'Hugging Face esta limitando llamadas; el backend mantiene fallback local.',
+  huggingface_auth_failed: 'Hugging Face rechazo la credencial configurada.',
+  huggingface_timeout: 'Hugging Face esta demorando demasiado; el backend mantiene fallback local.',
+  huggingface_provider_unavailable: 'Hugging Face no esta disponible temporalmente.',
+  huggingface_provider_call_failed: 'Hugging Face fallo en runtime; revisar logs y proveedor.',
   docling_enabled_but_package_not_installed: 'Docling esta activo pero el paquete no esta instalado.',
+};
+
+const providerRuntimeLabels: Record<string, string> = {
+  ready: 'runtime ok',
+  degraded: 'degradado',
+  not_configured: 'sin configurar',
 };
 
 const statusCopy: Record<string, { label: string; badgeClass: string; panelClass: string }> = {
@@ -64,7 +76,10 @@ const formatProviderDetail = (key: string, provider: AiProviderStatusProvider) =
       provider.embeddings_enabled ? 'embeddings' : null,
       provider.vision_enabled ? 'vision' : null,
     ].filter(Boolean);
-    return features.length ? features.join(' + ') : String(provider.zero_shot_model || provider.provider || 'inference');
+    const runtime = provider.runtime_status === 'degraded' ? 'fallback local activo' : null;
+    return [features.length ? features.join(' + ') : String(provider.zero_shot_model || provider.provider || 'inference'), runtime]
+      .filter(Boolean)
+      .join(' · ');
   }
   if (key === 'ollama') return String(provider.chat_model || 'glm-5.2');
   if (provider.chat_model) return String(provider.chat_model);
@@ -324,6 +339,13 @@ const BotSettingsEnterprise = () => {
                     {provider.provider_order_enabled ? <Badge variant="outline">en ruteo</Badge> : null}
                     {provider.mode === 'experimental' ? <Badge variant="outline">experimental</Badge> : null}
                     {provider.installed ? <Badge variant="outline">instalado</Badge> : null}
+                    {provider.runtime_status ? (
+                      <Badge variant={provider.runtime_status === 'degraded' ? 'destructive' : 'outline'}>
+                        {providerRuntimeLabels[String(provider.runtime_status)] || String(provider.runtime_status)}
+                      </Badge>
+                    ) : null}
+                    {provider.quota_depleted ? <Badge variant="destructive">sin creditos</Badge> : null}
+                    {provider.fallback_behavior ? <Badge variant="outline">fallback local</Badge> : null}
                   </div>
                 </div>
               );

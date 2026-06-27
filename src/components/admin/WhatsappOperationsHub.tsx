@@ -739,6 +739,7 @@ const TemplateBlueprintPanel = ({
   const creationManifest = asRecord(blueprint.creation_manifest);
   const creationItems = asArray(creationManifest.items).map(asRecord);
   const creationTypes = asRecord(creationManifest.by_twilio_type);
+  const creationFamilies = asRecord(creationManifest.by_content_family);
   const webview = experience.webview_blueprint;
   const webviewSecurity = asRecord(webview.security);
   const webviewSummary = asRecord(webview.summary);
@@ -872,6 +873,16 @@ const TemplateBlueprintPanel = ({
                     {type}: {formatNumber(count)}
                   </StatusPill>
                 ))}
+                {Object.entries(creationFamilies).map(([family, count]) => (
+                  <StatusPill key={family} tone={family === "cta_webview" ? "ready" : "neutral"}>
+                    {formatKey(family)}: {formatNumber(count)}
+                  </StatusPill>
+                ))}
+                {creationManifest.webview_ready_total !== undefined ? (
+                  <StatusPill tone={asNumber(creationManifest.webview_ready_total) ? "ready" : "warning"}>
+                    Webview ready: {formatNumber(creationManifest.webview_ready_total)}
+                  </StatusPill>
+                ) : null}
               </div>
             ) : null}
             {creationItems.length ? (
@@ -882,6 +893,7 @@ const TemplateBlueprintPanel = ({
                   const textType = asRecord(createTypes["twilio/text"]);
                   const approvalRequest = asRecord(item.approval_request);
                   const readiness = asRecord(item.readiness);
+                  const capabilities = asRecord(item.action_capabilities);
                   const templateId = String(item.id || "");
                   const dryKey = `${templateId}:dry`;
                   const executeKey = `${templateId}:execute`;
@@ -890,7 +902,10 @@ const TemplateBlueprintPanel = ({
                       <div className="mb-2 flex flex-wrap items-center gap-2">
                         <StatusPill tone={toneForSeverity(readiness.severity)}>{formatKey(String(readiness.state || "draft"))}</StatusPill>
                         <StatusPill>{String(item.twilio_type || "twilio/text")}</StatusPill>
+                        {item.content_family ? <StatusPill>{formatKey(String(item.content_family))}</StatusPill> : null}
                         {approvalRequest.category ? <StatusPill>{String(approvalRequest.category)}</StatusPill> : null}
+                        {boolish(capabilities.webview_ready) ? <StatusPill tone="ready">webview</StatusPill> : null}
+                        {boolish(capabilities.requires_signed_url) ? <StatusPill tone="warning">URL firmada</StatusPill> : null}
                       </div>
                       <p className="text-sm font-semibold text-foreground">
                         {String(item.friendly_name || createRequest.friendly_name || item.id || "template")}

@@ -126,6 +126,10 @@ export interface AiProviderStatusProvider {
   base_url?: string;
   mode?: string;
   provider?: string;
+  runtime_status?: "ready" | "degraded" | "not_configured" | string;
+  quota_depleted?: boolean;
+  last_failure?: Record<string, unknown> | null;
+  fallback_behavior?: string;
   zero_shot_enabled?: boolean;
   zero_shot_model?: string;
   embeddings_enabled?: boolean;

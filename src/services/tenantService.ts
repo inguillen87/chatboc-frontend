@@ -112,6 +112,14 @@ export const tenantService = {
     });
   },
 
+  runWhatsappTechProviderSmokeTest: async (slug: string, testId: string, payload: Record<string, unknown> = {}): Promise<any> => {
+    return apiFetch<any>(`/api/v2/tenants/${encodeURIComponent(slug)}/whatsapp/tech-provider/smoke-test/${encodeURIComponent(testId)}`, {
+      method: "POST",
+      body: payload,
+      tenantSlug: slug,
+    });
+  },
+
   // Public endpoints
   getPublicMenu: async (slug: string, channel: "widget" | "whatsapp" = "widget") => {
     return apiFetch(`${PUBLIC_BASE_URL}/${slug}/menu?channel=${channel}`);

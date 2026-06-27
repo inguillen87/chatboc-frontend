@@ -60,6 +60,28 @@ type TechProviderContract = {
     status_callback_url?: string | null;
     completion_endpoint?: string | null;
   } | null;
+  setup_health?: {
+    contract_version?: string | null;
+    status?: string | null;
+    activation_score?: number | null;
+    completed?: number | null;
+    total?: number | null;
+    recommended_next_action?: string | null;
+    blockers?: Array<Record<string, unknown>> | null;
+  } | null;
+  operator_checklist?: Array<Record<string, unknown>> | null;
+  smoke_tests?: Record<string, string | null | undefined> | null;
+  smoke_playbook?: {
+    contract_version?: string | null;
+    safe_by_default?: boolean | null;
+    summary?: {
+      total?: number | null;
+      executable_now?: number | null;
+      real_message_tests?: number | null;
+    } | null;
+    recommended_order?: string[] | null;
+    tests?: Array<Record<string, unknown>> | null;
+  } | null;
   api_workflow?: Array<Record<string, unknown>> | null;
   frontend_contract?: {
     render_as?: string | null;
@@ -68,6 +90,7 @@ type TechProviderContract = {
     primary_action?: string | null;
     show_phone_choice?: boolean | null;
     show_progress_steps?: boolean | null;
+    sections?: string[] | null;
   } | null;
   limitations?: Array<string | Record<string, unknown>> | null;
   next_action?: string | null;
@@ -116,6 +139,28 @@ const workflowLabel = (item: Record<string, unknown>, index: number) =>
 
 const workflowDetail = (item: Record<string, unknown>) =>
   readText(item.description, item.detail, item.status_label, item.status, item.next_action);
+
+const actionLabel = (value?: string | null) => {
+  const normalized = normalizeStatus(value).replace(/_/g, " ");
+  if (!normalized) return "revisar activacion";
+  const labels: Record<string, string> = {
+    "complete platform config": "Completar configuracion de plataforma",
+    "prepare activation": "Preparar activacion",
+    "start embedded signup": "Iniciar registro embebido",
+    "register sender": "Registrar sender",
+    "poll sender status": "Actualizar estado del sender",
+    "prepare voice": "Preparar voz inclusiva",
+    "review templates and webviews": "Revisar plantillas y webviews",
+    "send whatsapp smoke test": "Enviar prueba WhatsApp",
+    "verify webhooks": "Verificar webhooks",
+    "submit or sync templates": "Enviar o sincronizar plantillas",
+    "complete template copy and samples": "Completar textos y ejemplos de plantillas",
+    "review operations hub": "Revisar hub operativo",
+    "fix whatsapp experience contract": "Corregir contrato WhatsApp",
+    "wait for meta approval or poll again": "Esperar Meta o actualizar estado",
+  };
+  return labels[normalized] ?? normalized.replace(/\b\w/g, (letter) => letter.toUpperCase());
+};
 
 const limitationLabel = (item: string | Record<string, unknown>) =>
   typeof item === "string" ? item.trim() : readText(item.label, item.title, item.message, item.detail, item.description);
@@ -189,6 +234,8 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug }: { tenantS
   const [registeringSender, setRegisteringSender] = useState(false);
   const [pollingSender, setPollingSender] = useState(false);
   const [provisioningVoice, setProvisioningVoice] = useState(false);
+  const [runningSmokeTest, setRunningSmokeTest] = useState<string | null>(null);
+  const [smokeResults, setSmokeResults] = useState<Record<string, any>>({});
   const [error, setError] = useState<string | null>(null);
 
   const load = async () => {
@@ -221,6 +268,16 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug }: { tenantS
   const embeddedSignup = contract?.embedded_signup ?? null;
   const state = contract?.state ?? null;
   const voice = contract?.voice ?? null;
+  const setupHealth = contract?.setup_health ?? null;
+  const operatorChecklist = Array.isArray(contract?.operator_checklist) ? contract.operator_checklist : [];
+  const smokeTests = contract?.smoke_tests && typeof contract.smoke_tests === "object" ? contract.smoke_tests : {};
+  const smokeTestEntries = Object.entries(smokeTests).filter((entry): entry is [string, string] => typeof entry[1] === "string" && entry[1].trim().length > 0);
+  const smokePlaybook = contract?.smoke_playbook ?? null;
+  const smokePlaybookTests = Array.isArray(smokePlaybook?.tests) ? smokePlaybook.tests : [];
+  const setupScore = typeof setupHealth?.activation_score === "number" ? setupHealth.activation_score : null;
+  const setupCompleted = typeof setupHealth?.completed === "number" ? setupHealth.completed : null;
+  const setupTotal = typeof setupHealth?.total === "number" ? setupHealth.total : null;
+  const setupBlockers = Array.isArray(setupHealth?.blockers) ? setupHealth.blockers : [];
   const signupUrl = readText(embeddedSignup?.url, embeddedSignup?.start_url);
   const canStartSignup = envReady && readBoolean(embeddedSignup?.enabled, false) && Boolean(signupUrl);
   const canRegisterSender = envReady && Boolean(state?.waba_id && state?.phone_number_id);
@@ -386,6 +443,29 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug }: { tenantS
     }
   };
 
+  const handleRunSmokeTest = async (testId?: string | null) => {
+    const id = readText(testId);
+    if (!tenantSlug || !id) return;
+    setRunningSmokeTest(id);
+    setError(null);
+    try {
+      const response = await tenantService.runWhatsappTechProviderSmokeTest(tenantSlug, id, {
+        source: "tenant_panel",
+        dry_run: true,
+      });
+      setSmokeResults((current) => ({ ...current, [id]: response }));
+    } catch (err: any) {
+      const body = err?.body && typeof err.body === "object" ? err.body : null;
+      if (body?.contract_version === "twilio.tech_provider.smoke_execution.v1") {
+        setSmokeResults((current) => ({ ...current, [id]: body }));
+      } else {
+        setError(getErrorMessage(err, "No se pudo ejecutar la prueba operativa."));
+      }
+    } finally {
+      setRunningSmokeTest(null);
+    }
+  };
+
   if (!tenantSlug) return null;
 
   return (
@@ -465,6 +545,225 @@ export default function WhatsappTechProviderOnboarding({ tenantSlug }: { tenantS
               ))}
             </div>
           </div>
+
+          {setupHealth || operatorChecklist.length || smokeTestEntries.length ? (
+            <div className="rounded-2xl border bg-background/80 p-4">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Checklist operativo</p>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                    Diagnostico de produccion para registrar, probar y operar WhatsApp sin salir de Chatboc.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {setupScore !== null ? (
+                    <span className="rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+                      {setupScore}% listo
+                    </span>
+                  ) : null}
+                  {setupCompleted !== null && setupTotal !== null ? (
+                    <span className="rounded-full border bg-muted/35 px-3 py-1 text-xs text-muted-foreground">
+                      {setupCompleted}/{setupTotal} controles
+                    </span>
+                  ) : null}
+                  <StatusPill value={setupHealth?.status || contract?.frontend_contract?.primary_action} />
+                </div>
+              </div>
+
+              {setupHealth?.recommended_next_action ? (
+                <div className="mt-3 flex items-center gap-2 rounded-xl border bg-primary/5 px-3 py-2 text-sm">
+                  <ArrowRight className="h-4 w-4 text-primary" />
+                  <span className="text-muted-foreground">
+                    Proximo paso recomendado:{" "}
+                    <span className="font-medium text-foreground">{actionLabel(setupHealth.recommended_next_action)}</span>
+                  </span>
+                </div>
+              ) : null}
+
+              {setupBlockers.length ? (
+                <div className="mt-3 grid gap-2 md:grid-cols-2">
+                  {setupBlockers.map((blocker, index) => (
+                    <div key={readText(blocker.code, blocker.label) ?? index} className="rounded-xl border border-amber-500/35 bg-amber-500/10 p-3">
+                      <div className="flex items-start gap-2">
+                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                        <div>
+                          <p className="text-xs font-semibold text-foreground">{readText(blocker.label, blocker.code) ?? "Bloqueo pendiente"}</p>
+                          <p className="mt-1 text-xs leading-5 text-muted-foreground">{readText(blocker.detail, blocker.description) ?? "Revisar configuracion."}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+
+              {operatorChecklist.length ? (
+                <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                  {operatorChecklist.map((item, index) => {
+                    const done = readBoolean(item.done, false) || isReadyStatus(readText(item.status));
+                    const critical = item.critical !== false;
+                    return (
+                      <div
+                        key={readText(item.id, item.label) ?? index}
+                        className={cn(
+                          "rounded-xl border p-3",
+                          done
+                            ? "border-emerald-500/30 bg-emerald-500/10"
+                            : critical
+                              ? "border-primary/25 bg-primary/5"
+                              : "bg-card/50",
+                        )}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-xs font-semibold text-foreground">{readText(item.label, item.id) ?? `Control ${index + 1}`}</p>
+                          <StatusPill value={done ? "listo" : readText(item.status, item.action) ?? "pendiente"} />
+                        </div>
+                        <p className="mt-2 text-xs leading-5 text-muted-foreground">{readText(item.description, item.detail) ?? "Control operativo del canal."}</p>
+                        {readText(item.action) ? (
+                          <p className="mt-2 text-[11px] font-medium text-primary">{actionLabel(readText(item.action))}</p>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : null}
+
+              {smokeTestEntries.length ? (
+                <div className="mt-4 rounded-xl border bg-muted/20 p-3">
+                  <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Smoke tests</p>
+                      <p className="mt-1 text-xs text-muted-foreground">Pruebas rapidas para WhatsApp, webviews, plantillas y telemetria.</p>
+                    </div>
+                    <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                      QA accionable
+                    </span>
+                  </div>
+                  <div className="mt-3 grid gap-2 md:grid-cols-2">
+                    {smokeTestEntries.map(([key, value]) => (
+                      <div key={key} className="rounded-lg border bg-background/70 p-2">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{key.replace(/_/g, " ")}</p>
+                        <p className="mt-1 break-all font-mono text-xs text-foreground">{value}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {smokePlaybookTests.length ? (
+                <div className="mt-4 rounded-xl border bg-background/75 p-3">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Plan de pruebas guiado</p>
+                      <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                        Orden recomendado para validar canal, plantillas, webviews y mensajes reales sin romper produccion.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {smokePlaybook?.safe_by_default ? (
+                        <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                          seguro por defecto
+                        </span>
+                      ) : null}
+                      {typeof smokePlaybook?.summary?.executable_now === "number" ? (
+                        <span className="rounded-full border bg-muted/35 px-2 py-0.5 text-xs text-muted-foreground">
+                          {smokePlaybook.summary.executable_now} ejecutables ahora
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                  <div className="mt-3 grid gap-2 lg:grid-cols-2">
+                    {smokePlaybookTests.map((item, index) => {
+                      const testId = readText(item.id);
+                      const canExecute = readBoolean(item.can_execute, false);
+                      const danger = readText(item.danger_level);
+                      const realMessage = danger === "real_message";
+                      const result = testId ? smokeResults[testId] : null;
+                      const resultOk = result ? readBoolean(result.ok, false) : false;
+                      const isRunning = Boolean(testId && runningSmokeTest === testId);
+                      const validations = Array.isArray(item.validates)
+                        ? item.validates.filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+                        : [];
+                      return (
+                        <div
+                          key={readText(item.id, item.label) ?? index}
+                          className={cn(
+                            "rounded-xl border p-3",
+                            canExecute
+                              ? "border-emerald-500/25 bg-emerald-500/5"
+                              : realMessage
+                                ? "border-amber-500/30 bg-amber-500/10"
+                                : "bg-card/50",
+                          )}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-semibold text-foreground">{readText(item.label, item.id) ?? `Prueba ${index + 1}`}</p>
+                              <p className="mt-1 text-xs leading-5 text-muted-foreground">{readText(item.description) ?? "Validacion operativa del canal."}</p>
+                            </div>
+                            <StatusPill value={canExecute ? "ejecutable" : realMessage ? "confirmar" : "pendiente"} />
+                          </div>
+                          <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
+                            <span className="rounded-full border bg-background px-2 py-0.5 font-mono text-foreground">{readText(item.method) ?? "GET"}</span>
+                            <span className="rounded-full border bg-background px-2 py-0.5 text-muted-foreground">{readText(item.execution_mode) ?? "read_only"}</span>
+                            {danger ? <span className="rounded-full border bg-background px-2 py-0.5 text-muted-foreground">{danger}</span> : null}
+                          </div>
+                          {readText(item.endpoint) ? (
+                            <p className="mt-2 break-all font-mono text-xs text-foreground">{readText(item.endpoint)}</p>
+                          ) : null}
+                          {validations.length ? (
+                            <div className="mt-2 flex flex-wrap gap-1">
+                              {validations.map((validation) => (
+                                <span key={validation} className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
+                                  {validation.replace(/_/g, " ")}
+                                </span>
+                              ))}
+                            </div>
+                          ) : null}
+                          <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant={canExecute && !realMessage ? "outline" : "ghost"}
+                              disabled={!testId || !canExecute || realMessage || isRunning}
+                              onClick={() => void handleRunSmokeTest(testId)}
+                            >
+                              {isRunning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                              {realMessage ? "Requiere confirmacion" : "Ejecutar prueba"}
+                            </Button>
+                            {result ? (
+                              <span
+                                className={cn(
+                                  "rounded-full border px-2 py-0.5 text-xs font-medium",
+                                  resultOk
+                                    ? "border-emerald-500/35 bg-emerald-500/10 text-emerald-700"
+                                    : "border-amber-500/35 bg-amber-500/10 text-amber-700",
+                                )}
+                              >
+                                {readText(result.status) ?? (resultOk ? "pass" : "warning")}
+                              </span>
+                            ) : null}
+                          </div>
+                          {result ? (
+                            <div className="mt-2 rounded-lg border bg-background/70 p-2 text-xs leading-5 text-muted-foreground">
+                              <p>
+                                Resultado:{" "}
+                                <span className="font-medium text-foreground">{readText(result.label, item.label) ?? "Prueba operativa"}</span>
+                              </p>
+                              {readText(result.next_action) ? (
+                                <p>
+                                  Siguiente accion: <span className="font-medium text-foreground">{actionLabel(readText(result.next_action))}</span>
+                                </p>
+                              ) : null}
+                            </div>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
 
           {!envReady ? (
             <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
