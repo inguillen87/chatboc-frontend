@@ -7,14 +7,19 @@ import {
   Clock3,
   Loader2,
   MapPinned,
+  MessageCircle,
   PackageCheck,
+  Radio,
   RefreshCw,
   Route,
+  Send,
   ShieldCheck,
+  WifiOff,
 } from "lucide-react";
 
 import {
   fetchTrackingExperience,
+  sendTrackingSupportMessage,
   type TrackingExperienceResponse,
   type TrackingKind,
 } from "@/api/trackingExperience";
@@ -57,9 +62,10 @@ const asArray = (value: unknown): unknown[] => {
 const normalizeStatus = (payload: TrackingExperienceResponse | null) => {
   const status = payload?.status;
   if (isRecord(status)) {
+    const key = readText(status, ["current_stage", "key", "id", "status", "state"], "recibido");
     return {
-      key: readText(status, ["key", "id", "status", "state"], "recibido"),
-      label: readText(status, ["label", "title", "name", "status"], "Recibido"),
+      key,
+      label: readText(status, ["label", "title", "name", "raw_status"], key.replace(/_/g, " ")),
       detail: readText(status, ["detail", "description", "summary"]),
     };
   }
@@ -106,6 +112,47 @@ const normalizeTimeline = (payload: TrackingExperienceResponse | null) =>
     })
     .filter(Boolean) as Array<{ id: string; label: string; detail: string; timestamp: string }>;
 
+const normalizeSupport = (payload: TrackingExperienceResponse | null) => {
+  const support = isRecord(payload?.support) ? payload.support : null;
+  const liveChat = isRecord(support?.live_chat) ? support.live_chat : {};
+  const availability = isRecord(support?.availability) ? support.availability : {};
+  const ticket = isRecord(support?.ticket) ? support.ticket : {};
+  const endpoints = isRecord(support?.endpoints) ? support.endpoints : {};
+  const conversation = isRecord(support?.conversation) ? support.conversation : {};
+  const messages = asArray(conversation.messages)
+    .map((item, index) => {
+      if (!isRecord(item)) return null;
+      const author = readText(item, ["author", "actor", "origin"], "customer");
+      return {
+        id: readText(item, ["id", "key"], `support_${index}`),
+        message: readText(item, ["message", "body", "text", "comentario"]),
+        author,
+        createdAt: readText(item, ["created_at", "timestamp", "date"]),
+        isTeam: ["team", "admin", "agent", "municipio", "pyme"].includes(author.toLowerCase()),
+      };
+    })
+    .filter((item): item is { id: string; message: string; author: string; createdAt: string; isTeam: boolean } =>
+      Boolean(item?.message),
+    );
+
+  return {
+    enabled: support?.enabled !== false && Boolean(support),
+    mode: readText(support, ["mode"], "offline"),
+    label: readText(availability, ["label"], "Mesa de ayuda"),
+    description: readText(availability, ["description"], "Deja un mensaje asociado a este seguimiento."),
+    liveAvailable: Boolean(liveChat.enabled && liveChat.available),
+    schedule: readText(liveChat, ["description"]) || (
+      readText(liveChat, ["start_time"]) && readText(liveChat, ["end_time"])
+        ? `${readText(liveChat, ["start_time"])} a ${readText(liveChat, ["end_time"])}`
+        : ""
+    ),
+    endpoint: readText(endpoints, ["send_message"]),
+    ticketId: readText(ticket, ["id"]),
+    requiresPin: ticket.requires_pin !== false,
+    messages,
+  };
+};
+
 const readLatLng = (value: unknown): { lat: number; lng: number; name?: string } | null => {
   if (!isRecord(value)) return null;
   const latRaw = first(value, ["lat", "latitude"]);
@@ -145,11 +192,15 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
   const [payload, setPayload] = useState<TrackingExperienceResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [supportMessage, setSupportMessage] = useState("");
+  const [supportSending, setSupportSending] = useState(false);
+  const [supportNotice, setSupportNotice] = useState<string | null>(null);
 
   const status = normalizeStatus(payload);
   const milestones = normalizeMilestones(payload, kind);
   const timeline = normalizeTimeline(payload);
   const mapState = normalizeMapLocations(payload);
+  const support = normalizeSupport(payload);
   const currentIndex = Math.max(
     0,
     milestones.findIndex((item) => item.key.toLowerCase() === status.key.toLowerCase()),
@@ -190,6 +241,31 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
       setError(getErrorMessage(err, "No se pudo cargar el seguimiento."));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSendSupportMessage = async () => {
+    const message = supportMessage.trim();
+    if (!message || !support.endpoint || !pin.trim()) return;
+    setSupportSending(true);
+    setSupportNotice(null);
+    try {
+      await sendTrackingSupportMessage({
+        endpoint: support.endpoint,
+        pin: pin.trim(),
+        message,
+      });
+      setSupportMessage("");
+      setSupportNotice(
+        support.liveAvailable
+          ? "Mensaje enviado al canal en vivo del reclamo."
+          : "Mensaje guardado en el reclamo para la mesa de entrada.",
+      );
+      await load();
+    } catch (err) {
+      setSupportNotice(getErrorMessage(err, "No se pudo enviar el mensaje."));
+    } finally {
+      setSupportSending(false);
     }
   };
 
@@ -358,6 +434,91 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
                 ))}
               </div>
             </div>
+
+            {kind === "claim" && support.enabled ? (
+              <div className="rounded-[20px] border border-border/70 bg-card/95 p-5 shadow-sm">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`inline-flex h-10 w-10 items-center justify-center rounded-[12px] ${
+                          support.liveAvailable ? "bg-emerald-500/12 text-emerald-600" : "bg-amber-500/12 text-amber-600"
+                        }`}
+                      >
+                        {support.liveAvailable ? <Radio className="h-5 w-5" /> : <WifiOff className="h-5 w-5" />}
+                      </span>
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                          Mesa de ayuda
+                        </p>
+                        <h2 className="text-xl font-black tracking-tight">{support.label}</h2>
+                      </div>
+                    </div>
+                    <p className="mt-3 text-sm leading-6 text-muted-foreground">{support.description}</p>
+                    {support.schedule ? (
+                      <p className="mt-2 text-xs font-semibold text-foreground/75">Horario: {support.schedule}</p>
+                    ) : null}
+                  </div>
+                  <span className="inline-flex items-center rounded-full border border-border/70 px-3 py-1 text-xs font-semibold text-muted-foreground">
+                    Ticket #{support.ticketId || code}
+                  </span>
+                </div>
+
+                <div className="mt-5 space-y-3">
+                  {support.messages.length ? (
+                    support.messages.map((item) => (
+                      <div
+                        key={item.id}
+                        className={`max-w-[86%] rounded-[14px] px-4 py-3 text-sm shadow-sm ${
+                          item.isTeam
+                            ? "mr-auto border border-border/70 bg-muted/50 text-foreground"
+                            : "ml-auto bg-primary text-primary-foreground"
+                        }`}
+                      >
+                        <div className="mb-1 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] opacity-75">
+                          <MessageCircle className="h-3.5 w-3.5" />
+                          <span>{item.isTeam ? "Equipo" : "Tu mensaje"}</span>
+                        </div>
+                        <p className="leading-6">{item.message}</p>
+                        {item.createdAt ? <p className="mt-2 text-xs opacity-70">{item.createdAt}</p> : null}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="rounded-[14px] border border-dashed border-border/70 bg-muted/30 p-4 text-sm text-muted-foreground">
+                      Todavia no hay mensajes publicos en este reclamo.
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-5 rounded-[16px] border border-border/70 bg-background/80 p-3">
+                  <textarea
+                    value={supportMessage}
+                    onChange={(event) => setSupportMessage(event.target.value)}
+                    placeholder={support.liveAvailable ? "Escribi para hablar con la mesa de ayuda..." : "Deja una observacion para el equipo..."}
+                    className="min-h-[96px] w-full resize-none bg-transparent p-2 text-sm outline-none placeholder:text-muted-foreground"
+                    disabled={supportSending || !support.endpoint}
+                  />
+                  <div className="flex flex-col gap-2 border-t border-border/70 pt-3 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-xs text-muted-foreground">
+                      {support.requiresPin ? "El PIN mantiene la conversacion asociada a este reclamo." : "Mensaje asociado al seguimiento."}
+                    </p>
+                    <Button
+                      onClick={handleSendSupportMessage}
+                      disabled={supportSending || !supportMessage.trim() || !support.endpoint || !pin.trim()}
+                      className="h-10 rounded-[8px] font-semibold"
+                    >
+                      {supportSending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                      {support.liveAvailable ? "Enviar al vivo" : "Guardar mensaje"}
+                    </Button>
+                  </div>
+                </div>
+                {supportNotice ? (
+                  <div className="mt-3 rounded-[12px] border border-border/70 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+                    {supportNotice}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
 
             {requestId ? (
               <div className="rounded-[12px] border border-border/70 bg-muted/30 px-4 py-3 text-xs text-muted-foreground">

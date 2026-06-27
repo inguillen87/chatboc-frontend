@@ -2,7 +2,7 @@
 
 // This file is the single source of truth for all backend URLs.
 
-const VITE_BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+const VITE_BACKEND_URL = import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_URL;
 const CANONICAL_BACKEND_URL = 'https://chatbot-backend-2e14.onrender.com';
 const IS_DEV = import.meta.env.DEV;
 const VITE_DEFAULT_ENTITY_TOKEN = import.meta.env.VITE_DEFAULT_ENTITY_TOKEN;

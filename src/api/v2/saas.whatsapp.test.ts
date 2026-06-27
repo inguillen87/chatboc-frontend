@@ -64,6 +64,53 @@ describe("normalizeWhatsappExperienceV2", () => {
           claim: ["recibido", "validando"],
         },
       },
+      template_blueprint: {
+        registry_summary: {
+          operational_approved: 18,
+          operational_pending: 2,
+        },
+        next_actions: [
+          {
+            id: "gov_survey_invite",
+            severity: "warning",
+            next_action: "refresh_twilio_status_or_wait_for_meta_approval",
+          },
+        ],
+      },
+      webview_blueprint: {
+        flows: [
+          {
+            id: "claim_tracking_helpdesk",
+            status: "ready",
+            url_template: "/api/public/tracking/experience?kind=claim&code={code}&pin={pin}",
+          },
+        ],
+        summary: {
+          flows_total: 4,
+          ready_flows: 2,
+        },
+        security: {
+          signed_session_required: true,
+        },
+      },
+      qa_playbook: {
+        contract_version: "whatsapp.qa_playbook.v1",
+        scenario_count: 5,
+        ready_count: 2,
+        local_command: "python scripts/qa_whatsapp_flows.py",
+        scenarios: [
+          {
+            id: "gov_claim_text_to_tracking",
+            status: "ready",
+            script_cases: ["junin_texto_reclamo"],
+          },
+        ],
+      },
+      message_ux_policy: {
+        interactive_limits: {
+          reply_buttons_max: 3,
+        },
+      },
       frontend_contract: {
         render_as: "whatsapp_operations_hub",
       },
@@ -85,5 +132,13 @@ describe("normalizeWhatsappExperienceV2", () => {
     expect((normalized.tracking.orders as any).payment_status_endpoint).toBe("/api/v2/payments/status");
     expect((normalized.tracking.milestones as any).claim).toEqual(["recibido", "validando"]);
     expect((normalized.tracking.claims as any).experience_endpoint).toContain("/api/public/tracking/experience");
+    expect((normalized.template_blueprint.registry_summary as any).operational_approved).toBe(18);
+    expect((normalized.template_blueprint.next_actions as any)[0].id).toBe("gov_survey_invite");
+    expect((normalized.webview_blueprint.security as any).signed_session_required).toBe(true);
+    expect((normalized.webview_blueprint.summary as any).flows_total).toBe(4);
+    expect((normalized.webview_blueprint.flows as any)[0].id).toBe("claim_tracking_helpdesk");
+    expect((normalized.qa_playbook as any).contract_version).toBe("whatsapp.qa_playbook.v1");
+    expect((normalized.qa_playbook as any).scenarios[0].id).toBe("gov_claim_text_to_tracking");
+    expect((normalized.message_ux_policy.interactive_limits as any).reply_buttons_max).toBe(3);
   });
 });

@@ -269,6 +269,13 @@ export interface WhatsappExperienceV2 {
   };
   content_modules: Record<string, UnknownRecord>;
   tracking: UnknownRecord;
+  commerce: UnknownRecord;
+  template_blueprint: UnknownRecord;
+  webview_blueprint: UnknownRecord;
+  qa_playbook: UnknownRecord;
+  message_ux_policy: UnknownRecord;
+  admin_panel: UnknownRecord;
+  education: UnknownRecord;
   frontend_contract: UnknownRecord;
   raw: unknown;
 }
@@ -1214,6 +1221,13 @@ export const normalizeWhatsappExperienceV2 = (response: unknown): WhatsappExperi
       Object.entries(contentModules).map(([key, value]) => [key, asRecord(value)]),
     ),
     tracking: asRecord(record.tracking),
+    commerce: asRecord(record.commerce),
+    template_blueprint: asRecord(record.template_blueprint),
+    webview_blueprint: asRecord(record.webview_blueprint),
+    qa_playbook: asRecord(record.qa_playbook),
+    message_ux_policy: asRecord(record.message_ux_policy),
+    admin_panel: asRecord(record.admin_panel),
+    education: asRecord(record.education),
     frontend_contract: asRecord(record.frontend_contract),
     raw: response,
   };

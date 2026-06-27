@@ -128,6 +128,7 @@ export interface OperationsDashboardV1 {
   maps?: OperationsMaps;
   alerts: OperationsAlert[];
   next_best_actions: OperationsActionItem[];
+  ai_brief?: OperationsAIBriefV1;
   frontend_contract?: OperationsFrontendContract;
 }
 
@@ -201,6 +202,32 @@ export interface OperationsHeatmapV1 {
   facets: OperationsHeatmapFacet[];
   category_layers: OperationsBucketItem[];
   demographics?: OperationsHeatmapDemographics;
+  quality?: {
+    contract_version?: string;
+    state?: string;
+    label?: string;
+    reason_code?: string;
+    coverage_rate?: number;
+    coverage_percent?: number;
+    visible_points?: number;
+    total_ticket_records?: number;
+    ticket_records_with_coordinates?: number;
+    ticket_records_without_coordinates?: number;
+    pending_geocode?: number;
+    can_render_heatmap?: boolean;
+    empty_state_action?: Record<string, unknown>;
+    [key: string]: unknown;
+  };
+  realtime?: {
+    contract_version?: string;
+    poll_seconds?: number;
+    socket_namespace?: string;
+    socket_events?: string[];
+    latest_event_at?: string | null;
+    sources?: string[];
+    [key: string]: unknown;
+  };
+  legend?: Record<string, unknown>;
   segments?: Record<string, OperationsBucketItem[]>;
   applied_filters?: Record<string, unknown>;
   filters_applied?: Record<string, unknown>;
@@ -236,6 +263,32 @@ export interface OperationsActionCenterV1 {
     items?: OperationsTrend[];
     [key: string]: unknown;
   };
+  frontend_contract?: OperationsFrontendContract;
+}
+
+export interface OperationsAIBriefV1 {
+  contract_version?: string;
+  request_id?: string;
+  tenant?: Record<string, unknown>;
+  period?: Record<string, unknown>;
+  generated_at?: string;
+  source_contract?: string;
+  severity?: string;
+  headline?: string;
+  narrative?: string;
+  risk_level?: string;
+  dominant_intent?: string;
+  dominant_intent_label?: string;
+  sentiment?: string;
+  priority?: Record<string, unknown>;
+  requires_human_attention?: boolean;
+  requires_location_focus?: boolean;
+  top_action?: OperationsActionItem;
+  focus_items: OperationsBucketItem[];
+  signals?: Record<string, unknown>;
+  summary?: Record<string, unknown>;
+  alerts?: OperationsAlert[];
+  model_policy?: Record<string, unknown>;
   frontend_contract?: OperationsFrontendContract;
 }
 

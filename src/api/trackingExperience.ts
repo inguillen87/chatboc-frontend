@@ -21,6 +21,7 @@ export interface TrackingExperienceResponse extends TrackingRecord {
   map?: TrackingRecord;
   render_contract?: TrackingRecord;
   actions?: TrackingRecord[];
+  support?: TrackingRecord;
 }
 
 export async function fetchTrackingExperience({
@@ -51,3 +52,28 @@ export async function fetchTrackingExperience({
   );
 }
 
+export async function sendTrackingSupportMessage({
+  endpoint,
+  pin,
+  message,
+}: {
+  endpoint: string;
+  pin?: string | null;
+  message: string;
+}): Promise<TrackingRecord> {
+  const params = new URLSearchParams();
+  if (pin) params.set("pin", pin);
+  const suffix = params.toString() ? `?${params.toString()}` : "";
+  return apiFetch<TrackingRecord>(`${endpoint}${suffix}`, {
+    method: "POST",
+    body: { comentario: message },
+    skipAuth: true,
+    omitCredentials: true,
+    isWidgetRequest: true,
+    omitEntityToken: true,
+    omitChatSessionId: true,
+    omitTenant: true,
+    suppressPanel401Redirect: true,
+    pin: pin || null,
+  });
+}

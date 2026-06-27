@@ -1,6 +1,7 @@
 import { panelApi } from '@/api/v2/client';
 import type {
   AnalyticsOverview,
+  OperationsAIBriefV1,
   OperationsActionCenterV1,
   OperationsActionItem,
   OperationsAlert,
@@ -120,6 +121,14 @@ const buildQuery = (params?: {
 };
 
 const normalizeBucketItem = (value: unknown, keyFallback?: string): OperationsBucketItem | null => {
+  if (typeof value === 'string' && value.trim()) {
+    const label = value.trim();
+    return {
+      key: keyFallback ?? label,
+      label,
+    };
+  }
+
   if (isRecord(value)) {
     const key = asString(value.key) ?? asString(value.id) ?? keyFallback;
     const label =
@@ -316,6 +325,7 @@ const normalizeDashboard = (response: unknown): OperationsDashboardV1 => {
     maps: normalizeMaps(record.maps),
     alerts: normalizeAlerts(record.alerts),
     next_best_actions: normalizeActions(record.next_best_actions),
+    ai_brief: isRecord(record.ai_brief) ? normalizeAIBrief(record.ai_brief) : undefined,
     frontend_contract: normalizeFrontendContract(record.frontend_contract),
   };
 };
@@ -424,6 +434,43 @@ const normalizeHeatmapDemographics = (value: unknown): OperationsHeatmapV1['demo
   };
 };
 
+const normalizeHeatmapQuality = (value: unknown): OperationsHeatmapV1['quality'] => {
+  if (!isRecord(value)) return undefined;
+  return {
+    ...value,
+    contract_version: asString(value.contract_version),
+    state: asString(value.state),
+    label: asString(value.label),
+    reason_code: asString(value.reason_code),
+    coverage_rate: asNumber(value.coverage_rate),
+    coverage_percent: asNumber(value.coverage_percent),
+    visible_points: asNumber(value.visible_points),
+    total_ticket_records: asNumber(value.total_ticket_records),
+    ticket_records_with_coordinates: asNumber(value.ticket_records_with_coordinates),
+    ticket_records_without_coordinates: asNumber(value.ticket_records_without_coordinates),
+    pending_geocode: asNumber(value.pending_geocode),
+    can_render_heatmap: asBoolean(value.can_render_heatmap),
+    empty_state_action: pickRecord(value.empty_state_action),
+  };
+};
+
+const normalizeHeatmapRealtime = (value: unknown): OperationsHeatmapV1['realtime'] => {
+  if (!isRecord(value)) return undefined;
+  return {
+    ...value,
+    contract_version: asString(value.contract_version),
+    poll_seconds: asNumber(value.poll_seconds),
+    socket_namespace: asString(value.socket_namespace),
+    socket_events: Array.isArray(value.socket_events)
+      ? value.socket_events.map((item) => asString(item)).filter((item): item is string => Boolean(item))
+      : undefined,
+    latest_event_at: asString(value.latest_event_at) ?? null,
+    sources: Array.isArray(value.sources)
+      ? value.sources.map((item) => asString(item)).filter((item): item is string => Boolean(item))
+      : undefined,
+  };
+};
+
 const normalizeHeatmap = (response: unknown): OperationsHeatmapV1 => {
   const record = pickRecord(response) ?? {};
   const renderContract = pickRecord(record.render_contract);
@@ -457,6 +504,9 @@ const normalizeHeatmap = (response: unknown): OperationsHeatmapV1 => {
     hotspots: normalizeBucketItems(record.hotspots),
     category_layers: normalizeBucketItems(record.category_layers),
     demographics: normalizeHeatmapDemographics(record.demographics),
+    quality: normalizeHeatmapQuality(record.quality),
+    realtime: normalizeHeatmapRealtime(record.realtime),
+    legend: pickRecord(record.legend),
     facets,
     segments,
     applied_filters: appliedFilters,
@@ -505,6 +555,37 @@ const normalizeActionCenter = (response: unknown): OperationsActionCenterV1 => {
     items: normalizeActions(record.items),
     alerts: normalizeAlerts(record.alerts),
     trends: normalizeTrends(record.trends),
+    frontend_contract: normalizeFrontendContract(record.frontend_contract),
+  };
+};
+
+const normalizeAIBrief = (response: unknown): OperationsAIBriefV1 => {
+  const record = pickRecord(response) ?? {};
+  const summary = pickRecord(record.summary);
+  const priority = pickRecord(record.priority);
+  return {
+    contract_version: asString(record.contract_version),
+    request_id: asString(record.request_id),
+    tenant: pickRecord(record.tenant),
+    period: pickRecord(record.period),
+    generated_at: asString(record.generated_at),
+    source_contract: asString(record.source_contract),
+    severity: asString(record.severity) ?? asString(priority?.severity),
+    headline: asString(record.headline) ?? asString(summary?.headline),
+    narrative: asString(record.narrative) ?? asString(summary?.narrative),
+    risk_level: asString(record.risk_level) ?? asString(priority?.label),
+    dominant_intent: asString(record.dominant_intent) ?? asString(summary?.dominant_intent),
+    dominant_intent_label: asString(record.dominant_intent_label) ?? asString(summary?.dominant_intent_label),
+    sentiment: asString(record.sentiment) ?? asString(summary?.sentiment),
+    priority,
+    requires_human_attention: asBoolean(record.requires_human_attention),
+    requires_location_focus: asBoolean(record.requires_location_focus),
+    top_action: normalizeActionObject(record.top_action ?? (Array.isArray(record.recommended_actions) ? record.recommended_actions[0] : null)),
+    focus_items: normalizeBucketItems(record.focus_items ?? priority?.focus_items),
+    signals: pickRecord(record.signals),
+    summary,
+    alerts: normalizeAlerts(record.alerts),
+    model_policy: pickRecord(record.model_policy),
     frontend_contract: normalizeFrontendContract(record.frontend_contract),
   };
 };
@@ -654,6 +735,21 @@ export const getOperationsActionCenterV2 = async (params?: {
     tenantSlug: params?.tenantSlug,
   });
   return normalizeActionCenter(response);
+};
+
+export const getOperationsAIBriefV2 = async (params?: {
+  tenantSlug?: string | null;
+  tenant_id?: number | string | null;
+  from?: string | null;
+  to?: string | null;
+  range?: string | null;
+  scope?: string | null;
+}) => {
+  const query = buildQuery(params);
+  const response = await panelApi.get<unknown>(`/api/v2/analytics/operations/ai-brief${query}`, {
+    tenantSlug: params?.tenantSlug,
+  });
+  return normalizeAIBrief(response);
 };
 
 export const getOperationsFreshnessV2 = async (params?: {

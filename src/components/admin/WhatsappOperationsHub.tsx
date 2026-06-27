@@ -705,6 +705,259 @@ const ContentModules = ({ experience }: { experience: WhatsappExperienceV2 }) =>
   );
 };
 
+const toneForSeverity = (severity: unknown): "ready" | "warning" | "danger" | "neutral" => {
+  const value = String(severity || "").toLowerCase();
+  if (value === "blocking") return "danger";
+  if (value === "warning" || value === "ready_with_dependency") return "warning";
+  if (value === "ready") return "ready";
+  return "neutral";
+};
+
+const toneForQaStatus = (status: unknown): "ready" | "warning" | "danger" | "neutral" => {
+  const value = String(status || "").toLowerCase();
+  if (value === "ready") return "ready";
+  if (value.includes("blocked")) return "danger";
+  if (value.includes("review") || value.includes("pending") || value.includes("needs")) return "warning";
+  return "neutral";
+};
+
+const TemplateBlueprintPanel = ({ experience }: { experience: WhatsappExperienceV2 }) => {
+  const blueprint = experience.template_blueprint;
+  const summary = asRecord(blueprint.registry_summary);
+  const nextActions = asArray(blueprint.next_actions).map(asRecord);
+  const groups: AnyRecord[] = Object.entries(asRecord(blueprint.operational_template_groups)).map(([id, value]) => ({
+    id,
+    ...asRecord(value),
+  }));
+  const metaStrategy = asRecord(blueprint.meta_business_strategy);
+  const webview = experience.webview_blueprint;
+  const webviewSecurity = asRecord(webview.security);
+  const webviewSummary = asRecord(webview.summary);
+  const webviewFlows = asArray(webview.flows).map(asRecord);
+  const qaPlaybook = experience.qa_playbook;
+  const qaScenarios = asArray(qaPlaybook.scenarios).map(asRecord);
+
+  if (!Object.keys(blueprint).length) return null;
+
+  return (
+    <Card className="border-border/60">
+      <CardHeader>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <FileText className="h-4 w-4 text-primary" />
+              Plantillas, webviews y Meta
+            </CardTitle>
+            <CardDescription>{String(blueprint.provider || "twilio_content_api")}</CardDescription>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <StatusPill tone={boolish(blueprint.enabled) ? "ready" : "warning"}>
+              {boolish(blueprint.enabled) ? "Canal habilitado" : "Setup pendiente"}
+            </StatusPill>
+            {blueprint.channel ? <StatusPill>{String(blueprint.channel)}</StatusPill> : null}
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+          <Metric label="Registradas" value={formatNumber(summary.total_registered)} tone="ready" />
+          <Metric label="Aprobadas" value={formatNumber(summary.operational_approved)} tone="ready" />
+          <Metric label="Pendientes" value={formatNumber(summary.operational_pending)} tone={asNumber(summary.operational_pending) ? "warning" : "neutral"} />
+          <Metric label="Bloqueantes" value={formatNumber(summary.operational_blocking)} tone={asNumber(summary.operational_blocking) ? "danger" : "ready"} />
+          <Metric label="Webviews" value={formatNumber(summary.operational_webviews)} />
+          <Metric label="Flows" value={formatNumber(summary.operational_whatsapp_flow_candidates)} />
+        </div>
+
+        {nextActions.length ? (
+          <div className="rounded-2xl border border-border/60 bg-muted/20 p-4">
+            <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-foreground">Próximas acciones</p>
+                <p className="text-xs text-muted-foreground">Ordenadas por severidad del contrato operativo.</p>
+              </div>
+              <StatusPill>{nextActions.length}</StatusPill>
+            </div>
+            <div className="grid gap-2 lg:grid-cols-2">
+              {nextActions.slice(0, 6).map((action, index) => (
+                <div key={`${action.id || "template"}-${index}`} className="rounded-2xl border border-border/60 bg-background/85 p-3">
+                  <div className="mb-2 flex flex-wrap items-center gap-2">
+                    <StatusPill tone={toneForSeverity(action.severity)}>{String(action.severity || "action")}</StatusPill>
+                    {action.twilio_type ? <StatusPill>{String(action.twilio_type)}</StatusPill> : null}
+                  </div>
+                  <p className="text-sm font-semibold text-foreground">{String(action.friendly_name || action.id || "template")}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{formatKey(String(action.next_action || action.state || "review"))}</p>
+                  {action.content_sid ? <p className="mt-2 break-all font-mono text-[11px] text-muted-foreground">{String(action.content_sid)}</p> : null}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {groups.length ? (
+          <div className="grid gap-3 lg:grid-cols-2">
+            {groups.slice(0, 6).map((group) => {
+              const groupSummary = asRecord(group.summary);
+              const blocking = asNumber(groupSummary.blocking) || 0;
+              const pending = asNumber(groupSummary.pending) || 0;
+              return (
+                <div key={group.id} className="rounded-2xl border border-border/60 bg-background/80 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">{String(group.label || formatKey(group.id))}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{String(group.purpose || "templates")}</p>
+                    </div>
+                    <StatusPill tone={blocking ? "danger" : pending ? "warning" : "ready"}>
+                      {blocking ? "Bloqueos" : pending ? "Pendiente" : "Listo"}
+                    </StatusPill>
+                  </div>
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    <Metric label="Total" value={formatNumber(groupSummary.total)} />
+                    <Metric label="OK" value={formatNumber(groupSummary.approved)} tone="ready" />
+                    <Metric label="Web" value={formatNumber(groupSummary.webviews)} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
+
+        <div className="grid gap-3 lg:grid-cols-3">
+          {Object.entries(metaStrategy).map(([key, value]) => {
+            const strategy = asRecord(value);
+            return (
+              <div key={key} className="rounded-2xl border border-border/60 bg-muted/20 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">{formatKey(key)}</p>
+                <p className="mt-2 text-sm font-semibold text-foreground">{String(strategy.use_when || strategy.backend_contract || "Disponible")}</p>
+                {Array.isArray(strategy.recommended_for) ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {strategy.recommended_for.slice(0, 4).map((item: unknown) => (
+                      <StatusPill key={String(item)}>{formatKey(String(item))}</StatusPill>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-foreground">Webviews seguros</p>
+              <p className="mt-1 text-xs text-muted-foreground">{String(first(webview, ["entrypoints", "mode"]) || "whatsapp, widget, web")}</p>
+            </div>
+            <StatusPill tone={boolish(webview.enabled) ? "ready" : "warning"}>{boolish(webview.enabled) ? "Activo" : "Bloqueado"}</StatusPill>
+          </div>
+          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+            <Metric label="Sesion firmada" value={boolish(webviewSecurity.signed_session_required) ? "Si" : "No"} tone={boolish(webviewSecurity.signed_session_required) ? "ready" : "warning"} />
+            <Metric label="Webhook server" value={boolish(webviewSecurity.server_to_server_confirmation) ? "Si" : "No"} tone={boolish(webviewSecurity.server_to_server_confirmation) ? "ready" : "warning"} />
+            <Metric label="Tarjeta en chat" value={boolish(webviewSecurity.card_data_in_chat_allowed) ? "Permitido" : "No"} tone={boolish(webviewSecurity.card_data_in_chat_allowed) ? "danger" : "ready"} />
+            <Metric label="Plan full" value={boolish(webviewSecurity.requires_full_plan) ? "Requerido" : "No"} />
+          </div>
+          {webviewFlows.length ? (
+            <div className="mt-4 rounded-2xl border border-border/60 bg-background/80 p-3">
+              <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Flujos transaccionales desde WhatsApp</p>
+                  <p className="text-xs text-muted-foreground">
+                    {formatNumber(webviewSummary.ready_flows)} de {formatNumber(webviewSummary.flows_total)} listos con sesion firmada.
+                  </p>
+                </div>
+                <StatusPill>{formatNumber(webviewSummary.flows_total)} flows</StatusPill>
+              </div>
+              <div className="grid gap-2 lg:grid-cols-2">
+                {webviewFlows.slice(0, 4).map((flow) => {
+                  const status = String(flow.status || "review");
+                  const templateIds = asArray(flow.template_ids).map(String);
+                  const confirmations = asArray(flow.server_confirmation).map(String);
+                  return (
+                    <div key={String(flow.id)} className="rounded-2xl border border-border/60 bg-muted/20 p-3">
+                      <div className="mb-2 flex flex-wrap items-center gap-2">
+                        <StatusPill tone={status === "ready" ? "ready" : status.includes("blocked") ? "danger" : "warning"}>
+                          {formatKey(status)}
+                        </StatusPill>
+                        <StatusPill>{String(flow.surface || "webview")}</StatusPill>
+                      </div>
+                      <p className="text-sm font-semibold text-foreground">{String(flow.label || flow.id)}</p>
+                      <p className="mt-1 break-all text-xs text-muted-foreground">{String(flow.url_template || "-")}</p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {templateIds.slice(0, 3).map((item) => (
+                          <StatusPill key={item}>{formatKey(item)}</StatusPill>
+                        ))}
+                      </div>
+                      {confirmations.length ? (
+                        <p className="mt-3 text-[11px] text-muted-foreground">
+                          Confirma: {confirmations.slice(0, 2).map(formatKey).join(" + ")}
+                        </p>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+        </div>
+
+        {qaScenarios.length ? (
+          <div className="rounded-2xl border border-border/60 bg-background/85 p-4">
+            <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-foreground">Matriz QA de WhatsApp</p>
+                <p className="text-xs text-muted-foreground">
+                  Reclamos, pedidos, colegios, encuestas y webviews conectados a pruebas reproducibles.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <StatusPill tone={asNumber(qaPlaybook.ready_count) ? "ready" : "warning"}>
+                  {formatNumber(qaPlaybook.ready_count)} listos
+                </StatusPill>
+                <StatusPill>{formatNumber(qaPlaybook.scenario_count)} escenarios</StatusPill>
+              </div>
+            </div>
+            <div className="grid gap-2 lg:grid-cols-2">
+              {qaScenarios.slice(0, 6).map((scenario) => {
+                const templateState = asRecord(scenario.template_state);
+                const webviewState = asRecord(scenario.webview_state);
+                const scriptCases = asArray(scenario.script_cases).map(String);
+                return (
+                  <div key={String(scenario.id)} className="rounded-2xl border border-border/60 bg-muted/20 p-3">
+                    <div className="mb-2 flex flex-wrap items-center gap-2">
+                      <StatusPill tone={toneForQaStatus(scenario.status)}>{formatKey(String(scenario.status || "review"))}</StatusPill>
+                      <StatusPill>{formatKey(String(scenario.entrypoint || "whatsapp"))}</StatusPill>
+                      {webviewState.status ? <StatusPill>{formatKey(String(webviewState.status))}</StatusPill> : null}
+                    </div>
+                    <p className="text-sm font-semibold text-foreground">{String(scenario.label || scenario.id)}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {asArray(scenario.covers).slice(0, 5).map(String).map(formatKey).join(" · ")}
+                    </p>
+                    <div className="mt-3 grid grid-cols-3 gap-2">
+                      <Metric label="Templates OK" value={formatNumber(templateState.approved)} tone={asNumber(templateState.blocking) ? "danger" : "ready"} />
+                      <Metric label="Bloqueos" value={formatNumber(templateState.blocking)} tone={asNumber(templateState.blocking) ? "danger" : "ready"} />
+                      <Metric label="Casos QA" value={formatNumber(scriptCases.length)} />
+                    </div>
+                    {scriptCases.length ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {scriptCases.slice(0, 4).map((item) => (
+                          <StatusPill key={item}>{formatKey(item)}</StatusPill>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+            {qaPlaybook.local_command ? (
+              <p className="mt-3 rounded-xl border border-border/60 bg-muted/30 px-3 py-2 font-mono text-[11px] text-muted-foreground">
+                {String(qaPlaybook.local_command)}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+};
+
 const TrackingExperienceResult = ({ result }: { result: AnyRecord }) => {
   const source = asRecord(first(result, ["data", "experience", "tracking"]) || result);
   const current = asRecord(first(source, ["current_status", "current", "status_detail"]));
@@ -1114,6 +1367,7 @@ export default function WhatsappOperationsHub({
       <EnterpriseRules experience={experience} />
       <ConversationCapabilities experience={experience} />
       <ContentModules experience={experience} />
+      <TemplateBlueprintPanel experience={experience} />
       <TrackingContract experience={experience} tenantSlug={tenantSlug} />
     </section>
   );
