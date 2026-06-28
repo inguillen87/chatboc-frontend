@@ -44,12 +44,14 @@ export interface OperationsTrend {
 
 export interface OperationsActionItem {
   id?: string;
+  label?: string;
   title?: string;
   description?: string;
   priority?: string;
   reason_code?: string;
   endpoint?: string;
   method?: string;
+  template_id?: string;
   payload_template?: Record<string, unknown>;
   ui_hint?: string;
   [key: string]: unknown;
@@ -72,6 +74,17 @@ export interface OperationsBreakdowns {
   by_channel?: OperationsBucketItem[];
   by_category?: OperationsBucketItem[];
   by_priority?: OperationsBucketItem[];
+  live_control_room?: {
+    contract_version?: string;
+    enabled?: boolean;
+    state?: string;
+    summary?: Record<string, unknown>;
+    monitors?: OperationsBucketItem[];
+    actions?: OperationsActionItem[];
+    realtime?: Record<string, unknown>;
+    frontend_contract?: Record<string, unknown>;
+    [key: string]: unknown;
+  };
   [key: string]: unknown;
 }
 

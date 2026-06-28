@@ -740,6 +740,8 @@ const TemplateBlueprintPanel = ({
   const creationItems = asArray(creationManifest.items).map(asRecord);
   const creationTypes = asRecord(creationManifest.by_twilio_type);
   const creationFamilies = asRecord(creationManifest.by_content_family);
+  const creationMetaSurfaces = asRecord(creationManifest.by_meta_surface);
+  const metaReadiness = asRecord(creationManifest.meta_business_readiness);
   const webview = experience.webview_blueprint;
   const webviewSecurity = asRecord(webview.security);
   const webviewSummary = asRecord(webview.summary);
@@ -883,6 +885,24 @@ const TemplateBlueprintPanel = ({
                     Webview ready: {formatNumber(creationManifest.webview_ready_total)}
                   </StatusPill>
                 ) : null}
+                {Object.entries(creationMetaSurfaces).map(([surface, count]) => (
+                  <StatusPill key={surface} tone={surface === "whatsapp_flow" || surface === "commerce_catalog" ? "ready" : "neutral"}>
+                    Meta {formatKey(surface)}: {formatNumber(count)}
+                  </StatusPill>
+                ))}
+              </div>
+            ) : null}
+            {Object.keys(metaReadiness).length ? (
+              <div className="mb-3 rounded-2xl border border-border/60 bg-muted/20 p-3">
+                <div className="mb-2 flex flex-wrap gap-2">
+                  <StatusPill tone="ready">Flows: {formatNumber(metaReadiness.whatsapp_flows_candidates)}</StatusPill>
+                  <StatusPill>Catalogos: {formatNumber(metaReadiness.commerce_catalog_candidates)}</StatusPill>
+                  <StatusPill>Pagos: {formatNumber(metaReadiness.payments_native_candidates)}</StatusPill>
+                  <StatusPill tone="ready">CTA webview: {formatNumber(metaReadiness.cta_webview_candidates)}</StatusPill>
+                </div>
+                {metaReadiness.recommendation ? (
+                  <p className="text-xs leading-5 text-muted-foreground">{String(metaReadiness.recommendation)}</p>
+                ) : null}
               </div>
             ) : null}
             {creationItems.length ? (
@@ -894,6 +914,7 @@ const TemplateBlueprintPanel = ({
                   const approvalRequest = asRecord(item.approval_request);
                   const readiness = asRecord(item.readiness);
                   const capabilities = asRecord(item.action_capabilities);
+                  const metaBusiness = asRecord(item.meta_business);
                   const templateId = String(item.id || "");
                   const dryKey = `${templateId}:dry`;
                   const executeKey = `${templateId}:execute`;
@@ -906,6 +927,7 @@ const TemplateBlueprintPanel = ({
                         {approvalRequest.category ? <StatusPill>{String(approvalRequest.category)}</StatusPill> : null}
                         {boolish(capabilities.webview_ready) ? <StatusPill tone="ready">webview</StatusPill> : null}
                         {boolish(capabilities.requires_signed_url) ? <StatusPill tone="warning">URL firmada</StatusPill> : null}
+                        {metaBusiness.recommended_surface ? <StatusPill tone="ready">Meta {formatKey(String(metaBusiness.recommended_surface))}</StatusPill> : null}
                       </div>
                       <p className="text-sm font-semibold text-foreground">
                         {String(item.friendly_name || createRequest.friendly_name || item.id || "template")}
@@ -916,6 +938,12 @@ const TemplateBlueprintPanel = ({
                       <p className="mt-2 line-clamp-2 font-mono text-[11px] text-muted-foreground">
                         {String(textType.body || "body pendiente")}
                       </p>
+                      {metaBusiness.recommended_surface ? (
+                        <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                          Superficie sugerida: {formatKey(String(metaBusiness.recommended_surface))}
+                          {boolish(metaBusiness.outside_24h_requires_approval) ? ". Requiere aprobacion para recontacto fuera de 24h." : "."}
+                        </p>
+                      ) : null}
                       <div className="mt-3 flex flex-wrap gap-2">
                         <Button
                           type="button"
@@ -1040,10 +1068,12 @@ const TemplateBlueprintPanel = ({
                 <StatusPill>{formatNumber(webviewSummary.flows_total)} flows</StatusPill>
               </div>
               <div className="grid gap-2 lg:grid-cols-2">
-                {webviewFlows.slice(0, 4).map((flow) => {
+                {webviewFlows.slice(0, 8).map((flow) => {
                   const status = String(flow.status || "review");
                   const templateIds = asArray(flow.template_ids).map(String);
                   const confirmations = asArray(flow.server_confirmation).map(String);
+                  const availability = asRecord(flow.availability);
+                  const signedParams = asArray(flow.signed_params).map(String);
                   return (
                     <div key={String(flow.id)} className="rounded-2xl border border-border/60 bg-muted/20 p-3">
                       <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -1051,6 +1081,9 @@ const TemplateBlueprintPanel = ({
                           {formatKey(status)}
                         </StatusPill>
                         <StatusPill>{String(flow.surface || "webview")}</StatusPill>
+                        {availability.outside_hours_mode ? (
+                          <StatusPill tone="ready">{formatKey(String(availability.outside_hours_mode))}</StatusPill>
+                        ) : null}
                       </div>
                       <p className="text-sm font-semibold text-foreground">{String(flow.label || flow.id)}</p>
                       <p className="mt-1 break-all text-xs text-muted-foreground">{String(flow.url_template || "-")}</p>
@@ -1059,6 +1092,11 @@ const TemplateBlueprintPanel = ({
                           <StatusPill key={item}>{formatKey(item)}</StatusPill>
                         ))}
                       </div>
+                      {signedParams.length ? (
+                        <p className="mt-3 text-[11px] text-muted-foreground">
+                          Firma: {signedParams.slice(0, 3).map(formatKey).join(" + ")}
+                        </p>
+                      ) : null}
                       {confirmations.length ? (
                         <p className="mt-3 text-[11px] text-muted-foreground">
                           Confirma: {confirmations.slice(0, 2).map(formatKey).join(" + ")}

@@ -872,6 +872,129 @@ function TicketBreakdowns({ data }: { data: OperationsDashboardV1 }) {
   );
 }
 
+function SurveyLiveControlRoom({ data }: { data: OperationsDashboardV1 }) {
+  const room = data.surveys?.live_control_room;
+  if (!room || room.enabled === false) return null;
+
+  const monitors = Array.isArray(room.monitors) ? room.monitors : [];
+  const actions = Array.isArray(room.actions) ? room.actions : [];
+  const summary = room.summary ?? {};
+  const realtime = isRecord(room.realtime) ? room.realtime : {};
+  const state = asString(room.state) ?? 'monitor';
+  const refreshSeconds = readNumber(realtime.refresh_seconds);
+  const channels = Array.isArray(summary.channels) ? (summary.channels as OperationsBucketItem[]) : [];
+
+  return (
+    <Card className="overflow-hidden border-primary/20">
+      <CardHeader className="border-b bg-primary/5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Activity className="h-5 w-5 text-primary" />
+              Control de votaciones en vivo
+            </CardTitle>
+            <CardDescription>
+              Participacion, resultados, canales y cobertura geografica para decisiones en tiempo real.
+            </CardDescription>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Badge variant={state === 'live' ? 'default' : 'secondary'}>{state === 'live' ? 'en vivo' : statusLabel(state)}</Badge>
+            {refreshSeconds !== undefined ? <Badge variant="outline">refresh {formatNumber(refreshSeconds)}s</Badge> : null}
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4 pt-4">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-lg border bg-background p-3">
+            <p className="text-xs text-muted-foreground">Votaciones activas</p>
+            <p className="text-2xl font-semibold">{formatNumber(summary.live_surveys)}</p>
+          </div>
+          <div className="rounded-lg border bg-background p-3">
+            <p className="text-xs text-muted-foreground">Respuestas</p>
+            <p className="text-2xl font-semibold">{formatNumber(summary.responses)}</p>
+          </div>
+          <div className="rounded-lg border bg-background p-3">
+            <p className="text-xs text-muted-foreground">Cobertura mapa</p>
+            <p className="text-2xl font-semibold">{formatNumber(summary.geo_coverage_rate, '%')}</p>
+          </div>
+        </div>
+
+        {monitors.length ? (
+          <div className="grid gap-3 lg:grid-cols-2">
+            {monitors.slice(0, 4).map((monitor, index) => {
+              const responses = readNumber(monitor.responses, monitor.value, monitor.count);
+              const geoCoverage = readNumber(monitor.geo_coverage_rate);
+              const liveResults = asString(monitor.live_results_endpoint);
+              const publicUrl = asString(monitor.public_url);
+              const adminUrl = asString(monitor.admin_url);
+              return (
+                <div key={monitor.id || monitor.slug || index} className="rounded-xl border bg-muted/20 p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-foreground">{itemLabel(monitor)}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {asString(monitor.slug) ?? 'encuesta'} · {statusLabel(asString(monitor.status))}
+                      </p>
+                    </div>
+                    <Badge variant={asString(monitor.state) === 'live_collecting' ? 'default' : 'secondary'}>
+                      {asString(monitor.state) === 'live_collecting' ? 'recolectando' : statusLabel(asString(monitor.state))}
+                    </Badge>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                    <MetricMini label="Votos" value={formatNumber(responses)} />
+                    <MetricMini label="Mapa" value={geoCoverage !== undefined ? formatNumber(geoCoverage, '%') : '--'} />
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {publicUrl ? (
+                      <Button asChild size="sm" variant="outline">
+                        <a href={publicUrl}>Abrir publica</a>
+                      </Button>
+                    ) : null}
+                    {liveResults ? (
+                      <Button asChild size="sm" variant="outline">
+                        <a href={liveResults}>Resultados API</a>
+                      </Button>
+                    ) : null}
+                    {adminUrl ? (
+                      <Button asChild size="sm">
+                        <a href={adminUrl}>Analitica</a>
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <ViewState status="empty" description="No hay votaciones en vivo publicadas para este periodo." className="min-h-[140px]" />
+        )}
+
+        {channels.length || actions.length ? (
+          <div className="grid gap-3 lg:grid-cols-2">
+            {channels.length ? <MiniList title="Canales de participacion" items={channels} /> : null}
+            {actions.length ? (
+              <div className="rounded-lg border bg-background p-3">
+                <p className="text-sm font-medium">Acciones operativas</p>
+                <div className="mt-3 space-y-2">
+                  {actions.slice(0, 4).map((action, index) => (
+                    <div key={action.id || action.title || index} className="flex items-start justify-between gap-3 rounded-md border bg-muted/20 px-3 py-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium">{action.title || action.label || action.id}</p>
+                        {action.endpoint ? <p className="mt-1 break-all font-mono text-[11px] text-muted-foreground">{action.endpoint}</p> : null}
+                      </div>
+                      {action.template_id ? <Badge variant="outline">{String(action.template_id)}</Badge> : null}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
 function EngagementPanel({ data }: { data: OperationsDashboardV1 }) {
   const surveyItems = data.surveys?.items ?? [];
   const liveItems = Array.isArray(data.surveys?.live_items)
@@ -886,31 +1009,34 @@ function EngagementPanel({ data }: { data: OperationsDashboardV1 }) {
   if (!hasSignal) return null;
 
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
-      {surveyRows.length ? (
-        <BreakdownCard title={resolveLabel(data, 'surveys', 'Encuestas y votaciones')} items={surveyRows} />
-      ) : null}
-      {channelRows.length || data.live_chat?.active_viewers !== undefined ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">{resolveLabel(data, 'channels', 'Canales y live chat')}</CardTitle>
-            <CardDescription>
-              {data.live_chat?.active_viewers !== undefined
-                ? `${formatNumber(data.live_chat.active_viewers)} personas activas`
-                : 'Conversaciones y participacion del periodo'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {channelRows.length ? (
-              channelRows.map((item, index) => (
-                <BreakdownRow key={item.id || item.key || index} item={item} />
-              ))
-            ) : (
-              <ViewState status="empty" description="Sin actividad de canales para este periodo." className="min-h-[120px]" />
-            )}
-          </CardContent>
-        </Card>
-      ) : null}
+    <div className="space-y-4">
+      <SurveyLiveControlRoom data={data} />
+      <div className="grid gap-4 lg:grid-cols-2">
+        {surveyRows.length ? (
+          <BreakdownCard title={resolveLabel(data, 'surveys', 'Encuestas y votaciones')} items={surveyRows} />
+        ) : null}
+        {channelRows.length || data.live_chat?.active_viewers !== undefined ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">{resolveLabel(data, 'channels', 'Canales y live chat')}</CardTitle>
+              <CardDescription>
+                {data.live_chat?.active_viewers !== undefined
+                  ? `${formatNumber(data.live_chat.active_viewers)} personas activas`
+                  : 'Conversaciones y participacion del periodo'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {channelRows.length ? (
+                channelRows.map((item, index) => (
+                  <BreakdownRow key={item.id || item.key || index} item={item} />
+                ))
+              ) : (
+                <ViewState status="empty" description="Sin actividad de canales para este periodo." className="min-h-[120px]" />
+              )}
+            </CardContent>
+          </Card>
+        ) : null}
+      </div>
     </div>
   );
 }

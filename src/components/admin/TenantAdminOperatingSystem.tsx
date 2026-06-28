@@ -20,10 +20,14 @@ import {
 } from "lucide-react";
 
 import {
+  getTenantOpsQaPlaybookV2,
   getTenantAdminExperienceV2,
   normalizeOmnichannelInboxItemV2,
+  runTenantOpsQaCheckV2,
   type OmnichannelInboxItem,
   type TenantAdminExperienceV2,
+  type TenantOpsQaExecutionV2,
+  type TenantOpsQaPlaybookV2,
 } from "@/api/v2/saas";
 import CatalogQualityCommandCenter from "@/components/admin/CatalogQualityCommandCenter";
 import EmployeeRoutingMatrix from "@/components/admin/EmployeeRoutingMatrix";
@@ -189,6 +193,10 @@ export default function TenantAdminOperatingSystem({ tenantSlug }: { tenantSlug?
   const { currentSlug } = useTenant();
   const effectiveSlug = tenantSlug || currentSlug;
   const [bundle, setBundle] = useState<TenantAdminExperienceV2 | null>(null);
+  const [opsQa, setOpsQa] = useState<TenantOpsQaPlaybookV2 | null>(null);
+  const [opsQaError, setOpsQaError] = useState<string | null>(null);
+  const [runningOpsQaCheck, setRunningOpsQaCheck] = useState<string | null>(null);
+  const [opsQaResults, setOpsQaResults] = useState<Record<string, TenantOpsQaExecutionV2>>({});
   const [activeModule, setActiveModule] = useState<string>("summary");
   const [selectedLead, setSelectedLead] = useState<AnyRecord | null>(null);
   const [loading, setLoading] = useState(true);
@@ -198,8 +206,21 @@ export default function TenantAdminOperatingSystem({ tenantSlug }: { tenantSlug?
     setLoading(true);
     setError(null);
     try {
-      const response = await getTenantAdminExperienceV2(effectiveSlug);
-      setBundle(response);
+      const [adminResult, qaResult] = await Promise.allSettled([
+        getTenantAdminExperienceV2(effectiveSlug),
+        getTenantOpsQaPlaybookV2(effectiveSlug),
+      ]);
+      if (adminResult.status === "rejected") {
+        throw adminResult.reason;
+      }
+      setBundle(adminResult.value);
+      if (qaResult.status === "fulfilled") {
+        setOpsQa(qaResult.value);
+        setOpsQaError(null);
+      } else {
+        setOpsQa(null);
+        setOpsQaError(cleanOperationalError(qaResult.reason));
+      }
     } catch (err) {
       setError(cleanOperationalError(err));
       setBundle(null);
@@ -212,6 +233,19 @@ export default function TenantAdminOperatingSystem({ tenantSlug }: { tenantSlug?
     loadBundle();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [effectiveSlug]);
+
+  const runOpsQaCheck = async (checkId: string) => {
+    setRunningOpsQaCheck(checkId);
+    try {
+      const result = await runTenantOpsQaCheckV2(effectiveSlug, checkId);
+      setOpsQaResults((current) => ({ ...current, [checkId]: result }));
+      setOpsQaError(null);
+    } catch (err) {
+      setOpsQaError(cleanOperationalError(err));
+    } finally {
+      setRunningOpsQaCheck(null);
+    }
+  };
 
   const tenant = bundle?.tenant ?? {};
   const profile = bundle?.profile ?? {};
@@ -341,6 +375,14 @@ export default function TenantAdminOperatingSystem({ tenantSlug }: { tenantSlug?
         <MetricCard label="Leads" value={formatNumber(first(leadCapture, ["open_leads", "total", "count"]) ?? leadItems.length)} icon={MessageSquare} />
         <MetricCard label="Sin imagen" value={formatNumber(first(marketplaceSummary, ["missing_images", "products_without_image", "missing"]))} icon={ImageOff} />
       </div>
+
+      <OpsQaCommandCenter
+        playbook={opsQa}
+        error={opsQaError}
+        results={opsQaResults}
+        runningCheckId={runningOpsQaCheck}
+        onRunCheck={runOpsQaCheck}
+      />
 
       <div className="grid gap-5 xl:grid-cols-[260px_minmax(0,1fr)]">
         <Card className="h-fit border-border/60">
@@ -623,6 +665,126 @@ const LeadDetailBlock = ({
     </div>
   </div>
 );
+
+const qaTone = (status?: string | null, ok?: boolean): "ready" | "warning" | "danger" | "neutral" => {
+  const normalized = String(status || "").toLowerCase();
+  if (ok || normalized === "pass" || normalized === "ready") return "ready";
+  if (["fail", "critical", "blocked", "danger"].includes(normalized)) return "danger";
+  if (["warning", "degraded"].includes(normalized)) return "warning";
+  return "neutral";
+};
+
+const OpsQaCommandCenter = ({
+  playbook,
+  error,
+  results,
+  runningCheckId,
+  onRunCheck,
+}: {
+  playbook: TenantOpsQaPlaybookV2 | null;
+  error: string | null;
+  results: Record<string, TenantOpsQaExecutionV2>;
+  runningCheckId: string | null;
+  onRunCheck: (checkId: string) => void;
+}) => {
+  if (!playbook && !error) return null;
+
+  const summary = playbook?.summary ?? {};
+  const checks = playbook?.checks ?? [];
+  const critical = checks.filter((check) => !check.ok && String(check.severity || "").toLowerCase() === "critical");
+  const visibleChecks = [...critical, ...checks.filter((check) => !critical.some((item) => item.id === check.id))].slice(0, 8);
+
+  return (
+    <section className="rounded-[28px] border border-border/60 bg-background/90 p-5 shadow-sm">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+              <ShieldCheck className="h-5 w-5" />
+            </span>
+            <div>
+              <h2 className="text-lg font-black tracking-tight">QA operativo del tenant</h2>
+              <p className="text-sm text-muted-foreground">
+                Validacion segura de WhatsApp, widget, reclamos, pedidos, encuestas, mapas y ruteo.
+              </p>
+            </div>
+          </div>
+        </div>
+        {playbook ? (
+          <div className="flex flex-wrap gap-2">
+            <StatePill value={`Score ${formatScore(playbook.score)}`} tone={qaTone(playbook.status, playbook.status === "pass")} />
+            <StatePill value={String(playbook.status || "sin estado")} tone={qaTone(playbook.status, playbook.status === "pass")} />
+            <StatePill value={playbook.safe_by_default ? "Read-only" : "Revisar"} tone={playbook.safe_by_default ? "ready" : "warning"} />
+          </div>
+        ) : null}
+      </div>
+
+      {error ? (
+        <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          {error}
+        </div>
+      ) : null}
+
+      {playbook ? (
+        <>
+          <div className="mt-4 grid gap-3 md:grid-cols-4">
+            <MetricCard label="Checks" value={formatNumber(first(summary, ["checks_total", "total"]))} icon={CheckCircle2} />
+            <MetricCard label="Pasaron" value={formatNumber(first(summary, ["passed", "ok"]))} icon={ShieldCheck} />
+            <MetricCard label="Warnings" value={formatNumber(first(summary, ["warnings"]))} icon={AlertTriangle} />
+            <MetricCard label="Criticos" value={formatNumber(first(summary, ["critical_failed"]))} icon={AlertTriangle} />
+          </div>
+
+          <div className="mt-4 grid gap-3 xl:grid-cols-2">
+            {visibleChecks.map((check) => {
+              const result = results[check.id];
+              const isRunning = runningCheckId === check.id;
+              return (
+                <div key={check.id} className="rounded-[8px] border border-border/60 bg-background p-4">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="font-semibold text-foreground">{check.label}</h3>
+                        <StatePill value={check.status || (check.ok ? "pass" : "warning")} tone={qaTone(check.status, check.ok)} />
+                      </div>
+                      <p className="mt-1 break-all text-xs text-muted-foreground">
+                        {check.endpoint || check.next_action || check.id}
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={check.ok ? "outline" : "default"}
+                      disabled={Boolean(runningCheckId)}
+                      onClick={() => onRunCheck(check.id)}
+                    >
+                      {isRunning ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Activity className="mr-2 h-4 w-4" />}
+                      Probar
+                    </Button>
+                  </div>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    <ContractLine label="Accion" value={String(check.next_action || "continue")} />
+                    <ContractLine label="Modo" value="read_only" />
+                  </div>
+                  {result ? (
+                    <div className="mt-3 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-xs">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <StatePill value={result.status || (result.ok ? "pass" : "warning")} tone={qaTone(result.status, result.ok)} />
+                        <span className="font-semibold text-foreground">Resultado ejecutado</span>
+                      </div>
+                      <p className="mt-1 text-muted-foreground">
+                        {String(result.next_action || "Sin accion siguiente")} · Score {formatScore(result.playbook_score)}
+                      </p>
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        </>
+      ) : null}
+    </section>
+  );
+};
 
 const ModuleContractSummary = ({
   module,

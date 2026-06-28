@@ -122,6 +122,10 @@ const normalizeSupport = (payload: TrackingExperienceResponse | null) => {
   const ticket = isRecord(support?.ticket) ? support.ticket : {};
   const endpoints = isRecord(support?.endpoints) ? support.endpoints : {};
   const conversation = isRecord(support?.conversation) ? support.conversation : {};
+  const serviceWindow = isRecord(support?.service_window) ? support.service_window : {};
+  const webviewPolicy = isRecord(support?.webview_policy) ? support.webview_policy : {};
+  const adminSurface = isRecord(support?.admin_response_surface) ? support.admin_response_surface : {};
+  const polling = isRecord(support?.polling) ? support.polling : {};
   const messages = asArray(conversation.messages)
     .map((item, index) => {
       if (!isRecord(item)) return null;
@@ -144,7 +148,13 @@ const normalizeSupport = (payload: TrackingExperienceResponse | null) => {
     label: readText(availability, ["label"], "Mesa de ayuda"),
     description: readText(availability, ["description"], "Deja un mensaje asociado a este seguimiento."),
     liveAvailable: Boolean(liveChat.enabled && liveChat.available),
-    schedule: readText(liveChat, ["description"]) || (
+    acceptsMessages: serviceWindow.accepts_messages !== false,
+    offlineQueue: Boolean(serviceWindow.offline_queue_enabled),
+    stayInsideTracking: webviewPolicy.stay_inside_tracking !== false,
+    adminSurfaceLabel: readText(adminSurface, ["label"], "Inbox de reclamos"),
+    nextAction: readText(serviceWindow, ["next_action"], "queue_ticket_comment"),
+    pollingInterval: readText(polling, ["interval_ms"]),
+    schedule: readText(serviceWindow, ["schedule_label"]) || readText(liveChat, ["description"]) || (
       readText(liveChat, ["start_time"]) && readText(liveChat, ["end_time"])
         ? `${readText(liveChat, ["start_time"])} a ${readText(liveChat, ["end_time"])}`
         : ""
@@ -472,9 +482,54 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
                       <p className="mt-2 text-xs font-semibold text-foreground/75">Horario: {support.schedule}</p>
                     ) : null}
                   </div>
-                  <span className="inline-flex items-center rounded-full border border-border/70 px-3 py-1 text-xs font-semibold text-muted-foreground">
-                    Ticket #{support.ticketId || code}
-                  </span>
+                  <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                    <span className="inline-flex items-center rounded-full border border-border/70 px-3 py-1 text-xs font-semibold text-muted-foreground">
+                      Ticket #{support.ticketId || code}
+                    </span>
+                    <span
+                      className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold ${
+                        support.liveAvailable
+                          ? "bg-emerald-500/12 text-emerald-700"
+                          : "bg-amber-500/12 text-amber-700"
+                      }`}
+                    >
+                      {support.liveAvailable ? "En vivo" : "Offline"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mt-5 grid gap-3 md:grid-cols-3">
+                  <div className="rounded-[14px] border border-border/70 bg-muted/30 p-4">
+                    <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-[10px] bg-primary/10 text-primary">
+                      <ShieldCheck className="h-4 w-4" />
+                    </div>
+                    <p className="text-sm font-bold">Sin salir del seguimiento</p>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                      {support.stayInsideTracking
+                        ? "La conversacion queda dentro de este reclamo y mantiene el PIN seguro."
+                        : "Puede requerir una accion externa configurada por el tenant."}
+                    </p>
+                  </div>
+                  <div className="rounded-[14px] border border-border/70 bg-muted/30 p-4">
+                    <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-[10px] bg-primary/10 text-primary">
+                      {support.liveAvailable ? <Radio className="h-4 w-4" /> : <Clock3 className="h-4 w-4" />}
+                    </div>
+                    <p className="text-sm font-bold">{support.liveAvailable ? "Atencion inmediata" : "Cola offline activa"}</p>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                      {support.offlineQueue
+                        ? "El mensaje queda en la bandeja del reclamo para respuesta administrativa."
+                        : "Un operador puede tomar esta conversacion en tiempo real."}
+                    </p>
+                  </div>
+                  <div className="rounded-[14px] border border-border/70 bg-muted/30 p-4">
+                    <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-[10px] bg-primary/10 text-primary">
+                      <MessageCircle className="h-4 w-4" />
+                    </div>
+                    <p className="text-sm font-bold">{support.adminSurfaceLabel}</p>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                      El equipo responde desde el CRM del municipio, asociado a este ticket.
+                    </p>
+                  </div>
                 </div>
 
                 <div className="mt-5 space-y-3">
@@ -507,13 +562,14 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
                   <textarea
                     value={supportMessage}
                     onChange={(event) => setSupportMessage(event.target.value)}
-                    placeholder={support.liveAvailable ? "Escribi para hablar con la mesa de ayuda..." : "Deja una observacion para el equipo..."}
+                    placeholder={support.liveAvailable ? "Escribi para hablar con la mesa de ayuda..." : "Deja tu mensaje offline para este reclamo..."}
                     className="min-h-[96px] w-full resize-none bg-transparent p-2 text-sm outline-none placeholder:text-muted-foreground"
                     disabled={supportSending || !support.endpoint}
                   />
                   <div className="flex flex-col gap-2 border-t border-border/70 pt-3 sm:flex-row sm:items-center sm:justify-between">
                     <p className="text-xs text-muted-foreground">
                       {support.requiresPin ? "El PIN mantiene la conversacion asociada a este reclamo." : "Mensaje asociado al seguimiento."}
+                      {support.pollingInterval ? ` Actualizacion cada ${Number(support.pollingInterval) / 1000 || support.pollingInterval}s.` : ""}
                     </p>
                     <Button
                       onClick={handleSendSupportMessage}
@@ -521,7 +577,7 @@ export default function TrackingExperiencePage({ kind }: { kind: TrackingKind })
                       className="h-10 rounded-[8px] font-semibold"
                     >
                       {supportSending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-                      {support.liveAvailable ? "Enviar al vivo" : "Guardar mensaje"}
+                      {support.liveAvailable ? "Enviar al vivo" : "Guardar offline"}
                     </Button>
                   </div>
                 </div>

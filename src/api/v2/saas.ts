@@ -253,6 +253,51 @@ export interface TenantAdminExperienceV2 {
   raw: unknown;
 }
 
+export interface TenantOpsQaCheckV2 {
+  id: string;
+  label: string;
+  ok: boolean;
+  status?: string;
+  severity?: string;
+  endpoint?: string;
+  details: UnknownRecord;
+  next_action?: string;
+  raw?: unknown;
+}
+
+export interface TenantOpsQaPlaybookV2 {
+  contract_version?: string;
+  request_id?: string;
+  tenant: UnknownRecord;
+  safe_by_default?: boolean;
+  status?: string;
+  score?: number;
+  summary: UnknownRecord;
+  checks: TenantOpsQaCheckV2[];
+  recommended_next_actions: TenantOpsQaCheckV2[];
+  execution: UnknownRecord;
+  frontend_contract: UnknownRecord;
+  raw: unknown;
+}
+
+export interface TenantOpsQaExecutionV2 {
+  contract_version?: string;
+  request_id?: string;
+  tenant: UnknownRecord;
+  check_id?: string;
+  label?: string;
+  ok?: boolean;
+  status?: string;
+  severity?: string;
+  execution_mode?: string;
+  sends_real_message?: boolean;
+  details: UnknownRecord;
+  next_action?: string;
+  playbook_status?: string;
+  playbook_score?: number;
+  raw: unknown;
+}
+
 export interface WhatsappExperienceV2 {
   contract_version?: string;
   request_id?: string;
@@ -1192,6 +1237,84 @@ export const getTenantAdminExperienceV2 = async (tenantSlug?: string | null) => 
     });
   }
   return normalizeTenantAdminExperienceV2(response);
+};
+
+const normalizeTenantOpsQaCheckV2 = (value: unknown, index = 0): TenantOpsQaCheckV2 => {
+  const record = asRecord(value);
+  return {
+    id: asString(getFirst(record, ['id', 'check_id'])) || `check_${index + 1}`,
+    label: asString(getFirst(record, ['label', 'title', 'name'])) || `Check ${index + 1}`,
+    ok: asBoolean(record.ok),
+    status: asString(record.status),
+    severity: asString(record.severity),
+    endpoint: asString(record.endpoint),
+    details: asRecord(record.details),
+    next_action: asString(record.next_action),
+    raw: value,
+  };
+};
+
+export const normalizeTenantOpsQaPlaybookV2 = (response: unknown): TenantOpsQaPlaybookV2 => {
+  const source = getSource(response);
+  const record = asRecord(source);
+  return {
+    contract_version: asString(record.contract_version),
+    request_id: asString(record.request_id),
+    tenant: asRecord(record.tenant),
+    safe_by_default: asBoolean(record.safe_by_default),
+    status: asString(record.status),
+    score: asNumber(record.score) ?? undefined,
+    summary: asRecord(record.summary),
+    checks: asArray(record.checks).map((item, index) => normalizeTenantOpsQaCheckV2(item, index)),
+    recommended_next_actions: asArray(record.recommended_next_actions).map((item, index) =>
+      normalizeTenantOpsQaCheckV2(item, index),
+    ),
+    execution: asRecord(record.execution),
+    frontend_contract: asRecord(record.frontend_contract),
+    raw: response,
+  };
+};
+
+export const getTenantOpsQaPlaybookV2 = async (tenantSlug?: string | null) => {
+  const encoded = tenantSlug ? encodeURIComponent(tenantSlug) : null;
+  const response = await panelApi.get<unknown>(
+    encoded ? `/api/v2/tenants/${encoded}/ops-qa/playbook` : '/api/v2/tenant/ops-qa/playbook',
+    { tenantSlug, baseUrlOverride: SAME_ORIGIN_API_BASE, headers: { Accept: 'application/json' } },
+  );
+  return normalizeTenantOpsQaPlaybookV2(response);
+};
+
+export const normalizeTenantOpsQaExecutionV2 = (response: unknown): TenantOpsQaExecutionV2 => {
+  const source = getSource(response);
+  const record = asRecord(source);
+  return {
+    contract_version: asString(record.contract_version),
+    request_id: asString(record.request_id),
+    tenant: asRecord(record.tenant),
+    check_id: asString(record.check_id),
+    label: asString(record.label),
+    ok: asBoolean(record.ok),
+    status: asString(record.status),
+    severity: asString(record.severity),
+    execution_mode: asString(record.execution_mode),
+    sends_real_message: asBoolean(record.sends_real_message),
+    details: asRecord(record.details),
+    next_action: asString(record.next_action),
+    playbook_status: asString(record.playbook_status),
+    playbook_score: asNumber(record.playbook_score) ?? undefined,
+    raw: response,
+  };
+};
+
+export const runTenantOpsQaCheckV2 = async (tenantSlug: string | null | undefined, checkId: string) => {
+  const encoded = tenantSlug ? encodeURIComponent(tenantSlug) : null;
+  const encodedCheck = encodeURIComponent(checkId);
+  const response = await panelApi.post<unknown>(
+    encoded ? `/api/v2/tenants/${encoded}/ops-qa/check/${encodedCheck}` : `/api/v2/tenant/ops-qa/check/${encodedCheck}`,
+    {},
+    { tenantSlug, baseUrlOverride: SAME_ORIGIN_API_BASE, headers: { Accept: 'application/json' } },
+  );
+  return normalizeTenantOpsQaExecutionV2(response);
 };
 
 export const normalizeWhatsappExperienceV2 = (response: unknown): WhatsappExperienceV2 => {

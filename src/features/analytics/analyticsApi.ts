@@ -258,6 +258,7 @@ const normalizeFrontendContract = (value: unknown): OperationsFrontendContract |
 
 const normalizeBreakdowns = (value: unknown) => {
   const record = pickRecord(value) ?? {};
+  const liveControlRoom = pickRecord(record.live_control_room);
   return {
     ...record,
     summary: pickRecord(record.summary),
@@ -266,6 +267,16 @@ const normalizeBreakdowns = (value: unknown) => {
     by_channel: normalizeBucketItems(record.by_channel),
     by_category: normalizeBucketItems(record.by_category),
     by_priority: normalizeBucketItems(record.by_priority),
+    live_control_room: liveControlRoom
+      ? {
+          ...liveControlRoom,
+          summary: pickRecord(liveControlRoom.summary),
+          monitors: normalizeBucketItems(liveControlRoom.monitors),
+          actions: normalizeActions(liveControlRoom.actions),
+          realtime: pickRecord(liveControlRoom.realtime),
+          frontend_contract: pickRecord(liveControlRoom.frontend_contract),
+        }
+      : undefined,
   };
 };
 
